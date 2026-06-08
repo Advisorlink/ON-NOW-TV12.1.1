@@ -211,10 +211,37 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v3
+      - name: Cache Gradle 8.7 distribution
+        id: cache-gradle
+        uses: actions/cache@v4
         with:
-          gradle-version: '8.7'
+          path: ~/gradle-8.7
+          key: gradle-dist-8.7-v1
+
+      - name: Install Gradle 8.7 (with retries)
+        shell: bash
+        run: |
+          # v2.10.6 — Previously used gradle/actions/setup-gradle@v3
+          # which sporadically failed with "Error: Unexpected HTTP
+          # response: 504" while downloading the Gradle
+          # distribution.  The action has no retry knob, so we
+          # install Gradle 8.7 manually with curl --retry 6
+          # --retry-all-errors so transient 5xx errors on
+          # services.gradle.org are automatically retried.  Cached
+          # via actions/cache so subsequent runs skip the download
+          # entirely.
+          set -euo pipefail
+          GRADLE_DIR="$HOME/gradle-8.7"
+          if [ ! -x "$GRADLE_DIR/bin/gradle" ]; then
+            cd "$HOME"
+            curl -fL --retry 6 --retry-delay 10 --retry-all-errors \
+              -o gradle.zip \
+              "https://services.gradle.org/distributions/gradle-8.7-bin.zip"
+            unzip -q gradle.zip
+            rm gradle.zip
+          fi
+          echo "$GRADLE_DIR/bin" >> "$GITHUB_PATH"
+          "$GRADLE_DIR/bin/gradle" --version
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3.2.2

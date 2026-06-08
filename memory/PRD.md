@@ -58,6 +58,42 @@
 > 6. **Hero in Kids is HD** — new `lib/img.js heroBackdrop()` helper.  Regular `backdrop()` downscales w1280 → w500 on Android (great for tiny shelf cards, muddy for full-bleed hero).  `heroBackdrop()` keeps w780 on Android (1.5× pixels) for splash-grade clarity.  KidsHome passes `<HeroBillboard heroes={heroes} hiRes />`; the prop is opt-in so regular Home is unchanged.
 
 
+> **🟢 v2.10.6 — CI workflow hardening (Feb 7 2026).**
+>
+> User reported two CI build failures:
+> 1. **Kids** — `Set up Gradle` step failed with `Error: Unexpected HTTP response: 504` (flaky `services.gradle.org` CDN).
+> 2. **FTA** — `./gradlew: No such file or directory` (exit 127) even though the Bootstrap step was green.
+>
+> Root causes:
+> - `gradle/actions/setup-gradle@v3` (Kids, build-apk, build-launcher) has no retry knob for the underlying CDN call.
+> - `gradle wrapper --gradle-version 8.7 || true` (FTA, FTA-native, LiveTV, Tunes) silently swallowed the failure whenever `gradle` wasn't on PATH, producing no `gradlew` file.
+>
+> Fix applied uniformly across all 7 Android build workflows:
+> ```yaml
+> - name: Cache Gradle 8.7 distribution
+>   uses: actions/cache@v4
+>   with:
+>     path: ~/gradle-8.7
+>     key: gradle-dist-8.7-v1
+>
+> - name: Install Gradle 8.7 (with retries)
+>   run: |
+>     set -euo pipefail
+>     GRADLE_DIR="$HOME/gradle-8.7"
+>     if [ ! -x "$GRADLE_DIR/bin/gradle" ]; then
+>       cd "$HOME"
+>       curl -fL --retry 6 --retry-delay 10 --retry-all-errors \
+>         -o gradle.zip \
+>         "https://services.gradle.org/distributions/gradle-8.7-bin.zip"
+>       unzip -q gradle.zip
+>       rm gradle.zip
+>     fi
+>     echo "$GRADLE_DIR/bin" >> "$GITHUB_PATH"
+>     "$GRADLE_DIR/bin/gradle" --version
+> ```
+> Plus dropped every `|| true` swallow in the gradle-wrapper bootstrap steps so they fail loudly instead of silently green-ticking.  All 12 workflow YAMLs validated parse-clean.
+
+
 > **🟢 v2.10.3 — Player overlay shrunk + EPG description now reads from same cache as EPG page (Feb 7 2026).**
 >
 > User complaint after v2.10.2: "WAY too big, takes up half the screen — and the synopsis + Up Next aren't showing, even though the EPG page shows the correct description."

@@ -34,6 +34,35 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Cache Gradle 8.7 distribution
+        id: cache-gradle
+        uses: actions/cache@v4
+        with:
+          path: ~/gradle-8.7
+          key: gradle-dist-8.7-v1
+
+      - name: Install Gradle 8.7 (with retries)
+        shell: bash
+        run: |
+          # v2.10.6 — Install Gradle 8.7 manually so `gradle wrapper`
+          # below can find it on PATH.  Previously the step ran
+          # `gradle wrapper ... || true` with no gradle installed,
+          # silently producing no gradlew and breaking the build.
+          # curl --retry 6 --retry-all-errors absorbs transient
+          # 5xx errors on services.gradle.org.
+          set -euo pipefail
+          GRADLE_DIR="$HOME/gradle-8.7"
+          if [ ! -x "$GRADLE_DIR/bin/gradle" ]; then
+            cd "$HOME"
+            curl -fL --retry 6 --retry-delay 10 --retry-all-errors \
+              -o gradle.zip \
+              "https://services.gradle.org/distributions/gradle-8.7-bin.zip"
+            unzip -q gradle.zip
+            rm gradle.zip
+          fi
+          echo "$GRADLE_DIR/bin" >> "$GITHUB_PATH"
+          "$GRADLE_DIR/bin/gradle" --version
+
       - name: Derive versionCode + versionName
         id: version
         shell: bash
@@ -73,9 +102,16 @@ jobs:
         run: |
           set -euo pipefail
           if [ ! -f gradlew ]; then
-            gradle wrapper --gradle-version 8.7 || true
+            # v2.10.6 — drop the `|| true` swallow: if `gradle
+            # wrapper` cannot run we want the step to fail loudly
+            # here rather than silently green-tick and have the
+            # next step die with ./gradlew: No such file or
+            # directory (exit 127).
+            gradle wrapper --gradle-version 8.7
           fi
-          chmod +x ./gradlew || true
+          chmod +x ./gradlew
+          ls -la gradlew
+          ./gradlew --version
 
       - name: Build debug + release APKs
         working-directory: android/onnowtv-fta
