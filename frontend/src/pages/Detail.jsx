@@ -835,10 +835,23 @@ export default function Detail() {
         );
     }, [streams, type, partyCode, autoplayCandidate]);
 
+    // v2.10.5 — User wants the Autoplay button to be instantly
+    // clickable while it's the focused/glowing CTA, even before
+    // streams have finished loading.  If clicked while loading, we
+    // queue the intent and fire as soon as a candidate arrives.
+    const [pendingAutoplay, setPendingAutoplay] = useState(false);
+
     // Manual trigger for the on-page Play button.
     const triggerAutoplay = () => {
         if (autoplayCandidate) {
+            setPendingAutoplay(false);
             playStream(autoplayCandidate);
+            return;
+        }
+        if (streamLoading) {
+            // Streams still loading — remember the intent and
+            // play instantly when the candidate resolves.
+            setPendingAutoplay(true);
             return;
         }
         /* v2.6.87 — if there's no candidate it means streams loading
@@ -851,6 +864,17 @@ export default function Detail() {
             setShowUnavailableModal(true);
         }
     };
+
+    // Watch for the candidate to arrive while a pending click is
+    // outstanding, then auto-fire so the user gets the instant feel
+    // they asked for.
+    useEffect(() => {
+        if (pendingAutoplay && autoplayCandidate) {
+            setPendingAutoplay(false);
+            playStream(autoplayCandidate);
+        }
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+    }, [pendingAutoplay, autoplayCandidate]);
 
     const [showUnavailableModal, setShowUnavailableModal] = useState(false);
 
@@ -1906,29 +1930,24 @@ export default function Detail() {
                                 data-initial-focus="true"
                                 tabIndex={0}
                                 onClick={triggerAutoplay}
-                                disabled={streamLoading}
                                 className="vesper-pulse-cta flex items-center gap-2.5 rounded-full font-sans font-semibold"
                                 style={{
                                     height: 'clamp(50px, 4vw, 60px)',
                                     paddingLeft: 'clamp(24px, 1.8vw, 32px)',
                                     paddingRight: 'clamp(28px, 2.2vw, 38px)',
                                     fontSize: 'clamp(15px, 1.15vw, 18px)',
-                                    background: streamLoading
-                                        ? 'rgba(255,255,255,0.10)'
-                                        : 'var(--vesper-blue)',
-                                    color: streamLoading
-                                        ? 'var(--vesper-text-2)'
-                                        : 'var(--vesper-bg-0)',
-                                    opacity: streamLoading ? 0.7 : 1,
+                                    background: 'var(--vesper-blue)',
+                                    color: 'var(--vesper-bg-0)',
+                                    opacity: 1,
                                 }}
                             >
-                                {streamLoading ? (
+                                {(streamLoading || pendingAutoplay) ? (
                                     <>
                                         <Loader2
                                             className="vesper-spin"
                                             size={18}
                                         />
-                                        Finding stream…
+                                        {pendingAutoplay ? 'Starting…' : 'Autoplay'}
                                     </>
                                 ) : autoplayCandidate ? (
                                     <>

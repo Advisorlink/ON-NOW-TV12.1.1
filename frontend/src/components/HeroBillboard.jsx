@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import * as img from '@/lib/img';
 import Host from '@/lib/host';
 
-export default function HeroBillboard({ heroes }) {
+export default function HeroBillboard({ heroes, hiRes = false }) {
     const list = Array.isArray(heroes) ? heroes : [];
     const [idx, setIdx] = useState(0);
     const hero = list[idx] || list[0];
@@ -90,7 +90,11 @@ export default function HeroBillboard({ heroes }) {
                                 : ''
                         }`}
                         style={{
-                            backgroundImage: `url(${img.backdrop(h.backdrop)})`,
+                            backgroundImage: `url(${
+                                hiRes
+                                    ? img.heroBackdrop(h.backdrop)
+                                    : img.backdrop(h.backdrop)
+                            })`,
                             /* v2.6.85 — user feedback: actor heads
                              * were getting cropped at the top of the
                              * hero.  Anchoring the background at 30 %

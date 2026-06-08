@@ -174,7 +174,7 @@ export default function KidsHome() {
                     className="absolute inset-0 flex flex-col"
                 >
                     <div className="shrink-0">
-                        <HeroBillboard heroes={heroes} />
+                        <HeroBillboard heroes={heroes} hiRes />
                     </div>
 
                 <div
