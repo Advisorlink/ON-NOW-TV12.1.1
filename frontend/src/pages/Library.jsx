@@ -1152,6 +1152,7 @@ function FavouriteCard({ item, type }) {
     return (
         <button
             data-testid={`favorite-${item.id}`}
+            data-tile-id={item.id}
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
@@ -1265,6 +1266,7 @@ function ActorCard({ actor }) {
     return (
         <button
             data-testid={`actor-${actor.id}`}
+            data-tile-id={actor.id}
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}

@@ -611,6 +611,15 @@ body.vesper-scrubbing [data-focus-style='nav'] {
     animation: vesperSpin 1s linear infinite;
 }
 
+/* v2.10.13 — Hoisted from BootSplash so the same neon sweep can
+   be reused on the Detail/Player loading screens without each
+   page having to repeat the keyframe block. */
+@keyframes vesper-splash-sweep {
+    0%   { background-position:  100% 0; opacity: 0.85; }
+    50%  { background-position:    0% 0; opacity: 1; }
+    100% { background-position: -100% 0; opacity: 0.85; }
+}
+
 /* v2.10.9 — Pulsing ellipsis used after the "Starting" label on
    the player preview.  The host element keeps its "…" glyph; we
    just fade its opacity to read as "alive" alongside the spinner. */

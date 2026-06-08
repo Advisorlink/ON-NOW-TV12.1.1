@@ -22,6 +22,28 @@
 > - Control button slot widened (icon 76 dp, label 11 sp w/ brighter #D6DDEC).
 
 
+> **🟢 v2.10.13 — Hero geometry redo + loading polish + Add-to-List focus restore (Feb 8 2026).**
+>
+> Three user-reported fixes on the Vesper V2 hybrid app:
+>
+> 1. **Hero image lowered, text/buttons/shelves stay put.**  v2.10.9 made the entire hero taller, which dragged the title, buttons AND the first shelf row down with it.  The new approach (`HeroBillboard.jsx`) keeps the section VISUALLY tall (`height: clamp(520px, 65vh, 720px)`) so the backdrop image still fills the top of the page generously, but adds:
+>    - `margin-bottom: clamp(-200px, -16vh, -140px)` — pulls the next shelf row back UP to the pre-v2.10.9 position so the user gets two full shelves visible at 1920×800 again.
+>    - `paddingBottom: clamp(160px, 14vh, 210px)` on the inner text/buttons column — anchors the CTAs to where they used to sit (Y ≈ 65 % of viewport) instead of slamming into the section's new physical bottom.
+>    - Slide-dots `bottom: clamp(150px, 13vh, 200px)` so the pagination doesn't get covered by the shelf overlap.
+>    - Bottom scrim fade brought forward (60 %→90 % to var(--vesper-bg-0)) so the area where shelves overlap the image is solid black, no bleed.
+>
+> 2. **Loading-state visibly animated.**  User report: tapping a TV title showed a "Loading" label that looked static.  The Detail page's `loading=true` branch (`Detail.jsx`) is now a three-source motion stack:
+>    - 88px `<SpinningLogo>` (was 56px) rotating at 900ms
+>    - "LOADING TITLE" eyebrow with the `.vesper-dots` ellipsis pulse
+>    - A 180-280px sweeping cyan bar via the (now-hoisted) `vesper-splash-sweep` keyframe block in `index.css` so the bar reuses BootSplash's motion across the app.
+>
+> 3. **AddToListModal focus restore actually returns to the originating tile.**  Root cause: the modal's `focusin` capture-phase trap was rubber-banding focus back to the confirm button the instant `close()` tried to `tile.focus()` — the listener cleanup runs AFTER `setPayload(null)` flushes, so during the restore window the trap was still live.  Fix (`AddToListModal.jsx`):
+>    - Added a synchronous `closingRef` flag — flipped at the very top of `close()` and re-read by the focusin trap to short-circuit while we're restoring.
+>    - Restore loop now retries across 8 animation frames so it catches the new tile node as soon as React commits the post-mutation re-render (My-List add etc.).
+>    - Added `data-tile-id` to `pages/Library.jsx` Favorite + Actor tiles (existing PosterTile/CastRow/NetworkPosterTile already had it) so the cross-reference lookup never misses.
+
+
+
 > **🟢 v2.10.11 — Music App overhaul COMPLETE (Feb 8 2026).**
 >
 > All P0 Music App items shipped & verified via screenshots:
