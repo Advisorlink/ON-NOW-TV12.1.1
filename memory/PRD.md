@@ -41,6 +41,23 @@
 > - Stronger focus glow on pills: `[data-focus-style='pill'][data-focused='true']` now lays a 2 px ring + a 22/44 px soft glow in `var(--vesper-blue-bright)` for unmistakable focus signaling on a TV.
 
 
+> **🟢 v2.10.5 — Kids polish + Detail page instant-click + profile nav fix (Feb 7 2026).**
+>
+> Six concrete bugs/asks the user raised after seeing v2.10.4 on a TV:
+>
+> 1. **Autoplay button now responds instantly while focused** — removed the `disabled={streamLoading}` blocker.  Added `pendingAutoplay` state that queues the click intent when streams are still loading; a `useEffect` fires `playStream(autoplayCandidate)` the moment the candidate arrives.  Caption flips between "Autoplay" → "Starting…" so the user gets immediate feedback without losing focus.
+>
+> 2. **Profile icon → ProfileSelect** — SideNav was navigating to `/profile` (singular, 404'd silently).  Fixed to `/profiles` which renders the existing "Who's ready to watch?" picker.
+>
+> 3. **Notifications silenced in Kids** — `GlobalChrome` now returns just `<DevModeBadge/>` when `isKidsActive()`, suppressing `NewEpisodeToast`, `AddToListModal`, `ReminderWatcher`, `NotifyHitWatcher`, `FeatureNudge` for the entire Kids session.
+>
+> 4. **Kids content loads quicker** — `ProfileSelect` now warms the backend cache on mount: fires `keepalive` GETs to `/tmdb/kids/shelves` and `/tmdb/kids/heroes` for the active rating tier.  By the time the user clicks the Kids tile (~1-3 s later), the backend's 6-hour cache is already hot and `useKidsShelves` resolves nearly instantly.  Fire-and-forget — no UI block.
+>
+> 5. **PIN only when leaving sandbox / entering settings** — `useKidsBackGuard` rewritten.  Was pushing a sentinel on every Kids page mount, so Detail → back → KidsHome triggered the PIN gate.  Now only pushes a sentinel at the kids root (`/`) and uses a post-popstate path check against `BLOCKED_PREFIXES` (`/settings`, `/sources`, `/watch-together`, `/admin`, `/music`, `/profiles*`).  Within-sandbox back navigation is allowed; trying to escape to a blocked prefix re-pushes the sentinel + routes to `/kids/exit-pin`.
+>
+> 6. **Hero in Kids is HD** — new `lib/img.js heroBackdrop()` helper.  Regular `backdrop()` downscales w1280 → w500 on Android (great for tiny shelf cards, muddy for full-bleed hero).  `heroBackdrop()` keeps w780 on Android (1.5× pixels) for splash-grade clarity.  KidsHome passes `<HeroBillboard heroes={heroes} hiRes />`; the prop is opt-in so regular Home is unchanged.
+
+
 > **🟢 v2.10.3 — Player overlay shrunk + EPG description now reads from same cache as EPG page (Feb 7 2026).**
 >
 > User complaint after v2.10.2: "WAY too big, takes up half the screen — and the synopsis + Up Next aren't showing, even though the EPG page shows the correct description."

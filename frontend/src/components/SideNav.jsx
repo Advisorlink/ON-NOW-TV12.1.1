@@ -129,7 +129,9 @@ export default function SideNav() {
         ) {
             document.activeElement.blur();
         }
-        navigate('/profile');
+        // v2.10.5 — Correct route is /profiles (the ProfileSelect
+        // screen).  Was /profile (singular) which 404'd silently.
+        navigate('/profiles');
     };
 
     const isExpanded = expanded && !navigatingAway;

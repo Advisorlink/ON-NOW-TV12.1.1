@@ -540,6 +540,14 @@ function VesperOnlyChrome() {
     // it feel like one half-broken app instead of two clean ones.
     const location = useLocation();
     if (location.pathname.startsWith('/music')) return null;
+    // v2.10.5 — Suppress all notifications + nudges while a Kids
+    // profile is active.  Kids should never see "new episode of
+    // The Boys is out" toasts, addon hit alerts, or growth-style
+    // feature nudges.  ReminderWatcher (calendar EPG reminders)
+    // also gets silenced to keep the experience distraction-free.
+    if (isKidsActive()) {
+        return <DevModeBadge />;
+    }
     return (
         <>
             <DevModeBadge />

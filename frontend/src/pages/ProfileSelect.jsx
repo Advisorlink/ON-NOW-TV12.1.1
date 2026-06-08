@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Pencil, Lock, Download } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
@@ -8,9 +8,11 @@ import {
     removeProfile,
     profileHasPin,
     checkProfilePin,
+    getKidsConfig,
 } from '@/lib/profiles';
 import { AvatarCircle } from '@/lib/avatars';
 import PinGate from '@/components/PinGate';
+import { API } from '@/lib/api';
 
 /**
  * Netflix-style "Who's watching?" profile picker.  Shown on every
@@ -35,6 +37,27 @@ export default function ProfileSelect() {
     const [deletePinTarget, setDeletePinTarget] = useState(null);
     const [deletePinError, setDeletePinError] = useState('');
     const [deletePinReset, setDeletePinReset] = useState(0);
+
+    // v2.10.5 — Warm the Kids backend cache while the user is
+    // choosing their profile.  Both the kids shelves and heroes
+    // endpoints are slow on cold cache (24-36 parallel TMDB calls
+    // each).  Firing the fetch here means by the time the user
+    // clicks a kids tile, the backend's 6-hour cache is already
+    // hot and KidsHome renders almost instantly.  Fire-and-forget
+    // — no need to wait for the response.
+    useEffect(() => {
+        try {
+            const cfg = getKidsConfig();
+            const q = new URLSearchParams({
+                movie_cert: cfg.maxRatingMovie,
+                tv_level: cfg.maxRatingSeries,
+            }).toString();
+            // Use `keepalive` so the request survives even if
+            // the user clicks fast and the page begins unmounting.
+            fetch(`${API}/tmdb/kids/shelves?${q}`, { keepalive: true }).catch(() => {});
+            fetch(`${API}/tmdb/kids/heroes?${q}`, { keepalive: true }).catch(() => {});
+        } catch { /* ignore */ }
+    }, []);
 
     const activate = (id) => {
         setActiveProfile(id);
