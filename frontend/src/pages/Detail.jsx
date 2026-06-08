@@ -1620,10 +1620,45 @@ export default function Detail() {
     if (loading) {
         return (
             <CenterMsg>
-                <SpinningLogo size={56} />
-                <div style={{ marginTop: 18, color: 'var(--vesper-text-2)' }}>
-                    Loading metadata…
+                {/* v2.10.13 — User reported the previous tiny
+                    "Loading…" message read as static when a TV
+                    title is being opened.  Beefed up with:
+                      • A much larger spinning brand mark (88px)
+                      • A pulsing/cycling "Loading …" label that
+                        clearly reads as live via .vesper-dots
+                      • A sweeping cyan progress bar BENEATH the
+                        label so even if the rotation reads as
+                        subtle on a low-frame WebView, the bar
+                        sweep is unmistakable. */}
+                <SpinningLogo size={88} speedMs={900} />
+                <div
+                    className="vesper-mono"
+                    style={{
+                        marginTop: 22,
+                        fontSize: 13,
+                        letterSpacing: '0.34em',
+                        textTransform: 'uppercase',
+                        color: 'rgba(255,255,255,0.72)',
+                    }}
+                >
+                    Loading title
+                    <span className="vesper-dots" aria-hidden="true">…</span>
                 </div>
+                <div
+                    aria-hidden="true"
+                    style={{
+                        marginTop: 14,
+                        width: 'clamp(180px, 18vw, 280px)',
+                        height: 2,
+                        background:
+                            'linear-gradient(90deg, transparent 0%, rgba(93,200,255,0.85) 50%, transparent 100%)',
+                        backgroundSize: '200% 100%',
+                        animation:
+                            'vesper-splash-sweep 1.6s ease-in-out infinite',
+                        borderRadius: 999,
+                        boxShadow: '0 0 12px rgba(93,200,255,0.45)',
+                    }}
+                />
             </CenterMsg>
         );
     }
