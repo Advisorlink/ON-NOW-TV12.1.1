@@ -152,34 +152,76 @@ export default function Search() {
         }
     };
 
+    // v2.10.7 — Tiny LRU of recent queries so re-searching the
+    // same term (a common pattern when the user pages back to the
+    // search screen) is instant.
+    const cacheRef = useRef(new Map());
+
     const doSearch = async (raw) => {
         const query = (raw ?? q).trim();
         if (query.length < 2) return;
         setBusy(true);
         setSearched(true);
         setLastQuery(query);
-        let out;
+        const cacheKey = `${kids ? 'kids' : 'main'}:${query.toLowerCase()}`;
+        const cached = cacheRef.current.get(cacheKey);
+        if (cached) {
+            setResults(cached);
+            setBusy(false);
+            return;
+        }
         if (kids) {
-            out = await doKidSearch(query);
-        } else {
-            const [media, people] = await Promise.all([
-                doAddonSearch(query),
-                doPersonSearch(query),
-            ]);
-            /* Put people FIRST when the query looks like a name
-               (capitalised, ≥2 words, or matches an exact actor
-               name): better discovery for "Search actors".  When
-               the query is clearly a title we leave people right
-               after a couple of media matches. */
+            const out = await doKidSearch(query);
+            setResults(out);
+            cacheRef.current.set(cacheKey, out);
+            // Cap the LRU at 16 entries so it doesn't grow forever.
+            if (cacheRef.current.size > 16) {
+                const firstKey = cacheRef.current.keys().next().value;
+                cacheRef.current.delete(firstKey);
+            }
+            setBusy(false);
+            return;
+        }
+        // v2.10.7 — Adult search: render addon (movie/TV) hits the
+        // moment they arrive instead of blocking on the slower
+        // TMDB-backed people lookup.  People merge in when they
+        // finish.  Felt like the search "thought for a second" on
+        // every query because the slower of the two was always
+        // gating render.  This makes media results pop up almost
+        // immediately while the actor list trickles in.
+        let mediaDone = false;
+        let peopleDone = false;
+        let media = [];
+        let people = [];
+        const flush = () => {
             const looksLikeName =
                 /^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+$/.test(query) ||
                 people.some(
                     (p) => p.title?.toLowerCase() === query.toLowerCase()
                 );
-            out = looksLikeName ? [...people, ...media] : [...media, ...people];
-        }
-        setResults(out);
-        setBusy(false);
+            const out = looksLikeName
+                ? [...people, ...media]
+                : [...media, ...people];
+            setResults(out);
+            if (mediaDone && peopleDone) {
+                cacheRef.current.set(cacheKey, out);
+                if (cacheRef.current.size > 16) {
+                    const firstKey = cacheRef.current.keys().next().value;
+                    cacheRef.current.delete(firstKey);
+                }
+                setBusy(false);
+            }
+        };
+        doAddonSearch(query).then((r) => {
+            media = r;
+            mediaDone = true;
+            flush();
+        });
+        doPersonSearch(query).then((r) => {
+            people = r;
+            peopleDone = true;
+            flush();
+        });
     };
 
     const onInputKeyDown = (e) => {

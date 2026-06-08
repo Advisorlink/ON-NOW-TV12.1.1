@@ -235,12 +235,42 @@ export default function AddToListModal() {
         setTimeout(() => {
             setPayload(null);
             setClosing(false);
-            // Return focus to whatever was focused before the modal
-            // opened (Android WebView doesn't always do this on its own).
-            const f = lastFocusedRef.current;
-            if (f && typeof f.focus === 'function') {
-                try { f.focus({ preventScroll: true }); } catch { /* ignore */ }
+            // v2.10.7 — Robust focus restore.  The original element
+            // ref can be stale by the time we close (e.g. the
+            // Continue Watching shelf re-renders after an add /
+            // remove, detaching the old DOM node).  Try the saved
+            // ref first; if it's no longer in the document, look
+            // up an equivalent tile by `data-cw-id` / `data-tile-id`
+            // matching the modal's payload.id.  Last-ditch fallback:
+            // the first focusable inside the same parent rail.
+            const restore = (el) => {
+                if (!el || typeof el.focus !== 'function') return false;
+                if (!document.contains(el)) return false;
+                try { el.focus({ preventScroll: true }); return true; }
+                catch { return false; }
+            };
+            const saved = lastFocusedRef.current;
+            if (restore(saved)) return;
+            const pid = payload?.id;
+            if (pid) {
+                const selectors = [
+                    `[data-cw-id="${pid}"]`,
+                    `[data-tile-id="${pid}"]`,
+                    `[data-testid="cw-tile-${pid}"]`,
+                    `[data-testid$="-tile-${pid}"]`,
+                    `[data-testid$="-${pid}"][data-focusable="true"]`,
+                ];
+                for (const sel of selectors) {
+                    const found = document.querySelector(sel);
+                    if (restore(found)) return;
+                }
             }
+            // Final fallback: focus the first focusable element on
+            // screen so the user isn't stranded in keyboard limbo.
+            const first = document.querySelector(
+                '[data-focusable="true"]:not([disabled])'
+            );
+            restore(first);
         }, 200);
     };
 

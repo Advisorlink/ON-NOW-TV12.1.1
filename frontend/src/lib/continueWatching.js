@@ -117,14 +117,32 @@ export function getEntry(id) {
 export function upsert(partial) {
     if (!partial?.id) return;
     const list = readAll();
-    const i = list.findIndex((e) => e.id === partial.id);
     const now = Date.now();
-    const next = i >= 0
-        ? { ...list[i], ...partial, updatedAt: now }
+    // v2.10.7 — User requirement: only ONE Continue Watching entry
+    // per TV show, never duplicates.  Movies still dedupe by `id`
+    // (one row per movie), but series dedupe by `seriesId` so the
+    // shelf only ever shows the latest episode the user touched
+    // for any given show.  When a new episode is upserted we
+    // delete every entry sharing the same seriesId before adding
+    // the new one.
+    const dedupeKey = partial.type === 'series' && partial.seriesId
+        ? (e) => e.seriesId === partial.seriesId
+        : (e) => e.id === partial.id;
+    const existingIdx = list.findIndex(dedupeKey);
+    const next = existingIdx >= 0
+        ? { ...list[existingIdx], ...partial, updatedAt: now }
         : { positionMs: 0, durationMs: 0, ...partial, updatedAt: now };
-    if (i >= 0) list[i] = next;
-    else list.unshift(next);
-    writeAll(list);
+    // If we're replacing a series entry, drop ALL older entries
+    // matching the same seriesId — covers the (rare) case where a
+    // prior upsert wrote multiple rows before this dedupe rule
+    // landed, so existing installs are tidied up on next watch.
+    let filtered = list.filter((e, i) => i === existingIdx || !dedupeKey(e));
+    if (existingIdx >= 0) {
+        filtered[filtered.findIndex(dedupeKey)] = next;
+    } else {
+        filtered.unshift(next);
+    }
+    writeAll(filtered);
     markWatchedIfDone(next.id, next.positionMs, next.durationMs);
 }
 
@@ -182,15 +200,53 @@ export function syncFromNative() {
 }
 
 /**
- * Mark an item as completed (positionMs near durationMs).  We remove
- * it from the list to keep the shelf tidy.
+ * Mark an item as completed (positionMs near durationMs).
+ *
+ * v2.10.7 — Behaviour now differs by type:
+ *   • Movies: remove from the shelf as before.
+ *   • Series: instead of removing, ADVANCE the entry to the next
+ *     episode in the same season.  positionMs / durationMs are
+ *     reset to 0 so the shelf renders the new episode as "fresh".
+ *     The `id` field is rewritten to the next episode's composite
+ *     (`imdbId:season:episode+1`) so the shelf's resume click
+ *     navigates straight to the right episode.  Auto-advance only
+ *     attempts +1 within the same season; if the season ends, the
+ *     Detail page handles cross-season jumping when the user clicks
+ *     resume.
  */
 export function maybeMarkCompleted(id, positionMs, durationMs) {
     if (!durationMs || !positionMs) return;
-    // Within the last 30 seconds — count as done.
-    if (durationMs - positionMs < 30_000) {
-        remove(id);
+    if (durationMs - positionMs >= 30_000) return;
+    const list = readAll();
+    const i = list.findIndex((e) => e.id === id);
+    if (i < 0) return;
+    const entry = list[i];
+    if (entry.type === 'series' && entry.seriesId && entry.episode) {
+        const nextEp = (Number(entry.episode) || 0) + 1;
+        const season = Number(entry.season) || 1;
+        const nextId = `${entry.seriesId}:${season}:${nextEp}`;
+        list[i] = {
+            ...entry,
+            id: nextId,
+            episode: nextEp,
+            season,
+            positionMs: 0,
+            durationMs: 0,
+            // Clear the cached stream URL — it's stale for the
+            // new episode.  Detail page will resolve the next
+            // episode's stream on resume click.
+            streamUrl: '',
+            subtitleUrl: '',
+            episodeLabel: `S${String(season).padStart(2, '0')}E${String(nextEp).padStart(2, '0')}`,
+            awaitingNextEpisode: true,
+            updatedAt: Date.now(),
+        };
+        writeAll(list);
+        return;
     }
+    // Movie (or series entry missing the metadata to advance) →
+    // remove from the shelf.
+    remove(id);
 }
 
 /**

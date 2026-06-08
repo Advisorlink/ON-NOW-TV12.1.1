@@ -146,37 +146,11 @@
     </head>
     <body>
         <noscript>You need to enable JavaScript to run this app.</noscript>
-        <!-- Minimal boot splash: just a centered spinner.  Removed
-             the moment React mounts.  No diagnostic panel, no
-             tap-to-debug — the live preview toggle lives in
-             Settings → Developer instead. -->
-        <div id="vesper-boot" style="position:fixed;top:0;left:0;right:0;bottom:0;background:#06080F;z-index:9000;">
-            <div style="position:absolute;top:50%;left:50%;-webkit-transform:translate(-50%,-50%);-ms-transform:translate(-50%,-50%);transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;border:3px solid rgba(93,200,255,0.18);border-top-color:#5DC8FF;-webkit-animation:vsp 0.9s linear infinite;animation:vsp 0.9s linear infinite;"></div>
-            <style>@-webkit-keyframes vsp{to{-webkit-transform:rotate(360deg);}}@keyframes vsp{to{transform:rotate(360deg);}}</style>
-        </div>
-        <script>
-            (function () {
-                /* Poll for React mount; fade splash when it shows up. */
-                var tries = 0;
-                var iv = setInterval(function () {
-                    tries++;
-                    var root = document.getElementById('root');
-                    if (root && root.firstChild) {
-                        var b = document.getElementById('vesper-boot');
-                        if (b && b.parentNode) {
-                            b.style.transition = 'opacity 220ms ease';
-                            b.style.opacity = '0';
-                            setTimeout(function () {
-                                if (b.parentNode) b.parentNode.removeChild(b);
-                            }, 260);
-                        }
-                        clearInterval(iv);
-                    } else if (tries > 150) {
-                        clearInterval(iv);
-                    }
-                }, 200);
-            })();
-        </script>
+        <!-- v2.10.7 — User requested no in-WebView spinner at
+             startup (it makes the app feel "WebView-y").  The
+             Android splash screen + the solid #06080F body
+             background covers the ~200 ms gap before React mounts;
+             zero visible chrome before our own UI renders. -->
         <div id="root"></div>
         <!--
             v2.6.67: removed the "Made with Emergent" badge anchor

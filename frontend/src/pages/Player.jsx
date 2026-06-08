@@ -21,6 +21,7 @@ import PartyStartingScreen from '@/components/PartyStartingScreen';
 import PartyHostControls from '@/components/PartyHostControls';
 import PlayerOverlay from '@/components/PlayerOverlay';
 import OrbitalLoader from '@/components/OrbitalLoader';
+import SpinningLogo from '@/components/SpinningLogo';
 import Host from '@/lib/host';
 import { API } from '@/lib/api';
 import { getActiveProfile } from '@/lib/profiles';
@@ -1418,6 +1419,31 @@ export default function Player() {
                                 />
                             )}
                             <div className="flex-1 min-w-0">
+                                {/* v2.10.7 — Big spinning brand logo sits
+                                    at the top of the text column while
+                                    streamReady is false.  Replaces the
+                                    generic <Loader2/> spinner inside the
+                                    status pills as the focal "we are
+                                    loading" signal. */}
+                                {!streamReady && (
+                                    <div
+                                        className="flex items-center gap-4 mb-5"
+                                        data-testid="player-preview-spinner"
+                                    >
+                                        <SpinningLogo size={56} speedMs={1100} />
+                                        <span
+                                            className="vesper-mono"
+                                            style={{
+                                                fontSize: 12,
+                                                letterSpacing: '0.28em',
+                                                textTransform: 'uppercase',
+                                                color: 'var(--vesper-blue)',
+                                            }}
+                                        >
+                                            Loading stream
+                                        </span>
+                                    </div>
+                                )}
                                 <div
                                     className="vesper-eyebrow"
                                     style={{
