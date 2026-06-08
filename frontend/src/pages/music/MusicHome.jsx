@@ -90,6 +90,17 @@ function MusicHero({ slides }) {
                         className="tunes-hero__bg"
                         style={{ backgroundImage: `url(${slide.bgImage})` }}
                     />
+                    {/* v2.10.10 — Sharp cover thumbnail rides on top
+                        of the blurred wallpaper so the actual album
+                        art is visible at native aspect ratio rather
+                        than getting cropped to a 16:9 strip. */}
+                    {slide.bgImage && (
+                        <div
+                            className="tunes-hero__cover"
+                            style={{ backgroundImage: `url(${slide.bgImage})` }}
+                            aria-hidden="true"
+                        />
+                    )}
                     <div className="tunes-hero__bg-ring" />
                     <div className="tunes-hero__scrim-y" />
                     <div className="tunes-hero__scrim-x" />

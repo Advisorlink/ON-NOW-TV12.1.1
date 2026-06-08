@@ -581,6 +581,25 @@ export default function useSpatialFocus() {
                 el.closest('[data-no-row-snap="true"]') ||
                 vs.closest?.('[data-no-row-snap="true"]');
             if (skipRowPin) return;
+            // v2.10.10 — When focus moves WITHIN a vertical nav rail
+            // (left-hand SideNav / Music nav), do NOT scroll the main
+            // page on the right.  Without this, pressing up/down in
+            // the rail also paged the catalogue underneath because
+            // the page's vertical scroller treated each rail item as
+            // an "off-screen" target.  Detected via either
+            // `data-focus-style="nav"` on the focused element OR a
+            // fixed-positioned ancestor (the rail itself).
+            if (el.getAttribute?.('data-focus-style') === 'nav') return;
+            const fixedAncestor = (() => {
+                let cur = el.parentElement;
+                while (cur) {
+                    const pos = getComputedStyle(cur).position;
+                    if (pos === 'fixed' || pos === 'sticky') return cur;
+                    cur = cur.parentElement;
+                }
+                return null;
+            })();
+            if (fixedAncestor) return;
 
             /* v2.7.19 — Snap-row fast-path.  When the focused tile
              * lives inside a `[data-testid="shelf-page"]` (Home's

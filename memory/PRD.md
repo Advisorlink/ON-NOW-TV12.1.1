@@ -22,6 +22,18 @@
 > - Control button slot widened (icon 76 dp, label 11 sp w/ brighter #D6DDEC).
 
 
+> **🟢 v2.10.11 — Music App overhaul COMPLETE (Feb 8 2026).**
+>
+> All P0 Music App items shipped & verified via screenshots:
+> - **Karaoke** parked behind a Coming Soon takeover (`KaraokeHome.jsx` → neon spinning loader + "Coming Soon" headline + Stay Tuned pill); native low-latency AudioTrack receiver tracked as P1 backlog.
+> - **Album detail** rebuilt as a 2-column Spotify layout: sticky cover/title/actions on the LEFT (`.tunes-album__head { position: sticky }`), scrolling track list on the RIGHT, both inside `.tunes-album__layout` grid (`tunes.css:1024-1135`).
+> - **Top Artists** tiles confirmed circular-only — outer button outline cancelled, glow ring + scale lives strictly on the inner `.tunes-tile__art-wrap` (`tunes.css:812-890`). No bounding rectangle on focus.
+> - **Browse Genres** grid is fully responsive: `grid-template-columns: repeat(auto-fill, minmax(clamp(160px,14vw,220px), 1fr))` (`tunes.css:950-959`). Verified 7-column fill at 1920×800.
+> - **Music Hero** is a true full-bleed 16:9 banner: blurred saturated wallpaper backdrop (`scale 1.45 + blur 50px`), sharp cover thumbnail anchored right, vertical scrim melts into the page bg, accent radial glow on the right (`tunes.css:352-456`).
+> - **Side rail independent scroll** — added `overflow-y: auto / overscroll-behavior: contain` to `.tunes-nav` so D-pad focus moving into Profile/Settings scrolls the rail without ever budging the main content (rail is already `position: fixed` so the body never piggy-backs anyway).
+
+
+
 > **🟢 v2.10.4 — Update popups removed + SideNav rebuilt + Detail focus fixes (Feb 7 2026).**
 >
 > User-requested cleanup pass:
