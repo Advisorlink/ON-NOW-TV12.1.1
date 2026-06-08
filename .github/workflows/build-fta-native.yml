@@ -23,6 +23,30 @@ jobs:
 
       - uses: android-actions/setup-android@v3
 
+      - name: Cache Gradle 8.7 distribution
+        uses: actions/cache@v4
+        with:
+          path: ~/gradle-8.7
+          key: gradle-dist-8.7-v1
+
+      - name: Install Gradle 8.7 (with retries)
+        shell: bash
+        run: |
+          # v2.10.6 — Install Gradle 8.7 with auto-retries so the
+          # `gradle wrapper` call below has it on PATH.
+          set -euo pipefail
+          GRADLE_DIR="$HOME/gradle-8.7"
+          if [ ! -x "$GRADLE_DIR/bin/gradle" ]; then
+            cd "$HOME"
+            curl -fL --retry 6 --retry-delay 10 --retry-all-errors \
+              -o gradle.zip \
+              "https://services.gradle.org/distributions/gradle-8.7-bin.zip"
+            unzip -q gradle.zip
+            rm gradle.zip
+          fi
+          echo "$GRADLE_DIR/bin" >> "$GITHUB_PATH"
+          "$GRADLE_DIR/bin/gradle" --version
+
       - name: Derive versionCode / versionName
         id: version
         shell: bash
@@ -58,8 +82,11 @@ jobs:
         working-directory: android/onnowtv-fta-native
         run: |
           set -euo pipefail
-          gradle wrapper --gradle-version 8.7 || true
-          chmod +x ./gradlew || true
+          # v2.10.6 — drop the `|| true` swallow so we fail loudly
+          # if gradle is not installed.
+          gradle wrapper --gradle-version 8.7
+          chmod +x ./gradlew
+          ./gradlew --version
 
       - name: Build debug + release APKs
         working-directory: android/onnowtv-fta-native
