@@ -1,5 +1,23 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.17 — Revert v2.10.16 D-pad "polish" (made things worse) (2026-02-09)
+
+User report (`0pqg4a68_20260609_184341.mp4`): "Its running worse than it was before."  My v2.10.16 attempt made navigation visibly worse — trailing focus ring, focus jumps, and hesitation between tiles.
+
+### Why v2.10.16 hurt
+1. **`MutationObserver(subtree: true)` on `[data-testid="home-page"]`** — the Hero billboard's slide indicator rotates every few seconds, images stream-load on every shelf, lazy shelves render their tiles over time… the observer fired CONSTANTLY and set `cachedRows = null` over and over.  Net: no rebuild savings AND we now paid the observer callback cost on every animation frame.
+2. **`vesper-scrubbing` body-class toggling on `e.repeat`** — flipping a body-level class re-evaluates the cascade for every `[data-focusable='true']` selector in the entire page (~hundreds of elements per home view).  Worse: the class already overlapped with the existing `transition: none` default on `[data-focusable='true']`, so the cascade work was for an effect that was already in place.
+3. The base case of `transition: none` was already correct — there was no real "trailing animation" to kill.
+
+### What was reverted
+- `frontend/src/pages/Home.jsx` — back to the simple inline build-rows-every-keypress row-walker (the previous "tiny bit sluggish" baseline).
+- `frontend/src/hooks/useSpatialFocus.js` — removed all `vesper-scrubbing` toggling, scrub timer, scrub burst counter.
+- `frontend/src/index.css` — removed the `body.vesper-scrubbing` CSS block (no JS sets the class anymore so the selectors were dead code).
+
+Navigation should now feel identical to the pre-v2.10.16 baseline.  Any future attempt to make it snappier should profile FIRST with Chrome DevTools' Performance recorder on the actual Android WebView before changing code.
+
+
+
 ## v2.10.16 — Buttery D-pad polish on Vesper V2 home shelves (2026-02-08)
 
 User report: "moving across the Continue Watching tiles and moving around and stuff is still a tiny bit sluggish. Just enhance it a bit to make it really buttery smooth".
