@@ -386,11 +386,11 @@ export default function ProfileEdit() {
 function NameStep({ name, setName, onNext, avatarId }) {
     const canContinue = !!name.trim();
 
-    // Warm the DiceBear PNG cache the moment the user lands on
+    // Warm the icon-avatar PNG cache the moment the user lands on
     // step 1 so by the time they advance to the avatar grid (step
-    // 2) every bonus character portrait is already in the browser
-    // HTTP cache — no flash of empty discs.  Emoji avatars don't
-    // need this because they're inline glyphs.
+    // 2) every illustrated character portrait is already in the
+    // browser HTTP cache — no flash of empty discs.  Emoji avatars
+    // don't need this because they're inline glyphs.
     React.useEffect(() => {
         const imageAvatars = AVATARS.filter((a) => a.src && !a.hidden);
         imageAvatars.forEach((a) => {

@@ -89,7 +89,7 @@ export function saveProfile(partial) {
     const next = {
         id,
         name: partial.name || 'Profile',
-        avatarId: partial.avatarId || 'a1',
+        avatarId: partial.avatarId || 'fn-popcorn-fg',
         kids: false,
         pin: typeof partial.pin === 'string' ? partial.pin : '',
         createdAt: partial.createdAt || Date.now(),
