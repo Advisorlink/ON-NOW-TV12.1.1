@@ -176,19 +176,12 @@ class PlayerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_player)
 
-        // v2.10.3 — Warm the per-channel EPG cache from disk so we
-        // pick up everything EpgActivity has lazy-fetched on
-        // previous sessions.  Async to keep onCreate fast.
+        // v2.10.15 — Per-channel EPG warms lazily.  The previous
+        // bulk `EpgCache.load` was a no-op against the new v3
+        // per-channel cache anyway (load() returns an empty map);
+        // we lazy-fill `diskEpg` from disk on first overlay paint
+        // via `ensureEpgFor`.
         val appCtx = applicationContext
-        lifecycleScope.launch(Dispatchers.IO) {
-            val cached = tv.onnowtv.livetv.data.EpgCache.load(appCtx)
-            if (!cached.isNullOrEmpty()) {
-                diskEpg = cached
-                lifecycleScope.launch(Dispatchers.Main) {
-                    currentChannel?.let { populateOverlay(it) }
-                }
-            }
-        }
 
         playerView    = findViewById(R.id.player_view)
         status        = findViewById(R.id.player_status)
@@ -640,10 +633,14 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     /** Fire-and-forget: if we have no programme data for this
-     *  channel, fetch it from the backend / provider (same code
-     *  path EpgActivity uses) and re-populate the overlay when it
-     *  arrives.  Idempotent via [epgInflight] so rapid d-pad zaps
-     *  don't double-fetch. */
+     *  channel, fetch it (disk → network) and re-populate the
+     *  overlay when it arrives.  Idempotent via [epgInflight] so
+     *  rapid d-pad zaps don't double-fetch.
+     *
+     *  v2.10.15 — Disk-first: every channel's full 3-day EPG was
+     *  streamed to per-channel files during MainActivity's XMLTV
+     *  preload, so the disk read (~5 ms) almost always wins and
+     *  we never have to touch the network at all. */
     private fun ensureEpgFor(channel: Channel) {
         val sid = channel.epgChannelId?.takeIf { it.isNotBlank() } ?: return
         val haveBundle = BundleHolder.current?.epg?.get(sid)?.isNotEmpty() == true
@@ -652,6 +649,22 @@ class PlayerActivity : AppCompatActivity() {
         if (!epgInflight.add(sid)) return
         val appCtx = applicationContext
         lifecycleScope.launch(Dispatchers.IO) {
+            // 1) Disk cache (per-channel file, populated by the
+            //    XMLTV preload).
+            val fromDisk = try {
+                tv.onnowtv.livetv.data.EpgCache.loadChannel(appCtx, sid)
+            } catch (_: Throwable) { null }
+            if (!fromDisk.isNullOrEmpty()) {
+                diskEpg = diskEpg.toMutableMap().also { it[sid] = fromDisk }
+                lifecycleScope.launch(Dispatchers.Main) {
+                    if (currentChannel?.id == channel.id) populateOverlay(channel)
+                }
+                epgInflight.remove(sid)
+                return@launch
+            }
+
+            // 2) Network fallback for channels the XMLTV didn't
+            //    cover.
             val fetched = try {
                 tv.onnowtv.livetv.data.XtreamRepository
                     .fetchEpgForChannel(sid, ctx = appCtx)

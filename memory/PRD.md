@@ -23,6 +23,22 @@
 
 
 
+> **🟢 v2.10.15 — Streaming per-channel EPG cache (OOM fix) (Feb 8 2026).**
+>
+> User TV photo: v2.10.14 crashed mid-parse with `OutOfMemoryError: max allowed footprint 268435456`.  The user's box has a 256 MB heap and the previous "load every channel's programmes into one Map" design hit ~115 MB of programmes alone — once OkHttp + Coil + JSON were factored in, the OS couldn't even deliver a binder transaction.
+>
+> New design holds NO programmes in memory longer than necessary:
+>
+> 1. **`EpgCache` schema v3** — per-channel gzipped JSONL files at `filesDir/epg-channels-v3/<sha1-of-id>.jsonl.gz`.  New `StreamingWriter` accumulates per-channel buffers (max ~2.5 MB working set), flushes the largest half whenever total in-memory programmes crosses 10 000, atomically stamps `.schema` + `.done` at the end so a crash mid-parse leaves the cache "missing".
+> 2. **`XmlTvFetcher`** rebuilt — no more `Map<String, List<Programme>> out`; programmes go straight into the `StreamingWriter`.  `ParseResult` carries only `channelsWritten`, `displayNameToEpgId`, and totals.
+> 3. **Disk-first lazy fetch** in `EpgActivity.lazyFetchForChannel` and `PlayerActivity.ensureEpgFor` — `EpgCache.loadChannel(ctx, id)` is a ~5 ms read for one channel's ~50 programmes.  Only channels missing from the XMLTV touch the network.
+> 4. **Persisted `.namemap.json`** — the XMLTV `<channel><display-name>` → id map is saved alongside the cache so the fast-path boot can re-apply name-fallback patching to the bundle's channel list WITHOUT re-running the XMLTV parse.
+> 5. **`EpgRefreshWorker`** rewired through the same `StreamingWriter` so the background process keeps its memory footprint under 5 MB too.
+>
+> Compiled the data layer end-to-end with `kotlinc 1.9.20` locally to validate.  CI `build-livetv.yml` produces the APK.
+
+
+
 > **🟢 v2.10.14 — Full-bundle 3-day EPG cache + WorkManager auto-refresh (Feb 8 2026).**
 >
 > User TV video (`20260609_091812.mp4`): channels load fine, but every "PLAYING NOW" row sits on "Loading guide…" forever; even when EPG arrives, it's < 24 h deep.  User asked for the FULL 3-day guide cached for EVERY channel in the lineup and for the cache to auto-refresh in the background.

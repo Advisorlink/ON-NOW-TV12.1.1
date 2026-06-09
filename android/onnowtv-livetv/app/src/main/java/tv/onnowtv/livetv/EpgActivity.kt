@@ -934,6 +934,13 @@ class EpgActivity : AppCompatActivity() {
      * title + progress bar populate even when the user hasn't
      * highlighted that pill yet.  Idempotent via
      * `pendingEpgFetch` so identical rebinds don't double-fetch.
+     *
+     * v2.10.15 — DISK-FIRST: every channel's full 3-day EPG was
+     * streamed to disk per-channel during MainActivity's XMLTV
+     * preload, so the lazy path now opens the per-channel file
+     * (~5 ms read) before considering the network fallback.  Only
+     * channels that were genuinely absent from the XMLTV hit the
+     * provider's `get_short_epg` endpoint.
      */
     private fun lazyFetchForChannel(ch: Channel) {
         val sid = ch.epgChannelId ?: return
@@ -942,6 +949,30 @@ class EpgActivity : AppCompatActivity() {
         if (epgKnownEmpty.contains(sid)) return  // already tried, nothing there
         if (!pendingEpgFetch.add(sid)) return
         lifecycleScope.launch(Dispatchers.IO) {
+            // 1) DISK CACHE — populated by the XMLTV preload.
+            val fromDisk = try {
+                tv.onnowtv.livetv.data.EpgCache
+                    .loadChannel(applicationContext, sid)
+            } catch (_: Throwable) {
+                null
+            }
+            if (!fromDisk.isNullOrEmpty()) {
+                epgCache[sid] = fromDisk
+                pendingEpgFetch.remove(sid)
+                channelsList.post { channelAdapter.refreshChannel(ch.id) }
+                if (focusedChannel?.id == ch.id) {
+                    guideList.post {
+                        guideAdapter.submit(fromDisk)
+                        focusedChannel?.let { updateHero(it) }
+                    }
+                }
+                return@launch
+            }
+
+            // 2) NETWORK fallback — channels genuinely absent from
+            //    the XMLTV (exotic regions, providers that don't
+            //    publish those ids).  Saves to disk on success so
+            //    the next cold boot hits the disk-first branch.
             val fetched = try {
                 XtreamRepository.fetchEpgForChannel(sid, ctx = applicationContext)
             } catch (_: Throwable) {
@@ -949,11 +980,6 @@ class EpgActivity : AppCompatActivity() {
             }
             if (fetched.isNotEmpty()) {
                 epgCache[sid] = fetched
-                // v2.9.12 — Persist to disk so the NEXT cold boot
-                // already has this channel's EPG.  User explicitly
-                // asked: "Once it's loaded once, it saves the EPG
-                // to cache, and then you never have to load it
-                // again unless you delete the app."
                 tv.onnowtv.livetv.data.EpgCache
                     .mergeChannel(applicationContext, sid, fetched)
             } else {
