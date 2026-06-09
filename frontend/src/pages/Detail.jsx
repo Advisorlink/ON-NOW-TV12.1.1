@@ -29,7 +29,7 @@ import { isKidsActive, getActiveProfile, isRatingAllowed, getKidsConfig } from '
 import { avatarEmojiById } from '@/lib/avatars';
 import * as cw from '@/lib/continueWatching';
 import { isInLibrary } from '@/lib/library';
-import { hideNavLoader } from '@/lib/navLoader';
+import { hideNavLoader, showNavLoader } from '@/lib/navLoader';
 
 const streamMode = (s) => {
     if (s?.url) return 'direct';
@@ -1287,6 +1287,14 @@ export default function Detail() {
 
     const playStream = async (stream, episodeOverride = null) => {
         const mode = streamMode(stream);
+        // v2.10.20 — Cover the 200–800 ms gap between the user's
+        // click and the native player's "NOW PLAYING" splash with
+        // the same fullscreen overlay used elsewhere.  30 s safety
+        // timeout — the bridge call almost always resolves in <1 s
+        // but we don't want to strand the loader if the native side
+        // never confirms.  hideNavLoader is automatic on `popstate`
+        // (back button) and when Player.jsx mounts via web fallback.
+        showNavLoader({ label: 'Loading title', timeoutMs: 30000 });
         /* v2.7.20 — Persist which stream the user is currently
          * playing so the picker can mark it as "CURRENT" on
          * return. */
