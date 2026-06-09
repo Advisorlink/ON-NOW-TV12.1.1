@@ -51,7 +51,7 @@ const EMOJI_AVATARS = [
 const ICON_BASE = `${process.env.PUBLIC_URL || ''}/avatars`;
 const icon = (id, glow) => ({
     id,
-    src: `${ICON_BASE}/${id}.webp`,
+    src: `${ICON_BASE}/${id}.jpg`,
     glow,
 });
 
@@ -369,7 +369,6 @@ export function AvatarCircle({ avatarId, srcOverride, size = 96, ring = false })
                 <img
                     src={effectiveSrc}
                     alt=""
-                    loading="lazy"
                     decoding="async"
                     draggable={false}
                     style={{
