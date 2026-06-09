@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Selector that the focused state in the dock tile uses. -->
-<selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:state_focused="true"  android:drawable="@drawable/dock_tile_focused" />
-    <item android:state_selected="true" android:drawable="@drawable/dock_tile_focused" />
-    <item android:state_pressed="true"  android:drawable="@drawable/dock_tile_focused" />
-    <item                                android:drawable="@drawable/dock_tile_resting" />
-</selector>
