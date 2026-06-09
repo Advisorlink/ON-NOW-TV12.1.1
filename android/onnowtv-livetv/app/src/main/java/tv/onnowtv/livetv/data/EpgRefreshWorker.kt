@@ -69,43 +69,39 @@ class EpgRefreshWorker(
             .toHashSet()
 
         return try {
-            val parsed = XmlTvFetcher.fetchEpgForChannels(
-                ctx,
-                wantedIds,
-                wantedNames,
-            ) { _, _ -> /* no UI to drive — silent worker */ }
-
-            // Same name-fallback merge MainActivity does on the
-            // foreground path.  We DON'T patch the channel list
-            // here (the worker doesn't own it); the EpgActivity
-            // hydrater is happy with the duplicate-keyed map
-            // because lookups go via `epgChannelId` directly.
-            val merged = parsed.programmes.toMutableMap()
-            val nameMap = parsed.displayNameToEpgId
-            if (nameMap.isNotEmpty()) {
-                for (ch in bundle.channels) {
-                    val sid = ch.epgChannelId
-                    if (!sid.isNullOrBlank() && merged[sid]?.isNotEmpty() == true) continue
-                    val key = XmlTvFetcher.normaliseChannelName(ch.name)
-                    if (key.isBlank()) continue
-                    val xmlId = nameMap[key] ?: continue
-                    val list = parsed.programmes[xmlId]?.takeIf { it.isNotEmpty() }
-                        ?: continue
-                    if (!sid.isNullOrBlank()) merged[sid] = list
-                    merged[xmlId] = list
-                }
+            // v2.10.15 — Stream programmes to disk via the per-channel
+            // writer so the periodic refresh never accumulates more
+            // than ~5 MB of programme data in memory.  Critical for
+            // budget Android TV boxes where the WorkManager process
+            // shares the same 256 MB heap as the foreground app.
+            val writer = EpgCache.openStreamingWriter(ctx)
+            val parsed = try {
+                XmlTvFetcher.fetchEpgForChannels(
+                    ctx,
+                    wantedIds,
+                    wantedNames,
+                    writer = writer,
+                ) { _, _ -> /* no UI to drive — silent worker */ }
+            } catch (t: Throwable) {
+                writer.abort()
+                throw t
             }
 
-            if (merged.isEmpty()) {
-                Log.w(TAG, "refresh returned 0 channels — keeping previous cache")
+            if (parsed.totalProgrammes == 0) {
+                writer.abort()
+                Log.w(TAG, "refresh returned 0 programmes — keeping previous cache")
                 return Result.retry()
             }
 
-            EpgCache.save(ctx, merged)
+            // Commit the new cache to disk.  EpgActivity will pick
+            // it up via per-channel loadChannel() lookups on next
+            // cold boot.
+            val r = writer.finish(parsed.displayNameToEpgId)
             Log.i(
                 TAG,
-                "EPG refresh ok: ${merged.size} channels persisted to cache " +
-                    "(${parsed.displayNameToEpgId.size} xmltv display names seen)",
+                "EPG refresh ok: ${r.channelsFlushed} channels persisted to cache " +
+                    "(${parsed.displayNameToEpgId.size} xmltv display names seen, " +
+                    "${parsed.totalProgrammes} programmes total)",
             )
             Result.success()
         } catch (t: Throwable) {

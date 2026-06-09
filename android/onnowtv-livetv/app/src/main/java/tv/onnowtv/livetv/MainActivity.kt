@@ -125,25 +125,22 @@ class MainActivity : AppCompatActivity() {
                 if (!json.isNullOrBlank()) {
                     val bundle = XtreamRepository.parseBundleJson(json)
                     if (bundle.channels.isNotEmpty()) {
-                        // v2.9.9 — Hydrate the cached priority EPG
-                        // and merge it BEFORE handing off to the EPG
-                        // screen so the UK / USA / AU Kayo / NZ
-                        // Sports rows show programmes immediately
-                        // (instead of "—" placeholders waiting for
-                        // the lazy-load).
+                        // v2.10.14 — When EpgCache reports `null` for
+                        // load() it means the on-disk schema is
+                        // older than the current build.  Fall through
+                        // to the slow loader so the XMLTV preload
+                        // runs and writes a v3 cache.
                         //
-                        // v2.10.14 — When `EpgCache.load()` returns
-                        // null because the on-disk schema is older
-                        // than the current build (e.g. the user is
-                        // upgrading from a priority-only v1 cache
-                        // to the full-bundle v2), DO NOT proceed
-                        // along the fast path with an empty EPG.
-                        // Fall through to the slow loader which
-                        // will run the XMLTV preload and write a
-                        // v2 cache.  Otherwise the user would land
-                        // in EpgActivity with "Loading guide…" on
-                        // every channel until the WorkManager job
-                        // ran 12 hours later.
+                        // v2.10.15 — Per-channel cache architecture.
+                        // load() now returns an EMPTY map when a
+                        // valid v3 cache exists (programmes are
+                        // lazy-loaded per channel from disk in
+                        // EpgActivity / PlayerActivity).  The fast
+                        // path applies the persisted XMLTV
+                        // display-name → id map to patch any bundle
+                        // channels whose provider-supplied id is
+                        // blank, so the per-channel disk reads land
+                        // on the right file.
                         val cachedEpg = EpgCache.load(this)
                         if (cachedEpg == null) {
                             Log.i(
@@ -151,12 +148,45 @@ class MainActivity : AppCompatActivity() {
                                 "fast-path skipped: EPG cache absent or schema mismatch — falling through to loader",
                             )
                         } else {
-                            val merged = bundle.copy(epg = cachedEpg)
+                            // Apply name-based id patching using
+                            // the persisted XMLTV display-name map.
+                            val nameMap = EpgCache.loadNameMap(applicationContext)
+                            val patchedChannels = if (nameMap.isEmpty()) {
+                                bundle.channels
+                            } else {
+                                var rescued = 0
+                                val out = bundle.channels.map { ch ->
+                                    val sid = ch.epgChannelId
+                                    if (!sid.isNullOrBlank()
+                                        && EpgCache.channelExists(applicationContext, sid)) {
+                                        return@map ch
+                                    }
+                                    val key = tv.onnowtv.livetv.data.XmlTvFetcher
+                                        .normaliseChannelName(ch.name)
+                                    if (key.isBlank()) return@map ch
+                                    val xmlId = nameMap[key] ?: return@map ch
+                                    if (!EpgCache.channelExists(applicationContext, xmlId)) {
+                                        return@map ch
+                                    }
+                                    rescued += 1
+                                    ch.copy(epgChannelId = xmlId)
+                                }
+                                Log.i(
+                                    "MainActivity",
+                                    "fast-path name-fallback: $rescued channels patched against persisted XMLTV name map",
+                                )
+                                out
+                            }
+
+                            val merged = bundle.copy(
+                                channels = patchedChannels,
+                                epg = cachedEpg,
+                            )
                             BundleHolder.current = merged
                             Log.i(
                                 "MainActivity",
                                 "fast-path: ${merged.channels.size} channels / " +
-                                    "${merged.epg.size} epg buckets " +
+                                    "epg=lazy-from-disk " +
                                     "(cache age=${BundleCache.ageMs(this) / 1000}s)",
                             )
                             // If either cache is stale, schedule a
@@ -576,11 +606,19 @@ class MainActivity : AppCompatActivity() {
             statusCounters.text = "Connecting…"
             progress.progress = 850
 
+            // v2.10.15 — Stream programmes DIRECTLY to per-channel
+            // disk files during parse so we never hold more than
+            // ~5 MB of programme data in memory.  The previous
+            // revision OOM'd on the user's 256 MB-heap box partway
+            // through "Parsing 3 days of programmes…".
+            val writer = EpgCache.openStreamingWriter(applicationContext)
+
             val parseResult = try {
                 XmlTvFetcher.fetchEpgForChannels(
                     applicationContext,
                     wantedChannelIds,
                     wantedNormalisedNames,
+                    writer = writer,
                 ) { chSeen, progs ->
                     // Throttled inside the parser already, but
                     // marshal to the UI thread before touching views.
@@ -595,61 +633,40 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (t: Throwable) {
                 Log.w("MainActivity", "XMLTV prefetch failed: ${t.message}")
+                writer.abort()
                 null
             }
 
             if (parseResult != null) {
-                // First pass — the programmes we explicitly asked for.
-                val parsedEpg = parseResult.programmes.toMutableMap()
-
-                // ─── Name-based fallback for unmatched channels ───
-                // Any bundle channel whose `epg_channel_id` came
-                // back blank from the provider, OR whose
-                // `epg_channel_id` exists but isn't in the XMLTV,
-                // gets a second chance: match its NAME against the
-                // XMLTV's `<channel><display-name>` table.  This is
-                // how the Sky channels in the user's video showed
-                // "Loading guide…" forever — their epg_channel_id
-                // didn't line up with what xmltv.php was serving.
-                // We ALSO rewrite the channel's `epgChannelId` to
-                // the matched XMLTV id so every downstream lookup
-                // (channel pill paint, "now playing" resolver, etc.)
-                // hits the populated bucket.
+                // ─── Name-based fallback: patch bundle channels ───
+                // The parser ALREADY expanded its wanted-set in-line
+                // when it saw a <channel><display-name> matching one
+                // of `wantedNormalisedNames` — so programmes for
+                // those XMLTV ids are already on disk.  All we have
+                // to do here is rewrite the BUNDLE channel's
+                // `epgChannelId` to that XMLTV id so subsequent
+                // disk lookups go to the right file.
                 val nameMap = parseResult.displayNameToEpgId
                 val patchedChannels: List<tv.onnowtv.livetv.data.Channel>
                 if (nameMap.isNotEmpty()) {
                     var rescued = 0
                     patchedChannels = bundle.channels.map { ch ->
                         val sid = ch.epgChannelId
-                        // Channel already has a usable id with
-                        // programmes — leave alone.
-                        if (!sid.isNullOrBlank() && parsedEpg[sid]?.isNotEmpty() == true) {
-                            return@map ch
+                        if (!sid.isNullOrBlank()
+                            && parseResult.channelsWritten.contains(sid)) {
+                            return@map ch  // already has its own EPG
                         }
                         val key = XmlTvFetcher.normaliseChannelName(ch.name)
                         if (key.isBlank()) return@map ch
                         val xmlId = nameMap[key] ?: return@map ch
-                        val list = parseResult.programmes[xmlId]?.takeIf { it.isNotEmpty() }
-                            ?: return@map ch
-                        // Write programmes under BOTH ids so any
-                        // code path that still references the
-                        // original (provider-supplied) id keeps
-                        // working.
-                        if (!sid.isNullOrBlank()) parsedEpg[sid] = list
-                        parsedEpg[xmlId] = list
+                        if (!parseResult.channelsWritten.contains(xmlId)) return@map ch
                         rescued += 1
-                        // Only mutate the channel record when its
-                        // provider-supplied id was blank — in that
-                        // case downstream lookups (`epgCache[null]`)
-                        // would fail without this rewrite.  When
-                        // the provider DID give us an id, we leave
-                        // it alone (the dual write above handles
-                        // both lookup paths).
-                        if (sid.isNullOrBlank()) {
-                            ch.copy(epgChannelId = xmlId)
-                        } else {
-                            ch
-                        }
+                        // For channels with NO provider id, rewrite
+                        // outright.  For channels with an id that
+                        // didn't match, also rewrite to the XMLTV id
+                        // — the disk lookup path needs SOMETHING
+                        // that hits a file.
+                        ch.copy(epgChannelId = xmlId)
                     }
                     Log.i(
                         "MainActivity",
@@ -659,14 +676,22 @@ class MainActivity : AppCompatActivity() {
                     patchedChannels = bundle.channels
                 }
 
-                if (parsedEpg.isNotEmpty()) {
-                    mergedBundle = bundle.copy(
-                        channels = patchedChannels,
-                        epg = parsedEpg,
-                    )
-                    // Persist for the next cold boot's fast path.
-                    EpgCache.save(applicationContext, parsedEpg)
-                }
+                val writeResult = writer.finish(parseResult.displayNameToEpgId)
+                Log.i(
+                    "MainActivity",
+                    "EPG cache write committed: " +
+                        "${writeResult.channelsFlushed} channels / " +
+                        "${writeResult.totalProgrammes} programmes",
+                )
+
+                // Bundle keeps the patched channel list but does NOT
+                // carry programmes in memory — EpgActivity reads
+                // each channel's programmes lazily from disk via
+                // EpgCache.loadChannel().
+                mergedBundle = bundle.copy(
+                    channels = patchedChannels,
+                    epg = emptyMap(),
+                )
             }
         }
 

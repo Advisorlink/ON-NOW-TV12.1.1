@@ -21,28 +21,25 @@ import javax.net.ssl.X509TrustManager
 /**
  * v2.9.9 — Full XMLTV EPG downloader & stream-parser.
  *
- * v2.10.14 — Renamed from "fetchPriorityEpg" → "fetchEpgForChannels"
- * and the priority-filter framing was DROPPED.  User explicitly
- * asked for the FULL 3-day EPG to be cached for EVERY channel in
- * their lineup (not just UK / USA / AU Kayo / NZ Sports).  Memory
- * cost of retaining every channel's programmes: ~110 MB on a 9000-
- * channel provider — fine on a modern 2 GB Android TV box, and
- * the user accepted a "couple of minutes on first launch" trade.
+ * v2.10.14 — Drop the priority-channel filter.  Caller now passes
+ * EVERY channel id from the user's bundle so the parser retains
+ * the full 3-day guide for every channel they can actually see.
  *
- * In addition to the programmes map, the fetcher now also returns
- * a `displayNameToEpgId` mapping captured from the XMLTV's own
- * `<channel><display-name>` elements.  Callers use this to recover
- * EPG for bundle channels whose provider-supplied `epg_channel_id`
- * is BLANK or DOES NOT MATCH the XMLTV's channel id — matching by
- * display-name is the last-mile fallback that pulls these channels
- * out of the "Loading guide…" gutter.
+ * v2.10.15 — Streaming write to per-channel files on disk.  The
+ * previous revision accumulated all retained programmes into a
+ * single `HashMap<String, MutableList<Programme>>` for the whole
+ * parse, which OOM'd on the user's 256 MB-heap Android TV box
+ * (`java.lang.OutOfMemoryError: max allowed footprint 268435456`).
+ *
+ * We now drive the parse through [EpgCache.StreamingWriter], which
+ * accumulates a small in-memory buffer per channel and flushes
+ * complete channels to disk as the buffer grows past ~10 000
+ * programmes — keeping working-set memory under ~5-10 MB
+ * regardless of how many programmes the XMLTV ships.
  *
  * The Xtream provider serves a `xmltv.php` endpoint that returns
  * GZIP-encoded XMLTV (Content-Encoding: gzip).  Raw size ~145 MB,
  * compressed transfer ~27 MB, downloads in ~5 s on a cable LAN.
- *
- * Memory after parse for a full ~9000-channel bundle × ~72 h of
- * guide: ~110 MB heap on a representative provider lineup.
  */
 object XmlTvFetcher {
 
@@ -50,32 +47,32 @@ object XmlTvFetcher {
 
     /** Result of a full XMLTV parse. */
     data class ParseResult(
-        /** Map of `epg_channel_id` → full list of programmes parsed
-         *  from the XMLTV for that channel id. */
-        val programmes: Map<String, List<Programme>>,
+        /** Set of XMLTV `<programme channel=…>` ids for which at
+         *  least one programme was streamed to disk.  MainActivity
+         *  uses this to know which bundle channels now have a
+         *  populated per-channel cache file. */
+        val channelsWritten: Set<String>,
         /** Lower-cased display-name → epg_channel_id mapping captured
          *  from every `<channel id=…><display-name>NAME</display-name>`
          *  block.  Used by the caller to back-fill EPG into bundle
          *  channels whose own `epg_channel_id` was missing/wrong. */
         val displayNameToEpgId: Map<String, String>,
+        /** Running totals for logging / UI counter rendering. */
+        val totalProgrammes: Int,
+        val totalChannelsSeen: Int,
     )
 
     /**
-     * Download + parse the provider's full XMLTV, returning a
-     * [ParseResult] containing every programme whose channel id is
-     * in [wantedChannelIds] OR whose `<channel>`'s display-name
-     * (normalised) is in [wantedNormalisedNames], PLUS a
-     * display-name → id map covering every `<channel>` element in
-     * the document.
-     *
-     * @param onProgress invoked from the parse loop with the running
-     *    count of channels seen + programmes retained.  Used by the
-     *    MainActivity loader to show animated counters.
+     * Download + parse the provider's full XMLTV, streaming retained
+     * programmes to a [EpgCache.StreamingWriter] (caller owns the
+     * writer's lifecycle so it can `finish()` only after MainActivity
+     * has had a chance to rescue blank-id channels by display-name).
      */
     suspend fun fetchEpgForChannels(
         ctx: Context,
         wantedChannelIds: Set<String>,
         wantedNormalisedNames: Set<String> = emptySet(),
+        writer: EpgCache.StreamingWriter,
         onProgress: (channelsSeen: Int, programmesRetained: Int) -> Unit,
     ): ParseResult = withContext(Dispatchers.IO) {
         val u = AuthStore.username(ctx).takeIf { it.isNotBlank() }
@@ -130,7 +127,7 @@ object XmlTvFetcher {
             } else {
                 BufferedInputStream(raw, 64 * 1024)
             }
-            parseXmlTv(stream, wantedChannelIds, wantedNormalisedNames, onProgress)
+            parseXmlTv(stream, wantedChannelIds, wantedNormalisedNames, writer, onProgress)
         } finally {
             conn.disconnect()
         }
@@ -149,6 +146,7 @@ object XmlTvFetcher {
         stream: java.io.InputStream,
         initialWantedChannelIds: Set<String>,
         wantedNormalisedNames: Set<String>,
+        writer: EpgCache.StreamingWriter,
         onProgress: (channelsSeen: Int, programmesRetained: Int) -> Unit,
     ): ParseResult {
         val parser = Xml.newPullParser()
@@ -162,7 +160,11 @@ object XmlTvFetcher {
         val wantedChannelIds = HashSet<String>(initialWantedChannelIds.size + 2048)
         wantedChannelIds.addAll(initialWantedChannelIds)
 
-        val out = HashMap<String, MutableList<Programme>>(wantedChannelIds.size)
+        // Tracks which channel ids we actually streamed a programme
+        // for.  This is what we return so MainActivity knows which
+        // bundle channels now have on-disk caches.
+        val channelsWritten = HashSet<String>(2048)
+
         val channelsSeen = HashSet<String>(8000)
         val displayNameToId = HashMap<String, String>(8000)
         var retained = 0
@@ -286,8 +288,10 @@ object XmlTvFetcher {
                         }
                         "programme" -> {
                             if (inProgramme && curChannel != null && curStartTs > 0L) {
-                                val list = out.getOrPut(curChannel!!) { ArrayList(64) }
-                                list.add(
+                                // v2.10.15 — Stream directly to disk
+                                // instead of accumulating in memory.
+                                writer.addProgramme(
+                                    curChannel!!,
                                     Programme(
                                         title = curTitle?.takeIf { it.isNotBlank() } ?: "—",
                                         description = curDesc,
@@ -295,6 +299,7 @@ object XmlTvFetcher {
                                         stopMs = curStopTs * 1000L,
                                     ),
                                 )
+                                channelsWritten.add(curChannel!!)
                                 retained++
                                 // Throttle progress callbacks to ~10 Hz
                                 val now = System.currentTimeMillis()
@@ -319,13 +324,15 @@ object XmlTvFetcher {
         Log.i(
             TAG,
             "XMLTV parsed: ${channelsSeen.size} total channels seen, " +
-                "${out.size} channels with EPG retained, " +
+                "${channelsWritten.size} channels streamed to disk, " +
                 "${displayNameToId.size} display-name mappings, " +
                 "$retained programmes total",
         )
         return ParseResult(
-            programmes = out,
+            channelsWritten = channelsWritten,
             displayNameToEpgId = displayNameToId,
+            totalProgrammes = retained,
+            totalChannelsSeen = channelsSeen.size,
         )
     }
 

@@ -1,5 +1,43 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.15 — Streaming per-channel EPG cache, OOM fix (2026-02-08)
+
+User report (TV photo + video, `5x0x00gs_20260609_102704.mp4`): the v2.10.14 full-bundle XMLTV preload crashed with `java.lang.OutOfMemoryError: max allowed footprint 268435456` partway through parsing — the user's Android TV box has a 256 MB heap and the previous design held all 600 k+ programmes in a single in-memory `Map<String, List<Programme>>` (~115 MB just for programmes, plus JSON / OkHttp / Coil / parser state pushed us past the ceiling).
+
+### Streaming write to per-channel files on disk (`EpgCache` schema v3)
+
+- `data/EpgCache.kt` rebuilt with a `StreamingWriter` class.  As programmes are produced by the XMLTV parser we put them in a small per-channel buffer; when the total in-memory programme count crosses 10 000 (~2.5 MB) we flush the half-largest buffers to disk and clear them.  Peak working set ≈ 5 MB, irrespective of bundle size.
+- Files live at `filesDir/epg-channels-v3/<sha1-of-channel-id>.jsonl.gz` — one gzipped JSONL file per channel, ~5 KB each, ~45 MB total for a 9 000-channel lineup.
+- `EpgCache.loadChannel(ctx, id)` reads one channel's file (~5 ms) on demand.  No bulk load API; the legacy `load()` returns an empty map for v3 caches so callers don't crash but real EPG access goes through `loadChannel`.
+- Schema stamp `.schema` + completion marker `.done` written ATOMICALLY at the end of the parse — a parse interrupted mid-flight leaves the cache "missing" so the next boot retries cleanly.
+- Persisted `.namemap.json` (XMLTV `<channel><display-name>` → id) so the fast-path boot can re-apply name-fallback patching of the bundle's channel list WITHOUT re-running the XMLTV parse.
+
+### Disk-first lazy fetch in `EpgActivity` + `PlayerActivity`
+- `lazyFetchForChannel` and `ensureEpgFor` now try `EpgCache.loadChannel(ctx, id)` FIRST (~5 ms disk read).  Only channels genuinely absent from the XMLTV fall through to the network `get_short_epg` path.
+- The old upfront `EpgCache.load(appCtx)` warm-up in `PlayerActivity.onCreate` removed — the lazy disk-first path handles everything.
+
+### `MainActivity` boot paths
+- Slow path opens a `StreamingWriter`, drives the XMLTV parse through it, runs the name-fallback channel-id patching, then calls `writer.finish(parseResult.displayNameToEpgId)` to atomically stamp the schema + name-map + `.done`.
+- Fast path now reads the persisted `.namemap.json` and re-applies the same name-fallback patching to the bundle's channel list — so channels whose provider-supplied id was blank still land on the correct disk file when EpgActivity asks for their EPG.
+- `BundleHolder.current.epg` is now ALWAYS empty.  All EPG access goes through `EpgCache.loadChannel`.
+
+### `EpgRefreshWorker` re-aligned
+- Periodic background refresh uses the same `StreamingWriter` pattern, so the worker process never accumulates more than ~5 MB of programme data either.
+- On `abort()` (e.g. network failure mid-parse) the `.done` marker is never written, so a partial write is invisible to the next boot.
+
+### Files touched
+- `android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/data/EpgCache.kt` — schema v3 + per-channel files + `StreamingWriter` + name-map persistence.
+- `android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/data/XmlTvFetcher.kt` — streams through `StreamingWriter`, no in-memory `out` map; `ParseResult` carries `channelsWritten: Set<String>` instead of `programmes: Map<...>`.
+- `android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/data/EpgRefreshWorker.kt` — same streaming writer pattern.
+- `android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/MainActivity.kt` — fast path applies persisted name-map, slow path drives streaming writer.
+- `android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/EpgActivity.kt` — `lazyFetchForChannel` disk-first.
+- `android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/PlayerActivity.kt` — `ensureEpgFor` disk-first; removed upfront `EpgCache.load` warm-up.
+
+### Smoke test
+Compiled the data layer end-to-end with `kotlinc 1.9.20` + Android API 35 jars locally — `EpgCache.kt`, `XmlTvFetcher.kt`, `EpgRefreshWorker.kt`, `AuthStore.kt`, `XtreamRepository.kt`, `BundleCache.kt`, `Models.kt` ALL compile cleanly into `compiled-data.jar`.  Only warnings are stylistic (`!!` on already-non-null strings).  CI workflow `build-livetv.yml` will build the full APK on push.
+
+
+
 ## v2.10.14 — Full-bundle EPG cache (every channel, 3 days) + background auto-refresh (2026-02-08)
 
 User report (TV video, /artifacts/hctr6hsw_20260609_091812.mp4): channels load, but every PLAYING NOW row sits on "Loading guide…" forever; even when EPG eventually fills, it's only ~24 h deep.  User asks for the FULL 3-day EPG to be cached for EVERY channel, never just popular buckets — and for the cache to auto-refresh in the background so a fresh app open is ALWAYS instant.
