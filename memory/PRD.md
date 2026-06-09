@@ -1,5 +1,29 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.21 — Profile-avatar library overhaul: 77 hand-illustrated icons in 5 categories + 16 curated emojis (Feb 9 2026).**
+>
+> User request: *"Take all these icons and replace the Vesper V2 icons. Categorise them properly — funny ones together, anime ones together, gamer ones together, sports ones together. Take away the majority of the emojis. Leave a few of them, but add these in instead."*
+>
+> Before: 106 emoji-on-gradient avatars + 36 generic DiceBear character portraits across 3 rows (Cartoon / Adventurer / Pixel Art).  Generic, low-personality, and the DiceBear PNGs required a network round-trip to api.dicebear.com on every avatar render.
+>
+> After: 77 hand-illustrated character PNGs (provided by the user) split into 5 themed categories + 16 curated emoji "Quick Vibes" preserved for personality variety.  All icons shipped as **local WebP files** under `/public/avatars/<id>.webp` — no network call, instant load even offline.
+>
+> **New categories** (93 avatars · 6 categories):
+>   • **Funny** (11) — popcorn-finger-guns, popcorn-thumbs-up, goofy purple monsters, jelly slime, soda thumbs-up, spicy noodle cup, neon/pixel aliens, cactus alien
+>   • **Anime** (14) — brooding samurai, magical girl, cyber-youth, gothic, icy elegance, idol concerts, pastel girls, dreamy portraits
+>   • **Gamer** (19) — cyberpunk assassins, gamer ape, neon androids, cyborgs, skull gamer, sleek robots, gaming cat
+>   • **Sports** (9) — cricket, basketball, soccer, baseball, boxing, football, golf, surf, tennis (action mascots)
+>   • **Animals** (24) — lion, tiger, panda, koala, penguin, pup, multiple cats / foxes / wolves / owls / raccoons / sloths
+>   • **Quick Vibes** (16 emoji) — 🔥 ⚡ 🎬 💎 🌙 🚀 😎 🤠 🤪 👻 🎩 🔮 ✨ 🦄 🌈 🎧
+>
+> **Asset pipeline**: Original PNG drop = 139 MB across 77 × 1024×1024 images.  Resized to 384 × 384 LANCZOS + WebP quality 85 → **2.4 MB total** (98.4 % reduction).  Every avatar tile renders at 120 px so 384 px gives a hair of retina headroom while keeping the picker instant on the HK1 box.
+>
+> **Backwards compat**: legacy profile ids (`a1…a100`, `m1…m6`, `cartoon-*`, `adventurer-*`, `pixel-*`) fall through `getAvatar()` to the new default (popcorn-finger-guns).  Profiles created before the overhaul keep their `avatarId` field intact — they just render the new fallback until the user re-picks.
+>
+> Default avatar for new profiles: `fn-popcorn-fg` (popcorn bucket with finger guns) — movie-night themed, instantly readable on small tiles.
+>
+> Verified end-to-end via Playwright: 78/78 image assets load cleanly, zero broken images, all 6 category labels render, FUNNY shows popcorn icon as active checkmark.
+
 > **🟢 v2.10.20 — Instant "Loading episode" overlay on episode/stream taps (Feb 9 2026).**
 >
 > User clarification (with video evidence): the 6-second wait between clicking an episode in the series detail page and the native player's "NOW PLAYING ON NOW TV V2" splash feels broken.  The local thumbnail "LOADING…" pill is too small to register as feedback — *"this part is taking too long"*.
