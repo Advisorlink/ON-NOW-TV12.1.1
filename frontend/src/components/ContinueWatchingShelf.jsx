@@ -88,6 +88,12 @@ export default function ContinueWatchingShelf() {
         // user doesn't have to pick a source again.  Falls back to
         // the Detail page only if we don't have the stream URL.
         if ((fresh.streamUrl || e.streamUrl) && Host.playVideo) {
+            // v2.10.20 — Show the same fullscreen nav-loader the
+            // tile→Detail flow uses, so the brief gap between the
+            // click and the native player splash (~300-600 ms) is
+            // covered by an unmissable loading state.  30 s timeout
+            // is generous — native player typically takes < 1 s.
+            showNavLoader({ label: 'Loading episode', timeoutMs: 30000 });
             // 2 s rewind so the user gets a soft "lead-in" without
             // losing actual progress.  Was previously 5 s which felt
             // like the resume was jumping noticeably backwards.
@@ -99,7 +105,6 @@ export default function ContinueWatchingShelf() {
             // bypassing the Detail page's stream-pick logic by
             // calling Host.playVideo directly.
             if (t === 'series' && focusSeason && focusEpisode) {
-                showNavLoader();
                 navigate(
                     `/title/series/${baseId}` +
                     `?focusSeason=${focusSeason}&focusEpisode=${focusEpisode}`,
@@ -121,6 +126,9 @@ export default function ContinueWatchingShelf() {
                 cwId: e.id,
             });
             if (fired) return;
+            // Host didn't consume the playback request — let the
+            // detail-page fallback handle it without doubling up the
+            // loader (showNavLoader is idempotent on the same DOM).
         }
         // Fallback: route to the detail page for source pick.  For
         // series, include the focus hints so the episode picker

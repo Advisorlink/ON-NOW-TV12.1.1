@@ -15,6 +15,7 @@ import Host from '@/lib/host';
 import { qualityBadge, qualityTags, toneColors, is1080p } from '@/lib/streamMeta';
 import { getAutoplay1080p } from '@/lib/prefs';
 import * as cw from '@/lib/continueWatching';
+import { showNavLoader, hideNavLoader } from '@/lib/navLoader';
 
 /**
  * Cinematic seasons + episodes browser for TV series.
@@ -258,6 +259,26 @@ export default function SeriesEpisodes({
         // straight to the player.  Keep the card collapsed; only
         // the thumbnail-centred "LOADING…" overlay is visible.
         if (autoplay) {
+            // v2.10.20 — User report: the 5–6 s wait between clicking
+            // an episode and the native player's "NOW PLAYING" splash
+            // feels broken.  The local thumbnail "LOADING…" pill is
+            // too small to register as feedback.  Show the same
+            // fullscreen nav-loader overlay used for tile→Detail so
+            // the user gets immediate, unmissable feedback.  The
+            // overlay stays visible right up until either:
+            //   • the native `Host.playVideo` splash takes over, or
+            //   • the web Player.jsx mounts and dispatches hideNavLoader.
+            // We DON'T hide it on stream-resolve success — that's the
+            // exact moment the player is about to take over, and a
+            // brief flicker back to Detail would feel worse than
+            // leaving the overlay up for one more frame.
+            //
+            // Use a 30 s safety timeout (vs the default 6 s) because
+            // stream resolution against a slow Stremio addon can
+            // legitimately take 10–15 s on first-fetch.  Override the
+            // label so the user knows we're working on the episode,
+            // not just "loading title".
+            showNavLoader({ label: 'Loading episode', timeoutMs: 30000 });
             setAutoplayResolvingId(ep.id);
         } else {
             setOpenEpisodeId(ep.id);
@@ -273,6 +294,7 @@ export default function SeriesEpisodes({
                 }
                 // Cache hit but no 1080p candidate — drop the
                 // autoplay overlay and reveal the manual picker.
+                hideNavLoader();
                 setAutoplayResolvingId(null);
                 setOpenEpisodeId(ep.id);
             }
@@ -299,6 +321,7 @@ export default function SeriesEpisodes({
                 if (cand) {
                     playStream(cand, ep);
                 } else {
+                    hideNavLoader();
                     setAutoplayResolvingId(null);
                     setOpenEpisodeId(ep.id);
                 }
@@ -312,6 +335,7 @@ export default function SeriesEpisodes({
             // overlay so the user isn't stuck on a black "Loading…"
             // forever.
             if (autoplay) {
+                hideNavLoader();
                 setAutoplayResolvingId(null);
                 setOpenEpisodeId(ep.id);
             }
@@ -325,6 +349,13 @@ export default function SeriesEpisodes({
         // the player and returns here the card isn't stuck on
         // "Loading…".
         setAutoplayResolvingId(null);
+        // v2.10.20 — Manual stream pick also benefits from the
+        // fullscreen overlay: there's a 200–800 ms gap between the
+        // click and the native player splash while we fetch the
+        // subtitle URL and dispatch the Host.playVideo bridge call.
+        // showNavLoader is idempotent so calling it again on top of
+        // the autoplay overlay is a no-op.  Same 30 s safety timeout.
+        showNavLoader({ label: 'Loading episode', timeoutMs: 30000 });
         const mode = streamMode(stream);
         if (mode === 'direct' || mode === 'torrent') {
             // Resolve the playable URL — direct streams carry a

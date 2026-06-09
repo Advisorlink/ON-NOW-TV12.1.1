@@ -1,5 +1,21 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.20 — Instant "Loading episode" overlay on episode/stream taps (Feb 9 2026).**
+>
+> User clarification (with video evidence): the 6-second wait between clicking an episode in the series detail page and the native player's "NOW PLAYING ON NOW TV V2" splash feels broken.  The local thumbnail "LOADING…" pill is too small to register as feedback — *"this part is taking too long"*.
+>
+> **Root cause**: episode click → `Vesper.getStreams('series', ep.id)` → 5–6 s round-trip to Stremio addons (only the FIRST fetch; backend caches for 5 min, so repeat clicks are instant).  During those 5–6 s nothing visible happens except a tiny pill on the episode card.
+>
+> **Fix** — extend `navLoader` to take optional `{ label, timeoutMs }`:
+>   - `SeriesEpisodes.handleEpisodeClick` (autoplay path): `showNavLoader({ label: 'Loading episode', timeoutMs: 30000 })` synchronously at click.
+>   - `SeriesEpisodes.playStream` (manual stream pick): same overlay before Host.playVideo bridge call.
+>   - `Detail.playStream` (movie play button + manual pick): same overlay.
+>   - `ContinueWatchingShelf.openItem` (cached stream resume): same overlay for the 200–600 ms gap before native player splash.
+>   - 30 s timeout (vs the default 6 s) because Stremio addons can legitimately take 10–15 s on first-fetch.
+>   - All paths hide on `popstate` (back button) / `hashchange` / explicit `hideNavLoader()` from Player.jsx / Detail.jsx mount.
+>
+> Note: this does NOT make the 6 s wait shorter — backend stream-resolution latency is dominated by upstream Stremio addons.  Backend already caches for 5 min, so subsequent clicks within the cache window are <100 ms.  This change gives the user instant unmissable visual feedback during the wait, eliminating the "did it register my click?" feeling.
+
 > **🟢 v2.10.19 — Instant "Loading title" overlay on every tile tap (Feb 9 2026).**
 >
 > User report: *"when you click on a TV show, the loading screen needs to come up a lot quicker — it's not coming up quick enough. As soon as you hit a TV show, it should come up pretty much instantly."*

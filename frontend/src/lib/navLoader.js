@@ -27,7 +27,7 @@
  */
 
 const OVERLAY_ID = 'vesper-nav-loader';
-const AUTO_HIDE_MS = 6000;
+const DEFAULT_AUTO_HIDE_MS = 6000;
 
 let overlayEl = null;
 let autoHideTimer = null;
@@ -65,9 +65,7 @@ function ensureOverlay() {
                 <circle cx="24" cy="24" r="18" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-dasharray="85 28"></circle>
             </svg>
         </span>
-        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:13px;letter-spacing:0.34em;text-transform:uppercase;color:rgba(255,255,255,0.72);">
-            Loading title<span class="vesper-dots" aria-hidden="true">…</span>
-        </div>
+        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:13px;letter-spacing:0.34em;text-transform:uppercase;color:rgba(255,255,255,0.72);"><span data-role="nav-loader-label">Loading title</span><span class="vesper-dots" aria-hidden="true">…</span></div>
         <div aria-hidden="true" style="width:clamp(180px, 18vw, 280px);height:2px;background:linear-gradient(90deg, transparent 0%, rgba(93,200,255,0.85) 50%, transparent 100%);background-size:200% 100%;animation:vesper-splash-sweep 1.6s ease-in-out infinite;border-radius:999px;box-shadow:0 0 12px rgba(93,200,255,0.45);"></div>
     `;
     // Inject the keyframe once — vesper-splash-sweep already exists
@@ -96,7 +94,7 @@ function installGlobalGuards() {
     window.addEventListener('hashchange', () => hideNavLoader());
 }
 
-export function showNavLoader() {
+export function showNavLoader(opts = {}) {
     const el = ensureOverlay();
     if (!el) return;
     installGlobalGuards();
@@ -104,12 +102,29 @@ export function showNavLoader() {
         clearTimeout(autoHideTimer);
         autoHideTimer = null;
     }
+    // Optional caller-supplied label override.  Used by episode
+    // clicks where the wait can be 6 s+ for stream resolution and
+    // a vague "Loading title" feels misleading.
+    if (opts.label) {
+        const lbl = el.querySelector('[data-role="nav-loader-label"]');
+        if (lbl) lbl.textContent = opts.label;
+    } else {
+        const lbl = el.querySelector('[data-role="nav-loader-label"]');
+        if (lbl) lbl.textContent = 'Loading title';
+    }
     el.style.display = 'flex';
     // Force a reflow so the opacity transition runs from 0 → 1
     // even when the same element is being re-shown back-to-back.
     void el.offsetWidth;
     el.style.opacity = '1';
-    autoHideTimer = setTimeout(() => hideNavLoader(), AUTO_HIDE_MS);
+    // 0 = no auto-hide (caller is responsible for hideNavLoader).
+    // Otherwise default 6 s safety net.
+    const timeoutMs = (typeof opts.timeoutMs === 'number')
+        ? opts.timeoutMs
+        : DEFAULT_AUTO_HIDE_MS;
+    if (timeoutMs > 0) {
+        autoHideTimer = setTimeout(() => hideNavLoader(), timeoutMs);
+    }
 }
 
 export function hideNavLoader() {
