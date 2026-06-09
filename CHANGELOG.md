@@ -1,5 +1,27 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.16 — Buttery D-pad polish on Vesper V2 home shelves (2026-02-08)
+
+User report: "moving across the Continue Watching tiles and moving around and stuff is still a tiny bit sluggish. Just enhance it a bit to make it really buttery smooth".
+
+### Two surgical perf fixes on the V2 Vesper hybrid frontend
+
+1. **Home page row-walker cached + double-scroll eliminated** (`pages/Home.jsx`).  Previously every Up/Down keypress on Home ran `homeRoot.querySelectorAll('[data-focusable="true"]')` + a `getBoundingClientRect()` on every tile to assign rows — that's ~100 forced layouts per keypress, stacking frame-on-frame during a held d-pad.  The row list is now cached across keypresses and only rebuilt on relevant DOM mutations (shelves mount/unmount, focusables flip enabled/disabled).  Held-key navigation through Continue Watching now does ~10 layouts per press (only the target row's tiles for column-matching) instead of ~100.
+
+   The implicit browser focus-scroll (`focus({ preventScroll: false })`) was also fighting the explicit `scrollIntoView({ behavior: 'auto' })` immediately below it — every press queued TWO competing scroll operations on Chrome WebView.  Now `preventScroll: true` and a single explicit auto-scroll to the snap-page parent.
+
+2. **`vesper-scrubbing` body class wired up** (`hooks/useSpatialFocus.js`).  The CSS rule that forces `transition: none` on every focusable while the user is holding a D-pad key had been written but never actually applied.  Now toggled on the first `e.repeat` keydown and cleared 220 ms after the last keydown — so a single tap still gets the polished 130 ms cubic-bezier focus transition, but a held key snaps the ring frame-by-frame with zero trailing animation.
+
+### Files touched
+- `frontend/src/pages/Home.jsx` — row-walker cache + MutationObserver, single scroll path.
+- `frontend/src/hooks/useSpatialFocus.js` — `vesper-scrubbing` body-class toggle on key auto-repeat.
+
+### Smoke test
+- Webpack compiles clean (1 unrelated `react-hooks/exhaustive-deps` warning pre-existing).
+- Screenshot test on `/` ran 5 rapid ArrowDown presses → focus walked from the hero to the "Coming soon" rail correctly; body class was empty 500 ms after the last keypress (confirming the scrub class is properly added then stripped).
+
+
+
 ## v2.10.15 — Streaming per-channel EPG cache, OOM fix (2026-02-08)
 
 User report (TV photo + video, `5x0x00gs_20260609_102704.mp4`): the v2.10.14 full-bundle XMLTV preload crashed with `java.lang.OutOfMemoryError: max allowed footprint 268435456` partway through parsing — the user's Android TV box has a 256 MB heap and the previous design held all 600 k+ programmes in a single in-memory `Map<String, List<Programme>>` (~115 MB just for programmes, plus JSON / OkHttp / Coil / parser state pushed us past the ceiling).

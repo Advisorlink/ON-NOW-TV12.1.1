@@ -41,6 +41,15 @@ export default function useSpatialFocus() {
         let cachedFocusables = null;
         let cacheGen = 0;
         let invalidationTimer = null;
+        // v2.10.16 — Scrub-mode tracking.  Held D-pad fires
+        // `keydown` events with `e.repeat === true` on every
+        // auto-repeat (~30 Hz).  We add the `vesper-scrubbing`
+        // class to <body> after the FIRST repeat so a normal
+        // single-tap still gets the polished transition, then
+        // strip it 220 ms after the last keydown so the smooth
+        // animation returns the moment the user lifts the key.
+        let scrubBurstCount = 0;
+        let scrubClearTimer = null;
         const invalidateCache = () => {
             if (invalidationTimer) return;
             invalidationTimer = requestAnimationFrame(() => {
@@ -879,6 +888,27 @@ export default function useSpatialFocus() {
 
             if (dir) {
                 e.preventDefault();
+                // v2.10.16 — Mark the document as "scrubbing"
+                // when D-pad is auto-repeating.  This activates
+                // the `body.vesper-scrubbing` CSS rule which
+                // forces `transition: none` on every focusable
+                // — eliminates the trailing scale/glow that
+                // can lag behind a held-key on lower-end Android
+                // TV WebViews.  The class is cleared a beat
+                // after the last keypress so a single tap still
+                // gets the smooth 130 ms cubic-bezier polish.
+                if (e.repeat || scrubBurstCount >= 1) {
+                    if (!document.body.classList.contains('vesper-scrubbing')) {
+                        document.body.classList.add('vesper-scrubbing');
+                    }
+                }
+                scrubBurstCount += 1;
+                if (scrubClearTimer) clearTimeout(scrubClearTimer);
+                scrubClearTimer = setTimeout(() => {
+                    document.body.classList.remove('vesper-scrubbing');
+                    scrubBurstCount = 0;
+                    scrubClearTimer = null;
+                }, 220);
                 // Synchronous move.  Every press — discrete or
                 // repeat — produces exactly one move call.  No
                 // queue, no throttle, no dropped inputs.
@@ -983,6 +1013,8 @@ export default function useSpatialFocus() {
             timers.forEach((t) => clearTimeout(t));
             observer.disconnect();
             if (invalidationTimer) cancelAnimationFrame(invalidationTimer);
+            if (scrubClearTimer) clearTimeout(scrubClearTimer);
+            document.body.classList.remove('vesper-scrubbing');
         };
     }, []);
 }
