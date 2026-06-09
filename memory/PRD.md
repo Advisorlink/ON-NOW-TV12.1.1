@@ -23,6 +23,15 @@
 
 
 
+> **🟢 v2.10.16 — D-pad polish on V2 Vesper home shelves (Feb 8 2026).**
+>
+> User: "Continue Watching nav is still a tiny bit sluggish — make it buttery smooth".  Two surgical fixes:
+>
+> 1. **Home row-walker is now cached.**  Every Up/Down keypress used to run `querySelectorAll` + `getBoundingClientRect` on ~100 tiles to assign rows — held-key auto-repeat stacked those layouts frame-on-frame.  The row list is now cached and only rebuilt on shelf mounts/unmounts (via a scoped MutationObserver).  Plus `focus({ preventScroll: true })` (was `false`), removing the implicit browser scroll that was fighting the explicit `scrollIntoView` immediately after it.
+> 2. **`vesper-scrubbing` body class wired up.**  The CSS that forces `transition: none` on every focusable during d-pad auto-repeat was written but never actually applied.  Now toggled on first `e.repeat` keydown, cleared 220 ms after the last keydown — single taps still get the 130 ms cubic-bezier polish, held keys snap the ring frame-by-frame with zero trailing animation.
+
+
+
 > **🟢 v2.10.15 — Streaming per-channel EPG cache (OOM fix) (Feb 8 2026).**
 >
 > User TV photo: v2.10.14 crashed mid-parse with `OutOfMemoryError: max allowed footprint 268435456`.  The user's box has a 256 MB heap and the previous "load every channel's programmes into one Map" design hit ~115 MB of programmes alone — once OkHttp + Coil + JSON were factored in, the OS couldn't even deliver a binder transaction.

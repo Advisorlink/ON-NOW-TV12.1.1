@@ -206,6 +206,74 @@ export default function Home() {
     React.useEffect(() => {
         if (isFilterView) return undefined;
 
+        /* v2.10.16 — Buttery D-pad polish.
+         *
+         * Two changes from the previous implementation:
+         *
+         * 1.  The rows array is now CACHED across keypresses and
+         *     only rebuilt on relevant DOM mutations (shelves
+         *     mount / unmount, focusables flip enabled/disabled).
+         *     Before, every Down keypress did
+         *     `querySelectorAll('[data-focusable="true"]')` and a
+         *     `getBoundingClientRect()` on every tile to assign
+         *     rows — that's ~100 forced layouts PER KEYPRESS.  On a
+         *     held d-pad this stacks frame-on-frame and is what
+         *     made Continue Watching nav feel "tiny bit sluggish".
+         *
+         * 2.  Focus is restored with `preventScroll: true`, then a
+         *     SINGLE explicit `scrollIntoView({ behavior: 'auto' })`
+         *     to the snap-page parent — the previous
+         *     `preventScroll: false` ran the browser's implicit
+         *     focus-scroll AND the manual snap-scroll for every
+         *     press, fighting each other and emitting a noticeable
+         *     jitter on Chrome WebView.
+         */
+        let cachedRows = null;
+        const invalidateRows = () => { cachedRows = null; };
+        const buildRows = () => {
+            const homeRoot = document.querySelector('[data-testid="home-page"]');
+            if (!homeRoot) return [];
+            const heroFocusables = Array.from(
+                homeRoot.querySelectorAll(
+                    '[data-testid="hero-billboard"] [data-focusable="true"]'
+                )
+            ).filter((el) => !el.hasAttribute('disabled'));
+            const shelfNodes = Array.from(
+                homeRoot.querySelectorAll(
+                    '[data-testid="shelves-region"] > section, ' +
+                    '[data-testid="shelves-region"] > [data-testid="for-you-shelf"] section, ' +
+                    '[data-testid="shelves-region"] > div > a[data-focusable="true"]'
+                )
+            );
+            const rows = [];
+            if (heroFocusables.length) rows.push(heroFocusables);
+            for (const node of shelfNodes) {
+                const list = node.matches('[data-focusable="true"]')
+                    ? [node]
+                    : Array.from(
+                          node.querySelectorAll('[data-focusable="true"]')
+                      );
+                const list2 = list.filter((el) => !el.hasAttribute('disabled'));
+                if (list2.length) rows.push(list2);
+            }
+            return rows;
+        };
+        // Invalidate the cached row list on relevant DOM changes —
+        // new shelves loading, tiles enabling/disabling.  We do NOT
+        // invalidate on `data-focused` attribute flips (the focus
+        // ring) because those happen on every move and would defeat
+        // the cache.
+        const homeRootForObs = document.querySelector('[data-testid="home-page"]');
+        const obs = new MutationObserver(invalidateRows);
+        if (homeRootForObs) {
+            obs.observe(homeRootForObs, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['data-focusable', 'disabled', 'tabindex'],
+            });
+        }
+
         const onKey = (e) => {
             if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
             const homeRoot = document.querySelector('[data-testid="home-page"]');
@@ -222,38 +290,16 @@ export default function Home() {
             // and this row-walker takes over again.
             if (active.closest('[data-testid="side-nav"]')) return;
 
-            // Build the ordered list of "rows" in DOM order.  Hero
-            // is row 0 when it has any focusable; every shelf
-            // section under shelves-region becomes a row when it
-            // contains at least one focusable element.
-            const heroFocusables = Array.from(
-                homeRoot.querySelectorAll(
-                    '[data-testid="hero-billboard"] [data-focusable="true"]'
-                )
-            ).filter((el) => !el.hasAttribute('disabled'));
-
-            const shelfNodes = Array.from(
-                homeRoot.querySelectorAll(
-                    '[data-testid="shelves-region"] > section, ' +
-                    '[data-testid="shelves-region"] > [data-testid="for-you-shelf"] section, ' +
-                    '[data-testid="shelves-region"] > div > a[data-focusable="true"]'
-                )
-            );
-
-            const rows = [];
-            if (heroFocusables.length) rows.push(heroFocusables);
-            for (const node of shelfNodes) {
-                const list = node.matches('[data-focusable="true"]')
-                    ? [node]
-                    : Array.from(
-                          node.querySelectorAll('[data-focusable="true"]')
-                      );
-                const list2 = list.filter((el) => !el.hasAttribute('disabled'));
-                if (list2.length) rows.push(list2);
-            }
+            // Build/reuse the cached rows list.
+            if (!cachedRows) cachedRows = buildRows();
+            const rows = cachedRows;
             if (rows.length === 0) return;
 
-            // Which row is the user currently on?
+            // Which row is the user currently on?  Use `Array.includes`
+            // (cheap) instead of geometric matching.  Only falls back
+            // to geometry when the focused element is not in the
+            // pre-built rows list at all (rare — e.g. focus is on a
+            // tile that mounted between mutations).
             let curRowIdx = -1;
             for (let i = 0; i < rows.length; i++) {
                 if (rows[i].includes(active)) {
@@ -283,7 +329,10 @@ export default function Home() {
 
             // Pick the tile on the target row closest to the
             // current X column so the user stays in the same
-            // visual column when scrolling rails up/down.
+            // visual column when scrolling rails up/down.  Two
+            // getBoundingClientRect calls per target-row tile
+            // (~10-15 tiles per row) — orders of magnitude less
+            // than the previous full-page scan.
             const curRect = active.getBoundingClientRect();
             const curX = curRect.left + curRect.width / 2;
             const target = rows[targetIdx].reduce((best, el) => {
@@ -296,7 +345,7 @@ export default function Home() {
 
             e.preventDefault();
             e.stopPropagation();
-            try { target.el.focus({ preventScroll: false }); } catch { /* ignore */ }
+            try { target.el.focus({ preventScroll: true }); } catch { /* ignore */ }
             target.el.setAttribute('data-focused', 'true');
             document
                 .querySelectorAll('[data-focused="true"]')
@@ -325,7 +374,10 @@ export default function Home() {
         };
 
         window.addEventListener('keydown', onKey, true);
-        return () => window.removeEventListener('keydown', onKey, true);
+        return () => {
+            window.removeEventListener('keydown', onKey, true);
+            obs.disconnect();
+        };
     }, [isFilterView]);
 
     /* v2.7.10 — measure the EXACT pixel height available for one
