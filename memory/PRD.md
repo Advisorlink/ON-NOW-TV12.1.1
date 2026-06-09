@@ -1,5 +1,17 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.22 — Avatar icons re-encoded as JPEG (WebP failed on Android TV WebView) (Feb 9 2026).**
+>
+> User reported the new avatar icons were not rendering on the actual TV — only the colored gradient backgrounds showed up, no character portraits.  Server logs + curl confirmed the WebP files were being delivered (HTTP 200, correct content-type) so the failure was in the WebView's WebP decoder.  Some older Android TV ChromeView builds (especially on projector / generic box hardware) ship without proper WebP decode support, even though WebP has been a Chromium standard since 2012.
+>
+> **Fix**: re-export every avatar as progressive JPEG quality-88.
+>   • 77 × `<id>.webp` → 77 × `<id>.jpg` under `frontend/public/avatars/`
+>   • Total: 2.4 MB WebP → 3.17 MB JPEG (still 97 % smaller than the original 139 MB PNG drop)
+>   • `avatars.jsx` `icon()` helper switched extension `.webp` → `.jpg`
+>   • Removed `loading="lazy"` from `<AvatarCircle>` img — some pre-2020 WebViews don't support the attribute and skip the load entirely
+>
+> Verified end-to-end via Playwright on the preview URL: 78/78 images load, popcorn / monsters / slime / aliens / anime portraits all render with full color depth.
+
 > **🟢 v2.10.21 — Profile-avatar library overhaul: 77 hand-illustrated icons in 5 categories + 16 curated emojis (Feb 9 2026).**
 >
 > User request: *"Take all these icons and replace the Vesper V2 icons. Categorise them properly — funny ones together, anime ones together, gamer ones together, sports ones together. Take away the majority of the emojis. Leave a few of them, but add these in instead."*
