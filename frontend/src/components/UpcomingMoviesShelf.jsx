@@ -22,6 +22,7 @@ import { Play, Calendar } from 'lucide-react';
 import * as img from '@/lib/img';
 import StreamUnavailableModal from './StreamUnavailableModal';
 import useLongPress from '@/hooks/useLongPress';
+import { showNavLoader } from '@/lib/navLoader';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -85,8 +86,10 @@ export default function UpcomingMoviesShelf() {
         // launches the full-screen trailer player.  Long-press on the
         // card opens the Notify modal directly (see longPressItem).
         if (m?.imdb_id) {
+            showNavLoader();
             navigate(`/title/movie/${m.imdb_id}`);
         } else if (m?.tmdb_id) {
+            showNavLoader();
             navigate(`/resolve/movie/${m.tmdb_id}`);
         }
     };

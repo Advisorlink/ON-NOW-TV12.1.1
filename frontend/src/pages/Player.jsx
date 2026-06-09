@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Hls from 'hls.js';
 import {
@@ -26,6 +26,7 @@ import Host from '@/lib/host';
 import { API } from '@/lib/api';
 import { getActiveProfile } from '@/lib/profiles';
 import { getAvatar } from '@/lib/avatars';
+import { hideNavLoader } from '@/lib/navLoader';
 
 /** Convert OpenSubtitles SRT body into WebVTT the <track> element can read. */
 function srtToVtt(srt) {
@@ -91,6 +92,11 @@ const langLabel = (code = '') => {
 
 export default function Player() {
     useSpatialFocus();
+    // Tear down the global nav-loading overlay as soon as Player
+    // commits its first frame — handoff to Player's own spinner.
+    useLayoutEffect(() => {
+        hideNavLoader();
+    }, []);
     const navigate = useNavigate();
     const [params] = useSearchParams();
     const url = params.get('url');

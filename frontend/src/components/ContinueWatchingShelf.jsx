@@ -4,6 +4,7 @@ import { Play, X, Trash2 } from 'lucide-react';
 import * as cw from '@/lib/continueWatching';
 import * as img from '@/lib/img';
 import Host from '@/lib/host';
+import { showNavLoader } from '@/lib/navLoader';
 
 const POLL_MS = 5_000;
 
@@ -98,6 +99,7 @@ export default function ContinueWatchingShelf() {
             // bypassing the Detail page's stream-pick logic by
             // calling Host.playVideo directly.
             if (t === 'series' && focusSeason && focusEpisode) {
+                showNavLoader();
                 navigate(
                     `/title/series/${baseId}` +
                     `?focusSeason=${focusSeason}&focusEpisode=${focusEpisode}`,
@@ -126,6 +128,7 @@ export default function ContinueWatchingShelf() {
         const suffix = (t === 'series' && focusSeason && focusEpisode)
             ? `&focusSeason=${focusSeason}&focusEpisode=${focusEpisode}`
             : '';
+        showNavLoader();
         navigate(`/title/${t}/${baseId}?resume=1${suffix}`);
     };
 

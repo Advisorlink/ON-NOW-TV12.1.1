@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useLongPress from '@/hooks/useLongPress';
+import { showNavLoader } from '@/lib/navLoader';
 import {
     listFavouritesByType,
     listWatchLater,
@@ -242,6 +243,7 @@ export default function Library() {
                     onClose={() => setNotifyPopoverOpen(false)}
                     onOpen={(n) => {
                         if (String(n.id).startsWith('tt')) {
+                            showNavLoader();
                             navigate(`/title/${n.type || 'movie'}/${n.id}`);
                         }
                         setNotifyPopoverOpen(false);
@@ -1133,7 +1135,7 @@ function FavouriteCard({ item, type }) {
     const navigate = useNavigate();
     const poster = item.meta?.poster;
 
-    const onTap = () => navigate(`/title/${type}/${item.id}`);
+    const onTap = () => { showNavLoader(); navigate(`/title/${type}/${item.id}`); };
     const onLongPress = () => {
         window.dispatchEvent(
             new CustomEvent('vesper:request-add-to-list', {
@@ -1347,6 +1349,7 @@ function ActorCard({ actor }) {
 function WatchLaterBlock({ items, onRemove, onExpand }) {
     const navigate = useNavigate();
     const playItem = (w) => {
+        showNavLoader();
         if (w.type === 'series') {
             const videoId = `${w.id}:${w.episode.season}:${w.episode.number}`;
             navigate(`/resolve/series/${encodeURIComponent(videoId)}`);
@@ -1535,6 +1538,7 @@ function WatchLaterExpanded({ items, onClose, onRemove }) {
     }, [onClose]);
 
     const playItem = (w) => {
+        showNavLoader();
         if (w.type === 'series') {
             const videoId = `${w.id}:${w.episode.season}:${w.episode.number}`;
             navigate(`/resolve/series/${encodeURIComponent(videoId)}`);

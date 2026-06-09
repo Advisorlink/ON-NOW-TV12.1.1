@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
     Play,
@@ -29,6 +29,7 @@ import { isKidsActive, getActiveProfile, isRatingAllowed, getKidsConfig } from '
 import { avatarEmojiById } from '@/lib/avatars';
 import * as cw from '@/lib/continueWatching';
 import { isInLibrary } from '@/lib/library';
+import { hideNavLoader } from '@/lib/navLoader';
 
 const streamMode = (s) => {
     if (s?.url) return 'direct';
@@ -70,6 +71,14 @@ const buildMagnet = (s, fallbackName = '') => {
 
 export default function Detail() {
     useSpatialFocus();
+    // Hide the global nav-loading overlay the moment Detail's first
+    // commit lands.  `useLayoutEffect` fires synchronously AFTER
+    // the commit but BEFORE the browser paints — so the user sees
+    // Detail's own SpinningLogo loading screen in the same frame
+    // the overlay disappears (no flicker, no double spinner).
+    useLayoutEffect(() => {
+        hideNavLoader();
+    }, []);
     const { type, id } = useParams();
     const navigate = useNavigate();
     const location = useLocation();

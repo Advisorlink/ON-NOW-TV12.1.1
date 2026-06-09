@@ -1,5 +1,31 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.19 — Instant "Loading title" overlay on every tile tap (Feb 9 2026).**
+>
+> User report: *"when you click on a TV show, the loading screen needs to come up a lot quicker — it's not coming up quick enough. As soon as you hit a TV show, it should come up pretty much instantly."*
+>
+> **Root cause**: the loading spinner lives INSIDE `Detail.jsx` (2944 lines).  On a low-end Android TV WebView, `navigate()` → React Router unmounts `Home` → mounts `Detail` → first paint costs ~200–400 ms.  During that gap the user sees Home frozen with zero visible reaction to their click.
+>
+> **Fix** — new `src/lib/navLoader.js` module:
+>   - Imperatively creates a singleton full-screen overlay (`<div data-testid="nav-loader">` with the same SpinningLogo SVG + sweep bar Detail already uses).
+>   - `showNavLoader()` is called SYNCHRONOUSLY right before every `navigate('/title/...')` call site (PosterTile, HeroBillboard, ContinueWatchingShelf, Library favourite tiles, Watch Later, NotifyPopover, TabGridView, KidsTabGridView, NetworkPosterTile, CastRow, UpcomingMoviesShelf, RecommendationsRow, Person filmography).
+>   - Toggles `element.style.display` directly — zero React reconciliation cost.  Paints next browser frame (~16 ms).
+>   - `hideNavLoader()` is called from `Detail.jsx` + `Player.jsx` in `useLayoutEffect` so it fires after the first commit but BEFORE the browser paints — meaning the new page's own SpinningLogo replaces this overlay seamlessly (both use the same SVG so the handoff is invisible).
+>   - Safety: auto-hide on `popstate` / `hashchange` (back button) + 6 s hard timeout so a stuck route never strands the overlay on screen.
+>
+> Verified end-to-end via Playwright + screenshot: at +60 ms after a poster click the overlay is visible (display:flex, z:999999); at +240 ms Detail has mounted and the overlay is `display:none` — Detail's own loader takes over.  No double-spinner, no flicker.
+
+> **🟢 v2.10.18 — Profile UI polish: rename, viewing-styles split, modal focus trap (Feb 9 2026).**
+>
+> Three Profile-related fixes shipped per user request:
+>
+> 1. **Save/Skip modal focus trap** (`ProfileEdit.jsx::ConfirmModal`).  Captures ArrowLeft/Right/Up/Down at the window level, bounces focus between the No / Yes buttons, swallows the keys so the global spatial-focus engine never sees them.  Adds a `focusin` rubber-band that re-claims focus the instant a stray claim from a background tile fires.  Auto-focuses the No button on mount via a multi-frame retry (sync + rAF + 50 ms + 150 ms) so the in-flight Enter release from the long-press doesn't steal focus first.
+>
+> 2. **Viewing Styles split into Movies (1/2) → TV Shows (2/2)** (`ProfileEdit.jsx::ViewingStyleStep`).  Two-page wizard driven by local `mediaPage = 'movie' | 'tv'` state.  Step dots ("Movies", "TV Shows") at the top.  Save & continue on the movie page advances to TV; on TV it calls the parent's `onNext`.  "Back to movies" button appears only on the TV page.  16:9 layout: genre tiles LEFT (`minmax(280px,1fr)`), top-50 titles grid RIGHT (`minmax(380px,1.4fr)`), at `max-width: 1280`.
+>
+> 3. **Profile name editing** (`ProfileSelect.jsx::RenameProfileDialog`).  In Manage mode, every non-Kids profile gets an "Edit name" button.  Clicking opens a modal with the current name pre-filled, full focus trap, Save disabled when unchanged, persists via `saveProfile({ ...profile, name: nextName })` from `lib/profiles.js`.
+
+
 > **🔴 v2.9.8 — Production VPS IP-blocked by Xtream provider · device-side direct fetch as workaround (Jun 7 2026).**
 > Confirmed via SSH: `bash -c '</dev/tcp/njala.ddns.me/8443'` from the Contabo VPS = `FAILED` on every port (8443, 443, 80, 8087), ICMP dropped.  Backend stays blind to the provider until the IP is whitelisted.  Android app bypasses the backend via the new `DirectProviderFetcher` (uses user's home ISP, which IS allowed).
 
