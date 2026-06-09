@@ -782,10 +782,14 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
     const [movieGenres, setMovieGenres] = React.useState([]);
     const [tvGenres, setTvGenres] = React.useState([]);
     const [loadingGenres, setLoadingGenres] = React.useState(true);
-    /* Which media tab the right-panel is currently showing.
-     * 'movie' (default) or 'tv'.  Set by tapping ANY genre in
-     * that section. */
-    const [activeMedia, setActiveMedia] = React.useState('movie');
+    /* v2.10.18 — Two-page wizard.  User explicitly asked: "we
+     * need to have two separate pages, so one for movies and
+     * then one for TV shows".  `mediaPage` is the page we're
+     * currently on; the right-panel's `activeMedia` always
+     * mirrors it.  Save & continue on the movie page advances
+     * to the TV page; on the TV page it calls the parent's
+     * onNext to advance to the next wizard step. */
+    const [mediaPage, setMediaPage] = React.useState('movie');
     /* Combined top-50 lists keyed by `${media}:${sortedGenreIds}`. */
     const [comboItems, setComboItems] = React.useState({});
     const [loadingItems, setLoadingItems] = React.useState(false);
@@ -810,7 +814,8 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
     }, []);
 
     /* Whenever the user's selected genre set changes for the
-     * active media tab, refetch the combined top-50. */
+     * current page's media, refetch the combined top-50. */
+    const activeMedia = mediaPage;
     const selectedIds = (activeMedia === 'movie' ? value.movieGenres : value.tvGenres) || [];
     const sortedKey = [...selectedIds].sort((a, b) => a - b).join(',');
     const cacheKey = `${activeMedia}:${sortedKey}`;
@@ -837,10 +842,9 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
         return () => { cancel = true; };
     }, [cacheKey, sortedKey, activeMedia, comboItems]);
 
-    /* Clicking a genre TOGGLES it AND swaps the right-panel to
-     * its media tab.  Multi-select is now first-class. */
+    /* Clicking a genre TOGGLES it.  No media swap — the page
+     * is already on the right media (movie OR tv). */
     const toggleGenre = (g, media) => {
-        setActiveMedia(media);
         const arr = media === 'movie' ? value.movieGenres : value.tvGenres;
         const has = arr.includes(g.id);
         const nextArr = has ? arr.filter((x) => x !== g.id) : [...arr, g.id];
@@ -900,7 +904,74 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                 }}
             >
                 <Sparkles size={14} strokeWidth={1.8} />
-                CHOOSE YOUR VIEWING STYLE · {totalPicks} picks
+                CHOOSE YOUR VIEWING STYLE ·{' '}
+                {mediaPage === 'movie' ? 'MOVIES (1/2)' : 'TV SHOWS (2/2)'} ·{' '}
+                {totalPicks} picks
+            </div>
+
+            {/* v2.10.18 — Two-step indicator dots */}
+            <div
+                data-testid="viewing-style-step-dots"
+                className="flex items-center"
+                style={{ gap: 10, marginBottom: 14 }}
+            >
+                {['movie', 'tv'].map((m, i) => {
+                    const active = mediaPage === m;
+                    const done =
+                        (m === 'movie' && mediaPage === 'tv') ||
+                        false;
+                    return (
+                        <div
+                            key={m}
+                            data-testid={`step-dot-${m}`}
+                            className="flex items-center"
+                            style={{ gap: 8 }}
+                        >
+                            <span
+                                style={{
+                                    display: 'inline-block',
+                                    width: active ? 28 : 8,
+                                    height: 8,
+                                    borderRadius: 999,
+                                    background: active
+                                        ? 'var(--vesper-blue)'
+                                        : done
+                                        ? 'rgba(var(--vesper-blue-rgb),0.55)'
+                                        : 'rgba(255,255,255,0.18)',
+                                    boxShadow: active
+                                        ? '0 0 14px rgba(var(--vesper-blue-rgb),0.55)'
+                                        : 'none',
+                                    transition:
+                                        'width 220ms cubic-bezier(.2,.7,.2,1), background 220ms',
+                                }}
+                            />
+                            <span
+                                className="vesper-mono"
+                                style={{
+                                    fontSize: 11,
+                                    letterSpacing: '0.22em',
+                                    color: active
+                                        ? 'var(--vesper-text)'
+                                        : 'var(--vesper-text-3)',
+                                    textTransform: 'uppercase',
+                                }}
+                            >
+                                {m === 'movie' ? 'Movies' : 'TV Shows'}
+                            </span>
+                            {i === 0 && (
+                                <span
+                                    style={{
+                                        width: 18,
+                                        height: 1,
+                                        background: 'rgba(255,255,255,0.16)',
+                                        marginLeft: 4,
+                                        marginRight: -2,
+                                    }}
+                                />
+                            )}
+                        </div>
+                    );
+                })}
             </div>
 
             {/* Helper banner — explicitly tells the user how the
@@ -965,7 +1036,11 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                     marginBottom: 28,
                 }}
             >
-                {/* LEFT — Genre tiles */}
+                {/* LEFT — Genre tiles for the current page only.
+                    User asked for two SEPARATE pages (movies first,
+                    then TV shows), so we no longer stack both
+                    sections; we swap the section based on
+                    `mediaPage`. */}
                 <div
                     style={{
                         display: 'flex',
@@ -973,26 +1048,31 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                         gap: 18,
                     }}
                 >
-                    <GenreSection
-                        label="Movies"
-                        genres={movieGenres}
-                        media="movie"
-                        loading={loadingGenres}
-                        selected={value.movieGenres}
-                        activeId={null}
-                        onOpen={(g) => toggleGenre(g, 'movie')}
-                        onToggle={(g) => toggleGenre(g, 'movie')}
-                    />
-                    <GenreSection
-                        label="TV Shows"
-                        genres={tvGenres}
-                        media="tv"
-                        loading={loadingGenres}
-                        selected={value.tvGenres}
-                        activeId={null}
-                        onOpen={(g) => toggleGenre(g, 'tv')}
-                        onToggle={(g) => toggleGenre(g, 'tv')}
-                    />
+                    {mediaPage === 'movie' ? (
+                        <GenreSection
+                            key="movie"
+                            label="Movie genres"
+                            genres={movieGenres}
+                            media="movie"
+                            loading={loadingGenres}
+                            selected={value.movieGenres}
+                            activeId={null}
+                            onOpen={(g) => toggleGenre(g, 'movie')}
+                            onToggle={(g) => toggleGenre(g, 'movie')}
+                        />
+                    ) : (
+                        <GenreSection
+                            key="tv"
+                            label="TV show genres"
+                            genres={tvGenres}
+                            media="tv"
+                            loading={loadingGenres}
+                            selected={value.tvGenres}
+                            activeId={null}
+                            onOpen={(g) => toggleGenre(g, 'tv')}
+                            onToggle={(g) => toggleGenre(g, 'tv')}
+                        />
+                    )}
                 </div>
 
                 {/* RIGHT — Combined top-50 across all selected
@@ -1187,7 +1267,11 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                 </div>
             </div>
 
-            {/* Action row */}
+            {/* Action row.  Two-page mode (v2.10.18):
+                - Page MOVIE: Skip → skips ALL, Back hidden, Next →
+                  advance to TV page.
+                - Page TV:    Skip → skips ALL, Back → back to
+                  movies, Next → onNext (parent advances). */}
             <div className="flex items-center" style={{ gap: 12 }}>
                 <button
                     data-testid="viewing-style-skip"
@@ -1205,14 +1289,53 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                         border: '1px solid rgba(255,255,255,0.14)',
                     }}
                 >
-                    Skip
+                    Skip all
                 </button>
+                {mediaPage === 'tv' && (
+                    <button
+                        data-testid="viewing-style-back-to-movies"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={() => setMediaPage('movie')}
+                        className="flex items-center gap-2 rounded-full font-sans font-semibold"
+                        style={{
+                            height: 50,
+                            padding: '0 22px',
+                            fontSize: 15,
+                            background: 'rgba(255,255,255,0.06)',
+                            color: 'var(--vesper-text)',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                        }}
+                    >
+                        <ArrowRight
+                            size={16}
+                            strokeWidth={2.5}
+                            style={{ transform: 'rotate(180deg)' }}
+                        />
+                        Back to movies
+                    </button>
+                )}
                 <button
                     data-testid="viewing-style-next"
                     data-focusable="true"
                     data-focus-style="pill"
                     tabIndex={0}
-                    onClick={onNext}
+                    onClick={() => {
+                        if (mediaPage === 'movie') {
+                            setMediaPage('tv');
+                            // Scroll back to the top so the user
+                            // sees the new page from the top.
+                            try {
+                                window.scrollTo({
+                                    top: 0,
+                                    behavior: 'auto',
+                                });
+                            } catch { /* ignore */ }
+                        } else {
+                            onNext();
+                        }
+                    }}
                     className="flex items-center gap-2 rounded-full font-sans font-semibold"
                     style={{
                         height: 50,
@@ -1225,7 +1348,9 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                             '0 12px 30px rgba(var(--vesper-blue-rgb),0.45)',
                     }}
                 >
-                    Save & continue
+                    {mediaPage === 'movie'
+                        ? 'Continue to TV shows'
+                        : 'Save & continue'}
                     <ArrowRight size={16} strokeWidth={2.5} />
                 </button>
             </div>
@@ -2361,6 +2486,7 @@ function ConfirmModal({
     children,
 }) {
     const noBtnRef = React.useRef(null);
+    const yesBtnRef = React.useRef(null);
     // Close on Escape / Backspace (mapped to TV remote Back).
     React.useEffect(() => {
         const onKey = (e) => {
@@ -2373,6 +2499,95 @@ function ConfirmModal({
         window.addEventListener('keydown', onKey, true);
         return () => window.removeEventListener('keydown', onKey, true);
     }, [onNo]);
+
+    // v2.10.18 — TRUE focus trap on the modal's two buttons.
+    //
+    // User report: "when it has the little popup there saying Save
+    // or Skip, just make sure that the focus stays inside that box,
+    // 'cause right now it doesn't stay inside that box".
+    //
+    // Two prongs to fix this — both required, neither one alone
+    // is enough:
+    //
+    //   1. **Key intercept (capture-phase)** — when focus is
+    //      inside the modal, ANY ArrowLeft / ArrowRight / ArrowUp /
+    //      ArrowDown is consumed before the global spatial-focus
+    //      hook sees it.  Left bounces to No, Right bounces to
+    //      Yes, Up/Down are no-ops (modal has no vertical
+    //      neighbours).  This stops focus from escaping in the
+    //      first place.
+    //
+    //   2. **`focusin` rubber-band (capture-phase)** — defensive
+    //      backstop.  If a stray focus claim from a tile behind
+    //      the backdrop *does* fire (e.g. a deferred lazy-fetch
+    //      grabs focus), we instantly slam it back to the No
+    //      button.  Belt and braces.
+    React.useEffect(() => {
+        const modalRoot = () =>
+            document.querySelector(`[data-testid="${testId}"]`);
+
+        const onKeyArrows = (e) => {
+            if (
+                e.key !== 'ArrowLeft' &&
+                e.key !== 'ArrowRight' &&
+                e.key !== 'ArrowUp' &&
+                e.key !== 'ArrowDown'
+            ) {
+                return;
+            }
+            const root = modalRoot();
+            if (!root) return;
+            // If the active element isn't even inside the modal,
+            // something has already gone wrong — fix it now and
+            // swallow the key.
+            const active = document.activeElement;
+            if (!active || !root.contains(active)) {
+                e.preventDefault();
+                e.stopPropagation();
+                try { noBtnRef.current?.focus({ preventScroll: true }); }
+                catch { /* ignore */ }
+                noBtnRef.current?.setAttribute('data-focused', 'true');
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            const target =
+                e.key === 'ArrowLeft' || e.key === 'ArrowUp'
+                    ? noBtnRef.current
+                    : yesBtnRef.current;
+            if (!target) return;
+            try { target.focus({ preventScroll: true }); }
+            catch { /* ignore */ }
+            // Repaint the focus ring immediately on the new
+            // button and strip it from any other modal button.
+            document
+                .querySelectorAll(`[data-testid="${testId}"] [data-focused="true"]`)
+                .forEach((el) => {
+                    if (el !== target) el.removeAttribute('data-focused');
+                });
+            target.setAttribute('data-focused', 'true');
+        };
+
+        const onFocusInCapture = (e) => {
+            const root = modalRoot();
+            if (!root) return;
+            if (!e.target || !root.contains(e.target)) {
+                // Stolen.  Slam it back to No.
+                const fallback = noBtnRef.current;
+                if (!fallback) return;
+                try { fallback.focus({ preventScroll: true }); }
+                catch { /* ignore */ }
+                fallback.setAttribute('data-focused', 'true');
+            }
+        };
+
+        window.addEventListener('keydown', onKeyArrows, true);
+        document.addEventListener('focusin', onFocusInCapture, true);
+        return () => {
+            window.removeEventListener('keydown', onKeyArrows, true);
+            document.removeEventListener('focusin', onFocusInCapture, true);
+        };
+    }, [testId]);
 
     // Imperatively focus the No / Cancel button on mount.  The
     // global `data-initial-focus` retry only runs at app boot, so
@@ -2499,6 +2714,7 @@ function ConfirmModal({
                         {noLabel}
                     </button>
                     <button
+                        ref={yesBtnRef}
                         data-testid={`${testId}-yes`}
                         data-focusable="true"
                         data-focus-style="pill"

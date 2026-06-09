@@ -6,6 +6,7 @@ import {
     listProfiles,
     setActiveProfile,
     removeProfile,
+    saveProfile,
     profileHasPin,
     checkProfilePin,
     getKidsConfig,
@@ -37,6 +38,9 @@ export default function ProfileSelect() {
     const [deletePinTarget, setDeletePinTarget] = useState(null);
     const [deletePinError, setDeletePinError] = useState('');
     const [deletePinReset, setDeletePinReset] = useState(0);
+    // v2.10.18 — Inline rename dialog target.  Set by the new
+    // "Edit name" button in manage-mode; cleared on save / cancel.
+    const [renameTarget, setRenameTarget] = useState(null);
 
     // v2.10.5 — Warm the Kids backend cache while the user is
     // choosing their profile.  Both the kids shelves and heroes
@@ -198,6 +202,7 @@ export default function ProfileSelect() {
                             editMode={editMode}
                             onPick={() => pick(p)}
                             onRemove={() => requestRemove(p)}
+                            onRename={() => setRenameTarget(p)}
                         />
                     ))}
                     {/* No profile cap — user explicitly asked for
@@ -292,11 +297,25 @@ export default function ProfileSelect() {
                     resetSignal={pinReset}
                 />
             )}
+
+            {renameTarget && (
+                <RenameProfileDialog
+                    profile={renameTarget}
+                    onCancel={() => setRenameTarget(null)}
+                    onConfirm={(nextName) => {
+                        try {
+                            saveProfile({ ...renameTarget, name: nextName });
+                        } catch { /* ignore — name persists on next refresh */ }
+                        setRenameTarget(null);
+                        refresh();
+                    }}
+                />
+            )}
         </div>
     );
 }
 
-function ProfileTile({ profile, editMode, onPick, onRemove }) {
+function ProfileTile({ profile, editMode, onPick, onRemove, onRename }) {
     const locked = profileHasPin(profile);
     return (
         <div className="flex flex-col items-center" style={{ width: 152 }}>
@@ -367,25 +386,314 @@ function ProfileTile({ profile, editMode, onPick, onRemove }) {
                 </div>
             )}
             {editMode && !profile.kids && (
-                <button
-                    data-testid={`remove-${profile.id}`}
-                    data-focusable="true"
-                    data-focus-style="pill"
-                    tabIndex={0}
-                    onClick={onRemove}
-                    style={{
-                        marginTop: 10,
-                        fontSize: 12,
-                        padding: '4px 12px',
-                        borderRadius: 999,
-                        background: 'rgba(239,68,68,0.16)',
-                        color: '#FCA5A5',
-                        border: '1px solid rgba(239,68,68,0.32)',
-                    }}
+                <div
+                    className="flex items-center"
+                    style={{ marginTop: 10, gap: 8 }}
                 >
-                    Remove
-                </button>
+                    <button
+                        data-testid={`rename-${profile.id}`}
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={onRename}
+                        style={{
+                            fontSize: 12,
+                            padding: '4px 12px',
+                            borderRadius: 999,
+                            background: 'rgba(93,200,255,0.14)',
+                            color: 'var(--vesper-blue-bright)',
+                            border: '1px solid rgba(93,200,255,0.36)',
+                        }}
+                    >
+                        Edit name
+                    </button>
+                    <button
+                        data-testid={`remove-${profile.id}`}
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={onRemove}
+                        style={{
+                            fontSize: 12,
+                            padding: '4px 12px',
+                            borderRadius: 999,
+                            background: 'rgba(239,68,68,0.16)',
+                            color: '#FCA5A5',
+                            border: '1px solid rgba(239,68,68,0.32)',
+                        }}
+                    >
+                        Remove
+                    </button>
+                </div>
             )}
+        </div>
+    );
+}
+
+/* v2.10.18 — Inline rename dialog used by the Manage Profiles
+ * edit-mode "Edit name" button.  Avatar + current name preview at
+ * the top, single text field, Save/Cancel actions.  Focus is
+ * trapped inside via the same key intercept + focusin rubber-band
+ * pattern as ConfirmModal in ProfileEdit. */
+function RenameProfileDialog({ profile, onCancel, onConfirm }) {
+    const [name, setName] = React.useState(profile.name || '');
+    const inputRef = React.useRef(null);
+    const cancelBtnRef = React.useRef(null);
+    const saveBtnRef = React.useRef(null);
+
+    React.useEffect(() => {
+        // Focus the input immediately so the user can just start
+        // typing.  Schedule across rAF + 50/150 ms to defeat any
+        // in-flight Enter key release from the "Edit name" click.
+        const grab = () => {
+            try { inputRef.current?.focus(); } catch { /* ignore */ }
+            inputRef.current?.setAttribute('data-focused', 'true');
+        };
+        grab();
+        const r = requestAnimationFrame(grab);
+        const t1 = setTimeout(grab, 50);
+        const t2 = setTimeout(grab, 150);
+        return () => {
+            cancelAnimationFrame(r);
+            clearTimeout(t1);
+            clearTimeout(t2);
+        };
+    }, []);
+
+    // Close on Backspace/Esc only when focus is in a button — the
+    // text input's onChange already handles Backspace for editing.
+    React.useEffect(() => {
+        const onKey = (e) => {
+            if (e.key !== 'Escape' && e.key !== 'Backspace') return;
+            const active = document.activeElement;
+            if (active && active.tagName === 'INPUT') return;
+            e.preventDefault();
+            e.stopPropagation();
+            onCancel();
+        };
+        window.addEventListener('keydown', onKey, true);
+        return () => window.removeEventListener('keydown', onKey, true);
+    }, [onCancel]);
+
+    // Focus trap: arrow keys bounce between input → cancel → save.
+    React.useEffect(() => {
+        const modalRoot = () =>
+            document.querySelector('[data-testid="rename-profile-dialog"]');
+
+        const onArrows = (e) => {
+            if (
+                e.key !== 'ArrowLeft' &&
+                e.key !== 'ArrowRight' &&
+                e.key !== 'ArrowUp' &&
+                e.key !== 'ArrowDown'
+            ) return;
+            const root = modalRoot();
+            if (!root) return;
+            const active = document.activeElement;
+            // Inside the text input — left/right is text caret nav,
+            // up/down moves to the button row.
+            if (active && active.tagName === 'INPUT') {
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    try { cancelBtnRef.current?.focus({ preventScroll: true }); }
+                    catch { /* ignore */ }
+                    cancelBtnRef.current?.setAttribute('data-focused', 'true');
+                }
+                return;
+            }
+            // Inside the button row.
+            if (active === cancelBtnRef.current) {
+                if (e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    try { saveBtnRef.current?.focus({ preventScroll: true }); }
+                    catch { /* ignore */ }
+                    saveBtnRef.current?.setAttribute('data-focused', 'true');
+                    cancelBtnRef.current?.removeAttribute('data-focused');
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    try { inputRef.current?.focus({ preventScroll: true }); }
+                    catch { /* ignore */ }
+                } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            } else if (active === saveBtnRef.current) {
+                if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    try { cancelBtnRef.current?.focus({ preventScroll: true }); }
+                    catch { /* ignore */ }
+                    cancelBtnRef.current?.setAttribute('data-focused', 'true');
+                    saveBtnRef.current?.removeAttribute('data-focused');
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    try { inputRef.current?.focus({ preventScroll: true }); }
+                    catch { /* ignore */ }
+                } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            }
+        };
+
+        const onFocusInCapture = (e) => {
+            const root = modalRoot();
+            if (!root) return;
+            if (!e.target || !root.contains(e.target)) {
+                try { inputRef.current?.focus({ preventScroll: true }); }
+                catch { /* ignore */ }
+            }
+        };
+
+        window.addEventListener('keydown', onArrows, true);
+        document.addEventListener('focusin', onFocusInCapture, true);
+        return () => {
+            window.removeEventListener('keydown', onArrows, true);
+            document.removeEventListener('focusin', onFocusInCapture, true);
+        };
+    }, []);
+
+    const trimmed = name.trim();
+    const canSave = trimmed.length > 0 && trimmed !== profile.name;
+
+    return (
+        <div
+            data-testid="rename-profile-dialog"
+            className="fixed inset-0 flex items-center justify-center"
+            style={{
+                zIndex: 90,
+                background: 'rgba(6,8,15,0.78)',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+            }}
+        >
+            <div
+                className="vesper-fade-up"
+                style={{
+                    width: 'min(520px, 80vw)',
+                    background: 'rgba(14,18,28,0.96)',
+                    border: '1px solid rgba(255,255,255,0.10)',
+                    borderRadius: 28,
+                    padding: '36px 38px 32px',
+                    boxShadow:
+                        '0 30px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(93,200,255,0.12) inset',
+                }}
+            >
+                <div
+                    className="flex items-center"
+                    style={{ gap: 18, marginBottom: 22 }}
+                >
+                    <AvatarCircle avatarId={profile.avatarId} size={64} />
+                    <div>
+                        <div
+                            className="vesper-mono"
+                            style={{
+                                fontSize: 11,
+                                letterSpacing: '0.32em',
+                                color: 'var(--vesper-text-3)',
+                                marginBottom: 6,
+                            }}
+                        >
+                            EDIT PROFILE NAME
+                        </div>
+                        <div
+                            className="vesper-display"
+                            style={{
+                                fontSize: 24,
+                                letterSpacing: '-0.01em',
+                                color: 'var(--vesper-text)',
+                            }}
+                        >
+                            {profile.name}
+                        </div>
+                    </div>
+                </div>
+
+                <input
+                    ref={inputRef}
+                    data-testid="rename-profile-input"
+                    type="text"
+                    value={name}
+                    maxLength={32}
+                    onChange={(e) => setName(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' && canSave) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onConfirm(trimmed);
+                        }
+                    }}
+                    className="w-full vesper-display"
+                    style={{
+                        height: 56,
+                        padding: '0 18px',
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1.5px solid rgba(255,255,255,0.14)',
+                        borderRadius: 16,
+                        color: 'var(--vesper-text)',
+                        fontSize: 18,
+                        outline: 'none',
+                        marginBottom: 22,
+                    }}
+                />
+
+                <div
+                    className="flex items-center"
+                    style={{ gap: 12, justifyContent: 'flex-end' }}
+                >
+                    <button
+                        ref={cancelBtnRef}
+                        data-testid="rename-profile-cancel"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={onCancel}
+                        className="rounded-full font-sans font-semibold"
+                        style={{
+                            height: 46,
+                            padding: '0 22px',
+                            fontSize: 14,
+                            background: 'rgba(255,255,255,0.08)',
+                            color: 'var(--vesper-text)',
+                            border: '1px solid rgba(255,255,255,0.14)',
+                        }}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        ref={saveBtnRef}
+                        data-testid="rename-profile-save"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        disabled={!canSave}
+                        onClick={() => canSave && onConfirm(trimmed)}
+                        className="rounded-full font-sans font-semibold"
+                        style={{
+                            height: 46,
+                            padding: '0 26px',
+                            fontSize: 14,
+                            background: canSave
+                                ? 'var(--vesper-blue)'
+                                : 'rgba(93,200,255,0.20)',
+                            color: canSave
+                                ? 'var(--vesper-bg-0)'
+                                : 'rgba(255,255,255,0.5)',
+                            border: 'none',
+                            cursor: canSave ? 'pointer' : 'not-allowed',
+                            boxShadow: canSave
+                                ? '0 12px 30px rgba(var(--vesper-blue-rgb),0.45)'
+                                : 'none',
+                        }}
+                    >
+                        Save
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }
