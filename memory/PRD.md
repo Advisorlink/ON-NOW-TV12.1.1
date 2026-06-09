@@ -23,6 +23,17 @@
 
 
 
+> **🟡 v2.10.17 — REVERTED v2.10.16 D-pad changes (made nav worse) (Feb 9 2026).**
+>
+> User report + video: my v2.10.16 "polish" produced a trailing focus ring, focus jumps, and hesitation.  Two root causes I should have caught before shipping:
+>
+> 1.  The new `MutationObserver(subtree: true)` on `[data-testid="home-page"]` fired CONSTANTLY (hero rotation, image loads, lazy shelf renders) — `cachedRows` was effectively invalidated on every animation frame, so we paid the observer cost without ever benefiting from the cache.
+> 2.  Toggling a body-level `vesper-scrubbing` class re-evaluated the cascade across hundreds of focusables on every burst, AND the rule it activated (`transition: none`) duplicated the default already on `[data-focusable='true']`.  Pure overhead for zero behavioural change.
+>
+> Reverted `pages/Home.jsx`, `hooks/useSpatialFocus.js`, and the dead CSS block in `index.css`.  Navigation is back to the v2.10.15 baseline.  Future perf work on this surface needs an actual Chrome WebView profile recording first, not a guess.
+
+
+
 > **🟢 v2.10.16 — D-pad polish on V2 Vesper home shelves (Feb 8 2026).**
 >
 > User: "Continue Watching nav is still a tiny bit sluggish — make it buttery smooth".  Two surgical fixes:

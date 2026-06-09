@@ -330,18 +330,6 @@ body {
     transform-origin: center center;
 }
 
-/* SCRUB MODE — set on <body> by useSpatialFocus whenever the user
-   is holding the D-pad / a key auto-repeats.  Kills focus
-   transitions entirely so the ring snaps to the new tile
-   instantly on every frame.  The instant the user lets go, the
-   class is removed and the smooth 130ms cubic-bezier returns. */
-body.vesper-scrubbing [data-focusable='true'],
-body.vesper-scrubbing [data-focus-style='tile'],
-body.vesper-scrubbing [data-focus-style='pill'],
-body.vesper-scrubbing [data-focus-style='nav'] {
-    transition: none !important;
-}
-
 /* Press-ripple feedback — fires once on Enter/click for the
    focused element.  Pure CSS @keyframes so there's zero JS perf
    cost; the ring pulses outwards and fades over 280 ms while the
