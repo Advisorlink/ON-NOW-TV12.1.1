@@ -1551,3 +1551,21 @@ frontend/node_modules/.cache/default-development/26.pack
 frontend/node_modules/.cache/default-development/19.pack
 frontend/node_modules/.cache/default-development/32.pack
 frontend/node_modules/.cache/default-development/30.pack
+
+# ----------------------------------------------------------------
+# v2.10.22 — Android build cache (regenerated on every gradle run)
+# Untracking ~1,000 files / ~32 MB.  These should never have been
+# committed; safe to delete from working copy too — Gradle rebuilds.
+# ----------------------------------------------------------------
+**/.gradle/
+**/build/
+android/**/local.properties
+android/**/.idea/
+*.iml
+
+# Karaoke design-reference mockups (~8 MB) — used during design,
+# no longer needed once the app is built.
+memory/design-refs/karaoke/
+
+# Stale lock files left behind by gradle on Android container
+**/*.lock
