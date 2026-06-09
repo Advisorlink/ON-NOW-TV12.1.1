@@ -34,6 +34,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import useLongPress from '@/hooks/useLongPress';
+import { showNavLoader, hideNavLoader } from '@/lib/navLoader';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -203,6 +204,7 @@ export default function CastRow({
 
     /* Activate a film/similar card — resolve IMDB id and navigate. */
     const openTitle = useCallback(async (item) => {
+        showNavLoader();
         try {
             const { data } = await axios.get(
                 `${API}/tmdb/imdb/${item.media_type}/${item.tmdb_id}`,
@@ -211,9 +213,11 @@ export default function CastRow({
             const imdb = data?.imdb_id;
             if (imdb) {
                 navigate(`/title/${item.media_type === 'tv' ? 'series' : 'movie'}/${imdb}`);
+            } else {
+                hideNavLoader();
             }
         } catch {
-            /* swallow — no nav if the lookup fails */
+            hideNavLoader();
         }
     }, [navigate]);
 

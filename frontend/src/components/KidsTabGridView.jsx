@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import * as img from '@/lib/img';
+import { showNavLoader } from '@/lib/navLoader';
 
 /**
  * Kids-only newest-first grid for the Movies / TV filter views
@@ -158,6 +159,7 @@ export default function KidsTabGridView({ shelves, loading, type }) {
 
 function KidsTile({ item, navigate, initialFocus }) {
     const onTap = () => {
+        showNavLoader();
         if (item.routePath) navigate(item.routePath);
         else if (item.imdbId)
             navigate(`/title/${item.type || 'movie'}/${item.imdbId}`);

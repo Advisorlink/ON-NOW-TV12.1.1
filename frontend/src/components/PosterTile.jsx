@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as img from '@/lib/img';
 import useLongPress from '@/hooks/useLongPress';
+import { showNavLoader } from '@/lib/navLoader';
 
 /**
  * Poster tile.  Image renders immediately on mount — we don't try
@@ -21,10 +22,13 @@ export default function PosterTile({ item, onSelect, initialFocus = false }) {
         if (onSelect) {
             onSelect(item);
         } else if (item.routePath) {
+            showNavLoader();
             navigate(item.routePath);
         } else if (item.imdbId) {
+            showNavLoader();
             navigate(`/title/${item.type || 'movie'}/${item.imdbId}`);
         } else {
+            showNavLoader();
             navigate(`/title/${item.id}`);
         }
     };
