@@ -18,6 +18,8 @@
  * when the matching record no longer exists.
  */
 
+import Host from '@/lib/host';
+
 /* ----- 1. Curated EMOJI avatars (16 favourites kept) ------------- */
 
 const EMOJI_AVATARS = [
@@ -48,10 +50,24 @@ const EMOJI_AVATARS = [
 
 /* ----- 2. ICON avatars (hand-illustrated PNG portraits) ----------- */
 
-const ICON_BASE = `${process.env.PUBLIC_URL || ''}/avatars`;
+/* v2.10.23 — Resolve the avatar URL via `Host.publicAsset()` so
+ * the same path works under both the live preview (http://) and
+ * the bundled APK WebView (file:///android_asset/web/index.html).
+ *
+ * Bug we hit: an absolute path like `/avatars/<id>.jpg` resolves
+ * to `file:///avatars/<id>.jpg` (filesystem root, broken) on the
+ * sideloaded APK because there's no server to interpret `/` as
+ * the bundled web root.  `Host.publicAsset()` resolves against
+ * `document.baseURI` so the WebView finds the file at
+ * `file:///android_asset/web/avatars/<id>.jpg`.
+ *
+ * This was the silent killer behind the "gradient circles with no
+ * icons" bug on the projector — the WebView delivered transparent
+ * 404s because it was looking in the wrong place.
+ */
 const icon = (id, glow) => ({
     id,
-    src: `${ICON_BASE}/${id}.jpg`,
+    src: Host.publicAsset(`avatars/${id}.jpg`),
     glow,
 });
 

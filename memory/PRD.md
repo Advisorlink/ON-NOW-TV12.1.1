@@ -1,6 +1,16 @@
 # ON NOW TV V2 — PRD
 
-> **🟢 v2.10.22 — Avatar icons re-encoded as JPEG (WebP failed on Android TV WebView) (Feb 9 2026).**
+> **🔴→🟢 v2.10.23 — REAL avatar-rendering fix: resolve URLs via `Host.publicAsset()` (Feb 9 2026).**
+>
+> The v2.10.22 WebP→JPEG swap didn't fix anything on the projector — icons were still blank circles.  WebP wasn't the issue.  The REAL bug: the bundled Android APK loads the React app from `file:///android_asset/web/index.html`, and an absolute path like `<img src="/avatars/...">` resolves to `file:///avatars/...` (filesystem root) — there's no server interpreting `/` as the bundled web root.
+>
+> The codebase already had `Host.publicAsset()` for exactly this — it resolves the URL against `document.baseURI` on `file://`, so paths land at `file:///android_asset/web/avatars/<id>.jpg`.  I had a custom `process.env.PUBLIC_URL || ''` shim that didn't account for this.
+>
+> **Fix**: in `avatars.jsx`, route every icon `src` through `Host.publicAsset('avatars/<id>.jpg')`.  Same behavior on the live web (absolute path), correct relative-to-baseURI resolution under the APK WebView.
+>
+> Verified end-to-end on the live preview (78/78 images load, sample src = `https://…/avatars/fn-popcorn-fg.jpg`).  Once the user **rebuilds the APK** the GitHub Actions workflow copies `frontend/build/avatars/` → `android/vesper-tv/app/src/main/assets/web/avatars/`, and the WebView's `document.baseURI`-relative resolution finds them at `file:///android_asset/web/avatars/<id>.jpg`.
+
+> **🟡 v2.10.22 — Avatar icons re-encoded as JPEG (didn't fix the projector bug, but kept for compat with older WebViews) (Feb 9 2026).**
 >
 > User reported the new avatar icons were not rendering on the actual TV — only the colored gradient backgrounds showed up, no character portraits.  Server logs + curl confirmed the WebP files were being delivered (HTTP 200, correct content-type) so the failure was in the WebView's WebP decoder.  Some older Android TV ChromeView builds (especially on projector / generic box hardware) ship without proper WebP decode support, even though WebP has been a Chromium standard since 2012.
 >
