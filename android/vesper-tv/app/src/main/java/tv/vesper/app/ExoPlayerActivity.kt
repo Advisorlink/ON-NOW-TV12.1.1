@@ -131,6 +131,13 @@ class ExoPlayerActivity : ComponentActivity() {
     // to the plain title text in that case.
     private val logoUrlFlow = MutableStateFlow("")
     private var logoFetchJob: kotlinx.coroutines.Job? = null
+
+    // v2.10.37 — Timestamp of the most recent in-activity next-episode
+    // swap.  Used by `onPlayerError` to detect "this fatal error
+    // happened DURING a swap" and route to an ExoPlayer-only restart
+    // instead of falling back to LibVLC (user explicitly demanded
+    // the player always stay in ExoPlayer).
+    @Volatile private var lastInActivitySwapAt: Long = 0L
     // v2.7.74 — Live TV awareness.  Driven by EXTRA_TYPE = "live".
     private var isLive: Boolean = false
     private var liveStreamId: String = ""
@@ -622,6 +629,32 @@ class ExoPlayerActivity : ComponentActivity() {
                     code == PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED
                 )
                 if (isFatal) {
+                    // v2.10.37 — Disable VLC fallback for next-episode
+                    // swaps.  User explicitly demanded the player
+                    // "always stay in ExoPlayer" when clicking PLAY
+                    // NEXT EPISODE.  If the swap stream genuinely
+                    // fails inside ExoPlayer, we restart THIS
+                    // activity (clean ExoPlayer attempt) rather than
+                    // silently switching backends to LibVLC.  The
+                    // 8-second window after a swap is generous —
+                    // ExoPlayer's parse errors fire within the first
+                    // 2-3 seconds of media prepare, and after 8 s
+                    // we assume the new stream is healthy and any
+                    // later error is a transient network problem.
+                    val sinceSwap = System.currentTimeMillis() - lastInActivitySwapAt
+                    if (lastInActivitySwapAt > 0L && sinceSwap < 8_000L) {
+                        Log.w(TAG, "fatal error during next-ep swap; restarting ExoPlayer instead of VLC")
+                        try {
+                            val restart = Intent(intent)
+                            restart.setClass(this@ExoPlayerActivity, ExoPlayerActivity::class.java)
+                            // Intent extras were already updated to
+                            // the new episode by jumpToPrimedNextEpisode
+                            // so this re-launch picks up the right URL.
+                            startActivity(restart)
+                        } catch (_: Throwable) { /* */ }
+                        finish()
+                        return
+                    }
                     try {
                         val fallback = Intent(
                             this@ExoPlayerActivity, VlcPlayerActivity::class.java
@@ -1219,6 +1252,12 @@ class ExoPlayerActivity : ComponentActivity() {
                 player.setMediaItem(newItem, 0L)
                 player.prepare()
                 player.playWhenReady = true
+                // v2.10.37 — Mark this as an in-flight swap so
+                // onPlayerError above knows to restart ExoPlayer
+                // rather than fall back to VLC if the new stream
+                // parse-errors.  User demand: "always go in
+                // ExoPlayer, no question asked."
+                lastInActivitySwapAt = System.currentTimeMillis()
 
                 // ── 4) Clear primed cache so the next 120s-window
                 //      detection can fire a fresh prime for the new

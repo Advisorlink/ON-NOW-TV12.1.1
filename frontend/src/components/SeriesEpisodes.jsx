@@ -692,7 +692,15 @@ function EpisodeCard({
     return (
         <li
             ref={cardRef}
-            className="rounded-2xl overflow-hidden"
+            // v2.10.37 — Dropped `overflow-hidden` so the focused
+            // button's `transform: scale(1.04)` (from
+            // `data-focus-style="quiet"`) isn't clipped on the
+            // left edge.  User reported episode-list rows "getting
+            // cut off a little bit" on the left — caused by the
+            // LI clipping the inner button's overflow growth.  The
+            // inner thumbnail already has `rounded-xl` of its own,
+            // so the rounded look survives.
+            className="rounded-2xl"
             style={{
                 background: open ? 'rgba(17,24,39,0.7)' : 'rgba(17,24,39,0.4)',
                 border: open

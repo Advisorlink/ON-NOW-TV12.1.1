@@ -232,7 +232,7 @@ fun PlayerOverlay(
             visible = showFullLoader,
             enter = fadeIn(tween(200)),
             exit  = fadeOut(tween(400)),
-        ) { LoadingScreen(info, error) }
+        ) { LoadingScreen(info, error, logoUrlValue) }
 
         // ── Mid-playback rebuffer: tiny corner spinner ─────────────
         AnimatedVisibility(
@@ -365,7 +365,7 @@ private enum class SheetKind { None, Audio, Subs, Stream }
 // Full loading screen (first play only)
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun LoadingScreen(info: PlayerInfo, error: String?) {
+private fun LoadingScreen(info: PlayerInfo, error: String?, logoUrl: String = "") {
     Box(modifier = Modifier.fillMaxSize().background(NavyBg)) {
         if (info.backdrop.isNotBlank()) {
             AsyncImage(
@@ -408,6 +408,25 @@ private fun LoadingScreen(info: PlayerInfo, error: String?) {
                 Spacer(Modifier.width(48.dp))
             }
             Column(modifier = Modifier.fillMaxWidth()) {
+                // v2.10.37 — TMDB title logo above the hero text on
+                // the loading screen — matches what the in-dock
+                // overlay does so the user sees the same wordmark
+                // on both screens.  Renders only when the logo
+                // fetch succeeded; until then the giant 44 sp
+                // "Michael" / "Breaking Bad" text below carries
+                // the load.
+                if (logoUrl.isNotBlank()) {
+                    AsyncImage(
+                        model = logoUrl,
+                        contentDescription = info.title,
+                        contentScale = ContentScale.Fit,
+                        alignment = Alignment.CenterStart,
+                        modifier = Modifier
+                            .heightIn(min = 80.dp, max = 120.dp)
+                            .widthIn(max = 480.dp),
+                    )
+                    Spacer(Modifier.height(20.dp))
+                }
                 Text(
                     text = "NOW PLAYING · ON NOW TV V2",
                     color = CyanPrimary,
@@ -631,7 +650,13 @@ private fun ControlDock(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .fillMaxWidth()
-                .padding(horizontal = 64.dp, vertical = 40.dp),
+                // v2.10.37 — Bumped bottom padding from 40 → 64 dp so
+                // the dock buttons clear projector / TV overscan
+                // safe-zones.  User reported the pause button "getting
+                // cut off a little bit at the bottom" — happens on
+                // sets where the bottom 3-4 % of the screen is
+                // physically masked.
+                .padding(start = 64.dp, end = 64.dp, top = 40.dp, bottom = 64.dp),
         ) {
             // v2.10.35 — TMDB title logo above the heading.  Surface
             // it ONLY when the network resolution succeeded; until
@@ -824,7 +849,12 @@ private fun ControlDock(
                         if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                         if (isPlaying) "Pause" else "Play",
                         large  = true,
-                        active = true,
+                        // v2.10.37 — User feedback: "I don't want
+                        // the play button to be fully highlighted
+                        // all the time."  Dropped `active = true`
+                        // so the play/pause button matches the
+                        // other dock buttons (glassy translucent
+                        // default, bright cyan ring only on focus).
                         focusRequester = playFocus,
                         onClick = onPlayPause,
                     )

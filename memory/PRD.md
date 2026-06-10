@@ -1,5 +1,51 @@
 # ON NOW TV V2 — PRD
 
+> **🔴 v2.10.37 — URGENT: 7 fixes before bed — VLC fallback elimination, autoplay focus regression, network reorder, glassy play button, dock + episode-list cutoff, logo on loading screen (Feb 10 2026).**
+>
+> User report:
+>   1. "Still opens libVLC when you skip to next episode — must always be ExoPlayer, no question."
+>   2. "Make networks go Netflix → Disney → Apple TV → Prime → Binge → Stan → Hulu → Max → Paramount."
+>   3. "Loading screen also needs the logo above the title."
+>   4. "Clicking a movie/show goes directly to the cast — should focus on Autoplay first, cast at the bottom like it used to."
+>   5. "Play button is fully highlighted all the time — make it glassy like the others, only highlight on focus."
+>   6. "Episode list on the left side is getting cut off a little."
+>   7. "Pause button is getting cut off at the bottom."
+>
+> **Fix 1 — VLC fallback eliminated for next-episode swaps** (`ExoPlayerActivity.kt`).
+> New `lastInActivitySwapAt: Long` timestamp set in `jumpToPrimedNextEpisode` immediately after `player.setMediaItem + prepare`.  The fatal-error handler now checks `System.currentTimeMillis() - lastInActivitySwapAt < 8_000L` and, if true, restarts THIS ExoPlayer activity (cloning the intent — extras were already mutated to the new episode by the swap, so this re-launches cleanly with the same URL) rather than launching VlcPlayerActivity.  The 8-second window covers the entire prepare → buffer → first-frame cycle on TV-grade hardware; any error after that is treated as a normal mid-playback failure and the legacy VLC fallback resumes (since those are real codec issues that warrant a different player).
+>
+> **Fix 2 — Network order locked** (`/app/frontend/src/lib/networks.js`).
+> Hardcoded sequence: Netflix → Disney+ → Apple TV+ → Prime → Binge → Stan → Hulu → Max → Paramount+.  Two AU services prominent in the middle since the rebuild targets Australia.
+>
+> **Fix 3 — TMDB logo on the loading screen** (`PlayerOverlay.kt`).
+> `LoadingScreen` now accepts `logoUrl: String = ""` and renders a Coil `AsyncImage` (ContentScale.Fit, capped at 120 dp tall × 480 dp wide, alignment CenterStart) above the existing "NOW PLAYING · ON NOW TV V2" caption.  Logo loaded via the same `logoUrlFlow` the dock-overlay reads, so the SAME logo appears on both the loading screen and the in-playback dock.
+>
+> **Fix 4 — Autoplay focus regression** (`Detail.jsx`).
+> Root cause: `findCandidates()`'s generic fallback would land focus on the first focusable element on the page — which, on movie pages, is usually a Cast actor card (cast renders eagerly from the meta payload, ~50 ms; Autoplay button mounts asynchronously after streams resolve, ~500 ms-3 s).  Once focus landed on cast, the late-arrival watcher correctly interpreted that as "user moved" and stopped polling — leaving focus stuck on cast forever.
+> Two-part fix:
+>   a) `findCandidates()` generic-focusable fallback now explicitly excludes `[data-testid^="cast-actor-"]`, `cast-film-`, `cast-similar-`, and `episode-`.  Better to have NO initial focus for 1-2 s than the wrong focus that sticks.
+>   b) The late-arrival watcher's `userMoved` heuristic dropped `cast-actor-` from the list — cast actors were the unintended landing target, not a deliberate navigation choice.  Only episode / season / similar / cast-film tiles count as user-driven now.  So once the Autoplay button finally mounts, focus snaps to it correctly.
+>
+> **Fix 5 — Play/Pause button now glassy by default** (`PlayerOverlay.kt`).
+> Dropped `active = true` from the centre Play/Pause `DockButton(...)` call.  Now matches the other dock buttons: 10 % white translucent background by default, bright cyan ring only on focus.  User explicitly: "I don't want the play button to be fully highlighted all the time."
+>
+> **Fix 6 — Episode list left cutoff** (`SeriesEpisodes.jsx`).
+> Removed `overflow-hidden` from the episode `<li>` wrapper.  The inner button's `data-focus-style="quiet"` applies `transform: scale(1.04)` which extends the focused card 2 % outside its natural box on every edge — the LI's overflow-hidden was clipping the left edge growth.  The inner thumbnail already has `rounded-xl` so the rounded look survives without the LI clip.
+>
+> **Fix 7 — Pause button bottom cutoff** (`PlayerOverlay.kt`).
+> Dock Column padding split from `padding(horizontal=64dp, vertical=40dp)` → `padding(start=64dp, end=64dp, top=40dp, bottom=64dp)` so the dock clears TV overscan safe-zones.
+>
+> Files touched:
+>   • `/app/android/vesper-tv/app/src/main/java/tv/vesper/app/ExoPlayerActivity.kt` — `lastInActivitySwapAt` field, fatal-error gate, set timestamp in `jumpToPrimedNextEpisode`.
+>   • `/app/android/vesper-tv/app/src/main/java/tv/vesper/app/PlayerOverlay.kt` — `LoadingScreen` accepts `logoUrl`, removed `active = true` from play button, bottom padding bumped, `heightIn` import.
+>   • `/app/frontend/src/lib/networks.js` — Order locked.
+>   • `/app/frontend/src/pages/Detail.jsx` — fallback filters cast tiles, watcher's userMoved dropped cast-actor.
+>   • `/app/frontend/src/components/SeriesEpisodes.jsx` — Removed overflow-hidden from LI.
+>
+> Native APK rebuild required for fixes 1, 3, 5, 7.  Fixes 2, 4, 6 are picked up via WebView reload.
+
+> **🟢 v2.10.36 — Network ordering refinement (rolled into v2.10.37) (Feb 10 2026).**
+
 > **🟢 v2.10.35 — Native player overlay: TMDB title-logo above the heading + heading restyled as actual heading (Feb 10 2026).**
 >
 > User report: "I want the actual movie/TV-show logo to be on the left-hand side above where the heading is.  Make the heading look more like a heading.  Make sure you get the TV logo or the movie logo perfectly."
