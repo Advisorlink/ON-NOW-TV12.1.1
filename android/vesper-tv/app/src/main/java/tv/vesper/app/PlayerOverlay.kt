@@ -166,6 +166,7 @@ fun PlayerOverlay(
     // saves the intent + finishes the activity; MainActivity then
     // either auto-plays the next ep or opens its episode picker.
     hasNextEpisode: StateFlow<Boolean> = MutableStateFlow(false).asStateFlow(),
+    nextEpisodeThumbnailUrl: StateFlow<String> = MutableStateFlow("").asStateFlow(),
     onNextEpisode: () -> Unit = {},
     onClose: () -> Unit,
 ) {
@@ -179,6 +180,7 @@ fun PlayerOverlay(
     val subs by collectAsStateSafe(subtitleTracks, emptyList())
     val streamList by collectAsStateSafe(streams, emptyList())
     val hasNext by collectAsStateSafe(hasNextEpisode, false)
+    val nextEpThumb by collectAsStateSafe(nextEpisodeThumbnailUrl, "")
     // v2.7.54 — Activity dispatchKeyEvent pumps every D-pad press
     // here, so the dock auto-hide timer always sees fresh activity.
     val userActivityTs by collectAsStateSafe(userActivity, System.currentTimeMillis())
@@ -272,8 +274,10 @@ fun PlayerOverlay(
                 hasSubs     = subs.isNotEmpty(),
                 hasStreams  = streamList.size > 1,
                 hasNextEp   = hasNext,
+                nextEpThumbnailUrl = nextEpThumb,
                 onPlayPause = { bump(); onPlayPause() },
                 onSeekBy    = { dt -> bump(); onSeekBy(dt) },
+                onSeekTo    = { p -> bump(); onSeekTo(p) },
                 onPickAudio = { bump(); sheet = SheetKind.Audio },
                 onPickSubs  = { bump(); sheet = SheetKind.Subs },
                 onPickStream= { bump(); sheet = SheetKind.Stream },
@@ -562,8 +566,10 @@ private fun ControlDock(
     hasSubs: Boolean,
     hasStreams: Boolean,
     hasNextEp: Boolean = false,
+    nextEpThumbnailUrl: String = "",
     onPlayPause: () -> Unit,
     onSeekBy: (Long) -> Unit,
+    onSeekTo: (Long) -> Unit = {},
     onPickAudio: () -> Unit,
     onPickSubs: () -> Unit,
     onPickStream: () -> Unit,
@@ -575,6 +581,31 @@ private fun ControlDock(
     val playFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         try { playFocus.requestFocus() } catch (_: Exception) {}
+    }
+
+    // v2.10.34 — Scrub debounce.
+    //
+    // The old "left/right press = immediate player.seekTo" loop made
+    // every rapid scrub feel sluggish: each press triggered a buffer
+    // flush + re-buffer, so 5 quick lefts cost ~5×~400 ms (≈ 2 s) of
+    // visible stalling.  The user complaint was "it's taking too
+    // long for it to re-pick where it's up to."
+    //
+    // New flow: while the user is holding/repeating LEFT or RIGHT on
+    // the scrub bar, we mutate a local `pendingScrubMs` long.  The
+    // playback bar paints from this pending value, so the user sees
+    // instant visual feedback.  500 ms after the LAST keypress the
+    // LaunchedEffect coroutine commits a SINGLE `onSeekTo(pending)`
+    // call — one buffer flush, one re-buffer, regardless of how
+    // many times the user pressed the key.
+    var pendingScrubMs by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(pendingScrubMs) {
+        val target = pendingScrubMs ?: return@LaunchedEffect
+        // Idle window — bumped by every fresh keypress because each
+        // press re-fires this LaunchedEffect via the changed state.
+        delay(500)
+        onSeekTo(target)
+        pendingScrubMs = null
     }
 
     Box(
@@ -626,8 +657,11 @@ private fun ControlDock(
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = formatMs(positionMs),
-                    color = CyanPrimary,
+                    // v2.10.34 — Reflect the pending scrub target
+                    // here too so the timecode jumps in lock-step
+                    // with the playhead the user is dragging.
+                    text = formatMs(pendingScrubMs ?: positionMs),
+                    color = if (pendingScrubMs != null) Color(0xFFFFC350) else CyanPrimary,
                     fontSize = 16.sp,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
@@ -654,9 +688,32 @@ private fun ControlDock(
                         .onKeyEvent { ev ->
                             if (ev.type != KeyEventType.KeyDown) return@onKeyEvent false
                             when (ev.key) {
-                                Key.DirectionLeft -> { onSeekBy(-10_000L); true }
-                                Key.DirectionRight -> { onSeekBy(10_000L); true }
+                                Key.DirectionLeft -> {
+                                    // v2.10.34 — Update the pending
+                                    // scrub buffer instead of seeking
+                                    // immediately.  Visual feedback
+                                    // is instant via `playFrac` below;
+                                    // the actual `onSeekTo` commits
+                                    // 500 ms after the LAST keypress
+                                    // (see the LaunchedEffect at the
+                                    // top of ControlDock).
+                                    val cur = pendingScrubMs ?: positionMs
+                                    pendingScrubMs = (cur - 10_000L).coerceIn(0L, durationMs)
+                                    true
+                                }
+                                Key.DirectionRight -> {
+                                    val cur = pendingScrubMs ?: positionMs
+                                    pendingScrubMs = (cur + 10_000L).coerceIn(0L, durationMs)
+                                    true
+                                }
                                 Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> {
+                                    // OK while scrubbing commits the
+                                    // current pending position
+                                    // immediately, then toggles play.
+                                    pendingScrubMs?.let {
+                                        onSeekTo(it)
+                                        pendingScrubMs = null
+                                    }
                                     onPlayPause(); true
                                 }
                                 else -> false
@@ -666,8 +723,12 @@ private fun ControlDock(
                     val total = (durationMs.coerceAtLeast(1L)).toFloat()
                     val bufFrac =
                         (bufferedMs.coerceAtLeast(0L).toFloat() / total).coerceIn(0f, 1f)
+                    // v2.10.34 — Paint from the pending scrub buffer
+                    // when the user is actively pressing left/right,
+                    // so the bar follows their input frame-perfect.
+                    val displayPos = pendingScrubMs ?: positionMs
                     val playFrac =
-                        (positionMs.coerceAtLeast(0L).toFloat() / total).coerceIn(0f, 1f)
+                        (displayPos.coerceAtLeast(0L).toFloat() / total).coerceIn(0f, 1f)
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
@@ -742,23 +803,37 @@ private fun ControlDock(
                         onClick = { onSeekBy(10_000) },
                     )
                 }
-                // RIGHT cluster: "PLAY NEXT EPISODE" pill (series only,
-                // ≤60 s from credits).  v2.10.30 — Replaced the old
-                // trio of CC / NextEp(small) / Fullscreen with a
-                // single prominent pill that auto-grabs focus when
-                // shown.  Subtitles already live in the LEFT cluster,
-                // Cast was never implemented, and the player is
-                // always fullscreen — so all three were noise.
-                // When NOT in the next-episode window we render an
-                // invisible spacer so the play/pause stays visually
-                // centred over the scrub bar instead of shifting
-                // right when the pill disappears.
+                // RIGHT cluster: optional next-episode thumbnail +
+                // "PLAY NEXT EPISODE" pill (series only, ≤120 s from
+                // credits).  v2.10.34 — Added the thumbnail strip
+                // just before the pill so the user knows exactly
+                // which episode is about to play before clicking.
+                // The thumbnail URL comes from metahub's deterministic
+                // episode-image CDN and is wired through from the
+                // activity (see `nextEpThumbnailFlow`).
+                //
+                // The previous trio of CC / NextEp(small) / Fullscreen
+                // was removed in v2.10.30 — Subtitles already live in
+                // the LEFT cluster, Cast was never implemented, and
+                // the player is always fullscreen.
+                //
+                // The widthIn(min) ensures the right slot reserves
+                // visual width even when the pill isn't showing, so
+                // the centre play/pause cluster stays anchored.
                 Box(
-                    modifier = Modifier.widthIn(min = 260.dp),
+                    modifier = Modifier.widthIn(min = 380.dp),
                     contentAlignment = Alignment.CenterEnd,
                 ) {
                     if (hasNextEp) {
-                        NextEpisodePill(onClick = onNextEp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        ) {
+                            if (nextEpThumbnailUrl.isNotBlank()) {
+                                NextEpisodeThumbnail(url = nextEpThumbnailUrl)
+                            }
+                            NextEpisodePill(onClick = onNextEp)
+                        }
                     }
                 }
             }
@@ -860,6 +935,40 @@ private fun NextEpisodePill(onClick: () -> Unit) {
             fontFamily = FontFamily.Monospace,
             fontWeight = FontWeight.Bold,
             letterSpacing = 2.sp,
+        )
+    }
+}
+
+/**
+ * v2.10.34 — Small still image (≈16:9 thumbnail) of the upcoming
+ * episode rendered just before the PLAY NEXT EPISODE pill so the
+ * user can visually verify which episode is about to play before
+ * clicking.
+ *
+ * URL is the deterministic metahub episode CDN
+ * (`https://episodes.metahub.space/{imdb}/{S}/{E}/w780.jpg`) — same
+ * data source the React layer already uses, so an episode that
+ * appears in SeriesEpisodes.jsx is guaranteed to resolve here too.
+ *
+ * Sized roughly 64×96 (16:9 at 96 px wide) to match the pill's
+ * vertical footprint without dominating the dock.  A thin cyan
+ * border + rounded corners visually tether it to the pill.
+ */
+@Composable
+private fun NextEpisodeThumbnail(url: String) {
+    Box(
+        modifier = Modifier
+            .height(54.dp)
+            .width(96.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .border(1.dp, Color(0x665DC8FF), RoundedCornerShape(6.dp))
+            .background(Color(0xFF06080F)),
+    ) {
+        AsyncImage(
+            model = url,
+            contentDescription = "Next episode thumbnail",
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
         )
     }
 }
