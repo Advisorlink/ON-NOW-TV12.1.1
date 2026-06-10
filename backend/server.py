@@ -1141,6 +1141,94 @@ async def tmdb_find_by_imdb(imdb_id: str):
     return {"cached": False, **out}
 
 
+# ── v2.10.35 — Title-logo lookup ───────────────────────────────
+# The native ExoPlayer overlay renders the show / movie's official
+# logo above the title text in the bottom control dock so the user
+# can see exactly what's playing at a glance.  Source-of-truth is
+# TMDB's `/images` endpoint, which returns multiple language-tagged
+# logo PNGs per title.  We pick the best English one (prefer
+# `iso_639_1=en`, then `iso_639_1=null` for transparent logos that
+# work in any locale, then the first available).
+@api.get("/tmdb/logo/{type_}/{imdb_id}")
+async def tmdb_logo(type_: str, imdb_id: str):
+    """Return the best English title-logo URL for a movie or TV show.
+
+    Cached for 30 days — TMDB logo paths are extremely stable.
+    Returns `{"logo_url": null}` when no logo is available rather
+    than 404 so the client can branch cheaply on null without
+    error-handling.
+    """
+    if not imdb_id.startswith("tt"):
+        raise HTTPException(400, "imdb_id must start with 'tt'")
+    if type_ not in ("movie", "series", "tv"):
+        raise HTTPException(400, "type must be 'movie', 'series' or 'tv'")
+    # Normalise the type → TMDB's URL slug.
+    tmdb_type = "movie" if type_ == "movie" else "tv"
+    cache_key = f"tmdb_logo:{tmdb_type}:{imdb_id}:v1"
+    cached = await cache.get(cache_key)
+    if cached is not None:
+        return {"cached": True, "logo_url": cached or None}
+
+    # Step 1: IMDB → TMDB.  Re-uses the same /find endpoint as the
+    # rest of the backend so the cache layer hits for repeat lookups.
+    find = await _tmdb_get(
+        f"/find/{imdb_id}", {"external_source": "imdb_id"}
+    )
+    hits = (
+        find.get("movie_results") if tmdb_type == "movie"
+        else find.get("tv_results")
+    ) or []
+    if not hits:
+        # 30-day cache the negative result so we don't hammer TMDB
+        # on every player launch for a title that genuinely has no
+        # match (rare).
+        await cache.set(cache_key, "", 30 * 24 * 3600)
+        return {"cached": False, "logo_url": None}
+    tmdb_id = hits[0]["id"]
+
+    # Step 2: /images?include_image_language=en,null surfaces both
+    # English logos AND the language-agnostic transparent ones
+    # (which TMDB tags with `iso_639_1=null` and which look great
+    # for shows with stylised wordmarks like "Breaking Bad").
+    try:
+        images = await _tmdb_get(
+            f"/{tmdb_type}/{tmdb_id}/images",
+            {"include_image_language": "en,null"},
+        )
+    except HTTPException:
+        await cache.set(cache_key, "", 30 * 24 * 3600)
+        return {"cached": False, "logo_url": None}
+
+    logos = images.get("logos") or []
+    if not logos:
+        await cache.set(cache_key, "", 30 * 24 * 3600)
+        return {"cached": False, "logo_url": None}
+
+    # Sort: English first, then null-language, then by vote_count
+    # (TMDB's quality signal) descending.  PNGs are preferred over
+    # SVGs for native rendering since Coil doesn't ship an SVG
+    # decoder by default.
+    def _score(logo: Dict[str, Any]) -> tuple:
+        lang = logo.get("iso_639_1") or ""
+        lang_rank = 0 if lang == "en" else (1 if lang == "" else 2)
+        is_svg = (logo.get("file_path") or "").lower().endswith(".svg")
+        return (lang_rank, 1 if is_svg else 0, -(logo.get("vote_count") or 0))
+
+    logos.sort(key=_score)
+    picked = logos[0]
+    path = picked.get("file_path")
+    if not path:
+        await cache.set(cache_key, "", 30 * 24 * 3600)
+        return {"cached": False, "logo_url": None}
+
+    # w500 — TMDB's "wide enough for any TV overlay, light enough
+    # for the network".  Original PNGs can be 2-4 MB which is
+    # absurd for an overlay glyph.
+    logo_url = f"{TMDB_IMG}/w500{path}"
+    await cache.set(cache_key, logo_url, 30 * 24 * 3600)
+    return {"cached": False, "logo_url": logo_url}
+
+
 @api.get("/tmdb/credits/{type_}/{tmdb_id}")
 async def tmdb_credits(type_: str, tmdb_id: int):
     """Return the top-billed cast for a movie or TV show.

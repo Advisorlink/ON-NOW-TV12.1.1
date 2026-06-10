@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -167,6 +168,7 @@ fun PlayerOverlay(
     // either auto-plays the next ep or opens its episode picker.
     hasNextEpisode: StateFlow<Boolean> = MutableStateFlow(false).asStateFlow(),
     nextEpisodeThumbnailUrl: StateFlow<String> = MutableStateFlow("").asStateFlow(),
+    logoUrl: StateFlow<String> = MutableStateFlow("").asStateFlow(),
     onNextEpisode: () -> Unit = {},
     onClose: () -> Unit,
 ) {
@@ -181,6 +183,7 @@ fun PlayerOverlay(
     val streamList by collectAsStateSafe(streams, emptyList())
     val hasNext by collectAsStateSafe(hasNextEpisode, false)
     val nextEpThumb by collectAsStateSafe(nextEpisodeThumbnailUrl, "")
+    val logoUrlValue by collectAsStateSafe(logoUrl, "")
     // v2.7.54 — Activity dispatchKeyEvent pumps every D-pad press
     // here, so the dock auto-hide timer always sees fresh activity.
     val userActivityTs by collectAsStateSafe(userActivity, System.currentTimeMillis())
@@ -275,6 +278,7 @@ fun PlayerOverlay(
                 hasStreams  = streamList.size > 1,
                 hasNextEp   = hasNext,
                 nextEpThumbnailUrl = nextEpThumb,
+                logoUrl     = logoUrlValue,
                 onPlayPause = { bump(); onPlayPause() },
                 onSeekBy    = { dt -> bump(); onSeekBy(dt) },
                 onSeekTo    = { p -> bump(); onSeekTo(p) },
@@ -567,6 +571,7 @@ private fun ControlDock(
     hasStreams: Boolean,
     hasNextEp: Boolean = false,
     nextEpThumbnailUrl: String = "",
+    logoUrl: String = "",
     onPlayPause: () -> Unit,
     onSeekBy: (Long) -> Unit,
     onSeekTo: (Long) -> Unit = {},
@@ -628,11 +633,37 @@ private fun ControlDock(
                 .fillMaxWidth()
                 .padding(horizontal = 64.dp, vertical = 40.dp),
         ) {
+            // v2.10.35 — TMDB title logo above the heading.  Surface
+            // it ONLY when the network resolution succeeded; until
+            // then (typical first-launch cold cache is ~400 ms) we
+            // just show the heading text so the user never sees an
+            // empty placeholder.  Once loaded the logo fades in via
+            // Coil's default crossfade.  Capped at 320×80 dp so even
+            // wide wordmarks (like Star Wars or Game of Thrones)
+            // don't dominate the dock or push the scrub bar down.
+            if (logoUrl.isNotBlank()) {
+                AsyncImage(
+                    model = logoUrl,
+                    contentDescription = info.title,
+                    contentScale = ContentScale.Fit,
+                    alignment = Alignment.CenterStart,
+                    modifier = Modifier
+                        .heightIn(min = 56.dp, max = 80.dp)
+                        .widthIn(max = 360.dp),
+                )
+                Spacer(Modifier.height(10.dp))
+            }
+            // v2.10.35 — Heading bumped from 22 sp / SemiBold to
+            // 30 sp / ExtraBold so it actually reads like a heading
+            // when the user invokes the dock — old size looked
+            // identical to the body line below.  Letter-spacing
+            // tightened slightly so the wider weight stays elegant.
             Text(
                 text = info.title,
                 color = TextPrim,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontSize = 30.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = (-0.5).sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
