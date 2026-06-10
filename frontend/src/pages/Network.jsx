@@ -62,7 +62,7 @@ export default function Network() {
         (async () => {
             try {
                 const r = await fetch(
-                    `${API}/networks/${slug}?type=${subTab}&page=1`,
+                    `${API}/networks/${slug}?type=${subTab}&page=1&region=${network.region || 'US'}`,
                     { cache: 'no-store' }
                 );
                 if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -95,7 +95,7 @@ export default function Network() {
         try {
             const next = page + 1;
             const r = await fetch(
-                `${API}/networks/${slug}?type=${subTab}&page=${next}`,
+                `${API}/networks/${slug}?type=${subTab}&page=${next}&region=${network.region || 'US'}`,
                 { cache: 'no-store' }
             );
             if (!r.ok) throw new Error(`HTTP ${r.status}`);
