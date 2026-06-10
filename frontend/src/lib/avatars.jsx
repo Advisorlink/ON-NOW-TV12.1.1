@@ -114,6 +114,13 @@ const ICON_AVATARS = {
         icon('gm-cyber-portrait',   '#A78BFA'),
         icon('gm-cyber-portrait2',  '#22D3EE'),
         icon('gm-cyborg',           '#06B6D4'),
+        // v2.10.25 — User-supplied "Pro Gamer" duo, anchored in the
+        // exact middle of the row so they read as a featured pair.
+        // Blue (male) + purple (female) match each other visually
+        // and sit between the neon-cyan and neon-pink clusters on
+        // either side.
+        icon('gm-pro-male',         '#5DC8FF'),
+        icon('gm-pro-female',       '#C084FC'),
         icon('gm-cyborg-neon',      '#A78BFA'),
         icon('gm-cat-gamer',        '#F472B6'),
         icon('gm-neon-cyber',       '#22D3EE'),

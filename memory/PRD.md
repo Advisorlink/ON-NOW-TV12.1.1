@@ -1,5 +1,18 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.25 — Two new "Pro Gamer" avatars in the middle of the GAMER row (Feb 9 2026).**
+>
+> User dropped two hi-res 1024×1024 PNG portraits (a blue-glow male gamer with headset + a purple/pink-glow female gamer with headset) and asked them placed side-by-side in the middle of the GAMER row.
+>
+> Processed identically to the other 76 icons:
+>   • 1024×1024 PNG → 384×384 progressive JPEG quality 88 (47 KB / 52 KB)
+>   • Black background flatten so JPEG decode is clean (originals had transparent halos)
+>   • Saved to `frontend/public/avatars/gm-pro-male.jpg` + `gm-pro-female.jpg`
+>   • Inserted at indices 9 and 10 in `ICON_AVATARS.gamer` (exact middle of 21-item array — was 19, now 21)
+>   • Glow rings tuned to match the source neon: `#5DC8FF` (blue) + `#C084FC` (purple)
+>
+> Verified end-to-end on the live preview: both tiles render in the middle of the GAMER row, 79/79 images load clean, 0 broken.
+
 > **🟢 v2.10.24 — Avatar polish + viewer-prefs scroll-window + native ExoPlayer "Skip Next Episode" + stream-picker fix (Feb 9 2026).**
 >
 > Seven-item user request — all UI/UX polish + one big native lift.
