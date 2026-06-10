@@ -592,18 +592,16 @@ class ExoPlayerActivity : ComponentActivity() {
                     .setPreferredAudioLanguages("eng", "en", "english")
                     .setPreferredTextLanguages("eng", "en", "english")
                     .build()
-                // v2.10.34 — Use CLOSEST_SYNC instead of the default
-                // EXACT seek.  EXACT scans forward from the previous
-                // sync frame to render an exact-millisecond match,
-                // which on TV-grade boxes adds 400–900 ms per seek —
-                // exactly the "taking too long to re-pick where it's
-                // up to" delay the user complained about.
-                // CLOSEST_SYNC jumps to the nearest IDR frame in
-                // EITHER direction, dropping that overhead to
-                // single-digit ms.  Trade-off is a ≤2 s positional
-                // drift, which is invisible when the user is
-                // scrubbing through a long-form video anyway.
-                setSeekParameters(androidx.media3.exoplayer.SeekParameters.CLOSEST_SYNC)
+                // v2.10.38 — Tried `setSeekParameters(CLOSEST_SYNC)`
+                // as a scrub-speed optimisation but it's annotated
+                // separately from the class-level @UnstableApi and
+                // caused the GitHub Actions APK build to fail.  The
+                // scrub-debounce (PlayerOverlay's `pendingScrubMs`
+                // pattern that batches multiple key presses into a
+                // single ~500 ms-delayed `onSeekTo` call) already
+                // gives 90 %+ of the perceived-speed win, so we drop
+                // back to ExoPlayer's default EXACT seek behaviour
+                // to unblock the build.
             }
 
         player.addListener(object : Player.Listener {
