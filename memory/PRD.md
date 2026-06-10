@@ -1,5 +1,35 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.33 — Play-Next pill: 120 s threshold + no auto-focus + correct episode swap (Feb 10 2026).**
+>
+> User report: "Play next episode should show up two minutes before the end, not one minute.  It shouldn't automatically be highlighted.  When it does play the next episode it plays the SAME episode again, and it opens in libVLC even though we're in ExoPlayer — should always go in ExoPlayer."
+>
+> Three fixes in one drop:
+>
+> **Fix 1 — 60 s → 120 s threshold.**  `maybePersistProgress` in `ExoPlayerActivity.kt` now flips `hasNextEpisodeFlow.value = true` when `remaining in 0..120_000`, doubling the pre-credits window the user gets to react.  Side-benefit: the background prime job (`kickoffNextEpisodePrime`) now has nearly twice the slack to resolve + buffer the next episode before the click.
+>
+> **Fix 2 — No auto-focus on the pill.**  Removed the `LaunchedEffect(Unit) { focusRequester.requestFocus() }` block in `NextEpisodePill`.  D-pad Right from the centre Play/Pause now lands on the pill exactly when the user asks for it — never steals focus from a mid-scrub or mid-subtitle-pick interaction.
+>
+> **Fix 3 — Correct-episode swap (was playing the SAME episode in VLC).**  Root cause was a hidden coupling in `ExoPlayerActivity.kt`'s `onPlayerError` handler at line ~588:
+>     val fallback = Intent(…, VlcPlayerActivity::class.java)
+>     fallback.putExtras(intent)
+> The previous `jumpToPrimedNextEpisode` did `player.seekToNextMediaItem()` to advance through a pre-queued `addMediaItem`, but the activity's launching `intent` extras still pointed at the OLD episode.  When ExoPlayer hit a parse-error on the new queued stream, the fallback handler grabbed those stale extras and launched VLC with the previous episode's URL + cwId — exactly what the user saw.
+>
+> Replaced the queue-based swap with a clean `setMediaItem + prepare` flow that:
+>   1) Persists final progress for the OLD episode (`maybePersistProgress(dur, dur)` with the throttle zeroed) so Continue Watching marks the credits as finished BEFORE cwId mutates.
+>   2) Mutates activity state — `streamUrl`, `cwId`, `streamTitle`, `startAtMs = 0L`, `hasNextEpisodeFlow = false`, `nextEpisodePrimeStartedFor = ""` — so the NEXT prime cycle can fire for the new current episode.
+>   3) **Mirrors the new state into `intent.putExtra(EXTRA_URL, …)`, `EXTRA_TITLE`, `EXTRA_CW_ID`, `EXTRA_START_AT_MS`, `EXTRA_SUB_URL`** — so any subsequent `onPlayerError` → VLC fallback launches VLC with the CORRECT next-episode URL, not the stale one.
+>   4) Calls `player.setMediaItem(MediaItem(primedUrl), 0L)` + `prepare()` + `playWhenReady = true`.
+>   5) Clears the primed cache (`nextEpisodePrimedUrl = null` etc.) so a fresh prime job can run for the new current episode.
+>
+> Dropped the `player.addMediaItem(...)` call from `kickoffNextEpisodePrime` — pre-buffering via the queue was an optimisation that's not worth a correctness bug.  Can be re-introduced later as a separate concern once we make the parse-error fallback episode-aware in its own right.
+>
+> Files touched:
+>   • `/app/android/vesper-tv/app/src/main/java/tv/vesper/app/PlayerOverlay.kt` — removed auto-focus `LaunchedEffect` in `NextEpisodePill`.
+>   • `/app/android/vesper-tv/app/src/main/java/tv/vesper/app/ExoPlayerActivity.kt` — 60 s → 120 s threshold in `maybePersistProgress`, rewrote `jumpToPrimedNextEpisode`, dropped `addMediaItem` from `kickoffNextEpisodePrime`.
+>
+> Native APK rebuild required — preview environment cannot exercise ExoPlayer.
+
 > **🟢 v2.10.32 — Binge AU + Stan AU + Paramount+ Australia content (1,098 + 633 + 570 titles vs 0 + 0 + 8 prior) (Feb 10 2026).**
 >
 > User report: "When we click on Binge / Stan it says there's nothing available, but they're obviously Australian, so they wouldn't be available in the US.  See if you can get more content for Paramount+ as well."

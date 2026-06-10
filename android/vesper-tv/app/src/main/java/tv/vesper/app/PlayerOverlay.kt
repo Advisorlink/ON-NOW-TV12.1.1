@@ -788,12 +788,10 @@ private fun NextEpisodePill(onClick: () -> Unit) {
     val focusRequester = remember { FocusRequester() }
     var focused by remember { mutableStateOf(false) }
 
-    // Auto-focus the moment the pill enters composition so the user
-    // can just press OK without dpad-navigating.  `try` because the
-    // focus system may not be ready on the very first frame.
-    LaunchedEffect(Unit) {
-        try { focusRequester.requestFocus() } catch (_: Exception) {}
-    }
+    // Auto-focus removed in v2.10.33 per user feedback — they didn't
+    // want the pill to steal focus from whatever they were on (e.g.
+    // mid-scrub).  D-pad Right from the centre Play/Pause now lands
+    // on the pill exactly when the user asks for it, not before.
 
     // Pulsing glow halo when focused.  Even at rest the pill is
     // visually loud (cyan fill) — the pulse just confirms "yes,

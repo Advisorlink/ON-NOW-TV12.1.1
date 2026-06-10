@@ -823,7 +823,7 @@ class ExoPlayerActivity : ComponentActivity() {
                 .apply()
         } catch (_: Exception) { /* ignore — best effort */ }
 
-        // v2.10.24 — Once the user is within 60 s of the credits we
+        // v2.10.24 — Once the user is within 120 s of the credits we
         // surface the Skip Next Episode pill via the dock.  Same UX
         // as VlcPlayerActivity but rendered as a Compose DockButton
         // instead of a separate animated LinearLayout — fits the
@@ -835,9 +835,14 @@ class ExoPlayerActivity : ComponentActivity() {
         // pre-buffered via the ExoPlayer media queue.  Click of the
         // pill then triggers `seekToNextMediaItem()` — instant swap,
         // no return-to-picker round trip.
+        //
+        // v2.10.33 — Threshold bumped from 60 s → 120 s so the pill
+        // surfaces earlier; gives the prime job almost twice as much
+        // network slack to resolve+buffer the next episode before
+        // the user actually hits the click.
         if (isSeriesEpisode && lengthMs > 0L) {
             val remaining = lengthMs - timeMs
-            val show = remaining in 0..60_000 && computeNextEpisode() != null
+            val show = remaining in 0..120_000 && computeNextEpisode() != null
             if (show != hasNextEpisodeFlow.value) {
                 hasNextEpisodeFlow.value = show
             }
@@ -945,34 +950,30 @@ class ExoPlayerActivity : ComponentActivity() {
                 // ── 4) Build a friendly title for the next ep ───────
                 val nextTitle = "S${next.first} · E${next.second}"
 
-                // ── 5) Stash + queue on the main thread ─────────────
+                // ── 5) Stash on the main thread ─────────────────────
+                // v2.10.33 — Earlier versions of this prime job also
+                // called `player.addMediaItem(...)` here to queue the
+                // upcoming episode so ExoPlayer could pre-buffer it
+                // and `seekToNextMediaItem()` would be instant on
+                // click.  We dropped that path because it created a
+                // subtle correctness bug: when ExoPlayer hit a parse
+                // error on the queued item, the activity's
+                // `onPlayerError` handler at ~line 588 fell back to
+                // VLC using `fallback.putExtras(intent)` — but the
+                // intent extras still pointed at the OLD episode, so
+                // VLC re-played the SAME episode.  The new
+                // `jumpToPrimedNextEpisode()` does a clean
+                // `setMediaItem + prepare` instead and synchronously
+                // updates `intent` extras, which the fallback then
+                // sees correctly.  Pre-buffering can be re-introduced
+                // later as an optimisation once we've made the
+                // fallback path itself episode-aware.
                 withContext(kotlinx.coroutines.Dispatchers.Main) {
                     nextEpisodePrimedUrl = pickedUrl
                     nextEpisodePrimedSubUrl = subUrl
                     nextEpisodePrimedTitle = nextTitle
                     nextEpisodePrimedCwId = nextCwId
-                    try {
-                        val nextItem = MediaItem.Builder()
-                            .setUri(pickedUrl)
-                            .setMediaId(pickedUrl)
-                            .build()
-                        // Replace any earlier primed item (e.g. user
-                        // changed stream sources mid-playback).
-                        while (player.mediaItemCount > 1) {
-                            player.removeMediaItem(player.mediaItemCount - 1)
-                        }
-                        player.addMediaItem(nextItem)
-                        // ExoPlayer automatically pre-buffers the next
-                        // item once the current one is within the
-                        // `bufferForPlaybackAfterRebufferMs` window,
-                        // but we trigger an explicit prepare so
-                        // network handshake happens NOW (when we have
-                        // 60 s of slack), not at credits roll.
-                        Log.i(TAG, "next-ep primed: $nextTitle → $pickedUrl")
-                    } catch (t: Throwable) {
-                        Log.w(TAG, "could not queue primed next item", t)
-                        nextEpisodePrimedUrl = null
-                    }
+                    Log.i(TAG, "next-ep primed: $nextTitle → $pickedUrl")
                 }
             } catch (_: kotlinx.coroutines.CancellationException) {
                 // expected if the user backed out before we finished
@@ -1031,53 +1032,106 @@ class ExoPlayerActivity : ComponentActivity() {
     }
 
     /**
-     * v2.10.30 — Switch to the primed next episode in-place.
+     * v2.10.33 — Switch to the primed next episode in-place.
      *
-     * Called from the "PLAY NEXT EPISODE" pill.  If we managed to
-     * prime a candidate URL we use `seekToNextMediaItem()` for an
-     * instant in-activity swap.  Otherwise we fall back to the
-     * legacy intent-via-SharedPreferences + finish() round trip
-     * that takes the user back through the WebView episode picker.
+     * Called from the "PLAY NEXT EPISODE" pill.  Re-prepares the
+     * player with the primed stream via the canonical Media3
+     * `setMediaItem + prepare` path — same path used at activity
+     * launch, so any bookkeeping ExoPlayer does on a fresh media
+     * source happens once again (codec selection, manifest parse,
+     * buffer reset).  This is more reliable than `seekToNextMediaItem`
+     * which silently no-ops when ExoPlayer decides the queued item
+     * is incompatible with the current renderer pipeline.
+     *
+     * Critical bookkeeping that the previous queue-based approach
+     * missed:
+     *   1) `intent.putExtra(...)` is updated to mirror the new
+     *      episode.  Without this, the parse-error fallback at
+     *      ~line 588 (which does `fallback.putExtras(intent)` to
+     *      hand the playback over to VlcPlayerActivity) ends up
+     *      sending the OLD episode's URL + cwId to VLC.  That's
+     *      exactly what the user reported: "Play Next Episode
+     *      opens libVLC with the SAME episode."  Now the fallback
+     *      sees the new URL.
+     *   2) `streamUrl`, `cwId`, `streamTitle`, `startAtMs` are all
+     *      updated BEFORE the prepare() call so the first save of
+     *      Continue-Watching after prepare() persists under the
+     *      new cwId, not the old one.
+     *
+     * Falls back to the legacy intent-via-SharedPreferences +
+     * finish() path only when no primed URL exists — typically
+     * because the prime job hadn't returned yet by the time the
+     * user clicked the pill.
      */
     private fun jumpToPrimedNextEpisode() {
         val primedUrl = nextEpisodePrimedUrl
-        if (primedUrl != null && player.hasNextMediaItem()) {
+        val primedCw  = nextEpisodePrimedCwId
+        val primedTitle = nextEpisodePrimedTitle
+        if (primedUrl != null && primedCw.isNotBlank()) {
             try {
                 // Persist final progress for the OLD episode before
-                // the queue advances and `cwId` changes — otherwise
-                // Continue Watching would never see the user
-                // finished the credits.  Force a write by zeroing
-                // the throttle, then call maybePersistProgress with
-                // pos==dur so the entry counts as "completed".
+                // the activity state advances and cwId changes —
+                // otherwise Continue Watching would never see the
+                // user finished the credits.
                 lastProgressSaveAt = 0L
                 val dur = player.duration.coerceAtLeast(0L)
                 if (cwId.isNotBlank() && dur > 0L) {
                     maybePersistProgress(dur, dur)
                 }
-                // Swap to the queued primed item.
-                player.seekToNextMediaItem()
-                player.playWhenReady = true
 
-                // Update internal state so the overlay metadata + CW
-                // saves correctly reflect the new episode.  Title +
-                // cwId are the most user-visible bits; richer meta
-                // (synopsis / runtime / poster) stays from the
-                // previous episode for now — the React side will
-                // refresh it once the user backs out.
+                // ── 1) Mutate activity state ────────────────────────
                 streamUrl = primedUrl
-                streamTitle = nextEpisodePrimedTitle.ifBlank { streamTitle }
-                cwId = nextEpisodePrimedCwId.ifBlank { cwId }
+                cwId = primedCw
+                if (primedTitle.isNotBlank()) streamTitle = primedTitle
                 startAtMs = 0L
                 hasNextEpisodeFlow.value = false
+                lastProgressSaveAt = 0L
+                nextEpisodePrimeStartedFor = ""   // allow a new prime to fire for THIS new ep
+
+                // ── 2) Mirror new state into the launching intent ───
+                // The parse-error fallback (onPlayerError → VLC) and
+                // any system-driven restart will read these extras
+                // back, so they MUST reflect the new episode after
+                // an in-activity swap.  Without this the user gets
+                // S1E1's URL launched in VLC when ExoPlayer fails
+                // on S1E2.
+                try {
+                    intent.putExtra(VlcPlayerActivity.EXTRA_URL, primedUrl)
+                    intent.putExtra(VlcPlayerActivity.EXTRA_TITLE, streamTitle)
+                    intent.putExtra(VlcPlayerActivity.EXTRA_CW_ID, primedCw)
+                    intent.putExtra(VlcPlayerActivity.EXTRA_START_AT_MS, 0L)
+                    intent.putExtra(VlcPlayerActivity.EXTRA_SUB_URL, nextEpisodePrimedSubUrl)
+                } catch (_: Throwable) { /* defensive */ }
+
+                // ── 3) Clear the queue, set new item, prepare ───────
+                // Removing any queued items first matters because
+                // any leftover queue entries can confuse Media3 if
+                // the user later triggers another swap.
+                try {
+                    while (player.mediaItemCount > 1) {
+                        player.removeMediaItem(player.mediaItemCount - 1)
+                    }
+                } catch (_: Throwable) { /* */ }
+                val newItem = MediaItem.Builder()
+                    .setUri(primedUrl)
+                    .setMediaId(primedUrl)
+                    .build()
+                player.setMediaItem(newItem, 0L)
+                player.prepare()
+                player.playWhenReady = true
+
+                // ── 4) Clear primed cache so the next 120s-window
+                //      detection can fire a fresh prime for the new
+                //      current episode ────────────────────────────
                 nextEpisodePrimedUrl = null
                 nextEpisodePrimedSubUrl = ""
                 nextEpisodePrimedTitle = ""
                 nextEpisodePrimedCwId = ""
-                nextEpisodePrimeStartedFor = ""
-                Log.i(TAG, "jumped to primed next episode in-place")
+
+                Log.i(TAG, "swapped in-place to primed next episode: $cwId")
                 return
             } catch (t: Throwable) {
-                Log.w(TAG, "primed seek failed; falling back to intent", t)
+                Log.w(TAG, "primed in-place swap failed; falling back to intent", t)
             }
         }
         // Fallback path — same behaviour as before this change.
