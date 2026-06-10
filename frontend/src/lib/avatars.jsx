@@ -79,12 +79,10 @@ const ICON_AVATARS = {
     funny: [
         icon('fn-popcorn-fg',    '#FBBF24'),
         icon('fn-monster',       '#A78BFA'),
-        icon('fn-monster-mascot','#C084FC'),
         icon('fn-slime',         '#22D3EE'),
         icon('fn-soda',          '#EF4444'),
         icon('fn-noodle',        '#F97316'),
         icon('fn-alien-neon',    '#10B981'),
-        icon('fn-alien-pixel',   '#22D3EE'),
         icon('fn-alien-badge',   '#A78BFA'),
         icon('fn-cactus-alien',  '#84CC16'),
     ],
@@ -114,11 +112,12 @@ const ICON_AVATARS = {
         icon('gm-cyber-portrait',   '#A78BFA'),
         icon('gm-cyber-portrait2',  '#22D3EE'),
         icon('gm-cyborg',           '#06B6D4'),
-        // v2.10.25 — User-supplied "Pro Gamer" duo, anchored in the
-        // exact middle of the row so they read as a featured pair.
-        // Blue (male) + purple (female) match each other visually
-        // and sit between the neon-cyan and neon-pink clusters on
-        // either side.
+        // v2.10.26 — User-supplied "Pro Gamer" duo, anchored in the
+        // exact middle of the row.  Boy (blue glow) first on the
+        // LEFT, girl (purple glow) second on the RIGHT — order set
+        // explicitly per user request.  Filenames swapped on disk
+        // so the `gm-pro-male` JPEG actually contains the male
+        // portrait (the source files were misidentified in v2.10.25).
         icon('gm-pro-male',         '#5DC8FF'),
         icon('gm-pro-female',       '#C084FC'),
         icon('gm-cyborg-neon',      '#A78BFA'),

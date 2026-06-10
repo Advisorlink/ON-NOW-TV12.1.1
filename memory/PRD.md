@@ -1,5 +1,15 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.26 — Gamer pair swap + 2 more duplicate FUNNY icons removed (Feb 9 2026).**
+>
+> User noticed three issues in the avatar picker:
+>
+> 1. **Gamer pair order**: the new Pro-Gamer duo was showing girl-first / boy-second.  User asked for boy-first, girl-right.  Resolved by **swapping the JPEG file contents on disk** rather than the array order so the IDs continue to semantically match the content (`gm-pro-male.jpg` actually contains the male portrait, `gm-pro-female.jpg` the female).
+> 2. **Duplicate purple monsters** in FUNNY: `fn-monster` and `fn-monster-mascot` looked nearly identical to the user.  Kept `fn-monster` (portrait), removed `fn-monster-mascot`.
+> 3. **Duplicate green pixel aliens** in FUNNY: `fn-alien-neon` and `fn-alien-pixel` again nearly identical.  Kept `fn-alien-neon` (cleaner neon shape), removed `fn-alien-pixel`.
+>
+> Result: FUNNY row goes 10 → 8 unique icons; GAMER row stays at 21 with the new duo correctly ordered LEFT-to-RIGHT as boy → girl.  Verified on the live preview: `gm-pro-male` x = 1304 px, `gm-pro-female` x = 1438 px — male first. 77/77 images load, 0 broken.
+
 > **🟢 v2.10.25 — Two new "Pro Gamer" avatars in the middle of the GAMER row (Feb 9 2026).**
 >
 > User dropped two hi-res 1024×1024 PNG portraits (a blue-glow male gamer with headset + a purple/pink-glow female gamer with headset) and asked them placed side-by-side in the middle of the GAMER row.
