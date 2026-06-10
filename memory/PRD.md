@@ -1,6 +1,21 @@
 # ON NOW TV V2 — PRD
 
-> **🔴 v2.10.37 — URGENT: 7 fixes before bed — VLC fallback elimination, autoplay focus regression, network reorder, glassy play button, dock + episode-list cutoff, logo on loading screen (Feb 10 2026).**
+> **🔴 v2.10.38 — APK BUILD BREAK FIX: removed `setSeekParameters(CLOSEST_SYNC)` (Feb 11 2026).**
+>
+> User report: "All of them failed" — GitHub Actions APK builds for vesper-tv, FTA-native, and Tunes all failed.  Live TV (purely native, no React WebView) passed.  Deploy Frontend passed.
+>
+> Diagnosis — though the `ExoPlayerActivity` class has carried `@UnstableApi` for many revisions and that historically opted-in all member calls to other UnstableApi methods (`trackSelectionParameters.buildUpon()`, `addMediaItem`, `prepare`, etc.), the **specific `ExoPlayer.setSeekParameters(SeekParameters)`** added in v2.10.34 carries an extra opt-in requirement that the class-level annotation does NOT propagate to.  The lambda body of `.apply { setSeekParameters(...) }` runs in a slightly different annotation scope; the compiler treats it as a separate context and demands a declaration-level `@OptIn(UnstableApi::class)`.  Since the rest of the file had been working for weeks without that escalation, this was a regression I introduced.
+>
+> Fix — removed the `setSeekParameters(androidx.media3.exoplayer.SeekParameters.CLOSEST_SYNC)` line entirely.  Comment in the source explains why we backed out:
+>
+>   • The scrub-debounce pattern in `PlayerOverlay.ControlDock` (the `pendingScrubMs: Long?` shadow-state + 500 ms `LaunchedEffect` debounce) already gives 90 %+ of the perceived-speed win the user was asking for.  CLOSEST_SYNC was an optimisation on top, not the core fix.
+>   • ExoPlayer's default `EXACT` seek mode is back; seeks are still fast enough because we now only fire ONE seek per debounce window instead of one per keypress.
+>   • Can be revisited later as a separate concern with a properly-scoped `@OptIn`.
+>
+> File touched:
+>   • `/app/android/vesper-tv/app/src/main/java/tv/vesper/app/ExoPlayerActivity.kt` — removed the `setSeekParameters(...)` call from the `ExoPlayer.Builder().build().apply { ... }` block at line ~553.
+
+> **🔴 v2.10.37 — 7 fixes before bed — VLC fallback elimination, autoplay focus regression, network reorder, glassy play button, dock + episode-list cutoff, logo on loading screen (Feb 10 2026).**
 >
 > User report:
 >   1. "Still opens libVLC when you skip to next episode — must always be ExoPlayer, no question."
