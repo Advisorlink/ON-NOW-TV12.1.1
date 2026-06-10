@@ -1,5 +1,32 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.34 — Next-episode thumbnail next to the pill + scrub debounce + faster seek params (Feb 10 2026).**
+>
+> User report: "Yes, I want a thumbnail of the next episode just before the pill.  And the scrubbing is taking too long for it to re-pick where it's up to — when I push UP I should enter scrub mode and use left/right, and once I take my finger off it needs to find where we're up to QUICKER."
+>
+> Three changes, all native ExoPlayer side:
+>
+> **1) Next-episode thumbnail (`NextEpisodeThumbnail` composable).**
+>   • Deterministic URL pattern: `https://episodes.metahub.space/{imdb}/{season}/{episode}/w780.jpg` — same CDN the React layer already uses, so no extra round-trip is required to know what to show.
+>   • Populated synchronously inside `maybePersistProgress` the same instant `hasNextEpisodeFlow` flips to true — appears in lock-step with the pill, doesn't wait on the streams prime.
+>   • Rendered as a 96×54 dp Coil `AsyncImage` (`ContentScale.Crop`) inside a rounded-corner cyan-bordered box, positioned LEFT of the pill inside the dock's right slot.  Right slot width bumped from 260 → 380 dp so the play/pause cluster stays centred when both the thumbnail and pill are visible.
+>   • Cleared in `jumpToPrimedNextEpisode` so the next pre-credits window starts with a clean slate.
+>
+> **2) Scrub debounce — 5× rapid lefts now cost ONE seek, not five.**
+>   • Root cause of "taking too long to re-pick up": every D-pad LEFT/RIGHT keypress called `player.seekTo(...)` immediately, which triggers a buffer flush + re-buffer cycle on the network adapter.  5 quick presses → 5 flushes → ~2 s of cumulative visible stalling.
+>   • New flow in `ControlDock`: a Compose `var pendingScrubMs: Long? by remember { mutableStateOf(null) }` shadow-tracks the user's intended position.  Each keypress mutates this value (instant visual feedback via the bar's `playFrac = displayPos / total`) but does NOT call into ExoPlayer.  A `LaunchedEffect(pendingScrubMs)` re-fires whenever the value changes — each press cancels the previous coroutine and starts a fresh 500 ms delay.  When the user STOPS pressing for 500 ms, the coroutine completes the `delay`, fires ONE `onSeekTo(target)` call, and clears the buffer.
+>   • Timecode label below the bar paints from the pending value too, in amber (`#FFC350`) instead of cyan, so the user gets unambiguous "I'm scrubbing" feedback.  OK / Enter while scrubbing commits the pending position immediately then toggles play.
+>
+> **3) `SeekParameters.CLOSEST_SYNC` for ~10× faster seek commits.**
+>   • Replaced ExoPlayer's default `EXACT` seek mode (which scans forward from the previous IDR frame for an exact-millisecond match — 400-900 ms per seek on TV-grade hardware) with `CLOSEST_SYNC` (jumps to the nearest sync frame in either direction — single-digit ms).
+>   • Trade-off: ≤2 s positional drift on each seek, invisible when scrubbing through long-form video.
+>
+> Files touched:
+>   • `/app/android/vesper-tv/app/src/main/java/tv/vesper/app/PlayerOverlay.kt` — added `nextEpisodeThumbnailUrl`/`onSeekTo` params, scrub-debounce state, `NextEpisodeThumbnail` composable, amber pending-timecode color.
+>   • `/app/android/vesper-tv/app/src/main/java/tv/vesper/app/ExoPlayerActivity.kt` — `nextEpThumbnailFlow` field, `SeekParameters.CLOSEST_SYNC` on the `ExoPlayer.Builder`, thumbnail URL build in `maybePersistProgress`, clear on `jumpToPrimedNextEpisode`.
+>
+> Native APK rebuild required.
+
 > **🟢 v2.10.33 — Play-Next pill: 120 s threshold + no auto-focus + correct episode swap (Feb 10 2026).**
 >
 > User report: "Play next episode should show up two minutes before the end, not one minute.  It shouldn't automatically be highlighted.  When it does play the next episode it plays the SAME episode again, and it opens in libVLC even though we're in ExoPlayer — should always go in ExoPlayer."

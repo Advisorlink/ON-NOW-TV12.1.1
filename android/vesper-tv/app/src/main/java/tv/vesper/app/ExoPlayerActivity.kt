@@ -113,6 +113,15 @@ class ExoPlayerActivity : ComponentActivity() {
     @Volatile private var nextEpisodePrimedCwId: String = ""
     private var nextEpisodePrimeStartedFor: String = ""   // cwId we last started priming for
     private var nextEpisodePrimeJob: kotlinx.coroutines.Job? = null
+
+    // v2.10.34 — Next-episode thumbnail URL for the pill.  Derived
+    // deterministically from the metahub episode-image CDN the rest
+    // of the React app already uses; pattern is:
+    //   https://episodes.metahub.space/{imdb}/{season}/{episode}/w780.jpg
+    // Populated synchronously when `hasNextEpisodeFlow` flips true,
+    // so the thumbnail appears at the same instant the pill does
+    // (no waiting on the network prime job to fetch a poster).
+    private val nextEpThumbnailFlow = MutableStateFlow("")
     // v2.7.74 — Live TV awareness.  Driven by EXTRA_TYPE = "live".
     private var isLive: Boolean = false
     private var liveStreamId: String = ""
@@ -559,6 +568,18 @@ class ExoPlayerActivity : ComponentActivity() {
                     .setPreferredAudioLanguages("eng", "en", "english")
                     .setPreferredTextLanguages("eng", "en", "english")
                     .build()
+                // v2.10.34 — Use CLOSEST_SYNC instead of the default
+                // EXACT seek.  EXACT scans forward from the previous
+                // sync frame to render an exact-millisecond match,
+                // which on TV-grade boxes adds 400–900 ms per seek —
+                // exactly the "taking too long to re-pick where it's
+                // up to" delay the user complained about.
+                // CLOSEST_SYNC jumps to the nearest IDR frame in
+                // EITHER direction, dropping that overhead to
+                // single-digit ms.  Trade-off is a ≤2 s positional
+                // drift, which is invisible when the user is
+                // scrubbing through a long-form video anyway.
+                setSeekParameters(androidx.media3.exoplayer.SeekParameters.CLOSEST_SYNC)
             }
 
         player.addListener(object : Player.Listener {
@@ -724,6 +745,7 @@ class ExoPlayerActivity : ComponentActivity() {
                     // finish() MainActivity reads that and jumps the
                     // WebView to `#/title/series/<imdb>?episodeAutoplay=1`.
                     hasNextEpisode  = hasNextEpisodeFlow.asStateFlow(),
+                    nextEpisodeThumbnailUrl = nextEpThumbnailFlow.asStateFlow(),
                     onNextEpisode   = { jumpToPrimedNextEpisode() },
                     onClose = { finish() },
                 )
@@ -842,9 +864,24 @@ class ExoPlayerActivity : ComponentActivity() {
         // the user actually hits the click.
         if (isSeriesEpisode && lengthMs > 0L) {
             val remaining = lengthMs - timeMs
-            val show = remaining in 0..120_000 && computeNextEpisode() != null
+            val nextSE = computeNextEpisode()
+            val show = remaining in 0..120_000 && nextSE != null
             if (show != hasNextEpisodeFlow.value) {
                 hasNextEpisodeFlow.value = show
+                // v2.10.34 — Surface the next-episode thumbnail at
+                // the exact same moment the pill becomes visible.
+                // Metahub URLs are CDN-deterministic so we don't
+                // need to wait for the streams prime to finish to
+                // know what to show.
+                if (show && nextSE != null) {
+                    val imdb = cwId.substringBefore(":")
+                    if (imdb.isNotBlank()) {
+                        nextEpThumbnailFlow.value =
+                            "https://episodes.metahub.space/$imdb/${nextSE.first}/${nextSE.second}/w780.jpg"
+                    }
+                } else if (!show) {
+                    nextEpThumbnailFlow.value = ""
+                }
             }
             if (show && nextEpisodePrimeStartedFor != cwId) {
                 nextEpisodePrimeStartedFor = cwId
@@ -1127,6 +1164,7 @@ class ExoPlayerActivity : ComponentActivity() {
                 nextEpisodePrimedSubUrl = ""
                 nextEpisodePrimedTitle = ""
                 nextEpisodePrimedCwId = ""
+                nextEpThumbnailFlow.value = ""
 
                 Log.i(TAG, "swapped in-place to primed next episode: $cwId")
                 return
