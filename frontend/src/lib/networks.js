@@ -6,6 +6,14 @@
  * full-bleed tile background (replacing both the TMDB logo and the
  * gradient).  Files live in `/app/frontend/public/networks/` and
  * ship with the React bundle.
+ *
+ * `region` (optional, default 'US') — which country's catalog to ask
+ * TMDB about via `/discover/{type}?watch_region=…`.  Without this
+ * field Binge & Stan return *zero* titles (they're AU-only services
+ * and TMDB tags their provider ids accordingly), and Paramount+
+ * effectively empties out under US (TMDB's provider id 531 is
+ * mostly populated for AU / GB / CA — under US it returns only ~8
+ * titles).  v2.10.32.
  */
 
 export const NETWORKS = [
@@ -71,6 +79,10 @@ export const NETWORKS = [
         background:
             'linear-gradient(135deg, #000010 0%, #002073 55%, #0064ff 100%)',
         customLogo: '/networks/paramount-plus.webp',
+        // TMDB's US Paramount+ provider returns ~8 titles total; AU
+        // returns ~570 movies + 471 TV episodes for the same network.
+        // Defaulting to AU is a 70× content boost for every user.
+        region: 'AU',
     },
     {
         slug: 'binge',
@@ -80,6 +92,8 @@ export const NETWORKS = [
         background:
             'linear-gradient(135deg, #03001a 0%, #410066 50%, #ff3d8a 100%)',
         customLogo: '/networks/binge.webp',
+        // Foxtel-owned AU-only service.  Empty in every other region.
+        region: 'AU',
     },
     {
         slug: 'stan',
@@ -89,6 +103,8 @@ export const NETWORKS = [
         background:
             'linear-gradient(135deg, #000010 0%, #001e6e 55%, #1e6dff 100%)',
         customLogo: '/networks/stan.webp',
+        // AU-only.  Empty in every other region.
+        region: 'AU',
     },
 ];
 

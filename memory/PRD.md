@@ -1,5 +1,29 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.32 — Binge AU + Stan AU + Paramount+ Australia content (1,098 + 633 + 570 titles vs 0 + 0 + 8 prior) (Feb 10 2026).**
+>
+> User report: "When we click on Binge / Stan it says there's nothing available, but they're obviously Australian, so they wouldn't be available in the US.  See if you can get more content for Paramount+ as well."
+>
+> Root cause — `/api/networks/{slug}` defaults to `watch_region=US` and the frontend's `Network.jsx` never overrode it.  TMDB's watch-provider tagging for these three services lives almost entirely under AU:
+>   | Service        | US TV | AU TV | US Movies | AU Movies |
+>   |---|---|---|---|---|
+>   | Binge          |   0   | 1098  |     0     |    —      |
+>   | Stan           |   0   |  633  |     0     |    —      |
+>   | Paramount+     |   5   |  471  |     8     |   570     |
+>
+> Fix — per-network `region` field in `/app/frontend/src/lib/networks.js`.  Binge / Stan / Paramount+ now default to `'AU'`; everything else (Netflix, Disney+, Prime, Apple TV+, Max, Hulu) stays implicit-`'US'` because TMDB's US watch-provider data is densest there.
+>
+> `Network.jsx` (both the initial-load `useEffect` AND the `loadMore` paginator) appends `&region=${network.region || 'US'}` to the API URL.  Backend was already region-aware — only the frontend needed wiring.
+>
+> Verified via direct API curl after the change:
+>   • `/api/networks/binge?type=tv&region=AU` → 1,098 titles (NCIS, CSI, Midsomer Murders, …).
+>   • `/api/networks/stan?type=tv&region=AU` → 633 titles (Yellowstone, Breaking Bad, FROM, …).
+>   • `/api/networks/paramount-plus?type=movie&region=AU` → 570 titles (The Godfather, Scream, Scary Movie, …).
+>
+> File touched: `/app/frontend/src/lib/networks.js` + `/app/frontend/src/pages/Network.jsx`.  No backend changes — the `region` query param has always been supported, just never set.
+>
+> **No 3rd-party Stremio add-on needed.**  Searched for Binge / Stan / Paramount+ add-ons (rleroi's Streaming-Catalogs-Addon, AIOStreams, etc.) — none provide first-class support, and Binge/Stan are DRM-locked services so stream resolution is impossible regardless.  The TMDB `with_watch_providers` route Vesper already uses is the standard pattern for surfacing "what's currently streaming on Service X in Country Y" catalogues, which is what the user actually wanted.
+
 > **🔴 v2.10.31 — URGENT: WebView file-chooser missing + avatar D-pad smooth scroll regression (Feb 10 2026).**
 >
 > User report (video evidence): "It still won't let me upload anything AND the left right movement in the profile icon section is still jumpy!!!!"
