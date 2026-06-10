@@ -104,7 +104,6 @@ const ICON_AVATARS = {
     ],
     gamer: [
         icon('gm-assassin',         '#22D3EE'),
-        icon('gm-cyber-neon',       '#A78BFA'),
         icon('gm-electric',         '#5DC8FF'),
         icon('gm-green-gamer',      '#22C55E'),
         icon('gm-ape',              '#FACC15'),

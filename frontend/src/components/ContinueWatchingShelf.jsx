@@ -351,6 +351,7 @@ function CWTile({
                     <button
                         data-focusable="true"
                         data-focus-style="pill"
+                        data-initial-focus="true"
                         tabIndex={0}
                         onClick={onRemove}
                         style={{
@@ -367,7 +368,6 @@ function CWTile({
                     <button
                         data-focusable="true"
                         data-focus-style="pill"
-                        data-initial-focus="true"
                         tabIndex={0}
                         onClick={onCancel}
                         style={{

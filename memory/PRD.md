@@ -1,5 +1,24 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.27 — Jumpy nav smoothing + cover cutoff fix + CW long-press auto-focus + ExoPlayer scrub-bar D-pad + faster post-seek resume (Feb 9 2026).**
+>
+> Four-issue user video — three WebView fixes + one native ExoPlayer fix.
+>
+> **A. Avatar picker — jumpy nav + remove `gm-cyber-neon`**
+>   • Removed `gm-cyber-neon` (cyberpunk gamer girl with dark hair / red streaks / purple background) per user request — gamer row 21 → 20.
+>   • Added `transition: transform 120ms ease-out` to `[data-focus-style='tile']` so the 1.08× scale-up doesn't snap on focus change — feels noticeably softer.  Transitions aren't affected by the perf-mode animation strip rules so this stays smooth even on `.vesper-host-android`.
+>   • Added `scroll-behavior: smooth` to both avatar-row scroll containers (the categorised AvatarRow + the Build/Upload row) so horizontal D-pad-driven scrolls glide instead of snapping with `behavior:'auto'`.  Spatial focus's coalesced `scrollBy()` is overridden by the CSS scroll-behavior on modern WebViews.
+>
+> **B. Viewing-prefs cover cutoff (Top-50 grid)**
+>   • v2.10.24 bound the grid to `maxHeight: 300px` which was EXACTLY 2 rows of 144 px tiles + 12 px gap — zero buffer for the focus ring + 1.08× scale + 1.5 px outline.  Bumped to **340 px** + 8 px vertical padding + `overflowX: visible` so the ring can extend past the row edges.  Tile `scrollMargin: 12 → 20` keeps the focused tile a generous distance from the scroll-container edges when D-pad scrolls into view.  Also `scroll-behavior: smooth`.
+>
+> **C. CW long-press auto-focus on Remove**
+>   • Moved `data-initial-focus="true"` from the **Cancel** button to the **Remove** button inside the CW remove-confirmation popover.  Long-pressing a Continue Watching tile now lands the focus directly on Remove so pressing Enter twice immediately deletes the entry (no extra left-arrow needed).
+>
+> **D. Native ExoPlayer — scrub-bar D-pad + faster post-seek resume (requires APK rebuild)**
+>   • **Faster resume**: `DefaultLoadControl.bufferForPlaybackAfterRebufferMs` dropped from **10 s → 3 s** so seeks resume playback ~3× faster on a healthy CDN.  Initial-start buffer also dropped 6 s → 3 s.  ExoPlayer treats every scrub as a "rebuffer" so the 10 s setting was the exact reason for the slow post-seek lag the user reported.
+>   • **Scrub bar D-pad**: the progress bar in `PlayerOverlay::ControlDock` is now `.focusable()` with an `.onKeyEvent` that consumes Direction-Left → `onSeekBy(-10_000L)`, Direction-Right → `onSeekBy(+10_000L)`, Enter/DirectionCenter → `onPlayPause()`.  Compose spatial focus routes D-pad UP from any dock button to the scrub bar automatically; DOWN returns.
+
 > **🟢 v2.10.26 — Gamer pair swap + 2 more duplicate FUNNY icons removed (Feb 9 2026).**
 >
 > User noticed three issues in the avatar picker:

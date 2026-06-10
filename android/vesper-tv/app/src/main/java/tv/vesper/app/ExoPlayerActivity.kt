@@ -482,12 +482,19 @@ class ExoPlayerActivity : ComponentActivity() {
         // wall-clock on a normal connection), but keep the 50 s
         // refill target and 120 s ceiling so mid-playback stays
         // smooth even with CDN dips.
+        // v2.10.27 — Faster resume after a seek.  Default
+        // `bufferForPlaybackAfterRebufferMs` was 10s — ExoPlayer
+        // treats every scrub as a "rebuffer" and waits the full
+        // 10 s of buffer before playing again, which is why the
+        // user reported seeks "take ages to start playing".  Drop
+        // to 3 s so the new position resumes ~3x faster on a
+        // healthy CDN.  Initial start drops 6→3s too.
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
                 50_000,    // minBufferMs — keep refilling toward 50 s
                 120_000,   // maxBufferMs — long soak room
-                6_000,     // bufferForPlaybackMs — start fast
-                10_000,    // bufferForPlaybackAfterRebufferMs
+                3_000,     // bufferForPlaybackMs — start fast (was 6 000)
+                3_000,     // bufferForPlaybackAfterRebufferMs (was 10 000)
             )
             .setPrioritizeTimeOverSizeThresholds(true)
             .setTargetBufferBytes(C.LENGTH_UNSET)

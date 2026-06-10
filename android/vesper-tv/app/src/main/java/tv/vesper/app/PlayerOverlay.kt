@@ -643,7 +643,28 @@ private fun ControlDock(
                         .padding(horizontal = 18.dp)
                         .height(8.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0x33FFFFFF)),
+                        .background(Color(0x33FFFFFF))
+                        // v2.10.27 — Make the scrub bar focusable so
+                        // pressing D-pad UP from any dock button
+                        // lands here and LEFT / RIGHT scrubs the
+                        // playhead by 10 s.  The Box swells to 16 dp
+                        // tall + a cyan ring when focused so the
+                        // user gets a clear "I'm now controlling the
+                        // bar" affordance.  DOWN automatically
+                        // returns to the dock via Compose's spatial
+                        // focus.
+                        .focusable()
+                        .onKeyEvent { ev ->
+                            if (ev.type != KeyEventType.KeyDown) return@onKeyEvent false
+                            when (ev.key) {
+                                Key.DirectionLeft -> { onSeekBy(-10_000L); true }
+                                Key.DirectionRight -> { onSeekBy(10_000L); true }
+                                Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> {
+                                    onPlayPause(); true
+                                }
+                                else -> false
+                            }
+                        },
                 ) {
                     val total = (durationMs.coerceAtLeast(1L)).toFloat()
                     val bufFrac =
