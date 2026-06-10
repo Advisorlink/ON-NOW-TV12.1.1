@@ -2398,6 +2398,9 @@ function BuildAvatarOverlay({ onCancel, onSave }) {
  */
 function UploadAvatarOverlay({ onCancel, onSave }) {
     const fileRef = useRef(null);
+    const cancelBtnRef = useRef(null);
+    const pickBtnRef = useRef(null);
+    const saveBtnRef = useRef(null);
     const [error, setError] = useState('');
     const [preview, setPreview] = useState(null); // { dataUrl, mime, name, size }
     const [busy, setBusy] = useState(false);
@@ -2455,17 +2458,131 @@ function UploadAvatarOverlay({ onCancel, onSave }) {
         }
     };
 
-    // Lock focus inside the modal so D-pad doesn't escape.
-    useEffect(() => {
-        const onKey = (e) => {
+    // v2.10.28 — Full focus trap, modelled on ConfirmModal's two
+    // prongs:
+    //   1. Key intercept (capture-phase) — D-pad LEFT / RIGHT
+    //      cycles between the visible buttons inside the modal;
+    //      arrow keys never leak out to the global spatial-focus
+    //      hook (which would happily focus a tile behind the
+    //      backdrop).
+    //   2. `focusin` rubber-band — defensive backstop, slams focus
+    //      back to the Choose-file button if a stray claim from
+    //      an avatar tile sneaks through.
+    React.useEffect(() => {
+        const modalRoot = () =>
+            document.querySelector('[data-testid="avatar-uploader"]');
+
+        // Build the linear order of focusable buttons: Cancel →
+        // Choose → (Save).  Save only exists once a preview is
+        // loaded so we look it up live.
+        const buttons = () => {
+            const list = [cancelBtnRef.current, pickBtnRef.current];
+            if (saveBtnRef.current) list.push(saveBtnRef.current);
+            return list.filter(Boolean);
+        };
+
+        const onKeyArrows = (e) => {
+            if (
+                e.key !== 'ArrowLeft' &&
+                e.key !== 'ArrowRight' &&
+                e.key !== 'ArrowUp' &&
+                e.key !== 'ArrowDown'
+            ) {
+                return;
+            }
+            const root = modalRoot();
+            if (!root) return;
+            const active = document.activeElement;
+            const order = buttons();
+            if (!order.length) return;
+            e.preventDefault();
+            e.stopPropagation();
+            // Find current index; default to first button if focus
+            // has already escaped the modal.
+            let idx = order.indexOf(active);
+            if (idx < 0) idx = 0;
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                idx = (idx - 1 + order.length) % order.length;
+            } else {
+                idx = (idx + 1) % order.length;
+            }
+            const target = order[idx];
+            try { target.focus({ preventScroll: true }); }
+            catch { /* ignore */ }
+            // Refresh the data-focused marker on the new target so
+            // the focus ring repaints immediately.
+            document
+                .querySelectorAll('[data-testid="avatar-uploader"] [data-focused="true"]')
+                .forEach((el) => {
+                    if (el !== target) el.removeAttribute('data-focused');
+                });
+            target.setAttribute('data-focused', 'true');
+        };
+
+        const onFocusInCapture = (e) => {
+            const root = modalRoot();
+            if (!root) return;
+            if (!e.target || !root.contains(e.target)) {
+                const fallback = pickBtnRef.current || cancelBtnRef.current;
+                if (!fallback) return;
+                try { fallback.focus({ preventScroll: true }); }
+                catch { /* ignore */ }
+                fallback.setAttribute('data-focused', 'true');
+            }
+        };
+
+        const onKeyBack = (e) => {
             if (e.key === 'Escape' || e.key === 'Backspace') {
                 e.preventDefault();
+                e.stopPropagation();
                 onCancel();
             }
         };
-        window.addEventListener('keydown', onKey);
-        return () => window.removeEventListener('keydown', onKey);
+
+        window.addEventListener('keydown', onKeyArrows, true);
+        window.addEventListener('keydown', onKeyBack, true);
+        document.addEventListener('focusin', onFocusInCapture, true);
+        return () => {
+            window.removeEventListener('keydown', onKeyArrows, true);
+            window.removeEventListener('keydown', onKeyBack, true);
+            document.removeEventListener('focusin', onFocusInCapture, true);
+        };
     }, [onCancel]);
+
+    // v2.10.28 — Imperatively focus the Choose-file button on
+    // mount.  Multiple retries defeat the in-flight Enter release
+    // from the long-press / click that opened the modal AND the
+    // global spatial-focus hook re-claiming focus on a tile
+    // behind the backdrop.
+    React.useEffect(() => {
+        const grab = () => {
+            // Strip stale data-focused from anything OUTSIDE the
+            // modal so the user only sees one focus ring.
+            const modal = document.querySelector('[data-testid="avatar-uploader"]');
+            document
+                .querySelectorAll('[data-focused="true"]')
+                .forEach((el) => {
+                    if (!modal || !modal.contains(el))
+                        el.removeAttribute('data-focused');
+                });
+            const target = pickBtnRef.current;
+            if (!target) return;
+            try { target.focus({ preventScroll: true }); }
+            catch { /* ignore */ }
+            target.setAttribute('data-focused', 'true');
+        };
+        // Sync + rAF + delayed retries — defeat any race against
+        // the Enter-release that opened the modal.
+        grab();
+        const raf = requestAnimationFrame(grab);
+        const t1 = setTimeout(grab, 50);
+        const t2 = setTimeout(grab, 150);
+        return () => {
+            cancelAnimationFrame(raf);
+            clearTimeout(t1);
+            clearTimeout(t2);
+        };
+    }, []);
 
     return (
         <div
@@ -2565,22 +2682,42 @@ function UploadAvatarOverlay({ onCancel, onSave }) {
                         >
                             <li>
                                 <strong style={{ color: '#FFC350' }}>•</strong>{' '}
-                                512×512 px square recommended
+                                <strong>512×512 px square</strong> preferred — any size works, we'll auto-crop to a circle
                             </li>
                             <li>
                                 <strong style={{ color: '#FFC350' }}>•</strong>{' '}
-                                Image is auto-cropped to a circle
+                                Rectangular images get center-cropped automatically
                             </li>
                             <li>
                                 <strong style={{ color: '#FFC350' }}>•</strong>{' '}
-                                PNG, JPEG, or animated GIF (loops)
+                                PNG, JPEG, or animated GIF (loops forever)
                             </li>
                             <li>
                                 <strong style={{ color: '#FFC350' }}>•</strong>{' '}
                                 Max file size: 2 MB
                             </li>
-                            <li style={{ marginTop: 8, color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>
+                            <li style={{ marginTop: 10, color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>
                                 Saved with your profile — survives backup &amp; restore on a new device.
+                            </li>
+                            {/* v2.10.28 — Animated-GIF how-to tip.
+                                Most users don't know they can make
+                                an avatar that wiggles / sparkles /
+                                bounces.  Quick pointer to a free
+                                tool that just works without an
+                                account. */}
+                            <li
+                                style={{
+                                    marginTop: 12,
+                                    padding: '10px 12px',
+                                    background: 'rgba(255, 195, 80, 0.10)',
+                                    border: '1px solid rgba(255, 195, 80, 0.32)',
+                                    borderRadius: 8,
+                                    color: 'rgba(255, 230, 180, 0.95)',
+                                    fontSize: 12,
+                                    lineHeight: 1.5,
+                                }}
+                            >
+                                <strong style={{ color: '#FFC350' }}>💡 Want an animated avatar?</strong> Drag a short video (≤3 s, looping) into <strong>ezgif.com/video-to-gif</strong> on any browser → set width to 512 → download. Or use Giphy / Tenor and pick a small loop.
                             </li>
                         </ul>
 
@@ -2621,8 +2758,10 @@ function UploadAvatarOverlay({ onCancel, onSave }) {
                     }}
                 >
                     <button
+                        ref={cancelBtnRef}
                         data-testid="avatar-upload-cancel"
                         data-focusable="true"
+                        data-focus-style="pill"
                         tabIndex={0}
                         onClick={onCancel}
                         className="vesper-btn-ghost"
@@ -2640,8 +2779,10 @@ function UploadAvatarOverlay({ onCancel, onSave }) {
                         Cancel
                     </button>
                     <button
+                        ref={pickBtnRef}
                         data-testid="avatar-upload-pick"
                         data-focusable="true"
+                        data-focus-style="pill"
                         tabIndex={0}
                         onClick={onPick}
                         disabled={busy}
@@ -2661,9 +2802,10 @@ function UploadAvatarOverlay({ onCancel, onSave }) {
                     </button>
                     {preview && (
                         <button
+                            ref={saveBtnRef}
                             data-testid="avatar-upload-save"
                             data-focusable="true"
-                            data-initial-focus="true"
+                            data-focus-style="pill"
                             tabIndex={0}
                             onClick={onConfirm}
                             style={{
