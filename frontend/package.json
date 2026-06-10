@@ -40,6 +40,7 @@
     "cra-template": "1.2.0",
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
+    "gifenc": "^1.0.3",
     "hls.js": "^1.6.16",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.507.0",

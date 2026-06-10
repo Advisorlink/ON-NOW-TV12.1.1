@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Check, Lock, Unlock, UserCircle, Upload, Palette
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { saveProfile, listProfiles } from '@/lib/profiles';
 import { AVATARS, AVATAR_CATEGORIES, AVATAR_BUILDER_OPTIONS, AvatarCircle, buildCustomDiceBearUrl, saveCustomAvatar, saveUploadedAvatar, loadCustomAvatars } from '@/lib/avatars';
+import { processAvatarFile, AVATAR_ACCEPT } from '@/lib/avatarTransform';
 import TVKeyboard from '@/components/TVKeyboard';
 import { THEMES, DEFAULT_THEME_ID } from '@/themes/themes';
 import { writeViewingStyleForProfile } from '@/lib/viewingStyle';
@@ -2402,46 +2403,44 @@ function UploadAvatarOverlay({ onCancel, onSave }) {
     const pickBtnRef = useRef(null);
     const saveBtnRef = useRef(null);
     const [error, setError] = useState('');
-    const [preview, setPreview] = useState(null); // { dataUrl, mime, name, size }
+    const [preview, setPreview] = useState(null); // { dataUrl, mime, name, animated }
     const [busy, setBusy] = useState(false);
+    // v2.10.29 — 0..1 progress for the video → GIF conversion path.
+    // null means "not running"; 0..1 means "processing"; image &
+    // GIF paths are fast enough we don't bother showing a number.
+    const [progress, setProgress] = useState(null);
 
     const onPick = () => {
         if (fileRef.current) fileRef.current.click();
     };
 
-    const onFile = (e) => {
+    const onFile = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        const okMime = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif'];
-        if (!okMime.includes(file.type)) {
-            setError('Only PNG, JPEG or GIF files are supported.');
-            return;
-        }
-        // 2 MB soft ceiling — keeps localStorage healthy.
-        if (file.size > 2 * 1024 * 1024) {
-            setError(
-                `That file is ${(file.size / 1024 / 1024).toFixed(1)} MB ` +
-                '— please pick one ≤ 2 MB so it fits in your profile backup.',
-            );
-            return;
-        }
+        // Reset the input so picking the same file twice fires
+        // onChange again (browsers won't re-fire for an identical
+        // selection without this).
+        e.target.value = '';
+
         setError('');
         setBusy(true);
-        const reader = new FileReader();
-        reader.onload = () => {
-            setBusy(false);
+        setProgress(file.type?.startsWith('video/') ? 0 : null);
+        try {
+            const result = await processAvatarFile(file, (p) =>
+                setProgress(p),
+            );
             setPreview({
-                dataUrl: reader.result,
-                mime: file.type,
+                dataUrl: result.dataUrl,
+                mime: result.mime,
                 name: file.name,
-                size: file.size,
+                animated: result.animated,
             });
-        };
-        reader.onerror = () => {
+        } catch (err) {
+            setError(err.message || 'Could not process that file.');
+        } finally {
             setBusy(false);
-            setError('Could not read that file. Try a different one.');
-        };
-        reader.readAsDataURL(file);
+            setProgress(null);
+        }
     };
 
     const onConfirm = () => {
@@ -2663,8 +2662,39 @@ function UploadAvatarOverlay({ onCancel, onSave }) {
                                     objectFit: 'cover',
                                 }}
                             />
+                        ) : busy ? (
+                            <Loader2
+                                size={48}
+                                strokeWidth={1.6}
+                                color="#FFC350"
+                                style={{
+                                    animation: 'vesperSpin 0.9s linear infinite',
+                                }}
+                            />
                         ) : (
                             <Upload size={48} strokeWidth={1.4} color="#FFC350" />
+                        )}
+                        {/* v2.10.29 — Animated badge in the corner
+                            of the preview when the result includes
+                            motion (GIF or processed video). */}
+                        {preview?.animated && (
+                            <div
+                                style={{
+                                    position: 'absolute',
+                                    bottom: 6,
+                                    right: 6,
+                                    background: 'rgba(255, 195, 80, 0.95)',
+                                    color: '#06080F',
+                                    fontSize: 9,
+                                    fontWeight: 800,
+                                    letterSpacing: '0.06em',
+                                    padding: '2px 6px',
+                                    borderRadius: 6,
+                                    textTransform: 'uppercase',
+                                }}
+                            >
+                                Animated
+                            </div>
                         )}
                     </div>
 
@@ -2682,43 +2712,73 @@ function UploadAvatarOverlay({ onCancel, onSave }) {
                         >
                             <li>
                                 <strong style={{ color: '#FFC350' }}>•</strong>{' '}
-                                <strong>512×512 px square</strong> preferred — any size works, we'll auto-crop to a circle
+                                <strong>Upload any photo</strong> — we&apos;ll resize &amp; crop it to a 512×512 circle automatically
                             </li>
                             <li>
                                 <strong style={{ color: '#FFC350' }}>•</strong>{' '}
-                                Rectangular images get center-cropped automatically
+                                <strong>Upload a short video</strong> (up to 3 s) and we&apos;ll turn it into an animated avatar
                             </li>
                             <li>
                                 <strong style={{ color: '#FFC350' }}>•</strong>{' '}
-                                PNG, JPEG, or animated GIF (loops forever)
+                                Animated GIFs work too — they loop forever
                             </li>
                             <li>
                                 <strong style={{ color: '#FFC350' }}>•</strong>{' '}
-                                Max file size: 2 MB
+                                Supports: PNG, JPEG, WebP, GIF, MP4, WebM, MOV
                             </li>
                             <li style={{ marginTop: 10, color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>
                                 Saved with your profile — survives backup &amp; restore on a new device.
                             </li>
-                            {/* v2.10.28 — Animated-GIF how-to tip.
-                                Most users don't know they can make
-                                an avatar that wiggles / sparkles /
-                                bounces.  Quick pointer to a free
-                                tool that just works without an
-                                account. */}
-                            <li
-                                style={{
-                                    marginTop: 12,
-                                    padding: '10px 12px',
-                                    background: 'rgba(255, 195, 80, 0.10)',
-                                    border: '1px solid rgba(255, 195, 80, 0.32)',
-                                    borderRadius: 8,
-                                    color: 'rgba(255, 230, 180, 0.95)',
-                                    fontSize: 12,
-                                    lineHeight: 1.5,
-                                }}
-                            >
-                                <strong style={{ color: '#FFC350' }}>💡 Want an animated avatar?</strong> Drag a short video (≤3 s, looping) into <strong>ezgif.com/video-to-gif</strong> on any browser → set width to 512 → download. Or use Giphy / Tenor and pick a small loop.
-                            </li>
+                            {busy && progress !== null && (
+                                <li
+                                    style={{
+                                        marginTop: 12,
+                                        padding: '10px 12px',
+                                        background: 'rgba(255, 195, 80, 0.10)',
+                                        border: '1px solid rgba(255, 195, 80, 0.32)',
+                                        borderRadius: 8,
+                                        color: 'rgba(255, 230, 180, 0.95)',
+                                        fontSize: 12,
+                                        lineHeight: 1.5,
+                                    }}
+                                    data-testid="avatar-upload-progress"
+                                >
+                                    <strong style={{ color: '#FFC350' }}>
+                                        Converting video to animated avatar…
+                                    </strong>
+                                    <div
+                                        style={{
+                                            marginTop: 6,
+                                            height: 6,
+                                            background: 'rgba(255,255,255,0.08)',
+                                            borderRadius: 3,
+                                            overflow: 'hidden',
+                                        }}
+                                    >
+                                        <div
+                                            style={{
+                                                width: `${Math.round(progress * 100)}%`,
+                                                height: '100%',
+                                                background: '#FFC350',
+                                                transition: 'width 120ms linear',
+                                            }}
+                                        />
+                                    </div>
+                                </li>
+                            )}
+                            {busy && progress === null && (
+                                <li
+                                    style={{
+                                        marginTop: 12,
+                                        color: 'rgba(255, 230, 180, 0.95)',
+                                        fontSize: 12,
+                                    }}
+                                    data-testid="avatar-upload-progress"
+                                >
+                                    <strong style={{ color: '#FFC350' }}>Resizing…</strong>{' '}
+                                    Cropping to a 512×512 circle.
+                                </li>
+                            )}
                         </ul>
 
                         {error && (
@@ -2740,7 +2800,7 @@ function UploadAvatarOverlay({ onCancel, onSave }) {
                         <input
                             ref={fileRef}
                             type="file"
-                            accept="image/png,image/jpeg,image/gif"
+                            accept={AVATAR_ACCEPT}
                             onChange={onFile}
                             style={{ display: 'none' }}
                             data-testid="avatar-upload-file-input"
@@ -2798,7 +2858,13 @@ function UploadAvatarOverlay({ onCancel, onSave }) {
                             opacity: busy ? 0.6 : 1,
                         }}
                     >
-                        {preview ? 'Choose different file' : 'Choose file'}
+                        {busy
+                            ? progress !== null
+                                ? `Converting… ${Math.round((progress || 0) * 100)}%`
+                                : 'Processing…'
+                            : preview
+                              ? 'Choose different file'
+                              : 'Choose file'}
                     </button>
                     {preview && (
                         <button
