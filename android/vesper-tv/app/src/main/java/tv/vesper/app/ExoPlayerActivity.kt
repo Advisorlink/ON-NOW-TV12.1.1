@@ -122,6 +122,15 @@ class ExoPlayerActivity : ComponentActivity() {
     // so the thumbnail appears at the same instant the pill does
     // (no waiting on the network prime job to fetch a poster).
     private val nextEpThumbnailFlow = MutableStateFlow("")
+
+    // v2.10.35 — TMDB title-logo URL.  Fetched off-thread the moment
+    // the activity starts via `${backendBase}/api/tmdb/logo/{type}/{imdb}`
+    // and rendered above the show / movie title in the bottom dock
+    // so the user can see exactly what's playing at a glance.  Empty
+    // string when no logo is available — `PlayerOverlay` falls back
+    // to the plain title text in that case.
+    private val logoUrlFlow = MutableStateFlow("")
+    private var logoFetchJob: kotlinx.coroutines.Job? = null
     // v2.7.74 — Live TV awareness.  Driven by EXTRA_TYPE = "live".
     private var isLive: Boolean = false
     private var liveStreamId: String = ""
@@ -377,6 +386,14 @@ class ExoPlayerActivity : ComponentActivity() {
         backdrop    = intent.getStringExtra(VlcPlayerActivity.EXTRA_BACKDROP) ?: ""
         poster      = intent.getStringExtra(VlcPlayerActivity.EXTRA_POSTER) ?: ""
         cwId        = intent.getStringExtra(VlcPlayerActivity.EXTRA_CW_ID) ?: ""
+
+        // v2.10.35 — Kick off the TMDB title-logo fetch as soon as
+        // we know the cwId.  Runs off-thread; the activity stays
+        // fully usable while it completes (typically 150-400 ms on
+        // a warm TMDB cache, ~1 s cold).  Logo appears in the
+        // bottom-dock title area the moment it lands; until then
+        // the existing text title stays visible as a fallback.
+        kickoffLogoFetch()
 
         // v2.7.74 — Live TV awareness.  When EXTRA_TYPE == "live" we
         // wire a LiveGuideManager so the user can slide in the
@@ -746,6 +763,7 @@ class ExoPlayerActivity : ComponentActivity() {
                     // WebView to `#/title/series/<imdb>?episodeAutoplay=1`.
                     hasNextEpisode  = hasNextEpisodeFlow.asStateFlow(),
                     nextEpisodeThumbnailUrl = nextEpThumbnailFlow.asStateFlow(),
+                    logoUrl         = logoUrlFlow.asStateFlow(),
                     onNextEpisode   = { jumpToPrimedNextEpisode() },
                     onClose = { finish() },
                 )
@@ -900,6 +918,51 @@ class ExoPlayerActivity : ComponentActivity() {
         val s = (groups[1].ifBlank { groups[3] }).toIntOrNull() ?: return null
         val e = (groups[2].ifBlank { groups[4] }).toIntOrNull() ?: return null
         return Pair(s, e + 1)
+    }
+
+    /**
+     * v2.10.35 — Resolve the show / movie's official title logo from
+     * the backend's TMDB endpoint and surface it via `logoUrlFlow`
+     * so the bottom-dock title area can render it above the heading.
+     *
+     * Heuristics for type detection mirror the React side:
+     *   • cwId of `imdb:s\d+e\d+` or `imdb:\d+:\d+` → TV series.
+     *   • Otherwise → movie.
+     *
+     * Falls back to `EXTRA_TYPE` from the launching intent if the
+     * cwId is missing.  Best-effort throughout — any network /
+     * parse failure leaves `logoUrlFlow.value` empty and the
+     * overlay shows the plain text title.
+     *
+     * Cached for 30 days backend-side, so a re-launch of the same
+     * title returns near-instantly from `cache.get()`.
+     */
+    private fun kickoffLogoFetch() {
+        logoFetchJob?.cancel()
+        val imdb = cwId.substringBefore(":").takeIf { it.startsWith("tt") }
+            ?: return
+        // Detect type from the cwId shape — series episodes always
+        // carry a season/episode suffix, movies don't.
+        val typeSlug = if (isSeriesEpisode) "series" else "movie"
+        val backendBase = readBackendBase()
+        logoFetchJob = pollScope.launch {
+            try {
+                val json = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    httpGetJson("${backendBase}/api/tmdb/logo/${typeSlug}/${imdb}")
+                } ?: return@launch
+                val url = json.optString("logo_url", "")
+                if (url.isNotBlank()) {
+                    withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        logoUrlFlow.value = url
+                        Log.i(TAG, "logo fetched: $url")
+                    }
+                }
+            } catch (_: kotlinx.coroutines.CancellationException) {
+                /* expected on activity finish */
+            } catch (t: Throwable) {
+                Log.w(TAG, "logo fetch failed (non-fatal)", t)
+            }
+        }
     }
 
     /** Persist the next-episode intent to SharedPreferences so

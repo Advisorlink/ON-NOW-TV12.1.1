@@ -1,5 +1,34 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.35 — Native player overlay: TMDB title-logo above the heading + heading restyled as actual heading (Feb 10 2026).**
+>
+> User report: "I want the actual movie/TV-show logo to be on the left-hand side above where the heading is.  Make the heading look more like a heading.  Make sure you get the TV logo or the movie logo perfectly."
+>
+> **New backend endpoint** — `GET /api/tmdb/logo/{type}/{imdb}` where `type ∈ {movie, series, tv}`:
+>   • Resolves IMDB → TMDB via the existing `/find` route (uses same cache layer the Detail page does).
+>   • Calls `/movie/{tmdb}/images` or `/tv/{tmdb}/images` with `include_image_language=en,null` so both English wordmarks AND TMDB's language-agnostic transparent logos (the ones tagged `iso_639_1=null`, used for stylised wordmarks like "Breaking Bad") are surfaced.
+>   • Sort heuristic for "best" logo: `(language_rank, svg_penalty, -vote_count)` — English > null-language > everything else, PNGs > SVGs (Coil's default decoder doesn't render SVG), higher community vote count wins ties.
+>   • Returns `{"logo_url": "https://image.tmdb.org/t/p/w500{path}"}` or `{"logo_url": null}` for the rare zero-logo titles.  Cached 30 days backend-side — repeat launches resolve in <50 ms.
+>
+> Live API verification:
+>   • Breaking Bad → `/chw44B2VnLha8iiTdyZcIW0ZELC.png` ✅
+>   • The Godfather → `/kysDTCloxUPJ1BILI4f8gs74fcr.png` ✅
+>   • Inception → `/iXYh7y0vI1DZR0taTuvrr8PSnOd.png` ✅
+>
+> **Native wiring (`ExoPlayerActivity.kt`)** — new `logoUrlFlow: MutableStateFlow<String>` field.  `kickoffLogoFetch()` runs immediately after `cwId` is read in `initExoPlayerActivity`; uses the existing `httpGetJson` + `pollScope.launch` plumbing established for the next-episode prime job.  Type detection mirrors the React side — series episodes ID-match the `s\d+e\d+` / `\d+:\d+` cwId shape, everything else is a movie.  Best-effort throughout — any failure leaves the flow empty and the overlay shows the plain text title.
+>
+> **Overlay rendering (`PlayerOverlay.kt`)** — Threaded `logoUrl: StateFlow<String>` through `PlayerOverlay → ControlDock`.  In `ControlDock`'s title column:
+>   1) `if (logoUrl.isNotBlank())` → render a Coil `AsyncImage(model=logoUrl, contentScale=Fit, alignment=CenterStart)` capped at 80 dp tall × 360 dp wide so even Game-of-Thrones-width wordmarks don't dominate the dock.  Coil's default crossfade gives a clean fade-in once the URL resolves.
+>   2) Heading text restyled from `22 sp / SemiBold` → `30 sp / ExtraBold / letterSpacing=-0.5sp` so it actually reads like a heading — old size looked identical to the body meta line below.  Letter-spacing tightened to keep the heavier weight elegant.
+>   3) `Spacer(height=10dp)` between logo and heading.
+>
+> Files touched:
+>   • `/app/backend/server.py` — new `tmdb_logo` endpoint at line 1142 (under the existing find-by-imdb block).
+>   • `/app/android/vesper-tv/app/src/main/java/tv/vesper/app/ExoPlayerActivity.kt` — `logoUrlFlow` field, `kickoffLogoFetch` helper, kicked off the moment `cwId` is read.
+>   • `/app/android/vesper-tv/app/src/main/java/tv/vesper/app/PlayerOverlay.kt` — `logoUrl` param threaded through `PlayerOverlay → ControlDock`, `AsyncImage` above the title text, heading bumped to 30 sp ExtraBold.
+>
+> Native APK rebuild required.
+
 > **🟢 v2.10.34 — Next-episode thumbnail next to the pill + scrub debounce + faster seek params (Feb 10 2026).**
 >
 > User report: "Yes, I want a thumbnail of the next episode just before the pill.  And the scrubbing is taking too long for it to re-pick where it's up to — when I push UP I should enter scrub mode and use left/right, and once I take my finger off it needs to find where we're up to QUICKER."
