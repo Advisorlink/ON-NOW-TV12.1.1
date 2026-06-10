@@ -59,14 +59,14 @@ function ensureOverlay() {
     // inlined so showing the overlay doesn't trigger any React
     // mount or asset fetch.  CSS keyframe drives the rotation.
     el.innerHTML = `
-        <span style="display:inline-block;width:88px;height:88px;line-height:0;color:#5DC8FF;animation:vesper-nav-spin 900ms linear infinite;">
+        <span data-keep-anim="true" style="display:inline-block;width:88px;height:88px;line-height:0;color:#5DC8FF;animation:vesper-nav-spin 900ms linear infinite;">
             <svg viewBox="0 0 48 48" width="100%" height="100%" fill="none" style="display:block;overflow:visible;filter:drop-shadow(0 0 12px rgba(93,200,255,0.55));" aria-hidden="true">
                 <circle cx="24" cy="24" r="18" stroke="currentColor" stroke-opacity="0.18" stroke-width="5"></circle>
                 <circle cx="24" cy="24" r="18" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-dasharray="85 28"></circle>
             </svg>
         </span>
-        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:13px;letter-spacing:0.34em;text-transform:uppercase;color:rgba(255,255,255,0.72);"><span data-role="nav-loader-label">Loading title</span><span class="vesper-dots" aria-hidden="true">…</span></div>
-        <div aria-hidden="true" style="width:clamp(180px, 18vw, 280px);height:2px;background:linear-gradient(90deg, transparent 0%, rgba(93,200,255,0.85) 50%, transparent 100%);background-size:200% 100%;animation:vesper-splash-sweep 1.6s ease-in-out infinite;border-radius:999px;box-shadow:0 0 12px rgba(93,200,255,0.45);"></div>
+        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:13px;letter-spacing:0.34em;text-transform:uppercase;color:rgba(255,255,255,0.72);"><span data-role="nav-loader-label">Loading title</span><span class="vesper-dots" data-keep-anim="true" aria-hidden="true">…</span></div>
+        <div data-keep-anim="true" aria-hidden="true" style="width:clamp(180px, 18vw, 280px);height:2px;background:linear-gradient(90deg, transparent 0%, rgba(93,200,255,0.85) 50%, transparent 100%);background-size:200% 100%;animation:vesper-splash-sweep 1.6s ease-in-out infinite;border-radius:999px;box-shadow:0 0 12px rgba(93,200,255,0.45);"></div>
     `;
     // Inject the keyframe once — vesper-splash-sweep already exists
     // in index.css but our own `vesper-nav-spin` is a fresh,

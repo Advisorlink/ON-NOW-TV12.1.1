@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -162,6 +163,13 @@ fun PlayerOverlay(
     onPickAudio: (String) -> Unit,
     onPickSubtitle: (String) -> Unit,
     onPickStream: (Int) -> Unit,
+    // v2.10.24 — Skip-Next-Episode dock button (TV shows only).
+    // `hasNextEpisode` flips true ~60s before the credits when we
+    // know there IS a next episode to jump to.  `onNextEpisode`
+    // saves the intent + finishes the activity; MainActivity then
+    // either auto-plays the next ep or opens its episode picker.
+    hasNextEpisode: StateFlow<Boolean> = MutableStateFlow(false).asStateFlow(),
+    onNextEpisode: () -> Unit = {},
     onClose: () -> Unit,
 ) {
     val playing by collectAsStateSafe(isPlaying, false)
@@ -173,6 +181,7 @@ fun PlayerOverlay(
     val audios by collectAsStateSafe(audioTracks, emptyList())
     val subs by collectAsStateSafe(subtitleTracks, emptyList())
     val streamList by collectAsStateSafe(streams, emptyList())
+    val hasNext by collectAsStateSafe(hasNextEpisode, false)
     // v2.7.54 — Activity dispatchKeyEvent pumps every D-pad press
     // here, so the dock auto-hide timer always sees fresh activity.
     val userActivityTs by collectAsStateSafe(userActivity, System.currentTimeMillis())
@@ -265,11 +274,13 @@ fun PlayerOverlay(
                 hasAudio    = audios.size > 1,
                 hasSubs     = subs.isNotEmpty(),
                 hasStreams  = streamList.size > 1,
+                hasNextEp   = hasNext,
                 onPlayPause = { bump(); onPlayPause() },
                 onSeekBy    = { dt -> bump(); onSeekBy(dt) },
                 onPickAudio = { bump(); sheet = SheetKind.Audio },
                 onPickSubs  = { bump(); sheet = SheetKind.Subs },
                 onPickStream= { bump(); sheet = SheetKind.Stream },
+                onNextEp    = { bump(); onNextEpisode() },
                 onClose     = { bump(); onClose() },
             )
         }
@@ -553,11 +564,13 @@ private fun ControlDock(
     hasAudio: Boolean,
     hasSubs: Boolean,
     hasStreams: Boolean,
+    hasNextEp: Boolean = false,
     onPlayPause: () -> Unit,
     onSeekBy: (Long) -> Unit,
     onPickAudio: () -> Unit,
     onPickSubs: () -> Unit,
     onPickStream: () -> Unit,
+    onNextEp: () -> Unit = {},
     onClose: () -> Unit,
 ) {
     // Default focus → Play/Pause (center button) so D-pad center
@@ -711,19 +724,34 @@ private fun ControlDock(
                         onClick = { onSeekBy(10_000) },
                     )
                 }
-                // RIGHT cluster: CC / Settings / Fullscreen
+                // RIGHT cluster: CC / NextEp (or Cast disabled) / Fullscreen
                 Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     DockButton(
                         Icons.Default.ClosedCaption,
                         "CC",
                         onClick = onPickSubs,
                     )
-                    DockButton(
-                        Icons.Default.Cast,
-                        "Cast",
-                        enabled = false,  // not yet implemented
-                        onClick = {},
-                    )
+                    // v2.10.24 — NEXT EPISODE button.  Replaces the
+                    // disabled Cast button when a series episode is
+                    // ≤60 s from credits AND we have a next episode
+                    // to jump to.  Falls back to the disabled Cast
+                    // placeholder for movies / mid-episode playback
+                    // so the row layout stays stable.
+                    if (hasNextEp) {
+                        DockButton(
+                            Icons.Default.SkipNext,
+                            "Next Ep",
+                            active = true,
+                            onClick = onNextEp,
+                        )
+                    } else {
+                        DockButton(
+                            Icons.Default.Cast,
+                            "Cast",
+                            enabled = false,  // not yet implemented
+                            onClick = {},
+                        )
+                    }
                     DockButton(
                         Icons.Default.Fullscreen,
                         "Fullscreen",

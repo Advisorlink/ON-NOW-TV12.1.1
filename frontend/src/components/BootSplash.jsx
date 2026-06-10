@@ -87,6 +87,7 @@ export default function BootSplash({ minDurationMs = 1800, hardCapMs = 2200 }) {
             {/* Animated underline — a clean horizontal sweep, no
                 centred dragging loader. */}
             <div
+                data-keep-anim="true"
                 style={{
                     width: 'clamp(180px, 18vw, 320px)',
                     height: 2,

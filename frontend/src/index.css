@@ -663,9 +663,20 @@ body {
     display: none !important;
 }
 .vesper-low-end *,
-.vesper-host-android *:not([data-keep-anim='true']) {
+.vesper-host-android *:not([data-keep-anim='true']):not(.vesper-spin):not(.vesper-dots):not(.lvtv-spin):not(.kk-spin):not(.orbital-loader):not([data-loading-anim='true']) {
     animation-duration: 0.001s !important;
     animation-iteration-count: 1 !important;
+}
+/* v2.10.24 — Loading spinners MUST keep animating even in perf
+   mode, otherwise the user thinks the app is frozen.  Re-assert
+   the animations the global stripper above would otherwise kill. */
+.vesper-low-end .vesper-spin,
+.vesper-host-android .vesper-spin {
+    animation: vesperSpin 1s linear infinite !important;
+}
+.vesper-low-end .vesper-dots,
+.vesper-host-android .vesper-dots {
+    animation: vesperDotsPulse 1.4s ease-in-out infinite !important;
 }
 .vesper-low-end [data-focusable='true'],
 .vesper-host-android [data-focusable='true'] {

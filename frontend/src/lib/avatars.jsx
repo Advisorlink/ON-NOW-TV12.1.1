@@ -78,7 +78,6 @@ const icon = (id, glow) => ({
 const ICON_AVATARS = {
     funny: [
         icon('fn-popcorn-fg',    '#FBBF24'),
-        icon('fn-popcorn-tu',    '#F59E0B'),
         icon('fn-monster',       '#A78BFA'),
         icon('fn-monster-mascot','#C084FC'),
         icon('fn-slime',         '#22D3EE'),
@@ -324,6 +323,51 @@ export function saveCustomAvatar(opts) {
         localStorage.setItem(CUSTOM_KEY, JSON.stringify(existing));
     } catch { /* ignore quota */ }
     return record;
+}
+
+/**
+ * v2.10.24 — Persist a USER-UPLOADED avatar.  The image is stored
+ * as a data: URL (base64) inside the same `onnowtv-custom-avatars-v1`
+ * key as DiceBear builds, so it travels through the existing
+ * profile-backup pipeline (now whitelisted to bypass the 128 KB
+ * per-key cap so animated GIFs survive).
+ *
+ * `dataUrl` must already be base64-encoded; the caller is expected
+ * to read the File via `FileReader.readAsDataURL`.  No validation
+ * happens here other than a soft 2 MB ceiling enforced by the
+ * uploader UI so localStorage doesn't fill up after a handful of
+ * GIF uploads.
+ */
+export function saveUploadedAvatar({ dataUrl, mime, name, glow }) {
+    const id = `upload-${Math.random().toString(36).slice(2, 10)}`;
+    const record = {
+        id,
+        src: dataUrl,
+        glow: glow || '#5DC8FF',
+        upload: { mime: mime || 'image/png', name: name || 'custom.png' },
+        createdAt: Date.now(),
+    };
+    try {
+        const existing = loadCustomAvatars();
+        existing.push(record);
+        localStorage.setItem(CUSTOM_KEY, JSON.stringify(existing));
+    } catch {
+        // Quota exceeded — most likely a too-big GIF.  Surface so
+        // the uploader can show a friendly error.
+        throw new Error('Storage full — try a smaller avatar (≤2 MB).');
+    }
+    return record;
+}
+
+/**
+ * Remove a single custom (built OR uploaded) avatar by id.  Used
+ * by the "X" button on each tile in the Make Your Own row.
+ */
+export function deleteCustomAvatar(id) {
+    try {
+        const existing = loadCustomAvatars().filter((a) => a.id !== id);
+        localStorage.setItem(CUSTOM_KEY, JSON.stringify(existing));
+    } catch { /* ignore */ }
 }
 
 export function getAvatar(id) {

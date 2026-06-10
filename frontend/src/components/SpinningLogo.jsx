@@ -30,6 +30,12 @@ export default function SpinningLogo({
             role="img"
             aria-label={title}
             className={`vesper-spin ${className}`}
+            // v2.10.24 — perf-mode in index.css disables ALL animations on
+            // the Android WebView via `animation-duration:0.001s` to keep
+            // cheap boxes at 60 fps.  The loading spinner is the one
+            // exception we MUST keep alive — otherwise the user thinks
+            // the app froze.  `data-keep-anim` opts back into animations.
+            data-keep-anim="true"
             style={{
                 display: 'inline-block',
                 width: size,
