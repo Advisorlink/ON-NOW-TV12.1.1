@@ -1,5 +1,40 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.29 — "Just works" custom avatar upload: auto-resize photos + auto-convert short videos to animated GIFs in-app (Feb 10 2026).**
+>
+> User feedback: "That tip on how to get an animated one is super confusing. Can we not just build something that makes it animate automatically when they upload a video or GIF under three seconds? Make it a lot easier."
+>
+> Killed the ezgif.com workaround.  Now a single drag-and-drop handles every common avatar source format **client-side**, no external tools:
+>
+> 1. **Still images** (PNG / JPEG / WebP / BMP) → decoded into a hidden `<img>` → drawn onto a 512×512 canvas with `object-fit:cover` (centre-crop) → exported as JPEG @ q=0.9.  Output is consistently 60-200 KB regardless of source.
+> 2. **Animated GIFs** → pass-through with a 2 MB ceiling.  Browsers natively animate GIFs inside `<img>` so no re-encoding is needed.
+> 3. **Videos** (MP4 / WebM / MOV / MKV) → loaded into a hidden offscreen `<video>` element, seeked through the first 3 s at 8 fps (24 frames total), each frame drawn at 256×256 onto canvas, encoded with **`gifenc`** (5 KB pure-JS GIF encoder) using per-frame `quantize` + `applyPalette` (256-color palette per frame for video-friendly fidelity), result is an infinite-loop animated GIF returned as `data:image/gif;base64,…`.
+>
+> Added new file: **`/app/frontend/src/lib/avatarTransform.js`** — exports `processAvatarFile(file, onProgress)` returning `{ dataUrl, mime, animated }`, and `AVATAR_ACCEPT` MIME string for the `<input accept>`.
+>
+> Updated `UploadAvatarOverlay` in `/app/frontend/src/pages/ProfileEdit.jsx`:
+>   • `onFile` now `await processAvatarFile(file, setProgress)` instead of the old raw FileReader.
+>   • Progress bar (`avatar-upload-progress`) shows live % during video conversion (4-7 s typically for 3 s of footage on mid-range hardware).
+>   • Button label changes to **Converting… 64%** while video runs, **Processing…** during image resize.
+>   • Spinner icon (`Loader2` with `vesperSpin` animation) replaces the upload glyph in the preview circle while busy.
+>   • **ANIMATED** badge overlays the bottom-right of the preview circle whenever the result is a GIF (so user knows their video became motion-capable).
+>   • Copy rewritten — kills the ezgif paragraph entirely, replaced with:
+>     - "Upload any photo — we'll resize & crop it to a 512×512 circle automatically"
+>     - "Upload a short video (up to 3 s) and we'll turn it into an animated avatar"
+>     - "Animated GIFs work too — they loop forever"
+>     - "Supports: PNG, JPEG, WebP, GIF, MP4, WebM, MOV"
+>   • `<input accept>` widened to the full `AVATAR_ACCEPT` MIME list (adds video formats).
+>
+> Robust `loadVideo()` helper: video element is parked offscreen in the DOM (Chromium's decoder pipeline silently no-ops on detached elements), handles Infinity duration on fragmented MP4s by seek-to-end clamp, and rejects gracefully with a friendly error after 10 s for DRM / unsupported codec paths.
+>
+> End-to-end verified on the live preview:
+>   • Image upload (JPEG 41 KB) → output `data:image/jpeg` 59 KB ✅
+>   • Video upload (WebM 9 KB / 2 s) → output `data:image/gif` 138 KB animated, ANIMATED badge shown, Save persists and `SaveAvatarConfirm` renders the moving GIF ✅
+>
+> New dependency: **`gifenc@1.0.3`** (5 KB gzipped pure-JS, no workers required).
+>
+> Native Android note: Chromium for Linux desktop lacks H.264, so the in-browser preview rejects raw MP4s with a friendly "unsupported format" error — but the Android WebView ships H.264 natively, so MP4 will work on TV / phone targets.
+
 > **🟢 v2.10.28 — Upload-custom-avatar modal: focus trap + 512×512 preference + animated-GIF tip (Feb 10 2026).**
 >
 > User report: "When you click on the upload one, no focus inside the box. It's behind the box, so you can't click on anything."

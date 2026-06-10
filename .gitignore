@@ -1570,3 +1570,4 @@ memory/design-refs/karaoke/
 # Stale lock files left behind by gradle on Android container
 **/*.lock
 frontend/node_modules/.cache/default-development/35.pack
+frontend/node_modules/.cache/default-development/48.pack
