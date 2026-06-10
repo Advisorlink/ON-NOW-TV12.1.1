@@ -1170,20 +1170,29 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                                 </div>
                             ) : (
                                 <div
-                                    // v2.10.24 — Bound the height to ~2
-                                    // rows so the Top-50 grid doesn't
-                                    // dominate the screen.  Vertical
-                                    // overflow scrolls into view as the
-                                    // D-pad lands on tiles further down.
-                                    // `scroll-padding-block` keeps the
-                                    // focused tile a comfortable 12 px
-                                    // away from the top / bottom edge.
+                                    // v2.10.27 — Wider clearance so the
+                                    // focused tile's 1.08× scale-up +
+                                    // 1.5px outline + 2px outline-offset
+                                    // (5–7 px above the tile's natural
+                                    // bounds at the top edge AND bottom
+                                    // edge) doesn't get clipped by the
+                                    // 2-row scroll-window's overflow
+                                    // boundary.  Was maxHeight: 300 ≈
+                                    // exactly 2 tiles + 1 gap which
+                                    // left zero buffer for the focus
+                                    // ring at top/bottom.  340 gives a
+                                    // ~12 px buffer on each side.
                                     style={{
-                                        maxHeight: 300,
+                                        maxHeight: 340,
                                         overflowY: 'auto',
-                                        scrollPaddingTop: 12,
-                                        scrollPaddingBottom: 12,
-                                        paddingRight: 4,
+                                        overflowX: 'visible',
+                                        scrollPaddingTop: 20,
+                                        scrollPaddingBottom: 20,
+                                        paddingTop: 8,
+                                        paddingBottom: 8,
+                                        paddingLeft: 4,
+                                        paddingRight: 8,
+                                        scrollBehavior: 'smooth',
                                     }}
                                 >
                                   <div
@@ -1227,13 +1236,18 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                                                         : 'none',
                                                     padding: 0,
                                                     cursor: 'pointer',
-                                                    // v2.10.24 — keep
+                                                    // v2.10.27 — keep
                                                     // focused tile a
-                                                    // comfortable distance
+                                                    // generous distance
                                                     // from the scroll
-                                                    // container edges.
-                                                    scrollMarginTop: 12,
-                                                    scrollMarginBottom: 12,
+                                                    // container edges
+                                                    // so the focus
+                                                    // ring + 1.08×
+                                                    // scale doesn't
+                                                    // clip the top of
+                                                    // the next row up.
+                                                    scrollMarginTop: 20,
+                                                    scrollMarginBottom: 20,
                                                 }}
                                             >
                                                 {it.poster ? (
@@ -1749,6 +1763,7 @@ function AvatarStep({ visibleAvatars, avatarId, onPick, onOpenBuilder, onOpenUpl
                         paddingBottom: 14,
                         scrollPaddingLeft: 18,
                         scrollPaddingRight: 18,
+                        scrollBehavior: 'smooth',
                     }}
                 >
                     <button
@@ -1943,6 +1958,14 @@ function AvatarRow({ category, avatarId, onPick, rowIdx }) {
                     paddingBottom: 14,
                     scrollPaddingLeft: 18,
                     scrollPaddingRight: 18,
+                    // v2.10.27 — Smooth-scroll the row when the user
+                    // arrows past the edge-comfort margin so the
+                    // background doesn't snap abruptly.  Spatial
+                    // focus's coalesced `scrollBy({behavior:'auto'})`
+                    // is overridden by this CSS property — modern
+                    // WebViews honour the CSS scroll-behavior even
+                    // for scripted scrolls.
+                    scrollBehavior: 'smooth',
                 }}
             >
                 {category.items.map((a, i) => {

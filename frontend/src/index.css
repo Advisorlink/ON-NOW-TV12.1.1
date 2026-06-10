@@ -423,7 +423,15 @@ body {
    blurred glow looks pretty on a high-end laptop but on Chrome 52
    / cheap Android WebViews each blur radius forces an extra paint
    pass per frame, which is what causes the "chunky" feel during
-   rapid D-pad nav.  Pure 3px solid ring is a 1-pixel paint op. */
+   rapid D-pad nav.  Pure 3px solid ring is a 1-pixel paint op.
+   v2.10.27 — Added a tight 120 ms transform transition so the
+   scale-pop doesn't read as a hard snap on the avatar picker.
+   The animation strip rules below leave `transition` properties
+   alone (they only kill `animation`), so this stays smooth even
+   inside `.vesper-host-android`. */
+[data-focus-style='tile'] {
+    transition: transform 120ms ease-out;
+}
 [data-focus-style='tile']:focus-visible,
 [data-focus-style='tile'][data-focused='true'] {
     transform: scale(1.08) translateY(-2px);
