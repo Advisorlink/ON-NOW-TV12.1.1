@@ -433,6 +433,16 @@ export default function SeriesEpisodes({
                     genres: meta?.genres || [],
                     cwId,
                     startAtMs: existing?.positionMs || 0,
+                    // v2.10.24 — Wire the in-player stream picker by
+                    // shipping the full alternate-streams list across
+                    // the JS bridge.  Without this, opening the
+                    // picker inside the player on a TV show would
+                    // show "No alternate streams" because the native
+                    // player had nothing to render.
+                    streamsList: (episodeStreams[ep.id]?.streams) || [],
+                    currentStreamIdx:
+                        (episodeStreams[ep.id]?.streams || [])
+                            .findIndex((s) => s === stream),
                 })
             ) return;
             navigate(

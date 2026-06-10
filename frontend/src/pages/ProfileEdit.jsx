@@ -1,9 +1,9 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, Lock, Unlock, UserCircle, Palette, Sparkles, Play, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Lock, Unlock, UserCircle, Upload, Palette, Sparkles, Play, Loader2 } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { saveProfile, listProfiles } from '@/lib/profiles';
-import { AVATARS, AVATAR_CATEGORIES, AVATAR_BUILDER_OPTIONS, AvatarCircle, buildCustomDiceBearUrl, saveCustomAvatar, loadCustomAvatars } from '@/lib/avatars';
+import { AVATARS, AVATAR_CATEGORIES, AVATAR_BUILDER_OPTIONS, AvatarCircle, buildCustomDiceBearUrl, saveCustomAvatar, saveUploadedAvatar, loadCustomAvatars } from '@/lib/avatars';
 import TVKeyboard from '@/components/TVKeyboard';
 import { THEMES, DEFAULT_THEME_ID } from '@/themes/themes';
 import { writeViewingStyleForProfile } from '@/lib/viewingStyle';
@@ -75,6 +75,10 @@ export default function ProfileEdit() {
     // Build-Your-Own avatar sub-step overlay.  Lives on top of
     // the avatar grid when open.  See <BuildAvatarOverlay/> below.
     const [builderOpen, setBuilderOpen] = useState(false);
+    // Upload-your-own avatar sub-step overlay (v2.10.24).  Opens
+    // a file picker + on-screen instructions modal (512×512 circle,
+    // PNG / JPEG / animated GIF accepted up to 2 MB).
+    const [uploaderOpen, setUploaderOpen] = useState(false);
 
     /**
      * Persist every choice the user made during the wizard onto
@@ -271,6 +275,7 @@ export default function ProfileEdit() {
                     avatarId={avatarId}
                     onPick={(id) => setPendingAvatar(id)}
                     onOpenBuilder={() => setBuilderOpen(true)}
+                    onOpenUploader={() => setUploaderOpen(true)}
                 />
             )}
 
@@ -284,6 +289,16 @@ export default function ProfileEdit() {
                         // the same "Save this as your icon?" prompt
                         // they get for every other avatar pick.
                         setBuilderOpen(false);
+                        setTimeout(() => setPendingAvatar(record.id), 80);
+                    }}
+                />
+            )}
+
+            {uploaderOpen && (
+                <UploadAvatarOverlay
+                    onCancel={() => setUploaderOpen(false)}
+                    onSave={(record) => {
+                        setUploaderOpen(false);
                         setTimeout(() => setPendingAvatar(record.id), 80);
                     }}
                 />
@@ -804,8 +819,19 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                     fetch(`${API}/tmdb/genres/tv`).then((r) => r.json()),
                 ]);
                 if (cancel) return;
-                setMovieGenres(m?.data || []);
-                setTvGenres(t?.data || []);
+                // v2.10.24 — Inject synthetic "True Stories" and
+                // "Biography" categories.  TMDB doesn't ship these as
+                // first-class genres, but the backend translates the
+                // negative-ID sentinels below into a `with_keywords=`
+                // discover query (`9672` = based on true story,
+                // `186934` = biopic).  Negative IDs avoid collision
+                // with any real TMDB genre id.
+                const synthetic = [
+                    { id: -1, name: 'True Stories' },
+                    { id: -2, name: 'Biography' },
+                ];
+                setMovieGenres([...(m?.data || []), ...synthetic]);
+                setTvGenres([...(t?.data || []), ...synthetic]);
             } catch { /* ignore */ } finally {
                 if (!cancel) setLoadingGenres(false);
             }
@@ -1144,13 +1170,30 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                                 </div>
                             ) : (
                                 <div
+                                    // v2.10.24 — Bound the height to ~2
+                                    // rows so the Top-50 grid doesn't
+                                    // dominate the screen.  Vertical
+                                    // overflow scrolls into view as the
+                                    // D-pad lands on tiles further down.
+                                    // `scroll-padding-block` keeps the
+                                    // focused tile a comfortable 12 px
+                                    // away from the top / bottom edge.
+                                    style={{
+                                        maxHeight: 300,
+                                        overflowY: 'auto',
+                                        scrollPaddingTop: 12,
+                                        scrollPaddingBottom: 12,
+                                        paddingRight: 4,
+                                    }}
+                                >
+                                  <div
                                     className="grid"
                                     style={{
                                         gridTemplateColumns:
                                             'repeat(auto-fill, minmax(96px, 1fr))',
                                         gap: 12,
                                     }}
-                                >
+                                  >
                                     {activeList.map((it) => {
                                         const added = value.items.some(
                                             (x) =>
@@ -1184,6 +1227,13 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                                                         : 'none',
                                                     padding: 0,
                                                     cursor: 'pointer',
+                                                    // v2.10.24 — keep
+                                                    // focused tile a
+                                                    // comfortable distance
+                                                    // from the scroll
+                                                    // container edges.
+                                                    scrollMarginTop: 12,
+                                                    scrollMarginBottom: 12,
                                                 }}
                                             >
                                                 {it.poster ? (
@@ -1260,6 +1310,7 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                                             </button>
                                         );
                                     })}
+                                  </div>
                                 </div>
                             )}
                         </>
@@ -1434,7 +1485,7 @@ function GenreSection({ label, genres, media, loading, selected, activeId, onOpe
 
 
 
-function AvatarStep({ visibleAvatars, avatarId, onPick, onOpenBuilder }) {
+function AvatarStep({ visibleAvatars, avatarId, onPick, onOpenBuilder, onOpenUploader }) {
     // User-built custom avatars from localStorage.  Refreshed on
     // mount so a newly-built one shows up the next time the user
     // visits step 2.
@@ -1689,10 +1740,15 @@ function AvatarStep({ visibleAvatars, avatarId, onPick, onOpenBuilder }) {
                     style={{
                         gap: 14,
                         overflowX: 'auto',
-                        paddingLeft: 4,
-                        paddingRight: 16,
-                        paddingTop: 6,
-                        paddingBottom: 8,
+                        // v2.10.24 — match the AvatarRow padding so
+                        // the leftmost BUILD/Custom tile's focus ring
+                        // isn't clipped at the edge.
+                        paddingLeft: 18,
+                        paddingRight: 18,
+                        paddingTop: 14,
+                        paddingBottom: 14,
+                        scrollPaddingLeft: 18,
+                        scrollPaddingRight: 18,
                     }}
                 >
                     <button
@@ -1730,6 +1786,52 @@ function AvatarStep({ visibleAvatars, avatarId, onPick, onOpenBuilder }) {
                                 }}
                             >
                                 Build
+                            </div>
+                        </div>
+                    </button>
+
+                    {/* v2.10.24 — Upload-your-own avatar tile.  Opens
+                        a modal with file picker (PNG/JPEG/GIF) +
+                        on-screen spec instructions (512×512 circle).
+                        Uploaded blob is stored as base64 in
+                        `onnowtv-custom-avatars-v1` which is part of
+                        the profile-backup whitelist, so the avatar
+                        travels across devices when the user backs
+                        up + restores their profile via Settings. */}
+                    <button
+                        data-testid="avatar-upload-your-own"
+                        data-focusable="true"
+                        data-focus-style="tile"
+                        data-avatar-id="upload-new"
+                        tabIndex={0}
+                        onClick={onOpenUploader}
+                        className="rounded-full flex items-center justify-center shrink-0"
+                        style={{
+                            width: 120,
+                            height: 120,
+                            border: '2px dashed rgba(255, 195, 80, 0.55)',
+                            background:
+                                'radial-gradient(circle at 30% 30%, rgba(255, 195, 80, 0.18), rgba(6,8,15,0.6))',
+                            color: '#FFC350',
+                            cursor: 'pointer',
+                            padding: 0,
+                            position: 'relative',
+                            scrollMarginLeft: 200,
+                            scrollMarginRight: 60,
+                        }}
+                    >
+                        <div className="flex flex-col items-center" style={{ gap: 6 }}>
+                            <Upload size={28} strokeWidth={1.7} />
+                            <div
+                                style={{
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    letterSpacing: '0.06em',
+                                    textTransform: 'uppercase',
+                                    color: '#FFC350',
+                                }}
+                            >
+                                Upload
                             </div>
                         </div>
                     </button>
@@ -1829,10 +1931,18 @@ function AvatarRow({ category, avatarId, onPick, rowIdx }) {
                 style={{
                     gap: 14,
                     overflowX: 'auto',
-                    paddingLeft: 4,
-                    paddingRight: 16,
-                    paddingTop: 6,
-                    paddingBottom: 8,
+                    // v2.10.24 — bump left padding from 4 → 18 so the
+                    // 3 px focus-ring + 32 px glow on the LEFTMOST
+                    // avatar isn't clipped by the row's overflow edge
+                    // when the D-pad lands on it.  `scrollPaddingLeft`
+                    // mirrors this so smooth-scroll into-view keeps
+                    // the focused tile away from the edge.
+                    paddingLeft: 18,
+                    paddingRight: 18,
+                    paddingTop: 14,
+                    paddingBottom: 14,
+                    scrollPaddingLeft: 18,
+                    scrollPaddingRight: 18,
                 }}
             >
                 {category.items.map((a, i) => {
@@ -2240,6 +2350,320 @@ function BuildAvatarOverlay({ onCancel, onSave }) {
         </div>
     );
 }
+
+/**
+ * UploadAvatarOverlay (v2.10.24) — Lets the user pick a PNG / JPEG
+ * / animated GIF from local storage as their profile avatar.
+ *
+ * Saves the file as a base64 data: URL inside
+ * `onnowtv-custom-avatars-v1` — the same key DiceBear builds use.
+ * That key is whitelisted in `profileBackup.js` ESSENTIAL_KEYS so
+ * the avatar survives the existing backup-with-code round-trip
+ * onto a new device without any new wire format.
+ *
+ * Limits enforced here:
+ *   • 2 MB max — soft ceiling so localStorage can hold a few
+ *     uploads without throwing QuotaExceededError.
+ *   • image/png, image/jpeg, image/gif only — checked via MIME.
+ *
+ * The instructions panel asks the user for a 512×512 *circle* asset
+ * — we DON'T crop server-side because the AvatarCircle component
+ * already renders the image inside `border-radius:50%`.  If the
+ * user uploads a rectangle, the centre gets shown circular.  The
+ * 512×512 spec is given so heavy compression artefacts don't
+ * show up at the largest hero size (240 px on the picker hero).
+ */
+function UploadAvatarOverlay({ onCancel, onSave }) {
+    const fileRef = useRef(null);
+    const [error, setError] = useState('');
+    const [preview, setPreview] = useState(null); // { dataUrl, mime, name, size }
+    const [busy, setBusy] = useState(false);
+
+    const onPick = () => {
+        if (fileRef.current) fileRef.current.click();
+    };
+
+    const onFile = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const okMime = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif'];
+        if (!okMime.includes(file.type)) {
+            setError('Only PNG, JPEG or GIF files are supported.');
+            return;
+        }
+        // 2 MB soft ceiling — keeps localStorage healthy.
+        if (file.size > 2 * 1024 * 1024) {
+            setError(
+                `That file is ${(file.size / 1024 / 1024).toFixed(1)} MB ` +
+                '— please pick one ≤ 2 MB so it fits in your profile backup.',
+            );
+            return;
+        }
+        setError('');
+        setBusy(true);
+        const reader = new FileReader();
+        reader.onload = () => {
+            setBusy(false);
+            setPreview({
+                dataUrl: reader.result,
+                mime: file.type,
+                name: file.name,
+                size: file.size,
+            });
+        };
+        reader.onerror = () => {
+            setBusy(false);
+            setError('Could not read that file. Try a different one.');
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const onConfirm = () => {
+        if (!preview) return;
+        try {
+            const rec = saveUploadedAvatar({
+                dataUrl: preview.dataUrl,
+                mime: preview.mime,
+                name: preview.name,
+            });
+            onSave(rec);
+        } catch (err) {
+            setError(err.message || 'Could not save that avatar.');
+        }
+    };
+
+    // Lock focus inside the modal so D-pad doesn't escape.
+    useEffect(() => {
+        const onKey = (e) => {
+            if (e.key === 'Escape' || e.key === 'Backspace') {
+                e.preventDefault();
+                onCancel();
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [onCancel]);
+
+    return (
+        <div
+            data-testid="avatar-uploader"
+            role="dialog"
+            aria-modal="true"
+            style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(6, 8, 15, 0.92)',
+                zIndex: 9000,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 32,
+            }}
+        >
+            <div
+                className="vesper-glass"
+                style={{
+                    width: 'min(680px, 92vw)',
+                    borderRadius: 18,
+                    padding: '32px 36px',
+                    border: '1px solid rgba(255, 195, 80, 0.35)',
+                    boxShadow: '0 24px 60px -16px rgba(0,0,0,0.8)',
+                    background: 'linear-gradient(140deg, rgba(20,12,4,0.95), rgba(6,8,15,0.92))',
+                }}
+            >
+                <div
+                    className="vesper-mono"
+                    style={{
+                        fontSize: 11,
+                        letterSpacing: '0.32em',
+                        textTransform: 'uppercase',
+                        color: '#FFC350',
+                        marginBottom: 6,
+                    }}
+                >
+                    Upload your own
+                </div>
+                <h2
+                    style={{
+                        fontSize: 28,
+                        fontWeight: 700,
+                        margin: 0,
+                        marginBottom: 18,
+                        color: '#FFFFFF',
+                    }}
+                >
+                    Pick a custom avatar
+                </h2>
+
+                <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start' }}>
+                    {/* Preview circle (or placeholder). */}
+                    <div
+                        style={{
+                            width: 160,
+                            height: 160,
+                            borderRadius: '50%',
+                            overflow: 'hidden',
+                            background:
+                                'radial-gradient(circle at 30% 30%, rgba(255,195,80,0.18), rgba(0,0,0,0.6))',
+                            border: '2px dashed rgba(255,195,80,0.55)',
+                            flexShrink: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            position: 'relative',
+                        }}
+                    >
+                        {preview ? (
+                            <img
+                                src={preview.dataUrl}
+                                alt="preview"
+                                style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'cover',
+                                }}
+                            />
+                        ) : (
+                            <Upload size={48} strokeWidth={1.4} color="#FFC350" />
+                        )}
+                    </div>
+
+                    {/* Instructions + actions. */}
+                    <div style={{ flex: 1 }}>
+                        <ul
+                            style={{
+                                listStyle: 'none',
+                                padding: 0,
+                                margin: 0,
+                                fontSize: 14,
+                                lineHeight: 1.7,
+                                color: 'rgba(255,255,255,0.82)',
+                            }}
+                        >
+                            <li>
+                                <strong style={{ color: '#FFC350' }}>•</strong>{' '}
+                                512×512 px square recommended
+                            </li>
+                            <li>
+                                <strong style={{ color: '#FFC350' }}>•</strong>{' '}
+                                Image is auto-cropped to a circle
+                            </li>
+                            <li>
+                                <strong style={{ color: '#FFC350' }}>•</strong>{' '}
+                                PNG, JPEG, or animated GIF (loops)
+                            </li>
+                            <li>
+                                <strong style={{ color: '#FFC350' }}>•</strong>{' '}
+                                Max file size: 2 MB
+                            </li>
+                            <li style={{ marginTop: 8, color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>
+                                Saved with your profile — survives backup &amp; restore on a new device.
+                            </li>
+                        </ul>
+
+                        {error && (
+                            <div
+                                style={{
+                                    marginTop: 14,
+                                    padding: '10px 12px',
+                                    borderRadius: 8,
+                                    background: 'rgba(244, 67, 54, 0.14)',
+                                    color: '#FCA5A5',
+                                    fontSize: 13,
+                                    border: '1px solid rgba(244, 67, 54, 0.4)',
+                                }}
+                            >
+                                {error}
+                            </div>
+                        )}
+
+                        <input
+                            ref={fileRef}
+                            type="file"
+                            accept="image/png,image/jpeg,image/gif"
+                            onChange={onFile}
+                            style={{ display: 'none' }}
+                            data-testid="avatar-upload-file-input"
+                        />
+                    </div>
+                </div>
+
+                {/* Action buttons */}
+                <div
+                    style={{
+                        display: 'flex',
+                        gap: 12,
+                        marginTop: 28,
+                        justifyContent: 'flex-end',
+                    }}
+                >
+                    <button
+                        data-testid="avatar-upload-cancel"
+                        data-focusable="true"
+                        tabIndex={0}
+                        onClick={onCancel}
+                        className="vesper-btn-ghost"
+                        style={{
+                            padding: '12px 22px',
+                            borderRadius: 10,
+                            border: '1px solid rgba(255,255,255,0.15)',
+                            background: 'transparent',
+                            color: 'rgba(255,255,255,0.78)',
+                            cursor: 'pointer',
+                            fontSize: 14,
+                            fontWeight: 600,
+                        }}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        data-testid="avatar-upload-pick"
+                        data-focusable="true"
+                        tabIndex={0}
+                        onClick={onPick}
+                        disabled={busy}
+                        style={{
+                            padding: '12px 22px',
+                            borderRadius: 10,
+                            border: '1px solid rgba(255,195,80,0.5)',
+                            background: 'rgba(255,195,80,0.16)',
+                            color: '#FFC350',
+                            cursor: busy ? 'wait' : 'pointer',
+                            fontSize: 14,
+                            fontWeight: 700,
+                            opacity: busy ? 0.6 : 1,
+                        }}
+                    >
+                        {preview ? 'Choose different file' : 'Choose file'}
+                    </button>
+                    {preview && (
+                        <button
+                            data-testid="avatar-upload-save"
+                            data-focusable="true"
+                            data-initial-focus="true"
+                            tabIndex={0}
+                            onClick={onConfirm}
+                            style={{
+                                padding: '12px 26px',
+                                borderRadius: 10,
+                                border: 'none',
+                                background: 'var(--vesper-blue, #5DC8FF)',
+                                color: '#06080F',
+                                cursor: 'pointer',
+                                fontSize: 14,
+                                fontWeight: 800,
+                                letterSpacing: '0.04em',
+                            }}
+                        >
+                            Save avatar
+                        </button>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 
 function ChipRow({ label, group, value, onSet, swatches }) {
     const options = AVATAR_BUILDER_OPTIONS[group] || [];

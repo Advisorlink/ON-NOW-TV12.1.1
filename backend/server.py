@@ -2853,21 +2853,37 @@ async def tmdb_by_genres(
     """Combined top popular titles across MULTIPLE genres.  Used
     by the viewing-style picker once the user has selected a set
     of genres — we union the most popular results across all of
-    them, dedupe, and return the top `limit` by overall popularity."""
+    them, dedupe, and return the top `limit` by overall popularity.
+
+    v2.10.24 — Also accepts SYNTHETIC negative-ID sentinels that
+    translate to TMDB `with_keywords` discover queries instead of
+    `with_genres`.  Currently:
+      • -1 → "based on true story" (keyword 9672)
+      • -2 → "biography"           (keyword 5565)
+    """
     if media not in ("movie", "tv"):
         raise HTTPException(400, "media must be 'movie' or 'tv'")
-    ids = [g.strip() for g in (genre_ids or "").split(",") if g.strip().isdigit()]
-    if not ids:
+    # Split into positive (real TMDB genre IDs) and negative
+    # (synthetic keyword sentinels).  Drop anything non-numeric.
+    raw_ids = [g.strip() for g in (genre_ids or "").split(",") if g.strip()]
+    pos_ids: List[str] = []
+    neg_ids: List[str] = []
+    for g in raw_ids:
+        if g.lstrip("-").isdigit():
+            (neg_ids if g.startswith("-") else pos_ids).append(g)
+    SYNTHETIC_KEYWORDS = {"-1": "9672", "-2": "5565"}
+    if not pos_ids and not neg_ids:
         return {"cached": False, "data": []}
-    key = ",".join(sorted(ids))
-    cache_key = f"tmdb_by_genres:{media}:{key}:{limit}"
+    # Cache key includes both buckets, sorted, so different
+    # orderings of the same selection hit the same cache entry.
+    key = ",".join(sorted(pos_ids + neg_ids))
+    cache_key = f"tmdb_by_genres:{media}:{key}:{limit}:v2"
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, "data": cached}
     seen: Dict[Any, Dict[str, Any]] = {}
-    # Pull a few pages PER GENRE in parallel so we have enough
-    # candidate titles to dedupe + sort.
-    async def _pull(genre_id: str, page: int):
+
+    async def _pull_genre(genre_id: str, page: int):
         return await _tmdb_get(
             f"/discover/{media}",
             {
@@ -2878,12 +2894,30 @@ async def tmdb_by_genres(
                 "page": str(page),
             },
         )
+
+    async def _pull_keyword(keyword_id: str, page: int):
+        return await _tmdb_get(
+            f"/discover/{media}",
+            {
+                "with_keywords": keyword_id,
+                "sort_by": "popularity.desc",
+                "include_adult": "false",
+                "vote_count.gte": "200",
+                "page": str(page),
+            },
+        )
+
     pages_per_genre = max(1, math.ceil(limit / 20))
-    tasks = [
-        _pull(gid, p)
-        for gid in ids
-        for p in range(1, pages_per_genre + 1)
-    ]
+    tasks = []
+    for gid in pos_ids:
+        for p in range(1, pages_per_genre + 1):
+            tasks.append(_pull_genre(gid, p))
+    for nid in neg_ids:
+        kw = SYNTHETIC_KEYWORDS.get(nid)
+        if not kw:
+            continue
+        for p in range(1, pages_per_genre + 1):
+            tasks.append(_pull_keyword(kw, p))
     pages = await asyncio.gather(*tasks, return_exceptions=True)
     for resp in pages:
         if isinstance(resp, Exception) or not resp:

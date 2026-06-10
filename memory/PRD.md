@@ -1,5 +1,29 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.24 — Avatar polish + viewer-prefs scroll-window + native ExoPlayer "Skip Next Episode" + stream-picker fix (Feb 9 2026).**
+>
+> Seven-item user request — all UI/UX polish + one big native lift.
+>
+> **A. Avatar / viewer-prefs polish (live now in WebView)**:
+>   • a. **Removed duplicate popcorn**: dropped `fn-popcorn-tu` (thumbs-up popcorn) — the user couldn't tell it apart from `fn-popcorn-fg` (finger-guns popcorn).  Funny row now has 10 unique icons.
+>   • b. **Left padding on avatar rows**: `paddingLeft: 4 → 18`, added `scrollPaddingLeft/Right: 18` so the leftmost icon's 3 px ring + 32 px glow isn't clipped by the row's overflow edge.
+>   • c. **Loading spinners actually rotate again**: index.css perf-mode rule was killing `animation-duration` on EVERY element under `.vesper-host-android` except those marked `data-keep-anim="true"`.  Patched to whitelist `.vesper-spin` / `.vesper-dots` so loading spinners get their animations re-asserted.  BootSplash sweep + nav-loader spinner SVG also tagged with `data-keep-anim`.
+>   • d. **True Stories + Biography** categories: backend `/tmdb/by-genres/` now accepts NEGATIVE synthetic IDs that translate to TMDB `with_keywords` discover queries (-1 → 9672 "based on true story", -2 → 5565 "biography").  Verified: returns Oppenheimer / Schindler's List / Pursuit of Happyness etc.
+>   • e. **Top-50 titles 2-row scroll window**: wrapped the genre-tiles grid in a `maxHeight: 300px overflow-y: auto` container with `scroll-padding-block: 12` so only 2 rows show at a time on the viewer-style step.  Each tile gets `scroll-margin-top/bottom: 12` for smooth D-pad scroll-into-view.
+>
+> **B. Upload-your-own avatar (live now)**:
+>   • New `UploadAvatarOverlay` mounted next to the BUILD tile, opens a modal with:
+>     – Instructions: 512×512 px square, auto-cropped to circle, PNG/JPEG/animated GIF accepted, ≤ 2 MB
+>     – Live preview (circular crop) the moment a file is picked
+>     – Save button stashes the base64 dataUrl in `onnowtv-custom-avatars-v1`
+>   • `profileBackup.js` ESSENTIAL_KEYS now whitelists `onnowtv-custom-avatars-v1`, so the uploaded image bypasses the 128 KB per-key cap and travels with the user's profile backup to a new device.
+>
+> **C. Native Android ExoPlayer — Skip Next Episode + in-player stream picker fix (requires APK rebuild)**:
+>   • **Skip Next button**: ExoPlayerActivity now derives `isSeriesEpisode` from cwId (accepts BOTH `tt0903747:s1e5` and `tt0903747:1:5` formats so the parser doesn't have to know which JS path called it).  Within the last 60 s of an episode AND when a next episode exists, `hasNextEpisodeFlow` flips true and the dock swaps the disabled "Cast" button for a focusable **Next Ep** button.  Clicking it writes a SharedPreferences intent (`onnowtv_next_intent`) + finishes the activity — MainActivity then jumps the WebView to `#/title/series/<imdb>?episodeAutoplay=1&season=&episode=` for instant autoplay.
+>   • **Stream picker fix**: `SeriesEpisodes.jsx::playStream` was NOT passing `streamsList` + `currentStreamIdx` to `Host.playVideo()`.  This meant the in-player stream picker on TV shows always showed "No alternate streams".  Now wires `episodeStreams[ep.id].streams` + the active index across the JS bridge so the user can swap mid-playback.
+>
+> **Deferred to next session**: D-pad UP → progress-bar focus + LEFT/RIGHT to scrub; faster resume.
+
 > **🔴→🟢 v2.10.23 — REAL avatar-rendering fix: resolve URLs via `Host.publicAsset()` (Feb 9 2026).**
 >
 > The v2.10.22 WebP→JPEG swap didn't fix anything on the projector — icons were still blank circles.  WebP wasn't the issue.  The REAL bug: the bundled Android APK loads the React app from `file:///android_asset/web/index.html`, and an absolute path like `<img src="/avatars/...">` resolves to `file:///avatars/...` (filesystem root) — there's no server interpreting `/` as the bundled web root.

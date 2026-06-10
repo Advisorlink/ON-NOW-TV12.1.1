@@ -74,6 +74,11 @@ const ESSENTIAL_KEYS = new Set([
     'onnowtv-profiles-v1',
     'onnowtv-active-profile-v1',
     'onnowtv-provider-v1',     // saved Xtream credentials
+    // v2.10.24 — User-uploaded avatar blobs (PNG / JPEG / animated
+    // GIF) live here.  Bypass the 128 KB per-key cap so a 512×512
+    // animated GIF (typically 200–800 KB) survives a backup-and-
+    // restore round-trip onto a new device.
+    'onnowtv-custom-avatars-v1',
 ]);
 const ESSENTIAL_PREFIXES = [
     'onnowtv-pref:',

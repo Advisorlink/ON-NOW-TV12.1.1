@@ -81,6 +81,15 @@ class ExoPlayerActivity : ComponentActivity() {
     private var sizeGb: Float = 0f
     private var isEnglish: Boolean = true
     private var cwId: String = ""
+    // v2.10.24 — Series awareness derived from cwId.  Frontend
+    // writes cwIds in TWO formats — keep the parser permissive:
+    //   • "tt0903747:s1e5"  (current SeriesEpisodes.jsx format)
+    //   • "tt0903747:1:5"   (legacy / future-proof "imdb:season:episode")
+    private val seasonEpisodeRegex =
+        Regex("^[^:]+:(?:s(\\d+)e(\\d+)|(\\d+):(\\d+))$", RegexOption.IGNORE_CASE)
+    private val isSeriesEpisode: Boolean
+        get() = seasonEpisodeRegex.matches(cwId)
+    private val hasNextEpisodeFlow = MutableStateFlow(false)
     // v2.7.74 — Live TV awareness.  Driven by EXTRA_TYPE = "live".
     private var isLive: Boolean = false
     private var liveStreamId: String = ""
@@ -676,6 +685,21 @@ class ExoPlayerActivity : ComponentActivity() {
                     onPickAudio    = { id -> selectTrack(C.TRACK_TYPE_AUDIO, id) },
                     onPickSubtitle = { id -> selectTrack(C.TRACK_TYPE_TEXT, id) },
                     onPickStream   = { idx -> switchStream(idx) },
+                    // v2.10.24 — Skip-Next dock button for TV shows.
+                    // `isSeriesEpisode` is true when cwId looks like
+                    // "tt0903747:1:5".  Live TV channels and movies
+                    // hide the button.  saveNextEpisodeIntent persists
+                    // {imdb, next_season, next_episode, autoplay=true}
+                    // to SharedPreferences("onnowtv_next_intent"); on
+                    // finish() MainActivity reads that and jumps the
+                    // WebView to `#/title/series/<imdb>?episodeAutoplay=1`.
+                    hasNextEpisode  = hasNextEpisodeFlow.asStateFlow(),
+                    onNextEpisode   = {
+                        if (isSeriesEpisode) {
+                            saveNextEpisodeIntent(autoplay = true)
+                            finish()
+                        }
+                    },
                     onClose = { finish() },
                 )
                 // v2.7.74 — Native Live TV Guide overlay.  Sits on
@@ -773,6 +797,51 @@ class ExoPlayerActivity : ComponentActivity() {
                 .putString(id, obj.toString())
                 .apply()
         } catch (_: Exception) { /* ignore — best effort */ }
+
+        // v2.10.24 — Once the user is within 60 s of the credits we
+        // surface the Skip Next Episode pill via the dock.  Same UX
+        // as VlcPlayerActivity but rendered as a Compose DockButton
+        // instead of a separate animated LinearLayout — fits the
+        // ExoPlayer overlay's design language.
+        if (isSeriesEpisode && lengthMs > 0L) {
+            val remaining = lengthMs - timeMs
+            val show = remaining in 0..60_000 && computeNextEpisode() != null
+            if (show != hasNextEpisodeFlow.value) {
+                hasNextEpisodeFlow.value = show
+            }
+        }
+    }
+
+    /** Parse the next (season, episode) pair from cwId.  Accepts
+     *  BOTH "tt0903747:s1e5" (SeriesEpisodes.jsx format) and
+     *  "tt0903747:1:5" (legacy / colon-separated). */
+    private fun computeNextEpisode(): Pair<Int, Int>? {
+        val m = seasonEpisodeRegex.matchEntire(cwId) ?: return null
+        val groups = m.groupValues
+        // Groups: 1,2 = s1e5 form; 3,4 = colon-separated form.
+        val s = (groups[1].ifBlank { groups[3] }).toIntOrNull() ?: return null
+        val e = (groups[2].ifBlank { groups[4] }).toIntOrNull() ?: return null
+        return Pair(s, e + 1)
+    }
+
+    /** Persist the next-episode intent to SharedPreferences so
+     *  MainActivity can read it on resume and either auto-play
+     *  the next episode or open the picker focused on it.
+     *  Mirrors VlcPlayerActivity.saveNextEpisodeIntent. */
+    private fun saveNextEpisodeIntent(autoplay: Boolean) {
+        val m = seasonEpisodeRegex.matchEntire(cwId) ?: return
+        val imdb = cwId.substringBefore(":")
+        val next = computeNextEpisode() ?: return
+        try {
+            getSharedPreferences("onnowtv_next_intent", MODE_PRIVATE).edit()
+                .putString("kind", "series")
+                .putString("imdb_id", imdb)
+                .putInt("season", next.first)
+                .putInt("episode", next.second)
+                .putBoolean("autoplay", autoplay)
+                .putLong("ts", System.currentTimeMillis())
+                .apply()
+        } catch (_: Throwable) { /* best-effort */ }
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
