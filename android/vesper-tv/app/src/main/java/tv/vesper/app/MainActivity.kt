@@ -40,6 +40,39 @@ class MainActivity : AppCompatActivity() {
     private var webViewReady: Boolean = false
     private var pendingVoiceCallbackId: String? = null
 
+    /**
+     * v2.10.31 — WebView file-chooser support.
+     *
+     * Android's stock `WebView` does NOTHING when an `<input type="file">`
+     * is clicked unless the host activity overrides
+     * `WebChromeClient.onShowFileChooser(...)` and routes the click to
+     * an external `Intent` like `ACTION_GET_CONTENT`.  Without this,
+     * the React side's "Upload your own avatar" modal puts focus on
+     * its Choose-file button, the user hits OK, and absolutely
+     * nothing happens — which is exactly what the user reported.
+     *
+     * Flow:
+     *   1) WebChromeClient.onShowFileChooser stashes the callback +
+     *      launches ACTION_GET_CONTENT with the MIME filter the
+     *      `<input accept=…>` declared (or `* / *` if it didn't).
+     *   2) The system file picker (Photos on Android TV, Files on
+     *      mobile) hands back a content:// URI.
+     *   3) onActivityResult forwards that URI as a single-element
+     *      array to the stashed callback, which the WebView routes
+     *      back to the `<input>` as a regular file selection.
+     *
+     * If the user cancels (or the picker can't be launched), we
+     * always call the callback with `null` so the WebView doesn't
+     * leak a dangling promise — otherwise the next `<input>` click
+     * would silently no-op.
+     */
+    private var fileChooserCallback: android.webkit.ValueCallback<Array<android.net.Uri>>? = null
+    /** MIME-type filter from the most recent onShowFileChooser call.
+     *  Stored so we can also relax it to `* / *` and re-launch the
+     *  picker if the strict filter returns no results — some Android
+     *  TV file pickers don't index custom MIME types well. */
+    private var fileChooserAcceptTypes: Array<String> = emptyArray()
+
     /** Launches the system speech recognizer and routes the result
      *  back to the React side via window.__voiceSearchResult(id,...). */
     fun startVoiceRecognition(callbackId: String) {
@@ -74,6 +107,30 @@ class MainActivity : AppCompatActivity() {
         data: android.content.Intent?
     ) {
         super.onActivityResult(requestCode, resultCode, data)
+        // v2.10.31 — File chooser result → back to the WebView.
+        if (requestCode == REQ_FILE_CHOOSER) {
+            val cb = fileChooserCallback
+            fileChooserCallback = null
+            if (cb == null) return
+            val uris: Array<android.net.Uri>? =
+                if (resultCode != RESULT_OK || data == null) null
+                else {
+                    // Single-pick path: data.data.  Multi-pick path:
+                    // data.clipData — Android TV is single-pick so
+                    // we just take data.data, falling back to the
+                    // clipData's first entry for safety.
+                    val single = data.data
+                    if (single != null) arrayOf(single)
+                    else {
+                        val clip = data.clipData
+                        if (clip != null && clip.itemCount > 0) {
+                            arrayOf(clip.getItemAt(0).uri)
+                        } else null
+                    }
+                }
+            cb.onReceiveValue(uris)
+            return
+        }
         if (requestCode == REQ_VOICE_SEARCH) {
             val cbId = pendingVoiceCallbackId ?: return
             pendingVoiceCallbackId = null
@@ -107,6 +164,9 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val REQ_VOICE_SEARCH = 9201
+        // v2.10.31 — request code for the WebView file-chooser
+        // intent used by the custom-avatar upload flow.
+        private const val REQ_FILE_CHOOSER = 9202
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -324,6 +384,52 @@ class MainActivity : AppCompatActivity() {
                         request.grant(allowed)
                     } else {
                         request.deny()
+                    }
+                }
+
+                // v2.10.31 — File chooser for the custom-avatar
+                // upload flow.  See `fileChooserCallback` block at
+                // the top of the class for the full design rationale.
+                override fun onShowFileChooser(
+                    webView: WebView?,
+                    filePathCallback: android.webkit.ValueCallback<Array<android.net.Uri>>?,
+                    fileChooserParams: FileChooserParams?,
+                ): Boolean {
+                    if (filePathCallback == null) return false
+                    // Cancel any prior pending chooser (shouldn't
+                    // happen but defensive).
+                    fileChooserCallback?.onReceiveValue(null)
+                    fileChooserCallback = filePathCallback
+                    fileChooserAcceptTypes = fileChooserParams
+                        ?.acceptTypes
+                        ?.filter { it.isNotBlank() }
+                        ?.toTypedArray()
+                        ?: emptyArray()
+                    return try {
+                        val intent = fileChooserParams?.createIntent()
+                            ?: android.content.Intent(
+                                android.content.Intent.ACTION_GET_CONTENT
+                            ).apply {
+                                addCategory(android.content.Intent.CATEGORY_OPENABLE)
+                                type = "*/*"
+                            }
+                        // Force a chooser dialog so the user can
+                        // pick a file manager / gallery / photos
+                        // app — some Android TV launchers default
+                        // to a system file browser that doesn't
+                        // surface user photos at all.
+                        val chooser = android.content.Intent.createChooser(
+                            intent,
+                            "Pick a photo or video"
+                        )
+                        startActivityForResult(chooser, REQ_FILE_CHOOSER)
+                        true
+                    } catch (t: Throwable) {
+                        // No matching activity available — release
+                        // the callback so the WebView doesn't hang.
+                        fileChooserCallback?.onReceiveValue(null)
+                        fileChooserCallback = null
+                        false
                     }
                 }
             }

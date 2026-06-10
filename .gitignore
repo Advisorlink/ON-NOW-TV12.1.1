@@ -1571,3 +1571,4 @@ memory/design-refs/karaoke/
 **/*.lock
 frontend/node_modules/.cache/default-development/35.pack
 frontend/node_modules/.cache/default-development/48.pack
+frontend/node_modules/.cache/default-development/50.pack

@@ -1,5 +1,34 @@
 # ON NOW TV V2 — PRD
 
+> **🔴 v2.10.31 — URGENT: WebView file-chooser missing + avatar D-pad smooth scroll regression (Feb 10 2026).**
+>
+> User report (video evidence): "It still won't let me upload anything AND the left right movement in the profile icon section is still jumpy!!!!"
+>
+> Two unrelated root causes, both fixed:
+>
+> **Bug A: Custom-avatar upload silently fails on Android TV.**
+> Root cause — `MainActivity.kt`'s `WebChromeClient` had NO `onShowFileChooser` override.  Android WebView is a strict opt-in: without that override, clicking `<input type="file">` is a silent no-op.  The React modal opens, focus correctly lands on **Choose file**, user presses OK… nothing happens (no file picker intent gets launched).  This is independent of the focus-trap work in v2.10.28 — that fix DID work, the click was reaching the input, the input just had nowhere to go.
+> Fix — added `onShowFileChooser` to the existing `WebChromeClient`:
+>   1) Stashes the `ValueCallback<Array<Uri>>` so we can return the picked URI later.
+>   2) Honours the `<input accept=…>` via `fileChooserParams.createIntent()`, wrapped in `Intent.createChooser` so Android TV always presents an app picker (Photos / Files / USB).
+>   3) New `REQ_FILE_CHOOSER = 9202` request code; `onActivityResult` routes the selected URI back to the WebView via `cb.onReceiveValue(...)`.  Single-pick path uses `data.data`; multi-pick / clipData fallback included for defensive parity.
+>   4) Always invokes the callback with `null` on cancel / no-app-installed so the WebView doesn't leak a dangling pending file-input promise — without this, the *next* `<input>` click would silently no-op forever.
+>
+> **Bug B: Avatar row D-pad navigation feels "jumpy".**
+> Root cause — `focusTarget()` in `ProfileEdit.jsx` called `target.focus({ preventScroll: false })` (the default).  That triggers Chromium's INSTANT native focus-scroll, which fires synchronously BEFORE `scrollIntoView({ behavior: 'smooth' })` and BYPASSES the row's CSS `scroll-behavior: smooth` property entirely.  The user sees: SNAP (instant focus-scroll wins) → smooth scrollIntoView has nothing left to do.
+> Fix — flipped both call sites (`AvatarStep`'s walker at line 1546 AND `BuildAvatarOverlay`'s walker at line 2109) to `target.focus({ preventScroll: true })`, then wrapped the explicit `scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })` in `requestAnimationFrame` so focus paint + scroll start in the same animation frame.  Without rAF, fast key repeats can queue multiple competing scrollIntoView calls and the row appears to jitter on key-hold.
+>
+> End-to-end verified in the live preview:
+>   • Started on Gamer row tile 1 (`gm-assassin`, scrollLeft=0).
+>   • 10 rapid ArrowRights → landed on `gm-cyborg-neon`, row glided smoothly to scrollLeft=472px.
+>   • `scrollBehavior` computed = `smooth` ✓.  No layout shift in unrelated rows.
+>
+> Files touched:
+>   • `/app/android/vesper-tv/app/src/main/java/tv/vesper/app/MainActivity.kt` — new `fileChooserCallback`, `onShowFileChooser`, `onActivityResult` branch, `REQ_FILE_CHOOSER` constant.
+>   • `/app/frontend/src/pages/ProfileEdit.jsx` — both `focusTarget()` walkers (lines ~1546 and ~2109).
+>
+> Native APK rebuild required for Bug A; Bug B picks up via WebView bundle reload.
+
 > **🟢 v2.10.30 — ExoPlayer dock cleanup + prominent "PLAY NEXT EPISODE" pill + background next-episode pre-prime (Feb 10 2026).**
 >
 > User feedback: "Remove those other 3 buttons cause we have subtitle button on the left. Then when the next episode is one min out it should automatically find the next episode in the background, and that's when the play next episode button should appear 1 min before end. Make sure it's noticeable when it's highlighted. Then when you click play next episode it should already be primed and ready to go. No need to go back to the episode selection screen. The button should be inside the dock, not above it."

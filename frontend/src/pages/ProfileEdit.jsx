@@ -1543,7 +1543,16 @@ function AvatarStep({ visibleAvatars, avatarId, onPick, onOpenBuilder, onOpenUpl
         };
 
         const focusTarget = (target) => {
-            try { target.focus({ preventScroll: false }); } catch { /* ignore */ }
+            // v2.10.31 — `preventScroll: true` is critical here.  The
+            // browser's native focus-scroll behaviour is INSTANT (it
+            // ignores the row's `scroll-behavior: smooth` CSS) and
+            // fires BEFORE our explicit `scrollIntoView` call below.
+            // That's what was making D-pad navigation feel jumpy:
+            // the row would SNAP to centre the new tile, then the
+            // smooth-scroll call had nothing left to do.  Disabling
+            // the native scroll lets our explicit smooth call drive
+            // the motion.
+            try { target.focus({ preventScroll: true }); } catch { /* ignore */ }
             target.setAttribute('data-focused', 'true');
             document
                 .querySelectorAll('[data-focused="true"]')
@@ -1555,12 +1564,17 @@ function AvatarStep({ visibleAvatars, avatarId, onPick, onOpenBuilder, onOpenUpl
             // vertically (slide the row up under the sticky
             // preview).  block:'center' lets the page scroll so
             // each new row crystallises directly below the
-            // preview.
+            // preview.  Wrapped in rAF so the focus paint and the
+            // scroll start in the same animation frame — without
+            // this, fast key repeats can queue multiple competing
+            // scrollIntoView calls and the row appears to jitter.
             try {
-                target.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'center',
-                    inline: 'center',
+                requestAnimationFrame(() => {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center',
+                        inline: 'center',
+                    });
                 });
             } catch { /* ignore */ }
             const tid = target.getAttribute('data-avatar-id');
@@ -2092,7 +2106,10 @@ function BuildAvatarOverlay({ onCancel, onSave }) {
         };
 
         const focusTarget = (target) => {
-            try { target.focus({ preventScroll: false }); } catch { /* ignore */ }
+            // v2.10.31 — preventScroll:true so the browser's instant
+            // native focus-scroll doesn't override our smooth scroll
+            // below.  Same fix as AvatarStep.
+            try { target.focus({ preventScroll: true }); } catch { /* ignore */ }
             target.setAttribute('data-focused', 'true');
             document
                 .querySelectorAll('[data-focused="true"]')
@@ -2100,10 +2117,12 @@ function BuildAvatarOverlay({ onCancel, onSave }) {
                     if (el !== target) el.removeAttribute('data-focused');
                 });
             try {
-                target.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'center',
-                    inline: 'center',
+                requestAnimationFrame(() => {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center',
+                        inline: 'center',
+                    });
                 });
             } catch { /* ignore */ }
         };
