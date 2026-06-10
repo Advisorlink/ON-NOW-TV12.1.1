@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * v2.7.40 — ExoPlayer + Jetpack Compose overlay.
@@ -90,6 +91,28 @@ class ExoPlayerActivity : ComponentActivity() {
     private val isSeriesEpisode: Boolean
         get() = seasonEpisodeRegex.matches(cwId)
     private val hasNextEpisodeFlow = MutableStateFlow(false)
+
+    // v2.10.30 — Background-primed "play next episode" support.
+    // When the user is ≤60s from credits we fire `kickoffNextEpisodePrime`
+    // which asynchronously:
+    //   1) calls `${backendBase}/api/streams/series/{nextEpId}` to
+    //      resolve playable URLs for the upcoming episode,
+    //   2) picks the best candidate (English flag + 1080p preference
+    //      + Premiumize-cached priority — same heuristic the React
+    //      autoplay pick uses), and
+    //   3) appends the candidate to ExoPlayer's media queue via
+    //      `addMediaItem(MediaItem.fromUri(...))` so the network /
+    //      demuxer / decoder are all warmed up by the time the user
+    //      hits the pill.
+    // Click of the pill then calls `player.seekToNextMediaItem()`
+    // which is effectively instant — no activity teardown, no
+    // return-to-episode-picker round trip.
+    @Volatile private var nextEpisodePrimedUrl: String? = null
+    @Volatile private var nextEpisodePrimedSubUrl: String = ""
+    @Volatile private var nextEpisodePrimedTitle: String = ""
+    @Volatile private var nextEpisodePrimedCwId: String = ""
+    private var nextEpisodePrimeStartedFor: String = ""   // cwId we last started priming for
+    private var nextEpisodePrimeJob: kotlinx.coroutines.Job? = null
     // v2.7.74 — Live TV awareness.  Driven by EXTRA_TYPE = "live".
     private var isLive: Boolean = false
     private var liveStreamId: String = ""
@@ -701,12 +724,7 @@ class ExoPlayerActivity : ComponentActivity() {
                     // finish() MainActivity reads that and jumps the
                     // WebView to `#/title/series/<imdb>?episodeAutoplay=1`.
                     hasNextEpisode  = hasNextEpisodeFlow.asStateFlow(),
-                    onNextEpisode   = {
-                        if (isSeriesEpisode) {
-                            saveNextEpisodeIntent(autoplay = true)
-                            finish()
-                        }
-                    },
+                    onNextEpisode   = { jumpToPrimedNextEpisode() },
                     onClose = { finish() },
                 )
                 // v2.7.74 — Native Live TV Guide overlay.  Sits on
@@ -810,11 +828,22 @@ class ExoPlayerActivity : ComponentActivity() {
         // as VlcPlayerActivity but rendered as a Compose DockButton
         // instead of a separate animated LinearLayout — fits the
         // ExoPlayer overlay's design language.
+        //
+        // v2.10.30 — Additionally, the first time we cross the
+        // threshold for a given episode we kick off a background
+        // fetch of the next episode's stream URL so it can be
+        // pre-buffered via the ExoPlayer media queue.  Click of the
+        // pill then triggers `seekToNextMediaItem()` — instant swap,
+        // no return-to-picker round trip.
         if (isSeriesEpisode && lengthMs > 0L) {
             val remaining = lengthMs - timeMs
             val show = remaining in 0..60_000 && computeNextEpisode() != null
             if (show != hasNextEpisodeFlow.value) {
                 hasNextEpisodeFlow.value = show
+            }
+            if (show && nextEpisodePrimeStartedFor != cwId) {
+                nextEpisodePrimeStartedFor = cwId
+                kickoffNextEpisodePrime()
             }
         }
     }
@@ -849,6 +878,213 @@ class ExoPlayerActivity : ComponentActivity() {
                 .putLong("ts", System.currentTimeMillis())
                 .apply()
         } catch (_: Throwable) { /* best-effort */ }
+    }
+
+    /**
+     * v2.10.30 — Background pre-prime of the upcoming episode.
+     *
+     * Fired once per current episode the first time the
+     * "≤60 s from credits" threshold is crossed.  Runs entirely on
+     * IO dispatcher so it never touches the UI thread while ExoPlayer
+     * is rendering credits.  Resolves the next episode's stream URL
+     * via the same backend the React WebView uses, picks the best
+     * candidate (mirrors React `pickAutoplayCandidate`), then jumps
+     * back to Main to call `player.addMediaItem(...)` so ExoPlayer
+     * starts pre-buffering the stream.  Click of the "PLAY NEXT
+     * EPISODE" pill then becomes `seekToNextMediaItem()` — instant.
+     *
+     * Best-effort throughout: any network / parse failure simply
+     * leaves `nextEpisodePrimedUrl = null` and the pill click falls
+     * back to the legacy `saveNextEpisodeIntent + finish` path so
+     * the user still gets to the next episode, just via a re-launch.
+     */
+    private fun kickoffNextEpisodePrime() {
+        // Cancel any prior in-flight prime — we may have crossed the
+        // 60 s threshold for a different episode (e.g. user used the
+        // alternate-stream picker mid-playback which changed cwId).
+        nextEpisodePrimeJob?.cancel()
+        val next = computeNextEpisode() ?: return
+        val imdb = cwId.substringBefore(":").ifBlank { return }
+        val nextCwId = "${imdb}:s${next.first}e${next.second}"
+        val backendBase = readBackendBase()
+
+        nextEpisodePrimeJob = pollScope.launch {
+            try {
+                // ── 1) Fetch streams for the next episode ───────────
+                val streamsJson = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    httpGetJson("${backendBase}/api/streams/series/${nextCwId}")
+                } ?: return@launch
+                val streams = streamsJson.optJSONArray("streams") ?: return@launch
+                if (streams.length() == 0) return@launch
+
+                // ── 2) Pick best candidate ──────────────────────────
+                // Mirrors React `pickAutoplayCandidate`: prefer English
+                // + Premiumize-cached, then highest resolution.
+                val pickedUrl = pickBestStreamUrl(streams) ?: return@launch
+
+                // ── 3) Fetch English subtitle (best-effort) ─────────
+                val subUrl = try {
+                    withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        httpGetJson("${backendBase}/api/subtitles/series/${nextCwId}")
+                            ?.optJSONArray("subtitles")
+                            ?.let { arr ->
+                                var match: String? = null
+                                for (i in 0 until arr.length()) {
+                                    val s = arr.optJSONObject(i) ?: continue
+                                    val lang = s.optString("lang", "")
+                                    if (lang.startsWith("en", ignoreCase = true)) {
+                                        match = s.optString("url", "").takeIf { it.isNotBlank() }
+                                        if (match != null) break
+                                    }
+                                }
+                                match
+                            }
+                    } ?: ""
+                } catch (_: Throwable) { "" }
+
+                // ── 4) Build a friendly title for the next ep ───────
+                val nextTitle = "S${next.first} · E${next.second}"
+
+                // ── 5) Stash + queue on the main thread ─────────────
+                withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    nextEpisodePrimedUrl = pickedUrl
+                    nextEpisodePrimedSubUrl = subUrl
+                    nextEpisodePrimedTitle = nextTitle
+                    nextEpisodePrimedCwId = nextCwId
+                    try {
+                        val nextItem = MediaItem.Builder()
+                            .setUri(pickedUrl)
+                            .setMediaId(pickedUrl)
+                            .build()
+                        // Replace any earlier primed item (e.g. user
+                        // changed stream sources mid-playback).
+                        while (player.mediaItemCount > 1) {
+                            player.removeMediaItem(player.mediaItemCount - 1)
+                        }
+                        player.addMediaItem(nextItem)
+                        // ExoPlayer automatically pre-buffers the next
+                        // item once the current one is within the
+                        // `bufferForPlaybackAfterRebufferMs` window,
+                        // but we trigger an explicit prepare so
+                        // network handshake happens NOW (when we have
+                        // 60 s of slack), not at credits roll.
+                        Log.i(TAG, "next-ep primed: $nextTitle → $pickedUrl")
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "could not queue primed next item", t)
+                        nextEpisodePrimedUrl = null
+                    }
+                }
+            } catch (_: kotlinx.coroutines.CancellationException) {
+                // expected if the user backed out before we finished
+            } catch (t: Throwable) {
+                Log.w(TAG, "kickoffNextEpisodePrime failed", t)
+            }
+        }
+    }
+
+    /** Pick the best playable stream URL from a backend `streams`
+     *  array.  Heuristic mirrors React `pickAutoplayCandidate`:
+     *    • Prefer English-tagged + 1080p + Premiumize-cached
+     *    • Then English-tagged
+     *    • Then the first stream with a usable `url`. */
+    private fun pickBestStreamUrl(arr: org.json.JSONArray): String? {
+        var englishCachedHd: String? = null
+        var englishAny: String? = null
+        var firstUsable: String? = null
+        for (i in 0 until arr.length()) {
+            val s = arr.optJSONObject(i) ?: continue
+            val url = s.optString("url", "").trim()
+            if (url.isBlank()) continue
+            if (firstUsable == null) firstUsable = url
+            val isEnglish = s.optBoolean("_is_english", false)
+            val quality = s.optString("_quality_label", "").lowercase()
+            val cached   = s.optBoolean("_pm_cached", false)
+            if (isEnglish && englishAny == null) englishAny = url
+            if (isEnglish && cached && quality.contains("1080") && englishCachedHd == null) {
+                englishCachedHd = url
+            }
+        }
+        return englishCachedHd ?: englishAny ?: firstUsable
+    }
+
+    /** Tiny blocking HTTP GET that parses JSON.  No OkHttp dep, no
+     *  retries — fail silently and let the caller fall back to the
+     *  legacy intent path.  Always runs on Dispatchers.IO. */
+    private fun httpGetJson(urlStr: String): org.json.JSONObject? {
+        return try {
+            val u = java.net.URL(urlStr)
+            val c = u.openConnection() as java.net.HttpURLConnection
+            try {
+                c.connectTimeout = 8_000
+                c.readTimeout = 12_000
+                c.requestMethod = "GET"
+                c.setRequestProperty("Accept", "application/json")
+                if (c.responseCode !in 200..299) return null
+                val body = c.inputStream.bufferedReader().use { it.readText() }
+                org.json.JSONObject(body)
+            } finally {
+                try { c.disconnect() } catch (_: Throwable) {}
+            }
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    /**
+     * v2.10.30 — Switch to the primed next episode in-place.
+     *
+     * Called from the "PLAY NEXT EPISODE" pill.  If we managed to
+     * prime a candidate URL we use `seekToNextMediaItem()` for an
+     * instant in-activity swap.  Otherwise we fall back to the
+     * legacy intent-via-SharedPreferences + finish() round trip
+     * that takes the user back through the WebView episode picker.
+     */
+    private fun jumpToPrimedNextEpisode() {
+        val primedUrl = nextEpisodePrimedUrl
+        if (primedUrl != null && player.hasNextMediaItem()) {
+            try {
+                // Persist final progress for the OLD episode before
+                // the queue advances and `cwId` changes — otherwise
+                // Continue Watching would never see the user
+                // finished the credits.  Force a write by zeroing
+                // the throttle, then call maybePersistProgress with
+                // pos==dur so the entry counts as "completed".
+                lastProgressSaveAt = 0L
+                val dur = player.duration.coerceAtLeast(0L)
+                if (cwId.isNotBlank() && dur > 0L) {
+                    maybePersistProgress(dur, dur)
+                }
+                // Swap to the queued primed item.
+                player.seekToNextMediaItem()
+                player.playWhenReady = true
+
+                // Update internal state so the overlay metadata + CW
+                // saves correctly reflect the new episode.  Title +
+                // cwId are the most user-visible bits; richer meta
+                // (synopsis / runtime / poster) stays from the
+                // previous episode for now — the React side will
+                // refresh it once the user backs out.
+                streamUrl = primedUrl
+                streamTitle = nextEpisodePrimedTitle.ifBlank { streamTitle }
+                cwId = nextEpisodePrimedCwId.ifBlank { cwId }
+                startAtMs = 0L
+                hasNextEpisodeFlow.value = false
+                nextEpisodePrimedUrl = null
+                nextEpisodePrimedSubUrl = ""
+                nextEpisodePrimedTitle = ""
+                nextEpisodePrimedCwId = ""
+                nextEpisodePrimeStartedFor = ""
+                Log.i(TAG, "jumped to primed next episode in-place")
+                return
+            } catch (t: Throwable) {
+                Log.w(TAG, "primed seek failed; falling back to intent", t)
+            }
+        }
+        // Fallback path — same behaviour as before this change.
+        if (isSeriesEpisode) {
+            saveNextEpisodeIntent(autoplay = true)
+            finish()
+        }
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {

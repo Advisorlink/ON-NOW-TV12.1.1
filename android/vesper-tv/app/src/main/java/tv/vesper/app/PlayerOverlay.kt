@@ -35,15 +35,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
-import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.Forward10
-import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material3.CircularProgressIndicator
@@ -745,43 +742,127 @@ private fun ControlDock(
                         onClick = { onSeekBy(10_000) },
                     )
                 }
-                // RIGHT cluster: CC / NextEp (or Cast disabled) / Fullscreen
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    DockButton(
-                        Icons.Default.ClosedCaption,
-                        "CC",
-                        onClick = onPickSubs,
-                    )
-                    // v2.10.24 — NEXT EPISODE button.  Replaces the
-                    // disabled Cast button when a series episode is
-                    // ≤60 s from credits AND we have a next episode
-                    // to jump to.  Falls back to the disabled Cast
-                    // placeholder for movies / mid-episode playback
-                    // so the row layout stays stable.
+                // RIGHT cluster: "PLAY NEXT EPISODE" pill (series only,
+                // ≤60 s from credits).  v2.10.30 — Replaced the old
+                // trio of CC / NextEp(small) / Fullscreen with a
+                // single prominent pill that auto-grabs focus when
+                // shown.  Subtitles already live in the LEFT cluster,
+                // Cast was never implemented, and the player is
+                // always fullscreen — so all three were noise.
+                // When NOT in the next-episode window we render an
+                // invisible spacer so the play/pause stays visually
+                // centred over the scrub bar instead of shifting
+                // right when the pill disappears.
+                Box(
+                    modifier = Modifier.widthIn(min = 260.dp),
+                    contentAlignment = Alignment.CenterEnd,
+                ) {
                     if (hasNextEp) {
-                        DockButton(
-                            Icons.Default.SkipNext,
-                            "Next Ep",
-                            active = true,
-                            onClick = onNextEp,
-                        )
-                    } else {
-                        DockButton(
-                            Icons.Default.Cast,
-                            "Cast",
-                            enabled = false,  // not yet implemented
-                            onClick = {},
-                        )
+                        NextEpisodePill(onClick = onNextEp)
                     }
-                    DockButton(
-                        Icons.Default.Fullscreen,
-                        "Fullscreen",
-                        enabled = false,  // already fullscreen
-                        onClick = {},
-                    )
                 }
             }
         }
+    }
+}
+
+/**
+ * Big "PLAY NEXT EPISODE" call-to-action pill that lives inside the
+ * right slot of the bottom dock during the ≤60 s pre-credits window.
+ *
+ * Design intent (per user direction Feb 10 2026):
+ *   • Inside the dock (not floating above), so it shares the same
+ *     focus row as the other controls — D-pad Right from the
+ *     play/pause centre lands on it directly.
+ *   • Auto-grabs focus when it appears so the user can hit OK
+ *     immediately without navigating to it.
+ *   • Highlight must be unmistakable when focused — bright cyan
+ *     fill, 4 dp glowing border, monospaced uppercase label, and
+ *     a subtle scale animation so it pops against the smaller
+ *     circular dock buttons.  The user explicitly called out that
+ *     the previous small-icon variant looked the same focused or
+ *     not, which is why we made the whole pill swap colours.
+ */
+@Composable
+private fun NextEpisodePill(onClick: () -> Unit) {
+    val focusRequester = remember { FocusRequester() }
+    var focused by remember { mutableStateOf(false) }
+
+    // Auto-focus the moment the pill enters composition so the user
+    // can just press OK without dpad-navigating.  `try` because the
+    // focus system may not be ready on the very first frame.
+    LaunchedEffect(Unit) {
+        try { focusRequester.requestFocus() } catch (_: Exception) {}
+    }
+
+    // Pulsing glow halo when focused.  Even at rest the pill is
+    // visually loud (cyan fill) — the pulse just confirms "yes,
+    // this is what's selected".  Period chosen long enough to feel
+    // calm but short enough to be perceptible without distracting
+    // from the credits playing behind.
+    val pulseTransition = rememberInfiniteTransition(label = "next-ep-pulse")
+    val pulse by pulseTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "next-ep-pulse-frac",
+    )
+
+    val bg = if (focused) CyanPrimary else Color(0xFF0B2A3D)
+    val fg = if (focused) NavyDeep else CyanPrimary
+    val borderColor = if (focused) {
+        // Bright cyan, slightly oscillating opacity for the glow
+        // effect.  We deliberately keep it ON the brand cyan rather
+        // than going white — sticks to the established palette.
+        Color(0xFF5DC8FF).copy(alpha = 0.55f + 0.45f * pulse)
+    } else {
+        Color(0x665DC8FF)
+    }
+    val borderWidth = if (focused) 4.dp else 2.dp
+    val scale = if (focused) 1.06f else 1.0f
+
+    Row(
+        modifier = Modifier
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .focusRequester(focusRequester)
+            .onFocusChanged { focused = it.isFocused }
+            .focusable(enabled = true)
+            .onKeyEvent { ev ->
+                if (ev.type == KeyEventType.KeyDown
+                    && (ev.key == Key.Enter
+                        || ev.key == Key.DirectionCenter
+                        || ev.key == Key.NumPadEnter)
+                ) { onClick(); true } else false
+            }
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .clip(RoundedCornerShape(28.dp))
+            .background(bg)
+            .border(borderWidth, borderColor, RoundedCornerShape(28.dp))
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Default.SkipNext,
+            contentDescription = "Play next episode",
+            tint = fg,
+            modifier = Modifier.size(26.dp),
+        )
+        Text(
+            text = "PLAY NEXT EPISODE",
+            color = fg,
+            fontSize = 14.sp,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 2.sp,
+        )
     }
 }
 

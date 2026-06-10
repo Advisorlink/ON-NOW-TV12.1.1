@@ -1,5 +1,39 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.30 — ExoPlayer dock cleanup + prominent "PLAY NEXT EPISODE" pill + background next-episode pre-prime (Feb 10 2026).**
+>
+> User feedback: "Remove those other 3 buttons cause we have subtitle button on the left. Then when the next episode is one min out it should automatically find the next episode in the background, and that's when the play next episode button should appear 1 min before end. Make sure it's noticeable when it's highlighted. Then when you click play next episode it should already be primed and ready to go. No need to go back to the episode selection screen. The button should be inside the dock, not above it."
+>
+> **PlayerOverlay.kt — visual changes:**
+>   • Removed the right-cluster trio: **CC** (redundant with Subtitles in the LEFT cluster), the small **Next Ep** dock icon, and the disabled **Fullscreen** button.
+>   • Added a new `NextEpisodePill` composable that occupies the same slot inside the dock (`widthIn(min = 260.dp)` so the centre cluster stays visually centred whether or not the pill is showing).
+>   • Pill is **deliberately loud when focused** — bright cyan fill, navy text, 4 dp pulsing cyan border (`rememberInfiniteTransition` + `animateFloat` oscillating 0.55→1.0 alpha over 1400 ms), 1.06× scale via `graphicsLayer`, 14 sp uppercase monospace "PLAY NEXT EPISODE" label with 2 sp letter-spacing.
+>   • Auto-grabs focus the moment it enters composition (`LaunchedEffect(Unit) { focusRequester.requestFocus() }`) so the user can hit OK immediately without dpad-navigating to it.
+>
+> **ExoPlayerActivity.kt — background pre-prime:**
+>   • New `kickoffNextEpisodePrime()` private fn that fires once per current episode the first time the `≤60 s from credits` threshold is crossed.  Runs on `pollScope` with `Dispatchers.IO` for the HTTP calls.
+>   • Calls `${backendBase}/api/streams/series/{nextCwId}` (same endpoint the React WebView uses) → JSON-parses the response → calls `pickBestStreamUrl()` which mirrors the React `pickAutoplayCandidate` heuristic (English + Premiumize-cached + 1080p preferred, fallback English-any, fallback first-usable).
+>   • Best-effort subtitle resolution via `/api/subtitles/series/{nextCwId}`.
+>   • On `Dispatchers.Main` jumps back and calls `player.addMediaItem(MediaItem.fromUri(pickedUrl))` so ExoPlayer's queue starts pre-buffering immediately (we have 60 s of slack — network handshake + first segment of HLS / progressive bytes is fully warm by credits roll).
+>   • New `jumpToPrimedNextEpisode()` wired to `onNextEpisode`: if `nextEpisodePrimedUrl != null` AND `player.hasNextMediaItem()`, calls `player.seekToNextMediaItem()` for an instant in-activity swap — **no return-to-picker round trip, no activity teardown, no black flash**.  Falls back to the legacy `saveNextEpisodeIntent + finish` path on any failure so the user still gets the next episode, just via a re-launch.
+>   • Persists final progress of the OLD episode (`maybePersistProgress(dur, dur)`) BEFORE the queue advances so Continue Watching marks the user as having finished the credits.
+>
+> **Helpers added:**
+>   • `httpGetJson(urlStr)` — tiny `HttpURLConnection` blocking GET that JSON-parses the body; no OkHttp dep, no retries, fails silently.
+>   • `pickBestStreamUrl(arr)` — mirrors React's autoplay heuristic.
+>
+> **Failure modes handled:**
+>   • User backs out before prime completes → `pollScope.cancel()` in `onDestroy` kills the coroutine.
+>   • Network failure / empty streams response → `nextEpisodePrimedUrl = null` → click falls back to legacy intent path.
+>   • Last episode of season → backend returns empty streams → prime no-ops → click falls back (legacy path will show "no streams").
+>   • User changes stream source mid-playback (cwId mutates) → `nextEpisodePrimeStartedFor` mismatch triggers a fresh prime + the old queued item is removed via `while (mediaItemCount > 1) removeMediaItem(last)`.
+>
+> Files touched:
+>   • `/app/android/vesper-tv/app/src/main/java/tv/vesper/app/PlayerOverlay.kt` (right-cluster removal + `NextEpisodePill` composable).
+>   • `/app/android/vesper-tv/app/src/main/java/tv/vesper/app/ExoPlayerActivity.kt` (new state fields, `kickoffNextEpisodePrime`, `pickBestStreamUrl`, `httpGetJson`, `jumpToPrimedNextEpisode`, wired into `maybePersistProgress` + `onNextEpisode`).
+>
+> Requires native APK rebuild — verified by reading code only; cannot exercise ExoPlayer queue or `addMediaItem` from the web preview environment.
+
 > **🟢 v2.10.29 — "Just works" custom avatar upload: auto-resize photos + auto-convert short videos to animated GIFs in-app (Feb 10 2026).**
 >
 > User feedback: "That tip on how to get an animated one is super confusing. Can we not just build something that makes it animate automatically when they upload a video or GIF under three seconds? Make it a lot easier."
