@@ -1,5 +1,29 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.28 — Upload-custom-avatar modal: focus trap + 512×512 preference + animated-GIF tip (Feb 10 2026).**
+>
+> User report: "When you click on the upload one, no focus inside the box. It's behind the box, so you can't click on anything."
+>
+> Replaced the old single-key `Escape/Backspace` handler in `UploadAvatarOverlay` with the full **ConfirmModal-style two-pronged focus trap**:
+>   1. **Capture-phase key intercept** — every ArrowLeft/Right/Up/Down fires `e.preventDefault() + e.stopPropagation()` so the global `useSpatialFocus` never sees the key.  Left/Up cycles backward through the modal buttons (Cancel → Choose → Save → wrap), Right/Down cycles forward.
+>   2. **Capture-phase `focusin` rubber-band** — defensive backstop.  If focus ever lands OUTSIDE the modal (e.g. a deferred lazy-fetch grabs an avatar tile behind the backdrop), slam it back to the Choose-file button instantly.
+>
+> Added `useEffect` `grab()` retry chain (sync + rAF + 50 ms + 150 ms) that imperatively focuses the **Choose file** button on mount, defeating any in-flight Enter-release race from the long-press / click that opened the modal.
+>
+> Refs `cancelBtnRef` / `pickBtnRef` / `saveBtnRef` thread through the cycle order; `data-focus-style="pill"` repaints the focus ring on the new target as focus moves.
+>
+> Instructional copy rewritten:
+>   • `512×512 px square` **preferred — any size works, we'll auto-crop to a circle** (clarifies the 512×512 is a hint, not a hard requirement).
+>   • `Rectangular images get center-cropped automatically` (preview already uses `borderRadius:50%; overflow:hidden`).
+>   • New highlighted tip box: `💡 Want an animated avatar?  Drag a short video (≤3 s, looping) into ezgif.com/video-to-gif on any browser → set width to 512 → download.  Or use Giphy / Tenor and pick a small loop.`
+>
+> End-to-end verified in the live preview:
+>   • Modal opens with focus ring on **Choose file** (active testId = `avatar-upload-pick`, in-modal = true).
+>   • D-pad Right → `avatar-upload-cancel`; D-pad Left → back to `avatar-upload-pick`.
+>   • After `setInputFiles`, preview shows the image circle-cropped and Save button appears; D-pad Right reaches `avatar-upload-save`.
+>
+> File: `/app/frontend/src/pages/ProfileEdit.jsx` (function `UploadAvatarOverlay`, lines 2378–2830).
+
 > **🟢 v2.10.27 — Jumpy nav smoothing + cover cutoff fix + CW long-press auto-focus + ExoPlayer scrub-bar D-pad + faster post-seek resume (Feb 9 2026).**
 >
 > Four-issue user video — three WebView fixes + one native ExoPlayer fix.
