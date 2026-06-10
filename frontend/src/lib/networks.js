@@ -16,6 +16,12 @@
  * titles).  v2.10.32.
  */
 
+// v2.10.36 — Order locked per user request: Netflix → Disney+ →
+// Apple TV+ → Prime → Binge → Stan → Hulu → Max → Paramount+.
+// The two AU services (Binge, Stan) sit prominently in the middle
+// of the row since this rebuild is targeted at the Australian
+// audience; Hulu / Max / Paramount+ trail because their AU library
+// is a strict subset of the others.
 export const NETWORKS = [
     {
         slug: 'netflix',
@@ -27,15 +33,6 @@ export const NETWORKS = [
         customLogo: '/networks/netflix.webp',
     },
     {
-        slug: 'apple-tv',
-        name: 'Apple TV+',
-        wordmark: 'tv+',
-        accent: '#ffffff',
-        background:
-            'linear-gradient(135deg, #050505 0%, #1c1c1e 55%, #2c2c2e 100%)',
-        customLogo: '/networks/apple-tv.webp',
-    },
-    {
         slug: 'disney-plus',
         name: 'Disney+',
         wordmark: 'Disney+',
@@ -45,6 +42,15 @@ export const NETWORKS = [
         customLogo: '/networks/disney-plus.webp',
     },
     {
+        slug: 'apple-tv',
+        name: 'Apple TV+',
+        wordmark: 'tv+',
+        accent: '#ffffff',
+        background:
+            'linear-gradient(135deg, #050505 0%, #1c1c1e 55%, #2c2c2e 100%)',
+        customLogo: '/networks/apple-tv.webp',
+    },
+    {
         slug: 'prime-video',
         name: 'Prime Video',
         wordmark: 'prime video',
@@ -52,6 +58,28 @@ export const NETWORKS = [
         background:
             'linear-gradient(135deg, #00263a 0%, #006497 55%, #00a8e1 100%)',
         customLogo: '/networks/prime-video.webp',
+    },
+    {
+        slug: 'binge',
+        name: 'Binge',
+        wordmark: 'BiNGE',
+        accent: '#ff3d8a',
+        background:
+            'linear-gradient(135deg, #03001a 0%, #410066 50%, #ff3d8a 100%)',
+        customLogo: '/networks/binge.webp',
+        // Foxtel-owned AU-only service.  Empty in every other region.
+        region: 'AU',
+    },
+    {
+        slug: 'stan',
+        name: 'Stan',
+        wordmark: 'stan.',
+        accent: '#1e6dff',
+        background:
+            'linear-gradient(135deg, #000010 0%, #001e6e 55%, #1e6dff 100%)',
+        customLogo: '/networks/stan.webp',
+        // AU-only.  Empty in every other region.
+        region: 'AU',
     },
     {
         slug: 'hulu',
@@ -82,28 +110,6 @@ export const NETWORKS = [
         // TMDB's US Paramount+ provider returns ~8 titles total; AU
         // returns ~570 movies + 471 TV episodes for the same network.
         // Defaulting to AU is a 70× content boost for every user.
-        region: 'AU',
-    },
-    {
-        slug: 'binge',
-        name: 'Binge',
-        wordmark: 'BiNGE',
-        accent: '#ff3d8a',
-        background:
-            'linear-gradient(135deg, #03001a 0%, #410066 50%, #ff3d8a 100%)',
-        customLogo: '/networks/binge.webp',
-        // Foxtel-owned AU-only service.  Empty in every other region.
-        region: 'AU',
-    },
-    {
-        slug: 'stan',
-        name: 'Stan',
-        wordmark: 'stan.',
-        accent: '#1e6dff',
-        background:
-            'linear-gradient(135deg, #000010 0%, #001e6e 55%, #1e6dff 100%)',
-        customLogo: '/networks/stan.webp',
-        // AU-only.  Empty in every other region.
         region: 'AU',
     },
 ];

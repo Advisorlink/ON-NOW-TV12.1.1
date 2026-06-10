@@ -661,11 +661,27 @@ export default function Detail() {
             document.querySelector('[data-testid^="detail-play-"]:not([disabled])'),
             document.querySelector('[data-focusable="true"][data-initial-focus="true"]'),
             document.querySelector('[data-testid^="season-pill-"]'),
+            // v2.10.37 — Filter cast / similar / episode tiles OUT
+            // of the generic fallback.  The Autoplay button mounts
+            // asynchronously after streams resolve (≈0.5–3 s); cast
+            // tiles render eagerly from the meta payload.  Without
+            // this filter the generic fallback would land focus on
+            // the first cast actor, and the late-arrival watcher
+            // below would interpret that as "user moved" and never
+            // grab focus back to Autoplay — which is exactly the
+            // regression the user reported ("clicking a title goes
+            // to actors, not autoplay").  We'd rather have NO
+            // initial focus for 1-2 s than the wrong focus that
+            // sticks.
             Array.from(document.querySelectorAll('[data-focusable="true"]'))
                 .find((el) =>
                     !el.disabled &&
                     !el.closest('[data-testid="side-nav"]') &&
                     !el.closest('[data-testid="kids-side-nav"]') &&
+                    !el.matches('[data-testid^="cast-actor-"]') &&
+                    !el.matches('[data-testid^="cast-film-"]') &&
+                    !el.matches('[data-testid^="cast-similar-"]') &&
+                    !el.matches('[data-testid^="episode-"]') &&
                     el.getBoundingClientRect().width > 0
                 ),
         ];
@@ -698,18 +714,24 @@ export default function Detail() {
 
         /* Late-arrival watcher: only relevant for MOVIE pages
          * where the Autoplay button mounts asynchronously after
-         * streams resolve.  We additionally check that focus has
-         * NOT moved to a user-driven target (cast actor, episode,
-         * similar card etc.) — if it has, we let the user keep
-         * their place and stop watching. */
+         * streams resolve.
+         *
+         * v2.10.37 — Cast actors are no longer treated as
+         * "user moved" because they were typically the fallback
+         * target (now filtered above) rather than a deliberate
+         * navigation choice.  Only an EPISODE / SEASON / SIMILAR
+         * focus is treated as user-driven (those require explicit
+         * D-pad navigation on this page).  This guarantees that
+         * once the Autoplay button finally mounts, focus snaps to
+         * it even if cast accidentally got it during the wait.
+         */
         const watcher = setInterval(() => {
             if (cancelled || preferredHit) return;
             const ae = document.activeElement;
             const userMoved =
                 ae && (
-                    ae.matches('[data-testid^="cast-actor-"]') ||
-                    ae.matches('[data-testid^="cast-film-"]') ||
                     ae.matches('[data-testid^="cast-similar-"]') ||
+                    ae.matches('[data-testid^="cast-film-"]') ||
                     ae.matches('[data-testid^="episode-"]') ||
                     ae.matches('[data-testid^="season-"]')
                 );
