@@ -322,67 +322,11 @@ function CWTile({
 
     if (confirmRemove) {
         return (
-            <div
-                className="shrink-0 relative overflow-hidden"
-                style={{
-                    width: 'clamp(280px, 22vw, 380px)',
-                    aspectRatio: '16 / 9',
-                    borderRadius: 18,
-                    background: 'rgba(11,19,34,0.92)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    gap: 12,
-                    padding: 16,
-                }}
-            >
-                <div
-                    style={{
-                        fontSize: 14,
-                        color: 'var(--vesper-text-2)',
-                        textAlign: 'center',
-                    }}
-                >
-                    Remove "{entry.title}" from Continue Watching?
-                </div>
-                <div className="flex gap-2">
-                    <button
-                        data-focusable="true"
-                        data-focus-style="pill"
-                        data-initial-focus="true"
-                        tabIndex={0}
-                        onClick={onRemove}
-                        style={{
-                            padding: '8px 16px',
-                            borderRadius: 999,
-                            background: '#FF6B6B',
-                            color: '#fff',
-                            fontWeight: 600,
-                            fontSize: 13,
-                        }}
-                    >
-                        Remove
-                    </button>
-                    <button
-                        data-focusable="true"
-                        data-focus-style="pill"
-                        tabIndex={0}
-                        onClick={onCancel}
-                        style={{
-                            padding: '8px 16px',
-                            borderRadius: 999,
-                            background: 'rgba(255,255,255,0.10)',
-                            color: '#fff',
-                            fontWeight: 600,
-                            fontSize: 13,
-                        }}
-                    >
-                        Cancel
-                    </button>
-                </div>
-            </div>
+            <ConfirmRemoveCard
+                entry={entry}
+                onRemove={onRemove}
+                onCancel={onCancel}
+            />
         );
     }
 
@@ -528,6 +472,101 @@ function CWTile({
                 />
             </div>
         </button>
+    );
+}
+
+function ConfirmRemoveCard({ entry, onRemove, onCancel }) {
+    // v2.10.40 — User explicitly requested the Remove button is
+    // focused the instant the long-press confirm UI appears.  The
+    // global `data-initial-focus` retry only runs at app boot, so
+    // imperatively focus the button on mount of this sub-component.
+    const removeRef = useRef(null);
+    useEffect(() => {
+        const el = removeRef.current;
+        if (!el) return;
+        // rAF so the focus runs AFTER React's commit and after the
+        // shelf's previous parent button's blur — without this the
+        // spatial focus engine's own keyup handler can race us and
+        // re-focus the original tile.
+        const id = requestAnimationFrame(() => {
+            try {
+                el.focus({ preventScroll: true });
+                el.setAttribute('data-focused', 'true');
+                document
+                    .querySelectorAll('[data-focused="true"]')
+                    .forEach((other) => {
+                        if (other !== el) other.removeAttribute('data-focused');
+                    });
+            } catch { /* ignore */ }
+        });
+        return () => cancelAnimationFrame(id);
+    }, []);
+
+    return (
+        <div
+            data-testid="cw-confirm-remove"
+            className="shrink-0 relative overflow-hidden"
+            style={{
+                width: 'clamp(280px, 22vw, 380px)',
+                aspectRatio: '16 / 9',
+                borderRadius: 18,
+                background: 'rgba(11,19,34,0.92)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: 12,
+                padding: 16,
+            }}
+        >
+            <div
+                style={{
+                    fontSize: 14,
+                    color: 'var(--vesper-text-2)',
+                    textAlign: 'center',
+                }}
+            >
+                Remove &quot;{entry.title}&quot; from Continue Watching?
+            </div>
+            <div className="flex gap-2">
+                <button
+                    ref={removeRef}
+                    data-testid="cw-remove-confirm"
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
+                    onClick={onRemove}
+                    style={{
+                        padding: '8px 16px',
+                        borderRadius: 999,
+                        background: '#FF6B6B',
+                        color: '#fff',
+                        fontWeight: 600,
+                        fontSize: 13,
+                    }}
+                >
+                    Remove
+                </button>
+                <button
+                    data-testid="cw-remove-cancel"
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
+                    onClick={onCancel}
+                    style={{
+                        padding: '8px 16px',
+                        borderRadius: 999,
+                        background: 'rgba(255,255,255,0.10)',
+                        color: '#fff',
+                        fontWeight: 600,
+                        fontSize: 13,
+                    }}
+                >
+                    Cancel
+                </button>
+            </div>
+        </div>
     );
 }
 
