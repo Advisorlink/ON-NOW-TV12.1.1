@@ -688,7 +688,13 @@ function EpisodeCard({
                             data-testid={`watched-${ep.season}-${ep.episode}`}
                             className="absolute top-2 right-2 flex items-center gap-1.5 vesper-mono"
                             style={{
-                                background: 'rgba(var(--vesper-blue-rgb),0.92)',
+                                /* v2.10.46-d — Restored the original
+                                 * GREEN palette for "Watched" so it's
+                                 * distinct from the blue UI accent.
+                                 * User reported the blue badge from
+                                 * the June-4 fallback was blending
+                                 * with the rest of the page. */
+                                background: 'rgba(34, 197, 94, 0.94)',
                                 color: '#06080F',
                                 fontSize: 'clamp(9px, 0.62vw, 11px)',
                                 letterSpacing: '0.18em',
@@ -697,7 +703,7 @@ function EpisodeCard({
                                 padding: '4px 9px 4px 7px',
                                 borderRadius: 6,
                                 boxShadow:
-                                    '0 4px 14px rgba(var(--vesper-blue-rgb),0.45)',
+                                    '0 4px 14px rgba(34, 197, 94, 0.45)',
                             }}
                         >
                             <svg
@@ -713,6 +719,44 @@ function EpisodeCard({
                                 <polyline points="20 6 9 17 4 12" />
                             </svg>
                             Watched
+                        </div>
+                    )}
+                    {!watched && pct > 0 && (
+                        /* v2.10.46-d — Yellow "Watching" badge: lost
+                         * in the June-4 rollback, restored from the
+                         * pre-rollback build.  Shown when the user
+                         * has any progress on the episode but hasn't
+                         * crossed the watched threshold. */
+                        <div
+                            data-testid={`watching-${ep.season}-${ep.episode}`}
+                            className="absolute top-2 right-2 flex items-center gap-1.5 vesper-mono"
+                            style={{
+                                background: 'rgba(250, 204, 21, 0.95)',
+                                color: '#06080F',
+                                fontSize: 'clamp(9px, 0.62vw, 11px)',
+                                letterSpacing: '0.18em',
+                                textTransform: 'uppercase',
+                                fontWeight: 700,
+                                padding: '4px 9px 4px 7px',
+                                borderRadius: 6,
+                                boxShadow:
+                                    '0 4px 14px rgba(250, 204, 21, 0.40)',
+                            }}
+                        >
+                            <svg
+                                width="11"
+                                height="11"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            >
+                                <circle cx="12" cy="12" r="10" />
+                                <polyline points="12 6 12 12 16 14" />
+                            </svg>
+                            Watching
                         </div>
                     )}
                     {pct > 0 && (
