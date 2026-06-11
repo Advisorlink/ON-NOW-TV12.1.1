@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { API } from '@/lib/api';
 import * as img from '@/lib/img';
 import useLongPress from '@/hooks/useLongPress';
+import { showNavLoader, hideNavLoader } from '@/lib/navLoader';
 
 /**
  * Poster tile for TMDB-sourced network catalogues.  The TMDB discover
@@ -17,11 +18,6 @@ import useLongPress from '@/hooks/useLongPress';
  * mobile) opens the "Add to My List" modal — same UX as the
  * Home-page <PosterTile/>, so users have one mental model for
  * adding to library across the whole app.
- *
- * v2.10.42 — Removed full-screen nav loader; the inline `resolving`
- * spinner state already gives the user visual feedback during the
- * IMDB lookup, and Detail.jsx shows its own progressive layout
- * with a "Loading" pill on the Autoplay button.
  */
 export default function NetworkPosterTile({ item }) {
     const navigate = useNavigate();
@@ -34,6 +30,7 @@ export default function NetworkPosterTile({ item }) {
         if (resolving) return;
         setResolving(true);
         setError(false);
+        showNavLoader();
         try {
             const r = await fetch(
                 `${API}/tmdb/imdb/${tmdbType}/${item.tmdb_id}`,
@@ -42,12 +39,14 @@ export default function NetworkPosterTile({ item }) {
             const data = await r.json();
             const imdbId = data?.imdb_id;
             if (!imdbId) {
+                hideNavLoader();
                 setError(true);
                 setTimeout(() => setError(false), 2200);
                 return;
             }
             navigate(`/title/${item.type}/${imdbId}`);
         } catch {
+            hideNavLoader();
             setError(true);
             setTimeout(() => setError(false), 2200);
         } finally {
