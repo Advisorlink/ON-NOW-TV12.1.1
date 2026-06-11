@@ -321,6 +321,31 @@ class ExoPlayerActivity : ComponentActivity() {
     private val subtitleTracksFlow = MutableStateFlow<List<TrackOption>>(emptyList())
     private val streamsFlow = MutableStateFlow<List<StreamOption>>(emptyList())
 
+    // v2.10.40 — PlayerInfo is now a reactive StateFlow so updates
+    // mid-playback (e.g. when skip-next-episode swaps in the next
+    // episode in-place) propagate to the Compose overlay's title,
+    // synopsis, poster.  Previously the title was captured at
+    // `setContent` time and stayed at S1E5 even after the activity
+    // had swapped to S1E6, making the user think the "Skip Next
+    // Episode" button had replayed the same episode.
+    private val playerInfoFlow = MutableStateFlow(
+        PlayerInfo(
+            title = "", synopsis = "", year = "", runtime = "", rating = "",
+            backdrop = "", addonSource = "", quality = "", isEnglish = false,
+            sizeGb = 0f, poster = "",
+        )
+    )
+
+    // v2.10.40 — Force-shows the full-screen LoadingScreen during a
+    // mid-playback episode swap.  Without this the Compose overlay
+    // gates the loader on `hasEverPlayed=false`, so a swap that
+    // happens AFTER the user has been watching for a few seconds
+    // only renders the tiny corner spinner — visually it looks like
+    // nothing happened.  Set to true the moment `jumpToPrimedNextEpisode`
+    // fires; reset to false in onPlaybackStateChanged when STATE_READY
+    // fires for the new episode.
+    private val isSwappingEpisodeFlow = MutableStateFlow(false)
+
     // Parsed list of alternate streams from EXTRA_STREAMS_JSON.  Each
     // entry has at minimum `url` + `label`.
     private data class StreamEntry(
@@ -393,6 +418,14 @@ class ExoPlayerActivity : ComponentActivity() {
         backdrop    = intent.getStringExtra(VlcPlayerActivity.EXTRA_BACKDROP) ?: ""
         poster      = intent.getStringExtra(VlcPlayerActivity.EXTRA_POSTER) ?: ""
         cwId        = intent.getStringExtra(VlcPlayerActivity.EXTRA_CW_ID) ?: ""
+
+        // v2.10.40 — Seed the reactive PlayerInfo flow with the
+        // initial extras so the Compose overlay reads the right
+        // title / poster / backdrop on first composition.  Updated
+        // in jumpToPrimedNextEpisode() when the next-episode swap
+        // happens so the dock title flips immediately to "S1 · E6"
+        // instead of staying stuck on "S1 · E5".
+        publishPlayerInfo()
 
         // v2.10.35 — Kick off the TMDB title-logo fetch as soon as
         // we know the cwId.  Runs off-thread; the activity stays
@@ -668,6 +701,12 @@ class ExoPlayerActivity : ComponentActivity() {
                                        state == Player.STATE_IDLE)
                 if (state == Player.STATE_READY) {
                     durationMsFlow.value = player.duration.coerceAtLeast(0L)
+                    // v2.10.40 — The next episode is buffered and
+                    // playing.  Drop the swap-loading overlay so the
+                    // user sees the new frame and dock.
+                    if (isSwappingEpisodeFlow.value) {
+                        isSwappingEpisodeFlow.value = false
+                    }
                 }
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -735,24 +774,8 @@ class ExoPlayerActivity : ComponentActivity() {
             descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
             setContent {
                 PlayerOverlay(
-                    info = PlayerInfo(
-                        title       = streamTitle,
-                        synopsis    = synopsis,
-                        year        = year,
-                        runtime     = runtime,
-                        rating      = rating,
-                        backdrop    = backdrop.ifBlank { poster },
-                        addonSource = addonSource,
-                        quality     = qualityLabel,
-                        isEnglish   = isEnglish,
-                        sizeGb      = sizeGb,
-                        // v2.7.43 — pass the vertical poster (movie
-                        // cover) through to the overlay so the
-                        // loading screen shows the actual cover art
-                        // on the left, not just a still from the
-                        // movie.
-                        poster      = poster,
-                    ),
+                    infoFlow = playerInfoFlow.asStateFlow(),
+                    isSwappingEpisode = isSwappingEpisodeFlow.asStateFlow(),
                     isPlaying       = isPlayingFlow.asStateFlow(),
                     positionMs      = positionMsFlow.asStateFlow(),
                     durationMs      = durationMsFlow.asStateFlow(),
@@ -911,10 +934,18 @@ class ExoPlayerActivity : ComponentActivity() {
         // surfaces earlier; gives the prime job almost twice as much
         // network slack to resolve+buffer the next episode before
         // the user actually hits the click.
+        // v2.10.40 — User wants the pill visible 3 min before
+        // credits (not 2) and wants the next-episode prime job to
+        // start even earlier (4 min) so by the time the pill is
+        // clickable the stream URL is already resolved.  The
+        // staggered thresholds are now:
+        //   • prime  kicks off at remaining ≤ 240_000 ms (4 min)
+        //   • pill   surfaces  at remaining ≤ 180_000 ms (3 min)
+        // The pill threshold also gates the next-episode thumbnail.
         if (isSeriesEpisode && lengthMs > 0L) {
             val remaining = lengthMs - timeMs
             val nextSE = computeNextEpisode()
-            val show = remaining in 0..120_000 && nextSE != null
+            val show = remaining in 0..180_000 && nextSE != null
             if (show != hasNextEpisodeFlow.value) {
                 hasNextEpisodeFlow.value = show
                 // v2.10.34 — Surface the next-episode thumbnail at
@@ -932,7 +963,11 @@ class ExoPlayerActivity : ComponentActivity() {
                     nextEpThumbnailFlow.value = ""
                 }
             }
-            if (show && nextEpisodePrimeStartedFor != cwId) {
+            // Prime job starts at the WIDER 4-minute window so the
+            // background fetch has an extra full minute of head start
+            // before the user can possibly click the pill.
+            val shouldPrime = remaining in 0..240_000 && nextSE != null
+            if (shouldPrime && nextEpisodePrimeStartedFor != cwId) {
                 nextEpisodePrimeStartedFor = cwId
                 kickoffNextEpisodePrime()
             }
@@ -994,6 +1029,28 @@ class ExoPlayerActivity : ComponentActivity() {
                 Log.w(TAG, "logo fetch failed (non-fatal)", t)
             }
         }
+    }
+
+    /**
+     * v2.10.40 — Push the current activity-field values into the
+     * reactive `playerInfoFlow` so the Compose overlay updates
+     * title / poster / backdrop without needing setContent to re-run.
+     * Called at activity init AND after each in-place episode swap.
+     */
+    private fun publishPlayerInfo() {
+        playerInfoFlow.value = PlayerInfo(
+            title       = streamTitle,
+            synopsis    = synopsis,
+            year        = year,
+            runtime     = runtime,
+            rating      = rating,
+            backdrop    = backdrop.ifBlank { poster },
+            addonSource = addonSource,
+            quality     = qualityLabel,
+            isEnglish   = isEnglish,
+            sizeGb      = sizeGb,
+            poster      = poster,
+        )
     }
 
     /** Persist the next-episode intent to SharedPreferences so
@@ -1198,7 +1255,18 @@ class ExoPlayerActivity : ComponentActivity() {
         val primedUrl = nextEpisodePrimedUrl
         val primedCw  = nextEpisodePrimedCwId
         val primedTitle = nextEpisodePrimedTitle
-        if (primedUrl != null && primedCw.isNotBlank()) {
+        // v2.10.40 — Defensive: if the prime job somehow stashed the
+        // URL of the CURRENT episode (addon returned a generic /
+        // fallback pool, or the show's next episode ID resolved to
+        // the same magnet), bail out of the in-place swap path and
+        // fall through to the activity-restart route which will
+        // route via Detail.jsx + fresh stream resolution.  Without
+        // this guard the user sees "Skip Next Episode" click → the
+        // exact same episode buffers again, which they perceive as
+        // a hard bug.
+        val sameUrl = primedUrl != null && primedUrl == streamUrl
+        val sameCw  = primedCw.isNotBlank() && primedCw == cwId
+        if (primedUrl != null && primedCw.isNotBlank() && !sameUrl && !sameCw) {
             try {
                 // Persist final progress for the OLD episode before
                 // the activity state advances and cwId changes —
@@ -1211,13 +1279,39 @@ class ExoPlayerActivity : ComponentActivity() {
                 }
 
                 // ── 1) Mutate activity state ────────────────────────
+                // Compose the new title from the existing show name
+                // prefix + the next episode's SxxEyy label.  The
+                // prime job stashes ONLY "S1 · E6" so we splice the
+                // show name back in here to preserve the full
+                // "Breaking Bad · S01E06" format the dock expects.
+                val showNamePart = streamTitle
+                    .substringBeforeLast(" · S", missingDelimiterValue = streamTitle)
+                    .ifBlank { streamTitle }
+                val newTitle = if (primedTitle.isNotBlank() && showNamePart.isNotBlank()) {
+                    "$showNamePart · $primedTitle"
+                } else {
+                    primedTitle.ifBlank { streamTitle }
+                }
                 streamUrl = primedUrl
                 cwId = primedCw
-                if (primedTitle.isNotBlank()) streamTitle = primedTitle
+                streamTitle = newTitle
                 startAtMs = 0L
                 hasNextEpisodeFlow.value = false
                 lastProgressSaveAt = 0L
                 nextEpisodePrimeStartedFor = ""   // allow a new prime to fire for THIS new ep
+
+                // v2.10.40 — Show the FULL-screen LoadingScreen
+                // immediately so the user sees an unmissable visual
+                // confirmation that "next episode" is being loaded.
+                // The Compose `showFullLoader` derives from this OR
+                // (isLoading && !hasEverPlayed), so this overrides
+                // the `hasEverPlayed=true` state that would otherwise
+                // gate the loader to the small corner spinner.
+                isSwappingEpisodeFlow.value = true
+                // Push the new title into the reactive PlayerInfo
+                // flow so the LoadingScreen + dock title show the
+                // NEW episode's label, not the OLD one.
+                publishPlayerInfo()
 
                 // ── 2) Mirror new state into the launching intent ───
                 // The parse-error fallback (onPlayerError → VLC) and
@@ -1234,10 +1328,13 @@ class ExoPlayerActivity : ComponentActivity() {
                     intent.putExtra(VlcPlayerActivity.EXTRA_SUB_URL, nextEpisodePrimedSubUrl)
                 } catch (_: Throwable) { /* defensive */ }
 
-                // ── 3) Clear the queue, set new item, prepare ───────
-                // Removing any queued items first matters because
-                // any leftover queue entries can confuse Media3 if
-                // the user later triggers another swap.
+                // ── 3) Stop, clear queue, set new item, prepare ─────
+                // Stop the player first so the OLD episode's frames
+                // stop rendering immediately.  Without `stop()` the
+                // user would see the last frame of the old episode
+                // frozen on screen until the new buffer fills,
+                // which feels like "the same episode is replaying".
+                try { player.stop() } catch (_: Throwable) { /* */ }
                 try {
                     while (player.mediaItemCount > 1) {
                         player.removeMediaItem(player.mediaItemCount - 1)
@@ -1257,7 +1354,7 @@ class ExoPlayerActivity : ComponentActivity() {
                 // ExoPlayer, no question asked."
                 lastInActivitySwapAt = System.currentTimeMillis()
 
-                // ── 4) Clear primed cache so the next 120s-window
+                // ── 4) Clear primed cache so the next 180s-window
                 //      detection can fire a fresh prime for the new
                 //      current episode ────────────────────────────
                 nextEpisodePrimedUrl = null
@@ -1270,7 +1367,13 @@ class ExoPlayerActivity : ComponentActivity() {
                 return
             } catch (t: Throwable) {
                 Log.w(TAG, "primed in-place swap failed; falling back to intent", t)
+                // Clear the swap flag so the loader doesn't stay up
+                // forever if we couldn't complete the swap.
+                isSwappingEpisodeFlow.value = false
             }
+        }
+        if (sameUrl || sameCw) {
+            Log.w(TAG, "primed swap REJECTED — same url/cwId as current; using fallback (primedCw=$primedCw, currentCw=$cwId)")
         }
         // Fallback path — same behaviour as before this change.
         if (isSeriesEpisode) {

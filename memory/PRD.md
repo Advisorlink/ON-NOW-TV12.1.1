@@ -1,5 +1,24 @@
 # ON NOW TV V2 — PRD
 
+> **🔴 v2.10.41 — Critical Skip-Next-Episode swap + 3-min threshold fix (Feb 11 2026).**
+>
+> User report (verbatim): *"When I push skip to next episode, it's still displaying the same episode over again. It's replaying that same episode."* Plus *"Skip next episode has to show up 3 minutes before now, not two minutes before. And when I click skip to next episode, it needs to show the loading screen of the next episode."*
+>
+> **Root cause analysis** — Three distinct bugs combined into one bad UX:
+>   1. `PlayerInfo` was a one-shot snapshot captured at `setContent` time, so the dock title stayed stuck on the OLD episode's `streamTitle` even though the activity HAD swapped to the new URL.
+>   2. The full-screen `LoadingScreen` overlay was gated on `hasEverPlayed = false`.  Once the user had watched even one frame of the current episode, that flag was permanently true, so the swap only rendered the tiny corner spinner.  Combined with the missing `player.stop()` before `setMediaItem`, the user saw the OLD episode's last frame frozen on screen + a tiny corner spinner, looking identical to "the same episode just stopped and is replaying".
+>   3. Pill threshold was 120 s; user explicitly asked for 180 s.
+>
+> **Fixes** (`/app/android/vesper-tv/app/src/main/java/tv/vesper/app/ExoPlayerActivity.kt` + `PlayerOverlay.kt`):
+>   • Added reactive `playerInfoFlow: MutableStateFlow<PlayerInfo>`; `publishPlayerInfo()` called at init AND inside `jumpToPrimedNextEpisode()` so the dock title flips to the new SxxEyy label the instant the swap fires.
+>   • Added `isSwappingEpisodeFlow: MutableStateFlow<Boolean>` — overrides the `hasEverPlayed` gate so the full `LoadingScreen` (with new title + show logo) renders for the duration of the swap.  Auto-reset on `STATE_READY`.
+>   • Added `player.stop()` before `setMediaItem` so the OLD frame stops rendering immediately rather than freezing on screen during buffer.
+>   • Defensive `sameUrl || sameCw` rejection: if the prime accidentally stashed the CURRENT episode's URL/cwId, abort in-place swap and fall through to the legacy intent route which re-resolves streams via Detail.jsx.
+>   • Pill threshold bumped from `0..120_000` ms → `0..180_000` ms (3 min).
+>   • Prime kick-off threshold separated to `0..240_000` ms (4 min) — the background stream-resolve job now has a full minute of head-start before the pill becomes clickable.
+>   • New `infoFlow` + `isSwappingEpisode` params on the `PlayerOverlay` composable; `showFullLoader = swappingEpisode || (loading && !hasEverPlayed)`.
+>   • Composed title from `showName + " · " + primedTitle` so the user reads "Breaking Bad · S1 · E6" during the swap, not just "S1 · E6" naked.
+
 > **🔴 v2.10.40 — Three CW/UX fixes: dedup TV shows, kill exit loader, auto-focus Remove (Feb 11 2026).**
 >
 > User report (third pass on these three items): "Only ONE Continue Watching TV show at a time. NO loading screen when exiting movie/TV show. Long-press on CW must auto-focus Remove."
