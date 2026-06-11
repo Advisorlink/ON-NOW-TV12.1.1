@@ -36,7 +36,20 @@ export default function NetworkPosterTile({ item }) {
                 setTimeout(() => setError(false), 2200);
                 return;
             }
-            navigate(`/title/${item.type}/${imdbId}`);
+            navigate(`/title/${item.type}/${imdbId}`, {
+                state: {
+                    preview: {
+                        title: item.title || item.name || '',
+                        poster: item.poster ? img.poster(item.poster) : '',
+                        background: item.backdrop ? img.backdrop(item.backdrop) : '',
+                        description: item.overview || item.description || '',
+                        year: item.year ? String(item.year).slice(0, 4) : '',
+                        rating: item.rating && item.rating > 0
+                            ? Number(item.rating).toFixed(1)
+                            : '',
+                    },
+                },
+            });
         } catch {
             setError(true);
             setTimeout(() => setError(false), 2200);

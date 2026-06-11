@@ -732,7 +732,7 @@ class MainActivity : AppCompatActivity() {
                 // adult profile.  Profile activation must come
                 // EXCLUSIVELY from a fresh launcher Intent, never
                 // from the WebView's stale URL.
-                val cleaned = stripProfileQuery(cur)
+                val cleaned = stripVolatileHashParams(stripProfileQuery(cur))
                 getSharedPreferences("onnowtv_route", MODE_PRIVATE).edit()
                     .putString("last_url", cleaned)
                     .putLong("last_ts", System.currentTimeMillis())
@@ -759,6 +759,36 @@ class MainActivity : AppCompatActivity() {
             }
             val newQuery = if (kept.isEmpty()) "" else "?" + kept.joinToString("&")
             path + newQuery + hash
+        } catch (_: Throwable) { url }
+    }
+
+    /** v2.10.45 — Remove one-shot playback-trigger params from the
+     *  HASH query before persisting `last_url`.  If Android kills
+     *  MainActivity during native playback and the restore brings
+     *  back a URL still carrying `episodeAutoplay=1` / `autoplay=1`,
+     *  the WebView re-fires playback of the OLD episode on relaunch
+     *  — the user experiences "Skip Next played the same episode
+     *  again".  Watch-party params are stripped too: a party must
+     *  never auto-rejoin from a stale restored URL. */
+    private fun stripVolatileHashParams(url: String): String {
+        return try {
+            val hashIdx = url.indexOf('#')
+            if (hashIdx < 0) return url
+            val base = url.substring(0, hashIdx)
+            val hash = url.substring(hashIdx + 1)
+            val qIdx = hash.indexOf('?')
+            if (qIdx < 0) return url
+            val route = hash.substring(0, qIdx)
+            val query = hash.substring(qIdx + 1)
+            val volatileKeys = setOf(
+                "episodeAutoplay", "autoplay", "season", "episode",
+                "party", "at_ms", "position_ms",
+            )
+            val kept = query.split('&').filter { p ->
+                p.isNotEmpty() && p.substringBefore('=') !in volatileKeys
+            }
+            val newQuery = if (kept.isEmpty()) "" else "?" + kept.joinToString("&")
+            "$base#$route$newQuery"
         } catch (_: Throwable) { url }
     }
 

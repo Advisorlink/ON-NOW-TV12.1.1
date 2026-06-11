@@ -645,16 +645,23 @@ private fun ControlDock(
     // New flow: while the user is holding/repeating LEFT or RIGHT on
     // the scrub bar, we mutate a local `pendingScrubMs` long.  The
     // playback bar paints from this pending value, so the user sees
-    // instant visual feedback.  500 ms after the LAST keypress the
+    // instant visual feedback.  220 ms after the LAST keypress the
     // LaunchedEffect coroutine commits a SINGLE `onSeekTo(pending)`
     // call — one buffer flush, one re-buffer, regardless of how
     // many times the user pressed the key.
+    //
+    // v2.10.45 — Idle window tightened 500 → 220 ms.  User feedback:
+    // "scrubbing isn't working as quick as it used to" — half a
+    // second of dead air between releasing the key and the seek
+    // firing read as lag.  220 ms still batches a held-key burst
+    // (auto-repeat fires every ~50-100 ms) but commits almost
+    // immediately after the user lets go.
     var pendingScrubMs by remember { mutableStateOf<Long?>(null) }
     LaunchedEffect(pendingScrubMs) {
         val target = pendingScrubMs ?: return@LaunchedEffect
         // Idle window — bumped by every fresh keypress because each
         // press re-fires this LaunchedEffect via the changed state.
-        delay(500)
+        delay(220)
         onSeekTo(target)
         pendingScrubMs = null
     }

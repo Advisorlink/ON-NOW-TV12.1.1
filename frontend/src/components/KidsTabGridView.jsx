@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import * as img from '@/lib/img';
-import { showNavLoader } from '@/lib/navLoader';
 
 /**
  * Kids-only newest-first grid for the Movies / TV filter views
@@ -159,11 +158,22 @@ export default function KidsTabGridView({ shelves, loading, type }) {
 
 function KidsTile({ item, navigate, initialFocus }) {
     const onTap = () => {
-        showNavLoader();
-        if (item.routePath) navigate(item.routePath);
+        // v2.10.45 — No full-screen loader; pass a preview so Detail
+        // paints its hero instantly.
+        const preview = {
+            title: item.title || '',
+            poster: item.poster ? img.poster(item.poster) : '',
+            background: item.background ? img.backdrop(item.background) : '',
+            description: item.description || '',
+            year: item.year || item.sub || '',
+            genres: Array.isArray(item.genres) ? item.genres : [],
+        };
+        if (item.routePath) navigate(item.routePath, { state: { preview } });
         else if (item.imdbId)
-            navigate(`/title/${item.type || 'movie'}/${item.imdbId}`);
-        else navigate(`/title/${item.id}`);
+            navigate(`/title/${item.type || 'movie'}/${item.imdbId}`, {
+                state: { preview },
+            });
+        else navigate(`/title/${item.id}`, { state: { preview } });
     };
     return (
         <button

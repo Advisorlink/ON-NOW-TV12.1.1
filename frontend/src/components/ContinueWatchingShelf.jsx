@@ -136,8 +136,21 @@ export default function ContinueWatchingShelf() {
         const suffix = (t === 'series' && focusSeason && focusEpisode)
             ? `&focusSeason=${focusSeason}&focusEpisode=${focusEpisode}`
             : '';
-        showNavLoader();
-        navigate(`/title/${t}/${baseId}?resume=1${suffix}`);
+        // v2.10.45 — No full-screen loader on detail opens; pass a
+        // preview payload so Detail paints its hero instantly.
+        navigate(`/title/${t}/${baseId}?resume=1${suffix}`, {
+            state: {
+                preview: {
+                    title: e.title || '',
+                    poster: e.poster || '',
+                    background: e.backdrop || '',
+                    description: e.synopsis || '',
+                    year: e.year || '',
+                    rating: e.rating || '',
+                    genres: Array.isArray(e.genres) ? e.genres : [],
+                },
+            },
+        });
     };
 
     return (

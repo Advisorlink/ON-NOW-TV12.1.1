@@ -19,7 +19,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { showNavLoader, hideNavLoader } from '@/lib/navLoader';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -55,20 +54,30 @@ export default function RecommendationsRow({ tmdbId, mediaType, onFocus, testId 
     }, [tmdbId, mediaType]);
 
     const handlePick = async (item) => {
-        showNavLoader();
+        // v2.10.45 — No full-screen loader.  Detail paints instantly
+        // from the preview payload while the IMDB id resolves.
         try {
             const { data } = await axios.get(
                 `${API}/tmdb/imdb/${item.media_type}/${item.tmdb_id}`,
                 { timeout: 8000 }
             );
             if (data?.imdb_id) {
-                navigate(`/title/${item.media_type === 'tv' ? 'series' : 'movie'}/${data.imdb_id}`);
-            } else {
-                hideNavLoader();
+                navigate(
+                    `/title/${item.media_type === 'tv' ? 'series' : 'movie'}/${data.imdb_id}`,
+                    {
+                        state: {
+                            preview: {
+                                title: item.title || item.name || '',
+                                poster: item.poster || '',
+                                background: item.backdrop || '',
+                                description: item.overview || '',
+                                year: item.year || '',
+                            },
+                        },
+                    }
+                );
             }
-        } catch {
-            hideNavLoader();
-        }
+        } catch { /* swallow — tile stays put */ }
     };
 
     if (busy || items.length === 0) return null;

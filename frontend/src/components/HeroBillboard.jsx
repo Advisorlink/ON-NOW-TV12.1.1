@@ -41,12 +41,21 @@ export default function HeroBillboard({ heroes, hiRes = false }) {
         // Append `?autoplay=1` for the Play button so the Detail
         // page can auto-pick a 1080p stream when the user enabled
         // that setting (and silently fall back otherwise).
-        // v2.10.44 — No full-screen nav loader; Detail handles its
-        // own progressive layout + "Loading" spinner on the
-        // Autoplay button.
+        // v2.10.45 — No full-screen nav loader; pass a `preview`
+        // payload so Detail paints its hero instantly while the
+        // real metadata + streams resolve.
         const suffix = autoplay ? '?autoplay=1' : '';
-        if (hero.routePath) navigate(hero.routePath + suffix);
-        else navigate(`/title/${hero.id}${suffix}`);
+        const preview = {
+            title: hero.title || '',
+            poster: hero.poster || '',
+            background: hero.backdrop || hero.background || hero.poster || '',
+            description: hero.synopsis || '',
+            year: hero.year || '',
+            rating: hero.rating || '',
+            genres: Array.isArray(hero.genres) ? hero.genres : [],
+        };
+        if (hero.routePath) navigate(hero.routePath + suffix, { state: { preview } });
+        else navigate(`/title/${hero.id}${suffix}`, { state: { preview } });
     };
 
     /* Local Left/Right handler — keeps focus among the three hero

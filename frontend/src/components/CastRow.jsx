@@ -34,7 +34,6 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import useLongPress from '@/hooks/useLongPress';
-import { showNavLoader, hideNavLoader } from '@/lib/navLoader';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -202,9 +201,10 @@ export default function CastRow({
         }));
     }, [onMovieFocus]);
 
-    /* Activate a film/similar card — resolve IMDB id and navigate. */
+    /* Activate a film/similar card — resolve IMDB id and navigate.
+       v2.10.45 — No full-screen loader; Detail paints instantly
+       from the preview payload. */
     const openTitle = useCallback(async (item) => {
-        showNavLoader();
         try {
             const { data } = await axios.get(
                 `${API}/tmdb/imdb/${item.media_type}/${item.tmdb_id}`,
@@ -212,13 +212,22 @@ export default function CastRow({
             );
             const imdb = data?.imdb_id;
             if (imdb) {
-                navigate(`/title/${item.media_type === 'tv' ? 'series' : 'movie'}/${imdb}`);
-            } else {
-                hideNavLoader();
+                navigate(
+                    `/title/${item.media_type === 'tv' ? 'series' : 'movie'}/${imdb}`,
+                    {
+                        state: {
+                            preview: {
+                                title: item.title || item.name || '',
+                                poster: item.poster || '',
+                                background: item.backdrop || '',
+                                description: item.overview || '',
+                                year: item.year || '',
+                            },
+                        },
+                    }
+                );
             }
-        } catch {
-            hideNavLoader();
-        }
+        } catch { /* swallow — card stays put */ }
     }, [navigate]);
 
     /* ── D-pad navigation between the lane sub-views ── */
