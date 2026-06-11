@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import * as img from '@/lib/img';
 import useLongPress from '@/hooks/useLongPress';
+import { showNavLoader } from '@/lib/navLoader';
 import { useAddons } from '@/hooks/useAddons';
 import { useTabCatalog } from '@/hooks/useTabCatalog';
 import { useTabGenreCatalog } from '@/hooks/useTabGenreCatalog';
@@ -460,8 +461,7 @@ function MorphTileImpl({ item, navigate, onTapRecord }) {
     const onTap = () => {
         if (!item) return;
         if (onTapRecord) onTapRecord(item);
-        // v2.10.42 — Removed full-screen nav loader; Detail handles
-        // its own progressive layout + "Loading" pill on Autoplay.
+        showNavLoader();
         if (item.routePath) navigate(item.routePath);
         else if (item.imdbId)
             navigate(`/title/${item.type || 'movie'}/${item.imdbId}`);

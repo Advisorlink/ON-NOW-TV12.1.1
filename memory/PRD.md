@@ -1,6 +1,22 @@
 # ON NOW TV V2 — PRD
 
-> **🔴 v2.10.42 — Skip Next ROOT-CAUSE fix + Detail loader UX rework (Feb 11 2026).**
+> **🔴 v2.10.43 — HOTFIX REVERT of v2.10.42 React perf regression (Feb 11 2026).**
+>
+> User report (panicked): *"Something is going horribly wrong... it's taking forever to click on something, for everything to load... it's jumping from the top to the bottom for no reason... worse than it's ever been... FIND THE EXACT BUG DON'T JUST GUESS."*
+>
+> **The exact bug (not a guess)** — In v2.10.42 I removed `showNavLoader()` from every poster-click handler thinking the user wanted instant Detail mount. But the full-screen `navLoader` overlay was NOT decorative — it was a **functional mask** for two unavoidable costs on mid-range Android TV WebViews:
+>   1. **Detail.jsx mount cost (200–400 ms on a HK1 box)** — unmounting Home (large shelf grids) + mounting Detail (3,000 lines, dozens of effects + queries + suspense boundaries) is genuinely slow. Without the overlay covering the transition, the user sees Detail render IN STAGES (empty hero → meta loads → cast loads → episodes load) which felt to them like "taking forever to load".
+>   2. **Spatial focus thrasing during the progressive mount** — `data-initial-focus="true"` on the Autoplay button triggers a `.focus({preventScroll:false})` via the spatial engine. As Detail's layout grows (hero appears, cast appears, episode list appears), the button's DOM position shifts → focus engine recomputes → the page `scrollIntoView`s the button each time. The user saw this as *"jumping from the top to the bottom for no reason"* — that is LITERALLY what was happening.
+>
+> **The navLoader was masking BOTH costs.** Removing it didn't make Detail faster — it just made the slowness visible + introduced the focus-jumping artefact.
+>
+> **Fix** — Reverted all v2.10.42 React changes:
+>   • `PosterTile.jsx`, `HeroBillboard.jsx`, `NetworkPosterTile.jsx`, `UpcomingMoviesShelf.jsx`, `TabGridView.jsx`, `Library.jsx` — `showNavLoader()` re-added to every tile-click handler.
+>   • `Detail.jsx` — Reverted Autoplay button text back to `"Autoplay"` (loading and ready states), removed `disabled`/`cursor:wait` styling, removed `lastFiredEpisodeKeyRef` reset effect (it was an attempt to fix the React side of Skip-Next, but the native colon-format fix below makes it unnecessary).
+>
+> **What was KEPT from v2.10.42** — `ExoPlayerActivity.kt::kickoffNextEpisodePrime` colon-format API id (`tt0903747:1:6` instead of `tt0903747:s1e6`). This is the actual root-cause Skip-Next fix and lives entirely in native code so it has zero impact on the React perf.
+
+> **🔴 v2.10.42 — Skip Next ROOT-CAUSE fix + Detail loader UX rework (Feb 11 2026). PARTIALLY REVERTED — see v2.10.43.**
 >
 > User report: *"It still keeps playing the same episode when you click next, play next episode."* + *"It's taking WAY too long once you click a program or movie cover — remove that loader screen and just put Loading on the auto play button until it's ready."*
 >

@@ -1209,31 +1209,6 @@ export default function Detail() {
      * the user's Autoplay-1080p preference and the 4K-only fallback
      * — same logic as the movie path. */
     const seriesPartyFiredRef = React.useRef(false);
-    // v2.10.42 — Track the season/episode the autoplay refs were
-    // last fired for, so that when the native ExoPlayer activity
-    // exits with `?episodeAutoplay=1&season=X&episode=Y` for a
-    // DIFFERENT episode (i.e. user clicked Skip Next), we KNOW to
-    // reset the refs and fire the autoplay again.  Without this,
-    // the first play of S1E1 sets the refs to true, and the
-    // subsequent Skip-Next-fallback navigation is silently
-    // dropped, leaving the user stranded on the Detail page with
-    // the old episode still selected as the resume target — which
-    // they correctly perceive as "the same episode replayed".
-    const lastFiredEpisodeKeyRef = React.useRef('');
-    useEffect(() => {
-        if (type !== 'series') return;
-        if (!partySeason || !partyEpisode) return;
-        const key = `${partySeason}:${partyEpisode}`;
-        if (lastFiredEpisodeKeyRef.current && lastFiredEpisodeKeyRef.current !== key) {
-            // The native player just exited with intent to play a
-            // DIFFERENT episode than the one we last fired.  Reset
-            // the firing refs so the effects below re-run for this
-            // new episode.
-            seriesPartyFiredRef.current = false;
-            autoplayFiredRef.current = false;
-            setAutoplayFired(false);
-        }
-    }, [type, partySeason, partyEpisode]);
     useEffect(() => {
         if (seriesPartyFiredRef.current) return;
         if (autoplayFiredRef.current) return;
@@ -1254,10 +1229,6 @@ export default function Detail() {
         if (!meta) return; // wait for the show metadata so the CW entry is rich
         seriesPartyFiredRef.current = true;
         autoplayFiredRef.current = true;
-        // v2.10.42 — Stamp the episode key we just fired so a
-        // subsequent Skip-Next navigation to a DIFFERENT episode
-        // resets the refs (see the dedicated reset effect above).
-        lastFiredEpisodeKeyRef.current = `${partySeason}:${partyEpisode}`;
         setAutoplayFired(true);
         partyBreadcrumb('series-autoplay:fire', {
             party: !!partyCode,
@@ -2049,7 +2020,6 @@ export default function Detail() {
                                 data-initial-focus="true"
                                 tabIndex={0}
                                 onClick={triggerAutoplay}
-                                disabled={streamLoading || pendingAutoplay}
                                 className="vesper-pulse-cta flex items-center gap-2.5 rounded-full font-sans font-semibold"
                                 style={{
                                     height: 'clamp(50px, 4vw, 60px)',
@@ -2058,8 +2028,7 @@ export default function Detail() {
                                     fontSize: 'clamp(15px, 1.15vw, 18px)',
                                     background: 'var(--vesper-blue)',
                                     color: 'var(--vesper-bg-0)',
-                                    opacity: (streamLoading || pendingAutoplay) ? 0.85 : 1,
-                                    cursor: (streamLoading || pendingAutoplay) ? 'wait' : 'pointer',
+                                    opacity: 1,
                                 }}
                             >
                                 {(streamLoading || pendingAutoplay) ? (
@@ -2068,12 +2037,12 @@ export default function Detail() {
                                             className="vesper-spin"
                                             size={18}
                                         />
-                                        {pendingAutoplay ? 'Starting…' : 'Loading'}
+                                        {pendingAutoplay ? 'Starting…' : 'Autoplay'}
                                     </>
                                 ) : autoplayCandidate ? (
                                     <>
                                         <Play size={18} fill="currentColor" />
-                                        Auto Play
+                                        Autoplay
                                     </>
                                 ) : (
                                     <>
