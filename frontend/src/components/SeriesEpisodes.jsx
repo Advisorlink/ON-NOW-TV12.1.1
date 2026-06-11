@@ -403,6 +403,18 @@ export default function SeriesEpisodes({
                 positionMs: existing?.positionMs || 0,
                 durationMs: existing?.durationMs || 0,
                 route: `/title/series/${meta?.id || ''}`,
+                // v2.10.39 — Pass the show-level dedupe trio so
+                // `cw.upsert` collapses prior episode rows for the
+                // same show.  Without these fields the helper falls
+                // back to per-episode-id dedup and the shelf ended
+                // up with one row per watched episode (S1E1, S1E2,
+                // S1E3 …) — user explicitly reported this and asked
+                // for "only one Continue Watching TV show at a time."
+                // Mirrors what Detail.jsx's playStream already does.
+                seriesId: meta?.id || '',
+                season: ep.season,
+                episode: ep.episode,
+                episodeLabel: `S${String(ep.season).padStart(2, '0')}E${String(ep.episode).padStart(2, '0')}`,
             });
             if (
                 Host.playVideo({
