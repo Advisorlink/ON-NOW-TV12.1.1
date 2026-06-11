@@ -1,5 +1,20 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.46-b — Post-rollback fixes (11 Jun 2026).**
+>
+> User confirmed the rollback restored working navigation. Then requested three small, targeted fixes:
+>
+> **1. Pre-buffer at 5 min** (was 4 min) — `ExoPlayerActivity.kt`, prime job now fires at `remaining ≤ 300_000 ms` (300 s). Pill still surfaces at 3 min.
+>
+> **2. Continue Watching now reflects the latest-skipped episode** — `lib/continueWatching.js`:
+>   • `getEntries()` dedupes by show (IMDB-prefix before first `:`), keeping the newest `updatedAt` per show.
+>   • `syncFromNative()` now runs 3 passes: (a) clones metadata from a same-show sibling when the native player creates a brand-new cwId via the Skip-Next-Episode swap, (b) updates progress on existing entries, (c) removes entries that crossed the 30-s-from-end completion threshold. The clone deliberately blanks `streamUrl`/`subtitleUrl` so resume routes through Detail and the user re-picks the source for the new episode (no risk of replaying the old episode).
+>
+> **3. Long-press OK no longer auto-deletes** — `components/ContinueWatchingShelf.jsx`, `CWTile` confirm card:
+>   • Cancel button rendered first in DOM (residual click from releasing OK lands on Cancel — harmless).
+>   • Cancel programmatically focused via `cancelBtnRef.focus()` after commit.
+>   • Remove wrapped in a 600 ms grace guard — any click on Remove inside that window is ignored.
+>
 > **🚨 v2.10.46 — FRONTEND NAVIGATION ROLLBACK (11 Jun 2026).**
 >
 > User reported that the "100-credit deep dive" earlier today made navigation **ten times worse**. They requested a rollback of the React frontend to its state from **7 days ago (4 Jun 2026, `ef5b5f92`)** while preserving:

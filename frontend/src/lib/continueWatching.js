@@ -100,9 +100,27 @@ function markWatchedIfDone(id, positionMs, durationMs) {
 }
 
 export function getEntries() {
-    return readAll()
+    const all = readAll()
         .slice()
         .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    // v2.10.46 — Dedup by show.  When the user skips next episode
+    // inside the native player (S1E3 → S1E4 → S1E5), each landed
+    // episode is its own CW row.  The shelf should show ONE entry
+    // per show — the most recently watched episode — not the
+    // history of every skip.  For series the show key is the
+    // IMDB id (the substring before the first ':').  Movies have
+    // no ':' so they dedup by their own id (effectively a no-op).
+    const seen = new Set();
+    const out = [];
+    for (const e of all) {
+        const isSeries = e.type === 'series' && typeof e.id === 'string' && e.id.includes(':');
+        const key = isSeries ? e.id.split(':')[0] : e.id;
+        if (!key) continue;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(e);
+    }
+    return out;
 }
 
 /** Lookup a single CW entry by id.  Returns undefined if the entry
@@ -137,7 +155,43 @@ export function remove(id) {
  * Pull native progress reports (when available) and merge into the
  * local list.  Safe to call on every Home mount.  No-op outside
  * the Android wrapper.
+ *
+ * v2.10.46 — Three passes:
+ *   1) Detect NEW ids written by the native player (in-place
+ *      next-episode swap) that don't exist locally yet.  Clone
+ *      metadata from any sibling entry of the same show so the
+ *      tile has title/backdrop/poster/streamUrl — derive the new
+ *      "S1E4" label from the new cwId.
+ *   2) Update progress on existing entries.
+ *   3) Remove entries whose progress crossed the "completed"
+ *      threshold (so the OLD S1E3 row disappears after the swap
+ *      wrote it to 100%).
  */
+function showPrefixOf(id) {
+    if (!id || typeof id !== 'string') return '';
+    return id.split(':')[0] || '';
+}
+function seasonEpisodeOf(id) {
+    if (!id || typeof id !== 'string') return null;
+    const m1 = id.match(/:s(\d+)e(\d+)$/i);
+    if (m1) return { season: Number(m1[1]), episode: Number(m1[2]) };
+    const m2 = id.match(/:(\d+):(\d+)$/);
+    if (m2) return { season: Number(m2[1]), episode: Number(m2[2]) };
+    return null;
+}
+function rewriteEpisodeLabel(oldTitle, newId) {
+    if (!oldTitle) return oldTitle;
+    const se = seasonEpisodeOf(newId);
+    if (!se) return oldTitle;
+    const newLabel = `S${se.season}E${se.episode}`;
+    // Strip the existing "· SxxExx · episodeName" tail (or just
+    // "· SxxExx") and append the new label.  Handles both padded
+    // and unpadded numbers ("S1E3" or "S01E03").
+    const cleaned = oldTitle
+        .replace(/\s*[·•|]\s*S\d{1,2}E\d{1,2}\b.*$/i, '')
+        .trim();
+    return cleaned ? `${cleaned} · ${newLabel}` : newLabel;
+}
 export function syncFromNative() {
     if (typeof window === 'undefined') return;
     const bridge = window.OnNowTV;
@@ -149,12 +203,53 @@ export function syncFromNative() {
         if (!map || typeof map !== 'object') return;
         const list = readAll();
         let changed = false;
+
+        // Pass 1 — clone metadata for NEW ids the native player
+        // created by skipping to a next episode inside the
+        // activity.  We need to do this BEFORE pass 3 removes
+        // completed entries, otherwise the sibling we'd clone
+        // from may already be gone.
+        for (const id of Object.keys(map)) {
+            if (list.findIndex((e) => e.id === id) >= 0) continue;
+            const p = map[id];
+            if (!p || typeof p.positionMs !== 'number') continue;
+            const prefix = showPrefixOf(id);
+            if (!prefix) continue;
+            const sibling = list.find(
+                (e) =>
+                    typeof e.id === 'string' &&
+                    e.id !== id &&
+                    showPrefixOf(e.id) === prefix
+            );
+            if (!sibling) continue;
+            const cloned = {
+                ...sibling,
+                id,
+                title: rewriteEpisodeLabel(sibling.title, id),
+                positionMs: p.positionMs,
+                durationMs: p.durationMs || sibling.durationMs || 0,
+                updatedAt: p.updatedAt || Date.now(),
+                // The sibling's streamUrl + subtitleUrl point at the
+                // OLD episode — using them on resume would play the
+                // wrong episode.  Blank them so the resume flow
+                // falls through to the Detail page where the user
+                // (or the native bridge) picks a stream for THIS
+                // episode.  The `route` field is preserved because
+                // it's `/title/series/<imdbId>` — same for every
+                // episode of the show.
+                streamUrl: '',
+                subtitleUrl: '',
+            };
+            list.unshift(cloned);
+            changed = true;
+        }
+
+        // Pass 2 — refresh progress on entries that already exist.
         for (const id of Object.keys(map)) {
             const i = list.findIndex((e) => e.id === id);
             if (i < 0) continue;
             const p = map[id];
             if (!p || typeof p.positionMs !== 'number') continue;
-            // Use whichever timestamp is newer.
             const oldUpdated = list[i].updatedAt || 0;
             const newUpdated = p.updatedAt || Date.now();
             if (
@@ -175,7 +270,24 @@ export function syncFromNative() {
                 changed = true;
             }
         }
-        if (changed) writeAll(list);
+
+        // Pass 3 — drop entries whose progress crossed the
+        // completion threshold (native player writes the OLD
+        // episode at 100 % during a next-episode swap, so this
+        // tidies the row away).
+        const kept = [];
+        for (const e of list) {
+            const finished =
+                e.durationMs && e.positionMs &&
+                e.durationMs - e.positionMs < 30_000;
+            if (finished) {
+                changed = true;
+                continue;
+            }
+            kept.push(e);
+        }
+
+        if (changed) writeAll(kept);
     } catch {
         /* swallow */
     }

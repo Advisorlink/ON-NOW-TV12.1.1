@@ -135,3 +135,34 @@ That brings the entire frontend back to exactly the broken state it was in right
 
 ## Date / time
 Performed: 11 June 2026
+
+---
+
+## Post-rollback follow-up fixes (same day, 11 June 2026)
+
+After the rollback the user reported it's working again, and asked for three further targeted fixes on top of the restored navigation. All three were applied without re-introducing any of the bad navigation behaviour:
+
+### Fix A — Pre-buffer next episode at 5 min (was 4 min)
+**File:** `android/vesper-tv/app/src/main/java/tv/vesper/app/ExoPlayerActivity.kt`
+- Changed the prime-job window from `remaining in 0..240_000` (4 min) to `remaining in 0..300_000` (5 min).
+- Updated the surrounding comment block (`v2.10.46`) so the threshold is documented.
+- Pill surface threshold left at 3 min.
+
+### Fix B — Continue Watching now reflects the episode the user actually skipped to
+**File:** `frontend/src/lib/continueWatching.js`
+- `getEntries()` now dedupes by show: for series (cwId contains `:`), only the entry with the most recent `updatedAt` per IMDB-prefix is returned. Movies dedupe by their own id (no-op).
+- `syncFromNative()` rewritten into three passes:
+  1. Clone metadata from any sibling entry of the same show when the native player has written a brand-new cwId (the in-place Skip-Next-Episode swap path). The new entry gets the new SxxExx label, current positionMs/durationMs, fresh `updatedAt`, and the sibling's poster/backdrop/synopsis/genres/route. **`streamUrl` and `subtitleUrl` are deliberately blanked** so the resume click routes through Detail (picking a fresh source for the new episode rather than replaying the old one).
+  2. Refresh progress on already-existing entries (previous behaviour).
+  3. Drop entries that crossed the "completed" threshold (within 30 s of duration) so the OLD episode's row disappears after the swap wrote it to 100 %.
+- Added small helpers `showPrefixOf`, `seasonEpisodeOf`, `rewriteEpisodeLabel`.
+
+### Fix C — Long-press OK no longer auto-deletes the tile
+**File:** `frontend/src/components/ContinueWatchingShelf.jsx`
+- Inside `CWTile`, on the confirm card:
+  - Cancel button is now rendered **first** in the DOM so the residual synthetic click from releasing OK lands on Cancel (harmless), not Remove.
+  - Cancel is explicitly focused via `cancelBtnRef.focus()` after React commits the confirm card.
+  - Remove button is wrapped in `guardedRemove` — a 600 ms grace period during which any click on Remove is ignored. After 600 ms the user has clearly released OK and any subsequent click is a deliberate confirmation.
+- Long-press timer (700 ms) and auto-repeat suppression logic left untouched.
+
+**Verification:** dev server compiled cleanly (only a pre-existing HeroBillboard ESLint warning from the June 4 code). Screenshot captured of the home page — UI loads with icons and animations intact. Native (Kotlin) change will compile via the user's GitHub Actions CI; cannot be built locally (ARM container vs x86 AAPT2).
