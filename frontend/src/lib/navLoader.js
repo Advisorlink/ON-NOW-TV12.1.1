@@ -92,6 +92,22 @@ function installGlobalGuards() {
     window.addEventListener('popstate', () => hideNavLoader());
     // Ditto for hashchange (HashRouter is used on Android).
     window.addEventListener('hashchange', () => hideNavLoader());
+    // v2.10.40 — When the WebView becomes visible again after the
+    // native ExoPlayer activity exits, the cached Detail/Home page
+    // is already in memory.  We do NOT want the user to see the
+    // 30 s "Loading episode" overlay that was put up to bridge the
+    // gap between the click and the native player splash.  Force
+    // an immediate hide the moment the WebView surfaces.
+    if (typeof document !== 'undefined') {
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') hideNavLoader();
+        });
+    }
+    // Belt-and-braces: the Android WebView fires a window `pageshow`
+    // event when the activity is brought back to the front.  Some
+    // OEM WebViews don't reliably dispatch visibilitychange, so
+    // pageshow is a redundant safety net.
+    window.addEventListener('pageshow', () => hideNavLoader());
 }
 
 export function showNavLoader(opts = {}) {

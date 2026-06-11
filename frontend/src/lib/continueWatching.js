@@ -36,12 +36,73 @@ const MAX_ENTRIES = 30;
 // the upgrade.
 import { readScopedString, writeScopedString } from '@/lib/profileScope';
 
+/**
+ * Collapse multiple series rows that share the same show into a
+ * single entry — the most recently updated one wins.  This is a
+ * read-time migration covering existing installs where prior
+ * upserts wrote one row per episode before the dedupe-by-seriesId
+ * rule landed in v2.10.7.  The "seriesId" anchor is derived from
+ * either the explicit `seriesId` field (newer writes) OR the stem
+ * of a composite CW id (`tt1234:s1e2` → `tt1234`), so even rows
+ * that never carried `seriesId` get collapsed.
+ */
+function collapseSeriesDuplicates(list) {
+    if (!Array.isArray(list) || list.length === 0) return list;
+    const stemOf = (e) => {
+        if (e.seriesId) return e.seriesId;
+        if (typeof e.id === 'string' && e.id.includes(':')) {
+            return e.id.split(':')[0];
+        }
+        return null;
+    };
+    const seen = new Map(); // showStem -> entry (latest)
+    const out = [];
+    let changed = false;
+    for (const e of list) {
+        if (e?.type !== 'series') {
+            out.push(e);
+            continue;
+        }
+        const stem = stemOf(e);
+        if (!stem) {
+            out.push(e);
+            continue;
+        }
+        const prev = seen.get(stem);
+        if (!prev) {
+            seen.set(stem, e);
+            out.push(e);
+            continue;
+        }
+        changed = true;
+        // Keep whichever entry was updated most recently.
+        const winner = (e.updatedAt || 0) > (prev.updatedAt || 0) ? e : prev;
+        // Replace the previously pushed prev with the winner.
+        const idx = out.indexOf(prev);
+        if (idx >= 0) out[idx] = winner;
+        seen.set(stem, winner);
+    }
+    return changed ? out : list;
+}
+
 function readAll() {
     try {
         const raw = readScopedString(STORAGE_KEY);
         if (!raw) return [];
         const list = JSON.parse(raw);
-        return Array.isArray(list) ? list : [];
+        if (!Array.isArray(list)) return [];
+        const collapsed = collapseSeriesDuplicates(list);
+        // Persist the collapsed list so subsequent reads short-circuit
+        // and the cleanup only runs once per affected install.
+        if (collapsed !== list) {
+            try {
+                writeScopedString(
+                    STORAGE_KEY,
+                    JSON.stringify(collapsed.slice(0, MAX_ENTRIES))
+                );
+            } catch { /* ignore */ }
+        }
+        return collapsed;
     } catch {
         return [];
     }

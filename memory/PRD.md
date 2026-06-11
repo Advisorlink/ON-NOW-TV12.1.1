@@ -1,5 +1,18 @@
 # ON NOW TV V2 — PRD
 
+> **🔴 v2.10.40 — Three CW/UX fixes: dedup TV shows, kill exit loader, auto-focus Remove (Feb 11 2026).**
+>
+> User report (third pass on these three items): "Only ONE Continue Watching TV show at a time. NO loading screen when exiting movie/TV show. Long-press on CW must auto-focus Remove."
+>
+> **Fix 1 — Read-time CW dedup migration** (`/app/frontend/src/lib/continueWatching.js`).
+> The v2.10.7 `upsert` already deduped by `seriesId` going forward, but installs that wrote multiple rows BEFORE that landed still saw one row per episode on the shelf.  Added `collapseSeriesDuplicates(list)` that runs inside `readAll()`: detects multiple `type='series'` rows sharing the same show stem (either explicit `seriesId` field OR the prefix of a composite id like `tt1234:s1e2` → `tt1234`), keeps whichever was updated most recently, and writes the collapsed list back so the cleanup is a one-time event per install.
+>
+> **Fix 2 — No loader on player exit** (`/app/frontend/src/lib/navLoader.js`).
+> Previously `showNavLoader({ timeoutMs: 30000 })` was fired before `Host.playVideo` to bridge the click→splash gap.  Native ExoPlayer covered the WebView during playback, but if the user exited the player BEFORE the 30 s timeout, the loader was still up on top of Detail/Home.  Added `visibilitychange` + `pageshow` global guards: any time the WebView surfaces to the foreground, `hideNavLoader()` fires immediately.  Detail is already mounted/cached so the user lands instantly.
+>
+> **Fix 3 — Auto-focus Remove on CW long-press** (`/app/frontend/src/components/ContinueWatchingShelf.jsx`).
+> The `data-initial-focus="true"` attribute on the Remove button never worked — that attribute only fires the spatial-focus engine's one-shot initial-focus pass at app boot, not on dynamic UI changes.  Extracted the confirm UI into a new `ConfirmRemoveCard` sub-component which uses a `useRef` + `useEffect` + `requestAnimationFrame` chain to imperatively `.focus()` the Remove button the instant the component mounts, plus sets `data-focused="true"` so the spatial engine's visual highlight follows.
+
 > **🔴 v2.10.38 — APK BUILD BREAK FIX: removed `setSeekParameters(CLOSEST_SYNC)` (Feb 11 2026).**
 >
 > User report: "All of them failed" — GitHub Actions APK builds for vesper-tv, FTA-native, and Tunes all failed.  Live TV (purely native, no React WebView) passed.  Deploy Frontend passed.
