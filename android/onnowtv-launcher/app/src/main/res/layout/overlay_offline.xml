@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Offline overlay — takes over the launcher when the box loses
+  internet.  Same architectural pattern as the Boost overlay
+  (full-screen scrim sibling at the END of activity_main.xml so
+  it paints on top of everything).  See MainActivity.showOfflineOverlay().
+
+  Shows:
+    • A WiFi-off icon hero
+    • Title:  "No internet connection"
+    • Subtitle: "Your device is not connected to the internet."
+    • Retry button (focusable, autofocus) → re-probes the network
+      and dismisses on success, otherwise opens system Wi-Fi
+      settings.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/offline_overlay"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_boost_scrim"
+    android:visibility="gone"
+    android:alpha="0"
+    android:clickable="true"
+    android:focusable="false"
+    tools:visibility="visible">
+
+    <!-- Faint radial glow behind the icon — softer than the
+         Boost glow so the disconnect screen feels calmer. -->
+    <View
+        android:layout_width="640dp"
+        android:layout_height="640dp"
+        android:layout_gravity="center"
+        android:background="@drawable/bg_offline_glow"
+        android:alpha="0.55" />
+
+    <!-- Centered hero column -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:gravity="center_horizontal">
+
+        <ImageView
+            android:layout_width="120dp"
+            android:layout_height="120dp"
+            android:src="@drawable/ic_wifi_off"
+            android:tint="#FFFF7676"
+            android:contentDescription="@null" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:textColor="#FFFFFFFF"
+            android:textSize="38sp"
+            android:letterSpacing="-0.01"
+            android:fontFamily="sans-serif-medium"
+            android:textStyle="bold"
+            android:text="No internet connection" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:textColor="#BBFFFFFF"
+            android:textSize="17sp"
+            android:fontFamily="sans-serif"
+            android:gravity="center"
+            android:text="Your device is not connected to the internet.\nCheck your Wi-Fi or Ethernet and try again." />
+
+        <!-- Retry pill — opens system Wi-Fi settings -->
+        <LinearLayout
+            android:id="@+id/offline_retry_btn"
+            android:layout_width="wrap_content"
+            android:layout_height="64dp"
+            android:layout_marginTop="44dp"
+            android:minWidth="220dp"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:paddingHorizontal="30dp"
+            android:background="@drawable/bg_offline_retry_btn"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
+            android:clickable="true">
+
+            <ImageView
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:src="@drawable/ic_offline_retry"
+                android:tint="#FF04060B"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:textColor="#FF04060B"
+                android:textSize="17sp"
+                android:letterSpacing="0.10"
+                android:fontFamily="sans-serif-medium"
+                android:textStyle="bold"
+                android:text="OPEN WI-FI SETTINGS" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

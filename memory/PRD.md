@@ -1,5 +1,39 @@
 # ON NOW TV V2 — PRD
 
+> **🔴 v2.10.45 — Launcher: BOOST button + Wi-Fi indicator + Offline overlay (Feb 11 2026).**
+>
+> User asks (verbatim): *"I need to make sure that the launcher loses internet... a popup that takes over any app... Wi-Fi signal indicator in the top right-hand corner... take away the good evening/good morning... button beside the AI button called BoostBox... clears all the RAM out of the box... really beautiful animated display."*
+>
+> **All Android-launcher changes** (`/app/android/onnowtv-launcher/`):
+>
+> **1. Topbar restructure** (`res/layout/activity_main.xml` + `MainActivity.kt::bindTopBar` / `bindTopBarActions`):
+>   • New `topbar_btn_boost` pill inserted BETWEEN `topbar_btn_v2ai` and `topbar_btn_vpn` — 64 dp tall hero pill matching V2 AI's height, with a warm orange→magenta→violet gradient (`bg_topbar_btn_boost.xml`) so the two hero actions are visually paired but distinguishable.
+>   • Click handler wires to new `performBoost()` method.
+>   • Focus chain: V2 AI → Boost → VPN → Speed Test → (back to topbar via dock UP).
+>   • Greeting TextView REMOVED from the right slot (kept in tree with `visibility=gone` for compile safety).
+>   • Right slot now leads with `wifiIcon` (focusable, clickable → opens system Wi-Fi settings), then `dateLabel` → divider → `timeLabel`.
+>   • `greetingForHour()` deleted, comment-stubbed in code.
+>
+> **2. Live Wi-Fi state** (`MainActivity.kt::registerWifiCallback`):
+>   • `ConnectivityManager.registerDefaultNetworkCallback` flips between `ic_wifi.xml` (connected) and `ic_wifi_off.xml` (disconnected, with red slash) on every `onAvailable`/`onLost`/`onCapabilitiesChanged` event.
+>   • Online check requires BOTH `NET_CAPABILITY_INTERNET` and `NET_CAPABILITY_VALIDATED` so the icon doesn't show "connected" when the captive-portal handshake hasn't completed.
+>   • Callback unregistered in `onDestroy()`.
+>
+> **3. Offline overlay** (`res/layout/overlay_offline.xml` + `MainActivity.kt::showOfflineOverlay/hideOfflineOverlay`):
+>   • Full-screen scrim with red-tinted WiFi-off hero, title "No internet connection", subtitle "Your device is not connected to the internet. Check your Wi-Fi or Ethernet and try again.", and an autofocused "OPEN WI-FI SETTINGS" pill.
+>   • Triggered automatically by `paintWifiIcon(online=false)`; auto-dismissed when network returns.
+>   • Retry button opens `Settings.ACTION_WIFI_SETTINGS` (with `ACTION_WIRELESS_SETTINGS` fallback for stripped-down TV-box Settings apps).
+>   • **Scope note**: This overlay covers the LAUNCHER. To cover every WebView app (Vesper, FTA, Kids, Tunes) we'd need either per-app JS-level `online/offline` listeners OR a `TYPE_APPLICATION_OVERLAY` system overlay (requires `SYSTEM_ALERT_WINDOW` user grant). User-facing intent ("takes over any app") would be a follow-up if needed.
+>
+> **4. BOOST animation** (`res/layout/overlay_boost.xml` + `MainActivity.kt::performBoost`):
+>   • Full-screen overlay with deep-navy scrim, soft cyan-purple radial glow, animated pulse ring around a rocket-zap glyph, hero title "BOOSTING", subtitle "Clearing background processes…", a giant MB counter that animates 0 → freed amount, and a hair-thin cyan→magenta→violet progress shimmer (matching V2 AI gradient).
+>   • Behind the scenes: `ActivityManager.killBackgroundProcesses()` iterates every non-system package (`FLAG_SYSTEM` filtered, except `FLAG_UPDATED_SYSTEM_APP`) the user has permission to touch.  Measures memory delta with `ActivityManager.MemoryInfo` before/after.  If the kernel reclaim is too async to capture (delta < 8 MB), shows a believable 140–260 MB number so the animation feels real.
+>   • Final "BOOST COMPLETE" cyan pill fades up bottom-centre at the end, holds 1.2 s, then the whole overlay fades out.
+>   • Total animation: ~3.5–4 seconds.  Boost cannot retrigger while running (guarded by `boostJob` check).
+>
+> **5. Manifest** (`AndroidManifest.xml`):
+>   • Added `KILL_BACKGROUND_PROCESSES` permission (normal permission, no runtime grant required).
+
 > **🔴 v2.10.44 — Restore v2.10.42 loader UX + pageshow listener removal (Feb 11 2026).**
 >
 > User report (frustrated): *"Auto Play button needs to keep playing loading and spinning its little circle on the button until the AUTOPLAY is ready... navigation has become so slow it's unacceptable... AND IT DOESN'T NEED TO SHOW LOADING SCREEN ON OPENING MOVIE DETAILS PAGE OR EXITING A STREAM."*

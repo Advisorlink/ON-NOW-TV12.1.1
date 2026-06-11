@@ -116,7 +116,7 @@
                 android:clickable="true"
                 android:elevation="6dp"
                 android:nextFocusDown="@id/dock"
-                android:nextFocusRight="@id/topbar_btn_vpn">
+                android:nextFocusRight="@id/topbar_btn_boost">
 
                 <ImageView
                     android:layout_width="26dp"
@@ -141,6 +141,55 @@
                     android:text="V2 AI" />
             </LinearLayout>
 
+            <!-- v2.10.45 — BOOST pill (RAM cleaner).  Sits right
+                 next to the V2 AI pill so the two hero actions are
+                 visually paired.  Uses the same hero-pill height
+                 (64 dp) but a warm cyan→magenta→violet gradient so
+                 the user can tell them apart at a glance.  Click
+                 triggers MainActivity.performBoost() which kills
+                 background processes + shows the full-screen
+                 boost animation overlay. -->
+            <LinearLayout
+                android:id="@+id/topbar_btn_boost"
+                android:layout_width="wrap_content"
+                android:layout_height="64dp"
+                android:minWidth="138dp"
+                android:layout_marginStart="14dp"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:paddingHorizontal="26dp"
+                android:background="@drawable/bg_topbar_btn_boost"
+                android:focusable="true"
+                android:focusableInTouchMode="false"
+                android:clickable="true"
+                android:elevation="6dp"
+                android:nextFocusDown="@id/dock"
+                android:nextFocusLeft="@id/topbar_btn_v2ai"
+                android:nextFocusRight="@id/topbar_btn_vpn">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_boost_rocket"
+                    android:tint="#FFFFFFFF"
+                    android:contentDescription="@null" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:textColor="#FFFFFFFF"
+                    android:textSize="17sp"
+                    android:letterSpacing="0.18"
+                    android:fontFamily="sans-serif-medium"
+                    android:textStyle="bold"
+                    android:shadowColor="#A6000814"
+                    android:shadowDx="0"
+                    android:shadowDy="2"
+                    android:shadowRadius="6"
+                    android:text="BOOST" />
+            </LinearLayout>
+
             <LinearLayout
                 android:id="@+id/topbar_btn_vpn"
                 android:layout_width="wrap_content"
@@ -154,7 +203,7 @@
                 android:focusableInTouchMode="false"
                 android:clickable="true"
                 android:nextFocusDown="@id/dock"
-                android:nextFocusLeft="@id/topbar_btn_v2ai"
+                android:nextFocusLeft="@id/topbar_btn_boost"
                 android:nextFocusRight="@id/topbar_btn_speed">
 
                 <ImageView
@@ -250,7 +299,14 @@
                 android:fontFamily="sans-serif-medium" />
         </LinearLayout>
 
-        <!-- RIGHT slot: greeting + date + time. -->
+        <!-- RIGHT slot: WiFi indicator + date + time.
+             v2.10.45 — Removed the time-of-day greeting per user
+             demand ("take away the good evening/good morning").
+             The slot now leads with a WiFi-state icon that ticks
+             between full / weak / off based on
+             ConnectivityManager + signal-strength callbacks.  The
+             icon is FOCUSABLE so the user can press OK to open
+             the system Wi-Fi settings (Settings.ACTION_WIFI_SETTINGS). -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
@@ -258,15 +314,19 @@
             android:orientation="horizontal"
             android:gravity="end|center_vertical">
 
-            <TextView
-                android:id="@+id/greeting"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+            <ImageView
+                android:id="@+id/wifiIcon"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
                 android:layout_marginEnd="14dp"
-                android:textColor="@color/text_secondary"
-                android:textSize="13sp"
-                android:fontFamily="sans-serif-medium"
-                tools:text="Good evening" />
+                android:padding="6dp"
+                android:src="@drawable/ic_wifi"
+                android:tint="@color/text_primary"
+                android:focusable="true"
+                android:focusableInTouchMode="false"
+                android:clickable="true"
+                android:background="@drawable/bg_topbar_btn"
+                android:contentDescription="Wi-Fi status" />
 
             <TextView
                 android:id="@+id/dateLabel"
@@ -288,6 +348,17 @@
                 android:textSize="14sp"
                 android:fontFamily="sans-serif-medium"
                 tools:text="20:42" />
+
+            <!-- v2.10.45 — Greeting TextView kept in the tree but
+                 hidden, so any code still referencing
+                 `binding.greeting` keeps compiling.  Width/height
+                 collapse to 0 since visibility=gone. -->
+            <TextView
+                android:id="@+id/greeting"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:visibility="gone"
+                tools:text="Good evening" />
         </LinearLayout>
     </LinearLayout>
 
@@ -498,6 +569,40 @@
         android:clipToPadding="false"
         android:clipChildren="false"
         android:descendantFocusability="afterDescendants"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- v2.10.45 — Boost overlay (RAM cleaner animation).  Sits as
+         a sibling at the very end of the ConstraintLayout so it
+         paints ON TOP of every other view including the topbar
+         and dock.  Visibility flipped from `gone` → `visible` +
+         alpha-animated by MainActivity.performBoost().  See
+         overlay_boost.xml for the inner structure.
+
+         NOTE: NO `android:id` on this <include> tag — when you
+         set one, it replaces the included root view's own id,
+         which would break our findViewById(R.id.boost_overlay)
+         lookups in MainActivity. -->
+    <include
+        layout="@layout/overlay_boost"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- v2.10.45 — Offline overlay.  Sits below the Boost overlay
+         in the z-order (Boost is drawn last and thus on top) so a
+         user-initiated Boost can still be triggered if the box is
+         offline.  Visibility flipped by MainActivity's network
+         callback. -->
+    <include
+        layout="@layout/overlay_offline"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />

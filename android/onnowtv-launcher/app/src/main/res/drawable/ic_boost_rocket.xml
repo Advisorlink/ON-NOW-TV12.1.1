@@ -1,0 +1,14 @@
+<!--
+  Boost button icon — rocket / zap motif.  Vector path drawn to
+  match the V2 AI sparkle icon's visual weight (24 dp container,
+  ~20 dp glyph).  Stroke-only so the icon adopts the parent
+  imageTintList (white on the gradient pill, dark on focus).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <!-- Zap bolt: high-energy, instantly readable on a TV at 3 m -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M13.5,2 L4,13 L11,13 L10.5,22 L20,11 L13,11 Z" />
+</vector>

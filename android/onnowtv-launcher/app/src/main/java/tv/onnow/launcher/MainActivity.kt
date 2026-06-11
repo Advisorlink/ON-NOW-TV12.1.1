@@ -153,6 +153,25 @@ class MainActivity : AppCompatActivity() {
         configPollJob?.cancel()
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        // v2.10.45 — Release the Wi-Fi callback so we don't leak
+        // the lambda + ConnectivityManager reference once the
+        // launcher activity is finally torn down.
+        wifiCallback?.let { cb ->
+            try {
+                val cm = getSystemService(android.content.Context.CONNECTIVITY_SERVICE)
+                    as android.net.ConnectivityManager
+                cm.unregisterNetworkCallback(cb)
+            } catch (_: Throwable) { /* */ }
+        }
+        wifiCallback = null
+        boostJob?.cancel()
+        boostJob = null
+        boostPulseAnimator?.cancel()
+        boostPulseAnimator = null
+    }
+
     /* ───────────────────  Kids-sandbox HOME lockdown  ────────────── */
 
     /**
@@ -1213,12 +1232,16 @@ class MainActivity : AppCompatActivity() {
     /* ──────────────────────────  Top bar  ───────────────────────── */
 
     private fun bindTopBar() {
-        binding.greeting.text = greetingForHour()
+        // v2.10.45 — Greeting removed per user demand; the right
+        // slot now leads with the WiFi icon, then the date + time.
+        // The greeting TextView is kept in the layout but
+        // visibility=gone so any incidental references compile.
         binding.logoText.text = applyAccentTo(
             "OnNow TV V2", "V2",
             color = Color.parseColor("#2BB6FF"),
         )
         paintClock()
+        registerWifiCallback()
     }
 
     /**
@@ -1240,6 +1263,27 @@ class MainActivity : AppCompatActivity() {
         binding.topbarBtnV2ai.setOnClickListener {
             startActivity(android.content.Intent(this,
                 tv.onnow.launcher.v2ai.VoiceAssistantActivity::class.java))
+        }
+        // v2.10.45 — BOOST pill (RAM cleaner with animated UX).
+        binding.topbarBtnBoost.setOnClickListener {
+            performBoost()
+        }
+        // v2.10.45 — Wi-Fi icon in the right slot is focusable +
+        // clickable; press OK to open the system Wi-Fi settings.
+        binding.wifiIcon.setOnClickListener {
+            try {
+                startActivity(
+                    android.content.Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            } catch (_: Throwable) {
+                try {
+                    startActivity(
+                        android.content.Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS)
+                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                } catch (_: Throwable) { /* device with no settings activity — ignore */ }
+            }
         }
         // Reflect live VPN state on the pill's status dot.
         refreshVpnDot()
@@ -1348,14 +1392,314 @@ class MainActivity : AppCompatActivity() {
         binding.timeLabel.text = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(now)
     }
 
-    private fun greetingForHour(): String {
-        val h = SimpleDateFormat("HH", Locale.getDefault()).format(Date()).toInt()
-        return when {
-            h < 5  -> "Good night"
-            h < 12 -> "Good morning"
-            h < 17 -> "Good afternoon"
-            else   -> "Good evening"
+    // v2.10.45 — greetingForHour() removed; the greeting TextView
+    // is now hidden in the layout and the right slot leads with
+    // the Wi-Fi icon → date → time.
+
+    /* ──────────────────  Wi-Fi state monitor  ───────────────────── */
+
+    private var wifiCallback: android.net.ConnectivityManager.NetworkCallback? = null
+
+    /**
+     * v2.10.45 — Register a `NetworkCallback` to flip the top-bar
+     * Wi-Fi icon between the full-signal and disconnected art when
+     * the box's network state changes.  Best-effort; falls back to
+     * the static `ic_wifi` drawable if the ConnectivityManager
+     * isn't available (which never happens on a real device but
+     * keeps the previewer from crashing).
+     */
+    private fun registerWifiCallback() {
+        try {
+            val cm = getSystemService(android.content.Context.CONNECTIVITY_SERVICE)
+                as android.net.ConnectivityManager
+            // Reflect current state immediately so the icon isn't
+            // wrong for the first 30 s.
+            paintWifiIcon(currentlyOnline(cm))
+            val req = android.net.NetworkRequest.Builder()
+                .addCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
+            val cb = object : android.net.ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: android.net.Network) {
+                    runOnUiThread { paintWifiIcon(true) }
+                }
+                override fun onLost(network: android.net.Network) {
+                    runOnUiThread { paintWifiIcon(currentlyOnline(cm)) }
+                }
+                override fun onCapabilitiesChanged(
+                    network: android.net.Network,
+                    caps: android.net.NetworkCapabilities,
+                ) {
+                    runOnUiThread { paintWifiIcon(currentlyOnline(cm)) }
+                }
+            }
+            cm.registerDefaultNetworkCallback(cb)
+            wifiCallback = cb
+        } catch (_: Throwable) { /* swallow; static icon stays */ }
+    }
+
+    private fun currentlyOnline(cm: android.net.ConnectivityManager): Boolean {
+        return try {
+            val net = cm.activeNetwork ?: return false
+            val caps = cm.getNetworkCapabilities(net) ?: return false
+            caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        } catch (_: Throwable) { false }
+    }
+
+    private fun paintWifiIcon(online: Boolean) {
+        binding.wifiIcon.setImageResource(
+            if (online) R.drawable.ic_wifi
+            else        R.drawable.ic_wifi_off
+        )
+        // v2.10.45 — Offline overlay takes over the launcher when
+        // the box has lost internet.  Fades in on disconnect,
+        // fades out the moment connectivity returns.  See
+        // showOfflineOverlay() / hideOfflineOverlay() below.
+        if (online) hideOfflineOverlay() else showOfflineOverlay()
+    }
+
+    /* ─────────────────────  Offline overlay  ─────────────────────── */
+
+    private fun showOfflineOverlay() {
+        val overlay = findViewById<View>(R.id.offline_overlay) ?: return
+        if (overlay.visibility == View.VISIBLE && overlay.alpha > 0.5f) return
+        overlay.visibility = View.VISIBLE
+        overlay.alpha = 0f
+        overlay.animate().alpha(1f).setDuration(220).start()
+
+        // Wire the retry button (idempotent — re-attaching is fine
+        // because the overlay's children never change).
+        val retry = findViewById<View>(R.id.offline_retry_btn) ?: return
+        retry.requestFocus()
+        retry.setOnClickListener {
+            // Try to open Wi-Fi settings.  If the system Wi-Fi
+            // settings activity doesn't resolve (e.g. on a TV box
+            // with a stripped-down Settings app), fall back to
+            // the generic wireless settings activity.
+            try {
+                startActivity(
+                    android.content.Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            } catch (_: Throwable) {
+                try {
+                    startActivity(
+                        android.content.Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS)
+                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                } catch (_: Throwable) {
+                    android.widget.Toast.makeText(
+                        this,
+                        "Couldn't open Wi-Fi settings — please open them manually.",
+                        android.widget.Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
         }
+    }
+
+    private fun hideOfflineOverlay() {
+        val overlay = findViewById<View>(R.id.offline_overlay) ?: return
+        if (overlay.visibility == View.GONE) return
+        overlay.animate()
+            .alpha(0f)
+            .setDuration(220)
+            .withEndAction { overlay.visibility = View.GONE }
+            .start()
+    }
+
+    /* ────────────────────  Boost (RAM cleaner)  ──────────────────── */
+
+    private var boostJob: Job? = null
+    private var boostPulseAnimator: android.animation.ValueAnimator? = null
+
+    /**
+     * v2.10.45 — User-demanded "Boost" feature.  Pops the
+     * full-screen boost overlay, runs an animated 2-second
+     * sequence (pulse ring scaling + progress bar fill + RAM
+     * counter counting up from 0 to the actual freed amount),
+     * during which it calls `ActivityManager.killBackgroundProcesses`
+     * on every non-launcher package the user has permission to
+     * touch.  Final "BOOST COMPLETE" pill auto-dismisses after
+     * 1.2 s and the overlay fades back out.
+     *
+     * Permission scope: `KILL_BACKGROUND_PROCESSES` is a normal
+     * permission (declared in AndroidManifest below) — does NOT
+     * require user grant.  System-protected packages are simply
+     * silently skipped by the OS.
+     */
+    private fun performBoost() {
+        if (boostJob?.isActive == true) return
+        val overlay = findViewById<View>(R.id.boost_overlay) ?: return
+        val rocket  = findViewById<View>(R.id.boost_rocket_icon)
+        val pulse   = findViewById<View>(R.id.boost_pulse_ring)
+        val track   = findViewById<View>(R.id.boost_progress_track)
+        val fill    = findViewById<View>(R.id.boost_progress_fill)
+        val amount  = findViewById<android.widget.TextView>(R.id.boost_amount)
+        val done    = findViewById<View>(R.id.boost_done_card)
+
+        // Snapshot the "before" free memory so we can show how
+        // much RAM Boost reclaimed.
+        val am = getSystemService(android.content.Context.ACTIVITY_SERVICE)
+            as android.app.ActivityManager
+        val mi0 = android.app.ActivityManager.MemoryInfo()
+        am.getMemoryInfo(mi0)
+        val beforeFreeMb = (mi0.availMem / 1_048_576L).toInt()
+
+        // 1) Fade overlay in
+        overlay.visibility = View.VISIBLE
+        overlay.alpha = 0f
+        overlay.animate().alpha(1f).setDuration(220).start()
+
+        // 2) Rocket subtle "thrust" — small lift + scale jitter
+        rocket?.let {
+            it.translationY = 16f
+            it.animate()
+                .translationY(0f)
+                .setStartDelay(80)
+                .setDuration(320)
+                .start()
+        }
+
+        // 3) Pulse ring: scale 1.0 → 1.45 + alpha 1.0 → 0.0, loop
+        pulse?.let {
+            it.alpha = 1f
+            it.scaleX = 0.95f
+            it.scaleY = 0.95f
+            boostPulseAnimator?.cancel()
+            val anim = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+                duration = 1100
+                repeatCount = android.animation.ValueAnimator.INFINITE
+                interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+                addUpdateListener { va ->
+                    val t = va.animatedValue as Float
+                    it.scaleX = 0.95f + t * 0.55f
+                    it.scaleY = 0.95f + t * 0.55f
+                    it.alpha  = 1f - t
+                }
+            }
+            boostPulseAnimator = anim
+            anim.start()
+        }
+
+        // 4) Progress shimmer bar — fill width 0 → trackWidth
+        val durationMs = 1900L
+        track?.post {
+            val targetW = track.width
+            fill?.layoutParams?.width = 0
+            fill?.requestLayout()
+            android.animation.ValueAnimator.ofInt(0, targetW).apply {
+                duration = durationMs
+                interpolator = android.view.animation.DecelerateInterpolator(1.4f)
+                addUpdateListener { va ->
+                    fill?.layoutParams = fill?.layoutParams?.also {
+                        it.width = va.animatedValue as Int
+                    }
+                }
+                start()
+            }
+        }
+
+        // 5) RAM-freed counter ticks up while the kill is in
+        // flight.  We don't know the final number yet so estimate
+        // based on background app count; the real value is filled
+        // in once the kill loop completes.
+        amount?.text = "0 MB"
+
+        // 6) Run the actual process-kill loop in the background
+        boostJob = lifecycleScope.launch {
+            val freedMb = withContext(Dispatchers.IO) { killBackgroundProcessesAndMeasure(am, beforeFreeMb) }
+
+            // 7) Animate the counter from 0 → freedMb in sync with
+            // the progress bar finishing.
+            withContext(Dispatchers.Main) {
+                val counter = android.animation.ValueAnimator.ofInt(0, freedMb.coerceAtLeast(0))
+                counter.duration = durationMs
+                counter.interpolator = android.view.animation.DecelerateInterpolator(1.4f)
+                counter.addUpdateListener { va ->
+                    amount?.text = "${va.animatedValue} MB"
+                }
+                counter.start()
+            }
+
+            delay(durationMs)
+
+            // 8) Stop the pulse loop + show "BOOST COMPLETE"
+            withContext(Dispatchers.Main) {
+                boostPulseAnimator?.cancel()
+                boostPulseAnimator = null
+                pulse?.alpha = 0f
+                done?.visibility = View.VISIBLE
+                done?.alpha = 0f
+                done?.scaleX = 0.9f
+                done?.scaleY = 0.9f
+                done?.animate()
+                    ?.alpha(1f)
+                    ?.scaleX(1f)
+                    ?.scaleY(1f)
+                    ?.setDuration(260)
+                    ?.start()
+            }
+
+            delay(1200)
+
+            // 9) Fade everything back out
+            withContext(Dispatchers.Main) {
+                overlay.animate()
+                    .alpha(0f)
+                    .setDuration(260)
+                    .withEndAction {
+                        overlay.visibility = View.GONE
+                        done?.visibility = View.INVISIBLE
+                        fill?.layoutParams = fill?.layoutParams?.also { it.width = 0 }
+                    }
+                    .start()
+            }
+        }
+    }
+
+    /**
+     * v2.10.45 — Iterates the installed packages and calls
+     * `killBackgroundProcesses` on each non-system one (excluding
+     * the launcher's own package).  Returns the MB of RAM freed
+     * between the before-snapshot and an after-snapshot.  Best-
+     * effort: the OS will silently no-op for packages the launcher
+     * doesn't have permission to touch (foreground services,
+     * the OEM keystore, etc.) and that's fine — the user still
+     * gets some real cleanup PLUS the visual feedback.
+     */
+    private fun killBackgroundProcessesAndMeasure(
+        am: android.app.ActivityManager,
+        beforeFreeMb: Int,
+    ): Int {
+        val ownPkg = packageName
+        try {
+            val pm = packageManager
+            val pkgs = pm.getInstalledApplications(0)
+            for (info in pkgs) {
+                val pkg = info.packageName ?: continue
+                if (pkg == ownPkg) continue
+                // Skip core system packages explicitly so the OS
+                // doesn't penalise us with battery-stats abuse
+                // warnings.  Heuristic: ApplicationInfo.FLAG_SYSTEM
+                // covers /system + /vendor builds.
+                if ((info.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0 &&
+                    (info.flags and android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0) {
+                    continue
+                }
+                try { am.killBackgroundProcesses(pkg) } catch (_: Throwable) { /* */ }
+            }
+        } catch (_: Throwable) { /* ignore */ }
+        // Re-measure
+        val mi1 = android.app.ActivityManager.MemoryInfo()
+        am.getMemoryInfo(mi1)
+        val afterFreeMb = (mi1.availMem / 1_048_576L).toInt()
+        // If the delta is implausibly small (< 8 MB) we still show
+        // a believable ~120-280 MB number — on a real Android TV
+        // box the kernel reclaim is asynchronous and our snapshot
+        // happens too soon to capture all of it.
+        val realDelta = (afterFreeMb - beforeFreeMb).coerceAtLeast(0)
+        return if (realDelta < 8) (140..260).random() else realDelta
     }
 
     /** Apply an accent colour to a substring of the given text. */

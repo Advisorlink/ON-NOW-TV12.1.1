@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Filled portion of the Boost progress bar — same hero gradient
+     as the V2 AI button for visual cohesion. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="2dp" />
+    <gradient
+        android:type="linear"
+        android:angle="0"
+        android:startColor="#FF2BB6FF"
+        android:centerColor="#FFE91E63"
+        android:endColor="#FFB04CFF"
+        android:useLevel="false" />
+</shape>
