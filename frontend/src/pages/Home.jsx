@@ -206,69 +206,6 @@ export default function Home() {
     React.useEffect(() => {
         if (isFilterView) return undefined;
 
-        /* v2.10.45 — Restored the "buttery D-pad" implementation and
-         * fixed the focus jumping the user reported:
-         *
-         * 1.  ROWS ARE CACHED across keypresses and only rebuilt on
-         *     relevant DOM mutations (shelves mount/unmount, tiles
-         *     flip enabled/disabled).  The uncached version did a
-         *     full `querySelectorAll` + per-tile layout pass on
-         *     EVERY keypress (~100 forced layouts) which made held
-         *     D-pad feel chunky on the HK1.
-         *
-         * 2.  `focus({ preventScroll: true })` + ONE explicit
-         *     scrollIntoView on the snap-page parent.  The previous
-         *     `preventScroll: false` ran the browser's implicit
-         *     focus-scroll AND the manual snap-scroll on every
-         *     press — two scrolls fighting over a scroll-snap
-         *     container is exactly the "jumping top to bottom"
-         *     the user reported. */
-        let cachedRows = null;
-        const invalidateRows = () => { cachedRows = null; };
-        const buildRows = () => {
-            const homeRoot = document.querySelector('[data-testid="home-page"]');
-            if (!homeRoot) return [];
-            const heroFocusables = Array.from(
-                homeRoot.querySelectorAll(
-                    '[data-testid="hero-billboard"] [data-focusable="true"]'
-                )
-            ).filter((el) => !el.hasAttribute('disabled'));
-            const shelfNodes = Array.from(
-                homeRoot.querySelectorAll(
-                    '[data-testid="shelves-region"] > section, ' +
-                    '[data-testid="shelves-region"] > [data-testid="for-you-shelf"] section, ' +
-                    '[data-testid="shelves-region"] > div > a[data-focusable="true"]'
-                )
-            );
-            const rows = [];
-            if (heroFocusables.length) rows.push(heroFocusables);
-            for (const node of shelfNodes) {
-                const list = node.matches('[data-focusable="true"]')
-                    ? [node]
-                    : Array.from(
-                          node.querySelectorAll('[data-focusable="true"]')
-                      );
-                const list2 = list.filter((el) => !el.hasAttribute('disabled'));
-                if (list2.length) rows.push(list2);
-            }
-            return rows;
-        };
-        // Invalidate the cached row list on relevant DOM changes —
-        // new shelves loading, tiles enabling/disabling.  We do NOT
-        // invalidate on `data-focused` attribute flips (the focus
-        // ring) because those happen on every move and would defeat
-        // the cache.
-        const homeRootForObs = document.querySelector('[data-testid="home-page"]');
-        const obs = new MutationObserver(invalidateRows);
-        if (homeRootForObs) {
-            obs.observe(homeRootForObs, {
-                childList: true,
-                subtree: true,
-                attributes: true,
-                attributeFilter: ['data-focusable', 'disabled', 'tabindex'],
-            });
-        }
-
         const onKey = (e) => {
             if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
             const homeRoot = document.querySelector('[data-testid="home-page"]');
@@ -285,14 +222,38 @@ export default function Home() {
             // and this row-walker takes over again.
             if (active.closest('[data-testid="side-nav"]')) return;
 
-            // Build/reuse the cached rows list.
-            if (!cachedRows) cachedRows = buildRows();
-            const rows = cachedRows;
+            // Build the ordered list of "rows" in DOM order.  Hero
+            // is row 0 when it has any focusable; every shelf
+            // section under shelves-region becomes a row when it
+            // contains at least one focusable element.
+            const heroFocusables = Array.from(
+                homeRoot.querySelectorAll(
+                    '[data-testid="hero-billboard"] [data-focusable="true"]'
+                )
+            ).filter((el) => !el.hasAttribute('disabled'));
+
+            const shelfNodes = Array.from(
+                homeRoot.querySelectorAll(
+                    '[data-testid="shelves-region"] > section, ' +
+                    '[data-testid="shelves-region"] > [data-testid="for-you-shelf"] section, ' +
+                    '[data-testid="shelves-region"] > div > a[data-focusable="true"]'
+                )
+            );
+
+            const rows = [];
+            if (heroFocusables.length) rows.push(heroFocusables);
+            for (const node of shelfNodes) {
+                const list = node.matches('[data-focusable="true"]')
+                    ? [node]
+                    : Array.from(
+                          node.querySelectorAll('[data-focusable="true"]')
+                      );
+                const list2 = list.filter((el) => !el.hasAttribute('disabled'));
+                if (list2.length) rows.push(list2);
+            }
             if (rows.length === 0) return;
 
-            // Which row is the user currently on?  Array.includes is
-            // cheap; geometry only as a rare fallback (focus on a
-            // tile that mounted between mutations).
+            // Which row is the user currently on?
             let curRowIdx = -1;
             for (let i = 0; i < rows.length; i++) {
                 if (rows[i].includes(active)) {
@@ -301,47 +262,31 @@ export default function Home() {
                 }
             }
             if (curRowIdx === -1) {
-                // Stale cache (focused tile not in rows) — rebuild
-                // once before falling back to geometry.
-                cachedRows = null;
-                const fresh = buildRows();
-                cachedRows = fresh;
-                for (let i = 0; i < fresh.length; i++) {
-                    if (fresh[i].includes(active)) {
-                        curRowIdx = i;
-                        break;
+                const activeY = active.getBoundingClientRect().top;
+                let best = 0;
+                let bestDy = Infinity;
+                for (let i = 0; i < rows.length; i++) {
+                    const dy = Math.abs(
+                        rows[i][0].getBoundingClientRect().top - activeY
+                    );
+                    if (dy < bestDy) {
+                        bestDy = dy;
+                        best = i;
                     }
                 }
-                if (curRowIdx === -1) {
-                    const activeY = active.getBoundingClientRect().top;
-                    let best = 0;
-                    let bestDy = Infinity;
-                    for (let i = 0; i < fresh.length; i++) {
-                        const dy = Math.abs(
-                            fresh[i][0].getBoundingClientRect().top - activeY
-                        );
-                        if (dy < bestDy) {
-                            bestDy = dy;
-                            best = i;
-                        }
-                    }
-                    curRowIdx = best;
-                }
+                curRowIdx = best;
             }
-            const rowsNow = cachedRows;
 
             const targetIdx =
                 e.key === 'ArrowDown' ? curRowIdx + 1 : curRowIdx - 1;
-            if (targetIdx < 0 || targetIdx >= rowsNow.length) return; // edge
+            if (targetIdx < 0 || targetIdx >= rows.length) return; // edge
 
             // Pick the tile on the target row closest to the
             // current X column so the user stays in the same
-            // visual column when scrolling rails up/down.  Two
-            // getBoundingClientRect calls per target-row tile —
-            // orders of magnitude less than a full-page scan.
+            // visual column when scrolling rails up/down.
             const curRect = active.getBoundingClientRect();
             const curX = curRect.left + curRect.width / 2;
-            const target = rowsNow[targetIdx].reduce((best, el) => {
+            const target = rows[targetIdx].reduce((best, el) => {
                 const r = el.getBoundingClientRect();
                 const dx = Math.abs(r.left + r.width / 2 - curX);
                 if (!best || dx < best.dx) return { el, dx };
@@ -351,7 +296,7 @@ export default function Home() {
 
             e.preventDefault();
             e.stopPropagation();
-            try { target.el.focus({ preventScroll: true }); } catch { /* ignore */ }
+            try { target.el.focus({ preventScroll: false }); } catch { /* ignore */ }
             target.el.setAttribute('data-focused', 'true');
             document
                 .querySelectorAll('[data-focused="true"]')
@@ -380,10 +325,7 @@ export default function Home() {
         };
 
         window.addEventListener('keydown', onKey, true);
-        return () => {
-            window.removeEventListener('keydown', onKey, true);
-            obs.disconnect();
-        };
+        return () => window.removeEventListener('keydown', onKey, true);
     }, [isFilterView]);
 
     /* v2.7.10 — measure the EXACT pixel height available for one

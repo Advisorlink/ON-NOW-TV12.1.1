@@ -6,12 +6,17 @@ import * as img from '@/lib/img';
 import useLongPress from '@/hooks/useLongPress';
 
 /**
- * Poster tile for TMDB-sourced network catalogues.
+ * Poster tile for TMDB-sourced network catalogues.  The TMDB discover
+ * response only carries TMDB ids — not IMDB — so on click we resolve
+ * the IMDB id via `/api/tmdb/imdb/{type}/{tmdbId}` before routing to
+ * the existing `/title/{type}/{imdbId}` detail page.  Resolution is
+ * cached on the backend for 7 days, so the first click on a given
+ * title is the only slow one.
  *
- * v2.10.44 — Removed full-screen nav loader per user demand; the
- * inline `resolving` spinner state gives the user feedback during
- * the IMDB lookup, and Detail.jsx shows its own progressive layout
- * with a "Loading" spinner on the Autoplay button.
+ * Long-press (OK held >700 ms on the remote, or tap-and-hold on
+ * mobile) opens the "Add to My List" modal — same UX as the
+ * Home-page <PosterTile/>, so users have one mental model for
+ * adding to library across the whole app.
  */
 export default function NetworkPosterTile({ item }) {
     const navigate = useNavigate();
@@ -36,20 +41,7 @@ export default function NetworkPosterTile({ item }) {
                 setTimeout(() => setError(false), 2200);
                 return;
             }
-            navigate(`/title/${item.type}/${imdbId}`, {
-                state: {
-                    preview: {
-                        title: item.title || item.name || '',
-                        poster: item.poster ? img.poster(item.poster) : '',
-                        background: item.backdrop ? img.backdrop(item.backdrop) : '',
-                        description: item.overview || item.description || '',
-                        year: item.year ? String(item.year).slice(0, 4) : '',
-                        rating: item.rating && item.rating > 0
-                            ? Number(item.rating).toFixed(1)
-                            : '',
-                    },
-                },
-            });
+            navigate(`/title/${item.type}/${imdbId}`);
         } catch {
             setError(true);
             setTimeout(() => setError(false), 2200);
@@ -97,7 +89,6 @@ export default function NetworkPosterTile({ item }) {
     return (
         <button
             data-testid={`network-tile-${item.tmdb_id}`}
-            data-tile-id={item.imdbId || `tmdb-${item.tmdb_id}`}
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}

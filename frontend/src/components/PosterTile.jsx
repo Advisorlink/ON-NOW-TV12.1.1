@@ -13,37 +13,19 @@ import useLongPress from '@/hooks/useLongPress';
  *
  * Press-and-hold OK (or mouse) to fire the global "Add to My List"
  * modal — short-tap still navigates to the detail page.
- *
- * v2.10.44 — Per explicit user demand: NO full-screen loader on
- * tile click.  Detail.jsx now shows its own progressive layout
- * with a "Loading" spinner on the Autoplay button while streams
- * resolve.  Removed the `showNavLoader()` calls accordingly.
  */
 export default function PosterTile({ item, onSelect, initialFocus = false }) {
     const navigate = useNavigate();
 
     const onTap = () => {
-        // v2.10.45 — Hand the Detail page everything we already know
-        // about this title so it can paint its hero on the FIRST
-        // frame (no loading screen) while real metadata resolves.
-        const preview = {
-            title: item.title || '',
-            poster: item.poster ? img.poster(item.poster) : '',
-            background: item.background ? img.backdrop(item.background) : '',
-            description: item.description || '',
-            year: item.year || item.sub || '',
-            genres: Array.isArray(item.genres) ? item.genres : [],
-        };
         if (onSelect) {
             onSelect(item);
         } else if (item.routePath) {
-            navigate(item.routePath, { state: { preview } });
+            navigate(item.routePath);
         } else if (item.imdbId) {
-            navigate(`/title/${item.type || 'movie'}/${item.imdbId}`, {
-                state: { preview },
-            });
+            navigate(`/title/${item.type || 'movie'}/${item.imdbId}`);
         } else {
-            navigate(`/title/${item.id}`, { state: { preview } });
+            navigate(`/title/${item.id}`);
         }
     };
 
@@ -73,7 +55,6 @@ export default function PosterTile({ item, onSelect, initialFocus = false }) {
     return (
         <button
             data-testid={`poster-${item.id}`}
-            data-tile-id={item.imdbId || item.id}
             data-focusable="true"
             data-focus-style="tile"
             {...(initialFocus ? { 'data-initial-focus': 'true' } : {})}

@@ -18,7 +18,6 @@ import {
 } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useLongPress from '@/hooks/useLongPress';
-import { showNavLoader } from '@/lib/navLoader';
 import {
     listFavouritesByType,
     listWatchLater,
@@ -1134,7 +1133,7 @@ function FavouriteCard({ item, type }) {
     const navigate = useNavigate();
     const poster = item.meta?.poster;
 
-    const onTap = () => { navigate(`/title/${type}/${item.id}`); };
+    const onTap = () => navigate(`/title/${type}/${item.id}`);
     const onLongPress = () => {
         window.dispatchEvent(
             new CustomEvent('vesper:request-add-to-list', {
@@ -1153,7 +1152,6 @@ function FavouriteCard({ item, type }) {
     return (
         <button
             data-testid={`favorite-${item.id}`}
-            data-tile-id={item.id}
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
@@ -1267,7 +1265,6 @@ function ActorCard({ actor }) {
     return (
         <button
             data-testid={`actor-${actor.id}`}
-            data-tile-id={actor.id}
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
@@ -1349,21 +1346,10 @@ function WatchLaterBlock({ items, onRemove, onExpand }) {
     const navigate = useNavigate();
     const playItem = (w) => {
         if (w.type === 'series') {
-            // Resolve flow (episode-specific) — keep the loader to
-            // bridge the resolver hop.
-            showNavLoader();
             const videoId = `${w.id}:${w.episode.season}:${w.episode.number}`;
             navigate(`/resolve/series/${encodeURIComponent(videoId)}`);
         } else {
-            // v2.10.45 — No full-screen loader on detail opens.
-            navigate(`/title/movie/${w.id}`, {
-                state: {
-                    preview: {
-                        title: w.title || '',
-                        poster: w.poster || '',
-                    },
-                },
-            });
+            navigate(`/title/movie/${w.id}`);
         }
     };
     return (
@@ -1548,21 +1534,10 @@ function WatchLaterExpanded({ items, onClose, onRemove }) {
 
     const playItem = (w) => {
         if (w.type === 'series') {
-            // Resolve flow (episode-specific) — keep the loader to
-            // bridge the resolver hop.
-            showNavLoader();
             const videoId = `${w.id}:${w.episode.season}:${w.episode.number}`;
             navigate(`/resolve/series/${encodeURIComponent(videoId)}`);
         } else {
-            // v2.10.45 — No full-screen loader on detail opens.
-            navigate(`/title/movie/${w.id}`, {
-                state: {
-                    preview: {
-                        title: w.title || '',
-                        poster: w.poster || '',
-                    },
-                },
-            });
+            navigate(`/title/movie/${w.id}`);
         }
     };
 

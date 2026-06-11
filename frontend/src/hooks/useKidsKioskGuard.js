@@ -25,12 +25,6 @@ const KIDS_ROUTE_RE = /^\/kids(\/|$)/;
 const ALLOWED_AUX_ROUTES = ['/title', '/play', '/resolve', '/search'];
 
 function isKidsAllowedPath(pathname) {
-    // v2.9.7 — `/` is the Kids HOME (HomeRouter renders KidsHome when
-    // isKidsActive()).  Without this, the guard treated `/` as
-    // outside the sandbox and immediately bounced the user to
-    // `/kids/exit-pin` on app launch — making it look like the user
-    // had to enter a PIN just to GET IN to the Kids app.
-    if (pathname === '/' || pathname === '') return true;
     if (KIDS_ROUTE_RE.test(pathname)) return true;
     // The Kids experience can navigate into title detail / player —
     // those are still inside the kid-safe sandbox.  Anything else

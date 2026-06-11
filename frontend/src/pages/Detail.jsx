@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
     Play,
@@ -19,7 +19,6 @@ import PartyJoiningScreen from '@/components/PartyJoiningScreen';
 import TrailerModal from '@/components/TrailerModal';
 import StreamUnavailableModal from '@/components/StreamUnavailableModal';
 import StreamPickerModal from '@/components/StreamPickerModal';
-import SpinningLogo from '@/components/SpinningLogo';
 import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { API, Vesper } from '@/lib/api';
@@ -29,7 +28,6 @@ import { isKidsActive, getActiveProfile, isRatingAllowed, getKidsConfig } from '
 import { avatarEmojiById } from '@/lib/avatars';
 import * as cw from '@/lib/continueWatching';
 import { isInLibrary } from '@/lib/library';
-import { hideNavLoader, showNavLoader } from '@/lib/navLoader';
 
 const streamMode = (s) => {
     if (s?.url) return 'direct';
@@ -71,14 +69,6 @@ const buildMagnet = (s, fallbackName = '') => {
 
 export default function Detail() {
     useSpatialFocus();
-    // Hide the global nav-loading overlay the moment Detail's first
-    // commit lands.  `useLayoutEffect` fires synchronously AFTER
-    // the commit but BEFORE the browser paints — so the user sees
-    // Detail's own SpinningLogo loading screen in the same frame
-    // the overlay disappears (no flicker, no double spinner).
-    useLayoutEffect(() => {
-        hideNavLoader();
-    }, []);
     const { type, id } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
@@ -151,33 +141,6 @@ export default function Detail() {
     const [streamLoading, setStreamLoading] = useState(true);
     const [err, setErr] = useState(null);
     const [copied, setCopied] = useState(null);
-
-    /* v2.10.45 — Progressive Detail render (NO full-screen loader).
-       Tiles pass a lightweight `preview` object via navigation
-       state (title / poster / backdrop / synopsis / year / genres)
-       so the page paints its hero INSTANTLY while the real
-       metadata + streams resolve in the background.  Per the user's
-       explicit demand: "There shouldn't be a loading screen — it
-       should just open the detail page by itself and have the
-       autoplay spinning until the autoplay is ready." */
-    const previewMeta = useMemo(() => {
-        const p = location.state?.preview;
-        if (!p) return null;
-        return {
-            id,
-            imdb_id: id && String(id).startsWith('tt') ? id : '',
-            name: p.title || '',
-            background: p.background || p.poster || '',
-            poster: p.poster || '',
-            description: p.description || '',
-            releaseInfo: p.year || '',
-            runtime: '',
-            imdbRating: p.rating || '',
-            genres: Array.isArray(p.genres) ? p.genres : [],
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [location.state, id]);
-    const displayMeta = meta || previewMeta;
 
     /* ------------------------------------------------------------------
      * WATCH-TOGETHER · ROLE + WS COORDINATION (Detail page)
@@ -688,27 +651,11 @@ export default function Detail() {
             document.querySelector('[data-testid^="detail-play-"]:not([disabled])'),
             document.querySelector('[data-focusable="true"][data-initial-focus="true"]'),
             document.querySelector('[data-testid^="season-pill-"]'),
-            // v2.10.37 — Filter cast / similar / episode tiles OUT
-            // of the generic fallback.  The Autoplay button mounts
-            // asynchronously after streams resolve (≈0.5–3 s); cast
-            // tiles render eagerly from the meta payload.  Without
-            // this filter the generic fallback would land focus on
-            // the first cast actor, and the late-arrival watcher
-            // below would interpret that as "user moved" and never
-            // grab focus back to Autoplay — which is exactly the
-            // regression the user reported ("clicking a title goes
-            // to actors, not autoplay").  We'd rather have NO
-            // initial focus for 1-2 s than the wrong focus that
-            // sticks.
             Array.from(document.querySelectorAll('[data-focusable="true"]'))
                 .find((el) =>
                     !el.disabled &&
                     !el.closest('[data-testid="side-nav"]') &&
                     !el.closest('[data-testid="kids-side-nav"]') &&
-                    !el.matches('[data-testid^="cast-actor-"]') &&
-                    !el.matches('[data-testid^="cast-film-"]') &&
-                    !el.matches('[data-testid^="cast-similar-"]') &&
-                    !el.matches('[data-testid^="episode-"]') &&
                     el.getBoundingClientRect().width > 0
                 ),
         ];
@@ -741,24 +688,18 @@ export default function Detail() {
 
         /* Late-arrival watcher: only relevant for MOVIE pages
          * where the Autoplay button mounts asynchronously after
-         * streams resolve.
-         *
-         * v2.10.37 — Cast actors are no longer treated as
-         * "user moved" because they were typically the fallback
-         * target (now filtered above) rather than a deliberate
-         * navigation choice.  Only an EPISODE / SEASON / SIMILAR
-         * focus is treated as user-driven (those require explicit
-         * D-pad navigation on this page).  This guarantees that
-         * once the Autoplay button finally mounts, focus snaps to
-         * it even if cast accidentally got it during the wait.
-         */
+         * streams resolve.  We additionally check that focus has
+         * NOT moved to a user-driven target (cast actor, episode,
+         * similar card etc.) — if it has, we let the user keep
+         * their place and stop watching. */
         const watcher = setInterval(() => {
             if (cancelled || preferredHit) return;
             const ae = document.activeElement;
             const userMoved =
                 ae && (
-                    ae.matches('[data-testid^="cast-similar-"]') ||
+                    ae.matches('[data-testid^="cast-actor-"]') ||
                     ae.matches('[data-testid^="cast-film-"]') ||
+                    ae.matches('[data-testid^="cast-similar-"]') ||
                     ae.matches('[data-testid^="episode-"]') ||
                     ae.matches('[data-testid^="season-"]')
                 );
@@ -894,23 +835,10 @@ export default function Detail() {
         );
     }, [streams, type, partyCode, autoplayCandidate]);
 
-    // v2.10.5 — User wants the Autoplay button to be instantly
-    // clickable while it's the focused/glowing CTA, even before
-    // streams have finished loading.  If clicked while loading, we
-    // queue the intent and fire as soon as a candidate arrives.
-    const [pendingAutoplay, setPendingAutoplay] = useState(false);
-
     // Manual trigger for the on-page Play button.
     const triggerAutoplay = () => {
         if (autoplayCandidate) {
-            setPendingAutoplay(false);
             playStream(autoplayCandidate);
-            return;
-        }
-        if (streamLoading) {
-            // Streams still loading — remember the intent and
-            // play instantly when the candidate resolves.
-            setPendingAutoplay(true);
             return;
         }
         /* v2.6.87 — if there's no candidate it means streams loading
@@ -923,30 +851,6 @@ export default function Detail() {
             setShowUnavailableModal(true);
         }
     };
-
-    // Watch for the candidate to arrive while a pending click is
-    // outstanding, then auto-fire so the user gets the instant feel
-    // they asked for.  v2.10.45 — Also RESOLVE the pending intent
-    // when loading finishes with NO candidate: open the picker (or
-    // the "Coming soon" modal when nothing was found at all) instead
-    // of leaving the button stuck on "Starting…" forever.
-    useEffect(() => {
-        if (!pendingAutoplay) return;
-        if (autoplayCandidate) {
-            setPendingAutoplay(false);
-            playStream(autoplayCandidate);
-            return;
-        }
-        if (!streamLoading) {
-            setPendingAutoplay(false);
-            if (!streams || streams.length === 0) {
-                setShowUnavailableModal(true);
-            } else {
-                setShowStreamPicker(true);
-            }
-        }
-    /* eslint-disable-next-line react-hooks/exhaustive-deps */
-    }, [pendingAutoplay, autoplayCandidate, streamLoading]);
 
     const [showUnavailableModal, setShowUnavailableModal] = useState(false);
 
@@ -1156,7 +1060,7 @@ export default function Detail() {
             title: stream.title,
             type: stream.type,
         });
-        const playTitle = stream.title || displayMeta?.name || 'Now Playing';
+        const playTitle = stream.title || meta?.name || 'Now Playing';
         const playType = stream.type || type;
         const playImdb = stream.imdb_id || stream.cw_id || id;
         const positionMs = Number(stream.position_ms) || Number(partyPositionMs) || 0;
@@ -1179,13 +1083,13 @@ export default function Detail() {
             // Some Stremio addons embed low-res / wrong thumbs in the
             // stream payload; TMDB's poster/backdrop is always the
             // authoritative cinematic art for the title.
-            poster: displayMeta?.poster || stream.poster || '',
-            backdrop: displayMeta?.background || displayMeta?.poster || stream.backdrop || '',
-            synopsis: displayMeta?.description || stream.synopsis || '',
-            year: stream.year || displayMeta?.releaseInfo || '',
-            rating: stream.rating || displayMeta?.imdbRating || '',
-            runtime: stream.runtime || displayMeta?.runtime || '',
-            genres: displayMeta?.genres || [],
+            poster: meta?.poster || stream.poster || '',
+            backdrop: meta?.background || meta?.poster || stream.backdrop || '',
+            synopsis: meta?.description || stream.synopsis || '',
+            year: stream.year || meta?.releaseInfo || '',
+            rating: stream.rating || meta?.imdbRating || '',
+            runtime: stream.runtime || meta?.runtime || '',
+            genres: meta?.genres || [],
             startAtMs: positionMs,
             cwId: playImdb,
             partyCode,
@@ -1238,19 +1142,6 @@ export default function Detail() {
         autoplayFiredRef.current = true;
         setAutoplayFired(true);
         window.setTimeout(() => playStream(autoplayCandidate), 0);
-        // v2.10.45 — CONSUME the one-shot ?autoplay=1 so a persisted /
-        // restored WebView URL can never auto-replay this title when
-        // Android kills + restores the app mid-playback.
-        try {
-            const sp = new URLSearchParams(location.search);
-            if (sp.has('autoplay')) {
-                sp.delete('autoplay');
-                const qs = sp.toString();
-                navigate(`${location.pathname}${qs ? `?${qs}` : ''}`, {
-                    replace: true,
-                });
-            }
-        } catch { /* ignore */ }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [streams, streamLoading, autoplayRequested, type, autoplayCandidate, partyCode]);
 
@@ -1283,38 +1174,6 @@ export default function Detail() {
         seriesPartyFiredRef.current = true;
         autoplayFiredRef.current = true;
         setAutoplayFired(true);
-        /* v2.10.45 — CONSUME the one-shot ?episodeAutoplay=1&season=&episode=
-         * params the native skip-next fallback writes into the hash.
-         * Two failure modes this fixes (both reported as "Skip Next
-         * plays the SAME episode again"):
-         *   1. MainActivity persists the WebView URL on pause; if the
-         *      stale `episodeAutoplay` query is still in the hash when
-         *      Android kills/restores the app mid-playback, a fresh
-         *      Detail mount re-fires the OLD episode.
-         *   2. Consecutive skips: the refs above stayed `true` after the
-         *      first fallback consumption, so a SECOND skip-next intent
-         *      arriving on the still-mounted Detail page dead-ended.
-         * After consumption we strip the params (replace, no history
-         * entry) and re-arm the refs so the NEXT intent fires cleanly. */
-        const stripConsumedParams = () => {
-            try {
-                const sp = new URLSearchParams(location.search);
-                ['episodeAutoplay', 'autoplay', 'season', 'episode'].forEach(
-                    (k) => sp.delete(k)
-                );
-                const qs = sp.toString();
-                navigate(`${location.pathname}${qs ? `?${qs}` : ''}`, {
-                    replace: true,
-                });
-            } catch { /* ignore */ }
-        };
-        const rearmDirect = () => {
-            if (!isDirect) return;
-            stripConsumedParams();
-            seriesPartyFiredRef.current = false;
-            autoplayFiredRef.current = false;
-            setAutoplayFired(false);
-        };
         partyBreadcrumb('series-autoplay:fire', {
             party: !!partyCode,
             s: partySeason, e: partyEpisode,
@@ -1328,7 +1187,6 @@ export default function Detail() {
                     seriesPartyFiredRef.current = false;
                     autoplayFiredRef.current = false;
                     setAutoplayFired(false);
-                    if (isDirect) stripConsumedParams();
                     // Tell the guests the host couldn't find streams.
                     if (isPartyHost) {
                         const ws = partyDetailWsRef.current;
@@ -1353,7 +1211,6 @@ export default function Detail() {
                     seriesPartyFiredRef.current = false;
                     autoplayFiredRef.current = false;
                     setAutoplayFired(false);
-                    if (isDirect) stripConsumedParams();
                     if (isPartyHost) {
                         const ws = partyDetailWsRef.current;
                         if (ws && ws.readyState === 1) {
@@ -1378,7 +1235,6 @@ export default function Detail() {
                     seriesPartyFiredRef.current = false;
                     autoplayFiredRef.current = false;
                     setAutoplayFired(false);
-                    if (isDirect) stripConsumedParams();
                     return;
                 }
                 await playStream(pick, {
@@ -1386,15 +1242,10 @@ export default function Detail() {
                     season: Number(partySeason),
                     episode: Number(partyEpisode),
                 });
-                // Direct (skip-next) flow: consume the params + re-arm
-                // so the NEXT skip-next intent fires on this same
-                // still-mounted Detail page.
-                rearmDirect();
             } catch (_e) {
                 seriesPartyFiredRef.current = false;
                 autoplayFiredRef.current = false;
                 setAutoplayFired(false);
-                if (isDirect) stripConsumedParams();
             }
         })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1402,14 +1253,6 @@ export default function Detail() {
 
     const playStream = async (stream, episodeOverride = null) => {
         const mode = streamMode(stream);
-        // v2.10.20 — Cover the 200–800 ms gap between the user's
-        // click and the native player's "NOW PLAYING" splash with
-        // the same fullscreen overlay used elsewhere.  30 s safety
-        // timeout — the bridge call almost always resolves in <1 s
-        // but we don't want to strand the loader if the native side
-        // never confirms.  hideNavLoader is automatic on `popstate`
-        // (back button) and when Player.jsx mounts via web fallback.
-        showNavLoader({ label: 'Loading title', timeoutMs: 30000 });
         /* v2.7.20 — Persist which stream the user is currently
          * playing so the picker can mark it as "CURRENT" on
          * return. */
@@ -1433,7 +1276,7 @@ export default function Detail() {
             const playUrl =
                 mode === 'direct'
                     ? stream.url
-                    : buildMagnet(stream, displayMeta?.name);
+                    : buildMagnet(stream, meta?.name);
             if (!playUrl) return;
             // Look up any previously-saved position so we can resume.
             const cwList = cw.getEntries();
@@ -1471,32 +1314,20 @@ export default function Detail() {
             cw.upsert({
                 id: playId,
                 type,
-                title: displayMeta?.name || '',
+                title: meta?.name || '',
                 episodeLabel,
-                backdrop: displayMeta?.background || displayMeta?.poster || '',
-                poster: displayMeta?.poster || '',
-                synopsis: displayMeta?.description || '',
-                year: displayMeta?.releaseInfo || displayMeta?.year || '',
-                rating: displayMeta?.imdbRating || '',
-                runtime: displayMeta?.runtime || '',
-                genres: displayMeta?.genres || [],
+                backdrop: meta?.background || meta?.poster || '',
+                poster: meta?.poster || '',
+                synopsis: meta?.description || '',
+                year: meta?.releaseInfo || meta?.year || '',
+                rating: meta?.imdbRating || '',
+                runtime: meta?.runtime || '',
+                genres: meta?.genres || [],
                 streamUrl: playUrl,
                 subtitleUrl,
                 positionMs: existing?.positionMs || 0,
                 durationMs: existing?.durationMs || 0,
                 route: `/title/${type}/${id}`,
-                // v2.10.7 — Series dedupe key + advance support.
-                // For series, `id` is the composite episode id
-                // (`imdbId:season:episode`) but the shelf must only
-                // ever show one row per show.  Storing the bare
-                // show id as `seriesId` lets cw.upsert dedupe by
-                // it.  Season / episode integers let
-                // maybeMarkCompleted advance to the next episode
-                // when the current one finishes.
-                seriesId: type === 'series' ? id : undefined,
-                season: episodeOverride?.season || undefined,
-                episode: episodeOverride?.episode || undefined,
-                awaitingNextEpisode: false,
             });
             // Compute the WebSocket URL we want the native player
             // to open for sync.  Falls back to window.location.origin
@@ -1511,8 +1342,8 @@ export default function Detail() {
                 ? (sessionStorage.getItem('vesper-party-member-id') || '')
                 : '';
             const playTitle = episodeOverride
-                ? `${displayMeta?.name || ''} · ${episodeLabel}`
-                : (displayMeta?.name || '');
+                ? `${meta?.name || ''} · ${episodeLabel}`
+                : (meta?.name || '');
             if (partyCode) {
                 partyBreadcrumb('playStream:invoke', {
                     mode,
@@ -1558,12 +1389,12 @@ export default function Detail() {
                                 imdb_id: playId,
                                 cw_id: playId,
                                 subtitle_url: subtitleUrl,
-                                poster: displayMeta?.poster || '',
-                                backdrop: displayMeta?.background || displayMeta?.poster || '',
-                                synopsis: displayMeta?.description || '',
-                                year: displayMeta?.releaseInfo || displayMeta?.year || '',
-                                rating: displayMeta?.imdbRating || '',
-                                runtime: displayMeta?.runtime || '',
+                                poster: meta?.poster || '',
+                                backdrop: meta?.background || meta?.poster || '',
+                                synopsis: meta?.description || '',
+                                year: meta?.releaseInfo || meta?.year || '',
+                                rating: meta?.imdbRating || '',
+                                runtime: meta?.runtime || '',
                                 season: episodeOverride?.season,
                                 episode: episodeOverride?.episode,
                                 episode_title: episodeOverride?.episode_title || '',
@@ -1606,31 +1437,31 @@ export default function Detail() {
                      * stream came from.  Metahub serves TMDB-sourced
                      * art via a stable CDN that the box can reach. */
                     poster:
-                        displayMeta?.poster ||
-                        displayMeta?.posterUrl ||
-                        displayMeta?.poster_url ||
-                        displayMeta?.background ||
-                        displayMeta?.backdrop ||
+                        meta?.poster ||
+                        meta?.posterUrl ||
+                        meta?.poster_url ||
+                        meta?.background ||
+                        meta?.backdrop ||
                         (id && id.startsWith('tt')
                             ? `https://images.metahub.space/poster/medium/${id}/img`
                             : ''),
                     backdrop:
-                        displayMeta?.background ||
-                        displayMeta?.backdrop ||
-                        displayMeta?.backdrop_url ||
-                        displayMeta?.poster ||
+                        meta?.background ||
+                        meta?.backdrop ||
+                        meta?.backdrop_url ||
+                        meta?.poster ||
                         (id && id.startsWith('tt')
                             ? `https://images.metahub.space/background/medium/${id}/img`
                             : ''),
                     synopsis:
-                        displayMeta?.description ||
-                        displayMeta?.overview ||
-                        displayMeta?.synopsis ||
+                        meta?.description ||
+                        meta?.overview ||
+                        meta?.synopsis ||
                         '',
-                    year: displayMeta?.releaseInfo || displayMeta?.year || '',
-                    rating: displayMeta?.imdbRating || '',
-                    runtime: displayMeta?.runtime || '',
-                    genres: displayMeta?.genres || [],
+                    year: meta?.releaseInfo || meta?.year || '',
+                    rating: meta?.imdbRating || '',
+                    runtime: meta?.runtime || '',
+                    genres: meta?.genres || [],
                     startAtMs: partyCode
                         ? Number(partyPositionMs) || 0
                         : startAtMs,
@@ -1691,7 +1522,7 @@ export default function Detail() {
     };
 
     const copyMagnet = async (stream) => {
-        const magnet = buildMagnet(stream, displayMeta?.name);
+        const magnet = buildMagnet(stream, meta?.name);
         if (!magnet) return;
         try {
             await navigator.clipboard.writeText(magnet);
@@ -1735,8 +1566,8 @@ export default function Detail() {
         return (
             <PartyJoiningScreen
                 title={meta ? (meta.name || '') + seriesLabel : 'Your watch party is starting'}
-                poster={displayMeta?.poster}
-                backdrop={displayMeta?.background || displayMeta?.poster}
+                poster={meta?.poster}
+                backdrop={meta?.background || meta?.poster}
                 loading={loading || streamLoading || (isPartyGuest && !partyDetailState?.stream)}
                 noStreams={noStreams}
                 role={isPartyHost ? 'host' : 'guest'}
@@ -1749,57 +1580,15 @@ export default function Detail() {
         );
     }
 
-    /* v2.10.45 — The full-screen "LOADING TITLE" screen is now the
-       LAST resort (cold deep-link with no preview data).  Any tile
-       click passes preview state, so the page hero renders on the
-       very first paint instead. */
-    if (loading && !displayMeta) {
+    if (loading) {
         return (
             <CenterMsg>
-                {/* v2.10.13 — User reported the previous tiny
-                    "Loading…" message read as static when a TV
-                    title is being opened.  Beefed up with:
-                      • A much larger spinning brand mark (88px)
-                      • A pulsing/cycling "Loading …" label that
-                        clearly reads as live via .vesper-dots
-                      • A sweeping cyan progress bar BENEATH the
-                        label so even if the rotation reads as
-                        subtle on a low-frame WebView, the bar
-                        sweep is unmistakable. */}
-                <SpinningLogo size={88} speedMs={900} />
-                <div
-                    className="vesper-mono"
-                    style={{
-                        marginTop: 22,
-                        fontSize: 13,
-                        letterSpacing: '0.34em',
-                        textTransform: 'uppercase',
-                        color: 'rgba(255,255,255,0.72)',
-                    }}
-                >
-                    Loading title
-                    <span className="vesper-dots" aria-hidden="true">…</span>
-                </div>
-                <div
-                    aria-hidden="true"
-                    style={{
-                        marginTop: 14,
-                        width: 'clamp(180px, 18vw, 280px)',
-                        height: 2,
-                        background:
-                            'linear-gradient(90deg, transparent 0%, rgba(93,200,255,0.85) 50%, transparent 100%)',
-                        backgroundSize: '200% 100%',
-                        animation:
-                            'vesper-splash-sweep 1.6s ease-in-out infinite',
-                        borderRadius: 999,
-                        boxShadow: '0 0 12px rgba(93,200,255,0.45)',
-                    }}
-                />
+                <Loader2 className="vesper-spin" size={28} /> Loading metadata…
             </CenterMsg>
         );
     }
 
-    if (err || (!loading && !meta)) {
+    if (err || !meta) {
         return (
             <CenterMsg>
                 <div style={{ color: '#ffb5b5' }}>{err || 'Not found'}</div>
@@ -1848,8 +1637,8 @@ export default function Detail() {
                 style={{
                     backgroundImage: `url(${
                         focusedMovie?.backdrop ||
-                        displayMeta.background ||
-                        displayMeta.poster || ''
+                        meta.background ||
+                        meta.poster || ''
                     })`,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
@@ -1940,9 +1729,9 @@ export default function Detail() {
                 <div
                     className="max-w-[68vw] vesper-fade-up"
                 >
-                    {displayMeta.imdb_id && (
+                    {meta.imdb_id && (
                         <div className="vesper-eyebrow mb-3">
-                            {focusedMovie ? focusedMovie.media_type : type} · {displayMeta.imdb_id}
+                            {focusedMovie ? focusedMovie.media_type : type} · {meta.imdb_id}
                         </div>
                     )}
                     <h1
@@ -1955,7 +1744,7 @@ export default function Detail() {
                             transition: 'opacity 220ms ease',
                         }}
                     >
-                        {focusedMovie?.title || focusedActor?.name || displayMeta.name}
+                        {focusedMovie?.title || focusedActor?.name || meta.name}
                     </h1>
 
                     {focusedMovie ? (
@@ -2016,18 +1805,18 @@ export default function Detail() {
                             className="flex items-center gap-3 mt-4 vesper-meta flex-wrap"
                             style={{ fontSize: 18 }}
                         >
-                            {displayMeta.releaseInfo && (
+                            {meta.releaseInfo && (
                                 <span style={{ color: 'var(--vesper-blue)' }}>
-                                    {displayMeta.releaseInfo}
+                                    {meta.releaseInfo}
                                 </span>
                             )}
-                            {displayMeta.runtime && <Bullet />}
-                            {displayMeta.runtime && <span>{displayMeta.runtime}</span>}
-                            {displayMeta.imdbRating && <Bullet />}
-                            {displayMeta.imdbRating && <span>★ {displayMeta.imdbRating}</span>}
-                            {displayMeta.genres?.length > 0 && <Bullet />}
-                            {displayMeta.genres?.length > 0 && (
-                                <span>{displayMeta.genres.slice(0, 3).join(' · ')}</span>
+                            {meta.runtime && <Bullet />}
+                            {meta.runtime && <span>{meta.runtime}</span>}
+                            {meta.imdbRating && <Bullet />}
+                            {meta.imdbRating && <span>★ {meta.imdbRating}</span>}
+                            {meta.genres?.length > 0 && <Bullet />}
+                            {meta.genres?.length > 0 && (
+                                <span>{meta.genres.slice(0, 3).join(' · ')}</span>
                             )}
                         </div>
                     )}
@@ -2067,7 +1856,7 @@ export default function Detail() {
                         >
                             {focusedBio || 'Loading biography…'}
                         </p>
-                    ) : displayMeta.description ? (
+                    ) : meta.description ? (
                         <p
                             className="mt-6 max-w-[58ch]"
                             style={{
@@ -2080,7 +1869,7 @@ export default function Detail() {
                                 overflow: 'hidden',
                             }}
                         >
-                            {displayMeta.description}
+                            {meta.description}
                         </p>
                     ) : null}
 
@@ -2106,10 +1895,7 @@ export default function Detail() {
                             }'s filmography`}
                         />
                     ) : type === 'movie' && autoplayEnabled && (
-                        <div
-                            data-action-row="true"
-                            className="mt-8 flex items-center gap-3 flex-wrap"
-                        >
+                        <div className="mt-8 flex items-center gap-3 flex-wrap">
                             <button
                                 data-testid="detail-play-autoplay"
                                 data-focusable="true"
@@ -2117,50 +1903,34 @@ export default function Detail() {
                                 data-initial-focus="true"
                                 tabIndex={0}
                                 onClick={triggerAutoplay}
+                                disabled={streamLoading}
                                 className="vesper-pulse-cta flex items-center gap-2.5 rounded-full font-sans font-semibold"
                                 style={{
                                     height: 'clamp(50px, 4vw, 60px)',
                                     paddingLeft: 'clamp(24px, 1.8vw, 32px)',
                                     paddingRight: 'clamp(28px, 2.2vw, 38px)',
                                     fontSize: 'clamp(15px, 1.15vw, 18px)',
-                                    background: 'var(--vesper-blue)',
-                                    color: 'var(--vesper-bg-0)',
-                                    opacity: 1,
+                                    background: streamLoading
+                                        ? 'rgba(255,255,255,0.10)'
+                                        : 'var(--vesper-blue)',
+                                    color: streamLoading
+                                        ? 'var(--vesper-text-2)'
+                                        : 'var(--vesper-bg-0)',
+                                    opacity: streamLoading ? 0.7 : 1,
                                 }}
                             >
-                                {/* v2.10.45 — Button state priority:
-                                      1. pendingAutoplay  → "Starting…"
-                                      2. candidate FOUND  → "Autoplay" (clickable),
-                                         EVEN while other addons are still
-                                         resolving.  Previously the button sat
-                                         in "Loading" until EVERY addon
-                                         finished (up to ~25 s with one slow
-                                         addon) even though a perfect stream
-                                         arrived in the first 1-2 s — the user
-                                         read the stuck spinner as "the app
-                                         is frozen".
-                                      3. still loading    → spinner "Loading"
-                                      4. nothing found    → "No stream found" */}
-                                {pendingAutoplay ? (
+                                {streamLoading ? (
                                     <>
                                         <Loader2
                                             className="vesper-spin"
                                             size={18}
                                         />
-                                        Starting…
+                                        Finding stream…
                                     </>
                                 ) : autoplayCandidate ? (
                                     <>
                                         <Play size={18} fill="currentColor" />
                                         Autoplay
-                                    </>
-                                ) : streamLoading ? (
-                                    <>
-                                        <Loader2
-                                            className="vesper-spin"
-                                            size={18}
-                                        />
-                                        Loading
                                     </>
                                 ) : (
                                     <>
@@ -2228,10 +1998,7 @@ export default function Detail() {
                         && !autoplayEnabled
                         && !focusedActor
                         && !focusedMovie && (
-                        <div
-                            data-action-row="true"
-                            className="mt-8 flex items-center gap-3 flex-wrap"
-                        >
+                        <div className="mt-8 flex items-center gap-3 flex-wrap">
                             <button
                                 data-testid="detail-choose-stream"
                                 data-focusable="true"
@@ -2301,7 +2068,7 @@ export default function Detail() {
                     {/* Stream picker (movies) / Episode browser (series).
                         Hidden when actor OR a filmography movie is
                         focused — hero is showing that info instead. */}
-                    {(focusedActor || focusedMovie) ? null : type === 'series' ? (meta && (
+                    {(focusedActor || focusedMovie) ? null : type === 'series' ? (
                         <SeriesEpisodes
                             meta={meta}
                             parentId={id}
@@ -2316,7 +2083,7 @@ export default function Detail() {
                                 />
                             }
                         />
-                    )) : autoplayEnabled && autoplayCandidate ? (
+                    ) : autoplayEnabled && autoplayCandidate ? (
                         // Autoplay is on AND we have a 1080p candidate
                         // → hide the manual stream picker entirely.
                         null
@@ -2878,9 +2645,9 @@ export default function Detail() {
                 iframe fallback for desktop / preview). */}
             <TrailerModal
                 youtubeKey={trailerKey}
-                title={focusedMovie?.title || displayMeta?.name}
-                poster={displayMeta?.poster || ''}
-                backdrop={displayMeta?.background || displayMeta?.poster || ''}
+                title={focusedMovie?.title || meta?.name}
+                poster={meta?.poster || ''}
+                backdrop={meta?.background || meta?.poster || ''}
                 onClose={() => setTrailerKey(null)}
             />
 
