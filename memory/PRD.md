@@ -5800,3 +5800,64 @@ DO NOT touch any of the following as a side effect:
 - We will not bundle piracy stream-aggregator addons into the
   suggested-addons list. Users may install whatever third-party
   addon URL they choose; that responsibility is theirs.
+
+---
+
+## Session: 2026-06-11 — v2.10.45 "Fix it 100%" batch (user-critical regressions)
+
+User reported (with video): home nav jumping, full-screen "LOADING
+TITLE" on tile click (looks frozen), autoplay spinner stops halfway,
+scrubbing slow, skip-next replaying same episode.
+
+### Root causes found & fixed
+1. **"LOADING TITLE" full-screen on tile click** — was Detail.jsx's own
+   `if (loading)` early-return (NOT the navLoader, which was already
+   removed from tiles).  Fixed via **progressive Detail render**: every
+   tile component now passes a `preview` payload through navigation
+   state (`{title, poster, background, description, year, genres}`);
+   Detail builds `previewMeta` from it and renders the full hero on the
+   FIRST paint (`displayMeta = meta || previewMeta`).  The old spinner
+   screen only remains for cold deep-links with no preview.
+   Components updated: PosterTile, HeroBillboard, RecommendationsRow,
+   CastRow, Person FilmCard, KidsTabGridView, NetworkPosterTile,
+   Library WatchLater (movie path), ContinueWatchingShelf (detail nav).
+2. **Autoplay button frozen on "Loading"** — button waited for ALL
+   addons (`streamLoading`) even when a 1080p candidate arrived in the
+   first seconds.  New state machine: pendingAutoplay→"Starting…",
+   candidate→"Autoplay" (immediately clickable), streamLoading→spinner
+   "Loading", else "No stream found".  Also: a pending click now
+   resolves (picker / Coming-soon modal) instead of hanging on
+   "Starting…" when loading ends with no candidate.
+3. **Home nav jumping** — the Jun-9 revert left `focus({preventScroll:
+   false})` + manual `scrollIntoView` = two scrolls fighting per
+   keypress over the snap container, plus full DOM re-scan per press.
+   Restored cached row-walker (MutationObserver invalidation) +
+   `preventScroll: true` + single explicit snap scroll.
+4. **Skip-next replaying same episode** — the native fallback writes
+   `?episodeAutoplay=1&season=&episode=` into the WebView hash and it
+   was never cleared: (a) Android persists/restores that stale URL
+   (`last_url`) → replays the OLD episode after process kill; (b) the
+   fire-once refs dead-ended consecutive skips.  Fixed: Detail.jsx now
+   CONSUMES the params (replace-navigate strip) + re-arms refs after
+   each direct fire; `?autoplay=1` (movies) is consumed the same way.
+   Native (vesper-tv MainActivity): `stripVolatileHashParams()` removes
+   episodeAutoplay/autoplay/season/episode/party/at_ms/position_ms from
+   the hash query before persisting `last_url`.
+5. **Scrubbing slow** — PlayerOverlay.kt scrub-commit debounce reduced
+   500ms → 220ms.
+
+### Testing
+- Testing agent iteration_47: 9/9 frontend checks PASS.  Tile click and
+  hero More-Info mount Detail in ~360ms with title visible, no overlay,
+  no full-screen loading text; button state machine verified; home
+  D-pad focus stays on focusables; back-nav clean; no console errors.
+- Native changes (PlayerOverlay.kt 220ms debounce, MainActivity
+  stripVolatileHashParams) are syntax-checked only — REQUIRE the user's
+  GitHub Actions APK build + on-device verification.
+
+### Known notes (not regressions)
+- Preview env: Stremio addons CORS-blocked → candidate resolution ends
+  in "No stream found" (works on device via backend).
+- Cold deep-links (/library, /search) force the profile picker —
+  pre-existing bootstrap behaviour.
+- Cosmetic console warning: `fetchpriority` casing on an <img>.
