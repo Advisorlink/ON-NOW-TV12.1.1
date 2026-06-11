@@ -691,7 +691,13 @@ export default function Detail() {
          * streams resolve.  We additionally check that focus has
          * NOT moved to a user-driven target (cast actor, episode,
          * similar card etc.) — if it has, we let the user keep
-         * their place and stop watching. */
+         * their place and stop watching.
+         *
+         * v2.10.46-d — Selector widened to ALSO match
+         * `detail-choose-stream` (the CTA shown when Autoplay
+         * 1080p is OFF) and the timeout extended 4 s → 10 s so
+         * slow addons that resolve in 6-9 s still get their
+         * primary button auto-focused. */
         const watcher = setInterval(() => {
             if (cancelled || preferredHit) return;
             const ae = document.activeElement;
@@ -708,7 +714,8 @@ export default function Detail() {
                 return;
             }
             const play = document.querySelector(
-                '[data-testid^="detail-play-"]:not([disabled])'
+                '[data-testid="detail-play-autoplay"]:not([disabled]), ' +
+                '[data-testid="detail-choose-stream"]:not([disabled])'
             );
             if (play) {
                 try { play.focus({ preventScroll: true }); } catch { /* ignore */ }
@@ -719,7 +726,7 @@ export default function Detail() {
                 preferredHit = true;
             }
         }, 200);
-        const stopWatcher = setTimeout(() => clearInterval(watcher), 4000);
+        const stopWatcher = setTimeout(() => clearInterval(watcher), 10000);
 
         return () => {
             cancelled = true;
@@ -728,6 +735,46 @@ export default function Detail() {
             clearTimeout(stopWatcher);
         };
     }, [id]);
+
+    /* v2.10.46-d — Streams-just-loaded focus pulse.
+     * Separate, narrower hook from the mount-time watcher: the
+     * moment `streamLoading` flips from true → false on a movie
+     * page (or when navigating between movies without a remount)
+     * we explicitly drive focus onto the primary CTA — either
+     * `detail-play-autoplay` (Autoplay 1080p ON) or
+     * `detail-choose-stream` (Autoplay 1080p OFF / no candidate).
+     * Without this, slow stream resolutions (>10 s) miss the
+     * mount-time watcher entirely and the user has to press DOWN
+     * to find the button.  Honours user-moved focus so we never
+     * steal focus from someone who's already browsing the cast
+     * row or episode list. */
+    useEffect(() => {
+        if (type !== 'movie') return;
+        if (streamLoading) return;
+        const t = window.setTimeout(() => {
+            const ae = document.activeElement;
+            const userMoved =
+                ae && (
+                    ae.matches('[data-testid^="cast-actor-"]') ||
+                    ae.matches('[data-testid^="cast-film-"]') ||
+                    ae.matches('[data-testid^="cast-similar-"]') ||
+                    ae.matches('[data-testid^="episode-"]') ||
+                    ae.matches('[data-testid^="season-"]')
+                );
+            if (userMoved) return;
+            const cta = document.querySelector(
+                '[data-testid="detail-play-autoplay"]:not([disabled]), ' +
+                '[data-testid="detail-choose-stream"]:not([disabled])'
+            );
+            if (!cta) return;
+            try { cta.focus({ preventScroll: true }); } catch { /* */ }
+            cta.setAttribute('data-focused', 'true');
+            document.querySelectorAll('[data-focused="true"]').forEach((el) => {
+                if (el !== cta) el.removeAttribute('data-focused');
+            });
+        }, 60);
+        return () => window.clearTimeout(t);
+    }, [streamLoading, type, id]);
 
     // ---------- AUTOPLAY 1080p — derived state ----------
     // `autoplayEnabled` reflects the live preference.  We read it

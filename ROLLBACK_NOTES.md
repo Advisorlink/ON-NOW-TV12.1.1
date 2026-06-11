@@ -198,3 +198,20 @@ User reported four more items on top of the first round. All four addressed with
 
 ### Fix G — TV-show "metadata" → 1 s loading screen
 **Status: SKIPPED** (user explicitly said "if you can't do that, then that's fine, just leave it"). Touching the series detail loading path risks the exact navigation regressions just rolled back, so I did not modify it.
+
+---
+
+## Third round of follow-up fixes (same day, 11 June 2026)
+
+User reported two more regressions:
+
+### Fix H — Movie Detail page now reliably auto-focuses the primary CTA
+**File:** `frontend/src/pages/Detail.jsx`
+- The mount-time late-arrival watcher (around line 695) was only matching `[data-testid^="detail-play-"]:not([disabled])` and only for 4 s. Now it ALSO matches `[data-testid="detail-choose-stream"]:not([disabled])` (the CTA shown when the user's Autoplay-1080p toggle is OFF), and the watch window is extended from 4 s → 10 s so slow addons that take 6-9 s to resolve still get their CTA auto-focused.
+- Added a **second, narrower hook** that fires the moment `streamLoading` flips false on a movie page. It explicitly focuses the same primary CTA (autoplay OR choose-stream) and honours user-moved focus (won't steal focus from someone browsing the cast row or episode list).
+- Net effect: clicking into a movie now lands focus on the primary action button as soon as the streams resolve — user can press OK immediately without ever pressing DOWN.
+
+### Fix I — Restored "Watching" yellow + "Watched" green badges on episode cards
+**File:** `frontend/src/components/SeriesEpisodes.jsx`
+- The yellow "Watching" badge (`data-testid="watching-<s>-<e>"`) was lost in the June-4 rollback. Reinstated with the original style: amber 250/204/21, clock SVG, "WATCHING" caption — shown when the user has any progress on the episode but hasn't crossed the watched threshold.
+- The existing "Watched" badge was using `--vesper-blue-rgb` (blue) which blended into the rest of the page. Restored the original GREEN palette (rgba(34,197,94)) so it's clearly distinct.

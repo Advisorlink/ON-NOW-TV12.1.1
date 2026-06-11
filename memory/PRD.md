@@ -1,5 +1,18 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.46-d — Round 3 of post-rollback fixes (11 Jun 2026).**
+>
+> User reported two regressions caused by the rollback:
+>
+> **H. Movie Detail page now reliably auto-focuses the primary CTA** — `pages/Detail.jsx`:
+>   • Late-arrival watcher selector widened to match BOTH `detail-play-autoplay` and `detail-choose-stream`; watch window 4 s → 10 s for slow addons.
+>   • Added a second, narrower hook that fires the moment `streamLoading` flips false to drop focus on the primary CTA. Honours user-moved focus.
+>   • Net effect: clicking into a movie now lands focus on the primary action button as soon as streams resolve — no more "press DOWN first" frustration.
+>
+> **I. Restored "Watching" yellow + "Watched" green badges on episode cards** — `components/SeriesEpisodes.jsx`:
+>   • Yellow "Watching" badge (lost in the June-4 rollback) reinstated with clock SVG.
+>   • "Watched" badge palette switched from blue (which blended with the UI) back to GREEN so it's clearly distinct.
+>
 > **🟢 v2.10.46-c — Second round of post-rollback fixes (11 Jun 2026).**
 >
 > User confirmed the first round worked. Then asked for four more:
