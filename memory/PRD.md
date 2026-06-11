@@ -1,5 +1,28 @@
 # ON NOW TV V2 — PRD
 
+> **🔴 v2.10.42 — Skip Next ROOT-CAUSE fix + Detail loader UX rework (Feb 11 2026).**
+>
+> User report: *"It still keeps playing the same episode when you click next, play next episode."* + *"It's taking WAY too long once you click a program or movie cover — remove that loader screen and just put Loading on the auto play button until it's ready."*
+>
+> **Skip-Next root cause (the v2.10.41 fix wasn't enough)**: Two compounding bugs:
+>   1. **Wrong API format on the prime job** — `kickoffNextEpisodePrime` in `ExoPlayerActivity.kt` was sending `tt0903747:s1e6` to `/api/streams/series/`.  Every Stremio addon (Torrentio, Cinemeta, Easynews…) expects the COLON format `tt0903747:1:6`; the `s/e` form silently returned empty streams from those addons, so `primedUrl` was null on EVERY prime → in-place swap path never ran → user got the legacy intent-fallback path EVERY time.
+>   2. **Detail.jsx autoplayFiredRef was sticky** — Once the user's first poster-click set `autoplayFiredRef.current = true`, the subsequent Skip-Next → MainActivity → `?episodeAutoplay=1&season=X&episode=Y` hashchange was silently dropped by the autoplay effect's early bail.  The user ended up on Detail with the OLD episode still showing as the resume target on the Autoplay button — which they correctly perceived as "it replayed the same episode".
+>
+> **Fixes**:
+>   • `ExoPlayerActivity.kt::kickoffNextEpisodePrime` — Send the colon-format `apiCwId = "${imdb}:${s}:${e}"` to the streams API while keeping the frontend's `s/e` format for the in-app CW dedupe via `cwCwId = "${imdb}:s${s}e${e}"`.  Subtitles endpoint switched to the same colon format.
+>   • `Detail.jsx` — Added `lastFiredEpisodeKeyRef` + a dedicated useEffect that watches `partySeason`/`partyEpisode` and resets BOTH `seriesPartyFiredRef` and `autoplayFiredRef` to false the moment a different episode key arrives.  This is the canonical "new episode requested from native intent" detection point.
+>
+> **Detail loader UX rework** — User explicitly asked for the full-screen `showNavLoader` overlay to be REMOVED on poster clicks, and the Autoplay button itself to indicate the loading state.
+>   • Removed `showNavLoader()` from poster-click handlers in:
+>     - `PosterTile.jsx` (all 3 routePath/imdbId/id branches)
+>     - `HeroBillboard.jsx::goToDetail` (Play button on hero billboard)
+>     - `NetworkPosterTile.jsx::handleClick` (network grid tiles) — relies on the inline `resolving` spinner state for the TMDB→IMDB resolve wait
+>     - `UpcomingMoviesShelf.jsx::openItem`
+>     - `TabGridView.jsx::MorphTileImpl::onTap`
+>     - `Library.jsx::FavouriteCard::onTap` + `NotifyPopover::onOpen`
+>   • Autoplay button text: changed loading-state label from `Starting…/Autoplay` to `Starting…/Loading`, and ready-state label from `Autoplay` to `Auto Play` per user phrasing.
+>   • Button now sets `disabled={streamLoading || pendingAutoplay}` with `cursor: wait` while resolving streams, so the focus ring stays on it but the click is a no-op until streams land.
+
 > **🔴 v2.10.41 — Critical Skip-Next-Episode swap + 3-min threshold fix (Feb 11 2026).**
 >
 > User report (verbatim): *"When I push skip to next episode, it's still displaying the same episode over again. It's replaying that same episode."* Plus *"Skip next episode has to show up 3 minutes before now, not two minutes before. And when I click skip to next episode, it needs to show the loading screen of the next episode."*

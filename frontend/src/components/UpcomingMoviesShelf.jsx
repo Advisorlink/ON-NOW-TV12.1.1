@@ -22,7 +22,6 @@ import { Play, Calendar } from 'lucide-react';
 import * as img from '@/lib/img';
 import StreamUnavailableModal from './StreamUnavailableModal';
 import useLongPress from '@/hooks/useLongPress';
-import { showNavLoader } from '@/lib/navLoader';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -85,11 +84,12 @@ export default function UpcomingMoviesShelf() {
         // The detail page has the Trailer button which is what
         // launches the full-screen trailer player.  Long-press on the
         // card opens the Notify modal directly (see longPressItem).
+        // v2.10.42 — Removed full-screen nav loader; Detail handles
+        // its own progressive layout + "Loading" pill on the
+        // Autoplay button.
         if (m?.imdb_id) {
-            showNavLoader();
             navigate(`/title/movie/${m.imdb_id}`);
         } else if (m?.tmdb_id) {
-            showNavLoader();
             navigate(`/resolve/movie/${m.tmdb_id}`);
         }
     };
