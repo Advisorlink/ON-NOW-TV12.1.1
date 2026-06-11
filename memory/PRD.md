@@ -1,5 +1,13 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.46-f — Round 5 of post-rollback fixes (11 Jun 2026).**
+>
+> **L. Rail re-ordered + Live TV / Sports Guide removed** — `components/SideNav.jsx`. Search is now the first nav item (above Home). Live TV entry removed (lives in `onnowtv-livetv`). Sports Guide removed (feature retired earlier this week). Unused icon imports cleaned up.
+>
+> **M. Incremental type-ahead search** — `pages/Search.jsx`. 250 ms debounce + a monotonic sequence counter that discards out-of-order responses from slow addons. Results paint as the user types instead of waiting for an explicit Search press. Shorter queries (< 2 chars) reset the panel cleanly.
+>
+> **N. Calendar redesigned for 16:9 fit + remote-navigable + rectangular weekly thumbnails** — `components/LibraryCalendar.jsx`. Outer container is now a non-scrolling flex column with `overflow: hidden`. Month grid is a 6-row × 7-col `minmax(0,1fr)` grid that absorbs whatever vertical space remains after header + rail. Detail panel scrolls internally if a day has many episodes. "This week" rail tiles 280 → 240 px (still 16:9 rectangles), 6-7 fit without horizontal scrolling. All existing D-pad focus attributes preserved.
+>
 > **🟢 v2.10.46-e — Round 4 of post-rollback fixes (11 Jun 2026).**
 >
 > **J. Focus bounce-back to the tile after Add-to-List** — `components/AddToListModal.jsx`. The close() flow already restored DOM focus via `lastFocusedRef.focus()`, but the visual highlight ring (driven by `data-focused="true"`) wasn't being repainted. Now: strips lingering `data-focused`, sets it on the restored tile, and `scrollIntoView({block:'nearest'})` in case the tile drifted off-screen. Works for movies, series and actor tiles.

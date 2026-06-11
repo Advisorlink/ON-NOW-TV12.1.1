@@ -156,8 +156,18 @@ export default function LibraryCalendar({ tvFavourites = [], onClose }) {
                 background: 'rgba(6,8,15,0.97)',
                 backdropFilter: 'blur(14px)',
                 WebkitBackdropFilter: 'blur(14px)',
-                overflow: 'auto',
-                padding: '40px 64px 80px 120px',
+                /* v2.10.46-f — Re-laid out for a clean 16:9 fit
+                 * on a 1920×1080 TV.  Outer padding tightened
+                 * (40/120 → 20/100) and the body is now a flex
+                 * column so the month grid + detail row take
+                 * exactly whatever vertical space is left after
+                 * the header and the "This week" rail.  Overflow
+                 * is hidden so the calendar NEVER scrolls — the
+                 * grid and tiles auto-size to the viewport. */
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+                padding: '20px 48px 24px 100px',
             }}
         >
             <Header
@@ -183,10 +193,13 @@ export default function LibraryCalendar({ tvFavourites = [], onClose }) {
                     <div
                         className="grid"
                         style={{
-                            marginTop: 30,
-                            gridTemplateColumns: 'minmax(0, 1.45fr) minmax(0, 1fr)',
-                            gap: 36,
+                            marginTop: 18,
+                            gridTemplateColumns: 'minmax(0, 1.6fr) minmax(0, 1fr)',
+                            gap: 28,
                             alignItems: 'start',
+                            flex: '1 1 auto',
+                            minHeight: 0,
+                            overflow: 'hidden',
                         }}
                     >
                         <MonthGrid
@@ -321,10 +334,17 @@ function MonthGrid({ grid, byDate, selectedDate, onSelect, monthCursor }) {
         <div
             data-testid="cal-month-grid"
             style={{
-                padding: 24,
-                borderRadius: 24,
+                /* v2.10.46-f — Tightened from 24 → 16 padding and
+                 * the grid now flexes to fill its container so it
+                 * shares space gracefully with the rail below. */
+                padding: 16,
+                borderRadius: 22,
                 background: 'linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)',
                 border: '1px solid rgba(var(--vesper-blue-rgb), 0.18)',
+                display: 'flex',
+                flexDirection: 'column',
+                minHeight: 0,
+                height: '100%',
             }}
         >
             {/* Day-of-week header */}
@@ -332,8 +352,9 @@ function MonthGrid({ grid, byDate, selectedDate, onSelect, monthCursor }) {
                 className="grid"
                 style={{
                     gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-                    gap: 8,
-                    marginBottom: 10,
+                    gap: 6,
+                    marginBottom: 6,
+                    flex: '0 0 auto',
                 }}
             >
                 {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
@@ -353,12 +374,19 @@ function MonthGrid({ grid, byDate, selectedDate, onSelect, monthCursor }) {
                 ))}
             </div>
 
-            {/* Day cells */}
+            {/* Day cells — v2.10.46-f: now a 6-row CSS grid that
+                stretches to fill the parent flex container.  Each
+                row uses `minmax(0, 1fr)` so the 42 cells share
+                vertical space evenly without any cell overflowing
+                or forcing the page to scroll. */}
             <div
                 className="grid"
                 style={{
                     gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-                    gap: 8,
+                    gridTemplateRows: 'repeat(6, minmax(0, 1fr))',
+                    gap: 6,
+                    flex: '1 1 auto',
+                    minHeight: 0,
                 }}
             >
                 {grid.map((cell, i) => {
@@ -368,8 +396,9 @@ function MonthGrid({ grid, byDate, selectedDate, onSelect, monthCursor }) {
                     const isSelected = dayIso === selectedDate;
                     const hasEpisodes = episodes.length > 0;
                     if (!cell) {
-                        // Empty leading/trailing pad cell.
-                        return <div key={`pad-${i}`} style={{ aspectRatio: '1 / 1.05' }} />;
+                        // Empty leading/trailing pad cell — no
+                        // aspectRatio needed, grid row sizes it.
+                        return <div key={`pad-${i}`} />;
                     }
                     return (
                         <button
@@ -381,9 +410,14 @@ function MonthGrid({ grid, byDate, selectedDate, onSelect, monthCursor }) {
                             onClick={() => onSelect(dayIso)}
                             className="text-left relative overflow-hidden"
                             style={{
-                                aspectRatio: '1 / 1.05',
-                                padding: '8px 9px',
-                                borderRadius: 12,
+                                /* v2.10.46-f — Aspect ratio
+                                 * removed: cells now fill their
+                                 * grid row (minmax(0,1fr)) so the
+                                 * whole calendar fits in the
+                                 * available 16:9 height without
+                                 * scrolling. */
+                                padding: '6px 8px',
+                                borderRadius: 10,
                                 background: isSelected
                                     ? 'linear-gradient(160deg, rgba(var(--vesper-blue-rgb), 0.32), rgba(var(--vesper-blue-rgb), 0.10))'
                                     : hasEpisodes
@@ -486,11 +520,19 @@ function DetailPanel({ date, episodes }) {
         <div
             data-testid="cal-detail-panel"
             style={{
-                padding: '22px 24px',
-                borderRadius: 22,
+                /* v2.10.46-f — Sized to fill the flex column.
+                 * minHeight removed so a short selection doesn't
+                 * force a tall card; overflow:auto so a busy day
+                 * (many episodes) scrolls inside its panel
+                 * instead of breaking the page layout. */
+                padding: '18px 20px',
+                borderRadius: 20,
                 background: 'rgba(255,255,255,0.02)',
                 border: '1px solid rgba(255,255,255,0.08)',
-                minHeight: 360,
+                height: '100%',
+                minHeight: 0,
+                display: 'flex',
+                flexDirection: 'column',
             }}
         >
             <div
@@ -520,7 +562,16 @@ function DetailPanel({ date, episodes }) {
                     day from the calendar to see what's airing.
                 </p>
             ) : (
-                <div className="flex flex-col" style={{ gap: 14 }}>
+                <div
+                    className="flex flex-col"
+                    style={{
+                        gap: 12,
+                        overflowY: 'auto',
+                        flex: '1 1 auto',
+                        minHeight: 0,
+                        paddingRight: 4,
+                    }}
+                >
                     {episodes.map((ep) => (
                         <EpisodeCard key={`${ep.show.imdb_id}-S${ep.season}E${ep.episode}`} ep={ep} />
                     ))}
@@ -596,7 +647,16 @@ function EpisodeCard({ ep }) {
 
 function UpcomingRail({ episodes }) {
     return (
-        <section style={{ marginTop: 40 }}>
+        <section
+            style={{
+                /* v2.10.46-f — Pinned to the bottom of the flex
+                 * column so the rail always sits below the
+                 * calendar grid without scrolling.  Tighter
+                 * margin so it doesn't push the page taller. */
+                marginTop: 18,
+                flex: '0 0 auto',
+            }}
+        >
             <div
                 className="vesper-mono"
                 style={{
@@ -633,11 +693,18 @@ function UpcomingRail({ episodes }) {
                             tabIndex={0}
                             className="relative overflow-hidden"
                             style={{
-                                width: 280,
-                                flex: '0 0 280px',
+                                /* v2.10.46-f — Tightened from
+                                 * 280 → 240 px so 6-7 tiles fit
+                                 * comfortably without the rail
+                                 * needing to scroll on most TVs.
+                                 * Aspect ratio kept at 16/9 for
+                                 * an instantly-recognisable
+                                 * "thumbnail" silhouette. */
+                                width: 240,
+                                flex: '0 0 240px',
                                 scrollSnapAlign: 'start',
                                 aspectRatio: '16 / 9',
-                                borderRadius: 14,
+                                borderRadius: 12,
                                 background: '#0B1322',
                                 border: '1px solid rgba(255,255,255,0.06)',
                             }}

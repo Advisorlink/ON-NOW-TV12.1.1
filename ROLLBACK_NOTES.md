@@ -231,3 +231,37 @@ User reported two more regressions:
 **File:** `frontend/src/components/SeriesEpisodes.jsx`
 - The episode card's outer `<li>` had `overflow-hidden` (June 4 state). When the inner button scales up via `data-focus-style="quiet"` on focus, the LI was clipping the left edge of the thumbnail.
 - Dropped `overflow-hidden` (kept `rounded-2xl`). The inner thumbnail still has its own `rounded-xl` so the rounded corners are preserved. Comment v2.10.46-e added so the next agent understands why.
+
+---
+
+## Fifth round of follow-up fixes (same day, 11 June 2026)
+
+User requested:
+
+### Fix L — Rail re-order: Search → top, Live TV / Sports Guide removed
+**File:** `frontend/src/components/SideNav.jsx`
+- NAV array re-ordered: Search is now item 0, above Home.
+- Removed Live TV entry (its experience lives in the dedicated `onnowtv-livetv` app — duplicating it in Vesper added clutter).
+- Removed Sports Guide entry (feature retired earlier this week — `SportsGuide.jsx` and `lib/sportsMatch.js` were deleted, so the menu item was leading nowhere).
+- Cleaned up `Radio`, `Trophy`, `Plug` icon imports that are no longer used.
+
+### Fix M — Incremental "type-ahead" search
+**File:** `frontend/src/pages/Search.jsx`
+- Added `searchSeqRef` (monotonic counter to discard out-of-order responses) and `searchDebounceRef` (250 ms debounce timer).
+- New `scheduleTypeAheadSearch(value)` helper schedules a debounced `doSearch` on every keystroke ≥ 2 chars. Shorter queries reset results and bump the seq so any in-flight request can't repaint stale results.
+- `doSearch` tags each call with the current seq and bails on state mutation if a newer query has fired since.
+- Wired `scheduleTypeAheadSearch` into the `TVKeyboard onChange`. Existing Search button + Enter handler still work for explicit submit. The user now sees results populate as they type — no more "press Search and wait" friction.
+
+### Fix N — Calendar redesigned for 16:9 fit (D-pad navigable, rectangular weekly thumbnails)
+**File:** `frontend/src/components/LibraryCalendar.jsx`
+- Outer container now `display:flex; flexDirection:column; overflow:hidden` — calendar NEVER scrolls; content auto-sizes to the viewport. Padding tightened from `40/64/80/120` to `20/48/24/100`.
+- Month grid + Detail panel row now uses `flex: 1 1 auto; minHeight: 0` so it absorbs whatever vertical space is left after the header and the "This week" rail.
+- `MonthGrid`:
+  - Wrapper padding 24 → 16.
+  - Day cells lost their `aspectRatio: '1 / 1.05'`; cells now flow into a 6-row `gridTemplateRows: 'repeat(6, minmax(0, 1fr))'` so they share the available height evenly.
+  - Day-of-week label gap and cell gap 8 → 6 for a denser layout.
+- `DetailPanel`: removed the rigid `minHeight: 360`; now `height: 100%`, `flexDirection: column`. The episode list inside scrolls (`overflow-y: auto`) when there are too many episodes to fit, instead of growing the panel.
+- `UpcomingRail`:
+  - Rail tiles 280 px → 240 px (still 16:9 rectangular thumbnails). 6-7 fit on screen without horizontal scrolling on most TVs.
+  - Section `marginTop` 40 → 18 and pinned `flex: 0 0 auto` at the bottom of the flex column.
+- All existing D-pad focus attributes (`data-focusable="true"`, `data-focus-style="tile"`) preserved on the day cells and rail tiles — Header arrow buttons, day cells and rail tiles are all remote-navigable as before. No feature loss.
