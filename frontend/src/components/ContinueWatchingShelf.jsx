@@ -222,6 +222,38 @@ function CWTile({
 }) {
     const pressTimer = useRef(null);
     const pressStartAt = useRef(0);
+    // v2.10.46 — When the confirm card first mounts the user is
+    // still physically holding OK from the long-press that opened
+    // it.  Their key-release dispatches a synthetic click into the
+    // newly-mounted DOM, which on some Android TV WebViews lands
+    // on the first focusable button (Remove) — so the entry is
+    // gone before they can choose Cancel.  Two guards fix this:
+    //   1. The Cancel button is rendered first in the DOM and is
+    //      programmatically focused on mount so the residual
+    //      click hits Cancel (no-op) instead of Remove.
+    //   2. `confirmShownAt` arms a 600 ms grace period during
+    //      which onRemove is ignored.  After 600 ms the user has
+    //      clearly released OK and any subsequent click is a
+    //      deliberate confirmation.
+    const confirmShownAt = useRef(0);
+    const cancelBtnRef = useRef(null);
+    useEffect(() => {
+        if (confirmRemove) {
+            confirmShownAt.current = Date.now();
+            // Defer focus to after React commits so the button
+            // actually exists in the DOM.
+            const t = setTimeout(() => {
+                try {
+                    cancelBtnRef.current?.focus({ preventScroll: true });
+                } catch { /* */ }
+            }, 0);
+            return () => clearTimeout(t);
+        }
+    }, [confirmRemove]);
+    const guardedRemove = useCallback(() => {
+        if (Date.now() - confirmShownAt.current < 600) return;
+        onRemove();
+    }, [onRemove]);
     /* v2.8.89 — Long-press OK on Android TV remotes.
      *
      * The previous implementation called startPress() on every
@@ -337,23 +369,15 @@ function CWTile({
                     Remove "{entry.title}" from Continue Watching?
                 </div>
                 <div className="flex gap-2">
+                    {/* v2.10.46 — Cancel FIRST in the DOM so the
+                        residual synthetic click from releasing the
+                        long-press OK lands on Cancel (harmless)
+                        rather than Remove.  Cancel is also
+                        explicitly focused via cancelBtnRef on
+                        mount, and Remove is wrapped in a 600 ms
+                        grace guard. */}
                     <button
-                        data-focusable="true"
-                        data-focus-style="pill"
-                        tabIndex={0}
-                        onClick={onRemove}
-                        style={{
-                            padding: '8px 16px',
-                            borderRadius: 999,
-                            background: '#FF6B6B',
-                            color: '#fff',
-                            fontWeight: 600,
-                            fontSize: 13,
-                        }}
-                    >
-                        Remove
-                    </button>
-                    <button
+                        ref={cancelBtnRef}
                         data-focusable="true"
                         data-focus-style="pill"
                         data-initial-focus="true"
@@ -369,6 +393,22 @@ function CWTile({
                         }}
                     >
                         Cancel
+                    </button>
+                    <button
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={guardedRemove}
+                        style={{
+                            padding: '8px 16px',
+                            borderRadius: 999,
+                            background: '#FF6B6B',
+                            color: '#fff',
+                            fontWeight: 600,
+                            fontSize: 13,
+                        }}
+                    >
+                        Remove
                     </button>
                 </div>
             </div>

@@ -934,12 +934,11 @@ class ExoPlayerActivity : ComponentActivity() {
         // surfaces earlier; gives the prime job almost twice as much
         // network slack to resolve+buffer the next episode before
         // the user actually hits the click.
-        // v2.10.40 — User wants the pill visible 3 min before
-        // credits (not 2) and wants the next-episode prime job to
-        // start even earlier (4 min) so by the time the pill is
-        // clickable the stream URL is already resolved.  The
-        // staggered thresholds are now:
-        //   • prime  kicks off at remaining ≤ 240_000 ms (4 min)
+        // v2.10.46 — User asked the prime threshold be pushed from
+        // 4 min back to 5 min so the stream URL is already resolved
+        // and the next-episode buffer is warm well before the pill
+        // becomes clickable at the 3-min mark.  Final thresholds:
+        //   • prime  kicks off at remaining ≤ 300_000 ms (5 min)
         //   • pill   surfaces  at remaining ≤ 180_000 ms (3 min)
         // The pill threshold also gates the next-episode thumbnail.
         if (isSeriesEpisode && lengthMs > 0L) {
@@ -963,10 +962,10 @@ class ExoPlayerActivity : ComponentActivity() {
                     nextEpThumbnailFlow.value = ""
                 }
             }
-            // Prime job starts at the WIDER 4-minute window so the
-            // background fetch has an extra full minute of head start
+            // Prime job starts at the WIDER 5-minute window so the
+            // background fetch has TWO full minutes of head start
             // before the user can possibly click the pill.
-            val shouldPrime = remaining in 0..240_000 && nextSE != null
+            val shouldPrime = remaining in 0..300_000 && nextSE != null
             if (shouldPrime && nextEpisodePrimeStartedFor != cwId) {
                 nextEpisodePrimeStartedFor = cwId
                 kickoffNextEpisodePrime()
