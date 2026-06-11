@@ -36,6 +36,14 @@ export default function Search() {
     const [listening, setListening] = useState(false);
     const [voiceError, setVoiceError] = useState('');
     const inputRef = useRef(null);
+    // v2.10.46-f — Incremental "type-ahead" search.
+    //   • `searchSeqRef` is a monotonic counter so out-of-order
+    //     responses from earlier (longer-running) requests can be
+    //     discarded — we only paint results from the latest query.
+    //   • `searchDebounceRef` is the 250 ms typing-debounce timer
+    //     so we don't hammer the addons on every keystroke.
+    const searchSeqRef = useRef(0);
+    const searchDebounceRef = useRef(null);
     const voiceAvailable = Host.isVoiceSearchAvailable();
 
     const searchable = addons.flatMap((a) =>
@@ -155,6 +163,13 @@ export default function Search() {
     const doSearch = async (raw) => {
         const query = (raw ?? q).trim();
         if (query.length < 2) return;
+        // v2.10.46-f — Tag this request with the next sequence
+        // number.  Slow / earlier requests that resolve AFTER a
+        // newer one will see a mismatched seq and bail out of
+        // mutating state — no more "I typed 'breaking bad' and
+        // got results for 'breaking'".
+        searchSeqRef.current += 1;
+        const seq = searchSeqRef.current;
         setBusy(true);
         setSearched(true);
         setLastQuery(query);
@@ -178,8 +193,37 @@ export default function Search() {
                 );
             out = looksLikeName ? [...people, ...media] : [...media, ...people];
         }
+        // Drop the result if a newer query has fired since we started.
+        if (seq !== searchSeqRef.current) return;
         setResults(out);
         setBusy(false);
+    };
+
+    /* v2.10.46-f — Type-ahead trigger.  Debounce by 250 ms so a
+     * burst of keystrokes from the TV keyboard collapses into a
+     * single addon request; cancel any pending fire when the user
+     * keeps typing.  Queries shorter than 2 chars clear the
+     * results so the "search-busy" pill doesn't linger after the
+     * user deletes everything. */
+    const scheduleTypeAheadSearch = (value) => {
+        if (searchDebounceRef.current) {
+            clearTimeout(searchDebounceRef.current);
+            searchDebounceRef.current = null;
+        }
+        const trimmed = (value || '').trim();
+        if (trimmed.length < 2) {
+            // Too short — bump the seq so any in-flight slow
+            // request can't repaint stale results and reset UI.
+            searchSeqRef.current += 1;
+            setResults([]);
+            setBusy(false);
+            setSearched(false);
+            return;
+        }
+        searchDebounceRef.current = setTimeout(() => {
+            searchDebounceRef.current = null;
+            doSearch(trimmed);
+        }, 250);
     };
 
     const onInputKeyDown = (e) => {
@@ -506,7 +550,13 @@ export default function Search() {
                                     value={q}
                                     onChange={(v) => {
                                         setQ(v);
-                                        if (searched) setSearched(false);
+                                        // v2.10.46-f — Fire the
+                                        // debounced type-ahead so
+                                        // results show up as the
+                                        // user types instead of
+                                        // waiting for an explicit
+                                        // Search press.
+                                        scheduleTypeAheadSearch(v);
                                     }}
                                     onSubmit={() => {
                                         if (q.trim().length >= 2) doSearch();

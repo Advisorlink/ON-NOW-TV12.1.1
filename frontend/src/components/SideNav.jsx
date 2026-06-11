@@ -3,14 +3,11 @@ import {
     Home as HomeIcon,
     Search,
     Library,
-    Plug,
     Settings,
     Tv,
     Film,
-    Radio,
     Zap,
     Users,
-    Trophy,
     UserCircle2,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -19,12 +16,16 @@ import { getActiveProfile } from '@/lib/profiles';
 import { AvatarCircle } from '@/lib/avatars';
 
 const NAV = [
+    // v2.10.46-f — User-requested rail re-order:
+    //   1. Search is now the very FIRST item (above Home).
+    //   2. Live TV removed — its experience lives in the dedicated
+    //      onnowtv-livetv app, no need to duplicate it in Vesper.
+    //   3. Sports Guide removed — feature retired earlier this week
+    //      (SportsGuide.jsx and lib/sportsMatch.js deleted).
+    { id: 'search', label: 'Search', icon: Search, path: '/search' },
     { id: 'home', label: 'Home', icon: HomeIcon, path: '/' },
     { id: 'tv', label: 'TV Shows', icon: Tv, path: '/?filter=series' },
     { id: 'movies', label: 'Movies', icon: Film, path: '/?filter=movie' },
-    { id: 'live-tv', label: 'Live TV', icon: Radio, path: '/live-tv' },
-    { id: 'sports', label: 'Sports Guide', icon: Trophy, path: '/sports' },
-    { id: 'search', label: 'Search', icon: Search, path: '/search' },
     { id: 'library', label: 'My Library', icon: Library, path: '/library' },
     { id: 'watch-together', label: 'Watch Together', icon: Users, path: '/watch-together' },
     // v2.6.78: removed the user-facing "Sources" entry — addon
