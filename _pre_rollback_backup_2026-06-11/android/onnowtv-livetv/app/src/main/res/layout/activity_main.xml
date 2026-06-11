@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    MainActivity descriptive boot loader.
+
+    Big centred "V2 Live TV" wordmark up top.  Beneath it a status
+    block: phase headline + 3 pulsing dots (proof of life) + sub-
+    status + determinate progress bar + counters + rotating tip.
+    Holds for at least 60 seconds AND until popular regions
+    (UK / US / AU / Kayo) EPG is fully warm before launching
+    EpgActivity.
+-->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/splash_gradient">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:paddingStart="60dp"
+        android:paddingEnd="60dp">
+
+        <!-- Brand wordmark -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:baselineAligned="false">
+
+            <TextView
+                android:id="@+id/loader_brand_v2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/brand_v2"
+                android:textColor="@color/livetv_accent_red"
+                android:textSize="120sp"
+                android:textStyle="bold"
+                android:fontFamily="sans-serif-black"
+                android:letterSpacing="-0.04"
+                android:includeFontPadding="false"
+                android:shadowColor="#80FF2535"
+                android:shadowDx="0"
+                android:shadowDy="0"
+                android:shadowRadius="36" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="22dp"
+                android:text="@string/brand_suffix"
+                android:textColor="@color/livetv_fg"
+                android:textSize="70sp"
+                android:textStyle="bold"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="-0.01"
+                android:includeFontPadding="false"
+                android:shadowColor="#66000000"
+                android:shadowDx="0"
+                android:shadowDy="6"
+                android:shadowRadius="18" />
+        </LinearLayout>
+
+        <!-- Eyebrow -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="38dp"
+            android:fontFamily="monospace"
+            android:text="PREPARING YOUR GUIDE"
+            android:textColor="@color/livetv_accent"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.36" />
+
+        <!-- Phase headline (e.g. "Loading channels…", "Warming popular regions…") -->
+        <TextView
+            android:id="@+id/loader_headline"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:textColor="@color/livetv_fg"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-medium"
+            android:gravity="center"
+            android:text="Connecting…" />
+
+        <!-- Pulsing dots — proof we're alive while data is in flight. -->
+        <include
+            android:id="@+id/loader_dots_container"
+            layout="@layout/loader_dots"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp" />
+
+        <!-- Determinate progress bar -->
+        <ProgressBar
+            android:id="@+id/loader_progress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="540dp"
+            android:layout_height="6dp"
+            android:layout_marginTop="22dp"
+            android:max="1000"
+            android:progress="0"
+            android:progressDrawable="@drawable/loader_progress" />
+
+        <!-- Sub-status: short phase description -->
+        <TextView
+            android:id="@+id/loader_substatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:textColor="@color/livetv_fg_dim"
+            android:textSize="14sp"
+            android:fontFamily="sans-serif-medium"
+            android:gravity="center"
+            android:text="" />
+
+        <!-- Live counters that smoothly increment as data arrives. -->
+        <TextView
+            android:id="@+id/loader_counters"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:textColor="@color/livetv_accent"
+            android:textSize="13sp"
+            android:fontFamily="monospace"
+            android:textStyle="bold"
+            android:letterSpacing="0.16"
+            android:gravity="center"
+            android:text="" />
+
+        <!-- Rotating "did you know" tip — swaps every 4 seconds so
+             the user has something to read while waiting. -->
+        <TextView
+            android:id="@+id/loader_tip"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:textColor="@color/livetv_fg_dimmer"
+            android:textSize="13sp"
+            android:fontFamily="sans-serif-medium"
+            android:gravity="center"
+            android:lineSpacingExtra="3dp"
+            android:maxLines="2"
+            android:text="" />
+
+        <!-- Retry CTA: hidden by default.  v2.9.10 — Styled as a
+             pill button instead of a tiny text link so the user
+             can clearly find it after a load failure. -->
+        <TextView
+            android:id="@+id/loader_retry"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:paddingHorizontal="22dp"
+            android:paddingVertical="12dp"
+            android:background="@drawable/login_btn_bg"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:fontFamily="sans-serif-black"
+            android:letterSpacing="0.18"
+            android:visibility="gone"
+            android:focusable="true"
+            android:clickable="true"
+            android:text="TAP TO RETRY" />
+    </LinearLayout>
+
+    <!-- Footer hint -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="44dp"
+        android:fontFamily="monospace"
+        android:textColor="@color/livetv_fg_dimmer"
+        android:textSize="10sp"
+        android:letterSpacing="0.36"
+        android:text="LOADING UK · US · AU KAYO · NZ SPORTS GUIDE" />
+
+    <!-- v2.9.10 build stamp — bottom-right corner so the user can
+         visually verify they're testing the latest APK. -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="20dp"
+        android:fontFamily="monospace"
+        android:textColor="#3A4E6E"
+        android:textSize="9sp"
+        android:letterSpacing="0.18"
+        android:text="V2 LIVE TV · BUILD 2.9.15" />
+</FrameLayout>

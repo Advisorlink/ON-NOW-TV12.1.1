@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Channel pill — thin row to match SKY HISTORY 2 reference.
+     56dp height + 4dp gap = 60dp per row → 9-10 rows visible. -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="56dp"
+    android:layout_marginBottom="4dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@drawable/channel_pill_bg"
+    android:focusable="true"
+    android:clickable="true"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp">
+
+    <TextView
+        android:id="@+id/ch_num"
+        android:layout_width="44dp"
+        android:layout_height="wrap_content"
+        android:fontFamily="sans-serif-medium"
+        android:textColor="@color/livetv_accent"
+        android:textSize="17sp"
+        android:textStyle="bold"
+        android:letterSpacing="-0.02"
+        android:gravity="center"
+        android:text="" />
+
+    <FrameLayout
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginStart="8dp"
+        android:background="@drawable/channel_logo_bg">
+
+        <ImageView
+            android:id="@+id/ch_logo"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="center"
+            android:scaleType="fitCenter"
+            android:contentDescription="@null" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="12dp"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/ch_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/livetv_fg"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-black"
+            android:letterSpacing="-0.01"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/ch_now_pill"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/now_pill_bg"
+                android:paddingStart="5dp"
+                android:paddingEnd="5dp"
+                android:paddingTop="1dp"
+                android:paddingBottom="1dp"
+                android:layout_marginEnd="6dp"
+                android:text="NOW"
+                android:textColor="@color/livetv_fg"
+                android:textSize="8sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.10"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/ch_now_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="@color/livetv_fg_dim"
+                android:textSize="11sp"
+                android:fontFamily="sans-serif-medium"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="2dp"
+            android:layout_marginTop="5dp"
+            android:background="#1AFFFFFF">
+
+            <View
+                android:id="@+id/ch_progress"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@color/livetv_accent" />
+        </FrameLayout>
+    </LinearLayout>
+</LinearLayout>

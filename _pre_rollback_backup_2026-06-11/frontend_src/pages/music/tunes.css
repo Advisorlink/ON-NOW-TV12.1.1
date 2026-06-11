@@ -1,0 +1,2858 @@
+/* ============================================================
+   ON NOW TV TUNES — Vesper-style music app
+   ============================================================
+   The .tunes-root scope locally redefines Vesper's CSS variables
+   (`--vesper-blue`, `--vesper-blue-rgb`, `--vesper-bg-0`, …) so
+   the whole music app inherits the *music* identity (vibrant pink
+   by default, electric blue as the alt theme) without renaming
+   every reference inside the file.  Outside `.tunes-root`, Vesper
+   keeps its own cyan accent untouched.
+
+   Themes (toggle via `data-theme` on .tunes-root):
+     data-theme="pink"          (default)  hot magenta / deep grape
+     data-theme="electric-blue"             vivid cyan / deep navy
+============================================================ */
+
+.tunes-root {
+    /* --- Default theme: ELECTRIC PINK ----------------------- */
+    --vesper-bg-0: #0a0118;
+    --vesper-bg-1: #160329;
+    --vesper-bg-2: #2a0945;
+    --vesper-surface: #311154;
+    --vesper-surface-2: #401a6a;
+
+    --vesper-blue:        #ff2d7f;
+    --vesper-blue-bright: #ff7eb3;
+    --vesper-blue-dim:    #b21358;
+    --vesper-blue-glow:   rgba(255, 45, 127, 0.55);
+    --vesper-blue-rgb:    255, 45, 127;
+    --vesper-bg-0-rgb:    10, 1, 24;
+
+    --vesper-text:   #ffffff;
+    --vesper-text-2: rgba(255, 255, 255, 0.72);
+    --vesper-text-3: rgba(255, 255, 255, 0.40);
+
+    /* Legacy `--tunes-*` aliases used by `karaoke.css`.  These
+       used to be the source of truth — now they're aliased to
+       the active Vesper-themed variables so the karaoke screens
+       inherit the same Pink / Electric Blue colour scheme. */
+    --tunes-bg-0:        var(--vesper-bg-0);
+    --tunes-bg-1:        var(--vesper-bg-1);
+    --tunes-bg-2:        var(--vesper-bg-2);
+    --tunes-accent:      var(--vesper-blue);
+    --tunes-accent-2:    var(--vesper-blue-bright);
+    --tunes-accent-3:    var(--vesper-blue-bright);
+    --tunes-accent-rgb:  var(--vesper-blue-rgb);
+    --tunes-text:        var(--vesper-text);
+    --tunes-text-dim:    var(--vesper-text-2);
+    --tunes-ease:        cubic-bezier(0.22, 1, 0.36, 1);
+
+    /* SINGLE source of truth for the horizontal indent every
+       content block uses.  Reducing this from clamp(92px,6.5vw,
+       132px) → clamp(40px,4vw,72px) so the shelves and hero text
+       feel more "edge to edge" like Vesper's actual home page. */
+    --tunes-pad-x: clamp(40px, 4vw, 72px);
+    /* Right padding can be smaller — content scrolls horizontally
+       inside the rails so the right edge doesn't need much air. */
+    --tunes-pad-right: clamp(24px, 2.4vw, 48px);
+
+    /* Solid page background — using a SINGLE flat colour (no
+       gradient) so the hero scrim's solid endpoint matches the
+       page below seamlessly.  A previous version layered three
+       gradients which (a) caused a visible seam at the hero's
+       bottom edge and (b) forced the compositor to repaint a
+       full-viewport gradient on every focus scroll.  Flat colour
+       = zero per-frame cost on the HK1 box. */
+    background: var(--vesper-bg-0);
+    color: var(--vesper-text);
+    font-family: 'Geist', system-ui, sans-serif;
+    width: 100vw;
+    /* v2.8.72 — FIX SCROLL.  `.tunes-root` now CONSTRAINS itself
+       to the viewport height and scrolls internally.  Before this,
+       `min-height: 100vh` let the root grow to fit its full content
+       (3108 px on the music home), and because `html`, `body`,
+       `#root` and `.App` all have `overflow: hidden`, nothing could
+       scroll at all on mobile — the user could see the hero but
+       could never reach the "Trending Now" or "Top Charts" shelves
+       below it.  Setting `height: 100dvh` + `overflow-y: auto`
+       makes the music app's root the canonical scroll container.
+       On TV, useSpatialFocus()'s `scrollIntoView(behavior: 'auto')`
+       still works correctly because it walks up to find a
+       scrollable ancestor — which is now `.tunes-root`. */
+    height: 100dvh;
+    max-height: 100dvh;
+    position: relative;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* ELECTRIC BLUE theme — same structure, cyan/navy palette. */
+.tunes-root[data-theme="electric-blue"] {
+    --vesper-bg-0: #02060f;
+    --vesper-bg-1: #051a32;
+    --vesper-bg-2: #082a55;
+    --vesper-surface: #0a3768;
+    --vesper-surface-2: #0e4583;
+
+    --vesper-blue:        #00b3ff;
+    --vesper-blue-bright: #66d4ff;
+    --vesper-blue-dim:    #006e9c;
+    --vesper-blue-glow:   rgba(0, 179, 255, 0.55);
+    --vesper-blue-rgb:    0, 179, 255;
+    --vesper-bg-0-rgb:    2, 6, 15;
+}
+
+.tunes-shell {
+    display: flex;
+    width: 100%;
+    min-height: 100vh;
+    /* Reserve space at bottom for the mini-player. */
+    padding-bottom: 96px;
+}
+
+/* ============================================================
+   Side navigation — Vesper-style collapsible rail
+============================================================ */
+
+.tunes-nav {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    padding: 22px 12px;
+    transition: width 280ms ease, background 280ms ease;
+    width: 76px;
+    background: transparent;
+    will-change: width;
+    /* v2.10.11 — Independent scroll context.  Because the nav is
+       `position: fixed` it never piggy-backs on `.tunes-root`'s
+       scroll, but on shorter viewports (or once the theme picker +
+       Profile/Settings rows are revealed on expand) the rail itself
+       can exceed 100vh.  Give it its own overflow so D-pad focus
+       moving down into Profile/Settings can scroll the rail without
+       ever budging the main content on the right. */
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+}
+
+.tunes-nav::-webkit-scrollbar { width: 0; height: 0; }
+
+.tunes-nav[data-expanded="true"] {
+    width: 248px;
+    background: linear-gradient(
+        90deg,
+        rgba(8, 11, 20, 0.98) 0%,
+        rgba(8, 11, 20, 0.95) 60%,
+        rgba(8, 11, 20, 0) 100%
+    );
+}
+
+.tunes-nav__brand {
+    display: flex;
+    align-items: center;
+    height: 48px;
+    margin: 4px 4px 24px;
+    user-select: none;
+    overflow: hidden;
+}
+
+.tunes-nav__brand-emblem {
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 800;
+    /* v2.8.68 — ♪ glyph needs more vertical room than "V2" did.
+       Bumped from 30 → 36 px and removed the negative letter-spacing
+       that was clipping the right-hand stem of the note. */
+    font-size: 36px;
+    letter-spacing: 0;
+    line-height: 1;
+    color: var(--vesper-blue-bright);
+    text-shadow:
+        0 0 12px rgba(var(--vesper-blue-rgb), 0.65),
+        0 0 28px rgba(var(--vesper-blue-rgb), 0.4);
+    flex-shrink: 0;
+    width: 52px;
+    text-align: center;
+}
+
+.tunes-nav__brand-wordmark {
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.04em;
+    line-height: 1.2;
+    color: var(--vesper-text);
+    transition: opacity 200ms ease 80ms;
+    white-space: nowrap;
+    margin-left: 4px;
+}
+
+.tunes-nav__brand-wordmark span {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    color: var(--vesper-text-3);
+    text-transform: uppercase;
+    margin-top: 4px;
+}
+
+.tunes-nav[data-expanded="false"] .tunes-nav__brand-wordmark {
+    opacity: 0;
+    pointer-events: none;
+    max-width: 0;
+}
+
+.tunes-nav__items {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.tunes-nav__item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    height: 48px;
+    padding: 0 12px;
+    border-radius: 10px;
+    color: var(--vesper-text-2);
+    text-decoration: none;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-family: 'Geist', system-ui, sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    text-align: left;
+    position: relative;
+    transition: color 180ms ease, background 180ms ease;
+}
+
+.tunes-nav__item-icon {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+}
+
+.tunes-nav__item-label {
+    flex: 1;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 220ms ease 80ms;
+    overflow: hidden;
+}
+
+.tunes-nav[data-expanded="true"] .tunes-nav__item-label {
+    opacity: 1;
+}
+
+.tunes-nav__item--active {
+    color: var(--vesper-text);
+}
+
+.tunes-nav__item--active .tunes-nav__item-icon {
+    color: var(--vesper-blue);
+}
+
+.tunes-nav__item--active::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 8px;
+    bottom: 8px;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: var(--vesper-blue);
+    box-shadow: 0 0 12px var(--vesper-blue-glow);
+}
+
+.tunes-nav__spacer { flex: 1; }
+
+/* Theme toggle pill at the bottom of the rail. */
+.tunes-nav__theme {
+    margin: 12px 4px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow: hidden;
+    opacity: 0;
+    max-height: 0;
+    transition: opacity 220ms ease 80ms, max-height 260ms ease;
+}
+
+.tunes-nav[data-expanded="true"] .tunes-nav__theme {
+    opacity: 1;
+    max-height: 90px;
+}
+
+.tunes-nav__theme-label {
+    font-family: 'Geist Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--vesper-text-3);
+    padding: 0 8px;
+}
+
+.tunes-nav__theme-row {
+    display: flex;
+    gap: 6px;
+}
+
+.tunes-nav__theme-btn {
+    flex: 1;
+    height: 32px;
+    padding: 0 10px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--vesper-text-2);
+    font-family: 'Geist', system-ui, sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 180ms ease, color 180ms ease, border-color 180ms ease;
+}
+
+.tunes-nav__theme-btn[data-active="true"] {
+    background: rgba(var(--vesper-blue-rgb), 0.18);
+    border-color: rgba(var(--vesper-blue-rgb), 0.45);
+    color: var(--vesper-blue-bright);
+}
+
+/* ============================================================
+   Main content area
+============================================================ */
+
+.tunes-main {
+    flex: 1;
+    margin-left: 76px;
+    min-height: 100vh;
+    width: calc(100% - 76px);
+    /* Per-page sections add their own horizontal padding via
+       `.tunes-side-pad` mixin (below). */
+}
+
+.tunes-side-pad {
+    padding-left: var(--tunes-pad-x);
+    padding-right: var(--tunes-pad-right);
+}
+
+/* ============================================================
+   HERO BILLBOARD — Vesper-style full-bleed backdrop
+   ----------------------------------------------------------
+   The album/artist art fills the WHOLE hero area, with a
+   bottom-fade gradient that melts seamlessly into the page
+   background underneath.  No separate framed cover on the
+   right — the image IS the backdrop, focal-anchored at
+   `center 30%` so faces / cover artwork sit comfortably.
+
+   Layered scrims (back → front):
+     1. `__bg`        the backdrop image (Ken-burns optional)
+     2. `__scrim-y`   vertical fade — top dim + bottom melt
+     3. `__scrim-x`   left dim for text legibility
+     4. `__bg-ring`   subtle accent radial glow on the right
+     5. `__content`   text + buttons, bottom-left
+============================================================ */
+
+.tunes-hero {
+    position: relative;
+    width: 100%;
+    height: clamp(420px, 56vh, 620px);
+    overflow: hidden;
+    isolation: isolate;
+}
+
+.tunes-hero__slide {
+    position: absolute;
+    inset: 0;
+    transition: opacity 900ms ease;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.tunes-hero__slide[data-active="true"] {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.tunes-hero__bg {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center 30%;
+    /* v2.10.10 — Spotify/Apple-Music style ambient backdrop.
+       The source images are 1:1 covers; stretching them to a 16:9
+       hero looked "zoomed in".  Instead, blow the cover up past
+       the edges (scale 1.4), blur heavily, and saturate so it
+       reads as a luxe coloured wallpaper instead of a cropped
+       photograph.  The actual cover artwork still rides over the
+       top via the .tunes-hero__cover layer (see below) when the
+       slide has one to show. */
+    transform: scale(1.45);
+    transform-origin: center;
+    filter: blur(50px) saturate(1.45) brightness(0.78);
+    will-change: opacity;
+}
+
+/* v2.10.10 — Sharp cover thumbnail anchored to the right side of
+   the hero, sized so its aspect ratio is preserved.  Sits on top
+   of the blurred backdrop and below the scrims so the gradient
+   text protection still applies.  Optional — slides without a
+   `coverImage` simply don't render it. */
+.tunes-hero__cover {
+    position: absolute;
+    right: clamp(40px, 6vw, 120px);
+    top: 50%;
+    transform: translateY(-50%);
+    width: clamp(240px, 24vw, 360px);
+    aspect-ratio: 1 / 1;
+    border-radius: 18px;
+    background-size: cover;
+    background-position: center;
+    box-shadow:
+        0 30px 80px rgba(0, 0, 0, 0.55),
+        0 0 0 1px rgba(255, 255, 255, 0.06);
+    z-index: 1;
+}
+
+/* Vertical scrim — extends the fade DOWN further so the
+   wallpaper is fully covered at the bottom of the hero (no
+   visible image edge against the page background). */
+.tunes-hero__scrim-y {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        180deg,
+        rgba(0, 0, 0, 0.55)             0%,
+        rgba(0, 0, 0, 0)               18%,
+        rgba(0, 0, 0, 0)               30%,
+        rgba(var(--vesper-bg-0-rgb, 10, 1, 24), 0.45) 50%,
+        rgba(var(--vesper-bg-0-rgb, 10, 1, 24), 0.85) 78%,
+        var(--vesper-bg-0)             95%,
+        var(--vesper-bg-0)            100%
+    );
+    pointer-events: none;
+}
+
+/* Horizontal scrim — darkens the LEFT so the title is readable. */
+.tunes-hero__scrim-x {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        90deg,
+        rgba(0, 0, 0, 0.85)  0%,
+        rgba(0, 0, 0, 0.55) 28%,
+        rgba(0, 0, 0, 0.10) 60%,
+        rgba(0, 0, 0, 0)   100%
+    );
+    pointer-events: none;
+}
+
+/* Accent radial glow on the right — picks up the theme colour. */
+.tunes-hero__bg-ring {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+        ellipse 50% 60% at 82% 50%,
+        rgba(var(--vesper-blue-rgb), 0.16) 0%,
+        transparent 70%
+    );
+    pointer-events: none;
+}
+
+/* Hero content — anchored to the bottom-left like Vesper. */
+.tunes-hero__content {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    z-index: 2;
+}
+
+.tunes-hero__text {
+    position: relative;
+    max-width: 62vw;
+    padding-left: var(--tunes-pad-x);
+    padding-bottom: clamp(38px, 4vw, 64px);
+    /* No fade-up animation — keyframed transform on mount was
+       producing a brief layout thrash on slow hardware. */
+}
+
+.tunes-hero__eyebrow {
+    font-family: 'Geist Mono', monospace;
+    font-size: clamp(10px, 0.78vw, 13px);
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--vesper-blue);
+    margin: 0 0 14px;
+}
+
+.tunes-hero__title {
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 800;
+    font-size: clamp(48px, 5.4vw, 88px);
+    letter-spacing: -0.035em;
+    line-height: 0.94;
+    margin: 0;
+    color: var(--vesper-text);
+    text-shadow: 0 4px 32px rgba(0, 0, 0, 0.5);
+}
+
+.tunes-hero__title em {
+    color: var(--vesper-blue);
+    font-style: normal;
+    font-weight: 800;
+    text-shadow: 0 0 32px var(--vesper-blue-glow);
+}
+
+.tunes-hero__meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 18px;
+    flex-wrap: wrap;
+    color: var(--vesper-text-2);
+    font-size: clamp(13px, 0.95vw, 17px);
+    text-shadow: 0 2px 16px rgba(0, 0, 0, 0.6);
+}
+
+.tunes-hero__meta strong {
+    color: var(--vesper-blue);
+    font-weight: 500;
+}
+
+.tunes-hero__meta-dot {
+    display: inline-block;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.32);
+}
+
+.tunes-hero__synopsis {
+    margin-top: 16px;
+    max-width: 60ch;
+    font-size: clamp(14px, 1.05vw, 17px);
+    line-height: 1.55;
+    color: var(--vesper-text-2);
+    text-shadow: 0 2px 16px rgba(0, 0, 0, 0.6);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.tunes-hero__buttons {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 26px;
+}
+
+.tunes-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: clamp(44px, 3.6vw, 52px);
+    padding: 0 clamp(18px, 1.4vw, 24px);
+    border-radius: 9999px;
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 600;
+    font-size: clamp(13px, 1vw, 16px);
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: transform 200ms ease, background 200ms ease, box-shadow 200ms ease;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.tunes-btn--primary {
+    background: linear-gradient(180deg, #ffffff 0%, #d8e6ee 100%);
+    color: #0a0118;
+}
+
+.tunes-btn--ghost {
+    background: rgba(255, 255, 255, 0.10);
+    color: var(--vesper-text);
+    border-color: rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.tunes-btn--outline {
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--vesper-text);
+    border-color: rgba(255, 255, 255, 0.16);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.tunes-btn:hover { transform: scale(1.03); }
+
+@keyframes tunes-pulse {
+    0%, 100% { opacity: 0.65; transform: scale(0.97); }
+    50%      { opacity: 1.00; transform: scale(1.03); }
+}
+
+@keyframes tunes-fade-up {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.tunes-hero__dots {
+    position: absolute;
+    bottom: 22px;
+    right: clamp(48px, 4.5vw, 88px);
+    display: flex;
+    gap: 8px;
+    z-index: 3;
+}
+
+.tunes-hero__dot {
+    display: block;
+    width: 8px;
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.30);
+    transition: all 400ms ease;
+}
+
+.tunes-hero__dot[data-active="true"] {
+    width: 36px;
+    background: var(--vesper-blue);
+    box-shadow: 0 0 16px var(--vesper-blue-glow);
+}
+
+/* ============================================================
+   SHELVES — Vesper-style horizontal rails of album tiles
+============================================================ */
+
+.tunes-shelf {
+    position: relative;
+    width: 100%;
+    padding-top: clamp(14px, 1.4vw, 24px);
+    padding-bottom: clamp(14px, 1.4vw, 24px);
+}
+
+.tunes-shelf__header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    padding-left: var(--tunes-pad-x);
+    padding-right: var(--tunes-pad-right);
+}
+
+.tunes-shelf__header-left {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    min-width: 0;
+}
+
+.tunes-shelf__eyebrow {
+    font-family: 'Geist Mono', monospace;
+    font-size: clamp(9px, 0.66vw, 12px);
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--vesper-blue);
+    white-space: nowrap;
+}
+
+.tunes-shelf__title {
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 700;
+    font-size: clamp(22px, 2.2vw, 34px);
+    letter-spacing: -0.025em;
+    color: var(--vesper-text);
+    margin: 0;
+}
+
+.tunes-shelf__see-all {
+    font-family: 'Geist Mono', monospace;
+    font-size: clamp(9px, 0.62vw, 11px);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--vesper-text-3);
+    text-decoration: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+.tunes-shelf__rail {
+    display: flex;
+    gap: clamp(14px, 1.25vw, 24px);
+    padding: clamp(14px, 1.4vw, 22px) var(--tunes-pad-right) clamp(14px, 1.4vw, 24px) var(--tunes-pad-x);
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x proximity;
+    overscroll-behavior: contain;
+    transform: translateZ(0);
+    will-change: scroll-position;
+    scrollbar-width: none;
+}
+
+.tunes-shelf__rail::-webkit-scrollbar { display: none; }
+
+/* ============================================================
+   TILES — VESPER PATTERN
+   ----------------------------------------------------------
+   A tile is a SINGLE rounded rectangle (the cover image).  The
+   title + artist text is ABSOLUTE-positioned over the bottom of
+   the cover with a dark gradient scrim behind it so the focus
+   ring only wraps the cover — never a separate text box below.
+
+   We let the global `[data-focus-style="tile"]` rule in index.css
+   handle the focus visuals (outline + scale 1.08).  No custom
+   focus styles here = no extra paint passes = smooth on HK1.
+
+   .tunes-tile         = the button (covers + text overlay)
+   .tunes-tile--artist = round variant for the Artists rail
+============================================================ */
+
+.tunes-tile {
+    flex-shrink: 0;
+    width: clamp(160px, 13vw, 220px);
+    aspect-ratio: 1 / 1;
+    position: relative;
+    background: var(--vesper-bg-2);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    overflow: hidden;
+    color: var(--vesper-text);
+    text-align: left;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: none;
+    scroll-snap-align: start;
+    scroll-margin-left: var(--tunes-pad-x);
+    /* Pure compositor promotion — no blur, no transition on
+       transform here.  The global tile focus rule supplies
+       scale(1.08) translateY(-2px); we don't add a duration so
+       the compositor commits the new transform on the next
+       frame (same as Vesper). */
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    will-change: transform;
+    touch-action: pan-x pan-y;
+}
+
+.tunes-tile__art {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.tunes-tile__art-fallback {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 800;
+    font-size: 64px;
+    color: rgba(var(--vesper-blue-rgb), 0.22);
+    background: linear-gradient(180deg, var(--vesper-bg-2) 0%, var(--vesper-bg-1) 100%);
+}
+
+.tunes-tile__scrim {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 50%;
+    pointer-events: none;
+    background: linear-gradient(
+        180deg,
+        rgba(0, 0, 0, 0) 0%,
+        rgba(0, 0, 0, 0.85) 78%,
+        rgba(0, 0, 0, 0.95) 100%
+    );
+}
+
+.tunes-tile__caption {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    padding: 14px 14px 12px;
+}
+
+.tunes-tile__title {
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 600;
+    font-size: clamp(13px, 1vw, 16px);
+    letter-spacing: -0.015em;
+    line-height: 1.18;
+    color: var(--vesper-text);
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+
+.tunes-tile__subtitle {
+    font-family: 'Geist Mono', monospace;
+    font-size: clamp(9px, 0.66vw, 11px);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--vesper-text-2);
+    margin: 6px 0 0;
+    line-height: 1.2;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+
+/* Artist tile — round image + caption BELOW the circle.
+   We move the focusable surface to the image-wrap (via the
+   nested `.tunes-tile--artist .tunes-tile__art-wrap` rule below
+   with `data-focus-pass-through="true"`) so the outline ring
+   only encircles the round photo, never the caption.  Matches
+   Vesper's convention of "ring only the cover" everywhere. */
+.tunes-tile--artist {
+    aspect-ratio: auto;
+    background: transparent;
+    border: none;
+    overflow: visible;
+    width: clamp(150px, 12vw, 200px);
+    /* Override the global tile focus rule for the OUTER button
+       so only the inner art-wrap gets the visual ring. */
+    outline: none !important;
+}
+
+.tunes-tile--artist:focus-visible,
+.tunes-tile--artist[data-focused="true"] {
+    outline: none !important;
+    transform: none !important;
+}
+
+.tunes-tile--artist .tunes-tile__art-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 50%;
+    overflow: hidden;
+    background: var(--vesper-bg-2);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    transform: translateZ(0);
+    will-change: transform;
+    transition: none;
+}
+
+/* The OUTER button still receives focus (D-pad lands on it) — we
+/* v2.10.10 — Artist tile focus reads as a glowing ring around the
+   CIRCLE only.  The global `[data-focus-style="tile"]` rule lays a
+   rectangular outline on the outer button which fights the round
+   shape, so the rule below CANCELS that outer outline + paints the
+   ring on the inner art-wrap.  Caption text gets NO border / no
+   pill — just the standard text colour bump on focus. */
+.tunes-tile--artist:focus-visible,
+.tunes-tile--artist[data-focused="true"] {
+    outline: none !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+.tunes-tile--artist:focus-visible .tunes-tile__art-wrap,
+.tunes-tile--artist[data-focused="true"] .tunes-tile__art-wrap {
+    outline: 2px solid var(--vesper-blue-bright);
+    outline-offset: 4px;
+    box-shadow:
+        0 0 22px 4px rgba(var(--vesper-blue-rgb), 0.55),
+        0 0 44px 10px rgba(var(--vesper-blue-rgb), 0.22);
+    transform: scale(1.08) translateY(-2px);
+    transition: transform 180ms ease, outline-offset 180ms ease;
+}
+
+.tunes-tile--artist .tunes-tile__art-fallback,
+.tunes-tile--artist .tunes-tile__art {
+    inset: 0;
+    border-radius: 50%;
+}
+
+.tunes-tile--artist .tunes-tile__scrim { display: none; }
+
+.tunes-tile--artist .tunes-tile__caption {
+    position: relative;
+    left: auto; right: auto; bottom: auto;
+    padding: 14px 4px 0;
+    text-align: center;
+}
+
+.tunes-tile--artist .tunes-tile__title {
+    text-shadow: none;
+    color: var(--vesper-text);
+}
+
+.tunes-tile--artist .tunes-tile__subtitle {
+    text-shadow: none;
+    color: var(--vesper-text-3);
+}
+
+/* Generic "section" wrapper used on pages without a shelf rail. */
+.tunes-section {
+    padding: clamp(18px, 1.8vw, 28px) 0;
+}
+
+.tunes-section__head {
+    padding-left: var(--tunes-pad-x);
+    padding-right: var(--tunes-pad-right);
+    margin-bottom: 14px;
+}
+
+.tunes-section__title {
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 700;
+    font-size: clamp(22px, 2.2vw, 34px);
+    letter-spacing: -0.025em;
+    color: var(--vesper-text);
+    margin: 0;
+}
+
+.tunes-section__subtitle {
+    margin-top: 6px;
+    color: var(--vesper-text-2);
+    font-size: clamp(13px, 0.95vw, 16px);
+}
+
+/* ============================================================
+   MOOD TILE — uses .tunes-tile base + a coloured gradient bg
+   and a large icon in the corner.  Lives in a regular shelf
+   rail so it gets snap focus + the same edge-comfort scroll.
+============================================================ */
+
+.tunes-tile--mood {
+    border: none;
+    color: #ffffff;
+}
+
+.tunes-tile__mood-icon {
+    position: absolute;
+    right: -8px;
+    bottom: -10px;
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.18);
+    display: grid;
+    place-items: center;
+    color: rgba(255, 255, 255, 0.85);
+    pointer-events: none;
+}
+
+.tunes-tile--mood .tunes-tile__title { color: #ffffff; }
+.tunes-tile--mood .tunes-tile__subtitle { color: rgba(255, 255, 255, 0.85); }
+
+/* ============================================================
+   GENRE TILES — flat colored squares with title overlay
+============================================================ */
+
+.tunes-genre-grid {
+    display: grid;
+    /* v2.10.10 — More aggressive responsive sizing so genre tiles
+       look good on every screen size from 1280px to 1920px.
+       Below 1024 px we drop to 3 columns; phones get 2. */
+    grid-template-columns: repeat(auto-fill, minmax(clamp(160px, 14vw, 220px), 1fr));
+    gap: clamp(10px, 1vw, 18px);
+    padding-left: var(--tunes-pad-x);
+    padding-right: var(--tunes-pad-right);
+}
+
+.tunes-genre-tile {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    border-radius: 12px;
+    overflow: hidden;
+    background-size: cover;
+    background-position: center;
+    background-color: var(--vesper-bg-2);
+    text-decoration: none;
+    color: var(--vesper-text);
+    display: flex;
+    align-items: flex-end;
+    padding: 14px 16px;
+    transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    cursor: pointer;
+}
+
+.tunes-genre-tile::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        180deg,
+        rgba(6, 8, 15, 0.05) 0%,
+        rgba(6, 8, 15, 0.65) 70%,
+        rgba(6, 8, 15, 0.85) 100%
+    );
+}
+
+.tunes-genre-tile__label {
+    position: relative;
+    z-index: 2;
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: -0.01em;
+}
+
+.tunes-genre-tile:hover { transform: scale(1.02); }
+
+/* ============================================================
+   ALBUM DETAIL PAGE — sticky head on the LEFT, scrolling track
+   list on the RIGHT.  v2.10.10 — Was a 2-column grid that pushed
+   tracks below the cover, so users had to scroll past the whole
+   header just to reach the tracks.  Now the header is sticky and
+   the tracks scroll independently next to it (Spotify layout).
+============================================================ */
+
+.tunes-album {
+    padding-top: 28px;
+}
+
+.tunes-album__backdrop {
+    position: absolute;
+    inset: 0;
+    height: 540px;
+    background-size: cover;
+    background-position: right center;
+    filter: blur(36px) saturate(1.1);
+    opacity: 0.35;
+    z-index: 0;
+    pointer-events: none;
+}
+
+/* Two-column layout: sticky head left, scrolling tracks right. */
+.tunes-album__layout {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: clamp(280px, 28vw, 420px) 1fr;
+    gap: clamp(24px, 2.4vw, 48px);
+    padding-left: var(--tunes-pad-x);
+    padding-right: var(--tunes-pad-right);
+    align-items: start;
+}
+
+.tunes-album__head {
+    position: sticky;
+    top: 28px;
+    /* Anchor the column-of-cover-+-info-+-actions to the viewport
+       so it stays visible as the user scrolls the track list on
+       the right.  align-self keeps it from stretching past the
+       sticky frame. */
+    align-self: start;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding-bottom: 24px;
+}
+
+.tunes-album__cover {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 16px;
+    overflow: hidden;
+    background: var(--vesper-bg-2);
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(var(--vesper-blue-rgb), 0.18);
+}
+
+.tunes-album__cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.tunes-album__info {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.tunes-album__eyebrow {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.36em;
+    color: var(--vesper-blue);
+    text-transform: uppercase;
+    margin: 0;
+}
+
+.tunes-album__title {
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 800;
+    font-size: clamp(44px, 4.5vw, 72px);
+    letter-spacing: -0.035em;
+    line-height: 0.96;
+    color: var(--vesper-text);
+    margin: 0;
+    text-transform: uppercase;
+}
+
+.tunes-album__artist {
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 500;
+    font-size: clamp(18px, 1.4vw, 22px);
+    color: var(--vesper-blue);
+    margin: 0;
+    text-decoration: none;
+}
+
+.tunes-album__meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--vesper-text-2);
+    font-size: clamp(13px, 1vw, 15px);
+    flex-wrap: wrap;
+}
+
+.tunes-album__synopsis {
+    margin: 6px 0 0;
+    max-width: 58ch;
+    color: var(--vesper-text-2);
+    font-size: clamp(14px, 1vw, 16px);
+    line-height: 1.55;
+}
+
+.tunes-album__actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.tunes-track-list {
+    /* v2.10.10 — Lives in the RIGHT column of the
+       .tunes-album__layout grid, so it scrolls past the sticky
+       head on the left.  Padding is supplied by the parent grid. */
+    position: relative;
+    z-index: 1;
+    margin: 0 0 80px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.tunes-track-row {
+    display: grid;
+    grid-template-columns: 36px 1fr auto auto auto;
+    gap: 18px;
+    align-items: center;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--vesper-text-2);
+    font-family: 'Geist', system-ui, sans-serif;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+
+.tunes-track-row + .tunes-track-row {
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.tunes-track-row:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.tunes-track-row--playing {
+    background: rgba(var(--vesper-blue-rgb), 0.08);
+    border-color: rgba(var(--vesper-blue-rgb), 0.40);
+    color: var(--vesper-blue);
+}
+
+.tunes-track-row__num {
+    text-align: center;
+    color: var(--vesper-text-3);
+    font-family: 'Geist Mono', monospace;
+    font-size: 14px;
+}
+
+.tunes-track-row--playing .tunes-track-row__num {
+    color: var(--vesper-blue);
+}
+
+.tunes-track-row__title {
+    color: var(--vesper-text);
+    font-weight: 500;
+    font-size: 15px;
+    margin: 0;
+    line-height: 1.3;
+}
+
+.tunes-track-row--playing .tunes-track-row__title {
+    color: var(--vesper-blue);
+    font-weight: 600;
+}
+
+.tunes-track-row__pill {
+    font-family: 'Geist Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--vesper-text-3);
+}
+
+.tunes-track-row__time {
+    color: var(--vesper-text-3);
+    font-family: 'Geist Mono', monospace;
+    font-size: 13px;
+    min-width: 44px;
+    text-align: right;
+}
+
+.tunes-track-row__add {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    color: var(--vesper-text-2);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    border-radius: 50%;
+}
+
+.tunes-track-row__add--added {
+    background: var(--vesper-blue);
+    color: #06080f;
+}
+
+/* ============================================================
+   MINI PLAYER — sticky bottom bar
+============================================================ */
+
+.tunes-mini {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 88px;
+    background: rgba(8, 11, 20, 0.96);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) auto minmax(220px, 1fr);
+    align-items: center;
+    padding: 0 clamp(24px, 2vw, 40px) 0 clamp(24px, 2vw, 40px);
+    z-index: 50;
+    gap: 24px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.tunes-mini__left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    color: inherit;
+    text-align: left;
+    padding: 0;
+}
+
+.tunes-mini__art {
+    width: 56px;
+    height: 56px;
+    border-radius: 10px;
+    object-fit: cover;
+    background: var(--vesper-bg-2);
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+}
+
+.tunes-mini__text { min-width: 0; }
+
+.tunes-mini__title {
+    margin: 0;
+    font-weight: 600;
+    color: var(--vesper-text);
+    font-size: 14px;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tunes-mini__subtitle {
+    margin: 2px 0 0;
+    color: var(--vesper-text-2);
+    font-size: 12px;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tunes-mini__like {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: transparent;
+    border: none;
+    color: var(--vesper-text-2);
+    cursor: pointer;
+    transition: color 180ms ease, background 180ms ease;
+}
+
+.tunes-mini__like[data-liked="true"] {
+    color: var(--vesper-blue);
+}
+
+.tunes-mini__center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    min-width: 360px;
+}
+
+.tunes-mini__buttons {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+}
+
+.tunes-iconbtn {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: transparent;
+    border: none;
+    color: var(--vesper-text-2);
+    cursor: pointer;
+    transition: transform 200ms ease, color 200ms ease, background 200ms ease;
+}
+
+.tunes-iconbtn:hover {
+    color: var(--vesper-text);
+    background: rgba(255, 255, 255, 0.06);
+    transform: scale(1.06);
+}
+
+.tunes-iconbtn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.tunes-iconbtn--play {
+    width: 52px;
+    height: 52px;
+    color: var(--vesper-bg-0);
+    background: linear-gradient(180deg, #ffffff 0%, #d8e6ee 100%);
+    box-shadow:
+        0 8px 22px rgba(0, 0, 0, 0.45),
+        0 0 0 2px rgba(var(--vesper-blue-rgb), 0.45);
+}
+
+.tunes-mini__scrub {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    max-width: 540px;
+}
+
+.tunes-mini__time {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    color: var(--vesper-text-3);
+    min-width: 38px;
+}
+
+.tunes-progress {
+    flex: 1;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.10);
+    border-radius: 9999px;
+    overflow: hidden;
+    cursor: pointer;
+    position: relative;
+}
+
+.tunes-progress__bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--vesper-blue-dim), var(--vesper-blue-bright));
+    border-radius: 9999px;
+    box-shadow: 0 0 12px var(--vesper-blue-glow);
+    transition: width 120ms linear;
+}
+
+.tunes-mini__right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.tunes-volume {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--vesper-text-2);
+}
+
+.tunes-volume input[type="range"] {
+    width: 100px;
+    accent-color: var(--vesper-blue);
+}
+
+/* ============================================================
+   FULL-SCREEN NOW PLAYING — Vesper-style cinematic player
+============================================================ */
+
+.tunes-fullplayer {
+    position: fixed;
+    inset: 0;
+    z-index: 9990;
+    background: var(--vesper-bg-0);
+    color: var(--vesper-text);
+    overflow: hidden;
+    font-family: 'Geist', system-ui, sans-serif;
+}
+
+.tunes-fullplayer__bg {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    transform: scale(1.08);
+    filter: blur(48px) saturate(1.15);
+    opacity: 0.55;
+    z-index: 0;
+}
+
+.tunes-fullplayer__scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        180deg,
+        rgba(6, 8, 15, 0.45) 0%,
+        rgba(6, 8, 15, 0.20) 30%,
+        rgba(6, 8, 15, 0.50) 70%,
+        rgba(6, 8, 15, 0.92) 100%
+    );
+    z-index: 1;
+}
+
+.tunes-fullplayer__corner-left {
+    position: absolute;
+    top: 28px;
+    left: 32px;
+    z-index: 4;
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.38em;
+    text-transform: uppercase;
+    color: var(--vesper-blue);
+}
+
+.tunes-fullplayer__corner-right {
+    position: absolute;
+    top: 22px;
+    right: 28px;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.tunes-fullplayer__body {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: minmax(360px, 1fr) minmax(380px, 1.2fr) minmax(280px, 420px);
+    gap: 48px;
+    align-items: center;
+    height: 100%;
+    padding: 80px clamp(40px, 4.5vw, 88px) 200px;
+}
+
+.tunes-fullplayer__art-col {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.tunes-fullplayer__art {
+    position: relative;
+    width: 100%;
+    max-width: 460px;
+    aspect-ratio: 1 / 1;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow:
+        0 40px 80px rgba(0, 0, 0, 0.7),
+        0 0 0 1px rgba(var(--vesper-blue-rgb), 0.10);
+    transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.tunes-fullplayer__art img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.tunes-fullplayer__art-ring {
+    /* Decorative neon ring around the album art. */
+    position: absolute;
+    inset: -10%;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle,
+        rgba(var(--vesper-blue-rgb), 0.40) 0%,
+        rgba(var(--vesper-blue-rgb), 0.18) 35%,
+        transparent 60%
+    );
+    filter: blur(12px);
+    /* No constant pulse animation — was repainting a blur(12px)
+       layer at 60 fps which obliterates the GPU budget on HK1. */
+    z-index: -1;
+    pointer-events: none;
+}
+
+.tunes-fullplayer__meta {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    text-align: left;
+    align-self: end;
+}
+
+.tunes-fullplayer__title {
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 800;
+    font-size: clamp(48px, 5vw, 84px);
+    letter-spacing: -0.035em;
+    line-height: 0.96;
+    margin: 0;
+    color: var(--vesper-text);
+}
+
+.tunes-fullplayer__artist {
+    font-weight: 500;
+    font-size: clamp(20px, 1.6vw, 28px);
+    color: var(--vesper-blue);
+    margin: 0;
+}
+
+.tunes-fullplayer__album {
+    color: var(--vesper-text-2);
+    font-size: clamp(15px, 1.1vw, 18px);
+    margin: 0;
+}
+
+.tunes-fullplayer__chips {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+
+.tunes-fullplayer__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: var(--vesper-text);
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.tunes-fullplayer__like {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: transparent;
+    border: none;
+    color: var(--vesper-text-2);
+    cursor: pointer;
+    margin-top: 8px;
+    transition: color 180ms ease, background 180ms ease, transform 180ms ease;
+}
+
+.tunes-fullplayer__like:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--vesper-text);
+    transform: scale(1.06);
+}
+
+.tunes-fullplayer__like[data-liked="true"] {
+    color: var(--vesper-blue);
+}
+
+.tunes-fullplayer__queue {
+    position: relative;
+    background: rgba(8, 11, 20, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    padding: 22px 22px 18px;
+    max-height: 64vh;
+    overflow-y: auto;
+    backdrop-filter: blur(10px);
+}
+
+.tunes-fullplayer__queue-section + .tunes-fullplayer__queue-section { margin-top: 22px; }
+
+.tunes-fullplayer__queue-title {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.36em;
+    text-transform: uppercase;
+    color: var(--vesper-blue);
+    margin: 0 0 14px;
+}
+
+.tunes-lyric-row {
+    margin: 0 0 12px;
+    font-size: 16px;
+    line-height: 1.45;
+    color: var(--vesper-text-3);
+    transition: color 320ms ease, transform 320ms ease;
+}
+
+.tunes-lyric-row[data-active="true"] {
+    color: var(--vesper-text);
+    font-weight: 600;
+    transform: translateX(2px);
+}
+
+.tunes-queue-row {
+    display: grid;
+    grid-template-columns: 40px 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 8px 6px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--vesper-text-2);
+    font-size: 13px;
+    transition: background 180ms ease;
+}
+
+.tunes-queue-row:hover { background: rgba(255, 255, 255, 0.04); }
+
+.tunes-queue-row img {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 6px;
+}
+
+.tunes-queue-row__title {
+    margin: 0;
+    color: var(--vesper-text);
+    font-weight: 500;
+    font-size: 13px;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tunes-queue-row__subtitle {
+    margin: 2px 0 0;
+    color: var(--vesper-text-3);
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tunes-queue-row__time {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    color: var(--vesper-text-3);
+}
+
+/* Bottom controls dock that overlays the full-screen player */
+.tunes-fullplayer__dock {
+    position: absolute;
+    left: clamp(40px, 4.5vw, 88px);
+    right: clamp(40px, 4.5vw, 88px);
+    bottom: clamp(32px, 4vh, 60px);
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* ─── v2.8.69 — Karaoke-mode lyrics overlay ─────────────────────
+   When the FullScreenPlayer is opened from the Karaoke landing
+   page, sessionStorage's `tunes-karaoke-mode=1` flag flips the
+   layout: the side queue panel is hidden, and this overlay
+   renders a centered synced-lyric ticker on top of the album art
+   + blurred backdrop.  Audio still plays via the same engine as
+   regular music — we're literally just swapping the lyrics UI.
+   The overlay sits at z-index 5 so it's above the artwork (z=2)
+   but below the transport dock (z=3 — keep transport tappable). */
+.tunes-fullplayer__karaoke-overlay {
+    position: absolute;
+    inset: 0;
+    /* z-index 2 keeps the overlay below the dock (z-index 3) so
+       the transport bar always draws on top, with pointer-events
+       disabled here so taps fall through to whatever is under
+       the lyrics (mostly the dock). */
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    padding: 80px clamp(20px, 5vw, 64px) 220px;
+}
+.tunes-fullplayer__karaoke-scrim {
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(ellipse at center,
+            rgba(10, 1, 24, 0.55) 0%,
+            rgba(10, 1, 24, 0.82) 60%,
+            rgba(10, 1, 24, 0.90) 100%);
+    pointer-events: none;
+}
+.tunes-fullplayer__karaoke-ticker {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 22px;
+    max-width: 980px;
+    width: 100%;
+    text-align: center;
+    pointer-events: none;
+}
+.tunes-fullplayer__karaoke-line {
+    font-size: clamp(22px, 4vw, 52px);
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    margin: 0;
+    color: rgba(255, 255, 255, 0.65);
+    line-height: 1.18;
+    text-shadow:
+        0 2px 4px rgba(0, 0, 0, 0.95),
+        0 4px 24px rgba(0, 0, 0, 0.65);
+    transition:
+        transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+        color 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform, opacity, color;
+}
+.tunes-fullplayer__karaoke-line.is-active {
+    color: var(--vesper-blue-bright) !important;
+    -webkit-text-fill-color: var(--vesper-blue-bright) !important;
+    text-shadow:
+        0 0 3px #ffffff,
+        0 0 6px rgba(255, 255, 255, 0.95),
+        0 0 22px rgba(var(--vesper-blue-rgb), 1.0),
+        0 0 48px rgba(var(--vesper-blue-rgb), 0.85),
+        0 0 92px rgba(var(--vesper-blue-rgb), 0.55),
+        0 6px 30px rgba(0, 0, 0, 0.85);
+    transform: scale(1.08);
+}
+.tunes-fullplayer__karaoke-line.is-past {
+    color: rgba(255, 255, 255, 0.38) !important;
+    -webkit-text-fill-color: rgba(255, 255, 255, 0.38) !important;
+    transform: scale(0.97);
+}
+.tunes-fullplayer__karaoke-plain {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: clamp(18px, 2.4vw, 28px);
+    line-height: 1.55;
+    text-align: center;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+}
+.tunes-fullplayer__karaoke-plain p { margin: 0 0 6px; }
+
+/* In karaoke mode, slide the artwork to the BACK (z-index 0) so
+   the centered ticker takes the spotlight, and dim the meta text
+   so the title doesn't fight the lyrics for attention. */
+.tunes-fullplayer--karaoke .tunes-fullplayer__art {
+    opacity: 0.55;
+    transform: scale(0.85);
+    transition: opacity 400ms ease, transform 400ms ease;
+}
+/* v2.8.69 — Hide the centre meta column entirely in karaoke mode
+   so the lyrics overlay isn't fighting the title text for the
+   middle of the screen.  The title + artist are still visible in
+   the MiniPlayer area at the bottom of the dock if the user needs
+   to confirm what's playing. */
+.tunes-fullplayer--karaoke .tunes-fullplayer__meta {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .tunes-fullplayer__karaoke-overlay {
+        padding: 60px 16px 260px;
+    }
+    .tunes-fullplayer__karaoke-line {
+        font-size: clamp(20px, 6.5vw, 36px);
+    }
+    .tunes-fullplayer--karaoke .tunes-fullplayer__art {
+        max-width: 200px;
+        opacity: 0.45;
+    }
+}
+
+.tunes-fullplayer__scrub {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    color: var(--vesper-text-3);
+    font-family: 'Geist Mono', monospace;
+    font-size: 12px;
+}
+
+.tunes-fullplayer__scrub-bar {
+    flex: 1;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.10);
+    border-radius: 9999px;
+    cursor: pointer;
+    position: relative;
+}
+
+.tunes-fullplayer__scrub-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--vesper-blue-dim), var(--vesper-blue-bright));
+    border-radius: 9999px;
+    box-shadow: 0 0 14px var(--vesper-blue-glow);
+    position: relative;
+}
+
+.tunes-fullplayer__scrub-fill::after {
+    content: "";
+    position: absolute;
+    right: -8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--vesper-blue-bright);
+    box-shadow: 0 0 18px var(--vesper-blue-glow);
+}
+
+.tunes-fullplayer__transport {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+}
+
+.tunes-fullplayer__transport .tunes-iconbtn {
+    width: 48px;
+    height: 48px;
+    color: var(--vesper-text-2);
+}
+
+.tunes-fullplayer__transport .tunes-iconbtn:hover {
+    color: var(--vesper-text);
+}
+
+.tunes-fullplayer__transport .tunes-iconbtn--play {
+    width: 72px;
+    height: 72px;
+    background: linear-gradient(180deg, #ffffff 0%, #d8e6ee 100%);
+    color: var(--vesper-bg-0);
+    box-shadow:
+        0 12px 32px rgba(0, 0, 0, 0.6),
+        0 0 0 3px rgba(var(--vesper-blue-rgb), 0.55);
+}
+
+.tunes-fullplayer__bottom-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+/* ============================================================
+   PAGE HEADERS (used by Search / Radio / Library / Podcasts)
+============================================================ */
+
+.tunes-page-title {
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 800;
+    font-size: clamp(36px, 4vw, 56px);
+    letter-spacing: -0.03em;
+    color: var(--vesper-text);
+    margin: 0;
+}
+
+.tunes-page-subtitle {
+    color: var(--vesper-text-2);
+    font-size: clamp(13px, 1vw, 16px);
+    margin: 6px 0 0;
+    font-family: 'Geist Mono', monospace;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+}
+
+.tunes-page-head {
+    padding-top: 32px;
+    padding-left: var(--tunes-pad-x);
+    padding-right: var(--tunes-pad-right);
+    padding-bottom: 12px;
+}
+
+/* Search input */
+.tunes-search-wrap {
+    padding: 12px var(--tunes-pad-right) 12px var(--tunes-pad-x);
+}
+
+.tunes-search-input {
+    width: 100%;
+    height: 56px;
+    padding: 0 22px;
+    border-radius: 12px;
+    background: var(--vesper-bg-2);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--vesper-text);
+    font-family: 'Geist', system-ui, sans-serif;
+    font-size: 17px;
+    outline: none;
+}
+
+.tunes-search-input::placeholder { color: var(--vesper-text-3); }
+
+.tunes-search-input:focus {
+    border-color: rgba(var(--vesper-blue-rgb), 0.45);
+    box-shadow: 0 0 0 3px rgba(var(--vesper-blue-rgb), 0.18);
+}
+
+/* Empty / loading states */
+.tunes-empty {
+    padding: 60px var(--tunes-pad-x);
+    color: var(--vesper-text-2);
+    font-size: 16px;
+}
+
+.tunes-skel {
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.04) 0%,
+        rgba(255, 255, 255, 0.10) 50%,
+        rgba(255, 255, 255, 0.04) 100%
+    );
+    background-size: 200% 100%;
+    border-radius: 12px;
+    animation: tunes-skel-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes tunes-skel-shimmer {
+    0%   { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+}
+
+/* ============================================================
+   Focus styling is delegated to Vesper's global `[data-focus-
+   style="tile"]` / `pill` / `nav` rules in /src/index.css.
+   The global rule = outline ring (no blur, 1-pixel paint) +
+   scale(1.08) translateY(-2px).  Adding a local box-shadow here
+   would force an extra blur pass per frame on the HK1 — exactly
+   the "chunky" feel we are eliminating.
+============================================================ */
+
+/* ============================================================
+   Backward-compat aliases — older code referenced these names.
+   Map them so we don't break references during the transition.
+============================================================ */
+
+.tunes-card {
+    /* legacy class used by older Music components — alias to .tunes-tile */
+    flex-shrink: 0;
+    width: clamp(160px, 13vw, 220px);
+    background: transparent;
+    border: none;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    text-decoration: none;
+}
+
+.tunes-card__art {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 12px;
+    object-fit: cover;
+    background: var(--vesper-bg-2);
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
+}
+
+.tunes-card__art--round { border-radius: 50%; }
+
+.tunes-card__body { padding: 0; }
+
+.tunes-card__title {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--vesper-text);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tunes-card__subtitle {
+    margin: 2px 0 0;
+    color: var(--vesper-text-2);
+    font-size: 12px;
+}
+
+.tunes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 18px;
+    padding-left: var(--tunes-pad-x);
+    padding-right: var(--tunes-pad-right);
+}
+
+/* Legacy aliases for old page styles that still reference the
+   pink theme — kept lean so they don't dominate the new look. */
+.tunes-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 48px;
+    padding: 0 22px;
+    border-radius: 9999px;
+    background: linear-gradient(180deg, #ffffff 0%, #d8e6ee 100%);
+    color: var(--vesper-bg-0);
+    border: none;
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+    transition: transform 200ms ease;
+}
+
+.tunes-btn-primary:hover { transform: scale(1.03); }
+
+
+/* ============================================================
+   📱 MOBILE RESPONSIVE  (≤ 768 px)
+   ----------------------------------------------------------
+   Goals:
+     - Side rail collapses to a sticky BOTTOM TAB BAR (Spotify-/
+       Apple-Music-style) so the full screen width is usable.
+     - Tighter horizontal padding (16 px) — phone screens can't
+       afford 72 px of left air.
+     - Smaller hero title + tighter shelf rhythm.
+     - Album tiles size up to ~3 per visible row instead of 6+.
+     - Mini-player condensed to a single-row sticky bar above the
+       tab bar.
+============================================================ */
+
+@media (max-width: 768px) {
+    /* v2.8.68 — Override Vesper's global mobile rules WHEN the
+       standalone music app is mounted.  These rules would otherwise
+       (a) reserve 58 px at the bottom of <body> for Vesper's
+       MobileBottomNav (which we explicitly hide on /music routes),
+       and (b) the hover-disable used by Vesper might dull the
+       music-app touch interactions.  `data-music-app` is set by
+       MusicLayout on mount and removed on unmount. */
+    body[data-platform="mobile"][data-music-app="true"] {
+        padding-bottom: 0 !important;
+    }
+
+    .tunes-root {
+        --tunes-pad-x: 16px;
+        --tunes-pad-right: 16px;
+        /* Enable native momentum scrolling on iOS / Android WebView.
+           Without this, swipe-up gestures inside the SPA sometimes
+           feel "stuck" because the browser falls back to clamped
+           scrolling.  -webkit-overflow-scrolling is a long-standing
+           hint that's still required on older Chromium WebViews
+           bundled with HK1-class boxes. */
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-y: contain;
+    }
+
+    /* v2.8.79 — Touch-action defaults for the music app body.
+       Lets the browser handle pinch-zoom + 2-finger pan, but never
+       lets a child element accidentally swallow vertical swipes via
+       the spatial-focus engine (which only matters on TV).  We
+       explicitly opt OUT of `touch-action: none` for everything
+       inside .tunes-root, then the rail-style horizontal rows
+       re-enable pan-x via their own rule. */
+    .tunes-root,
+    .tunes-main,
+    .tunes-main > * {
+        touch-action: pan-y;
+    }
+    /* Horizontal rails still allow horizontal swipe + vertical
+       page scroll. */
+    .tunes-shelf__rail,
+    .kk-shelf,
+    .tunes-fullplayer__queue-rail {
+        touch-action: pan-x pan-y;
+    }
+
+    /* Side rail → bottom tab bar */
+    .tunes-nav {
+        top: auto;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100% !important;
+        height: 64px;
+        padding: 4px 6px;
+        flex-direction: row;
+        align-items: center;
+        gap: 0;
+        background: rgba(8, 1, 18, 0.96) !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        z-index: 60;
+    }
+    .tunes-nav[data-expanded="true"] { width: 100% !important; }
+
+    /* Hide brand + profile/settings + theme picker — too much UI for a
+       phone tab bar.  We keep ONLY the five main destinations. */
+    .tunes-nav__brand,
+    .tunes-nav__spacer,
+    .tunes-nav__theme {
+        display: none !important;
+    }
+
+    /* Hide the second .tunes-nav__items group (Profile/Settings).
+       v2.8.79 — Selector fix: the previous `:nth-of-type(2)` matched
+       the 2nd DIV in the nav (= the MAIN items group: Home, Search,
+       Karaoke, …), which made the entire mobile menu vanish for the
+       user.  The Profile/Settings group always lives after the
+       spacer div, so `tunes-nav__spacer + .tunes-nav__items` is a
+       safer, more semantic match. */
+    .tunes-nav > .tunes-nav__spacer + .tunes-nav__items {
+        display: none !important;
+    }
+
+    .tunes-nav__items {
+        display: flex !important;
+        flex-direction: row !important;
+        flex: 1;
+        gap: 4px;
+        justify-content: space-between;
+    }
+
+    .tunes-nav__item {
+        flex: 1;
+        flex-direction: column;
+        height: 56px;
+        padding: 6px 4px 4px;
+        gap: 2px;
+        border-radius: 10px;
+        font-size: 10px;
+    }
+    .tunes-nav__item-icon { width: 22px; height: 22px; }
+    .tunes-nav__item-icon svg { width: 22px; height: 22px; }
+    .tunes-nav__item-label {
+        opacity: 1 !important;
+        font-size: 10px;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+    .tunes-nav__item--active::before {
+        top: -4px;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: auto;
+        width: 28px;
+        height: 3px;
+        border-radius: 3px;
+    }
+
+    /* Main content area no longer has a left rail to clear. */
+    .tunes-main {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .tunes-shell {
+        /* Reserve bottom space for tab bar (64) + mini-player (60). */
+        padding-bottom: 124px;
+    }
+
+    /* Hero — phone proportions */
+    .tunes-hero {
+        height: clamp(360px, 65vh, 520px);
+    }
+    .tunes-hero__text {
+        max-width: 100%;
+        padding-bottom: 24px;
+    }
+    .tunes-hero__title { font-size: clamp(36px, 9vw, 56px); }
+    .tunes-hero__synopsis { display: none; }
+    .tunes-hero__buttons { flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    .tunes-btn { height: 42px; padding: 0 16px; font-size: 13px; }
+    .tunes-hero__dots { right: 16px; bottom: 12px; }
+
+    /* Shelves — more compact */
+    .tunes-shelf { padding-top: 12px; padding-bottom: 12px; }
+    .tunes-shelf__header { margin-bottom: 6px; }
+    .tunes-shelf__title { font-size: 20px; }
+    .tunes-shelf__eyebrow { font-size: 9px; letter-spacing: 0.18em; }
+    .tunes-shelf__rail { gap: 12px; }
+
+    /* Tiles — show ~2.6 per viewport so users see there's more
+       to scroll.  Use a fixed width so all rails feel uniform. */
+    .tunes-tile { width: 140px; }
+    .tunes-tile--artist { width: 100px; }
+
+    .tunes-tile__caption { padding: 10px 10px 8px; }
+    .tunes-tile__title { font-size: 13px; }
+    .tunes-tile__subtitle { font-size: 10px; }
+
+    /* Album detail */
+    .tunes-album__head {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+    .tunes-album__cover {
+        max-width: 220px;
+        margin: 0 auto;
+    }
+    .tunes-album__title { font-size: clamp(28px, 7vw, 40px); }
+    .tunes-album__synopsis { display: none; }
+    .tunes-album__actions { flex-wrap: wrap; }
+
+    .tunes-track-row {
+        grid-template-columns: 32px 1fr 50px;
+        gap: 12px;
+    }
+    .tunes-track-row__pill,
+    .tunes-track-row__add { display: none; }
+
+    /* Mini player — single row */
+    .tunes-mini {
+        bottom: 64px;  /* sit above the bottom tab bar */
+        height: 60px;
+        padding: 0 12px;
+        grid-template-columns: 1fr auto;
+        grid-template-rows: auto;
+        gap: 12px;
+    }
+    .tunes-mini__left { gap: 10px; }
+    .tunes-mini__art { width: 44px; height: 44px; border-radius: 8px; }
+    .tunes-mini__title { font-size: 13px; }
+    .tunes-mini__subtitle { font-size: 11px; }
+    .tunes-mini__like { display: none; }
+    .tunes-mini__center {
+        min-width: 0;
+        grid-row: auto;
+    }
+    .tunes-mini__buttons { gap: 8px; }
+    .tunes-iconbtn { width: 32px; height: 32px; }
+    .tunes-iconbtn--play { width: 44px; height: 44px; }
+    .tunes-mini__scrub { display: none; }
+    .tunes-mini__right { display: none; }
+
+    /* Full-screen player — single-column on phone */
+    .tunes-fullplayer__body {
+        grid-template-columns: 1fr;
+        gap: 16px;
+        /* Extra-tall bottom padding (260 px) reserves room for the
+           sticky dock at the bottom so the last lyric / queue row
+           is NEVER hidden under the transport controls. */
+        padding: 64px 16px 280px;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .tunes-fullplayer__art { max-width: 280px; margin: 0 auto; }
+    .tunes-fullplayer__title { font-size: clamp(32px, 8vw, 48px); }
+    .tunes-fullplayer__queue {
+        /* Cap the queue panel so it scrolls internally on mobile.
+           Without a max-height the panel grew tall enough that its
+           lyrics flowed BEHIND the (transparent) dock, which is the
+           visual bug the user reported. */
+        max-height: 48vh;
+        padding: 16px;
+        -webkit-overflow-scrolling: touch;
+    }
+    .tunes-fullplayer__dock {
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 16px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+        /* Solid gradient backdrop + blur so the lyrics that scroll
+           past the dock are HIDDEN under it instead of bleeding
+           through the previously transparent dock area. */
+        background:
+            linear-gradient(
+                180deg,
+                rgba(10, 1, 24, 0.0) 0%,
+                rgba(10, 1, 24, 0.88) 30%,
+                rgba(10, 1, 24, 0.98) 100%
+            );
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+    }
+    .tunes-fullplayer__transport { gap: 14px; }
+    .tunes-fullplayer__transport .tunes-iconbtn--play {
+        width: 60px;
+        height: 60px;
+    }
+    .tunes-fullplayer__bottom-row .tunes-volume { display: none; }
+    .tunes-fullplayer__corner-left {
+        top: 16px;
+        left: 16px;
+        font-size: 9px;
+    }
+    .tunes-fullplayer__corner-right {
+        top: 12px;
+        right: 12px;
+    }
+
+    /* Genre grid: 2 columns instead of auto-fit */
+    .tunes-genre-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+
+    /* Search input — touch-friendly */
+    .tunes-search-input {
+        height: 48px;
+        font-size: 16px; /* iOS Safari avoids zoom at 16+ */
+    }
+
+    /* Album backdrop — turn off on phones, the cover is enough */
+    .tunes-album__backdrop { display: none; }
+
+    /* Side nav theme picker hidden on mobile (declared above) */
+}
+
+/* Even smaller phones (≤ 380 px) — reduce tile size further. */
+@media (max-width: 380px) {
+    .tunes-tile { width: 124px; }
+    .tunes-tile--artist { width: 90px; }
+    .tunes-hero__title { font-size: clamp(30px, 8.5vw, 44px); }
+    .tunes-hero__buttons .tunes-btn--outline { display: none; }
+}
+
+/* ============================================================
+   🎤 KARAOKE — Selection screen "party hero" overrides
+   ----------------------------------------------------------
+   Custom hero header with a vibrant karaoke party photo,
+   eye-catching neon-pink title, and a cool "PICK YOUR JAM"
+   eyebrow.  Selection shelves carry singing-themed eyebrows.
+============================================================ */
+
+.karaoke-party-hero {
+    position: relative;
+    width: 100%;
+    height: clamp(280px, 36vh, 420px);
+    overflow: hidden;
+    isolation: isolate;
+    margin-bottom: 8px;
+}
+
+.karaoke-party-hero__bg {
+    position: absolute;
+    inset: 0;
+    /* Unsplash karaoke / concert photo — vibrant pink-purple
+       neon stage lights with a microphone, no watermark.
+       We cache-bust the URL with a stable parameter so the CDN
+       returns the same image every load. */
+    background-image: url('https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=1920&q=70');
+    background-size: cover;
+    background-position: center 40%;
+    filter: saturate(1.25) contrast(1.05);
+}
+
+.karaoke-party-hero__scrim {
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(90deg,
+            rgba(0, 0, 0, 0.78) 0%,
+            rgba(0, 0, 0, 0.45) 35%,
+            rgba(0, 0, 0, 0)   65%,
+            rgba(0, 0, 0, 0)   100%),
+        linear-gradient(180deg,
+            rgba(0, 0, 0, 0.35) 0%,
+            rgba(0, 0, 0, 0)   28%,
+            rgba(var(--vesper-bg-0-rgb), 0.55) 70%,
+            var(--vesper-bg-0) 100%);
+    pointer-events: none;
+}
+
+.karaoke-party-hero__neon {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+        ellipse 60% 70% at 78% 38%,
+        rgba(var(--vesper-blue-rgb), 0.30) 0%,
+        rgba(var(--vesper-blue-rgb), 0.10) 35%,
+        transparent 70%
+    );
+    pointer-events: none;
+    mix-blend-mode: screen;
+}
+
+.karaoke-party-hero__content {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 0 var(--tunes-pad-right) clamp(28px, 3vw, 48px) var(--tunes-pad-x);
+    z-index: 2;
+}
+
+.karaoke-party-hero__mic {
+    /* The microphone "K" emblem — a stylized pink-glow shape */
+    display: inline-grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(180deg, var(--vesper-blue-bright), var(--vesper-blue));
+    color: #0a0118;
+    box-shadow:
+        0 0 0 4px rgba(var(--vesper-blue-rgb), 0.25),
+        0 12px 32px rgba(var(--vesper-blue-rgb), 0.6);
+    margin-bottom: 18px;
+}
+
+.karaoke-party-hero__eyebrow {
+    font-family: 'Geist Mono', monospace;
+    font-size: clamp(10px, 0.85vw, 13px);
+    letter-spacing: 0.36em;
+    text-transform: uppercase;
+    color: var(--vesper-blue-bright);
+    margin: 0 0 10px;
+    text-shadow: 0 0 18px var(--vesper-blue-glow);
+}
+
+.karaoke-party-hero__title {
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 800;
+    font-size: clamp(38px, 5.4vw, 72px);
+    letter-spacing: -0.035em;
+    line-height: 0.96;
+    margin: 0;
+    color: #ffffff;
+    text-shadow: 0 4px 32px rgba(0, 0, 0, 0.6);
+}
+.karaoke-party-hero__title em {
+    color: var(--vesper-blue-bright);
+    font-style: normal;
+    font-weight: 800;
+    text-shadow: 0 0 32px var(--vesper-blue-glow);
+}
+
+.karaoke-party-hero__subtitle {
+    margin: 12px 0 0;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: clamp(13px, 1vw, 16px);
+    max-width: 52ch;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7);
+}
+
+/* Karaoke search input wrapper — neon-glow border */
+.karaoke-search {
+    position: relative;
+    margin: -18px auto 16px;
+    max-width: 720px;
+    width: calc(100% - var(--tunes-pad-x) * 2);
+    padding: 0 var(--tunes-pad-x);
+    box-sizing: border-box;
+    z-index: 3;
+}
+
+.karaoke-search input {
+    width: 100%;
+    height: 56px;
+    padding: 0 22px 0 52px;
+    border-radius: 16px;
+    background: rgba(20, 5, 36, 0.92);
+    border: 1px solid rgba(var(--vesper-blue-rgb), 0.35);
+    color: var(--vesper-text);
+    font-family: 'Geist', system-ui, sans-serif;
+    font-size: 16px;
+    outline: none;
+    box-shadow:
+        0 12px 32px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(255, 255, 255, 0.04),
+        inset 0 0 0 1px rgba(var(--vesper-blue-rgb), 0.15);
+    transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.karaoke-search input:focus {
+    border-color: var(--vesper-blue-bright);
+    box-shadow:
+        0 0 0 3px rgba(var(--vesper-blue-rgb), 0.30),
+        0 16px 38px rgba(0, 0, 0, 0.55);
+}
+
+.karaoke-search__icon {
+    position: absolute;
+    top: 50%;
+    left: calc(var(--tunes-pad-x) + 18px);
+    transform: translateY(-50%);
+    color: var(--vesper-blue-bright);
+    pointer-events: none;
+}
+
+@media (max-width: 768px) {
+    .karaoke-party-hero { height: clamp(220px, 35vh, 320px); }
+    .karaoke-party-hero__mic { width: 44px; height: 44px; margin-bottom: 12px; }
+    .karaoke-party-hero__title { font-size: clamp(28px, 8vw, 42px); }
+    .karaoke-party-hero__eyebrow { font-size: 10px; letter-spacing: 0.28em; }
+    .karaoke-search input { height: 48px; padding-left: 46px; }
+    .karaoke-search__icon { left: calc(var(--tunes-pad-x) + 14px); }
+}
+
+/* =============================================================
+ * v2.8.78 — Music Artist page (TV-friendly)
+ *
+ * Compact, scannable, with focus-ring breathing room.  Sized so a
+ * 1920×1080 TV viewer sitting 2 m away can read titles + scan the
+ * track list with D-pad in one glance.
+ * ============================================================ */
+.tunes-artist-page {
+    color: #fff;
+    padding: clamp(20px, 2.5vh, 36px) clamp(40px, 4vw, 72px) 80px;
+    max-width: 1480px;
+    margin: 0 auto;
+}
+
+.tunes-artist-hero {
+    display: grid;
+    grid-template-columns: clamp(140px, 14vw, 200px) 1fr;
+    gap: clamp(20px, 2.5vw, 36px);
+    align-items: center;
+    margin-bottom: clamp(20px, 2.5vh, 36px);
+}
+.tunes-artist-hero__photo {
+    width: clamp(140px, 14vw, 200px);
+    height: clamp(140px, 14vw, 200px);
+    object-fit: cover;
+    border-radius: 50%;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.55);
+}
+.tunes-artist-hero__eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--tunes-accent-3, #66d4ff);
+    margin: 0 0 6px;
+    font-weight: 700;
+}
+.tunes-artist-hero__name {
+    font-size: clamp(28px, 3.6vw, 48px);
+    font-weight: 800;
+    margin: 0 0 14px;
+    letter-spacing: -0.025em;
+    line-height: 1;
+    color: #fff;
+}
+.tunes-artist-hero__play {
+    height: 44px;
+    padding: 0 20px;
+    font-size: 14px;
+}
+
+.tunes-artist-section { margin-top: clamp(20px, 2.5vh, 32px); }
+.tunes-artist-section__title {
+    font-size: clamp(18px, 1.6vw, 22px);
+    font-weight: 800;
+    margin: 0 0 12px;
+    color: #fff;
+    letter-spacing: -0.01em;
+}
+
+/* Track list — compact rows with consistent focus padding */
+.tunes-artist-tracklist {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+@media (max-width: 1100px) {
+    .tunes-artist-tracklist { grid-template-columns: 1fr; }
+}
+.tunes-artist-trackrow {
+    display: grid;
+    grid-template-columns: 28px 44px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    color: #fff;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    transition: background 220ms, border-color 220ms;
+}
+.tunes-artist-trackrow:hover,
+.tunes-artist-trackrow:focus,
+.tunes-artist-trackrow.is-focused {
+    background: rgba(102, 212, 255, 0.10);
+    border-color: rgba(102, 212, 255, 0.55);
+    outline: none;
+}
+.tunes-artist-trackrow__num {
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 13px;
+    text-align: center;
+    font-weight: 700;
+}
+.tunes-artist-trackrow__art {
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    object-fit: cover;
+}
+.tunes-artist-trackrow__meta {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.tunes-artist-trackrow__title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.tunes-artist-trackrow__album {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.55);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-top: 2px;
+}
+.tunes-artist-trackrow__duration {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.55);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Discography grid — compact tiles */
+.tunes-artist-albums {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+
+/* =============================================================
+ * v2.8.78 — Silent Spotlight (karaoke challenge)
+ *
+ * While `inSpotlight` is true the player mutes audio AND we visually
+ * suppress the lyrics so the singer has to feel the rhythm on their
+ * own.  A small "SILENT SPOTLIGHT" banner pulses at the top so they
+ * know what's happening.  When the window ends the lyrics fade back
+ * in and the audio returns to its previous volume.
+ * ============================================================ */
+.tunes-fullplayer__karaoke-overlay.is-spotlight .tunes-fullplayer__karaoke-ticker,
+.tunes-fullplayer__karaoke-overlay.is-spotlight .tunes-fullplayer__karaoke-plain {
+    opacity: 0;
+    transform: scale(0.96);
+    pointer-events: none;
+    transition: opacity 600ms ease, transform 600ms ease;
+}
+.tunes-fullplayer__karaoke-overlay .tunes-fullplayer__karaoke-ticker,
+.tunes-fullplayer__karaoke-overlay .tunes-fullplayer__karaoke-plain {
+    transition: opacity 600ms ease, transform 600ms ease;
+}
+
+.tunes-fullplayer__spotlight-banner {
+    position: absolute;
+    top: clamp(20px, 4vh, 60px);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 28px;
+    border-radius: 18px;
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(255, 122, 184, 0.30), transparent 70%),
+        linear-gradient(180deg, rgba(40, 10, 60, 0.92), rgba(15, 5, 30, 0.88));
+    border: 1.5px solid rgba(255, 122, 184, 0.55);
+    box-shadow:
+        0 0 0 1px rgba(255, 122, 184, 0.30) inset,
+        0 0 36px rgba(255, 122, 184, 0.45);
+    color: #fff;
+    text-align: center;
+    z-index: 30;
+    animation: tunes-spotlight-pulse 1.6s ease-in-out infinite;
+}
+.tunes-fullplayer__spotlight-eyebrow {
+    font-family: var(--vesper-font-mono, 'Geist Mono', monospace);
+    font-size: 11px;
+    letter-spacing: 0.34em;
+    font-weight: 700;
+    color: #ff7ab8;
+    text-transform: uppercase;
+}
+.tunes-fullplayer__spotlight-title {
+    font-family: var(--vesper-font, 'Geist', system-ui, sans-serif);
+    font-size: clamp(22px, 2.2vw, 32px);
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    line-height: 1;
+    text-shadow: 0 0 20px rgba(255, 122, 184, 0.55);
+}
+.tunes-fullplayer__spotlight-hint {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.78);
+    font-weight: 600;
+}
+
+@keyframes tunes-spotlight-pulse {
+    0%, 100% {
+        box-shadow:
+            0 0 0 1px rgba(255, 122, 184, 0.30) inset,
+            0 0 36px rgba(255, 122, 184, 0.45);
+    }
+    50% {
+        box-shadow:
+            0 0 0 1px rgba(255, 122, 184, 0.50) inset,
+            0 0 60px rgba(255, 122, 184, 0.70);
+    }
+}
+
+    gap: 16px;
+}
+.tunes-artist-albumcard {
+    display: block;
+    background: transparent;
+    border-radius: 14px;
+    color: #fff;
+    text-decoration: none;
+    padding: 8px;
+    transition: background 220ms, transform 220ms, box-shadow 220ms;
+}
+.tunes-artist-albumcard:hover,
+.tunes-artist-albumcard:focus,
+.tunes-artist-albumcard.is-focused {
+    background: rgba(102, 212, 255, 0.08);
+    box-shadow: 0 0 0 1.5px rgba(102, 212, 255, 0.55) inset, 0 0 24px rgba(102, 212, 255, 0.22);
+    transform: translateY(-2px);
+    outline: none;
+}
+.tunes-artist-albumcard__art {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    border-radius: 12px;
+}
+.tunes-artist-albumcard__body { padding: 8px 4px 0; }
+.tunes-artist-albumcard__title {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.tunes-artist-albumcard__year {
+    margin: 2px 0 0;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+
+/* =============================================================
+ * v2.8.81 — Vocals on/off button (karaoke mode)
+ *
+ * Sits next to the fullscreen + close buttons in the top-right of
+ * the player.  Default ('Vocals OFF' = instrumental, what karaoke
+ * should be) shows a neon-blue mic-off icon + pill.  When the user
+ * flips vocals back on, the pill warms to a pink-glow to signal
+ * "this isn't the singing-along setting anymore".
+ * ============================================================ */
+.tunes-fullplayer__vocals-btn {
+    width: auto !important;
+    padding: 0 14px 0 12px;
+    height: 36px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    border: 1.5px solid rgba(120, 170, 255, 0.55) !important;
+    background: rgba(78, 167, 255, 0.10) !important;
+    color: #aed7ff !important;
+    box-shadow: 0 0 0 1px rgba(120, 170, 255, 0.25) inset, 0 0 18px rgba(78, 167, 255, 0.22);
+    transition: border-color 220ms, background 220ms, color 220ms, box-shadow 220ms;
+}
+.tunes-fullplayer__vocals-btn .tunes-fullplayer__vocals-label {
+    font-family: var(--vesper-font-mono, 'Geist Mono', monospace);
+}
+.tunes-fullplayer__vocals-btn:hover,
+.tunes-fullplayer__vocals-btn:focus,
+.tunes-fullplayer__vocals-btn.is-focused {
+    border-color: #5eb5ff !important;
+    background: rgba(78, 167, 255, 0.20) !important;
+    color: #fff !important;
+    box-shadow: 0 0 0 2px #5eb5ff inset, 0 0 32px rgba(78, 167, 255, 0.55);
+    outline: none;
+}
+.tunes-fullplayer__vocals-btn.is-vocals-on {
+    border-color: #ff7ab8 !important;
+    background: rgba(255, 122, 184, 0.14) !important;
+    color: #ffd7ec !important;
+    box-shadow: 0 0 0 1px rgba(255, 122, 184, 0.35) inset, 0 0 22px rgba(255, 122, 184, 0.30);
+}
+.tunes-fullplayer__vocals-btn.is-vocals-on:hover,
+.tunes-fullplayer__vocals-btn.is-vocals-on:focus,
+.tunes-fullplayer__vocals-btn.is-vocals-on.is-focused {
+    border-color: #ff7ab8 !important;
+    background: rgba(255, 122, 184, 0.24) !important;
+    box-shadow: 0 0 0 2px #ff7ab8 inset, 0 0 32px rgba(255, 122, 184, 0.55);
+}
+@media (max-width: 640px) {
+    .tunes-fullplayer__vocals-label { display: none; }
+    .tunes-fullplayer__vocals-btn { padding: 0 10px; width: auto; }
+}
+

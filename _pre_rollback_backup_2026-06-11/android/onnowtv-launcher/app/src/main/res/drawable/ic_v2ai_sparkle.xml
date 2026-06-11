@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.8.23 — Sparkle / AI icon for the V2 AI top-bar pill. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,2L13.5,8.5L20,10L13.5,11.5L12,18L10.5,11.5L4,10L10.5,8.5L12,2zM19,15L19.7,17.3L22,18L19.7,18.7L19,21L18.3,18.7L16,18L18.3,17.3L19,15zM6,3L6.5,4.5L8,5L6.5,5.5L6,7L5.5,5.5L4,5L5.5,4.5L6,3z" />
+</vector>

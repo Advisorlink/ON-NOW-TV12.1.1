@@ -1,0 +1,663 @@
+/* V2 Karaoke — landing screen + full-screen stage.
+   ============================================================
+   Theme-aware (pink / electric-blue) via the same CSS variables
+   the rest of the Tunes app uses.  Scoped under .tunes-root so it
+   never bleeds into the Vesper UI. */
+
+/* ── Landing screen ───────────────────────────────────────── */
+.tunes-karaoke {
+    padding: 12px 0 40px;
+}
+
+.tunes-karaoke__hero {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    margin: 8px 0 32px;
+}
+.tunes-karaoke__hero-icon {
+    position: relative;
+    width: 88px; height: 88px;
+    border-radius: 24px;
+    display: grid; place-items: center;
+    background:
+        radial-gradient(circle at 30% 25%, rgba(var(--tunes-accent-rgb), 0.55), transparent 65%),
+        linear-gradient(135deg, rgba(var(--tunes-accent-rgb), 0.45), rgba(var(--tunes-accent-rgb), 0.18));
+    box-shadow:
+        0 14px 32px rgba(var(--tunes-accent-rgb), 0.35),
+        inset 0 0 0 1px rgba(255,255,255,0.12);
+    color: #fff;
+    flex-shrink: 0;
+}
+.tunes-karaoke__hero-icon::before {
+    content: "";
+    position: absolute;
+    inset: -8px;
+    border-radius: 32px;
+    background: linear-gradient(135deg, var(--tunes-accent), transparent 70%);
+    opacity: 0.35;
+    filter: blur(20px);
+    z-index: -1;
+}
+.tunes-karaoke__sparkle {
+    position: absolute;
+    top: 10px; right: 10px;
+    color: #fff;
+    opacity: 0.85;
+    animation: tunes-karaoke-twinkle 2.6s ease-in-out infinite;
+}
+@keyframes tunes-karaoke-twinkle {
+    0%, 100% { opacity: 0.85; transform: scale(1); }
+    50%      { opacity: 0.4;  transform: scale(0.9); }
+}
+
+.tunes-karaoke__title {
+    font-size: 44px;
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    margin: 0;
+    background: linear-gradient(135deg, #fff 0%, var(--tunes-accent-2) 60%, var(--tunes-accent) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+.tunes-karaoke__subtitle {
+    margin: 6px 0 0;
+    color: var(--tunes-text-dim);
+    font-size: 16px;
+    max-width: 540px;
+}
+
+.tunes-karaoke__search {
+    position: relative;
+    max-width: 560px;
+    margin-bottom: 32px;
+}
+.tunes-karaoke__search-icon {
+    position: absolute;
+    left: 14px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--tunes-text-dim);
+    pointer-events: none;
+}
+.tunes-karaoke__search-input {
+    padding-left: 44px !important;
+}
+
+.tunes-karaoke__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 18px;
+}
+
+.tunes-karaoke-card {
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-align: left;
+    color: inherit;
+    border-radius: 16px;
+    transition:
+        transform 0.22s var(--tunes-ease),
+        box-shadow 0.22s var(--tunes-ease);
+    will-change: transform;
+}
+.tunes-karaoke-card:focus-visible,
+.tunes-karaoke-card[data-focused="true"] {
+    outline: none;
+    transform: translateY(-6px) scale(1.05);
+    box-shadow: 0 22px 44px rgba(0,0,0,0.55), 0 0 0 4px rgba(var(--tunes-accent-rgb), 0.28);
+}
+
+.tunes-karaoke-card__art {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    border-radius: 14px;
+    background-color: var(--tunes-bg-2);
+    background-size: cover;
+    background-position: center;
+    overflow: hidden;
+}
+.tunes-karaoke-card__art::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.5) 100%);
+}
+.tunes-karaoke-card__play {
+    position: absolute;
+    bottom: 12px; right: 12px;
+    width: 48px; height: 48px;
+    display: grid; place-items: center;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--tunes-accent), rgba(var(--tunes-accent-rgb), 0.6));
+    color: #fff;
+    box-shadow: 0 8px 18px rgba(var(--tunes-accent-rgb), 0.45);
+    z-index: 1;
+    transition: transform 0.22s var(--tunes-ease);
+}
+.tunes-karaoke-card:hover .tunes-karaoke-card__play,
+.tunes-karaoke-card:focus-visible .tunes-karaoke-card__play,
+.tunes-karaoke-card[data-focused="true"] .tunes-karaoke-card__play {
+    transform: scale(1.12);
+}
+
+.tunes-karaoke-card__body { padding: 12px 4px 0; }
+.tunes-karaoke-card__title {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--tunes-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.tunes-karaoke-card__artist {
+    margin: 3px 0 0;
+    font-size: 12px;
+    color: var(--tunes-text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── Full-screen stage ──────────────────────────────────────
+   The Karaoke stage is rendered OUTSIDE the `.tunes-root` element
+   (it lives at the App level so it can take the full viewport),
+   so we re-declare the theme tokens here.  Defaults to the PINK
+   theme; the stage reads `localStorage.onnowtv-tunes-theme` and
+   sets `data-theme="electric-blue"` to switch palettes. */
+.tunes-karaoke-stage {
+    /* === PINK (default) === */
+    --tunes-bg-0:       #0a0118;
+    --tunes-bg-1:       #160329;
+    --tunes-bg-2:       #2a0945;
+    --tunes-accent:     #ff2d7f;
+    --tunes-accent-2:   #ff7eb3;
+    --tunes-accent-3:   #ff7eb3;
+    --tunes-accent-rgb: 255, 45, 127;
+    --tunes-text:       #ffffff;
+    --tunes-text-dim:   rgba(255, 255, 255, 0.72);
+    --tunes-ease:       cubic-bezier(0.22, 1, 0.36, 1);
+
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    color: #fff;
+    background: var(--tunes-bg-0);
+    overflow: hidden;
+}
+.tunes-karaoke-stage[data-theme="electric-blue"] {
+    --tunes-bg-0:       #02060f;
+    --tunes-bg-1:       #051a32;
+    --tunes-bg-2:       #082a55;
+    --tunes-accent:     #00b3ff;
+    --tunes-accent-2:   #66d4ff;
+    --tunes-accent-3:   #66d4ff;
+    --tunes-accent-rgb: 0, 179, 255;
+}
+.tunes-karaoke-stage--loading {
+    display: grid;
+    place-items: center;
+    color: var(--tunes-text-dim);
+}
+
+/* Blurred background art — sits behind everything.
+   v2.8.65 — Much brighter image: 12 px blur, 150 % saturation,
+   full opacity.  No dark background colour. */
+.tunes-karaoke-stage__bg {
+    position: absolute;
+    inset: -6%;
+    background-color: transparent;
+    background-size: cover;
+    background-position: center;
+    filter: blur(12px) saturate(1.45) brightness(1.05) contrast(1.04);
+    transform: scale(1.04);
+    opacity: 1;
+    z-index: 0;
+}
+/* Subtle theme-coloured corner glows for a "music video" feel.
+   Capped at 0.20 alpha so they enhance the artwork without
+   overwhelming it (the previous 0.45 made everything pink). */
+.tunes-karaoke-stage__bg::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 12% 18%, rgba(var(--tunes-accent-rgb), 0.22) 0%, transparent 50%),
+        radial-gradient(circle at 88% 82%, rgba(var(--tunes-accent-rgb), 0.16) 0%, transparent 55%);
+    mix-blend-mode: screen;
+    pointer-events: none;
+}
+/* A dedicated dark horizontal band behind the lyrics row keeps
+   them readable regardless of the artwork.  Set via a separate
+   ::before pseudo on the vignette layer. */
+.tunes-karaoke-stage__vignette {
+    position: absolute;
+    inset: 0;
+    background:
+        /* Strong dark horizontal band right behind the lyrics so
+           the words read regardless of cover-art brightness. */
+        linear-gradient(180deg,
+            transparent 0%,
+            transparent 28%,
+            rgba(0, 0, 0, 0.78) 45%,
+            rgba(0, 0, 0, 0.78) 55%,
+            transparent 72%,
+            transparent 100%),
+        radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.45) 100%),
+        linear-gradient(180deg, rgba(0,0,0,0.40) 0%, transparent 25%, transparent 75%, rgba(0,0,0,0.55) 100%);
+    z-index: 1;
+    pointer-events: none;
+}
+
+/* Top bar — exit, song meta, mic icon */
+.tunes-karaoke-stage__top {
+    position: relative;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 28px 36px 8px;
+}
+.tunes-karaoke-stage__exit {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: #fff;
+    cursor: pointer;
+    transition: transform 0.22s var(--tunes-ease), background 0.22s var(--tunes-ease);
+}
+.tunes-karaoke-stage__exit:hover,
+.tunes-karaoke-stage__exit:focus-visible,
+.tunes-karaoke-stage__exit[data-focused="true"] {
+    outline: none;
+    background: rgba(var(--tunes-accent-rgb), 0.30);
+    border-color: var(--tunes-accent);
+    transform: scale(1.05);
+    box-shadow: 0 0 0 4px rgba(var(--tunes-accent-rgb), 0.28);
+}
+.tunes-karaoke-stage__meta {
+    flex: 1;
+    min-width: 0;
+}
+.tunes-karaoke-stage__song {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.tunes-karaoke-stage__artist {
+    margin: 2px 0 0;
+    font-size: 13px;
+    color: rgba(255,255,255,0.7);
+}
+
+.tunes-karaoke-stage__mic {
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--tunes-accent), rgba(var(--tunes-accent-rgb), 0.55));
+    box-shadow: 0 0 0 0 rgba(var(--tunes-accent-rgb), 0.5);
+    color: #fff;
+    flex-shrink: 0;
+}
+.tunes-karaoke-stage__mic.is-playing {
+    animation: tunes-karaoke-mic-pulse 1.4s ease-out infinite;
+}
+@keyframes tunes-karaoke-mic-pulse {
+    0%   { box-shadow: 0 0 0 0   rgba(var(--tunes-accent-rgb), 0.55); transform: scale(1); }
+    70%  { box-shadow: 0 0 0 22px rgba(var(--tunes-accent-rgb), 0); transform: scale(1.04); }
+    100% { box-shadow: 0 0 0 0   rgba(var(--tunes-accent-rgb), 0); transform: scale(1); }
+}
+
+/* Lyrics column */
+.tunes-karaoke-stage__lyrics {
+    position: relative;
+    z-index: 5;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    overflow: hidden;
+}
+.tunes-karaoke-stage__ticker {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 22px;
+    max-width: 980px;
+    width: 100%;
+    text-align: center;
+}
+/* Inactive lyric line — clean white with strong shadow so it's
+   readable against any backdrop, but visibly subordinate to the
+   active line. */
+.tunes-karaoke-stage__line {
+    font-size: clamp(22px, 4.2vw, 56px);
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    margin: 0;
+    color: rgba(255, 255, 255, 0.65);
+    transition:
+        transform 0.35s var(--tunes-ease),
+        opacity 0.35s var(--tunes-ease),
+        color 0.35s var(--tunes-ease);
+    text-shadow:
+        0 2px 4px rgba(0, 0, 0, 0.95),
+        0 4px 24px rgba(0, 0, 0, 0.65);
+    line-height: 1.18;
+    will-change: transform, opacity, color;
+}
+/* ACTIVE line — BRIGHT solid pink + multi-layer glow so it
+   pops off the backdrop regardless of cover-art colour.  This
+   is the "this is what you're singing" indicator. */
+.tunes-karaoke-stage__line.is-active {
+    color: var(--tunes-accent-2) !important;
+    -webkit-text-fill-color: var(--tunes-accent-2) !important;
+    background: none;
+    text-shadow:
+        /* Thick white halo for legibility */
+        0 0 3px #ffffff,
+        0 0 6px rgba(255, 255, 255, 0.95),
+        /* Pink glow rings */
+        0 0 22px rgba(var(--tunes-accent-rgb), 1.0),
+        0 0 48px rgba(var(--tunes-accent-rgb), 0.85),
+        0 0 92px rgba(var(--tunes-accent-rgb), 0.55),
+        /* Deep drop-shadow for layering */
+        0 6px 30px rgba(0, 0, 0, 0.85);
+    transform: scale(1.08);
+    animation:
+        tunes-karaoke-line-in 0.4s var(--tunes-ease),
+        tunes-karaoke-line-pulse 1.5s ease-in-out infinite;
+}
+@keyframes tunes-karaoke-line-in {
+    0%   { transform: scale(0.94) translateY(8px); }
+    100% { transform: scale(1.08) translateY(0); }
+}
+@keyframes tunes-karaoke-line-pulse {
+    0%, 100% { filter: brightness(1.0); }
+    50%      { filter: brightness(1.18); }
+}
+.tunes-karaoke-stage__line.is-past {
+    color: rgba(255, 255, 255, 0.38) !important;
+    -webkit-text-fill-color: rgba(255, 255, 255, 0.38) !important;
+    transform: scale(0.97);
+}
+
+.tunes-karaoke-stage__instr,
+.tunes-karaoke-stage__missing {
+    text-align: center;
+    color: rgba(255,255,255,0.7);
+}
+.tunes-karaoke-stage__instr p,
+.tunes-karaoke-stage__missing p {
+    font-size: 28px;
+    font-weight: 700;
+    margin: 16px 0 4px;
+    color: #fff;
+}
+.tunes-karaoke-stage__instr span,
+.tunes-karaoke-stage__missing span {
+    font-size: 14px;
+}
+
+.tunes-karaoke-stage__plain {
+    max-width: 720px;
+    width: 100%;
+    text-align: center;
+    color: rgba(255,255,255,0.8);
+}
+.tunes-karaoke-stage__plain-note {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: rgba(255,255,255,0.5);
+    margin-bottom: 16px;
+}
+.tunes-karaoke-stage__plain-scroll {
+    font-size: 20px;
+    line-height: 1.7;
+    max-height: 55vh;
+    overflow-y: auto;
+    padding: 0 24px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.25) transparent;
+}
+.tunes-karaoke-stage__plain-scroll p { margin: 0 0 4px; }
+
+/* Bottom dock */
+.tunes-karaoke-stage__dock {
+    position: relative;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 22px 36px 30px;
+    background: linear-gradient(180deg, transparent, rgba(0,0,0,0.55));
+}
+
+.tunes-karaoke-stage__play {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--tunes-accent), rgba(var(--tunes-accent-rgb), 0.55));
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 10px 26px rgba(var(--tunes-accent-rgb), 0.45);
+    transition: transform 0.22s var(--tunes-ease), box-shadow 0.22s var(--tunes-ease);
+}
+.tunes-karaoke-stage__play:hover,
+.tunes-karaoke-stage__play:focus-visible,
+.tunes-karaoke-stage__play[data-focused="true"] {
+    outline: none;
+    transform: scale(1.06);
+    box-shadow:
+        0 14px 32px rgba(var(--tunes-accent-rgb), 0.55),
+        0 0 0 4px rgba(var(--tunes-accent-rgb), 0.28);
+}
+
+.tunes-karaoke-stage__scrub {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+.tunes-karaoke-stage__time {
+    font-variant-numeric: tabular-nums;
+    font-size: 12px;
+    color: rgba(255,255,255,0.7);
+    min-width: 42px;
+    text-align: center;
+}
+.tunes-karaoke-stage__bar {
+    flex: 1;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.16);
+    overflow: hidden;
+}
+.tunes-karaoke-stage__bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--tunes-accent), var(--tunes-accent-2));
+    box-shadow: 0 0 12px rgba(var(--tunes-accent-rgb), 0.55);
+    transition: width 0.3s linear;
+}
+
+.tunes-karaoke-stage__close {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: #fff;
+    cursor: pointer;
+    transition: transform 0.22s var(--tunes-ease), background 0.22s var(--tunes-ease);
+}
+.tunes-karaoke-stage__close:hover,
+.tunes-karaoke-stage__close:focus-visible,
+.tunes-karaoke-stage__close[data-focused="true"] {
+    outline: none;
+    background: rgba(255,255,255,0.16);
+    transform: scale(1.05);
+}
+
+/* Reduce-motion users keep the look but lose the spinning pulses. */
+@media (prefers-reduced-motion: reduce) {
+    .tunes-karaoke-stage__mic.is-playing { animation: none; }
+    .tunes-karaoke__sparkle { animation: none; }
+    .tunes-karaoke-stage__line { transition: none; }
+    .tunes-karaoke-stage__line.is-active { animation: none; }
+}
+
+/* ── Australia radio landing ──────────────────────────────── */
+.tunes-au {
+    padding: 12px 0 40px;
+}
+
+.tunes-au__hero {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    padding: 26px 28px;
+    border-radius: 22px;
+    margin-bottom: 28px;
+    /* Aussie sunset gradient — warm to ocean.  Theme-independent
+       since this is a national identity surface, not an
+       app-chrome surface. */
+    background:
+        radial-gradient(circle at 88% 18%, rgba(255, 196, 107, 0.45), transparent 55%),
+        linear-gradient(135deg, #b91c1c 0%, #f97316 35%, #0ea5e9 100%);
+    box-shadow: 0 14px 36px rgba(0,0,0,0.45);
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+}
+.tunes-au__hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 20% 90%, rgba(255,255,255,0.18), transparent 50%);
+    pointer-events: none;
+}
+.tunes-au__hero-flag {
+    font-size: 64px;
+    flex-shrink: 0;
+    line-height: 1;
+    filter: drop-shadow(0 8px 22px rgba(0,0,0,0.55));
+}
+.tunes-au__title {
+    margin: 0;
+    font-size: 40px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+.tunes-au__subtitle {
+    margin: 4px 0 0;
+    font-size: 15px;
+    opacity: 0.9;
+}
+
+.tunes-au__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+}
+
+.tunes-au-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px 14px 14px;
+    background: var(--tunes-glass-bg);
+    border: 1px solid var(--tunes-glass-border);
+    border-radius: 14px;
+    cursor: pointer;
+    color: inherit;
+    text-align: left;
+    transition:
+        transform 0.22s var(--tunes-ease),
+        border-color 0.22s var(--tunes-ease),
+        box-shadow 0.22s var(--tunes-ease),
+        background 0.22s var(--tunes-ease);
+    will-change: transform;
+    position: relative;
+}
+.tunes-au-card.is-pinned {
+    /* Subtle gradient tag for the curated "top picks" tier. */
+    background: linear-gradient(135deg, rgba(var(--tunes-accent-rgb), 0.12), rgba(255,255,255,0.04));
+    border-color: rgba(var(--tunes-accent-rgb), 0.32);
+}
+.tunes-au-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(var(--tunes-accent-rgb), 0.45);
+    box-shadow: 0 14px 28px rgba(0,0,0,0.35);
+}
+.tunes-au-card:focus-visible,
+.tunes-au-card[data-focused="true"] {
+    outline: none;
+    transform: translateY(-4px) scale(1.02);
+    border-color: var(--tunes-accent);
+    box-shadow:
+        0 0 0 3px rgba(var(--tunes-accent-rgb), 0.28),
+        0 18px 36px rgba(0,0,0,0.45);
+}
+
+.tunes-au-card__logo {
+    width: 56px; height: 56px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.06);
+    display: grid; place-items: center;
+    color: var(--tunes-text-dim);
+    flex-shrink: 0;
+    overflow: hidden;
+}
+.tunes-au-card__logo img {
+    width: 100%; height: 100%; object-fit: cover;
+}
+.tunes-au-card__body {
+    flex: 1; min-width: 0;
+}
+.tunes-au-card__name {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--tunes-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.tunes-au-card__meta {
+    margin: 3px 0 0;
+    font-size: 12px;
+    color: var(--tunes-text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.tunes-au-card__play {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--tunes-accent), rgba(var(--tunes-accent-rgb), 0.55));
+    color: #fff;
+    flex-shrink: 0;
+    box-shadow: 0 6px 16px rgba(var(--tunes-accent-rgb), 0.35);
+    transition: transform 0.22s var(--tunes-ease);
+}
+.tunes-au-card:hover .tunes-au-card__play,
+.tunes-au-card:focus-visible .tunes-au-card__play,
+.tunes-au-card[data-focused="true"] .tunes-au-card__play {
+    transform: scale(1.1) rotate(15deg);
+}

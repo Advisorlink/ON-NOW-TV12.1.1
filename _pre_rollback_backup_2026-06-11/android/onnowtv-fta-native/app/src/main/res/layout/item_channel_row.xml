@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    One channel row in the EPG grid.
+    Left: channel rail (logo + LCN + name).  Right: horizontal
+    RecyclerView of programme cells.
+-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="@dimen/fta_row_h"
+    android:orientation="horizontal">
+
+    <!-- Channel rail (left, sticky-feel) -->
+    <LinearLayout
+        android:id="@+id/row_rail"
+        android:layout_width="@dimen/fta_channel_rail_w"
+        android:layout_height="match_parent"
+        android:layout_marginEnd="6dp"
+        android:layout_marginTop="3dp"
+        android:layout_marginBottom="3dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/channel_rail_bg"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp">
+
+        <ImageView
+            android:id="@+id/row_logo"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:scaleType="centerInside"
+            android:contentDescription="@null" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/row_lcn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:textColor="@color/fta_blue"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.14"
+                android:text="" />
+
+            <TextView
+                android:id="@+id/row_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/fta_fg"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:fontFamily="sans-serif-medium"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:text="" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Timeline row.  Uses a horizontal scroll wrapper plus an
+         absolute-positioned strip of cells.  We don't use a nested
+         RecyclerView because programme cells are positioned by
+         absolute time (left = startMs * px_per_min), not by index. -->
+    <HorizontalScrollView
+        android:id="@+id/row_scroll"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:scrollbars="none"
+        android:fillViewport="false">
+
+        <FrameLayout
+            android:id="@+id/row_strip"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent" />
+    </HorizontalScrollView>
+</LinearLayout>

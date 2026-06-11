@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Reminder pop-up banner.  Sits at the top-right of EpgActivity
+     and PlayerActivity (added programmatically).  Hidden by default;
+     visible state is driven by ReminderWatcher. -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/reminder_banner"
+    android:layout_width="380dp"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@drawable/reminder_banner_bg"
+    android:paddingStart="14dp"
+    android:paddingEnd="14dp"
+    android:paddingTop="12dp"
+    android:paddingBottom="12dp"
+    android:elevation="14dp"
+    android:visibility="gone"
+    android:focusable="true"
+    android:clickable="true">
+
+    <ImageView
+        android:id="@+id/banner_logo"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:scaleType="centerInside"
+        android:contentDescription="@null" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="12dp"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/banner_eyebrow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:textColor="@color/livetv_reminder_yellow"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.24"
+            android:text="REMINDER · STARTING NOW" />
+
+        <TextView
+            android:id="@+id/banner_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textColor="@color/livetv_fg"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:text="" />
+
+        <TextView
+            android:id="@+id/banner_channel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textColor="@color/livetv_fg_dim"
+            android:textSize="12sp"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:text="" />
+
+        <TextView
+            android:id="@+id/banner_cta"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:fontFamily="monospace"
+            android:textColor="@color/livetv_accent"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.20"
+            android:text="PRESS OK TO WATCH NOW" />
+    </LinearLayout>
+</LinearLayout>

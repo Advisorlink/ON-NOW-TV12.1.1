@@ -81,7 +81,9 @@ export default function UpcomingMoviesShelf() {
 
     const openItem = (m) => {
         // v2.7.46 — per user spec: click ALWAYS opens the detail page.
-        // v2.10.44 — Removed full-screen nav loader per user demand.
+        // The detail page has the Trailer button which is what
+        // launches the full-screen trailer player.  Long-press on the
+        // card opens the Notify modal directly (see longPressItem).
         if (m?.imdb_id) {
             navigate(`/title/movie/${m.imdb_id}`);
         } else if (m?.tmdb_id) {

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Category pill row used by VlcPlayerActivity's in-player Live Guide
+  overlay.  Tall enough for comfortable D-pad navigation (60dp) with
+  a left-edge accent strip that fades in on focus, plus a count
+  badge so the user can tell how many channels are in each category.
+
+  Focus state: blue accent bar + light-blue background tint.
+  Selected state: white text + thick accent bar (driven from code).
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/row_root"
+    android:layout_width="match_parent"
+    android:layout_height="56dp"
+    android:layout_marginBottom="4dp"
+    android:background="@drawable/guide_category_row_bg"
+    android:focusable="true"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="18dp"
+    android:paddingEnd="14dp">
+
+    <!-- Left accent stripe (4dp) — emphasised when this row is the
+         active category.  We toggle visibility via Kotlin to mark
+         the selected (not focused) category. -->
+    <View
+        android:id="@+id/row_accent"
+        android:layout_width="3dp"
+        android:layout_height="20dp"
+        android:layout_marginEnd="14dp"
+        android:background="#5DC8FF"
+        android:visibility="invisible" />
+
+    <TextView
+        android:id="@+id/row_label"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textColor="#C7CFDB"
+        android:textSize="16sp"
+        android:maxLines="1"
+        android:ellipsize="end" />
+
+    <TextView
+        android:id="@+id/row_count"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#6B7587"
+        android:textSize="12sp"
+        android:fontFamily="monospace"
+        android:layout_marginStart="10dp" />
+</LinearLayout>

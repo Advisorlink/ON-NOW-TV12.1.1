@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FTA streams can redirect HTTPS → cleartext HTTP on numeric
+     IPs (same pattern as the Xtream feeds).  Allow cleartext so
+     ExoPlayer can follow the redirect chain. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

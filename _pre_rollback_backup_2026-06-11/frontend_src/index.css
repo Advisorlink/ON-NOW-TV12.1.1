@@ -1,0 +1,1662 @@
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------
+   Vesper – Modern / Neon-Glass design tokens (v2)
+   Inky near-black with a subtle blue undertone; vivid electric
+   blue as the single signal accent; tight modern grotesque type.
+------------------------------------------------------------------ */
+:root {
+    --vesper-bg-0: #06080f;
+    --vesper-bg-1: #0a0e1a;
+    --vesper-bg-2: #111827;
+    --vesper-surface: #1a2238;
+    --vesper-surface-2: #232c47;
+    --vesper-text: #f5f7fa;
+    --vesper-text-2: #9ba8c2;
+    --vesper-text-3: #5b6580;
+    --vesper-blue: #5dc8ff; /* signal accent */
+    --vesper-blue-bright: #8de0ff;
+    --vesper-blue-dim: #2a82b8;
+    --vesper-blue-glow: rgba(93, 200, 255, 0.55);
+    --vesper-line: rgba(255, 255, 255, 0.07);
+
+    --background: 222 32% 5%;
+    --foreground: 220 18% 97%;
+    --card: 222 30% 9%;
+    --card-foreground: 220 18% 97%;
+    --popover: 222 30% 9%;
+    --popover-foreground: 220 18% 97%;
+    --primary: 199 100% 68%;
+    --primary-foreground: 222 32% 5%;
+    --secondary: 222 30% 15%;
+    --secondary-foreground: 220 18% 97%;
+    --muted: 222 30% 12%;
+    --muted-foreground: 220 14% 65%;
+    --accent: 199 100% 68%;
+    --accent-foreground: 222 32% 5%;
+    --destructive: 0 80% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 15% 100% / 0.08;
+    --input: 222 30% 12%;
+    --ring: 199 100% 68%;
+    --radius: 12px;
+}
+
+/* ------------------------------------------------------------------
+   Kids theme — applied via `data-kids-theme="1"` on the page root.
+   Swaps the cyber-blue accent for a playful sunshine-yellow + magenta,
+   warms the background into a deep grape/berry, and rounds the
+   visual identity (handled inline + via .vesper-kids-* below).
+------------------------------------------------------------------ */
+[data-kids-theme='1'] {
+    --vesper-bg-0: #1a0c2e;
+    --vesper-bg-1: #28133f;
+    --vesper-bg-2: #371a52;
+    --vesper-surface: #3f1f5c;
+    --vesper-surface-2: #4e2870;
+    --vesper-text: #fffaf2;
+    --vesper-text-2: #f7d8ee;
+    --vesper-text-3: #b78fc9;
+    --vesper-blue: #ffd43b;         /* sunshine yellow as the accent */
+    --vesper-blue-bright: #ffe066;
+    --vesper-blue-dim: #d4a017;
+    --vesper-blue-glow: rgba(255, 212, 59, 0.55);
+    --vesper-line: rgba(255, 255, 255, 0.10);
+}
+
+/* Kids-themed playful ambient gradient on the body backdrop. */
+[data-kids-theme='1'].vesper-kids-root {
+    background:
+        radial-gradient(
+            ellipse 70% 50% at 18% 8%,
+            rgba(255, 107, 203, 0.20) 0%,
+            transparent 55%
+        ),
+        radial-gradient(
+            ellipse 60% 50% at 90% 30%,
+            rgba(255, 212, 59, 0.18) 0%,
+            transparent 55%
+        ),
+        radial-gradient(
+            ellipse 80% 60% at 50% 100%,
+            rgba(61, 220, 151, 0.15) 0%,
+            transparent 60%
+        ),
+        var(--vesper-bg-0) !important;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+    height: 100%;
+    min-height: 100dvh;
+    width: 100%;
+    background: var(--vesper-bg-0);
+    color: var(--vesper-text);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow: hidden;
+}
+
+/* Pulsating glow on the hero Play CTA so the user immediately knows
+ * where focus is when they land on a Detail page.  Gentle 1.6 s
+ * breathe; uses two box-shadows so the outer halo is soft cyan
+ * while the inner one is sharper.  Stops on hover / focus to avoid
+ * fighting the standard focus ring. */
+@keyframes vesper-pulse {
+    0%, 100% {
+        box-shadow:
+            0 0 0 0 rgba(93, 200, 255, 0.55),
+            0 8px 30px rgba(93, 200, 255, 0.18);
+    }
+    50% {
+        box-shadow:
+            0 0 0 14px rgba(93, 200, 255, 0),
+            0 8px 30px rgba(93, 200, 255, 0.35);
+    }
+}
+.vesper-pulse-cta:not(:hover):not(:focus):not([data-focused="true"]) {
+    animation: vesper-pulse 1.6s ease-in-out infinite;
+}
+
+
+.App {
+    width: 100vw;
+    height: 100dvh;
+    min-height: 100vh;     /* fallback for older browsers */
+    overflow: hidden;
+}
+
+body {
+    margin: 0;
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 400;
+    font-size: 22px;
+    line-height: 1.45;
+    letter-spacing: -0.005em;
+    /* Subtle radial blue ambient lift behind everything */
+    background:
+        radial-gradient(
+            ellipse 80% 60% at 70% 0%,
+            rgba(93, 200, 255, 0.07) 0%,
+            transparent 60%
+        ),
+        radial-gradient(
+            ellipse 60% 50% at 0% 100%,
+            rgba(93, 200, 255, 0.04) 0%,
+            transparent 50%
+        ),
+        var(--vesper-bg-0);
+}
+
+::selection {
+    background: var(--vesper-blue);
+    color: var(--vesper-bg-0);
+}
+
+::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    background: transparent;
+}
+* {
+    scrollbar-width: none;
+}
+
+*:focus {
+    outline: none;
+}
+/* Modern Chrome treats :focus-visible separately from :focus —
+   without this reset the browser's default 2-3 px outline ring
+   renders ON TOP of our custom box-shadow rings, producing the
+   "two blue borders" the user reported on focused tiles. */
+*:focus-visible {
+    outline: none;
+}
+
+/* ------------------------------------------------------------------
+   GPU acceleration hints — promote scrollable shelves + focused
+   tiles onto their own compositor layer.  This is the single most
+   important perf knob on the HK1 box's WebView: without it every
+   D-pad press triggers a software re-paint of the WHOLE row (60+
+   posters), causing the chunky "skip" feel.
+------------------------------------------------------------------ */
+.vesper-shelf,
+[data-testid="shelves-region"],
+[data-testid="home-main"] {
+    will-change: scroll-position;
+    transform: translateZ(0);
+    -webkit-transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    -webkit-overflow-scrolling: touch;
+    /* Tell the browser this scroll container's children are
+       layout-contained — paint / layout of one tile can't affect
+       siblings.  We deliberately omit `paint` from the contain
+       list because `contain: paint` clips painting to the box's
+       content edge, which chops off the bottom ~10 px of a
+       focused tile's scale(1.08) animation.  `layout` + `style`
+       give us the perf win without the clipping. */
+    contain: layout style;
+}
+
+/* Each shelf row is its own paint / layout container so scrolling
+   one row doesn't invalidate sibling rows.  Critical for 60 fps.
+   NOTE: paint containment intentionally OMITTED here — see the
+   comment on `.vesper-shelf` above for why. */
+.vesper-shelf-section {
+    contain: layout style;
+    /* NOTE: we previously also set `content-visibility: auto` here
+       for the off-screen-shelves perf win — but that makes a
+       shelf's descendants render with 0 × 0 layout boxes when the
+       shelf is off-screen, which causes our spatial-focus filter
+       to drop them and the D-pad can't jump to / from off-screen
+       shelves.  The `contain` rule alone gets us the bulk of the
+       perf win without breaking nav. */
+}
+
+/* v2.7.00 — stacking-context lift for the active shelf.  Because
+   `.vesper-shelf-section` carries `contain: layout style` it forms
+   its OWN stacking context, so the focused tile's `z-index: 50`
+   only wins within its own section — the next shelf below paints
+   on top of any overflow from the scale(1.08) animation and clips
+   the bottom edge (progress bar + "X left" on Continue Watching
+   tiles, focus ring on regular posters).  Lift the entire section
+   so its focused-tile overflow always paints above its siblings.
+   `:has()` is Chrome 105+ which the HK1 WebView already supports
+   (we keep it as a progressive enhancement; older WebViews still
+   render the row correctly, they just clip slightly on focus). */
+.vesper-shelf-section:has([data-focused="true"]) {
+    z-index: 20;
+}
+
+/* Every focusable tile gets promoted on-demand so transforms /
+   shadows render off the UI thread. */
+[data-focusable='true'] {
+    /* Limit `will-change` to transform only — older WebViews
+       allocate a full layer for every property listed.  box-shadow
+       compositing comes from the focus-glow rule applying
+       translateZ implicitly via transform: scale(). */
+    will-change: transform;
+    transform: translateZ(0);
+    -webkit-transform: translate3d(0, 0, 0);
+    /* Strict containment on tiles — focus animation can't leak
+       layout pressure into siblings. */
+    contain: layout style;
+}
+
+/* Posters — pre-decode + hint the compositor. */
+.vesper-shelf img,
+[data-testid="shelves-region"] img {
+    image-rendering: -webkit-optimize-contrast;
+    transform: translateZ(0);
+    -webkit-transform: translate3d(0, 0, 0);
+    /* Hint the browser to decode off the main thread when
+       supported (Chrome 65+). */
+    decoding: async;
+}
+
+/* ------------------------------------------------------------------
+   Vesper text utilities
+------------------------------------------------------------------ */
+@layer components {
+    .vesper-display {
+        font-family: 'Geist', system-ui, sans-serif;
+        font-weight: 600;
+        letter-spacing: -0.025em;
+        line-height: 1;
+    }
+    .vesper-eyebrow {
+        font-family: 'JetBrains Mono', monospace;
+        font-weight: 500;
+        font-size: 13px;
+        letter-spacing: 0.32em;
+        text-transform: uppercase;
+        color: var(--vesper-blue);
+    }
+    .vesper-mono {
+        font-family: 'Geist Mono', 'JetBrains Mono', monospace;
+        letter-spacing: 0.04em;
+    }
+    .vesper-meta {
+        font-family: 'Geist', sans-serif;
+        font-weight: 400;
+        font-size: 22px;
+        color: var(--vesper-text-2);
+    }
+    .vesper-glass {
+        background: linear-gradient(
+            180deg,
+            rgba(26, 34, 56, 0.7) 0%,
+            rgba(17, 24, 39, 0.6) 100%
+        );
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+    }
+    .vesper-grain::after {
+        content: '';
+        pointer-events: none;
+        position: absolute;
+        inset: 0;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.06 0 0 0 0 0.08 0 0 0 0 0.12 0 0 0 0.55 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+        opacity: 0.13;
+        mix-blend-mode: overlay;
+        z-index: 1;
+    }
+}
+
+/* ------------------------------------------------------------------
+   Focus state — TV / D-pad primary interaction
+------------------------------------------------------------------ */
+[data-focusable='true'] {
+    /* INSTANT focus.  We deliberately do NOT transition the focus
+       scale or box-shadow: any transition means the previous tile
+       is still animating-out when the next press fires, which on
+       a low-end Android WebView paints as a "ghost glow" lingering
+       under the new focus.  Snapping to the new state on every
+       press is what gives the buttery, 1:1 D-pad feel users expect
+       from a TV remote (think Apple TV / Google TV).  We still
+       keep transform-origin so the scale anchors correctly. */
+    transition: none;
+    transform-origin: center center;
+}
+
+/* Press-ripple feedback — fires once on Enter/click for the
+   focused element.  Pure CSS @keyframes so there's zero JS perf
+   cost; the ring pulses outwards and fades over 280 ms while the
+   tile briefly punches in/out, giving the click a premium tactile
+   feel without blocking navigation.  Triggered by setting the
+   `data-pressed` attribute on the element for 280 ms then
+   removing it. */
+@keyframes vesper-press {
+    0% {
+        transform: scale(1.08) translateY(-2px);
+    }
+    35% {
+        transform: scale(0.97) translateY(-2px);
+    }
+    100% {
+        transform: scale(1.08) translateY(-2px);
+    }
+}
+@keyframes vesper-ripple {
+    0% {
+        opacity: 0.85;
+        transform: scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(1.18);
+    }
+}
+
+@keyframes vesper-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}
+.vesper-pulse {
+    animation: vesper-pulse 0.9s ease-in-out infinite;
+}
+[data-focusable='true'][data-pressed='true'] {
+    animation: vesper-press 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+[data-focusable='true'][data-pressed='true']::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: inherit;
+    border: 2px solid var(--vesper-blue-bright);
+    box-shadow: 0 0 24px 4px rgba(93, 200, 255, 0.6);
+    pointer-events: none;
+    animation: vesper-ripple 280ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    z-index: 6;
+}
+
+/* Long-press hold feedback — fires whenever data-holding="true" is
+   set on the element (via the useLongPress hook).  Grows an outer
+   glow ring over 700 ms; once the ring is full, the modal pops.
+   Uses only properties supported on Chrome 52 (box-shadow, transform)
+   so the HK1 box still gets the same feedback. */
+@keyframes vesper-hold-grow {
+    0% {
+        box-shadow:
+            0 0 0 0 rgba(var(--vesper-blue-rgb), 0.0),
+            0 0 0 0 rgba(var(--vesper-blue-rgb), 0.0);
+    }
+    60% {
+        box-shadow:
+            0 0 0 5px rgba(var(--vesper-blue-rgb), 0.45),
+            0 0 28px 6px rgba(var(--vesper-blue-rgb), 0.35);
+    }
+    100% {
+        box-shadow:
+            0 0 0 8px rgba(var(--vesper-blue-rgb), 0.85),
+            0 0 44px 10px rgba(var(--vesper-blue-rgb), 0.55);
+    }
+}
+[data-focusable='true'][data-holding='true'] {
+    animation: vesper-hold-grow 700ms linear forwards;
+    z-index: 8;
+}
+/* Ensure the pseudo-element is positionable on tiles that don't
+   already declare position. */
+[data-focusable='true'] {
+    position: relative;
+}
+
+[data-focusable='true']:focus-visible,
+[data-focusable='true'][data-focused='true'] {
+    z-index: 50;
+}
+
+/* Tile focus — posters, hero cards.  Solid neon-blue ring + scale
+   pop-out.  We deliberately use ZERO-blur box-shadows here: the
+   blurred glow looks pretty on a high-end laptop but on Chrome 52
+   / cheap Android WebViews each blur radius forces an extra paint
+   pass per frame, which is what causes the "chunky" feel during
+   rapid D-pad nav.  Pure 3px solid ring is a 1-pixel paint op.
+   v2.10.27 — Added a tight 120 ms transform transition so the
+   scale-pop doesn't read as a hard snap on the avatar picker.
+   The animation strip rules below leave `transition` properties
+   alone (they only kill `animation`), so this stays smooth even
+   inside `.vesper-host-android`. */
+[data-focus-style='tile'] {
+    transition: transform 120ms ease-out;
+}
+[data-focus-style='tile']:focus-visible,
+[data-focus-style='tile'][data-focused='true'] {
+    transform: scale(1.08) translateY(-2px);
+    box-shadow: 0 0 0 1.5px var(--vesper-blue-bright);
+    z-index: 5;
+}
+
+/* v2.7.18 — BULLETPROOF FOCUS RING.  Several tile components
+   (NetworkTile, certain custom buttons) carry inline `boxShadow`
+   style props for their resting drop-shadow — inline styles win
+   over class selectors, so when those tiles got focus the blue
+   box-shadow ring above was overridden and the focus ring went
+   invisible (user reported "border ring disappears on intermediate
+   rows").  Adding an outline-based ring with !important guarantees
+   visibility regardless of any inline shadow / parent stacking
+   context / overflow.  Outlines don't take layout space and can't
+   be clipped by `contain: layout style` containers.
+   v2.7.53 — Halved widths per user request (3px→1.5px tile,
+   2px→1px pill) so focus rings feel tighter / more refined. */
+[data-focus-style='tile']:focus-visible,
+[data-focus-style='tile'][data-focused='true'],
+[data-focus-style='pill']:focus-visible,
+[data-focus-style='pill'][data-focused='true'] {
+    outline: 1.5px solid var(--vesper-blue-bright) !important;
+    outline-offset: 2px !important;
+}
+
+/* Pill focus — buttons.  Same principle: solid ring, no blur.
+   v2.10.4 — User requested a more prominent glowing ring around
+   focused pills so it's obvious which CTA is selected.  Added a
+   layered soft glow on top of the existing crisp ring. */
+[data-focus-style='pill']:focus-visible,
+[data-focus-style='pill'][data-focused='true'] {
+    transform: scale(1.04);
+    box-shadow:
+        0 0 0 2px var(--vesper-blue-bright),
+        0 0 22px 4px rgba(var(--vesper-blue-rgb), 0.55),
+        0 0 44px 10px rgba(var(--vesper-blue-rgb), 0.25);
+    z-index: 5;
+}
+
+/* Bare focus — search input wrapper.  Per user request: keep the
+   bar looking like a plain search bar.  No outline, no glow, no
+   ring, no scale.  The only signal is a very faint background
+   warm-up so a TV user can still see they've landed on it; on
+   Android the system soft-keyboard popping over the input is the
+   real feedback. */
+[data-focus-style='bare']:focus-visible,
+[data-focus-style='bare'][data-focused='true'] {
+    background: rgba(255, 255, 255, 0.085) !important;
+    border-color: rgba(255, 255, 255, 0.20) !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+[data-focus-style='bare'] input:focus,
+[data-focus-style='bare'] input:focus-visible,
+[data-focus-style='bare']:focus-visible input,
+[data-focus-style='bare'][data-focused='true'] input {
+    outline: none !important;
+    box-shadow: none !important;
+    -webkit-tap-highlight-color: transparent !important;
+}
+
+/* Nav focus — sidebar */
+[data-focus-style='nav']:focus-visible,
+[data-focus-style='nav'][data-focused='true'] {
+    background: linear-gradient(
+        90deg,
+        rgba(93, 200, 255, 0.18) 0%,
+        rgba(93, 200, 255, 0.04) 100%
+    );
+    color: var(--vesper-text);
+    transform: translateX(4px);
+}
+
+[data-focus-style='nav']:focus-visible::before,
+[data-focus-style='nav'][data-focused='true']::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 14%;
+    bottom: 14%;
+    width: 4px;
+    background: var(--vesper-blue);
+    border-radius: 0 4px 4px 0;
+    box-shadow: 0 0 24px var(--vesper-blue-glow);
+}
+
+/* Key focus — on-screen keyboard.  Solid ring, no blur. */
+[data-focus-style='key']:focus-visible,
+[data-focus-style='key'][data-focused='true'] {
+    background: var(--vesper-blue);
+    color: var(--vesper-bg-0);
+    transform: scale(1.10);
+    box-shadow: 0 0 0 2px var(--vesper-blue-bright);
+    z-index: 5;
+}
+
+/* Quiet focus — small icon buttons.  Solid ring, no blur. */
+[data-focus-style='quiet']:focus-visible,
+[data-focus-style='quiet'][data-focused='true'] {
+    background: rgba(93, 200, 255, 0.14);
+    color: var(--vesper-blue);
+    box-shadow: 0 0 0 2px var(--vesper-blue-bright);
+    transform: scale(1.04);
+}
+
+/* ------------------------------------------------------------------
+   Shelf horizontal scroll
+   -----------------------------------------------------------------
+   We deliberately do NOT use scroll-snap or CSS scroll-behavior
+   here.  Both fight with the JS-controlled smooth scroll in
+   `useSpatialFocus`, producing rubber-band jitter on D-pad nav
+   (scroll-snap re-snaps right after JS scrolls, and dual-smooth
+   easing causes "jump forward / jump back").  All smooth scroll
+   is owned by the spatial focus hook.
+------------------------------------------------------------------ */
+.vesper-shelf {
+    overflow-x: auto;
+    overflow-y: visible;
+    scroll-behavior: auto;
+}
+
+/* ------------------------------------------------------------------
+   Animations
+------------------------------------------------------------------ */
+@keyframes vesperKenBurns {
+    0% {
+        transform: scale(1.02) translate3d(0, 0, 0);
+    }
+    100% {
+        transform: scale(1.12) translate3d(-2%, -2%, 0);
+    }
+}
+.vesper-kenburns {
+    animation: vesperKenBurns 24s linear forwards;
+    will-change: transform;
+}
+
+@keyframes vesperFadeUp {
+    0% {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+.vesper-fade-up {
+    animation: vesperFadeUp 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes vesperPulse {
+    0%,
+    100% {
+        opacity: 0.5;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+.vesper-pulse {
+    animation: vesperPulse 2s ease-in-out infinite;
+}
+
+@keyframes vesperSpin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+.vesper-spin {
+    animation: vesperSpin 1s linear infinite;
+}
+
+/* v2.10.13 — Hoisted from BootSplash so the same neon sweep can
+   be reused on the Detail/Player loading screens without each
+   page having to repeat the keyframe block. */
+@keyframes vesper-splash-sweep {
+    0%   { background-position:  100% 0; opacity: 0.85; }
+    50%  { background-position:    0% 0; opacity: 1; }
+    100% { background-position: -100% 0; opacity: 0.85; }
+}
+
+/* v2.10.9 — Pulsing ellipsis used after the "Starting" label on
+   the player preview.  The host element keeps its "…" glyph; we
+   just fade its opacity to read as "alive" alongside the spinner. */
+.vesper-dots {
+    display: inline-block;
+    animation: vesperDotsPulse 1.4s ease-in-out infinite;
+    margin-left: 1px;
+}
+@keyframes vesperDotsPulse {
+    0%, 100% { opacity: 0.25; }
+    50%      { opacity: 1; }
+}
+
+@keyframes vesperGlow {
+    0%,
+    100% {
+        opacity: 0.6;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+.vesper-text-glow {
+    text-shadow: 0 0 24px var(--vesper-blue-glow);
+}
+
+.vesper-overscan {
+    padding: 5vh 5vw;
+}
+
+@layer base {
+    [data-debug-wrapper='true'] {
+        display: contents !important;
+    }
+}
+
+
+/* ------------------------------------------------------------------
+   Performance mode — applied automatically when running inside the
+   OnNowTV Android WebView OR on any device the host detects as
+   low-end (≤2 cores / ≤2 GB RAM heuristic).  Disables the most
+   GPU-expensive effects (backdrop-blur, grain, ken-burns, pulse)
+   so cheap HK1 boxes can scroll at 60 fps.
+------------------------------------------------------------------ */
+.vesper-low-end .vesper-glass,
+.vesper-host-android .vesper-glass {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: rgba(15, 21, 36, 0.92) !important;
+}
+.vesper-low-end .vesper-grain::after,
+.vesper-host-android .vesper-grain::after {
+    display: none !important;
+}
+.vesper-low-end *,
+.vesper-host-android *:not([data-keep-anim='true']):not(.vesper-spin):not(.vesper-dots):not(.lvtv-spin):not(.kk-spin):not(.orbital-loader):not([data-loading-anim='true']) {
+    animation-duration: 0.001s !important;
+    animation-iteration-count: 1 !important;
+}
+/* v2.10.24 — Loading spinners MUST keep animating even in perf
+   mode, otherwise the user thinks the app is frozen.  Re-assert
+   the animations the global stripper above would otherwise kill. */
+.vesper-low-end .vesper-spin,
+.vesper-host-android .vesper-spin {
+    animation: vesperSpin 1s linear infinite !important;
+}
+.vesper-low-end .vesper-dots,
+.vesper-host-android .vesper-dots {
+    animation: vesperDotsPulse 1.4s ease-in-out infinite !important;
+}
+.vesper-low-end [data-focusable='true'],
+.vesper-host-android [data-focusable='true'] {
+    /* Override: snap focus instantly on the TV box.  The 200 ms
+       transition was the biggest source of the "ghost glow under
+       the next tile" the user kept reporting — the previous tile's
+       scale-out was still in flight while the new tile scaled in. */
+    transition: none !important;
+}
+/* Pop-out effect on focused tiles + pills — kept enabled even in
+   perf mode because it's the single most "alive" feedback users get
+   from a TV remote. */
+.vesper-low-end [data-focusable='true'][data-focus-style='tile']:focus-visible,
+.vesper-host-android [data-focusable='true'][data-focus-style='tile']:focus-visible {
+    transform: scale(1.07) translateZ(0) !important;
+    z-index: 5 !important;
+    box-shadow: 0 0 0 3px var(--vesper-blue) !important;
+}
+.vesper-low-end [data-focusable='true'][data-focus-style='pill']:focus-visible,
+.vesper-host-android [data-focusable='true'][data-focus-style='pill']:focus-visible {
+    transform: scale(1.04) translateZ(0) !important;
+    box-shadow: 0 0 0 3px rgba(93, 200, 255, 0.85) !important;
+}
+.vesper-low-end [data-focusable='true'][data-focus-style='quiet']:focus-visible,
+.vesper-host-android [data-focusable='true'][data-focus-style='quiet']:focus-visible {
+    box-shadow: 0 0 0 2px rgba(93, 200, 255, 0.7) !important;
+}
+.vesper-low-end img,
+.vesper-host-android img {
+    image-rendering: optimizeSpeed;
+}
+
+/* `content-visibility: auto` lets the browser skip layout / paint
+   for off-screen shelves entirely.  On Chromium-based WebViews
+   (which all modern HK1 boxes ship) this is a huge win — the
+   browser only paints what's in the scroll viewport.
+   We attach `contain-intrinsic-size` so the placeholder is the
+   same height as a real shelf, preventing scroll jumps. */
+.vesper-low-end .vesper-shelf-section,
+.vesper-host-android .vesper-shelf-section {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 360px;
+}
+
+/* Tighter sizing inside the Android wrapper — cheap HK1 boxes
+   often sit on small TVs (24"-32") where our default desktop
+   sizing felt cramped.  Shrinks paddings + hero so everything
+   fits a 1280x720 panel comfortably. */
+.vesper-host-android {
+    --vesper-side-pad-min: 96px;
+    --vesper-side-pad-max: 132px;
+}
+
+/* Permanently hide the Emergent preview badge AND the
+   "static preview / Resume to interact" banner.  The badge HTML
+   ships in our index.html template; the banner is injected by
+   `emergent-main.js`.  We strip both at APK-build time, but this
+   global CSS rule is a final, host-agnostic safety net so they
+   can never flash on screen even during the React boot or while
+   browsing the live preview URL itself. */
+#emergent-badge,
+[class*="emergent-badge"],
+[id*="emergent-badge"],
+iframe[src*="emergent"],
+a[href*="emergent.sh"],
+a[href*="app.emergent"],
+[id*="static-preview"],
+[class*="static-preview"],
+[class*="staticPreview"],
+[class*="preview-banner"],
+[data-emergent],
+[data-resume-preview] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+/* Shimmer band — used by the player preview screen. */
+.vesper-shimmer {
+    position: relative;
+    overflow: hidden;
+}
+.vesper-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.45) 50%,
+        rgba(255, 255, 255, 0) 100%
+    );
+    animation: vesperShimmer 1.6s ease-in-out infinite;
+}
+@keyframes vesperShimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+
+/* ----------------------------------------------------------------
+   MOBILE MODE OVERRIDES
+   Enabled by <MobilePlatformRoot/> setting [data-platform="mobile"]
+   on <html> and <body>.  These rules:
+     • Hide the TV-only left side-rail
+     • Push page content right to the edge (no 100px sidebar inset)
+     • Add 72px of bottom padding for the <MobileBottomNav/>
+     • Shrink heroic 10-foot typography to phone-friendly sizes
+     • Disable hover states (cause sticky highlight on touch)
+   ---------------------------------------------------------------- */
+html[data-platform="mobile"],
+body[data-platform="mobile"] {
+    font-size: 14px;
+}
+
+/* Hide the desktop SideNav whenever mobile mode is active.  The
+   pages render the side-nav unconditionally on mount; we just
+   visually hide it (display:none) and reclaim its left inset.
+
+   v2.8.68 — `:not([data-tunes-nav])` exclusion so the ON NOW
+   Tunes navigation (which uses the same `data-testid="side-nav"`
+   hook for spatial focus on TV) is NOT hidden on mobile.  The
+   music app has its OWN mobile-aware nav (collapses to a bottom
+   tab bar at ≤ 768 px via .tunes-nav @media rules).  Without this
+   exclusion, the music app was nav-less on phones and only the
+   stray Vesper nav was visible. */
+body[data-platform="mobile"] [data-testid="side-nav"]:not([data-tunes-nav]),
+body[data-platform="mobile"] [data-testid="kids-side-nav"] {
+    display: none !important;
+}
+
+/* Pages use `inset: 0 0 0 100px` to leave room for the side-nav;
+   on mobile we want full-bleed content. */
+body[data-platform="mobile"] main {
+    left: 0 !important;
+}
+
+/* Reserve room for the bottom tab bar.  Apply via the body so
+   every page benefits without each one having to know. */
+body[data-platform="mobile"] {
+    padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px));
+    overflow-x: hidden;
+}
+
+/* TV-only chrome that doesn't make sense on mobile. */
+body[data-platform="mobile"] [data-testid="dpad-hint"] {
+    display: none !important;
+}
+
+/* Touch target hardening: every focusable button/anchor gets a
+   minimum hit area so fat-finger taps stay reliable. */
+body[data-platform="mobile"] [data-focusable="true"],
+body[data-platform="mobile"] button {
+    min-height: 40px;
+}
+
+/* Heroic display type ramps down on phones — TV headings are
+   built for 4K from 10 feet away, way too big on a 6-inch screen. */
+body[data-platform="mobile"] h1 {
+    font-size: clamp(22px, 6vw, 30px) !important;
+    line-height: 1.15 !important;
+}
+body[data-platform="mobile"] h2 {
+    font-size: clamp(17px, 4.6vw, 22px) !important;
+    line-height: 1.2 !important;
+}
+body[data-platform="mobile"] h3 {
+    font-size: clamp(15px, 4vw, 18px) !important;
+}
+body[data-platform="mobile"] h4 {
+    font-size: clamp(13px, 3.6vw, 16px) !important;
+}
+
+/* Tablet-aware override: tablets in landscape are wide enough to
+   approximate the TV layout, so we keep the side-nav for them. */
+@media (min-width: 1024px) {
+    body[data-platform="mobile"] [data-testid="side-nav"]:not([data-tunes-nav]),
+    body[data-platform="mobile"] [data-testid="kids-side-nav"] {
+        display: flex !important;
+    }
+    body[data-platform="mobile"] main {
+        left: 100px !important;
+    }
+}
+
+/* Disable :hover effects in mobile mode — on touch they latch
+   "on" after a tap and look broken until the user taps elsewhere.
+   We bind these via the data-platform attribute so the TV experience
+   keeps its rich hover states. */
+@media (hover: none) {
+    body[data-platform="mobile"] *:hover {
+        transition: none !important;
+    }
+}
+
+/* ----------------------------------------------------------------
+   MOBILE — page-specific layout overrides.
+   These CSS rules tame the TV pages' big inline paddings + side-rail
+   reservations without touching JSX (preserving the TV experience
+   on a desktop browser).  Every rule below is gated on
+   `body[data-platform="mobile"]` so it ONLY fires on phones.
+   ---------------------------------------------------------------- */
+
+/* ---- HOME ----
+   Hero billboard's left padding is `clamp(92px, 6.5vw, 132px)` so it
+   stays clear of the desktop SideNav rail (76 px collapsed).  On
+   mobile we hide the rail so we want full-bleed content. */
+body[data-platform="mobile"] [data-testid="hero-billboard"] {
+    height: clamp(280px, 62vh, 460px) !important;
+}
+body[data-platform="mobile"] [data-testid="hero-billboard"] > div.absolute.inset-0.flex > div {
+    padding-left: 18px !important;
+    padding-right: 18px !important;
+    padding-bottom: 28px !important;
+    max-width: 100% !important;
+}
+body[data-platform="mobile"] [data-testid="hero-title"] {
+    font-size: clamp(26px, 7.5vw, 38px) !important;
+    line-height: 1.05 !important;
+}
+/* Hero pagination dots — hidden on small phones (they live in the
+   bottom-right corner and overlap content there). */
+@media (max-width: 600px) {
+    body[data-platform="mobile"] [data-testid="hero-billboard"] > .absolute.bottom-10 {
+        display: none !important;
+    }
+}
+
+/* Shelves — paddings & gaps tightened.  The `vesper-shelf-section`
+   class is on every shelf row, including Continue Watching, For You,
+   Networks, and dynamic shelves. */
+body[data-platform="mobile"] .vesper-shelf-section header,
+body[data-platform="mobile"] .vesper-shelf-section > div {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+}
+body[data-platform="mobile"] .vesper-shelf {
+    gap: 12px !important;
+}
+body[data-platform="mobile"] .vesper-shelf-section h2 {
+    font-size: clamp(18px, 5vw, 22px) !important;
+}
+/* v2.7.84 — On mobile the parent ShelfPage wrapper is removed (no
+   forced viewport-height + flex-end), so the shelf-section's own
+   padding is the only spacing between rails.  Trim the per-section
+   vertical padding so we don't get oversized gaps between shelves
+   on a phone — feels much closer to a Netflix-style feed. */
+body[data-platform="mobile"] .vesper-shelf-section {
+    padding-top: 6px !important;
+    padding-bottom: 4px !important;
+}
+
+/* Empty-addons banner uses inline margins keyed off the SideNav
+   inset — collapse them on mobile. */
+body[data-platform="mobile"] [data-testid="home-page"] section[style*="margin: 32px"] {
+    margin: 20px 16px 0 16px !important;
+    padding: 14px 16px !important;
+}
+
+/* Footer (ON NOW TV V2 · v1.0 + n sources active) */
+body[data-platform="mobile"] [data-testid="shelves-region"] footer {
+    padding: 16px !important;
+}
+
+/* ---- DETAIL ----
+   Detail page wraps content in <main> with `padding: 64px 80px 80px
+   80px` and the inner column has `max-w-[60vw]`.  Collapse both. */
+body[data-platform="mobile"] [data-testid="detail-page"] main {
+    padding: 18px 16px 96px 16px !important;
+}
+body[data-platform="mobile"] [data-testid="detail-page"] main > div.max-w-\[60vw\] {
+    max-width: 100% !important;
+}
+body[data-platform="mobile"] [data-testid="detail-page"] h1 {
+    font-size: clamp(28px, 7vw, 40px) !important;
+}
+body[data-platform="mobile"] [data-testid="detail-page"] .vesper-meta {
+    font-size: 13px !important;
+}
+body[data-platform="mobile"] [data-testid="detail-page"] p {
+    font-size: 14px !important;
+}
+/* Detail's autoplay Play button — make it touch-friendly. */
+body[data-platform="mobile"] [data-testid="detail-play-autoplay"] {
+    height: 52px !important;
+    padding-left: 22px !important;
+    padding-right: 26px !important;
+    font-size: 16px !important;
+}
+
+/* ---- SETTINGS ---- */
+body[data-platform="mobile"] [data-testid="settings-scroll"] {
+    padding: 24px 16px 96px 16px !important;
+}
+body[data-platform="mobile"] [data-testid="settings-page"] h1 {
+    font-size: clamp(28px, 7vw, 38px) !important;
+}
+
+/* ---- LIBRARY ---- */
+body[data-platform="mobile"] [data-testid="library-page"] {
+    padding: 24px 14px 96px 14px !important;
+}
+body[data-platform="mobile"] [data-testid="watch-later-block"] {
+    margin-top: 32px !important;
+    padding: 18px 14px !important;
+}
+body[data-platform="mobile"] [data-testid="watch-later-expanded"] {
+    padding: 28px 16px 96px 16px !important;
+}
+/* TV Shows empty state uses a 2-col grid that becomes too narrow on
+   phones — stack it vertically. */
+body[data-platform="mobile"] [data-testid="library-page"] .grid[style*="1.1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+}
+
+/* ---- SEARCH ---- */
+body[data-platform="mobile"] [data-testid="search-page"] main {
+    padding: 24px 14px 96px 14px !important;
+}
+/* On mobile the TVKeyboard renders a native <input> + a "Continue"
+   submit button.  The TV "Search" submit button below it is then
+   redundant — hide it on phones so the page collapses to one CTA. */
+body[data-platform="mobile"] [data-testid="search-submit"] {
+    display: none !important;
+}
+/* ---- WATCH TOGETHER ----
+   Top-level <main> uses paddingLeft clamp(140px…) reserving room for
+   the SideNav.  Collapse to phone-friendly 16 px. */
+body[data-platform="mobile"] [data-testid="watch-together"] main {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    padding-top: 20px !important;
+    padding-bottom: 96px !important;
+}
+/* Landing's host/join tile grid has `minmax(260px, 1fr)` which
+   horizontally overflows on phones — switch to single column or
+   fluid 2-col with no min so both tiles fit. */
+body[data-platform="mobile"] [data-testid="watch-together-landing"] > div.grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+}
+
+/* ---- SPORTS GUIDE ----
+   <main> uses `inset: 0 0 0 100px`.  Already covered by global
+   `body[data-platform="mobile"] main { left: 0 !important }`.
+   Tighten section paddings + header. */
+body[data-platform="mobile"] [data-testid="sports-page"] main > header,
+body[data-platform="mobile"] [data-testid="sports-page"] main > div {
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+}
+/* The Sports header has an inline "Sports Guide" mono tagline that
+   doesn't fit on a 360 px phone — hide it. */
+body[data-platform="mobile"] [data-testid="sports-page"] main > header > span {
+    display: none !important;
+}
+/* Hero fixture card uses `gridTemplateColumns: '1fr auto'` which puts
+   the score / VS panel beside the venue meta on TV, but on phones
+   the team-badge column overlaps the venue text.  Stack vertically. */
+body[data-platform="mobile"] [data-testid="sports-page"] article[style*="grid-template-columns: 1fr auto"] {
+    grid-template-columns: 1fr !important;
+    padding: 18px !important;
+    gap: 16px !important;
+    min-height: 0 !important;
+}
+/* Sport / date pill rows should scroll horizontally instead of
+   wrapping into a tall block on phones. */
+body[data-platform="mobile"] [data-testid="sports-page"] main > div .vesper-shelf,
+body[data-platform="mobile"] [data-testid="sports-page"] main > div > div[style*="overflow-x"] {
+    overflow-x: auto;
+}
+
+/* ---- LIVE TV ----
+   Already mobile-aware via JS (isMobile).  Just ensure the page's
+   main wrapper doesn't leak the 100-px side-rail offset. */
+body[data-platform="mobile"] [data-testid="livetv-page"] main {
+    left: 0 !important;
+}
+
+/* ---- DETAIL · BACK BUTTON ----
+   Make the chrome back button more thumb-friendly on phones. */
+body[data-platform="mobile"] [data-testid="back-button"] {
+    min-height: 44px;
+    padding-left: 14px;
+    padding-right: 14px;
+}
+
+/* Hide the fullscreen toggle button entirely on mobile (the
+   browser is already in fullscreen, or fullscreen is meaningless
+   on a PWA / WebView wrapper). */
+body[data-platform="mobile"] [data-testid="fullscreen-button"] {
+    display: none !important;
+}
+
+/* Disable D-pad press-ripple effects on touch — they look broken
+   after a tap (the focus ring lingers because the button retains
+   focus on touch). */
+body[data-platform="mobile"] [data-focusable='true'][data-pressed='true'] {
+    animation: none !important;
+}
+body[data-platform="mobile"] [data-focusable='true'][data-pressed='true']::after {
+    display: none !important;
+}
+/* v2.7.84 — Kill the hold-glow animation on mobile entirely.  On
+   touch, even a brief finger-down before a vertical scroll
+   triggers the 700 ms grow-ring animation — looking like the tile
+   is "highlighting itself" while the user is just trying to
+   scroll the page.  The useLongPress hook now defers `start()` by
+   130 ms on touch so the attribute is rarely set anyway, but this
+   keeps the visual completely clean on any edge case. */
+body[data-platform="mobile"] [data-focusable='true'][data-holding='true'] {
+    animation: none !important;
+    box-shadow: none !important;
+}
+/* And kill all focus glow on touch — the system already provides
+   a tap highlight that's more familiar to mobile users. */
+body[data-platform="mobile"] [data-focusable='true'][data-focused='true']:not(button),
+body[data-platform="mobile"] [data-focus-style='tile'][data-focused='true'] {
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* v2.7.87 — Touch behaviour on coarse-pointer devices.
+   Earlier (v2.7.84) we set `touch-action: manipulation` on all
+   tappable elements to drop the 300 ms double-tap-zoom delay.  In
+   practice Samsung Internet + some Chrome WebView builds interpret
+   `manipulation` on a button as "this element captures the touch"
+   and BLOCK the parent page from scrolling vertically when the
+   user's finger lands on a poster.
+   v2.7.86 — Switched to `pan-x pan-y` but gated to
+   body[data-platform="mobile"], which on the Vesper Android WebView
+   doesn't always get the attribute set before the user's first
+   touch (the React `useEffect` runs after first paint).
+   v2.7.87 — Drop the body gate entirely and apply on any device
+   that primarily uses touch (pointer:coarse media query).  TVs use
+   D-pad / remote, so the `coarse` check exempts them — and TVs
+   don't fire touch events anyway so the rule is a no-op there.
+   v2.7.88 — User reports `pointer: coarse` rule STILL not winning
+   the cascade on a Samsung Galaxy phone running the Vesper APK
+   (file:///android_asset/web/ index.html).  Two new layers added:
+     (a) `:focus-visible` styles disabled on coarse-pointer
+         devices.  Samsung WebView has a known Chromium bug where
+         tap-focus matches `:focus-visible` even though the spec
+         says it shouldn't — that paints the `scale(1.08)` tile
+         transform on every poster the user TOUCHES, which the
+         user interprets as "the cover is highlighted and stuck".
+     (b) Inline `style={{ touchAction: 'pan-x pan-y' }}` added
+         directly on PosterTile + NetworkPosterTile.  Inline style
+         beats every CSS rule including `!important` so it is the
+         FINAL say. */
+@media (pointer: coarse) {
+    [data-focusable='true'],
+    button,
+    a[role='button'] {
+        touch-action: pan-x pan-y !important;
+    }
+    .vesper-shelf {
+        touch-action: pan-x pan-y !important;
+        -webkit-overflow-scrolling: touch;
+    }
+    /* Kill the focus-glow / scale transform on touch.  Spec says
+       :focus-visible should never match on touch, but Samsung's
+       WebView ignores that — so we wipe the effect ourselves. */
+    [data-focus-style='tile']:focus-visible,
+    [data-focus-style='pill']:focus-visible,
+    [data-focus-style='bare']:focus-visible,
+    [data-focus-style='nav']:focus-visible,
+    [data-focus-style='key']:focus-visible,
+    [data-focus-style='quiet']:focus-visible {
+        transform: none !important;
+        box-shadow: none !important;
+        outline: none !important;
+    }
+    /* Same on the data-focused mirror attribute used by some
+       components for initial-focus priming. */
+    [data-focus-style='tile'][data-focused='true'],
+    [data-focus-style='pill'][data-focused='true'] {
+        transform: none !important;
+        box-shadow: none !important;
+        outline: none !important;
+    }
+}
+
+/* Mobile-mode also keeps the rules (kept for backwards-compat with
+   the existing `?mobile=1` desktop preview path).  Identical to
+   what's above but doesn't need the @media gate. */
+body[data-platform="mobile"] [data-focusable='true'],
+body[data-platform="mobile"] button,
+body[data-platform="mobile"] a[role='button'] {
+    touch-action: pan-x pan-y;
+}
+body[data-platform="mobile"] .vesper-shelf {
+    touch-action: pan-x pan-y;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* TV Hero billboard's hero list-button ("My List") — push it onto a
+   second row when paired with Play + More Info to avoid overflow on
+   narrow phones. */
+@media (max-width: 480px) {
+    body[data-platform="mobile"] [data-testid="hero-billboard"] .flex.items-center.gap-3.mt-5 {
+        flex-wrap: wrap;
+    }
+    body[data-platform="mobile"] [data-testid="hero-list-button"] {
+        display: none !important; /* Free up horizontal room on small phones */
+    }
+}
+
+/* ============================================================
+   Mobile More-sheet animations
+   ============================================================ */
+@keyframes vesper-mob-sheet-fade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+@keyframes vesper-mob-sheet-slide {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+}
+
+/* ============================================================
+   LIVE TV — mobile-specific layout
+   ============================================================
+   The TV layout is a 3-column grid (categories · channels · player
+   preview).  On a phone we collapse it to a single column with the
+   currently-focused column visible at any one time + tap targets
+   sized for thumbs.  Most of this is already handled by the page's
+   own `isMobile` branch but a handful of inline desktop paddings
+   need overriding here. */
+body[data-platform="mobile"] [data-testid="livetv-page"] main {
+    left: 0 !important;
+    /* Reserve room for the bottom-nav so the channel list isn't
+       hidden beneath it. */
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+/* Channel cards: enable touch action so the row taps reliably
+   (without this, the parent's onTouchMove handler eats the tap).
+   Also enforce the 48 px min-height we promised for hit targets. */
+body[data-platform="mobile"] [data-focusable='true'][data-testid^='livetv-channel-'] {
+    min-height: 64px;
+    touch-action: pan-x pan-y;
+}
+
+/* Categories rail tile heights */
+body[data-platform="mobile"] [data-testid^='livetv-cat-'] {
+    min-height: 48px;
+    touch-action: pan-x pan-y;
+}
+
+/* Search page mobile-friendly tweaks ─────────────────────────
+   The search-results posters are already in a grid; just make sure
+   the focus glow doesn't clip the bottom nav. */
+body[data-platform="mobile"] [data-testid="search-page"] {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+/* Watch-Together search results grid (2 cols on phone) */
+body[data-platform="mobile"] [data-testid="watch-together-search-results"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+}
+
+/* TVKeyboard takes about ~250px vertical when rendered as a grid;
+   the mobile branch renders a single input.  Ensure the input row
+   never gets pushed under the bottom-nav. */
+body[data-platform="mobile"] [data-testid^="tv-keyboard-"] {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+/* ProfileEdit mobile fix — tighten heading sizes and ensure the
+   keyboard area fits without scrolling.  TVKeyboard already
+   auto-falls-back to a native input on mobile (see TVKeyboard.jsx). */
+body[data-platform="mobile"] [data-testid="profile-edit"] {
+    padding: 20px 16px calc(20px + env(safe-area-inset-bottom, 0px)) 16px !important;
+    height: 100dvh !important;
+    overflow-y: auto !important;
+}
+body[data-platform="mobile"] [data-testid="profile-step-name"] h2,
+body[data-platform="mobile"] [data-testid="profile-edit"] h2 {
+    font-size: clamp(22px, 6vw, 30px) !important;
+}
+/* On mobile the on-screen TV-keyboard is replaced with a native
+   <input>, which already shows the typed value.  Hide the "Your
+   name…" display pill + the duplicate "Next: choose an avatar"
+   button — TVKeyboard's own mobile-mode "Continue" button covers
+   both jobs. */
+body[data-platform="mobile"] [data-testid="profile-name-display"],
+body[data-platform="mobile"] [data-testid="profile-name-next"] {
+    display: none !important;
+}
+/* Avatar / theme grids — collapse to 3 cols on phones so they
+   don't run off-screen. */
+body[data-platform="mobile"] [data-testid="profile-edit"] [data-testid^="avatar-grid"],
+body[data-platform="mobile"] [data-testid="profile-edit"] [data-testid="profile-step-avatar"] > div > div {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+}
+/* Theme cards (Step 2) — single column for readability. */
+body[data-platform="mobile"] [data-testid="profile-step-theme"] [class*="grid-cols"] {
+    grid-template-columns: 1fr !important;
+}
+
+/* ============================================================
+   v2.7.86 — Feature nudge slide-in animation
+   ============================================================ */
+@keyframes vesper-nudge-enter-anim {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+.vesper-nudge-enter {
+    animation: vesper-nudge-enter-anim 340ms cubic-bezier(.16,1,.3,1) both;
+}
+
+/* Sources / Xtream login — same idea, full-width column. */
+body[data-platform="mobile"] [data-testid="xtream-login"] {
+    padding: 24px 16px calc(96px + env(safe-area-inset-bottom, 0px)) 16px !important;
+    max-width: 100% !important;
+}
+/* v2.7.84 — Sources page <main> has hard-coded `paddingLeft: 180px`
+   in its inline styles to clear the desktop SideNav rail.  On a
+   390 px Samsung phone that leaves only ~130 px for content,
+   producing the "text squeezed into a column" the user reported.
+   Override the inline padding via the high-specificity attribute
+   selector so we claim the full viewport width. */
+body[data-platform="mobile"] [data-testid="sources-page"] main {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    padding-top: 24px !important;
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+}
+body[data-platform="mobile"] [data-testid="sources-page"] h1 {
+    font-size: clamp(28px, 8vw, 38px) !important;
+}
+body[data-platform="mobile"] [data-testid="sources-page"] p {
+    font-size: 14px !important;
+    line-height: 1.55 !important;
+    max-width: 100% !important;
+}
+
+/* ============================================================
+   v2.7.84 — ONBOARDING TOUR — mobile layout
+   ============================================================
+   The desktop / TV onboarding overlay is built as a side-by-side
+   2-column hero: LEFT = copy + nav buttons, RIGHT = animated
+   "scene" mockup at clamp(320px, 32vw, 540px) wide.  On a 390 px
+   Samsung phone the scene column eats 82 % of the viewport,
+   squeezing the left copy into ~70 px and making text wrap on
+   every word.  The block below collapses the layout to a single
+   column on mobile, hides the scene entirely (it's eye-candy,
+   not content), and resizes the headings + buttons for thumb-
+   friendly tapping. */
+body[data-platform="mobile"] [data-testid="onboarding-overlay"] {
+    /* Allow the page to scroll if the content (esp. fingerless
+       button row + progress bar) outgrows the viewport on small
+       phones in landscape. */
+    align-items: flex-start !important;
+    overflow-y: auto !important;
+}
+body[data-platform="mobile"] [data-testid="onboarding-overlay"] > div.relative.flex {
+    flex-direction: column !important;
+    gap: 24px !important;
+    padding: clamp(72px, 12vw, 96px) 20px 32px 20px !important;
+    align-items: stretch !important;
+}
+body[data-platform="mobile"] [data-testid="onboarding-overlay"] > div.relative.flex > div.shrink-0 {
+    /* Hide the right-side animated scene on phones — it doesn't
+       add comprehension at small sizes and the copy alone is
+       enough. */
+    display: none !important;
+}
+body[data-platform="mobile"] [data-testid="onboarding-overlay"] h1 {
+    font-size: clamp(28px, 8vw, 36px) !important;
+    margin-bottom: 14px !important;
+}
+body[data-platform="mobile"] [data-testid="onboarding-overlay"] p {
+    font-size: 14px !important;
+    line-height: 1.55 !important;
+    margin-bottom: 22px !important;
+}
+body[data-platform="mobile"] [data-testid="onboarding-skip"] {
+    /* Top-right skip pill — keep above the safe-area top inset. */
+    top: calc(14px + env(safe-area-inset-top, 0px)) !important;
+    right: 14px !important;
+}
+/* The "On Now TV · Welcome tour" eyebrow in the top-left wraps to
+   two lines on narrow phones — hide it.  The skip button is
+   self-explanatory. */
+body[data-platform="mobile"] [data-testid="onboarding-overlay"] > div.absolute.vesper-mono {
+    display: none !important;
+}
+body[data-platform="mobile"] [data-testid="onboarding-overlay"] [data-testid="onboarding-next"],
+body[data-platform="mobile"] [data-testid="onboarding-overlay"] [data-testid="onboarding-prev"] {
+    min-height: 48px;
+    font-size: 15px !important;
+}
+
+/* ============================================================
+   v2.7.84 — DETAIL page · Mobile play CTA + hero
+   ============================================================ */
+body[data-platform="mobile"] [data-testid="detail-page"] {
+    /* Reserve room for the bottom-nav so the last paragraph isn't
+       eaten by the tab bar. */
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+}
+/* Coming Soon modal on mobile — let it use full width comfortably. */
+body[data-platform="mobile"] [data-testid="detail-notify-modal"] {
+    width: calc(100vw - 32px) !important;
+    max-width: 380px !important;
+    padding: 28px 22px !important;
+}
+
+/* ============================================================
+   v2.7.84 — Hero "press & hold" hint copy on touch
+   ============================================================
+   The Library + Detail pages have small "Press & hold OK" hints
+   to teach the long-press → Add-to-list flow.  On a phone there
+   is no OK button — replace with thumb-friendly copy.  We DON'T
+   touch the JSX (which would also change TV); we just hide the
+   OK-keycap glyphs in mobile mode.  Each hint already wraps the
+   "OK" text in a styled <span class="kbd"> or similar; we hide
+   `[data-touch-hide]` siblings via inline marker so the hint copy
+   gracefully degrades. */
+body[data-platform="mobile"] [data-touch-hide="true"] {
+    display: none !important;
+}
+
+/* ============================================================
+   v2.7.84 — PERSON page (actor / director) — mobile collapse
+   ============================================================
+   Desktop hero is a 2-column grid (`minmax(0,1fr) 320px`) with a
+   320 px sticky filmography sidebar on the right.  On a 390 px
+   phone the right column eats 80 % of width and the headshot/copy
+   collapses.  Stack to single column and drop the sticky sidebar
+   into normal flow below the bio. */
+body[data-platform="mobile"] [data-testid="person-hero"] > div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+    padding: 16px 16px 20px 16px !important;
+    gap: 18px !important;
+    height: auto !important;
+}
+body[data-platform="mobile"] [data-testid="person-hero"] {
+    height: auto !important;
+    min-height: 280px;
+}
+body[data-platform="mobile"] [data-testid="person-page"] {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+/* ============================================================
+   NETWORK page (Netflix / HBO / Disney+ catalogue browser)
+   ============================================================
+   Inline `paddingLeft: clamp(92px, 6.5vw, 132px)` reserves room
+   for the desktop SideNav.  On mobile we hide the SideNav so we
+   need to claim that horizontal space back — otherwise the tile
+   grid renders as a narrow column ("two thin lines of movies"). */
+body[data-platform="mobile"] [data-testid^="network-page-"] header,
+body[data-platform="mobile"] [data-testid^="network-page-"] main > div {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+}
+body[data-platform="mobile"] [data-testid^="network-page-"] header {
+    height: clamp(180px, 42vw, 240px) !important;
+}
+body[data-platform="mobile"] [data-testid^="network-page-"] header img,
+body[data-platform="mobile"] [data-testid^="network-page-"] header [class*="text-"] {
+    /* Trim the hero so it's not visually overwhelming on small
+       screens; the actual posters need the room. */
+    font-size: clamp(20px, 6vw, 28px);
+}
+/* Poster tiles — claim more of the screen width so we get 3 posters
+   per row on a 390 px phone (was rendering at 120 px width which
+   left ~80 px gutters at the screen edges). */
+body[data-platform="mobile"] [data-testid^="network-poster-"] {
+    width: calc((100vw - 32px - 24px) / 3) !important;
+    min-width: 0 !important;
+}
+
+/* =============================================================
+ * v2.8.78 — Kids Settings page (PIN-gated)
+ * ============================================================ */
+.vesper-kids-pin-root {
+    position: relative;
+    width: 100vw;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background:
+        radial-gradient(circle at 50% 30%, rgba(255, 200, 87, 0.12) 0%, transparent 60%),
+        var(--vesper-bg-0);
+    padding: 0 32px;
+    text-align: center;
+}
+.vesper-kids-pin-back {
+    position: absolute;
+    top: 32px;
+    left: 32px;
+    height: 44px;
+    padding: 0 18px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    color: var(--vesper-text-2);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    z-index: 5;
+}
+
+.vesper-kids-settings-root {
+    width: 100vw;
+    min-height: 100dvh;
+    background:
+        radial-gradient(circle at 80% 0%, rgba(255, 107, 203, 0.10) 0%, transparent 50%),
+        radial-gradient(circle at 0% 100%, rgba(255, 212, 59, 0.06) 0%, transparent 55%),
+        var(--vesper-bg-0);
+    color: var(--vesper-text);
+    padding: clamp(24px, 3vh, 40px) clamp(40px, 4vw, 72px) clamp(40px, 4vh, 64px);
+}
+.vesper-kids-settings-head {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    margin-bottom: clamp(20px, 2.5vh, 32px);
+}
+.vesper-kids-save-btn {
+    height: 44px;
+    padding: 0 22px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #FFD43B 0%, #FF6BCB 100%);
+    color: #1a0a2a;
+    border: 0;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    box-shadow: 0 12px 28px rgba(255, 107, 203, 0.4);
+    transition: transform 180ms, box-shadow 220ms;
+}
+.vesper-kids-save-btn:hover,
+.vesper-kids-save-btn:focus { transform: translateY(-1px); box-shadow: 0 16px 36px rgba(255, 107, 203, 0.55); outline: none; }
+
+.vesper-kids-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 22px;
+    max-width: 1280px;
+}
+@media (max-width: 900px) {
+    .vesper-kids-settings-grid { grid-template-columns: 1fr; }
+}
+
+.vesper-kids-settings-card {
+    background: linear-gradient(180deg, rgba(40, 15, 80, 0.55) 0%, rgba(20, 8, 50, 0.65) 100%);
+    border: 1.5px solid rgba(255, 200, 230, 0.18);
+    border-radius: 24px;
+    padding: 22px 24px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.vesper-kids-settings-card__head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    color: #FFD43B;
+}
+.vesper-kids-settings-card__eyebrow {
+    color: #FFD43B;
+    font-family: var(--vesper-font-mono, 'Geist Mono', monospace);
+    font-size: 11px;
+    letter-spacing: 0.28em;
+    font-weight: 700;
+    margin: 0;
+    text-transform: uppercase;
+}
+.vesper-kids-settings-card__title {
+    margin: 2px 0 0;
+    font-size: clamp(18px, 1.6vw, 24px);
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -0.01em;
+}
+.vesper-kids-settings-card__hint {
+    margin: 0;
+    color: rgba(255, 220, 245, 0.7);
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+.vesper-kids-settings-options {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+.vesper-kids-settings-options--row {
+    grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+}
+.vesper-kids-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1.5px solid rgba(255, 255, 255, 0.12);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 180ms, border-color 220ms, background 220ms, box-shadow 220ms;
+    font-family: inherit;
+}
+.vesper-kids-option:hover,
+.vesper-kids-option:focus,
+.vesper-kids-option.is-focused {
+    background: rgba(255, 212, 59, 0.10);
+    border-color: rgba(255, 212, 59, 0.55);
+    outline: none;
+}
+.vesper-kids-option.is-active {
+    background: linear-gradient(135deg, rgba(255, 212, 59, 0.20), rgba(255, 107, 203, 0.16));
+    border-color: #FFD43B;
+    box-shadow: 0 0 24px rgba(255, 212, 59, 0.35);
+    color: #FFD43B;
+}
+
+.vesper-kids-rating {
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1.5px solid rgba(255, 255, 255, 0.12);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: center;
+    transition: transform 180ms, border-color 220ms, background 220ms, box-shadow 220ms;
+}
+.vesper-kids-rating:hover,
+.vesper-kids-rating:focus,
+.vesper-kids-rating.is-focused {
+    background: rgba(255, 107, 203, 0.10);
+    border-color: rgba(255, 107, 203, 0.55);
+    outline: none;
+}
+.vesper-kids-rating.is-active {
+    background: linear-gradient(135deg, rgba(255, 107, 203, 0.20), rgba(255, 212, 59, 0.12));
+    border-color: #FF6BCB;
+    box-shadow: 0 0 22px rgba(255, 107, 203, 0.35);
+    color: #FFC8E5;
+}
+

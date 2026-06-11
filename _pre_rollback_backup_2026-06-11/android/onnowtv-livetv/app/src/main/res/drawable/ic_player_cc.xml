@@ -1,0 +1,23 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="32dp"
+    android:height="32dp"
+    android:viewportWidth="32"
+    android:viewportHeight="32">
+    <!-- Subtitles / closed-captions — chat-bubble with two stacked
+         caption bars, matches the reference image. -->
+    <path
+        android:strokeColor="@android:color/white"
+        android:fillColor="@android:color/transparent"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M 5,7 L 27,7 Q 28,7 28,8 L 28,21 Q 28,22 27,22
+                          L 12,22 L 9,26 L 9,22 L 6,22 Q 5,22 5,21 L 5,8 Q 5,7 6,7 Z" />
+    <!-- Two CC bars inside -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M 9,12 L 16,12 L 16,13.5 L 9,13.5 Z
+                          M 18,12 L 23,12 L 23,13.5 L 18,13.5 Z
+                          M 9,16 L 14,16 L 14,17.5 L 9,17.5 Z
+                          M 16,16 L 23,16 L 23,17.5 L 16,17.5 Z" />
+</vector>

@@ -201,9 +201,7 @@ export default function CastRow({
         }));
     }, [onMovieFocus]);
 
-    /* Activate a film/similar card — resolve IMDB id and navigate.
-       v2.10.45 — No full-screen loader; Detail paints instantly
-       from the preview payload. */
+    /* Activate a film/similar card — resolve IMDB id and navigate. */
     const openTitle = useCallback(async (item) => {
         try {
             const { data } = await axios.get(
@@ -212,22 +210,11 @@ export default function CastRow({
             );
             const imdb = data?.imdb_id;
             if (imdb) {
-                navigate(
-                    `/title/${item.media_type === 'tv' ? 'series' : 'movie'}/${imdb}`,
-                    {
-                        state: {
-                            preview: {
-                                title: item.title || item.name || '',
-                                poster: item.poster || '',
-                                background: item.backdrop || '',
-                                description: item.overview || '',
-                                year: item.year || '',
-                            },
-                        },
-                    }
-                );
+                navigate(`/title/${item.media_type === 'tv' ? 'series' : 'movie'}/${imdb}`);
             }
-        } catch { /* swallow — card stays put */ }
+        } catch {
+            /* swallow — no nav if the lookup fails */
+        }
     }, [navigate]);
 
     /* ── D-pad navigation between the lane sub-views ── */
@@ -527,7 +514,6 @@ function ActorCard({ actor, onFocus, onBlur, onActivate }) {
     return (
         <button
             data-testid={`cast-actor-${actor.id}`}
-            data-tile-id={actor.id}
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
@@ -676,7 +662,6 @@ function TitleCard({ item, testIdPrefix, onActivate, onFocus, onBlur }) {
     return (
         <button
             data-testid={`${testIdPrefix}-${item.media_type}-${item.tmdb_id}`}
-            data-tile-id={item.imdbId || `tmdb-${item.media_type}-${item.tmdb_id}`}
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}

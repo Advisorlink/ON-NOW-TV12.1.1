@@ -1,0 +1,787 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    V2 Live TV EPG (matches Vesper reference screenshot).
+
+    Layout:
+      [ ICON RAIL 64dp ] [ MAIN ]
+
+    Icon rail (top-to-bottom):  V2 wordmark · Home · Search · Refresh · List
+                                                                              [bottom]
+                                Sign-out
+
+    MAIN = vertical:
+      HERO (380dp): backdrop + LIVE TV·CH 236 eyebrow + BIG channel name +
+                    NOW pill · prog title + synopsis + cyan progress bar +
+                    UP NEXT.  Top-right: clock + Favourite / Refresh / Sign-out.
+
+      BODY 3 columns:
+        L  (220dp): "CHANNEL GROUPS" + Favourites / Recently Watched pills +
+                    region groups with counts.
+        M  (440dp): "Search channels & guide…" bar + channel count chip +
+                    channel pill list.
+        R  (fills): "TODAY · {DATE}" header + "GUIDE · {CHANNEL}" sub-header +
+                    list of programmes with bell + OK TO REMIND.
+-->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/livetv_bg">
+
+<LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:background="@color/livetv_bg">
+
+    <!-- ───────── LEFT ICON RAIL ───────── -->
+    <LinearLayout
+        android:layout_width="64dp"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:paddingTop="20dp"
+        android:paddingBottom="20dp"
+        android:background="#0E1422">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="V2"
+            android:textColor="@color/livetv_accent_red"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-black"
+            android:letterSpacing="-0.04"
+            android:shadowColor="#80FF2535"
+            android:shadowDx="0"
+            android:shadowDy="0"
+            android:shadowRadius="14" />
+
+        <Space android:layout_width="0dp" android:layout_height="38dp" />
+
+        <ImageButton android:id="@+id/rail_home"
+            android:layout_width="44dp" android:layout_height="44dp"
+            android:layout_marginBottom="14dp"
+            android:padding="10dp"
+            android:src="@drawable/ic_nav_home"
+            android:background="@drawable/rail_icon_bg"
+            android:focusable="true"
+            android:contentDescription="Home" />
+
+        <ImageButton android:id="@+id/rail_search"
+            android:layout_width="44dp" android:layout_height="44dp"
+            android:layout_marginBottom="14dp"
+            android:padding="10dp"
+            android:src="@drawable/ic_nav_search"
+            android:background="@drawable/rail_icon_bg"
+            android:focusable="true"
+            android:contentDescription="Search" />
+
+        <ImageButton android:id="@+id/rail_refresh"
+            android:layout_width="44dp" android:layout_height="44dp"
+            android:layout_marginBottom="14dp"
+            android:padding="10dp"
+            android:src="@drawable/ic_refresh"
+            android:background="@drawable/rail_icon_bg"
+            android:focusable="true"
+            android:contentDescription="Refresh" />
+
+        <ImageButton android:id="@+id/rail_list"
+            android:layout_width="44dp" android:layout_height="44dp"
+            android:padding="10dp"
+            android:src="@drawable/ic_nav_list"
+            android:background="@drawable/rail_icon_bg"
+            android:focusable="true"
+            android:contentDescription="List" />
+
+        <ImageButton android:id="@+id/rail_sports"
+            android:layout_width="44dp" android:layout_height="44dp"
+            android:layout_marginTop="14dp"
+            android:padding="10dp"
+            android:src="@drawable/ic_nav_sports"
+            android:background="@drawable/rail_icon_bg"
+            android:focusable="true"
+            android:contentDescription="Sports Guide" />
+
+        <ImageButton android:id="@+id/rail_library"
+            android:layout_width="44dp" android:layout_height="44dp"
+            android:layout_marginTop="14dp"
+            android:padding="10dp"
+            android:src="@drawable/ic_nav_library"
+            android:background="@drawable/rail_icon_bg"
+            android:focusable="true"
+            android:contentDescription="My Library" />
+
+        <ImageButton android:id="@+id/rail_fullscreen"
+            android:layout_width="44dp" android:layout_height="44dp"
+            android:layout_marginTop="14dp"
+            android:padding="10dp"
+            android:src="@drawable/ic_nav_fullscreen"
+            android:background="@drawable/rail_icon_bg"
+            android:focusable="true"
+            android:contentDescription="Fullscreen" />
+
+        <Space android:layout_width="0dp" android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <ImageButton android:id="@+id/rail_signout"
+            android:layout_width="44dp" android:layout_height="44dp"
+            android:padding="10dp"
+            android:src="@drawable/ic_nav_signout"
+            android:background="@drawable/rail_icon_bg"
+            android:focusable="true"
+            android:contentDescription="Sign out" />
+    </LinearLayout>
+
+    <!-- ───────── MAIN ───────── -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <!-- HERO — preview window on the left, cinematic info on the right -->
+        <FrameLayout
+            android:id="@+id/hero"
+            android:layout_width="match_parent"
+            android:layout_height="280dp">
+
+            <ImageView
+                android:id="@+id/hero_backdrop"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop"
+                android:adjustViewBounds="false"
+                android:contentDescription="@null" />
+
+            <!-- Solid floor under the backdrop so 4:3 / pillarbox
+                 logos don't render with letterbox bars. -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@color/livetv_bg"
+                android:alpha="0.55" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/hero_gradient" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="100dp"
+                android:layout_gravity="bottom"
+                android:background="@drawable/hero_bottom_fade" />
+
+            <!-- ─────── LEFT: live preview card (16:9) ─────── -->
+            <FrameLayout
+                android:id="@+id/preview_card"
+                android:layout_width="400dp"
+                android:layout_height="225dp"
+                android:layout_gravity="start|center_vertical"
+                android:layout_marginStart="32dp"
+                android:background="@drawable/preview_card_bg"
+                android:padding="5dp">
+
+                <!-- TMDB cover art shown until the user picks a channel.
+                     centerCrop fills the 16:9 card edge-to-edge. -->
+                <ImageView
+                    android:id="@+id/preview_thumbnail"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop"
+                    android:background="#0A0F1A"
+                    android:contentDescription="@null" />
+
+                <!-- Soft bottom fade so the "PRESS OK TO PLAY" hint
+                     reads cleanly over the artwork. -->
+                <View
+                    android:id="@+id/preview_thumb_fade"
+                    android:layout_width="match_parent"
+                    android:layout_height="80dp"
+                    android:layout_gravity="bottom"
+                    android:background="@drawable/hero_bottom_fade" />
+
+                <TextView
+                    android:id="@+id/preview_idle_hint"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="bottom|center_horizontal"
+                    android:layout_marginBottom="12dp"
+                    android:fontFamily="monospace"
+                    android:textColor="@color/livetv_fg_bright"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.22"
+                    android:text="PRESS OK TO PLAY"
+                    android:shadowColor="#000000"
+                    android:shadowDx="0" android:shadowDy="1" android:shadowRadius="3" />
+
+                <androidx.media3.ui.PlayerView
+                    android:id="@+id/preview_player_view"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    app:resize_mode="fit"
+                    app:use_controller="false"
+                    app:surface_type="texture_view"
+                    android:background="#000000"
+                    android:visibility="gone" />
+
+                <!-- Orbital buffering loader — centred over the
+                     preview window while the shared ExoPlayer is
+                     in STATE_BUFFERING.  Toggled by EpgActivity.
+                     v2.9.9 — Shrunk 92→44dp per user feedback
+                     ("smaller, neon blue"). -->
+                <tv.onnowtv.livetv.ui.OrbitalLoaderView
+                    android:id="@+id/preview_buffer_loader"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:layout_gravity="center"
+                    android:visibility="gone" />
+
+                <!-- LIVE pill (top-left, inside card). -->
+                <TextView
+                    android:id="@+id/preview_live_badge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="start|top"
+                    android:layout_margin="12dp"
+                    android:background="@drawable/preview_live_badge_bg"
+                    android:fontFamily="monospace"
+                    android:paddingHorizontal="9dp"
+                    android:paddingVertical="3dp"
+                    android:text="LIVE"
+                    android:textColor="#FFFFFF"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.18"
+                    android:visibility="gone" />
+
+                <!-- Bottom mini bar: play arrow · progress · LIVE · audio. -->
+                <LinearLayout
+                    android:id="@+id/preview_mini_bar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="bottom"
+                    android:layout_marginHorizontal="10dp"
+                    android:layout_marginBottom="10dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:visibility="gone">
+
+                    <ImageView
+                        android:layout_width="14dp"
+                        android:layout_height="14dp"
+                        android:src="@drawable/ic_mini_play"
+                        android:contentDescription="@null" />
+
+                    <FrameLayout
+                        android:layout_width="0dp"
+                        android:layout_height="3dp"
+                        android:layout_weight="1"
+                        android:layout_marginHorizontal="10dp"
+                        android:background="#33FFFFFF">
+
+                        <View
+                            android:id="@+id/preview_mini_progress"
+                            android:layout_width="60dp"
+                            android:layout_height="match_parent"
+                            android:background="#5C9CFF" />
+                    </FrameLayout>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="6dp"
+                        android:fontFamily="monospace"
+                        android:text="LIVE"
+                        android:textColor="#E6EAF2"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.16" />
+
+                    <ImageView
+                        android:layout_width="14dp"
+                        android:layout_height="14dp"
+                        android:src="@drawable/ic_mini_audio"
+                        android:contentDescription="@null" />
+                </LinearLayout>
+            </FrameLayout>
+
+            <!-- Top-right icon cluster + clock -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|end"
+                android:layout_marginTop="20dp"
+                android:layout_marginEnd="32dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/clock"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="14dp"
+                    android:textColor="@color/livetv_fg_bright"
+                    android:textSize="14sp"
+                    android:fontFamily="monospace"
+                    android:textStyle="bold"
+                    android:text="" />
+
+                <ImageButton android:id="@+id/btn_favourite"
+                    android:layout_width="40dp" android:layout_height="40dp"
+                    android:layout_marginEnd="6dp"
+                    android:background="@drawable/hero_icon_btn_bg"
+                    android:src="@drawable/ic_star"
+                    android:padding="10dp" android:focusable="true"
+                    android:contentDescription="Favourite" />
+
+                <ImageButton android:id="@+id/btn_refresh"
+                    android:layout_width="40dp" android:layout_height="40dp"
+                    android:background="@drawable/hero_icon_btn_bg"
+                    android:src="@drawable/ic_refresh"
+                    android:padding="10dp" android:focusable="true"
+                    android:contentDescription="Refresh" />
+
+                <!-- v2.9.9 — Hero sign-out button removed per user
+                     feedback ("move sign-out to the bottom of the
+                     left rail").  The rail's `rail_signout` icon
+                     (line 129) is now the only place to sign out. -->
+            </LinearLayout>
+
+            <!-- Hero text — right of the preview card.  -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="start|center_vertical"
+                android:layout_marginStart="464dp"
+                android:layout_marginEnd="280dp"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/hero_eyebrow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="monospace"
+                    android:textColor="@color/livetv_accent"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.32"
+                    android:text="LIVE TV" />
+
+                <TextView
+                    android:id="@+id/hero_channel_name"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="@color/livetv_fg"
+                    android:textSize="44sp"
+                    android:textStyle="bold"
+                    android:fontFamily="sans-serif-black"
+                    android:letterSpacing="-0.03"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:text="LIVE TV" />
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="monospace"
+                        android:textColor="@color/livetv_accent"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.30"
+                        android:text="NOW" />
+
+                    <TextView
+                        android:id="@+id/hero_now_time"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:fontFamily="monospace"
+                        android:textColor="@color/livetv_accent"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.18"
+                        android:text="" />
+
+                    <TextView
+                        android:id="@+id/hero_now_title"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="14dp"
+                        android:textColor="@color/livetv_fg_bright"
+                        android:textSize="15sp"
+                        android:textStyle="bold"
+                        android:fontFamily="sans-serif-medium"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:text="" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/hero_synopsis"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textColor="@color/livetv_fg_dim"
+                    android:textSize="13sp"
+                    android:lineSpacingExtra="3dp"
+                    android:maxLines="2"
+                    android:ellipsize="end"
+                    android:text="" />
+
+                <FrameLayout
+                    android:layout_width="460dp"
+                    android:layout_height="3dp"
+                    android:layout_marginTop="14dp"
+                    android:background="#1AFFFFFF">
+
+                    <View
+                        android:id="@+id/hero_progress"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:background="@color/livetv_accent" />
+                </FrameLayout>
+
+                <TextView
+                    android:id="@+id/hero_up_next"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:fontFamily="monospace"
+                    android:textColor="@color/livetv_fg_dimmer"
+                    android:textSize="11sp"
+                    android:letterSpacing="0.24"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:text="" />
+
+                <!-- Hidden views (legacy id references kept for safety) -->
+                <LinearLayout
+                    android:id="@+id/hero_up_next_card"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:visibility="gone"
+                    android:orientation="vertical">
+                    <TextView android:id="@+id/up_next_1_time" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+                    <TextView android:id="@+id/up_next_1_title" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+                    <TextView android:id="@+id/up_next_2_time" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+                    <TextView android:id="@+id/up_next_2_title" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+                    <TextView android:id="@+id/up_next_3_time" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+                    <TextView android:id="@+id/up_next_3_title" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+                </LinearLayout>
+                <TextView
+                    android:id="@+id/hero_up_next_time"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:visibility="gone" />
+                <TextView
+                    android:id="@+id/hero_up_next_title"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:visibility="gone" />
+            </LinearLayout>
+        </FrameLayout>
+
+        <!-- BODY 3 columns -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:paddingStart="36dp"
+            android:paddingEnd="36dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="14dp">
+
+            <!-- L: Channel groups -->
+            <LinearLayout
+                android:id="@+id/categories_sidebar"
+                android:layout_width="220dp"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:layout_marginEnd="20dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingBottom="10dp"
+                    android:fontFamily="monospace"
+                    android:textColor="@color/livetv_fg_dimmer"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.24"
+                    android:text="CHANNEL GROUPS" />
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/categories_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:descendantFocusability="afterDescendants"
+                    android:focusable="false"
+                    android:nestedScrollingEnabled="true"
+                    android:clipToPadding="false"
+                    android:overScrollMode="never" />
+
+                <!-- v2.9.15 — In-sidebar sign-out button REMOVED per
+                     user feedback ("I don't want that sign-out button
+                     on the channel-group row at all").  The only
+                     sign-out affordance is the rail icon at the
+                     bottom of the left icon rail (`rail_signout`). -->
+            </LinearLayout>
+
+            <!-- M: Channels -->
+            <LinearLayout
+                android:layout_width="600dp"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:layout_marginEnd="20dp">
+
+                <!-- Header row: "PLAYING NOW" + channel count chip -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingBottom="10dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:fontFamily="monospace"
+                        android:textColor="@color/livetv_accent"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.28"
+                        android:text="PLAYING NOW" />
+
+                    <TextView
+                        android:id="@+id/channel_count_chip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:paddingTop="3dp"
+                        android:paddingBottom="3dp"
+                        android:background="@drawable/channel_count_chip_bg"
+                        android:fontFamily="monospace"
+                        android:textColor="@color/livetv_accent"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.20"
+                        android:text="0 CHANNELS" />
+                </LinearLayout>
+
+                <!-- Hidden search EditText kept in DOM so legacy
+                     Kotlin paths that reference it don't NPE.  Real
+                     search now lives in the full-screen overlay
+                     opened from the rail. -->
+                <EditText
+                    android:id="@+id/search_input"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:visibility="gone" />
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/channels_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:descendantFocusability="afterDescendants"
+                    android:focusable="false"
+                    android:nestedScrollingEnabled="true"
+                    android:clipToPadding="false"
+                    android:overScrollMode="never" />
+            </LinearLayout>
+
+            <!-- R: Guide  (heading = "COMING UP NEXT" + "TODAY · date · time") -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <!-- Heading: COMING UP NEXT -->
+                <TextView
+                    android:id="@+id/guide_today"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingBottom="3dp"
+                    android:fontFamily="monospace"
+                    android:textColor="@color/livetv_accent"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.30"
+                    android:text="COMING UP NEXT" />
+
+                <!-- Subheading: TODAY · 12 Feb · 4:32 PM -->
+                <TextView
+                    android:id="@+id/guide_clock"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingBottom="10dp"
+                    android:fontFamily="monospace"
+                    android:textColor="@color/livetv_fg_dim"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.22"
+                    android:text="" />
+
+                <!-- Hidden legacy id (no longer rendered, kept so existing
+                     Kotlin findViewById paths don't NPE). -->
+                <TextView
+                    android:id="@+id/guide_channel_header"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:visibility="gone" />
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/guide_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:descendantFocusability="afterDescendants"
+                    android:focusable="false"
+                    android:nestedScrollingEnabled="true"
+                    android:clipToPadding="false"
+                    android:overScrollMode="never" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>
+
+<!-- ===== SEARCH OVERLAY =====
+     Full-screen dark search panel.  Hidden by default; toggled
+     visible by EpgActivity when the rail's Search icon is tapped.
+     Searches BOTH channel names and EPG programme titles. -->
+<LinearLayout
+    android:id="@+id/search_overlay"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#F00A1224"
+    android:visibility="gone"
+    android:focusable="true"
+    android:descendantFocusability="afterDescendants"
+    android:paddingStart="120dp"
+    android:paddingEnd="120dp"
+    android:paddingTop="56dp"
+    android:paddingBottom="40dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingBottom="16dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:fontFamily="monospace"
+            android:textColor="@color/livetv_accent"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.32"
+            android:text="SEARCH" />
+
+        <TextView
+            android:id="@+id/search_overlay_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="3dp"
+            android:paddingBottom="3dp"
+            android:background="@drawable/channel_count_chip_bg"
+            android:fontFamily="monospace"
+            android:textColor="@color/livetv_accent"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.20"
+            android:text="" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/search_bar_bg"
+        android:paddingStart="18dp"
+        android:paddingEnd="14dp">
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@drawable/ic_search_small"
+            android:contentDescription="@null" />
+
+        <EditText
+            android:id="@+id/search_overlay_input"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginStart="14dp"
+            android:background="@null"
+            android:textColor="@color/livetv_fg"
+            android:textColorHint="@color/livetv_fg_dimmer"
+            android:textSize="20sp"
+            android:fontFamily="sans-serif-medium"
+            android:hint="Search every channel and every programme…"
+            android:singleLine="true"
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:focusable="true"
+            android:focusableInTouchMode="true" />
+
+        <ImageButton
+            android:id="@+id/search_overlay_close"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:padding="12dp"
+            android:src="@drawable/ic_exit"
+            android:background="@drawable/rail_icon_bg"
+            android:focusable="true"
+            android:contentDescription="Close" />
+    </LinearLayout>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/search_overlay_results"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="22dp"
+        android:descendantFocusability="afterDescendants"
+        android:focusable="false"
+        android:nestedScrollingEnabled="true"
+        android:clipToPadding="false"
+        android:overScrollMode="never" />
+
+    <TextView
+        android:id="@+id/search_overlay_empty"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:fontFamily="monospace"
+        android:textColor="@color/livetv_fg_dimmer"
+        android:textSize="14sp"
+        android:letterSpacing="0.20"
+        android:text="Start typing to search every channel and every programme."
+        android:visibility="visible" />
+</LinearLayout>
+
+</FrameLayout>

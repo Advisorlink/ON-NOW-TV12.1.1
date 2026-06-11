@@ -1,0 +1,3732 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, ArrowRight, Check, Lock, Unlock, UserCircle, Upload, Palette, Sparkles, Play, Loader2 } from 'lucide-react';
+import useSpatialFocus from '@/hooks/useSpatialFocus';
+import { saveProfile, listProfiles } from '@/lib/profiles';
+import { AVATARS, AVATAR_CATEGORIES, AVATAR_BUILDER_OPTIONS, AvatarCircle, buildCustomDiceBearUrl, saveCustomAvatar, saveUploadedAvatar, loadCustomAvatars } from '@/lib/avatars';
+import { processAvatarFile, AVATAR_ACCEPT } from '@/lib/avatarTransform';
+import TVKeyboard from '@/components/TVKeyboard';
+import { THEMES, DEFAULT_THEME_ID } from '@/themes/themes';
+import { writeViewingStyleForProfile } from '@/lib/viewingStyle';
+import { API } from '@/lib/api';
+
+/**
+ * Profile create / edit page.
+ *  - /profiles/new  → creates a new profile
+ *  - /profiles/edit/:id → edits existing (or redirects if not found)
+ *
+ * 30 avatar choices in a responsive grid, plus a name input.
+ * D-pad-driven: focus starts on name field, Tab/Down moves into
+ * the avatar grid, Enter on Save persists + returns to picker.
+ */
+export default function ProfileEdit() {
+    useSpatialFocus();
+    const navigate = useNavigate();
+    const { id: editingId } = useParams();
+    const existing = editingId
+        ? listProfiles().find((p) => p.id === editingId && !p.kids)
+        : null;
+
+    const [name, setName] = useState(existing?.name || '');
+    const [avatarId, setAvatarId] = useState(existing?.avatarId || AVATARS[0].id);
+    const [pin, setPin] = useState(existing?.pin || '');
+    // Chosen theme for this profile.  For an existing profile we
+    // read from the scoped storage written by ThemeProvider; for a
+    // brand-new profile we default to Vesper Neon.
+    const [chosenTheme, setChosenTheme] = useState(() => {
+        if (existing) {
+            try {
+                const v = localStorage.getItem(`onnowtv-theme:${existing.id}`);
+                if (v && THEMES.some((t) => t.id === v)) return v;
+            } catch { /* ignore */ }
+        }
+        return DEFAULT_THEME_ID;
+    });
+    // Wizard step.  New profiles run name → avatar → theme → pin;
+    // editing an existing profile lands on the avatar step (name
+    // already known) and a Back/Next still walks the full chain.
+    const [step, setStep] = useState(existing ? 'avatar' : 'name');
+    // Pending avatar pick — when the user clicks an avatar tile,
+    // we DON'T immediately apply it.  Instead we pop a "Save this
+    // as your icon?" Yes/No confirm.  Eliminates accidental
+    // commits when scrolling the grid with a TV remote.
+    const [pendingAvatar, setPendingAvatar] = useState(null);
+    // Viewing-style draft — genre tmdb ids and chosen items.  Step
+    // 4 of the wizard lets the user fill these in, but they can
+    // also just press Skip and we persist an empty draft.
+    const [viewingStyle, setViewingStyle] = useState({
+        movieGenres: [],
+        tvGenres: [],
+        items: [],
+    });
+    // Autoplay 1080p toggle chosen during step 5.  Default off; if
+    // the user taps Yes on the Autoplay prompt it flips to true.
+    const [autoplayChoice, setAutoplayChoice] = useState(false);
+    // Autoplay yes/skip modal (step 5).
+    const [autoplayPromptOpen, setAutoplayPromptOpen] = useState(false);
+    // "Would you like to add a password to this account?" Yes/Skip
+    // prompt that fires after the autoplay step.
+    const [pinPromptOpen, setPinPromptOpen] = useState(false);
+    // When the user clicks "Yes, add a PIN" on the prompt, this
+    // opens a dedicated 4-digit entry modal.  When they hit OK,
+    // we persist the profile with the new PIN, flash a "PIN
+    // saved" toast, and return to the picker.
+    const [pinEntryOpen, setPinEntryOpen] = useState(false);
+    const [pinSavedToast, setPinSavedToast] = useState(false);
+    // Build-Your-Own avatar sub-step overlay.  Lives on top of
+    // the avatar grid when open.  See <BuildAvatarOverlay/> below.
+    const [builderOpen, setBuilderOpen] = useState(false);
+    // Upload-your-own avatar sub-step overlay (v2.10.24).  Opens
+    // a file picker + on-screen instructions modal (512×512 circle,
+    // PNG / JPEG / animated GIF accepted up to 2 MB).
+    const [uploaderOpen, setUploaderOpen] = useState(false);
+
+    /**
+     * Persist every choice the user made during the wizard onto
+     * the new (or edited) profile: theme, viewing-style, autoplay
+     * preference, and finally the optional PIN.  All scoped keys
+     * are written using the saved profile's id so they live in
+     * the new profile's namespace from the moment it activates.
+     */
+    const persistAndExit = (pinOverride) => {
+        const trimmed = name.trim() || 'Profile';
+        const cleanPin = (
+            pinOverride !== undefined ? pinOverride : pin || ''
+        ).replace(/\D/g, '');
+        if (cleanPin && cleanPin.length !== 4) return;
+        const saved = saveProfile({
+            id: existing?.id,
+            name: trimmed,
+            avatarId,
+            pin: cleanPin,
+            createdAt: existing?.createdAt,
+        });
+        try {
+            localStorage.setItem(`onnowtv-theme:${saved.id}`, chosenTheme);
+        } catch { /* ignore */ }
+        try {
+            localStorage.setItem(
+                `onnowtv-autoplay-1080p:${saved.id}`,
+                autoplayChoice ? '1' : '0'
+            );
+        } catch { /* ignore */ }
+        writeViewingStyleForProfile(saved.id, viewingStyle);
+        navigate('/profiles');
+    };
+
+    const onNameNext = () => {
+        const trimmed = name.trim();
+        if (!trimmed) return; // require a name before continuing
+        setStep('avatar');
+    };
+
+    const visibleAvatars = AVATARS.filter((a) => !a.hidden);
+
+    return (
+        <div
+            data-testid="profile-edit"
+            className="relative w-screen flex flex-col"
+            style={{
+                background: 'var(--vesper-bg-0)',
+                padding:
+                    step === 'name'
+                        ? 'clamp(20px, 2vw, 32px) clamp(28px, 4vw, 64px)'
+                        : 'clamp(40px, 5vw, 80px)',
+                height: '100dvh',
+                overflowY:
+                    step === 'name' ? 'hidden' : 'auto',
+                overflowX: 'hidden',
+            }}
+        >
+            <header
+                className="flex items-center gap-4"
+                style={{
+                    marginBottom: step === 'name' ? 8 : 40,
+                }}
+            >
+                <button
+                    data-testid="profile-back"
+                    data-focusable="true"
+                    data-focus-style="quiet"
+                    tabIndex={0}
+                    onClick={() => {
+                        // Back walks the wizard chain one step at
+                        // a time: viewing-style → theme → avatar →
+                        // name → /profiles.  Editing skips name.
+                        if (step === 'viewing-style') {
+                            setStep('theme');
+                        } else if (step === 'theme') {
+                            setStep('avatar');
+                        } else if (step === 'avatar' && !existing) {
+                            setStep('name');
+                        } else {
+                            navigate('/profiles');
+                        }
+                    }}
+                    className="flex items-center justify-center rounded-full"
+                    style={{
+                        width: 48,
+                        height: 48,
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        color: 'var(--vesper-text-2)',
+                    }}
+                >
+                    <ArrowLeft size={20} />
+                </button>
+                {step !== 'name' && (
+                    <div>
+                        <div
+                            className="vesper-mono"
+                            style={{
+                                fontSize: 11,
+                                letterSpacing: '0.28em',
+                                color: 'var(--vesper-blue-bright)',
+                            }}
+                        >
+                            {existing
+                                ? 'EDIT PROFILE'
+                                : step === 'viewing-style'
+                                ? 'NEW PROFILE · STEP 4 OF 6'
+                                : step === 'theme'
+                                ? 'NEW PROFILE · STEP 3 OF 6'
+                                : 'NEW PROFILE · STEP 2 OF 6'}
+                        </div>
+                        <h1
+                            className="vesper-display"
+                            style={{
+                                fontSize: 'clamp(32px, 4vw, 56px)',
+                                letterSpacing: '-0.025em',
+                                lineHeight: 1,
+                                marginTop: 6,
+                            }}
+                        >
+                            {`Hi, ${name.trim() || 'there'}`}
+                        </h1>
+                        {step === 'avatar' && (
+                            <div
+                                style={{
+                                    marginTop: 8,
+                                    color: 'var(--vesper-text-2)',
+                                    fontSize: 15,
+                                }}
+                            >
+                                Pick an avatar. We&apos;ll ask before
+                                we save it.
+                            </div>
+                        )}
+                        {step === 'theme' && (
+                            <div
+                                style={{
+                                    marginTop: 8,
+                                    color: 'var(--vesper-text-2)',
+                                    fontSize: 15,
+                                }}
+                            >
+                                Pick a colour that suits your room. You can
+                                change it any time from Settings.
+                            </div>
+                        )}
+                        {step === 'viewing-style' && (
+                            <div
+                                style={{
+                                    marginTop: 8,
+                                    color: 'var(--vesper-text-2)',
+                                    fontSize: 15,
+                                }}
+                            >
+                                Tell us what you love watching. We&apos;ll fill
+                                your <strong style={{ color: 'var(--vesper-blue-bright)' }}>For You</strong> rail with fresh picks.
+                            </div>
+                        )}
+                    </div>
+                )}
+            </header>
+
+            {step === 'name' ? (
+                <NameStep
+                    name={name}
+                    setName={setName}
+                    onNext={onNameNext}
+                    avatarId={avatarId}
+                />
+            ) : step === 'theme' ? (
+                <ThemeStep
+                    chosenTheme={chosenTheme}
+                    onPick={setChosenTheme}
+                    onNext={() => setStep('viewing-style')}
+                />
+            ) : step === 'viewing-style' ? (
+                <ViewingStyleStep
+                    value={viewingStyle}
+                    onChange={setViewingStyle}
+                    onNext={() => setAutoplayPromptOpen(true)}
+                    onSkip={() => {
+                        setViewingStyle({
+                            movieGenres: [],
+                            tvGenres: [],
+                            items: [],
+                        });
+                        setAutoplayPromptOpen(true);
+                    }}
+                />
+            ) : (
+                <AvatarStep
+                    visibleAvatars={visibleAvatars}
+                    avatarId={avatarId}
+                    onPick={(id) => setPendingAvatar(id)}
+                    onOpenBuilder={() => setBuilderOpen(true)}
+                    onOpenUploader={() => setUploaderOpen(true)}
+                />
+            )}
+
+            {builderOpen && (
+                <BuildAvatarOverlay
+                    onCancel={() => setBuilderOpen(false)}
+                    onSave={(record) => {
+                        // The new custom avatar is now in
+                        // localStorage; jump straight into the
+                        // SaveAvatarConfirm flow so the user sees
+                        // the same "Save this as your icon?" prompt
+                        // they get for every other avatar pick.
+                        setBuilderOpen(false);
+                        setTimeout(() => setPendingAvatar(record.id), 80);
+                    }}
+                />
+            )}
+
+            {uploaderOpen && (
+                <UploadAvatarOverlay
+                    onCancel={() => setUploaderOpen(false)}
+                    onSave={(record) => {
+                        setUploaderOpen(false);
+                        setTimeout(() => setPendingAvatar(record.id), 80);
+                    }}
+                />
+            )}
+
+            {pendingAvatar && (
+                <SaveAvatarConfirm
+                    avatarId={pendingAvatar}
+                    onYes={() => {
+                        const picked = pendingAvatar;
+                        setAvatarId(picked);
+                        setPendingAvatar(null);
+                        // After the avatar is confirmed, walk to
+                        // the theme step (the next step in the
+                        // wizard) instead of jumping straight to
+                        // the PIN prompt.
+                        setTimeout(() => setStep('theme'), 60);
+                    }}
+                    onNo={() => setPendingAvatar(null)}
+                />
+            )}
+
+            {pinPromptOpen && (
+                <AddPasswordPrompt
+                    onYes={() => {
+                        setPinPromptOpen(false);
+                        setPinEntryOpen(true);
+                    }}
+                    onNo={() => {
+                        // "Skip" — save the profile without a PIN
+                        // and return to the Who's Watching screen.
+                        setPinPromptOpen(false);
+                        persistAndExit('');
+                    }}
+                />
+            )}
+
+            {autoplayPromptOpen && (
+                <AutoplayPrompt
+                    onYes={() => {
+                        setAutoplayChoice(true);
+                        setAutoplayPromptOpen(false);
+                        setPinPromptOpen(true);
+                    }}
+                    onNo={() => {
+                        setAutoplayChoice(false);
+                        setAutoplayPromptOpen(false);
+                        setPinPromptOpen(true);
+                    }}
+                />
+            )}
+
+            {pinEntryOpen && (
+                <EnterPinModal
+                    onCancel={() => {
+                        // Back out of PIN entry returns to the
+                        // password prompt rather than dropping
+                        // them at the avatar grid with no save.
+                        setPinEntryOpen(false);
+                        setPinPromptOpen(true);
+                    }}
+                    onSave={(newPin) => {
+                        const trimmed = name.trim() || 'Profile';
+                        const saved = saveProfile({
+                            id: existing?.id,
+                            name: trimmed,
+                            avatarId,
+                            pin: newPin,
+                            createdAt: existing?.createdAt,
+                        });
+                        try {
+                            localStorage.setItem(
+                                `onnowtv-theme:${saved.id}`,
+                                chosenTheme
+                            );
+                            localStorage.setItem(
+                                `onnowtv-autoplay-1080p:${saved.id}`,
+                                autoplayChoice ? '1' : '0'
+                            );
+                        } catch { /* ignore */ }
+                        writeViewingStyleForProfile(saved.id, viewingStyle);
+                        setPin(newPin);
+                        setPinEntryOpen(false);
+                        setPinSavedToast(true);
+                        setTimeout(() => {
+                            setPinSavedToast(false);
+                            navigate('/profiles');
+                        }, 1100);
+                    }}
+                />
+            )}
+
+            {pinSavedToast && <PinSavedToast />}
+        </div>
+    );
+}
+
+/* --------------------------- Step views --------------------------- */
+
+function NameStep({ name, setName, onNext, avatarId }) {
+    const canContinue = !!name.trim();
+
+    // Warm the icon-avatar PNG cache the moment the user lands on
+    // step 1 so by the time they advance to the avatar grid (step
+    // 2) every illustrated character portrait is already in the
+    // browser HTTP cache — no flash of empty discs.  Emoji avatars
+    // don't need this because they're inline glyphs.
+    React.useEffect(() => {
+        const imageAvatars = AVATARS.filter((a) => a.src && !a.hidden);
+        imageAvatars.forEach((a) => {
+            const img = new Image();
+            img.decoding = 'async';
+            img.src = a.src;
+        });
+    }, []);
+
+    return (
+        <div
+            data-testid="profile-step-name"
+            className="flex flex-col items-center"
+            style={{
+                flex: 1,
+                minHeight: 0,
+                width: '100%',
+                justifyContent: 'flex-start',
+                paddingTop: 6,
+            }}
+        >
+            {/* Faint blue glow behind the card */}
+            <div
+                style={{
+                    position: 'absolute',
+                    inset: '8% 18% auto 18%',
+                    height: '32vh',
+                    background:
+                        'radial-gradient(60% 60% at 50% 0%, rgba(var(--vesper-blue-rgb),0.18) 0%, transparent 70%)',
+                    pointerEvents: 'none',
+                    filter: 'blur(20px)',
+                }}
+            />
+
+            <div
+                className="flex flex-col items-center"
+                style={{
+                    maxWidth: 760,
+                    width: '100%',
+                    position: 'relative',
+                    zIndex: 1,
+                    gap: 10,
+                }}
+            >
+                <AvatarCircle avatarId={avatarId} size={84} ring />
+
+                <div
+                    className="vesper-mono"
+                    style={{
+                        fontSize: 11,
+                        letterSpacing: '0.32em',
+                        color: 'var(--vesper-blue-bright)',
+                        textTransform: 'uppercase',
+                    }}
+                >
+                    Step 1 of 6 · pick a name
+                </div>
+
+                <h2
+                    className="vesper-display"
+                    style={{
+                        fontSize: 'clamp(26px, 3vw, 44px)',
+                        letterSpacing: '-0.02em',
+                        lineHeight: 1.05,
+                        textAlign: 'center',
+                    }}
+                >
+                    What should we{' '}
+                    <span
+                        style={{
+                            color: 'var(--vesper-blue-bright)',
+                            textShadow:
+                                '0 0 14px rgba(var(--vesper-blue-rgb),0.55)',
+                        }}
+                    >
+                        call
+                    </span>{' '}
+                    you?
+                </h2>
+
+                {/* Display "input" — value preview only.  We DON'T
+                    use a real <input>, so the Android IME never
+                    pops up.  Typing happens entirely through the
+                    custom TVKeyboard below. */}
+                <div
+                    data-testid="profile-name-display"
+                    className="flex items-center gap-3"
+                    style={{
+                        width: '100%',
+                        maxWidth: 560,
+                        height: 64,
+                        padding: '0 24px',
+                        borderRadius: 999,
+                        background:
+                            'linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%)',
+                        border: '1px solid rgba(var(--vesper-blue-rgb),0.35)',
+                        boxShadow:
+                            '0 10px 36px rgba(var(--vesper-blue-rgb),0.18)',
+                        marginTop: 4,
+                    }}
+                >
+                    <UserCircle
+                        size={22}
+                        strokeWidth={1.6}
+                        color="var(--vesper-blue-bright)"
+                    />
+                    <div
+                        className="vesper-display"
+                        data-testid="profile-name"
+                        style={{
+                            flex: 1,
+                            fontSize: 24,
+                            fontWeight: 500,
+                            letterSpacing: '-0.01em',
+                            color: name
+                                ? 'var(--vesper-text)'
+                                : 'var(--vesper-text-3)',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                        }}
+                    >
+                        {name || 'Your name…'}
+                        <span
+                            aria-hidden="true"
+                            style={{
+                                display: 'inline-block',
+                                width: 2,
+                                height: 22,
+                                marginLeft: 4,
+                                verticalAlign: 'middle',
+                                background: 'var(--vesper-blue-bright)',
+                                animation: 'vesperPulse 1100ms infinite',
+                                borderRadius: 1,
+                            }}
+                        />
+                    </div>
+                    <span
+                        className="vesper-mono"
+                        style={{
+                            fontSize: 11,
+                            letterSpacing: '0.22em',
+                            color: 'var(--vesper-text-3)',
+                            textTransform: 'uppercase',
+                        }}
+                    >
+                        {name.length}/20
+                    </span>
+                </div>
+
+                {/* Themed on-screen keyboard.  Replaces the Android
+                    IME entirely — typing routes through TVKeyboard
+                    which dispatches plain setName calls. */}
+                <div style={{ marginTop: 4, width: '100%', maxWidth: 720 }}>
+                    <TVKeyboard
+                        value={name}
+                        onChange={(v) => setName(v.slice(0, 20))}
+                        onSubmit={() => {
+                            if (canContinue) onNext();
+                        }}
+                        maxLength={20}
+                        variant="name"
+                    />
+                </div>
+
+                <button
+                    data-testid="profile-name-next"
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
+                    disabled={!canContinue}
+                    onClick={onNext}
+                    className="flex items-center gap-2 rounded-full font-sans font-semibold"
+                    style={{
+                        marginTop: 4,
+                        height: 50,
+                        padding: '0 30px',
+                        fontSize: 15,
+                        background: canContinue
+                            ? 'var(--vesper-blue)'
+                            : 'rgba(var(--vesper-blue-rgb),0.25)',
+                        color: 'var(--vesper-bg-0)',
+                        border: 'none',
+                        opacity: canContinue ? 1 : 0.6,
+                        cursor: canContinue ? 'pointer' : 'not-allowed',
+                        boxShadow: canContinue
+                            ? '0 12px 30px rgba(var(--vesper-blue-rgb),0.45)'
+                            : 'none',
+                    }}
+                >
+                    Next: choose an avatar
+                    <ArrowRight size={16} strokeWidth={2.5} />
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function ThemeStep({ chosenTheme, onPick, onNext }) {
+    return (
+        <div
+            data-testid="profile-step-theme"
+            className="flex flex-col"
+            style={{ width: '100%', maxWidth: 1180 }}
+        >
+            <h2
+                className="vesper-mono"
+                style={{
+                    fontSize: 11,
+                    letterSpacing: '0.32em',
+                    color: 'var(--vesper-text-3)',
+                    marginBottom: 16,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                }}
+            >
+                <Palette size={14} strokeWidth={1.8} />
+                PICK A COLOUR · {THEMES.length} THEMES
+            </h2>
+
+            <div
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns:
+                        'repeat(auto-fill, minmax(200px, 1fr))',
+                    gap: 'clamp(12px, 1.1vw, 18px)',
+                    marginBottom: 28,
+                }}
+            >
+                {THEMES.map((t) => (
+                    <ProfileThemeCard
+                        key={t.id}
+                        theme={t}
+                        active={chosenTheme === t.id}
+                        initialFocus={chosenTheme === t.id}
+                        onPick={() => onPick(t.id)}
+                    />
+                ))}
+            </div>
+
+            <button
+                data-testid="profile-theme-next"
+                data-focusable="true"
+                data-focus-style="pill"
+                tabIndex={0}
+                onClick={onNext}
+                className="self-start flex items-center gap-2 rounded-full font-sans font-semibold"
+                style={{
+                    height: 50,
+                    padding: '0 30px',
+                    fontSize: 15,
+                    background: 'var(--vesper-blue)',
+                    color: 'var(--vesper-bg-0)',
+                    border: 'none',
+                    boxShadow:
+                        '0 12px 30px rgba(var(--vesper-blue-rgb),0.45)',
+                }}
+            >
+                Next: profile PIN
+                <ArrowRight size={16} strokeWidth={2.5} />
+            </button>
+        </div>
+    );
+}
+
+function ProfileThemeCard({ theme, active, initialFocus, onPick }) {
+    const p = theme.preview;
+    return (
+        <button
+            data-testid={`profile-theme-${theme.id}`}
+            data-focusable="true"
+            data-focus-style="tile"
+            {...(initialFocus ? { 'data-initial-focus': 'true' } : {})}
+            tabIndex={0}
+            onClick={onPick}
+            className="relative text-left overflow-hidden"
+            style={{
+                aspectRatio: '5 / 4',
+                background: p.background,
+                borderRadius: 14,
+                border: active
+                    ? `2px solid ${p.accent}`
+                    : '1px solid rgba(255,255,255,0.08)',
+                padding: 'clamp(12px, 1.1vw, 18px)',
+                color: '#fff',
+                boxShadow: active
+                    ? `0 0 0 3px ${p.accent}33, 0 18px 36px rgba(0,0,0,0.4)`
+                    : '0 12px 24px rgba(0,0,0,0.3)',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+            }}
+        >
+            <div>
+                <div
+                    style={{
+                        fontFamily:
+                            'var(--theme-font-mono, "JetBrains Mono", monospace)',
+                        fontSize: 9,
+                        letterSpacing: '0.28em',
+                        textTransform: 'uppercase',
+                        color: p.accent,
+                        marginBottom: 5,
+                    }}
+                >
+                    Theme · {theme.layout}
+                </div>
+                <div
+                    style={{
+                        fontFamily: `"${p.wordmark.font}", serif`,
+                        fontSize: 'clamp(18px, 1.6vw, 26px)',
+                        fontWeight: p.wordmark.weight,
+                        color: p.wordmark.color,
+                        letterSpacing: '-0.02em',
+                        lineHeight: 1,
+                    }}
+                >
+                    {theme.name}
+                </div>
+            </div>
+
+            <div
+                style={{
+                    fontSize: 11,
+                    lineHeight: 1.35,
+                    color: 'rgba(255,255,255,0.78)',
+                    maxWidth: '28ch',
+                }}
+            >
+                {theme.tagline}
+            </div>
+
+            {/* Faux UI swatches */}
+            <div className="flex items-end gap-1.5 mt-2">
+                {[1, 2, 3, 4].map((i) => (
+                    <div
+                        key={i}
+                        style={{
+                            flex: 1,
+                            height: 22 + i * 4,
+                            background:
+                                i === 1 ? p.accent : 'rgba(255,255,255,0.12)',
+                            borderRadius: 6,
+                        }}
+                    />
+                ))}
+            </div>
+
+            {active && (
+                <div
+                    className="absolute"
+                    style={{
+                        top: 10,
+                        right: 10,
+                        width: 24,
+                        height: 24,
+                        borderRadius: '50%',
+                        background: p.accent,
+                        color: '#fff',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                    }}
+                >
+                    <Check size={12} strokeWidth={3} />
+                </div>
+            )}
+        </button>
+    );
+}
+
+/* --------------------------- Viewing Style --------------------------- */
+
+/**
+ * Step 4 of 6 — "Choose your viewing style".
+ *
+ * Two-pane layout:
+ *   LEFT  — TMDB genre tiles (movie + tv combined, tagged by type)
+ *           with a tap-to-toggle add interaction.
+ *   RIGHT — when a genre tile is "open", the top 10 popular titles
+ *           in that genre appear with poster + title.  Each title
+ *           can be added to the user's draft viewing-style list.
+ *
+ * The user can also just press Skip — we then persist an empty
+ * viewing-style record and the Home "For You" rail hides itself.
+ */
+function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
+    const [movieGenres, setMovieGenres] = React.useState([]);
+    const [tvGenres, setTvGenres] = React.useState([]);
+    const [loadingGenres, setLoadingGenres] = React.useState(true);
+    /* v2.10.18 — Two-page wizard.  User explicitly asked: "we
+     * need to have two separate pages, so one for movies and
+     * then one for TV shows".  `mediaPage` is the page we're
+     * currently on; the right-panel's `activeMedia` always
+     * mirrors it.  Save & continue on the movie page advances
+     * to the TV page; on the TV page it calls the parent's
+     * onNext to advance to the next wizard step. */
+    const [mediaPage, setMediaPage] = React.useState('movie');
+    /* Combined top-50 lists keyed by `${media}:${sortedGenreIds}`. */
+    const [comboItems, setComboItems] = React.useState({});
+    const [loadingItems, setLoadingItems] = React.useState(false);
+
+    React.useEffect(() => {
+        let cancel = false;
+        (async () => {
+            setLoadingGenres(true);
+            try {
+                const [m, t] = await Promise.all([
+                    fetch(`${API}/tmdb/genres/movie`).then((r) => r.json()),
+                    fetch(`${API}/tmdb/genres/tv`).then((r) => r.json()),
+                ]);
+                if (cancel) return;
+                // v2.10.24 — Inject synthetic "True Stories" and
+                // "Biography" categories.  TMDB doesn't ship these as
+                // first-class genres, but the backend translates the
+                // negative-ID sentinels below into a `with_keywords=`
+                // discover query (`9672` = based on true story,
+                // `186934` = biopic).  Negative IDs avoid collision
+                // with any real TMDB genre id.
+                const synthetic = [
+                    { id: -1, name: 'True Stories' },
+                    { id: -2, name: 'Biography' },
+                ];
+                setMovieGenres([...(m?.data || []), ...synthetic]);
+                setTvGenres([...(t?.data || []), ...synthetic]);
+            } catch { /* ignore */ } finally {
+                if (!cancel) setLoadingGenres(false);
+            }
+        })();
+        return () => { cancel = true; };
+    }, []);
+
+    /* Whenever the user's selected genre set changes for the
+     * current page's media, refetch the combined top-50. */
+    const activeMedia = mediaPage;
+    const selectedIds = (activeMedia === 'movie' ? value.movieGenres : value.tvGenres) || [];
+    const sortedKey = [...selectedIds].sort((a, b) => a - b).join(',');
+    const cacheKey = `${activeMedia}:${sortedKey}`;
+
+    React.useEffect(() => {
+        if (!sortedKey) return;
+        if (comboItems[cacheKey]) return;
+        let cancel = false;
+        setLoadingItems(true);
+        (async () => {
+            try {
+                const r = await fetch(
+                    `${API}/tmdb/by-genres/${activeMedia}` +
+                    `?genre_ids=${encodeURIComponent(sortedKey)}&limit=50`
+                );
+                const j = await r.json();
+                if (!cancel) {
+                    setComboItems((prev) => ({ ...prev, [cacheKey]: j?.data || [] }));
+                }
+            } catch { /* ignore */ } finally {
+                if (!cancel) setLoadingItems(false);
+            }
+        })();
+        return () => { cancel = true; };
+    }, [cacheKey, sortedKey, activeMedia, comboItems]);
+
+    /* Clicking a genre TOGGLES it.  No media swap — the page
+     * is already on the right media (movie OR tv). */
+    const toggleGenre = (g, media) => {
+        const arr = media === 'movie' ? value.movieGenres : value.tvGenres;
+        const has = arr.includes(g.id);
+        const nextArr = has ? arr.filter((x) => x !== g.id) : [...arr, g.id];
+        onChange({
+            ...value,
+            ...(media === 'movie'
+                ? { movieGenres: nextArr }
+                : { tvGenres: nextArr }),
+        });
+    };
+
+    const toggleItem = (it, media) => {
+        const has = value.items.some(
+            (x) => x.tmdb_id === it.tmdb_id && x.type === (media === 'movie' ? 'movie' : 'series')
+        );
+        const nextItems = has
+            ? value.items.filter(
+                  (x) => !(x.tmdb_id === it.tmdb_id && x.type === (media === 'movie' ? 'movie' : 'series'))
+              )
+            : [
+                  ...value.items,
+                  {
+                      tmdb_id: it.tmdb_id,
+                      type: media === 'movie' ? 'movie' : 'series',
+                      title: it.title,
+                      poster: it.poster,
+                      year: it.year,
+                  },
+              ];
+        onChange({ ...value, items: nextItems });
+    };
+
+    const activeList = comboItems[cacheKey] || [];
+    const activeGenresForLabel = (activeMedia === 'movie' ? movieGenres : tvGenres)
+        .filter((g) => selectedIds.includes(g.id))
+        .map((g) => g.name);
+
+    const totalPicks =
+        value.movieGenres.length + value.tvGenres.length + value.items.length;
+
+    return (
+        <div
+            data-testid="profile-step-viewing-style"
+            className="flex flex-col"
+            style={{ width: '100%', maxWidth: 1280 }}
+        >
+            <div
+                className="vesper-mono"
+                style={{
+                    fontSize: 11,
+                    letterSpacing: '0.32em',
+                    color: 'var(--vesper-text-3)',
+                    marginBottom: 12,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                }}
+            >
+                <Sparkles size={14} strokeWidth={1.8} />
+                CHOOSE YOUR VIEWING STYLE ·{' '}
+                {mediaPage === 'movie' ? 'MOVIES (1/2)' : 'TV SHOWS (2/2)'} ·{' '}
+                {totalPicks} picks
+            </div>
+
+            {/* v2.10.18 — Two-step indicator dots */}
+            <div
+                data-testid="viewing-style-step-dots"
+                className="flex items-center"
+                style={{ gap: 10, marginBottom: 14 }}
+            >
+                {['movie', 'tv'].map((m, i) => {
+                    const active = mediaPage === m;
+                    const done =
+                        (m === 'movie' && mediaPage === 'tv') ||
+                        false;
+                    return (
+                        <div
+                            key={m}
+                            data-testid={`step-dot-${m}`}
+                            className="flex items-center"
+                            style={{ gap: 8 }}
+                        >
+                            <span
+                                style={{
+                                    display: 'inline-block',
+                                    width: active ? 28 : 8,
+                                    height: 8,
+                                    borderRadius: 999,
+                                    background: active
+                                        ? 'var(--vesper-blue)'
+                                        : done
+                                        ? 'rgba(var(--vesper-blue-rgb),0.55)'
+                                        : 'rgba(255,255,255,0.18)',
+                                    boxShadow: active
+                                        ? '0 0 14px rgba(var(--vesper-blue-rgb),0.55)'
+                                        : 'none',
+                                    transition:
+                                        'width 220ms cubic-bezier(.2,.7,.2,1), background 220ms',
+                                }}
+                            />
+                            <span
+                                className="vesper-mono"
+                                style={{
+                                    fontSize: 11,
+                                    letterSpacing: '0.22em',
+                                    color: active
+                                        ? 'var(--vesper-text)'
+                                        : 'var(--vesper-text-3)',
+                                    textTransform: 'uppercase',
+                                }}
+                            >
+                                {m === 'movie' ? 'Movies' : 'TV Shows'}
+                            </span>
+                            {i === 0 && (
+                                <span
+                                    style={{
+                                        width: 18,
+                                        height: 1,
+                                        background: 'rgba(255,255,255,0.16)',
+                                        marginLeft: 4,
+                                        marginRight: -2,
+                                    }}
+                                />
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Helper banner — explicitly tells the user how the
+                step works.  Stays visible the entire time so they
+                can refer back to it after picking a few items. */}
+            <div
+                data-testid="viewing-style-helper"
+                className="flex items-start"
+                style={{
+                    gap: 14,
+                    padding: '14px 18px',
+                    marginBottom: 18,
+                    borderRadius: 14,
+                    background:
+                        'linear-gradient(90deg, rgba(var(--vesper-blue-rgb),0.12) 0%, rgba(var(--vesper-blue-rgb),0.02) 100%)',
+                    border: '1px solid rgba(var(--vesper-blue-rgb),0.32)',
+                }}
+            >
+                <div
+                    className="shrink-0 flex items-center justify-center rounded-full"
+                    style={{
+                        width: 36,
+                        height: 36,
+                        background: 'rgba(var(--vesper-blue-rgb),0.18)',
+                        color: 'var(--vesper-blue-bright)',
+                    }}
+                >
+                    <Sparkles size={16} strokeWidth={2} />
+                </div>
+                <div style={{ lineHeight: 1.45 }}>
+                    <div
+                        style={{
+                            fontSize: 14,
+                            fontWeight: 700,
+                            color: 'var(--vesper-text)',
+                            marginBottom: 2,
+                            letterSpacing: '-0.005em',
+                        }}
+                    >
+                        How this works
+                    </div>
+                    <div
+                        style={{
+                            fontSize: 13,
+                            color: 'var(--vesper-text-2)',
+                            maxWidth: '70ch',
+                        }}
+                    >
+                        Tap any <strong style={{ color: 'var(--vesper-blue-bright)' }}>genre</strong> on the left to see its top 20 most-watched titles, then tap the <strong style={{ color: 'var(--vesper-blue-bright)' }}>movies</strong> or <strong style={{ color: 'var(--vesper-blue-bright)' }}>TV shows</strong> you love and we&apos;ll add them to your <strong style={{ color: 'var(--vesper-blue-bright)' }}>For You</strong> rail.  Skip if you&apos;d rather decide later.
+                    </div>
+                </div>
+            </div>
+
+            {/* Genre grid + side panel */}
+            <div
+                className="grid"
+                style={{
+                    gridTemplateColumns:
+                        'minmax(280px, 1fr) minmax(380px, 1.4fr)',
+                    gap: 'clamp(20px, 1.6vw, 36px)',
+                    alignItems: 'start',
+                    marginBottom: 28,
+                }}
+            >
+                {/* LEFT — Genre tiles for the current page only.
+                    User asked for two SEPARATE pages (movies first,
+                    then TV shows), so we no longer stack both
+                    sections; we swap the section based on
+                    `mediaPage`. */}
+                <div
+                    style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 18,
+                    }}
+                >
+                    {mediaPage === 'movie' ? (
+                        <GenreSection
+                            key="movie"
+                            label="Movie genres"
+                            genres={movieGenres}
+                            media="movie"
+                            loading={loadingGenres}
+                            selected={value.movieGenres}
+                            activeId={null}
+                            onOpen={(g) => toggleGenre(g, 'movie')}
+                            onToggle={(g) => toggleGenre(g, 'movie')}
+                        />
+                    ) : (
+                        <GenreSection
+                            key="tv"
+                            label="TV show genres"
+                            genres={tvGenres}
+                            media="tv"
+                            loading={loadingGenres}
+                            selected={value.tvGenres}
+                            activeId={null}
+                            onOpen={(g) => toggleGenre(g, 'tv')}
+                            onToggle={(g) => toggleGenre(g, 'tv')}
+                        />
+                    )}
+                </div>
+
+                {/* RIGHT — Combined top-50 across all selected
+                    genres for the current media tab. */}
+                <div
+                    data-testid="viewing-style-titles"
+                    style={{
+                        background: 'rgba(255,255,255,0.03)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: 18,
+                        padding: '18px 20px 22px',
+                        minHeight: 460,
+                    }}
+                >
+                    {selectedIds.length === 0 ? (
+                        <div
+                            className="flex flex-col items-center justify-center text-center"
+                            style={{
+                                minHeight: 420,
+                                color: 'var(--vesper-text-3)',
+                                gap: 10,
+                            }}
+                        >
+                            <Sparkles size={26} strokeWidth={1.6} />
+                            <div style={{ fontSize: 15, maxWidth: 280 }}>
+                                Pick any genres on the left.  Tap as many as you
+                                like — we'll combine the top 50 most-watched
+                                titles across them and put them in your For You
+                                rail.
+                            </div>
+                        </div>
+                    ) : (
+                        <>
+                            <div
+                                style={{
+                                    fontSize: 18,
+                                    fontWeight: 700,
+                                    letterSpacing: '-0.01em',
+                                    marginBottom: 4,
+                                }}
+                            >
+                                Top 50 in {activeGenresForLabel.slice(0, 3).join(', ')}
+                                {activeGenresForLabel.length > 3
+                                    ? ` +${activeGenresForLabel.length - 3} more`
+                                    : ''}
+                            </div>
+                            <div
+                                className="vesper-mono"
+                                style={{
+                                    fontSize: 11,
+                                    letterSpacing: '0.22em',
+                                    color: 'var(--vesper-text-3)',
+                                    marginBottom: 16,
+                                    textTransform: 'uppercase',
+                                }}
+                            >
+                                {activeMedia === 'movie' ? 'Movies' : 'TV Shows'}
+                            </div>
+                            {loadingItems ? (
+                                <div
+                                    className="flex items-center gap-2"
+                                    style={{
+                                        color: 'var(--vesper-text-2)',
+                                        fontSize: 14,
+                                    }}
+                                >
+                                    <Loader2 className="vesper-spin" size={16} />
+                                    Loading…
+                                </div>
+                            ) : (
+                                <div
+                                    // v2.10.27 — Wider clearance so the
+                                    // focused tile's 1.08× scale-up +
+                                    // 1.5px outline + 2px outline-offset
+                                    // (5–7 px above the tile's natural
+                                    // bounds at the top edge AND bottom
+                                    // edge) doesn't get clipped by the
+                                    // 2-row scroll-window's overflow
+                                    // boundary.  Was maxHeight: 300 ≈
+                                    // exactly 2 tiles + 1 gap which
+                                    // left zero buffer for the focus
+                                    // ring at top/bottom.  340 gives a
+                                    // ~12 px buffer on each side.
+                                    style={{
+                                        maxHeight: 340,
+                                        overflowY: 'auto',
+                                        overflowX: 'visible',
+                                        scrollPaddingTop: 20,
+                                        scrollPaddingBottom: 20,
+                                        paddingTop: 8,
+                                        paddingBottom: 8,
+                                        paddingLeft: 4,
+                                        paddingRight: 8,
+                                        scrollBehavior: 'smooth',
+                                    }}
+                                >
+                                  <div
+                                    className="grid"
+                                    style={{
+                                        gridTemplateColumns:
+                                            'repeat(auto-fill, minmax(96px, 1fr))',
+                                        gap: 12,
+                                    }}
+                                  >
+                                    {activeList.map((it) => {
+                                        const added = value.items.some(
+                                            (x) =>
+                                                x.tmdb_id === it.tmdb_id &&
+                                                x.type ===
+                                                    (activeMedia === 'movie'
+                                                        ? 'movie'
+                                                        : 'series')
+                                        );
+                                        return (
+                                            <button
+                                                key={`${activeMedia}-${it.tmdb_id}`}
+                                                data-testid={`viewing-style-item-${it.tmdb_id}`}
+                                                data-focusable="true"
+                                                data-focus-style="tile"
+                                                tabIndex={0}
+                                                onClick={() =>
+                                                    toggleItem(it, activeMedia)
+                                                }
+                                                className="relative overflow-hidden text-left"
+                                                style={{
+                                                    aspectRatio: '2 / 3',
+                                                    borderRadius: 10,
+                                                    background:
+                                                        'rgba(255,255,255,0.04)',
+                                                    border: added
+                                                        ? '2px solid var(--vesper-blue)'
+                                                        : '1px solid rgba(255,255,255,0.08)',
+                                                    boxShadow: added
+                                                        ? '0 0 0 3px rgba(var(--vesper-blue-rgb),0.18)'
+                                                        : 'none',
+                                                    padding: 0,
+                                                    cursor: 'pointer',
+                                                    // v2.10.27 — keep
+                                                    // focused tile a
+                                                    // generous distance
+                                                    // from the scroll
+                                                    // container edges
+                                                    // so the focus
+                                                    // ring + 1.08×
+                                                    // scale doesn't
+                                                    // clip the top of
+                                                    // the next row up.
+                                                    scrollMarginTop: 20,
+                                                    scrollMarginBottom: 20,
+                                                }}
+                                            >
+                                                {it.poster ? (
+                                                    <img
+                                                        src={it.poster}
+                                                        alt={it.title}
+                                                        loading="lazy"
+                                                        className="absolute inset-0 w-full h-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <div
+                                                        className="absolute inset-0 flex items-center justify-center"
+                                                        style={{
+                                                            color: 'var(--vesper-text-3)',
+                                                            fontSize: 12,
+                                                            padding: 4,
+                                                            textAlign: 'center',
+                                                        }}
+                                                    >
+                                                        {it.title}
+                                                    </div>
+                                                )}
+                                                <div
+                                                    className="absolute"
+                                                    style={{
+                                                        top: 6,
+                                                        right: 6,
+                                                        width: 24,
+                                                        height: 24,
+                                                        borderRadius: '50%',
+                                                        background: added
+                                                            ? 'var(--vesper-blue)'
+                                                            : 'rgba(6,8,15,0.7)',
+                                                        color: added
+                                                            ? 'var(--vesper-bg-0)'
+                                                            : '#fff',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        border: '1px solid rgba(255,255,255,0.18)',
+                                                    }}
+                                                >
+                                                    {added ? (
+                                                        <Check
+                                                            size={12}
+                                                            strokeWidth={3}
+                                                        />
+                                                    ) : (
+                                                        <span
+                                                            style={{
+                                                                fontSize: 14,
+                                                                lineHeight: 1,
+                                                                fontWeight: 700,
+                                                            }}
+                                                        >
+                                                            +
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div
+                                                    className="absolute bottom-0 left-0 right-0"
+                                                    style={{
+                                                        background:
+                                                            'linear-gradient(0deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%)',
+                                                        padding: '20px 8px 8px',
+                                                        fontSize: 11,
+                                                        color: '#fff',
+                                                        fontWeight: 600,
+                                                        lineHeight: 1.2,
+                                                    }}
+                                                >
+                                                    {it.title}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                  </div>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </div>
+            </div>
+
+            {/* Action row.  Two-page mode (v2.10.18):
+                - Page MOVIE: Skip → skips ALL, Back hidden, Next →
+                  advance to TV page.
+                - Page TV:    Skip → skips ALL, Back → back to
+                  movies, Next → onNext (parent advances). */}
+            <div className="flex items-center" style={{ gap: 12 }}>
+                <button
+                    data-testid="viewing-style-skip"
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
+                    onClick={onSkip}
+                    className="rounded-full font-sans font-semibold"
+                    style={{
+                        height: 50,
+                        padding: '0 26px',
+                        fontSize: 15,
+                        background: 'rgba(255,255,255,0.08)',
+                        color: 'var(--vesper-text)',
+                        border: '1px solid rgba(255,255,255,0.14)',
+                    }}
+                >
+                    Skip all
+                </button>
+                {mediaPage === 'tv' && (
+                    <button
+                        data-testid="viewing-style-back-to-movies"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={() => setMediaPage('movie')}
+                        className="flex items-center gap-2 rounded-full font-sans font-semibold"
+                        style={{
+                            height: 50,
+                            padding: '0 22px',
+                            fontSize: 15,
+                            background: 'rgba(255,255,255,0.06)',
+                            color: 'var(--vesper-text)',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                        }}
+                    >
+                        <ArrowRight
+                            size={16}
+                            strokeWidth={2.5}
+                            style={{ transform: 'rotate(180deg)' }}
+                        />
+                        Back to movies
+                    </button>
+                )}
+                <button
+                    data-testid="viewing-style-next"
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
+                    onClick={() => {
+                        if (mediaPage === 'movie') {
+                            setMediaPage('tv');
+                            // Scroll back to the top so the user
+                            // sees the new page from the top.
+                            try {
+                                window.scrollTo({
+                                    top: 0,
+                                    behavior: 'auto',
+                                });
+                            } catch { /* ignore */ }
+                        } else {
+                            onNext();
+                        }
+                    }}
+                    className="flex items-center gap-2 rounded-full font-sans font-semibold"
+                    style={{
+                        height: 50,
+                        padding: '0 30px',
+                        fontSize: 15,
+                        background: 'var(--vesper-blue)',
+                        color: 'var(--vesper-bg-0)',
+                        border: 'none',
+                        boxShadow:
+                            '0 12px 30px rgba(var(--vesper-blue-rgb),0.45)',
+                    }}
+                >
+                    {mediaPage === 'movie'
+                        ? 'Continue to TV shows'
+                        : 'Save & continue'}
+                    <ArrowRight size={16} strokeWidth={2.5} />
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function GenreSection({ label, genres, media, loading, selected, activeId, onOpen, onToggle }) {
+    return (
+        <div>
+            <div
+                className="vesper-mono"
+                style={{
+                    fontSize: 10,
+                    letterSpacing: '0.32em',
+                    color: 'var(--vesper-text-3)',
+                    marginBottom: 10,
+                    textTransform: 'uppercase',
+                }}
+            >
+                {label}
+            </div>
+            {loading ? (
+                <div
+                    className="flex items-center gap-2"
+                    style={{ color: 'var(--vesper-text-2)', fontSize: 13 }}
+                >
+                    <Loader2 className="vesper-spin" size={14} />
+                    Loading genres…
+                </div>
+            ) : (
+                <div
+                    className="flex flex-wrap"
+                    style={{ gap: 8 }}
+                >
+                    {genres.map((g) => {
+                        const isSelected = selected.includes(g.id);
+                        const isOpen = activeId === g.id;
+                        return (
+                            <button
+                                key={g.id}
+                                data-testid={`viewing-style-genre-${media}-${g.id}`}
+                                data-focusable="true"
+                                data-focus-style="pill"
+                                tabIndex={0}
+                                onClick={() => {
+                                    onOpen(g);
+                                    onToggle(g);
+                                }}
+                                className="rounded-full font-sans"
+                                style={{
+                                    height: 36,
+                                    padding: '0 14px',
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    background: isSelected
+                                        ? 'var(--vesper-blue)'
+                                        : isOpen
+                                        ? 'rgba(var(--vesper-blue-rgb),0.18)'
+                                        : 'rgba(255,255,255,0.06)',
+                                    color: isSelected
+                                        ? 'var(--vesper-bg-0)'
+                                        : 'var(--vesper-text)',
+                                    border: isSelected
+                                        ? 'none'
+                                        : isOpen
+                                        ? '1px solid rgba(var(--vesper-blue-rgb),0.55)'
+                                        : '1px solid rgba(255,255,255,0.12)',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                {g.name}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+}
+
+
+
+function AvatarStep({ visibleAvatars, avatarId, onPick, onOpenBuilder, onOpenUploader }) {
+    // User-built custom avatars from localStorage.  Refreshed on
+    // mount so a newly-built one shows up the next time the user
+    // visits step 2.
+    const customAvatars = React.useMemo(
+        () => (typeof window !== 'undefined' ? loadCustomAvatars() : []),
+        []
+    );
+
+    // ID of the avatar the user is currently hovering with the
+    // D-pad.  Drives the sticky preview circle pinned at the top
+    // of the step so the user always sees what they're picking
+    // even as they scroll several rows down.
+    const [focusedId, setFocusedId] = React.useState(avatarId);
+
+    // Scoped D-pad navigation for the entire avatar step.  This
+    // sidesteps the global spatial-focus engine getting stuck
+    // when a row scrolls horizontally and its bounding boxes go
+    // off-screen.  We walk focusable buttons in pure DOM order:
+    //   ArrowRight / Left → previous / next button in the SAME row.
+    //   ArrowDown / Up    → previous / next ROW, preserving the
+    //                       current X column when possible.
+    // Each move also horizontally + vertically `scrollIntoView()`s
+    // the target so it's always visible.
+    const containerRef = React.useRef(null);
+    React.useEffect(() => {
+        const root = containerRef.current;
+        if (!root) return undefined;
+
+        const getRows = () => {
+            const rows = Array.from(
+                root.querySelectorAll('[data-avatar-row="true"]')
+            );
+            return rows
+                .map((r) =>
+                    Array.from(
+                        r.querySelectorAll('[data-focusable="true"]')
+                    ).filter((el) => !el.hasAttribute('disabled'))
+                )
+                .filter((list) => list.length > 0);
+        };
+
+        const focusTarget = (target) => {
+            // v2.10.31 — `preventScroll: true` is critical here.  The
+            // browser's native focus-scroll behaviour is INSTANT (it
+            // ignores the row's `scroll-behavior: smooth` CSS) and
+            // fires BEFORE our explicit `scrollIntoView` call below.
+            // That's what was making D-pad navigation feel jumpy:
+            // the row would SNAP to centre the new tile, then the
+            // smooth-scroll call had nothing left to do.  Disabling
+            // the native scroll lets our explicit smooth call drive
+            // the motion.
+            try { target.focus({ preventScroll: true }); } catch { /* ignore */ }
+            target.setAttribute('data-focused', 'true');
+            document
+                .querySelectorAll('[data-focused="true"]')
+                .forEach((el) => {
+                    if (el !== target) el.removeAttribute('data-focused');
+                });
+            // Keep the focused tile in view both horizontally
+            // (so the user can always see what they're on) and
+            // vertically (slide the row up under the sticky
+            // preview).  block:'center' lets the page scroll so
+            // each new row crystallises directly below the
+            // preview.  Wrapped in rAF so the focus paint and the
+            // scroll start in the same animation frame — without
+            // this, fast key repeats can queue multiple competing
+            // scrollIntoView calls and the row appears to jitter.
+            try {
+                requestAnimationFrame(() => {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center',
+                        inline: 'center',
+                    });
+                });
+            } catch { /* ignore */ }
+            const tid = target.getAttribute('data-avatar-id');
+            if (tid) setFocusedId(tid);
+        };
+
+        const onKey = (e) => {
+            if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                return;
+            }
+            const active = document.activeElement;
+            if (!active || !root.contains(active)) return;
+            const rows = getRows();
+            if (rows.length === 0) return;
+
+            // Locate current row + column.
+            let rowIdx = -1;
+            let colIdx = -1;
+            for (let r = 0; r < rows.length; r++) {
+                const c = rows[r].indexOf(active);
+                if (c !== -1) {
+                    rowIdx = r;
+                    colIdx = c;
+                    break;
+                }
+            }
+            if (rowIdx === -1) return;
+
+            let target = null;
+            if (e.key === 'ArrowRight') {
+                if (colIdx + 1 < rows[rowIdx].length) {
+                    target = rows[rowIdx][colIdx + 1];
+                } else if (rowIdx + 1 < rows.length) {
+                    // Wrap past the right edge → first tile of
+                    // the next row.  Without this the user can
+                    // press Right repeatedly at a row edge and
+                    // the D-pad appears to "stop working".
+                    target = rows[rowIdx + 1][0];
+                }
+            } else if (e.key === 'ArrowLeft') {
+                if (colIdx - 1 >= 0) {
+                    target = rows[rowIdx][colIdx - 1];
+                } else if (rowIdx - 1 >= 0) {
+                    // Symmetric wrap past the left edge → last
+                    // tile of the previous row.
+                    const prev = rows[rowIdx - 1];
+                    target = prev[prev.length - 1];
+                }
+            } else {
+                const dir = e.key === 'ArrowDown' ? 1 : -1;
+                const nextRowIdx = rowIdx + dir;
+                if (nextRowIdx >= 0 && nextRowIdx < rows.length) {
+                    // Preserve X column.  Use the active's screen
+                    // X center to pick the closest item on the
+                    // next row.
+                    const cx =
+                        active.getBoundingClientRect().left +
+                        active.getBoundingClientRect().width / 2;
+                    target = rows[nextRowIdx].reduce((best, el) => {
+                        const r = el.getBoundingClientRect();
+                        const dx = Math.abs(r.left + r.width / 2 - cx);
+                        if (!best || dx < best.dx) return { el, dx };
+                        return best;
+                    }, null)?.el || rows[nextRowIdx][0];
+                }
+            }
+            if (!target) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+            focusTarget(target);
+        };
+
+        // Mirror focus changes from any other source (clicks,
+        // initial mount) into focusedId so the sticky preview
+        // stays in sync.
+        const onFocusIn = (e) => {
+            const tid = e.target?.getAttribute?.('data-avatar-id');
+            if (tid) setFocusedId(tid);
+        };
+
+        window.addEventListener('keydown', onKey, true);
+        root.addEventListener('focusin', onFocusIn);
+        return () => {
+            window.removeEventListener('keydown', onKey, true);
+            root.removeEventListener('focusin', onFocusIn);
+        };
+    }, []);
+
+    // Compute label of the focused avatar (custom · category) so
+    // the sticky preview reads as more than just an icon.
+    const focusedMeta = React.useMemo(() => {
+        if (!focusedId) return { label: 'PICK ANY AVATAR' };
+        if (focusedId === 'build-new') return { label: 'BUILD YOUR OWN' };
+        if (focusedId.startsWith('custom-')) return { label: 'CUSTOM · MADE BY YOU' };
+        for (const cat of AVATAR_CATEGORIES) {
+            if (cat.items.some((a) => a.id === focusedId)) {
+                return { label: cat.label.toUpperCase() };
+            }
+        }
+        return { label: 'YOUR AVATAR' };
+    }, [focusedId]);
+
+    return (
+        <div
+            ref={containerRef}
+            data-testid="profile-step-avatar"
+            style={{ width: '100%', position: 'relative' }}
+        >
+            {/* Sticky preview header — pinned to the top of the
+                step's scroll viewport so it remains visible as
+                the rows slide up underneath when the user D-pads
+                down.  Reads the currently-FOCUSED avatar (not the
+                last-saved one), so the user always sees exactly
+                what they're about to confirm. */}
+            {/* Preview header for the avatar step.  No sticky —
+                the whole page scrolls together so the user sees
+                the header at the top, then the rows beneath it,
+                and when they D-pad down, everything scrolls up
+                together like a normal page. */}
+            <div
+                data-testid="avatar-sticky-preview"
+                className="flex items-center"
+                style={{
+                    zIndex: 1,
+                    padding: '14px 16px',
+                    marginBottom: 14,
+                    gap: 18,
+                    background:
+                        'linear-gradient(180deg, var(--vesper-bg-0) 0%, var(--vesper-bg-0) 85%, rgba(6,8,15,0) 100%)',
+                    borderBottom: '1px solid rgba(255,255,255,0.06)',
+                }}
+            >
+                <div style={{ flexShrink: 0 }}>
+                    <AvatarCircle avatarId={focusedId || avatarId} size={92} ring />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                        className="vesper-mono"
+                        style={{
+                            fontSize: 11,
+                            letterSpacing: '0.32em',
+                            color: 'var(--vesper-blue-bright)',
+                        }}
+                    >
+                        {focusedMeta.label}
+                    </div>
+                    <h2
+                        className="vesper-display"
+                        style={{
+                            fontSize: 'clamp(20px, 2vw, 30px)',
+                            letterSpacing: '-0.02em',
+                            lineHeight: 1.05,
+                            marginTop: 4,
+                        }}
+                    >
+                        Pick your avatar
+                    </h2>
+                    <div
+                        style={{
+                            fontSize: 13,
+                            color: 'var(--vesper-text-2)',
+                            marginTop: 4,
+                        }}
+                    >
+                        {visibleAvatars.length} avatars · {AVATAR_CATEGORIES.length} categories
+                    </div>
+                </div>
+            </div>
+
+            {/* Build-Your-Own + custom row -----------------------*/}
+            <section
+                data-testid="avatar-row-custom"
+                data-avatar-row="true"
+                style={{ paddingTop: 4, paddingBottom: 6 }}
+            >
+                <div
+                    className="vesper-mono"
+                    style={{
+                        fontSize: 10,
+                        letterSpacing: '0.28em',
+                        color: 'var(--vesper-blue-bright)',
+                        textTransform: 'uppercase',
+                        marginBottom: 8,
+                        marginLeft: 4,
+                    }}
+                >
+                    Make Your Own
+                </div>
+                <div
+                    className="vesper-shelf flex"
+                    style={{
+                        gap: 14,
+                        overflowX: 'auto',
+                        // v2.10.24 — match the AvatarRow padding so
+                        // the leftmost BUILD/Custom tile's focus ring
+                        // isn't clipped at the edge.
+                        paddingLeft: 18,
+                        paddingRight: 18,
+                        paddingTop: 14,
+                        paddingBottom: 14,
+                        scrollPaddingLeft: 18,
+                        scrollPaddingRight: 18,
+                        scrollBehavior: 'smooth',
+                    }}
+                >
+                    <button
+                        data-testid="avatar-build-your-own"
+                        data-focusable="true"
+                        data-focus-style="tile"
+                        data-initial-focus="true"
+                        data-avatar-id="build-new"
+                        tabIndex={0}
+                        onClick={onOpenBuilder}
+                        className="rounded-full flex items-center justify-center shrink-0"
+                        style={{
+                            width: 120,
+                            height: 120,
+                            border: '2px dashed rgba(var(--vesper-blue-rgb), 0.6)',
+                            background:
+                                'radial-gradient(circle at 30% 30%, rgba(var(--vesper-blue-rgb), 0.18), rgba(6,8,15,0.6))',
+                            color: 'var(--vesper-blue-bright)',
+                            cursor: 'pointer',
+                            padding: 0,
+                            position: 'relative',
+                            scrollMarginLeft: 200,
+                            scrollMarginRight: 60,
+                        }}
+                    >
+                        <div className="flex flex-col items-center" style={{ gap: 6 }}>
+                            <UserCircle size={32} strokeWidth={1.6} />
+                            <div
+                                style={{
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    letterSpacing: '0.06em',
+                                    textTransform: 'uppercase',
+                                    color: 'var(--vesper-blue-bright)',
+                                }}
+                            >
+                                Build
+                            </div>
+                        </div>
+                    </button>
+
+                    {/* v2.10.24 — Upload-your-own avatar tile.  Opens
+                        a modal with file picker (PNG/JPEG/GIF) +
+                        on-screen spec instructions (512×512 circle).
+                        Uploaded blob is stored as base64 in
+                        `onnowtv-custom-avatars-v1` which is part of
+                        the profile-backup whitelist, so the avatar
+                        travels across devices when the user backs
+                        up + restores their profile via Settings. */}
+                    <button
+                        data-testid="avatar-upload-your-own"
+                        data-focusable="true"
+                        data-focus-style="tile"
+                        data-avatar-id="upload-new"
+                        tabIndex={0}
+                        onClick={onOpenUploader}
+                        className="rounded-full flex items-center justify-center shrink-0"
+                        style={{
+                            width: 120,
+                            height: 120,
+                            border: '2px dashed rgba(255, 195, 80, 0.55)',
+                            background:
+                                'radial-gradient(circle at 30% 30%, rgba(255, 195, 80, 0.18), rgba(6,8,15,0.6))',
+                            color: '#FFC350',
+                            cursor: 'pointer',
+                            padding: 0,
+                            position: 'relative',
+                            scrollMarginLeft: 200,
+                            scrollMarginRight: 60,
+                        }}
+                    >
+                        <div className="flex flex-col items-center" style={{ gap: 6 }}>
+                            <Upload size={28} strokeWidth={1.7} />
+                            <div
+                                style={{
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    letterSpacing: '0.06em',
+                                    textTransform: 'uppercase',
+                                    color: '#FFC350',
+                                }}
+                            >
+                                Upload
+                            </div>
+                        </div>
+                    </button>
+
+                    {customAvatars.map((a) => {
+                        const active = a.id === avatarId;
+                        return (
+                            <button
+                                key={a.id}
+                                data-testid={`avatar-pick-${a.id}`}
+                                data-focusable="true"
+                                data-focus-style="tile"
+                                data-avatar-id={a.id}
+                                tabIndex={0}
+                                onClick={() => onPick(a.id)}
+                                className="rounded-full flex items-center justify-center shrink-0"
+                                style={{
+                                    width: 120,
+                                    height: 120,
+                                    border: 'none',
+                                    padding: 0,
+                                    background: 'transparent',
+                                    position: 'relative',
+                                    scrollMarginLeft: 200,
+                                    scrollMarginRight: 60,
+                                }}
+                            >
+                                <AvatarCircle avatarId={a.id} size={120} ring={active} />
+                                {active && (
+                                    <span
+                                        style={{
+                                            position: 'absolute',
+                                            bottom: -2,
+                                            right: -2,
+                                            width: 28,
+                                            height: 28,
+                                            borderRadius: '50%',
+                                            background: 'var(--vesper-blue)',
+                                            color: 'var(--vesper-bg-0)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            boxShadow:
+                                                '0 0 0 3px var(--vesper-bg-0), 0 6px 18px rgba(var(--vesper-blue-rgb),0.6)',
+                                        }}
+                                    >
+                                        <Check size={16} strokeWidth={3} />
+                                    </span>
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+            </section>
+
+            {/* Categorised horizontal rows. */}
+            <div
+                className="flex flex-col"
+                style={{ gap: 6, paddingRight: 8 }}
+            >
+                {AVATAR_CATEGORIES.map((cat, rowIdx) => (
+                    <AvatarRow
+                        key={cat.id}
+                        category={cat}
+                        avatarId={avatarId}
+                        onPick={onPick}
+                        rowIdx={rowIdx + 1}
+                    />
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function AvatarRow({ category, avatarId, onPick, rowIdx }) {
+    return (
+        <section
+            data-testid={`avatar-row-${category.id}`}
+            data-avatar-row="true"
+            style={{ paddingTop: 4, paddingBottom: 6, scrollMarginTop: 130 }}
+        >
+            <div
+                className="vesper-mono"
+                style={{
+                    fontSize: 10,
+                    letterSpacing: '0.28em',
+                    color: 'var(--vesper-text-3)',
+                    textTransform: 'uppercase',
+                    marginBottom: 8,
+                    marginLeft: 4,
+                }}
+            >
+                {category.label}
+            </div>
+            <div
+                className="vesper-shelf flex"
+                style={{
+                    gap: 14,
+                    overflowX: 'auto',
+                    // v2.10.24 — bump left padding from 4 → 18 so the
+                    // 3 px focus-ring + 32 px glow on the LEFTMOST
+                    // avatar isn't clipped by the row's overflow edge
+                    // when the D-pad lands on it.  `scrollPaddingLeft`
+                    // mirrors this so smooth-scroll into-view keeps
+                    // the focused tile away from the edge.
+                    paddingLeft: 18,
+                    paddingRight: 18,
+                    paddingTop: 14,
+                    paddingBottom: 14,
+                    scrollPaddingLeft: 18,
+                    scrollPaddingRight: 18,
+                    // v2.10.27 — Smooth-scroll the row when the user
+                    // arrows past the edge-comfort margin so the
+                    // background doesn't snap abruptly.  Spatial
+                    // focus's coalesced `scrollBy({behavior:'auto'})`
+                    // is overridden by this CSS property — modern
+                    // WebViews honour the CSS scroll-behavior even
+                    // for scripted scrolls.
+                    scrollBehavior: 'smooth',
+                }}
+            >
+                {category.items.map((a, i) => {
+                    const active = a.id === avatarId;
+                    // initial focus only when we're on the very
+                    // first AvatarRow AND no Build-Your-Own row
+                    // was rendered above (rowIdx===0 == build row
+                    // exists, so AvatarRow always gets rowIdx≥1).
+                    const isInitial = false;
+                    return (
+                        <button
+                            key={a.id}
+                            data-testid={`avatar-pick-${a.id}`}
+                            data-focusable="true"
+                            data-focus-style="tile"
+                            data-avatar-id={a.id}
+                            data-initial-focus={isInitial ? 'true' : undefined}
+                            tabIndex={0}
+                            onClick={() => onPick(a.id)}
+                            className="rounded-full flex items-center justify-center shrink-0"
+                            style={{
+                                width: 120,
+                                height: 120,
+                                border: 'none',
+                                padding: 0,
+                                background: 'transparent',
+                                position: 'relative',
+                                // Keeps the horizontally-focused
+                                // tile a comfortable distance from
+                                // the row edge so the user can see
+                                // it next to its neighbours.
+                                scrollMarginLeft: 200,
+                                scrollMarginRight: 60,
+                                // Sticky preview is ~140 px tall —
+                                // scroll the next row up under it
+                                // when D-pad walks down so the
+                                // focused tile sits well below the
+                                // preview, not under it.
+                                scrollMarginTop: 160,
+                                scrollMarginBottom: 60,
+                            }}
+                        >
+                            <AvatarCircle avatarId={a.id} size={120} ring={active} />
+                            {active && (
+                                <span
+                                    style={{
+                                        position: 'absolute',
+                                        bottom: -2,
+                                        right: -2,
+                                        width: 28,
+                                        height: 28,
+                                        borderRadius: '50%',
+                                        background: 'var(--vesper-blue)',
+                                        color: 'var(--vesper-bg-0)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        boxShadow:
+                                            '0 0 0 3px var(--vesper-bg-0), 0 6px 18px rgba(var(--vesper-blue-rgb),0.6)',
+                                    }}
+                                >
+                                    <Check size={16} strokeWidth={3} />
+                                </span>
+                            )}
+                        </button>
+                    );
+                })}
+            </div>
+        </section>
+    );
+}
+
+/**
+ * Full-screen "Build Your Own" avatar overlay.  Renders a big
+ * preview circle on top and chip rows below for hair / eyes /
+ * mouth / accessories etc.  Each chip choice rebuilds the
+ * DiceBear URL on the fly so the preview updates instantly.
+ *
+ * Save → persist the avatar to localStorage via saveCustomAvatar
+ * and hand the record back to the parent so it can drop into
+ * the same SaveAvatarConfirm flow used for every other avatar.
+ */
+function BuildAvatarOverlay({ onCancel, onSave }) {
+    const [opts, setOpts] = React.useState({
+        top: 'shortFlat',
+        hairColor: '4a312c',
+        eyes: 'happy',
+        eyebrows: 'default',
+        mouth: 'smile',
+        facialHair: 'blank',
+        accessories: 'blank',
+        skinColor: 'edb98a',
+        backgroundColor: '4f46e5',
+    });
+    const previewUrl = React.useMemo(
+        () => buildCustomDiceBearUrl({ ...opts, seed: 'preview' }),
+        [opts]
+    );
+    const set = (k) => (v) => setOpts((p) => ({ ...p, [k]: v }));
+
+    // Scoped D-pad navigation for the builder.  The global
+    // spatial-focus engine struggles inside this fixed-overlay
+    // because the chip rows are horizontally scrolling and chip
+    // bounding boxes go out of viewport.  Replicate the same
+    // DOM-order row/column walker used by AvatarStep so every
+    // arrow press lands on a real focusable target.
+    const overlayRef = React.useRef(null);
+    React.useEffect(() => {
+        const root = overlayRef.current;
+        if (!root) return undefined;
+
+        const getRows = () => {
+            const rowEls = Array.from(
+                root.querySelectorAll('[data-builder-row="true"]')
+            );
+            return rowEls
+                .map((r) =>
+                    Array.from(
+                        r.querySelectorAll('[data-focusable="true"]')
+                    ).filter((el) => !el.hasAttribute('disabled'))
+                )
+                .filter((list) => list.length > 0);
+        };
+
+        const focusTarget = (target) => {
+            // v2.10.31 — preventScroll:true so the browser's instant
+            // native focus-scroll doesn't override our smooth scroll
+            // below.  Same fix as AvatarStep.
+            try { target.focus({ preventScroll: true }); } catch { /* ignore */ }
+            target.setAttribute('data-focused', 'true');
+            document
+                .querySelectorAll('[data-focused="true"]')
+                .forEach((el) => {
+                    if (el !== target) el.removeAttribute('data-focused');
+                });
+            try {
+                requestAnimationFrame(() => {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center',
+                        inline: 'center',
+                    });
+                });
+            } catch { /* ignore */ }
+        };
+
+        const onKey = (e) => {
+            // Escape closes the overlay — keyboard parity with the
+            // back button.  Cheap quality-of-life win.
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                onCancel();
+                return;
+            }
+            if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+            const active = document.activeElement;
+            if (!active || !root.contains(active)) return;
+            const rows = getRows();
+            if (rows.length === 0) return;
+
+            let rowIdx = -1;
+            let colIdx = -1;
+            for (let r = 0; r < rows.length; r++) {
+                const c = rows[r].indexOf(active);
+                if (c !== -1) {
+                    rowIdx = r;
+                    colIdx = c;
+                    break;
+                }
+            }
+            if (rowIdx === -1) return;
+
+            let target = null;
+            if (e.key === 'ArrowRight') {
+                if (colIdx + 1 < rows[rowIdx].length) {
+                    target = rows[rowIdx][colIdx + 1];
+                } else if (rowIdx + 1 < rows.length) {
+                    target = rows[rowIdx + 1][0];
+                }
+            } else if (e.key === 'ArrowLeft') {
+                if (colIdx - 1 >= 0) {
+                    target = rows[rowIdx][colIdx - 1];
+                } else if (rowIdx - 1 >= 0) {
+                    const prev = rows[rowIdx - 1];
+                    target = prev[prev.length - 1];
+                }
+            } else {
+                const dir = e.key === 'ArrowDown' ? 1 : -1;
+                const nextRowIdx = rowIdx + dir;
+                if (nextRowIdx >= 0 && nextRowIdx < rows.length) {
+                    const cx =
+                        active.getBoundingClientRect().left +
+                        active.getBoundingClientRect().width / 2;
+                    target = rows[nextRowIdx].reduce((best, el) => {
+                        const r = el.getBoundingClientRect();
+                        const dx = Math.abs(r.left + r.width / 2 - cx);
+                        if (!best || dx < best.dx) return { el, dx };
+                        return best;
+                    }, null)?.el || rows[nextRowIdx][0];
+                }
+            }
+            // ALWAYS preventDefault + stopPropagation when we're
+            // inside the overlay — even if `target` is null at an
+            // edge.  Without this the global spatial-focus engine
+            // happily picks up the keystroke and focuses an avatar
+            // tile in the AvatarStep behind the modal, which is
+            // why the user sees focus "disappear".
+            e.preventDefault();
+            e.stopPropagation();
+            if (!target) return;
+            focusTarget(target);
+        };
+
+        window.addEventListener('keydown', onKey, true);
+
+        // Land focus on the first chip ("Hair" row) when the
+        // overlay opens so the D-pad has somewhere to start.
+        const t = setTimeout(() => {
+            const rows = getRows();
+            if (rows.length && rows[0][0]) {
+                focusTarget(rows[0][0]);
+            }
+        }, 60);
+
+        return () => {
+            window.removeEventListener('keydown', onKey, true);
+            clearTimeout(t);
+        };
+    }, []);
+
+    return (
+        <div
+            ref={overlayRef}
+            data-testid="build-avatar-overlay"
+            className="fixed inset-0 z-50 flex flex-col"
+            style={{
+                background:
+                    'radial-gradient(60% 60% at 50% 0%, rgba(var(--vesper-blue-rgb),0.25), transparent), var(--vesper-bg-0)',
+                padding: 0,
+                overflowY: 'auto',
+            }}
+        >
+            {/* Sticky header: back button, title and live preview.
+                Pinned to the top of the overlay so the user always
+                sees what they're building as chip rows scroll up
+                underneath. */}
+            <div
+                data-testid="build-avatar-sticky"
+                style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 50,
+                    padding: 'clamp(20px, 2vw, 32px) clamp(28px, 3vw, 48px) 18px',
+                    background:
+                        'linear-gradient(180deg, var(--vesper-bg-0) 0%, var(--vesper-bg-0) 86%, rgba(6,8,15,0) 100%)',
+                    borderBottom: '1px solid rgba(255,255,255,0.06)',
+                    backdropFilter: 'blur(14px)',
+                }}
+            >
+                <div className="flex items-center" style={{ gap: 16, marginBottom: 16 }}>
+                    <button
+                        data-testid="build-avatar-back"
+                        data-focusable="true"
+                        data-focus-style="quiet"
+                        tabIndex={0}
+                        onClick={onCancel}
+                        className="flex items-center justify-center rounded-full"
+                        style={{
+                            width: 48,
+                            height: 48,
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            color: 'var(--vesper-text-2)',
+                        }}
+                    >
+                        <ArrowLeft size={20} />
+                    </button>
+                    <div>
+                        <div
+                            className="vesper-mono"
+                            style={{
+                                fontSize: 11,
+                                letterSpacing: '0.32em',
+                                color: 'var(--vesper-blue-bright)',
+                            }}
+                        >
+                            BUILD YOUR OWN AVATAR
+                        </div>
+                        <h1
+                            className="vesper-display"
+                            style={{
+                                fontSize: 'clamp(22px, 2.4vw, 34px)',
+                                letterSpacing: '-0.02em',
+                                lineHeight: 1.05,
+                                marginTop: 4,
+                            }}
+                        >
+                            Make it <span style={{ color: 'var(--vesper-blue-bright)' }}>yours</span>
+                        </h1>
+                    </div>
+                </div>
+
+                {/* Live preview — always visible thanks to sticky
+                    wrapper. */}
+                <div className="flex items-center" style={{ gap: 'clamp(18px, 2.4vw, 32px)' }}>
+                    <div
+                        data-testid="build-avatar-preview"
+                        className="shrink-0"
+                        style={{
+                            width: 140,
+                            height: 140,
+                            borderRadius: '50%',
+                            overflow: 'hidden',
+                            background: `#${opts.backgroundColor}`,
+                            border: '3px solid var(--vesper-blue-bright)',
+                            boxShadow:
+                                '0 0 0 6px rgba(var(--vesper-blue-rgb),0.18), 0 20px 40px -16px rgba(var(--vesper-blue-rgb),0.6)',
+                        }}
+                    >
+                        <img
+                            src={previewUrl}
+                            alt="preview"
+                            loading="eager"
+                            decoding="async"
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                    </div>
+                    <div
+                        style={{
+                            flex: 1,
+                            color: 'var(--vesper-text-2)',
+                            fontSize: 13,
+                            maxWidth: '70ch',
+                            lineHeight: 1.45,
+                        }}
+                    >
+                        Use the <strong style={{ color: 'var(--vesper-blue-bright)' }}>D-pad</strong> to walk the option chips below: hair, eyes, mouth, glasses, the works.  Each tap updates the preview instantly.  Hit
+                        <strong style={{ color: 'var(--vesper-blue-bright)' }}> Save</strong> when you&apos;re happy.
+                    </div>
+                </div>
+            </div>
+
+            {/* Scrollable chip area */}
+            <div
+                style={{
+                    padding: 'clamp(20px, 2vw, 32px) clamp(28px, 3vw, 48px) clamp(28px, 3vw, 48px)',
+                }}
+            >
+                <div className="flex flex-col" style={{ gap: 14, marginBottom: 28 }}>
+                    <ChipRow label="Hair" group="top" value={opts.top} onSet={set('top')} />
+                    <ChipRow label="Hair color" group="hairColor" value={opts.hairColor} onSet={set('hairColor')} swatches />
+                    <ChipRow label="Skin" group="skinColor" value={opts.skinColor} onSet={set('skinColor')} swatches />
+                    <ChipRow label="Eyes" group="eyes" value={opts.eyes} onSet={set('eyes')} />
+                    <ChipRow label="Eyebrows" group="eyebrows" value={opts.eyebrows} onSet={set('eyebrows')} />
+                    <ChipRow label="Mouth" group="mouth" value={opts.mouth} onSet={set('mouth')} />
+                    <ChipRow label="Facial hair" group="facialHair" value={opts.facialHair} onSet={set('facialHair')} />
+                    <ChipRow label="Glasses" group="accessories" value={opts.accessories} onSet={set('accessories')} />
+                    <ChipRow label="Background" group="backgroundColor" value={opts.backgroundColor} onSet={set('backgroundColor')} swatches />
+                </div>
+
+                <div data-builder-row="true" className="flex" style={{ gap: 12 }}>
+                    <button
+                        data-testid="build-avatar-cancel"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={onCancel}
+                        className="rounded-full font-sans font-semibold"
+                        style={{
+                            height: 50,
+                            padding: '0 28px',
+                            fontSize: 15,
+                            background: 'rgba(255,255,255,0.08)',
+                            color: 'var(--vesper-text)',
+                            border: '1px solid rgba(255,255,255,0.14)',
+                            scrollMarginTop: 220,
+                            scrollMarginBottom: 60,
+                        }}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        data-testid="build-avatar-save"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={() => {
+                            const record = saveCustomAvatar(opts);
+                            onSave(record);
+                        }}
+                        className="flex items-center gap-2 rounded-full font-sans font-semibold"
+                        style={{
+                            height: 50,
+                            padding: '0 30px',
+                            fontSize: 15,
+                            background: 'var(--vesper-blue)',
+                            color: 'var(--vesper-bg-0)',
+                            border: 'none',
+                            boxShadow: '0 12px 30px rgba(var(--vesper-blue-rgb),0.45)',
+                            scrollMarginTop: 220,
+                            scrollMarginBottom: 60,
+                        }}
+                    >
+                        Save & use this avatar
+                        <ArrowRight size={16} strokeWidth={2.5} />
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/**
+ * UploadAvatarOverlay (v2.10.24) — Lets the user pick a PNG / JPEG
+ * / animated GIF from local storage as their profile avatar.
+ *
+ * Saves the file as a base64 data: URL inside
+ * `onnowtv-custom-avatars-v1` — the same key DiceBear builds use.
+ * That key is whitelisted in `profileBackup.js` ESSENTIAL_KEYS so
+ * the avatar survives the existing backup-with-code round-trip
+ * onto a new device without any new wire format.
+ *
+ * Limits enforced here:
+ *   • 2 MB max — soft ceiling so localStorage can hold a few
+ *     uploads without throwing QuotaExceededError.
+ *   • image/png, image/jpeg, image/gif only — checked via MIME.
+ *
+ * The instructions panel asks the user for a 512×512 *circle* asset
+ * — we DON'T crop server-side because the AvatarCircle component
+ * already renders the image inside `border-radius:50%`.  If the
+ * user uploads a rectangle, the centre gets shown circular.  The
+ * 512×512 spec is given so heavy compression artefacts don't
+ * show up at the largest hero size (240 px on the picker hero).
+ */
+function UploadAvatarOverlay({ onCancel, onSave }) {
+    const fileRef = useRef(null);
+    const cancelBtnRef = useRef(null);
+    const pickBtnRef = useRef(null);
+    const saveBtnRef = useRef(null);
+    const [error, setError] = useState('');
+    const [preview, setPreview] = useState(null); // { dataUrl, mime, name, animated }
+    const [busy, setBusy] = useState(false);
+    // v2.10.29 — 0..1 progress for the video → GIF conversion path.
+    // null means "not running"; 0..1 means "processing"; image &
+    // GIF paths are fast enough we don't bother showing a number.
+    const [progress, setProgress] = useState(null);
+
+    const onPick = () => {
+        if (fileRef.current) fileRef.current.click();
+    };
+
+    const onFile = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        // Reset the input so picking the same file twice fires
+        // onChange again (browsers won't re-fire for an identical
+        // selection without this).
+        e.target.value = '';
+
+        setError('');
+        setBusy(true);
+        setProgress(file.type?.startsWith('video/') ? 0 : null);
+        try {
+            const result = await processAvatarFile(file, (p) =>
+                setProgress(p),
+            );
+            setPreview({
+                dataUrl: result.dataUrl,
+                mime: result.mime,
+                name: file.name,
+                animated: result.animated,
+            });
+        } catch (err) {
+            setError(err.message || 'Could not process that file.');
+        } finally {
+            setBusy(false);
+            setProgress(null);
+        }
+    };
+
+    const onConfirm = () => {
+        if (!preview) return;
+        try {
+            const rec = saveUploadedAvatar({
+                dataUrl: preview.dataUrl,
+                mime: preview.mime,
+                name: preview.name,
+            });
+            onSave(rec);
+        } catch (err) {
+            setError(err.message || 'Could not save that avatar.');
+        }
+    };
+
+    // v2.10.28 — Full focus trap, modelled on ConfirmModal's two
+    // prongs:
+    //   1. Key intercept (capture-phase) — D-pad LEFT / RIGHT
+    //      cycles between the visible buttons inside the modal;
+    //      arrow keys never leak out to the global spatial-focus
+    //      hook (which would happily focus a tile behind the
+    //      backdrop).
+    //   2. `focusin` rubber-band — defensive backstop, slams focus
+    //      back to the Choose-file button if a stray claim from
+    //      an avatar tile sneaks through.
+    React.useEffect(() => {
+        const modalRoot = () =>
+            document.querySelector('[data-testid="avatar-uploader"]');
+
+        // Build the linear order of focusable buttons: Cancel →
+        // Choose → (Save).  Save only exists once a preview is
+        // loaded so we look it up live.
+        const buttons = () => {
+            const list = [cancelBtnRef.current, pickBtnRef.current];
+            if (saveBtnRef.current) list.push(saveBtnRef.current);
+            return list.filter(Boolean);
+        };
+
+        const onKeyArrows = (e) => {
+            if (
+                e.key !== 'ArrowLeft' &&
+                e.key !== 'ArrowRight' &&
+                e.key !== 'ArrowUp' &&
+                e.key !== 'ArrowDown'
+            ) {
+                return;
+            }
+            const root = modalRoot();
+            if (!root) return;
+            const active = document.activeElement;
+            const order = buttons();
+            if (!order.length) return;
+            e.preventDefault();
+            e.stopPropagation();
+            // Find current index; default to first button if focus
+            // has already escaped the modal.
+            let idx = order.indexOf(active);
+            if (idx < 0) idx = 0;
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                idx = (idx - 1 + order.length) % order.length;
+            } else {
+                idx = (idx + 1) % order.length;
+            }
+            const target = order[idx];
+            try { target.focus({ preventScroll: true }); }
+            catch { /* ignore */ }
+            // Refresh the data-focused marker on the new target so
+            // the focus ring repaints immediately.
+            document
+                .querySelectorAll('[data-testid="avatar-uploader"] [data-focused="true"]')
+                .forEach((el) => {
+                    if (el !== target) el.removeAttribute('data-focused');
+                });
+            target.setAttribute('data-focused', 'true');
+        };
+
+        const onFocusInCapture = (e) => {
+            const root = modalRoot();
+            if (!root) return;
+            if (!e.target || !root.contains(e.target)) {
+                const fallback = pickBtnRef.current || cancelBtnRef.current;
+                if (!fallback) return;
+                try { fallback.focus({ preventScroll: true }); }
+                catch { /* ignore */ }
+                fallback.setAttribute('data-focused', 'true');
+            }
+        };
+
+        const onKeyBack = (e) => {
+            if (e.key === 'Escape' || e.key === 'Backspace') {
+                e.preventDefault();
+                e.stopPropagation();
+                onCancel();
+            }
+        };
+
+        window.addEventListener('keydown', onKeyArrows, true);
+        window.addEventListener('keydown', onKeyBack, true);
+        document.addEventListener('focusin', onFocusInCapture, true);
+        return () => {
+            window.removeEventListener('keydown', onKeyArrows, true);
+            window.removeEventListener('keydown', onKeyBack, true);
+            document.removeEventListener('focusin', onFocusInCapture, true);
+        };
+    }, [onCancel]);
+
+    // v2.10.28 — Imperatively focus the Choose-file button on
+    // mount.  Multiple retries defeat the in-flight Enter release
+    // from the long-press / click that opened the modal AND the
+    // global spatial-focus hook re-claiming focus on a tile
+    // behind the backdrop.
+    React.useEffect(() => {
+        const grab = () => {
+            // Strip stale data-focused from anything OUTSIDE the
+            // modal so the user only sees one focus ring.
+            const modal = document.querySelector('[data-testid="avatar-uploader"]');
+            document
+                .querySelectorAll('[data-focused="true"]')
+                .forEach((el) => {
+                    if (!modal || !modal.contains(el))
+                        el.removeAttribute('data-focused');
+                });
+            const target = pickBtnRef.current;
+            if (!target) return;
+            try { target.focus({ preventScroll: true }); }
+            catch { /* ignore */ }
+            target.setAttribute('data-focused', 'true');
+        };
+        // Sync + rAF + delayed retries — defeat any race against
+        // the Enter-release that opened the modal.
+        grab();
+        const raf = requestAnimationFrame(grab);
+        const t1 = setTimeout(grab, 50);
+        const t2 = setTimeout(grab, 150);
+        return () => {
+            cancelAnimationFrame(raf);
+            clearTimeout(t1);
+            clearTimeout(t2);
+        };
+    }, []);
+
+    return (
+        <div
+            data-testid="avatar-uploader"
+            role="dialog"
+            aria-modal="true"
+            style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(6, 8, 15, 0.92)',
+                zIndex: 9000,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 32,
+            }}
+        >
+            <div
+                className="vesper-glass"
+                style={{
+                    width: 'min(680px, 92vw)',
+                    borderRadius: 18,
+                    padding: '32px 36px',
+                    border: '1px solid rgba(255, 195, 80, 0.35)',
+                    boxShadow: '0 24px 60px -16px rgba(0,0,0,0.8)',
+                    background: 'linear-gradient(140deg, rgba(20,12,4,0.95), rgba(6,8,15,0.92))',
+                }}
+            >
+                <div
+                    className="vesper-mono"
+                    style={{
+                        fontSize: 11,
+                        letterSpacing: '0.32em',
+                        textTransform: 'uppercase',
+                        color: '#FFC350',
+                        marginBottom: 6,
+                    }}
+                >
+                    Upload your own
+                </div>
+                <h2
+                    style={{
+                        fontSize: 28,
+                        fontWeight: 700,
+                        margin: 0,
+                        marginBottom: 18,
+                        color: '#FFFFFF',
+                    }}
+                >
+                    Pick a custom avatar
+                </h2>
+
+                <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start' }}>
+                    {/* Preview circle (or placeholder). */}
+                    <div
+                        style={{
+                            width: 160,
+                            height: 160,
+                            borderRadius: '50%',
+                            overflow: 'hidden',
+                            background:
+                                'radial-gradient(circle at 30% 30%, rgba(255,195,80,0.18), rgba(0,0,0,0.6))',
+                            border: '2px dashed rgba(255,195,80,0.55)',
+                            flexShrink: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            position: 'relative',
+                        }}
+                    >
+                        {preview ? (
+                            <img
+                                src={preview.dataUrl}
+                                alt="preview"
+                                style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'cover',
+                                }}
+                            />
+                        ) : busy ? (
+                            <Loader2
+                                size={48}
+                                strokeWidth={1.6}
+                                color="#FFC350"
+                                style={{
+                                    animation: 'vesperSpin 0.9s linear infinite',
+                                }}
+                            />
+                        ) : (
+                            <Upload size={48} strokeWidth={1.4} color="#FFC350" />
+                        )}
+                        {/* v2.10.29 — Animated badge in the corner
+                            of the preview when the result includes
+                            motion (GIF or processed video). */}
+                        {preview?.animated && (
+                            <div
+                                style={{
+                                    position: 'absolute',
+                                    bottom: 6,
+                                    right: 6,
+                                    background: 'rgba(255, 195, 80, 0.95)',
+                                    color: '#06080F',
+                                    fontSize: 9,
+                                    fontWeight: 800,
+                                    letterSpacing: '0.06em',
+                                    padding: '2px 6px',
+                                    borderRadius: 6,
+                                    textTransform: 'uppercase',
+                                }}
+                            >
+                                Animated
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Instructions + actions. */}
+                    <div style={{ flex: 1 }}>
+                        <ul
+                            style={{
+                                listStyle: 'none',
+                                padding: 0,
+                                margin: 0,
+                                fontSize: 14,
+                                lineHeight: 1.7,
+                                color: 'rgba(255,255,255,0.82)',
+                            }}
+                        >
+                            <li>
+                                <strong style={{ color: '#FFC350' }}>•</strong>{' '}
+                                <strong>Upload any photo</strong> — we&apos;ll resize &amp; crop it to a 512×512 circle automatically
+                            </li>
+                            <li>
+                                <strong style={{ color: '#FFC350' }}>•</strong>{' '}
+                                <strong>Upload a short video</strong> (up to 3 s) and we&apos;ll turn it into an animated avatar
+                            </li>
+                            <li>
+                                <strong style={{ color: '#FFC350' }}>•</strong>{' '}
+                                Animated GIFs work too — they loop forever
+                            </li>
+                            <li>
+                                <strong style={{ color: '#FFC350' }}>•</strong>{' '}
+                                Supports: PNG, JPEG, WebP, GIF, MP4, WebM, MOV
+                            </li>
+                            <li style={{ marginTop: 10, color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>
+                                Saved with your profile — survives backup &amp; restore on a new device.
+                            </li>
+                            {busy && progress !== null && (
+                                <li
+                                    style={{
+                                        marginTop: 12,
+                                        padding: '10px 12px',
+                                        background: 'rgba(255, 195, 80, 0.10)',
+                                        border: '1px solid rgba(255, 195, 80, 0.32)',
+                                        borderRadius: 8,
+                                        color: 'rgba(255, 230, 180, 0.95)',
+                                        fontSize: 12,
+                                        lineHeight: 1.5,
+                                    }}
+                                    data-testid="avatar-upload-progress"
+                                >
+                                    <strong style={{ color: '#FFC350' }}>
+                                        Converting video to animated avatar…
+                                    </strong>
+                                    <div
+                                        style={{
+                                            marginTop: 6,
+                                            height: 6,
+                                            background: 'rgba(255,255,255,0.08)',
+                                            borderRadius: 3,
+                                            overflow: 'hidden',
+                                        }}
+                                    >
+                                        <div
+                                            style={{
+                                                width: `${Math.round(progress * 100)}%`,
+                                                height: '100%',
+                                                background: '#FFC350',
+                                                transition: 'width 120ms linear',
+                                            }}
+                                        />
+                                    </div>
+                                </li>
+                            )}
+                            {busy && progress === null && (
+                                <li
+                                    style={{
+                                        marginTop: 12,
+                                        color: 'rgba(255, 230, 180, 0.95)',
+                                        fontSize: 12,
+                                    }}
+                                    data-testid="avatar-upload-progress"
+                                >
+                                    <strong style={{ color: '#FFC350' }}>Resizing…</strong>{' '}
+                                    Cropping to a 512×512 circle.
+                                </li>
+                            )}
+                        </ul>
+
+                        {error && (
+                            <div
+                                style={{
+                                    marginTop: 14,
+                                    padding: '10px 12px',
+                                    borderRadius: 8,
+                                    background: 'rgba(244, 67, 54, 0.14)',
+                                    color: '#FCA5A5',
+                                    fontSize: 13,
+                                    border: '1px solid rgba(244, 67, 54, 0.4)',
+                                }}
+                            >
+                                {error}
+                            </div>
+                        )}
+
+                        <input
+                            ref={fileRef}
+                            type="file"
+                            accept={AVATAR_ACCEPT}
+                            onChange={onFile}
+                            style={{ display: 'none' }}
+                            data-testid="avatar-upload-file-input"
+                        />
+                    </div>
+                </div>
+
+                {/* Action buttons */}
+                <div
+                    style={{
+                        display: 'flex',
+                        gap: 12,
+                        marginTop: 28,
+                        justifyContent: 'flex-end',
+                    }}
+                >
+                    <button
+                        ref={cancelBtnRef}
+                        data-testid="avatar-upload-cancel"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={onCancel}
+                        className="vesper-btn-ghost"
+                        style={{
+                            padding: '12px 22px',
+                            borderRadius: 10,
+                            border: '1px solid rgba(255,255,255,0.15)',
+                            background: 'transparent',
+                            color: 'rgba(255,255,255,0.78)',
+                            cursor: 'pointer',
+                            fontSize: 14,
+                            fontWeight: 600,
+                        }}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        ref={pickBtnRef}
+                        data-testid="avatar-upload-pick"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={onPick}
+                        disabled={busy}
+                        style={{
+                            padding: '12px 22px',
+                            borderRadius: 10,
+                            border: '1px solid rgba(255,195,80,0.5)',
+                            background: 'rgba(255,195,80,0.16)',
+                            color: '#FFC350',
+                            cursor: busy ? 'wait' : 'pointer',
+                            fontSize: 14,
+                            fontWeight: 700,
+                            opacity: busy ? 0.6 : 1,
+                        }}
+                    >
+                        {busy
+                            ? progress !== null
+                                ? `Converting… ${Math.round((progress || 0) * 100)}%`
+                                : 'Processing…'
+                            : preview
+                              ? 'Choose different file'
+                              : 'Choose file'}
+                    </button>
+                    {preview && (
+                        <button
+                            ref={saveBtnRef}
+                            data-testid="avatar-upload-save"
+                            data-focusable="true"
+                            data-focus-style="pill"
+                            tabIndex={0}
+                            onClick={onConfirm}
+                            style={{
+                                padding: '12px 26px',
+                                borderRadius: 10,
+                                border: 'none',
+                                background: 'var(--vesper-blue, #5DC8FF)',
+                                color: '#06080F',
+                                cursor: 'pointer',
+                                fontSize: 14,
+                                fontWeight: 800,
+                                letterSpacing: '0.04em',
+                            }}
+                        >
+                            Save avatar
+                        </button>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+
+function ChipRow({ label, group, value, onSet, swatches }) {
+    const options = AVATAR_BUILDER_OPTIONS[group] || [];
+    return (
+        <div data-builder-row="true">
+            <div
+                className="vesper-mono"
+                style={{
+                    fontSize: 10,
+                    letterSpacing: '0.28em',
+                    color: 'var(--vesper-text-3)',
+                    textTransform: 'uppercase',
+                    marginBottom: 8,
+                    marginLeft: 4,
+                }}
+            >
+                {label}
+            </div>
+            <div
+                className="vesper-shelf flex"
+                style={{
+                    gap: 10,
+                    overflowX: 'auto',
+                    paddingLeft: 4,
+                    paddingRight: 16,
+                    paddingTop: 4,
+                    paddingBottom: 8,
+                }}
+            >
+                {options.map((opt) => {
+                    const active = opt === value;
+                    return (
+                        <button
+                            key={opt}
+                            data-testid={`build-chip-${group}-${opt}`}
+                            data-focusable="true"
+                            data-focus-style="pill"
+                            tabIndex={0}
+                            onClick={() => onSet(opt)}
+                            className="shrink-0 rounded-full"
+                            style={{
+                                height: swatches ? 44 : 36,
+                                minWidth: swatches ? 44 : undefined,
+                                padding: swatches ? 0 : '0 14px',
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: active
+                                    ? 'var(--vesper-bg-0)'
+                                    : 'var(--vesper-text)',
+                                background: swatches
+                                    ? `#${opt}`
+                                    : active
+                                    ? 'var(--vesper-blue)'
+                                    : 'rgba(255,255,255,0.06)',
+                                border: active
+                                    ? `2px solid var(--vesper-blue-bright)`
+                                    : '1px solid rgba(255,255,255,0.12)',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                // Sticky preview is ~220 px tall.
+                                // Scroll-margin-top pushes chips
+                                // safely below it; scroll-margin
+                                // sides keep horizontally-focused
+                                // chips a comfortable distance
+                                // from the row edges.
+                                scrollMarginTop: 240,
+                                scrollMarginBottom: 60,
+                                scrollMarginLeft: 200,
+                                scrollMarginRight: 60,
+                            }}
+                        >
+                            {swatches ? '' : opt}
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+
+
+function ProfilePinField({ pin, onChange }) {
+    const [enabled, setEnabled] = useState(pin.length === 4);
+    const [digits, setDigits] = useState(() => {
+        const arr = ['', '', '', ''];
+        for (let i = 0; i < Math.min(pin.length, 4); i++) arr[i] = pin[i];
+        return arr;
+    });
+    const refs = useRef([]);
+
+    const sync = (next) => {
+        setDigits(next);
+        const joined = next.join('');
+        onChange(joined.length === 4 ? joined : '');
+    };
+
+    const onDigit = (i, val) => {
+        const v = val.replace(/[^\d]/g, '').slice(-1);
+        const next = [...digits];
+        next[i] = v;
+        sync(next);
+        if (v && i < 3) refs.current[i + 1]?.focus();
+    };
+
+    const toggle = () => {
+        const nextEnabled = !enabled;
+        setEnabled(nextEnabled);
+        if (!nextEnabled) {
+            sync(['', '', '', '']);
+        } else {
+            setTimeout(() => refs.current[0]?.focus(), 80);
+        }
+    };
+
+    return (
+        <section
+            data-testid="profile-pin-section"
+            className="mb-10"
+            style={{
+                padding: '20px 22px',
+                borderRadius: 16,
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.10)',
+            }}
+        >
+            <div className="flex items-center justify-between mb-3">
+                <div>
+                    <div
+                        className="vesper-mono"
+                        style={{
+                            fontSize: 11,
+                            letterSpacing: '0.22em',
+                            color: 'var(--vesper-text-3)',
+                            textTransform: 'uppercase',
+                        }}
+                    >
+                        Profile lock
+                    </div>
+                    <div
+                        className="vesper-display"
+                        style={{
+                            fontSize: 20,
+                            letterSpacing: '-0.015em',
+                            marginTop: 4,
+                        }}
+                    >
+                        {enabled ? 'PIN required to enter' : 'No PIN (open access)'}
+                    </div>
+                    <div
+                        style={{
+                            color: 'var(--vesper-text-2)',
+                            fontSize: 13,
+                            marginTop: 4,
+                            maxWidth: 540,
+                        }}
+                    >
+                        Add a 4-digit PIN so the kids (or anyone else) can&apos;t
+                        switch into this profile without you.
+                    </div>
+                </div>
+                <button
+                    data-testid="profile-pin-toggle"
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
+                    onClick={toggle}
+                    className="flex items-center gap-2 rounded-full"
+                    style={{
+                        height: 40,
+                        padding: '0 16px',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        background: enabled
+                            ? 'var(--vesper-blue)'
+                            : 'rgba(255,255,255,0.08)',
+                        color: enabled
+                            ? 'var(--vesper-bg-0)'
+                            : 'var(--vesper-text-2)',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                    }}
+                >
+                    {enabled ? (
+                        <Lock size={14} strokeWidth={2.4} />
+                    ) : (
+                        <Unlock size={14} strokeWidth={2} />
+                    )}
+                    {enabled ? 'PIN on' : 'Set a PIN'}
+                </button>
+            </div>
+
+            {enabled && (
+                <div className="flex gap-3 mt-3">
+                    {digits.map((d, i) => (
+                        <input
+                            key={i}
+                            data-testid={`profile-pin-${i}`}
+                            data-focusable="true"
+                            data-focus-style="pill"
+                            ref={(el) => (refs.current[i] = el)}
+                            type="tel"
+                            inputMode="numeric"
+                            maxLength={1}
+                            value={d}
+                            onChange={(e) => onDigit(i, e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Backspace' && !d && i > 0)
+                                    refs.current[i - 1]?.focus();
+                            }}
+                            className="text-center"
+                            style={{
+                                width: 56,
+                                height: 64,
+                                fontSize: 28,
+                                fontWeight: 700,
+                                borderRadius: 12,
+                                background: 'rgba(255,255,255,0.06)',
+                                border: '1px solid rgba(255,255,255,0.18)',
+                                color: 'var(--vesper-text)',
+                                outline: 'none',
+                            }}
+                        />
+                    ))}
+                </div>
+            )}
+        </section>
+    );
+}
+
+
+
+/* ------------------------- Confirmation modals ------------------------- */
+
+function ConfirmModal({
+    testId,
+    eyebrow,
+    title,
+    body,
+    yesLabel,
+    noLabel,
+    onYes,
+    onNo,
+    accent = 'var(--vesper-blue-bright)',
+    children,
+}) {
+    const noBtnRef = React.useRef(null);
+    const yesBtnRef = React.useRef(null);
+    // Close on Escape / Backspace (mapped to TV remote Back).
+    React.useEffect(() => {
+        const onKey = (e) => {
+            if (e.key === 'Escape' || e.key === 'Backspace') {
+                e.preventDefault();
+                e.stopPropagation();
+                onNo();
+            }
+        };
+        window.addEventListener('keydown', onKey, true);
+        return () => window.removeEventListener('keydown', onKey, true);
+    }, [onNo]);
+
+    // v2.10.18 — TRUE focus trap on the modal's two buttons.
+    //
+    // User report: "when it has the little popup there saying Save
+    // or Skip, just make sure that the focus stays inside that box,
+    // 'cause right now it doesn't stay inside that box".
+    //
+    // Two prongs to fix this — both required, neither one alone
+    // is enough:
+    //
+    //   1. **Key intercept (capture-phase)** — when focus is
+    //      inside the modal, ANY ArrowLeft / ArrowRight / ArrowUp /
+    //      ArrowDown is consumed before the global spatial-focus
+    //      hook sees it.  Left bounces to No, Right bounces to
+    //      Yes, Up/Down are no-ops (modal has no vertical
+    //      neighbours).  This stops focus from escaping in the
+    //      first place.
+    //
+    //   2. **`focusin` rubber-band (capture-phase)** — defensive
+    //      backstop.  If a stray focus claim from a tile behind
+    //      the backdrop *does* fire (e.g. a deferred lazy-fetch
+    //      grabs focus), we instantly slam it back to the No
+    //      button.  Belt and braces.
+    React.useEffect(() => {
+        const modalRoot = () =>
+            document.querySelector(`[data-testid="${testId}"]`);
+
+        const onKeyArrows = (e) => {
+            if (
+                e.key !== 'ArrowLeft' &&
+                e.key !== 'ArrowRight' &&
+                e.key !== 'ArrowUp' &&
+                e.key !== 'ArrowDown'
+            ) {
+                return;
+            }
+            const root = modalRoot();
+            if (!root) return;
+            // If the active element isn't even inside the modal,
+            // something has already gone wrong — fix it now and
+            // swallow the key.
+            const active = document.activeElement;
+            if (!active || !root.contains(active)) {
+                e.preventDefault();
+                e.stopPropagation();
+                try { noBtnRef.current?.focus({ preventScroll: true }); }
+                catch { /* ignore */ }
+                noBtnRef.current?.setAttribute('data-focused', 'true');
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            const target =
+                e.key === 'ArrowLeft' || e.key === 'ArrowUp'
+                    ? noBtnRef.current
+                    : yesBtnRef.current;
+            if (!target) return;
+            try { target.focus({ preventScroll: true }); }
+            catch { /* ignore */ }
+            // Repaint the focus ring immediately on the new
+            // button and strip it from any other modal button.
+            document
+                .querySelectorAll(`[data-testid="${testId}"] [data-focused="true"]`)
+                .forEach((el) => {
+                    if (el !== target) el.removeAttribute('data-focused');
+                });
+            target.setAttribute('data-focused', 'true');
+        };
+
+        const onFocusInCapture = (e) => {
+            const root = modalRoot();
+            if (!root) return;
+            if (!e.target || !root.contains(e.target)) {
+                // Stolen.  Slam it back to No.
+                const fallback = noBtnRef.current;
+                if (!fallback) return;
+                try { fallback.focus({ preventScroll: true }); }
+                catch { /* ignore */ }
+                fallback.setAttribute('data-focused', 'true');
+            }
+        };
+
+        window.addEventListener('keydown', onKeyArrows, true);
+        document.addEventListener('focusin', onFocusInCapture, true);
+        return () => {
+            window.removeEventListener('keydown', onKeyArrows, true);
+            document.removeEventListener('focusin', onFocusInCapture, true);
+        };
+    }, [testId]);
+
+    // Imperatively focus the No / Cancel button on mount.  The
+    // global `data-initial-focus` retry only runs at app boot, so
+    // without this the modal opens with focus lingering on whatever
+    // tile was last focused behind it — exactly the "currently it's
+    // not focusing on anything" the user reported.  We call several
+    // times (sync + rAF + 50/150 ms) to defeat the in-flight Enter
+    // release from the long-press / click that opened the modal.
+    React.useEffect(() => {
+        const grab = () => {
+            const btn = noBtnRef.current;
+            if (!btn) return;
+            // Clear data-focused from everything outside the modal.
+            const modal = document.querySelector(`[data-testid="${testId}"]`);
+            document
+                .querySelectorAll('[data-focused="true"]')
+                .forEach((el) => {
+                    if (!modal || !modal.contains(el))
+                        el.removeAttribute('data-focused');
+                });
+            try {
+                btn.focus({ preventScroll: true });
+            } catch {
+                /* ignore */
+            }
+            btn.setAttribute('data-focused', 'true');
+        };
+        grab();
+        const r = requestAnimationFrame(grab);
+        const t1 = setTimeout(grab, 50);
+        const t2 = setTimeout(grab, 150);
+        return () => {
+            cancelAnimationFrame(r);
+            clearTimeout(t1);
+            clearTimeout(t2);
+        };
+    }, [testId]);
+
+    return (
+        <div
+            data-testid={testId}
+            className="fixed inset-0 z-[70] flex items-center justify-center"
+            style={{
+                background: 'rgba(6,8,15,0.78)',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+                padding: 24,
+            }}
+            onClick={(e) => {
+                if (e.target === e.currentTarget) onNo();
+            }}
+        >
+            <div
+                className="flex flex-col items-center"
+                style={{
+                    background: 'rgba(11,19,34,0.96)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: 24,
+                    padding: '36px 52px 32px',
+                    minWidth: 420,
+                    maxWidth: 540,
+                    boxShadow:
+                        '0 30px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(var(--vesper-blue-rgb),0.18)',
+                }}
+            >
+                {children}
+                <div
+                    className="vesper-mono"
+                    style={{
+                        fontSize: 11,
+                        letterSpacing: '0.32em',
+                        color: accent,
+                        textTransform: 'uppercase',
+                        marginBottom: 6,
+                    }}
+                >
+                    {eyebrow}
+                </div>
+                <h2
+                    className="vesper-display"
+                    style={{
+                        fontSize: 'clamp(22px, 2.2vw, 30px)',
+                        letterSpacing: '-0.02em',
+                        lineHeight: 1.15,
+                        textAlign: 'center',
+                        marginBottom: 10,
+                    }}
+                >
+                    {title}
+                </h2>
+                {body && (
+                    <p
+                        style={{
+                            color: 'var(--vesper-text-2)',
+                            fontSize: 14,
+                            lineHeight: 1.5,
+                            textAlign: 'center',
+                            marginBottom: 24,
+                            maxWidth: 360,
+                        }}
+                    >
+                        {body}
+                    </p>
+                )}
+                <div className="flex" style={{ gap: 12 }}>
+                    <button
+                        ref={noBtnRef}
+                        data-testid={`${testId}-no`}
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        data-initial-focus="true"
+                        tabIndex={0}
+                        onClick={onNo}
+                        className="rounded-full font-sans font-semibold"
+                        style={{
+                            height: 48,
+                            padding: '0 26px',
+                            fontSize: 15,
+                            background: 'rgba(255,255,255,0.10)',
+                            color: 'var(--vesper-text)',
+                            border: '1px solid rgba(255,255,255,0.16)',
+                        }}
+                    >
+                        {noLabel}
+                    </button>
+                    <button
+                        ref={yesBtnRef}
+                        data-testid={`${testId}-yes`}
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={onYes}
+                        className="rounded-full font-sans font-semibold"
+                        style={{
+                            height: 48,
+                            padding: '0 26px',
+                            fontSize: 15,
+                            background: 'var(--vesper-blue)',
+                            color: 'var(--vesper-bg-0)',
+                            border: 'none',
+                            boxShadow:
+                                '0 8px 24px rgba(var(--vesper-blue-rgb),0.35)',
+                        }}
+                    >
+                        {yesLabel}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function SaveAvatarConfirm({ avatarId, onYes, onNo }) {
+    return (
+        <ConfirmModal
+            testId="save-avatar-confirm"
+            eyebrow="New avatar"
+            title="Save this as your icon?"
+            body="This will be the picture next to your name on the profile screen."
+            yesLabel="Yes, save"
+            noLabel="No"
+            onYes={onYes}
+            onNo={onNo}
+        >
+            <div style={{ marginBottom: 18 }}>
+                <AvatarCircle avatarId={avatarId} size={92} />
+            </div>
+        </ConfirmModal>
+    );
+}
+
+function AddPasswordPrompt({ onYes, onNo }) {
+    return (
+        <ConfirmModal
+            testId="add-password-prompt"
+            eyebrow="Profile lock"
+            title="Add a PIN to this profile?"
+            body="A 4-digit PIN keeps your profile private. You can skip it now and add one later from the profile screen."
+            yesLabel="Yes, add a PIN"
+            noLabel="Skip"
+            onYes={onYes}
+            onNo={onNo}
+        >
+            <div
+                style={{
+                    width: 76,
+                    height: 76,
+                    borderRadius: 999,
+                    background: 'rgba(var(--vesper-blue-rgb), 0.16)',
+                    border: '1px solid rgba(var(--vesper-blue-rgb), 0.5)',
+                    color: 'var(--vesper-blue-bright)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 18,
+                }}
+            >
+                <Lock size={30} strokeWidth={2} />
+            </div>
+        </ConfirmModal>
+    );
+}
+
+function AutoplayPrompt({ onYes, onNo }) {
+    return (
+        <ConfirmModal
+            testId="autoplay-prompt"
+            eyebrow="Playback · Step 5 of 6"
+            title="Auto play streams?"
+            body="When you tap Play, we'll skip the source list and instantly start the best available stream.  You can change this any time in Settings."
+            yesLabel="Yes, auto play"
+            noLabel="Skip"
+            onYes={onYes}
+            onNo={onNo}
+        >
+            <div
+                style={{
+                    width: 76,
+                    height: 76,
+                    borderRadius: 999,
+                    background: 'rgba(var(--vesper-blue-rgb), 0.16)',
+                    border: '1px solid rgba(var(--vesper-blue-rgb), 0.5)',
+                    color: 'var(--vesper-blue-bright)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 18,
+                }}
+            >
+                <Play size={28} strokeWidth={2} fill="currentColor" />
+            </div>
+        </ConfirmModal>
+    );
+}
+
+
+
+/**
+ * Focused 4-digit PIN entry modal that appears when the user
+ * answers "Yes, add a PIN" on the AddPasswordPrompt.  Auto-advances
+ * between digits as the user types, and the Save button enables
+ * only when all 4 digits are filled.  When Save fires, the parent
+ * persists the profile with the new PIN and flashes a toast.
+ */
+function EnterPinModal({ onCancel, onSave }) {
+    const [pinStr, setPinStr] = React.useState('');
+
+    React.useEffect(() => {
+        const onKey = (e) => {
+            if (e.key === 'Escape' || e.key === 'Backspace') {
+                if (e.key === 'Backspace' && pinStr.length > 0) {
+                    return;
+                }
+                e.preventDefault();
+                e.stopPropagation();
+                onCancel();
+            }
+        };
+        window.addEventListener('keydown', onKey, true);
+        return () => window.removeEventListener('keydown', onKey, true);
+    }, [onCancel, pinStr]);
+
+    const canSave = pinStr.length === 4;
+
+    return (
+        <div
+            data-testid="enter-pin-modal"
+            className="fixed inset-0 z-[70] flex items-center justify-center"
+            style={{
+                background: 'rgba(6,8,15,0.78)',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+                padding: 24,
+            }}
+            onClick={(e) => {
+                if (e.target === e.currentTarget) onCancel();
+            }}
+        >
+            <div
+                className="flex flex-col items-center"
+                style={{
+                    background: 'rgba(11,19,34,0.96)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: 24,
+                    padding: '28px 52px 28px',
+                    minWidth: 480,
+                    boxShadow:
+                        '0 30px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(var(--vesper-blue-rgb),0.18)',
+                }}
+            >
+                <div
+                    style={{
+                        width: 64,
+                        height: 64,
+                        borderRadius: 999,
+                        background: 'rgba(var(--vesper-blue-rgb),0.16)',
+                        border: '1px solid rgba(var(--vesper-blue-rgb),0.5)',
+                        color: 'var(--vesper-blue-bright)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: 12,
+                    }}
+                >
+                    <Lock size={26} strokeWidth={2} />
+                </div>
+                <div
+                    className="vesper-mono"
+                    style={{
+                        fontSize: 11,
+                        letterSpacing: '0.32em',
+                        color: 'var(--vesper-blue-bright)',
+                        textTransform: 'uppercase',
+                        marginBottom: 4,
+                    }}
+                >
+                    Set profile PIN
+                </div>
+                <h2
+                    className="vesper-display"
+                    style={{
+                        fontSize: 'clamp(20px, 2vw, 26px)',
+                        letterSpacing: '-0.02em',
+                        lineHeight: 1.15,
+                        textAlign: 'center',
+                        marginBottom: 14,
+                    }}
+                >
+                    Enter a 4-digit PIN
+                </h2>
+
+                {/* Display-only digit boxes — values come from the
+                    TVKeyboard below, NOT the Android IME. */}
+                <div className="flex" style={{ gap: 12, marginBottom: 16 }}>
+                    {[0, 1, 2, 3].map((i) => (
+                        <div
+                            key={i}
+                            data-testid={`enter-pin-${i}`}
+                            className="vesper-display flex items-center justify-center"
+                            style={{
+                                width: 56,
+                                height: 64,
+                                borderRadius: 14,
+                                background: 'rgba(255,255,255,0.06)',
+                                border: `1px solid ${
+                                    pinStr.length === i
+                                        ? 'rgba(var(--vesper-blue-rgb),0.6)'
+                                        : 'rgba(255,255,255,0.14)'
+                                }`,
+                                color: 'var(--vesper-text)',
+                                fontSize: 28,
+                                boxShadow:
+                                    pinStr.length === i
+                                        ? '0 0 0 3px rgba(var(--vesper-blue-rgb),0.15)'
+                                        : 'none',
+                            }}
+                        >
+                            {pinStr[i] ? '•' : ''}
+                        </div>
+                    ))}
+                </div>
+
+                <div style={{ width: 280, marginBottom: 18 }}>
+                    <TVKeyboard
+                        value={pinStr}
+                        onChange={(v) => setPinStr(v.slice(0, 4))}
+                        onSubmit={() => {
+                            if (canSave) onSave(pinStr);
+                        }}
+                        maxLength={4}
+                        variant="pin"
+                    />
+                </div>
+
+                <div className="flex" style={{ gap: 12 }}>
+                    <button
+                        data-testid="enter-pin-cancel"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={onCancel}
+                        className="rounded-full font-sans font-semibold"
+                        style={{
+                            height: 44,
+                            padding: '0 22px',
+                            fontSize: 14,
+                            background: 'rgba(255,255,255,0.10)',
+                            color: 'var(--vesper-text)',
+                            border: '1px solid rgba(255,255,255,0.16)',
+                        }}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        data-testid="enter-pin-save"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        disabled={!canSave}
+                        onClick={() => canSave && onSave(pinStr)}
+                        className="rounded-full font-sans font-semibold"
+                        style={{
+                            height: 44,
+                            padding: '0 22px',
+                            fontSize: 14,
+                            background: canSave
+                                ? 'var(--vesper-blue)'
+                                : 'rgba(var(--vesper-blue-rgb),0.35)',
+                            color: 'var(--vesper-bg-0)',
+                            border: 'none',
+                            boxShadow: canSave
+                                ? '0 8px 24px rgba(var(--vesper-blue-rgb),0.35)'
+                                : 'none',
+                            opacity: canSave ? 1 : 0.6,
+                            cursor: canSave ? 'pointer' : 'not-allowed',
+                        }}
+                    >
+                        OK, save PIN
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/**
+ * Small confirmation pill that flashes at the bottom of the
+ * screen after the PIN is persisted, so the user knows it took.
+ */
+function PinSavedToast() {
+    return (
+        <div
+            data-testid="pin-saved-toast"
+            className="fixed inset-x-0 z-[80] flex justify-center"
+            style={{ bottom: 48, pointerEvents: 'none' }}
+        >
+            <div
+                className="flex items-center gap-3 rounded-full"
+                style={{
+                    padding: '12px 22px',
+                    background: 'rgba(11,19,34,0.96)',
+                    border: '1px solid rgba(var(--vesper-blue-rgb),0.45)',
+                    boxShadow:
+                        '0 8px 28px rgba(0,0,0,0.45), 0 0 0 1px rgba(var(--vesper-blue-rgb),0.2)',
+                }}
+            >
+                <span
+                    className="flex items-center justify-center rounded-full"
+                    style={{
+                        width: 26,
+                        height: 26,
+                        background: 'var(--vesper-blue)',
+                        color: 'var(--vesper-bg-0)',
+                    }}
+                >
+                    <Check size={14} strokeWidth={3} />
+                </span>
+                <span
+                    className="font-sans font-semibold"
+                    style={{ fontSize: 14, color: 'var(--vesper-text)' }}
+                >
+                    PIN saved
+                </span>
+            </div>
+        </div>
+    );
+}
+

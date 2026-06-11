@@ -1,0 +1,586 @@
+/**
+ * <PartyJoiningScreen/> — the ONE thing the user sees on their
+ * device after they / the host clicks "Start Party" and right up
+ * until the player launches.  Replaces the entire Detail page
+ * (NOT an overlay) so there is literally no picker behind it, no
+ * "Play 1080p" button to confuse the user, no race conditions.
+ *
+ * Cancel / Retry are the only escape hatches and they are both
+ * explicit, deliberate touches — nothing else on the screen reacts
+ * to taps.
+ *
+ * Visual: full-bleed blurred poster as backdrop, neon cyan accent,
+ * monospace progress tags ("PARTY · LOADING STREAM").  Mobile +
+ * TV-safe sizing.
+ */
+import React from 'react';
+import { Loader2, X, RefreshCw } from 'lucide-react';
+import Host from '@/lib/host';
+
+export default function PartyJoiningScreen({
+    title,
+    poster,
+    backdrop,
+    loading,
+    noStreams,
+    onCancel,
+    onRetry,
+    role,                  // 'host' | 'guest'  — controls visual treatment
+}) {
+    const stage = noStreams
+        ? "Couldn't find a stream"
+        : loading
+            ? 'Loading stream from your sources…'
+            : 'Almost there, handing off to the player…';
+
+    const tagText = noStreams ? 'PARTY · NO STREAM' : 'PARTY · LOADING';
+    const tagColor = noStreams ? '#FCA5A5' : '#5DC8FF';
+
+    /* --- GUEST: popcorn cinematic loading screen ------------------
+     *
+     * The user designed this themselves — full-bleed popcorn-bowl
+     * artwork with the cinema spotlight, "Get your popcorn ready,
+     * your WATCH PARTY is about to begin!" copy, and a remote
+     * showing the long-press emoji directions.  It replaces the
+     * standard joining screen for GUESTS only.  Hosts still see the
+     * regular poster-blurred screen with loading status (because
+     * they need to see "Loading stream from your sources" while
+     * their Detail page resolves the URL).
+     *
+     * When status flips from `loading` → handed off to the player,
+     * we keep the popcorn artwork up so the guest never sees a
+     * flash of black / poster before the video starts.  When the
+     * party errors (`noStreams`), we show the same artwork with an
+     * overlaid error chip and the Leave button.
+     * ------------------------------------------------------------ */
+    if (role === 'guest') {
+        return (
+            <div
+                data-testid="party-joining-screen"
+                style={{
+                    position: 'fixed', inset: 0, zIndex: 50,
+                    background: '#020610',
+                    overflow: 'hidden',
+                    color: '#E6EAF2',
+                }}
+            >
+                {/* Full-bleed popcorn artwork.
+                    Object-fit: cover scales it edge-to-edge on TV
+                    1080p and on phones.  The artwork already has the
+                    "your watch party is about to begin" copy + remote
+                    + emoji hint baked in, so we don't overlay any
+                    extra text in normal loading mode.
+
+                    CRITICAL: must use Host.publicAsset() not a raw
+                    '/party/...' path.  In the sideloaded APK the
+                    WebView runs under `file:///android_asset/web/`
+                    so an absolute '/party/...' resolves to the
+                    device filesystem root and 404s — the user saw
+                    a broken-image icon.  publicAsset() resolves
+                    relative to document.baseURI under file://. */}
+                <img
+                    src={Host.publicAsset('party/popcorn-loading.jpg')}
+                    alt=""
+                    aria-hidden="true"
+                    style={{
+                        position: 'absolute',
+                        inset: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        objectPosition: 'center',
+                    }}
+                />
+
+                {/* Bottom-edge gradient so the action chip stays
+                    legible whatever the artwork does at the bottom. */}
+                <div
+                    aria-hidden="true"
+                    style={{
+                        position: 'absolute',
+                        bottom: 0, left: 0, right: 0,
+                        height: '32%',
+                        background:
+                            'linear-gradient(to top, rgba(2,6,16,0.92) 0%, rgba(2,6,16,0) 100%)',
+                        pointerEvents: 'none',
+                    }}
+                />
+
+                {/* No-stream error overlay (only when host couldn't
+                    find anything to play).  Kept tight + central so
+                    the lovely artwork still reads underneath. */}
+                {noStreams && (
+                    <div
+                        style={{
+                            position: 'absolute',
+                            top: '50%', left: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            padding: '18px 24px',
+                            borderRadius: 14,
+                            background: 'rgba(180, 30, 40, 0.85)',
+                            backdropFilter: 'blur(12px)',
+                            WebkitBackdropFilter: 'blur(12px)',
+                            border: '1px solid rgba(255,200,200,0.35)',
+                            color: '#fff',
+                            fontWeight: 700,
+                            letterSpacing: '0.04em',
+                            boxShadow: '0 20px 60px rgba(0,0,0,0.55)',
+                        }}
+                    >
+                        {tagText}: the host couldn't find a stream.
+                    </div>
+                )}
+
+                {/* Tiny status chip — only visible while really still
+                    loading (the artwork itself says "about to begin"
+                    so the chip just adds a discreet pulse so users
+                    know nothing's frozen). */}
+                {!noStreams && (
+                    <div
+                        className="vesper-mono"
+                        style={{
+                            position: 'absolute',
+                            bottom: 'clamp(24px, 4vh, 56px)',
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            padding: '10px 18px',
+                            borderRadius: 999,
+                            background: 'rgba(2,6,16,0.6)',
+                            backdropFilter: 'blur(8px)',
+                            WebkitBackdropFilter: 'blur(8px)',
+                            border: '1px solid rgba(93,200,255,0.35)',
+                            fontSize: 11,
+                            letterSpacing: '0.36em',
+                            color: '#5DC8FF',
+                            fontWeight: 700,
+                        }}
+                    >
+                        <Loader2
+                            className="vesper-spin"
+                            size={12}
+                            style={{ color: '#5DC8FF' }}
+                        />
+                        WAITING FOR HOST
+                    </div>
+                )}
+
+                {/* Leave button (always available).  Bottom-right so
+                    it doesn't clash with the artwork composition. */}
+                <button
+                    data-testid="party-joining-cancel"
+                    data-focusable="true"
+                    tabIndex={0}
+                    onClick={onCancel}
+                    style={{
+                        position: 'absolute',
+                        bottom: 'clamp(20px, 3vh, 32px)',
+                        right: 'clamp(20px, 3vw, 32px)',
+                        height: 44,
+                        padding: '0 18px',
+                        borderRadius: 999,
+                        background: 'rgba(2,6,16,0.55)',
+                        backdropFilter: 'blur(10px)',
+                        WebkitBackdropFilter: 'blur(10px)',
+                        border: '1px solid rgba(255,255,255,0.22)',
+                        color: '#E6EAF2',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        letterSpacing: '0.06em',
+                        textTransform: 'uppercase',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        cursor: 'pointer',
+                    }}
+                >
+                    <X size={14} />
+                    Leave
+                </button>
+            </div>
+        );
+    }
+
+    /* --- HOST: blue host-loading artwork ----------------------
+     *
+     * User feedback: "the host's blue screen showing him how to use
+     * it, that still isn't showing up for the host."  Previously the
+     * host fell through to the legacy poster-blurred screen below
+     * (which exists for desktop test mode + power-users).  Now the
+     * host gets the same full-bleed treatment as the guest — but
+     * with `host-loading.png` (the blue artwork that shows the
+     * D-pad arrow → emoji mapping + 5-button menu hint).  Native
+     * VLC takes over a moment later.
+     * ------------------------------------------------------------ */
+    if (role === 'host') {
+        return (
+            <div
+                data-testid="party-joining-screen"
+                style={{
+                    position: 'fixed', inset: 0, zIndex: 50,
+                    background: '#020610',
+                    overflow: 'hidden',
+                    color: '#E6EAF2',
+                }}
+            >
+                <img
+                    src={Host.publicAsset('party/host-loading.png')}
+                    alt=""
+                    aria-hidden="true"
+                    style={{
+                        position: 'absolute',
+                        inset: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        objectPosition: 'center',
+                    }}
+                />
+                <div
+                    aria-hidden="true"
+                    style={{
+                        position: 'absolute',
+                        bottom: 0, left: 0, right: 0,
+                        height: '32%',
+                        background:
+                            'linear-gradient(to top, rgba(2,6,16,0.92) 0%, rgba(2,6,16,0) 100%)',
+                        pointerEvents: 'none',
+                    }}
+                />
+                {noStreams ? (
+                    <div
+                        style={{
+                            position: 'absolute',
+                            top: '50%', left: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            padding: '18px 24px',
+                            borderRadius: 14,
+                            background: 'rgba(180, 30, 40, 0.85)',
+                            backdropFilter: 'blur(12px)',
+                            WebkitBackdropFilter: 'blur(12px)',
+                            border: '1px solid rgba(255,200,200,0.35)',
+                            color: '#fff',
+                            fontWeight: 700,
+                            letterSpacing: '0.04em',
+                            boxShadow: '0 20px 60px rgba(0,0,0,0.55)',
+                        }}
+                    >
+                        {tagText}: couldn't find a stream.
+                    </div>
+                ) : (
+                    <div
+                        className="vesper-mono"
+                        style={{
+                            position: 'absolute',
+                            bottom: 'clamp(24px, 4vh, 56px)',
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            padding: '10px 18px',
+                            borderRadius: 999,
+                            background: 'rgba(2,6,16,0.6)',
+                            backdropFilter: 'blur(8px)',
+                            WebkitBackdropFilter: 'blur(8px)',
+                            border: '1px solid rgba(93,200,255,0.35)',
+                            fontSize: 11,
+                            letterSpacing: '0.36em',
+                            color: '#5DC8FF',
+                            fontWeight: 700,
+                        }}
+                    >
+                        <Loader2
+                            className="vesper-spin"
+                            size={12}
+                            style={{ color: '#5DC8FF' }}
+                        />
+                        {stage.toUpperCase()}
+                    </div>
+                )}
+                <button
+                    data-testid="party-joining-cancel"
+                    data-focusable="true"
+                    tabIndex={0}
+                    onClick={onCancel}
+                    style={{
+                        position: 'absolute',
+                        bottom: 'clamp(20px, 3vh, 32px)',
+                        right: 'clamp(20px, 3vw, 32px)',
+                        height: 44,
+                        padding: '0 18px',
+                        borderRadius: 999,
+                        background: 'rgba(2,6,16,0.55)',
+                        backdropFilter: 'blur(10px)',
+                        WebkitBackdropFilter: 'blur(10px)',
+                        border: '1px solid rgba(255,255,255,0.22)',
+                        color: '#E6EAF2',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        letterSpacing: '0.06em',
+                        textTransform: 'uppercase',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        cursor: 'pointer',
+                    }}
+                >
+                    <X size={14} />
+                    Cancel
+                </button>
+
+                {/* "PRESS OK FOR MENU" callout — a subtle pulsing
+                    pill that teaches first-time hosts where the
+                    5-button control menu lives.  Only renders when
+                    we're past the loading stage (so we don't pile
+                    text on top of the loading-status pill at the
+                    bottom). */}
+                {!noStreams && (
+                    <div
+                        data-testid="party-joining-host-hint"
+                        className="vesper-mono"
+                        style={{
+                            position: 'absolute',
+                            top: 'clamp(22px, 4vh, 56px)',
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            padding: '10px 18px',
+                            borderRadius: 999,
+                            background: 'rgba(2,6,16,0.65)',
+                            backdropFilter: 'blur(10px)',
+                            WebkitBackdropFilter: 'blur(10px)',
+                            border: '1px solid rgba(93,200,255,0.42)',
+                            fontSize: 11,
+                            letterSpacing: '0.36em',
+                            color: '#5DC8FF',
+                            fontWeight: 800,
+                            animation: 'vesper-party-host-hint-pulse 1.7s ease-in-out infinite',
+                            textTransform: 'uppercase',
+                        }}
+                    >
+                        <span
+                            aria-hidden="true"
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: 22, height: 22,
+                                borderRadius: '50%',
+                                background: '#5DC8FF',
+                                color: '#020610',
+                                fontSize: 10,
+                                fontWeight: 900,
+                                letterSpacing: 0,
+                                boxShadow: '0 0 12px rgba(93,200,255,0.65)',
+                            }}
+                        >
+                            OK
+                        </span>
+                        Press OK for menu
+                    </div>
+                )}
+                <style>{`
+@keyframes vesper-party-host-hint-pulse {
+  0%   { transform: translateX(-50%) scale(1); opacity: 0.92; }
+  50%  { transform: translateX(-50%) scale(1.04); opacity: 1; }
+  100% { transform: translateX(-50%) scale(1); opacity: 0.92; }
+}
+                `}</style>
+            </div>
+        );
+    }
+
+    /* --- Fallback: legacy poster-blur layout (desktop/test) ---- */
+    return (
+        <div
+            data-testid="party-joining-screen"
+            style={{
+                position: 'fixed', inset: 0, zIndex: 50,
+                background: '#06080F',
+                color: '#E6EAF2',
+                overflow: 'hidden',
+            }}
+        >
+            {/* Blurred backdrop poster */}
+            {(backdrop || poster) && (
+                <div
+                    aria-hidden="true"
+                    style={{
+                        position: 'absolute', inset: 0,
+                        backgroundImage: `url(${backdrop || poster})`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        filter: 'blur(24px) brightness(0.45) saturate(1.05)',
+                        transform: 'scale(1.15)',
+                    }}
+                />
+            )}
+            {/* Dark vignette so text is always readable */}
+            <div
+                aria-hidden="true"
+                style={{
+                    position: 'absolute', inset: 0,
+                    background:
+                        'radial-gradient(ellipse 80% 60% at 50% 50%, rgba(6,8,15,0.55) 0%, rgba(6,8,15,0.88) 60%, rgba(6,8,15,0.95) 100%)',
+                }}
+            />
+            {/* Cyan glow accent */}
+            <div
+                aria-hidden="true"
+                style={{
+                    position: 'absolute',
+                    top: '-15%', left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: 720, height: 720, borderRadius: '50%',
+                    background:
+                        'radial-gradient(circle, rgba(93,200,255,0.22) 0%, rgba(93,200,255,0.06) 35%, transparent 65%)',
+                    pointerEvents: 'none',
+                }}
+            />
+
+            <div
+                style={{
+                    position: 'relative',
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '32px 24px',
+                    textAlign: 'center',
+                    gap: 24,
+                }}
+            >
+                {/* Poster card */}
+                {poster && (
+                    <div
+                        style={{
+                            width: 'clamp(140px, 28vw, 220px)',
+                            aspectRatio: '2 / 3',
+                            borderRadius: 18,
+                            backgroundImage: `url(${poster})`,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            boxShadow:
+                                '0 24px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(93,200,255,0.08), 0 0 80px rgba(93,200,255,0.22)',
+                        }}
+                    />
+                )}
+
+                {/* Eyebrow tag */}
+                <div
+                    className="vesper-mono"
+                    style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: '0.36em',
+                        color: tagColor,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 10,
+                    }}
+                >
+                    {!noStreams && (
+                        <Loader2
+                            className="vesper-spin"
+                            size={12}
+                            style={{ color: tagColor }}
+                        />
+                    )}
+                    {tagText}
+                </div>
+
+                {/* Title */}
+                <h1
+                    className="vesper-display"
+                    style={{
+                        fontSize: 'clamp(24px, 4vw, 38px)',
+                        lineHeight: 1.1,
+                        letterSpacing: '-0.01em',
+                        margin: 0,
+                        color: '#fff',
+                        maxWidth: 720,
+                    }}
+                >
+                    {title || 'Your watch party is starting'}
+                </h1>
+
+                {/* Status copy */}
+                <div
+                    style={{
+                        fontSize: 14,
+                        color: '#9DA5B5',
+                        maxWidth: 560,
+                        lineHeight: 1.55,
+                    }}
+                >
+                    {stage}
+                </div>
+
+                {/* Retry / cancel actions */}
+                <div
+                    style={{
+                        marginTop: 18,
+                        display: 'flex',
+                        gap: 12,
+                        flexWrap: 'wrap',
+                        justifyContent: 'center',
+                    }}
+                >
+                    {noStreams && (
+                        <button
+                            data-testid="party-joining-retry"
+                            data-focusable="true"
+                            tabIndex={0}
+                            onClick={onRetry}
+                            style={{
+                                height: 48, padding: '0 22px',
+                                borderRadius: 999,
+                                background: '#5DC8FF',
+                                color: '#06080F',
+                                border: 'none',
+                                fontSize: 14, fontWeight: 800,
+                                letterSpacing: '0.04em',
+                                textTransform: 'uppercase',
+                                display: 'inline-flex',
+                                alignItems: 'center', gap: 8,
+                                cursor: 'pointer',
+                            }}
+                        >
+                            <RefreshCw size={16} />
+                            Retry
+                        </button>
+                    )}
+                    <button
+                        data-testid="party-joining-cancel"
+                        data-focusable="true"
+                        tabIndex={0}
+                        onClick={onCancel}
+                        style={{
+                            height: 48, padding: '0 22px',
+                            borderRadius: 999,
+                            background: 'transparent',
+                            border: '1px solid rgba(255,255,255,0.22)',
+                            color: '#C7CFDB',
+                            fontSize: 13, fontWeight: 600,
+                            letterSpacing: '0.04em',
+                            textTransform: 'uppercase',
+                            display: 'inline-flex',
+                            alignItems: 'center', gap: 8,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <X size={16} />
+                        Leave party
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}

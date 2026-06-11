@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.10 LIVE pill (red) — sits below the channel logo to indicate
+     this stream is live.  Matches the reference design exactly:
+     bright red rounded rectangle with white "LIVE" text. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="4dp" />
+    <solid android:color="#E53935" />
+</shape>

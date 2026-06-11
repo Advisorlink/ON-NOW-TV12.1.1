@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Red gradient LIVE pill — shared by sports guide + EPG row badges. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:startColor="#FF2535"
+        android:endColor="#FF6B7B"
+        android:angle="270" />
+    <corners android:radius="3dp" />
+</shape>

@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Custom exit-confirm sheet — replaces the stock AlertDialog with
+  Vesper's neon-glass aesthetic.  Centred glass card, blue ambient
+  glow behind the logo, two focusable D-pad buttons.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#CC04060B">
+
+    <!-- Soft blue ambient glow behind the card -->
+    <View
+        android:layout_width="600dp"
+        android:layout_height="600dp"
+        android:layout_gravity="center"
+        android:background="@drawable/exit_glow" />
+
+    <LinearLayout
+        android:layout_width="560dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:background="@drawable/exit_card_bg"
+        android:paddingStart="40dp"
+        android:paddingEnd="40dp"
+        android:paddingTop="44dp"
+        android:paddingBottom="36dp"
+        android:elevation="32dp"
+        android:gravity="center_horizontal">
+
+        <!-- Eyebrow -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="ON NOW TV  V2"
+            android:textColor="#5DC8FF"
+            android:textSize="11sp"
+            android:letterSpacing="0.32"
+            android:fontFamily="monospace"
+            android:textAllCaps="true" />
+
+        <!-- Title -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="Close the app?"
+            android:textColor="#FFFFFF"
+            android:textSize="34sp"
+            android:textStyle="bold"
+            android:letterSpacing="-0.02"
+            android:gravity="center" />
+
+        <!-- Subtitle -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="Your Continue Watching list is saved on this box — pick up right where you left off whenever you come back."
+            android:textColor="#A8B5C7"
+            android:textSize="14sp"
+            android:lineSpacingMultiplier="1.45"
+            android:gravity="center" />
+
+        <!-- Divider strip -->
+        <View
+            android:layout_width="56dp"
+            android:layout_height="1dp"
+            android:layout_marginTop="28dp"
+            android:layout_marginBottom="28dp"
+            android:background="#5DC8FF"
+            android:alpha="0.45" />
+
+        <!-- Buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:weightSum="2">
+
+            <Button
+                android:id="@+id/exit_btn_cancel"
+                android:layout_width="0dp"
+                android:layout_height="58dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="10dp"
+                android:text="Stay"
+                android:textAllCaps="false"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:background="@drawable/exit_btn_secondary"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:nextFocusRight="@id/exit_btn_close" />
+
+            <Button
+                android:id="@+id/exit_btn_close"
+                android:layout_width="0dp"
+                android:layout_height="58dp"
+                android:layout_weight="1"
+                android:layout_marginStart="10dp"
+                android:text="Close app"
+                android:textAllCaps="false"
+                android:textColor="#04060B"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:background="@drawable/exit_btn_primary"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:nextFocusLeft="@id/exit_btn_cancel" />
+        </LinearLayout>
+
+        <!-- Footer hint -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:text="PRESS BACK · TO STAY"
+            android:textColor="#5C6573"
+            android:textSize="10sp"
+            android:letterSpacing="0.32"
+            android:fontFamily="monospace" />
+    </LinearLayout>
+</FrameLayout>

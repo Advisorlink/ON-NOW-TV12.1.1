@@ -15,7 +15,6 @@ import Host from '@/lib/host';
 import { qualityBadge, qualityTags, toneColors, is1080p } from '@/lib/streamMeta';
 import { getAutoplay1080p } from '@/lib/prefs';
 import * as cw from '@/lib/continueWatching';
-import { showNavLoader, hideNavLoader } from '@/lib/navLoader';
 
 /**
  * Cinematic seasons + episodes browser for TV series.
@@ -164,17 +163,6 @@ export default function SeriesEpisodes({
     const [openEpisodeId, setOpenEpisodeId] = useState(null);
     const [episodeStreams, setEpisodeStreams] = useState({});
     const [loadingEpisodeId, setLoadingEpisodeId] = useState(null);
-    /**
-     * When autoplay-1080p is on, clicking an episode should NOT
-     * expand the in-line stream list — the addon URLs are an
-     * implementation detail clients should never see.  We track
-     * the episode whose autoplay resolution is currently in flight
-     * here so the card can render a clean "LOADING…" overlay
-     * instead of the streams panel.  Cleared either by the
-     * navigation away (playStream) or by the no-1080p fallback
-     * which falls back to the manual stream picker.
-     */
-    const [autoplayResolvingId, setAutoplayResolvingId] = useState(null);
     const [copied, setCopied] = useState(null);
 
     // Episode-stream-list-scoped D-pad override.  When focus is
@@ -254,35 +242,7 @@ export default function SeriesEpisodes({
             setOpenEpisodeId(null);
             return;
         }
-        // In autoplay mode the user must NEVER see the raw stream
-        // URLs — we silently resolve a 1080p candidate and jump
-        // straight to the player.  Keep the card collapsed; only
-        // the thumbnail-centred "LOADING…" overlay is visible.
-        if (autoplay) {
-            // v2.10.20 — User report: the 5–6 s wait between clicking
-            // an episode and the native player's "NOW PLAYING" splash
-            // feels broken.  The local thumbnail "LOADING…" pill is
-            // too small to register as feedback.  Show the same
-            // fullscreen nav-loader overlay used for tile→Detail so
-            // the user gets immediate, unmissable feedback.  The
-            // overlay stays visible right up until either:
-            //   • the native `Host.playVideo` splash takes over, or
-            //   • the web Player.jsx mounts and dispatches hideNavLoader.
-            // We DON'T hide it on stream-resolve success — that's the
-            // exact moment the player is about to take over, and a
-            // brief flicker back to Detail would feel worse than
-            // leaving the overlay up for one more frame.
-            //
-            // Use a 30 s safety timeout (vs the default 6 s) because
-            // stream resolution against a slow Stremio addon can
-            // legitimately take 10–15 s on first-fetch.  Override the
-            // label so the user knows we're working on the episode,
-            // not just "loading title".
-            showNavLoader({ label: 'Loading episode', timeoutMs: 30000 });
-            setAutoplayResolvingId(ep.id);
-        } else {
-            setOpenEpisodeId(ep.id);
-        }
+        setOpenEpisodeId(ep.id);
         // Reuse cached streams if we already fetched this episode.
         const cached = episodeStreams[ep.id];
         if (cached) {
@@ -292,11 +252,6 @@ export default function SeriesEpisodes({
                     playStream(cand, ep);
                     return;
                 }
-                // Cache hit but no 1080p candidate — drop the
-                // autoplay overlay and reveal the manual picker.
-                hideNavLoader();
-                setAutoplayResolvingId(null);
-                setOpenEpisodeId(ep.id);
             }
             return;
         }
@@ -313,17 +268,11 @@ export default function SeriesEpisodes({
             }));
             // Autoplay: as soon as streams resolve, fire 1080p if
             // we have it.  Falls back to the expanded stream list
-            // when no 1080p candidate is available — at THAT point
-            // we drop the autoplay overlay and let the user pick
-            // manually.
+            // when no 1080p candidate is available.
             if (autoplay) {
                 const cand = pickAutoplayCandidate(streamsArr);
                 if (cand) {
                     playStream(cand, ep);
-                } else {
-                    hideNavLoader();
-                    setAutoplayResolvingId(null);
-                    setOpenEpisodeId(ep.id);
                 }
             }
         } catch {
@@ -331,31 +280,12 @@ export default function SeriesEpisodes({
                 ...s,
                 [ep.id]: { streams: [], diagnostics: [] },
             }));
-            // Network / addon error during autoplay — drop the
-            // overlay so the user isn't stuck on a black "Loading…"
-            // forever.
-            if (autoplay) {
-                hideNavLoader();
-                setAutoplayResolvingId(null);
-                setOpenEpisodeId(ep.id);
-            }
         } finally {
             setLoadingEpisodeId(null);
         }
     };
 
     const playStream = async (stream, ep) => {
-        // Clear the autoplay overlay so if the user backs out of
-        // the player and returns here the card isn't stuck on
-        // "Loading…".
-        setAutoplayResolvingId(null);
-        // v2.10.20 — Manual stream pick also benefits from the
-        // fullscreen overlay: there's a 200–800 ms gap between the
-        // click and the native player splash while we fetch the
-        // subtitle URL and dispatch the Host.playVideo bridge call.
-        // showNavLoader is idempotent so calling it again on top of
-        // the autoplay overlay is a no-op.  Same 30 s safety timeout.
-        showNavLoader({ label: 'Loading episode', timeoutMs: 30000 });
         const mode = streamMode(stream);
         if (mode === 'direct' || mode === 'torrent') {
             // Resolve the playable URL — direct streams carry a
@@ -403,18 +333,6 @@ export default function SeriesEpisodes({
                 positionMs: existing?.positionMs || 0,
                 durationMs: existing?.durationMs || 0,
                 route: `/title/series/${meta?.id || ''}`,
-                // v2.10.39 — Pass the show-level dedupe trio so
-                // `cw.upsert` collapses prior episode rows for the
-                // same show.  Without these fields the helper falls
-                // back to per-episode-id dedup and the shelf ended
-                // up with one row per watched episode (S1E1, S1E2,
-                // S1E3 …) — user explicitly reported this and asked
-                // for "only one Continue Watching TV show at a time."
-                // Mirrors what Detail.jsx's playStream already does.
-                seriesId: meta?.id || '',
-                season: ep.season,
-                episode: ep.episode,
-                episodeLabel: `S${String(ep.season).padStart(2, '0')}E${String(ep.episode).padStart(2, '0')}`,
             });
             if (
                 Host.playVideo({
@@ -445,16 +363,6 @@ export default function SeriesEpisodes({
                     genres: meta?.genres || [],
                     cwId,
                     startAtMs: existing?.positionMs || 0,
-                    // v2.10.24 — Wire the in-player stream picker by
-                    // shipping the full alternate-streams list across
-                    // the JS bridge.  Without this, opening the
-                    // picker inside the player on a TV show would
-                    // show "No alternate streams" because the native
-                    // player had nothing to render.
-                    streamsList: (episodeStreams[ep.id]?.streams) || [],
-                    currentStreamIdx:
-                        (episodeStreams[ep.id]?.streams || [])
-                            .findIndex((s) => s === stream),
                 })
             ) return;
             navigate(
@@ -636,7 +544,6 @@ export default function SeriesEpisodes({
                     const open = openEpisodeId === ep.id;
                     const data = episodeStreams[ep.id];
                     const isLoading = loadingEpisodeId === ep.id;
-                    const autoplayResolving = autoplayResolvingId === ep.id;
                     return (
                         <EpisodeCard
                             key={ep.id}
@@ -645,7 +552,6 @@ export default function SeriesEpisodes({
                             onClick={() => handleEpisodeClick(ep)}
                             data={data}
                             isLoading={isLoading}
-                            autoplayResolving={autoplayResolving}
                             parentId={parentId}
                             playStream={playStream}
                             copyMagnet={copyMagnet}
@@ -668,7 +574,6 @@ function EpisodeCard({
     onClick,
     data,
     isLoading,
-    autoplayResolving,
     playStream,
     copyMagnet,
     copied,
@@ -704,15 +609,7 @@ function EpisodeCard({
     return (
         <li
             ref={cardRef}
-            // v2.10.37 — Dropped `overflow-hidden` so the focused
-            // button's `transform: scale(1.04)` (from
-            // `data-focus-style="quiet"`) isn't clipped on the
-            // left edge.  User reported episode-list rows "getting
-            // cut off a little bit" on the left — caused by the
-            // LI clipping the inner button's overflow growth.  The
-            // inner thumbnail already has `rounded-xl` of its own,
-            // so the rounded look survives.
-            className="rounded-2xl"
+            className="rounded-2xl overflow-hidden"
             style={{
                 background: open ? 'rgba(17,24,39,0.7)' : 'rgba(17,24,39,0.4)',
                 border: open
@@ -791,7 +688,7 @@ function EpisodeCard({
                             data-testid={`watched-${ep.season}-${ep.episode}`}
                             className="absolute top-2 right-2 flex items-center gap-1.5 vesper-mono"
                             style={{
-                                background: 'rgba(34, 197, 94, 0.94)',
+                                background: 'rgba(var(--vesper-blue-rgb),0.92)',
                                 color: '#06080F',
                                 fontSize: 'clamp(9px, 0.62vw, 11px)',
                                 letterSpacing: '0.18em',
@@ -800,7 +697,7 @@ function EpisodeCard({
                                 padding: '4px 9px 4px 7px',
                                 borderRadius: 6,
                                 boxShadow:
-                                    '0 4px 14px rgba(34, 197, 94, 0.45)',
+                                    '0 4px 14px rgba(var(--vesper-blue-rgb),0.45)',
                             }}
                         >
                             <svg
@@ -816,39 +713,6 @@ function EpisodeCard({
                                 <polyline points="20 6 9 17 4 12" />
                             </svg>
                             Watched
-                        </div>
-                    )}
-                    {!watched && pct > 0 && (
-                        <div
-                            data-testid={`watching-${ep.season}-${ep.episode}`}
-                            className="absolute top-2 right-2 flex items-center gap-1.5 vesper-mono"
-                            style={{
-                                background: 'rgba(250, 204, 21, 0.95)',
-                                color: '#06080F',
-                                fontSize: 'clamp(9px, 0.62vw, 11px)',
-                                letterSpacing: '0.18em',
-                                textTransform: 'uppercase',
-                                fontWeight: 700,
-                                padding: '4px 9px 4px 7px',
-                                borderRadius: 6,
-                                boxShadow:
-                                    '0 4px 14px rgba(250, 204, 21, 0.40)',
-                            }}
-                        >
-                            <svg
-                                width="11"
-                                height="11"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2.8"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                            >
-                                <circle cx="12" cy="12" r="10" />
-                                <polyline points="12 6 12 12 16 14" />
-                            </svg>
-                            Watching
                         </div>
                     )}
                     {pct > 0 && (
@@ -877,48 +741,27 @@ function EpisodeCard({
                     <div
                         className="absolute inset-0 flex items-center justify-center pointer-events-none"
                         style={{
-                            background: open || autoplayResolving
-                                ? 'rgba(0,0,0,0.65)'
+                            background: open
+                                ? 'rgba(0,0,0,0.35)'
                                 : 'rgba(0,0,0,0)',
                             transition: 'background-color 200ms ease',
                         }}
                     >
-                        {autoplayResolving ? (
-                            /* Autoplay loading state — the user must
-                             * NEVER see the addon stream URLs in
-                             * autoplay mode, so we render a clean
-                             * spinner + "LOADING" label centred on
-                             * the thumbnail.  The player takes over
-                             * the moment a 1080p candidate resolves. */
-                            <span
-                                className="flex flex-col items-center justify-center gap-2 vesper-mono"
-                                style={{
-                                    color: '#fff',
-                                    fontSize: 'clamp(11px, 0.78vw, 13px)',
-                                    letterSpacing: '0.24em',
-                                    textTransform: 'uppercase',
-                                }}
-                            >
-                                <Loader2 className="vesper-spin" size={28} />
-                                Loading
-                            </span>
-                        ) : (
-                            <span
-                                className="flex items-center justify-center rounded-full"
-                                style={{
-                                    width: 56,
-                                    height: 56,
-                                    background: 'rgba(var(--vesper-blue-rgb),0.92)',
-                                    color: '#06080f',
-                                    opacity: open ? 1 : 0,
-                                    transform: open ? 'scale(1)' : 'scale(0.85)',
-                                    transition: 'opacity 200ms ease, transform 200ms ease',
-                                    boxShadow: '0 0 40px rgba(var(--vesper-blue-rgb),0.5)',
-                                }}
-                            >
-                                <Play size={20} fill="currentColor" />
-                            </span>
-                        )}
+                        <span
+                            className="flex items-center justify-center rounded-full"
+                            style={{
+                                width: 56,
+                                height: 56,
+                                background: 'rgba(var(--vesper-blue-rgb),0.92)',
+                                color: '#06080f',
+                                opacity: open ? 1 : 0,
+                                transform: open ? 'scale(1)' : 'scale(0.85)',
+                                transition: 'opacity 200ms ease, transform 200ms ease',
+                                boxShadow: '0 0 40px rgba(var(--vesper-blue-rgb),0.5)',
+                            }}
+                        >
+                            <Play size={20} fill="currentColor" />
+                        </span>
                     </div>
                 </div>
 

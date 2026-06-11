@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The premium left-panel background.  Layered:
+       1. Dark base (95% opaque)
+       2. Subtle inner top-edge glow (cyan, 8% opacity) — gives the
+          panel a "lit from within" feel without using shadows. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="180"
+                android:startColor="#F5080B16"
+                android:centerColor="#F506080F"
+                android:endColor="#F506080F" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="270"
+                android:startColor="#145DC8FF"
+                android:centerColor="#0000"
+                android:endColor="#0000" />
+        </shape>
+    </item>
+    <!-- Right-edge accent stroke (1dp cyan) — visible only at the
+         boundary between the panel and the video. -->
+    <item android:left="459dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#3F5DC8FF" />
+        </shape>
+    </item>
+</layer-list>

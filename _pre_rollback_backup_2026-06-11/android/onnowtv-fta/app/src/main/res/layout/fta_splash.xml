@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    ON NOW V2 — Free-to-Air splash overlay (v2.8.107).
+
+    Per user feedback "I just want the V2 Free-to-Air wordmark big
+    in the middle, same big look": pure type splash with red "V2"
+    + white "Free-to-Air", centred, sized to match the previous
+    "LIVE" wordmark.  No TV icon, no eyebrow chip, no loading dots
+    — the native splash itself is the only "loading" screen, the
+    React in-app loader is hidden so the EPG fades in directly.
+-->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/fta_splash_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/splash_gradient">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:baselineAligned="false">
+
+        <!-- Big red "V2" -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="V2"
+            android:textColor="#FFFF2535"
+            android:textSize="140sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-black"
+            android:letterSpacing="-0.04"
+            android:includeFontPadding="false"
+            android:shadowColor="#80FF2535"
+            android:shadowDx="0"
+            android:shadowDy="0"
+            android:shadowRadius="32" />
+
+        <!-- White "Free-to-Air" -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="22dp"
+            android:text="Free-to-Air"
+            android:textColor="#FFFFFFFF"
+            android:textSize="84sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="-0.01"
+            android:includeFontPadding="false"
+            android:shadowColor="#66000000"
+            android:shadowDx="0"
+            android:shadowDy="6"
+            android:shadowRadius="18" />
+    </LinearLayout>
+</FrameLayout>

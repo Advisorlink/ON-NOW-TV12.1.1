@@ -1,0 +1,1606 @@
+/* ON NOW TV Tunes — Karaoke party CSS (v2.8.76).
+ * --------------------------------------------------------------------
+ * Layered on top of `tunes.css`.  Mirrors the user-supplied design
+ * pack (black background, electric-blue accents, purple/violet
+ * secondary glow, glass-morphism cards with thin glowing borders,
+ * stage-mic hero imagery).
+ *
+ * NOTE: imports a stage backdrop from Unsplash so the karaoke
+ * screens never need a manual asset upload.  Cached aggressively
+ * by the WebView.
+ */
+
+:root {
+    --kk-bg:        #050211;
+    --kk-bg-1:      #0a041a;
+    --kk-surface:   rgba(10, 12, 38, 0.55);
+    --kk-border:    rgba(124, 167, 255, 0.25);
+    --kk-border-h:  rgba(124, 167, 255, 0.55);
+    --kk-blue:      #4ea7ff;
+    --kk-blue-2:    #7cc4ff;
+    --kk-purple:    #a96bff;
+    --kk-purple-2:  #d4b3ff;
+    --kk-pink:      #ff7ab8;
+    --kk-pink-2:    #ffb6da;
+    --kk-coral:     #ff8b5a;
+    --kk-mint:      #5fffc6;
+    --kk-gold:      #ffd86b;
+    --kk-glow:      rgba(78, 167, 255, 0.6);
+    --kk-glow-p:    rgba(169, 107, 255, 0.55);
+    --kk-glow-pk:   rgba(255, 122, 184, 0.55);
+}
+
+/* v2.8.77 — Unified dark-navy + starfield aesthetic applied to ALL
+   karaoke pages (per user request: "I want every single page to look
+   like the design I gave you").  No more concert-photo heroes, no
+   more purple/pink glass panels — just consistent neon-blue line-art
+   on a deep navy starfield, square corners, every layout sized to
+   fit a 1920×1080 viewport without scrolling.
+
+   The .kk-hero__bg keeps the radial-glow shape but drops the
+   Unsplash photo so every page reads as the same coherent design
+   system as the home tiles. */
+.kk-hero__bg {
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(ellipse 80% 60% at 25% 0%, rgba(78, 167, 255, 0.22), transparent 65%),
+        radial-gradient(ellipse 70% 50% at 85% 0%, rgba(120, 90, 255, 0.16), transparent 60%),
+        linear-gradient(180deg, #0b1226 0%, #060a1c 100%);
+    z-index: 0;
+    animation: kk-hero-rise 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.kk-hero__bg::after {
+    /* Starfield speckle, same recipe as `.kk-tile__stars`.  Gives
+       depth without an external image asset. */
+    content: '';
+    position: absolute; inset: 0;
+    pointer-events: none;
+    background-image:
+        radial-gradient(1.5px 1.5px at 12% 22%, rgba(180, 210, 255, 0.6), transparent 60%),
+        radial-gradient(1px 1px   at 32% 64%, rgba(180, 210, 255, 0.45), transparent 60%),
+        radial-gradient(1px 1px   at 58% 18%, rgba(200, 220, 255, 0.55), transparent 60%),
+        radial-gradient(1.2px 1.2px at 82% 44%, rgba(180, 210, 255, 0.5), transparent 60%),
+        radial-gradient(1px 1px   at 92% 12%, rgba(200, 220, 255, 0.5), transparent 60%),
+        radial-gradient(1px 1px   at 68% 78%, rgba(180, 210, 255, 0.45), transparent 60%),
+        radial-gradient(1.4px 1.4px at 18% 86%, rgba(180, 210, 255, 0.4), transparent 60%);
+}
+
+@keyframes kk-hero-rise {
+    from { opacity: 0; transform: scale(1.06); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+.kk-hero__scrim {
+    position: absolute;
+    inset: 0;
+    /* Soft fade-to-page at the bottom so the hero blends into the
+       tile grid / page content below.  Top stays clear so the
+       headline pops on the navy. */
+    background: linear-gradient(180deg,
+        rgba(6, 10, 28, 0) 0%,
+        rgba(6, 10, 28, 0.4) 80%,
+        rgba(6, 10, 28, 0.9) 100%);
+    z-index: 1;
+}
+
+.kk-hero__neon {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 70% 30%, rgba(78, 167, 255, 0.18), transparent 50%);
+    z-index: 2;
+    pointer-events: none;
+}
+
+.kk-hero__content { position: relative; z-index: 3; }
+
+.kk-hero__eyebrow {
+    color: var(--kk-blue-2);
+    font-size: 13px;
+    letter-spacing: 0.32em;
+    font-weight: 600;
+    margin: 0 0 18px;
+    text-transform: uppercase;
+}
+
+/* =============================================================
+ * KARAOKE HOME — 4-tile entry
+ * ============================================================ */
+.tunes-karaoke-home { color: #fff; }
+
+.kk-hero {
+    position: relative;
+    overflow: hidden;
+    /* v2.8.75 — Tighter padding so the home fits cleanly on 1080p
+       (was clamp(60-110) top / clamp(40-70) bottom → too tall when
+       combined with the 4 tile-cards below). */
+    padding: clamp(36px, 5vh, 60px) clamp(40px, 4vw, 72px) clamp(28px, 3.5vh, 50px);
+    min-height: 320px;
+}
+
+.kk-hero__title {
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 800;
+    /* v2.8.77 — Tighter cap so the hero never crowds the tile grid
+       on smaller screens.  Stays bold on 1080p, scales gracefully. */
+    font-size: clamp(40px, 5.4vw, 76px);
+    line-height: 0.98;
+    margin: 0 0 14px;
+    letter-spacing: -0.03em;
+    color: #fff;
+    text-shadow: 0 0 24px rgba(78, 167, 255, 0.35), 0 4px 24px rgba(0, 0, 0, 0.55);
+}
+.kk-hero__title em {
+    font-style: normal;
+    /* Pure neon-blue gradient — no more pink/purple cycle. */
+    background: linear-gradient(90deg, #5eb5ff 0%, #7cc4ff 50%, #a8d6ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 22px rgba(94, 181, 255, 0.55));
+}
+.kk-hero__sub {
+    max-width: 560px;
+    font-size: clamp(15px, 1.1vw, 17px);
+    line-height: 1.5;
+    color: rgba(200, 215, 240, 0.78);
+    margin: 0;
+}
+
+/* v2.8.76 — Square dark-navy tile grid that mirrors the user-supplied
+   PNG mockup design.  No multi-colour borders, no stretched cards,
+   no purple blobs.  Just clean dark navy + starfield + neon blue
+   icon glow.  Tiles auto-cap at 1:1 aspect so they fit any screen. */
+.kk-tile-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 24px;
+    padding: 8px clamp(40px, 4vw, 72px) 56px;
+    justify-content: center;
+    /* Cap how wide the row gets so 4 tiles stay nicely sized
+       on huge screens.  4 × 380 + 3 × 24 = 1592 max. */
+    max-width: 1640px;
+    margin: 0 auto;
+}
+.kk-tile-grid--3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    max-width: 1240px;
+}
+@media (max-width: 1100px) {
+    .kk-tile-grid,
+    .kk-tile-grid--3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+    .kk-tile-grid,
+    .kk-tile-grid--3 { grid-template-columns: 1fr; padding-bottom: 180px; }
+}
+
+/* Each tile = SQUARE dark-navy card with subtle blue border.
+   Identical styling across all tiles (no per-tile colour rotation)
+   so the home reads as a coherent set — matching the user mockup. */
+.kk-tile {
+    position: relative;
+    display: block;
+    aspect-ratio: 1 / 1;
+    /* Tile can never get absurdly large on 4K screens, and never
+       gets stretched into a long rectangle on 1080p. */
+    max-width: 380px;
+    width: 100%;
+    margin: 0 auto;
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(78, 167, 255, 0.10), transparent 60%),
+        linear-gradient(180deg, #0d1330 0%, #060a1c 100%);
+    border: 1.5px solid rgba(120, 170, 255, 0.18);
+    border-radius: 32px;
+    text-decoration: none;
+    color: #fff;
+    overflow: hidden;
+    transition:
+        transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+        box-shadow 320ms cubic-bezier(0.22, 1, 0.36, 1),
+        border-color 320ms ease;
+    animation: kk-fade-up 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    cursor: pointer;
+    box-shadow:
+        0 0 0 1px rgba(120, 170, 255, 0.05) inset,
+        0 18px 50px rgba(0, 0, 0, 0.55),
+        0 0 24px rgba(78, 167, 255, 0.10);
+}
+
+/* Subtle starfield — small white dots scattered around.  Pure CSS,
+   no external asset.  Matches the speckled background in the mockup. */
+.kk-tile__stars {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background-image:
+        radial-gradient(1.5px 1.5px at 18% 22%, rgba(180, 210, 255, 0.85), transparent 60%),
+        radial-gradient(1px 1px   at 78% 14%, rgba(180, 210, 255, 0.75), transparent 60%),
+        radial-gradient(1px 1px   at 86% 32%, rgba(180, 210, 255, 0.55), transparent 60%),
+        radial-gradient(1.5px 1.5px at 12% 64%, rgba(180, 210, 255, 0.7), transparent 60%),
+        radial-gradient(1px 1px   at 64% 8%,  rgba(200, 220, 255, 0.7), transparent 60%),
+        radial-gradient(1px 1px   at 32% 88%, rgba(180, 210, 255, 0.5), transparent 60%),
+        radial-gradient(1px 1px   at 92% 78%, rgba(180, 210, 255, 0.6), transparent 60%),
+        radial-gradient(1.2px 1.2px at 56% 44%, rgba(200, 220, 255, 0.45), transparent 60%);
+}
+
+.kk-tile:hover,
+.kk-tile:focus,
+.kk-tile.is-focused {
+    border-color: rgba(120, 170, 255, 0.55);
+    box-shadow:
+        0 0 0 2px rgba(120, 170, 255, 0.35) inset,
+        0 24px 60px rgba(0, 0, 0, 0.65),
+        0 0 60px rgba(78, 167, 255, 0.35);
+    transform: translateY(-4px);
+    outline: none;
+}
+
+/* Override the global Music-theme tile focus outline (which uses
+   the Music app's pink `--vesper-blue-bright`) — Karaoke tiles
+   must stay neon-blue to match the mockup. */
+.kk-tile[data-focus-style='tile']:focus-visible,
+.kk-tile[data-focus-style='tile'][data-focused='true'] {
+    outline: 1.5px solid #5eb5ff !important;
+    outline-offset: 2px !important;
+    transform: scale(1.04) translateY(-4px);
+    box-shadow:
+        0 0 0 2px rgba(120, 170, 255, 0.45) inset,
+        0 24px 60px rgba(0, 0, 0, 0.65),
+        0 0 60px rgba(78, 167, 255, 0.45);
+}
+
+.kk-tile__inner {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: clamp(20px, 2.6%, 32px) clamp(18px, 2.4%, 28px) clamp(20px, 2.6%, 28px);
+    align-items: center;
+    text-align: center;
+}
+
+/* Icon area: takes ~42% of the tile vertically, centred. */
+.kk-tile__icon {
+    flex: 0 0 auto;
+    width: 100%;
+    height: 42%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: clamp(12px, 1.6%, 22px);
+}
+.kk-tile__icon img,
+.kk-tile__icon .kk-tile__svg {
+    width: clamp(96px, 44%, 160px);
+    height: auto;
+    max-height: 100%;
+    object-fit: contain;
+    color: #5eb5ff;
+    filter: drop-shadow(0 0 14px rgba(94, 181, 255, 0.65))
+            drop-shadow(0 0 28px rgba(94, 181, 255, 0.35));
+}
+/* PNG-based icons (sing-your-own, party-mode) — bigger so they
+   feel as substantial as the SVG icons next to them, and the
+   built-in glow doesn't need a CSS drop-shadow (PNGs already
+   have their own neon halo baked in). */
+.kk-tile__icon img {
+    width: clamp(120px, 58%, 200px);
+    filter: drop-shadow(0 0 16px rgba(94, 181, 255, 0.45));
+}
+
+.kk-tile__copy {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    width: 100%;
+    min-height: 0;
+}
+
+.kk-tile__title {
+    font-size: clamp(22px, 2vw, 30px);
+    font-weight: 800;
+    margin: 0 0 clamp(8px, 1%, 14px);
+    letter-spacing: -0.01em;
+    color: #fff;
+    line-height: 1.1;
+}
+
+.kk-tile__body {
+    font-size: clamp(13px, 1vw, 16px);
+    line-height: 1.45;
+    color: rgba(200, 215, 240, 0.78);
+    margin: 0;
+    max-width: 88%;
+}
+
+@keyframes kk-fade-up {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* =============================================================
+ * SING YOUR OWN — dark navy + neon blue, 1080p-friendly padding
+ * ============================================================ */
+.kk-sing { color: #fff; padding-bottom: 80px; }
+
+.kk-sing__hero {
+    position: relative;
+    overflow: hidden;
+    /* v2.8.77 — Tightened so the hero + search + 2 shelves fit on
+       a 1080p screen with room for the bottom transport bar. */
+    padding: clamp(28px, 3.5vh, 52px) clamp(40px, 4vw, 72px) clamp(20px, 2.5vh, 36px);
+    min-height: 0;
+}
+.kk-sing__hero-copy { position: relative; z-index: 3; }
+.kk-sing__title {
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 800;
+    font-size: clamp(36px, 4.6vw, 60px);
+    line-height: 1;
+    margin: 0 0 12px;
+    letter-spacing: -0.03em;
+    color: #fff;
+    text-shadow: 0 0 24px rgba(78, 167, 255, 0.25);
+}
+.kk-sing__title em {
+    font-style: normal;
+    background: linear-gradient(90deg, #5eb5ff 0%, #7cc4ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 18px rgba(94, 181, 255, 0.55));
+}
+.kk-sing__sub {
+    font-size: clamp(14px, 1vw, 16px);
+    color: rgba(200, 215, 240, 0.78);
+    max-width: 540px;
+    margin: 0;
+    line-height: 1.55;
+}
+
+.kk-search {
+    position: relative;
+    margin: 8px clamp(40px, 4vw, 72px) 24px;
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(78, 167, 255, 0.08), transparent 70%),
+        linear-gradient(180deg, #0d1330 0%, #060a1c 100%);
+    border: 1.5px solid rgba(120, 170, 255, 0.18);
+    border-radius: 18px;
+    padding: 14px 18px 14px 52px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45), 0 0 24px rgba(78, 167, 255, 0.08);
+    transition: border-color 220ms, box-shadow 220ms;
+}
+.kk-search:focus-within {
+    border-color: rgba(120, 170, 255, 0.55);
+    box-shadow: 0 0 0 2px rgba(120, 170, 255, 0.35) inset, 0 0 36px rgba(78, 167, 255, 0.35);
+}
+.kk-search__icon {
+    position: absolute;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: rgba(200, 215, 240, 0.6);
+}
+.kk-search input {
+    width: 100%;
+    background: transparent;
+    border: 0;
+    outline: 0;
+    color: #fff;
+    font-size: 16px;
+    font-family: inherit;
+}
+.kk-search input::placeholder { color: rgba(200, 215, 240, 0.45); }
+
+/* v2.8.80 — Inline challenge chips on Sing Your Own.
+   Sits between the search bar and the first shelf.  Active chip
+   pulses pink (matches the Silent Spotlight banner in the player). */
+.kk-challenge-chips {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 4px clamp(40px, 4vw, 72px) 18px;
+    padding: 12px 16px;
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(78, 167, 255, 0.06), transparent 70%),
+        linear-gradient(180deg, #0d1330 0%, #060a1c 100%);
+    border: 1.5px solid rgba(120, 170, 255, 0.18);
+    border-radius: 14px;
+}
+.kk-challenge-chips__eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #7cc4ff;
+    font-family: var(--vesper-font-mono, 'Geist Mono', monospace);
+    font-size: 11px;
+    letter-spacing: 0.24em;
+    font-weight: 700;
+    margin-right: 4px;
+}
+.kk-challenge-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1.5px solid rgba(120, 170, 255, 0.32);
+    background: rgba(120, 170, 255, 0.06);
+    color: #aed7ff;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: border-color 220ms, background 220ms, color 220ms, box-shadow 220ms;
+    font-family: inherit;
+}
+.kk-challenge-chip:hover,
+.kk-challenge-chip:focus,
+.kk-challenge-chip.is-focused {
+    border-color: #5eb5ff;
+    background: rgba(78, 167, 255, 0.14);
+    color: #fff;
+    outline: none;
+}
+.kk-challenge-chip.is-active {
+    background: linear-gradient(135deg, rgba(255, 122, 184, 0.20), rgba(78, 167, 255, 0.18));
+    border-color: #ff7ab8;
+    color: #fff;
+    box-shadow: 0 0 0 1px rgba(255, 122, 184, 0.4) inset, 0 0 24px rgba(255, 122, 184, 0.35);
+}
+.kk-challenge-chips__hint {
+    color: rgba(200, 215, 240, 0.72);
+    font-size: 12px;
+    margin-left: 4px;
+}
+@media (max-width: 640px) {
+    .kk-challenge-chips__hint { display: none; }
+    .kk-challenge-chips { padding: 10px 12px; gap: 8px; }
+}
+
+
+.kk-shelf { margin: 18px 0; padding: 0 clamp(40px, 4vw, 72px); }
+.kk-shelf__header { margin-bottom: 12px; }
+.kk-shelf__eyebrow {
+    color: #7cc4ff;
+    font-size: 11px;
+    letter-spacing: 0.28em;
+    margin: 0 0 4px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+.kk-shelf__title {
+    font-size: clamp(20px, 1.6vw, 26px);
+    font-weight: 700;
+    margin: 0;
+    color: #fff;
+}
+
+.kk-shelf__rail {
+    display: flex;
+    gap: 16px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 4px 0 18px;
+    scrollbar-width: none;
+}
+.kk-shelf__rail::-webkit-scrollbar { display: none; }
+
+.kk-songcard {
+    flex: 0 0 auto;
+    background: transparent;
+    border: 0;
+    color: #fff;
+    cursor: pointer;
+    text-align: left;
+    border-radius: 14px;
+    padding: 8px;
+    transition: transform 280ms, background 220ms, box-shadow 280ms;
+}
+.kk-songcard--big        { width: 200px; }
+.kk-songcard--small      { width: 230px; }
+.kk-songcard:hover,
+.kk-songcard:focus,
+.kk-songcard.is-focused {
+    background: rgba(78,167,255,0.10);
+    box-shadow: 0 0 0 1.5px var(--kk-blue) inset, 0 0 30px rgba(78,167,255,0.35);
+    transform: translateY(-2px);
+    outline: none;
+}
+.kk-songcard__art-wrap { position: relative; aspect-ratio: 1/1; border-radius: 12px; overflow: hidden; }
+.kk-songcard__art      { width: 100%; height: 100%; object-fit: cover; display: block; }
+.kk-songcard__mic {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.55);
+    display: grid;
+    place-items: center;
+    color: #fff;
+    backdrop-filter: blur(6px);
+}
+.kk-songcard--small .kk-songcard__art-wrap { aspect-ratio: 4 / 3; }
+.kk-songcard__caption { padding: 12px 4px 4px; }
+.kk-songcard__title { margin: 0; font-size: 16px; font-weight: 600; }
+.kk-songcard__artist { margin: 4px 0 0; font-size: 13px; color: rgba(255,255,255,0.6); }
+
+/* =============================================================
+ * PARTY PICKER (3 tiles) — uses .kk-tile-grid--3 from above
+ * ============================================================ */
+.kk-party-picker { color: #fff; padding-bottom: 100px; }
+
+/* Compact hero used on the Party Picker — shorter padding so the
+   3 square tiles fit comfortably on 1080p without scroll. */
+.kk-hero--compact {
+    padding: clamp(28px, 3.5vh, 48px) clamp(40px, 4vw, 72px) clamp(20px, 2.5vh, 36px);
+    min-height: 0;
+}
+.kk-hero--compact .kk-hero__title { font-size: clamp(40px, 5vw, 64px); }
+.kk-hero--compact .kk-hero__sub { font-size: 16px; }
+
+/* =============================================================
+ * FRIENDS SING ALONG LOBBY — v2.8.77 redesign
+ *
+ * Goals from the user feedback:
+ *   • Looks like the dark-navy + starfield mockup.
+ *   • EVERYTHING fits on 1920×1080 (no scrolling).
+ *   • Buttons aren't huge / stretched.
+ *
+ * Layout budget on 1080p:
+ *   • Header strip (eyebrow + title + subtitle | code badge) ~120px
+ *   • 3-column grid (QR | Members | Queue) ~620px
+ *   • Action bar (Mode · Leave · Start Singing) ~80px
+ *   • Vertical padding ~80px
+ *   • Total ~900px — fits comfortably under 1080.
+ * ============================================================ */
+.kk-lobby {
+    color: #fff;
+    padding: clamp(20px, 2.5vh, 36px) clamp(40px, 4vw, 72px) clamp(20px, 2.5vh, 36px);
+    position: relative;
+    min-height: 100%;
+    background:
+        radial-gradient(ellipse 90% 55% at 25% 0%, rgba(78, 167, 255, 0.16), transparent 60%),
+        radial-gradient(ellipse 70% 50% at 90% 100%, rgba(120, 90, 255, 0.12), transparent 60%),
+        linear-gradient(180deg, #0b1226 0%, #060a1c 100%);
+}
+.kk-lobby::before {
+    /* page-level starfield, same recipe as the tiles */
+    content: '';
+    position: absolute; inset: 0; pointer-events: none;
+    z-index: 0;
+    background-image:
+        radial-gradient(1.5px 1.5px at 8% 12%, rgba(180, 210, 255, 0.5), transparent 60%),
+        radial-gradient(1px 1px   at 28% 44%, rgba(180, 210, 255, 0.4), transparent 60%),
+        radial-gradient(1px 1px   at 58% 22%, rgba(200, 220, 255, 0.45), transparent 60%),
+        radial-gradient(1.2px 1.2px at 82% 64%, rgba(180, 210, 255, 0.4), transparent 60%),
+        radial-gradient(1px 1px   at 92% 18%, rgba(200, 220, 255, 0.45), transparent 60%),
+        radial-gradient(1px 1px   at 14% 78%, rgba(180, 210, 255, 0.4), transparent 60%),
+        radial-gradient(1.4px 1.4px at 70% 88%, rgba(180, 210, 255, 0.35), transparent 60%);
+}
+.kk-lobby > * { position: relative; z-index: 1; }
+
+.kk-lobby__head {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 24px;
+    margin-bottom: clamp(16px, 2vh, 24px);
+}
+.kk-lobby__title {
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 800;
+    font-size: clamp(32px, 3.6vw, 50px);
+    line-height: 1;
+    margin: 0 0 8px;
+    letter-spacing: -0.03em;
+    color: #fff;
+}
+.kk-lobby__title em {
+    font-style: normal;
+    background: linear-gradient(90deg, #5eb5ff 0%, #7cc4ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 18px rgba(94, 181, 255, 0.55));
+}
+.kk-lobby__sub {
+    color: rgba(200, 215, 240, 0.72);
+    font-size: clamp(13px, 0.95vw, 15px);
+    margin: 0;
+}
+
+.kk-lobby__code-card {
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(78, 167, 255, 0.10), transparent 70%),
+        linear-gradient(180deg, #0d1330 0%, #060a1c 100%);
+    border: 1.5px solid rgba(120, 170, 255, 0.18);
+    border-radius: 18px;
+    padding: 14px 22px 16px;
+    text-align: right;
+    min-width: 240px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4), 0 0 32px rgba(78, 167, 255, 0.10);
+}
+.kk-lobby__code {
+    font-family: 'Geist Mono', 'Geist', system-ui;
+    font-size: clamp(22px, 1.8vw, 28px);
+    font-weight: 800;
+    color: #5eb5ff;
+    margin: 0 0 4px;
+    letter-spacing: 0.04em;
+    text-shadow: 0 0 16px rgba(78, 167, 255, 0.55);
+}
+.kk-lobby__code-help { margin: 0; color: rgba(200, 215, 240, 0.55); font-size: 12px; }
+
+/* 3-col grid — all columns same height so they read as a set.
+   Widths tuned for 1920px: QR panel narrower, Members slightly
+   wider, Queue widest. */
+.kk-lobby__grid {
+    display: grid;
+    grid-template-columns: 320px 1fr 1.2fr;
+    gap: 22px;
+    align-items: stretch;
+}
+@media (max-width: 1280px) {
+    .kk-lobby__grid { grid-template-columns: 300px 1fr 1fr; gap: 18px; }
+}
+@media (max-width: 980px) {
+    .kk-lobby__grid { grid-template-columns: 1fr; }
+}
+
+/* Shared panel skin — matches the home tiles */
+.kk-lobby__qr-panel,
+.kk-lobby__joined,
+.kk-lobby__queue {
+    position: relative;
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(78, 167, 255, 0.08), transparent 70%),
+        linear-gradient(180deg, #0d1330 0%, #060a1c 100%);
+    border: 1.5px solid rgba(120, 170, 255, 0.18);
+    border-radius: 24px;
+    padding: 20px;
+    /* Layout budget: 1080 - 60 padding - 130 head - 80 actions ≈ 810px.
+       Cap a touch under that so on slightly shorter screens we still
+       fit with the bottom transport bar visible. */
+    height: clamp(440px, calc(100vh - 320px), 640px);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+}
+.kk-lobby__qr-panel {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+.kk-lobby__qr-eyebrow {
+    color: #7cc4ff;
+    font-size: 11px;
+    letter-spacing: 0.32em;
+    margin: 0;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+.kk-lobby__qr-help {
+    color: rgba(200, 215, 240, 0.72);
+    font-size: 14px;
+    margin: 0 0 14px;
+    line-height: 1.45;
+}
+.kk-lobby__qr-frame {
+    background: #fff;
+    border-radius: 16px;
+    padding: 12px;
+    display: inline-flex;
+    box-shadow: 0 0 0 2px #5eb5ff, 0 0 36px rgba(94, 181, 255, 0.4);
+    margin: 0 auto;
+}
+.kk-lobby__qr-frame svg { display: block; width: clamp(160px, 18vw, 220px); height: auto; }
+.kk-lobby__qr-url {
+    margin: 14px 0 0;
+    color: rgba(200, 215, 240, 0.42);
+    font-size: 10px;
+    word-break: break-all;
+    font-family: 'Geist Mono', monospace;
+    max-width: 100%;
+}
+
+/* Members + Queue list panels — scrollable internally */
+.kk-lobby__joined,
+.kk-lobby__queue {
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(120, 170, 255, 0.35) transparent;
+}
+.kk-lobby__joined::-webkit-scrollbar,
+.kk-lobby__queue::-webkit-scrollbar { width: 6px; }
+.kk-lobby__joined::-webkit-scrollbar-thumb,
+.kk-lobby__queue::-webkit-scrollbar-thumb {
+    background: rgba(120, 170, 255, 0.3);
+    border-radius: 3px;
+}
+
+.kk-lobby__joined header,
+.kk-lobby__queue header {
+    color: #7cc4ff;
+    font-size: 12px;
+    letter-spacing: 0.28em;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(120, 170, 255, 0.12);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+}
+.kk-lobby__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22d671;
+    box-shadow: 0 0 10px #22d671;
+    display: inline-block;
+}
+
+.kk-lobby__joined ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.kk-lobby__joined li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(120, 170, 255, 0.06);
+}
+.kk-member__name { flex: 1; font-size: 15px; color: #fff; }
+.kk-host-pill {
+    background: rgba(78, 167, 255, 0.18);
+    color: #5eb5ff;
+    border: 1px solid #5eb5ff;
+    padding: 3px 9px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+}
+
+.kk-lobby__queue ol {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.kk-lobby__queue li {
+    display: grid;
+    grid-template-columns: 22px 44px 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 9px 0;
+    border-bottom: 1px solid rgba(120, 170, 255, 0.06);
+}
+.kk-queue__num {
+    color: rgba(200, 215, 240, 0.4);
+    font-size: 13px;
+    text-align: center;
+    font-weight: 600;
+}
+.kk-queue__art { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; }
+.kk-queue__meta { min-width: 0; }
+.kk-queue__title { margin: 0; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #fff; }
+.kk-queue__artist { margin: 2px 0 0; color: rgba(200, 215, 240, 0.55); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kk-queue__by { display: flex; align-items: center; gap: 5px; color: rgba(200, 215, 240, 0.45); font-size: 10px; }
+.kk-empty { color: rgba(200, 215, 240, 0.42); font-style: italic; padding: 16px 4px; margin: 0; font-size: 13px; }
+
+.kk-lobby__actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: flex-end;
+    margin-top: clamp(16px, 2vh, 22px);
+}
+.kk-lobby__start {
+    padding: 14px 28px;
+    font-size: 15px;
+}
+
+/* =============================================================
+ * Avatars + buttons
+ * ============================================================ */
+.kk-avatar {
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 2px solid rgba(78,167,255,0.45);
+}
+.kk-avatar--initial {
+    background: linear-gradient(135deg, var(--kk-blue), var(--kk-purple));
+    color: #0a041a;
+    font-weight: 800;
+    display: grid;
+    place-items: center;
+}
+
+.kk-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 13px 22px;
+    border-radius: 14px;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+    transition: transform 180ms, box-shadow 220ms, border-color 220ms;
+    text-decoration: none;
+    border: 1.5px solid transparent;
+    font-family: inherit;
+}
+.kk-btn--primary {
+    background: transparent;
+    color: var(--kk-blue-2);
+    border-color: var(--kk-blue);
+    box-shadow: 0 0 0 1px var(--kk-blue) inset, 0 0 24px rgba(78,167,255,0.3);
+}
+.kk-btn--primary:hover,
+.kk-btn--primary:focus,
+.kk-btn--primary.is-focused {
+    background: rgba(78,167,255,0.15);
+    box-shadow: 0 0 0 2px var(--kk-blue) inset, 0 0 40px rgba(78,167,255,0.55);
+    transform: translateY(-1px);
+}
+.kk-btn--primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.kk-btn--ghost {
+    background: rgba(255,255,255,0.04);
+    color: #fff;
+    border-color: rgba(255,255,255,0.15);
+}
+.kk-btn--ghost:hover,
+.kk-btn--ghost:focus {
+    background: rgba(255,255,255,0.10);
+    border-color: rgba(255,255,255,0.32);
+}
+
+.kk-iconbtn {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.06);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.12);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+}
+
+.kk-bootstrap {
+    color: #fff;
+    text-align: center;
+    padding: 120px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    align-items: center;
+}
+.kk-spin { animation: kk-spin 1s linear infinite; color: var(--kk-blue); }
+@keyframes kk-spin { to { transform: rotate(360deg); } }
+
+/* =============================================================
+ * GUEST JOIN (mobile)
+ * ============================================================ */
+.kk-guest {
+    min-height: 100dvh;
+    background:
+        radial-gradient(ellipse at top, rgba(78,167,255,0.15), transparent 50%),
+        radial-gradient(ellipse at bottom, rgba(169,107,255,0.12), transparent 60%),
+        #050211;
+    color: #fff;
+    padding: 32px 20px 100px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    font-family: 'Geist', system-ui, sans-serif;
+}
+.kk-guest--enter { justify-content: center; padding-top: 60px; }
+.kk-guest--error { justify-content: center; align-items: center; text-align: center; padding-top: 80px; }
+.kk-guest__hero { text-align: center; }
+.kk-guest__mic-glow {
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    background: radial-gradient(ellipse, rgba(78,167,255,0.35), transparent 70%);
+    color: var(--kk-blue);
+    display: grid;
+    place-items: center;
+    margin: 0 auto 18px;
+    filter: drop-shadow(0 0 24px var(--kk-glow));
+}
+.kk-guest__eyebrow {
+    color: var(--kk-blue-2);
+    letter-spacing: 0.3em;
+    font-size: 12px;
+    margin: 0 0 14px;
+    font-weight: 600;
+}
+.kk-guest__title {
+    font-size: clamp(34px, 9vw, 48px);
+    font-weight: 800;
+    margin: 0 0 14px;
+    color: var(--kk-blue);
+    text-shadow: 0 0 24px var(--kk-glow);
+    font-family: 'Geist Mono', 'Geist', monospace;
+    letter-spacing: 0.04em;
+}
+.kk-guest__sub { color: rgba(255,255,255,0.7); margin: 0; font-size: 15px; line-height: 1.5; }
+
+.kk-guest__field { display: flex; flex-direction: column; gap: 8px; }
+.kk-guest__field span { color: rgba(255,255,255,0.6); font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; }
+.kk-guest__field input {
+    background: rgba(255,255,255,0.04);
+    border: 1.5px solid var(--kk-border);
+    border-radius: 14px;
+    padding: 16px;
+    font-size: 18px;
+    color: #fff;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 220ms, box-shadow 220ms;
+}
+.kk-guest__field input:focus {
+    border-color: var(--kk-blue);
+    box-shadow: 0 0 0 3px rgba(78,167,255,0.25);
+}
+.kk-guest__error {
+    color: var(--kk-pink);
+    background: rgba(255,122,184,0.1);
+    border: 1px solid var(--kk-pink);
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 14px;
+    margin: 0;
+}
+.kk-guest__cta {
+    width: 100%;
+    padding: 16px;
+    font-size: 17px;
+    justify-content: center;
+}
+
+.kk-guest__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.kk-guest__pcode { margin: 0; font-family: 'Geist Mono', monospace; font-weight: 800; color: var(--kk-blue); font-size: 18px; }
+.kk-guest__who { margin: 2px 0 0; color: rgba(255,255,255,0.65); font-size: 13px; }
+.kk-guest__who strong { color: #fff; }
+
+.kk-guest__search {
+    position: relative;
+    background: rgba(255,255,255,0.04);
+    border: 1.5px solid var(--kk-border);
+    border-radius: 14px;
+    padding: 14px 14px 14px 48px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.kk-guest__search svg { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: rgba(255,255,255,0.55); }
+.kk-guest__search input {
+    flex: 1;
+    background: transparent;
+    border: 0;
+    outline: 0;
+    color: #fff;
+    font-size: 16px;
+}
+
+.kk-guest__results,
+.kk-guest__mine,
+.kk-guest__others {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.kk-guest__mine header,
+.kk-guest__others header {
+    color: var(--kk-blue-2);
+    font-size: 12px;
+    letter-spacing: 0.24em;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.kk-guest__songrow,
+.kk-guest__queued {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    color: #fff;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+}
+.kk-guest__songrow:active { background: rgba(78,167,255,0.18); }
+.kk-guest__queued--other { cursor: default; opacity: 0.78; }
+.kk-guest__songrow img,
+.kk-guest__queued img {
+    width: 52px;
+    height: 52px;
+    border-radius: 10px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+.kk-guest__songinfo,
+.kk-guest__queued > div { flex: 1; min-width: 0; }
+.kk-guest__songinfo p,
+.kk-guest__queued p { margin: 0; font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kk-guest__songinfo small,
+.kk-guest__queued small { color: rgba(255,255,255,0.55); font-size: 12px; }
+.kk-guest__add {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    background: rgba(78,167,255,0.2);
+    border: 1px solid var(--kk-blue);
+    color: var(--kk-blue);
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+}
+.kk-guest__remove { color: var(--kk-pink); font-size: 13px; }
+
+/* =============================================================
+ * CHALLENGE PICKER — v2.8.77 redesign (matches home tile style)
+ * ============================================================ */
+.kk-challenge {
+    color: #fff;
+    padding: clamp(24px, 3vh, 44px) clamp(40px, 4vw, 72px) clamp(20px, 2.5vh, 36px);
+    position: relative;
+    min-height: 100%;
+    background:
+        radial-gradient(ellipse 80% 50% at 30% 0%, rgba(78, 167, 255, 0.16), transparent 60%),
+        radial-gradient(ellipse 60% 40% at 90% 100%, rgba(120, 90, 255, 0.10), transparent 60%),
+        linear-gradient(180deg, #0b1226 0%, #060a1c 100%);
+}
+.kk-challenge__head {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 24px;
+    margin-bottom: clamp(20px, 2.5vh, 32px);
+}
+.kk-challenge__sub {
+    color: rgba(200, 215, 240, 0.72);
+    font-size: clamp(14px, 1vw, 16px);
+    margin: 6px 0 0;
+    max-width: 520px;
+    line-height: 1.5;
+}
+.kk-challenge__dice-glow {
+    color: #5eb5ff;
+    filter: drop-shadow(0 0 22px rgba(94, 181, 255, 0.55));
+    align-self: center;
+}
+.kk-challenge__dice-glow svg { width: clamp(80px, 8vw, 120px); height: auto; }
+
+.kk-challenge__primary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+    margin-bottom: clamp(20px, 2.5vh, 32px);
+}
+.kk-challenge__examples-eyebrow { margin: 0 0 14px; color: #7cc4ff; letter-spacing: 0.28em; font-size: 12px; font-weight: 700; }
+.kk-challenge__examples {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+}
+@media (max-width: 1100px) {
+    .kk-challenge__primary { grid-template-columns: 1fr; }
+    .kk-challenge__examples { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 540px) { .kk-challenge__examples { grid-template-columns: 1fr; } }
+
+/* Primary 3-up cards — match the home tile aesthetic */
+.kk-challenge-primary {
+    position: relative;
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(78, 167, 255, 0.10), transparent 60%),
+        linear-gradient(180deg, #0d1330 0%, #060a1c 100%);
+    border: 1.5px solid rgba(120, 170, 255, 0.18);
+    border-radius: 24px;
+    padding: clamp(20px, 2.4vh, 30px) 24px;
+    text-align: center;
+    color: #fff;
+    cursor: pointer;
+    transition: border-color 280ms, box-shadow 280ms, transform 280ms;
+    font-family: inherit;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45), 0 0 24px rgba(78, 167, 255, 0.10);
+}
+.kk-challenge-primary:hover,
+.kk-challenge-primary:focus,
+.kk-challenge-primary.is-focused {
+    border-color: rgba(120, 170, 255, 0.55);
+    box-shadow:
+        0 0 0 2px rgba(120, 170, 255, 0.35) inset,
+        0 24px 60px rgba(0, 0, 0, 0.65),
+        0 0 60px rgba(78, 167, 255, 0.35);
+    transform: translateY(-3px);
+    outline: none;
+}
+.kk-challenge-primary[data-focus-style='tile']:focus-visible,
+.kk-challenge-primary[data-focus-style='tile'][data-focused='true'] {
+    outline: 1.5px solid #5eb5ff !important;
+    outline-offset: 2px !important;
+}
+.kk-challenge-primary__icon {
+    color: #5eb5ff;
+    margin-bottom: 14px;
+    filter: drop-shadow(0 0 14px rgba(94, 181, 255, 0.6));
+}
+.kk-challenge-primary h2 { margin: 0 0 6px; font-size: clamp(18px, 1.4vw, 22px); font-weight: 800; color: #fff; }
+.kk-challenge-primary p { margin: 0; color: rgba(200, 215, 240, 0.72); font-size: clamp(12px, 0.95vw, 14px); line-height: 1.45; }
+
+/* Smaller example cards — same skin */
+.kk-challenge-card {
+    position: relative;
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(78, 167, 255, 0.08), transparent 65%),
+        linear-gradient(180deg, #0d1330 0%, #060a1c 100%);
+    border: 1.5px solid rgba(120, 170, 255, 0.18);
+    border-radius: 20px;
+    padding: 18px 16px 16px;
+    text-align: center;
+    color: #fff;
+    cursor: pointer;
+    transition: border-color 280ms, box-shadow 280ms, transform 280ms;
+    font-family: inherit;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+}
+.kk-challenge-card:hover,
+.kk-challenge-card:focus,
+.kk-challenge-card.is-focused {
+    border-color: rgba(120, 170, 255, 0.55);
+    box-shadow:
+        0 0 0 2px rgba(120, 170, 255, 0.35) inset,
+        0 16px 40px rgba(0, 0, 0, 0.55),
+        0 0 36px rgba(78, 167, 255, 0.32);
+    transform: translateY(-3px);
+    outline: none;
+}
+.kk-challenge-card[data-focus-style='tile']:focus-visible,
+.kk-challenge-card[data-focus-style='tile'][data-focused='true'] {
+    outline: 1.5px solid #5eb5ff !important;
+    outline-offset: 2px !important;
+}
+.kk-challenge-card__icon {
+    color: #5eb5ff;
+    margin-bottom: 10px;
+    filter: drop-shadow(0 0 12px rgba(94, 181, 255, 0.55));
+    display: grid;
+    place-items: center;
+    min-height: 50px;
+}
+.kk-challenge-card h3 { margin: 0 0 4px; font-size: clamp(14px, 1.1vw, 16px); font-weight: 800; color: #fff; }
+.kk-challenge-card p { margin: 0; color: rgba(200, 215, 240, 0.66); font-size: clamp(11px, 0.85vw, 13px); line-height: 1.4; }
+.kk-dashed {
+    border: 2px dashed #5eb5ff;
+    color: #5eb5ff;
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+}
+
+/* =============================================================
+ * STAGE HUD (overlays the FullScreenPlayer)
+ * ============================================================ */
+.kk-stage-hud {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9000;
+    color: #fff;
+    font-family: 'Geist', system-ui, sans-serif;
+}
+.kk-stage-hud__now {
+    position: absolute;
+    top: 24px;
+    left: 120px;
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    padding: 10px 22px 10px 12px;
+    background: rgba(10,14,40,0.7);
+    backdrop-filter: blur(16px);
+    border-radius: 60px;
+    border: 1px solid var(--kk-border);
+}
+.kk-stage-hud__challenge {
+    position: absolute;
+    top: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 22px;
+    background: rgba(78,167,255,0.18);
+    border: 1.5px solid var(--kk-blue);
+    border-radius: 60px;
+    box-shadow: 0 0 32px var(--kk-glow);
+}
+.kk-stage-hud__upnext {
+    position: absolute;
+    top: 24px;
+    right: 28px;
+    padding: 14px 18px;
+    background: rgba(10,14,40,0.7);
+    backdrop-filter: blur(16px);
+    border-radius: 18px;
+    border: 1px solid var(--kk-border);
+    min-width: 260px;
+}
+.kk-stage-hud__upnext-body {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 12px;
+    align-items: center;
+    margin-top: 8px;
+}
+.kk-stage-hud__upnext-note { color: rgba(255,255,255,0.45); }
+.kk-stage-hud__label {
+    margin: 0;
+    color: var(--kk-blue-2);
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    font-weight: 600;
+}
+.kk-stage-hud__name { margin: 4px 0 0; font-size: 16px; font-weight: 700; }
+.kk-stage-hud__points {
+    margin-left: 10px;
+    background: var(--kk-purple);
+    color: #0a041a;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 800;
+}
+.kk-stage-hud__song { margin: 2px 0 0; font-size: 13px; color: rgba(255,255,255,0.75); }
+.kk-stage-hud__song-sub { margin: 0; font-size: 11px; color: rgba(255,255,255,0.5); }
+
+@media (max-width: 768px) {
+    .kk-stage-hud__now,
+    .kk-stage-hud__upnext { left: 12px; right: 12px; }
+    .kk-stage-hud__upnext { top: 90px; min-width: 0; }
+}
+
+/* =============================================================
+ * UP NEXT page + empty states — matches the home tile aesthetic
+ * ============================================================ */
+.kk-upnext {
+    color: #fff;
+    padding: clamp(24px, 3vh, 44px) clamp(40px, 4vw, 72px) clamp(20px, 2.5vh, 36px);
+    position: relative;
+    min-height: 100%;
+    background:
+        radial-gradient(ellipse 80% 50% at 30% 0%, rgba(78, 167, 255, 0.16), transparent 60%),
+        linear-gradient(180deg, #0b1226 0%, #060a1c 100%);
+}
+.kk-upnext__now {
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(78, 167, 255, 0.14), transparent 60%),
+        linear-gradient(180deg, #0d1330 0%, #060a1c 100%);
+    border: 1.5px solid rgba(120, 170, 255, 0.55);
+    border-radius: 22px;
+    padding: 22px;
+    margin: 18px 0 24px;
+    box-shadow: 0 0 36px rgba(78, 167, 255, 0.3);
+}
+.kk-now-entry {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 18px;
+    align-items: center;
+}
+.kk-now-entry img { width: 100px; height: 100px; border-radius: 14px; object-fit: cover; }
+.kk-upnext__list {
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(78, 167, 255, 0.06), transparent 65%),
+        linear-gradient(180deg, #0d1330 0%, #060a1c 100%);
+    border: 1.5px solid rgba(120, 170, 255, 0.18);
+    border-radius: 22px;
+    padding: 22px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+    max-height: calc(100vh - 340px);
+    overflow-y: auto;
+}
+.kk-upnext__list header {
+    color: #7cc4ff;
+    font-size: 12px;
+    letter-spacing: 0.28em;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(120, 170, 255, 0.12);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+}
+.kk-upnext__list ol { list-style: none; padding: 0; margin: 0; }
+.kk-upnext__list li {
+    display: grid;
+    grid-template-columns: 22px 56px 1fr;
+    gap: 14px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(120, 170, 255, 0.06);
+    align-items: center;
+}
+.kk-upnext__list img { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; }
+.kk-upnext__list p { margin: 0; font-weight: 600; font-size: 14px; color: #fff; }
+.kk-upnext__list small { color: rgba(200, 215, 240, 0.55); font-size: 11px; }
+
+.kk-empty-state {
+    color: #fff;
+    text-align: center;
+    padding: clamp(80px, 12vh, 140px) 24px;
+}
+.kk-empty-state h2 { font-size: clamp(22px, 2vw, 30px); margin: 0 0 12px; color: #fff; }
+.kk-empty-state p { color: rgba(200, 215, 240, 0.7); margin: 0 0 28px; font-size: clamp(14px, 1vw, 16px); }
+
+/* =============================================================
+ * v2.8.77 — Karaoke pill/button overrides
+ * The Music theme defines --vesper-blue-bright as pink; we need
+ * every interactive element inside the karaoke flow to use the
+ * neon-blue palette from the mockup.
+ * ============================================================ */
+.kk-lobby [data-focus-style='pill']:focus-visible,
+.kk-lobby [data-focus-style='pill'][data-focused='true'],
+.kk-challenge [data-focus-style='pill']:focus-visible,
+.kk-challenge [data-focus-style='pill'][data-focused='true'],
+.kk-sing [data-focus-style='pill']:focus-visible,
+.kk-sing [data-focus-style='pill'][data-focused='true'],
+.kk-upnext [data-focus-style='pill']:focus-visible,
+.kk-upnext [data-focus-style='pill'][data-focused='true'] {
+    outline: 1.5px solid #5eb5ff !important;
+    box-shadow: 0 0 0 1.5px #5eb5ff !important;
+}
+
+.kk-btn--primary {
+    background: rgba(78, 167, 255, 0.10);
+    color: #aed7ff;
+    border: 1.5px solid rgba(120, 170, 255, 0.55);
+    box-shadow: 0 0 0 1px rgba(120, 170, 255, 0.35) inset, 0 0 24px rgba(78, 167, 255, 0.3);
+}
+.kk-btn--primary:hover,
+.kk-btn--primary:focus,
+.kk-btn--primary.is-focused {
+    background: rgba(78, 167, 255, 0.18);
+    border-color: #5eb5ff;
+    box-shadow: 0 0 0 1.5px #5eb5ff inset, 0 0 36px rgba(78, 167, 255, 0.5);
+    transform: translateY(-1px);
+}
+.kk-btn--ghost {
+    background: rgba(255, 255, 255, 0.03);
+    color: #fff;
+    border: 1.5px solid rgba(120, 170, 255, 0.22);
+}
+.kk-btn--ghost:hover,
+.kk-btn--ghost:focus,
+.kk-btn--ghost.is-focused {
+    background: rgba(120, 170, 255, 0.10);
+    border-color: rgba(120, 170, 255, 0.55);
+}
+
+/* Karaoke avatar — clean blue ring (overrides the earlier
+   purple/blue gradient initial-letter variant). */
+.kk-avatar {
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 2px solid rgba(120, 170, 255, 0.45);
+    background: #0d1330;
+}
+.kk-avatar--initial {
+    background: linear-gradient(135deg, #2a4170 0%, #1a2f56 100%);
+    color: #aed7ff;
+    font-weight: 800;
+    display: grid;
+    place-items: center;
+    border-color: rgba(120, 170, 255, 0.4);
+}
+
+
+
+/* =============================================================
+ * v2.8.82 — TV "Up Next — waiting for singer's mic" overlay
+ * ============================================================ */
+.kk-mic-waiting {
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(255, 122, 184, 0.28), transparent 60%),
+        radial-gradient(ellipse at 50% 100%, rgba(78, 167, 255, 0.22), transparent 60%),
+        rgba(8, 6, 24, 0.92);
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+    animation: kkMicWaitingFade 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes kkMicWaitingFade {
+    from { opacity: 0; transform: scale(1.04); }
+    to   { opacity: 1; transform: scale(1); }
+}
+.kk-mic-waiting__inner {
+    text-align: center;
+    color: #fff;
+    max-width: 720px;
+    padding: 0 32px;
+}
+.kk-mic-waiting__eyebrow {
+    font-family: 'Geist Mono', monospace;
+    font-size: 14px;
+    letter-spacing: 0.42em;
+    text-transform: uppercase;
+    color: #ff7ab8;
+    margin: 0 0 12px;
+    font-weight: 800;
+    text-shadow: 0 0 22px rgba(255, 122, 184, 0.5);
+}
+.kk-mic-waiting__name {
+    font-family: 'Geist', system-ui, sans-serif;
+    font-weight: 800;
+    font-size: clamp(48px, 7vw, 96px);
+    letter-spacing: -0.03em;
+    line-height: 1;
+    margin: 0 0 28px;
+    background: linear-gradient(90deg, #ff7ab8 0%, #ffb070 50%, #5eb5ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 36px rgba(255, 122, 184, 0.45));
+}
+.kk-mic-waiting__avatar {
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    margin: 0 auto 28px;
+    background: linear-gradient(135deg, #2a1240 0%, #14081f 100%);
+    border: 3px solid rgba(255, 122, 184, 0.55);
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    box-shadow:
+        0 0 0 6px rgba(255, 122, 184, 0.12),
+        0 0 60px rgba(255, 122, 184, 0.45),
+        0 0 120px rgba(78, 167, 255, 0.35);
+    animation: kkMicAvatarPulse 2.2s ease-in-out infinite;
+}
+.kk-mic-waiting__avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.kk-mic-waiting__avatar span {
+    font-family: 'Geist', system-ui;
+    font-size: 64px;
+    font-weight: 800;
+    color: #ffd7ec;
+}
+@keyframes kkMicAvatarPulse {
+    0%, 100% {
+        box-shadow:
+            0 0 0 6px rgba(255, 122, 184, 0.12),
+            0 0 60px rgba(255, 122, 184, 0.45),
+            0 0 120px rgba(78, 167, 255, 0.35);
+    }
+    50% {
+        box-shadow:
+            0 0 0 10px rgba(255, 122, 184, 0.22),
+            0 0 80px rgba(255, 122, 184, 0.6),
+            0 0 160px rgba(78, 167, 255, 0.45);
+    }
+}
+.kk-mic-waiting__hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255, 122, 184, 0.14);
+    border: 1.5px solid rgba(255, 122, 184, 0.5);
+    padding: 12px 22px;
+    border-radius: 999px;
+    color: #ffd7ec;
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0 0 18px;
+}
+.kk-mic-waiting__sub {
+    color: rgba(255, 220, 245, 0.7);
+    font-size: 15px;
+    max-width: 480px;
+    margin: 0 auto;
+    line-height: 1.55;
+}
+
+/* =============================================================
+ * v2.8.79 — Mobile scroll fixes for the karaoke flow.
+ *
+ * On TV (D-pad) we use fixed-height panels with internal overflow:
+ * auto so the focus engine can scroll members / queue / up-next
+ * lists independently.  But on a PHONE this creates "scroll traps"
+ * — swiping up on the lobby's joined/queue/qr panels scrolls the
+ * INSIDE of the panel instead of the page itself, so users get
+ * stuck and never see content below.
+ *
+ * The fix: on `max-width: 900px` we drop the fixed heights, remove
+ * the inner `overflow-y: auto`, and let the page itself scroll
+ * naturally (the body scroll container is `.tunes-root`, which is
+ * already wired up for momentum touch-scrolling).
+ * ============================================================ */
+@media (max-width: 900px) {
+    .kk-lobby__qr-panel,
+    .kk-lobby__joined,
+    .kk-lobby__queue,
+    .kk-upnext__list {
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    /* Lobby head stacks (code badge below the title) */
+    .kk-lobby__head {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+    .kk-lobby__code-card {
+        text-align: left;
+        min-width: 0;
+    }
+
+    /* QR frame shrinks on phone — the user's mostly looking at the
+       SCREEN holding the QR, not scanning a QR from a phone… but if
+       they did try to scan, the smaller frame still has enough
+       resolution for any phone camera. */
+    .kk-lobby__qr-frame svg {
+        width: clamp(140px, 50vw, 200px) !important;
+    }
+
+    /* Challenge page head — stack the dice glow below the title so
+       it doesn't crowd a 390px viewport. */
+    .kk-challenge__head {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    .kk-challenge__dice-glow {
+        display: none;     /* save vertical space on phones */
+    }
+}
+

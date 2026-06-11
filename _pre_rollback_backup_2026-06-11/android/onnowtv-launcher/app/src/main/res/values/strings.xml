@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OnNow TV V2</string>
+    <string name="featured">FEATURED</string>
+    <string name="explore_whats_new">Explore what\u2019s new</string>
+    <!-- v0.5 — top-bar wordmark text -->
+    <string name="wordmark">OnNow TV V2</string>
+</resources>

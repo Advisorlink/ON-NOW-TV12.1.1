@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Simple refresh / reload icon, path written with explicit
+    space-separated SVG parameters so Android's PathParser doesn't
+    choke on the arc-flag tokens.  Previous version used the
+    compact Material syntax `A7.958 7.958 0 0012 4` which crashed
+    with `IllegalArgumentException: A needs to be followed by a
+    multiple of 7 floats. However, 5 float(s) are found.`
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="20dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#9DA5B5">
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M12 4 V 1 L 7 6 L 12 11 V 7 c 3.31 0 6 2.69 6 6 c 0 3.31 -2.69 6 -6 6 c -3.31 0 -6 -2.69 -6 -6 H 4 c 0 4.42 3.58 8 8 8 c 4.42 0 8 -3.58 8 -8 c 0 -4.42 -3.58 -8 -8 -8 z" />
+</vector>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Trophy icon for the Sports Guide rail entry. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48"
+    android:tint="?attr/colorControlNormal">
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M14,4 H34 V8 H40 V18 C40,22 36,24 33,24 V26 C33,30 30,33 26,33 V36 H30 V40 H18 V36 H22 V33 C18,33 15,30 15,26 V24 C12,24 8,22 8,18 V8 H14 V4 Z M14,12 V18 C14,20 16,21 15,21 V12 H14 Z M34,12 V21 C33,21 34,20 34,18 V12 Z" />
+</vector>

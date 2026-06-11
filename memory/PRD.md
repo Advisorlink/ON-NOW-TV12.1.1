@@ -1,5 +1,38 @@
 # ON NOW TV V2 — PRD
 
+> **🚨 v2.10.46 — FRONTEND NAVIGATION ROLLBACK (11 Jun 2026).**
+>
+> User reported that the "100-credit deep dive" earlier today made navigation **ten times worse**. They requested a rollback of the React frontend to its state from **7 days ago (4 Jun 2026, `ef5b5f92`)** while preserving:
+>   • All icons (avatars, profile pickers, new icons added during the week)
+>   • All animations / GIFs (BootSplash, OrbitalLoader, SpinningLogo, index.css)
+>   • Music / Karaoke updates
+>   • Android scrubbing fix (`PlayerOverlay.kt`)
+>   • Android skip-next-episode fix (`ExoPlayerActivity.kt`)
+>   • Android launcher work (Boost / Wi-Fi / Offline overlays)
+>
+> **What was reverted to 4 Jun 2026 (`ef5b5f92`)** — 27 navigation-related frontend files:
+>   • `components/`: AddToListModal, CastRow, ContinueWatchingShelf, HeroBillboard, KidsTabGridView, MobileBottomNav, NetworkPosterTile, PosterTile, RecommendationsRow, SeriesEpisodes, SideNav, TabGridView, UpcomingMoviesShelf, UpdateGate
+>   • `hooks/`: useKidsBackGuard, useKidsKioskGuard, useSpatialFocus
+>   • `lib/`: continueWatching, networks
+>   • `pages/`: Detail, Home, KidsHome, Library, Network, Person, Player, Search
+>
+> **What was deleted** (file that did not exist on 4 Jun and was central to the broken nav):
+>   • `frontend/src/lib/navLoader.js`
+>
+> **What was kept at HEAD (icons, animations, music, profiles, app router):**
+>   • `components/BootSplash.jsx`, `OrbitalLoader.jsx`, `SpinningLogo.jsx`
+>   • `lib/avatars.jsx`, `avatarTransform.js`, `img.js`, `profileBackup.js`, `profiles.js`
+>   • `pages/ProfileEdit.jsx`, `ProfileSelect.jsx`
+>   • `pages/music/*` (KaraokeHome, MusicAlbum, MusicHome, tunes.css)
+>   • `index.css`, `App.js`
+>   • **Entire `/app/android/` directory** — every Android change kept (scrubbing, skip-next, launcher icons/Boost/Wi-Fi)
+>
+> **Safety**: Full backup of pre-rollback state stored at `/app/_pre_rollback_backup_2026-06-11/`.
+> Full rollback log in `/app/ROLLBACK_NOTES.md`.
+> Verified the frontend compiles cleanly (one pre-existing ESLint warning only) and the profile-select page loads with icons intact.
+>
+> ---
+>
 > **🔴 v2.10.45 — Launcher: BOOST button + Wi-Fi indicator + Offline overlay (Feb 11 2026).**
 >
 > User asks (verbatim): *"I need to make sure that the launcher loses internet... a popup that takes over any app... Wi-Fi signal indicator in the top right-hand corner... take away the good evening/good morning... button beside the AI button called BoostBox... clears all the RAM out of the box... really beautiful animated display."*

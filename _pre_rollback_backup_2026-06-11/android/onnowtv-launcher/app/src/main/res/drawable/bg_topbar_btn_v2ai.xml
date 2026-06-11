@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  bg_topbar_btn_v2ai.xml — colourful "hero" pill background for the
+  big V2 AI button beside the speed test.  Multi-stop gradient
+  cyan → magenta → violet, with a focus-state inset stroke so D-pad
+  focus pops without overwhelming the gradient.
+
+  When the admin uploads a custom image, MainActivity drops this
+  background entirely (image becomes the pill).
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Focused: same gradient, slightly brighter + bright cyan ring. -->
+    <item android:state_focused="true">
+        <layer-list>
+            <item>
+                <shape android:shape="rectangle">
+                    <corners android:radius="9999dp" />
+                    <gradient
+                        android:type="linear"
+                        android:angle="0"
+                        android:startColor="#FF5DC8FF"
+                        android:centerColor="#FFFF6BC1"
+                        android:endColor="#FF9B6BFF" />
+                </shape>
+            </item>
+            <item>
+                <shape android:shape="rectangle">
+                    <corners android:radius="9999dp" />
+                    <stroke android:width="2dp" android:color="#FFFFFFFF" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+
+    <!-- Resting: same hues at slightly lower saturation for the bg
+         gradient, with a soft inner outline to avoid floating-feel. -->
+    <item>
+        <layer-list>
+            <item>
+                <shape android:shape="rectangle">
+                    <corners android:radius="9999dp" />
+                    <gradient
+                        android:type="linear"
+                        android:angle="0"
+                        android:startColor="#FF3BB6FF"
+                        android:centerColor="#FFE45BB1"
+                        android:endColor="#FF7B5BFF" />
+                </shape>
+            </item>
+            <item>
+                <shape android:shape="rectangle">
+                    <corners android:radius="9999dp" />
+                    <stroke android:width="1dp" android:color="#22FFFFFF" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+
+</selector>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Focus border drawn ON TOP of the tile cover image — the cover
+     ImageView fills the entire tile edge-to-edge so a background-
+     stroke would be invisible.  We use the FrameLayout's foreground
+     slot so the border is the last thing painted and always visible
+     against any cover. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="14dp" />
+            <solid android:color="@android:color/transparent" />
+            <stroke android:width="2dp" android:color="@color/livetv_accent" />
+        </shape>
+    </item>
+    <item android:state_selected="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="14dp" />
+            <solid android:color="@android:color/transparent" />
+            <stroke android:width="2dp" android:color="@color/livetv_accent" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="14dp" />
+            <solid android:color="@android:color/transparent" />
+            <stroke android:width="2dp" android:color="#FFFFFF" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="14dp" />
+            <solid android:color="@android:color/transparent" />
+        </shape>
+    </item>
+</selector>

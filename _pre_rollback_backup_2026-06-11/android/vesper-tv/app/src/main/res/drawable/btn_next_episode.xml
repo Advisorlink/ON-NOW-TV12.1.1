@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Premium "Next Episode" pill, glass-style with cyan accent.
+    Default: translucent dark glass with a subtle cyan glow on the
+    border, premium-looking against the video.
+    Focused:  Solid cyan fill so it pops on D-pad focus.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="999dp" />
+            <solid android:color="#5DC8FF" />
+            <stroke android:width="2dp" android:color="#FFFFFF" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="999dp" />
+            <solid android:color="#7FE5FF" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="999dp" />
+            <solid android:color="#CC0A0E1A" />
+            <stroke android:width="1dp" android:color="#665DC8FF" />
+        </shape>
+    </item>
+</selector>

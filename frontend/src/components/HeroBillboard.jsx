@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import * as img from '@/lib/img';
 import Host from '@/lib/host';
 
-export default function HeroBillboard({ heroes, hiRes = false }) {
+export default function HeroBillboard({ heroes }) {
     const list = Array.isArray(heroes) ? heroes : [];
     const [idx, setIdx] = useState(0);
     const hero = list[idx] || list[0];
@@ -41,21 +41,9 @@ export default function HeroBillboard({ heroes, hiRes = false }) {
         // Append `?autoplay=1` for the Play button so the Detail
         // page can auto-pick a 1080p stream when the user enabled
         // that setting (and silently fall back otherwise).
-        // v2.10.45 — No full-screen nav loader; pass a `preview`
-        // payload so Detail paints its hero instantly while the
-        // real metadata + streams resolve.
         const suffix = autoplay ? '?autoplay=1' : '';
-        const preview = {
-            title: hero.title || '',
-            poster: hero.poster || '',
-            background: hero.backdrop || hero.background || hero.poster || '',
-            description: hero.synopsis || '',
-            year: hero.year || '',
-            rating: hero.rating || '',
-            genres: Array.isArray(hero.genres) ? hero.genres : [],
-        };
-        if (hero.routePath) navigate(hero.routePath + suffix, { state: { preview } });
-        else navigate(`/title/${hero.id}${suffix}`, { state: { preview } });
+        if (hero.routePath) navigate(hero.routePath + suffix);
+        else navigate(`/title/${hero.id}${suffix}`);
     };
 
     /* Local Left/Right handler — keeps focus among the three hero
@@ -85,25 +73,7 @@ export default function HeroBillboard({ heroes, hiRes = false }) {
         <section
             data-testid="hero-billboard"
             className="relative w-full overflow-hidden"
-            /* v2.10.12 — Hero geometry redone, per user feedback
-               on v2.10.9 ("just bring the image itself down, but
-               put the text / buttons / covers back to where they
-               were").
-               - SECTION stays visually tall (clamp 520-720) so the
-                 backdrop image keeps its "low / large" presence.
-               - `margin-bottom: -1 * (taller-shorter)` pulls the
-                 next sibling (the first shelf row) BACK UP to the
-                 position it had before v2.10.9.  The shelf paints
-                 over the section's bottom fade so the join stays
-                 clean.
-               - Content column (eyebrow + title + buttons) gets a
-                 big paddingBottom so the CTA row sits where it
-                 used to land in the old 540-px hero, not down at
-                 the bottom of the new 720-px box. */
-            style={{
-                height: 'clamp(520px, 65vh, 720px)',
-                marginBottom: 'clamp(-200px, -16vh, -140px)',
-            }}
+            style={{ height: 'clamp(380px, 50vh, 540px)' }}
         >
             {list.map((h, i) => (
                 <div
@@ -120,14 +90,15 @@ export default function HeroBillboard({ heroes, hiRes = false }) {
                                 : ''
                         }`}
                         style={{
-                            backgroundImage: `url(${
-                                hiRes
-                                    ? img.heroBackdrop(h.backdrop)
-                                    : img.backdrop(h.backdrop)
-                            })`,
-                            /* v2.6.85 — anchor faces in the upper
-                               third of the image so heads aren't
-                               cropped on the wider hero. */
+                            backgroundImage: `url(${img.backdrop(h.backdrop)})`,
+                            /* v2.6.85 — user feedback: actor heads
+                             * were getting cropped at the top of the
+                             * hero.  Anchoring the background at 30 %
+                             * (rather than the default 50 % / centre)
+                             * keeps the upper third of the image
+                             * visible, so faces sit comfortably below
+                             * the top edge instead of being shaved
+                             * off. */
                             backgroundPosition: 'center 30%',
                         }}
                     />
@@ -137,21 +108,13 @@ export default function HeroBillboard({ heroes, hiRes = false }) {
             <div
                 className="absolute inset-0"
                 style={{
-                    /* Bottom of the hero needs to FULLY fade to
-                       bg-0 since the next shelf row is going to
-                       overlap us by ~180 px via the section's
-                       negative margin-bottom.  The fade is steeper
-                       than v2.10.9 (kicks in at 60 %) so the area
-                       where shelves are about to draw is solid
-                       bg-0, hiding any image bleed. */
                     background: `linear-gradient(180deg,
                         rgba(6,8,15,0.55) 0%,
-                        rgba(6,8,15,0) 18%,
-                        rgba(6,8,15,0) 38%,
-                        rgba(6,8,15,0.55) 60%,
-                        rgba(6,8,15,0.92) 78%,
-                        var(--vesper-bg-0) 90%)`,
-                    pointerEvents: 'none',
+                        rgba(6,8,15,0) 22%,
+                        rgba(6,8,15,0) 42%,
+                        rgba(6,8,15,0.55) 70%,
+                        rgba(6,8,15,0.95) 92%,
+                        var(--vesper-bg-0) 100%)`,
                 }}
             />
             <div
@@ -162,7 +125,6 @@ export default function HeroBillboard({ heroes, hiRes = false }) {
                         rgba(6,8,15,0.55) 28%,
                         rgba(6,8,15,0.05) 60%,
                         rgba(6,8,15,0) 100%)`,
-                    pointerEvents: 'none',
                 }}
             />
             {/* Subtle blue ambient glow */}
@@ -180,17 +142,19 @@ export default function HeroBillboard({ heroes, hiRes = false }) {
                     className="relative z-10 max-w-[62vw] vesper-fade-up"
                     style={{
                         paddingLeft: 'clamp(92px, 6.5vw, 132px)',
-                        /* v2.10.12 — Big paddingBottom anchors the
-                           text+CTA column ~180 px ABOVE the section's
-                           visual bottom edge, matching where the
-                           buttons used to land in the pre-v2.10.9
-                           clamp(380-540) hero.  Combined with the
-                           section's negative margin-bottom, the
-                           CTAs and the first shelf row are now back
-                           at their original screen positions while
-                           the image still fills the larger top
-                           portion of the page. */
-                        paddingBottom: 'clamp(160px, 14vh, 210px)',
+                        /* v2.7.21 — bring hero text/buttons up a tiny
+                         * bit so the row HEADINGS below the hero have
+                         * room to render (some headings were getting
+                         * clipped on rows whose content stack was
+                         * taller than the shelf-page).  Per user spec:
+                         * "LEAVE THE CARDS AND COVERS WHERE THEY ARE
+                         * — move the HERO TEXT AND BUTTONS UP A TINY
+                         * bit."  Combined with a 30 px hero-height
+                         * reduction (clamp 620→590 at 1080p) the
+                         * shelf-page gains 30 px of vertical room,
+                         * which is enough for the eyebrow + title to
+                         * fit above any rail. */
+                        paddingBottom: 'clamp(12px, 1.2vw, 22px)',
                     }}
                 >
                     <div className="vesper-eyebrow mb-3">{hero.eyebrow}</div>
@@ -313,16 +277,7 @@ export default function HeroBillboard({ heroes, hiRes = false }) {
                 </div>
             </div>
 
-            <div
-                className="absolute right-12 flex items-center gap-2.5 z-10"
-                style={{
-                    /* v2.10.12 — Anchor the slide-position dots to
-                       where the section's logical bottom WOULD be
-                       (i.e. above the negative-margin overshoot)
-                       so the shelf row never covers them. */
-                    bottom: 'clamp(150px, 13vh, 200px)',
-                }}
-            >
+            <div className="absolute bottom-10 right-12 flex items-center gap-2.5 z-10">
                 {list.map((_, i) => (
                     <span
                         key={i}

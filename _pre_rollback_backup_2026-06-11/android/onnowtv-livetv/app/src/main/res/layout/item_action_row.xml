@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Single tappable row inside the action-sheet dialog.  Focus state
+     is handled by a state-list drawable so OK / d-pad highlight is
+     consistent with the rest of the Live TV app. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="64dp"
+    android:gravity="center_vertical"
+    android:paddingHorizontal="16dp"
+    android:background="@drawable/action_sheet_row_bg"
+    android:focusable="true"
+    android:focusableInTouchMode="false"
+    android:clickable="true">
+
+    <TextView
+        android:id="@+id/action_row_icon"
+        android:layout_width="36dp"
+        android:layout_height="wrap_content"
+        android:textColor="#5DC8FF"
+        android:textSize="22sp"
+        android:gravity="center" />
+
+    <TextView
+        android:id="@+id/action_row_label"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="10dp"
+        android:textColor="#F5F8FF"
+        android:textSize="17sp"
+        android:fontFamily="sans-serif"
+        android:singleLine="true"
+        android:ellipsize="end" />
+
+    <TextView
+        android:id="@+id/action_row_trailing"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:textColor="#7A8AB2"
+        android:textSize="13sp"
+        android:fontFamily="monospace" />
+</LinearLayout>

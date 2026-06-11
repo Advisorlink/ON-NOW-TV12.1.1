@@ -1,0 +1,14 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="32dp"
+    android:height="32dp"
+    android:viewportWidth="32"
+    android:viewportHeight="32">
+    <!-- Down chevron (CH DOWN) — slim line caret -->
+    <path
+        android:strokeColor="@android:color/white"
+        android:fillColor="@android:color/transparent"
+        android:strokeWidth="2.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M 6,11 L 16,21 L 26,11" />
+</vector>

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.9.9 Center Play/Pause — larger oval, neon-blue at rest with
+     a stronger glow on focus.  This is the hero CTA in the control
+     bar so it reads as the obvious primary action. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="oval">
+            <gradient
+                android:angle="135"
+                android:startColor="#5DC8FF"
+                android:endColor="#3A95FF" />
+            <stroke android:width="3dp" android:color="#A6E2FF" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="oval">
+            <solid android:color="#3A95FF" />
+            <stroke android:width="3dp" android:color="#5DC8FF" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="oval">
+            <gradient
+                android:angle="135"
+                android:startColor="#3A95FF"
+                android:endColor="#1F6FD8" />
+            <stroke android:width="2dp" android:color="#5DC8FF" />
+        </shape>
+    </item>
+</selector>

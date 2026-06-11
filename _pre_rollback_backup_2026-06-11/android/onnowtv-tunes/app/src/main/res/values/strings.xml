@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ON NOW Tunes</string>
+    <!--
+        🛠  EDIT ME 🛠
+        The Tunes APK boots straight into `${app_url}/music` —
+        a separate route inside the same React bundle Vesper uses.
+        Point this at your production backend.
+
+        Default: Contabo VPS production host (Nginx-terminated TLS,
+        reverse-proxied to backend on 127.0.0.1:8001).
+    -->
+    <string name="app_url" translatable="false">
+        https://onnowtv.duckdns.org/
+    </string>
+</resources>

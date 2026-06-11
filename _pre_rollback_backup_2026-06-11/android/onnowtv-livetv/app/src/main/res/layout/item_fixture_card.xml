@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    One fixture row in the Sports Guide.
+
+    Left column:  time + countdown ("STARTS IN 12m" / "LIVE NOW")
+    Center:       home / vs / away or single-event name with league line
+    Right strip:  "WATCH ON" + matched channel logos
+-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="12dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:padding="18dp"
+    android:background="@drawable/fixture_card_bg"
+    android:focusable="true"
+    android:clickable="true">
+
+    <!-- TIME COLUMN -->
+    <LinearLayout
+        android:layout_width="160dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/fx_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/livetv_blue"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.05"
+            android:text="—" />
+
+        <TextView
+            android:id="@+id/fx_date"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#7C8B9E"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.20"
+            android:text="" />
+
+        <TextView
+            android:id="@+id/fx_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:paddingStart="8dp" android:paddingEnd="8dp"
+            android:paddingTop="2dp" android:paddingBottom="2dp"
+            android:background="@drawable/live_pill_bg"
+            android:textColor="#FFFFFF"
+            android:textSize="9sp"
+            android:textStyle="bold"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.18"
+            android:visibility="gone"
+            android:text="● LIVE NOW" />
+    </LinearLayout>
+
+    <!-- TEAMS / EVENT NAME -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/fx_league"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#5DC8FF"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.22"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:text="" />
+
+        <TextView
+            android:id="@+id/fx_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="-0.01"
+            android:maxLines="2"
+            android:lineSpacingMultiplier="1.05"
+            android:ellipsize="end"
+            android:shadowColor="#80000000"
+            android:shadowDx="0" android:shadowDy="1" android:shadowRadius="3"
+            android:text="" />
+
+        <TextView
+            android:id="@+id/fx_venue"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:textColor="#A8B3C2"
+            android:textSize="12sp"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:text="" />
+    </LinearLayout>
+
+    <!-- WATCH-ON STRIP -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="14dp"
+        android:orientation="vertical"
+        android:gravity="end">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="WATCH ON"
+            android:textColor="@color/livetv_blue"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.32" />
+
+        <LinearLayout
+            android:id="@+id/fx_channels"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical" />
+
+        <TextView
+            android:id="@+id/fx_no_channels"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="#7C8B9E"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.10"
+            android:visibility="gone"
+            android:text="NOT BROADCAST LOCALLY" />
+    </LinearLayout>
+</LinearLayout>

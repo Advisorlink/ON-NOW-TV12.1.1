@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Hls from 'hls.js';
 import {
@@ -20,13 +20,10 @@ import PartyVoiceDock from '@/components/PartyVoiceDock';
 import PartyStartingScreen from '@/components/PartyStartingScreen';
 import PartyHostControls from '@/components/PartyHostControls';
 import PlayerOverlay from '@/components/PlayerOverlay';
-import OrbitalLoader from '@/components/OrbitalLoader';
-import SpinningLogo from '@/components/SpinningLogo';
 import Host from '@/lib/host';
 import { API } from '@/lib/api';
 import { getActiveProfile } from '@/lib/profiles';
 import { getAvatar } from '@/lib/avatars';
-import { hideNavLoader } from '@/lib/navLoader';
 
 /** Convert OpenSubtitles SRT body into WebVTT the <track> element can read. */
 function srtToVtt(srt) {
@@ -92,11 +89,6 @@ const langLabel = (code = '') => {
 
 export default function Player() {
     useSpatialFocus();
-    // Tear down the global nav-loading overlay as soon as Player
-    // commits its first frame — handoff to Player's own spinner.
-    useLayoutEffect(() => {
-        hideNavLoader();
-    }, []);
     const navigate = useNavigate();
     const [params] = useSearchParams();
     const url = params.get('url');
@@ -1425,33 +1417,6 @@ export default function Player() {
                                 />
                             )}
                             <div className="flex-1 min-w-0">
-                                {/* v2.10.7 — Big spinning brand logo sits
-                                    at the top of the text column while
-                                    streamReady is false.  Replaces the
-                                    generic <Loader2/> spinner inside the
-                                    status pills as the focal "we are
-                                    loading" signal. */}
-                                {!streamReady && (
-                                    <div
-                                        className="flex items-center gap-4 mb-5"
-                                        data-testid="player-preview-spinner"
-                                    >
-                                        <SpinningLogo size={56} speedMs={1000} />
-                                        <span
-                                            className="vesper-mono"
-                                            style={{
-                                                fontSize: 16,
-                                                fontWeight: 600,
-                                                letterSpacing: '0.04em',
-                                                textTransform: 'none',
-                                                color: 'var(--vesper-blue-bright, #5DC8FF)',
-                                                textShadow: '0 0 24px rgba(93,200,255,0.45)',
-                                            }}
-                                        >
-                                            Starting<span className="vesper-dots" aria-hidden="true">…</span>
-                                        </span>
-                                    </div>
-                                )}
                                 <div
                                     className="vesper-eyebrow"
                                     style={{
@@ -1545,26 +1510,6 @@ export default function Player() {
                                 </div>
                             </div>
                         </div>
-                    </div>
-
-                    {/* Floating orbital brand loader (top-right) —
-                        signature loader visible across Vesper TV +
-                        Live TV.  Fades out the moment the stream
-                        becomes ready so the cinematic preview can
-                        breathe before the picture cuts in. */}
-                    <div
-                        data-testid="player-orbital-loader"
-                        className="absolute"
-                        style={{
-                            top: 'clamp(28px, 4vw, 56px)',
-                            right: 'clamp(28px, 4vw, 56px)',
-                            opacity: streamReady ? 0 : 1,
-                            transition: 'opacity 400ms ease',
-                            pointerEvents: 'none',
-                            filter: 'drop-shadow(0 6px 22px rgba(92,200,255,0.35))',
-                        }}
-                    >
-                        <OrbitalLoader size={92} accentA="#5DC8FF" accentB="#C16BFF" />
                     </div>
 
                     {/* Buffering shimmer at bottom */}

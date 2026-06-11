@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Three animated dots that pulse from left to right.  Used as
+     the "we're working" indicator under the loader headline.
+     The wave effect is driven by staggered ScaleAnimation +
+     AlphaAnimation in code (MainActivity.startDotsAnimation()). -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center">
+
+    <View
+        android:id="@+id/loader_dot_1"
+        android:layout_width="9dp"
+        android:layout_height="9dp"
+        android:layout_marginEnd="9dp"
+        android:background="@drawable/loader_dot_bg" />
+
+    <View
+        android:id="@+id/loader_dot_2"
+        android:layout_width="9dp"
+        android:layout_height="9dp"
+        android:layout_marginEnd="9dp"
+        android:background="@drawable/loader_dot_bg" />
+
+    <View
+        android:id="@+id/loader_dot_3"
+        android:layout_width="9dp"
+        android:layout_height="9dp"
+        android:background="@drawable/loader_dot_bg" />
+</LinearLayout>

@@ -88,18 +88,7 @@ export default function useSpatialFocus() {
             // makes the Profile-select screen feel buttery (its
             // tiles are flex siblings with no scroll); we now apply
             // the same shortcut to home shelves.
-            //
-            // v2.10.4 — Also recognise containers marked with
-            // `data-action-row="true"` (e.g. the Detail page's
-            // Autoplay / Choose Stream / Trailer button row).
-            // Without this the geometric scorer could pick the nav
-            // rail's Home button when the user pressed Right from
-            // Autoplay, because it was vertically aligned and only
-            // slightly further away.
-            const curActionRow = current.closest('[data-action-row="true"]');
-            const curRail = currentInNav
-                ? null
-                : (curActionRow || horizontalScroller(current));
+            const curRail = currentInNav ? null : horizontalScroller(current);
             if ((dir === 'left' || dir === 'right') && curRail) {
                 let list = curRail.__sfChildFocusables;
                 if (!list || curRail.__sfChildFocusablesGen !== cacheGen) {
@@ -581,25 +570,6 @@ export default function useSpatialFocus() {
                 el.closest('[data-no-row-snap="true"]') ||
                 vs.closest?.('[data-no-row-snap="true"]');
             if (skipRowPin) return;
-            // v2.10.10 — When focus moves WITHIN a vertical nav rail
-            // (left-hand SideNav / Music nav), do NOT scroll the main
-            // page on the right.  Without this, pressing up/down in
-            // the rail also paged the catalogue underneath because
-            // the page's vertical scroller treated each rail item as
-            // an "off-screen" target.  Detected via either
-            // `data-focus-style="nav"` on the focused element OR a
-            // fixed-positioned ancestor (the rail itself).
-            if (el.getAttribute?.('data-focus-style') === 'nav') return;
-            const fixedAncestor = (() => {
-                let cur = el.parentElement;
-                while (cur) {
-                    const pos = getComputedStyle(cur).position;
-                    if (pos === 'fixed' || pos === 'sticky') return cur;
-                    cur = cur.parentElement;
-                }
-                return null;
-            })();
-            if (fixedAncestor) return;
 
             /* v2.7.19 — Snap-row fast-path.  When the focused tile
              * lives inside a `[data-testid="shelf-page"]` (Home's

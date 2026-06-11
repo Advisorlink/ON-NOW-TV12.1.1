@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Boost animation overlay — full-screen scrim shown while the
+  RAM-clearing background-process kill runs.  Sits on TOP of the
+  launcher (and any other app) via a ConstraintLayout sibling
+  inside activity_main.xml.
+
+  Visual: a deep navy backdrop with radial-glow accent, a giant
+  rocket-pulse hero, animated diagonal sweep, and a thin progress
+  shimmer.  Matches the OnNow TV V2 cyan→magenta→violet hero
+  palette already used by V2 AI.
+
+  Behaviour driven from MainActivity::performBoost().
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/boost_overlay"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_boost_scrim"
+    android:visibility="gone"
+    android:alpha="0"
+    android:clickable="true"
+    android:focusable="false"
+    tools:visibility="visible">
+
+    <!-- Soft radial glow behind the rocket — drawn as a vector
+         that ImageView blurs via background. -->
+    <View
+        android:id="@+id/boost_glow"
+        android:layout_width="640dp"
+        android:layout_height="640dp"
+        android:layout_gravity="center"
+        android:background="@drawable/bg_boost_glow"
+        android:alpha="0.65" />
+
+    <!-- Animated rocket hero -->
+    <FrameLayout
+        android:id="@+id/boost_hero"
+        android:layout_width="280dp"
+        android:layout_height="280dp"
+        android:layout_gravity="center">
+
+        <!-- Outer pulse ring — scaled+faded via ValueAnimator -->
+        <View
+            android:id="@+id/boost_pulse_ring"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/bg_boost_pulse_ring" />
+
+        <!-- Rocket glyph -->
+        <ImageView
+            android:id="@+id/boost_rocket_icon"
+            android:layout_width="120dp"
+            android:layout_height="120dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_boost_rocket"
+            android:tint="#FFFFFFFF"
+            android:contentDescription="@null" />
+    </FrameLayout>
+
+    <!-- Title + sub-title block.  Centered slightly below the
+         rocket so the rocket reads as the focal point. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginTop="220dp"
+        android:orientation="vertical"
+        android:gravity="center_horizontal">
+
+        <TextView
+            android:id="@+id/boost_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFFFF"
+            android:textSize="34sp"
+            android:letterSpacing="0.08"
+            android:fontFamily="sans-serif-medium"
+            android:textStyle="bold"
+            android:text="BOOSTING" />
+
+        <TextView
+            android:id="@+id/boost_subtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:textColor="#CCFFFFFF"
+            android:textSize="15sp"
+            android:letterSpacing="0.06"
+            android:fontFamily="sans-serif"
+            android:text="Clearing background processes…" />
+
+        <!-- Animated RAM-freed number -->
+        <TextView
+            android:id="@+id/boost_amount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:textColor="#FF2BB6FF"
+            android:textSize="64sp"
+            android:fontFamily="sans-serif-light"
+            android:text="0 MB" />
+
+        <!-- Hairline progress shimmer bar -->
+        <FrameLayout
+            android:id="@+id/boost_progress_track"
+            android:layout_width="420dp"
+            android:layout_height="3dp"
+            android:layout_marginTop="36dp"
+            android:background="@drawable/bg_boost_progress_track">
+
+            <View
+                android:id="@+id/boost_progress_fill"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_boost_progress_fill" />
+        </FrameLayout>
+    </LinearLayout>
+
+    <!-- Final-state checkmark card.  Faded in when the kill
+         finishes; auto-dismisses 1.2 s later. -->
+    <LinearLayout
+        android:id="@+id/boost_done_card"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="120dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="20dp"
+        android:paddingVertical="14dp"
+        android:background="@drawable/bg_boost_done_pill"
+        android:visibility="invisible">
+
+        <ImageView
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:src="@drawable/ic_boost_check"
+            android:tint="#FF04060B"
+            android:contentDescription="@null" />
+
+        <TextView
+            android:id="@+id/boost_done_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:textColor="#FF04060B"
+            android:textSize="14sp"
+            android:letterSpacing="0.08"
+            android:fontFamily="sans-serif-medium"
+            android:textStyle="bold"
+            android:text="BOOST COMPLETE" />
+    </LinearLayout>
+</FrameLayout>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Strong dark gradient over the bottom 60% of the backdrop so
+     the title + meta + progress bar are always legible.
+     The transition starts soft mid-frame and saturates at the
+     bottom, giving a cinematic "card hero" look. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:startColor="#00000000"
+        android:centerColor="#88000000"
+        android:endColor="#F2080C18"
+        android:angle="270" />
+</shape>

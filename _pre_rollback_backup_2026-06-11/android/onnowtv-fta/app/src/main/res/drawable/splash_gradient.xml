@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    ON NOW V2 — Free-to-Air splash background (v2.8.110).
+
+    Matches the OnNow V2 / Vesper splash palette per user request:
+    a deep navy base (#06080F — the `vesper_bg` colour) with a
+    subtle radial blue glow (#5DC8FF at low alpha) drawn from the
+    centre so the red "V2 Free-to-Air" wordmark reads cleanly on
+    top.  Doubles as the `android:windowBackground` so the splash
+    is visible the instant the launcher hands control to us — no
+    white flash.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#FF06080F" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="900"
+                android:centerX="0.5"
+                android:centerY="0.5"
+                android:startColor="#335DC8FF"
+                android:centerColor="#1A5DC8FF"
+                android:endColor="#0006080F" />
+        </shape>
+    </item>
+</layer-list>

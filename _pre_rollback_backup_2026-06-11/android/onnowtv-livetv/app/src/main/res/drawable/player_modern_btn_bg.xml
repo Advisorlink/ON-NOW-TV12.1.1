@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.10 Player control button.
+     Default: transparent + faint thin border.
+     Focused (TV remote): solid cyan glow, rounded square,
+     scales the icon up to read as the active CTA.
+     Pressed: filled cyan flat. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="14dp" />
+            <solid android:color="#1A5DC8FF" />
+            <stroke android:width="2dp" android:color="#5DC8FF" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="14dp" />
+            <solid android:color="#2A5DC8FF" />
+            <stroke android:width="2dp" android:color="#A6E2FF" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="14dp" />
+            <solid android:color="@android:color/transparent" />
+            <stroke android:width="0dp" android:color="@android:color/transparent" />
+        </shape>
+    </item>
+</selector>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp" android:height="48dp"
+    android:viewportWidth="48" android:viewportHeight="48">
+    <path android:fillColor="#03060F" android:pathData="M0,0 H48 V48 H0 Z"/>
+    <!-- Cyan "FTA" mark -->
+    <path android:fillColor="#5DC8FF"
+        android:pathData="M10,16 H22 V18 H12 V23 H21 V25 H12 V32 H10 Z M24,16 H38 V18 H32 V32 H30 V18 H24 Z"/>
+</vector>

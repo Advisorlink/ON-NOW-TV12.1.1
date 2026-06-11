@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Required so the in-app Update Gate can launch the APK
+         installer for the freshly-downloaded onnowtv-v2-debug.apk.
+         On Android 8+ the user is prompted once to allow our app
+         to install unknown apps — handled by the gate UI which
+         falls through to ACTION_MANAGE_UNKNOWN_APP_SOURCES when
+         the install Intent fails. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Voice search via RecognizerIntent — needs mic at runtime
+         only when the user actually taps the mic.  Declared here so
+         older AOSP ROMs that pre-grant permissions don't choke. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature
+        android:name="android.hardware.microphone"
+        android:required="false" />
+
+    <!-- Android 11+ requires explicit visibility for chooser intents
+         to enumerate video player apps. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="video/*" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+
+    <!-- TV / leanback compatibility flags so HK1 + Android TV launchers
+         show the app, while keeping it installable on phones too. -->
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.faketouch"
+        android:required="false" />
+
+    <application
+        android:name=".OnNowApplication"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:extractNativeLibs="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:banner="@drawable/tv_banner"
+        android:label="@string/app_name"
+        android:hardwareAccelerated="true"
+        android:largeHeap="true"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Vesper"
+        android:usesCleartextTraffic="false"
+        android:networkSecurityConfig="@xml/network_security_config"
+        tools:replace="android:usesCleartextTraffic">
+
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|screenLayout|smallestScreenSize|navigation|uiMode|locale|fontScale|density"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="true"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.Vesper.Fullscreen"
+            android:resizeableActivity="true">
+            <!-- NOTE: screenOrientation is intentionally NOT pinned to
+                 "landscape" here.  Phones in portrait rotation-lock
+                 (very common on Samsung / Xiaomi / OnePlus) crashed
+                 on launch with `IllegalStateException: Only fullscreen
+                 opaque activities can request orientation` when the
+                 manifest forced landscape + translucent system bars.
+                 MainActivity.kt now sets orientation programmatically
+                 based on whether the device is a TV. -->
+
+            <!-- Phone / generic-Android launcher entry.  Kept in its
+                 OWN filter (separate from LEANBACK) because some old
+                 Chinese Android-7 launchers fail to scan combined
+                 filters — splitting them is the most defensive
+                 pattern and matches what Google's own AOSP samples
+                 use for "TV apps that also run on phones". -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Android TV / Leanback launcher entry. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".VlcPlayerActivity"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|screenLayout|smallestScreenSize|navigation|uiMode|locale|fontScale|density"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.Vesper.Fullscreen" />
+
+        <!-- v2.7.39 — ExoPlayer alternative backend (user picks via
+             Settings → Video player).  Same intent contract as
+             VlcPlayerActivity for trivial swap-in. -->
+        <activity
+            android:name=".ExoPlayerActivity"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|screenLayout|smallestScreenSize|navigation|uiMode|locale|fontScale|density"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.Vesper.Fullscreen" />
+
+        <!-- FileProvider so we can hand the freshly-downloaded APK
+             over to the system PackageInstaller via a content:// URI
+             (file:// URIs are forbidden from API 24+). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+</manifest>

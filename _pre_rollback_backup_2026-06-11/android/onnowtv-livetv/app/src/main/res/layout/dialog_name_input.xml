@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Brand-styled name-input dialog used by every "create new
+     collection" entry-point in the Live TV app (Library + EPG
+     channel context + EPG category context).  Single EditText with
+     two flat buttons.  Matches the action-sheet card. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="500dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/action_sheet_card_bg"
+    android:clipToOutline="true">
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="2dp"
+        android:background="#5DC8FF" />
+
+    <TextView
+        android:id="@+id/input_dialog_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="26dp"
+        android:paddingTop="24dp"
+        android:paddingBottom="6dp"
+        android:textColor="#F5F8FF"
+        android:textSize="23sp"
+        android:fontFamily="sans-serif-medium"
+        android:singleLine="false" />
+
+    <TextView
+        android:id="@+id/input_dialog_subtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="26dp"
+        android:paddingBottom="16dp"
+        android:textColor="#7A8AB2"
+        android:textSize="13sp"
+        android:fontFamily="monospace"
+        android:letterSpacing="0.08"
+        android:visibility="gone" />
+
+    <EditText
+        android:id="@+id/input_dialog_field"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="24dp"
+        android:layout_marginBottom="20dp"
+        android:padding="16dp"
+        android:background="@drawable/input_field_bg"
+        android:textColor="#F5F8FF"
+        android:textColorHint="#5F6A85"
+        android:textSize="17sp"
+        android:fontFamily="sans-serif"
+        android:singleLine="true"
+        android:inputType="text|textCapWords"
+        android:imeOptions="actionDone" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="end"
+        android:paddingHorizontal="16dp"
+        android:paddingBottom="16dp">
+
+        <TextView
+            android:id="@+id/input_dialog_cancel"
+            android:layout_width="wrap_content"
+            android:layout_height="50dp"
+            android:gravity="center"
+            android:paddingHorizontal="24dp"
+            android:text="Cancel"
+            android:textColor="#7A8AB2"
+            android:textSize="15sp"
+            android:fontFamily="sans-serif-medium"
+            android:background="@drawable/action_sheet_row_bg"
+            android:focusable="true"
+            android:clickable="true" />
+
+        <TextView
+            android:id="@+id/input_dialog_secondary"
+            android:layout_width="wrap_content"
+            android:layout_height="50dp"
+            android:layout_marginStart="10dp"
+            android:gravity="center"
+            android:paddingHorizontal="24dp"
+            android:textColor="#F5F8FF"
+            android:textSize="15sp"
+            android:fontFamily="sans-serif-medium"
+            android:background="@drawable/action_sheet_row_bg"
+            android:focusable="true"
+            android:clickable="true"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/input_dialog_save"
+            android:layout_width="wrap_content"
+            android:layout_height="50dp"
+            android:layout_marginStart="10dp"
+            android:gravity="center"
+            android:paddingHorizontal="26dp"
+            android:text="Create"
+            android:textColor="#5DC8FF"
+            android:textSize="15sp"
+            android:fontFamily="sans-serif-black"
+            android:background="@drawable/action_sheet_row_bg"
+            android:focusable="true"
+            android:clickable="true" />
+    </LinearLayout>
+</LinearLayout>

@@ -1,0 +1,21 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="32dp"
+    android:height="32dp"
+    android:viewportWidth="32"
+    android:viewportHeight="32">
+    <!-- Outlined heart — favourite toggle.  Fills cyan when the channel
+         is in the favourites collection (handled via tint in code). -->
+    <path
+        android:strokeColor="@android:color/white"
+        android:fillColor="@android:color/transparent"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M 16,27
+                          C 7,21 4,16 4,12
+                          A 5,5 0 0 1 9,7
+                          A 5,5 0 0 1 16,9.5
+                          A 5,5 0 0 1 23,7
+                          A 5,5 0 0 1 28,12
+                          C 28,16 25,21 16,27 Z" />
+</vector>

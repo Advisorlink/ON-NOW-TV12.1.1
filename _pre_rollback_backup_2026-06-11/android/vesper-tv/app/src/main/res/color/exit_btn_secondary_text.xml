@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.10.7 — Stay button text colour.
+     Default: white on translucent.  Focused: dark on solid blue so
+     the text reads sharply against the brand-blue background. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true" android:color="#04060B" />
+    <item android:state_pressed="true" android:color="#04060B" />
+    <item android:color="#FFFFFF" />
+</selector>

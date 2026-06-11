@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Category pill — thin row.  36dp + 3dp gap = 39dp per row. -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="36dp"
+    android:layout_marginBottom="3dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp"
+    android:background="@drawable/category_pill_bg"
+    android:focusable="true"
+    android:clickable="true">
+
+    <TextView
+        android:id="@+id/cat_name"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textColor="@color/livetv_fg"
+        android:textSize="12sp"
+        android:fontFamily="sans-serif-medium"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:text="" />
+
+    <TextView
+        android:id="@+id/cat_count"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="6dp"
+        android:fontFamily="monospace"
+        android:textColor="@color/livetv_fg_dim"
+        android:textSize="10sp"
+        android:textStyle="bold"
+        android:text="" />
+</LinearLayout>

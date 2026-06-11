@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg_deep">#04060B</color>
+    <color name="bg_mid">#060B16</color>
+    <color name="text_primary">#F4F7FB</color>
+    <color name="text_secondary">#8EA0B7</color>
+    <color name="text_tertiary">#5D6E85</color>
+    <color name="accent">#2BB6FF</color>
+    <color name="accent_dim">#1A4C80</color>
+    <color name="divider">#33FFFFFF</color>
+    <color name="dock_bg">#9C0A1220</color>
+    <color name="dock_border">#1AFFFFFF</color>
+    <!-- v0.5 — alias for the topbar / tile dividers used by the new layout. -->
+    <color name="border">#1AFFFFFF</color>
+</resources>

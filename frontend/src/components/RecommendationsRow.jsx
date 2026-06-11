@@ -54,30 +54,17 @@ export default function RecommendationsRow({ tmdbId, mediaType, onFocus, testId 
     }, [tmdbId, mediaType]);
 
     const handlePick = async (item) => {
-        // v2.10.45 — No full-screen loader.  Detail paints instantly
-        // from the preview payload while the IMDB id resolves.
         try {
             const { data } = await axios.get(
                 `${API}/tmdb/imdb/${item.media_type}/${item.tmdb_id}`,
                 { timeout: 8000 }
             );
             if (data?.imdb_id) {
-                navigate(
-                    `/title/${item.media_type === 'tv' ? 'series' : 'movie'}/${data.imdb_id}`,
-                    {
-                        state: {
-                            preview: {
-                                title: item.title || item.name || '',
-                                poster: item.poster || '',
-                                background: item.backdrop || '',
-                                description: item.overview || '',
-                                year: item.year || '',
-                            },
-                        },
-                    }
-                );
+                navigate(`/title/${item.media_type === 'tv' ? 'series' : 'movie'}/${data.imdb_id}`);
             }
-        } catch { /* swallow — tile stays put */ }
+        } catch {
+            /* swallow — user can navigate away manually */
+        }
     };
 
     if (busy || items.length === 0) return null;

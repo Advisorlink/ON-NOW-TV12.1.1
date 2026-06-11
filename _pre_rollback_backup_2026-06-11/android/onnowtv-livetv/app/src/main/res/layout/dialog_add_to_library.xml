@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    "Add to Library" dialog — Vesper-style glass card with a single
+    cinematic CTA.  Three visual states baked into one layout via
+    visibility flips by the activity:
+
+      • Idle     — header + body + 2 buttons (Add+Generate / Cancel)
+      • Busy     — header + body + indeterminate progress + elapsed
+                   timer + 1 button (Cancel)
+      • Result   — header + body + success message + 1 button (Done)
+
+    This replaces the legacy 1980s-era AlertDialog.Builder modal.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/library_dialog_bg"
+    android:padding="36dp"
+    android:elevation="24dp">
+
+    <!-- ───────────────────── Header ───────────────────── -->
+    <TextView
+        android:id="@+id/dlg_eyebrow"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:textColor="@color/livetv_accent"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.32"
+        android:text="MY LIBRARY" />
+
+    <TextView
+        android:id="@+id/dlg_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:fontFamily="sans-serif-black"
+        android:textColor="@color/livetv_fg"
+        android:textSize="30sp"
+        android:textStyle="bold"
+        android:letterSpacing="-0.025"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:text="Add Sky Sports to library?" />
+
+    <TextView
+        android:id="@+id/dlg_body"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:fontFamily="sans-serif"
+        android:textColor="@color/livetv_fg_dim"
+        android:textSize="14sp"
+        android:lineSpacingExtra="3dp"
+        android:text="We'll generate a realistic 16:9 promotional banner that looks like a proper broadcaster cover — usually 10–20 seconds." />
+
+    <!-- ─── Editable name field (hidden by default; shown when the
+         dialog is invoked with a `nameHint`).  Lets the user refine
+         the brand name BEFORE the generator runs — e.g. tweak
+         "Sky Sports KO" → "Sky Sports KO boxing" for a clearer
+         right-side image. ─── -->
+    <LinearLayout
+        android:id="@+id/dlg_name_block"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:textColor="@color/livetv_fg_bright"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.22"
+            android:text="CHANNEL / CATEGORY NAME" />
+
+        <EditText
+            android:id="@+id/dlg_name_input"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="6dp"
+            android:paddingHorizontal="14dp"
+            android:background="@drawable/library_btn_secondary_bg"
+            android:fontFamily="sans-serif-medium"
+            android:textColor="@color/livetv_fg"
+            android:textColorHint="@color/livetv_fg_dim"
+            android:textSize="16sp"
+            android:textCursorDrawable="@null"
+            android:inputType="text|textCapWords"
+            android:imeOptions="actionDone"
+            android:maxLines="1"
+            android:singleLine="true"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:hint="Channel name" />
+    </LinearLayout>
+
+    <!-- ─────────────── Progress block (hidden by default) ─────────────── -->
+    <LinearLayout
+        android:id="@+id/dlg_progress_block"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="22dp"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <!-- Fake progress strip — animated client-side toward ~95 %
+             then completes when the network call resolves. -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="6dp"
+            android:background="@drawable/library_progress_track">
+
+            <View
+                android:id="@+id/dlg_progress_fill"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:background="@drawable/library_progress_fill" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/dlg_progress_label"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:fontFamily="monospace"
+                android:textColor="@color/livetv_fg_bright"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.22"
+                android:text="GENERATING COVER…" />
+
+            <TextView
+                android:id="@+id/dlg_progress_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:textColor="@color/livetv_accent"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.22"
+                android:text="0s" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- ───────────────────── Buttons ───────────────────── -->
+    <LinearLayout
+        android:id="@+id/dlg_buttons"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
+        android:orientation="horizontal"
+        android:gravity="end">
+
+        <Button
+            android:id="@+id/dlg_btn_secondary"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="56dp"
+            android:minWidth="120dp"
+            android:paddingHorizontal="24dp"
+            android:fontFamily="sans-serif-medium"
+            android:textColor="@color/livetv_fg_dim"
+            android:textSize="14sp"
+            android:textAllCaps="false"
+            android:letterSpacing="0.0"
+            android:background="@drawable/library_btn_secondary_bg"
+            android:focusable="true"
+            android:text="Cancel" />
+
+        <Button
+            android:id="@+id/dlg_btn_tertiary"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="56dp"
+            android:layout_marginStart="12dp"
+            android:minWidth="160dp"
+            android:paddingHorizontal="24dp"
+            android:fontFamily="sans-serif-medium"
+            android:textColor="@color/livetv_fg"
+            android:textSize="14sp"
+            android:textAllCaps="false"
+            android:letterSpacing="0.0"
+            android:background="@drawable/library_btn_secondary_bg"
+            android:focusable="true"
+            android:visibility="gone"
+            android:text="Add your own" />
+
+        <Button
+            android:id="@+id/dlg_btn_primary"
+            android:layout_width="wrap_content"
+            android:layout_height="56dp"
+            android:layout_marginStart="12dp"
+            android:minWidth="200dp"
+            android:paddingHorizontal="28dp"
+            android:fontFamily="sans-serif-black"
+            android:textColor="#06080F"
+            android:textSize="15sp"
+            android:textAllCaps="false"
+            android:textStyle="bold"
+            android:letterSpacing="-0.005"
+            android:background="@drawable/library_btn_primary_bg"
+            android:focusable="true"
+            android:text="Add + Generate" />
+    </LinearLayout>
+</LinearLayout>

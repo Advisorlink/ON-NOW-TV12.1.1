@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One pill in the horizontal sport picker rail.  Focused pill
+     gets a cyan border + glow.  Activated (selected) pill stays
+     filled cyan even after focus moves away. -->
+<TextView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="10dp"
+    android:paddingStart="18dp"
+    android:paddingEnd="18dp"
+    android:paddingTop="10dp"
+    android:paddingBottom="10dp"
+    android:background="@drawable/sport_pill_bg"
+    android:fontFamily="sans-serif-medium"
+    android:textSize="13sp"
+    android:textStyle="bold"
+    android:textColor="@color/sport_pill_fg"
+    android:letterSpacing="0.04"
+    android:focusable="true"
+    android:clickable="true"
+    android:minWidth="80dp"
+    android:gravity="center"
+    android:singleLine="true" />

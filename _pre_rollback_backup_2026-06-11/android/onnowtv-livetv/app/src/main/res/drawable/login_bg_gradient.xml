@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.9.7 LoginActivity hero background.
+     Deep navy → black radial gradient that anchors the off-screen
+     orbital ring artwork.  The whole login experience sits on top
+     of this layer. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:type="radial"
+        android:gradientRadius="900"
+        android:centerX="0.18"
+        android:centerY="0.42"
+        android:startColor="#142142"
+        android:endColor="#05080F" />
+</shape>

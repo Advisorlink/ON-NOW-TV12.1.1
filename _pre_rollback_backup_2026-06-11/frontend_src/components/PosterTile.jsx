@@ -1,0 +1,182 @@
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import * as img from '@/lib/img';
+import useLongPress from '@/hooks/useLongPress';
+
+/**
+ * Poster tile.  Image renders immediately on mount — we don't try
+ * to be clever about deferring decode because the user reported
+ * seeing placeholder text flash during fast D-pad scrolls.  Browser
+ * native `loading="lazy"` already handles off-screen rate-limiting,
+ * and the parent `<Lazy>` shelf wrapper still skips work for shelves
+ * far below the viewport.
+ *
+ * Press-and-hold OK (or mouse) to fire the global "Add to My List"
+ * modal — short-tap still navigates to the detail page.
+ *
+ * v2.10.44 — Per explicit user demand: NO full-screen loader on
+ * tile click.  Detail.jsx now shows its own progressive layout
+ * with a "Loading" spinner on the Autoplay button while streams
+ * resolve.  Removed the `showNavLoader()` calls accordingly.
+ */
+export default function PosterTile({ item, onSelect, initialFocus = false }) {
+    const navigate = useNavigate();
+
+    const onTap = () => {
+        // v2.10.45 — Hand the Detail page everything we already know
+        // about this title so it can paint its hero on the FIRST
+        // frame (no loading screen) while real metadata resolves.
+        const preview = {
+            title: item.title || '',
+            poster: item.poster ? img.poster(item.poster) : '',
+            background: item.background ? img.backdrop(item.background) : '',
+            description: item.description || '',
+            year: item.year || item.sub || '',
+            genres: Array.isArray(item.genres) ? item.genres : [],
+        };
+        if (onSelect) {
+            onSelect(item);
+        } else if (item.routePath) {
+            navigate(item.routePath, { state: { preview } });
+        } else if (item.imdbId) {
+            navigate(`/title/${item.type || 'movie'}/${item.imdbId}`, {
+                state: { preview },
+            });
+        } else {
+            navigate(`/title/${item.id}`, { state: { preview } });
+        }
+    };
+
+    const onLongPress = () => {
+        const id = item.imdbId || item.id;
+        if (!id || !id.toString().startsWith('tt')) return;
+        window.dispatchEvent(
+            new CustomEvent('vesper:request-add-to-list', {
+                detail: {
+                    id,
+                    type: item.type || 'movie',
+                    title: item.title,
+                    poster: item.poster ? img.poster(item.poster) : null,
+                    background: item.background
+                        ? img.backdrop(item.background)
+                        : null,
+                    year: item.year || item.sub,
+                    genres: item.genres,
+                    synopsis: item.description,
+                },
+            })
+        );
+    };
+
+    const press = useLongPress(onLongPress, onTap);
+
+    return (
+        <button
+            data-testid={`poster-${item.id}`}
+            data-tile-id={item.imdbId || item.id}
+            data-focusable="true"
+            data-focus-style="tile"
+            {...(initialFocus ? { 'data-initial-focus': 'true' } : {})}
+            tabIndex={0}
+            {...press}
+            className="group relative shrink-0 overflow-hidden rounded-xl text-left"
+            style={{
+                width: 'clamp(132px, 11.5vw, 198px)',
+                aspectRatio: '2 / 3',
+                background: 'var(--vesper-bg-2)',
+                border: '1px solid rgba(255,255,255,0.05)',
+                /* v2.7.88 — INLINE touch-action so a finger drag
+                   across the poster doesn't capture the gesture.
+                   We've tried gating this via CSS at the body
+                   (`data-platform="mobile"`) and via media-query
+                   (`pointer: coarse`) — both got overridden by
+                   downstream component CSS on the user's Samsung
+                   WebView.  Inline style on the element itself
+                   has the highest specificity short of a
+                   stylesheet `!important` and CANNOT be
+                   overridden by any CSS rule, so this is the
+                   final say on touch behaviour.  TVs (D-pad
+                   only) never fire touch events so this is a
+                   no-op there. */
+                touchAction: 'pan-x pan-y',
+                scrollMarginTop: 24,
+                scrollMarginBottom: 24,
+                // GPU compositing only.  IMPORTANT: do NOT add
+                // `content-visibility: auto` or `contain: size /
+                // paint / strict` here — those create a
+                // size-contained box that clips the focused tile's
+                // `scale(1.08)` animation at the tile's bottom
+                // edge.  Pure compositor promotion is enough to
+                // get smooth scrolling on the HK1 without breaking
+                // the scale animation.
+                transform: 'translateZ(0)',
+                backfaceVisibility: 'hidden',
+                willChange: 'transform',
+            }}
+        >
+            {item.poster ? (
+                <img
+                    src={img.poster(item.poster)}
+                    alt={item.title}
+                    loading="lazy"
+                    decoding="async"
+                    className="absolute inset-0 w-full h-full object-cover"
+                />
+            ) : (
+                <div
+                    className="absolute inset-0 flex items-center justify-center"
+                    style={{
+                        background:
+                            'linear-gradient(180deg, var(--vesper-bg-2) 0%, var(--vesper-bg-1) 100%)',
+                    }}
+                >
+                    <span
+                        className="vesper-display"
+                        style={{
+                            fontSize: 64,
+                            color: 'rgba(var(--vesper-blue-rgb),0.18)',
+                        }}
+                    >
+                        {(item.title || '?')[0]}
+                    </span>
+                </div>
+            )}
+
+            <div
+                className="absolute inset-x-0 bottom-0 h-2/5 pointer-events-none"
+                style={{
+                    background:
+                        'linear-gradient(180deg, rgba(6,8,15,0) 0%, rgba(6,8,15,0.93) 78%, var(--vesper-bg-0) 100%)',
+                }}
+            />
+
+            <div className="absolute inset-x-0 bottom-0 p-4">
+                <div
+                    className="font-sans"
+                    style={{
+                        fontSize: 'clamp(13px, 1vw, 17px)',
+                        fontWeight: 600,
+                        letterSpacing: '-0.015em',
+                        lineHeight: 1.15,
+                        color: 'var(--vesper-text)',
+                    }}
+                >
+                    {item.title}
+                </div>
+                {item.sub && (
+                    <div
+                        className="vesper-mono mt-1.5"
+                        style={{
+                            fontSize: 'clamp(9px, 0.62vw, 11px)',
+                            letterSpacing: '0.18em',
+                            textTransform: 'uppercase',
+                            color: 'var(--vesper-text-2)',
+                        }}
+                    >
+                        {item.sub}
+                    </div>
+                )}
+            </div>
+        </button>
+    );
+}

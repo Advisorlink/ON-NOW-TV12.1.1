@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pill-shaped category filter button. -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/pill_root"
+    android:layout_width="wrap_content"
+    android:layout_height="34dp"
+    android:layout_marginEnd="8dp"
+    android:background="@drawable/guide_category_pill_bg"
+    android:focusable="true"
+    android:gravity="center"
+    android:paddingStart="14dp"
+    android:paddingEnd="14dp"
+    android:textColor="#C7CFDB"
+    android:textSize="11sp"
+    android:fontFamily="monospace"
+    android:textStyle="bold"
+    android:letterSpacing="0.12"
+    android:maxLines="1"
+    android:ellipsize="end"
+    tools:text="ALL · 14782" />

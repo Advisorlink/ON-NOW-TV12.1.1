@@ -1,0 +1,353 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ON NOW V2 LIVE TV — first-launch login screen (v2.9.7).
+     Modern split layout: orbital ring artwork on the left, glass
+     auth card on the right.  Built specifically for 1920×1080 TV
+     output but lays out gracefully on portrait phone screens too. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/login_bg_gradient">
+
+    <!-- ───── Orbital ring backdrop (decorative) ───── -->
+    <ImageView
+        android:id="@+id/login_orbital_bg"
+        android:layout_width="900dp"
+        android:layout_height="900dp"
+        android:layout_gravity="start|center_vertical"
+        android:layout_marginStart="-200dp"
+        android:src="@drawable/login_orbital_rings"
+        android:scaleType="fitCenter"
+        android:alpha="0.55"
+        android:importantForAccessibility="no"
+        tools:ignore="ContentDescription" />
+
+    <!-- Subtle vignette over the rings so the brand text reads clean -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#7305080F" />
+
+    <!-- ───── 2-column content ───── -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="96dp"
+        android:weightSum="2">
+
+        <!-- LEFT: brand pitch -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1.05"
+            android:layout_marginEnd="48dp"
+            android:orientation="vertical">
+
+            <!-- Brand chip -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/login_input_bg"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="6dp">
+                <View
+                    android:layout_width="6dp"
+                    android:layout_height="6dp"
+                    android:layout_marginEnd="9dp"
+                    android:background="@color/livetv_accent" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="ON NOW · V2 LIVE TV"
+                    android:textColor="@color/livetv_accent"
+                    android:textSize="11sp"
+                    android:fontFamily="monospace"
+                    android:letterSpacing="0.28"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:text="Live TV, live sports,\nand every match\nworth watching."
+                android:textColor="@color/livetv_fg"
+                android:textSize="46sp"
+                android:fontFamily="sans-serif-black"
+                android:letterSpacing="-0.025"
+                android:lineSpacingMultiplier="1.05" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:maxWidth="540dp"
+                android:text="Sign in with the username and password you were given by ON NOW TV."
+                android:textColor="@color/livetv_fg_dim"
+                android:textSize="16sp"
+                android:fontFamily="sans-serif"
+                android:lineSpacingExtra="2dp" />
+
+            <!-- Feature bullets -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="34dp"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="10dp">
+                    <View
+                        android:layout_width="6dp"
+                        android:layout_height="6dp"
+                        android:layout_marginEnd="14dp"
+                        android:background="@color/livetv_accent" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Full guide · always on, always fresh"
+                        android:textColor="@color/livetv_fg_bright"
+                        android:textSize="14sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="10dp">
+                    <View
+                        android:layout_width="6dp"
+                        android:layout_height="6dp"
+                        android:layout_marginEnd="14dp"
+                        android:background="@color/livetv_accent" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Your collections · long-press to curate"
+                        android:textColor="@color/livetv_fg_bright"
+                        android:textSize="14sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+                    <View
+                        android:layout_width="6dp"
+                        android:layout_height="6dp"
+                        android:layout_marginEnd="14dp"
+                        android:background="@color/livetv_accent" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Live sport · UK, USA, Kayo, NZ — all in one place"
+                        android:textColor="@color/livetv_fg_bright"
+                        android:textSize="14sp" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- RIGHT: glass auth card -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="0.95"
+            android:maxWidth="520dp"
+            android:minWidth="440dp"
+            android:orientation="vertical"
+            android:background="@drawable/login_card_bg"
+            android:paddingHorizontal="36dp"
+            android:paddingTop="38dp"
+            android:paddingBottom="36dp"
+            android:clipToOutline="true">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="STEP 01"
+                android:textColor="@color/livetv_accent"
+                android:textSize="11sp"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.32"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="Sign in to your account"
+                android:textColor="@color/livetv_fg"
+                android:textSize="28sp"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="-0.01" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="Enter the username and password from your ON NOW TV welcome email."
+                android:textColor="@color/livetv_fg_dim"
+                android:textSize="13sp"
+                android:lineSpacingExtra="1dp" />
+
+            <!-- Username field -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="26dp"
+                android:text="USERNAME"
+                android:textColor="@color/livetv_fg_dim"
+                android:textSize="10sp"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.18"
+                android:textStyle="bold" />
+
+            <EditText
+                android:id="@+id/login_username"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:padding="16dp"
+                android:background="@drawable/login_input_bg"
+                android:textColor="@color/livetv_fg"
+                android:textColorHint="#4A5A78"
+                android:textSize="16sp"
+                android:hint="e.g. TRAV201022"
+                android:singleLine="true"
+                android:inputType="text"
+                android:imeOptions="actionNext"
+                android:autofillHints="username" />
+
+            <!-- Password field with show/hide toggle -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="PASSWORD"
+                    android:textColor="@color/livetv_fg_dim"
+                    android:textSize="10sp"
+                    android:fontFamily="monospace"
+                    android:letterSpacing="0.18"
+                    android:textStyle="bold" />
+                <TextView
+                    android:id="@+id/login_show_pass"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:padding="6dp"
+                    android:text="Show"
+                    android:textColor="@color/livetv_accent"
+                    android:textSize="11sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:letterSpacing="0.08"
+                    android:focusable="true"
+                    android:clickable="true"
+                    android:background="?android:attr/selectableItemBackground" />
+            </LinearLayout>
+
+            <EditText
+                android:id="@+id/login_password"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:padding="16dp"
+                android:background="@drawable/login_input_bg"
+                android:textColor="@color/livetv_fg"
+                android:textColorHint="#4A5A78"
+                android:textSize="16sp"
+                android:hint="Your password"
+                android:singleLine="true"
+                android:inputType="textPassword"
+                android:imeOptions="actionDone"
+                android:autofillHints="password" />
+
+            <!-- Sign-in button -->
+            <FrameLayout
+                android:id="@+id/login_submit"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginTop="28dp"
+                android:background="@drawable/login_btn_bg"
+                android:focusable="true"
+                android:clickable="true">
+                <TextView
+                    android:id="@+id/login_submit_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:text="SIGN IN"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp"
+                    android:fontFamily="sans-serif-black"
+                    android:letterSpacing="0.2" />
+            </FrameLayout>
+
+            <!-- Status / error -->
+            <TextView
+                android:id="@+id/login_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:textColor="#FF8AA9"
+                android:textSize="13sp"
+                android:fontFamily="sans-serif-medium"
+                android:visibility="gone" />
+
+            <!-- Optional diagnostic (dim) — explains backend fallback. -->
+            <TextView
+                android:id="@+id/login_diag"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textColor="#6E7E9A"
+                android:textSize="11sp"
+                android:fontFamily="monospace"
+                android:visibility="gone" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="22dp"
+                android:background="#1E2A44" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:text="Need an account?  Contact ON NOW TV Support."
+                android:textColor="@color/livetv_fg_dimmer"
+                android:textSize="12sp"
+                android:gravity="center"
+                android:fontFamily="sans-serif" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- v2.9.12 — Bottom-left brand line.  No DNS / implementation
+         text — user explicitly asked to hide anything technical.  -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="96dp"
+        android:layout_marginBottom="36dp"
+        android:text="ON NOW TV · V2 LIVE TV"
+        android:textColor="#4A5A78"
+        android:textSize="11sp"
+        android:fontFamily="monospace"
+        android:letterSpacing="0.32" />
+</FrameLayout>

@@ -1,0 +1,1361 @@
+/* ON NOW V2 — Free-to-Air EPG.  v2.8.91 polish:
+   - 1920×1080-first layout (sidebar 420 px, preview maximised)
+   - Stronger row separators + zebra stripe
+   - Programme cells carry title + subtitle + time, NEXT pill on the
+     next-airing slot
+   - City selector in the topbar
+   v2.8.97 — Vesper-style slide-in left side menu for categories.
+*/
+
+.fta-side-menu {
+    position: fixed;
+    /* v2.8.105 — sit just to the right of the EXPANDED icon rail
+       (240 px) so the rail icons remain fully visible and clicking
+       Categories doesn't appear to close the rail (it was being
+       covered by the submenu). */
+    left: 240px;
+    top: 0;
+    bottom: 0;
+    width: 300px;
+    background:
+        linear-gradient(180deg, rgba(15, 25, 50, 0.96) 0%, rgba(6, 10, 22, 0.96) 100%);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-right: 1px solid rgba(93, 200, 255, 0.18);
+    z-index: 60;
+    padding: 28px 16px 16px;
+    box-sizing: border-box;
+    box-shadow: 18px 0 60px rgba(0, 0, 0, 0.5);
+    animation: fta-side-menu-in 200ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes fta-side-menu-in {
+    from { transform: translateX(-100%); opacity: 0; }
+    to   { transform: translateX(0);     opacity: 1; }
+}
+
+.fta-side-menu__title {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+    padding: 0 12px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 8px;
+}
+
+.fta-side-menu__list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.fta-side-menu__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: transparent;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 14px;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    cursor: pointer;
+    text-align: left;
+    transition: background 160ms, color 160ms, transform 160ms;
+}
+
+.fta-side-menu__item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.fta-side-menu__item:focus {
+    outline: none;
+    background: linear-gradient(135deg, rgba(93, 200, 255, 0.18) 0%, rgba(93, 200, 255, 0.04) 100%);
+    box-shadow: inset 3px 0 0 0 var(--fta-blue, #5DC8FF);
+    transform: translateX(2px);
+}
+
+.fta-side-menu__item.is-active {
+    color: var(--fta-blue, #5DC8FF);
+    background: rgba(93, 200, 255, 0.08);
+}
+
+.fta-side-menu__count {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.06);
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-variant-numeric: tabular-nums;
+}
+
+.fta-root {
+    --fta-bg: #03060f;
+    --fta-bg-card: #0d1525;
+    --fta-bg-card-alt: #0a1120;            /* zebra band */
+    --fta-bg-focused: #18253f;
+    --fta-bg-live: #1a2438;
+    --fta-fg: #fff;
+    --fta-fg-dim: rgba(255, 255, 255, 0.68);
+    --fta-fg-dimmer: rgba(255, 255, 255, 0.42);
+    --fta-accent: #ff2535;
+    --fta-accent-glow: rgba(255, 37, 53, 0.45);
+    --fta-blue: #5DC8FF;
+    --fta-pill-bg: rgba(255, 255, 255, 0.08);
+    --fta-border: rgba(255, 255, 255, 0.10);
+    --fta-row-sep: rgba(255, 255, 255, 0.07);
+    /* v2.8.96 — denser EPG per user feedback (the right pane was
+       eating ~80% of the screen and cells were huge).  Halved row
+       height, reduced cells-per-hour width by ~40%, slimmer logo
+       rail.  JS constants in FreeToAir.jsx mirror these. */
+    --fta-row-h: 64px;
+    --fta-grid-px-per-min: 9px;
+    --fta-channel-rail-w: 104px;
+
+    position: fixed;
+    inset: 0;
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(20, 30, 60, 0.65) 0%, transparent 60%),
+        var(--fta-bg);
+    color: var(--fta-fg);
+    font-family: var(--theme-font, 'Inter', system-ui, sans-serif);
+    overflow: hidden;
+    z-index: 50;
+}
+
+/* Top bar — removed in v2.8.103, the rail now hosts navigation.  */
+.fta-topbar {
+    display: none !important;
+}
+
+.fta-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 18px;
+}
+
+/* "ON NOW" stacked over "V2 FREE TO AIR" — a real wordmark, not a
+   bare label.  Inspired by network identity treatments: bold sans
+   in white with a red badge for V2, all sized to read clearly at
+   1080p TV viewing distance. */
+.fta-brand-mark {
+    position: relative;
+    display: inline-flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 16px 8px 14px;
+    background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.04) 0%,
+        rgba(255, 255, 255, 0.01) 100%
+    );
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        0 4px 22px -8px rgba(255, 37, 53, 0.30);
+}
+
+.fta-brand-mark::before {
+    /* Left accent bar — same red as the LIVE pill, ties the wordmark
+       to the EPG's NOW line for visual consistency. */
+    content: '';
+    position: absolute;
+    left: -1px;
+    top: 8px;
+    bottom: 8px;
+    width: 3px;
+    border-radius: 999px;
+    background: var(--fta-accent);
+    box-shadow: 0 0 12px var(--fta-accent-glow);
+}
+
+.fta-brand-mark__top {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.34em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.55);
+    line-height: 1;
+}
+
+.fta-brand-mark__bottom {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    line-height: 1;
+}
+
+.fta-brand-mark__bottom .fta-brand-v2 {
+    background: var(--fta-accent);
+    color: #fff;
+    padding: 2px 7px 3px;
+    border-radius: 5px;
+    font-size: 14px;
+    font-weight: 900;
+    letter-spacing: 0;
+    box-shadow: 0 4px 12px var(--fta-accent-glow);
+}
+
+.fta-brand-mark__bottom .fta-brand-text {
+    background: linear-gradient(180deg, #fff 0%, rgba(255, 255, 255, 0.72) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.fta-tabs {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 28px;
+    padding: 4px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 999px;
+    border: 1px solid var(--fta-border);
+}
+
+.fta-tab {
+    padding: 8px 16px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    color: var(--fta-fg-dim);
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    transition: background 200ms, color 200ms;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    white-space: nowrap;
+}
+
+.fta-tab.is-active {
+    background: #fff;
+    color: #000;
+}
+
+.fta-tab:focus-visible {
+    outline: 2px solid var(--fta-blue);
+    outline-offset: 2px;
+}
+
+.fta-tab__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--fta-fg-dim);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.fta-tab.is-active .fta-tab__count {
+    background: rgba(0, 0, 0, 0.10);
+    color: rgba(0, 0, 0, 0.65);
+}
+
+.fta-topbar-right {
+    display: inline-flex;
+    align-items: center;
+    gap: 18px;
+}
+
+.fta-city {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--fta-pill-bg);
+    border: 1px solid var(--fta-border);
+    border-radius: 999px;
+    color: var(--fta-fg);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.fta-city:focus-visible { outline: 2px solid var(--fta-blue); outline-offset: 2px; }
+
+.fta-clock {
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--fta-fg);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Body split ------------------------------------------------------- */
+.fta-body {
+    /* v2.8.103 — top bar removed.  Now the rail occupies the
+       left ~76px, the body fills the rest below the small floating
+       clock strip in the top-right corner.  When the rail expands
+       (focused) we widen the left padding so the EPG slides right
+       and the rail icons + labels don't overlap. */
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+    padding-left: 76px;
+    box-sizing: border-box;
+    transition: padding-left 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* When the rail is focused OR the categories submenu is open, the
+   rail visibly expands and the body shifts right so nothing is
+   covered. */
+.fta-root:has(.fta-rail.is-focused) .fta-body,
+.fta-root:has(.fta-side-menu) .fta-body {
+    padding-left: 240px;
+}
+
+/* Submenu open → push the EPG further right so neither the rail
+   nor the submenu overlap content. */
+.fta-root:has(.fta-side-menu) .fta-body {
+    padding-left: 540px;
+}
+
+/* Left icon rail ----------------------------------------------------
+   v2.8.104 — mirrors Vesper / Tunes SideNav.  Width comes from
+   inline style (76 px collapsed → 240 px expanded).  Same brand
+   wordmark with the glowing V2 emblem and the same icon container
+   dimensions. */
+.fta-rail {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 70;
+    display: flex;
+    flex-direction: column;
+    padding: 28px 0;
+    transition: width 300ms cubic-bezier(0.2, 0.7, 0.2, 1), background 300ms;
+}
+
+.fta-rail__brandmark {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0 18px;
+    margin-bottom: 36px;
+    user-select: none;
+    overflow: hidden;
+    position: relative;
+}
+
+/* Collapsed-state mark: bold red "V2" badge centred in the 76 px rail. */
+.fta-rail__brand-collapsed {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    color: #FF2535;
+    text-shadow: 0 0 10px rgba(255, 37, 53, 0.35);
+}
+
+.fta-rail__brand-icon {
+    /* Legacy — kept for any remaining reference but no longer
+       rendered (wordmark replaces it). */
+    display: none;
+}
+
+.fta-rail__brand-text {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 8px;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.fta-rail__brand-v2 {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 26px;
+    line-height: 1;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    color: #FF2535;
+    text-shadow:
+        0 0 12px rgba(255, 37, 53, 0.45),
+        0 0 24px rgba(255, 37, 53, 0.22);
+}
+
+.fta-rail__brand-suffix {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 18px;
+    line-height: 1;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: #fff;
+    text-transform: none;
+}
+
+.fta-rail__items {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 0 12px;
+}
+
+.fta-rail__btn {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.62);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    border-radius: 8px;
+    padding: 0 8px;
+    height: 44px;
+    cursor: pointer;
+    text-align: left;
+    transition: color 160ms;
+    position: relative;
+    overflow: hidden;
+}
+
+.fta-rail__btn:hover {
+    color: #fff;
+}
+
+.fta-rail__btn.is-focused,
+.fta-rail__btn:focus {
+    outline: none;
+    color: #fff;
+    /* Same blue-bright focus treatment as Vesper's nav-style focus. */
+}
+
+.fta-rail__btn.is-focused::before,
+.fta-rail__btn:focus::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 8px;
+    /* v2.8.105 — red focus glow to match the new Live TV brand. */
+    border: 2px solid #FF6A1F;
+    box-shadow: 0 0 0 1px rgba(255, 106, 31, 0.25);
+    pointer-events: none;
+}
+
+.fta-rail__btn.is-on {
+    color: #FF6A1F;
+}
+
+.fta-rail__btn.is-on svg {
+    color: #FF6A1F;
+}
+
+.fta-rail__btn-icon-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+}
+
+.fta-rail__btn-label {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    overflow: hidden;
+    white-space: nowrap;
+    transition: opacity 300ms;
+    pointer-events: none;
+}
+
+/* Floating clock strip in the top-right corner -------------------- */
+.fta-clock-strip {
+    position: fixed;
+    top: 22px;
+    right: 32px;
+    display: flex;
+    align-items: baseline;
+    gap: 18px;
+    z-index: 55;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+}
+
+.fta-clock-strip__city {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.fta-clock-strip__time {
+    font-size: 22px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -0.005em;
+}
+
+/* Favourite long-press pulse on the rail icon --------------------- */
+.fta-rail__btn.is-favourite-pulse {
+    animation: fta-fav-flash 700ms ease-out;
+}
+
+@keyframes fta-fav-flash {
+    0%   { box-shadow: 0 0 0 0   rgba(255, 197, 39, 0.85); }
+    100% { box-shadow: 0 0 0 18px rgba(255, 197, 39, 0); }
+}
+
+/* Sidebar (left preview + info) ----------------------------------- */
+.fta-sidebar {
+    width: 540px;
+    flex-shrink: 0;
+    padding: 28px 28px 28px 36px;
+    box-sizing: border-box;
+    border-right: 1px solid var(--fta-border);
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    overflow: hidden;
+}
+
+.fta-preview {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    border-radius: 18px;
+    overflow: hidden;
+    background: #000;
+    box-shadow:
+        0 24px 60px -22px rgba(0, 0, 0, 0.85),
+        0 0 0 1px rgba(255, 255, 255, 0.06);
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    /* v2.8.97 — animate ALL geometry changes so the preview pane
+       smoothly zooms to fullscreen when the user activates it and
+       smoothly shrinks back when they press BACK.  Because the
+       <video> element inside is NEVER unmounted (same React tree,
+       same DOM node), the HLS connection stays alive — there is no
+       buffer flush, no re-handshake, no audio glitch on entry/exit. */
+    transition:
+        transform 240ms cubic-bezier(0.2, 0.7, 0.2, 1),
+        box-shadow 240ms,
+        position 0s,
+        inset 240ms cubic-bezier(0.2, 0.7, 0.2, 1),
+        border-radius 240ms,
+        aspect-ratio 240ms;
+}
+
+.fta-preview:focus-visible {
+    outline: none;
+    transform: translateY(-2px);
+    box-shadow:
+        0 30px 70px -22px rgba(0, 0, 0, 0.95),
+        0 0 0 2px var(--fta-blue);
+}
+
+/* When the user presses OK on an armed preview, .fta-root gets
+   .is-fullscreen and the preview tile takes over the screen.
+   Same <video>, same hls.js session — just a CSS resize. */
+.fta-root.is-fullscreen .fta-preview {
+    position: fixed;
+    inset: 0;
+    aspect-ratio: auto;
+    border-radius: 0;
+    z-index: 9000;
+    transform: none;
+    box-shadow: none;
+}
+
+.fta-root.is-fullscreen .fta-preview-art {
+    /* In fullscreen we don't want the artwork to dim the live
+       video, but if the stream is still negotiating we keep it as
+       a subtle backdrop. */
+    filter: brightness(0.4);
+}
+
+.fta-root.is-fullscreen .fta-preview-video {
+    object-fit: contain;
+    background: #000;
+}
+
+.fta-root.is-fullscreen .fta-preview-overlay {
+    /* Hide the small overlay text in fullscreen — the user wants
+       a clean cinema view. */
+    opacity: 0;
+    pointer-events: none;
+}
+
+.fta-root.is-fullscreen .fta-preview-hint {
+    display: none;
+}
+
+.fta-root.is-fullscreen .fta-live-pill {
+    top: 24px;
+    left: 24px;
+    transform: scale(1.2);
+    transform-origin: top left;
+}
+
+.fta-root.is-fullscreen::after {
+    /* "Press BACK to return" hint, only in fullscreen. */
+    content: "Press BACK to return";
+    position: fixed;
+    bottom: 32px;
+    right: 32px;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    padding: 10px 16px;
+    border-radius: 999px;
+    z-index: 9001;
+    pointer-events: none;
+    animation: fta-fade-in 320ms ease-out 1000ms backwards;
+}
+
+@keyframes fta-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.fta-preview video,
+.fta-preview img,
+.fta-preview-art,
+.fta-preview-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* v2.8.96 — preview pane layering:
+     <img class="fta-preview-art"> is the constant TMDB backdrop
+     so scrolling between programmes never flashes black.
+     <video class="fta-preview-video"> is mounted on top only when
+     the user arms the preview (Enter on a cell).  It fades in once
+     it actually starts playing ('playing' event flips .is-ready). */
+.fta-preview-art {
+    position: absolute;
+    inset: 0;
+    background: #0a1120;
+    /* slight darken so the overlay text stays readable */
+    filter: brightness(0.86);
+}
+
+.fta-preview-art--empty {
+    background:
+        radial-gradient(ellipse at 50% 40%, rgba(93, 200, 255, 0.10) 0%, transparent 60%),
+        #0a1120;
+}
+
+.fta-preview-video {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 220ms ease;
+    background: #000;
+}
+
+.fta-preview-video.is-ready {
+    opacity: 1;
+}
+
+/* v2.8.100 — "Tuning in…" indicator while the HLS handshake is in
+   flight.  Sits over the cover art so the user knows the click
+   registered (previous version made fast double-clicks feel like
+   the first click did nothing). */
+.fta-preview-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    background: rgba(3, 6, 15, 0.55);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    z-index: 3;
+    pointer-events: none;
+    animation: fta-fade-in 220ms ease-out;
+}
+
+.fta-preview-loading__spinner {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 255, 255, 0.18);
+    border-top-color: var(--fta-accent);
+    animation: fta-spin 700ms linear infinite;
+}
+
+.fta-preview-loading__label {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.78);
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
+}
+
+@keyframes fta-spin {
+    to { transform: rotate(360deg); }
+}
+
+.fta-preview-hint {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    color: #fff;
+    padding: 5px 10px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.fta-live-pill {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    background: var(--fta-accent);
+    color: #fff;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.20em;
+    border-radius: 6px;
+    box-shadow: 0 4px 18px var(--fta-accent-glow);
+    text-transform: uppercase;
+}
+
+.fta-preview-overlay {
+    position: absolute;
+    inset: auto 0 0 0;
+    padding: 18px 18px 14px;
+    background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.9) 100%);
+    color: #fff;
+    text-align: left;
+}
+
+.fta-preview-overlay__title {
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.012em;
+    line-height: 1.25;
+}
+
+.fta-preview-overlay__meta {
+    font-size: 12px;
+    color: var(--fta-fg-dim);
+    margin-top: 5px;
+    font-variant-numeric: tabular-nums;
+}
+
+.fta-progress {
+    height: 3px;
+    background: rgba(255, 255, 255, 0.15);
+    margin-top: 8px;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.fta-progress__bar {
+    height: 100%;
+    background: var(--fta-accent);
+    box-shadow: 0 0 8px var(--fta-accent-glow);
+    transition: width 400ms ease;
+}
+
+.fta-info {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.fta-info-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.fta-info-logo {
+    width: 60px;
+    height: 60px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+    border: 1px solid var(--fta-border);
+}
+
+.fta-info-logo img {
+    width: 80%;
+    height: 80%;
+    object-fit: contain;
+}
+
+.fta-info-name { flex: 1; min-width: 0; }
+
+.fta-info-name__num {
+    font-size: 26px;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    line-height: 1;
+}
+
+.fta-info-name__lbl {
+    font-size: 12px;
+    color: var(--fta-fg-dim);
+    margin-top: 3px;
+}
+
+.fta-fav-btn {
+    width: 42px;
+    height: 42px;
+    border-radius: 999px;
+    background: var(--fta-pill-bg);
+    border: 1px solid var(--fta-border);
+    color: var(--fta-fg);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 200ms, color 200ms, transform 200ms;
+}
+
+.fta-fav-btn.is-fav {
+    color: var(--fta-accent);
+    background: rgba(255, 37, 53, 0.18);
+    border-color: rgba(255, 37, 53, 0.4);
+}
+
+.fta-fav-btn:focus-visible {
+    outline: 2px solid var(--fta-blue);
+    outline-offset: 3px;
+    transform: scale(1.08);
+}
+
+.fta-synopsis {
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--fta-fg-dim);
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.fta-chips {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.fta-chip {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 5px 9px;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    color: var(--fta-fg-dim);
+}
+
+.fta-chip--pg {
+    color: #ffb800;
+    border-color: rgba(255, 184, 0, 0.45);
+    background: rgba(255, 184, 0, 0.12);
+}
+
+/* Up Next row ----------------------------------------------------- */
+.fta-upnext {
+    margin-top: auto;
+    padding-top: 16px;
+    border-top: 1px solid var(--fta-border);
+}
+
+.fta-upnext__label {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--fta-blue);
+    margin-bottom: 8px;
+}
+
+.fta-upnext__title {
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.fta-upnext__meta {
+    font-size: 11px;
+    color: var(--fta-fg-dim);
+    margin-top: 4px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Grid ------------------------------------------------------------- */
+.fta-grid-wrap {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.fta-grid-header {
+    display: flex;
+    align-items: flex-end;
+    height: 38px;
+    border-bottom: 1px solid var(--fta-border);
+    padding-left: var(--fta-channel-rail-w);
+    box-sizing: border-box;
+    position: relative;
+    flex-shrink: 0;
+    background: linear-gradient(180deg, rgba(15, 25, 45, 0.6) 0%, transparent 100%);
+}
+
+.fta-grid-header__today {
+    position: absolute;
+    left: 18px;
+    bottom: 9px;
+    font-size: 10px;
+    color: var(--fta-fg-dim);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-weight: 800;
+}
+
+.fta-grid-times {
+    display: flex;
+    height: 100%;
+    align-items: flex-end;
+    padding-bottom: 6px;
+    position: relative;
+    will-change: transform;
+}
+
+.fta-grid-header__now-pill {
+    /* v2.8.99 — NOW marker pinned inside the time-strip so it can't
+       overlap a live-cell title in the rows below.  Translate-X
+       parent (.fta-grid-times) keeps it in sync with horizontal
+       scroll. */
+    position: absolute;
+    bottom: 4px;
+    transform: translateX(-50%);
+    background: var(--fta-accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 900;
+    padding: 4px 10px;
+    border-radius: 6px;
+    letter-spacing: 0.06em;
+    box-shadow: 0 4px 16px var(--fta-accent-glow);
+    z-index: 7;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.fta-grid-time {
+    flex-shrink: 0;
+    text-align: left;
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--fta-fg-dim);
+    font-variant-numeric: tabular-nums;
+    border-left: 1px solid var(--fta-border);
+    padding-left: 6px;
+    padding-top: 4px;
+    height: 26px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: flex-start;
+}
+
+.fta-grid-rows {
+    flex: 1;
+    overflow: auto;
+    position: relative;
+    will-change: transform;
+}
+
+.fta-grid-rows::-webkit-scrollbar { display: none; }
+.fta-grid-rows { scrollbar-width: none; }
+
+/* Channel row ------------------------------------------------------ */
+.fta-row {
+    display: flex;
+    height: var(--fta-row-h);
+    /* Stronger separators per user feedback */
+    border-bottom: 1px solid var(--fta-row-sep);
+    position: relative;
+}
+
+/* Zebra striping makes each row clearly distinct */
+.fta-row:nth-child(even) {
+    background: rgba(255, 255, 255, 0.012);
+}
+
+.fta-row__rail {
+    width: var(--fta-channel-rail-w);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 8px;
+    box-sizing: border-box;
+    background: var(--fta-bg);
+    position: sticky;
+    left: 0;
+    z-index: 4;
+    border-right: 1px solid var(--fta-border);
+}
+
+.fta-row__rail-inner {
+    width: 100%;
+    height: 70%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.fta-row__rail img {
+    max-width: 78%;
+    max-height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.5));
+}
+
+/* v2.8.99 — channel-name fallback shown when the logo image fails
+   to load (some MJH rows ship dead URLs).  Mimics the visual weight
+   of the real logos so rows feel consistent at a glance. */
+.fta-row__rail-fallback {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: 0.02em;
+    color: #fff;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
+    padding: 0 4px;
+    text-transform: uppercase;
+    background: linear-gradient(135deg, rgba(93, 200, 255, 0.25) 0%, rgba(93, 200, 255, 0.05) 100%);
+    border-radius: 8px;
+    width: 86%;
+    padding: 6px 4px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.fta-row__rail-lcn {
+    position: absolute;
+    bottom: 4px;
+    right: 6px;
+    font-size: 9px;
+    font-weight: 800;
+    color: var(--fta-fg-dimmer);
+    letter-spacing: 0.04em;
+    font-variant-numeric: tabular-nums;
+    background: rgba(0, 0, 0, 0.45);
+    padding: 1px 4px;
+    border-radius: 3px;
+}
+
+.fta-row__cells {
+    display: block;
+    flex: 1;
+    min-width: 0;
+    position: relative;
+    height: 100%;
+}
+
+.fta-cell {
+    height: calc(var(--fta-row-h) - 10px);
+    background: var(--fta-bg-card);
+    border-radius: 8px;
+    padding: 6px 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    box-sizing: border-box;
+    overflow: hidden;
+    cursor: pointer;
+    border: 1px solid transparent;
+    color: var(--fta-fg);
+    text-align: left;
+    margin: 0;
+    transition: background 160ms, border-color 160ms, transform 160ms;
+}
+
+.fta-cell.is-live {
+    background: linear-gradient(135deg, var(--fta-bg-live) 0%, var(--fta-bg-card) 100%);
+    border-color: rgba(255, 37, 53, 0.28);
+}
+
+.fta-cell:hover { background: var(--fta-bg-focused); }
+.fta-cell:focus,
+.fta-cell.is-focused {
+    background: var(--fta-bg-focused);
+    border-color: #fff;
+    outline: none;
+    box-shadow:
+        0 14px 32px -8px rgba(0, 0, 0, 0.85),
+        0 0 0 1px rgba(255, 255, 255, 0.10);
+    z-index: 2;
+}
+
+.fta-cell__title {
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: -0.005em;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fta-cell__subtitle {
+    font-size: 10.5px;
+    color: var(--fta-fg-dim);
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fta-cell__meta {
+    font-size: 10px;
+    color: var(--fta-fg-dim);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    font-variant-numeric: tabular-nums;
+}
+
+.fta-cell__live-pill {
+    background: var(--fta-accent);
+    color: #fff;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.fta-cell__next-pill {
+    background: var(--fta-blue);
+    color: #04101b;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.fta-cell--empty {
+    background: rgba(255, 255, 255, 0.025);
+    /* v2.8.103 — now focusable so the user can land on it and press
+       OK to play the channel even when no EPG data is available. */
+    cursor: pointer;
+    border: 1px dashed rgba(255, 255, 255, 0.18);
+}
+
+.fta-cell--empty .fta-cell__title {
+    color: var(--fta-fg-dim);
+    font-weight: 700;
+}
+
+/* NOW line --------------------------------------------------------- */
+.fta-now-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--fta-accent);
+    pointer-events: none;
+    z-index: 3;
+    box-shadow: 0 0 14px var(--fta-accent-glow);
+}
+
+.fta-now-label {
+    position: absolute;
+    /* v2.8.99 — float the NOW pill ABOVE the cell rows so it can
+       never overlap a live-cell title (the user reported the title
+       getting cut off by this badge after scrolling back to live). */
+    top: -28px;
+    transform: translateX(-50%);
+    background: var(--fta-accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 900;
+    padding: 4px 10px;
+    border-radius: 6px;
+    letter-spacing: 0.06em;
+    box-shadow: 0 4px 16px var(--fta-accent-glow);
+    z-index: 5;
+    white-space: nowrap;
+}
+
+/* Full-screen player ---------------------------------------------- */
+.fta-fullscreen {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    z-index: 99;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.fta-fullscreen video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+    position: relative;
+    z-index: 2;
+}
+
+/* TMDB backdrop displayed under the <video> while it's still
+   negotiating the HLS handshake — eliminates the black flash on
+   fullscreen entry. */
+.fta-fullscreen-art {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: brightness(0.55);
+    z-index: 1;
+}
+
+.fta-fullscreen-hint {
+    position: absolute;
+    top: 24px;
+    left: 24px;
+    background: rgba(0, 0, 0, 0.62);
+    color: rgba(255, 255, 255, 0.84);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    padding: 9px 16px;
+    border-radius: 8px;
+    backdrop-filter: blur(10px);
+    pointer-events: none;
+}
+
+/* City menu ------------------------------------------------------- */
+.fta-city-menu {
+    position: absolute;
+    top: 82px;
+    right: 80px;
+    background: #0c1525;
+    border: 1px solid var(--fta-border);
+    border-radius: 12px;
+    padding: 8px;
+    z-index: 90;
+    min-width: 180px;
+    box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.85);
+}
+
+.fta-city-menu__item {
+    display: block;
+    width: 100%;
+    padding: 10px 14px;
+    background: transparent;
+    border: 0;
+    color: var(--fta-fg);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-align: left;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.fta-city-menu__item:hover,
+.fta-city-menu__item:focus-visible {
+    background: var(--fta-bg-focused);
+    outline: none;
+}
+
+.fta-city-menu__item.is-active {
+    background: rgba(93, 200, 255, 0.12);
+    color: var(--fta-blue);
+}
+
+/* Loading state --------------------------------------------------- */
+.fta-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    color: var(--fta-fg-dim);
+    font-size: 13px;
+    letter-spacing: 0.20em;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+.fta-loading__sweep {
+    width: 260px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent 0%, var(--fta-accent) 50%, transparent 100%);
+    background-size: 200% 100%;
+    animation: fta-loading-sweep 1.5s ease-in-out infinite;
+    border-radius: 999px;
+}
+
+@keyframes fta-loading-sweep {
+    0%, 100% { background-position: 100% 0; }
+    50%      { background-position: 0% 0; }
+}

@@ -39,14 +39,6 @@ export default function AddToListModal() {
     const [closing, setClosing] = useState(false);
     const lastFocusedRef = useRef(null);
     const confirmBtnRef = useRef(null);
-    // v2.10.13 — Closing flag tracked via ref AS WELL AS state so
-    // the `focusin` rubber-band trap can skip while we're actively
-    // restoring focus to the original tile.  Without this, the
-    // trap re-stole focus the instant we called `tile.focus()`
-    // because the listener was still attached (its cleanup runs
-    // AFTER setPayload(null) flushes through React) and the tile
-    // is outside the modal root.
-    const closingRef = useRef(false);
     // "armed" flips to true the moment the user releases the OK
     // key / mouse button after the modal mounts.  Until then, we
     // swallow Enter / Space keydowns so that the held-key repeats
@@ -216,14 +208,7 @@ export default function AddToListModal() {
         // background managed to grab it before our arrow trap could
         // veto), rubber-band it back to the confirm button.  This is
         // the belt + braces for the focus trap.
-        //
-        // v2.10.13 — Skip rubber-band while we're actively closing.
-        // close() restores focus to the originating tile, which
-        // necessarily lives OUTSIDE the modal root — without the
-        // closingRef check, this handler immediately stole that
-        // focus back to confirm and the user landed on no tile.
         const onFocusInCapture = (e) => {
-            if (closingRef.current) return;
             const root = document.querySelector(
                 '[data-testid="add-to-list-modal"]'
             );
@@ -246,74 +231,16 @@ export default function AddToListModal() {
     }, [payload]);
 
     const close = () => {
-        // v2.10.13 — Flip the ref FIRST so the modal's `focusin`
-        // rubber-band stops fighting us before we ever try to
-        // restore focus to the originating tile.  The ref is read
-        // synchronously by the capture-phase listener, so this
-        // single assignment is enough.
-        closingRef.current = true;
         setClosing(true);
-        // Snapshot what we need BEFORE the React state updates
-        // tear down the modal — `payload?.id` resolves to undefined
-        // after setPayload(null) in the timeout below.
-        const pid = payload?.id;
-        const saved = lastFocusedRef.current;
-        // The actual focus-restore can fail on the first attempt
-        // because the source list re-renders after the library
-        // mutation (e.g. adding a series rebuilds the My-List
-        // shelf, which can re-mount nearby DOM nodes too).  Retry
-        // a few times across animation frames so we hit the new
-        // tile node as soon as React commits it.
-        const tryRestore = () => {
-            const tile =
-                (saved && document.contains(saved) && saved) ||
-                (pid && (
-                    document.querySelector(`[data-cw-id="${pid}"]`) ||
-                    document.querySelector(`[data-tile-id="${pid}"]`) ||
-                    document.querySelector(`[data-testid="cw-tile-${pid}"]`) ||
-                    document.querySelector(`[data-testid$="-tile-${pid}"]`) ||
-                    document.querySelector(
-                        `[data-testid$="-${pid}"][data-focusable="true"]`
-                    )
-                )) || null;
-            if (tile && typeof tile.focus === 'function') {
-                try {
-                    tile.focus({ preventScroll: true });
-                    tile.setAttribute('data-focused', 'true');
-                    return true;
-                } catch { /* ignore */ }
-            }
-            return false;
-        };
         setTimeout(() => {
             setPayload(null);
             setClosing(false);
-            // First pass immediately after unmount commits.  If the
-            // shelf re-render hasn't landed yet we'll catch it on
-            // one of the follow-up frames below.
-            let attempts = 0;
-            const tick = () => {
-                attempts += 1;
-                if (tryRestore()) return;
-                if (attempts >= 8) {
-                    // Stranded — focus the first available
-                    // focusable so the user isn't keyboard-locked.
-                    const first = document.querySelector(
-                        '[data-focusable="true"]:not([disabled])'
-                    );
-                    if (first && typeof first.focus === 'function') {
-                        try { first.focus({ preventScroll: true }); }
-                        catch { /* ignore */ }
-                    }
-                    return;
-                }
-                requestAnimationFrame(tick);
-            };
-            requestAnimationFrame(tick);
-            // Allow the rubber-band to re-engage after the next
-            // mount cycle — guards against a stale closingRef if
-            // the user re-opens AddToList immediately.
-            setTimeout(() => { closingRef.current = false; }, 400);
+            // Return focus to whatever was focused before the modal
+            // opened (Android WebView doesn't always do this on its own).
+            const f = lastFocusedRef.current;
+            if (f && typeof f.focus === 'function') {
+                try { f.focus({ preventScroll: true }); } catch { /* ignore */ }
+            }
         }, 200);
     };
 

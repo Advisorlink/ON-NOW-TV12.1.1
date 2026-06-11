@@ -460,7 +460,6 @@ function MorphTileImpl({ item, navigate, onTapRecord }) {
     const onTap = () => {
         if (!item) return;
         if (onTapRecord) onTapRecord(item);
-        // v2.10.44 — No full-screen nav loader per user demand.
         if (item.routePath) navigate(item.routePath);
         else if (item.imdbId)
             navigate(`/title/${item.type || 'movie'}/${item.imdbId}`);

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Grid scale.  9 dp per minute matches React's
+         fta-grid-px-per-min CSS var so the visual density mirrors
+         the existing FTA UI. -->
+    <dimen name="fta_px_per_min">9dp</dimen>
+    <dimen name="fta_row_h">64dp</dimen>
+    <dimen name="fta_channel_rail_w">104dp</dimen>
+    <dimen name="fta_topbar_h">68dp</dimen>
+    <dimen name="fta_side_rail_w">88dp</dimen>
+    <dimen name="fta_cat_panel_w">260dp</dimen>
+    <dimen name="fta_sidebar_w">360dp</dimen>
+    <dimen name="fta_preview_w">280dp</dimen>
+    <dimen name="fta_preview_h">158dp</dimen>
+
+    <!-- Banner row layout — Phase 4 (top-banner redesign). -->
+    <dimen name="fta_banner_h">240dp</dimen>
+    <dimen name="fta_banner_preview_w">426dp</dimen>
+    <dimen name="fta_banner_upnext_w">320dp</dimen>
+</resources>

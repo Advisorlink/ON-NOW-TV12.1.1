@@ -1,0 +1,249 @@
+package tv.onnowtv.tunes
+
+import android.annotation.SuppressLint
+import android.os.Bundle
+import android.view.View
+import android.view.WindowManager
+import android.webkit.CookieManager
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.webkit.WebViewAssetLoader
+
+/**
+ * ON NOW TV TUNES — kiosk WebView shell with per-user YouTube sign-in.
+ *
+ *   v2.8.54 — Every box owns its own YouTube session.
+ *
+ *   Boot flow:
+ *
+ *     1. Inspect Android's process-wide CookieManager for the
+ *        `LOGIN_INFO` / `SAPISID` cookies on `.youtube.com`.
+ *
+ *     2. If found → user has signed in before → jump straight to
+ *        `<base>/music?box=1&yt=1`.
+ *
+ *     3. If missing → load Google's sign-in URL with
+ *        `service=youtube&continue=…` so completion redirects to
+ *        youtube.com.  Our WebViewClient watches for that redirect,
+ *        verifies the cookies are now in place, and only then
+ *        navigates to /music.
+ *
+ *   Why this is the right architecture:
+ *
+ *     • **No admin maintenance** — each box maintains its own
+ *       session, so we never have to rotate a shared cookies file.
+ *
+ *     • **Per-box rate limits** — YouTube treats each session
+ *       independently, so one box getting throttled doesn't take
+ *       down anyone else.
+ *
+ *     • **Privacy** — cookies live in WebView storage on the box.
+ *       Zero cookies ever touch our VPS.
+ *
+ *     • **YouTube Premium auto-detected** — if the user signs in
+ *       with a Premium account, the IFrame player picks that up
+ *       and skips ads automatically.  No code change needed.
+ *
+ *   Sign-out: clear app data from Android settings, or implement
+ *   a `OnNowTV.signOut()` bridge method later (out of scope here).
+ */
+class MainActivity : AppCompatActivity() {
+
+    @SuppressLint("SetJavaScriptEnabled")
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        // Make the chrome fully immersive — TV viewers should never see
+        // a status bar or nav bar peeking through.
+        @Suppress("DEPRECATION")
+        window.decorView.systemUiVisibility =
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+            View.SYSTEM_UI_FLAG_FULLSCREEN or
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+
+        val web = WebView(this).apply {
+            settings.run {
+                javaScriptEnabled = true
+                domStorageEnabled = true
+                databaseEnabled = true
+                mediaPlaybackRequiresUserGesture = false
+                mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                cacheMode = WebSettings.LOAD_DEFAULT
+                loadWithOverviewMode = true
+                useWideViewPort = true
+                // v2.8.54 — Strip the "; wv" marker from the UA so
+                // Google's sign-in flow doesn't refuse "this browser
+                // may not be secure".  WebView UA otherwise looks
+                // exactly like Chrome.
+                userAgentString = userAgentString
+                    .replace("; wv)", ")")
+                    .replace(" wv ", " ")
+            }
+            webChromeClient = object : WebChromeClient() {
+                // v2.8.82 — Phone-as-microphone WebRTC support.
+                // The TV side of the karaoke flow opens a peer
+                // connection to receive the singer's mic audio.
+                // Android WebView blocks WebRTC media permissions by
+                // default; we grant them automatically because the
+                // bundled SPA is fully trusted (it's our own code).
+                override fun onPermissionRequest(request: android.webkit.PermissionRequest?) {
+                    request?.grant(request.resources)
+                }
+            }
+        }
+        // Native bridge — exposes `window.OnNowTV.resolveYouTubeAudio(...)`
+        // so the React music player can resolve full-length YouTube
+        // streams from the BOX's residential IP (bypassing the
+        // bot detection that blocks our datacenter VPS).
+        web.addJavascriptInterface(OnNowTvBridge(web), "OnNowTV")
+        setContentView(web)
+
+        // Make sure cookies persist across launches and the
+        // YouTube IFrame Player can read them.
+        CookieManager.getInstance().run {
+            setAcceptCookie(true)
+            setAcceptThirdPartyCookies(web, true)
+        }
+
+        webView = web
+        bootFlow()
+    }
+
+    /** Decide whether to show the sign-in flow or jump straight
+     *  to /music. */
+    private fun bootFlow() {
+        if (isSignedInToYouTube()) {
+            navigateToMusic()
+        } else {
+            // v2.8.58 — Reverted auto-fill.  Google's anti-automation
+            // flagged the programmatic value-setter and the sign-in
+            // would silently fail or get held in a "Couldn't verify
+            // it's you" loop.  Manual sign-in only.  WebView cookies
+            // persist across normal launches; only `uninstall →
+            // reinstall` wipes them.
+            Toast.makeText(
+                this,
+                "Sign in to YouTube to play music · use any account, fake is fine",
+                Toast.LENGTH_LONG,
+            ).show()
+            webView.webViewClient = signInWatcherClient()
+            webView.loadUrl(SIGN_IN_URL)
+        }
+    }
+
+    /** Probe the process-wide cookie store for the cookies that
+     *  signed-in YouTube sessions always set. */
+    private fun isSignedInToYouTube(): Boolean {
+        val cookies = CookieManager.getInstance().getCookie("https://www.youtube.com") ?: ""
+        return cookies.contains("LOGIN_INFO") || cookies.contains("SAPISID")
+    }
+
+    /** WebViewClient that watches for the YouTube homepage URL that
+     *  Google redirects to after a successful sign-in.  Verifies
+     *  cookies are present, then advances to /music. */
+    private fun signInWatcherClient() = object : WebViewClient() {
+        private var advanced = false
+
+        override fun onPageFinished(view: WebView?, url: String?) {
+            if (advanced || url == null) return
+            val onYouTube = url.startsWith("https://www.youtube.com/")
+                    || url.startsWith("https://m.youtube.com/")
+            val isAuthPage = url.contains("signin")
+                    || url.contains("ServiceLogin")
+                    || url.contains("accounts.google.com")
+            if (onYouTube && !isAuthPage && isSignedInToYouTube()) {
+                advanced = true
+                CookieManager.getInstance().flush()
+                Toast.makeText(
+                    this@MainActivity,
+                    "Signed in — loading music",
+                    Toast.LENGTH_SHORT,
+                ).show()
+                navigateToMusic()
+            }
+        }
+    }
+
+    private fun navigateToMusic() {
+        // v2.8.72 — Load the React app via WebViewAssetLoader so the
+        // WebView sees an HTTPS origin (`https://appassets.androidplatform.net/`)
+        // instead of `file:///`.  Same physical files (bundled in
+        // `assets/web/`), totally different origin behaviour:
+        //
+        //   • YouTube IFrame Player's postMessage works (the iframe
+        //     needs a non-null parent origin to send onReady /
+        //     onStateChange / time-update events).  Without this,
+        //     the player can SEEM to play but audio is silently
+        //     suppressed — exactly the symptom the user saw after
+        //     v2.8.70 switched Tunes from a remote URL to file://.
+        //   • Cross-origin <audio> playback works without the file://
+        //     "secure-degraded" quirks some WebView versions apply.
+        //   • localStorage / sessionStorage work normally (some
+        //     WebView versions disable them on file://).
+        //   • The build workflow's absolute→relative path rewrite
+        //     (see v2.8.71) plus this `/assets/` handler combine so
+        //     every asset reference resolves correctly.  Relative
+        //     `./static/js/x.js` in index.html → `https://...net/
+        //     assets/web/static/js/x.js` → handler strips `/assets/`
+        //     → AssetsPathHandler looks up `assets/web/static/js/x.js`.
+        //
+        // `REACT_APP_BACKEND_URL=https://onnowtv.duckdns.org` is still
+        // baked into the JS at build time so API calls continue to
+        // hit the live backend — only the static SPA shell loads
+        // from the on-device asset server.
+        webView.webViewClient = AssetLoaderClient(assetLoader)
+        webView.loadUrl("https://appassets.androidplatform.net/assets/web/index.html?box=1&yt=1#/music")
+    }
+
+    /** v2.8.72 — WebViewClient that routes every request through
+     *  the asset loader so `https://appassets.androidplatform.net/...`
+     *  is served from the APK's bundled `assets/web/` folder. */
+    private class AssetLoaderClient(
+        private val loader: WebViewAssetLoader,
+    ) : WebViewClient() {
+        override fun shouldInterceptRequest(
+            view: WebView?,
+            request: WebResourceRequest,
+        ): WebResourceResponse? = loader.shouldInterceptRequest(request.url)
+    }
+
+    private val assetLoader by lazy {
+        // Handler at `/assets/` maps the URL path AFTER the prefix
+        // directly into the APK's `assets/` directory.  Because we
+        // bundle the React build under `assets/web/`, the URL
+        // `/assets/web/static/js/x.js` correctly resolves to the
+        // file `app/src/main/assets/web/static/js/x.js`.
+        WebViewAssetLoader.Builder()
+            .setDomain("appassets.androidplatform.net")
+            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            .build()
+    }
+
+    override fun onBackPressed() {
+        if (::webView.isInitialized && webView.canGoBack()) {
+            webView.goBack()
+        } else {
+            super.onBackPressed()
+        }
+    }
+
+    private lateinit var webView: WebView
+
+    companion object {
+        private const val SIGN_IN_URL =
+            "https://accounts.google.com/ServiceLogin" +
+            "?service=youtube" +
+            "&continue=https%3A%2F%2Fwww.youtube.com%2F" +
+            "&hl=en"
+    }
+}

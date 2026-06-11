@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Small "play" triangle used in the preview card's bottom mini-bar. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="14dp"
+    android:height="14dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#E6EAF2"
+        android:pathData="M7,5 L19,12 L7,19 Z" />
+</vector>

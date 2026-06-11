@@ -36,73 +36,12 @@ const MAX_ENTRIES = 30;
 // the upgrade.
 import { readScopedString, writeScopedString } from '@/lib/profileScope';
 
-/**
- * Collapse multiple series rows that share the same show into a
- * single entry — the most recently updated one wins.  This is a
- * read-time migration covering existing installs where prior
- * upserts wrote one row per episode before the dedupe-by-seriesId
- * rule landed in v2.10.7.  The "seriesId" anchor is derived from
- * either the explicit `seriesId` field (newer writes) OR the stem
- * of a composite CW id (`tt1234:s1e2` → `tt1234`), so even rows
- * that never carried `seriesId` get collapsed.
- */
-function collapseSeriesDuplicates(list) {
-    if (!Array.isArray(list) || list.length === 0) return list;
-    const stemOf = (e) => {
-        if (e.seriesId) return e.seriesId;
-        if (typeof e.id === 'string' && e.id.includes(':')) {
-            return e.id.split(':')[0];
-        }
-        return null;
-    };
-    const seen = new Map(); // showStem -> entry (latest)
-    const out = [];
-    let changed = false;
-    for (const e of list) {
-        if (e?.type !== 'series') {
-            out.push(e);
-            continue;
-        }
-        const stem = stemOf(e);
-        if (!stem) {
-            out.push(e);
-            continue;
-        }
-        const prev = seen.get(stem);
-        if (!prev) {
-            seen.set(stem, e);
-            out.push(e);
-            continue;
-        }
-        changed = true;
-        // Keep whichever entry was updated most recently.
-        const winner = (e.updatedAt || 0) > (prev.updatedAt || 0) ? e : prev;
-        // Replace the previously pushed prev with the winner.
-        const idx = out.indexOf(prev);
-        if (idx >= 0) out[idx] = winner;
-        seen.set(stem, winner);
-    }
-    return changed ? out : list;
-}
-
 function readAll() {
     try {
         const raw = readScopedString(STORAGE_KEY);
         if (!raw) return [];
         const list = JSON.parse(raw);
-        if (!Array.isArray(list)) return [];
-        const collapsed = collapseSeriesDuplicates(list);
-        // Persist the collapsed list so subsequent reads short-circuit
-        // and the cleanup only runs once per affected install.
-        if (collapsed !== list) {
-            try {
-                writeScopedString(
-                    STORAGE_KEY,
-                    JSON.stringify(collapsed.slice(0, MAX_ENTRIES))
-                );
-            } catch { /* ignore */ }
-        }
-        return collapsed;
+        return Array.isArray(list) ? list : [];
     } catch {
         return [];
     }
@@ -178,32 +117,14 @@ export function getEntry(id) {
 export function upsert(partial) {
     if (!partial?.id) return;
     const list = readAll();
+    const i = list.findIndex((e) => e.id === partial.id);
     const now = Date.now();
-    // v2.10.7 — User requirement: only ONE Continue Watching entry
-    // per TV show, never duplicates.  Movies still dedupe by `id`
-    // (one row per movie), but series dedupe by `seriesId` so the
-    // shelf only ever shows the latest episode the user touched
-    // for any given show.  When a new episode is upserted we
-    // delete every entry sharing the same seriesId before adding
-    // the new one.
-    const dedupeKey = partial.type === 'series' && partial.seriesId
-        ? (e) => e.seriesId === partial.seriesId
-        : (e) => e.id === partial.id;
-    const existingIdx = list.findIndex(dedupeKey);
-    const next = existingIdx >= 0
-        ? { ...list[existingIdx], ...partial, updatedAt: now }
+    const next = i >= 0
+        ? { ...list[i], ...partial, updatedAt: now }
         : { positionMs: 0, durationMs: 0, ...partial, updatedAt: now };
-    // If we're replacing a series entry, drop ALL older entries
-    // matching the same seriesId — covers the (rare) case where a
-    // prior upsert wrote multiple rows before this dedupe rule
-    // landed, so existing installs are tidied up on next watch.
-    let filtered = list.filter((e, i) => i === existingIdx || !dedupeKey(e));
-    if (existingIdx >= 0) {
-        filtered[filtered.findIndex(dedupeKey)] = next;
-    } else {
-        filtered.unshift(next);
-    }
-    writeAll(filtered);
+    if (i >= 0) list[i] = next;
+    else list.unshift(next);
+    writeAll(list);
     markWatchedIfDone(next.id, next.positionMs, next.durationMs);
 }
 
@@ -261,53 +182,15 @@ export function syncFromNative() {
 }
 
 /**
- * Mark an item as completed (positionMs near durationMs).
- *
- * v2.10.7 — Behaviour now differs by type:
- *   • Movies: remove from the shelf as before.
- *   • Series: instead of removing, ADVANCE the entry to the next
- *     episode in the same season.  positionMs / durationMs are
- *     reset to 0 so the shelf renders the new episode as "fresh".
- *     The `id` field is rewritten to the next episode's composite
- *     (`imdbId:season:episode+1`) so the shelf's resume click
- *     navigates straight to the right episode.  Auto-advance only
- *     attempts +1 within the same season; if the season ends, the
- *     Detail page handles cross-season jumping when the user clicks
- *     resume.
+ * Mark an item as completed (positionMs near durationMs).  We remove
+ * it from the list to keep the shelf tidy.
  */
 export function maybeMarkCompleted(id, positionMs, durationMs) {
     if (!durationMs || !positionMs) return;
-    if (durationMs - positionMs >= 30_000) return;
-    const list = readAll();
-    const i = list.findIndex((e) => e.id === id);
-    if (i < 0) return;
-    const entry = list[i];
-    if (entry.type === 'series' && entry.seriesId && entry.episode) {
-        const nextEp = (Number(entry.episode) || 0) + 1;
-        const season = Number(entry.season) || 1;
-        const nextId = `${entry.seriesId}:${season}:${nextEp}`;
-        list[i] = {
-            ...entry,
-            id: nextId,
-            episode: nextEp,
-            season,
-            positionMs: 0,
-            durationMs: 0,
-            // Clear the cached stream URL — it's stale for the
-            // new episode.  Detail page will resolve the next
-            // episode's stream on resume click.
-            streamUrl: '',
-            subtitleUrl: '',
-            episodeLabel: `S${String(season).padStart(2, '0')}E${String(nextEp).padStart(2, '0')}`,
-            awaitingNextEpisode: true,
-            updatedAt: Date.now(),
-        };
-        writeAll(list);
-        return;
+    // Within the last 30 seconds — count as done.
+    if (durationMs - positionMs < 30_000) {
+        remove(id);
     }
-    // Movie (or series entry missing the metadata to advance) →
-    // remove from the shelf.
-    remove(id);
 }
 
 /**

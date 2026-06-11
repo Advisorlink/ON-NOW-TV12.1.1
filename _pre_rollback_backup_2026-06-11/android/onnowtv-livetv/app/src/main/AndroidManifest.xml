@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
+    <application
+        android:allowBackup="true"
+        android:hardwareAccelerated="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:name=".LiveTVApp"
+        android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:theme="@style/Theme.OnNowLiveTV"
+        android:banner="@mipmap/ic_launcher"
+        tools:targetApi="34">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.OnNowLiveTV.Splash">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- v2.9.15 — `singleTop` (not `singleTask`) so the EPG can
+             coexist on the back stack with the Library activity.
+             User flow: full-EPG → Library → Collection (= new EPG
+             instance) → back → Library → back → full-EPG.  With
+             singleTask the collection launch would CLEAR the full
+             EPG instance from below, so backing out of Library
+             dropped the user straight to the launcher. -->
+        <activity
+            android:name=".EpgActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
+
+        <!-- v2.9.5 — first-launch login screen.  MainActivity (the
+             splash) checks AuthStore on resume and routes here when
+             no credentials are saved.  Sign-out from the EPG also
+             returns the user here. -->
+        <activity
+            android:name=".LoginActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
+
+        <activity
+            android:name=".PlayerActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale|smallestScreenSize|screenLayout|uiMode"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
+
+        <activity
+            android:name=".SportsGuideActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
+
+        <activity
+            android:name=".LibraryActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
+
+        <activity
+            android:name=".CrashActivity"
+            android:exported="false"
+            android:theme="@style/Theme.OnNowLiveTV.NoActionBar"
+            android:launchMode="singleTask"
+            android:process=":crash" />
+    </application>
+</manifest>

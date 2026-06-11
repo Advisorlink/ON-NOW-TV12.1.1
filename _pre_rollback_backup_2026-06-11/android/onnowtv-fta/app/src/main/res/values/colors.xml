@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="fta_bg">#03060f</color>
+    <color name="fta_bg_dark">#02030a</color>
+    <color name="fta_accent">#ff2535</color>
+    <color name="fta_blue">#5DC8FF</color>
+</resources>

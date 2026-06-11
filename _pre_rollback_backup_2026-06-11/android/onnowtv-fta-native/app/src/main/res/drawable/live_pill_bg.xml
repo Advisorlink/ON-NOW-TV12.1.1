@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cinematic LIVE pill with a soft red glow ring. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:startColor="#FF2535"
+                android:endColor="#FF6B7B"
+                android:angle="270" />
+            <corners android:radius="3dp" />
+        </shape>
+    </item>
+</layer-list>

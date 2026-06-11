@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Base theme used by Activities other than the launcher.  Black
+        background matches the EPG so transitions don't flash.
+    -->
+    <style name="Theme.OnNowFta" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@color/fta_bg</item>
+        <item name="android:statusBarColor">@color/fta_bg</item>
+        <item name="android:navigationBarColor">@color/fta_bg</item>
+        <item name="colorPrimary">@color/fta_accent</item>
+        <item name="colorPrimaryDark">@color/fta_bg_dark</item>
+        <item name="colorAccent">@color/fta_accent</item>
+    </style>
+
+    <style name="Theme.OnNowFta.NoActionBar" parent="Theme.OnNowFta">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+    </style>
+
+    <!--
+        Launcher theme — the orange-to-red gradient is wired in as
+        the windowBackground so the user sees the FTA brand the
+        INSTANT the launcher hands control over to us.  No white
+        flash, no black flash, no Java required.  Once MainActivity
+        inflates its layout, the gradient continues to show through
+        the FrameLayout's `fta_splash` overlay until the WebView
+        finishes loading the React /fta page.
+    -->
+    <style name="Theme.OnNowFta.Splash" parent="Theme.OnNowFta.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash_gradient</item>
+        <item name="android:statusBarColor">#FF2535</item>
+        <item name="android:navigationBarColor">#FFAA4A</item>
+    </style>
+</resources>

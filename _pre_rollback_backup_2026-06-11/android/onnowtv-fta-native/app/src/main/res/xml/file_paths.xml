@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Paths the FileProvider is allowed to expose as content:// URIs.
+     The in-app update checker downloads the APK into the app's
+     external cache directory (auto-cleaned by Android), so we only
+     need that path here. -->
+<paths>
+    <external-cache-path
+        name="apk_cache"
+        path="updates/" />
+</paths>
