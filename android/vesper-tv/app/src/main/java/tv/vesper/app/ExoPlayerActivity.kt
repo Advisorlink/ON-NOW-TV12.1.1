@@ -934,17 +934,15 @@ class ExoPlayerActivity : ComponentActivity() {
         // surfaces earlier; gives the prime job almost twice as much
         // network slack to resolve+buffer the next episode before
         // the user actually hits the click.
-        // v2.10.46 — User asked the prime threshold be pushed from
-        // 4 min back to 5 min so the stream URL is already resolved
-        // and the next-episode buffer is warm well before the pill
-        // becomes clickable at the 3-min mark.  Final thresholds:
-        //   • prime  kicks off at remaining ≤ 300_000 ms (5 min)
-        //   • pill   surfaces  at remaining ≤ 180_000 ms (3 min)
+        // v2.10.46-c — User wants 6 min preload, 5 min pill surface.
+        // Final thresholds:
+        //   • prime  kicks off at remaining ≤ 360_000 ms (6 min)
+        //   • pill   surfaces  at remaining ≤ 300_000 ms (5 min)
         // The pill threshold also gates the next-episode thumbnail.
         if (isSeriesEpisode && lengthMs > 0L) {
             val remaining = lengthMs - timeMs
             val nextSE = computeNextEpisode()
-            val show = remaining in 0..180_000 && nextSE != null
+            val show = remaining in 0..300_000 && nextSE != null
             if (show != hasNextEpisodeFlow.value) {
                 hasNextEpisodeFlow.value = show
                 // v2.10.34 — Surface the next-episode thumbnail at
@@ -962,10 +960,10 @@ class ExoPlayerActivity : ComponentActivity() {
                     nextEpThumbnailFlow.value = ""
                 }
             }
-            // Prime job starts at the WIDER 5-minute window so the
-            // background fetch has TWO full minutes of head start
-            // before the user can possibly click the pill.
-            val shouldPrime = remaining in 0..300_000 && nextSE != null
+            // Prime job starts at the WIDER 6-minute window so the
+            // background fetch + buffer has a full minute of head
+            // start before the pill becomes clickable at 5 min.
+            val shouldPrime = remaining in 0..360_000 && nextSE != null
             if (shouldPrime && nextEpisodePrimeStartedFor != cwId) {
                 nextEpisodePrimeStartedFor = cwId
                 kickoffNextEpisodePrime()

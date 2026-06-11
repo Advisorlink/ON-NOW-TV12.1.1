@@ -166,3 +166,35 @@ After the rollback the user reported it's working again, and asked for three fur
 - Long-press timer (700 ms) and auto-repeat suppression logic left untouched.
 
 **Verification:** dev server compiled cleanly (only a pre-existing HeroBillboard ESLint warning from the June 4 code). Screenshot captured of the home page — UI loads with icons and animations intact. Native (Kotlin) change will compile via the user's GitHub Actions CI; cannot be built locally (ARM container vs x86 AAPT2).
+
+---
+
+## Second round of follow-up fixes (same day, 11 June 2026)
+
+User reported four more items on top of the first round. All four addressed without re-touching the spatial-focus / Detail-state plumbing the user already rejected:
+
+### Fix D — Profile selector restored to the SideNav rail
+**File:** `frontend/src/components/SideNav.jsx`
+- Re-added `useEffect`, `UserCircle2`, `getActiveProfile`, `AvatarCircle` imports.
+- Re-added `profileRev` state + `vesper:profile-change` listener so the avatar refreshes when the profile is changed elsewhere.
+- Re-added `activeProfile` `React.useMemo` (with intentional `profileRev` / `location.pathname` deps; ESLint warning suppressed).
+- Re-added `openProfilePicker` that collapses the rail and navigates to `/profiles`.
+- Pinned a new profile button at the BOTTOM of the rail (`mt-auto`) with `data-testid="nav-profile"`, focusable, shows the active avatar (or a generic `UserCircle2`) when collapsed; expanded view shows the profile name. Not in the NAV array, so it doesn't disturb the existing nav layout.
+
+### Fix E — Tile-click on a movie goes straight to autoplay (no streams visible)
+**Files:**
+- `frontend/src/components/PosterTile.jsx` — when `item.type === 'movie'`, `onTap` now navigates to `/title/movie/<id>?autoplay=1`. Series tiles unchanged (they need to land on the episode picker).
+- `frontend/src/components/NetworkPosterTile.jsx` — same `?autoplay=1` query added for movies after IMDB resolution.
+- `frontend/src/pages/Detail.jsx` —
+  - The non-party autoplay `useEffect` no longer requires the per-user "Autoplay 1080p" preference when the URL carries an explicit `?autoplay=1`. Tile-click intent overrides the toggle.
+  - When no 1080p candidate is found but autoplay was explicitly requested, the player falls back to the first direct stream → first stream so the user still lands in the player rather than the picker.
+  - Added a full-screen `data-testid="detail-autoplay-loader"` scrim that covers the entire Detail page while `autoplayRequested && type==='movie' && !autoplayFired`. Renders a spinner + "Finding stream / Starting playback" caption + (once metadata resolves) the title — so the user only ever sees a clean loader, never the streams picker, before the native player takes over. The "Coming Soon" unavailable modal still surfaces if no stream can be found (loader hides itself when `showUnavailableModal` is true).
+
+### Fix F — Next-episode pre-buffer at 6 min, pill at 5 min
+**File:** `android/vesper-tv/app/src/main/java/tv/vesper/app/ExoPlayerActivity.kt`
+- `shouldPrime` window widened from `0..300_000` → `0..360_000` (6 min).
+- `show` (pill) window widened from `0..180_000` → `0..300_000` (5 min).
+- Comments updated to `v2.10.46-c` so the next agent sees the latest decision.
+
+### Fix G — TV-show "metadata" → 1 s loading screen
+**Status: SKIPPED** (user explicitly said "if you can't do that, then that's fine, just leave it"). Touching the series detail loading path risks the exact navigation regressions just rolled back, so I did not modify it.

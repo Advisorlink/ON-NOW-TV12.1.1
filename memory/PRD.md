@@ -1,5 +1,21 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.46-c — Second round of post-rollback fixes (11 Jun 2026).**
+>
+> User confirmed the first round worked. Then asked for four more:
+>
+> **D. Profile selector restored to the SideNav rail** — `components/SideNav.jsx`. Re-added `getActiveProfile` + `AvatarCircle` imports and a focusable profile button pinned to the bottom of the rail (avatar collapsed → avatar + name expanded). Routes to `/profiles`. Listens for `vesper:profile-change` to refresh the displayed avatar instantly.
+>
+> **E. Tile click on a MOVIE → loading screen → autoplay, never the streams picker** — `components/PosterTile.jsx`, `components/NetworkPosterTile.jsx`, `pages/Detail.jsx`:
+>   • Movie tiles now navigate with `?autoplay=1` (series tiles unchanged — still land on the episode picker).
+>   • Detail's non-party autoplay `useEffect` no longer requires the per-user Autoplay-1080p preference when the URL explicitly says `?autoplay=1`.
+>   • Falls back to the best direct stream → first stream when no 1080p candidate is found, so the user always lands in the player.
+>   • Full-screen autoplay loader scrim covers the page while `autoplayRequested && type==='movie' && !autoplayFired` — user only ever sees a clean spinner + title, never the streams list.
+>
+> **F. Next-episode pre-buffer at 6 min, pill at 5 min** — `ExoPlayerActivity.kt`. Prime window `0..360_000`, pill window `0..300_000`.
+>
+> **G. TV-show "metadata" → 1 s loading screen** — INTENTIONALLY SKIPPED. The user said "if you can't, leave it"; the series detail loading path was deeply tangled with the navigation work we just rolled back, so I refused to risk re-introducing those regressions.
+>
 > **🟢 v2.10.46-b — Post-rollback fixes (11 Jun 2026).**
 >
 > User confirmed the rollback restored working navigation. Then requested three small, targeted fixes:
