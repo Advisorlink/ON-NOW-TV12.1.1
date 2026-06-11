@@ -152,6 +152,33 @@ export default function Detail() {
     const [err, setErr] = useState(null);
     const [copied, setCopied] = useState(null);
 
+    /* v2.10.45 — Progressive Detail render (NO full-screen loader).
+       Tiles pass a lightweight `preview` object via navigation
+       state (title / poster / backdrop / synopsis / year / genres)
+       so the page paints its hero INSTANTLY while the real
+       metadata + streams resolve in the background.  Per the user's
+       explicit demand: "There shouldn't be a loading screen — it
+       should just open the detail page by itself and have the
+       autoplay spinning until the autoplay is ready." */
+    const previewMeta = useMemo(() => {
+        const p = location.state?.preview;
+        if (!p) return null;
+        return {
+            id,
+            imdb_id: id && String(id).startsWith('tt') ? id : '',
+            name: p.title || '',
+            background: p.background || p.poster || '',
+            poster: p.poster || '',
+            description: p.description || '',
+            releaseInfo: p.year || '',
+            runtime: '',
+            imdbRating: p.rating || '',
+            genres: Array.isArray(p.genres) ? p.genres : [],
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [location.state, id]);
+    const displayMeta = meta || previewMeta;
+
     /* ------------------------------------------------------------------
      * WATCH-TOGETHER · ROLE + WS COORDINATION (Detail page)
      *
@@ -899,14 +926,27 @@ export default function Detail() {
 
     // Watch for the candidate to arrive while a pending click is
     // outstanding, then auto-fire so the user gets the instant feel
-    // they asked for.
+    // they asked for.  v2.10.45 — Also RESOLVE the pending intent
+    // when loading finishes with NO candidate: open the picker (or
+    // the "Coming soon" modal when nothing was found at all) instead
+    // of leaving the button stuck on "Starting…" forever.
     useEffect(() => {
-        if (pendingAutoplay && autoplayCandidate) {
+        if (!pendingAutoplay) return;
+        if (autoplayCandidate) {
             setPendingAutoplay(false);
             playStream(autoplayCandidate);
+            return;
+        }
+        if (!streamLoading) {
+            setPendingAutoplay(false);
+            if (!streams || streams.length === 0) {
+                setShowUnavailableModal(true);
+            } else {
+                setShowStreamPicker(true);
+            }
         }
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
-    }, [pendingAutoplay, autoplayCandidate]);
+    }, [pendingAutoplay, autoplayCandidate, streamLoading]);
 
     const [showUnavailableModal, setShowUnavailableModal] = useState(false);
 
@@ -1116,7 +1156,7 @@ export default function Detail() {
             title: stream.title,
             type: stream.type,
         });
-        const playTitle = stream.title || meta?.name || 'Now Playing';
+        const playTitle = stream.title || displayMeta?.name || 'Now Playing';
         const playType = stream.type || type;
         const playImdb = stream.imdb_id || stream.cw_id || id;
         const positionMs = Number(stream.position_ms) || Number(partyPositionMs) || 0;
@@ -1139,13 +1179,13 @@ export default function Detail() {
             // Some Stremio addons embed low-res / wrong thumbs in the
             // stream payload; TMDB's poster/backdrop is always the
             // authoritative cinematic art for the title.
-            poster: meta?.poster || stream.poster || '',
-            backdrop: meta?.background || meta?.poster || stream.backdrop || '',
-            synopsis: meta?.description || stream.synopsis || '',
-            year: stream.year || meta?.releaseInfo || '',
-            rating: stream.rating || meta?.imdbRating || '',
-            runtime: stream.runtime || meta?.runtime || '',
-            genres: meta?.genres || [],
+            poster: displayMeta?.poster || stream.poster || '',
+            backdrop: displayMeta?.background || displayMeta?.poster || stream.backdrop || '',
+            synopsis: displayMeta?.description || stream.synopsis || '',
+            year: stream.year || displayMeta?.releaseInfo || '',
+            rating: stream.rating || displayMeta?.imdbRating || '',
+            runtime: stream.runtime || displayMeta?.runtime || '',
+            genres: displayMeta?.genres || [],
             startAtMs: positionMs,
             cwId: playImdb,
             partyCode,
@@ -1198,6 +1238,19 @@ export default function Detail() {
         autoplayFiredRef.current = true;
         setAutoplayFired(true);
         window.setTimeout(() => playStream(autoplayCandidate), 0);
+        // v2.10.45 — CONSUME the one-shot ?autoplay=1 so a persisted /
+        // restored WebView URL can never auto-replay this title when
+        // Android kills + restores the app mid-playback.
+        try {
+            const sp = new URLSearchParams(location.search);
+            if (sp.has('autoplay')) {
+                sp.delete('autoplay');
+                const qs = sp.toString();
+                navigate(`${location.pathname}${qs ? `?${qs}` : ''}`, {
+                    replace: true,
+                });
+            }
+        } catch { /* ignore */ }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [streams, streamLoading, autoplayRequested, type, autoplayCandidate, partyCode]);
 
@@ -1230,6 +1283,38 @@ export default function Detail() {
         seriesPartyFiredRef.current = true;
         autoplayFiredRef.current = true;
         setAutoplayFired(true);
+        /* v2.10.45 — CONSUME the one-shot ?episodeAutoplay=1&season=&episode=
+         * params the native skip-next fallback writes into the hash.
+         * Two failure modes this fixes (both reported as "Skip Next
+         * plays the SAME episode again"):
+         *   1. MainActivity persists the WebView URL on pause; if the
+         *      stale `episodeAutoplay` query is still in the hash when
+         *      Android kills/restores the app mid-playback, a fresh
+         *      Detail mount re-fires the OLD episode.
+         *   2. Consecutive skips: the refs above stayed `true` after the
+         *      first fallback consumption, so a SECOND skip-next intent
+         *      arriving on the still-mounted Detail page dead-ended.
+         * After consumption we strip the params (replace, no history
+         * entry) and re-arm the refs so the NEXT intent fires cleanly. */
+        const stripConsumedParams = () => {
+            try {
+                const sp = new URLSearchParams(location.search);
+                ['episodeAutoplay', 'autoplay', 'season', 'episode'].forEach(
+                    (k) => sp.delete(k)
+                );
+                const qs = sp.toString();
+                navigate(`${location.pathname}${qs ? `?${qs}` : ''}`, {
+                    replace: true,
+                });
+            } catch { /* ignore */ }
+        };
+        const rearmDirect = () => {
+            if (!isDirect) return;
+            stripConsumedParams();
+            seriesPartyFiredRef.current = false;
+            autoplayFiredRef.current = false;
+            setAutoplayFired(false);
+        };
         partyBreadcrumb('series-autoplay:fire', {
             party: !!partyCode,
             s: partySeason, e: partyEpisode,
@@ -1243,6 +1328,7 @@ export default function Detail() {
                     seriesPartyFiredRef.current = false;
                     autoplayFiredRef.current = false;
                     setAutoplayFired(false);
+                    if (isDirect) stripConsumedParams();
                     // Tell the guests the host couldn't find streams.
                     if (isPartyHost) {
                         const ws = partyDetailWsRef.current;
@@ -1267,6 +1353,7 @@ export default function Detail() {
                     seriesPartyFiredRef.current = false;
                     autoplayFiredRef.current = false;
                     setAutoplayFired(false);
+                    if (isDirect) stripConsumedParams();
                     if (isPartyHost) {
                         const ws = partyDetailWsRef.current;
                         if (ws && ws.readyState === 1) {
@@ -1291,6 +1378,7 @@ export default function Detail() {
                     seriesPartyFiredRef.current = false;
                     autoplayFiredRef.current = false;
                     setAutoplayFired(false);
+                    if (isDirect) stripConsumedParams();
                     return;
                 }
                 await playStream(pick, {
@@ -1298,10 +1386,15 @@ export default function Detail() {
                     season: Number(partySeason),
                     episode: Number(partyEpisode),
                 });
+                // Direct (skip-next) flow: consume the params + re-arm
+                // so the NEXT skip-next intent fires on this same
+                // still-mounted Detail page.
+                rearmDirect();
             } catch (_e) {
                 seriesPartyFiredRef.current = false;
                 autoplayFiredRef.current = false;
                 setAutoplayFired(false);
+                if (isDirect) stripConsumedParams();
             }
         })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1340,7 +1433,7 @@ export default function Detail() {
             const playUrl =
                 mode === 'direct'
                     ? stream.url
-                    : buildMagnet(stream, meta?.name);
+                    : buildMagnet(stream, displayMeta?.name);
             if (!playUrl) return;
             // Look up any previously-saved position so we can resume.
             const cwList = cw.getEntries();
@@ -1378,15 +1471,15 @@ export default function Detail() {
             cw.upsert({
                 id: playId,
                 type,
-                title: meta?.name || '',
+                title: displayMeta?.name || '',
                 episodeLabel,
-                backdrop: meta?.background || meta?.poster || '',
-                poster: meta?.poster || '',
-                synopsis: meta?.description || '',
-                year: meta?.releaseInfo || meta?.year || '',
-                rating: meta?.imdbRating || '',
-                runtime: meta?.runtime || '',
-                genres: meta?.genres || [],
+                backdrop: displayMeta?.background || displayMeta?.poster || '',
+                poster: displayMeta?.poster || '',
+                synopsis: displayMeta?.description || '',
+                year: displayMeta?.releaseInfo || displayMeta?.year || '',
+                rating: displayMeta?.imdbRating || '',
+                runtime: displayMeta?.runtime || '',
+                genres: displayMeta?.genres || [],
                 streamUrl: playUrl,
                 subtitleUrl,
                 positionMs: existing?.positionMs || 0,
@@ -1418,8 +1511,8 @@ export default function Detail() {
                 ? (sessionStorage.getItem('vesper-party-member-id') || '')
                 : '';
             const playTitle = episodeOverride
-                ? `${meta?.name || ''} · ${episodeLabel}`
-                : (meta?.name || '');
+                ? `${displayMeta?.name || ''} · ${episodeLabel}`
+                : (displayMeta?.name || '');
             if (partyCode) {
                 partyBreadcrumb('playStream:invoke', {
                     mode,
@@ -1465,12 +1558,12 @@ export default function Detail() {
                                 imdb_id: playId,
                                 cw_id: playId,
                                 subtitle_url: subtitleUrl,
-                                poster: meta?.poster || '',
-                                backdrop: meta?.background || meta?.poster || '',
-                                synopsis: meta?.description || '',
-                                year: meta?.releaseInfo || meta?.year || '',
-                                rating: meta?.imdbRating || '',
-                                runtime: meta?.runtime || '',
+                                poster: displayMeta?.poster || '',
+                                backdrop: displayMeta?.background || displayMeta?.poster || '',
+                                synopsis: displayMeta?.description || '',
+                                year: displayMeta?.releaseInfo || displayMeta?.year || '',
+                                rating: displayMeta?.imdbRating || '',
+                                runtime: displayMeta?.runtime || '',
                                 season: episodeOverride?.season,
                                 episode: episodeOverride?.episode,
                                 episode_title: episodeOverride?.episode_title || '',
@@ -1513,31 +1606,31 @@ export default function Detail() {
                      * stream came from.  Metahub serves TMDB-sourced
                      * art via a stable CDN that the box can reach. */
                     poster:
-                        meta?.poster ||
-                        meta?.posterUrl ||
-                        meta?.poster_url ||
-                        meta?.background ||
-                        meta?.backdrop ||
+                        displayMeta?.poster ||
+                        displayMeta?.posterUrl ||
+                        displayMeta?.poster_url ||
+                        displayMeta?.background ||
+                        displayMeta?.backdrop ||
                         (id && id.startsWith('tt')
                             ? `https://images.metahub.space/poster/medium/${id}/img`
                             : ''),
                     backdrop:
-                        meta?.background ||
-                        meta?.backdrop ||
-                        meta?.backdrop_url ||
-                        meta?.poster ||
+                        displayMeta?.background ||
+                        displayMeta?.backdrop ||
+                        displayMeta?.backdrop_url ||
+                        displayMeta?.poster ||
                         (id && id.startsWith('tt')
                             ? `https://images.metahub.space/background/medium/${id}/img`
                             : ''),
                     synopsis:
-                        meta?.description ||
-                        meta?.overview ||
-                        meta?.synopsis ||
+                        displayMeta?.description ||
+                        displayMeta?.overview ||
+                        displayMeta?.synopsis ||
                         '',
-                    year: meta?.releaseInfo || meta?.year || '',
-                    rating: meta?.imdbRating || '',
-                    runtime: meta?.runtime || '',
-                    genres: meta?.genres || [],
+                    year: displayMeta?.releaseInfo || displayMeta?.year || '',
+                    rating: displayMeta?.imdbRating || '',
+                    runtime: displayMeta?.runtime || '',
+                    genres: displayMeta?.genres || [],
                     startAtMs: partyCode
                         ? Number(partyPositionMs) || 0
                         : startAtMs,
@@ -1598,7 +1691,7 @@ export default function Detail() {
     };
 
     const copyMagnet = async (stream) => {
-        const magnet = buildMagnet(stream, meta?.name);
+        const magnet = buildMagnet(stream, displayMeta?.name);
         if (!magnet) return;
         try {
             await navigator.clipboard.writeText(magnet);
@@ -1642,8 +1735,8 @@ export default function Detail() {
         return (
             <PartyJoiningScreen
                 title={meta ? (meta.name || '') + seriesLabel : 'Your watch party is starting'}
-                poster={meta?.poster}
-                backdrop={meta?.background || meta?.poster}
+                poster={displayMeta?.poster}
+                backdrop={displayMeta?.background || displayMeta?.poster}
                 loading={loading || streamLoading || (isPartyGuest && !partyDetailState?.stream)}
                 noStreams={noStreams}
                 role={isPartyHost ? 'host' : 'guest'}
@@ -1656,7 +1749,11 @@ export default function Detail() {
         );
     }
 
-    if (loading) {
+    /* v2.10.45 — The full-screen "LOADING TITLE" screen is now the
+       LAST resort (cold deep-link with no preview data).  Any tile
+       click passes preview state, so the page hero renders on the
+       very first paint instead. */
+    if (loading && !displayMeta) {
         return (
             <CenterMsg>
                 {/* v2.10.13 — User reported the previous tiny
@@ -1702,7 +1799,7 @@ export default function Detail() {
         );
     }
 
-    if (err || !meta) {
+    if (err || (!loading && !meta)) {
         return (
             <CenterMsg>
                 <div style={{ color: '#ffb5b5' }}>{err || 'Not found'}</div>
@@ -1751,8 +1848,8 @@ export default function Detail() {
                 style={{
                     backgroundImage: `url(${
                         focusedMovie?.backdrop ||
-                        meta.background ||
-                        meta.poster || ''
+                        displayMeta.background ||
+                        displayMeta.poster || ''
                     })`,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
@@ -1843,9 +1940,9 @@ export default function Detail() {
                 <div
                     className="max-w-[68vw] vesper-fade-up"
                 >
-                    {meta.imdb_id && (
+                    {displayMeta.imdb_id && (
                         <div className="vesper-eyebrow mb-3">
-                            {focusedMovie ? focusedMovie.media_type : type} · {meta.imdb_id}
+                            {focusedMovie ? focusedMovie.media_type : type} · {displayMeta.imdb_id}
                         </div>
                     )}
                     <h1
@@ -1858,7 +1955,7 @@ export default function Detail() {
                             transition: 'opacity 220ms ease',
                         }}
                     >
-                        {focusedMovie?.title || focusedActor?.name || meta.name}
+                        {focusedMovie?.title || focusedActor?.name || displayMeta.name}
                     </h1>
 
                     {focusedMovie ? (
@@ -1919,18 +2016,18 @@ export default function Detail() {
                             className="flex items-center gap-3 mt-4 vesper-meta flex-wrap"
                             style={{ fontSize: 18 }}
                         >
-                            {meta.releaseInfo && (
+                            {displayMeta.releaseInfo && (
                                 <span style={{ color: 'var(--vesper-blue)' }}>
-                                    {meta.releaseInfo}
+                                    {displayMeta.releaseInfo}
                                 </span>
                             )}
-                            {meta.runtime && <Bullet />}
-                            {meta.runtime && <span>{meta.runtime}</span>}
-                            {meta.imdbRating && <Bullet />}
-                            {meta.imdbRating && <span>★ {meta.imdbRating}</span>}
-                            {meta.genres?.length > 0 && <Bullet />}
-                            {meta.genres?.length > 0 && (
-                                <span>{meta.genres.slice(0, 3).join(' · ')}</span>
+                            {displayMeta.runtime && <Bullet />}
+                            {displayMeta.runtime && <span>{displayMeta.runtime}</span>}
+                            {displayMeta.imdbRating && <Bullet />}
+                            {displayMeta.imdbRating && <span>★ {displayMeta.imdbRating}</span>}
+                            {displayMeta.genres?.length > 0 && <Bullet />}
+                            {displayMeta.genres?.length > 0 && (
+                                <span>{displayMeta.genres.slice(0, 3).join(' · ')}</span>
                             )}
                         </div>
                     )}
@@ -1970,7 +2067,7 @@ export default function Detail() {
                         >
                             {focusedBio || 'Loading biography…'}
                         </p>
-                    ) : meta.description ? (
+                    ) : displayMeta.description ? (
                         <p
                             className="mt-6 max-w-[58ch]"
                             style={{
@@ -1983,7 +2080,7 @@ export default function Detail() {
                                 overflow: 'hidden',
                             }}
                         >
-                            {meta.description}
+                            {displayMeta.description}
                         </p>
                     ) : null}
 
@@ -2031,18 +2128,39 @@ export default function Detail() {
                                     opacity: 1,
                                 }}
                             >
-                                {(streamLoading || pendingAutoplay) ? (
+                                {/* v2.10.45 — Button state priority:
+                                      1. pendingAutoplay  → "Starting…"
+                                      2. candidate FOUND  → "Autoplay" (clickable),
+                                         EVEN while other addons are still
+                                         resolving.  Previously the button sat
+                                         in "Loading" until EVERY addon
+                                         finished (up to ~25 s with one slow
+                                         addon) even though a perfect stream
+                                         arrived in the first 1-2 s — the user
+                                         read the stuck spinner as "the app
+                                         is frozen".
+                                      3. still loading    → spinner "Loading"
+                                      4. nothing found    → "No stream found" */}
+                                {pendingAutoplay ? (
                                     <>
                                         <Loader2
                                             className="vesper-spin"
                                             size={18}
                                         />
-                                        {pendingAutoplay ? 'Starting…' : 'Loading'}
+                                        Starting…
                                     </>
                                 ) : autoplayCandidate ? (
                                     <>
                                         <Play size={18} fill="currentColor" />
                                         Autoplay
+                                    </>
+                                ) : streamLoading ? (
+                                    <>
+                                        <Loader2
+                                            className="vesper-spin"
+                                            size={18}
+                                        />
+                                        Loading
                                     </>
                                 ) : (
                                     <>
@@ -2183,7 +2301,7 @@ export default function Detail() {
                     {/* Stream picker (movies) / Episode browser (series).
                         Hidden when actor OR a filmography movie is
                         focused — hero is showing that info instead. */}
-                    {(focusedActor || focusedMovie) ? null : type === 'series' ? (
+                    {(focusedActor || focusedMovie) ? null : type === 'series' ? (meta && (
                         <SeriesEpisodes
                             meta={meta}
                             parentId={id}
@@ -2198,7 +2316,7 @@ export default function Detail() {
                                 />
                             }
                         />
-                    ) : autoplayEnabled && autoplayCandidate ? (
+                    )) : autoplayEnabled && autoplayCandidate ? (
                         // Autoplay is on AND we have a 1080p candidate
                         // → hide the manual stream picker entirely.
                         null
@@ -2760,9 +2878,9 @@ export default function Detail() {
                 iframe fallback for desktop / preview). */}
             <TrailerModal
                 youtubeKey={trailerKey}
-                title={focusedMovie?.title || meta?.name}
-                poster={meta?.poster || ''}
-                backdrop={meta?.background || meta?.poster || ''}
+                title={focusedMovie?.title || displayMeta?.name}
+                poster={displayMeta?.poster || ''}
+                backdrop={displayMeta?.background || displayMeta?.poster || ''}
                 onClose={() => setTrailerKey(null)}
             />
 

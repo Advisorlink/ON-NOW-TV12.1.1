@@ -25,7 +25,6 @@ import SideNav from '@/components/SideNav';
 import useBackHandler from '@/hooks/useBackHandler';
 import useLongPress from '@/hooks/useLongPress';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
-import { showNavLoader, hideNavLoader } from '@/lib/navLoader';
 import {
     isActorInLibrary,
     addActorToLibrary,
@@ -474,7 +473,8 @@ function FilmGroup({ title, items, navigate, testId, topMargin }) {
 
 function FilmCard({ film, navigate }) {
     const openTitle = async () => {
-        showNavLoader();
+        // v2.10.45 — No full-screen loader; Detail paints instantly
+        // from the preview payload.
         try {
             const { data } = await axios.get(
                 `${API}/tmdb/imdb/${film.media_type}/${film.tmdb_id}`,
@@ -482,12 +482,21 @@ function FilmCard({ film, navigate }) {
             );
             if (data?.imdb_id) {
                 navigate(
-                    `/title/${film.media_type === 'tv' ? 'series' : 'movie'}/${data.imdb_id}`
+                    `/title/${film.media_type === 'tv' ? 'series' : 'movie'}/${data.imdb_id}`,
+                    {
+                        state: {
+                            preview: {
+                                title: film.title || '',
+                                poster: film.poster || '',
+                                background: film.backdrop || '',
+                                description: film.overview || '',
+                                year: film.year || '',
+                            },
+                        },
+                    }
                 );
-            } else {
-                hideNavLoader();
             }
-        } catch { hideNavLoader(); }
+        } catch { /* swallow */ }
     };
 
     const onLongPress = async () => {

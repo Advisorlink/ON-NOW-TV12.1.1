@@ -1348,12 +1348,22 @@ function ActorCard({ actor }) {
 function WatchLaterBlock({ items, onRemove, onExpand }) {
     const navigate = useNavigate();
     const playItem = (w) => {
-        showNavLoader();
         if (w.type === 'series') {
+            // Resolve flow (episode-specific) — keep the loader to
+            // bridge the resolver hop.
+            showNavLoader();
             const videoId = `${w.id}:${w.episode.season}:${w.episode.number}`;
             navigate(`/resolve/series/${encodeURIComponent(videoId)}`);
         } else {
-            navigate(`/title/movie/${w.id}`);
+            // v2.10.45 — No full-screen loader on detail opens.
+            navigate(`/title/movie/${w.id}`, {
+                state: {
+                    preview: {
+                        title: w.title || '',
+                        poster: w.poster || '',
+                    },
+                },
+            });
         }
     };
     return (
@@ -1537,12 +1547,22 @@ function WatchLaterExpanded({ items, onClose, onRemove }) {
     }, [onClose]);
 
     const playItem = (w) => {
-        showNavLoader();
         if (w.type === 'series') {
+            // Resolve flow (episode-specific) — keep the loader to
+            // bridge the resolver hop.
+            showNavLoader();
             const videoId = `${w.id}:${w.episode.season}:${w.episode.number}`;
             navigate(`/resolve/series/${encodeURIComponent(videoId)}`);
         } else {
-            navigate(`/title/movie/${w.id}`);
+            // v2.10.45 — No full-screen loader on detail opens.
+            navigate(`/title/movie/${w.id}`, {
+                state: {
+                    preview: {
+                        title: w.title || '',
+                        poster: w.poster || '',
+                    },
+                },
+            });
         }
     };
 

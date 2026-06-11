@@ -23,14 +23,27 @@ export default function PosterTile({ item, onSelect, initialFocus = false }) {
     const navigate = useNavigate();
 
     const onTap = () => {
+        // v2.10.45 — Hand the Detail page everything we already know
+        // about this title so it can paint its hero on the FIRST
+        // frame (no loading screen) while real metadata resolves.
+        const preview = {
+            title: item.title || '',
+            poster: item.poster ? img.poster(item.poster) : '',
+            background: item.background ? img.backdrop(item.background) : '',
+            description: item.description || '',
+            year: item.year || item.sub || '',
+            genres: Array.isArray(item.genres) ? item.genres : [],
+        };
         if (onSelect) {
             onSelect(item);
         } else if (item.routePath) {
-            navigate(item.routePath);
+            navigate(item.routePath, { state: { preview } });
         } else if (item.imdbId) {
-            navigate(`/title/${item.type || 'movie'}/${item.imdbId}`);
+            navigate(`/title/${item.type || 'movie'}/${item.imdbId}`, {
+                state: { preview },
+            });
         } else {
-            navigate(`/title/${item.id}`);
+            navigate(`/title/${item.id}`, { state: { preview } });
         }
     };
 
