@@ -1,6 +1,22 @@
 # ON NOW TV V2 — PRD
 
-> **🔴 v2.10.43 — HOTFIX REVERT of v2.10.42 React perf regression (Feb 11 2026).**
+> **🔴 v2.10.44 — Restore v2.10.42 loader UX + pageshow listener removal (Feb 11 2026).**
+>
+> User report (frustrated): *"Auto Play button needs to keep playing loading and spinning its little circle on the button until the AUTOPLAY is ready... navigation has become so slow it's unacceptable... AND IT DOESN'T NEED TO SHOW LOADING SCREEN ON OPENING MOVIE DETAILS PAGE OR EXITING A STREAM."*
+>
+> Two attached screen recordings showed the user on the Home page with HeroBillboard rotating and "Popular series"/"Popular movies" shelves, navigating D-pad horizontally — visible focus jank/jerkiness during normal tile scrolling.
+>
+> **Restored from v2.10.42** (which I had reverted in v2.10.43 thinking the loader removal was THE bug — but the user has explicitly stated they want it removed):
+>   • Removed `showNavLoader()` from all poster-click handlers: `PosterTile`, `HeroBillboard::goToDetail`, `NetworkPosterTile::handleClick`, `UpcomingMoviesShelf::openItem`, `TabGridView::MorphTileImpl::onTap`, `Library::FavouriteCard::onTap` + `Library::NotifyPopover::onOpen`.
+>   • Autoplay button label: `Starting…/Autoplay` → `Starting…/Loading` during `streamLoading||pendingAutoplay`. Ready state keeps the `Autoplay` label.
+>
+> **NEW in v2.10.44** — Removed the `pageshow` listener I had added to `navLoader.js` in v2.10.40. Some Android WebView builds (notably the HK1 box) fire `pageshow` on every hashchange (an OEM Chromium-WebView quirk), which then triggered repeated `hideNavLoader()` calls + clearTimeout cycles during normal D-pad navigation. The `visibilitychange` listener alone covers the player-exit case, without the spurious-fire risk on tile navigation.
+>
+> **KEPT from native Kotlin** — `ExoPlayerActivity.kt::kickoffNextEpisodePrime` colon-format API id (the v2.10.42 native fix that the user confirmed *"playing next episode is working great now"*).
+>
+> **Outstanding** — User reports general navigation slowness on Home shelves. This is NOT in any of my recent React changes (`Home.jsx`, `PosterTile.jsx`, `useSpatialFocus.js` all unchanged in the last 48 h). Most likely source is the pre-existing 5 s `ContinueWatchingShelf` poll + the `MutationObserver` in `useSpatialFocus` re-invalidating the focus cache on every shelf re-render. **Requires deeper diagnosis with the user's actual session** — would need a Chrome DevTools Performance trace from their HK1 box to localize the bottleneck.
+
+> **🔴 v2.10.43 — HOTFIX REVERT of v2.10.42 React perf regression (Feb 11 2026). SUPERSEDED — user clarified they DID want the v2.10.42 changes; v2.10.43 reversion was undone in v2.10.44.**
 >
 > User report (panicked): *"Something is going horribly wrong... it's taking forever to click on something, for everything to load... it's jumping from the top to the bottom for no reason... worse than it's ever been... FIND THE EXACT BUG DON'T JUST GUESS."*
 >

@@ -3,7 +3,6 @@ import { Play, Info, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import * as img from '@/lib/img';
 import Host from '@/lib/host';
-import { showNavLoader } from '@/lib/navLoader';
 
 export default function HeroBillboard({ heroes, hiRes = false }) {
     const list = Array.isArray(heroes) ? heroes : [];
@@ -42,8 +41,10 @@ export default function HeroBillboard({ heroes, hiRes = false }) {
         // Append `?autoplay=1` for the Play button so the Detail
         // page can auto-pick a 1080p stream when the user enabled
         // that setting (and silently fall back otherwise).
+        // v2.10.44 — No full-screen nav loader; Detail handles its
+        // own progressive layout + "Loading" spinner on the
+        // Autoplay button.
         const suffix = autoplay ? '?autoplay=1' : '';
-        showNavLoader();
         if (hero.routePath) navigate(hero.routePath + suffix);
         else navigate(`/title/${hero.id}${suffix}`);
     };

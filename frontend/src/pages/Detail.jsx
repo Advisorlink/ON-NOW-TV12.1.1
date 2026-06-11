@@ -2037,7 +2037,7 @@ export default function Detail() {
                                             className="vesper-spin"
                                             size={18}
                                         />
-                                        {pendingAutoplay ? 'Starting…' : 'Autoplay'}
+                                        {pendingAutoplay ? 'Starting…' : 'Loading'}
                                     </>
                                 ) : autoplayCandidate ? (
                                     <>

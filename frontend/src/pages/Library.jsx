@@ -243,7 +243,6 @@ export default function Library() {
                     onClose={() => setNotifyPopoverOpen(false)}
                     onOpen={(n) => {
                         if (String(n.id).startsWith('tt')) {
-                            showNavLoader();
                             navigate(`/title/${n.type || 'movie'}/${n.id}`);
                         }
                         setNotifyPopoverOpen(false);
@@ -1135,7 +1134,7 @@ function FavouriteCard({ item, type }) {
     const navigate = useNavigate();
     const poster = item.meta?.poster;
 
-    const onTap = () => { showNavLoader(); navigate(`/title/${type}/${item.id}`); };
+    const onTap = () => { navigate(`/title/${type}/${item.id}`); };
     const onLongPress = () => {
         window.dispatchEvent(
             new CustomEvent('vesper:request-add-to-list', {
