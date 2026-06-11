@@ -23,7 +23,13 @@ export default function PosterTile({ item, onSelect, initialFocus = false }) {
         } else if (item.routePath) {
             navigate(item.routePath);
         } else if (item.imdbId) {
-            navigate(`/title/${item.type || 'movie'}/${item.imdbId}`);
+            // v2.10.46-c — Movies tile-click now jumps STRAIGHT to
+            // autoplay (loading screen → player, no stream picker
+            // visible).  Series omit the flag because the user
+            // expects to land on the episode picker, not autoplay.
+            const t = item.type || 'movie';
+            const qs = t === 'movie' ? '?autoplay=1' : '';
+            navigate(`/title/${t}/${item.imdbId}${qs}`);
         } else {
             navigate(`/title/${item.id}`);
         }

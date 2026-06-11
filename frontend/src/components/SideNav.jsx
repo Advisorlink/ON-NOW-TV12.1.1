@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Home as HomeIcon,
     Search,
@@ -11,9 +11,12 @@ import {
     Zap,
     Users,
     Trophy,
+    UserCircle2,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getAutoplay1080p, setAutoplay1080p } from '@/lib/prefs';
+import { getActiveProfile } from '@/lib/profiles';
+import { AvatarCircle } from '@/lib/avatars';
 
 const NAV = [
     { id: 'home', label: 'Home', icon: HomeIcon, path: '/' },
@@ -104,6 +107,33 @@ export default function SideNav() {
         const next = !autoplay;
         setAutoplay1080p(next);
         setAutoplay(next);
+    };
+
+    // v2.10.46-c — Profile button at the bottom of the rail (ported
+    // back from the pre-rollback build).  Re-reads the active
+    // profile on every route change so swapping profiles anywhere
+    // in the app instantly updates the avatar shown here.
+    const [profileRev, setProfileRev] = useState(0);
+    useEffect(() => {
+        const onChange = () => setProfileRev((r) => r + 1);
+        window.addEventListener('vesper:profile-change', onChange);
+        return () => window.removeEventListener('vesper:profile-change', onChange);
+    }, []);
+    const activeProfile = React.useMemo(() => {
+        try { return getActiveProfile(); } catch { return null; }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [profileRev, location.pathname]);
+
+    const openProfilePicker = () => {
+        setExpanded(false);
+        setNavigatingAway(true);
+        if (
+            document.activeElement &&
+            typeof document.activeElement.blur === 'function'
+        ) {
+            document.activeElement.blur();
+        }
+        navigate('/profiles');
     };
 
     const isExpanded = expanded && !navigatingAway;
@@ -301,6 +331,45 @@ export default function SideNav() {
                         >
                             {autoplay ? 'ON' : 'OFF'}
                         </span>
+                    </span>
+                </button>
+            </div>
+
+            {/* v2.10.46-c — Profile selector pinned to the bottom of
+                the rail.  Tap → /profiles (the existing
+                ProfileSelect screen, where the user can switch or
+                edit profiles).  When collapsed the avatar shows as
+                a 32 dp circle; when expanded the name appears
+                alongside it. */}
+            <div className="mt-auto px-3 pb-1">
+                <button
+                    data-testid="nav-profile"
+                    data-focusable="true"
+                    data-focus-style="nav"
+                    tabIndex={0}
+                    onClick={openProfilePicker}
+                    className="relative flex items-center gap-4 h-12 px-2 rounded-lg text-left w-full"
+                    style={{ color: 'var(--vesper-text)' }}
+                >
+                    <span className="flex items-center justify-center w-9 h-9 shrink-0">
+                        {activeProfile ? (
+                            <AvatarCircle
+                                avatarId={activeProfile.avatarId}
+                                size={32}
+                            />
+                        ) : (
+                            <UserCircle2
+                                size={22}
+                                strokeWidth={1.7}
+                                style={{ color: 'var(--vesper-text-2)' }}
+                            />
+                        )}
+                    </span>
+                    <span
+                        className="font-sans text-[15px] font-medium overflow-hidden whitespace-nowrap transition-opacity duration-300"
+                        style={{ opacity: isExpanded ? 1 : 0 }}
+                    >
+                        {activeProfile?.name || 'Choose profile'}
                     </span>
                 </button>
             </div>
