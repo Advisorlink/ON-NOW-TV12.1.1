@@ -1098,14 +1098,29 @@ class ExoPlayerActivity : ComponentActivity() {
         nextEpisodePrimeJob?.cancel()
         val next = computeNextEpisode() ?: return
         val imdb = cwId.substringBefore(":").ifBlank { return }
-        val nextCwId = "${imdb}:s${next.first}e${next.second}"
+        // v2.10.42 — Send the COLON format `tt0903747:1:6` to the
+        // backend streams API, NOT the `tt0903747:s1e6` format the
+        // frontend uses internally for CW ids.  Every Stremio addon
+        // (Torrentio, Cinemeta, Easynews etc.) expects the colon
+        // format on the `/stream/series/<imdb:season:episode>.json`
+        // endpoint.  The old `s${s}e${e}` URL silently returned
+        // empty streams from those addons, which made `primedUrl`
+        // null on every prime — sending the user to the legacy
+        // intent fallback path every time, which itself was buggy
+        // (see Detail.jsx autoplayFiredRef reset fix in this same
+        // commit).
+        val apiCwId = "${imdb}:${next.first}:${next.second}"
+        // The CW id we stash for the in-place swap keeps the
+        // frontend's `s/e` format so the Continue Watching dedupe
+        // logic continues to work after the swap.
+        val cwCwId = "${imdb}:s${next.first}e${next.second}"
         val backendBase = readBackendBase()
 
         nextEpisodePrimeJob = pollScope.launch {
             try {
                 // ── 1) Fetch streams for the next episode ───────────
                 val streamsJson = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    httpGetJson("${backendBase}/api/streams/series/${nextCwId}")
+                    httpGetJson("${backendBase}/api/streams/series/${apiCwId}")
                 } ?: return@launch
                 val streams = streamsJson.optJSONArray("streams") ?: return@launch
                 if (streams.length() == 0) return@launch
@@ -1118,7 +1133,7 @@ class ExoPlayerActivity : ComponentActivity() {
                 // ── 3) Fetch English subtitle (best-effort) ─────────
                 val subUrl = try {
                     withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        httpGetJson("${backendBase}/api/subtitles/series/${nextCwId}")
+                        httpGetJson("${backendBase}/api/subtitles/series/${apiCwId}")
                             ?.optJSONArray("subtitles")
                             ?.let { arr ->
                                 var match: String? = null
@@ -1139,29 +1154,12 @@ class ExoPlayerActivity : ComponentActivity() {
                 val nextTitle = "S${next.first} · E${next.second}"
 
                 // ── 5) Stash on the main thread ─────────────────────
-                // v2.10.33 — Earlier versions of this prime job also
-                // called `player.addMediaItem(...)` here to queue the
-                // upcoming episode so ExoPlayer could pre-buffer it
-                // and `seekToNextMediaItem()` would be instant on
-                // click.  We dropped that path because it created a
-                // subtle correctness bug: when ExoPlayer hit a parse
-                // error on the queued item, the activity's
-                // `onPlayerError` handler at ~line 588 fell back to
-                // VLC using `fallback.putExtras(intent)` — but the
-                // intent extras still pointed at the OLD episode, so
-                // VLC re-played the SAME episode.  The new
-                // `jumpToPrimedNextEpisode()` does a clean
-                // `setMediaItem + prepare` instead and synchronously
-                // updates `intent` extras, which the fallback then
-                // sees correctly.  Pre-buffering can be re-introduced
-                // later as an optimisation once we've made the
-                // fallback path itself episode-aware.
                 withContext(kotlinx.coroutines.Dispatchers.Main) {
                     nextEpisodePrimedUrl = pickedUrl
                     nextEpisodePrimedSubUrl = subUrl
                     nextEpisodePrimedTitle = nextTitle
-                    nextEpisodePrimedCwId = nextCwId
-                    Log.i(TAG, "next-ep primed: $nextTitle → $pickedUrl")
+                    nextEpisodePrimedCwId = cwCwId
+                    Log.i(TAG, "next-ep primed: $nextTitle → $pickedUrl  (api=$apiCwId, cw=$cwCwId)")
                 }
             } catch (_: kotlinx.coroutines.CancellationException) {
                 // expected if the user backed out before we finished
