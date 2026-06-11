@@ -133,7 +133,16 @@ data class StreamOption(
  */
 @Composable
 fun PlayerOverlay(
-    info: PlayerInfo,
+    // v2.10.40 — `info` is now a reactive StateFlow so mid-playback
+    // episode swaps (skip-next-episode) propagate to the dock title.
+    // Previously this was a one-shot snapshot — the title stayed
+    // stuck at S1E5 even after the activity had swapped to S1E6,
+    // making the user think the swap had "replayed the same episode".
+    infoFlow: StateFlow<PlayerInfo>,
+    // v2.10.40 — Forces the full LoadingScreen (not the tiny corner
+    // spinner) during an in-place episode swap, regardless of
+    // `hasEverPlayed`.
+    isSwappingEpisode: StateFlow<Boolean> = MutableStateFlow(false).asStateFlow(),
     isPlaying: StateFlow<Boolean>,
     positionMs: StateFlow<Long>,
     durationMs: StateFlow<Long>,
@@ -172,6 +181,18 @@ fun PlayerOverlay(
     onNextEpisode: () -> Unit = {},
     onClose: () -> Unit,
 ) {
+    // v2.10.40 — Reactive PlayerInfo so the title / poster / logo
+    // update when the in-place episode swap mutates the underlying
+    // state in ExoPlayerActivity.
+    val info by collectAsStateSafe(
+        infoFlow,
+        PlayerInfo(
+            title = "", synopsis = "", year = "", runtime = "", rating = "",
+            backdrop = "", addonSource = "", quality = "", isEnglish = false,
+            sizeGb = 0f, poster = "",
+        )
+    )
+    val swappingEpisode by collectAsStateSafe(isSwappingEpisode, false)
     val playing by collectAsStateSafe(isPlaying, false)
     val pos by collectAsStateSafe(positionMs, 0L)
     val dur by collectAsStateSafe(durationMs, 0L)
@@ -193,8 +214,14 @@ fun PlayerOverlay(
     var hasEverPlayed by remember { mutableStateOf(false) }
     LaunchedEffect(playing) { if (playing) hasEverPlayed = true }
 
-    val showFullLoader = loading && !hasEverPlayed
-    val showRebufferSpinner = loading && hasEverPlayed
+    // v2.10.40 — `swappingEpisode` overrides the hasEverPlayed gate
+    // so the full LoadingScreen (with episode title + show logo)
+    // re-appears for the duration of the next-episode swap.  This
+    // is the unmissable visual confirmation the user demanded — no
+    // more "tiny corner spinner with the OLD frozen frame" UX that
+    // looked like the same episode was being replayed.
+    val showFullLoader = swappingEpisode || (loading && !hasEverPlayed)
+    val showRebufferSpinner = loading && hasEverPlayed && !swappingEpisode
 
     // Auto-hide the bottom dock after 5 s without user activity.
     // v2.7.54 — Driven by userActivityTs (pumped by
