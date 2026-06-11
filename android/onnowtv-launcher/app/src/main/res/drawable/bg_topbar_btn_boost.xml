@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Boost pill background — warm cyan→magenta→violet hero gradient.
+  Mirrors the visual weight of the V2 AI pill so the two hero
+  pills sit side-by-side as paired hero actions, while still being
+  distinguishable thanks to the warmer accent.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Focused: brighter inner gradient + white border ring -->
+    <item android:state_focused="true">
+        <layer-list>
+            <item>
+                <shape android:shape="rectangle">
+                    <corners android:radius="9999dp" />
+                    <gradient
+                        android:type="linear"
+                        android:angle="45"
+                        android:startColor="#FFFF7A1A"
+                        android:centerColor="#FFFF2D9C"
+                        android:endColor="#FFB04CFF"
+                        android:useLevel="false" />
+                    <stroke
+                        android:width="2dp"
+                        android:color="#FFFFFFFF" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+    <!-- Resting: cooler gradient, no border -->
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="9999dp" />
+            <gradient
+                android:type="linear"
+                android:angle="45"
+                android:startColor="#FFEA5814"
+                android:centerColor="#FFE91E63"
+                android:endColor="#FF9333EA"
+                android:useLevel="false" />
+        </shape>
+    </item>
+</selector>

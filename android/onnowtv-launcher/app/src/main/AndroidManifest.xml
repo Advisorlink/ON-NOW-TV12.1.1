@@ -8,6 +8,11 @@
     <!-- v2.8.23 — Mic for V2 AI push-and-hold voice assistant. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- v2.10.45 — BOOST button (RAM cleaner).  Lets us call
+         ActivityManager.killBackgroundProcesses() against every
+         non-system package the user has tapped to reclaim memory.
+         This is a normal permission (no runtime grant required). -->
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
 
     <!-- Sideload APKs published from the admin backend. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
