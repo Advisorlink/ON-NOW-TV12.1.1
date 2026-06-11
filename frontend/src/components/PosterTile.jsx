@@ -2,7 +2,6 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as img from '@/lib/img';
 import useLongPress from '@/hooks/useLongPress';
-import { showNavLoader } from '@/lib/navLoader';
 
 /**
  * Poster tile.  Image renders immediately on mount — we don't try
@@ -14,6 +13,11 @@ import { showNavLoader } from '@/lib/navLoader';
  *
  * Press-and-hold OK (or mouse) to fire the global "Add to My List"
  * modal — short-tap still navigates to the detail page.
+ *
+ * v2.10.44 — Per explicit user demand: NO full-screen loader on
+ * tile click.  Detail.jsx now shows its own progressive layout
+ * with a "Loading" spinner on the Autoplay button while streams
+ * resolve.  Removed the `showNavLoader()` calls accordingly.
  */
 export default function PosterTile({ item, onSelect, initialFocus = false }) {
     const navigate = useNavigate();
@@ -22,13 +26,10 @@ export default function PosterTile({ item, onSelect, initialFocus = false }) {
         if (onSelect) {
             onSelect(item);
         } else if (item.routePath) {
-            showNavLoader();
             navigate(item.routePath);
         } else if (item.imdbId) {
-            showNavLoader();
             navigate(`/title/${item.type || 'movie'}/${item.imdbId}`);
         } else {
-            showNavLoader();
             navigate(`/title/${item.id}`);
         }
     };

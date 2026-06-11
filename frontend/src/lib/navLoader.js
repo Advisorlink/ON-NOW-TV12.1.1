@@ -98,16 +98,19 @@ function installGlobalGuards() {
     // 30 s "Loading episode" overlay that was put up to bridge the
     // gap between the click and the native player splash.  Force
     // an immediate hide the moment the WebView surfaces.
+    //
+    // v2.10.44 — Removed the redundant `pageshow` listener.  Some
+    // Android WebView builds fire `pageshow` on every hashchange
+    // (a known OEM bug in some Chromium-based WebView versions),
+    // which then triggered repeated hideNavLoader calls + clears
+    // of autoHideTimer during normal D-pad navigation.  Keeping
+    // ONLY visibilitychange covers the player-exit case without
+    // the spurious-fire risk on tile navigation.
     if (typeof document !== 'undefined') {
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') hideNavLoader();
         });
     }
-    // Belt-and-braces: the Android WebView fires a window `pageshow`
-    // event when the activity is brought back to the front.  Some
-    // OEM WebViews don't reliably dispatch visibilitychange, so
-    // pageshow is a redundant safety net.
-    window.addEventListener('pageshow', () => hideNavLoader());
 }
 
 export function showNavLoader(opts = {}) {
