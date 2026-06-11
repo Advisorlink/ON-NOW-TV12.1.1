@@ -235,11 +235,37 @@ export default function AddToListModal() {
         setTimeout(() => {
             setPayload(null);
             setClosing(false);
-            // Return focus to whatever was focused before the modal
-            // opened (Android WebView doesn't always do this on its own).
+            // v2.10.46-e — Return focus to whatever tile fired the
+            // long-press so the user sees the highlight ring snap
+            // back to the title they just added/removed.  Android
+            // WebViews don't reliably restore focus, AND the
+            // `setFocusAttr` painted by `useSpatialFocus` is only
+            // driven by keyboard events — so a bare `.focus()`
+            // here gets the DOM focus right but the visual ring
+            // never paints.  We therefore ALSO set
+            // `data-focused="true"` on the restored element and
+            // strip it from any other lingering matches so only
+            // the bounce-back tile shows the highlight.
             const f = lastFocusedRef.current;
             if (f && typeof f.focus === 'function') {
-                try { f.focus({ preventScroll: true }); } catch { /* ignore */ }
+                try { f.focus({ preventScroll: false }); } catch { /* ignore */ }
+                try {
+                    document
+                        .querySelectorAll('[data-focused="true"]')
+                        .forEach((el) => {
+                            if (el !== f) el.removeAttribute('data-focused');
+                        });
+                    f.setAttribute('data-focused', 'true');
+                    // Scroll the tile back into view in case it
+                    // drifted off-screen while the modal was up.
+                    if (typeof f.scrollIntoView === 'function') {
+                        f.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'nearest',
+                            inline: 'nearest',
+                        });
+                    }
+                } catch { /* ignore */ }
             }
         }, 200);
     };

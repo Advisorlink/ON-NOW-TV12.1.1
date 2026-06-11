@@ -1,5 +1,11 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.46-e — Round 4 of post-rollback fixes (11 Jun 2026).**
+>
+> **J. Focus bounce-back to the tile after Add-to-List** — `components/AddToListModal.jsx`. The close() flow already restored DOM focus via `lastFocusedRef.focus()`, but the visual highlight ring (driven by `data-focused="true"`) wasn't being repainted. Now: strips lingering `data-focused`, sets it on the restored tile, and `scrollIntoView({block:'nearest'})` in case the tile drifted off-screen. Works for movies, series and actor tiles.
+>
+> **K. Episode preview image left-edge clipping** — `components/SeriesEpisodes.jsx`. Dropped `overflow-hidden` from the episode `<li>` so the inner button's `transform: scale(1.04)` focus animation no longer clips the thumbnail. Inner thumbnail still has `rounded-xl` so rounded corners survive.
+>
 > **🟢 v2.10.46-d — Round 3 of post-rollback fixes (11 Jun 2026).**
 >
 > User reported two regressions caused by the rollback:

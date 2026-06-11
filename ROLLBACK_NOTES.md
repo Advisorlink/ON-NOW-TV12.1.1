@@ -215,3 +215,19 @@ User reported two more regressions:
 **File:** `frontend/src/components/SeriesEpisodes.jsx`
 - The yellow "Watching" badge (`data-testid="watching-<s>-<e>"`) was lost in the June-4 rollback. Reinstated with the original style: amber 250/204/21, clock SVG, "WATCHING" caption — shown when the user has any progress on the episode but hasn't crossed the watched threshold.
 - The existing "Watched" badge was using `--vesper-blue-rgb` (blue) which blended into the rest of the page. Restored the original GREEN palette (rgba(34,197,94)) so it's clearly distinct.
+
+---
+
+## Fourth round of follow-up fixes (same day, 11 June 2026)
+
+User reported two more regressions:
+
+### Fix J — Focus bounce-back to the original tile after Add-to-List
+**File:** `frontend/src/components/AddToListModal.jsx`
+- The modal already captured `document.activeElement` into `lastFocusedRef` on open and called `.focus()` on close. But the visual highlight ring (driven by `data-focused="true"`, not the browser's `:focus-visible`) wasn't being repainted on the restored tile, so the user saw focus snap to nothing.
+- Updated the `close()` flow to also strip `data-focused` from any lingering elements, set `data-focused="true"` on the restored tile, and `scrollIntoView({block:'nearest', inline:'nearest'})` in case the tile drifted off-screen while the modal was up. Now works for movies, series and actor tiles — anywhere `vesper:request-add-to-list` is dispatched from.
+
+### Fix K — Episode preview image left-edge clipping
+**File:** `frontend/src/components/SeriesEpisodes.jsx`
+- The episode card's outer `<li>` had `overflow-hidden` (June 4 state). When the inner button scales up via `data-focus-style="quiet"` on focus, the LI was clipping the left edge of the thumbnail.
+- Dropped `overflow-hidden` (kept `rounded-2xl`). The inner thumbnail still has its own `rounded-xl` so the rounded corners are preserved. Comment v2.10.46-e added so the next agent understands why.
