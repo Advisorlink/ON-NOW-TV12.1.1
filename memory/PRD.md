@@ -1,8 +1,16 @@
 # ON NOW TV V2 — PRD
 
-> **🟢 v2.10.46-i — Round 8: Onboarding redesigned for 16:9 (11 Jun 2026).**
+> **🟢 v2.10.46-j — Round 9: Onboarding rebuilt (11 Jun 2026).**
 >
-> **S. Welcome-tour overhauled** — `components/Onboarding.jsx`. Outer layout converted from a `flex items-center justify-center` (which let columns drift to opposite edges with a yawning gap) into a CSS grid with three fixed rows (header / hero / footer). Hero row is a contained 2-col grid (`maxWidth: 1240, columnGap clamp(40px, 4vw, 64px)`) so the copy and scene feel like one composed unit. Title font scaled down to `clamp(28px, 3vw, 48px)`; right scene capped at 420 px. Em-dash in the visible body text removed; double-spaces inside body strings collapsed for cleaner copy. All scenes, animations and step content preserved.
+> **T. Welcome-tour completely redesigned** — `components/Onboarding.jsx`. User asked for a full rebuild of the slides, not just tightening the side-by-side layout. New approach:
+>   • Single vertically-stacked centered column instead of two side-by-side columns.
+>   • Scene art floats centre-stage with a soft radial glow halo behind it — feels theatrical, not just floating.
+>   • Eyebrow chip + big title + short body cascade directly beneath the scene, all centre-aligned, in tight 540 ch column. Reads as one composed slide.
+>   • Top strip: brand left, "STEP 01 / 15" centre, Skip right — fully balanced three-column header.
+>   • Bottom rail: pip progress (one dot per step, active step elongates into a bar) + Back/Next buttons. Pip indicator replaces the linear bar for a more premium feel.
+>   • Scene-in animation: 520 ms blur-out + scale + slide-up so each step feels deliberate.
+>
+> **🟢 v2.10.46-i — Round 8 (11 Jun 2026)** — first onboarding pass (grid header/hero/footer). Replaced by Round 9.
 >
 > **🟢 v2.10.46-h — Round 7 (single fix, 11 Jun 2026).** Rounds 1–6 locked-in per user "exactly where it needs to be, working perfectly".
 >

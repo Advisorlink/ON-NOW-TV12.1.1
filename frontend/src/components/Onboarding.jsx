@@ -265,32 +265,34 @@ export default function Onboarding({ open, onClose }) {
             className="fixed inset-0"
             style={{
                 zIndex: 90,
-                /* v2.10.46-i — Re-tuned for a 16:9 1920×1080 TV.
-                 * Outer is now a CSS grid with three fixed rows
-                 * (header / hero / footer) instead of an
-                 * inline-flex centring trick.  This stops the
-                 * "stretched apart" look the user reported where
-                 * the headline drifted far left and the D-pad
-                 * far right, with a yawning gap in the middle.
-                 * The hero row is height-capped so the whole
-                 * card sits as one composed unit. */
-                display: 'grid',
-                gridTemplateRows:
-                    'clamp(60px, 6.5vh, 96px) 1fr clamp(80px, 8vh, 120px)',
+                /* v2.10.46-j — Complete redesign.
+                 * Out: the two-column "copy left / scene right"
+                 *      layout the user disliked.
+                 * In:  a vertically-stacked, centered slide with
+                 *      the scene as a contained hero centerpiece,
+                 *      eyebrow + title + body cascading directly
+                 *      beneath it, and a slim bottom rail with
+                 *      progress + nav.  Reads as one composed
+                 *      slide instead of two islands, and the
+                 *      single column scales gracefully on any
+                 *      16:9 viewport. */
+                display: 'flex',
+                flexDirection: 'column',
                 background:
-                    'radial-gradient(ellipse at 30% 25%, #0c1a36 0%, #06080F 55%, #03050C 100%)',
+                    'radial-gradient(ellipse at 50% 0%, #0d1f44 0%, #08102B 38%, #050811 75%, #03050C 100%)',
                 color: '#fff',
                 overflow: 'hidden',
-                padding: '0 clamp(32px, 4vw, 72px)',
+                padding: 'clamp(28px, 3vh, 44px) clamp(40px, 5vw, 96px)',
             }}
         >
             <BackdropOrbs />
 
-            {/* Header strip: brand left, Skip right.  Compact, never
-                competes with the hero copy below. */}
+            {/* Top strip: brand left, step counter centre,
+                Skip-tour right.  Each one is independent so the
+                composition stays balanced. */}
             <div
-                className="relative flex items-center justify-between"
-                style={{ zIndex: 5 }}
+                className="relative flex items-center"
+                style={{ zIndex: 5, gap: 16 }}
             >
                 <div
                     className="vesper-mono"
@@ -306,6 +308,22 @@ export default function Onboarding({ open, onClose }) {
                     </span>
                     <span style={{ margin: '0 10px', opacity: 0.4 }}>·</span>
                     Welcome tour
+                </div>
+                <div
+                    className="vesper-mono"
+                    style={{
+                        marginLeft: 'auto',
+                        marginRight: 'auto',
+                        fontSize: 10,
+                        letterSpacing: '0.36em',
+                        textTransform: 'uppercase',
+                        color: 'rgba(255,255,255,0.45)',
+                        fontWeight: 700,
+                    }}
+                >
+                    Step {String(step + 1).padStart(2, '0')}
+                    <span style={{ opacity: 0.4, margin: '0 8px' }}>/</span>
+                    {String(STEPS.length).padStart(2, '0')}
                 </div>
                 <button
                     data-testid="onboarding-skip"
@@ -323,130 +341,181 @@ export default function Onboarding({ open, onClose }) {
                         cursor: 'pointer',
                     }}
                 >
-                    <SkipForward size={13} /> Skip tour
+                    <SkipForward size={13} /> Skip
                 </button>
             </div>
 
-            {/* HERO: copy left, scene right.  Constrained to 1240px
-                wide and centred so it never feels stretched on a
-                1920px TV.  minHeight 0 lets the grid clip if a
-                particular scene happens to render too tall. */}
+            {/* HERO STAGE: vertical column, centred.  Scene at top,
+                eyebrow + title + body below.  All content lives
+                inside an 820 px wide column so the layout stays
+                tight on big TVs without the columns drifting
+                apart. */}
             <div
                 className="relative"
                 style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)',
-                    columnGap: 'clamp(40px, 4vw, 64px)',
-                    alignItems: 'center',
-                    justifyItems: 'stretch',
-                    maxWidth: 1240,
-                    width: '100%',
-                    margin: '0 auto',
+                    flex: '1 1 auto',
                     minHeight: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 'clamp(18px, 2vh, 32px)',
                     zIndex: 4,
                 }}
             >
-                {/* LEFT: copy stack */}
-                <div style={{ minWidth: 0 }}>
-                    <div
-                        className="flex items-center gap-3"
-                        style={{
-                            color: 'var(--vesper-blue-bright)',
-                            fontSize: 11,
-                            letterSpacing: '0.32em',
-                            textTransform: 'uppercase',
-                            fontWeight: 700,
-                            marginBottom: 16,
-                        }}
-                    >
-                        <span
-                            style={{
-                                width: 34,
-                                height: 34,
-                                borderRadius: '50%',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                background:
-                                    'linear-gradient(135deg, rgba(93,200,255,0.28) 0%, rgba(93,200,255,0.08) 100%)',
-                                border: '1.5px solid rgba(93,200,255,0.55)',
-                                boxShadow: '0 0 22px rgba(93,200,255,0.45)',
-                            }}
-                        >
-                            <Icon size={16} strokeWidth={2.2} />
-                        </span>
-                        {s.eyebrow}
-                    </div>
-
-                    <h1
-                        className="vesper-display"
-                        key={`title-${step}`}
-                        style={{
-                            fontSize: 'clamp(28px, 3vw, 48px)',
-                            letterSpacing: '-0.025em',
-                            lineHeight: 1.02,
-                            color: '#fff',
-                            textShadow: '0 4px 18px rgba(0,0,0,0.55)',
-                            marginBottom: 14,
-                            animation: 'vesperOnbFade 480ms ease',
-                        }}
-                    >
-                        {s.title}
-                    </h1>
-
-                    <p
-                        key={`body-${step}`}
-                        style={{
-                            fontSize: 'clamp(13px, 1vw, 16px)',
-                            lineHeight: 1.55,
-                            color: 'rgba(255,255,255,0.78)',
-                            maxWidth: '52ch',
-                            animation: 'vesperOnbFade 540ms ease',
-                        }}
-                    >
-                        {s.body}
-                    </p>
-                </div>
-
-                {/* RIGHT: dynamic scene.  Cap the width so on a
-                    1920 TV the visualisation never balloons past
-                    420 px and leaves the copy looking lonely. */}
+                {/* Scene stage — a contained "frame" with a soft
+                    glow ring behind it so the illustration feels
+                    deliberate and theatrical, not just floating. */}
                 <div
-                    style={{
-                        width: '100%',
-                        maxWidth: 420,
-                        justifySelf: 'center',
-                    }}
                     key={`scene-${step}`}
+                    style={{
+                        position: 'relative',
+                        width: 'min(420px, 36vh)',
+                        animation: 'vesperOnbSceneIn 520ms cubic-bezier(0.22, 1, 0.36, 1)',
+                    }}
                 >
-                    <SceneSwitcher step={s} />
+                    {/* Glow ring behind the scene */}
+                    <div
+                        aria-hidden
+                        style={{
+                            position: 'absolute',
+                            inset: '-14% -10%',
+                            background:
+                                'radial-gradient(ellipse at 50% 55%, rgba(93,200,255,0.28) 0%, rgba(93,200,255,0.06) 45%, rgba(93,200,255,0) 70%)',
+                            filter: 'blur(2px)',
+                            zIndex: 0,
+                            pointerEvents: 'none',
+                        }}
+                    />
+                    <div style={{ position: 'relative', zIndex: 1 }}>
+                        <SceneSwitcher step={s} />
+                    </div>
                 </div>
+
+                {/* Eyebrow chip — icon + label, centred under the
+                    scene.  Small, jewel-like. */}
+                <div
+                    key={`eyebrow-${step}`}
+                    className="flex items-center gap-2.5 rounded-full"
+                    style={{
+                        padding: '6px 14px 6px 8px',
+                        background:
+                            'linear-gradient(135deg, rgba(93,200,255,0.16) 0%, rgba(93,200,255,0.04) 100%)',
+                        border: '1px solid rgba(93,200,255,0.32)',
+                        color: 'var(--vesper-blue-bright)',
+                        fontSize: 10,
+                        letterSpacing: '0.30em',
+                        textTransform: 'uppercase',
+                        fontWeight: 700,
+                        animation: 'vesperOnbFade 440ms ease',
+                    }}
+                >
+                    <span
+                        style={{
+                            width: 22,
+                            height: 22,
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'rgba(93,200,255,0.22)',
+                            border: '1px solid rgba(93,200,255,0.45)',
+                        }}
+                    >
+                        <Icon size={12} strokeWidth={2.4} />
+                    </span>
+                    {s.eyebrow}
+                </div>
+
+                <h1
+                    className="vesper-display"
+                    key={`title-${step}`}
+                    style={{
+                        fontSize: 'clamp(32px, 3.6vw, 56px)',
+                        letterSpacing: '-0.028em',
+                        lineHeight: 1.02,
+                        color: '#fff',
+                        textShadow: '0 6px 24px rgba(0,0,0,0.55)',
+                        textAlign: 'center',
+                        maxWidth: '20ch',
+                        margin: 0,
+                        animation: 'vesperOnbFade 520ms ease 60ms both',
+                    }}
+                >
+                    {s.title}
+                </h1>
+
+                <p
+                    key={`body-${step}`}
+                    style={{
+                        fontSize: 'clamp(13px, 1vw, 16px)',
+                        lineHeight: 1.6,
+                        color: 'rgba(255,255,255,0.78)',
+                        maxWidth: '54ch',
+                        textAlign: 'center',
+                        margin: 0,
+                        animation: 'vesperOnbFade 560ms ease 120ms both',
+                    }}
+                >
+                    {s.body}
+                </p>
             </div>
 
-            {/* FOOTER: nav controls + progress + step indicator.
-                Pinned to the bottom grid row so it always sits in
-                the same place no matter which scene is shown. */}
+            {/* Bottom rail: progress + nav buttons.  Pinned bottom
+                so it always sits in the same place no matter how
+                tall the scene happens to be. */}
             <div
                 className="relative"
                 style={{
                     display: 'flex',
                     flexDirection: 'column',
-                    justifyContent: 'center',
-                    gap: 10,
-                    maxWidth: 1240,
-                    width: '100%',
-                    margin: '0 auto',
+                    alignItems: 'center',
+                    gap: 16,
                     zIndex: 5,
                 }}
             >
-                <div className="flex items-center gap-4">
+                {/* Pip progress — one dot per step, with the
+                    current step expanded into a bar.  Reads at a
+                    glance and feels more "premium" than a flat
+                    progress line. */}
+                <div
+                    className="flex items-center"
+                    style={{ gap: 6, maxWidth: '90vw' }}
+                >
+                    {STEPS.map((_, i) => {
+                        const isActive = i === step;
+                        const isPast = i < step;
+                        return (
+                            <span
+                                key={`pip-${i}`}
+                                style={{
+                                    height: 4,
+                                    width: isActive ? 28 : 6,
+                                    borderRadius: 999,
+                                    background: isActive
+                                        ? 'var(--vesper-blue-bright)'
+                                        : isPast
+                                        ? 'rgba(93,200,255,0.55)'
+                                        : 'rgba(255,255,255,0.12)',
+                                    boxShadow: isActive
+                                        ? '0 0 10px rgba(93,200,255,0.7)'
+                                        : 'none',
+                                    transition:
+                                        'width 360ms cubic-bezier(0.4,0,0.2,1), background-color 280ms ease',
+                                }}
+                            />
+                        );
+                    })}
+                </div>
+
+                <div className="flex items-center" style={{ gap: 14 }}>
                     <button
                         data-testid="onboarding-prev"
                         onClick={() => setStep((i) => Math.max(0, i - 1))}
                         disabled={step === 0}
                         className="flex items-center gap-2 rounded-full"
                         style={{
-                            padding: '10px 18px',
+                            padding: '10px 20px',
                             background: 'rgba(255,255,255,0.06)',
                             color: step === 0 ? 'rgba(255,255,255,0.35)' : '#fff',
                             border: '1px solid rgba(255,255,255,0.12)',
@@ -464,7 +533,7 @@ export default function Onboarding({ open, onClose }) {
                         onClick={() => (step >= last ? finish() : setStep((i) => i + 1))}
                         className="flex items-center gap-2 rounded-full font-sans"
                         style={{
-                            padding: '12px 22px',
+                            padding: '12px 26px',
                             background:
                                 'linear-gradient(135deg, var(--vesper-blue) 0%, #4FB8F0 100%)',
                             color: '#06080F',
@@ -472,53 +541,32 @@ export default function Onboarding({ open, onClose }) {
                             fontSize: 14,
                             fontWeight: 700,
                             cursor: 'pointer',
-                            boxShadow: '0 8px 24px rgba(93,200,255,0.4)',
+                            boxShadow: '0 10px 28px rgba(93,200,255,0.45)',
                         }}
                     >
                         {step >= last ? "Let's go" : 'Next'}
                         {step < last && <ChevronRight size={16} />}
                         {step >= last && <Check size={16} />}
                     </button>
-                    <div
-                        className="vesper-mono ml-auto"
-                        style={{
-                            fontSize: 10,
-                            letterSpacing: '0.22em',
-                            textTransform: 'uppercase',
-                            color: 'rgba(255,255,255,0.55)',
-                            fontWeight: 700,
-                        }}
-                    >
-                        Step {step + 1} of {STEPS.length}
-                    </div>
-                </div>
-
-                <div
-                    style={{
-                        height: 3,
-                        background: 'rgba(255,255,255,0.06)',
-                        borderRadius: 999,
-                        overflow: 'hidden',
-                    }}
-                >
-                    <div
-                        style={{
-                            width: `${progress}%`,
-                            height: '100%',
-                            background:
-                                'linear-gradient(90deg, rgba(93,200,255,0) 0%, var(--vesper-blue-bright) 50%, rgba(93,200,255,0) 100%)',
-                            borderRadius: 999,
-                            transition: 'width 480ms cubic-bezier(0.4, 0.0, 0.2, 1)',
-                            boxShadow: '0 0 10px rgba(93,200,255,0.55)',
-                        }}
-                    />
                 </div>
             </div>
 
             <style>{`
                 @keyframes vesperOnbFade {
-                    from { opacity: 0; transform: translateY(6px); }
+                    from { opacity: 0; transform: translateY(8px); }
                     to   { opacity: 1; transform: translateY(0); }
+                }
+                @keyframes vesperOnbSceneIn {
+                    from {
+                        opacity: 0;
+                        transform: scale(0.92) translateY(12px);
+                        filter: blur(4px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: scale(1) translateY(0);
+                        filter: blur(0);
+                    }
                 }
                 @keyframes vesperOnbGlow {
                     0%, 100% { opacity: 0.85; }
