@@ -48,6 +48,14 @@ export function AuthProvider({ children }) {
             return;
         }
         const acc = await apiMe();
+        // Critical race-condition guard: if the token was cleared
+        // (e.g. logout) while /me was in flight, do NOT re-assert
+        // 'authenticated' from this stale request.
+        if (!getToken()) {
+            setStatus('guest');
+            setAccount(null);
+            return;
+        }
         if (acc) {
             setStatus('authenticated');
             setAccount(acc);

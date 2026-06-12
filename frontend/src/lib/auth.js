@@ -51,6 +51,17 @@ export function setAccount(account) {
     _broadcast();
 }
 
+/* Quiet variant — persists without firing `vesper:auth-change`.
+ * Used by `apiMe()` so a routine session refresh doesn't trigger
+ * a re-render storm in AuthContext (each broadcast triggers a new
+ * refresh which fires another broadcast which… you get it). */
+function setAccountQuiet(account) {
+    try {
+        if (account) localStorage.setItem(ACCOUNT_KEY, JSON.stringify(account));
+        else localStorage.removeItem(ACCOUNT_KEY);
+    } catch { /* ignore */ }
+}
+
 export function clearToken() {
     setToken(null);
     setAccount(null);
@@ -106,7 +117,9 @@ export async function apiMe() {
     }
     if (!res.ok) return null;
     const data = await res.json().catch(() => null);
-    if (data?.account) setAccount(data.account);
+    // Quiet update — don't broadcast or we infinite-loop the
+    // AuthContext refresh listener.
+    if (data?.account) setAccountQuiet(data.account);
     return data?.account || null;
 }
 
