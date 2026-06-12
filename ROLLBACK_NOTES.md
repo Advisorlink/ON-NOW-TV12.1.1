@@ -301,3 +301,25 @@ User confirmed Rounds 1–6 are "exactly where it needs to be, working perfectly
 - Now: with Autoplay ON we DON'T open the drawer up-front. Streams are fetched silently and the player launches.
 - Candidate selection broadened from "1080p only" to "1080p → first direct → first stream" so the user still lands in the player when no 1080p exists.
 - The drawer opens ONLY as a fallback if absolutely no playable stream can be picked (so the user isn't stranded). With Autoplay OFF the previous expand-on-tap behaviour is unchanged.
+
+---
+
+## Eighth round — Onboarding redesign (11 June 2026)
+
+User: "make it fit the 16 by 9 screen properly, it just looks so stretched out. Redesign the whole thing. Take out all the em dashes."
+
+### Fix S — Onboarding redesigned for proper 16:9 fit
+**File:** `frontend/src/components/Onboarding.jsx`
+- Outer container converted from `flex items-center justify-center` (which let columns drift to opposite edges) into a CSS grid with three fixed rows: `clamp(60px, 6.5vh, 96px) 1fr clamp(80px, 8vh, 120px)` for header / hero / footer.
+- Hero row is a 2-col grid (`1.25fr : 1fr`, `columnGap clamp(40px, 4vw, 64px)`) constrained to `maxWidth: 1240` and centered. The "stretched apart" gap is gone.
+- Header strip: brand left, Skip right, both on one row.
+- Title font shrunk from `clamp(36px, 4vw, 64px)` to `clamp(28px, 3vw, 48px)` so it doesn't overpower the column on a 1080p TV.
+- Body max-width tightened from `58ch` to `52ch`; eyebrow icon trimmed 38 → 34 px.
+- Right scene now `width: 100%, maxWidth: 420px, justifySelf: center` so the D-pad / mockup never balloons past 420 px.
+- Nav buttons + step indicator + progress bar pinned to the bottom grid row so they're always in the same place regardless of which scene is shown.
+- All keyframes (`vesperOnbFade`, `vesperOnbGlow`, `vesperOnbPulse`, etc.) preserved.
+
+### Em-dash cleanup
+- Removed the user-visible em-dash in the `no-mouse` step body (only one in copy that's shown on screen).
+- Collapsed double-spaces between sentences inside all body strings so the copy reads cleaner.
+- Code-comment em-dashes left as-is (never rendered to the user).
