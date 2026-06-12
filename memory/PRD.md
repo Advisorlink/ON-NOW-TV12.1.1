@@ -1,5 +1,9 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.46-k — Round 10: Autoplay launch feedback (11 Jun 2026).**
+>
+> **U. Episode click with Autoplay ON now shows immediate loading scrim** — `components/SeriesEpisodes.jsx`. The Round-7 fix removed the streams drawer when Autoplay was on, but the user reported the click felt frozen while streams were being fetched. New `launchingEp` state paints a full-screen scrim with spinner + "Starting playback" + episode title the instant `handleEpisodeClick` fires (before any await). 12-second safety-net timeout clears it if `playStream` never returns. Cleared on error / no-streams fallback so the user sees the diagnostics drawer instead.
+>
 > **🟢 v2.10.46-j — Round 9: Onboarding rebuilt (11 Jun 2026).**
 >
 > **T. Welcome-tour completely redesigned** — `components/Onboarding.jsx`. User asked for a full rebuild of the slides, not just tightening the side-by-side layout. New approach:
