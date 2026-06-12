@@ -60,7 +60,7 @@ const STEPS = [
         eyebrow: 'Welcome to On Now TV',
         title: 'A 60-second tour',
         body:
-            "We'll show you the controls and every shortcut we've built so you can move through the app like a pro.  Skip anytime, replay from Settings.",
+            "We'll show you the controls and every shortcut we've built so you can move through the app like a pro. Skip anytime, replay from Settings.",
     },
     {
         // NEW (v2.6.65) — surfaces the fact that the entire app is
@@ -76,7 +76,7 @@ const STEPS = [
         eyebrow: 'Designed for the D-pad',
         title: 'No more pesky air mouse',
         body:
-            "Every screen, list, and popup is built around the four arrows + OK on your remote.  Hold OK to save, press BACK to step back — you'll basically never need to flick the air mouse cursor on again.",
+            "Every screen, list, and popup is built around the four arrows + OK on your remote. Hold OK to save, press BACK to step back. You'll basically never need to flick the air mouse cursor on again.",
     },
     {
         id: 'navigation',
@@ -86,7 +86,7 @@ const STEPS = [
         eyebrow: '01 · Move around',
         title: 'D-pad arrows navigate everything',
         body:
-            "Use UP, DOWN, LEFT, RIGHT to glide between cards, rows and menus.  Every tile glows when it's focused so you always know where you are.",
+            "Use UP, DOWN, LEFT, RIGHT to glide between cards, rows and menus. Every tile glows when it's focused so you always know where you are.",
     },
     {
         id: 'select',
@@ -96,7 +96,7 @@ const STEPS = [
         eyebrow: '02 · Open & play',
         title: 'OK opens, plays, confirms',
         body:
-            'Tap OK to open a title, start playback, or confirm a choice.  In the player it pauses and resumes; second nature after a press or two.',
+            'Tap OK to open a title, start playback, or confirm a choice. In the player it pauses and resumes; second nature after a press or two.',
     },
     {
         id: 'longpress',
@@ -116,7 +116,7 @@ const STEPS = [
         eyebrow: '04 · TV Shows',
         title: 'Newest seasons, every network',
         body:
-            "The TV tab pulls the top 100 newest releases.  Tap a genre chip to deep-dive into every romance, every thriller, the lot.",
+            "The TV tab pulls the top 100 newest releases. Tap a genre chip to deep-dive into every romance, every thriller, the lot.",
     },
     {
         id: 'movies',
@@ -126,7 +126,7 @@ const STEPS = [
         eyebrow: '05 · Movies',
         title: 'Same magic, big screen edition',
         body:
-            'Newest cinema, blockbusters, classics: sorted by what just dropped.  Browse fast, hold OK to stash titles for date night.',
+            'Newest cinema, blockbusters, classics: sorted by what just dropped. Browse fast, hold OK to stash titles for date night.',
     },
     {
         id: 'library',
@@ -136,7 +136,7 @@ const STEPS = [
         eyebrow: '06 · My Library',
         title: 'Everything you saved, one tap away',
         body:
-            'Your Library keeps every show you follow and every movie or episode you queued for later, all in one place.  Hop in any time and resume the journey.',
+            'Your Library keeps every show you follow and every movie or episode you queued for later, all in one place. Hop in any time and resume the journey.',
     },
     {
         id: 'calendar',
@@ -146,7 +146,7 @@ const STEPS = [
         eyebrow: '07 · Episode calendar',
         title: 'Never miss a new episode',
         body:
-            'Inside the Library, the Calendar view shows when every TV show in your watch list drops a new episode.  Push OK on a date to see what airs that night.',
+            'Inside the Library, the Calendar view shows when every TV show in your watch list drops a new episode. Push OK on a date to see what airs that night.',
     },
     {
         id: 'search',
@@ -156,7 +156,7 @@ const STEPS = [
         eyebrow: '08 · Search',
         title: 'Anything, instantly',
         body:
-            'Open Search from the side rail and start typing.  Results stream in live across every source.  TV shows, movies, actors, you name it.',
+            'Open Search from the side rail and start typing. Results stream in live across every source. TV shows, movies, actors, you name it.',
     },
     {
         id: 'watchtogether',
@@ -166,7 +166,7 @@ const STEPS = [
         eyebrow: '09 · Watch Together',
         title: 'Movie night, every night',
         body:
-            'Start a Watch Party, share a 6-character code, and watch in perfect sync with anyone, anywhere.  Hold UP, DOWN, LEFT or RIGHT for 2 seconds during playback to send a reaction.',
+            'Start a Watch Party, share a 6-character code, and watch in perfect sync with anyone, anywhere. Hold UP, DOWN, LEFT or RIGHT for 2 seconds during playback to send a reaction.',
     },
     {
         id: 'profiles',
@@ -176,7 +176,7 @@ const STEPS = [
         eyebrow: '10 · Profiles',
         title: 'One device, every household',
         body:
-            "Each viewer gets their own profile with their own avatar, saves and theme.  Set one up for every member of the family in under a minute.",
+            "Each viewer gets their own profile with their own avatar, saves and theme. Set one up for every member of the family in under a minute.",
     },
     {
         id: 'kids',
@@ -186,7 +186,7 @@ const STEPS = [
         eyebrow: '11 · Kids Only',
         title: 'A safe room for the wee ones',
         body:
-            'Switch a profile to Kids Mode and the whole app changes: bright cinematic shelves, curated kid-safe titles, a chunky colourful UI, and a 4-digit PIN so they can\'t wander out.  Pick the maximum movie rating (G, PG, PG-13) and TV level, and we filter everything to match.',
+            'Switch a profile to Kids Mode and the whole app changes: bright cinematic shelves, curated kid-safe titles, a chunky colourful UI, and a 4-digit PIN so they can\'t wander out. Pick the maximum movie rating (G, PG, PG-13) and TV level, and we filter everything to match.',
     },
     {
         id: 'settings',
@@ -196,7 +196,7 @@ const STEPS = [
         eyebrow: '12 · Settings',
         title: 'Tune it your way',
         body:
-            'Themes, autoplay, kids ratings, backup and restore: everything lives in Settings.  Backup your profile to a code, restore on any new device in seconds.',
+            'Themes, autoplay, kids ratings, backup and restore: everything lives in Settings. Backup your profile to a code, restore on any new device in seconds.',
     },
     {
         id: 'wrap',
@@ -206,7 +206,7 @@ const STEPS = [
         eyebrow: "You're ready",
         title: 'Enjoy the show',
         body:
-            'Press BACK from any screen to go home.  Need a refresher?  Settings then "Replay welcome tour".  Have fun in there.',
+            'Press BACK from any screen to go home. Need a refresher? Settings then "Replay welcome tour". Have fun in there.',
     },
 ];
 
@@ -262,80 +262,118 @@ export default function Onboarding({ open, onClose }) {
     return (
         <div
             data-testid="onboarding-overlay"
-            className="fixed inset-0 flex items-center justify-center"
+            className="fixed inset-0"
             style={{
                 zIndex: 90,
+                /* v2.10.46-i — Re-tuned for a 16:9 1920×1080 TV.
+                 * Outer is now a CSS grid with three fixed rows
+                 * (header / hero / footer) instead of an
+                 * inline-flex centring trick.  This stops the
+                 * "stretched apart" look the user reported where
+                 * the headline drifted far left and the D-pad
+                 * far right, with a yawning gap in the middle.
+                 * The hero row is height-capped so the whole
+                 * card sits as one composed unit. */
+                display: 'grid',
+                gridTemplateRows:
+                    'clamp(60px, 6.5vh, 96px) 1fr clamp(80px, 8vh, 120px)',
                 background:
-                    'radial-gradient(ellipse at 30% 20%, #0c1a36 0%, #06080F 55%, #03050C 100%)',
+                    'radial-gradient(ellipse at 30% 25%, #0c1a36 0%, #06080F 55%, #03050C 100%)',
                 color: '#fff',
                 overflow: 'hidden',
+                padding: '0 clamp(32px, 4vw, 72px)',
             }}
         >
             <BackdropOrbs />
 
-            <button
-                data-testid="onboarding-skip"
-                onClick={finish}
-                className="absolute flex items-center gap-2 rounded-full vesper-mono"
-                style={{
-                    top: 'clamp(28px, 2.4vw, 44px)', right: 'clamp(28px, 2.4vw, 44px)',
-                    padding: '10px 18px', background: 'rgba(255,255,255,0.06)',
-                    color: 'rgba(255,255,255,0.85)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    fontSize: 11, letterSpacing: '0.22em',
-                    textTransform: 'uppercase', fontWeight: 700,
-                    cursor: 'pointer', zIndex: 5,
-                }}
-            >
-                <SkipForward size={14} /> Skip tour
-            </button>
-
+            {/* Header strip: brand left, Skip right.  Compact, never
+                competes with the hero copy below. */}
             <div
-                className="absolute vesper-mono"
-                style={{
-                    top: 'clamp(28px, 2.4vw, 44px)',
-                    left: 'clamp(28px, 2.4vw, 44px)',
-                    fontSize: 11, letterSpacing: '0.32em',
-                    textTransform: 'uppercase', color: 'rgba(255,255,255,0.7)',
-                }}
+                className="relative flex items-center justify-between"
+                style={{ zIndex: 5 }}
             >
-                <span style={{ color: 'var(--vesper-blue-bright)', fontWeight: 700 }}>
-                    ON&nbsp;NOW&nbsp;TV
-                </span>
-                <span style={{ margin: '0 10px', opacity: 0.4 }}>·</span>
-                Welcome tour
+                <div
+                    className="vesper-mono"
+                    style={{
+                        fontSize: 11,
+                        letterSpacing: '0.32em',
+                        textTransform: 'uppercase',
+                        color: 'rgba(255,255,255,0.7)',
+                    }}
+                >
+                    <span style={{ color: 'var(--vesper-blue-bright)', fontWeight: 700 }}>
+                        ON&nbsp;NOW&nbsp;TV
+                    </span>
+                    <span style={{ margin: '0 10px', opacity: 0.4 }}>·</span>
+                    Welcome tour
+                </div>
+                <button
+                    data-testid="onboarding-skip"
+                    onClick={finish}
+                    className="flex items-center gap-2 rounded-full vesper-mono"
+                    style={{
+                        padding: '8px 16px',
+                        background: 'rgba(255,255,255,0.06)',
+                        color: 'rgba(255,255,255,0.85)',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        fontSize: 10,
+                        letterSpacing: '0.22em',
+                        textTransform: 'uppercase',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                    }}
+                >
+                    <SkipForward size={13} /> Skip tour
+                </button>
             </div>
 
+            {/* HERO: copy left, scene right.  Constrained to 1240px
+                wide and centred so it never feels stretched on a
+                1920px TV.  minHeight 0 lets the grid clip if a
+                particular scene happens to render too tall. */}
             <div
-                className="relative flex items-center"
+                className="relative"
                 style={{
-                    gap: 'clamp(48px, 5vw, 88px)',
-                    padding: '0 clamp(56px, 5vw, 96px)',
-                    maxWidth: 1560, width: '100%',
-                    justifyContent: 'center',
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)',
+                    columnGap: 'clamp(40px, 4vw, 64px)',
+                    alignItems: 'center',
+                    justifyItems: 'stretch',
+                    maxWidth: 1240,
+                    width: '100%',
+                    margin: '0 auto',
+                    minHeight: 0,
+                    zIndex: 4,
                 }}
             >
-                {/* LEFT: copy */}
-                <div className="flex-1" style={{ minWidth: 0, maxWidth: 680 }}>
+                {/* LEFT: copy stack */}
+                <div style={{ minWidth: 0 }}>
                     <div
-                        className="flex items-center gap-3 mb-4"
+                        className="flex items-center gap-3"
                         style={{
                             color: 'var(--vesper-blue-bright)',
-                            fontSize: 12, letterSpacing: '0.32em',
-                            textTransform: 'uppercase', fontWeight: 700,
+                            fontSize: 11,
+                            letterSpacing: '0.32em',
+                            textTransform: 'uppercase',
+                            fontWeight: 700,
+                            marginBottom: 16,
                         }}
                     >
                         <span
                             style={{
-                                width: 38, height: 38, borderRadius: '50%',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                width: 34,
+                                height: 34,
+                                borderRadius: '50%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
                                 background:
                                     'linear-gradient(135deg, rgba(93,200,255,0.28) 0%, rgba(93,200,255,0.08) 100%)',
                                 border: '1.5px solid rgba(93,200,255,0.55)',
-                                boxShadow: '0 0 24px rgba(93,200,255,0.45)',
+                                boxShadow: '0 0 22px rgba(93,200,255,0.45)',
                             }}
                         >
-                            <Icon size={18} strokeWidth={2.2} />
+                            <Icon size={16} strokeWidth={2.2} />
                         </span>
                         {s.eyebrow}
                     </div>
@@ -344,11 +382,13 @@ export default function Onboarding({ open, onClose }) {
                         className="vesper-display"
                         key={`title-${step}`}
                         style={{
-                            fontSize: 'clamp(36px, 4vw, 64px)',
-                            letterSpacing: '-0.035em', lineHeight: 0.98,
+                            fontSize: 'clamp(28px, 3vw, 48px)',
+                            letterSpacing: '-0.025em',
+                            lineHeight: 1.02,
                             color: '#fff',
-                            textShadow: '0 6px 24px rgba(0,0,0,0.6)',
-                            marginBottom: 18, animation: 'vesperOnbFade 480ms ease',
+                            textShadow: '0 4px 18px rgba(0,0,0,0.55)',
+                            marginBottom: 14,
+                            animation: 'vesperOnbFade 480ms ease',
                         }}
                     >
                         {s.title}
@@ -357,91 +397,121 @@ export default function Onboarding({ open, onClose }) {
                     <p
                         key={`body-${step}`}
                         style={{
-                            fontSize: 'clamp(14px, 1.1vw, 17px)',
+                            fontSize: 'clamp(13px, 1vw, 16px)',
                             lineHeight: 1.55,
-                            color: 'rgba(255,255,255,0.8)',
-                            maxWidth: '58ch',
-                            marginBottom: 'clamp(24px, 2.6vw, 36px)',
+                            color: 'rgba(255,255,255,0.78)',
+                            maxWidth: '52ch',
                             animation: 'vesperOnbFade 540ms ease',
                         }}
                     >
                         {s.body}
                     </p>
-
-                    <div className="flex items-center gap-6 flex-wrap" style={{ marginTop: 4 }}>
-                        <button
-                            data-testid="onboarding-prev"
-                            onClick={() => setStep((i) => Math.max(0, i - 1))}
-                            disabled={step === 0}
-                            className="flex items-center gap-2 rounded-full"
-                            style={{
-                                padding: '12px 22px',
-                                background: 'rgba(255,255,255,0.06)',
-                                color: step === 0 ? 'rgba(255,255,255,0.35)' : '#fff',
-                                border: '1px solid rgba(255,255,255,0.12)',
-                                fontSize: 14, fontWeight: 600,
-                                cursor: step === 0 ? 'default' : 'pointer',
-                                opacity: step === 0 ? 0.5 : 1,
-                                transition: 'opacity 200ms ease',
-                            }}
-                        >
-                            <ChevronLeft size={16} /> Back
-                        </button>
-                        <button
-                            data-testid="onboarding-next"
-                            onClick={() => (step >= last ? finish() : setStep((i) => i + 1))}
-                            className="flex items-center gap-2 rounded-full font-sans"
-                            style={{
-                                padding: '14px 26px',
-                                background:
-                                    'linear-gradient(135deg, var(--vesper-blue) 0%, #4FB8F0 100%)',
-                                color: '#06080F', border: 'none',
-                                fontSize: 15, fontWeight: 700, cursor: 'pointer',
-                                boxShadow: '0 10px 28px rgba(93,200,255,0.45)',
-                            }}
-                        >
-                            {step >= last ? "Let's go" : 'Next'}
-                            {step < last && <ChevronRight size={18} />}
-                            {step >= last && <Check size={18} />}
-                        </button>
-                        <div
-                            className="vesper-mono ml-auto"
-                            style={{
-                                fontSize: 11, letterSpacing: '0.22em',
-                                textTransform: 'uppercase',
-                                color: 'rgba(255,255,255,0.6)', fontWeight: 700,
-                            }}
-                        >
-                            Step {step + 1} of {STEPS.length}
-                        </div>
-                    </div>
-
-                    <div
-                        style={{
-                            height: 4, background: 'rgba(255,255,255,0.06)',
-                            borderRadius: 999, marginTop: 22, overflow: 'hidden',
-                        }}
-                    >
-                        <div
-                            style={{
-                                width: `${progress}%`, height: '100%',
-                                background:
-                                    'linear-gradient(90deg, rgba(93,200,255,0) 0%, var(--vesper-blue-bright) 50%, rgba(93,200,255,0) 100%)',
-                                borderRadius: 999,
-                                transition: 'width 480ms cubic-bezier(0.4, 0.0, 0.2, 1)',
-                                boxShadow: '0 0 12px rgba(93,200,255,0.6)',
-                            }}
-                        />
-                    </div>
                 </div>
 
-                {/* RIGHT: dynamic scene */}
+                {/* RIGHT: dynamic scene.  Cap the width so on a
+                    1920 TV the visualisation never balloons past
+                    420 px and leaves the copy looking lonely. */}
                 <div
-                    className="shrink-0"
-                    style={{ width: 'clamp(320px, 32vw, 540px)' }}
+                    style={{
+                        width: '100%',
+                        maxWidth: 420,
+                        justifySelf: 'center',
+                    }}
                     key={`scene-${step}`}
                 >
                     <SceneSwitcher step={s} />
+                </div>
+            </div>
+
+            {/* FOOTER: nav controls + progress + step indicator.
+                Pinned to the bottom grid row so it always sits in
+                the same place no matter which scene is shown. */}
+            <div
+                className="relative"
+                style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    gap: 10,
+                    maxWidth: 1240,
+                    width: '100%',
+                    margin: '0 auto',
+                    zIndex: 5,
+                }}
+            >
+                <div className="flex items-center gap-4">
+                    <button
+                        data-testid="onboarding-prev"
+                        onClick={() => setStep((i) => Math.max(0, i - 1))}
+                        disabled={step === 0}
+                        className="flex items-center gap-2 rounded-full"
+                        style={{
+                            padding: '10px 18px',
+                            background: 'rgba(255,255,255,0.06)',
+                            color: step === 0 ? 'rgba(255,255,255,0.35)' : '#fff',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            fontSize: 13,
+                            fontWeight: 600,
+                            cursor: step === 0 ? 'default' : 'pointer',
+                            opacity: step === 0 ? 0.5 : 1,
+                            transition: 'opacity 200ms ease',
+                        }}
+                    >
+                        <ChevronLeft size={15} /> Back
+                    </button>
+                    <button
+                        data-testid="onboarding-next"
+                        onClick={() => (step >= last ? finish() : setStep((i) => i + 1))}
+                        className="flex items-center gap-2 rounded-full font-sans"
+                        style={{
+                            padding: '12px 22px',
+                            background:
+                                'linear-gradient(135deg, var(--vesper-blue) 0%, #4FB8F0 100%)',
+                            color: '#06080F',
+                            border: 'none',
+                            fontSize: 14,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            boxShadow: '0 8px 24px rgba(93,200,255,0.4)',
+                        }}
+                    >
+                        {step >= last ? "Let's go" : 'Next'}
+                        {step < last && <ChevronRight size={16} />}
+                        {step >= last && <Check size={16} />}
+                    </button>
+                    <div
+                        className="vesper-mono ml-auto"
+                        style={{
+                            fontSize: 10,
+                            letterSpacing: '0.22em',
+                            textTransform: 'uppercase',
+                            color: 'rgba(255,255,255,0.55)',
+                            fontWeight: 700,
+                        }}
+                    >
+                        Step {step + 1} of {STEPS.length}
+                    </div>
+                </div>
+
+                <div
+                    style={{
+                        height: 3,
+                        background: 'rgba(255,255,255,0.06)',
+                        borderRadius: 999,
+                        overflow: 'hidden',
+                    }}
+                >
+                    <div
+                        style={{
+                            width: `${progress}%`,
+                            height: '100%',
+                            background:
+                                'linear-gradient(90deg, rgba(93,200,255,0) 0%, var(--vesper-blue-bright) 50%, rgba(93,200,255,0) 100%)',
+                            borderRadius: 999,
+                            transition: 'width 480ms cubic-bezier(0.4, 0.0, 0.2, 1)',
+                            boxShadow: '0 0 10px rgba(93,200,255,0.55)',
+                        }}
+                    />
                 </div>
             </div>
 

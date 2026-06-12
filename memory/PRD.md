@@ -1,5 +1,9 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.46-i — Round 8: Onboarding redesigned for 16:9 (11 Jun 2026).**
+>
+> **S. Welcome-tour overhauled** — `components/Onboarding.jsx`. Outer layout converted from a `flex items-center justify-center` (which let columns drift to opposite edges with a yawning gap) into a CSS grid with three fixed rows (header / hero / footer). Hero row is a contained 2-col grid (`maxWidth: 1240, columnGap clamp(40px, 4vw, 64px)`) so the copy and scene feel like one composed unit. Title font scaled down to `clamp(28px, 3vw, 48px)`; right scene capped at 420 px. Em-dash in the visible body text removed; double-spaces inside body strings collapsed for cleaner copy. All scenes, animations and step content preserved.
+>
 > **🟢 v2.10.46-h — Round 7 (single fix, 11 Jun 2026).** Rounds 1–6 locked-in per user "exactly where it needs to be, working perfectly".
 >
 > **R. Episode click with Autoplay ON no longer flashes the streams drawer** — `components/SeriesEpisodes.jsx`. `handleEpisodeClick` was opening the inline drawer UP-FRONT before fetching streams and firing autoplay, so the "links" briefly appeared. Now with Autoplay ON the drawer stays closed: streams fetched silently → broadened candidate selection (1080p → direct → first) → player launches. Drawer only opens as a fallback when no playable stream exists.
