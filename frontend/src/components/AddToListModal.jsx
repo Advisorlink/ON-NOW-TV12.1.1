@@ -364,7 +364,7 @@ export default function AddToListModal() {
             <div
                 onClick={(e) => e.stopPropagation()}
                 style={{
-                    width: 'min(720px, 92vw)',
+                    width: 'min(880px, 94vw)',
                     transform: closing ? 'scale(0.96)' : 'scale(1)',
                     transition:
                         'transform 200ms cubic-bezier(0.2,0.8,0.2,1), opacity 200ms ease',
@@ -428,10 +428,12 @@ function ModalCard({ payload, isMovie, isActor, isActive, confirmBtnRef, onConfi
                     '0 40px 100px rgba(0,0,0,0.7), 0 0 0 1px rgba(var(--vesper-blue-rgb), 0.18), 0 0 64px rgba(var(--vesper-blue-rgb), 0.18)',
             }}
         >
-            {/* Cover art */}
+            {/* Cover art — tight portrait poster on the left so
+                the modal reads as a wider rectangular pop-up
+                rather than a square confirmation card. */}
             <div
                 style={{
-                    flex: '0 0 240px',
+                    flex: '0 0 180px',
                     aspectRatio: '2 / 3',
                     background: poster
                         ? '#1a1f2e'

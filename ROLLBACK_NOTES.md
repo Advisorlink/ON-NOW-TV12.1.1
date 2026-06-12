@@ -352,3 +352,35 @@ User: "Show like a little loading spinning circle or something just so it shows 
 - `setLaunchingEp(ep)` runs on the very first line of `handleEpisodeClick` (before any `await`) so the scrim paints synchronously the instant the click registers.
 - 12 s safety-net timeout (`launchTimerRef`) clears the scrim if `playStream` never returns (e.g. preview browser without the native bridge). Cleared on error or when we fall back to the diagnostics drawer.
 - Mirrors the existing `data-testid="detail-autoplay-loader"` scrim used for movies (Fix E), so movies and TV shows now have consistent launch UX.
+
+---
+
+## Eleventh round — 16:9 onboarding, settings cleanup, wider pop-up (12 June 2026)
+
+User asked for three TV-polish changes in a single batch:
+
+### Fix V — Welcome-tour hero is now a true 16:9 rectangular frame
+**File:** `frontend/src/components/Onboarding.jsx`
+- Replaced the bare scene wrapper with an explicit `width: min(880px, 78vw); aspectRatio: 16/9` framed container. Cyan glow halo behind it, soft inner vignette, rounded 28px corners.
+- Every scene now renders centred and contained inside the rectangle — no squashing, no overflow.
+- `ScenePanel` stripped of its own background/border/padding so feature scenes don't render a panel-inside-a-panel.
+- `DPad3D` switched to `height: 100%; aspectRatio: 1/1; margin: 0 auto` so the square D-pad sits centred inside the wider 16:9 frame and the BACK button no longer clips off the bottom.
+- Mini-D-pad on feature scenes repositioned from `right: -8/bottom: -8` to `right: 14/bottom: 14` (positive) so it lives INSIDE the new overflow-hidden frame.
+- Title size eased from `clamp(32px, 3.6vw, 56px)` to `clamp(26px, 2.8vw, 44px)`. Body max-width 54ch → 58ch. Gap clamp tightened so the layout breathes correctly under the larger hero.
+
+### Fix W — Settings page cleaned up to premium TV menu
+**File:** `frontend/src/pages/Settings.jsx`
+- Removed entirely: "Switch profile · Who's watching", "Family controls" (Parent PIN + content types + max rating choice rows), "Unlock (testing)" toggle, "Live preview" / DeveloperPanel section, "Fire test notification" button, the per-tip "Preview" debug buttons inside TipsPanel, and the now-unused `SavedToast` toast.
+- Removed unused functions: `ChoiceRow`, `PinRow`, `DeveloperPanel`, `TestNewEpisodeButton`, `SavedToast`.
+- Removed unused imports: `Users`, `Code2`, `ExternalLink`, `getKidsConfig`, `saveKidsConfig`, `previewNudge`. Removed unused state: `kidsCfg`, `setKidsCfgState`, `devUnlock`, `setDevUnlock`, `toggleDevUnlock`, `updateKids`, `savedFlash`, `setSavedFlash`.
+- Remaining surface: Theme picker → Streams (Auto play + Force SDR + Player backend A/B) → Welcome Tour replay → Tips & Nudges (toggles only) → Backup & Restore.
+
+### Fix X — Add-to-List pop-up reshaped to wider rectangle
+**File:** `frontend/src/components/AddToListModal.jsx`
+- Modal width bumped `min(720px, 92vw)` → `min(880px, 94vw)`.
+- Cover-art column shrunk `240px` → `180px` wide (still 2:3 portrait poster). Result is a noticeably wider rectangular pop-up that better matches the rest of the rectangular toast notifications in the app.
+
+---
+
+## Date / time
+Performed: 11 June 2026
