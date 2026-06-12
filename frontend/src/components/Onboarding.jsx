@@ -359,27 +359,31 @@ export default function Onboarding({ open, onClose }) {
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: 'clamp(18px, 2vh, 32px)',
+                    gap: 'clamp(14px, 1.6vh, 24px)',
                     zIndex: 4,
                 }}
             >
-                {/* Scene stage — a contained "frame" with a soft
-                    glow ring behind it so the illustration feels
-                    deliberate and theatrical, not just floating. */}
+                {/* Scene stage — a true 16:9 rectangular frame.
+                    The illustration scales to fit naturally inside
+                    without ever being squashed.  A soft cyan glow
+                    halo + subtle frame border give it a deliberate
+                    "screen" feeling rather than a floating shape. */}
                 <div
                     key={`scene-${step}`}
                     style={{
                         position: 'relative',
-                        width: 'min(420px, 36vh)',
+                        width: 'min(880px, 78vw)',
+                        aspectRatio: '16 / 9',
+                        maxHeight: '52vh',
                         animation: 'vesperOnbSceneIn 520ms cubic-bezier(0.22, 1, 0.36, 1)',
                     }}
                 >
-                    {/* Glow ring behind the scene */}
+                    {/* Outer glow halo behind the rectangle */}
                     <div
                         aria-hidden
                         style={{
                             position: 'absolute',
-                            inset: '-14% -10%',
+                            inset: '-10% -8%',
                             background:
                                 'radial-gradient(ellipse at 50% 55%, rgba(93,200,255,0.28) 0%, rgba(93,200,255,0.06) 45%, rgba(93,200,255,0) 70%)',
                             filter: 'blur(2px)',
@@ -387,7 +391,36 @@ export default function Onboarding({ open, onClose }) {
                             pointerEvents: 'none',
                         }}
                     />
-                    <div style={{ position: 'relative', zIndex: 1 }}>
+                    {/* The rectangular frame itself */}
+                    <div
+                        style={{
+                            position: 'absolute',
+                            inset: 0,
+                            borderRadius: 28,
+                            background:
+                                'linear-gradient(160deg, rgba(20,30,60,0.55) 0%, rgba(8,14,32,0.85) 100%)',
+                            border: '1px solid rgba(93,200,255,0.22)',
+                            boxShadow:
+                                'inset 0 1px 0 rgba(255,255,255,0.06), 0 30px 80px rgba(0,0,0,0.55)',
+                            overflow: 'hidden',
+                            zIndex: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: 'clamp(18px, 2.6vw, 36px)',
+                        }}
+                    >
+                        {/* Faux scan-line / vignette overlay */}
+                        <div
+                            aria-hidden
+                            style={{
+                                position: 'absolute',
+                                inset: 0,
+                                background:
+                                    'radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.45) 100%)',
+                                pointerEvents: 'none',
+                            }}
+                        />
                         <SceneSwitcher step={s} />
                     </div>
                 </div>
@@ -431,13 +464,13 @@ export default function Onboarding({ open, onClose }) {
                     className="vesper-display"
                     key={`title-${step}`}
                     style={{
-                        fontSize: 'clamp(32px, 3.6vw, 56px)',
+                        fontSize: 'clamp(26px, 2.8vw, 44px)',
                         letterSpacing: '-0.028em',
-                        lineHeight: 1.02,
+                        lineHeight: 1.05,
                         color: '#fff',
                         textShadow: '0 6px 24px rgba(0,0,0,0.55)',
                         textAlign: 'center',
-                        maxWidth: '20ch',
+                        maxWidth: '22ch',
                         margin: 0,
                         animation: 'vesperOnbFade 520ms ease 60ms both',
                     }}
@@ -448,10 +481,10 @@ export default function Onboarding({ open, onClose }) {
                 <p
                     key={`body-${step}`}
                     style={{
-                        fontSize: 'clamp(13px, 1vw, 16px)',
-                        lineHeight: 1.6,
+                        fontSize: 'clamp(12px, 0.9vw, 15px)',
+                        lineHeight: 1.55,
                         color: 'rgba(255,255,255,0.78)',
-                        maxWidth: '54ch',
+                        maxWidth: '58ch',
                         textAlign: 'center',
                         margin: 0,
                         animation: 'vesperOnbFade 560ms ease 120ms both',
@@ -609,6 +642,11 @@ function SceneSwitcher({ step }) {
         <div
             style={{
                 position: 'relative',
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
                 animation: 'vesperOnbFade 540ms ease',
             }}
         >
@@ -631,10 +669,11 @@ function SceneSwitcher({ step }) {
                 <div
                     style={{
                         position: 'absolute',
-                        right: -8, bottom: -8,
-                        width: 'clamp(120px, 11vw, 168px)',
+                        right: 14, bottom: 14,
+                        width: 'clamp(96px, 8.5vw, 132px)',
                         opacity: 0.95,
                         filter: 'drop-shadow(0 8px 24px rgba(0,0,0,0.5))',
+                        zIndex: 5,
                     }}
                 >
                     <DPad3D glow={step.glow} />
@@ -763,25 +802,13 @@ function ScenePanel({ children, eyebrow, height = 360 }) {
         <div
             style={{
                 position: 'relative',
-                height,
-                borderRadius: 24,
-                padding: 22,
-                background:
-                    'linear-gradient(160deg, rgba(20,28,52,0.85) 0%, rgba(8,12,24,0.95) 100%)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                boxShadow: '0 24px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)',
-                overflow: 'hidden',
+                width: '100%',
+                height: '100%',
+                minHeight: height,
+                display: 'flex',
+                flexDirection: 'column',
             }}
         >
-            {/* Top sheen */}
-            <div
-                style={{
-                    position: 'absolute', inset: 0,
-                    background:
-                        'radial-gradient(ellipse at top, rgba(93,200,255,0.12) 0%, transparent 60%)',
-                    pointerEvents: 'none',
-                }}
-            />
             {eyebrow && (
                 <div
                     className="vesper-mono"
@@ -796,7 +823,7 @@ function ScenePanel({ children, eyebrow, height = 360 }) {
                     {eyebrow}
                 </div>
             )}
-            <div style={{ position: 'relative', height: '100%' }}>{children}</div>
+            <div style={{ position: 'relative', flex: '1 1 auto', minHeight: 0 }}>{children}</div>
         </div>
     );
 }
@@ -1853,8 +1880,13 @@ function DPad3D({ glow }) {
         <div
             style={{
                 position: 'relative',
-                width: '100%',
+                /* Sit inside the parent 16:9 hero frame: take the
+                   full available height, then aspect-ratio derives
+                   the (smaller) width so the square D-pad sits
+                   centred and never clips top/bottom. */
+                height: '100%',
                 aspectRatio: '1 / 1',
+                margin: '0 auto',
                 animation: allCenter ? 'vesperOnbPulse 3s ease-in-out infinite' : undefined,
             }}
         >

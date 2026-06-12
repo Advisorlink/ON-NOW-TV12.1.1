@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    ArrowLeft, Check, Users, ShieldCheck, Code2, ExternalLink,
+    ArrowLeft, Check, ShieldCheck,
     Cloud, Download, Upload, Copy, Loader2, KeyRound, AlertTriangle,
     Sparkles, Lightbulb,
 } from 'lucide-react';
@@ -11,11 +11,7 @@ import FullscreenButton from '@/components/FullscreenButton';
 import { THEMES } from '@/themes/themes';
 import { useTheme } from '@/themes/ThemeProvider';
 import { getAutoplay1080p, setAutoplay1080p } from '@/lib/prefs';
-import {
-    getKidsConfig,
-    saveKidsConfig,
-    clearActiveProfile,
-} from '@/lib/profiles';
+import { clearActiveProfile } from '@/lib/profiles';
 import {
     collectBackupPayload,
     applyBackupPayload,
@@ -28,7 +24,6 @@ import {
     setMasterEnabled,
     setFeatureEnabled,
     resetEngagement,
-    previewNudge,
 } from '@/lib/engagement';
 
 /**
@@ -41,26 +36,6 @@ export default function Settings() {
     const navigate = useNavigate();
     const { themeId, setThemeId } = useTheme();
     const [autoplay, setAutoplay] = React.useState(getAutoplay1080p());
-    const [kidsCfg, setKidsCfgState] = React.useState(getKidsConfig());
-    const [savedFlash, setSavedFlash] = React.useState(0);
-    /* Developer "Unlock" toggle — testing aid that surfaces diagnostic
-     * info on the Home page's Upcoming row + any other testing
-     * surfaces.  Lives in localStorage so it survives reloads.  Read
-     * elsewhere with `localStorage.getItem('onnowtv-dev-unlock') === '1'`. */
-    const [devUnlock, setDevUnlock] = React.useState(() => {
-        try { return localStorage.getItem('onnowtv-dev-unlock') === '1'; }
-        catch { return false; }
-    });
-    const toggleDevUnlock = React.useCallback(() => {
-        setDevUnlock((cur) => {
-            const next = !cur;
-            try {
-                localStorage.setItem('onnowtv-dev-unlock', next ? '1' : '0');
-            } catch { /* ignore */ }
-            window.dispatchEvent(new Event('onnowtv:dev-unlock-changed'));
-            return next;
-        });
-    }, []);
 
     /* v2.7.17 — Force-SDR playback toggle.  Persisted on the native
      * side via WebAppInterface.setForceSdr (SharedPreferences).
@@ -197,12 +172,6 @@ export default function Settings() {
         setAutoplay(next);
     };
 
-    const updateKids = (patch) => {
-        const next = saveKidsConfig(patch);
-        setKidsCfgState(next);
-        setSavedFlash((x) => x + 1);
-    };
-
     return (
         <div
             data-testid="settings-page"
@@ -223,7 +192,6 @@ export default function Settings() {
             }}
         >
             <FullscreenButton />
-            <SavedToast trigger={savedFlash} />
             <div
                 data-testid="settings-scroll"
                 style={{
@@ -375,121 +343,6 @@ export default function Settings() {
                 player so the user knows which one is running. */}
             <PlayerBackendRow />
 
-            <ToggleRow
-                testid="dev-unlock"
-                title="Unlock (testing)"
-                description="Reveal diagnostic info on the home Upcoming row and any hidden testing surfaces.  Use this if something looks missing — the row will surface its API status so you can tell whether the backend has the endpoint deployed."
-                value={devUnlock}
-                onToggle={toggleDevUnlock}
-            />
-
-            {/* ---- PROFILES ---- */}
-            <SectionHeader
-                eyebrow="Settings · Profiles"
-                title="Who's watching"
-                icon={Users}
-            />
-            <button
-                data-testid="switch-profile"
-                data-focusable="true"
-                data-focus-style="tile"
-                tabIndex={0}
-                onClick={() => {
-                    clearActiveProfile();
-                    navigate('/profiles');
-                }}
-                className="w-full flex items-center justify-between text-left"
-                style={{
-                    background: 'rgba(255,255,255,0.04)',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    borderRadius: 14,
-                    padding: '14px 18px',
-                    marginBottom: 12,
-                }}
-            >
-                <div>
-                    <div style={{ fontSize: 14, fontWeight: 600 }}>
-                        Switch profile
-                    </div>
-                    <div
-                        style={{
-                            fontSize: 11.5,
-                            color: 'var(--vesper-text-2)',
-                            marginTop: 3,
-                        }}
-                    >
-                        Return to the profile picker
-                    </div>
-                </div>
-                <span
-                    className="vesper-mono"
-                    style={{
-                        fontSize: 11,
-                        letterSpacing: '0.22em',
-                        color: 'var(--vesper-blue-bright)',
-                    }}
-                >
-                    →
-                </span>
-            </button>
-
-            {/* ---- KIDS ---- */}
-            <SectionHeader
-                eyebrow="Settings · Kids mode"
-                title="Family controls"
-                icon={ShieldCheck}
-            />
-
-            <PinRow
-                testid="kids-pin"
-                pin={kidsCfg.pin}
-                onChange={(pin) => updateKids({ pin })}
-            />
-
-            <ChoiceRow
-                testid="kids-content"
-                title="Show in Kids mode"
-                description="Which content types appear in the Kids home."
-                value={kidsCfg.contentTypes}
-                options={[
-                    { value: 'both', label: 'Both' },
-                    { value: 'movies', label: 'Movies only' },
-                    { value: 'series', label: 'TV Shows only' },
-                ]}
-                onChange={(v) => updateKids({ contentTypes: v })}
-            />
-
-            <ChoiceRow
-                testid="kids-movie-rating"
-                title="Max movie rating"
-                description="Movies with this rating or stricter will be shown."
-                value={kidsCfg.maxRatingMovie}
-                options={[
-                    { value: 'G', label: 'G' },
-                    { value: 'PG', label: 'PG' },
-                    { value: 'M', label: 'M (AU)' },
-                    { value: 'PG-13', label: 'PG-13' },
-                    { value: 'M15', label: 'M15' },
-                ]}
-                onChange={(v) => updateKids({ maxRatingMovie: v })}
-            />
-
-            <ChoiceRow
-                testid="kids-series-rating"
-                title="Max TV rating"
-                description="TV shows with this rating or stricter will be shown."
-                value={kidsCfg.maxRatingSeries}
-                options={[
-                    { value: 'TV-Y', label: 'TV-Y' },
-                    { value: 'TV-Y7', label: 'TV-Y7' },
-                    { value: 'TV-G', label: 'TV-G' },
-                    { value: 'TV-PG', label: 'TV-PG' },
-                    { value: 'TV-14', label: 'TV-14' },
-                    { value: 'M15', label: 'M15' },
-                ]}
-                onChange={(v) => updateKids({ maxRatingSeries: v })}
-            />
-
             {/* ---- WELCOME TOUR ---- */}
             <SectionHeader
                 eyebrow="Settings · Help"
@@ -559,14 +412,6 @@ export default function Settings() {
                 anchorId="backup-section"
             />
             <BackupPanel />
-
-            {/* ---- DEVELOPER ---- */}
-            <SectionHeader
-                eyebrow="Settings · Developer"
-                title="Live preview"
-                icon={Code2}
-            />
-            <DeveloperPanel />
             </div>
         </div>
     );
@@ -1041,251 +886,6 @@ function RestoreConfirm({ preview, onConfirm, onCancel }) {
     );
 }
 
-function DeveloperPanel() {
-    const [busy, setBusy] = React.useState(false);
-    const PREVIEW_URL =
-        'https://rebrand-app-5.preview.emergentagent.com/';
-
-    // Live preview is only useful inside the Android wrapper.  In a
-    // desktop browser this panel just explains what it does.
-    const isAndroid =
-        typeof window !== 'undefined' &&
-        !!(window.OnNowTV && window.OnNowTV.setDevUrl);
-
-    const onLoadLive = () => {
-        if (busy) return;
-        setBusy(true);
-        try {
-            if (isAndroid) {
-                window.OnNowTV.setDevUrl(PREVIEW_URL);
-            } else {
-                window.location.href = PREVIEW_URL;
-            }
-        } catch {
-            setBusy(false);
-        }
-    };
-
-    return (
-        <div
-            data-testid="dev-panel"
-            className="w-full"
-            style={{
-                background: 'rgba(255,255,255,0.04)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: 16,
-                padding: '22px 24px',
-                marginBottom: 16,
-            }}
-        >
-            <div style={{ marginBottom: 14 }}>
-                <div
-                    style={{
-                        fontSize: 17,
-                        fontWeight: 600,
-                        color: 'var(--vesper-text)',
-                        marginBottom: 4,
-                    }}
-                >
-                    Load live preview
-                </div>
-                <div
-                    style={{
-                        fontSize: 13,
-                        color: 'var(--vesper-text-2)',
-                        lineHeight: 1.55,
-                    }}
-                >
-                    Switch the app to load the live preview URL
-                    instead of the bundled offline copy.  Same
-                    fullscreen experience, same D-pad, same native
-                    bridges, just always running the very latest
-                    build straight from the web.  Tap the pink{' '}
-                    <b style={{ color: '#FF6BCB' }}>DEV · Exit</b>{' '}
-                    badge in the top-right at any time to return to
-                    the bundled app.
-                </div>
-                <div
-                    style={{
-                        fontSize: 11,
-                        color: 'var(--vesper-text-3)',
-                        letterSpacing: '0.02em',
-                        marginTop: 8,
-                        fontFamily:
-                            'var(--theme-font-mono, ui-monospace, monospace)',
-                    }}
-                >
-                    {PREVIEW_URL}
-                </div>
-            </div>
-            <button
-                data-testid="dev-load-preview"
-                data-focusable="true"
-                data-focus-style="pill"
-                tabIndex={0}
-                onClick={onLoadLive}
-                disabled={busy}
-                className="flex items-center gap-2 rounded-full"
-                style={{
-                    height: 44,
-                    padding: '0 22px',
-                    background: 'var(--vesper-blue)',
-                    color: 'var(--vesper-bg-0)',
-                    border: 'none',
-                    fontSize: 14,
-                    fontWeight: 700,
-                    letterSpacing: '0.01em',
-                    cursor: busy ? 'wait' : 'pointer',
-                    opacity: busy ? 0.6 : 1,
-                }}
-            >
-                <ExternalLink size={16} strokeWidth={2.4} />
-                {busy ? 'Switching…' : 'Load live preview'}
-            </button>
-            {!isAndroid && (
-                <div
-                    style={{
-                        marginTop: 12,
-                        fontSize: 11,
-                        color: 'var(--vesper-text-3)',
-                    }}
-                >
-                    (Native bridge not detected; this control only
-                    persists across launches inside the Android app.)
-                </div>
-            )}
-
-            {/* New-episode notification test trigger.  Fires a
-                synthesized toast so you can verify the look + the
-                "Watch Later" → rail flow without waiting for a real
-                episode to air. */}
-            <TestNewEpisodeButton />
-        </div>
-    );
-}
-
-function TestNewEpisodeButton() {
-    const SAMPLES = [
-        {
-            showId: 'tt0944947',
-            showMeta: {
-                name: 'Game of Thrones',
-                poster: 'https://image.tmdb.org/t/p/w500/u3bZgnGQ9T01Hi2I9w0pVTuvqVj.jpg',
-                background: 'https://image.tmdb.org/t/p/w1280/2OMB0ynKlyIenMJWI2Dy9IWT4c.jpg',
-            },
-            episode: {
-                season: 8,
-                number: 6,
-                name: 'The Iron Throne',
-                aired: '2019-05-19',
-                thumbnail: 'https://image.tmdb.org/t/p/w500/zb6fM1CX41D9rF9hdgclu0peUmy.jpg',
-            },
-        },
-        {
-            showId: 'tt4574334',
-            showMeta: {
-                name: 'Stranger Things',
-                poster: 'https://image.tmdb.org/t/p/w500/49WJfeN0moxb9IPfGn8AIqMGskD.jpg',
-                background: 'https://image.tmdb.org/t/p/w1280/56v2KjBlU4XaOv9rVYEQypROD7P.jpg',
-            },
-            episode: {
-                season: 4,
-                number: 9,
-                name: 'The Piggyback',
-                aired: '2022-07-01',
-                thumbnail: 'https://image.tmdb.org/t/p/w500/agQRbX4mU3yEbU3PCK7vGS0YPpA.jpg',
-            },
-        },
-        {
-            showId: 'tt7366338',
-            showMeta: {
-                name: 'Chernobyl',
-                poster: 'https://image.tmdb.org/t/p/w500/hlLXt2tOPT6RRnjiUmoxyG1LTFi.jpg',
-                background: 'https://image.tmdb.org/t/p/w1280/jzAEXMRkfFp4S5RGfvKGOL9z76m.jpg',
-            },
-            episode: {
-                season: 1,
-                number: 5,
-                name: 'Vichnaya Pamyat',
-                aired: '2019-06-03',
-                thumbnail: 'https://image.tmdb.org/t/p/w500/y5fAuLBQ4FYxsDi0SwHFkXOzZqK.jpg',
-            },
-        },
-    ];
-
-    const onFire = () => {
-        // Pick a random sample so a clicker can stack a few in the
-        // Watch Later rail just by tapping the button repeatedly.
-        const s = SAMPLES[Math.floor(Math.random() * SAMPLES.length)];
-        // Tag with a unique season+number suffix so each click
-        // qualifies as a "new" episode even if you keep firing the
-        // same sample.
-        const seasonBump = Math.floor(Math.random() * 99) + 1;
-        const payload = {
-            ...s,
-            episode: { ...s.episode, number: seasonBump },
-        };
-        window.dispatchEvent(
-            new CustomEvent('vesper:new-episode-test', { detail: payload })
-        );
-    };
-
-    return (
-        <div
-            style={{
-                marginTop: 24,
-                paddingTop: 22,
-                borderTop: '1px dashed rgba(255,255,255,0.1)',
-            }}
-        >
-            <div
-                style={{
-                    fontSize: 15,
-                    fontWeight: 600,
-                    color: 'var(--vesper-text)',
-                    marginBottom: 4,
-                }}
-            >
-                Fire test notification
-            </div>
-            <div
-                style={{
-                    fontSize: 13,
-                    color: 'var(--vesper-text-2)',
-                    lineHeight: 1.55,
-                    marginBottom: 12,
-                }}
-            >
-                Pops a fake "new episode" toast in the top-right
-                corner so you can practise the Play / Watch Later
-                flow without waiting for real episodes to air.  Tap
-                repeatedly to stack the Watch Later rail in My
-                Library.
-            </div>
-            <button
-                data-testid="dev-fire-test-toast"
-                data-focusable="true"
-                data-focus-style="pill"
-                tabIndex={0}
-                onClick={onFire}
-                className="flex items-center gap-2 rounded-full"
-                style={{
-                    height: 44,
-                    padding: '0 22px',
-                    background: 'rgba(var(--vesper-blue-rgb), 0.14)',
-                    color: 'var(--vesper-blue-bright)',
-                    border: '1px solid rgba(var(--vesper-blue-rgb), 0.45)',
-                    fontSize: 14,
-                    fontWeight: 600,
-                    letterSpacing: '0.01em',
-                }}
-            >
-                Fire test notification
-            </button>
-        </div>
-    );
-}
-
 function SectionHeader({ eyebrow, title, icon: Icon, anchorId }) {
     return (
         <>
@@ -1328,198 +928,6 @@ function SectionHeader({ eyebrow, title, icon: Icon, anchorId }) {
                 {title}
             </h2>
         </>
-    );
-}
-
-function ChoiceRow({ testid, title, description, value, options, onChange }) {
-    return (
-        <div
-            style={{
-                background: 'rgba(255,255,255,0.04)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: 14,
-                padding: '14px 18px',
-                marginBottom: 10,
-            }}
-        >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
-                <div style={{ flex: '1 1 260px' }}>
-                    <div style={{ fontSize: 14, fontWeight: 600 }}>{title}</div>
-                    <div
-                        style={{
-                            marginTop: 3,
-                            fontSize: 11.5,
-                            color: 'var(--vesper-text-2)',
-                            lineHeight: 1.4,
-                        }}
-                    >
-                        {description}
-                    </div>
-                </div>
-                <div className="flex gap-1.5 flex-wrap">
-                    {options.map((opt) => {
-                        const active = opt.value === value;
-                        return (
-                            <button
-                                key={opt.value}
-                                data-testid={`${testid}-${opt.value}`}
-                                data-focusable="true"
-                                data-focus-style="pill"
-                                tabIndex={0}
-                                onClick={() => onChange(opt.value)}
-                                style={{
-                                    height: 32,
-                                    padding: '0 13px',
-                                    borderRadius: 999,
-                                    fontSize: 12,
-                                    fontWeight: 600,
-                                    background: active
-                                        ? 'var(--vesper-blue)'
-                                        : 'rgba(255,255,255,0.08)',
-                                    color: active
-                                        ? 'var(--vesper-bg-0)'
-                                        : 'var(--vesper-text-2)',
-                                    border: active
-                                        ? 'none'
-                                        : '1px solid rgba(255,255,255,0.14)',
-                                }}
-                            >
-                                {opt.label}
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
-        </div>
-    );
-}
-
-function PinRow({ testid, pin, onChange }) {
-    const [editing, setEditing] = React.useState(false);
-    const [draft, setDraft] = React.useState('');
-    const save = () => {
-        if (draft.length === 4 || draft.length === 0) {
-            onChange(draft);
-            setDraft('');
-            setEditing(false);
-        }
-    };
-    return (
-        <div
-            style={{
-                background: 'rgba(255,255,255,0.04)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: 16,
-                padding: '18px 24px',
-                marginBottom: 12,
-            }}
-        >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-                <div style={{ flex: '1 1 320px' }}>
-                    <div style={{ fontSize: 17, fontWeight: 600 }}>
-                        Parent PIN
-                    </div>
-                    <div
-                        style={{
-                            marginTop: 4,
-                            fontSize: 12.5,
-                            color: 'var(--vesper-text-2)',
-                            lineHeight: 1.45,
-                        }}
-                    >
-                        4-digit PIN required to exit Kids mode. Leave blank
-                        to disable.
-                    </div>
-                </div>
-                <div className="flex items-center gap-3">
-                    {editing ? (
-                        <>
-                            <input
-                                data-testid={`${testid}-input`}
-                                data-focusable="true"
-                                data-focus-style="pill"
-                                type="tel"
-                                inputMode="numeric"
-                                maxLength={4}
-                                value={draft}
-                                onChange={(e) =>
-                                    setDraft(e.target.value.replace(/\D/g, '').slice(0, 4))
-                                }
-                                placeholder="••••"
-                                className="text-center"
-                                style={{
-                                    width: 120,
-                                    height: 44,
-                                    borderRadius: 12,
-                                    fontSize: 22,
-                                    fontWeight: 700,
-                                    letterSpacing: '0.4em',
-                                    background: 'rgba(255,255,255,0.06)',
-                                    border: '1px solid rgba(255,255,255,0.18)',
-                                    color: 'var(--vesper-text)',
-                                    outline: 'none',
-                                }}
-                            />
-                            <button
-                                data-testid={`${testid}-save`}
-                                data-focusable="true"
-                                data-focus-style="pill"
-                                tabIndex={0}
-                                onClick={save}
-                                style={{
-                                    height: 44,
-                                    padding: '0 18px',
-                                    borderRadius: 999,
-                                    fontSize: 14,
-                                    fontWeight: 600,
-                                    background: 'var(--vesper-blue)',
-                                    color: 'var(--vesper-bg-0)',
-                                }}
-                            >
-                                Save
-                            </button>
-                        </>
-                    ) : (
-                        <>
-                            <span
-                                className="vesper-mono"
-                                style={{
-                                    fontSize: 14,
-                                    color: pin
-                                        ? 'var(--vesper-blue-bright)'
-                                        : 'var(--vesper-text-3)',
-                                    letterSpacing: '0.32em',
-                                }}
-                            >
-                                {pin ? '••••' : 'NOT SET'}
-                            </span>
-                            <button
-                                data-testid={`${testid}-edit`}
-                                data-focusable="true"
-                                data-focus-style="pill"
-                                tabIndex={0}
-                                onClick={() => {
-                                    setDraft('');
-                                    setEditing(true);
-                                }}
-                                style={{
-                                    height: 38,
-                                    padding: '0 16px',
-                                    borderRadius: 999,
-                                    fontSize: 13,
-                                    fontWeight: 600,
-                                    background: 'rgba(255,255,255,0.08)',
-                                    color: 'var(--vesper-text-2)',
-                                    border: '1px solid rgba(255,255,255,0.14)',
-                                }}
-                            >
-                                {pin ? 'Change' : 'Set PIN'}
-                            </button>
-                        </>
-                    )}
-                </div>
-            </div>
-        </div>
     );
 }
 
@@ -1845,40 +1253,6 @@ function ThemeCard({ theme, active, initialFocus, onPick }) {
 }
 
 
-function SavedToast({ trigger }) {
-    const [visible, setVisible] = React.useState(false);
-    React.useEffect(() => {
-        if (!trigger) return undefined;
-        setVisible(true);
-        const t = setTimeout(() => setVisible(false), 1600);
-        return () => clearTimeout(t);
-    }, [trigger]);
-    if (!visible) return null;
-    return (
-        <div
-            data-testid="saved-toast"
-            className="fixed z-[60] flex items-center gap-2"
-            style={{
-                bottom: 'clamp(24px, 3vw, 40px)',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                padding: '12px 22px',
-                borderRadius: 999,
-                background: 'rgba(20,28,48,0.95)',
-                border: '1px solid rgba(var(--vesper-blue-rgb),0.45)',
-                color: 'var(--vesper-blue-bright)',
-                fontSize: 14,
-                fontWeight: 600,
-                letterSpacing: '0.01em',
-                boxShadow: '0 14px 36px rgba(0,0,0,0.45), 0 0 24px rgba(var(--vesper-blue-rgb),0.35)',
-            }}
-        >
-            <Check size={16} strokeWidth={3} />
-            Saved · Kids home updated
-        </div>
-    );
-}
-
 /* ============================================================
    Tips & Nudges Settings panel — controls the FeatureNudge
    ============================================================ */
@@ -1959,45 +1333,14 @@ function TipsPanel() {
                                 ? 'Tip is hidden'
                                 : 'Tip is active';
                     return (
-                        <div
+                        <ToggleRow
                             key={f.key}
-                            style={{
-                                display: 'grid',
-                                gridTemplateColumns: '1fr auto',
-                                alignItems: 'center',
-                                gap: 12,
-                            }}
-                        >
-                            <ToggleRow
-                                testid={`tips-feature-${f.key}`}
-                                title={f.name}
-                                description={sub}
-                                value={effectivelyOn}
-                                onToggle={() => handlePerFeature(f.key)}
-                            />
-                            <button
-                                data-testid={`tips-preview-${f.key}`}
-                                data-focusable="true"
-                                onClick={() => previewNudge(f.key)}
-                                title="Show this tip now (for testing)"
-                                style={{
-                                    background: 'transparent',
-                                    color: 'var(--vesper-blue)',
-                                    border: '1px solid rgba(var(--vesper-blue-rgb), 0.36)',
-                                    borderRadius: 999,
-                                    padding: '9px 16px',
-                                    fontSize: 12,
-                                    fontWeight: 600,
-                                    letterSpacing: 0.5,
-                                    textTransform: 'uppercase',
-                                    cursor: 'pointer',
-                                    marginBottom: 8,
-                                    whiteSpace: 'nowrap',
-                                }}
-                            >
-                                Preview
-                            </button>
-                        </div>
+                            testid={`tips-feature-${f.key}`}
+                            title={f.name}
+                            description={sub}
+                            value={effectivelyOn}
+                            onToggle={() => handlePerFeature(f.key)}
+                        />
                     );
                 })}
             </div>
