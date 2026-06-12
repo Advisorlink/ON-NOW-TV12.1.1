@@ -1,5 +1,13 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.46-g — Round 6 of post-rollback fixes (11 Jun 2026).**
+>
+> **O. Type-ahead search REVERTED** — `pages/Search.jsx`. User didn't like results firing after 2 letters. Removed debounce/seq logic; back to button-only submit.
+>
+> **P. Focus bounce-back survives Left/Right after Add-to-List** — `components/AddToListModal.jsx`. Now captures `data-testid` as backup; restores via `querySelector` if the original DOM node was recycled by React. Re-applies focus THREE times (microtask + rAF + 120 ms) so late blur events from the modal unmount can't yank focus to body.
+>
+> **Q. Continue Watching long-press confirm card properly navigable** — `components/ContinueWatchingShelf.jsx`. Replaced the timestamp-grace-on-Remove-only with a `confirmArmedRef` gate that guards BOTH Cancel and Remove. Auto-arms after 700 ms OR on the user's first D-pad arrow keypress. Cancel is focused twice (microtask + rAF) AND given `data-focused="true"` programmatically so the user sees the ring immediately, can release OK without dismissing, and can Left/Right freely between Cancel and Remove.
+>
 > **🟢 v2.10.46-f — Round 5 of post-rollback fixes (11 Jun 2026).**
 >
 > **L. Rail re-ordered + Live TV / Sports Guide removed** — `components/SideNav.jsx`. Search is now the first nav item (above Home). Live TV entry removed (lives in `onnowtv-livetv`). Sports Guide removed (feature retired earlier this week). Unused icon imports cleaned up.

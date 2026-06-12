@@ -222,38 +222,81 @@ function CWTile({
 }) {
     const pressTimer = useRef(null);
     const pressStartAt = useRef(0);
-    // v2.10.46 — When the confirm card first mounts the user is
+    // v2.10.46-g — When the confirm card first mounts the user is
     // still physically holding OK from the long-press that opened
     // it.  Their key-release dispatches a synthetic click into the
     // newly-mounted DOM, which on some Android TV WebViews lands
-    // on the first focusable button (Remove) — so the entry is
-    // gone before they can choose Cancel.  Two guards fix this:
+    // on whichever focusable button is sitting under their
+    // virtual cursor — historically Remove (auto-delete!) or now
+    // Cancel (auto-dismiss).  Two guards fix both:
     //   1. The Cancel button is rendered first in the DOM and is
-    //      programmatically focused on mount so the residual
-    //      click hits Cancel (no-op) instead of Remove.
-    //   2. `confirmShownAt` arms a 600 ms grace period during
-    //      which onRemove is ignored.  After 600 ms the user has
-    //      clearly released OK and any subsequent click is a
-    //      deliberate confirmation.
-    const confirmShownAt = useRef(0);
+    //      programmatically focused on mount.  We also paint
+    //      `data-focused="true"` on it directly so the ring is
+    //      visible immediately even before useSpatialFocus's
+    //      `setFocusAttr` runs (it only fires on arrow keys).
+    //   2. BOTH buttons get a `confirmArmedRef` gate that swallows
+    //      any click for the first 700 ms after mount.  Earlier
+    //      versions guarded Remove only; the user reported that
+    //      releasing OK while focus was on Cancel still dismissed
+    //      the modal, leaving them no way to navigate to Remove
+    //      without keeping OK held down.  The gate auto-arms after
+    //      700 ms OR on the user's first arrow-key press (whichever
+    //      happens first) so deliberate confirmation is instant
+    //      once the user moves their focus.
+    const confirmArmedRef = useRef(false);
     const cancelBtnRef = useRef(null);
     useEffect(() => {
         if (confirmRemove) {
-            confirmShownAt.current = Date.now();
-            // Defer focus to after React commits so the button
-            // actually exists in the DOM.
-            const t = setTimeout(() => {
+            confirmArmedRef.current = false;
+            // Focus + paint the highlight ring on Cancel.
+            const focusCancel = () => {
+                const btn = cancelBtnRef.current;
+                if (!btn) return;
+                try { btn.focus({ preventScroll: true }); } catch { /* */ }
                 try {
-                    cancelBtnRef.current?.focus({ preventScroll: true });
+                    document
+                        .querySelectorAll('[data-focused="true"]')
+                        .forEach((el) => {
+                            if (el !== btn) el.removeAttribute('data-focused');
+                        });
+                    btn.setAttribute('data-focused', 'true');
                 } catch { /* */ }
-            }, 0);
-            return () => clearTimeout(t);
+            };
+            // Two-pass focus apply so the WebView consistently
+            // picks it up — once on microtask, once on next paint.
+            const t0 = setTimeout(focusCancel, 0);
+            const t1 = requestAnimationFrame(focusCancel);
+            // Auto-arm the click guard after 700 ms.
+            const t2 = setTimeout(() => { confirmArmedRef.current = true; }, 700);
+            // Arm immediately when the user moves with the D-pad —
+            // that's an unambiguous "I'm navigating now" signal.
+            const onArrow = (e) => {
+                if (
+                    e.key === 'ArrowLeft' ||
+                    e.key === 'ArrowRight' ||
+                    e.key === 'ArrowUp' ||
+                    e.key === 'ArrowDown'
+                ) {
+                    confirmArmedRef.current = true;
+                }
+            };
+            window.addEventListener('keydown', onArrow);
+            return () => {
+                clearTimeout(t0);
+                cancelAnimationFrame(t1);
+                clearTimeout(t2);
+                window.removeEventListener('keydown', onArrow);
+            };
         }
     }, [confirmRemove]);
     const guardedRemove = useCallback(() => {
-        if (Date.now() - confirmShownAt.current < 600) return;
+        if (!confirmArmedRef.current) return;
         onRemove();
     }, [onRemove]);
+    const guardedCancel = useCallback(() => {
+        if (!confirmArmedRef.current) return;
+        onCancel();
+    }, [onCancel]);
     /* v2.8.89 — Long-press OK on Android TV remotes.
      *
      * The previous implementation called startPress() on every
@@ -382,7 +425,7 @@ function CWTile({
                         data-focus-style="pill"
                         data-initial-focus="true"
                         tabIndex={0}
-                        onClick={onCancel}
+                        onClick={guardedCancel}
                         style={{
                             padding: '8px 16px',
                             borderRadius: 999,

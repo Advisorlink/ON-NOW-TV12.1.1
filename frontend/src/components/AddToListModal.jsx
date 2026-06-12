@@ -38,6 +38,13 @@ export default function AddToListModal() {
     const [payload, setPayload] = useState(null);
     const [closing, setClosing] = useState(false);
     const lastFocusedRef = useRef(null);
+    // v2.10.46-g — Also remember the testid of the long-pressed
+    // tile.  When the modal closes the tile DOM node we captured
+    // here might have been recreated by React (key churn from a
+    // shelf re-render after the favourite write), so the `node`
+    // reference goes stale.  We fall back to `querySelector` on
+    // the testid to recover the live element.
+    const lastFocusedTestIdRef = useRef(null);
     const confirmBtnRef = useRef(null);
     // "armed" flips to true the moment the user releases the OK
     // key / mouse button after the modal mounts.  Until then, we
@@ -51,6 +58,8 @@ export default function AddToListModal() {
         const onRequest = (e) => {
             if (!e.detail || !e.detail.id) return;
             lastFocusedRef.current = document.activeElement;
+            lastFocusedTestIdRef.current =
+                document.activeElement?.getAttribute?.('data-testid') || null;
             armedRef.current = false;
             setPayload(e.detail);
         };
@@ -235,19 +244,29 @@ export default function AddToListModal() {
         setTimeout(() => {
             setPayload(null);
             setClosing(false);
-            // v2.10.46-e — Return focus to whatever tile fired the
-            // long-press so the user sees the highlight ring snap
-            // back to the title they just added/removed.  Android
-            // WebViews don't reliably restore focus, AND the
-            // `setFocusAttr` painted by `useSpatialFocus` is only
-            // driven by keyboard events — so a bare `.focus()`
-            // here gets the DOM focus right but the visual ring
-            // never paints.  We therefore ALSO set
-            // `data-focused="true"` on the restored element and
-            // strip it from any other lingering matches so only
-            // the bounce-back tile shows the highlight.
-            const f = lastFocusedRef.current;
-            if (f && typeof f.focus === 'function') {
+            // v2.10.46-g — More robust focus bounce-back.
+            //   • Prefer the live DOM node captured on open, but
+            //     fall back to a testid lookup if React recycled
+            //     the tile during the modal's lifetime.
+            //   • RE-APPLY focus across THREE frames (microtask,
+            //     next paint, +120 ms).  Without the retries, an
+            //     async focus event from the modal's unmount can
+            //     steal focus back to body the moment after we
+            //     restore it, and the user sees the highlight
+            //     "disappear on first Left/Right".  Retrying makes
+            //     the restore stick.
+            //   • setAttribute(`data-focused`,'true') drives the
+            //     ring even on Android WebViews where programmatic
+            //     focus doesn't trigger :focus-visible.
+            const restore = () => {
+                let f = lastFocusedRef.current;
+                if (!f || !document.body.contains(f)) {
+                    const tid = lastFocusedTestIdRef.current;
+                    if (tid) {
+                        f = document.querySelector(`[data-testid="${tid}"]`);
+                    }
+                }
+                if (!f || typeof f.focus !== 'function') return;
                 try { f.focus({ preventScroll: false }); } catch { /* ignore */ }
                 try {
                     document
@@ -256,8 +275,6 @@ export default function AddToListModal() {
                             if (el !== f) el.removeAttribute('data-focused');
                         });
                     f.setAttribute('data-focused', 'true');
-                    // Scroll the tile back into view in case it
-                    // drifted off-screen while the modal was up.
                     if (typeof f.scrollIntoView === 'function') {
                         f.scrollIntoView({
                             behavior: 'smooth',
@@ -266,7 +283,12 @@ export default function AddToListModal() {
                         });
                     }
                 } catch { /* ignore */ }
-            }
+            };
+            restore();
+            requestAnimationFrame(() => {
+                restore();
+                window.setTimeout(restore, 120);
+            });
         }, 200);
     };
 
