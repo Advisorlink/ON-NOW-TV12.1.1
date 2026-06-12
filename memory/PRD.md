@@ -4,27 +4,15 @@
 >
 > User asked for a **professional, beautiful login screen** that gates the entire Vesper v2 app, backed by a backend vault of ~40 Xtream IPTV credentials managed by the admin only.  End-users sign in with **username + password only** (no DNS field shown — DNS is admin-side metadata used by the streaming pipeline).  User stays signed in across reloads / launches — login is only shown on first install or after explicit sign-out.
 >
-> **Backend** — `/app/backend/auth_router.py` (~330 lines, separate file mounted from server.py):
-> - `xtream_accounts` MongoDB collection with `{id, dns, username, password (plaintext — Xtream needs the raw creds), label, status, expires_at, notes, created_at}`.  Unique index on `username`.
-> - `POST /api/auth/login` — body `{username, password}` → constant-time compare via `hmac.compare_digest` → HS256 JWT (30-day TTL) returned + `account` payload.  5-attempt lockout per `IP+username` over a 15-min sliding window.
-> - `GET /api/auth/me` — verifies bearer JWT, returns account.
-> - `POST /api/auth/logout` — stateless ack (frontend just deletes the token).
-> - `/api/admin/accounts` — list/create/patch/delete + bulk-import (`X-Admin-Key` header).
-> - Indexes auto-created at startup via `ensure_indexes()` hook.
-> - Env: `JWT_SECRET` and `ADMIN_KEY` added to `backend/.env`.
-> - Seed CLI: `python scripts/seed_xtream_accounts.py [--replace] [--dry-run]` reads from `scripts/xtream_accounts.json`.
+> Backend `/app/backend/auth_router.py` (~330 lines, separate file mounted from server.py): `xtream_accounts` MongoDB collection with `{id, dns, username, password (plaintext — Xtream needs the raw creds), label, status, expires_at, notes, created_at}`.  Unique index on `username`.  `POST /api/auth/login` does a constant-time compare via `hmac.compare_digest` → HS256 JWT (30-day TTL) returned + `account` payload.  5-attempt lockout per `IP+username` over a 15-min sliding window.  `GET /api/auth/me` verifies bearer JWT.  `POST /api/auth/logout` is stateless ack.  `/api/admin/accounts/{list,create,patch,delete,bulk-import}` gated by `X-Admin-Key` header.  Indexes auto-created at startup via `ensure_indexes()`.  Env: `JWT_SECRET` + `ADMIN_KEY` in `backend/.env`.  Seed CLI: `python scripts/seed_xtream_accounts.py [--replace] [--dry-run]` reads from `scripts/xtream_accounts.json`.
 >
-> **Frontend** — new files:
-> - `lib/auth.js` — token + account helpers (`getToken`, `setToken`, `apiLogin`, `apiMe`, `apiLogout`, `authHeader`).
-> - `contexts/AuthContext.jsx` — provides `{status, account, login, logout, refresh}`.  Optimistic state: if a cached token exists, the app starts in `authenticated` so the login screen never flashes between launches — `/me` runs in the background and demotes to `guest` only on revocation.
-> - `components/LoginScreen.jsx` — premium TV / 16:9 sign-in surface.  Cinematic dark backdrop with cyan glow halo + pulsing radial gradient + grain overlay.  Glass-morphism card (560px wide, blur 22 + saturate 140%, cyan border, soft inset highlight + outer 0/30/80 shadow + cyan 0/0/60 glow ring).  Monospace `VESPER · V2` eyebrow + `Welcome back` display title + descriptive helper text.  Username (`User` icon) + Password (`Lock` icon + `Eye/EyeOff` show-password toggle) inputs with raised pill containers.  Big cyan-gradient `Sign in` button with `LogIn` icon and loading spinner state.  Inline red error chip on failed login.  D-pad friendly (`data-focusable` + `data-focus-style="pill"`).
-> - `components/LoginGate.jsx` — renders `<LoginScreen />` when `status==='guest'`, otherwise renders children.  Mounted INSIDE `<Router>` so the login screen can call `useNavigate('/profiles')` after success.
-> - `App.js` wired: `<AuthProvider>` wraps `<Router>` content, `<LoginGate>` wraps everything inside `<MobilePlatformRoot>`.
-> - `Settings.jsx` got a new `Sign out` section (red icon, account label, double-tap-to-confirm button).
+> Frontend new files: `lib/auth.js` (token helpers + API calls), `contexts/AuthContext.jsx` (global auth state with optimistic-on-cached-token strategy — cached token means login never flashes between launches), `components/LoginScreen.jsx` (premium 16:9 sign-in surface with cinematic dark backdrop + cyan glow halo + pulsing radial gradient + grain overlay + glass-morphism card + monospace eyebrow + cyan-gradient Sign in button + show/hide password toggle + inline error chip + D-pad spatial-focus), `components/LoginGate.jsx` (renders LoginScreen when status==='guest', else children).  Wired into `App.js`: `<AuthProvider>` wraps `<Router>` content, `<LoginGate>` wraps everything inside `<MobilePlatformRoot>`.  Settings.jsx got a new `Sign out` section (red icon, account label, double-tap-to-confirm).
 >
-> **Test account** (smoke / testing-agent): `testuser` / `testpass123` (DNS `http://test.example.com:8080`).
+> **Tested**: backend 15/15 pytest pass (login success/wrong/unknown, /me valid/missing/malformed, /logout, brute-force lockout 429 on 6th attempt, admin CRUD, bulk-import counts).  Frontend smoke-tested: LoginScreen renders on cleared localStorage, valid creds → /profiles, reload-while-signed-in stays signed in, sign-out swaps back to LoginScreen.
 >
-> **Awaiting from user**: paste the real ~40 Xtream credentials → seed via `xtream_accounts.json` + the CLI, OR via the `/api/admin/accounts/bulk-import` endpoint.
+> **Bug found + fixed during testing** — race condition between in-flight `/api/auth/me` and explicit logout was re-asserting `status='authenticated'` over `setStatus('guest')` because old `apiMe()` promises were resolving after the token had been cleared.  Fix: (a) `apiMe()` now uses a quiet `setAccountQuiet()` setter that does NOT broadcast `vesper:auth-change` (was causing infinite refresh loops where each broadcast triggered another refresh that fired another broadcast); (b) `AuthContext.refresh()` re-checks `getToken()` AFTER the `await apiMe()` and demotes to `guest` if the token has been cleared mid-flight.
+>
+> **Test account**: `testuser` / `testpass123`.  **Awaiting from user**: paste the real ~40 Xtream credentials → seed via `xtream_accounts.json` + the CLI, OR via the `/api/admin/accounts/bulk-import` endpoint.
 >
 > **🟢 v2.10.46-l — Round 11: 16:9 onboarding + Settings cleanup + wider Add-to-List modal (12 Jun 2026).**
 >
