@@ -164,6 +164,28 @@ export default function SeriesEpisodes({
     const [episodeStreams, setEpisodeStreams] = useState({});
     const [loadingEpisodeId, setLoadingEpisodeId] = useState(null);
     const [copied, setCopied] = useState(null);
+    /* v2.10.46-k — Autoplay launch scrim.
+     *   When the user clicks an episode with Autoplay ON we
+     *   silently fetch streams then hand off to the native
+     *   player.  Without any visual feedback that initial click
+     *   feels frozen: the user sees nothing for 0.5-3s while we
+     *   wait for the addon, and they don't know if the press
+     *   even registered.  This state drives a full-screen scrim
+     *   (rendered at the bottom of SeriesEpisodes' JSX) with a
+     *   spinner + episode title so the click ALWAYS has an
+     *   immediate response.
+     *   • Set on the very first line of `handleEpisodeClick` so
+     *     the scrim paints before any await.
+     *   • Cleared on error or by a hard timeout safety net so it
+     *     never hangs around if `playStream` never returns. */
+    const [launchingEp, setLaunchingEp] = useState(null);
+    const launchTimerRef = useRef(null);
+    useEffect(() => () => {
+        if (launchTimerRef.current) {
+            clearTimeout(launchTimerRef.current);
+            launchTimerRef.current = null;
+        }
+    }, []);
 
     // Episode-stream-list-scoped D-pad override.  When focus is
     // inside ANY expanded episode's stream list, ArrowUp/Down walks
@@ -242,6 +264,19 @@ export default function SeriesEpisodes({
             setOpenEpisodeId(null);
             return;
         }
+        // v2.10.46-k — IMMEDIATE feedback.  Paint the launch
+        // scrim FIRST so even a 2-second addon response doesn't
+        // feel like a freeze.  Safety net: 12 s timeout clears
+        // the scrim if `playStream` never returns (e.g. native
+        // bridge missing in browser preview).
+        if (autoplay) {
+            setLaunchingEp(ep);
+            if (launchTimerRef.current) clearTimeout(launchTimerRef.current);
+            launchTimerRef.current = setTimeout(() => {
+                setLaunchingEp(null);
+                launchTimerRef.current = null;
+            }, 12000);
+        }
         // v2.10.46-h — With Autoplay ON, the user explicitly said
         // "it shouldn't show the links at all".  So we DON'T open
         // the inline streams drawer up-front when autoplay is on
@@ -269,6 +304,11 @@ export default function SeriesEpisodes({
                 }
                 // No playable stream at all — fall back to opening
                 // the drawer so the user can see the diagnostics.
+                setLaunchingEp(null);
+                if (launchTimerRef.current) {
+                    clearTimeout(launchTimerRef.current);
+                    launchTimerRef.current = null;
+                }
                 setOpenEpisodeId(ep.id);
             }
             return;
@@ -297,6 +337,11 @@ export default function SeriesEpisodes({
                 if (cand) {
                     playStream(cand, ep);
                 } else {
+                    setLaunchingEp(null);
+                    if (launchTimerRef.current) {
+                        clearTimeout(launchTimerRef.current);
+                        launchTimerRef.current = null;
+                    }
                     setOpenEpisodeId(ep.id);
                 }
             }
@@ -305,7 +350,14 @@ export default function SeriesEpisodes({
                 ...s,
                 [ep.id]: { streams: [], diagnostics: [] },
             }));
-            if (autoplay) setOpenEpisodeId(ep.id);
+            if (autoplay) {
+                setLaunchingEp(null);
+                if (launchTimerRef.current) {
+                    clearTimeout(launchTimerRef.current);
+                    launchTimerRef.current = null;
+                }
+                setOpenEpisodeId(ep.id);
+            }
         } finally {
             setLoadingEpisodeId(null);
         }
@@ -431,6 +483,64 @@ export default function SeriesEpisodes({
 
     return (
         <section data-testid="series-episodes" className="mt-10">
+            {/* v2.10.46-k — Full-screen autoplay launch scrim.
+                Painted the instant `handleEpisodeClick` fires with
+                Autoplay ON.  Shows a clean spinner + episode title
+                so the click is NEVER perceived as frozen while
+                streams are being resolved.  Disappears when the
+                native player takes over (this React tree gets
+                covered by the player Activity) or after the 12 s
+                safety net timeout. */}
+            {launchingEp && (
+                <div
+                    data-testid="series-autoplay-loader"
+                    className="fixed inset-0 flex items-center justify-center"
+                    style={{
+                        zIndex: 80,
+                        background: 'rgba(6,8,15,0.96)',
+                        backdropFilter: 'blur(10px)',
+                        WebkitBackdropFilter: 'blur(10px)',
+                    }}
+                >
+                    <div className="flex flex-col items-center" style={{ gap: 22 }}>
+                        <Loader2
+                            className="vesper-spin"
+                            size={48}
+                            style={{
+                                color: 'var(--vesper-blue-bright, #4DC1FF)',
+                                opacity: 0.92,
+                            }}
+                        />
+                        <div
+                            className="vesper-mono"
+                            style={{
+                                fontSize: 12,
+                                letterSpacing: '0.32em',
+                                textTransform: 'uppercase',
+                                color: 'var(--vesper-text-2, #8C97B0)',
+                            }}
+                        >
+                            Starting playback
+                        </div>
+                        <div
+                            className="vesper-display"
+                            style={{
+                                fontSize: 'clamp(20px, 1.9vw, 28px)',
+                                fontWeight: 600,
+                                letterSpacing: '-0.02em',
+                                color: 'var(--vesper-text, #fff)',
+                                textAlign: 'center',
+                                maxWidth: '80vw',
+                            }}
+                        >
+                            {launchingEp.name
+                                ? `S${launchingEp.season}E${launchingEp.episode} · ${launchingEp.name}`
+                                : `Season ${launchingEp.season} · Episode ${launchingEp.episode}`}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Season picker — heading + count line hidden when
                 episodes aren't yet shown (the user is still in the
                 "browse seasons + cast" stage and we want a clean

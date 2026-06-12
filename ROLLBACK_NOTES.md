@@ -338,3 +338,17 @@ User: "I want the whole onboarding slides redesigned completely. I don't like th
 - Top strip is a balanced 3-cell flex: brand left ("ON NOW TV · WELCOME TOUR"), "STEP 01 / 15" centred (zero-padded for premium feel), Skip button right.
 - Bottom rail uses a PIP progress (one dot per step, active step elongates into a 28 px bar) instead of the linear progress line. Past steps glow at lower intensity; pending steps are dim.
 - Each scene transition runs a 520 ms `vesperOnbSceneIn` keyframe (blur-out + scale + translate-up) so the slides feel cinematic instead of just snapping in.
+
+---
+
+## Tenth round — Autoplay launch feedback (11 June 2026)
+
+User: "Show like a little loading spinning circle or something just so it shows it's doing something. Otherwise it just looks like it's frozen."
+
+### Fix U — Full-screen autoplay launch scrim on episode click
+**File:** `frontend/src/components/SeriesEpisodes.jsx`
+- The Round-7 fix removed the inline streams drawer when Autoplay was on, but the click → addon → player chain can take 0.5–3 s. With no visual feedback the click felt frozen.
+- New `launchingEp` state plus a fixed-position scrim (`data-testid="series-autoplay-loader"`, z-index 80) painted at the top of the `SeriesEpisodes` JSX. Shows a `Loader2` spinner + "Starting playback" caption + the episode label ("S2E4 · The One Where…").
+- `setLaunchingEp(ep)` runs on the very first line of `handleEpisodeClick` (before any `await`) so the scrim paints synchronously the instant the click registers.
+- 12 s safety-net timeout (`launchTimerRef`) clears the scrim if `playStream` never returns (e.g. preview browser without the native bridge). Cleared on error or when we fall back to the diagnostics drawer.
+- Mirrors the existing `data-testid="detail-autoplay-loader"` scrim used for movies (Fix E), so movies and TV shows now have consistent launch UX.
