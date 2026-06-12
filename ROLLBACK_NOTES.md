@@ -288,3 +288,16 @@ User reported three regressions:
 - The Round-1 fix grace-guarded ONLY the Remove button. User reported that releasing OK while focus was on Cancel still dismissed the modal — so they were stuck having to keep OK held while pressing Left / Right to reach Remove.
 - Replaced the timestamp-based guard with `confirmArmedRef` that gates BOTH buttons. `armed` is `false` on confirm-card mount; auto-arms after 700 ms OR on the user's first D-pad arrow press (whichever happens first). Either path then permits clicks on Cancel / Remove.
 - Cancel is also focused twice (microtask + rAF) AND given `data-focused="true"` programmatically so the highlight ring is visible immediately — the user can release OK and IMMEDIATELY press Left / Right to navigate Cancel ↔ Remove.
+
+---
+
+## Seventh round of follow-up fixes (same day, 11 June 2026)
+
+User confirmed Rounds 1–6 are "exactly where it needs to be, working perfectly" and asked to "lock it in". One last targeted issue remained:
+
+### Fix R — Episode click with Autoplay ON no longer shows the streams drawer
+**File:** `frontend/src/components/SeriesEpisodes.jsx`
+- Previously `handleEpisodeClick` called `setOpenEpisodeId(ep.id)` UP-FRONT, then fetched streams, then fired autoplay. That meant the inline streams drawer briefly flashed before the player took over — exactly the "links" the user said shouldn't appear with Autoplay on.
+- Now: with Autoplay ON we DON'T open the drawer up-front. Streams are fetched silently and the player launches.
+- Candidate selection broadened from "1080p only" to "1080p → first direct → first stream" so the user still lands in the player when no 1080p exists.
+- The drawer opens ONLY as a fallback if absolutely no playable stream can be picked (so the user isn't stranded). With Autoplay OFF the previous expand-on-tap behaviour is unchanged.

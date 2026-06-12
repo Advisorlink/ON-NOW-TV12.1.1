@@ -242,16 +242,34 @@ export default function SeriesEpisodes({
             setOpenEpisodeId(null);
             return;
         }
-        setOpenEpisodeId(ep.id);
+        // v2.10.46-h — With Autoplay ON, the user explicitly said
+        // "it shouldn't show the links at all".  So we DON'T open
+        // the inline streams drawer up-front when autoplay is on
+        // — we silently fetch streams in the background and
+        // launch the player.  The drawer only opens as a
+        // FALLBACK if no playable stream can be auto-picked
+        // (otherwise the user would be stranded with nothing).
+        if (!autoplay) {
+            setOpenEpisodeId(ep.id);
+        }
         // Reuse cached streams if we already fetched this episode.
         const cached = episodeStreams[ep.id];
         if (cached) {
             if (autoplay) {
-                const cand = pickAutoplayCandidate(cached.streams);
+                // Pick the best candidate; broaden to first direct
+                // → first stream when no 1080p exists so the user
+                // still lands in the player.
+                const cand =
+                    pickAutoplayCandidate(cached.streams) ||
+                    cached.streams.find((s) => streamMode(s) === 'direct') ||
+                    cached.streams[0];
                 if (cand) {
                     playStream(cand, ep);
                     return;
                 }
+                // No playable stream at all — fall back to opening
+                // the drawer so the user can see the diagnostics.
+                setOpenEpisodeId(ep.id);
             }
             return;
         }
@@ -266,13 +284,20 @@ export default function SeriesEpisodes({
                     diagnostics: res?.diagnostics || [],
                 },
             }));
-            // Autoplay: as soon as streams resolve, fire 1080p if
-            // we have it.  Falls back to the expanded stream list
-            // when no 1080p candidate is available.
+            // Autoplay: as soon as streams resolve, fire the best
+            // candidate.  Broadened from "1080p only" to "1080p →
+            // direct → first stream" so the user still lands in
+            // the player when no 1080p exists.  Only if NO
+            // stream at all do we open the drawer as a fallback.
             if (autoplay) {
-                const cand = pickAutoplayCandidate(streamsArr);
+                const cand =
+                    pickAutoplayCandidate(streamsArr) ||
+                    streamsArr.find((s) => streamMode(s) === 'direct') ||
+                    streamsArr[0];
                 if (cand) {
                     playStream(cand, ep);
+                } else {
+                    setOpenEpisodeId(ep.id);
                 }
             }
         } catch {
@@ -280,6 +305,7 @@ export default function SeriesEpisodes({
                 ...s,
                 [ep.id]: { streams: [], diagnostics: [] },
             }));
+            if (autoplay) setOpenEpisodeId(ep.id);
         } finally {
             setLoadingEpisodeId(null);
         }

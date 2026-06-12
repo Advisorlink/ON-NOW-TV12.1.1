@@ -1,5 +1,9 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.46-h — Round 7 (single fix, 11 Jun 2026).** Rounds 1–6 locked-in per user "exactly where it needs to be, working perfectly".
+>
+> **R. Episode click with Autoplay ON no longer flashes the streams drawer** — `components/SeriesEpisodes.jsx`. `handleEpisodeClick` was opening the inline drawer UP-FRONT before fetching streams and firing autoplay, so the "links" briefly appeared. Now with Autoplay ON the drawer stays closed: streams fetched silently → broadened candidate selection (1080p → direct → first) → player launches. Drawer only opens as a fallback when no playable stream exists.
+>
 > **🟢 v2.10.46-g — Round 6 of post-rollback fixes (11 Jun 2026).**
 >
 > **O. Type-ahead search REVERTED** — `pages/Search.jsx`. User didn't like results firing after 2 letters. Removed debounce/seq logic; back to button-only submit.
