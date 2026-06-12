@@ -265,3 +265,26 @@ User requested:
   - Rail tiles 280 px → 240 px (still 16:9 rectangular thumbnails). 6-7 fit on screen without horizontal scrolling on most TVs.
   - Section `marginTop` 40 → 18 and pinned `flex: 0 0 auto` at the bottom of the flex column.
 - All existing D-pad focus attributes (`data-focusable="true"`, `data-focus-style="tile"`) preserved on the day cells and rail tiles — Header arrow buttons, day cells and rail tiles are all remote-navigable as before. No feature loss.
+
+---
+
+## Sixth round of follow-up fixes (same day, 11 June 2026)
+
+User reported three regressions:
+
+### Fix O — Reverted type-ahead search
+**File:** `frontend/src/pages/Search.jsx`
+- User didn't like results firing after the first 2 letters. Removed `searchSeqRef`, `searchDebounceRef`, `scheduleTypeAheadSearch` and reverted `doSearch` and the `TVKeyboard onChange` to the pre-type-ahead behaviour. Submit via the Search button / Enter key only.
+
+### Fix P — Focus bounce-back now survives D-pad arrows
+**File:** `frontend/src/components/AddToListModal.jsx`
+- The Round-4 fix restored focus via `lastFocusedRef.focus()` + `data-focused="true"`, which made the highlight ring snap back — but the user said it disappeared on the FIRST Left / Right press. Root causes: (a) React sometimes recycles the tile DOM during the modal's life so the captured `node` reference goes stale, and (b) async focus events from the modal's unmount can steal focus back to body the moment after we restore it.
+- Now we ALSO capture `data-testid` on open and fall back to a live `querySelector` lookup if the original node is no longer in `document.body`.
+- The restore now runs THREE times — synchronously, on next paint (rAF), and at +120 ms — so any late blur from the modal unmount can't yank focus to body.
+- Works for movie / TV / actor tiles — any element that long-pressed into `vesper:request-add-to-list`.
+
+### Fix Q — Long-press OK on Continue Watching no longer dismisses on release
+**File:** `frontend/src/components/ContinueWatchingShelf.jsx`
+- The Round-1 fix grace-guarded ONLY the Remove button. User reported that releasing OK while focus was on Cancel still dismissed the modal — so they were stuck having to keep OK held while pressing Left / Right to reach Remove.
+- Replaced the timestamp-based guard with `confirmArmedRef` that gates BOTH buttons. `armed` is `false` on confirm-card mount; auto-arms after 700 ms OR on the user's first D-pad arrow press (whichever happens first). Either path then permits clicks on Cancel / Remove.
+- Cancel is also focused twice (microtask + rAF) AND given `data-focused="true"` programmatically so the highlight ring is visible immediately — the user can release OK and IMMEDIATELY press Left / Right to navigate Cancel ↔ Remove.
