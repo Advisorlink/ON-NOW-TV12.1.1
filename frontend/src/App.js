@@ -46,6 +46,8 @@ import MobileBottomNav from '@/components/MobileBottomNav';
 import UpdateGate from '@/components/UpdateGate';
 import Onboarding, { hasSeenOnboarding } from '@/components/Onboarding';
 import BootSplash from '@/components/BootSplash';
+import { AuthProvider } from '@/contexts/AuthContext';
+import LoginGate from '@/components/LoginGate';
 import Person from '@/pages/Person';
 // v2.8.43 — ON NOW TV TUNES (music app)
 import MusicLayout from '@/pages/music/MusicLayout';
@@ -566,10 +568,12 @@ function App() {
             <ErrorBoundary>
                 <ThemeProvider>
                     <Router>
-                        <DeepLinkHandler />
-                        <MobilePlatformRoot>
-                            <VesperOnlyChrome />
-                            <Routes>
+                        <AuthProvider>
+                            <DeepLinkHandler />
+                            <MobilePlatformRoot>
+                                <LoginGate>
+                                    <VesperOnlyChrome />
+                                    <Routes>
                                 <Route path="/profiles" element={<RequireProfile><ProfileSelect /></RequireProfile>} />
                                 <Route path="/profiles/new" element={<RequireProfile><ProfileEdit /></RequireProfile>} />
                                 <Route path="/profiles/edit/:id" element={<RequireProfile><ProfileEdit /></RequireProfile>} />
@@ -658,7 +662,9 @@ function App() {
                             <UpdateGate />
                             <OnboardingGate />
                             <BootSplash />
-                        </MobilePlatformRoot>
+                                </LoginGate>
+                            </MobilePlatformRoot>
+                        </AuthProvider>
                     </Router>
                 </ThemeProvider>
             </ErrorBoundary>

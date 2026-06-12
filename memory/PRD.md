@@ -1,5 +1,31 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.47 — Custom JWT login system (12 Jun 2026).**
+>
+> User asked for a **professional, beautiful login screen** that gates the entire Vesper v2 app, backed by a backend vault of ~40 Xtream IPTV credentials managed by the admin only.  End-users sign in with **username + password only** (no DNS field shown — DNS is admin-side metadata used by the streaming pipeline).  User stays signed in across reloads / launches — login is only shown on first install or after explicit sign-out.
+>
+> **Backend** — `/app/backend/auth_router.py` (~330 lines, separate file mounted from server.py):
+> - `xtream_accounts` MongoDB collection with `{id, dns, username, password (plaintext — Xtream needs the raw creds), label, status, expires_at, notes, created_at}`.  Unique index on `username`.
+> - `POST /api/auth/login` — body `{username, password}` → constant-time compare via `hmac.compare_digest` → HS256 JWT (30-day TTL) returned + `account` payload.  5-attempt lockout per `IP+username` over a 15-min sliding window.
+> - `GET /api/auth/me` — verifies bearer JWT, returns account.
+> - `POST /api/auth/logout` — stateless ack (frontend just deletes the token).
+> - `/api/admin/accounts` — list/create/patch/delete + bulk-import (`X-Admin-Key` header).
+> - Indexes auto-created at startup via `ensure_indexes()` hook.
+> - Env: `JWT_SECRET` and `ADMIN_KEY` added to `backend/.env`.
+> - Seed CLI: `python scripts/seed_xtream_accounts.py [--replace] [--dry-run]` reads from `scripts/xtream_accounts.json`.
+>
+> **Frontend** — new files:
+> - `lib/auth.js` — token + account helpers (`getToken`, `setToken`, `apiLogin`, `apiMe`, `apiLogout`, `authHeader`).
+> - `contexts/AuthContext.jsx` — provides `{status, account, login, logout, refresh}`.  Optimistic state: if a cached token exists, the app starts in `authenticated` so the login screen never flashes between launches — `/me` runs in the background and demotes to `guest` only on revocation.
+> - `components/LoginScreen.jsx` — premium TV / 16:9 sign-in surface.  Cinematic dark backdrop with cyan glow halo + pulsing radial gradient + grain overlay.  Glass-morphism card (560px wide, blur 22 + saturate 140%, cyan border, soft inset highlight + outer 0/30/80 shadow + cyan 0/0/60 glow ring).  Monospace `VESPER · V2` eyebrow + `Welcome back` display title + descriptive helper text.  Username (`User` icon) + Password (`Lock` icon + `Eye/EyeOff` show-password toggle) inputs with raised pill containers.  Big cyan-gradient `Sign in` button with `LogIn` icon and loading spinner state.  Inline red error chip on failed login.  D-pad friendly (`data-focusable` + `data-focus-style="pill"`).
+> - `components/LoginGate.jsx` — renders `<LoginScreen />` when `status==='guest'`, otherwise renders children.  Mounted INSIDE `<Router>` so the login screen can call `useNavigate('/profiles')` after success.
+> - `App.js` wired: `<AuthProvider>` wraps `<Router>` content, `<LoginGate>` wraps everything inside `<MobilePlatformRoot>`.
+> - `Settings.jsx` got a new `Sign out` section (red icon, account label, double-tap-to-confirm button).
+>
+> **Test account** (smoke / testing-agent): `testuser` / `testpass123` (DNS `http://test.example.com:8080`).
+>
+> **Awaiting from user**: paste the real ~40 Xtream credentials → seed via `xtream_accounts.json` + the CLI, OR via the `/api/admin/accounts/bulk-import` endpoint.
+>
 > **🟢 v2.10.46-l — Round 11: 16:9 onboarding + Settings cleanup + wider Add-to-List modal (12 Jun 2026).**
 >
 > User asked for three TV-polish changes in a single batch:

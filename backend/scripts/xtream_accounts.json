@@ -1,0 +1,10 @@
+[
+    {
+        "dns": "http://example-iptv.com:8080",
+        "username": "demo_user_1",
+        "password": "demo_pass_1",
+        "label": "Demo Account 1",
+        "status": "active",
+        "notes": "Placeholder — replace with real credentials"
+    }
+]

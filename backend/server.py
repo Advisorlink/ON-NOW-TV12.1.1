@@ -4357,6 +4357,10 @@ app.include_router(library_router)
 from instant_bundle import router as instant_bundle_router  # noqa: E402
 app.include_router(instant_bundle_router)
 
+# v2.10.47 — Custom JWT login system (Xtream-credential vault).
+from auth_router import build_auth_router, ensure_indexes as ensure_auth_indexes  # noqa: E402
+app.include_router(build_auth_router(lambda: db))
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -4376,6 +4380,17 @@ logger = logging.getLogger("vesper")
 @app.on_event("shutdown")
 async def shutdown():
     mongo.close()
+
+
+@app.on_event("startup")
+async def _ensure_auth_indexes() -> None:
+    """Create MongoDB indexes for the auth (xtream_accounts +
+    login_attempts) collections.  Idempotent — safe on every boot."""
+    try:
+        await ensure_auth_indexes(db)
+        logger.info("Auth indexes ensured (xtream_accounts.username uniq)")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to create auth indexes: %s", exc)
 
 
 @app.on_event("startup")

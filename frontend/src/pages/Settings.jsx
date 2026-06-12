@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, Check, ShieldCheck,
     Cloud, Download, Upload, Copy, Loader2, KeyRound, AlertTriangle,
-    Sparkles, Lightbulb,
+    Sparkles, Lightbulb, LogOut,
 } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useBackHandler from '@/hooks/useBackHandler';
@@ -12,6 +12,7 @@ import { THEMES } from '@/themes/themes';
 import { useTheme } from '@/themes/ThemeProvider';
 import { getAutoplay1080p, setAutoplay1080p } from '@/lib/prefs';
 import { clearActiveProfile } from '@/lib/profiles';
+import { useAuth } from '@/contexts/AuthContext';
 import {
     collectBackupPayload,
     applyBackupPayload,
@@ -412,7 +413,84 @@ export default function Settings() {
                 anchorId="backup-section"
             />
             <BackupPanel />
+
+            {/* ---- SIGN OUT ---- */}
+            <SectionHeader
+                eyebrow="Settings · Session"
+                title="Sign out"
+                icon={LogOut}
+            />
+            <SignOutRow />
             </div>
+        </div>
+    );
+}
+
+function SignOutRow() {
+    const { account, logout } = useAuth();
+    const [busy, setBusy] = React.useState(false);
+    const [confirm, setConfirm] = React.useState(false);
+    const onClick = async () => {
+        if (busy) return;
+        if (!confirm) {
+            setConfirm(true);
+            setTimeout(() => setConfirm(false), 4000);
+            return;
+        }
+        setBusy(true);
+        await logout();
+        // LoginGate will swap in the LoginScreen automatically.
+    };
+    return (
+        <div
+            data-testid="signout-row"
+            className="vesper-glass rounded-2xl flex items-center gap-4"
+            style={{ padding: '18px 22px', marginBottom: 18 }}
+        >
+            <div
+                className="flex items-center justify-center shrink-0"
+                style={{
+                    width: 44, height: 44, borderRadius: '50%',
+                    background:
+                        'linear-gradient(135deg, rgba(255,120,120,0.28) 0%, rgba(255,120,120,0.06) 100%)',
+                    border: '1px solid rgba(255,120,120,0.45)',
+                }}
+            >
+                <LogOut size={20} style={{ color: '#ff8e8e' }} />
+            </div>
+            <div className="flex-1 min-w-0">
+                <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--vesper-text)' }}>
+                    {account?.label || account?.username || 'Signed in'}
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--vesper-text-2)', marginTop: 2 }}>
+                    Sign out of this account. You&apos;ll have to re-enter your username and password the next time you launch Vesper.
+                </div>
+            </div>
+            <button
+                data-testid="settings-signout"
+                data-focusable="true"
+                data-focus-style="pill"
+                tabIndex={0}
+                onClick={onClick}
+                disabled={busy}
+                className="flex items-center gap-2 rounded-full font-sans shrink-0"
+                style={{
+                    padding: '10px 22px',
+                    background: confirm
+                        ? 'linear-gradient(135deg, #ff7373 0%, #e85959 100%)'
+                        : 'rgba(255,120,120,0.12)',
+                    color: confirm ? '#1a0606' : '#ff8e8e',
+                    border: confirm ? 'none' : '1px solid rgba(255,120,120,0.45)',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    cursor: busy ? 'wait' : 'pointer',
+                    boxShadow: confirm ? '0 6px 18px rgba(255,120,120,0.35)' : 'none',
+                    opacity: busy ? 0.7 : 1,
+                }}
+            >
+                <LogOut size={15} />
+                {busy ? 'Signing out…' : confirm ? 'Tap again to confirm' : 'Sign out'}
+            </button>
         </div>
     );
 }
