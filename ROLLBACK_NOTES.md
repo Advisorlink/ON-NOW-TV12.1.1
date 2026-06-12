@@ -323,3 +323,18 @@ User: "make it fit the 16 by 9 screen properly, it just looks so stretched out. 
 - Removed the user-visible em-dash in the `no-mouse` step body (only one in copy that's shown on screen).
 - Collapsed double-spaces between sentences inside all body strings so the copy reads cleaner.
 - Code-comment em-dashes left as-is (never rendered to the user).
+
+---
+
+## Ninth round — Onboarding fully rebuilt (11 June 2026)
+
+User: "I want the whole onboarding slides redesigned completely. I don't like them being side by side." Round 8's grid-with-side-by-side was discarded.
+
+### Fix T — Onboarding switched to a vertically-stacked centered slide
+**File:** `frontend/src/components/Onboarding.jsx`
+- Outer is now a flex column (header / hero / footer). The hero centers everything horizontally and vertically.
+- The scene art is the centerpiece — capped at `min(420px, 36vh)` with a soft radial glow halo behind it so each illustration feels deliberate and theatrical.
+- The eyebrow chip + title + body cascade DIRECTLY BELOW the scene, all centred, with a 54 ch body column. Reads as one composed slide.
+- Top strip is a balanced 3-cell flex: brand left ("ON NOW TV · WELCOME TOUR"), "STEP 01 / 15" centred (zero-padded for premium feel), Skip button right.
+- Bottom rail uses a PIP progress (one dot per step, active step elongates into a 28 px bar) instead of the linear progress line. Past steps glow at lower intensity; pending steps are dim.
+- Each scene transition runs a 520 ms `vesperOnbSceneIn` keyframe (blur-out + scale + translate-up) so the slides feel cinematic instead of just snapping in.
