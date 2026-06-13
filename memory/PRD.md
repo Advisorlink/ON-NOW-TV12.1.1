@@ -1,5 +1,26 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.48 — Launcher admin UI for Vesper Logins (13 Jun 2026).**
+>
+> User asked to manage the Vesper v2 login vault from the **launcher backend admin UI** instead of curl/JSON.  Built it as a new tab on the existing launcher admin dashboard.
+>
+> Launcher backend (`/app/launcher-backend/main.py`):
+> - Added 5 proxy endpoints under `/api/admin/vesper-accounts/*` (GET list, POST create, PATCH update, DELETE remove, POST bulk-import).
+> - Each proxy forwards to the main Vesper backend's `/api/admin/accounts/*` with the shared `X-Admin-Key`.
+> - Configuration via launcher `.env`: `VESPER_BACKEND_URL` (defaults to `http://localhost:8001`) + `VESPER_ADMIN_KEY`.
+>
+> Launcher admin UI (`/app/launcher-backend/admin/index.html` + `static/style.css` + `static/app.js`):
+> - New "Vesper Logins" tab in the top nav.
+> - **Add client** form: Username + Password + Display label (optional) + Expires on (HTML5 date picker) + Notes (admin-only).
+> - **Active clients list** with eyebrow headings for each cell (Username / Password / Label / Expires / Status / actions).
+> - Status badges: **Active** (green dot), **Suspended** (grey), **Expiring soon** (amber, within 14 days), **Expired** (red).
+> - **Edit inline** — click Edit on a row, the row swaps to editable inputs (username, password, label, notes, expiry date, status dropdown). Save / Cancel actions.
+> - **Delete with double-tap confirm** — first click flips the button to "Confirm?" with auto-revert after 4 s; second click commits.
+> - Search filter by username/label/notes.
+> - Refresh button + lazy-load on tab click.
+>
+> Bonus bug-fix: the launcher admin UI's existing tabs (Dock, Devices, App Store, Notify) were also silently broken because the reverse-proxy JS-rewriter + the `_abs()` helper were both prepending `/api/launcher-admin/`, producing `/api/launcher-admin/api/launcher-admin/api/admin/store` 404s.  Updated `_abs()` in `static/app.js` to skip prepending when the path already starts with `API_BASE + '/'`.  All tabs now talk to the launcher backend correctly.
+>
 > **🟢 v2.10.47-a — Login system simplified to plain username/password (13 Jun 2026).**
 >
 > User asked to remove the Xtream Codes concept entirely — no DNS field, just plain username + password stored in the backend.
