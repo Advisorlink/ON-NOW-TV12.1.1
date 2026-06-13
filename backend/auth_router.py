@@ -259,7 +259,11 @@ def build_auth_router(db_provider) -> APIRouter:
     async def admin_list():
         db = db_provider()
         rows = await db.vesper_accounts.find({}, {"_id": 0}).to_list(500)
-        rows.sort(key=lambda r: (r.get("label") or r.get("username") or "").lower())
+        # v2.10.49b — Sort by creation order (oldest first) so the
+        # admin sees clients in the same order they were originally
+        # added.  Falls back to username for any pre-created rows
+        # without `created_at`.
+        rows.sort(key=lambda r: r.get("created_at") or r.get("username") or "")
         # Admin sees the password too.
         return {
             "accounts": [
