@@ -1860,6 +1860,89 @@ def get_full_store() -> dict:
     return _load_store()
 
 
+# ════════════════════════════════════════════════════════════════════
+#  Vesper v2 login vault — proxy to the main Vesper backend.
+#  Lets the launcher admin UI add / edit / expire client logins for
+#  the Vesper v2 streaming app without leaving the dashboard.
+# ════════════════════════════════════════════════════════════════════
+VESPER_BACKEND_URL = (os.environ.get("VESPER_BACKEND_URL") or "http://localhost:8001").rstrip("/")
+VESPER_ADMIN_KEY = os.environ.get("VESPER_ADMIN_KEY") or ""
+
+
+async def _vesper_proxy(method: str, path: str, payload: dict | None = None) -> JSONResponse:
+    """Forward a request to the main Vesper backend's /api/admin/accounts
+    endpoint family, attaching the shared X-Admin-Key.  Returns the
+    upstream JSON verbatim (status + body) so the admin UI sees the
+    same error shape it would get talking direct."""
+    import httpx
+    url = f"{VESPER_BACKEND_URL}{path}"
+    headers = {"X-Admin-Key": VESPER_ADMIN_KEY, "Content-Type": "application/json"}
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            if method == "GET":
+                r = await client.get(url, headers=headers)
+            elif method == "POST":
+                r = await client.post(url, headers=headers, json=payload or {})
+            elif method == "PATCH":
+                r = await client.patch(url, headers=headers, json=payload or {})
+            elif method == "DELETE":
+                r = await client.delete(url, headers=headers)
+            else:
+                raise HTTPException(405, "method not allowed")
+    except httpx.HTTPError as exc:
+        return JSONResponse(
+            status_code=502,
+            content={"ok": False, "error": f"Vesper backend unreachable: {exc}"},
+        )
+    try:
+        body = r.json()
+    except Exception:  # noqa: BLE001
+        body = {"detail": r.text}
+    return JSONResponse(status_code=r.status_code, content=body)
+
+
+@app.get("/api/admin/vesper-accounts",
+         dependencies=[Depends(require_admin)])
+async def vesper_list_accounts() -> JSONResponse:
+    return await _vesper_proxy("GET", "/api/admin/accounts")
+
+
+@app.post("/api/admin/vesper-accounts",
+          dependencies=[Depends(require_admin)])
+async def vesper_create_account(payload: dict = Body(...)) -> JSONResponse:
+    # Only forward the fields the main backend cares about so we
+    # don't accidentally leak admin-only metadata.
+    safe = {
+        k: payload.get(k)
+        for k in ("username", "password", "label", "expires_at", "status", "notes")
+        if payload.get(k) is not None
+    }
+    return await _vesper_proxy("POST", "/api/admin/accounts", safe)
+
+
+@app.patch("/api/admin/vesper-accounts/{account_id}",
+           dependencies=[Depends(require_admin)])
+async def vesper_update_account(account_id: str, payload: dict = Body(...)) -> JSONResponse:
+    safe = {
+        k: payload.get(k)
+        for k in ("username", "password", "label", "expires_at", "status", "notes")
+        if k in payload
+    }
+    return await _vesper_proxy("PATCH", f"/api/admin/accounts/{account_id}", safe)
+
+
+@app.delete("/api/admin/vesper-accounts/{account_id}",
+            dependencies=[Depends(require_admin)])
+async def vesper_delete_account(account_id: str) -> JSONResponse:
+    return await _vesper_proxy("DELETE", f"/api/admin/accounts/{account_id}")
+
+
+@app.post("/api/admin/vesper-accounts/bulk-import",
+          dependencies=[Depends(require_admin)])
+async def vesper_bulk_import(payload: dict = Body(...)) -> JSONResponse:
+    return await _vesper_proxy("POST", "/api/admin/accounts/bulk-import", payload)
+
+
 @app.post("/api/admin/layout", dependencies=[Depends(require_admin)])
 def set_layout(layout: LayoutSettings) -> dict:
     """v1.0 — Persist admin-edited Layout Editor values."""

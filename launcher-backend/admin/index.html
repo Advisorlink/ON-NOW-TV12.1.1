@@ -46,6 +46,7 @@
             <button class="tab"        data-tab="v2ai">V2 AI</button>
             <button class="tab"        data-tab="qrvideos">QR Videos</button>
             <button class="tab"        data-tab="notify">Notify</button>
+            <button class="tab"        data-tab="vesper">Vesper Logins</button>
             <button id="logout" class="logout">Sign out</button>
         </nav>
     </header>
@@ -730,6 +731,60 @@
         </form>
         <h3 class="sub">Active notifications</h3>
         <ul id="notifyList" class="notify-list"></ul>
+    </section>
+
+    <!-- VESPER LOGINS TAB -->
+    <section id="tab-vesper" class="tab-panel">
+        <div class="panel-head">
+            <h2>Vesper Logins</h2>
+            <p>Manage the username + password vault used by the <strong>Vesper v2</strong> streaming app.  Add a new client below, optionally set an expiry date, and they can sign in on any TV right away.  Suspend or delete at any time to revoke access.</p>
+        </div>
+
+        <!-- Add client form -->
+        <form id="vesperForm" class="vesper-form">
+            <div class="vesper-form-row">
+                <label>
+                    <span class="vesper-label">Username</span>
+                    <input id="vesperUsername" type="text" placeholder="e.g. johnsmith" autocomplete="off" autocapitalize="none" autocorrect="off" required>
+                </label>
+                <label>
+                    <span class="vesper-label">Password</span>
+                    <input id="vesperPassword" type="text" placeholder="e.g. mySecret123" autocomplete="off" required>
+                </label>
+            </div>
+            <div class="vesper-form-row">
+                <label>
+                    <span class="vesper-label">Display label <em>(optional)</em></span>
+                    <input id="vesperLabel" type="text" placeholder="e.g. John Smith — household 1">
+                </label>
+                <label>
+                    <span class="vesper-label">Expires on <em>(optional)</em></span>
+                    <input id="vesperExpires" type="date">
+                </label>
+            </div>
+            <div class="vesper-form-row">
+                <label class="vesper-label-row-full">
+                    <span class="vesper-label">Notes <em>(optional, admin-only)</em></span>
+                    <input id="vesperNotes" type="text" placeholder="e.g. Paid via PayPal, renewed Mar 2026">
+                </label>
+            </div>
+            <div class="vesper-form-actions">
+                <button type="submit" class="primary">Add client</button>
+                <span id="vesperFormStatus" class="vesper-form-status"></span>
+            </div>
+        </form>
+
+        <!-- Account list -->
+        <div class="vesper-list-head">
+            <h3 class="sub">Active clients <span id="vesperCount" class="vesper-count">0</span></h3>
+            <div class="vesper-list-tools">
+                <input id="vesperSearch" type="text" placeholder="Search by username or label…">
+                <button id="vesperRefresh" type="button" class="ghost">Refresh</button>
+            </div>
+        </div>
+        <ul id="vesperList" class="vesper-list">
+            <li class="vesper-empty">Loading…</li>
+        </ul>
     </section>
 
     <div id="toast" class="toast" hidden></div>

@@ -18,6 +18,12 @@ const API_BASE = (() => {
 
 function _abs(path) {
     if (!path || path.startsWith('http') || !path.startsWith('/')) return path;
+    // v2.10.48 — Avoid double-prefixing.  The reverse-proxy rewriter
+    // already rewrites `/api/admin/...` → `/api/launcher-admin/api/admin/...`
+    // before the JS reaches the browser; without this guard we'd
+    // then prepend API_BASE again and end up with
+    // `/api/launcher-admin/api/launcher-admin/api/admin/...` which 404s.
+    if (API_BASE && path.startsWith(API_BASE + '/')) return path;
     return API_BASE + path;
 }
 
@@ -1997,3 +2003,275 @@ function escapeAttr(s) {
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
     })[c]);
 }
+
+/* ============================================================
+   Vesper Logins tab — manage the Vesper v2 login vault
+   ============================================================ */
+const Vesper = {
+    accounts: [],
+    filter: '',
+    editingId: null,
+    confirmingDeleteId: null,
+
+    async load() {
+        try {
+            const data = await api('/api/admin/vesper-accounts');
+            this.accounts = (data && Array.isArray(data.accounts)) ? data.accounts : [];
+            this.render();
+        } catch (e) {
+            console.error('Vesper.load failed', e);
+            this.accounts = [];
+            this.render(e.message || 'Failed to load');
+        }
+    },
+
+    fmtExpires(iso) {
+        if (!iso) return { label: 'No expiry', state: 'ok' };
+        try {
+            const d = new Date(iso);
+            const now = new Date();
+            const days = Math.floor((d.getTime() - now.getTime()) / 86400000);
+            const niceDate = d.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
+            if (days < 0) return { label: `Expired ${niceDate}`, state: 'expired' };
+            if (days <= 14) return { label: `${niceDate} (in ${days}d)`, state: 'expiring' };
+            return { label: niceDate, state: 'ok' };
+        } catch { return { label: iso, state: 'ok' }; }
+    },
+
+    statusLabel(row) {
+        if ((row.status || 'active') === 'disabled') return { label: 'Suspended', cls: 'disabled' };
+        const e = this.fmtExpires(row.expires_at);
+        if (e.state === 'expired')  return { label: 'Expired', cls: 'expired' };
+        if (e.state === 'expiring') return { label: 'Active', cls: 'expiring' };
+        return { label: 'Active', cls: '' };
+    },
+
+    render(errMsg = '') {
+        const list = $('#vesperList');
+        const count = $('#vesperCount');
+        if (!list) return;
+        const filter = (this.filter || '').toLowerCase().trim();
+        const rows = this.accounts.filter(a => !filter
+            || (a.username || '').toLowerCase().includes(filter)
+            || (a.label || '').toLowerCase().includes(filter)
+            || (a.notes || '').toLowerCase().includes(filter));
+        count.textContent = String(this.accounts.length);
+        if (errMsg) {
+            list.innerHTML = `<li class="vesper-empty" style="color:var(--danger,#ff5e5e)">Error: ${errMsg}</li>`;
+            return;
+        }
+        if (!this.accounts.length) {
+            list.innerHTML = '<li class="vesper-empty">No clients yet — add your first one above.</li>';
+            return;
+        }
+        if (!rows.length) {
+            list.innerHTML = '<li class="vesper-empty">No matches.</li>';
+            return;
+        }
+        list.innerHTML = rows.map(r => this.renderRow(r)).join('');
+        // Wire row buttons
+        rows.forEach(r => this.wireRow(r));
+    },
+
+    renderRow(r) {
+        const isEditing = this.editingId === r.id;
+        const exp = this.fmtExpires(r.expires_at);
+        const st = this.statusLabel(r);
+        const expVal = r.expires_at ? r.expires_at.slice(0, 10) : '';
+        const safeNotes = (r.notes || '').replace(/"/g, '&quot;');
+        if (isEditing) {
+            return `
+<li class="vesper-row editing" data-id="${r.id}">
+    <div class="v-cell">
+        <span class="v-eyebrow">Username</span>
+        <input data-v-field="username" type="text" value="${r.username || ''}">
+    </div>
+    <div class="v-cell">
+        <span class="v-eyebrow">Password</span>
+        <input data-v-field="password" type="text" value="${r.password || ''}">
+    </div>
+    <div class="v-cell">
+        <span class="v-eyebrow">Label / Notes</span>
+        <input data-v-field="label" type="text" value="${r.label || ''}" placeholder="Label">
+        <input data-v-field="notes" type="text" value="${safeNotes}" placeholder="Notes" style="margin-top:6px;">
+    </div>
+    <div class="v-cell">
+        <span class="v-eyebrow">Expires</span>
+        <input data-v-field="expires_at" type="date" value="${expVal}">
+    </div>
+    <div class="v-cell">
+        <span class="v-eyebrow">Status</span>
+        <select data-v-field="status" style="height:34px;padding:0 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--txt);font-size:13px;font-weight:500;">
+            <option value="active"   ${ (r.status||'active')==='active'   ? 'selected' : '' }>Active</option>
+            <option value="disabled" ${ (r.status||'active')==='disabled' ? 'selected' : '' }>Suspended</option>
+        </select>
+    </div>
+    <div class="v-actions">
+        <button data-v-save="${r.id}" class="primary">Save</button>
+        <button data-v-cancel="${r.id}">Cancel</button>
+    </div>
+</li>`;
+        }
+        return `
+<li class="vesper-row" data-id="${r.id}">
+    <div class="v-cell">
+        <span class="v-eyebrow">Username</span>
+        <span class="v-value" title="${r.username || ''}">${r.username || ''}</span>
+    </div>
+    <div class="v-cell">
+        <span class="v-eyebrow">Password</span>
+        <span class="v-value" title="${r.password || ''}">${r.password || ''}</span>
+    </div>
+    <div class="v-cell">
+        <span class="v-eyebrow">${r.label ? 'Label' : 'Notes'}</span>
+        <span class="v-value" title="${(r.label || r.notes || '').replace(/"/g, '&quot;')}">${r.label || r.notes || '—'}</span>
+    </div>
+    <div class="v-cell">
+        <span class="v-eyebrow">Expires</span>
+        <span class="v-value" title="${exp.label}">${exp.label}</span>
+    </div>
+    <div class="v-cell">
+        <span class="v-eyebrow">Status</span>
+        <span class="v-status ${st.cls}"><span class="dot"></span>${st.label}</span>
+    </div>
+    <div class="v-actions">
+        <button data-v-edit="${r.id}">Edit</button>
+        <button data-v-delete="${r.id}" class="danger${this.confirmingDeleteId === r.id ? ' confirming' : ''}">
+            ${this.confirmingDeleteId === r.id ? 'Confirm?' : 'Delete'}
+        </button>
+    </div>
+</li>`;
+    },
+
+    wireRow(r) {
+        const root = document.querySelector(`.vesper-row[data-id="${r.id}"]`);
+        if (!root) return;
+        const editBtn = root.querySelector(`[data-v-edit="${r.id}"]`);
+        if (editBtn) editBtn.addEventListener('click', () => {
+            this.editingId = r.id; this.confirmingDeleteId = null; this.render();
+        });
+        const cancelBtn = root.querySelector(`[data-v-cancel="${r.id}"]`);
+        if (cancelBtn) cancelBtn.addEventListener('click', () => {
+            this.editingId = null; this.render();
+        });
+        const saveBtn = root.querySelector(`[data-v-save="${r.id}"]`);
+        if (saveBtn) saveBtn.addEventListener('click', () => this.save(r.id));
+        const delBtn = root.querySelector(`[data-v-delete="${r.id}"]`);
+        if (delBtn) delBtn.addEventListener('click', () => this.delete(r.id));
+    },
+
+    async save(id) {
+        const root = document.querySelector(`.vesper-row[data-id="${id}"]`);
+        if (!root) return;
+        const get = (f) => root.querySelector(`[data-v-field="${f}"]`).value;
+        const payload = {
+            username:   get('username').trim(),
+            password:   get('password'),
+            label:      get('label').trim(),
+            notes:      get('notes').trim(),
+            status:     get('status'),
+            expires_at: get('expires_at') ? `${get('expires_at')}T23:59:59` : null,
+        };
+        if (!payload.username || !payload.password) {
+            toast('Username and password are required', true);
+            return;
+        }
+        try {
+            await api(`/api/admin/vesper-accounts/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            this.editingId = null;
+            toast('Saved');
+            await this.load();
+        } catch (e) {
+            toast(e.message || 'Save failed', true);
+        }
+    },
+
+    async delete(id) {
+        if (this.confirmingDeleteId !== id) {
+            this.confirmingDeleteId = id;
+            this.render();
+            // Auto-cancel after 4 s
+            clearTimeout(this._confirmTimer);
+            this._confirmTimer = setTimeout(() => {
+                this.confirmingDeleteId = null; this.render();
+            }, 4000);
+            return;
+        }
+        clearTimeout(this._confirmTimer);
+        this.confirmingDeleteId = null;
+        try {
+            await api(`/api/admin/vesper-accounts/${id}`, { method: 'DELETE' });
+            toast('Deleted');
+            await this.load();
+        } catch (e) {
+            toast(e.message || 'Delete failed', true);
+        }
+    },
+
+    async create(payload) {
+        await api('/api/admin/vesper-accounts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+    },
+};
+
+// Wire the Add form
+const _vForm = $('#vesperForm');
+if (_vForm) {
+    _vForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const status = $('#vesperFormStatus');
+        const payload = {
+            username:   $('#vesperUsername').value.trim(),
+            password:   $('#vesperPassword').value,
+            label:      $('#vesperLabel').value.trim(),
+            notes:      $('#vesperNotes').value.trim(),
+            expires_at: $('#vesperExpires').value ? `${$('#vesperExpires').value}T23:59:59` : null,
+        };
+        if (!payload.username || !payload.password) {
+            status.textContent = 'Username and password are required';
+            status.className = 'vesper-form-status err';
+            return;
+        }
+        status.textContent = 'Saving…'; status.className = 'vesper-form-status';
+        try {
+            await Vesper.create(payload);
+            status.textContent = `Added ${payload.username}`;
+            status.className = 'vesper-form-status ok';
+            // Reset form
+            $('#vesperUsername').value = '';
+            $('#vesperPassword').value = '';
+            $('#vesperLabel').value = '';
+            $('#vesperNotes').value = '';
+            $('#vesperExpires').value = '';
+            await Vesper.load();
+            setTimeout(() => { status.textContent = ''; status.className = 'vesper-form-status'; }, 3000);
+        } catch (e) {
+            status.textContent = e.message || 'Save failed';
+            status.className = 'vesper-form-status err';
+        }
+    });
+}
+
+const _vSearch = $('#vesperSearch');
+if (_vSearch) _vSearch.addEventListener('input', () => {
+    Vesper.filter = _vSearch.value;
+    Vesper.render();
+});
+
+const _vRefresh = $('#vesperRefresh');
+if (_vRefresh) _vRefresh.addEventListener('click', () => Vesper.load());
+
+// Lazy-load the data the first time the tab opens, plus every time
+// the user re-clicks the tab (so they always see current state).
+$$('.tab').forEach((btn) => {
+    if (btn.dataset.tab === 'vesper') {
+        btn.addEventListener('click', () => Vesper.load());
+    }
+});

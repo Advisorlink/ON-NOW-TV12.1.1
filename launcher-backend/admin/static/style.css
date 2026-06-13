@@ -2052,3 +2052,242 @@ header nav { display: flex; gap: 8px; align-items: center; }
     animation: prism-flex 1.6s ease-in-out infinite;
     filter: drop-shadow(0 0 6px rgba(91,200,255,0.4));
 }
+
+/* ───────────────────────  Vesper Logins tab  ───────────────────────
+   Added with the Vesper v2 login vault — admin-friendly UI for
+   managing the per-client username/password/expiry rows that gate
+   the Vesper streaming app. */
+.vesper-form {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px 24px;
+    margin-bottom: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.vesper-form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+.vesper-form-row label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.vesper-label-row-full {
+    grid-column: 1 / -1;
+}
+.vesper-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--txt-secondary);
+}
+.vesper-label em {
+    font-style: normal;
+    font-weight: 500;
+    color: var(--txt-tertiary, #6a778a);
+    letter-spacing: 0;
+    text-transform: none;
+    margin-left: 6px;
+}
+.vesper-form input[type="text"],
+.vesper-form input[type="date"] {
+    width: 100%;
+    height: 42px;
+    padding: 0 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--txt);
+    font-size: 14px;
+    font-weight: 500;
+    transition: border-color 140ms;
+}
+.vesper-form input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+.vesper-form-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 6px;
+}
+.vesper-form-status {
+    font-size: 13px;
+    color: var(--txt-secondary);
+}
+.vesper-form-status.ok    { color: #34c759; }
+.vesper-form-status.err   { color: var(--danger, #ff5e5e); }
+
+.vesper-list-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+}
+.vesper-count {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 1px 10px;
+    border-radius: 999px;
+    background: rgba(91,200,255,0.16);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+.vesper-list-tools {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+.vesper-list-tools input {
+    width: 280px;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--txt);
+    font-size: 13px;
+}
+.vesper-list-tools input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.vesper-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.vesper-empty {
+    padding: 28px 24px;
+    text-align: center;
+    color: var(--txt-secondary);
+    background: var(--surface);
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+}
+.vesper-row {
+    display: grid;
+    grid-template-columns: minmax(150px, 1.2fr) minmax(140px, 1fr) minmax(180px, 1.2fr) minmax(120px, 0.9fr) minmax(140px, 0.8fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    transition: border-color 140ms;
+}
+.vesper-row:hover { border-color: rgba(91,200,255,0.4); }
+.vesper-row.editing { border-color: var(--accent); background: rgba(91,200,255,0.06); }
+.vesper-row .v-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+.vesper-row .v-cell .v-eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--txt-tertiary, #6a778a);
+    font-weight: 700;
+}
+.vesper-row .v-cell .v-value {
+    font-size: 14px;
+    color: var(--txt);
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.vesper-row .v-cell input {
+    height: 34px;
+    padding: 0 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--txt);
+    font-size: 13px;
+    font-weight: 500;
+}
+.vesper-row .v-cell input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+.vesper-row .v-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+.vesper-row .v-status .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #34c759;
+}
+.vesper-row .v-status.disabled .dot   { background: #8a94a6; }
+.vesper-row .v-status.expired .dot    { background: var(--danger, #ff5e5e); }
+.vesper-row .v-status.expiring .dot   { background: #f5b942; }
+.vesper-row .v-status.disabled        { color: #8a94a6; }
+.vesper-row .v-status.expired         { color: var(--danger, #ff5e5e); }
+.vesper-row .v-status.expiring        { color: #f5b942; }
+
+.vesper-row .v-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+.vesper-row .v-actions button {
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--txt);
+    cursor: pointer;
+    transition: all 120ms;
+}
+.vesper-row .v-actions button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.vesper-row .v-actions .danger {
+    border-color: rgba(255,90,90,0.4);
+    color: var(--danger, #ff5e5e);
+}
+.vesper-row .v-actions .danger:hover {
+    background: var(--danger, #ff5e5e);
+    color: #fff;
+    border-color: var(--danger, #ff5e5e);
+}
+.vesper-row .v-actions .danger.confirming {
+    background: var(--danger, #ff5e5e);
+    color: #fff;
+    border-color: var(--danger, #ff5e5e);
+}
+.vesper-row .v-actions .primary {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #04101e;
+}
+.vesper-row .v-actions .primary:hover {
+    filter: brightness(1.1);
+}
