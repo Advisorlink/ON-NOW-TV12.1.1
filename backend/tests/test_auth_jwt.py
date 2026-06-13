@@ -45,7 +45,7 @@ class TestAuthLogin:
         assert data.get("token_type", "").lower() == "bearer"
         assert "expires_in" in data
         acc = data.get("account") or {}
-        for k in ("id", "username", "label", "dns", "status"):
+        for k in ("id", "username", "label", "status"):
             assert k in acc, f"missing account field {k}"
         assert acc["username"] == TEST_USERNAME
 
@@ -158,7 +158,6 @@ class TestAdminAccounts:
         payload = {
             "username": username,
             "password": "createPass123!",
-            "dns": "http://create.example.com:8080",
             "label": "Create-Test",
             "status": "active",
             "notes": "created by backend_test"
@@ -179,8 +178,8 @@ class TestAdminAccounts:
         u2 = _u("TEST_bulk2")
         payload = {
             "accounts": [
-                {"username": u1, "password": "bulkP@ss1", "dns": "http://b1.example.com:8080", "label": "Bulk1"},
-                {"username": u2, "password": "bulkP@ss2", "dns": "http://b2.example.com:8080", "label": "Bulk2"},
+                {"username": u1, "password": "bulkP@ss1", "label": "Bulk1"},
+                {"username": u2, "password": "bulkP@ss2", "label": "Bulk2"},
             ],
             "replace_existing": False
         }
@@ -205,7 +204,7 @@ class TestAdminAccounts:
         # create
         username = _u("TEST_patch")
         cr = requests.post(f"{BASE_URL}/api/admin/accounts", headers=admin_headers,
-                           json={"username": username, "password": "patchpass", "dns": "http://p.example.com", "label": "before"})
+                           json={"username": username, "password": "patchpass", "label": "before"})
         assert cr.status_code in (200, 201), cr.text
         acc = cr.json().get("account") or cr.json()
         aid = acc["id"]
@@ -224,7 +223,7 @@ class TestAdminAccounts:
     def test_admin_delete_then_get_excludes(self, s, admin_headers):
         username = _u("TEST_delete")
         cr = requests.post(f"{BASE_URL}/api/admin/accounts", headers=admin_headers,
-                           json={"username": username, "password": "delpass", "dns": "http://d.example.com", "label": "del"})
+                           json={"username": username, "password": "delpass", "label": "del"})
         assert cr.status_code in (200, 201)
         acc = cr.json().get("account") or cr.json()
         aid = acc["id"]

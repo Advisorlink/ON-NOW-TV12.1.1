@@ -1,10 +1,9 @@
 """
-Seed Xtream credentials into MongoDB.
+Seed Vesper account credentials into MongoDB.
 
 Reads a JSON file with the schema:
     [
         {
-            "dns": "http://example.com:8080",
             "username": "...",
             "password": "...",
             "label": "...",      # optional, defaults to username
@@ -16,8 +15,8 @@ Reads a JSON file with the schema:
     ]
 
 Usage:
-    cd /app/backend && python scripts/seed_xtream_accounts.py \
-        --file /app/backend/scripts/xtream_accounts.json \
+    cd /app/backend && python scripts/seed_vesper_accounts.py \
+        --file /app/backend/scripts/vesper_accounts.json \
         [--replace]
 
 Without `--replace`, existing usernames are skipped.
@@ -46,7 +45,7 @@ async def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--file",
-        default=str(Path(__file__).parent / "xtream_accounts.json"),
+        default=str(Path(__file__).parent / "vesper_accounts.json"),
         help="Path to JSON file with the account list",
     )
     parser.add_argument(
@@ -61,7 +60,6 @@ async def main() -> int:
     )
     args = parser.parse_args()
 
-    # Load env.
     backend_root = Path(__file__).resolve().parent.parent
     load_dotenv(backend_root / ".env")
 
@@ -92,7 +90,7 @@ async def main() -> int:
     if args.dry_run:
         print("[dry-run] Would seed (no DB writes):")
         for e in entries:
-            print(f"  - {e.get('username')}  @  {e.get('dns')}  (label={e.get('label')})")
+            print(f"  - {e.get('username')}  (label={e.get('label')})")
         return 0
 
     client = AsyncIOMotorClient(mongo_url)
@@ -109,23 +107,21 @@ async def main() -> int:
             continue
         username = (entry.get("username") or "").strip()
         password = entry.get("password") or ""
-        dns = (entry.get("dns") or "").strip()
-        if not (username and password and dns):
+        if not (username and password):
             errors.append(f"Missing fields for entry: {entry!r}")
             continue
 
-        existing = await db.xtream_accounts.find_one({"username": username}, {"_id": 0})
+        existing = await db.vesper_accounts.find_one({"username": username}, {"_id": 0})
         if existing:
             if args.replace:
                 patch = {
-                    "dns":        dns,
                     "password":   password,
                     "label":      (entry.get("label") or username),
                     "status":     (entry.get("status") or "active").lower(),
                     "expires_at": entry.get("expires_at"),
                     "notes":      entry.get("notes") or "",
                 }
-                await db.xtream_accounts.update_one(
+                await db.vesper_accounts.update_one(
                     {"username": username}, {"$set": patch}
                 )
                 updated += 1
@@ -134,8 +130,7 @@ async def main() -> int:
             continue
 
         doc = {
-            "id":         f"xa_{uuid.uuid4().hex[:16]}",
-            "dns":        dns,
+            "id":         f"va_{uuid.uuid4().hex[:16]}",
             "username":   username,
             "password":   password,
             "label":      (entry.get("label") or username),
@@ -144,13 +139,12 @@ async def main() -> int:
             "notes":      entry.get("notes") or "",
             "created_at": _now_iso(),
         }
-        await db.xtream_accounts.insert_one(doc)
+        await db.vesper_accounts.insert_one(doc)
         inserted += 1
 
-    # Ensure indexes (idempotent).
     try:
-        await db.xtream_accounts.create_index("username", unique=True)
-        await db.xtream_accounts.create_index("id", unique=True, sparse=True)
+        await db.vesper_accounts.create_index("username", unique=True)
+        await db.vesper_accounts.create_index("id", unique=True, sparse=True)
     except Exception as exc:  # noqa: BLE001
         print(f"WARN: index ensure failed: {exc}", file=sys.stderr)
 
@@ -160,7 +154,7 @@ async def main() -> int:
         for e in errors:
             print(f"  - {e}")
 
-    total = await db.xtream_accounts.count_documents({})
+    total = await db.vesper_accounts.count_documents({})
     print(f"Total accounts in MongoDB: {total}")
     client.close()
     return 0

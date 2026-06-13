@@ -4388,7 +4388,7 @@ async def _ensure_auth_indexes() -> None:
     login_attempts) collections.  Idempotent — safe on every boot."""
     try:
         await ensure_auth_indexes(db)
-        logger.info("Auth indexes ensured (xtream_accounts.username uniq)")
+        logger.info("Auth indexes ensured (vesper_accounts.username uniq)")
     except Exception as exc:  # noqa: BLE001
         logger.warning("Failed to create auth indexes: %s", exc)
 
