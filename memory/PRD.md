@@ -1,5 +1,18 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.47-a — Login system simplified to plain username/password (13 Jun 2026).**
+>
+> User asked to remove the Xtream Codes concept entirely — no DNS field, just plain username + password stored in the backend.
+>
+> Changes:
+> - Mongo collection renamed `xtream_accounts` → `vesper_accounts`.
+> - `dns` field removed from `AccountCreate`, `AccountUpdate`, the public payload, the admin CRUD endpoints, and the bulk-import schema.
+> - Seed CLI renamed `scripts/seed_xtream_accounts.py` → `scripts/seed_vesper_accounts.py`; JSON template `scripts/xtream_accounts.json` → `scripts/vesper_accounts.json` (DNS field gone).
+> - ID prefix changed from `xa_` → `va_`.
+> - Old `xtream_accounts` collection dropped + the test user re-seeded with the new schema.
+> - Auth test suite cleaned of leftover `dns` references — all 15 pytest assertions pass.
+> - Frontend untouched (the login screen already only collects username + password).
+>
 > **🟢 v2.10.47 — Custom JWT login system (12 Jun 2026).**
 >
 > User asked for a **professional, beautiful login screen** that gates the entire Vesper v2 app, backed by a backend vault of ~40 Xtream IPTV credentials managed by the admin only.  End-users sign in with **username + password only** (no DNS field shown — DNS is admin-side metadata used by the streaming pipeline).  User stays signed in across reloads / launches — login is only shown on first install or after explicit sign-out.
