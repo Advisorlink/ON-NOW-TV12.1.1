@@ -1861,6 +1861,75 @@ def get_full_store() -> dict:
 
 
 # ════════════════════════════════════════════════════════════════════
+#  Backup & Restore — download the entire launcher state (store.json
+#  + every uploaded APK / icon / wallpaper / image) as a single ZIP,
+#  upload one to restore it.  Lets the admin migrate data between
+#  launcher deployments in one click (no SSH, no scp).
+# ════════════════════════════════════════════════════════════════════
+@app.get("/api/admin/backup", dependencies=[Depends(require_admin)])
+async def backup_launcher_data():
+    """Stream a ZIP containing everything under /data — store.json,
+    apks/, apk_icons/, tile_apks/, tile_images/, wallpapers/, icons/,
+    qr/, v2ai/, appstore/, layout/.  Hit this from prod to grab a
+    snapshot, then upload it to a fresh launcher via /api/admin/restore."""
+    import io
+    import zipfile
+    from fastapi.responses import StreamingResponse
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for path in DATA_DIR.rglob("*"):
+            if path.is_file() and ".gitkeep" not in path.name:
+                arc = path.relative_to(DATA_DIR).as_posix()
+                z.write(path, arcname=arc)
+    buf.seek(0)
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="launcher-backup-{ts}.zip"',
+        },
+    )
+
+
+@app.post("/api/admin/restore", dependencies=[Depends(require_admin)])
+async def restore_launcher_data(file: UploadFile = File(...)):
+    """Restore a backup ZIP produced by /api/admin/backup.  The ZIP
+    contents are extracted into /data, overwriting any existing
+    files (store.json, all APKs, all icons, etc.).  After restoring
+    the in-memory store cache is invalidated so the next API call
+    reads the new state."""
+    import io
+    import zipfile
+
+    if not (file.filename or "").lower().endswith(".zip"):
+        raise HTTPException(400, "Upload must be a .zip file")
+    data = await file.read()
+    if not data:
+        raise HTTPException(400, "Upload is empty")
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            members = z.namelist()
+            for name in members:
+                # Reject path-traversal attempts.
+                if name.startswith("/") or ".." in name.split("/"):
+                    raise HTTPException(400, f"Unsafe path in zip: {name}")
+            z.extractall(DATA_DIR)
+    except zipfile.BadZipFile:
+        raise HTTPException(400, "Not a valid ZIP archive")
+    # Re-read from disk — _load_store has no in-memory cache.
+    fresh = _load_store()
+    return {
+        "ok":          True,
+        "files":       len(members),
+        "dock_tiles":  len(fresh.get("dock_tiles", [])),
+        "apks":        len(fresh.get("apks", [])),
+        "devices":     len(fresh.get("registered_devices", [])),
+    }
+
+
+# ════════════════════════════════════════════════════════════════════
 #  Vesper v2 login vault — proxy to the main Vesper backend.
 #  Lets the launcher admin UI add / edit / expire client logins for
 #  the Vesper v2 streaming app without leaving the dashboard.

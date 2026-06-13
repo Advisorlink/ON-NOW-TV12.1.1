@@ -2275,3 +2275,75 @@ $$('.tab').forEach((btn) => {
         btn.addEventListener('click', () => Vesper.load());
     }
 });
+
+/* ============================================================
+   Backup & Restore tab — full launcher snapshot ZIP migration
+   ============================================================ */
+const _backupBtn = $('#backupDownload');
+if (_backupBtn) _backupBtn.addEventListener('click', async () => {
+    const status = $('#backupStatus');
+    status.textContent = 'Preparing your backup… this can take a minute on a launcher with lots of APKs.';
+    status.className = 'backup-status busy';
+    try {
+        // Direct download via anchor — works for large files (multi-GB)
+        // because the browser streams to disk instead of buffering in JS.
+        const a = document.createElement('a');
+        a.href = _abs('/api/admin/backup');
+        // Browser will pick the filename from Content-Disposition.
+        a.click();
+        status.textContent = 'Download started. Check your browser downloads tray.';
+        status.className = 'backup-status ok';
+    } catch (e) {
+        status.textContent = e.message || 'Backup failed';
+        status.className = 'backup-status err';
+    }
+});
+
+const _restoreInput = $('#restoreFile');
+const _restoreBtn   = $('#restoreBtn');
+const _restoreLabel = document.querySelector('#tab-backup .backup-file-label');
+
+if (_restoreInput) _restoreInput.addEventListener('change', () => {
+    const f = _restoreInput.files && _restoreInput.files[0];
+    if (f) {
+        _restoreLabel.textContent = `${f.name}  ·  ${(f.size / (1024 * 1024)).toFixed(1)} MB`;
+        _restoreLabel.classList.add('has-file');
+        _restoreBtn.disabled = false;
+    } else {
+        _restoreLabel.textContent = 'Choose backup ZIP…';
+        _restoreLabel.classList.remove('has-file');
+        _restoreBtn.disabled = true;
+    }
+});
+
+if (_restoreBtn) _restoreBtn.addEventListener('click', async () => {
+    const f = _restoreInput.files && _restoreInput.files[0];
+    if (!f) return;
+    if (!confirm(`Restore ${f.name}?\n\nThis will OVERWRITE the current dock tiles, APKs, wallpapers, devices and layout settings. Vesper Logins are unaffected.\n\nProceed?`)) return;
+    const status = $('#restoreStatus');
+    status.textContent = `Uploading ${f.name}…`;
+    status.className = 'backup-status busy';
+    _restoreBtn.disabled = true;
+    const fd = new FormData();
+    fd.append('file', f);
+    try {
+        const r = await fetch(_abs('/api/admin/restore'), {
+            method: 'POST',
+            body: fd,
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+            status.textContent = `Restore failed: ${data.detail || r.status}`;
+            status.className = 'backup-status err';
+            _restoreBtn.disabled = false;
+            return;
+        }
+        status.innerHTML = `Restored. ${data.files} files unpacked · ${data.dock_tiles} dock tiles · ${data.apks} APKs · ${data.devices} devices. <strong>Refresh this page</strong> to see everything.`;
+        status.className = 'backup-status ok';
+        toast('Restore complete — refresh the page');
+    } catch (e) {
+        status.textContent = e.message || 'Restore failed';
+        status.className = 'backup-status err';
+        _restoreBtn.disabled = false;
+    }
+});
