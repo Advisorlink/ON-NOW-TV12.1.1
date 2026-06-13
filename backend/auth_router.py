@@ -222,6 +222,10 @@ def build_auth_router(db_provider) -> APIRouter:
         if expires_at:
             try:
                 exp_dt = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+                # Coerce naive ISO strings (e.g. "2026-11-05T23:59:59")
+                # to UTC so they can be compared against _now().
+                if exp_dt.tzinfo is None:
+                    exp_dt = exp_dt.replace(tzinfo=timezone.utc)
                 if exp_dt < _now():
                     raise HTTPException(403, "This account has expired")
             except ValueError:

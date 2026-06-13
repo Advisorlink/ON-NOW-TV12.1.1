@@ -1,5 +1,15 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.49 — 158 client credentials imported + naive-datetime expiry bugfix (13 Jun 2026).**
+>
+> User pasted ~140 client credentials (many with inconsistent date formats: YYYY-MM-DD, DD-MM-YYYY, missing zero-pads like `2025-3-3`, stray spaces like `2025 -01-14`, etc.).  Built a one-off importer (`/tmp/import_clients.py`) that normalizes every date format to `YYYY-MM-DDTHH:MM:SS` and POSTs to `/api/admin/accounts/bulk-import`.
+>
+> Result: **153 inserted, 5 updated** (duplicates from the source merged), **0 errors**.  Database now has **154 active client accounts** (153 imported + the `testuser` smoke account) — 101 marked Active, 53 marked Expired (per the launcher admin UI badges).  Verified login works for several active accounts (KAITLYN5525, TODD100623) and is correctly refused for expired ones (EMILYB returns `403 This account has expired`).
+>
+> Bugfix: the expiry comparison in `auth_router.py::login` crashed with `TypeError: can't compare offset-naive and offset-aware datetimes` when the stored ISO string had no timezone suffix (which my importer's normalized format doesn't include).  Fixed by coercing naive datetimes to UTC before the comparison.
+>
+> All 15 backend pytest tests still pass.
+>
 > **🟢 v2.10.48 — Launcher admin UI for Vesper Logins (13 Jun 2026).**
 >
 > User asked to manage the Vesper v2 login vault from the **launcher backend admin UI** instead of curl/JSON.  Built it as a new tab on the existing launcher admin dashboard.
