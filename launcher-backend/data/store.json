@@ -1,5 +1,5 @@
 {
-  "generation": 634,
+  "generation": 636,
   "dock_tiles": [
     {
       "key": "movies",
@@ -411,7 +411,10 @@
     "featured_heading_image_url": "",
     "featured_heading_image_height_dp": 80,
     "featured_group_offset_x_dp": 0,
-    "featured_group_offset_y_dp": -50
+    "featured_group_offset_y_dp": -50,
+    "featured_heading_image_placement": "above",
+    "featured_heading_image_offset_x_dp": 0,
+    "featured_heading_image_offset_y_dp": 0
   },
   "registered_devices": {
     "AF53CE146F95DB53C107CDD647EEA49B": {
