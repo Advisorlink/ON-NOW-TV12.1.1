@@ -47,6 +47,7 @@
             <button class="tab"        data-tab="qrvideos">QR Videos</button>
             <button class="tab"        data-tab="notify">Notify</button>
             <button class="tab"        data-tab="vesper">Vesper Logins</button>
+            <button class="tab"        data-tab="backup">Backup</button>
             <button id="logout" class="logout">Sign out</button>
         </nav>
     </header>
@@ -787,11 +788,51 @@
         </ul>
     </section>
 
+    <!-- BACKUP TAB -->
+    <section id="tab-backup" class="tab-panel">
+        <div class="panel-head">
+            <h2>Backup &amp; Restore</h2>
+            <p>Download a complete snapshot of this launcher (dock tiles, wallpapers, every uploaded APK, app store assets, QR videos, V2 AI assets, devices, layout settings) as a single ZIP.  Restore it on a fresh launcher in one click to migrate everything across servers — no SSH, no scp.</p>
+        </div>
+
+        <div class="backup-cards">
+            <div class="backup-card">
+                <div class="backup-card-eyebrow">Step 1 · Download</div>
+                <h3>Backup this launcher</h3>
+                <p>Saves a ZIP with the full <code>/data</code> folder — usually a few hundred MB depending on how many APKs you've uploaded.  Use this on your <strong>old launcher</strong> first.</p>
+                <button id="backupDownload" type="button" class="primary">Download backup</button>
+                <div id="backupStatus" class="backup-status"></div>
+            </div>
+
+            <div class="backup-card">
+                <div class="backup-card-eyebrow">Step 2 · Upload</div>
+                <h3>Restore from a backup</h3>
+                <p>Upload a ZIP you saved from another launcher.  Existing files are overwritten — dock tiles, APKs, icons, layout, devices, everything.  Vesper Logins are not affected (they live on the Vesper backend).</p>
+                <label class="backup-file-row">
+                    <input id="restoreFile" type="file" accept=".zip">
+                    <span class="backup-file-label">Choose backup ZIP…</span>
+                </label>
+                <button id="restoreBtn" type="button" class="primary danger-btn" disabled>Restore launcher</button>
+                <div id="restoreStatus" class="backup-status"></div>
+            </div>
+        </div>
+
+        <div class="backup-tips">
+            <h4>How to migrate from your old launcher</h4>
+            <ol>
+                <li>Open your <strong>old launcher's</strong> admin UI, switch to the <strong>Backup</strong> tab, click <em>Download backup</em>.  You'll get a <code>launcher-backup-YYYYMMDD-HHMMSS.zip</code>.</li>
+                <li>Open <strong>this</strong> launcher's admin UI, come back here, click <em>Choose backup ZIP</em>, pick the file you just downloaded, then click <em>Restore launcher</em>.</li>
+                <li>Refresh the page once it's done — all your old dock tiles, wallpapers, APKs and devices will be here.</li>
+            </ol>
+            <p class="hint">Tip: if your old launcher doesn't yet have a Backup tab, you can hit <code>GET /api/admin/backup</code> on it directly from the browser address bar and the file will download.</p>
+        </div>
+    </section>
+
     <div id="toast" class="toast" hidden></div>
 </div>
 
 <!-- v2.10.49a — Cache-bust the JS so the bug-fixed `_abs()` (and the
      Vesper Logins tab) load even if the browser cached an old copy. -->
-<script src="static/app.js?v=2.10.49a"></script>
+<script src="static/app.js?v=2.10.50"></script>
 </body>
 </html>

@@ -1,5 +1,19 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.50 — Launcher Backup & Restore (13 Jun 2026).**
+>
+> User reported the preview launcher only has 4 apps while their production launcher has many more.  Since the preview pod cannot reach production and the repo has no APK files for the other apps, built a **one-click Backup & Restore tab** so the user can migrate everything between launchers in a single ZIP.
+>
+> Backend (`launcher-backend/main.py`):
+> - `GET /api/admin/backup` — streams a ZIP of the entire `DATA_DIR` (dock tiles, APKs, icons, wallpapers, devices, layout, app store assets, QR videos, V2 AI assets, store.json). Verified at 252 MB / 33 files.
+> - `POST /api/admin/restore` — accepts a ZIP, extracts it into `DATA_DIR` overwriting existing files, rejects path-traversal, returns `{ok, files, dock_tiles, apks, devices}`. Re-extract verified at 3 s.
+>
+> Admin UI (`launcher-backend/admin/`):
+> - New `Backup` tab in the top nav, after Vesper Logins.
+> - Two glass cards side-by-side: **Step 1 · Download** (direct anchor so the browser streams multi-GB files straight to disk) and **Step 2 · Upload** (file picker + name/MB readout + double-confirm).
+> - "How to migrate from your old launcher" guide underneath.
+> - Cache-bust bumped to `v=2.10.50` so the new tab loads without a hard refresh.
+>
 > **🟢 v2.10.49 — 158 client credentials imported + naive-datetime expiry bugfix (13 Jun 2026).**
 >
 > User pasted ~140 client credentials (many with inconsistent date formats: YYYY-MM-DD, DD-MM-YYYY, missing zero-pads like `2025-3-3`, stray spaces like `2025 -01-14`, etc.).  Built a one-off importer (`/tmp/import_clients.py`) that normalizes every date format to `YYYY-MM-DDTHH:MM:SS` and POSTs to `/api/admin/accounts/bulk-import`.
