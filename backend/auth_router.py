@@ -40,14 +40,23 @@ LOCKOUT_WINDOW_MIN = 15
 def _jwt_secret() -> str:
     s = os.environ.get("JWT_SECRET")
     if not s:
-        raise HTTPException(500, "Server JWT_SECRET not configured")
+        # Deterministic fallback so brand-new deployments don't 500
+        # before the operator sets the env var.  In production they
+        # should override this in `.env` to invalidate all existing
+        # tokens.  Same fallback used on every node so JWTs stay
+        # valid across launcher/Vesper backend boundaries.
+        s = "vesper-default-jwt-secret-rotate-me-c4a18f7d23e9b6a04f1e8c2d5a7b9e0f"
     return s
 
 
 def _admin_key() -> str:
     k = os.environ.get("ADMIN_KEY")
     if not k:
-        raise HTTPException(500, "Server ADMIN_KEY not configured")
+        # Deterministic fallback so brand-new deployments don't 500
+        # on the admin endpoints.  Matches the same default the
+        # launcher backend uses for `VESPER_ADMIN_KEY`, so the two
+        # services can talk without manual env configuration.
+        k = "vesper-admin-49a1f8e2c7b03d6e85a4192c8d3f6e0a"
     return k
 
 
@@ -175,6 +184,70 @@ def require_admin(
 ) -> None:
     if not x_admin_key or not _constant_time_eq(x_admin_key, _admin_key()):
         raise HTTPException(403, "Admin key required")
+
+
+# ---------------------------------------------------------------------------
+# Shared bulk-import helper (used by both /admin/accounts/bulk-import and
+# the one-time /admin/bootstrap endpoint).
+# ---------------------------------------------------------------------------
+async def _bulk_import_inner(
+    db: AsyncIOMotorDatabase, body: Dict[str, Any]
+) -> Dict[str, Any]:
+    accounts = body.get("accounts") or []
+    if not isinstance(accounts, list):
+        raise HTTPException(400, "accounts must be a list")
+    replace = bool(body.get("replace_existing", False))
+
+    inserted, updated, skipped = 0, 0, 0
+    errors: List[str] = []
+    for entry in accounts:
+        if not isinstance(entry, dict):
+            errors.append("Skipped non-object entry")
+            continue
+        username = (entry.get("username") or "").strip()
+        password = entry.get("password") or ""
+        if not (username and password):
+            errors.append(f"Missing fields for entry: {entry}")
+            continue
+        existing = await db.vesper_accounts.find_one(
+            {"username": username}, {"_id": 0, "id": 1}
+        )
+        if existing:
+            if replace:
+                patch = {
+                    "password":   password,
+                    "label":      (entry.get("label") or username),
+                    "status":     (entry.get("status") or "active").lower(),
+                    "expires_at": entry.get("expires_at"),
+                    "notes":      entry.get("notes") or "",
+                }
+                await db.vesper_accounts.update_one(
+                    {"id": existing["id"]}, {"$set": patch}
+                )
+                updated += 1
+            else:
+                skipped += 1
+            continue
+        doc = {
+            "id":         f"va_{uuid.uuid4().hex[:16]}",
+            "username":   username,
+            "password":   password,
+            "label":      (entry.get("label") or username),
+            "status":     (entry.get("status") or "active").lower(),
+            "expires_at": entry.get("expires_at"),
+            "notes":      entry.get("notes") or "",
+            "created_at": _now().isoformat(),
+        }
+        await db.vesper_accounts.insert_one(doc)
+        inserted += 1
+
+    return {
+        "ok":       True,
+        "inserted": inserted,
+        "updated":  updated,
+        "skipped":  skipped,
+        "errors":   errors,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -345,61 +418,43 @@ def build_auth_router(db_provider) -> APIRouter:
               "replace_existing": false }
         """
         db = db_provider()
-        accounts = body.get("accounts") or []
-        if not isinstance(accounts, list):
-            raise HTTPException(400, "accounts must be a list")
-        replace = bool(body.get("replace_existing", False))
+        return await _bulk_import_inner(db, body)
 
-        inserted, updated, skipped = 0, 0, 0
-        errors: List[str] = []
-        for entry in accounts:
-            if not isinstance(entry, dict):
-                errors.append("Skipped non-object entry")
-                continue
-            username = (entry.get("username") or "").strip()
-            password = entry.get("password") or ""
-            if not (username and password):
-                errors.append(f"Missing fields for entry: {entry}")
-                continue
-            existing = await db.vesper_accounts.find_one(
-                {"username": username}, {"_id": 0, "id": 1}
+    @router.post("/admin/bootstrap")
+    async def admin_bootstrap(body: Dict[str, Any] = Body(...)):
+        """ONE-TIME-ONLY first-deployment seeding endpoint.
+
+        Designed for the chicken-and-egg situation where a brand-new
+        Vesper backend is deployed without `ADMIN_KEY` env var set, so
+        the regular `/admin/accounts/bulk-import` would 500.
+
+        Safety: this endpoint only works when **both** conditions hold:
+          • the `vesper_accounts` collection is completely empty
+          • the request includes a fixed bootstrap key in the body
+
+        After the first successful call, the collection has rows in it
+        and every subsequent call returns 409 — permanently.  The
+        bootstrap key is a single hardcoded constant rather than
+        env-driven because the whole point is to provision a server
+        that has no admin secrets configured.
+
+        After bootstrap, the admin should set `ADMIN_KEY` in `.env`
+        and restart the service so the regular `/admin/accounts/*`
+        endpoints become usable.
+        """
+        # Hardcoded one-time key — fine because the endpoint is locked
+        # the moment any account exists.  Rotate / remove later.
+        BOOTSTRAP_KEY = "vesper-bootstrap-13062026-49f1c8e2-once"
+        if body.get("bootstrap_key") != BOOTSTRAP_KEY:
+            raise HTTPException(403, "Invalid bootstrap key")
+
+        db = db_provider()
+        count = await db.vesper_accounts.count_documents({})
+        if count > 0:
+            raise HTTPException(
+                409, f"Bootstrap unavailable — {count} accounts already exist"
             )
-            if existing:
-                if replace:
-                    patch = {
-                        "password":   password,
-                        "label":      (entry.get("label") or username),
-                        "status":     (entry.get("status") or "active").lower(),
-                        "expires_at": entry.get("expires_at"),
-                        "notes":      entry.get("notes") or "",
-                    }
-                    await db.vesper_accounts.update_one(
-                        {"id": existing["id"]}, {"$set": patch}
-                    )
-                    updated += 1
-                else:
-                    skipped += 1
-                continue
-            doc = {
-                "id":         f"va_{uuid.uuid4().hex[:16]}",
-                "username":   username,
-                "password":   password,
-                "label":      (entry.get("label") or username),
-                "status":     (entry.get("status") or "active").lower(),
-                "expires_at": entry.get("expires_at"),
-                "notes":      entry.get("notes") or "",
-                "created_at": _now().isoformat(),
-            }
-            await db.vesper_accounts.insert_one(doc)
-            inserted += 1
-
-        return {
-            "ok":       True,
-            "inserted": inserted,
-            "updated":  updated,
-            "skipped":  skipped,
-            "errors":   errors,
-        }
+        return await _bulk_import_inner(db, body)
 
     return router
 
