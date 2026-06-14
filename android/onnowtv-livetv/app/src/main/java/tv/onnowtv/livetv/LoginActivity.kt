@@ -76,6 +76,15 @@ class LoginActivity : AppCompatActivity() {
     /**
      * No verification — save and jump.  The bundle fetcher
      * in MainActivity is the real auth gate.
+     *
+     * v2.10.54 — If the new username differs from any previously-
+     * saved username, wipe the bundle + EPG disk caches first.
+     * Otherwise MainActivity's fast path will happily load the
+     * PREVIOUS user's channels (cached on disk) instead of fetching
+     * fresh ones for the new account — the user's complaint that
+     * "it's not loading everyone's credentials properly … when you
+     * try to log in under a different Xtream Codes login, it's not
+     * logging you in".
      */
     private fun proceed() {
         val u = usernameField.text.toString().trim()
@@ -84,6 +93,25 @@ class LoginActivity : AppCompatActivity() {
             statusText.text = "Please enter both your username and password."
             statusText.visibility = View.VISIBLE
             return
+        }
+        val previousUser = AuthStore.username(this)
+        val previousPass = AuthStore.password(this)
+        val accountChanged = previousUser.isNotBlank() &&
+            (previousUser != u || previousPass != p)
+        if (accountChanged) {
+            // Different Xtream account → drop stale per-account
+            // disk caches so the next bundle fetch hits the
+            // provider with the NEW creds.  signOut() does exactly
+            // that (clears creds + caches + workers + holder), but
+            // we don't want to remove the new creds we're about to
+            // save, so we replicate the cache-wipe directly.
+            try { tv.onnowtv.livetv.data.BundleCache.delete(this) } catch (_: Throwable) {}
+            try { tv.onnowtv.livetv.data.EpgCache.delete(this) } catch (_: Throwable) {}
+            try {
+                tv.onnowtv.livetv.data.EpgRefreshWorker.cancel(this)
+            } catch (_: Throwable) {}
+            tv.onnowtv.livetv.BundleHolder.current = null
+            tv.onnowtv.livetv.BundleHolder.needsBackgroundRefresh = false
         }
         AuthStore.saveCredentials(this, u, p)
         startActivity(

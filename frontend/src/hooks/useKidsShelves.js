@@ -64,6 +64,10 @@ export function useKidsShelves() {
                     items: (s.items || []).map((it) => ({
                         id: `kids-${s.id}-${it.tmdb_id}`,
                         imdbId: null,
+                        // v2.10.53 — carry TMDB metadata so long-press
+                        // "Add to My List" can resolve IMDB on demand.
+                        tmdbId: it.tmdb_id,
+                        tmdbType: s.type === 'series' ? 'tv' : 'movie',
                         type: s.type,
                         title: it.title,
                         sub: [

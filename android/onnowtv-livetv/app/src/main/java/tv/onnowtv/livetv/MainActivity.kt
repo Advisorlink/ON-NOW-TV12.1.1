@@ -118,109 +118,20 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // FAST PATH — try the disk cache before we even inflate the loader.
-        if (BundleCache.exists(this)) {
-            try {
-                val json = BundleCache.loadJson(this)
-                if (!json.isNullOrBlank()) {
-                    val bundle = XtreamRepository.parseBundleJson(json)
-                    if (bundle.channels.isNotEmpty()) {
-                        // v2.10.14 — When EpgCache reports `null` for
-                        // load() it means the on-disk schema is
-                        // older than the current build.  Fall through
-                        // to the slow loader so the XMLTV preload
-                        // runs and writes a v3 cache.
-                        //
-                        // v2.10.15 — Per-channel cache architecture.
-                        // load() now returns an EMPTY map when a
-                        // valid v3 cache exists (programmes are
-                        // lazy-loaded per channel from disk in
-                        // EpgActivity / PlayerActivity).  The fast
-                        // path applies the persisted XMLTV
-                        // display-name → id map to patch any bundle
-                        // channels whose provider-supplied id is
-                        // blank, so the per-channel disk reads land
-                        // on the right file.
-                        val cachedEpg = EpgCache.load(this)
-                        if (cachedEpg == null) {
-                            Log.i(
-                                "MainActivity",
-                                "fast-path skipped: EPG cache absent or schema mismatch — falling through to loader",
-                            )
-                        } else {
-                            // Apply name-based id patching using
-                            // the persisted XMLTV display-name map.
-                            val nameMap = EpgCache.loadNameMap(applicationContext)
-                            val patchedChannels = if (nameMap.isEmpty()) {
-                                bundle.channels
-                            } else {
-                                var rescued = 0
-                                val out = bundle.channels.map { ch ->
-                                    val sid = ch.epgChannelId
-                                    if (!sid.isNullOrBlank()
-                                        && EpgCache.channelExists(applicationContext, sid)) {
-                                        return@map ch
-                                    }
-                                    val key = tv.onnowtv.livetv.data.XmlTvFetcher
-                                        .normaliseChannelName(ch.name)
-                                    if (key.isBlank()) return@map ch
-                                    val xmlId = nameMap[key] ?: return@map ch
-                                    if (!EpgCache.channelExists(applicationContext, xmlId)) {
-                                        return@map ch
-                                    }
-                                    rescued += 1
-                                    ch.copy(epgChannelId = xmlId)
-                                }
-                                Log.i(
-                                    "MainActivity",
-                                    "fast-path name-fallback: $rescued channels patched against persisted XMLTV name map",
-                                )
-                                out
-                            }
-
-                            val merged = bundle.copy(
-                                channels = patchedChannels,
-                                epg = cachedEpg,
-                            )
-                            BundleHolder.current = merged
-                            Log.i(
-                                "MainActivity",
-                                "fast-path: ${merged.channels.size} channels / " +
-                                    "epg=lazy-from-disk " +
-                                    "(cache age=${BundleCache.ageMs(this) / 1000}s)",
-                            )
-                            // If either cache is stale, schedule a
-                            // background refresh after EpgActivity opens.
-                            scheduleBackgroundRefresh()
-                            // v2.10.14 — Also (re-)enqueue the every-
-                            // 12-h EPG WorkManager refresh.  KEEP
-                            // policy means this is a no-op once a
-                            // worker is already scheduled.  Critical
-                            // for the fast path — users who never
-                            // hit the slow path otherwise wouldn't
-                            // get auto-refresh.
-                            try {
-                                tv.onnowtv.livetv.data.EpgRefreshWorker
-                                    .schedulePeriodic(applicationContext)
-                            } catch (t: Throwable) {
-                                Log.w(
-                                    "MainActivity",
-                                    "fast-path epg worker enqueue failed: ${t.message}",
-                                )
-                            }
-                            startActivity(Intent(this, EpgActivity::class.java))
-                            overridePendingTransition(0, 0)
-                            finish()
-                            return
-                        }
-                    }
-                }
-            } catch (t: Throwable) {
-                Log.w("MainActivity", "fast-path failed, falling back to loader: ${t.message}")
-            }
-        }
-
-        // SLOW PATH — first install (or corrupted cache).  Show loader.
+        // v2.10.54 — ALWAYS paint the loader content view BEFORE
+        // doing any disk I/O so the user never sees a black screen.
+        // The old code ran the entire fast path synchronously on
+        // the main thread (BundleCache.loadJson → parse 14k-channel
+        // JSON → EpgCache.load → walk every channel for the name
+        // map).  On a weak Android-TV box that's 5-15 s of blank
+        // screen before `setContentView` is even called, because
+        // the Activity transition can't paint while the main thread
+        // is busy.
+        //
+        // New layout: paint the splash NOW (in <50 ms), do the
+        // entire fast path on Dispatchers.IO, and hand off to
+        // EpgActivity the moment it's ready.  If the fast path
+        // fails, fall through to the slow loader (`startLoad()`).
         setContentView(R.layout.activity_main)
         setTheme(R.style.Theme_OnNowLiveTV_NoActionBar)
 
@@ -235,11 +146,123 @@ class MainActivity : AppCompatActivity() {
         dot2           = findViewById(R.id.loader_dot_2)
         dot3           = findViewById(R.id.loader_dot_3)
 
+        // Show "Opening your guide" copy while the fast path runs.
+        // If it succeeds (the common case) the user sees this for
+        // ~500 ms before EpgActivity takes over — far better than
+        // 10 s of black screen.
+        headline.text = "Opening your guide…"
+        substatus.text = "Loading your channels"
+        statusCounters.text = ""
+        progress.progress = 200
+
         startDotsAnimation()
-        startTipsRotation()
         startBrandPulse()
 
+        if (BundleCache.exists(this)) {
+            lifecycleScope.launch {
+                val merged = withContext(Dispatchers.IO) { tryFastPath() }
+                if (merged != null) {
+                    BundleHolder.current = merged
+                    Log.i(
+                        "MainActivity",
+                        "fast-path: ${merged.channels.size} channels / epg=lazy-from-disk",
+                    )
+                    scheduleBackgroundRefresh()
+                    try {
+                        tv.onnowtv.livetv.data.EpgRefreshWorker
+                            .schedulePeriodic(applicationContext)
+                    } catch (t: Throwable) {
+                        Log.w(
+                            "MainActivity",
+                            "fast-path epg worker enqueue failed: ${t.message}",
+                        )
+                    }
+                    startActivity(Intent(this@MainActivity, EpgActivity::class.java))
+                    overridePendingTransition(0, 0)
+                    finish()
+                } else {
+                    // Fast path failed (cache absent / schema mismatch /
+                    // I/O error).  Drop into the slow path.
+                    Log.i(
+                        "MainActivity",
+                        "fast-path skipped or failed — falling through to slow loader",
+                    )
+                    startTipsRotation()
+                    startLoad()
+                }
+            }
+            return
+        }
+
+        // First-install path: no cache at all → go straight to the
+        // slow loader (which paints the full counter UI + tips).
+        startTipsRotation()
         startLoad()
+    }
+
+    /**
+     * v2.10.54 — Disk-cache fast path, lifted out of [onCreate] so
+     * it runs on a background dispatcher.  Returns the fully
+     * patched + EPG-merged bundle on success, or `null` if the
+     * cache was absent / corrupt / schema-mismatched, in which
+     * case the caller drops into the slow loader.
+     *
+     * Must be called from a coroutine on `Dispatchers.IO`.
+     */
+    private fun tryFastPath(): XtreamBundle? {
+        return try {
+            val json = BundleCache.loadJson(this) ?: return null
+            if (json.isBlank()) return null
+            val bundle = XtreamRepository.parseBundleJson(json)
+            if (bundle.channels.isEmpty()) return null
+
+            // v2.10.14 — When EpgCache reports `null` for load() it
+            // means the on-disk schema is older than the current
+            // build.  Fall through to the slow loader so the XMLTV
+            // preload runs and writes a v3 cache.
+            //
+            // v2.10.15 — Per-channel cache architecture.  load()
+            // now returns an EMPTY map when a valid v3 cache exists
+            // (programmes are lazy-loaded per channel from disk in
+            // EpgActivity / PlayerActivity).
+            val cachedEpg = EpgCache.load(this) ?: return null
+
+            // Apply name-based id patching using the persisted XMLTV
+            // display-name map.  Walks all channels but is cheap
+            // (HashMap lookups + immutable List mapping).
+            val nameMap = EpgCache.loadNameMap(applicationContext)
+            val patchedChannels = if (nameMap.isEmpty()) {
+                bundle.channels
+            } else {
+                var rescued = 0
+                val out = bundle.channels.map { ch ->
+                    val sid = ch.epgChannelId
+                    if (!sid.isNullOrBlank()
+                        && EpgCache.channelExists(applicationContext, sid)) {
+                        return@map ch
+                    }
+                    val key = tv.onnowtv.livetv.data.XmlTvFetcher
+                        .normaliseChannelName(ch.name)
+                    if (key.isBlank()) return@map ch
+                    val xmlId = nameMap[key] ?: return@map ch
+                    if (!EpgCache.channelExists(applicationContext, xmlId)) {
+                        return@map ch
+                    }
+                    rescued += 1
+                    ch.copy(epgChannelId = xmlId)
+                }
+                Log.i(
+                    "MainActivity",
+                    "fast-path name-fallback: $rescued channels patched against persisted XMLTV name map",
+                )
+                out
+            }
+
+            bundle.copy(channels = patchedChannels, epg = cachedEpg)
+        } catch (t: Throwable) {
+            Log.w("MainActivity", "tryFastPath failed: ${t.message}")
+            null
+        }
     }
 
     /**
