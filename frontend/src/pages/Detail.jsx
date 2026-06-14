@@ -1687,66 +1687,29 @@ export default function Detail() {
             }`}
             style={isKidsActive() ? { background: 'var(--vesper-bg-0)' } : undefined}
         >
-            {/* v2.10.46-c — Autoplay loading scrim.
-                When the user clicked a movie poster (URL carries
-                `?autoplay=1`) we don't want them to glimpse the
-                streams picker / hero / episode list while the
-                player warms up.  Render a clean full-screen
-                loader that stays until either (a) the native
-                player takes over, or (b) `streamLoading` finishes
-                with no playable streams (we'll be showing the
-                "Coming Soon" unavailable modal at that point and
-                the loader fades naturally).  Series intentionally
-                skip this overlay because tile-click for a show
-                should land on the episode picker, not autoplay. */}
+            {/* v2.10.52 — Per user request, the verbose
+                "Finding stream / Starting playback" interstitial
+                on the Detail page has been removed.  Clicking a
+                title should jump straight to the player without
+                intermediate loading text.  We still cover the
+                Detail surface with a clean dark layer during the
+                brief stream-resolution window (typically < 500ms)
+                so the user doesn't glimpse the Detail UI rendering
+                in stages — they see clean dark → player.
+                Series intentionally skip this because tile-click
+                for a show lands on the episode picker, not autoplay. */}
             {autoplayRequested
                 && type === 'movie'
                 && !autoplayFired
                 && !showUnavailableModal && (
                 <div
                     data-testid="detail-autoplay-loader"
-                    className="absolute inset-0 z-50 flex items-center justify-center"
+                    className="absolute inset-0 z-50"
                     style={{
                         background: 'var(--vesper-bg-0, #06080F)',
+                        pointerEvents: 'none',
                     }}
-                >
-                    <div className="flex flex-col items-center gap-5">
-                        <Loader2
-                            className="vesper-spin"
-                            size={48}
-                            style={{
-                                color: 'var(--vesper-blue, #4DC1FF)',
-                                opacity: 0.9,
-                            }}
-                        />
-                        <div
-                            className="vesper-mono"
-                            style={{
-                                fontSize: 12,
-                                letterSpacing: '0.32em',
-                                textTransform: 'uppercase',
-                                color: 'var(--vesper-text-2, #8C97B0)',
-                            }}
-                        >
-                            {streamLoading ? 'Finding stream' : 'Starting playback'}
-                        </div>
-                        {meta?.name && (
-                            <div
-                                className="vesper-display"
-                                style={{
-                                    fontSize: 'clamp(20px, 1.8vw, 28px)',
-                                    fontWeight: 600,
-                                    letterSpacing: '-0.02em',
-                                    color: 'var(--vesper-text, #fff)',
-                                    textAlign: 'center',
-                                    maxWidth: '80vw',
-                                }}
-                            >
-                                {meta.name}
-                            </div>
-                        )}
-                    </div>
-                </div>
+                />
             )}
 
             <FullscreenButton />

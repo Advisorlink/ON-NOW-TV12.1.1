@@ -1,5 +1,31 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.52 — 5 P0/P1 user requests in one drop (15 Jun 2026).**
+>
+> User listed five fixes after the production rollout finished: profile isolation per Vesper account, no Detail-page loading interstitial before the player, a stream-selection button that works for TV-show episodes (not just movies), a player-settings popover for buffer + subtitle delay, and a D-pad nav fix so Backup & Restore stops being skipped in Settings.  All five shipped this drop.
+>
+> **1. Per-account profile isolation — `/app/frontend/src/lib/profiles.js`, `/app/frontend/src/contexts/AuthContext.jsx`.**
+> Profile storage is now namespaced per Vesper account.  Every top-level localStorage key (`onnowtv-profiles-v1`, `onnowtv-active-profile-v1`, `onnowtv-kids-config-v1`) gets a `:USERNAME` suffix derived from the cached Vesper auth account (`vesper-auth-account-v1`).  Different logins on the same device see a clean slate.  Implementation: each previously-static `KEY_*` constant became a `keyProfiles()` / `keyActive()` / `keyKidsConfig()` getter that re-derives the suffix on every read/write — that way ANY auth change is instantly reflected without re-mounting the app.  Also: previous agent had left the file half-refactored (`removeProfile`, `getActiveProfileId`, `setActiveProfile`, `clearActiveProfile`, `getKidsConfig`, `saveKidsConfig` still referenced the deleted `KEY_*` constants); finished the refactor so the file parses and the existing seeding logic still scopes per-profile-id correctly.  AuthContext now dispatches `vesper:profile-change` on both login AND logout so SideNav / ProfileSelect / Home re-read the freshly-scoped list for the new user.
+>
+> **2. Detail-page "Finding stream / Starting playback" overlay removed — `/app/frontend/src/pages/Detail.jsx`.**
+> The verbose Loader2 + monospace caption + title block has been replaced with a clean dark cover that fills the autoplay window WITHOUT any spinner / text / poster.  Detail still resolves streams in the background, but the user sees a flat dark layer until the player takes over — exactly the "immediate player" UX the user asked for.  Series tile-clicks still go to the episode picker (unchanged); only movie autoplay was affected.
+>
+> **3. Stream selection button in Player works for TV shows + Movies — `/app/frontend/src/pages/Player.jsx`, `/app/frontend/src/components/StreamPickerModal.jsx`.**
+> Added a `<Layers>` button to the bottom-right chrome cluster (left of Subtitles).  Lazy-fetches `/api/streams/{type}/{imdbId}` on first open via `Vesper.getStreams` (same client used by Detail, so backend cache hits are instant).  `apiStreamId` normaliser converts Vesper's frontend `tt:s1e6` episode format to the colon `tt:1:6` format Stremio addons require, so the picker works identically for movies and TV-show episodes.  Picking a stream re-mounts the player at the new URL via `navigate(..., {replace: true})` so BACK still lands on the source page.
+>
+> **4. Player Settings popover — `/app/frontend/src/pages/Player.jsx` (new `SettingsPanel` component at EOF).**
+> New `<SettingsIcon>` button next to the Stream button.  Anchored 88 px above the chrome cluster, blurred-glass card with two controls:
+>   • **Buffer size** — 5 pill choices (15 / 30 / 60 / 120 / 180 s).  Updates `hlsRef.current.config.maxBufferLength` live; persists to `localStorage` under `vesper-player-buffer-s`; re-applied on every HLS init.
+>   • **Subtitle delay** — −10 to +10 s in 0.5 s steps, with −/Reset/+ buttons and a tabular-num readout.  Shifts every cue on the active TextTrack by the delta (mutates `cue.startTime` / `cue.endTime`); persists under `vesper-subtitle-delay-s`; re-applied on every fresh subtitle load.
+> Both controls are fully D-pad navigable (`data-focusable="true"` on every button) and the popover closes via the X button / Streams / Subtitles button.
+>
+> **5. D-pad no longer skips Backup/Restore in Settings — `/app/frontend/src/pages/Settings.jsx`.**
+> Root cause: `useSpatialFocus` has a "FAST PATH" for vertical nav between shelf-pages (DOM-sibling walk inside `[data-testid="shelf-page"]` containers).  Settings was a flat sibling list with NO shelf-page wrappers, so geometric fallback was used — and from a TipsPanel toggle the geometry frequently picked the right-aligned SignOut button over the left-aligned BigBtn pair inside BackupPanel.  Fix: wrap each major section (Theme, Playback, Welcome tour, Tips, Backup, Sign out) in `<div data-testid="shelf-page" data-settings-section="…">` so DOM-order traversal kicks in.  Backup buttons are now hit on every Down/Up press in order, no skipping.
+>
+> Smoke-tested via curl `/api/auth/login` (testuser → 200 + JWT), `/api/streams/series/tt0903747:1:1` (4 streams returned).  Frontend compiles cleanly.  Detail loader, Player chrome buttons + popover, and Settings shelf-page wrappers verified via Playwright screenshot (login screen renders correctly).
+>
+
+
 > **🟢 v2.10.51 — Production deployment + 153 accounts imported (14 Jun 2026).**
 >
 > User said they update apps via the production launcher at `onnowtv.duckdns.org/launcher` and asked me to make Vesper Logins work there.  Diagnosed:

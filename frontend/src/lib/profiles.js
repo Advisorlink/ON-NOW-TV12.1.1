@@ -172,8 +172,9 @@ function seedNewProfileStorage(id) {
 
 export function removeProfile(id) {
     if (id === 'kids') return; // immutable
-    const list = readJSON(KEY_PROFILES, []).filter((p) => p.id !== id);
-    writeJSON(KEY_PROFILES, list);
+    const raw = readJSON(keyProfiles(), []);
+    const list = (Array.isArray(raw) ? raw : []).filter((p) => p.id !== id);
+    writeJSON(keyProfiles(), list);
     if (getActiveProfileId() === id) clearActiveProfile();
 }
 
@@ -185,7 +186,7 @@ export function getActiveProfile() {
 
 export function getActiveProfileId() {
     try {
-        return localStorage.getItem(KEY_ACTIVE);
+        return localStorage.getItem(keyActive());
     } catch {
         return null;
     }
@@ -193,7 +194,7 @@ export function getActiveProfileId() {
 
 export function setActiveProfile(id) {
     try {
-        localStorage.setItem(KEY_ACTIVE, id);
+        localStorage.setItem(keyActive(), id);
     } catch {
         /* ignore */
     }
@@ -203,7 +204,7 @@ export function setActiveProfile(id) {
 
 export function clearActiveProfile() {
     try {
-        localStorage.removeItem(KEY_ACTIVE);
+        localStorage.removeItem(keyActive());
     } catch {
         /* ignore */
     }
@@ -229,12 +230,12 @@ export function checkProfilePin(p, entered) {
 // ---------- Kids config ----------
 
 export function getKidsConfig() {
-    return { ...DEFAULT_KIDS_CONFIG, ...readJSON(KEY_KIDS_CONFIG, {}) };
+    return { ...DEFAULT_KIDS_CONFIG, ...readJSON(keyKidsConfig(), {}) };
 }
 
 export function saveKidsConfig(partial) {
     const next = { ...getKidsConfig(), ...partial };
-    writeJSON(KEY_KIDS_CONFIG, next);
+    writeJSON(keyKidsConfig(), next);
     window.dispatchEvent(new CustomEvent('vesper:kids-config-change'));
     return next;
 }
