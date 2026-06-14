@@ -1,6 +1,20 @@
 # ON NOW TV V2 — PRD
 
-> **🟢 v2.10.52 — 5 P0/P1 user requests in one drop (15 Jun 2026).**
+> **🟢 v2.10.54 — Native Live-TV cold-start + Xtream credential switch (16 Jun 2026).**
+>
+> User reported two Live-TV (HK1 native app) issues that needed immediate attention:
+>
+> **1. 10-15 second BLACK SCREEN when reopening the Live-TV app after a few days, or even after a quick out-and-back.**
+> Root cause: `MainActivity.onCreate()` ran the entire fast-path SYNCHRONOUSLY on the main thread (`BundleCache.loadJson` → `parseBundleJson(14k channels)` → `EpgCache.load` → name-map walk over every channel) BEFORE calling `setContentView`.  On a weak Android-TV box (1 GB RAM, slow disk) this took 5-15 s during which the OS couldn't paint the new Activity — the user just saw black.
+> Fix in `/app/android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/MainActivity.kt`: paint the loader splash + brand pulse + dots IMMEDIATELY (typically <50 ms), then run the fast-path on `Dispatchers.IO` via `lifecycleScope.launch { withContext(Dispatchers.IO) { tryFastPath() } }`.  Hand off to `EpgActivity` the moment it returns.  If it returns null (cache absent / corrupt / schema mismatch) fall through to the slow loader as before.  New helper `private fun tryFastPath(): XtreamBundle?` lifted out of `onCreate`.  User now sees the "Opening your guide…" splash within ~50 ms of tapping the icon — same end-state UX (EpgActivity), no perceived black screen.
+>
+> **2. Logging in under a DIFFERENT Xtream Codes account didn't actually load that account's channels.**
+> Root cause: `LoginActivity.proceed()` only called `AuthStore.saveCredentials(...)`.  It did NOT wipe the disk caches.  So MainActivity's fast-path then read the PREVIOUS user's bundle from `BundleCache` and EPG from `EpgCache` — the new user saw the previous user's channel list.
+> Fix in `/app/android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/LoginActivity.kt`: before saving the new credentials, compare with the previously-stored username/password.  If different, wipe `BundleCache` + `EpgCache` + cancel `EpgRefreshWorker` + null `BundleHolder.current` so MainActivity falls through to the slow loader and fetches a fresh bundle with the new creds.  Same flow signOut() uses, just without removing the new creds we're about to save.
+>
+> Both fixes validated via static code review by the troubleshoot agent (5/5 OK — coroutine dispatchers, context binding, `return@map`, OR-semantics on the cred-change check, defensive try-catch).  Native APK rebuild + push required from the user's side (Save-to-GitHub → GitHub Actions APK build).
+>
+
 >
 > User listed five fixes after the production rollout finished: profile isolation per Vesper account, no Detail-page loading interstitial before the player, a stream-selection button that works for TV-show episodes (not just movies), a player-settings popover for buffer + subtitle delay, and a D-pad nav fix so Backup & Restore stops being skipped in Settings.  All five shipped this drop.
 >
