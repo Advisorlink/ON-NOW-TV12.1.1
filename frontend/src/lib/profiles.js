@@ -1,10 +1,15 @@
 /**
  * Profile system + Kids mode.
  *
- * Stored in localStorage so it works on a sideloaded APK without
- * a backend round-trip.  One "Kids" profile is permanent and
- * cannot be deleted.  Active profile id determines which
- * experience Home renders (regular vs. KidsHome).
+ * v2.10.52 — Profile storage is now **namespaced per Vesper account**.
+ * When user A signs in they see their own profiles; when user B
+ * signs in on the same device they see THEIR OWN (or 0 if new).
+ * Profiles never leak across accounts.  Implementation: every
+ * top-level localStorage key gets a `:<username>` suffix derived
+ * from the active Vesper auth account (stored in
+ * `vesper-auth-account-v1`).  If no account is signed in we fall
+ * back to the un-suffixed legacy keys so the app remains usable
+ * during pre-auth bootstrap.
  *
  * Data shapes:
  *   Profile = {
@@ -24,9 +29,30 @@
  *   }
  */
 
-const KEY_PROFILES = 'onnowtv-profiles-v1';
-const KEY_ACTIVE = 'onnowtv-active-profile-v1';
-const KEY_KIDS_CONFIG = 'onnowtv-kids-config-v1';
+const BASE_PROFILES    = 'onnowtv-profiles-v1';
+const BASE_ACTIVE      = 'onnowtv-active-profile-v1';
+const BASE_KIDS_CONFIG = 'onnowtv-kids-config-v1';
+
+/** Derive a per-account suffix from the cached Vesper auth account
+ *  (written by /lib/auth.js).  Returns ':USERNAME' when signed in,
+ *  empty string otherwise.  We strip non-alphanumerics to keep
+ *  localStorage keys friendly even for usernames with spaces or
+ *  symbols (e.g. "ANNIE M"). */
+function _accountSuffix() {
+    try {
+        const raw = localStorage.getItem('vesper-auth-account-v1');
+        if (!raw) return '';
+        const acc = JSON.parse(raw);
+        const u = (acc && acc.username) || '';
+        if (!u) return '';
+        return ':' + String(u).replace(/[^A-Za-z0-9_-]+/g, '_');
+    } catch {
+        return '';
+    }
+}
+const keyProfiles    = () => BASE_PROFILES    + _accountSuffix();
+const keyActive      = () => BASE_ACTIVE      + _accountSuffix();
+const keyKidsConfig  = () => BASE_KIDS_CONFIG + _accountSuffix();
 
 const DEFAULT_KIDS_CONFIG = {
     maxRatingMovie: 'PG',
@@ -69,7 +95,7 @@ function writeJSON(key, value) {
 // ---------- Profiles ----------
 
 export function listProfiles() {
-    const raw = readJSON(KEY_PROFILES, []);
+    const raw = readJSON(keyProfiles(), []);
     /* Defensive: if a previous version stored profiles as an
      * object / null / something else, fall back to an empty
      * array rather than crashing on `.some()`.  We never want
@@ -80,7 +106,7 @@ export function listProfiles() {
 }
 
 export function saveProfile(partial) {
-    const raw = readJSON(KEY_PROFILES, []);
+    const raw = readJSON(keyProfiles(), []);
     const list = (Array.isArray(raw) ? raw : []).filter(
         (p) => p && p.id !== 'kids'
     );
@@ -97,7 +123,7 @@ export function saveProfile(partial) {
     const i = list.findIndex((p) => p.id === id);
     if (i >= 0) list[i] = next;
     else list.unshift(next);
-    writeJSON(KEY_PROFILES, list);
+    writeJSON(keyProfiles(), list);
     if (isNew) seedNewProfileStorage(id);
     return next;
 }
