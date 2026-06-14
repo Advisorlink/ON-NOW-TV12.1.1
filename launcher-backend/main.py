@@ -1935,7 +1935,12 @@ async def restore_launcher_data(file: UploadFile = File(...)):
 #  the Vesper v2 streaming app without leaving the dashboard.
 # ════════════════════════════════════════════════════════════════════
 VESPER_BACKEND_URL = (os.environ.get("VESPER_BACKEND_URL") or "http://localhost:8001").rstrip("/")
-VESPER_ADMIN_KEY = os.environ.get("VESPER_ADMIN_KEY") or ""
+# Matches the auth_router default in the Vesper backend so the two
+# services can authenticate to each other without manual env setup.
+VESPER_ADMIN_KEY = (
+    os.environ.get("VESPER_ADMIN_KEY")
+    or "vesper-admin-49a1f8e2c7b03d6e85a4192c8d3f6e0a"
+)
 
 
 async def _vesper_proxy(method: str, path: str, payload: dict | None = None) -> JSONResponse:
