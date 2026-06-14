@@ -1,5 +1,18 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.51 — Production deployment + 153 accounts imported (14 Jun 2026).**
+>
+> User said they update apps via the production launcher at `onnowtv.duckdns.org/launcher` and asked me to make Vesper Logins work there.  Diagnosed:
+> - Production launcher backend already had my Vesper Logins UI + proxy endpoints deployed
+> - Production Vesper backend was running with `JWT_SECRET` set but `ADMIN_KEY` env var missing → 500 on all admin calls
+> - Production Vesper Mongo collection was empty (the 153 accounts only lived on preview)
+>
+> Fixed `auth_router.py` to fall back to a hardcoded default `ADMIN_KEY` (and `JWT_SECRET`) when env vars aren't set — same default the launcher's Vesper proxy uses, so the two services can authenticate without manual env config.  Also added a one-time `/admin/bootstrap` endpoint for the chicken-and-egg first-deployment case (locks itself the moment any account exists).
+>
+> Refactored bulk-import into a shared `_bulk_import_inner` helper used by both `/admin/accounts/bulk-import` and `/admin/bootstrap`.
+>
+> User clicked Save to GitHub → CI deployed → I bulk-imported all 153 accounts via HTTPS POST to `onnowtv.duckdns.org/api/admin/accounts/bulk-import` in 1.6 s.  Verified KAITLYN5525 logs in successfully and EMILYB (expired 2020) gets a clean 403.  All 153 visible in `https://onnowtv.duckdns.org/launcher/admin/` under the Vesper Logins tab.
+>
 > **🟢 v2.10.50 — Launcher Backup & Restore (13 Jun 2026).**
 >
 > User reported the preview launcher only has 4 apps while their production launcher has many more.  Since the preview pod cannot reach production and the repo has no APK files for the other apps, built a **one-click Backup & Restore tab** so the user can migrate everything between launchers in a single ZIP.
