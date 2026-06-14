@@ -12,6 +12,8 @@ import {
     Check,
     X as CloseIcon,
     ExternalLink,
+    Layers,
+    Settings as SettingsIcon,
 } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import usePartyReactions from '@/hooks/usePartyReactions';
@@ -20,6 +22,8 @@ import PartyVoiceDock from '@/components/PartyVoiceDock';
 import PartyStartingScreen from '@/components/PartyStartingScreen';
 import PartyHostControls from '@/components/PartyHostControls';
 import PlayerOverlay from '@/components/PlayerOverlay';
+import StreamPickerModal from '@/components/StreamPickerModal';
+import { Vesper } from '@/lib/api';
 import Host from '@/lib/host';
 import { API } from '@/lib/api';
 import { getActiveProfile } from '@/lib/profiles';
@@ -121,6 +125,34 @@ export default function Player() {
     const [activeSubId, setActiveSubId] = useState(null); // null = off
     const [pickerOpen, setPickerOpen] = useState(false);
     const [autoSubApplied, setAutoSubApplied] = useState(false);
+
+    // v2.10.52 — Stream-picker & Settings panel state.
+    // Both are accessible from the bottom-right chrome cluster
+    // while watching.  Stream picker fetches /api/streams on demand
+    // (lazy) so we never block initial playback.  Works for movies
+    // AND TV-show episodes (the imdbId for an episode is in
+    // colon-format `tt:1:6` or Vesper's `tt:s1e6` — we normalise
+    // before calling the API).
+    const [streamsList,     setStreamsList]     = useState([]);
+    const [streamsLoading,  setStreamsLoading]  = useState(false);
+    const [streamsPickerOpen, setStreamsPickerOpen] = useState(false);
+    const [streamsFetchErr, setStreamsFetchErr] = useState(null);
+    const [settingsOpen,    setSettingsOpen]    = useState(false);
+    // Persisted player preferences.  Buffer maps to HLS.js maxBufferLength
+    // (in seconds); subtitle delay shifts active cues.  Stored in
+    // localStorage so the choice survives reloads / re-launches.
+    const [bufferSize, setBufferSize] = useState(() => {
+        try {
+            const v = parseInt(localStorage.getItem('vesper-player-buffer-s') || '60', 10);
+            return Number.isFinite(v) && v >= 10 && v <= 300 ? v : 60;
+        } catch { return 60; }
+    });
+    const [subtitleDelay, setSubtitleDelay] = useState(() => {
+        try {
+            const v = parseFloat(localStorage.getItem('vesper-subtitle-delay-s') || '0');
+            return Number.isFinite(v) && v >= -10 && v <= 10 ? v : 0;
+        } catch { return 0; }
+    });
 
     // Cinematic preview meta (poster, synopsis, year, rating)
     const [previewMeta, setPreviewMeta] = useState(null);
@@ -481,6 +513,152 @@ export default function Player() {
         applySubtitle(eng);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [streamReady, subs, autoSubApplied]);
+
+    // ---------------------------------------------------------------
+    // v2.10.52 — Stream picker (works for movies AND TV-show episodes)
+    //
+    // Vesper uses two id formats:
+    //   • Movie:    tt0903747
+    //   • Episode:  tt0903747:s1e6   (Vesper-internal)  OR  tt0903747:1:6  (Stremio colon)
+    // The /api/streams endpoint expects the COLON form for episodes;
+    // movies are passed through.  We accept either incoming form
+    // and normalise here.
+    // ---------------------------------------------------------------
+    const apiStreamId = useMemo(() => {
+        if (!imdbId) return '';
+        if (type !== 'series') return imdbId;
+        const sxxeyy = imdbId.match(/^(tt\d+):s(\d+)e(\d+)$/i);
+        if (sxxeyy) return `${sxxeyy[1]}:${parseInt(sxxeyy[2], 10)}:${parseInt(sxxeyy[3], 10)}`;
+        return imdbId;
+    }, [imdbId, type]);
+
+    const fetchStreamsForPicker = useCallback(async () => {
+        if (!apiStreamId || !type) return;
+        setStreamsLoading(true);
+        setStreamsFetchErr(null);
+        try {
+            const s = await Vesper.getStreams(type, apiStreamId, (partial) => {
+                if (Array.isArray(partial) && partial.length > 0) {
+                    setStreamsList(partial);
+                }
+            });
+            setStreamsList(s?.streams || []);
+        } catch (e) {
+            setStreamsFetchErr(e?.message || 'Could not load streams.');
+        } finally {
+            setStreamsLoading(false);
+        }
+    }, [apiStreamId, type]);
+
+    const openStreamsPicker = useCallback(() => {
+        setSettingsOpen(false);
+        setPickerOpen(false);
+        setStreamsPickerOpen(true);
+        if (streamsList.length === 0 && !streamsLoading) {
+            fetchStreamsForPicker();
+        }
+    }, [streamsList.length, streamsLoading, fetchStreamsForPicker]);
+
+    const onPickStream = useCallback((stream) => {
+        if (!stream?.url) {
+            setStreamsPickerOpen(false);
+            return;
+        }
+        setStreamsPickerOpen(false);
+        // Re-mount the player on the chosen stream.  `replace: true`
+        // so BACK from the player still lands on the source page
+        // (Detail / Library / Home), not on the old stream URL.
+        const search = new URLSearchParams();
+        search.set('url', stream.url);
+        search.set('title', stream.title || title || 'Now Playing');
+        if (type) search.set('type', type);
+        if (imdbId) search.set('imdbId', imdbId);
+        if (partyCode) {
+            search.set('party', partyCode);
+        }
+        navigate(`/play?${search.toString()}`, { replace: true });
+    }, [navigate, title, type, imdbId, partyCode]);
+
+    // ---------------------------------------------------------------
+    // v2.10.52 — Player settings (Buffer · Subtitle delay).
+    //
+    // Buffer:  applies to HLS.js's maxBufferLength when an HLS stream
+    //          is active.  Persists to localStorage.  Defaults: 60 s.
+    // Sub delay: shifts every cue start/end on the active TextTrack.
+    //            Native HTML5 video doesn't expose a delay knob, so
+    //            we mutate the cue times directly.  Negative = pull
+    //            subtitles EARLIER, positive = push LATER.
+    // ---------------------------------------------------------------
+    const subtitleDelayRef = useRef(subtitleDelay);
+    useEffect(() => { subtitleDelayRef.current = subtitleDelay; }, [subtitleDelay]);
+
+    const applyBufferSize = useCallback((seconds) => {
+        const v = Math.max(10, Math.min(300, parseInt(seconds, 10) || 60));
+        setBufferSize(v);
+        try { localStorage.setItem('vesper-player-buffer-s', String(v)); } catch { /* ignore */ }
+        const hls = hlsRef.current;
+        if (hls) {
+            try {
+                hls.config.maxBufferLength = v;
+                hls.config.maxMaxBufferLength = Math.max(v * 2, 120);
+            } catch { /* ignore */ }
+        }
+    }, []);
+
+    const applySubtitleDelay = useCallback((sec) => {
+        const v = Math.max(-10, Math.min(10, Math.round(parseFloat(sec) * 2) / 2));
+        setSubtitleDelay(v);
+        try { localStorage.setItem('vesper-subtitle-delay-s', String(v)); } catch { /* ignore */ }
+        // Shift live cues by the delta vs whatever was applied last.
+        const trackEl = trackElRef.current;
+        if (!trackEl || !trackEl.track || !trackEl.track.cues) return;
+        const prev = subtitleDelayRef.current;
+        const delta = v - prev;
+        if (delta === 0) return;
+        const cues = trackEl.track.cues;
+        for (let i = 0; i < cues.length; i += 1) {
+            const c = cues[i];
+            try {
+                c.startTime = Math.max(0, c.startTime + delta);
+                c.endTime   = Math.max(c.startTime + 0.05, c.endTime + delta);
+            } catch { /* some browsers freeze cue times */ }
+        }
+    }, []);
+
+    // Re-apply the persisted buffer setting whenever HLS spins up.
+    useEffect(() => {
+        const hls = hlsRef.current;
+        if (!hls) return;
+        try {
+            hls.config.maxBufferLength = bufferSize;
+            hls.config.maxMaxBufferLength = Math.max(bufferSize * 2, 120);
+        } catch { /* ignore */ }
+    }, [streamReady, bufferSize]);
+
+    // When a fresh subtitle track is loaded, immediately re-apply
+    // the persisted user-chosen delay (the cues themselves were
+    // built from the original timestamps).
+    useEffect(() => {
+        if (activeSubId === null) return;
+        if (subtitleDelay === 0) return;
+        const trackEl = trackElRef.current;
+        if (!trackEl) return;
+        const applyOnLoad = () => {
+            const cues = trackEl.track?.cues;
+            if (!cues) return;
+            for (let i = 0; i < cues.length; i += 1) {
+                const c = cues[i];
+                try {
+                    c.startTime = Math.max(0, c.startTime + subtitleDelay);
+                    c.endTime   = Math.max(c.startTime + 0.05, c.endTime + subtitleDelay);
+                } catch { /* ignore */ }
+            }
+        };
+        // Cues may not be ready until the track has loaded.
+        if (trackEl.track?.cues?.length) applyOnLoad();
+        else setTimeout(applyOnLoad, 400);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeSubId]);
 
     // -----------------------------------------------------------------
     // Watch Together — party sync.
@@ -1761,7 +1939,11 @@ export default function Player() {
                         data-focusable="true"
                         data-focus-style="quiet"
                         tabIndex={0}
-                        onClick={() => setPickerOpen((s) => !s)}
+                        onClick={() => {
+                            setStreamsPickerOpen(false);
+                            setSettingsOpen(false);
+                            setPickerOpen((s) => !s);
+                        }}
                         aria-label="Subtitles"
                         className="flex items-center justify-center rounded-full"
                         style={{
@@ -1794,6 +1976,54 @@ export default function Player() {
                         )}
                     </button>
                 )}
+                {imdbId && type && (
+                    <button
+                        data-testid="player-streams"
+                        data-focusable="true"
+                        data-focus-style="quiet"
+                        tabIndex={0}
+                        onClick={openStreamsPicker}
+                        aria-label="Change stream"
+                        className="flex items-center justify-center rounded-full"
+                        style={{
+                            width: 48,
+                            height: 48,
+                            background: 'rgba(17,24,39,0.85)',
+                            color: 'var(--vesper-text)',
+                            border: '1px solid rgba(255,255,255,0.15)',
+                        }}
+                    >
+                        <Layers size={18} />
+                    </button>
+                )}
+                <button
+                    data-testid="player-settings"
+                    data-focusable="true"
+                    data-focus-style="quiet"
+                    tabIndex={0}
+                    onClick={() => {
+                        setStreamsPickerOpen(false);
+                        setPickerOpen(false);
+                        setSettingsOpen((s) => !s);
+                    }}
+                    aria-label="Player settings"
+                    className="flex items-center justify-center rounded-full"
+                    style={{
+                        width: 48,
+                        height: 48,
+                        background: settingsOpen
+                            ? 'rgba(93,200,255,0.18)'
+                            : 'rgba(17,24,39,0.85)',
+                        color: settingsOpen
+                            ? 'var(--vesper-blue)'
+                            : 'var(--vesper-text)',
+                        border: settingsOpen
+                            ? '1px solid rgba(93,200,255,0.45)'
+                            : '1px solid rgba(255,255,255,0.15)',
+                    }}
+                >
+                    <SettingsIcon size={18} />
+                </button>
                 <button
                     data-testid="player-mute"
                     data-focusable="true"
@@ -1829,6 +2059,98 @@ export default function Player() {
                     {playing ? 'Pause' : 'Play'}
                 </button>
             </div>
+
+            {/* v2.10.52 — Settings popover (Buffer + Subtitle delay).
+                Anchored above the Settings button in the bottom-right
+                chrome cluster.  Pure presentational state — every
+                control is wired via applyBufferSize / applySubtitleDelay
+                which persist to localStorage and live-update the
+                running HLS / TextTrack. */}
+            {settingsOpen && (
+                <SettingsPanel
+                    bufferSize={bufferSize}
+                    onBufferChange={applyBufferSize}
+                    subtitleDelay={subtitleDelay}
+                    onDelayChange={applySubtitleDelay}
+                    onClose={() => setSettingsOpen(false)}
+                />
+            )}
+
+            {/* v2.10.52 — Stream picker overlay.  Lists every stream
+                we resolve for this title (movie OR series episode).
+                Picking a stream re-mounts the player at the new URL
+                via `navigate(..., { replace:true })`.  Loading and
+                error states get a small inline card; the StreamPicker
+                modal supplies its own full-screen blurred backdrop
+                so we don't double-stack chrome. */}
+            {streamsPickerOpen && streamsList.length > 0 && (
+                <StreamPickerModal
+                    streams={streamsList}
+                    currentIdx={null}
+                    meta={previewMeta || {}}
+                    onPick={onPickStream}
+                    onClose={() => setStreamsPickerOpen(false)}
+                />
+            )}
+            {streamsPickerOpen && streamsList.length === 0 && (
+                <div
+                    data-testid="player-stream-picker"
+                    className="fixed inset-0 z-50 flex items-center justify-center"
+                    style={{
+                        background: 'rgba(0,0,0,0.75)',
+                        backdropFilter: 'blur(14px)',
+                    }}
+                    onClick={() => setStreamsPickerOpen(false)}
+                >
+                    <div onClick={(e) => e.stopPropagation()}>
+                        {streamsLoading ? (
+                            <div
+                                className="flex items-center gap-4 rounded-2xl"
+                                style={{
+                                    padding: '28px 40px',
+                                    background: 'rgba(17,24,39,0.92)',
+                                    border: '1px solid rgba(255,255,255,0.12)',
+                                }}
+                            >
+                                <Loader2 className="vesper-spin" size={20} style={{ color: 'var(--vesper-blue)' }} />
+                                <div className="vesper-mono" style={{ fontSize: 12, letterSpacing: '0.22em', color: 'var(--vesper-text-2)', textTransform: 'uppercase' }}>
+                                    Finding streams…
+                                </div>
+                            </div>
+                        ) : (
+                            <div
+                                className="rounded-2xl"
+                                style={{
+                                    padding: '24px 32px',
+                                    background: 'rgba(17,24,39,0.92)',
+                                    border: '1px solid rgba(255,120,120,0.4)',
+                                    color: '#ffb5b5',
+                                    fontSize: 14,
+                                    maxWidth: 480,
+                                }}
+                            >
+                                {streamsFetchErr || 'No alternate streams available right now.'}
+                                <button
+                                    data-testid="player-stream-picker-dismiss"
+                                    data-focusable="true"
+                                    tabIndex={0}
+                                    onClick={() => setStreamsPickerOpen(false)}
+                                    className="mt-4 h-10 px-4 rounded-full"
+                                    style={{
+                                        background: 'rgba(255,255,255,0.08)',
+                                        color: '#fff',
+                                        border: '1px solid rgba(255,255,255,0.16)',
+                                        fontSize: 13,
+                                        fontWeight: 600,
+                                    }}
+                                >
+                                    Dismiss
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -2090,3 +2412,209 @@ const StatusPill = ({ active, loading, label }) => (
         {label}
     </div>
 );
+
+
+/**
+ * SettingsPanel — small popover anchored above the bottom-right
+ * Settings button on the Player.  Two controls:
+ *   • Buffer size (10–300 s).  Maps to HLS.js maxBufferLength.
+ *   • Subtitle delay (-10 s to +10 s in 0.5 s steps).
+ *
+ * v2.10.52.
+ */
+function SettingsPanel({
+    bufferSize,
+    onBufferChange,
+    subtitleDelay,
+    onDelayChange,
+    onClose,
+}) {
+    const bufferOptions = [15, 30, 60, 120, 180];
+    return (
+        <div
+            data-testid="player-settings-panel"
+            className="absolute z-40 rounded-2xl"
+            style={{
+                bottom: 88,
+                right: 32,
+                width: 360,
+                padding: '20px 22px',
+                background: 'rgba(8, 11, 20, 0.96)',
+                border: '1px solid rgba(255,255,255,0.14)',
+                boxShadow:
+                    '0 24px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(93,200,255,0.12)',
+                backdropFilter: 'blur(20px)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+        >
+            <div
+                className="flex items-center justify-between"
+                style={{ marginBottom: 14 }}
+            >
+                <div
+                    className="vesper-mono"
+                    style={{
+                        fontSize: 10,
+                        letterSpacing: '0.32em',
+                        textTransform: 'uppercase',
+                        color: 'var(--vesper-blue)',
+                    }}
+                >
+                    Playback · Settings
+                </div>
+                <button
+                    data-testid="player-settings-close"
+                    data-focusable="true"
+                    tabIndex={0}
+                    onClick={onClose}
+                    aria-label="Close settings"
+                    className="flex items-center justify-center rounded-full"
+                    style={{
+                        width: 28,
+                        height: 28,
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        color: 'var(--vesper-text-2)',
+                    }}
+                >
+                    <CloseIcon size={14} />
+                </button>
+            </div>
+
+            {/* Buffer size */}
+            <div style={{ marginBottom: 18 }}>
+                <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--vesper-text)' }}>
+                        Buffer size
+                    </div>
+                    <div
+                        className="vesper-mono"
+                        style={{
+                            fontSize: 11,
+                            color: 'var(--vesper-blue-bright)',
+                            fontVariantNumeric: 'tabular-nums',
+                        }}
+                    >
+                        {bufferSize} s
+                    </div>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--vesper-text-2)', marginBottom: 10, lineHeight: 1.45 }}>
+                    How far ahead the player loads.  Increase if your connection stutters; decrease to save data.
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {bufferOptions.map((opt) => {
+                        const active = bufferSize === opt;
+                        return (
+                            <button
+                                key={opt}
+                                data-testid={`player-buffer-${opt}`}
+                                data-focusable="true"
+                                tabIndex={0}
+                                onClick={() => onBufferChange(opt)}
+                                className="rounded-full"
+                                style={{
+                                    padding: '8px 14px',
+                                    background: active
+                                        ? 'rgba(93,200,255,0.22)'
+                                        : 'rgba(255,255,255,0.05)',
+                                    color: active ? 'var(--vesper-blue-bright)' : '#fff',
+                                    border: active
+                                        ? '1px solid rgba(93,200,255,0.55)'
+                                        : '1px solid rgba(255,255,255,0.12)',
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                {opt}s
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* Subtitle delay */}
+            <div>
+                <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--vesper-text)' }}>
+                        Subtitle delay
+                    </div>
+                    <div
+                        className="vesper-mono"
+                        style={{
+                            fontSize: 11,
+                            color: subtitleDelay === 0
+                                ? 'var(--vesper-text-2)'
+                                : 'var(--vesper-blue-bright)',
+                            fontVariantNumeric: 'tabular-nums',
+                        }}
+                    >
+                        {subtitleDelay > 0 ? '+' : ''}{subtitleDelay.toFixed(1)} s
+                    </div>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--vesper-text-2)', marginBottom: 10, lineHeight: 1.45 }}>
+                    Shift subtitles earlier or later.  Use the −/+ buttons in half-second steps.
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                        data-testid="player-delay-minus"
+                        data-focusable="true"
+                        tabIndex={0}
+                        onClick={() => onDelayChange(subtitleDelay - 0.5)}
+                        className="rounded-full"
+                        style={{
+                            width: 40,
+                            height: 40,
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid rgba(255,255,255,0.16)',
+                            color: '#fff',
+                            fontSize: 18,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        −
+                    </button>
+                    <button
+                        data-testid="player-delay-reset"
+                        data-focusable="true"
+                        tabIndex={0}
+                        onClick={() => onDelayChange(0)}
+                        className="flex-1 rounded-full"
+                        style={{
+                            height: 40,
+                            background: 'rgba(255,255,255,0.04)',
+                            border: '1px solid rgba(255,255,255,0.10)',
+                            color: 'var(--vesper-text-2)',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            letterSpacing: '0.05em',
+                        }}
+                    >
+                        Reset
+                    </button>
+                    <button
+                        data-testid="player-delay-plus"
+                        data-focusable="true"
+                        tabIndex={0}
+                        onClick={() => onDelayChange(subtitleDelay + 0.5)}
+                        className="rounded-full"
+                        style={{
+                            width: 40,
+                            height: 40,
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid rgba(255,255,255,0.16)',
+                            color: '#fff',
+                            fontSize: 18,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        +
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}

@@ -81,6 +81,12 @@ export function AuthProvider({ children }) {
         const data = await apiLogin(username, password);
         setStatus('authenticated');
         setAccount(data.account);
+        /* Profile storage is namespaced per-account; broadcast so
+         * any mounted UI (SideNav, ProfileSelect, Home) re-reads
+         * the freshly-scoped list for the new user. */
+        try {
+            window.dispatchEvent(new CustomEvent('vesper:profile-change'));
+        } catch { /* ignore */ }
         return data;
     }, []);
 
@@ -88,6 +94,9 @@ export function AuthProvider({ children }) {
         await apiLogout();
         setStatus('guest');
         setAccount(null);
+        try {
+            window.dispatchEvent(new CustomEvent('vesper:profile-change'));
+        } catch { /* ignore */ }
     }, []);
 
     const value = React.useMemo(

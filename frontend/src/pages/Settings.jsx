@@ -235,6 +235,7 @@ export default function Settings() {
                 <ArrowLeft size={12} /> Back
             </button>
 
+            <div data-testid="shelf-page" data-settings-section="theme">
             <div
                 style={{
                     fontFamily: 'var(--theme-font-mono, monospace)',
@@ -292,8 +293,10 @@ export default function Settings() {
                     />
                 ))}
             </div>
+            </div>
 
             {/* ---- Playback section ---- */}
+            <div data-testid="shelf-page" data-settings-section="playback">
             <div
                 style={{
                     fontFamily: 'var(--theme-font-mono, monospace)',
@@ -343,8 +346,10 @@ export default function Settings() {
                 also displayed as a glowing badge top-left of the
                 player so the user knows which one is running. */}
             <PlayerBackendRow />
+            </div>
 
             {/* ---- WELCOME TOUR ---- */}
+            <div data-testid="shelf-page" data-settings-section="welcome-tour">
             <SectionHeader
                 eyebrow="Settings · Help"
                 title="Welcome tour"
@@ -397,15 +402,19 @@ export default function Settings() {
                     Replay
                 </button>
             </div>
+            </div>
 
             {/* ---- BACKUP & RESTORE ---- */}
+            <div data-testid="shelf-page" data-settings-section="tips">
             <SectionHeader
                 eyebrow="Settings · Tips"
                 title="Tips &amp; nudges"
                 icon={Lightbulb}
             />
             <TipsPanel />
+            </div>
 
+            <div data-testid="shelf-page" data-settings-section="backup">
             <SectionHeader
                 eyebrow="Settings · Account"
                 title="Backup &amp; Restore"
@@ -413,14 +422,17 @@ export default function Settings() {
                 anchorId="backup-section"
             />
             <BackupPanel />
+            </div>
 
             {/* ---- SIGN OUT ---- */}
+            <div data-testid="shelf-page" data-settings-section="signout">
             <SectionHeader
                 eyebrow="Settings · Session"
                 title="Sign out"
                 icon={LogOut}
             />
             <SignOutRow />
+            </div>
             </div>
         </div>
     );
