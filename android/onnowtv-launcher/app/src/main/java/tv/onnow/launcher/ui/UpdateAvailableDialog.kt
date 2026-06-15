@@ -44,7 +44,7 @@ object UpdateAvailableDialog {
         installedVersionCode: Long,
         onSkip: () -> Unit,
     ): Dialog {
-        val dialog = Dialog(activity, R.style.Theme_AppCompat_Dialog_Alert).apply {
+        val dialog = Dialog(activity).apply {
             requestWindowFeature(Window.FEATURE_NO_TITLE)
             setContentView(R.layout.dialog_update_available)
             window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
