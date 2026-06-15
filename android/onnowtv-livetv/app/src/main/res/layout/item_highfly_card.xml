@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.10.57 — Single 16:9 event card in the Highfly Sports Guide.
+     320 × 180 dp landscape, rounded corners, focus state.
+     Layered:
+       1. Background poster (full-bleed)
+       2. Black-to-clear gradient at bottom for text legibility
+       3. Live pulse + sport tag top-left
+       4. Title + kickoff bottom -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="320dp"
+    android:layout_height="180dp"
+    android:layout_marginEnd="14dp"
+    android:focusable="true"
+    android:clickable="true"
+    android:background="@drawable/highfly_card_bg"
+    android:foreground="@drawable/highfly_card_focus_fg"
+    android:clipToOutline="true">
+
+    <ImageView
+        android:id="@+id/card_poster"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:contentDescription="@null" />
+
+    <!-- gradient overlay -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/highfly_card_gradient" />
+
+    <!-- Top-left: sport pill + live indicator -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_gravity="top|start"
+        android:layout_margin="12dp">
+
+        <LinearLayout
+            android:id="@+id/card_live_pill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="9dp"
+            android:paddingVertical="5dp"
+            android:background="@drawable/highfly_live_pill_bg"
+            android:visibility="gone">
+
+            <View
+                android:layout_width="6dp"
+                android:layout_height="6dp"
+                android:background="@drawable/highfly_live_dot"
+                android:layout_marginEnd="6dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="LIVE"
+                android:textColor="#FFFFFF"
+                android:textSize="10sp"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.18" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/card_sport_pill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:paddingHorizontal="9dp"
+            android:paddingVertical="5dp"
+            android:background="@drawable/highfly_sport_pill_bg"
+            android:textColor="#F5F8FF"
+            android:textSize="10sp"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.18"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <!-- Bottom: title + kickoff -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingBottom="14dp"
+        android:paddingTop="20dp">
+
+        <TextView
+            android:id="@+id/card_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#F5F8FF"
+            android:textSize="15sp"
+            android:fontFamily="sans-serif-medium"
+            android:lineSpacingExtra="1dp"
+            android:maxLines="2"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/card_kickoff"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#C2CEE3"
+            android:textSize="11sp"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.1"
+            android:layout_marginTop="4dp" />
+    </LinearLayout>
+
+</FrameLayout>

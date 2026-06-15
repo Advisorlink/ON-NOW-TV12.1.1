@@ -538,6 +538,13 @@ class EpgActivity : AppCompatActivity() {
         railHome.setOnClickListener { finish() }
         railSearch.setOnClickListener { openSearchOverlay() }
         railRefresh.setOnClickListener { applyCategory() }
+        // v2.10.57 — Admin-only entry to the Highfly Sports Guide.
+        // 3-second long-press on the refresh button.  Hidden from
+        // clients (the rail_sports icon is GONE per v2.10.55).
+        railRefresh.setOnLongClickListener {
+            startActivity(android.content.Intent(this, HighflySportsGuideActivity::class.java))
+            true
+        }
         railList.setOnClickListener {
             categoriesList.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
         }

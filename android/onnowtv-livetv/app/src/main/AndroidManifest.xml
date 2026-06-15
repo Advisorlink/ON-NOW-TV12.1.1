@@ -74,6 +74,17 @@
             android:launchMode="singleTask"
             android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
 
+        <!-- v2.10.57 — Admin-only Highfly Sports Guide.
+             Not exported, no MAIN/LAUNCHER intent filter — reachable
+             only via a 3-second long-press on the rail_refresh icon
+             in EpgActivity.  Hidden from clients per user request. -->
+        <activity
+            android:name=".HighflySportsGuideActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
+
         <activity
             android:name=".LibraryActivity"
             android:exported="false"

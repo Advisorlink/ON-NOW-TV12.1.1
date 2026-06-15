@@ -1,6 +1,53 @@
 # ON NOW TV V2 — PRD
 
-> **🟢 v2.10.56 — Per-tile APK update prompt with "Backup my profiles first" (16 Jun 2026).**
+> **🟢 v2.10.57 — Highfly Sports Guide (admin-only, beautiful 16:9 design) (16 Jun 2026).**
+>
+> **User ask:** "Add this addon to live TV — `https://sports.highfly.dev/<config>/manifest.json`.  Hide it from clients (back-end only).  Design it really beautifully, 16:9 cards, Australian times, smooth D-pad, one-click play."
+>
+> **What I built:**
+>
+> **1. New repository — `/app/android/onnowtv-livetv/.../data/HighflySportsRepository.kt`**
+> Hardcoded base URL (the user's specific config-encoded addon URL is baked in).  Fans out to 17 catalogs in parallel via `fetchAll()`:
+>   • `sports_live`, `sports_today`, `sports_basketball`, `sports_football`, `sports_american-football`, `sports_rugby`, `sports_afl`, `sports_cricket`, `sports_tennis`, `sports_hockey`, `sports_baseball`, `sports_fight`, `sports_motor-sports`, `sports_golf`, `sports_billiards`, `sports_darts`, `sports_other`.
+> Each event carries `id`, `title`, `description`, `poster`, `background`, `genres`, `releaseInfo`, `isLive` (derived from "LIVE" releaseInfo or "LIVE NOW" in description), and `kickoffUtcMs` (regex-extracted ISO-8601 timestamp from the description).
+> `resolveStream(eventId)` calls `/stream/sport/{id}.json` and returns the first stream URL (used for one-click play).
+> `formatKickoffAEDT(ms)` returns `"Sat 7:30 PM"` style, `Australia/Sydney` timezone.
+>
+> **2. New activity — `HighflySportsGuideActivity.kt`**
+> Cinematic dark layout:
+>   • Top bar: eyebrow ("SPORTS · LIVE GUIDE"), 40 sp title, AEDT subtitle, live-count pill, big monospace clock + "Sydney · AEDT" caption.
+>   • Body: vertical RecyclerView of horizontal shelves (Live Right Now / Today / per-sport).
+>   • Live shelf gets a red pulsing dot next to the title.
+>   • Per-card focus animation: scale 1.0 → 1.06 + elevation 0→18 over 180 ms.
+>   • Auto-refresh every 60 s while in foreground (keeps "Live Now" fresh).
+>   • Clock ticks every 30 s in AEDT.
+>
+> **3. 16:9 cards — `item_highfly_card.xml`** — 320 × 180 dp landscape, rounded 16 dp corners (via `clipToOutline` on the FrameLayout + corners-shape on `highfly_card_bg.xml`).  Layered: full-bleed background poster → bottom-anchored darken gradient (`highfly_card_gradient.xml`) → top-left sport + LIVE pills → bottom title (2 lines) + kickoff line.  Cyan 3 dp focus rim (`highfly_card_focus_fg.xml`).
+>
+> **4. Shelf rows — `item_highfly_shelf.xml`** — title + count, horizontal RecyclerView, 48 dp left/right padding to match the rest of the LiveTV layout.
+>
+> **5. One-click play.**
+> On card tap: `lifecycleScope.launch { resolveStream → PlayerActivity }` with `EXTRA_URL` + `EXTRA_TITLE` + `EXTRA_SUBTITLE`.  Loader pill stays visible during the (typically <500 ms) round-trip.  No intermediate "Select stream" step.
+>
+> **6. Hidden from clients.**
+> The `rail_sports` icon stays `visibility="gone"` (v2.10.55).  No client-facing entry point.  Admin reaches the new Sports Guide via a **3-second long-press on the EPG refresh button** (`railRefresh.setOnLongClickListener`).  The new Activity is `android:exported="false"` in the manifest so it's also unreachable from outside the app.
+>
+> **TMDB note:** TMDB doesn't have sports event metadata.  The addon's own `background` / `poster` URLs (`cdn.highfly.dev/posters/…`) are used as-is — most events ship a clean 16:9 background already.  When the user wants higher-quality team photos later, we can layer a free SportsDB lookup on top (`thesportsdb.com`).
+>
+> **Files added:**
+>   • `data/HighflySportsRepository.kt`
+>   • `HighflySportsGuideActivity.kt`
+>   • `ui/HighflyAdapters.kt` (Shelf + Card adapters in one file)
+>   • `layout/activity_highfly_sports.xml`, `item_highfly_shelf.xml`, `item_highfly_card.xml`
+>   • drawables: `highfly_bg_gradient`, `highfly_card_bg`, `highfly_card_gradient`, `highfly_card_focus_fg`, `highfly_live_pill_bg`, `highfly_sport_pill_bg`, `highfly_live_dot`
+>
+> **Files edited:**
+>   • `AndroidManifest.xml` — registered `.HighflySportsGuideActivity`, `exported="false"`.
+>   • `EpgActivity.kt` — added `railRefresh.setOnLongClickListener` admin entry.
+>
+> APK rebuild required.  Backend unchanged.
+>
+
 >
 > **User ask (verbatim, paraphrased):** "When I upload an APK to a launcher tile, the next time the client opens that tile after the update, it should pop up 'Update available, would you like to install it?' with a button that says 'Backup my current profiles' which goes into Vesper's profile/backup screen."
 >

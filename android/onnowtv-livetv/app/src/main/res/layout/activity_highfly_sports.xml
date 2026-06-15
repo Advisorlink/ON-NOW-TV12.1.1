@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.10.57 — Highfly Sports Guide (admin-only).
+     Beautiful 16:9 TV layout:
+       • Top: cinematic clock + live count
+       • Body: vertical list of horizontal shelves
+       • Each card: 16:9 landscape, sport icon, AEDT kickoff, live pulse
+
+     Hidden from clients — entered via long-press the EPG refresh
+     button (3 s) per user request "just have it in the back end".
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#04060B">
+
+    <!-- Cinematic background gradient -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/highfly_bg_gradient" />
+
+    <!-- Top bar — eyebrow + clock -->
+    <LinearLayout
+        android:id="@+id/highfly_topbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="48dp"
+        android:paddingTop="40dp"
+        android:paddingBottom="14dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/highfly_eyebrow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SPORTS · LIVE GUIDE"
+                android:textColor="#5DC8FF"
+                android:textSize="12sp"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.32" />
+
+            <TextView
+                android:id="@+id/highfly_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Live Sports"
+                android:textColor="#F5F8FF"
+                android:textSize="40sp"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="-0.02"
+                android:layout_marginTop="6dp" />
+
+            <TextView
+                android:id="@+id/highfly_subtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#7A8AB2"
+                android:textSize="14sp"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.08"
+                android:layout_marginTop="4dp" />
+        </LinearLayout>
+
+        <!-- Right-side live pill + clock -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="end">
+
+            <LinearLayout
+                android:id="@+id/highfly_live_pill"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="7dp"
+                android:background="@drawable/highfly_live_pill_bg"
+                android:visibility="gone">
+
+                <View
+                    android:layout_width="8dp"
+                    android:layout_height="8dp"
+                    android:background="@drawable/highfly_live_dot"
+                    android:layout_marginEnd="8dp" />
+
+                <TextView
+                    android:id="@+id/highfly_live_count"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text=""
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:fontFamily="monospace"
+                    android:letterSpacing="0.14" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/highfly_clock"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#F5F8FF"
+                android:textSize="22sp"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.04"
+                android:layout_marginTop="10dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Sydney · AEDT"
+                android:textColor="#7A8AB2"
+                android:textSize="11sp"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.18" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Loader / empty state -->
+    <LinearLayout
+        android:id="@+id/highfly_loader"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Loading the sports guide"
+            android:textColor="#7A8AB2"
+            android:textSize="14sp"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.2" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/highfly_empty"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:text="No live sports right now — check back soon."
+        android:textColor="#7A8AB2"
+        android:textSize="15sp"
+        android:fontFamily="monospace"
+        android:letterSpacing="0.06"
+        android:visibility="gone" />
+
+    <!-- Shelves -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/highfly_shelves"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:paddingTop="160dp"
+        android:paddingBottom="36dp"
+        android:clipToPadding="false"
+        android:scrollbars="none"
+        android:focusable="false"
+        android:descendantFocusability="afterDescendants" />
+
+</FrameLayout>
