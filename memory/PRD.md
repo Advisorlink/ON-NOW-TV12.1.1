@@ -1,6 +1,24 @@
 # ON NOW TV V2 — PRD
 
-> **🟢 v2.10.59 — Highfly Sports Guide: visible rail button, mockup redesign, stream resilience (16 Jun 2026).**
+> **🟢 v2.10.60 — "Skip" no longer suppresses the update prompt (16 Jun 2026).**
+>
+> **User report:** Tapping "Skip for now" on the Update-available dialog made the prompt disappear forever, even after they re-uploaded a new APK to the tile.  "Until I update it, the pop-up has to keep coming up.  It can still say skip, people can still skip it, but every time the tile is tapped it has to show until they install it."
+>
+> **Root cause** (v2.10.56 behaviour): On "Skip" we persisted the dismissed `versionCode` into `SharedPreferences("update-skip-prefs")` keyed by package id.  `shouldPromptForUpdate` then returned `false` whenever `skipped == remote`.  So re-uploading the **same versionCode** (which is what happens when the admin just re-uploads the same APK to test the flow) hit the suppression and the prompt never re-showed.
+>
+> **Fix in `/app/android/onnowtv-launcher/.../MainActivity.kt`:**
+>   1. Removed the `getSharedPreferences("update-skip-prefs").putLong("skip-$pkg", remote)` write from the `onSkip` callback — "Skip" now ONLY launches the old version for this one tap.
+>   2. `shouldPromptForUpdate` no longer reads from `update-skip-prefs`.  Whenever installed `versionCode` < remote `apkVersionCode`, the prompt fires every tile-tap until the user actually installs (at which point the version comparison naturally short-circuits and the dialog stops appearing).
+>   3. Defensive cleanup: when the function returns `true`, it removes any legacy `skip-{pkg}` row left over from v2.10.56 so users currently suppressed get unstuck on the first tap under v2.10.60.
+>
+> Behaviour now matches user spec:
+>   • Update now → install → prompt stops (because installed >= remote).
+>   • Skip → launches the old version this once → next tap still prompts.
+>   • Cancel / outside-tap → does nothing this time → next tap still prompts.
+>
+> APK rebuild required.  No backend change.
+>
+
 >
 > **Three user asks in one drop:**
 >

@@ -415,23 +415,19 @@ class MainActivity : AppCompatActivity() {
                     // `onSkip` lambda doesn't see them as nullable
                     // (Kotlin's smart-cast across closure boundaries
                     // is brittle even for `val`s).
-                    val pkgSafe = pkg
                     val launchSafe = launchIntent
                     tv.onnow.launcher.ui.UpdateAvailableDialog.show(
                         activity = this,
                         item = item,
-                        installedVersionCode = installedVersionCode(pkgSafe),
+                        installedVersionCode = installedVersionCode(pkg),
                         onSkip = {
-                            // Record the dismissed version so we don't
-                            // nag the user every single tile-tap until
-                            // they actually install.  Next tap launches
-                            // the old version silently.
-                            item.apkVersionCode?.let { remote ->
-                                getSharedPreferences("update-skip-prefs", MODE_PRIVATE)
-                                    .edit()
-                                    .putLong("skip-$pkgSafe", remote)
-                                    .apply()
-                            }
+                            // v2.10.60 — Per user request the prompt
+                            // MUST nag every single tap until the
+                            // user actually installs.  "It can still
+                            // say skip, people can still skip it,
+                            // but every time the tile is tapped it
+                            // has to show until they install."
+                            // No persistent skip flag.
                             startActivity(launchSafe)
                         },
                     )
@@ -482,16 +478,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * v2.10.56 — Returns true when the admin uploaded a NEWER APK
-     * for this tile than the version currently installed on the
-     * device.  Skips the dialog when:
+     * v2.10.60 — Returns true whenever the admin uploaded a NEWER
+     * APK for this tile than the locally-installed version.  No
+     * persistent "skip" memory — per user request the prompt MUST
+     * keep showing on every tap until the user actually installs.
+     * Skips the dialog when:
      *   • The tile has no `apkVersionCode` (admin never uploaded
      *     an APK, or uploaded one with a stripped manifest).
      *   • The tile's `apkUrl` is missing (can't actually install).
      *   • The installed version is already >= remote.
-     *   • The user already dismissed this exact version (we record
-     *     the last-skipped versionCode in SharedPreferences keyed
-     *     by package, so we don't nag every single launch).
      */
     private fun shouldPromptForUpdate(installedPkg: String, item: DockItem): Boolean {
         val remote = item.apkVersionCode ?: return false
@@ -499,9 +494,14 @@ class MainActivity : AppCompatActivity() {
         val installed = installedVersionCode(installedPkg)
         if (installed <= 0L) return false
         if (installed >= remote) return false
-        val skipped = getSharedPreferences("update-skip-prefs", MODE_PRIVATE)
-            .getLong("skip-$installedPkg", -1L)
-        return skipped != remote
+        // Clear any legacy skip-prefs row from v2.10.56 so the user
+        // whose tile was suppressed by an earlier build sees the
+        // prompt again on first launch after this update.
+        val sp = getSharedPreferences("update-skip-prefs", MODE_PRIVATE)
+        if (sp.contains("skip-$installedPkg")) {
+            sp.edit().remove("skip-$installedPkg").apply()
+        }
+        return true
     }
 
     /**
