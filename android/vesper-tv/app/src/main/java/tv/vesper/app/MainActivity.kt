@@ -516,6 +516,13 @@ class MainActivity : AppCompatActivity() {
                                  dataQuery.contains("profile=exit-kids")
         val isV2AIDeepLink     = routeExtra.contains("v2ai=") ||
                                  dataQuery.contains("v2ai=")
+        // v2.10.56 — Launcher's "Backup my profiles first" button on
+        // the Update-available dialog fires us with
+        // `vesper_route=?screen=backup`.  Boot directly to the
+        // Settings → Backup section so the user can save a backup
+        // code before the new APK installs.
+        val isBackupDeepLink   = routeExtra.contains("screen=backup") ||
+                                 dataQuery.contains("screen=backup")
         val isProfileDeepLink  = isKidsDeepLink || isExitKidsDeepLink
 
         val bootUrl = when {
@@ -526,6 +533,12 @@ class MainActivity : AppCompatActivity() {
             // page handles the new title rather than landing on a
             // stale restored route.
             isV2AIDeepLink    -> defaultBoot
+            // Backup-section deep-link → swap the index/Home route
+            // for /settings#backup-section.
+            isBackupDeepLink  -> {
+                val base = defaultBoot.substringBefore("?").trimEnd('/').trimEnd('#')
+                "$base/settings#backup-section"
+            }
             else              -> devUrl ?: restoreUrl ?: defaultBoot
         }
 
@@ -584,7 +597,31 @@ class MainActivity : AppCompatActivity() {
                              dataQuery.contains("profile=exit-kids")
             val isV2AI     = routeExtra.contains("v2ai=") ||
                              dataQuery.contains("v2ai=")
-            if (!webViewReady || (!isKids && !isExitKids && !isV2AI)) return
+            // v2.10.56 — Launcher Update dialog's "Backup my profiles
+            // first" button.  Navigate the WebView directly to
+            // Settings → Backup section.
+            val isBackup   = routeExtra.contains("screen=backup") ||
+                             dataQuery.contains("screen=backup")
+            if (!webViewReady || (!isKids && !isExitKids && !isV2AI && !isBackup)) return
+            if (isBackup) {
+                val js = """
+                    (function(){
+                        try {
+                            window.location.hash = '#/settings';
+                            setTimeout(function(){
+                                try {
+                                    var el = document.getElementById('backup-section');
+                                    if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
+                                } catch (e) {}
+                            }, 300);
+                        } catch (e) {}
+                    })();
+                """.trimIndent()
+                webView.post {
+                    try { webView.evaluateJavascript(js, null) } catch (_: Throwable) {}
+                }
+                return
+            }
             // v2.8.25 — V2 AI deep-link: navigate the live React Router
             // to /v2ai-play?title=…&type=… which kicks the search →
             // resolve → autoplay flow.  Re-uses the SAME query the

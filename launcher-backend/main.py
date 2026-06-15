@@ -154,6 +154,14 @@ class DockTile(BaseModel):
     apk_filename: Optional[str]   = None   # original upload filename, for display
     apk_package_id: Optional[str] = None
     apk_version: Optional[str]    = None
+    # v2.10.56 — Numeric versionCode auto-extracted from the
+    # uploaded APK manifest.  Used by the launcher's update-check
+    # path (`MainActivity.onTileSelected`) to compare against the
+    # locally-installed `PackageInfo.longVersionCode`.  When the
+    # remote value > installed value, the launcher shows an
+    # "Update available" dialog with a Backup-my-profiles-first
+    # button.
+    apk_version_code: Optional[int] = None
     # Deprecated.  Older client builds (pre-v0.2) read `icon_url`; we
     # keep returning it (always null) so JSON parsing doesn't fail on
     # those clients.
@@ -586,6 +594,7 @@ def _build_config(store: dict) -> LauncherConfig:
                 apk_filename=t.get("apk_filename"),
                 apk_package_id=t.get("apk_package_id"),
                 apk_version=t.get("apk_version"),
+                apk_version_code=t.get("apk_version_code"),
                 icon_url=None,  # deprecated — see DockTile docstring
                 target_package=t.get("target_package"),
                 target_url=t.get("target_url"),
@@ -2097,6 +2106,7 @@ def set_dock(dock_tiles: list[DockTile]) -> dict:
             "wallpaper_url": t.get("wallpaper_url"),
             "apk_url": t.get("apk_url"),
             "apk_filename": t.get("apk_filename"),
+            "apk_version_code": t.get("apk_version_code"),
         }
         for t in store.get("dock_tiles", [])
     }
@@ -2104,10 +2114,11 @@ def set_dock(dock_tiles: list[DockTile]) -> dict:
     for t in dock_tiles:
         d = t.model_dump()
         prev = existing_assets.get(d["key"], {})
-        d["image_url"]    = prev.get("image_url")
-        d["wallpaper_url"] = prev.get("wallpaper_url")
-        d["apk_url"]      = prev.get("apk_url")
-        d["apk_filename"] = prev.get("apk_filename")
+        d["image_url"]        = prev.get("image_url")
+        d["wallpaper_url"]    = prev.get("wallpaper_url")
+        d["apk_url"]          = prev.get("apk_url")
+        d["apk_filename"]     = prev.get("apk_filename")
+        d["apk_version_code"] = prev.get("apk_version_code")
         d.pop("icon_url", None)  # deprecated; never persist
         new_dock.append(d)
     store["dock_tiles"] = new_dock
@@ -2151,6 +2162,7 @@ def add_dock_tile(payload: dict | None = None) -> dict:
         "apk_filename": None,
         "apk_package_id": None,
         "apk_version": None,
+        "apk_version_code": None,
         "target_package": (p.get("target_package") or "").strip() or None,
         "target_url": (p.get("target_url") or "").strip() or None,
         "accent": (p.get("accent") or "").strip() or None,
@@ -2285,7 +2297,15 @@ async def upload_tile_apk(
     tile and `target_package` is not yet installed on the device.
     Admin can optionally supply `apk_package_id` and `apk_version` so
     the launcher can do version-bump checks without parsing the APK
-    itself."""
+    itself.
+
+    v2.10.56 — Also auto-extracts `apk_version_code` (int) from the
+    uploaded APK's manifest so the launcher can compare the
+    locally-installed `PackageInfo.versionCode` against the
+    admin-uploaded one and decide whether to show the
+    "Update available" dialog.  Falls back gracefully if the APK
+    has a stripped manifest.
+    """
     store = _load_store()
     tile = _find_tile(store, key)
     if not file.filename:
@@ -2306,6 +2326,32 @@ async def upload_tile_apk(
         tile["apk_package_id"] = apk_package_id.strip() or None
     if apk_version:
         tile["apk_version"] = apk_version.strip() or None
+    # v2.10.56 — Read the APK manifest to recover the real
+    # versionCode + package id + version name.  Admin-supplied
+    # values (above) win for the string fields; we never overwrite
+    # them, but they DON'T provide version_code so we always read
+    # it from the APK when possible.
+    try:
+        import asyncio
+        from apk_meta import inspect_apk
+        # inspect_apk also rewrites a 256x256 icon to disk — we
+        # don't use that path here (the tile icon is admin-curated)
+        # so we point icon_out_dir at a scratch dir and ignore the
+        # returned icon_path.
+        meta = await asyncio.to_thread(
+            inspect_apk,
+            target,
+            DATA_DIR / "tile_apks" / "_icons",
+            f"tile-{key}",
+        )
+        if meta.get("version_code"):
+            tile["apk_version_code"] = int(meta["version_code"])
+        if not tile.get("apk_package_id") and meta.get("package_id"):
+            tile["apk_package_id"] = meta["package_id"]
+        if not tile.get("apk_version") and meta.get("version_name"):
+            tile["apk_version"] = meta["version_name"]
+    except Exception as exc:  # noqa: BLE001
+        log.warning("tile-apk inspect failed for %s: %s", target, exc)
     _save_store(store)
     return {
         "ok": True,
@@ -2313,6 +2359,7 @@ async def upload_tile_apk(
         "apk_filename": tile["apk_filename"],
         "apk_package_id": tile.get("apk_package_id"),
         "apk_version": tile.get("apk_version"),
+        "apk_version_code": tile.get("apk_version_code"),
         "generation": store["generation"],
     }
 
@@ -2322,19 +2369,25 @@ def clear_tile_apk(key: str) -> dict:
     store = _load_store()
     tile = _find_tile(store, key)
     _delete_tile_asset_file(tile.get("apk_url"))
-    tile["apk_url"]        = None
-    tile["apk_filename"]   = None
-    tile["apk_package_id"] = None
-    tile["apk_version"]    = None
+    tile["apk_url"]          = None
+    tile["apk_filename"]     = None
+    tile["apk_package_id"]   = None
+    tile["apk_version"]      = None
+    tile["apk_version_code"] = None
     _save_store(store)
     return {"ok": True, "generation": store["generation"]}
 
 
 @app.post("/api/admin/dock/{key}/apk-meta", dependencies=[Depends(require_admin)])
 def set_tile_apk_meta(key: str, payload: dict) -> dict:
-    """Update apk_package_id / apk_version on a tile that already has
-    an APK uploaded.  Useful when the admin forgets to set them at
-    upload time."""
+    """Update apk_package_id / apk_version / apk_version_code on a
+    tile that already has an APK uploaded.  Useful when the admin
+    forgets to set them at upload time, or when the auto-extracted
+    value needs to be overridden manually.
+
+    v2.10.56 — Now also accepts `apk_version_code` (int) for the
+    update-available comparison on the launcher.
+    """
     store = _load_store()
     tile = _find_tile(store, key)
     if "apk_package_id" in payload:
@@ -2343,6 +2396,15 @@ def set_tile_apk_meta(key: str, payload: dict) -> dict:
     if "apk_version" in payload:
         v = (payload.get("apk_version") or "").strip()
         tile["apk_version"] = v or None
+    if "apk_version_code" in payload:
+        raw = payload.get("apk_version_code")
+        if raw is None or raw == "":
+            tile["apk_version_code"] = None
+        else:
+            try:
+                tile["apk_version_code"] = int(raw)
+            except (TypeError, ValueError):
+                raise HTTPException(400, "apk_version_code must be an integer")
     _save_store(store)
     return {"ok": True, "generation": store["generation"]}
 

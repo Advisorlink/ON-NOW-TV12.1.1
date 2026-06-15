@@ -399,10 +399,38 @@ class MainActivity : AppCompatActivity() {
         //    handling (`?profile=kids` / `?profile=exit-kids`) is
         //    removed because Vesper no longer carries any Kids
         //    profile wiring.
+        //
+        // v2.10.56 — Before launching, we ALSO check whether the
+        // admin uploaded a newer APK for this tile.  If the locally-
+        // installed `versionCode` is older than `item.apkVersionCode`
+        // we show the Update-available dialog (with a Backup-my-
+        // profiles-first button) instead of jumping straight into
+        // the old version.
         val pkg = item.targetPackage
         if (!pkg.isNullOrBlank()) {
             val launchIntent = packageManager.getLaunchIntentForPackage(pkg)
             if (launchIntent != null) {
+                if (shouldPromptForUpdate(pkg, item)) {
+                    tv.onnow.launcher.ui.UpdateAvailableDialog.show(
+                        activity = this,
+                        item = item,
+                        installedVersionCode = installedVersionCode(pkg),
+                        onSkip = {
+                            // Record the dismissed version so we don't
+                            // nag the user every single tile-tap until
+                            // they actually install.  Next tap launches
+                            // the old version silently.
+                            item.apkVersionCode?.let { remote ->
+                                getSharedPreferences("update-skip-prefs", MODE_PRIVATE)
+                                    .edit()
+                                    .putLong("skip-$pkg", remote)
+                                    .apply()
+                            }
+                            startActivity(launchIntent)
+                        },
+                    )
+                    return
+                }
                 startActivity(launchIntent)
                 return
             }
@@ -445,6 +473,50 @@ class MainActivity : AppCompatActivity() {
             "Set a target in the Launcher admin for \"${item.label}\".",
             Toast.LENGTH_SHORT,
         ).show()
+    }
+
+    /**
+     * v2.10.56 — Returns true when the admin uploaded a NEWER APK
+     * for this tile than the version currently installed on the
+     * device.  Skips the dialog when:
+     *   • The tile has no `apkVersionCode` (admin never uploaded
+     *     an APK, or uploaded one with a stripped manifest).
+     *   • The tile's `apkUrl` is missing (can't actually install).
+     *   • The installed version is already >= remote.
+     *   • The user already dismissed this exact version (we record
+     *     the last-skipped versionCode in SharedPreferences keyed
+     *     by package, so we don't nag every single launch).
+     */
+    private fun shouldPromptForUpdate(installedPkg: String, item: DockItem): Boolean {
+        val remote = item.apkVersionCode ?: return false
+        if (item.apkUrl.isNullOrBlank()) return false
+        val installed = installedVersionCode(installedPkg)
+        if (installed <= 0L) return false
+        if (installed >= remote) return false
+        val skipped = getSharedPreferences("update-skip-prefs", MODE_PRIVATE)
+            .getLong("skip-$installedPkg", -1L)
+        return skipped != remote
+    }
+
+    /**
+     * v2.10.56 — Read the installed `longVersionCode` for a package
+     * id.  Returns `0L` when the package isn't installed or the
+     * lookup throws (NameNotFoundException etc.).
+     */
+    private fun installedVersionCode(pkg: String): Long {
+        return try {
+            val info = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                packageManager.getPackageInfo(pkg, 0).longVersionCode
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getPackageInfo(pkg, 0).versionCode.toLong()
+            }
+            info
+        } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
+            0L
+        } catch (_: Throwable) {
+            0L
+        }
     }
 
     /* ──────────────────────────  Wallpaper  ───────────────────────── */
@@ -614,6 +686,10 @@ class MainActivity : AppCompatActivity() {
                 subheading     = t.subheading,
                 description    = t.description,
                 ctaLabel       = t.ctaLabel,
+                apkUrl         = t.apkUrl,
+                apkPackageId   = t.apkPackageId,
+                apkVersion     = t.apkVersion,
+                apkVersionCode = t.apkVersionCode,
             )
         }
         dockItems.clear()

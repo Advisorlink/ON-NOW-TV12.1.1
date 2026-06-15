@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.10.56 — Secondary CTA (Backup my profiles first). -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#1B2540" />
+            <stroke android:width="2dp" android:color="#5DC8FF" />
+            <corners android:radius="14dp" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#15192B" />
+            <corners android:radius="14dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#15192B" />
+            <stroke android:width="1dp" android:color="#2A3552" />
+            <corners android:radius="14dp" />
+        </shape>
+    </item>
+</selector>

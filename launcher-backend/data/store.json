@@ -397,6 +397,11 @@
       "device_id": "onnow-2279499f3d06f84b",
       "last_seen": 1779983658,
       "last_generation": 634
+    },
+    "smoke-test": {
+      "device_id": "smoke-test",
+      "last_seen": 1781514610,
+      "last_generation": 639
     }
   },
   "layout": {

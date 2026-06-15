@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.10.56 — "Update available" dialog shown when the user taps a
+     tile whose installed app is older than the admin-uploaded APK.
+
+     Three actions:
+       • Backup my profiles first → opens Vesper deep-linked to
+         Settings → Backup section so the user can save a backup
+         code before the new APK installs.
+       • Update now              → downloads + installs the new APK
+         via the system installer (no extra permissions needed).
+       • Skip for now            → launches the currently-installed
+         older version (original behaviour). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="780dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/update_dialog_card_bg"
+    android:padding="0dp"
+    android:clipToOutline="true">
+
+    <!-- Eyebrow / "Update available" mono-caps marker -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="38dp"
+        android:paddingTop="36dp"
+        android:paddingBottom="4dp"
+        android:text="UPDATE AVAILABLE"
+        android:textColor="#5DC8FF"
+        android:textSize="12sp"
+        android:fontFamily="monospace"
+        android:letterSpacing="0.32" />
+
+    <!-- Main title -->
+    <TextView
+        android:id="@+id/update_dialog_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="38dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="6dp"
+        android:textColor="#F5F8FF"
+        android:textSize="32sp"
+        android:fontFamily="sans-serif-medium"
+        android:singleLine="true"
+        android:ellipsize="end" />
+
+    <!-- Version-comparison line: installed → remote -->
+    <TextView
+        android:id="@+id/update_dialog_versions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="38dp"
+        android:paddingBottom="18dp"
+        android:textColor="#7A8AB2"
+        android:textSize="14sp"
+        android:fontFamily="monospace"
+        android:letterSpacing="0.04" />
+
+    <!-- Body copy -->
+    <TextView
+        android:id="@+id/update_dialog_body"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="38dp"
+        android:paddingBottom="32dp"
+        android:textColor="#C2CEE3"
+        android:textSize="17sp"
+        android:lineSpacingExtra="4dp"
+        android:text="A newer version of this app is ready to install.  Before updating, you can back up your profiles so you can restore them later if anything looks different." />
+
+    <!-- Primary action: Update now -->
+    <Button
+        android:id="@+id/update_dialog_install"
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:layout_marginHorizontal="38dp"
+        android:layout_marginBottom="12dp"
+        android:background="@drawable/update_dialog_btn_primary"
+        android:text="Update now"
+        android:textColor="#04060B"
+        android:textSize="18sp"
+        android:textAllCaps="false"
+        android:fontFamily="sans-serif-medium"
+        android:gravity="center"
+        android:focusable="true"
+        android:nextFocusDown="@+id/update_dialog_backup" />
+
+    <!-- Secondary: Backup my profiles first -->
+    <Button
+        android:id="@+id/update_dialog_backup"
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:layout_marginHorizontal="38dp"
+        android:layout_marginBottom="12dp"
+        android:background="@drawable/update_dialog_btn_secondary"
+        android:text="Backup my profiles first"
+        android:textColor="#F5F8FF"
+        android:textSize="17sp"
+        android:textAllCaps="false"
+        android:fontFamily="sans-serif"
+        android:gravity="center"
+        android:focusable="true"
+        android:nextFocusDown="@+id/update_dialog_skip" />
+
+    <!-- Tertiary: Skip for now -->
+    <Button
+        android:id="@+id/update_dialog_skip"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_marginHorizontal="38dp"
+        android:layout_marginBottom="32dp"
+        android:background="@drawable/update_dialog_btn_tertiary"
+        android:text="Skip for now"
+        android:textColor="#7A8AB2"
+        android:textSize="15sp"
+        android:textAllCaps="false"
+        android:fontFamily="sans-serif"
+        android:gravity="center"
+        android:focusable="true" />
+
+</LinearLayout>

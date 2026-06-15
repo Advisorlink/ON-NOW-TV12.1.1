@@ -128,6 +128,12 @@ data class DockTileRemote(
     val apkFilename: String?,
     val apkPackageId: String?,
     val apkVersion: String?,
+    /* v2.10.56 — Numeric versionCode auto-extracted from the
+       uploaded APK on the backend (`apk_meta.inspect_apk`).
+       MainActivity uses this for the update-available check —
+       compares against `packageManager.getPackageInfo(...).longVersionCode`
+       and prompts the user to update if the remote value is higher. */
+    val apkVersionCode: Long?,
     val targetPackage: String?,
     val targetUrl: String?,
     val accent: String?,
@@ -237,6 +243,8 @@ fun parseLauncherConfig(json: String): LauncherConfig {
             apkFilename    = o.optStringOrNull("apk_filename"),
             apkPackageId   = o.optStringOrNull("apk_package_id"),
             apkVersion     = o.optStringOrNull("apk_version"),
+            apkVersionCode = if (o.has("apk_version_code") && !o.isNull("apk_version_code"))
+                o.optLong("apk_version_code") else null,
             targetPackage  = o.optStringOrNull("target_package"),
             targetUrl      = o.optStringOrNull("target_url"),
             accent         = o.optStringOrNull("accent"),

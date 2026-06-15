@@ -33,4 +33,15 @@ data class DockItem(
     val subheading: String? = null,
     val description: String? = null,
     val ctaLabel: String? = null,
+    /* v2.10.56 — Per-tile APK update plumbing.  When the admin
+       uploads a new APK for a tile, the backend extracts the
+       APK manifest's versionCode and surfaces it as
+       `apk_version_code`.  MainActivity compares the locally-
+       installed `PackageInfo.longVersionCode` against this and
+       prompts the user to update (with a Backup-my-profiles-first
+       button) if the remote value is higher. */
+    val apkUrl: String? = null,
+    val apkPackageId: String? = null,
+    val apkVersion: String? = null,
+    val apkVersionCode: Long? = null,
 )
