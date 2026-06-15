@@ -749,6 +749,7 @@ function renderDock(store) {
                            <span>${escapeAttr(t.apk_package_id || '— no package id —')}</span>
                            <span class="dot-sep">·</span>
                            <span>v${escapeAttr(t.apk_version || '?')}</span>
+                           ${t.apk_version_code != null ? `<span class="dot-sep">·</span><span>code ${escapeAttr(t.apk_version_code)}</span>` : ''}
                        </div>
                    </div>
                </div>`

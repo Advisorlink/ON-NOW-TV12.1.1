@@ -1,6 +1,42 @@
 # ON NOW TV V2 — PRD
 
-> **🟢 v2.10.55 — Live-TV UX polish drop (16 Jun 2026).**
+> **🟢 v2.10.56 — Per-tile APK update prompt with "Backup my profiles first" (16 Jun 2026).**
+>
+> **User ask (verbatim, paraphrased):** "When I upload an APK to a launcher tile, the next time the client opens that tile after the update, it should pop up 'Update available, would you like to install it?' with a button that says 'Backup my current profiles' which goes into Vesper's profile/backup screen."
+>
+> Built E2E across three layers, ~70% of plumbing already existed (per-tile APK upload was already in the Launcher backend; ApkInstaller download+install path was already in `AppsDrawerActivity`; Vesper Settings already had a `#backup-section` anchor).  What was missing was: the version-code comparison, the dialog UI, and the Vesper deep-link to Settings → Backup.
+>
+> **Backend (`/app/launcher-backend/main.py` + `apk_meta.py`):**
+> Added `apk_version_code: Optional[int] = None` to the `DockTile` Pydantic model.  At upload time in `upload_tile_apk()`, the manifest is now auto-inspected via `apk_meta.inspect_apk()` (already existed for icon extraction) and the parsed `version_code` is persisted on the tile.  Admin can also override via PATCH `/api/admin/dock/{key}/apk-meta`.  The public `/api/launcher/config` endpoint surfaces the new field.  The admin static UI (`admin/static/app.js`) shows the version code next to the version name on each tile's APK card.
+>
+> **Launcher Android (`/app/android/onnowtv-launcher/...`):**
+> 1. `DockTileRemote` + `DockItem` got the new `apkVersionCode: Long?` field.  Parsed via `JSONObject.optLong(...)` guarded by `o.has() && !o.isNull()`.
+> 2. `MainActivity.onTileSelected()` — new branch BEFORE `startActivity(launchIntent)`.  Calls `shouldPromptForUpdate(pkg, item)` which compares the installed `PackageInfo.longVersionCode` (or `versionCode.toLong()` on pre-P) against the tile's `apkVersionCode`.  When remote > installed AND that exact remote version hasn't been skipped before, shows the new dialog.
+> 3. `MainActivity.installedVersionCode()` — `Android-P+` `longVersionCode` with deprecation-suppressed fallback.
+> 4. Skipped versions persist in `SharedPreferences("update-skip-prefs")` keyed `skip-{packageId}` so the user isn't nagged on every tile-tap.
+> 5. New file `ui/UpdateAvailableDialog.kt` — branded `Dialog` (NOT a system `AlertDialog`) with three actions:
+>      • **Update now** → reuses `ApkInstaller.downloadAndInstall(...)` from `AppsDrawerActivity`; system installer takes over (no extra permissions).
+>      • **Backup my profiles first** → launches `tv.vesper.app` with `intent.putExtra("vesper_route", "?screen=backup")` so the WebView opens directly on Settings → Backup section.
+>      • **Skip for now** → records the skipped versionCode and launches the currently-installed older version.
+> 6. New XML layout `dialog_update_available.xml` (780dp wide, 32sp title, large rounded buttons) + 4 drawable selectors (`update_dialog_card_bg`, `update_dialog_btn_primary/secondary/tertiary`).
+>
+> **Vesper Android (`/app/android/vesper-tv/.../MainActivity.kt`):**
+> Cold-boot URL builder + `onNewIntent` both now detect `screen=backup` in `routeExtra` / `dataQuery`:
+>   • **Cold boot:** `bootUrl` is rewritten to `<base>/settings#backup-section`.
+>   • **In-foreground:** `webView.evaluateJavascript("window.location.hash = '#/settings'; setTimeout(...scrollIntoView('backup-section')..., 500)")`.
+> 500 ms delay (bumped from 300 ms per troubleshoot agent review) gives the React Router transition + Settings page render time on slower HK1 boxes.
+>
+> Static code review: 8 implementation points, 7 OK + 1 STYLE suggestion (the 300 → 500 ms delay tweak) — applied.
+>
+> **End-to-end flow on the user's TV:**
+> 1. Admin uploads APK to "Movies & TV" tile via `/admin/static/app.js` → backend extracts `version_code` from APK manifest.
+> 2. Launcher polls `/api/launcher/config` → new `apk_version_code` propagated to the device.
+> 3. User taps the tile.  Launcher checks installed `versionCode` < remote → shows `UpdateAvailableDialog`.
+> 4. Two-tap UX: "Backup my profiles first" → Vesper opens on the Backup section → user notes the backup code → presses BACK → tile-tap shows the dialog again → "Update now" → system installer takes over.
+>
+> Required action by user: **push these changes via Save-to-GitHub** → trigger `onnowtv-launcher` + `vesper-tv` GA APK builds → sideload on HK1 boxes.
+>
+
 >
 > User reported 6 visible UX issues with the Live-TV native Android app after the v2.10.54 cold-start fix.  All six addressed in one drop:
 >

@@ -613,7 +613,7 @@ class MainActivity : AppCompatActivity() {
                                     var el = document.getElementById('backup-section');
                                     if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
                                 } catch (e) {}
-                            }, 300);
+                            }, 500);
                         } catch (e) {}
                     })();
                 """.trimIndent()

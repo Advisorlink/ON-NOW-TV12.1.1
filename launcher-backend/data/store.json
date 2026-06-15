@@ -402,6 +402,16 @@
       "device_id": "smoke-test",
       "last_seen": 1781514610,
       "last_generation": 639
+    },
+    "smoke-v55": {
+      "device_id": "smoke-v55",
+      "last_seen": 1781514794,
+      "last_generation": 639
+    },
+    "test-v56": {
+      "device_id": "test-v56",
+      "last_seen": 1781520785,
+      "last_generation": 639
     }
   },
   "layout": {
