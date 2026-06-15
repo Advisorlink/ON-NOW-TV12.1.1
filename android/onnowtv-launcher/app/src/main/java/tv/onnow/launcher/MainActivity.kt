@@ -411,10 +411,16 @@ class MainActivity : AppCompatActivity() {
             val launchIntent = packageManager.getLaunchIntentForPackage(pkg)
             if (launchIntent != null) {
                 if (shouldPromptForUpdate(pkg, item)) {
+                    // Capture into stable non-null locals so the
+                    // `onSkip` lambda doesn't see them as nullable
+                    // (Kotlin's smart-cast across closure boundaries
+                    // is brittle even for `val`s).
+                    val pkgSafe = pkg
+                    val launchSafe = launchIntent
                     tv.onnow.launcher.ui.UpdateAvailableDialog.show(
                         activity = this,
                         item = item,
-                        installedVersionCode = installedVersionCode(pkg),
+                        installedVersionCode = installedVersionCode(pkgSafe),
                         onSkip = {
                             // Record the dismissed version so we don't
                             // nag the user every single tile-tap until
@@ -423,10 +429,10 @@ class MainActivity : AppCompatActivity() {
                             item.apkVersionCode?.let { remote ->
                                 getSharedPreferences("update-skip-prefs", MODE_PRIVATE)
                                     .edit()
-                                    .putLong("skip-$pkg", remote)
+                                    .putLong("skip-$pkgSafe", remote)
                                     .apply()
                             }
-                            startActivity(launchIntent)
+                            startActivity(launchSafe)
                         },
                     )
                     return
