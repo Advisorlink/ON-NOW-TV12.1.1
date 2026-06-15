@@ -37,6 +37,96 @@ function toast(msg, isError = false) {
     toast._t = setTimeout(() => { el.hidden = true; }, 3000);
 }
 
+/* v2.10.58 — Persistent (non-auto-dismissing) toast for in-flight
+   operations like APK uploads.  Returns a tiny controller object
+   with `update(msg)` / `success(msg)` / `error(msg)` / `close()` so
+   the caller can stream progress into a single toast bubble.
+
+   The old auto-toast above stays exactly as it was; admin code that
+   wants to keep using one-shot toasts won't notice. */
+function persistentToast(initialMsg) {
+    const el = $('#toast');
+    if (!el) {
+        console.log('persistentToast:', initialMsg);
+        return { update: console.log, success: console.log, error: console.warn, close: () => {} };
+    }
+    clearTimeout(toast._t);
+    el.textContent = initialMsg;
+    el.classList.remove('err');
+    el.classList.add('progress');
+    el.hidden = false;
+    return {
+        update(msg) {
+            el.textContent = msg;
+            el.classList.remove('err');
+            el.classList.add('progress');
+            el.hidden = false;
+        },
+        success(msg) {
+            el.classList.remove('progress', 'err');
+            el.textContent = msg;
+            el.hidden = false;
+            clearTimeout(toast._t);
+            toast._t = setTimeout(() => { el.hidden = true; }, 3000);
+        },
+        error(msg) {
+            el.classList.remove('progress');
+            el.classList.add('err');
+            el.textContent = msg;
+            el.hidden = false;
+            clearTimeout(toast._t);
+            toast._t = setTimeout(() => { el.hidden = true; }, 6000);
+        },
+        close() {
+            el.classList.remove('progress', 'err');
+            el.hidden = true;
+        },
+    };
+}
+
+/* v2.10.58 — XMLHttpRequest-based upload wrapper that reports
+   real-time progress.  We can't use `fetch(...)` for this because
+   browsers don't expose upload progress on the fetch ReadableStream
+   side until Chrome ≥ 105 with experimental flags.  An XHR is the
+   portable answer.
+
+   Returns the parsed JSON response on 2xx, throws on error/timeout.
+   `onProgress({ loaded, total, percent })` is called every ~250 ms
+   during the upload. */
+function uploadWithProgress(url, formData, onProgress) {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', url, true);
+        xhr.withCredentials = true;          // mirror fetch's same-origin cookies
+        xhr.responseType = 'text';
+
+        xhr.upload.onprogress = (e) => {
+            if (!e.lengthComputable) return;
+            const percent = (e.loaded / e.total) * 100;
+            try { onProgress({ loaded: e.loaded, total: e.total, percent }); } catch (_) {}
+        };
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try { resolve(xhr.responseText ? JSON.parse(xhr.responseText) : {}); }
+                catch (e) { resolve({}); }
+            } else {
+                let msg = `HTTP ${xhr.status}`;
+                try { msg = JSON.parse(xhr.responseText).detail || msg; } catch (_) { msg = xhr.responseText || msg; }
+                reject(new Error(msg));
+            }
+        };
+        xhr.onerror = () => reject(new Error('Network error during upload — check your connection.'));
+        xhr.ontimeout = () => reject(new Error('Upload timed out.'));
+        xhr.timeout = 10 * 60 * 1000;  // 10 minute hard cap
+
+        xhr.send(formData);
+    });
+}
+
+function fmtMB(bytes) {
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
 async function api(path, opts = {}) {
     const r = await fetch(_abs(path), { credentials: 'same-origin', ...opts });
     if (r.status === 401) {
@@ -899,7 +989,14 @@ function bindDockHandlers() {
         });
     });
 
-    /* Image / wallpaper / APK upload */
+    /* Image / wallpaper / APK upload — with real-time progress
+       reporting (v2.10.58).  Large APK uploads (60-100 MB on
+       residential connections) used to give NO visible feedback
+       for 60-180 s while the fetch was in-flight, so admins kept
+       thinking the upload was broken and abandoned it.  The new
+       flow uses an XHR so we can stream `xhr.upload.onprogress`
+       into a persistent toast that shows "Uploading… 23.4 MB /
+       58.0 MB · 40 %". */
     $$('#dockList input[type="file"]').forEach((inp) => {
         inp.addEventListener('change', async () => {
             const f = inp.files && inp.files[0];
@@ -911,9 +1008,6 @@ function bindDockHandlers() {
                        : 'apk';
             const form = new FormData();
             form.append('file', f);
-            // For APK uploads, also send any metadata the admin has
-            // already typed into the field row.  The endpoint persists
-            // them on the tile so the launcher can do version checks.
             if (kind === 'apk') {
                 const li = inp.closest('li');
                 const pkgInput = li.querySelector('input[data-k="apk_package_id"]');
@@ -921,17 +1015,32 @@ function bindDockHandlers() {
                 if (pkgInput && pkgInput.value.trim()) form.append('apk_package_id', pkgInput.value.trim());
                 if (verInput && verInput.value.trim()) form.append('apk_version',    verInput.value.trim());
             }
+            const friendly = kind === 'image' ? 'image'
+                          : kind === 'wallpaper' ? 'wallpaper'
+                          : 'APK';
+            const tt = persistentToast(`Uploading ${friendly} for "${key}" — ${fmtMB(f.size)}`);
+            // Disable the input while in-flight so the user can't
+            // double-fire by picking another file.
+            inp.disabled = true;
             try {
-                await api(`/api/admin/dock/${encodeURIComponent(key)}/${kind}`, {
-                    method: 'POST',
-                    body: form,
-                });
-                const friendly = kind === 'image' ? 'Tile image'
-                              : kind === 'wallpaper' ? 'Wallpaper'
-                              : 'APK';
-                toast(`${friendly} uploaded for ${key}`);
+                await uploadWithProgress(
+                    _abs(`/api/admin/dock/${encodeURIComponent(key)}/${kind}`),
+                    form,
+                    ({ loaded, total, percent }) => {
+                        tt.update(
+                            `Uploading ${friendly} for "${key}" — ${fmtMB(loaded)} / ${fmtMB(total)} · ${percent.toFixed(0)} %`,
+                        );
+                    },
+                );
+                tt.success(`${friendly[0].toUpperCase()}${friendly.slice(1)} uploaded for "${key}"`);
                 refreshAll();
-            } catch (e) { toast('Upload failed: ' + e.message, true); }
+            } catch (e) {
+                tt.error('Upload failed: ' + (e.message || 'unknown error'));
+            } finally {
+                inp.disabled = false;
+                // Reset the file input so picking the same file again re-fires `change`.
+                inp.value = '';
+            }
         });
     });
 

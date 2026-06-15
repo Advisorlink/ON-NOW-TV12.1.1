@@ -1,6 +1,25 @@
 # ON NOW TV V2 — PRD
 
-> **🟢 v2.10.57 — Highfly Sports Guide (admin-only, beautiful 16:9 design) (16 Jun 2026).**
+> **🟢 v2.10.58 — Launcher admin: APK upload progress + visible feedback (16 Jun 2026).**
+>
+> **User report:** "I can't upload an APK to the dock in the launcher admin.  I click Upload APK, pick the file, then nothing visible happens — no error, no success.  Chrome on desktop."
+>
+> **Root cause:** The old upload flow used `fetch(...)` with no progress hook.  A real APK on a residential connection (5-10 Mbps up) takes 60-180 s to upload — and during that time the UI showed ZERO feedback.  Admins thought the upload was broken and abandoned mid-flight.  Curl tests confirmed the FastAPI endpoint accepts uploads up to 100 MB cleanly.
+>
+> **Fix in `/app/launcher-backend/admin/static/app.js` + `style.css`:**
+>   1. New `uploadWithProgress(url, formData, onProgress)` helper using `XMLHttpRequest` (only portable way to get upload-progress events — fetch's `ReadableStream` upload progress is still behind flags in Chrome).  Reports `{loaded, total, percent}` every progress tick.
+>   2. New `persistentToast(initialMsg)` controller returning `{update, success, error, close}` so a single toast bubble can stream live progress (`"Uploading APK for movies — 23.4 MB / 58.0 MB · 40 %"`) and switch to success / error at the end.
+>   3. Upload event listener for `#dockList input[type="file"]` rewired to use both helpers; the `.toast.progress` class adds a cyan pulse + 3 px left bar so the bubble is obviously "still working".
+>   4. File `input` is disabled mid-upload + reset to `''` afterwards so picking the SAME file twice in a row re-fires the change event (browser default behaviour silently drops the second pick).
+>   5. 10-minute hard timeout (vs the browser's default ~ no timeout) so a stuck connection errors loudly instead of hanging forever.
+>
+> The image and wallpaper uploads use the same flow now too — they're typically <2 MB so they finish in <1 s, but the progress bubble still makes the success state obvious.
+>
+> **No backend change needed.**  Endpoint `POST /api/admin/dock/{key}/{apk|image|wallpaper}` was already healthy (curl-tested with 217 B → 100 MB uploads, all 200 OK).  The fix is purely client-side feedback.
+>
+> Frontend asset changes ship as part of the launcher-backend deploy (`/admin/static/app.js` + `style.css`) — no APK rebuild required.
+>
+
 >
 > **User ask:** "Add this addon to live TV — `https://sports.highfly.dev/<config>/manifest.json`.  Hide it from clients (back-end only).  Design it really beautifully, 16:9 cards, Australian times, smooth D-pad, one-click play."
 >

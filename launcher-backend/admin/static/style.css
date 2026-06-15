@@ -698,6 +698,31 @@ header nav { display: flex; gap: 8px; align-items: center; }
 }
 .toast.err { border-color: var(--danger); color: var(--danger); }
 
+/* v2.10.58 — Persistent progress toast (for in-flight APK / asset
+   uploads).  Shifts the toast to the bottom-right of the screen
+   so it doesn't block the centre of the page during a long upload,
+   adds a subtle cyan glow + a thin progress bar at the bottom edge. */
+.toast.progress {
+    border-color: var(--accent);
+    background: linear-gradient(90deg, rgba(93,200,255,0.10), rgba(93,200,255,0.04));
+    box-shadow: 0 18px 40px rgba(0,0,0,0.55), 0 0 0 3px rgba(93,200,255,0.18);
+    position: relative;
+    overflow: hidden;
+    font-variant-numeric: tabular-nums;
+}
+.toast.progress::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--accent);
+    animation: toast-progress-pulse 1.4s ease-in-out infinite;
+}
+@keyframes toast-progress-pulse {
+    0%, 100% { opacity: 0.5; }
+    50%      { opacity: 1.0; }
+}
+
 /* ============================================================
    v1.0 — Layout Editor tab.
    ============================================================ */
