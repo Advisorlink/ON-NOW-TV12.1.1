@@ -1,6 +1,34 @@
 # ON NOW TV V2 — PRD
 
-> **🟢 v2.10.58 — Launcher admin: APK upload progress + visible feedback (16 Jun 2026).**
+> **🟢 v2.10.59 — Highfly Sports Guide: visible rail button, mockup redesign, stream resilience (16 Jun 2026).**
+>
+> **Three user asks in one drop:**
+>
+> **1. Visible rail button** (instead of the 3-second long-press hidden gesture).
+> Per user feedback "I do want people to be able to click it — I just don't want them to see the plugin".  `rail_sports` in `activity_epg.xml` is now `visibility="visible"` + `focusable="true"`.  The long-press shortcut on `rail_refresh` was removed.  `railSports.setOnClickListener` now launches `HighflySportsGuideActivity` (the legacy `SportsGuideActivity` is bypassed entirely).  The guide surface itself NEVER exposes the addon URL / host / config — only the parsed content.
+>
+> **2. Stream resolution fixed** ("AFL plays, tennis plays, but most live events don't").
+> Root cause: the highfly addon advertises MULTIPLE streams per event and the FIRST stream is often a `"🔒 Upgrade to watch"` premium-walled variant.  v2.10.57's `resolveStream` grabbed `streams[0]` blindly which broke playback for events where the unlocked stream wasn't at index 0.
+> Fix in `HighflySportsRepository`:
+>   • New `resolveStreams(id): List<String>` returns the ALL unlocked URLs in fallback order.
+>   • New `isLocked(JSONObject)` filter — regex `🔒|\bupgrade\b|\(premium\)|\(locked\)|\bsubscribe\b` over the combined `name + title` (with word boundaries so legit "Subscribe Channel" stream names aren't dropped).
+>   • Old `resolveStream(id): String?` kept as a back-compat one-shot wrapper.
+> Activity now also keeps a per-event fallback queue (`streamFallbackByEventId: HashMap<String, ArrayDeque<String>>`) — first tap pops the head, subsequent taps fall through to the next stream until the queue is exhausted.
+>
+> **3. Beautiful redesign matching the mockup.**
+> Completely rewrote `activity_highfly_sports.xml` and the adapter set.  Top-to-bottom:
+>   • **HERO** (540 dp tall): featured live event with full-bleed poster, hero darken veil + left/right side cones, centred 68 sp "Team A vs Team B" title, league line, AEDT meta, big cyan "Watch Live" pill CTA, top-right AEDT clock, top-left "LIVE SPORTS" eyebrow.
+>   • **LIVE NOW** row: horizontal 380×214 dp 16:9 cards with full-bleed poster, gradient overlay, red LIVE pill top-left, 20 sp title + sport/time meta bottom.  Scale-on-focus 1.0 → 1.05 over 160 ms.
+>   • **SPORT FILTER** row: circular icon chips with initial-letter inside + label below.  All / Football / Basketball / NFL / Hockey / Tennis / Fight / Motor / Baseball / Rugby / AFL / Cricket / Golf / Snooker / Darts / Other.  Selected chip gets cyan border + cyan label colour; scale-on-focus 1.08 over 140 ms.  Tap filters both LIVE NOW + Coming Up Today + the hero.
+>   • **COMING UP TODAY** row: editorial 340×140 dp cards — left column is the AEDT kickoff time in big 26 sp typography, middle is a small 56 × 56 logo (`clipToOutline=true` so it respects the rounded card BG), right column is the event title + sport tag.
+>
+> Old `HighflyShelfAdapter` + `HighflyCardAdapter` were deleted (file fully overwritten) and replaced with `LiveCardsAdapter`, `TodayCardsAdapter`, `SportChipsAdapter`.  All three have explicit focus-change scale animations so D-pad navigation feels smooth on TV.
+>
+> Static-reviewed: 5/8 OK + 2 bugs caught (clipToOutline on today_card_logo, isLocked regex word-boundary) + 1 style fix (replaced `⚾` and `▴` with letter initials for older TV firmware font fallback).  All 3 applied.
+>
+> APK rebuild required.  No backend change.
+>
+
 >
 > **User report:** "I can't upload an APK to the dock in the launcher admin.  I click Upload APK, pick the file, then nothing visible happens — no error, no success.  Chrome on desktop."
 >

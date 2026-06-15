@@ -167,13 +167,14 @@ object HighflySportsRepository {
 
     /** A stream is "locked" if its name / title contains any of the
      *  user-facing upgrade markers the addon ships. */
+    private val LOCKED_PATTERN = Regex(
+        "🔒|\\bupgrade\\b|\\(premium\\)|\\(locked\\)|\\bsubscribe\\b",
+        RegexOption.IGNORE_CASE,
+    )
+
     private fun isLocked(s: JSONObject): Boolean {
-        val combined = (s.optString("name") + " " + s.optString("title")).lowercase()
-        return combined.contains("🔒")
-            || combined.contains("upgrade")
-            || combined.contains("(premium)")
-            || combined.contains("(locked)")
-            || combined.contains("subscribe")
+        val combined = (s.optString("name") + " " + s.optString("title"))
+        return LOCKED_PATTERN.containsMatchIn(combined)
     }
 
     /**
