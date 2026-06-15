@@ -111,8 +111,7 @@
             android:padding="10dp"
             android:src="@drawable/ic_nav_sports"
             android:background="@drawable/rail_icon_bg"
-            android:focusable="false"
-            android:visibility="gone"
+            android:focusable="true"
             android:contentDescription="Sports Guide" />
 
         <ImageButton android:id="@+id/rail_library"

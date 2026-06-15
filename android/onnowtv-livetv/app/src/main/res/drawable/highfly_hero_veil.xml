@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.10.59 — Hero darkening veil.  Heavy at top + bottom so the
+     centred title is fully legible regardless of poster colour. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:startColor="#A6000000"
+        android:centerColor="#73000000"
+        android:endColor="#04060B"
+        android:angle="270"
+        android:type="linear" />
+</shape>

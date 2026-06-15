@@ -130,25 +130,50 @@ object HighflySportsRepository {
     }
 
     /**
-     * Fetch the playable stream URL for an event id.
-     * Returns null if the addon returns no streams.
+     * Fetch all playable stream URLs for an event id.
+     *
+     * v2.10.59 — Returns a LIST, in fallback order, with locked /
+     * premium streams filtered out.  The addon advertises multiple
+     * streams per event; some are tagged `"🔒 Upgrade to watch"`
+     * or `name` contains "(Premium)" / "(Upgrade)" / "(Locked)".
+     * Picking `streams[0]` blindly (as v2.10.57 did) caused most
+     * live events to fail playback because the first stream was
+     * the upgrade-walled one.  We now drop those entirely and the
+     * caller can try each remaining URL until one actually plays.
      */
-    suspend fun resolveStream(eventId: String): String? = withContext(Dispatchers.IO) {
+    suspend fun resolveStreams(eventId: String): List<String> = withContext(Dispatchers.IO) {
         try {
             val url = URL("$ADDON_BASE/stream/sport/$eventId.json")
-            val body = httpGet(url) ?: return@withContext null
+            val body = httpGet(url) ?: return@withContext emptyList()
             val obj = JSONObject(body)
-            val arr = obj.optJSONArray("streams") ?: return@withContext null
+            val arr = obj.optJSONArray("streams") ?: return@withContext emptyList()
+            val out = ArrayList<String>(arr.length())
             for (i in 0 until arr.length()) {
                 val s = arr.optJSONObject(i) ?: continue
                 val u = s.optString("url")
-                if (u.isNotBlank()) return@withContext u
+                if (u.isBlank()) continue
+                if (isLocked(s)) continue
+                out.add(u)
             }
-            null
+            out
         } catch (t: Throwable) {
-            android.util.Log.w("HighflySports", "resolveStream($eventId) failed: ${t.message}")
-            null
+            android.util.Log.w("HighflySports", "resolveStreams($eventId) failed: ${t.message}")
+            emptyList()
         }
+    }
+
+    /** Back-compat for the v2.10.57 single-URL callers. */
+    suspend fun resolveStream(eventId: String): String? = resolveStreams(eventId).firstOrNull()
+
+    /** A stream is "locked" if its name / title contains any of the
+     *  user-facing upgrade markers the addon ships. */
+    private fun isLocked(s: JSONObject): Boolean {
+        val combined = (s.optString("name") + " " + s.optString("title")).lowercase()
+        return combined.contains("🔒")
+            || combined.contains("upgrade")
+            || combined.contains("(premium)")
+            || combined.contains("(locked)")
+            || combined.contains("subscribe")
     }
 
     /**

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.10.59 — Watch Live CTA.  Cyan fill, dark text — focus
+     glows brighter cyan + 2dp halo. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#7FD8FF" />
+            <stroke android:width="2dp" android:color="#FFFFFF" />
+            <corners android:radius="999dp" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#4DBEF5" />
+            <corners android:radius="999dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#5DC8FF" />
+            <corners android:radius="999dp" />
+        </shape>
+    </item>
+</selector>

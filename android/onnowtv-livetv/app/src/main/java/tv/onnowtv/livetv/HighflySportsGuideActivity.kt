@@ -5,172 +5,295 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import coil.load
 import kotlinx.coroutines.launch
 import tv.onnowtv.livetv.data.HighflySportsRepository
-import tv.onnowtv.livetv.ui.HighflyShelfAdapter
+import tv.onnowtv.livetv.ui.LiveCardsAdapter
+import tv.onnowtv.livetv.ui.SportChipsAdapter
+import tv.onnowtv.livetv.ui.SportFilter
+import tv.onnowtv.livetv.ui.TodayCardsAdapter
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
 /**
- * v2.10.57 — Highfly Sports Guide (ADMIN-ONLY).
+ * v2.10.59 — Redesigned Highfly Sports Guide.
  *
- * Beautiful 16:9 TV layout fetching from the user's hosted
- * Stremio-style addon at `sports.highfly.dev/<config>/manifest.json`.
+ * Layout (top → bottom):
+ *   1. HERO (540 dp): featured live event (first "sports_live" item),
+ *      full-bleed poster + dark veil + side cones, centred title +
+ *      Watch Live CTA + LIVE pill.
+ *   2. LIVE NOW: horizontal row of cards.
+ *   3. SPORT FILTER: circular icon chips; tap to filter both LIVE +
+ *      Coming Up by sport.
+ *   4. COMING UP TODAY: editorial cards with AEDT kickoff time.
  *
- *   • Top bar — clock in Sydney/AEDT, eyebrow, live count.
- *   • Body   — vertical list of horizontal shelves:
- *       1. Live Right Now (red pulse badge)
- *       2. Today (AEDT formatted)
- *       3. Per-sport rails (Basketball, Football, …)
- *   • Card   — 320×180 dp landscape, big background poster, gradient
- *              overlay, sport pill, live pulse, AEDT kickoff line.
- *   • Click  — resolves `/stream/sport/{id}` and launches PlayerActivity
- *              with the first stream URL.  One-click play.
+ * Stream resilience (v2.10.59): on tile click we now call
+ * [HighflySportsRepository.resolveStreams] which returns the
+ * complete list of unlocked streams (premium "🔒 Upgrade to watch"
+ * variants filtered out).  We hand the first to [PlayerActivity];
+ * if the user reports playback fails the next tap can fall through
+ * to the second.
  *
- * Hidden from clients: NOT reachable from any visible rail button.
- * Admin enters via a 3-second long-press on `rail_refresh` in the
- * main EPG screen (see EpgActivity.wireRail).
+ * Hidden info: this surface NEVER exposes the addon URL, the
+ * config string, or the `sports.highfly.dev` host.  Per user
+ * request "I just don't want them to be able to see the plugin".
  */
 class HighflySportsGuideActivity : AppCompatActivity() {
 
-    private lateinit var shelves: RecyclerView
-    private lateinit var loader: View
-    private lateinit var empty: TextView
+    private lateinit var heroRoot: View
+    private lateinit var heroPoster: ImageView
+    private lateinit var heroLivePill: View
+    private lateinit var heroLeague: TextView
+    private lateinit var heroTitle: TextView
+    private lateinit var heroMeta: TextView
+    private lateinit var heroWatchBtn: View
+
+    private lateinit var liveTitle: TextView
+    private lateinit var liveCards: RecyclerView
+    private lateinit var sportFilter: RecyclerView
+    private lateinit var todayTitle: TextView
+    private lateinit var todayCards: RecyclerView
+    private lateinit var loader: TextView
     private lateinit var clock: TextView
-    private lateinit var subtitle: TextView
-    private lateinit var livePill: View
-    private lateinit var liveCount: TextView
 
-    private lateinit var shelfAdapter: HighflyShelfAdapter
+    private lateinit var liveAdapter: LiveCardsAdapter
+    private lateinit var todayAdapter: TodayCardsAdapter
+    private lateinit var sportAdapter: SportChipsAdapter
 
-    private val clockHandler = Handler(Looper.getMainLooper())
+    /** Master bundle from the addon — cached locally so the sport
+     *  filter can re-render instantly without re-hitting the wire. */
+    private var bundle: HighflySportsRepository.Bundle =
+        HighflySportsRepository.Bundle(emptyList())
+
+    /** "all" means show every sport.  Tracks the chip the user picked. */
+    private var selectedSportId: String = "all"
+
+    private val handler = Handler(Looper.getMainLooper())
     private val clockFmt = SimpleDateFormat("h:mm a", Locale.UK).apply {
         timeZone = TimeZone.getTimeZone("Australia/Sydney")
     }
-    private val dateFmt = SimpleDateFormat("EEEE, d MMMM", Locale.UK).apply {
-        timeZone = TimeZone.getTimeZone("Australia/Sydney")
+    private val refreshRunnable = Runnable { loadBundle() }
+    private val clockRunnable = object : Runnable {
+        override fun run() {
+            clock.text = clockFmt.format(Date()).uppercase()
+            handler.postDelayed(this, 30_000L)
+        }
     }
-
-    private val refreshHandler = Handler(Looper.getMainLooper())
-    private val refreshRunnable = Runnable { loadShelves() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_highfly_sports)
 
-        shelves   = findViewById(R.id.highfly_shelves)
-        loader    = findViewById(R.id.highfly_loader)
-        empty     = findViewById(R.id.highfly_empty)
-        clock     = findViewById(R.id.highfly_clock)
-        subtitle  = findViewById(R.id.highfly_subtitle)
-        livePill  = findViewById(R.id.highfly_live_pill)
-        liveCount = findViewById(R.id.highfly_live_count)
+        heroRoot     = findViewById(R.id.hero_root)
+        heroPoster   = findViewById(R.id.hero_poster)
+        heroLivePill = findViewById(R.id.hero_live_pill)
+        heroLeague   = findViewById(R.id.hero_league)
+        heroTitle    = findViewById(R.id.hero_title)
+        heroMeta     = findViewById(R.id.hero_meta)
+        heroWatchBtn = findViewById(R.id.hero_watch_btn)
 
-        shelves.layoutManager = LinearLayoutManager(this)
-        shelfAdapter = HighflyShelfAdapter(emptyList()) { ev -> onCardClick(ev) }
-        shelves.adapter = shelfAdapter
-        shelves.itemAnimator = null  // crisp focus transitions
+        liveTitle    = findViewById(R.id.section_live_title)
+        liveCards    = findViewById(R.id.section_live_cards)
+        sportFilter  = findViewById(R.id.section_sport_filter)
+        todayTitle   = findViewById(R.id.section_today_title)
+        todayCards   = findViewById(R.id.section_today_cards)
+        loader       = findViewById(R.id.highfly_loader)
+        clock        = findViewById(R.id.highfly_clock)
 
-        loadShelves()
-        startClock()
+        liveCards.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        sportFilter.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        todayCards.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        liveCards.itemAnimator = null
+        todayCards.itemAnimator = null
+
+        liveAdapter  = LiveCardsAdapter(emptyList()) { onCardClick(it) }
+        todayAdapter = TodayCardsAdapter(emptyList()) { onCardClick(it) }
+        sportAdapter = SportChipsAdapter(buildSportFilters(), selectedSportId) { onSportPick(it) }
+
+        liveCards.adapter   = liveAdapter
+        todayCards.adapter  = todayAdapter
+        sportFilter.adapter = sportAdapter
+
+        loadBundle()
+        handler.post(clockRunnable)
     }
 
     override fun onResume() {
         super.onResume()
-        // Auto-refresh every 60 s so "Live Right Now" stays fresh
-        // while the user is browsing.
-        refreshHandler.removeCallbacks(refreshRunnable)
-        refreshHandler.postDelayed(refreshRunnable, 60_000L)
+        handler.removeCallbacks(refreshRunnable)
+        handler.postDelayed(refreshRunnable, 60_000L)
     }
 
     override fun onPause() {
         super.onPause()
-        refreshHandler.removeCallbacks(refreshRunnable)
+        handler.removeCallbacks(refreshRunnable)
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        clockHandler.removeCallbacksAndMessages(null)
-        refreshHandler.removeCallbacksAndMessages(null)
+        handler.removeCallbacksAndMessages(null)
     }
 
     /**
-     * Pull every catalog in parallel, render the shelves.
+     * Build the static sport-filter chip list.  These mirror the
+     * sports declared in the addon's manifest.
      */
-    private fun loadShelves() {
-        if (!::shelfAdapter.isInitialized) return
+    private fun buildSportFilters(): List<SportFilter> = listOf(
+        SportFilter("all",                "All",          "★"),
+        SportFilter("sports_football",         "Football",   "F"),
+        SportFilter("sports_basketball",       "Basketball", "B"),
+        SportFilter("sports_american-football","NFL",        "A"),
+        SportFilter("sports_hockey",           "Hockey",     "H"),
+        SportFilter("sports_tennis",           "Tennis",     "T"),
+        SportFilter("sports_fight",            "Fight",      "✦"),
+        SportFilter("sports_motor-sports",     "Motor",      "▴"),
+        SportFilter("sports_baseball",         "Baseball",   "⚾"),
+        SportFilter("sports_rugby",            "Rugby",      "R"),
+        SportFilter("sports_afl",              "AFL",        "L"),
+        SportFilter("sports_cricket",          "Cricket",    "C"),
+        SportFilter("sports_golf",             "Golf",       "G"),
+        SportFilter("sports_billiards",        "Snooker",    "S"),
+        SportFilter("sports_darts",            "Darts",      "D"),
+        SportFilter("sports_other",            "Other",      "·"),
+    )
+
+    /** Refresh from the addon, then render. */
+    private fun loadBundle() {
         loader.visibility = View.VISIBLE
-        empty.visibility = View.GONE
         lifecycleScope.launch {
-            val bundle = try {
+            bundle = try {
                 HighflySportsRepository.fetchAll()
             } catch (t: Throwable) {
                 android.util.Log.w("HighflySports", "fetchAll failed: ${t.message}")
                 HighflySportsRepository.Bundle(emptyList())
             }
-            loader.visibility = View.GONE
-            if (bundle.shelves.isEmpty()) {
-                empty.visibility = View.VISIBLE
-                shelfAdapter.submit(emptyList())
-                livePill.visibility = View.GONE
-            } else {
-                empty.visibility = View.GONE
-                shelfAdapter.submit(bundle.shelves)
-
-                // Live count badge in the top bar
-                val liveShelf = bundle.shelves.find { it.id == "sports_live" }
-                if (liveShelf != null && liveShelf.items.isNotEmpty()) {
-                    livePill.visibility = View.VISIBLE
-                    liveCount.text = "${liveShelf.items.size} LIVE NOW"
-                } else {
-                    livePill.visibility = View.GONE
-                }
-
-                subtitle.text = dateFmt.format(Date()).uppercase()
-            }
-            // Queue next refresh.
-            refreshHandler.removeCallbacks(refreshRunnable)
-            refreshHandler.postDelayed(refreshRunnable, 60_000L)
+            render()
+            handler.removeCallbacks(refreshRunnable)
+            handler.postDelayed(refreshRunnable, 60_000L)
         }
     }
 
     /**
-     * Tick the AEDT clock every 30 s — enough resolution for a TV
-     * "h:mm a" display and saves battery vs a per-second loop.
+     * Render the current [bundle] honouring [selectedSportId].
+     * Idempotent — safe to call after sport filter changes.
      */
-    private fun startClock() {
-        val tick = object : Runnable {
-            override fun run() {
-                clock.text = clockFmt.format(Date()).uppercase()
-                clockHandler.postDelayed(this, 30_000L)
-            }
+    private fun render() {
+        loader.visibility = View.GONE
+
+        val liveAll  = shelfItems("sports_live")
+        val todayAll = shelfItems("sports_today")
+
+        val live = if (selectedSportId == "all") liveAll
+                   else liveAll.filter { ev -> matchesSport(ev) }
+        val today = if (selectedSportId == "all") todayAll
+                    else todayAll.filter { ev -> matchesSport(ev) }
+
+        liveAdapter.submit(live.take(10))
+        todayAdapter.submit(today.take(20))
+
+        // Hero — pick the FIRST live event for the chosen filter,
+        // or the first upcoming today if nothing is live.
+        val featured = live.firstOrNull() ?: today.firstOrNull()
+        bindHero(featured)
+
+        // Hide sections that ended up empty after filtering.
+        liveTitle.visibility = if (live.isEmpty()) View.GONE else View.VISIBLE
+        liveCards.visibility = if (live.isEmpty()) View.GONE else View.VISIBLE
+        todayTitle.visibility = if (today.isEmpty()) View.GONE else View.VISIBLE
+        todayCards.visibility = if (today.isEmpty()) View.GONE else View.VISIBLE
+    }
+
+    private fun shelfItems(id: String): List<HighflySportsRepository.Event> =
+        bundle.shelves.find { it.id == id }?.items.orEmpty()
+
+    /** Crude sport-match: prefer genres, fall back to title heuristics. */
+    private fun matchesSport(ev: HighflySportsRepository.Event): Boolean {
+        val want = selectedSportId.removePrefix("sports_").lowercase()
+        if (want.isBlank()) return true
+        val haystack = (ev.genres.joinToString(" ") + " " + ev.title).lowercase()
+        return haystack.contains(want)
+    }
+
+    private fun bindHero(ev: HighflySportsRepository.Event?) {
+        if (ev == null) {
+            heroPoster.setImageDrawable(null)
+            heroTitle.text = "No live sport right now"
+            heroMeta.text = "Check back closer to kickoff"
+            heroLivePill.visibility = View.GONE
+            heroLeague.visibility = View.GONE
+            heroWatchBtn.visibility = View.INVISIBLE
+            return
         }
-        clockHandler.post(tick)
+        (ev.background ?: ev.poster)?.let { heroPoster.load(it) { crossfade(220) } }
+        heroTitle.text = ev.title
+        heroLivePill.visibility = if (ev.isLive) View.VISIBLE else View.GONE
+
+        val genre = ev.genres.firstOrNull()
+        if (!genre.isNullOrBlank()) {
+            heroLeague.text = genre.uppercase()
+            heroLeague.visibility = View.VISIBLE
+        } else heroLeague.visibility = View.GONE
+
+        heroMeta.text = when {
+            ev.isLive               -> "Live now · ${HighflySportsRepository.formatKickoffAEDT(ev.kickoffUtcMs)}".trimEnd(' ', '·').trim()
+            ev.kickoffUtcMs > 0L    -> "Kickoff · ${HighflySportsRepository.formatKickoffAEDT(ev.kickoffUtcMs)}"
+            else                    -> "Live channel"
+        }
+        heroWatchBtn.visibility = View.VISIBLE
+        heroWatchBtn.setOnClickListener { onCardClick(ev) }
+        heroRoot.setOnClickListener { onCardClick(ev) }
+    }
+
+    /** Sport-filter chip selection. */
+    private fun onSportPick(pick: SportFilter) {
+        selectedSportId = pick.id
+        sportAdapter.select(pick.id)
+        render()
     }
 
     /**
-     * One-click play: resolve `/stream/sport/{id}` → first stream
-     * URL → start [PlayerActivity].  We show a tiny progress pill
-     * via the loader during the (typically <500 ms) stream lookup.
+     * One-click play with multi-stream fallback (v2.10.59).
+     * `resolveStreams` returns all unlocked streams; we try the
+     * first.  PlayerActivity will surface a playback error if it
+     * fails, at which point the user can re-tap and we'll try the
+     * next (cached in [streamFallbackByEventId]).
      */
+    private val streamFallbackByEventId = HashMap<String, ArrayDeque<String>>()
+
     private fun onCardClick(ev: HighflySportsRepository.Event) {
         loader.visibility = View.VISIBLE
         lifecycleScope.launch {
-            val url = HighflySportsRepository.resolveStream(ev.id)
+            // If we already have a fallback queue for this event,
+            // pop the next URL; otherwise fetch the full list.
+            val queue = streamFallbackByEventId[ev.id]
+            val url: String? = if (queue != null && queue.isNotEmpty()) {
+                queue.removeFirst()
+            } else {
+                val urls = HighflySportsRepository.resolveStreams(ev.id)
+                if (urls.isEmpty()) null
+                else {
+                    val q = ArrayDeque<String>(urls)
+                    val first = q.removeFirst()
+                    if (q.isNotEmpty()) streamFallbackByEventId[ev.id] = q
+                    first
+                }
+            }
             loader.visibility = View.GONE
             if (url.isNullOrBlank()) {
                 android.widget.Toast.makeText(
                     this@HighflySportsGuideActivity,
-                    "No stream available for ${ev.title} right now.",
+                    "No playable stream for ${ev.title} right now.",
                     android.widget.Toast.LENGTH_LONG,
                 ).show()
+                streamFallbackByEventId.remove(ev.id)
                 return@launch
             }
             startActivity(

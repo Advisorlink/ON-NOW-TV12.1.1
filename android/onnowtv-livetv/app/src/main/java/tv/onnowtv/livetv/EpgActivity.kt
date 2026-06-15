@@ -538,18 +538,17 @@ class EpgActivity : AppCompatActivity() {
         railHome.setOnClickListener { finish() }
         railSearch.setOnClickListener { openSearchOverlay() }
         railRefresh.setOnClickListener { applyCategory() }
-        // v2.10.57 — Admin-only entry to the Highfly Sports Guide.
-        // 3-second long-press on the refresh button.  Hidden from
-        // clients (the rail_sports icon is GONE per v2.10.55).
-        railRefresh.setOnLongClickListener {
-            startActivity(android.content.Intent(this, HighflySportsGuideActivity::class.java))
-            true
-        }
         railList.setOnClickListener {
             categoriesList.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
         }
+        // v2.10.59 — The Sports rail button is now VISIBLE again per
+        // user request ("I do want people to be able to click it.
+        // I just don't want them to be able to see the plugin").
+        // The button leads to the new Highfly guide; the legacy
+        // SportsGuideActivity is bypassed entirely.  Long-press
+        // gesture on `rail_refresh` is removed — no longer hidden.
         railSports.setOnClickListener {
-            startActivity(android.content.Intent(this, SportsGuideActivity::class.java))
+            startActivity(android.content.Intent(this, HighflySportsGuideActivity::class.java))
         }
         railLibrary.setOnClickListener {
             startActivity(android.content.Intent(this, LibraryActivity::class.java))

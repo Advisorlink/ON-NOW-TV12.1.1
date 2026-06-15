@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.10.59 — "Coming Up Today" card.  Single column of two
+     teams with the AEDT kickoff stamped on the left.  More
+     editorial / less imagery than the LIVE card. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="340dp"
+    android:layout_height="140dp"
+    android:layout_marginEnd="18dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:padding="20dp"
+    android:focusable="true"
+    android:clickable="true"
+    android:background="@drawable/highfly_today_card_bg"
+    android:foreground="@drawable/highfly_card_focus_fg">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="start"
+        android:layout_marginEnd="18dp">
+
+        <TextView
+            android:id="@+id/today_card_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#F5F8FF"
+            android:textSize="26sp"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="-0.02" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Today"
+            android:textColor="#5DC8FF"
+            android:textSize="11sp"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.18" />
+    </LinearLayout>
+
+    <ImageView
+        android:id="@+id/today_card_logo"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:scaleType="centerCrop"
+        android:background="@drawable/highfly_card_bg"
+        android:layout_marginEnd="14dp"
+        android:contentDescription="@null" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/today_card_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#F5F8FF"
+            android:textSize="15sp"
+            android:fontFamily="sans-serif"
+            android:lineSpacingExtra="2dp"
+            android:maxLines="2"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/today_card_sport"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#7A8AB2"
+            android:textSize="11sp"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.12"
+            android:layout_marginTop="6dp" />
+    </LinearLayout>
+</LinearLayout>

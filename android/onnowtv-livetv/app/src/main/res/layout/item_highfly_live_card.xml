@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.10.59 — LIVE NOW card.  16:9 landscape, 380×214 dp, big
+     team name typography centered with the LIVE pill top-left.
+     Reuses the rounded-corner card BG + cyan focus rim. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="380dp"
+    android:layout_height="214dp"
+    android:layout_marginEnd="18dp"
+    android:focusable="true"
+    android:clickable="true"
+    android:background="@drawable/highfly_card_bg"
+    android:foreground="@drawable/highfly_card_focus_fg"
+    android:clipToOutline="true">
+
+    <ImageView
+        android:id="@+id/live_card_poster"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:contentDescription="@null" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/highfly_card_gradient" />
+
+    <!-- Top-left LIVE pill -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:layout_margin="14dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="10dp"
+        android:paddingVertical="5dp"
+        android:background="@drawable/highfly_live_pill_bg">
+
+        <View
+            android:layout_width="6dp"
+            android:layout_height="6dp"
+            android:background="@drawable/highfly_live_dot"
+            android:layout_marginEnd="7dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="LIVE"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.18" />
+    </LinearLayout>
+
+    <!-- Bottom: title + meta line -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:paddingHorizontal="18dp"
+        android:paddingBottom="16dp"
+        android:paddingTop="24dp">
+
+        <TextView
+            android:id="@+id/live_card_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#F5F8FF"
+            android:textSize="20sp"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="-0.01"
+            android:maxLines="2"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/live_card_meta"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#C2CEE3"
+            android:textSize="12sp"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.1"
+            android:layout_marginTop="6dp" />
+    </LinearLayout>
+</FrameLayout>
