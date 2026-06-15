@@ -4,10 +4,15 @@
      context, etc).  Dark navy card.
      v2.9.15 — Neon-blue top stripe REMOVED per user feedback
      ("weird blue line across the top of the popup — I don't like
-     that, can you please remove that").  -->
+     that, can you please remove that").
+     v2.10.55 — Card width / typography upsized per user feedback
+     ("that whole box needs to be bigger … same size as we normally
+     do for pop-ups … just looks way too small … looks a little bit
+     cheap … make it look a lot nicer").  460→680 dp width, larger
+     title + subtitle, more breathing room. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/action_sheet_root"
-    android:layout_width="460dp"
+    android:layout_width="680dp"
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="@drawable/action_sheet_card_bg"
@@ -18,11 +23,11 @@
         android:id="@+id/action_sheet_title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingHorizontal="26dp"
-        android:paddingTop="26dp"
-        android:paddingBottom="8dp"
+        android:paddingHorizontal="34dp"
+        android:paddingTop="32dp"
+        android:paddingBottom="10dp"
         android:textColor="#F5F8FF"
-        android:textSize="23sp"
+        android:textSize="28sp"
         android:fontFamily="sans-serif-medium"
         android:singleLine="false"
         tools:ignore="HardcodedText" xmlns:tools="http://schemas.android.com/tools" />
@@ -31,12 +36,12 @@
         android:id="@+id/action_sheet_subtitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingHorizontal="26dp"
-        android:paddingBottom="14dp"
+        android:paddingHorizontal="34dp"
+        android:paddingBottom="18dp"
         android:textColor="#7A8AB2"
-        android:textSize="13sp"
+        android:textSize="14sp"
         android:fontFamily="monospace"
-        android:letterSpacing="0.06"
+        android:letterSpacing="0.08"
         android:singleLine="false"
         android:visibility="gone" />
 
@@ -45,7 +50,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:paddingHorizontal="12dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="18dp" />
+        android:paddingHorizontal="18dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="22dp" />
 </LinearLayout>

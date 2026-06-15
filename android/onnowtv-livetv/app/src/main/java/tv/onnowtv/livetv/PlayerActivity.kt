@@ -1026,9 +1026,21 @@ class PlayerActivity : AppCompatActivity() {
             infoSegment.visibility = View.GONE
         }
         if (::infoDescriptionView.isInitialized) {
-            val desc = now?.description?.takeIf { it.isNotBlank() }.orEmpty()
-            infoDescriptionView.text = desc
-            infoDescriptionView.visibility = if (desc.isBlank()) View.GONE else View.VISIBLE
+            // v2.10.55 — Always show the description row.  Previously
+            // we hid it when EPG description was blank (very common
+            // on many provider streams) — the user reported "it's
+            // not showing the description".  Graceful fallbacks:
+            //   • Have EPG desc → show it
+            //   • Have EPG title but no desc → "On now: <title>"
+            //   • No EPG at all → channel name + "Live broadcast"
+            val rawDesc = now?.description?.takeIf { it.isNotBlank() }
+            val nowTitle = now?.title?.takeIf { it.isNotBlank() }
+            infoDescriptionView.text = when {
+                rawDesc != null -> rawDesc
+                nowTitle != null -> "On now: $nowTitle"
+                else -> "${ch.name} · Live broadcast"
+            }
+            infoDescriptionView.visibility = View.VISIBLE
         }
         if (::infoTimeRange.isInitialized) {
             infoTimeRange.text = if (now != null) {

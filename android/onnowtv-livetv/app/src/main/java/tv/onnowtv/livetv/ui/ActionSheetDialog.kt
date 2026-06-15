@@ -80,8 +80,14 @@ class ActionSheetDialog(context: Context) {
             }
             val lp = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                (56 * ctx.resources.displayMetrics.density).toInt(),
-            ).apply { topMargin = if (idx == 0) 0 else (4 * ctx.resources.displayMetrics.density).toInt() }
+                // v2.10.55 — Match the new item_action_row height
+                // (was 56 dp → now 78 dp) so the dialog inflates at
+                // the user-requested "bigger, nicer" size.
+                (78 * ctx.resources.displayMetrics.density).toInt(),
+            ).apply {
+                topMargin = if (idx == 0) 0
+                    else (6 * ctx.resources.displayMetrics.density).toInt()
+            }
             row.layoutParams = lp
             row.setOnClickListener {
                 dialog.dismiss()

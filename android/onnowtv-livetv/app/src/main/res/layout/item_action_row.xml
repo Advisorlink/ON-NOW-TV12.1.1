@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Single tappable row inside the action-sheet dialog.  Focus state
      is handled by a state-list drawable so OK / d-pad highlight is
-     consistent with the rest of the Live TV app. -->
+     consistent with the rest of the Live TV app.
+     v2.10.55 — Row + typography upsized to match the wider dialog
+     so popups feel premium on a 1080p TV. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="64dp"
+    android:layout_height="78dp"
     android:gravity="center_vertical"
-    android:paddingHorizontal="16dp"
+    android:paddingHorizontal="22dp"
     android:background="@drawable/action_sheet_row_bg"
     android:focusable="true"
     android:focusableInTouchMode="false"
@@ -14,10 +16,10 @@
 
     <TextView
         android:id="@+id/action_row_icon"
-        android:layout_width="36dp"
+        android:layout_width="44dp"
         android:layout_height="wrap_content"
         android:textColor="#5DC8FF"
-        android:textSize="22sp"
+        android:textSize="26sp"
         android:gravity="center" />
 
     <TextView
@@ -25,9 +27,9 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:layout_marginStart="10dp"
+        android:layout_marginStart="14dp"
         android:textColor="#F5F8FF"
-        android:textSize="17sp"
+        android:textSize="20sp"
         android:fontFamily="sans-serif"
         android:singleLine="true"
         android:ellipsize="end" />
@@ -36,8 +38,8 @@
         android:id="@+id/action_row_trailing"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
+        android:layout_marginStart="14dp"
         android:textColor="#7A8AB2"
-        android:textSize="13sp"
+        android:textSize="14sp"
         android:fontFamily="monospace" />
 </LinearLayout>

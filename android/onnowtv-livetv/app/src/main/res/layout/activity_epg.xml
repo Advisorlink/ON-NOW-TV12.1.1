@@ -61,13 +61,21 @@
 
         <Space android:layout_width="0dp" android:layout_height="38dp" />
 
+        <!-- v2.10.55 — Hidden per user request:
+             * rail_home  → "you can remove that home button as well"
+             * rail_list  → "remove that three line dot thing"
+             * rail_sports → "remove the sports guide from it for now"
+             Layout IDs kept (vs deleted) so EpgActivity.findViewById
+             calls still resolve.  Listeners stay wired but are
+             unreachable. -->
         <ImageButton android:id="@+id/rail_home"
             android:layout_width="44dp" android:layout_height="44dp"
             android:layout_marginBottom="14dp"
             android:padding="10dp"
             android:src="@drawable/ic_nav_home"
             android:background="@drawable/rail_icon_bg"
-            android:focusable="true"
+            android:focusable="false"
+            android:visibility="gone"
             android:contentDescription="Home" />
 
         <ImageButton android:id="@+id/rail_search"
@@ -93,7 +101,8 @@
             android:padding="10dp"
             android:src="@drawable/ic_nav_list"
             android:background="@drawable/rail_icon_bg"
-            android:focusable="true"
+            android:focusable="false"
+            android:visibility="gone"
             android:contentDescription="List" />
 
         <ImageButton android:id="@+id/rail_sports"
@@ -102,7 +111,8 @@
             android:padding="10dp"
             android:src="@drawable/ic_nav_sports"
             android:background="@drawable/rail_icon_bg"
-            android:focusable="true"
+            android:focusable="false"
+            android:visibility="gone"
             android:contentDescription="Sports Guide" />
 
         <ImageButton android:id="@+id/rail_library"

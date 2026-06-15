@@ -326,7 +326,12 @@ class EpgActivity : AppCompatActivity() {
             .eachCount()
         val virtualAll = Category(id = "__all__", name = "All channels", channelCount = bundle.channels.size)
         val favourites = Category(id = "__favourites__", name = "Favourites", channelCount = favouriteSet.size)
-        val recents = Category(id = "__recents__", name = "Recently Watched", channelCount = 0)
+        // v2.10.55 — "Recently Watched" pill removed per user
+        // request ("recently watched doesn't need to be in there").
+        // We keep the `"__recents__"` dead branches in
+        // [renderCategoryView] / [filterChannels] so any
+        // legacy persisted state is rendered as an empty list
+        // rather than crashing.
         val reminders = Category(id = "__reminders__", name = "Reminders", channelCount = reminderSet.size)
 
         // Real categories with counts (filter junk separator rows).
@@ -334,7 +339,7 @@ class EpgActivity : AppCompatActivity() {
             .map { it.copy(channelCount = countsByCat[it.id] ?: 0) }
             .filter { it.channelCount > 0 && !it.name.contains("#####") }
 
-        allCategoriesWithCounts = listOf(favourites, recents, reminders, virtualAll) + real
+        allCategoriesWithCounts = listOf(favourites, reminders, virtualAll) + real
 
         // Smart default: highest EPG coverage ratio in real categories.
         val epgCoverageByCat: Map<String, Double> = real.associate { cat ->
