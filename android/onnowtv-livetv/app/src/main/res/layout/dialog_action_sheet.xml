@@ -45,12 +45,26 @@
         android:singleLine="false"
         android:visibility="gone" />
 
-    <LinearLayout
-        android:id="@+id/action_sheet_items"
+    <!-- v2.10.55 — Wrapped action_sheet_items in a ScrollView with
+         a max height so a long action menu (e.g. "Add to Collection
+         → 8 collections") doesn't push the OK button off-screen on
+         a 720p or xhdpi-density 1080p TV.  720p TVs have ~540 dp of
+         usable height; we cap the rows area at 460 dp so the title
+         + bottom padding always stay on screen. -->
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingHorizontal="18dp"
-        android:paddingTop="10dp"
-        android:paddingBottom="22dp" />
+        android:maxHeight="460dp"
+        android:scrollbars="vertical"
+        android:fadeScrollbars="false">
+
+        <LinearLayout
+            android:id="@+id/action_sheet_items"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="18dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="22dp" />
+    </ScrollView>
 </LinearLayout>

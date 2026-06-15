@@ -1,6 +1,39 @@
 # ON NOW TV V2 — PRD
 
-> **🟢 v2.10.54 — Native Live-TV cold-start + Xtream credential switch (16 Jun 2026).**
+> **🟢 v2.10.55 — Live-TV UX polish drop (16 Jun 2026).**
+>
+> User reported 6 visible UX issues with the Live-TV native Android app after the v2.10.54 cold-start fix.  All six addressed in one drop:
+>
+> **1. Sports Guide entry removed from the left rail — `/app/android/onnowtv-livetv/app/src/main/res/layout/activity_epg.xml`.**
+> `ImageButton android:id="@+id/rail_sports"` now `visibility="gone"` + `focusable="false"`.  ID kept so EpgActivity.findViewById still resolves; the listener stays wired but is unreachable.  `SportsGuideActivity.kt` + `SportsRepository.kt` + `FixtureCardAdapter.kt` left intact for a future re-enable.
+>
+> **2. Three-line "list" rail icon removed.**  `rail_list` (the icon that focus-jumped to the categories column) hidden the same way.  User found it confusing.
+>
+> **3. Home rail icon removed.**  `rail_home` (which fired `finish()` to return to the Vesper launcher) hidden — the user said they don't need it.  Sign-out icon stays at the bottom of the rail for actual session ending.
+>
+> **4. "Recently Watched" virtual category dropped — `/app/android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/EpgActivity.kt` `buildCategories()` (lines 327-340).**
+> The pill always returned an empty channel list anyway (no Xtream-side recents API).  Dropped from `allCategoriesWithCounts` so it stops showing in the categories column.  The two dead `when` branches at lines 740 + 1134 (`"__recents__" -> emptyList()`) left as defensive no-ops.
+>
+> **5. Long-press action-sheet popup made significantly bigger — `dialog_action_sheet.xml` + `item_action_row.xml` + `ActionSheetDialog.kt`.**
+> User said the popup looked "way too small, looks a little bit cheap".  Bumped dimensions:
+>   • Card width: 460dp → 680dp
+>   • Card padding: 26→34dp horizontal, 26→32dp top
+>   • Title: 23sp → 28sp (sans-serif-medium)
+>   • Subtitle: 13sp → 14sp
+>   • Row height: 64dp → 78dp
+>   • Row inner padding: 16dp → 22dp
+>   • Icon column: 36dp/22sp → 44dp/26sp
+>   • Label: 17sp → 20sp
+>   • Trailing: 13sp → 14sp
+>   • Row gap: 4dp → 6dp
+> Plus wrapped `action_sheet_items` in a `<ScrollView android:maxHeight="460dp">` so a long action menu (e.g. "Add to Collection → 8 collections") doesn't push the OK button off-screen on a 720p TV (per troubleshoot review).
+>
+> **6. Player overlay description always visible with graceful fallback — `/app/android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/PlayerActivity.kt` `populateOverlay()` (lines 1028-1043).**
+> User said "the overlay when the program is playing, it's not showing the description".  Root cause: `infoDescriptionView.visibility = if (desc.isBlank()) View.GONE else View.VISIBLE` — most provider streams have blank EPG descriptions so the row was always GONE.  Changed to ALWAYS `View.VISIBLE` with cascading fallbacks: EPG description → "On now: <title>" → "<channel name> · Live broadcast".  Logo (`player_info_logo`), control bar (rewind / play-pause / forward / ch±/swap/subs/favourite), and the **swap-to-previous-channel** button (`btn_player_swap` / `swapToPreviousChannel()`) all already existed and were correctly wired — just confirmed they're not regressed.
+>
+> Static-reviewed by the troubleshoot agent (all 6 items OK with one style warning that prompted the ScrollView wrap).  Native APK rebuild + sideload required to take effect on the HK1 box.
+>
+
 >
 > User reported two Live-TV (HK1 native app) issues that needed immediate attention:
 >
