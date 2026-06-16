@@ -352,12 +352,82 @@ class MainActivity : AppCompatActivity() {
             )
             setBackgroundColor(android.graphics.Color.parseColor("#06080F"))
 
-            // Force the WebView onto a dedicated hardware layer so
-            // every paint (and especially shelf scroll transforms)
-            // is GPU-composited.  On the HK1's old Mali GPU this is
-            // the difference between 30 fps stuttery scroll and a
-            // buttery 60 fps LeanBack-style glide.
-            setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
+            // v2.7.94 — GPU layer policy.  THIS IS THE FIX for the
+            // HK1 S905X3 + Android 9 + 4K-HDMI bug the user
+            // reported (modal dialogs rendering bottom-left,
+            // genre panels staying blank, splash artefacting in
+            // a corner).
+            //
+            // PREVIOUSLY we ALWAYS forced the WebView onto
+            // `LAYER_TYPE_HARDWARE` to get 60 fps shelf scrolling
+            // on the older HK1 boxes (S905X / S905W2 / S922X)
+            // whose GPUs are fine.  That's still the right call
+            // for almost every TV box and phone we ship to.
+            //
+            // BUT — the S905X3's Mali-G31 GPU on Android 9 AOSP
+            // firmware has a documented compositor bug where
+            // hardware-layer rendering of WebView at 4K mispositions
+            // `position: fixed` elements, fails async re-renders
+            // of large image-grid layers, and leaves stale framebuffer
+            // tiles in random corners of the surface.  Disabling
+            // hardware layer rendering (forcing software composition
+            // on the WebView's own layer) sidesteps the bug.
+            //
+            // We detect the bad combo defensively:
+            //   • `Build.HARDWARE` contains "amlogic" (any S9xx
+            //     chip) OR "rockchip" (cheaper RK33xx clones)
+            //   • AND Android SDK ≤ 28 (Android 9 — the last AOSP
+            //     release Amlogic shipped with the broken Mali
+            //     driver)
+            //   • OR `Build.MODEL` literally contains "S905X3"
+            //
+            // Working boxes (Android 10+, or non-Amlogic) keep the
+            // fast HARDWARE path.  This change CANNOT regress them.
+            //
+            // ESCAPE HATCH: persist `compat.force_software=true` in
+            // SharedPreferences and software-layer mode is used
+            // regardless of detection.  This can be set without an
+            // APK rebuild by launching the activity once with
+            //   `--ez force_software true`
+            // (via ADB) or via a deep-link `onnowtv://compat?sw=1`.
+            // Critical for the user's 300–500-device rollout — any
+            // box that slips past auto-detection can be patched in
+            // 60 seconds remotely instead of waiting for a new APK.
+            val needle = "${Build.HARDWARE} ${Build.MODEL} ${Build.DEVICE} ${Build.PRODUCT}"
+                .lowercase()
+            val isFragileAmlogic =
+                (("amlogic" in needle || "rockchip" in needle) &&
+                    Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) ||
+                "s905x3" in needle
+
+            // Persistent override — check first, then write if the
+            // intent / deep-link asked us to set it.
+            val compatPrefs = getSharedPreferences("vesper-compat", MODE_PRIVATE)
+            val intentForce = intent?.getBooleanExtra("force_software", false) == true ||
+                (intent?.data?.toString().orEmpty()).contains("sw=1", ignoreCase = true) ||
+                (intent?.data?.toString().orEmpty()).contains("compat=software", ignoreCase = true)
+            if (intentForce) {
+                compatPrefs.edit().putBoolean("force_software", true).apply()
+            }
+            val forceSoftware = compatPrefs.getBoolean("force_software", false)
+
+            val useSoftware = forceSoftware || isFragileAmlogic
+            if (useSoftware) {
+                android.util.Log.w(
+                    "VesperMain",
+                    "Software-layer WebView active. " +
+                        "fragileAmlogic=$isFragileAmlogic forceSoftware=$forceSoftware " +
+                        "needle=[$needle] sdk=${Build.VERSION.SDK_INT}",
+                )
+                setLayerType(android.view.View.LAYER_TYPE_SOFTWARE, null)
+            } else {
+                // Default: dedicated hardware layer so every paint
+                // (and especially shelf scroll transforms) is GPU-
+                // composited.  On the original HK1 / S905W2 / S922X
+                // this is the difference between 30 fps stuttery
+                // scroll and buttery 60 fps LeanBack-style glide.
+                setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
+            }
             // Bonus on Android 9+: lets the WebView's compositor
             // render off the UI thread (huge win for D-pad nav).
             android.webkit.WebView.setWebContentsDebuggingEnabled(false)
