@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Pencil, Lock, Download } from 'lucide-react';
+import { Plus, Pencil, Lock, Download, Stethoscope } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import {
     listProfiles,
@@ -261,6 +261,43 @@ export default function ProfileSelect() {
                         <Download size={14} strokeWidth={2.2} />
                         Load existing profile
                     </button>
+                    {/* v2.10.29 — Diagnostics escape hatch.
+                        The user's broken HK1 box can't get past the
+                        Vesper UI past this screen (fly-mouse works
+                        here, D-pad doesn't elsewhere).  Surfacing the
+                        Diagnostics activity from this picker means
+                        they can always click through to it with the
+                        mouse cursor and Share the system report
+                        regardless of how broken the rest of the
+                        WebView is.  Only renders inside the Android
+                        app — hidden on the web preview. */}
+                    {typeof window !== 'undefined' &&
+                     window.OnNowTV &&
+                     typeof window.OnNowTV.openDiagnostics === 'function' && (
+                        <button
+                            data-testid="open-diagnostics"
+                            data-focusable="true"
+                            data-focus-style="pill"
+                            tabIndex={0}
+                            onClick={() => {
+                                try { window.OnNowTV.openDiagnostics(); }
+                                catch { /* ignore */ }
+                            }}
+                            className="flex items-center gap-2 rounded-full"
+                            style={{
+                                height: 44,
+                                padding: '0 22px',
+                                fontSize: 14,
+                                fontWeight: 600,
+                                background: 'rgba(255,193,84,0.10)',
+                                color: '#FFC857',
+                                border: '1px solid rgba(255,193,84,0.40)',
+                            }}
+                        >
+                            <Stethoscope size={14} strokeWidth={2.2} />
+                            Diagnostics
+                        </button>
+                    )}
                 </div>
             </div>
 
