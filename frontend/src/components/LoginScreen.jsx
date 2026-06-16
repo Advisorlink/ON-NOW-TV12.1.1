@@ -13,7 +13,7 @@
  */
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Lock, User, LogIn, Eye, EyeOff, AlertCircle, Stethoscope } from 'lucide-react';
+import { Loader2, Lock, User, LogIn, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -235,7 +235,6 @@ export default function LoginScreen() {
                 </form>
 
                 <Footer />
-                <DiagnosticsLink />
             </div>
 
             <style>{`
@@ -382,58 +381,6 @@ function Footer() {
             >
                 SECURE
             </span>
-        </div>
-    );
-}
-
-function DiagnosticsLink() {
-    // v2.10.30 — Surfaces the native DiagnosticsActivity directly
-    // on the login screen.  Reason: the user's broken HK1 box can
-    // sometimes not get past login at all (typing breaks, modals
-    // mis-position).  The fly-mouse cursor still works on the
-    // login card, so a clickable link here lets them launch the
-    // native diagnostic dump screen even when the rest of the
-    // WebView is unusable.  Only renders inside the Android app —
-    // hidden on the web preview / browser.
-    const isAndroid = typeof window !== 'undefined' &&
-        !!window.OnNowTV && typeof window.OnNowTV.openDiagnostics === 'function';
-    if (!isAndroid) return null;
-    return (
-        <div
-            style={{
-                marginTop: 14,
-                display: 'flex',
-                justifyContent: 'center',
-            }}
-        >
-            <button
-                type="button"
-                data-testid="login-open-diagnostics"
-                data-focusable="true"
-                data-focus-style="pill"
-                tabIndex={0}
-                onClick={() => {
-                    try { window.OnNowTV.openDiagnostics(); }
-                    catch { /* ignore */ }
-                }}
-                style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '8px 16px',
-                    background: 'rgba(255,193,84,0.08)',
-                    border: '1px solid rgba(255,193,84,0.32)',
-                    color: '#FFC857',
-                    borderRadius: 999,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    letterSpacing: '0.02em',
-                    cursor: 'pointer',
-                }}
-            >
-                <Stethoscope size={14} strokeWidth={2.2} />
-                Device diagnostics
-            </button>
         </div>
     );
 }

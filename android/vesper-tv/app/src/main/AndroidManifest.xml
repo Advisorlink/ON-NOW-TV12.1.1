@@ -128,49 +128,6 @@
             android:screenOrientation="landscape"
             android:theme="@style/Theme.Vesper.Fullscreen" />
 
-        <!-- v2.10.28 — System Diagnostics screen.
-             android:exported="true" so the user can launch it from a
-             remote ADB session WITHOUT rooting / sideloading a fresh
-             APK:
-                 adb shell am start -n tv.onnowtv.app/tv.vesper.app.DiagnosticsActivity
-             Useful when a specific HK1 box misbehaves but the React
-             side won't load far enough to render the Settings UI. -->
-        <activity
-            android:name=".DiagnosticsActivity"
-            android:exported="true"
-            android:label="Vesper Diagnostics"
-            android:theme="@style/Theme.Vesper.Fullscreen" />
-
-        <!-- v2.10.29 — Diagnostics LAUNCHER alias.
-             CRITICAL access path: when the main Vesper WebView is
-             broken on a fragile HK1 box (modals in bottom-left,
-             cursor stuck as a fly-mouse, remote dead), the user
-             cannot reach React → Settings → Diagnostics through
-             the broken UI.  This activity-alias re-publishes
-             DiagnosticsActivity as a SEPARATE icon on the home
-             screen / OnNow Launcher (it ships both LAUNCHER and
-             LEANBACK_LAUNCHER categories, so it shows up on phone
-             home screens AND Android-TV launchers as a standalone
-             tile labelled "Vesper Diagnostics").
-             The user D-pads to it like any other app — no WebView,
-             no JS, no remote-input quirks.  It's pure native
-             Android views, so even if Vesper's Chromium build is
-             corrupt the diagnostics screen will still render. -->
-        <activity-alias
-            android:name=".VesperDiagnosticsLauncher"
-            android:targetActivity=".DiagnosticsActivity"
-            android:enabled="true"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher"
-            android:banner="@drawable/tv_banner"
-            android:label="Vesper Diagnostics">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
-
         <!-- FileProvider so we can hand the freshly-downloaded APK
              over to the system PackageInstaller via a content:// URI
              (file:// URIs are forbidden from API 24+). -->

@@ -1,6 +1,37 @@
 # ON NOW TV V2 — PRD
 
-> **🔥 v2.10.30 — REVERT: broadened software-rendering heuristic broke typing on the previously-working box (16 Jun 2026 night).**
+> **🔥 v2.10.31 — ROOT CAUSE FOUND + targeted Chrome-79 CSS shim (16 Jun 2026 night).**
+>
+> Both HK1 diagnostic dumps received and compared.  Every line is identical between the two "Android 9" boxes **except one**:
+>
+> | Field | Working box | Broken box |
+> |---|---|---|
+> | `System WebView · Version name` | **Chrome 138.0.7204.179** (2025) | **Chrome 79.0.3945.116** (Dec 2019) |
+> | Firmware `Incremental` | 20220824 | 20251017 |
+> | Refresh rate | 60 Hz | 50 Hz |
+>
+> Manufacturer, model, board, hardware, ABIs, spoofed-Pixel fingerprint, security patch, density, smallest-width — **all identical**.  The bug is **100 % the System WebView**: Chrome 79 (Dec 2019) pre-dates `backdrop-filter`, the modern `position: fixed` containing-block algorithm (so modals jump to bottom-left when ANY ancestor has `transform`), `:has()`, CSS `gap`, `aspect-ratio`, container queries, viewport units, and more.  Modern CSS literally cannot render on this box.
+>
+> **What shipped in this commit (single surgical fix, no broad changes):**
+>
+> 1. **Detection** — `/app/frontend/src/lib/host.js` parses `navigator.userAgent`, extracts the Chromium major, and adds `.vesper-legacy-webview` to `<html>` ONLY if `< 90`.  Modern Chromium devices (≥ 90, includes Chrome 138 on the working box) NEVER get this class.
+> 2. **CSS shim** — appended to the end of `/app/frontend/src/index.css` (~90 lines, fully commented).  Activates only via `.vesper-legacy-webview`:
+>    • Strips `transform: translateZ(0)` / `translate3d(0,0,0)` from `.vesper-shelf`, `[data-testid="shelves-region"]`, `[data-testid="home-main"]`, `[data-focusable="true"]`, and shelf images — eliminates the containing-block trap that puts modals in bottom-left.
+>    • Disables `backdrop-filter` / `-webkit-backdrop-filter` globally and backstops `.vesper-glass` + any `[class*="glass"]` with an opaque midnight-blue surface so cards stay readable.
+>    • Defensive modal-overlay reset (`[role="dialog"]`, `[data-modal="true"]`, `.modal-overlay`, `.vesper-modal`) — forces fixed-position resolution against the viewport.
+> 3. **Untouched on modern boxes** — the working box's Chrome 138 sees zero new CSS, zero JS changes affecting render path, zero performance impact, identical animations, identical buttery-smooth feel.
+>
+> **What was REMOVED in this commit (per user request):**
+>   • `DiagnosticsActivity.kt` (file deleted)
+>   • Manifest `<activity>` + `<activity-alias>` for Diagnostics (deleted from `AndroidManifest.xml`)
+>   • `openDiagnostics()` JS bridge in `WebAppInterface.kt` (deleted)
+>   • `DiagnosticsLink` React component on the login screen (`LoginScreen.jsx`) (deleted)
+>   • Kids-avatar inline-SVG teddy bear (reverted in earlier commit, confirmed gone — original `🧸` emoji restored).
+>
+> **Compile status:**  Kotlin — zero references to deleted symbols; class brace counts correct; `WebAppInterface.kt` orphan `setKidsLock` stub removed.  React — lint clean, webpack compiled successfully.
+>
+
+> **🔥 v2.10.30 — REVERT: broadened software-rendering heuristic broke typing on the previously-working box.** *(superseded by v2.10.31 above)*
 >
 > User report: after the v2.10.28 APK was installed, the *previously-working* HK1 box could no longer accept text input on the login screen (couldn't even type the username/password).  The previously-broken box was unchanged.  Net: 1 broken box became 2 broken boxes — strictly worse.  Cause: the broadened software-rendering heuristic forced `LAYER_TYPE_SOFTWARE` on EVERY Amlogic / HK1 / etc. device regardless of SDK version.  Software rendering breaks input-event timing on some chipsets, which is what nuked typing.
 >
