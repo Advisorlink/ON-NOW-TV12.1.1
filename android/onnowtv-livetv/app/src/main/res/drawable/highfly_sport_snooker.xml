@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.10.61 — Snooker / Billiards fallback poster.  Deep felt green
+     to baize shadow. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:startColor="#082815"
+                android:centerColor="#1A6B36"
+                android:endColor="#031709"
+                android:angle="135"
+                android:type="linear" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:startColor="#33000000"
+                android:endColor="#00000000"
+                android:angle="270"
+                android:type="linear" />
+        </shape>
+    </item>
+</layer-list>

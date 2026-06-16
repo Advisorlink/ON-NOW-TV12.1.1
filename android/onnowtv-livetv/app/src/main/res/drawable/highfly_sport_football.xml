@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.10.61 — Football (soccer) fallback poster.  Vibrant pitch green
+     diagonal gradient + dark sheen on top for legibility. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:startColor="#0F3D1F"
+                android:centerColor="#1F8B3F"
+                android:endColor="#0A2A14"
+                android:angle="135"
+                android:type="linear" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:startColor="#33000000"
+                android:endColor="#00000000"
+                android:angle="270"
+                android:type="linear" />
+        </shape>
+    </item>
+</layer-list>

@@ -24,27 +24,34 @@ import java.util.Locale
 import java.util.TimeZone
 
 /**
- * v2.10.59 — Redesigned Highfly Sports Guide.
+ * v2.10.61 — Redesigned Highfly Sports Guide.
  *
  * Layout (top → bottom):
- *   1. HERO (540 dp): featured live event (first "sports_live" item),
- *      full-bleed poster + dark veil + side cones, centred title +
- *      Watch Live CTA + LIVE pill.
- *   2. LIVE NOW: horizontal row of cards.
- *   3. SPORT FILTER: circular icon chips; tap to filter both LIVE +
- *      Coming Up by sport.
- *   4. COMING UP TODAY: editorial cards with AEDT kickoff time.
+ *   1. HERO (480 dp): featured live event (FIRST real matchup with
+ *      " vs " / " v " in the title, falling back to the first non-
+ *      channel-named event), full-bleed poster + dark veil + side
+ *      cones, centred title + Watch Live CTA + LIVE pill.
+ *   2. LIVE NOW: horizontal row of 340×191 dp cards.
+ *   3. SPORT FILTER: 86-dp fixed-column circular chips; tap to
+ *      filter both LIVE + Coming Up by sport.
+ *   4. COMING UP TODAY: 320×128 dp editorial cards with AEDT time.
  *
- * Stream resilience (v2.10.59): on tile click we now call
+ * Visual robustness (v2.10.61):
+ *   • Every card + hero now has a per-sport gradient background
+ *     (`SportFallback.drawableFor(...)`) applied UNDER the poster
+ *     ImageView so the surface never renders dead-grey when the
+ *     Highfly addon ships an empty / 404 poster URL.
+ *   • Hero league line is hidden when it duplicates the title
+ *     (e.g. "Sky Sports F1" channel — previously rendered twice).
+ *
+ * Stream resilience: on tile click we call
  * [HighflySportsRepository.resolveStreams] which returns the
  * complete list of unlocked streams (premium "🔒 Upgrade to watch"
  * variants filtered out).  We hand the first to [PlayerActivity];
- * if the user reports playback fails the next tap can fall through
- * to the second.
+ * if the user re-taps we fall through to the next.
  *
  * Hidden info: this surface NEVER exposes the addon URL, the
- * config string, or the `sports.highfly.dev` host.  Per user
- * request "I just don't want them to be able to see the plugin".
+ * config string, or the `sports.highfly.dev` host.
  */
 class HighflySportsGuideActivity : AppCompatActivity() {
 
@@ -199,9 +206,12 @@ class HighflySportsGuideActivity : AppCompatActivity() {
         liveAdapter.submit(live.take(10))
         todayAdapter.submit(today.take(20))
 
-        // Hero — pick the FIRST live event for the chosen filter,
-        // or the first upcoming today if nothing is live.
-        val featured = live.firstOrNull() ?: today.firstOrNull()
+        // v2.10.61 — Hero now PREFERS real matchups ("Team A vs
+        // Team B") over generic 24/7 channels ("Sky Sports F1")
+        // so the screen never opens on a dead-looking poster
+        // whose title duplicates its league.
+        val featured = pickHeroEvent(live) ?: pickHeroEvent(today)
+            ?: live.firstOrNull() ?: today.firstOrNull()
         bindHero(featured)
 
         // Hide sections that ended up empty after filtering.
@@ -214,6 +224,35 @@ class HighflySportsGuideActivity : AppCompatActivity() {
     private fun shelfItems(id: String): List<HighflySportsRepository.Event> =
         bundle.shelves.find { it.id == id }?.items.orEmpty()
 
+    /**
+     * v2.10.61 — Pick the most "hero-worthy" event from a list.
+     * Priority order:
+     *   1. A real matchup with " vs " or " v " or " @ " in the
+     *      title (e.g. "Lakers vs Celtics", "Liverpool v Chelsea").
+     *   2. Any event whose title differs from its genres.
+     *   3. null when nothing qualifies (caller falls back).
+     *
+     * This stops the hero from opening on a generic 24/7 channel
+     * like "Sky Sports F1" / "beIN Sports 1" whose title equals
+     * its league — those look ugly on the giant centred-title hero.
+     */
+    private fun pickHeroEvent(
+        list: List<HighflySportsRepository.Event>,
+    ): HighflySportsRepository.Event? {
+        val matchup = list.firstOrNull {
+            val t = it.title
+            t.contains(" vs ", ignoreCase = true) ||
+                t.contains(" v ", ignoreCase = true) ||
+                t.contains(" @ ", ignoreCase = true) ||
+                t.contains(" - ", ignoreCase = true)
+        }
+        if (matchup != null) return matchup
+        return list.firstOrNull { ev ->
+            val genre = ev.genres.firstOrNull().orEmpty()
+            genre.isNotBlank() && !ev.title.equals(genre, ignoreCase = true)
+        }
+    }
+
     /** Crude sport-match: prefer genres, fall back to title heuristics. */
     private fun matchesSport(ev: HighflySportsRepository.Event): Boolean {
         val want = selectedSportId.removePrefix("sports_").lowercase()
@@ -224,6 +263,7 @@ class HighflySportsGuideActivity : AppCompatActivity() {
 
     private fun bindHero(ev: HighflySportsRepository.Event?) {
         if (ev == null) {
+            heroPoster.setBackgroundResource(tv.onnowtv.livetv.R.drawable.highfly_sport_other)
             heroPoster.setImageDrawable(null)
             heroTitle.text = "No live sport right now"
             heroMeta.text = "Check back closer to kickoff"
@@ -232,19 +272,53 @@ class HighflySportsGuideActivity : AppCompatActivity() {
             heroWatchBtn.visibility = View.INVISIBLE
             return
         }
-        (ev.background ?: ev.poster)?.let { heroPoster.load(it) { crossfade(220) } }
+
+        // v2.10.61 — Per-sport gradient backdrop behind the hero
+        // poster.  Coil also uses this drawable as placeholder/
+        // error so the user never stares at a blank cloud-grey
+        // image while a slow / 404 Highfly poster is loaded.
+        val fallback = tv.onnowtv.livetv.ui.SportFallback
+            .drawableFor(ev.genres, ev.title)
+        heroPoster.setBackgroundResource(fallback)
+
+        val url = ev.background ?: ev.poster
+        if (!url.isNullOrBlank()) {
+            heroPoster.load(url) {
+                crossfade(220)
+                placeholder(fallback)
+                error(fallback)
+            }
+        } else {
+            heroPoster.setImageDrawable(null)
+        }
+
         heroTitle.text = ev.title
         heroLivePill.visibility = if (ev.isLive) View.VISIBLE else View.GONE
 
+        // v2.10.61 — Hide the league line whenever it equals (or
+        // is fully contained in) the title.  Previously a channel
+        // like "Sky Sports F1" rendered "SKY SPORTS F1" twice
+        // stacked on top of the centred title, which looked like
+        // a duplication glitch.
         val genre = ev.genres.firstOrNull()
-        if (!genre.isNullOrBlank()) {
+        val titleU = ev.title.uppercase()
+        if (genre.isNullOrBlank()
+            || titleU == genre.uppercase()
+            || titleU.contains(genre.uppercase())
+            || genre.uppercase().contains(titleU)
+        ) {
+            heroLeague.visibility = View.GONE
+        } else {
             heroLeague.text = genre.uppercase()
             heroLeague.visibility = View.VISIBLE
-        } else heroLeague.visibility = View.GONE
+        }
 
         heroMeta.text = when {
-            ev.isLive               -> "Live now · ${HighflySportsRepository.formatKickoffAEDT(ev.kickoffUtcMs)}".trimEnd(' ', '·').trim()
-            ev.kickoffUtcMs > 0L    -> "Kickoff · ${HighflySportsRepository.formatKickoffAEDT(ev.kickoffUtcMs)}"
+            ev.isLive               -> ("Live now · " +
+                HighflySportsRepository.formatKickoffAEDT(ev.kickoffUtcMs))
+                .trimEnd(' ', '·').trim()
+            ev.kickoffUtcMs > 0L    -> "Kickoff · " +
+                HighflySportsRepository.formatKickoffAEDT(ev.kickoffUtcMs)
             else                    -> "Live channel"
         }
         heroWatchBtn.visibility = View.VISIBLE

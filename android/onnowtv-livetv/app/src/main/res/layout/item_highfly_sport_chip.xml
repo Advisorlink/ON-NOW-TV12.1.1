@@ -1,18 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v2.10.59 — Sport-filter chip.  Circular icon + label beneath. -->
+<!-- v2.10.61 — Sport-filter chip.  Each chip has a fixed 86 dp
+     column width so labels like "Basketball" / "American" no
+     longer overflow into the next chip, and the circle/label
+     pair stays centred regardless of label length.  -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="wrap_content"
+    android:layout_width="86dp"
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:gravity="center_horizontal"
-    android:layout_marginEnd="14dp"
+    android:layout_marginEnd="8dp"
     android:focusable="true"
     android:clickable="true">
 
     <FrameLayout
         android:id="@+id/sport_chip_circle"
-        android:layout_width="64dp"
-        android:layout_height="64dp"
+        android:layout_width="58dp"
+        android:layout_height="58dp"
         android:background="@drawable/highfly_sport_chip_bg">
 
         <TextView
@@ -21,17 +24,20 @@
             android:layout_height="match_parent"
             android:gravity="center"
             android:textColor="#F5F8FF"
-            android:textSize="22sp"
+            android:textSize="20sp"
             android:fontFamily="sans-serif-medium" />
     </FrameLayout>
 
     <TextView
         android:id="@+id/sport_chip_label"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:textColor="#C2CEE3"
-        android:textSize="12sp"
+        android:textSize="11sp"
         android:fontFamily="sans-serif"
-        android:letterSpacing="0.04" />
+        android:letterSpacing="0.04"
+        android:gravity="center"
+        android:singleLine="true"
+        android:ellipsize="end" />
 </LinearLayout>

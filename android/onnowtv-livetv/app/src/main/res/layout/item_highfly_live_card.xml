@@ -1,11 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v2.10.59 — LIVE NOW card.  16:9 landscape, 380×214 dp, big
-     team name typography centered with the LIVE pill top-left.
-     Reuses the rounded-corner card BG + cyan focus rim. -->
+<!-- v2.10.61 — LIVE NOW card.  16:9 landscape, 340×191 dp (down
+     from 380×214) so 5 cards fit cleanly on a 1080p TV with the
+     edge of the 6th peeking in as a scroll hint.  Per-sport
+     gradient is applied as the ImageView background by the
+     adapter so the card never looks dead when the addon ships
+     no poster URL. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="380dp"
-    android:layout_height="214dp"
-    android:layout_marginEnd="18dp"
+    android:layout_width="340dp"
+    android:layout_height="191dp"
+    android:layout_marginEnd="16dp"
     android:focusable="true"
     android:clickable="true"
     android:background="@drawable/highfly_card_bg"
@@ -29,25 +32,25 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|start"
-        android:layout_margin="14dp"
+        android:layout_margin="12dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingHorizontal="10dp"
-        android:paddingVertical="5dp"
+        android:paddingHorizontal="9dp"
+        android:paddingVertical="4dp"
         android:background="@drawable/highfly_live_pill_bg">
 
         <View
             android:layout_width="6dp"
             android:layout_height="6dp"
             android:background="@drawable/highfly_live_dot"
-            android:layout_marginEnd="7dp" />
+            android:layout_marginEnd="6dp" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="LIVE"
             android:textColor="#FFFFFF"
-            android:textSize="11sp"
+            android:textSize="10sp"
             android:fontFamily="sans-serif-medium"
             android:letterSpacing="0.18" />
     </LinearLayout>
@@ -58,16 +61,16 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
         android:orientation="vertical"
-        android:paddingHorizontal="18dp"
-        android:paddingBottom="16dp"
-        android:paddingTop="24dp">
+        android:paddingHorizontal="16dp"
+        android:paddingBottom="14dp"
+        android:paddingTop="20dp">
 
         <TextView
             android:id="@+id/live_card_title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textColor="#F5F8FF"
-            android:textSize="20sp"
+            android:textSize="17sp"
             android:fontFamily="sans-serif-medium"
             android:letterSpacing="-0.01"
             android:maxLines="2"
@@ -78,9 +81,11 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textColor="#C2CEE3"
-            android:textSize="12sp"
+            android:textSize="11sp"
             android:fontFamily="monospace"
             android:letterSpacing="0.1"
-            android:layout_marginTop="6dp" />
+            android:layout_marginTop="4dp"
+            android:singleLine="true"
+            android:ellipsize="end" />
     </LinearLayout>
 </FrameLayout>

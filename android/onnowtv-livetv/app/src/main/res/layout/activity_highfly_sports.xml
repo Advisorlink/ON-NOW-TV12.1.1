@@ -41,7 +41,7 @@
             <FrameLayout
                 android:id="@+id/hero_root"
                 android:layout_width="match_parent"
-                android:layout_height="540dp"
+                android:layout_height="480dp"
                 android:focusable="true"
                 android:clickable="true">
 
@@ -125,9 +125,9 @@
                         android:id="@+id/hero_title"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
+                        android:layout_marginTop="14dp"
                         android:textColor="#FFFFFF"
-                        android:textSize="68sp"
+                        android:textSize="56sp"
                         android:fontFamily="sans-serif-medium"
                         android:letterSpacing="-0.02"
                         android:gravity="center"
@@ -222,11 +222,11 @@
                 android:id="@+id/section_live_title"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="32dp"
-                android:paddingHorizontal="48dp"
+                android:layout_marginTop="26dp"
+                android:paddingHorizontal="36dp"
                 android:text="Live Now"
                 android:textColor="#F5F8FF"
-                android:textSize="22sp"
+                android:textSize="20sp"
                 android:fontFamily="sans-serif-medium"
                 android:letterSpacing="-0.01" />
 
@@ -234,9 +234,9 @@
                 android:id="@+id/section_live_cards"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:paddingHorizontal="48dp"
-                android:paddingVertical="14dp"
+                android:layout_marginTop="12dp"
+                android:paddingHorizontal="36dp"
+                android:paddingVertical="12dp"
                 android:clipToPadding="false"
                 android:scrollbars="none" />
 
@@ -245,9 +245,9 @@
                 android:id="@+id/section_sport_filter"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:paddingHorizontal="48dp"
-                android:paddingVertical="14dp"
+                android:layout_marginTop="10dp"
+                android:paddingHorizontal="36dp"
+                android:paddingVertical="12dp"
                 android:clipToPadding="false"
                 android:scrollbars="none" />
 
@@ -256,11 +256,11 @@
                 android:id="@+id/section_today_title"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
-                android:paddingHorizontal="48dp"
+                android:layout_marginTop="16dp"
+                android:paddingHorizontal="36dp"
                 android:text="Coming Up Today"
                 android:textColor="#F5F8FF"
-                android:textSize="22sp"
+                android:textSize="20sp"
                 android:fontFamily="sans-serif-medium"
                 android:letterSpacing="-0.01" />
 
@@ -268,10 +268,10 @@
                 android:id="@+id/section_today_cards"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:paddingHorizontal="48dp"
-                android:paddingVertical="14dp"
-                android:paddingBottom="48dp"
+                android:layout_marginTop="12dp"
+                android:paddingHorizontal="36dp"
+                android:paddingVertical="12dp"
+                android:paddingBottom="40dp"
                 android:clipToPadding="false"
                 android:scrollbars="none" />
 

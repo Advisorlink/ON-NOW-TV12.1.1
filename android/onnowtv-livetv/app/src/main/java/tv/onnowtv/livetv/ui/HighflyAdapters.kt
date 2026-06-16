@@ -13,10 +13,18 @@ import tv.onnowtv.livetv.R
 import tv.onnowtv.livetv.data.HighflySportsRepository
 
 /**
- * v2.10.59 — Adapters for the redesigned Highfly Sports Guide.
- *   • [LiveCardsAdapter]   — 380×214 dp 16:9 cards for the LIVE
+ * v2.10.61 — Adapters for the redesigned Highfly Sports Guide.
+ *
+ * Beauty fix (v2.10.61): every card now has a per-sport vibrant
+ * gradient applied as the BACKGROUND of the poster ImageView, so
+ * cards never render as a dead navy square when the addon ships
+ * no poster URL.  Coil also uses the same gradient as its
+ * placeholder() + error() so partial / failed loads still look
+ * intentional.
+ *
+ *   • [LiveCardsAdapter]   — 340×192 dp 16:9 cards for the LIVE
  *                             NOW row.
- *   • [TodayCardsAdapter]  — 340×140 dp editorial cards for the
+ *   • [TodayCardsAdapter]  — 320×132 dp editorial cards for the
  *                             COMING UP TODAY row (kickoff + match).
  *   • [SportChipsAdapter]  — circular icon chips for the sport
  *                             filter row; tap to filter both
@@ -56,9 +64,26 @@ class LiveCardsAdapter(
 
         fun bind(ev: HighflySportsRepository.Event) {
             title.text = ev.title
-            (ev.background ?: ev.poster)?.let { poster.load(it) { crossfade(180) } }
-                ?: poster.setImageDrawable(null)
             meta.text = (ev.genres.firstOrNull()?.uppercase() ?: "SPORT") + " · LIVE"
+
+            // v2.10.61 — Per-sport gradient as a permanent backdrop
+            // behind the poster.  Even when the Highfly poster URL
+            // is empty / 404 / slow, the card looks intentional.
+            val fallback = SportFallback.drawableFor(ev.genres, ev.title)
+            poster.setBackgroundResource(fallback)
+
+            val url = ev.background ?: ev.poster
+            if (!url.isNullOrBlank()) {
+                poster.load(url) {
+                    crossfade(180)
+                    placeholder(fallback)
+                    error(fallback)
+                }
+            } else {
+                // No remote poster — clear the foreground bitmap so
+                // the per-sport gradient is what the user sees.
+                poster.setImageDrawable(null)
+            }
             itemView.setOnClickListener { onClick(ev) }
         }
     }
@@ -99,14 +124,28 @@ class TodayCardsAdapter(
         fun bind(ev: HighflySportsRepository.Event) {
             title.text = ev.title
             sport.text = (ev.genres.firstOrNull()?.uppercase() ?: "")
-            time.text = if (ev.kickoffUtcMs > 0L)
+            time.text = if (ev.kickoffUtcMs > 0L) {
                 HighflySportsRepository.formatKickoffAEDT(ev.kickoffUtcMs)
                     .substringAfter(' ')          // strip "Sat " etc. — row is already "Today"
                     .substringBefore(' ')          // keep just the time
                     .let { if (it.isNotBlank()) it else "TBA" }
-            else "TBA"
-            (ev.poster ?: ev.background)?.let { logo.load(it) { crossfade(140) } }
-                ?: logo.setImageDrawable(null)
+            } else "TBA"
+
+            // v2.10.61 — Per-sport gradient backdrop behind the
+            // small 56×56 logo tile.  Matches the LIVE NOW look.
+            val fallback = SportFallback.drawableFor(ev.genres, ev.title)
+            logo.setBackgroundResource(fallback)
+
+            val url = ev.poster ?: ev.background
+            if (!url.isNullOrBlank()) {
+                logo.load(url) {
+                    crossfade(140)
+                    placeholder(fallback)
+                    error(fallback)
+                }
+            } else {
+                logo.setImageDrawable(null)
+            }
             itemView.setOnClickListener { onClick(ev) }
         }
     }
