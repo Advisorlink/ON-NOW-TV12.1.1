@@ -46,8 +46,18 @@ object TheSportsDbRepository {
         val heroBanner: String?,
     )
 
-    private val teamCache  = ConcurrentHashMap<String, TeamArt?>()
-    private val heroCache  = ConcurrentHashMap<String, MatchHeroArt?>()
+    /**
+     * v2.10.63 — Cache strategy.  ConcurrentHashMap forbids null
+     * VALUES, so we keep two parallel structures:
+     *   • [teamCache] / [heroCache] hold hits only.
+     *   • [teamMiss]  / [heroMiss]  remember keys we've already
+     *     looked up and found nothing for, so we don't retry every
+     *     re-bind.  Backed by a thread-safe set.
+     */
+    private val teamCache  = ConcurrentHashMap<String, TeamArt>()
+    private val heroCache  = ConcurrentHashMap<String, MatchHeroArt>()
+    private val teamMiss   = ConcurrentHashMap.newKeySet<String>()
+    private val heroMiss   = ConcurrentHashMap.newKeySet<String>()
 
     /**
      * Look up one team by name.  Caches both hits AND misses so we
@@ -58,11 +68,11 @@ object TheSportsDbRepository {
             val key = rawName.trim().lowercase()
             if (key.isBlank()) return@withContext null
             teamCache[key]?.let { return@withContext it }
-            if (teamCache.containsKey(key)) return@withContext null  // cached miss
+            if (key in teamMiss) return@withContext null
 
             val art = fetchTeam(rawName.trim())
                 ?: fetchTeam(expandAbbreviation(rawName.trim()))
-            teamCache[key] = art
+            if (art != null) teamCache[key] = art else teamMiss += key
             art
         }
 
@@ -74,17 +84,17 @@ object TheSportsDbRepository {
         withContext(Dispatchers.IO) {
             val key = title.trim().lowercase()
             heroCache[key]?.let { return@withContext it }
-            if (heroCache.containsKey(key)) return@withContext null
+            if (key in heroMiss) return@withContext null
 
             val (homeName, awayName) = splitMatchup(title)
                 ?: run {
-                    heroCache[key] = null
+                    heroMiss += key
                     return@withContext null
                 }
             val home = resolveTeam(homeName)
             val away = resolveTeam(awayName)
             if (home == null && away == null) {
-                heroCache[key] = null
+                heroMiss += key
                 return@withContext null
             }
             val art = MatchHeroArt(

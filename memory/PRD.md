@@ -1,5 +1,19 @@
 # ON NOW TV V2 — PRD
 
+> **🔥 v2.10.63b — Sports Guide crashed on open: ConcurrentHashMap NPE (16 Jun 2026).**
+>
+> User report (with video): "This happened on opening guide" — app crashes immediately with a `java.lang.NullPointerException` originating in `tv.onnowtv.livetv.data` + `kotlinx.coroutines`.
+>
+> **Root cause:** `TheSportsDbRepository` used `ConcurrentHashMap<String, TeamArt?>` and `ConcurrentHashMap<String, MatchHeroArt?>` for caching, then wrote nulls to cache misses (`teamCache[key] = null`, `heroCache[key] = null`).  **`ConcurrentHashMap` forbids null values** — every 24/7 channel (Sky Sports F1, beIN Sports 1, …) whose title doesn't split as "Team A vs Team B" hit that line on first paint and threw NPE.  Crash fired the moment the first card's coroutine resolved.
+>
+> **Fix in `/app/android/onnowtv-livetv/.../data/TheSportsDbRepository.kt`:**
+>   • Split caches: `teamCache: ConcurrentHashMap<String, TeamArt>` + `heroCache: ConcurrentHashMap<String, MatchHeroArt>` (hits only).
+>   • Add parallel `teamMiss: ConcurrentHashMap.newKeySet<String>()` + `heroMiss` (thread-safe sets) for known misses.
+>   • Replaced every null-assignment with `miss += key`; replaced every `containsKey` short-circuit with `key in miss`.
+>
+> Net effect: no more NPE on 24/7 channels, "no-result" lookups still cache so each unknown name hits the network at most once.
+>
+
 > **🔥 v2.10.63 / v2.7.93 — Live TV build-blocker fix + HK1-box detection (16 Jun 2026).**
 >
 > **Two urgent fixes shipping together.**
