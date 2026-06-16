@@ -360,45 +360,6 @@ function mimeFor(url, type) {
 if (typeof document !== 'undefined') {
     if (Host.isLowEnd) document.documentElement.classList.add('vesper-low-end');
     if (Host.isAndroid) document.documentElement.classList.add('vesper-host-android');
-
-    // v2.10.31 — Legacy-Chromium compatibility class.
-    //
-    // We learned the hard way that two "identical" HK1 S905X3 boxes
-    // can ship wildly different `com.android.chrome` versions —
-    // observed in the wild: 138.0.7204.179 (works) vs 79.0.3945.116
-    // (broken).  Chrome 79 is from December 2019 and pre-dates a
-    // large chunk of the CSS our React UI relies on:
-    //
-    //   • `backdrop-filter`   (working in 79 only with a flag)
-    //   • `position: fixed`   has buggy containing-block resolution
-    //                         inside transformed ancestors → modals
-    //                         render in the bottom-left corner
-    //   • `:has()`            Chrome 105+ (silently ignored on 79)
-    //   • CSS `gap` in flex   Chrome 84+
-    //   • `aspect-ratio`      Chrome 88+
-    //   • Container queries   Chrome 105+
-    //
-    // We can't replace the system WebView from inside the app, so
-    // when we detect a sub-90 Chromium we tag <html> with a class
-    // that CSS overrides hang off — disabling backdrop-filter,
-    // dropping `transform: translateZ(0)` from ancestors that trap
-    // modal positioning, etc.  Working boxes (modern Chromium) are
-    // 100 % untouched — they never get this class.
-    try {
-        const ua = navigator.userAgent || '';
-        const m = ua.match(/Chrome\/(\d+)/i);
-        if (m) {
-            const chromeMajor = parseInt(m[1], 10);
-            if (!Number.isNaN(chromeMajor) && chromeMajor < 90) {
-                document.documentElement.classList.add('vesper-legacy-webview');
-                document.documentElement.setAttribute(
-                    'data-chrome-major', String(chromeMajor),
-                );
-            }
-        }
-    } catch {
-        /* UA parsing failure → leave class off, default to modern path */
-    }
 }
 
 export default Host;
