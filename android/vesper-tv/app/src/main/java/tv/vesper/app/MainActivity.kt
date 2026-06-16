@@ -347,24 +347,7 @@ class MainActivity : AppCompatActivity() {
                 domStorageEnabled = true
                 databaseEnabled = true
                 cacheMode = WebSettings.LOAD_DEFAULT
-                // v2.7.94 — HK1 / X96 / cheap-AOSP-TV-box fix.
-                //
-                // BEFORE: `loadWithOverviewMode=true` + `useWideViewPort=true`
-                // + the deprecated `setDefaultZoom(FAR)` told the WebView
-                // "treat the screen as low-density and shrink-to-fit".
-                // On HK1 boxes that report a wonky density (213/240
-                // mismatch between system + framebuffer + HDMI output),
-                // this combo caused the React UI to render at ~50% scale
-                // pinned to the top-left of the screen.
-                //
-                // AFTER: we DROP `loadWithOverviewMode` so the WebView
-                // respects the page's viewport meta verbatim
-                // (`width=device-width, initial-scale=1`) — i.e. one CSS
-                // pixel per device-independent pixel.  We also drop the
-                // deprecated `setDefaultZoom` + `setRenderPriority` calls
-                // entirely because they're no-ops on modern Chromium
-                // WebView and cause regressions on older AOSP WebViews.
-                loadWithOverviewMode = false
+                loadWithOverviewMode = true
                 useWideViewPort = true
                 mediaPlaybackRequiresUserGesture = false
                 mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
@@ -381,20 +364,21 @@ class MainActivity : AppCompatActivity() {
                 allowUniversalAccessFromFileURLs = false
                 @Suppress("DEPRECATION")
                 setEnableSmoothTransition(true)
+                // Boost render priority so the WebView's compositor
+                // gets first dibs on each frame.  Deprecated on
+                // Chrome WebView ≥ 56 but still honoured on older
+                // Chinese AOSP WebViews (Chrome 49-55 territory).
+                @Suppress("DEPRECATION")
+                setRenderPriority(WebSettings.RenderPriority.HIGH)
                 // Force-disable text autosizing — these heuristics
                 // run on every layout pass.  We control font sizing
                 // explicitly via clamp() so the autosizer is wasted
                 // CPU.
                 layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
+                @Suppress("DEPRECATION")
+                setDefaultZoom(WebSettings.ZoomDensity.FAR)
                 userAgentString = userAgentString + " OnNowTV/" + BuildConfig.VERSION_NAME
             }
-
-            // v2.7.94 — Force 100% initial scale so the WebView never
-            // tries to auto-shrink the page.  Combined with the
-            // settings above this gives us a clean 1:1 mapping
-            // between CSS pixels and DIPs on every device — phone,
-            // proper Android TV, AND cheap HK1 / X96 boxes.
-            setInitialScale(100)
 
             // v2.7.80 SECURITY — Refuse all WebView downloads.  The
             // app uses its own Update Gate / Premiumize HTTP fetches
