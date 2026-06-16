@@ -288,10 +288,30 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        window.addFlags(
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-        )
+        // v2.7.94 — Critical HK1 S905X3 + Android 9 + 4K-HDMI fix.
+        //
+        // Symptom (verified by user on one specific HK1 S905X3
+        // running Android 9 at 4K-auto HDMI): Vesper rendered as a
+        // 1080p activity pinned to the top-left of the 4K screen.
+        // The launcher (same minSdk/targetSdk, same theme parent,
+        // sideloaded the same way) filled the screen fine.
+        //
+        // Root cause: this activity was adding FLAG_LAYOUT_NO_LIMITS
+        // on top of a theme that ALREADY sets windowFullscreen=true
+        // + windowTranslucentStatus/Navigation=true.  On Android 9 +
+        // S905X3 + 4K HDMI, the window manager interprets that
+        // combination as "render into a compatibility-sized window
+        // (1080p) inside the 4K framebuffer" instead of stretching
+        // to the actual display.  The launcher's theme uses ONLY
+        // `windowFullscreen=true` (no NO_LIMITS, no translucent bar
+        // flags) so it never trips the bug.
+        //
+        // Fix: drop FLAG_LAYOUT_NO_LIMITS entirely.  Edge-to-edge
+        // rendering is already guaranteed by the theme's
+        // `windowFullscreen=true`, which is the standard supported
+        // path.  FLAG_KEEP_SCREEN_ON is preserved (critical for TV
+        // — keeps the box from sleeping during playback).
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         // NOTE: applyImmersiveMode() is intentionally NOT called
         // here.  On Android 16 (Pixel 8, Samsung Fold 7) the
         // window.insetsController is null until the DecorView is

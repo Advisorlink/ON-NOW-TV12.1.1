@@ -1,24 +1,18 @@
 # ON NOW TV V2 — PRD
 
-> **🔥 v2.7.94 — HK1 box render fix attempt #2: WebView scale settings (16 Jun 2026).**
+> **🔥 v2.7.94 — HK1 S905X3 + Android 9 + 4K-HDMI: removed `FLAG_LAYOUT_NO_LIMITS` (16 Jun 2026).**
 >
-> User report (with video, after v2.7.93 was deployed): "Its still showing in the top left".  Vesper WebView fills only ~50% of the HK1's 1080p screen, top-left aligned, the rest is black.  v2.7.93 detected the box as TV + injected `?mobile=0` so React UI used TV mode — but the WebView itself was still rendering at half scale.
+> User report: a SPECIFIC HK1 S905X3 box on Android 9 with 4K-auto HDMI output renders Vesper as a 1080p activity pinned to the top-left of the 4K screen, remote D-pad non-functional.  Every other app on that same box works fine.  Other HK1 boxes the user owns also work fine with the same Vesper APK.
 >
-> **Root cause** (this round): `MainActivity` was setting THREE legacy WebView knobs together:
->   • `loadWithOverviewMode = true` — auto-shrink-to-fit
->   • `useWideViewPort = true` — read the page's viewport meta
->   • `setDefaultZoom(WebSettings.ZoomDensity.FAR)` — deprecated, tells WebView "treat the screen as low-density"
+> **Root cause (this round — confirmed by diffing against the launcher APK which works):**
+> The OnNow launcher uses ONLY `android:windowFullscreen=true` in its theme.  Vesper additionally added `WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS` at runtime on top of a theme that ALREADY ships `windowFullscreen=true` + `windowTranslucentStatus=true` + `windowTranslucentNavigation=true`.  On Android 9 + S905X3 + 4K-HDMI output, the window manager interprets that combination as "render the activity into a compatibility-sized 1080p window inside the 4K framebuffer" instead of stretching to the actual display.  Other boxes don't trip the bug because either (a) they're not Android 9, (b) they're not S905X3, or (c) their HDMI is set to 1080p so the compatibility window matches the framebuffer.
 >
-> On a normal phone or Android TV stick (consistent DPI reporting) this combo is harmless.  On a cheap HK1 / X96 / Rockchip / Amlogic box where the system reports one density, the framebuffer is sized for another, and the HDMI output is at a third — the WebView ends up "shrink-to-fitting" the React UI to a smaller logical viewport than the actual screen, drawing the content pinned to the top-left of the actual display.
+> **Fix in `/app/android/vesper-tv/.../MainActivity.kt` (line 291):**
+>   • Dropped `FLAG_LAYOUT_NO_LIMITS` from the runtime `window.addFlags(...)` call.
+>   • Kept `FLAG_KEEP_SCREEN_ON` (critical for TV — keeps the box from sleeping during playback).
+>   • Theme stays unchanged — edge-to-edge rendering is already guaranteed by `windowFullscreen=true`, which is the standard supported path used by the working launcher and by every other working app on the affected box.
 >
-> **Fix in `/app/android/vesper-tv/.../MainActivity.kt` (around line 345-397):**
->   • `loadWithOverviewMode = false` — no more shrink-to-fit; respect the viewport meta verbatim.
->   • `useWideViewPort = true` — kept (lets `width=device-width, initial-scale=1` from the React app's `index.html` work).
->   • **Removed** `setDefaultZoom(ZoomDensity.FAR)` — deprecated, no-op on modern Chromium WebView, regression-causing on old AOSP WebViews.
->   • **Removed** `setRenderPriority(RenderPriority.HIGH)` — deprecated, no-op on modern WebView.
->   • Added `setInitialScale(100)` — forces 100% scale on first paint; combined with the above gives a clean 1:1 CSS-pixel ↔ device-independent-pixel mapping on every device class we ship to.
->
-> Net effect: HK1 / X96 / similar cheap AOSP TV-boxes should now render the React UI edge-to-edge at the correct scale, the same way real Android TV sticks already do.
+> Also REVERTED the v2.7.94-attempt-1 WebView setting changes (`setInitialScale`, `loadWithOverviewMode=false`, removed `setDefaultZoom`) because the user confirmed those affected other boxes that were working fine.
 >
 
 > **🔥 v2.10.63b — Sports Guide crashed on open: ConcurrentHashMap NPE (16 Jun 2026).**
