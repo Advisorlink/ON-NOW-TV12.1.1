@@ -317,29 +317,3 @@ class DiagnosticsActivity : AppCompatActivity() {
     private inline fun safeGet(block: () -> String?): String =
         try { block() ?: "unknown" } catch (_: Throwable) { "unknown" }
 }
- /* swallow */ }
-                    runOnUiThread {
-                        refreshReport()
-                        try {
-                            // Tear down the dummy surface — we only
-                            // needed the first frame.
-                            (gl.parent as? ViewGroup)?.removeView(gl)
-                        } catch (_: Throwable) { /* swallow */ }
-                    }
-                }
-                override fun onSurfaceChanged(gl10: GL10?, w: Int, h: Int) {}
-                override fun onDrawFrame(gl10: GL10?) {}
-            })
-            gl.layoutParams = ViewGroup.LayoutParams(1, 1)
-            gl.visibility = View.INVISIBLE
-            (window.decorView as ViewGroup).addView(gl)
-        } catch (_: Throwable) {
-            // GL surface couldn't be created (extremely cheap boxes
-            // without GLES2).  Leave the GPU lines as "unknown".
-            runOnUiThread { refreshReport() }
-        }
-    }
-
-    private inline fun safeGet(block: () -> String?): String =
-        try { block() ?: "unknown" } catch (_: Throwable) { "unknown" }
-}
