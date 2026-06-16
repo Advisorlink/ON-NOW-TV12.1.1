@@ -1041,7 +1041,37 @@ class MainActivity : AppCompatActivity() {
      *   • Otherwise fall back to the normal goBack / finish flow,
      *     which keeps Detail / Sources / Settings working as before.
      */
+    /**
+     * v2.10.29 — Diagnostics escape-hatch.
+     *
+     * If the user holds the MENU button on their remote for ≥1.5 s,
+     * launch DiagnosticsActivity directly.  This is the LAST RESORT
+     * way to reach diagnostics on a box where the WebView is so
+     * broken that React → Settings is unreachable.
+     *
+     * KEYCODE_MENU is the "three-line" / hamburger button on most TV
+     * remotes (HK1, X96, Tanix, etc.).  We don't otherwise intercept
+     * it, so this hijack is safe.  The 1.5-second guard prevents
+     * accidental triggering during normal app navigation.
+     */
+    private var menuDownAtMs: Long = 0L
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_MENU) {
+            // First press → record the timestamp.  Subsequent
+            // repeats (D-pad autorepeat) ignore until release.
+            if (event != null && event.repeatCount == 0) {
+                menuDownAtMs = System.currentTimeMillis()
+            } else if (event != null && menuDownAtMs > 0L) {
+                val held = System.currentTimeMillis() - menuDownAtMs
+                if (held >= 1500L) {
+                    menuDownAtMs = 0L
+                    openDiagnosticsActivity()
+                    return true
+                }
+            }
+            return super.onKeyDown(keyCode, event)
+        }
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             if (!webViewReady) {
                 finish()
@@ -1080,6 +1110,24 @@ class MainActivity : AppCompatActivity() {
             return true
         }
         return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_MENU) {
+            menuDownAtMs = 0L
+        }
+        return super.onKeyUp(keyCode, event)
+    }
+
+    /** Open the native DiagnosticsActivity directly.  Used by the
+     *  MENU-button long-press escape hatch and by the JS bridge. */
+    private fun openDiagnosticsActivity() {
+        try {
+            val intent = android.content.Intent(this, DiagnosticsActivity::class.java)
+            startActivity(intent)
+        } catch (t: Throwable) {
+            android.util.Log.w("Vesper", "openDiagnosticsActivity failed", t)
+        }
     }
 
     private fun showExitConfirm() {
