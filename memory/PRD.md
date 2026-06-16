@@ -1,5 +1,26 @@
 # ON NOW TV V2 — PRD
 
+> **🔥 v2.7.94 — HK1 box render fix attempt #2: WebView scale settings (16 Jun 2026).**
+>
+> User report (with video, after v2.7.93 was deployed): "Its still showing in the top left".  Vesper WebView fills only ~50% of the HK1's 1080p screen, top-left aligned, the rest is black.  v2.7.93 detected the box as TV + injected `?mobile=0` so React UI used TV mode — but the WebView itself was still rendering at half scale.
+>
+> **Root cause** (this round): `MainActivity` was setting THREE legacy WebView knobs together:
+>   • `loadWithOverviewMode = true` — auto-shrink-to-fit
+>   • `useWideViewPort = true` — read the page's viewport meta
+>   • `setDefaultZoom(WebSettings.ZoomDensity.FAR)` — deprecated, tells WebView "treat the screen as low-density"
+>
+> On a normal phone or Android TV stick (consistent DPI reporting) this combo is harmless.  On a cheap HK1 / X96 / Rockchip / Amlogic box where the system reports one density, the framebuffer is sized for another, and the HDMI output is at a third — the WebView ends up "shrink-to-fitting" the React UI to a smaller logical viewport than the actual screen, drawing the content pinned to the top-left of the actual display.
+>
+> **Fix in `/app/android/vesper-tv/.../MainActivity.kt` (around line 345-397):**
+>   • `loadWithOverviewMode = false` — no more shrink-to-fit; respect the viewport meta verbatim.
+>   • `useWideViewPort = true` — kept (lets `width=device-width, initial-scale=1` from the React app's `index.html` work).
+>   • **Removed** `setDefaultZoom(ZoomDensity.FAR)` — deprecated, no-op on modern Chromium WebView, regression-causing on old AOSP WebViews.
+>   • **Removed** `setRenderPriority(RenderPriority.HIGH)` — deprecated, no-op on modern WebView.
+>   • Added `setInitialScale(100)` — forces 100% scale on first paint; combined with the above gives a clean 1:1 CSS-pixel ↔ device-independent-pixel mapping on every device class we ship to.
+>
+> Net effect: HK1 / X96 / similar cheap AOSP TV-boxes should now render the React UI edge-to-edge at the correct scale, the same way real Android TV sticks already do.
+>
+
 > **🔥 v2.10.63b — Sports Guide crashed on open: ConcurrentHashMap NPE (16 Jun 2026).**
 >
 > User report (with video): "This happened on opening guide" — app crashes immediately with a `java.lang.NullPointerException` originating in `tv.onnowtv.livetv.data` + `kotlinx.coroutines`.
