@@ -1,0 +1,128 @@
+/* v2.10.62 — Shared styles for the 5 Sports Guide design alternatives.
+   Each mockup file imports this and adds its own layout-specific CSS. */
+
+*,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-deep:       #04060B;
+  --bg-rail:       #0E1422;
+  --bg-card:       #0F1626;
+  --bg-card-2:     #15192B;
+  --fg:            #F5F8FF;
+  --fg-dim:        #C2CEE3;
+  --fg-dimmer:     #7A8AB2;
+  --accent:        #5DC8FF;
+  --accent-glow:   rgba(93,200,255,.18);
+  --accent-red:    #FF2D55;
+  --accent-amber:  #FFA727;
+  --accent-purple: #9D6BFF;
+  --accent-emerald:#2EE6A0;
+  --border:        #1F2A44;
+}
+
+html, body {
+  width: 1920px; height: 1080px;
+  background: var(--bg-deep);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  overflow: hidden;
+}
+
+/* ─────── LEFT ICON RAIL ─────── */
+.rail {
+  position: fixed; top: 0; left: 0;
+  width: 64px; height: 100%;
+  background: var(--bg-rail);
+  display: flex; flex-direction: column; align-items: center;
+  padding: 20px 0; z-index: 10;
+}
+.rail .brand {
+  font-family: "Helvetica Neue", sans-serif;
+  font-weight: 900; font-size: 22px;
+  color: var(--accent-red);
+  letter-spacing: -0.04em;
+  text-shadow: 0 0 14px rgba(255,37,53,.5);
+  margin-bottom: 38px;
+}
+.rail .ic {
+  width: 44px; height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 14px;
+  border-radius: 10px;
+  color: var(--fg-dim);
+  cursor: pointer;
+  transition: all .14s ease;
+}
+.rail .ic.active { background: rgba(93,200,255,.12); color: var(--accent); }
+.rail .ic:hover  { background: rgba(255,255,255,.06); color: var(--fg); }
+.rail .ic svg { width: 24px; height: 24px; }
+.rail .spacer { flex: 1; }
+
+/* ─────── MAIN ─────── */
+.main {
+  position: absolute; top: 0; left: 64px;
+  width: calc(100% - 64px); height: 100%;
+  overflow: hidden;
+}
+
+/* ─────── SPORT ICONS (real Material-style) ─────── */
+.sport-icon { width: 28px; height: 28px; }
+.sport-icon svg { width: 100%; height: 100%; }
+
+/* ─────── COMMON ─────── */
+.eyebrow {
+  font-family: "SF Mono", "JetBrains Mono", monospace;
+  font-size: 12px; letter-spacing: 0.32em;
+  color: var(--accent); font-weight: 700; text-transform: uppercase;
+}
+.section-title {
+  font-size: 22px; font-weight: 600; color: var(--fg);
+  letter-spacing: -0.01em; margin-bottom: 14px;
+}
+.live-pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 11px; border-radius: 999px;
+  background: var(--accent-red);
+  font-family: "SF Mono", monospace;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.2em;
+  color: #fff;
+}
+.live-pill::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%;
+  background: #fff; box-shadow: 0 0 8px #fff;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:.4} }
+
+.cta {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 14px 28px; border-radius: 999px;
+  background: var(--accent); color: #04060B;
+  font-weight: 600; font-size: 16px; letter-spacing: -0.01em;
+  cursor: pointer; transition: transform .15s ease;
+}
+.cta:hover { transform: scale(1.04); }
+.cta svg { width: 14px; height: 16px; fill: #04060B; }
+
+/* Team badge — circular crest with initials */
+.team-badge {
+  width: 88px; height: 88px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 900; font-size: 32px; color: #fff;
+  border: 3px solid rgba(255,255,255,.12);
+  box-shadow: 0 8px 24px rgba(0,0,0,.5);
+}
+
+/* Mockup label badge (top-right of each mockup screen) */
+.mock-label {
+  position: fixed; top: 24px; right: 32px;
+  z-index: 100;
+  background: rgba(0,0,0,.7);
+  backdrop-filter: blur(20px);
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.1);
+  font-family: "SF Mono", monospace;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.2em;
+  color: var(--accent); text-transform: uppercase;
+}

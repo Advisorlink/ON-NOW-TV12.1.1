@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sports Guide — Mockup 1 · Cinematic Hero</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+/* ─── MOCKUP 1 — CINEMATIC HERO (ESPN-style) ─── */
+.hero {
+  position: relative;
+  height: 540px;
+  background:
+    radial-gradient(120% 80% at 50% 30%, rgba(31,107,152,0.65), transparent 70%),
+    linear-gradient(135deg, #0a1a2e 0%, #1b3578 45%, #7a1622 100%);
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.hero::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(180deg, transparent 50%, var(--bg-deep) 100%);
+}
+.hero-content { position: relative; z-index: 2; text-align: center; }
+.hero-eyebrow { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 18px; }
+.hero-matchup { display: flex; align-items: center; justify-content: center; gap: 70px; margin-bottom: 24px; }
+.hero-vs {
+  font-family: "SF Mono", monospace;
+  font-size: 18px; letter-spacing: 0.4em; color: var(--fg-dimmer);
+}
+.hero-title {
+  font-size: 60px; font-weight: 700; letter-spacing: -0.025em;
+  line-height: 1.05; margin-bottom: 18px;
+}
+.hero-meta {
+  font-family: "SF Mono", monospace; font-size: 14px;
+  color: var(--fg-dim); letter-spacing: 0.18em; margin-bottom: 32px;
+}
+.hero-clock {
+  position: absolute; top: 32px; right: 36px; z-index: 3;
+  text-align: right;
+}
+.hero-clock .time {
+  font-family: "SF Mono", monospace; font-size: 24px; font-weight: 600;
+  color: var(--fg);
+}
+.hero-clock .zone {
+  font-family: "SF Mono", monospace; font-size: 11px;
+  color: var(--fg-dimmer); letter-spacing: 0.3em; margin-top: 2px;
+}
+
+/* ─── BODY ─── */
+.body { padding: 32px 48px; }
+.row { margin-bottom: 28px; }
+.row-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; }
+.row-head .more {
+  font-family: "SF Mono", monospace; font-size: 11px; letter-spacing: 0.2em;
+  color: var(--fg-dimmer);
+}
+
+/* sport filter pills */
+.filter-strip {
+  display: flex; gap: 10px; margin-bottom: 22px; overflow-x: auto;
+}
+.chip {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 18px; border-radius: 999px;
+  background: rgba(255,255,255,.04); border: 1px solid var(--border);
+  white-space: nowrap; cursor: pointer;
+  transition: all .15s ease;
+}
+.chip.active {
+  background: var(--accent-glow); border-color: var(--accent);
+  color: var(--accent);
+}
+.chip svg { width: 18px; height: 18px; color: currentColor; }
+.chip span { font-size: 13px; font-weight: 500; }
+
+/* live cards */
+.cards { display: flex; gap: 16px; }
+.card {
+  width: 340px; height: 191px;
+  border-radius: 18px; overflow: hidden; position: relative;
+  background-size: cover; background-position: center;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.card .glass-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,.85) 100%);
+}
+.card .live { position: absolute; top: 12px; left: 12px; }
+.card .sport-bubble {
+  position: absolute; top: 12px; right: 12px;
+  width: 38px; height: 38px; border-radius: 50%;
+  background: rgba(0,0,0,.5); backdrop-filter: blur(10px);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--fg); padding: 8px;
+}
+.card .sport-bubble svg { width: 22px; height: 22px; }
+.card .meta {
+  position: absolute; bottom: 14px; left: 16px; right: 16px;
+}
+.card .meta .title {
+  font-size: 17px; font-weight: 600; color: var(--fg);
+  margin-bottom: 4px; max-width: 100%;
+  text-shadow: 0 2px 8px rgba(0,0,0,.6);
+}
+.card .meta .sub {
+  font-family: "SF Mono", monospace; font-size: 11px;
+  color: var(--fg-dim); letter-spacing: 0.1em;
+}
+
+/* today list */
+.today-row { display: flex; gap: 16px; }
+.today-card {
+  width: 320px; height: 128px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px;
+  display: flex; align-items: center; gap: 14px;
+}
+.today-time {
+  font-size: 22px; font-weight: 600; letter-spacing: -0.02em;
+  color: var(--fg); min-width: 64px;
+}
+.today-logo {
+  width: 52px; height: 52px; border-radius: 12px;
+  background-size: cover; background-position: center;
+  flex-shrink: 0;
+}
+.today-info { flex: 1; min-width: 0; }
+.today-info .title {
+  font-size: 14px; color: var(--fg); margin-bottom: 4px;
+  display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden;
+}
+.today-info .sport {
+  font-family: "SF Mono", monospace; font-size: 10px;
+  color: var(--fg-dimmer); letter-spacing: 0.12em;
+}
+</style>
+</head>
+<body>
+
+<div class="mock-label">Mockup 1 / 5 · Cinematic Hero</div>
+
+<div id="rail-root"></div>
+
+<main class="main">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-clock">
+      <div class="time">4:57 PM</div>
+      <div class="zone">SYDNEY · AEDT</div>
+    </div>
+
+    <div class="hero-content">
+      <div class="hero-eyebrow">
+        <div class="eyebrow">LIVE SPORTS</div>
+        <div class="live-pill">LIVE</div>
+      </div>
+      <div class="hero-matchup">
+        <div class="team-badge" style="background: linear-gradient(135deg, #c81b1f, #6a0d10);">WB</div>
+        <div class="hero-vs">VS</div>
+        <div class="team-badge" style="background: linear-gradient(135deg, #1c3a8c, #0a1a4d);">AC</div>
+      </div>
+      <h1 class="hero-title">Western Bulldogs vs Adelaide Crows</h1>
+      <div class="hero-meta">AFL · ROUND 14 · LIVE NOW · 4:50 PM AEDT</div>
+      <div class="cta">
+        <svg viewBox="0 0 14 16"><polygon points="0,0 0,16 14,8"/></svg>
+        Watch Live
+      </div>
+    </div>
+  </section>
+
+  <!-- BODY -->
+  <div class="body">
+
+    <!-- sport filter -->
+    <div class="filter-strip" id="filter-root"></div>
+
+    <div class="row">
+      <div class="row-head">
+        <h2 class="section-title">Live Now</h2>
+        <div class="more">5 events · See all</div>
+      </div>
+      <div class="cards">
+        <div class="card" style="background-image:url('https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&h=450&fit=crop');">
+          <div class="glass-overlay"></div>
+          <div class="live"><div class="live-pill">LIVE</div></div>
+          <div class="sport-bubble" id="bubble-football"></div>
+          <div class="meta"><div class="title">Liverpool vs Chelsea</div><div class="sub">PREMIER LEAGUE · 87'</div></div>
+        </div>
+        <div class="card" style="background-image:url('https://images.unsplash.com/photo-1546519638-68e109498ffc?w=800&h=450&fit=crop');">
+          <div class="glass-overlay"></div>
+          <div class="live"><div class="live-pill">LIVE</div></div>
+          <div class="sport-bubble" id="bubble-basketball"></div>
+          <div class="meta"><div class="title">Lakers vs Celtics</div><div class="sub">NBA · Q3 8:42</div></div>
+        </div>
+        <div class="card" style="background-image:url('https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?w=800&h=450&fit=crop');">
+          <div class="glass-overlay"></div>
+          <div class="live"><div class="live-pill">LIVE</div></div>
+          <div class="sport-bubble" id="bubble-tennis"></div>
+          <div class="meta"><div class="title">Djokovic vs Alcaraz</div><div class="sub">ATP HALLE · SET 2</div></div>
+        </div>
+        <div class="card" style="background-image:url('https://images.unsplash.com/photo-1565992441121-4367c2967103?w=800&h=450&fit=crop');">
+          <div class="glass-overlay"></div>
+          <div class="live"><div class="live-pill">LIVE</div></div>
+          <div class="sport-bubble" id="bubble-fight"></div>
+          <div class="meta"><div class="title">Jones vs Aspinall</div><div class="sub">UFC 305 · R3</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="row-head">
+        <h2 class="section-title">Coming Up Today</h2>
+        <div class="more">8 fixtures</div>
+      </div>
+      <div class="today-row">
+        <div class="today-card">
+          <div class="today-time">7:30</div>
+          <div class="today-logo" style="background-image:url('https://images.unsplash.com/photo-1551958219-acbc608c6377?w=200&h=200&fit=crop');"></div>
+          <div class="today-info"><div class="title">Arsenal vs Newcastle</div><div class="sport">EPL · TODAY</div></div>
+        </div>
+        <div class="today-card">
+          <div class="today-time">8:45</div>
+          <div class="today-logo" style="background-image:url('https://images.unsplash.com/photo-1576613109753-27804de2cba8?w=200&h=200&fit=crop');"></div>
+          <div class="today-info"><div class="title">Warriors vs Bucks</div><div class="sport">NBA · TODAY</div></div>
+        </div>
+        <div class="today-card">
+          <div class="today-time">9:15</div>
+          <div class="today-logo" style="background-image:url('https://images.unsplash.com/photo-1518604666860-9ed391f76460?w=200&h=200&fit=crop');"></div>
+          <div class="today-info"><div class="title">Toronto FC vs LAFC</div><div class="sport">MLS · TODAY</div></div>
+        </div>
+        <div class="today-card">
+          <div class="today-time">11:00</div>
+          <div class="today-logo" style="background-image:url('https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=200&h=200&fit=crop');"></div>
+          <div class="today-info"><div class="title">Lions vs Chiefs</div><div class="sport">NFL · TODAY</div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<script src="icons.js"></script>
+<script>
+  document.getElementById('rail-root').innerHTML = RAIL_HTML;
+  const filters = [['all','All'],['football','Football'],['basketball','Basketball'],['nfl','NFL'],['tennis','Tennis'],['fight','UFC'],['hockey','Hockey'],['baseball','Baseball'],['motor','Motor'],['cricket','Cricket'],['rugby','Rugby'],['golf','Golf']];
+  document.getElementById('filter-root').innerHTML = filters.map(([id, label], i) => `
+    <div class="chip ${i === 0 ? 'active' : ''}">
+      ${SPORT_ICONS[id]}
+      <span>${label}</span>
+    </div>
+  `).join('');
+  ['football','basketball','tennis','fight'].forEach(s => {
+    document.getElementById('bubble-' + s).innerHTML = SPORT_ICONS[s];
+  });
+</script>
+</body>
+</html>

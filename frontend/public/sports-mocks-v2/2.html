@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sports Guide — Mockup 2 · Split Editorial</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+/* ─── MOCKUP 2 — SPLIT EDITORIAL (Sky Sports / BBC Sport-style) ─── */
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  height: 100%;
+  gap: 0;
+}
+
+.left-col {
+  padding: 36px 32px 32px 40px;
+  overflow: hidden;
+}
+
+.right-col {
+  background: rgba(255,255,255,.02);
+  border-left: 1px solid var(--border);
+  padding: 36px 28px 32px 28px;
+  overflow: hidden;
+}
+
+/* HERO LEFT */
+.hero-card {
+  position: relative;
+  height: 420px;
+  border-radius: 24px;
+  overflow: hidden;
+  margin-bottom: 24px;
+  background: url('https://images.unsplash.com/photo-1487466365202-1afdb86c764e?w=1400&h=900&fit=crop') center/cover;
+}
+.hero-card::after {
+  content: ""; position: absolute; inset: 0;
+  background:
+    linear-gradient(90deg, rgba(4,6,11,.85) 0%, rgba(4,6,11,.55) 40%, transparent 70%),
+    linear-gradient(180deg, transparent 50%, rgba(4,6,11,.9) 100%);
+}
+.hero-inner {
+  position: absolute; bottom: 36px; left: 36px; right: 36px; z-index: 2;
+}
+.hero-tags { display: flex; gap: 10px; margin-bottom: 18px; }
+.tag {
+  display: inline-block;
+  padding: 5px 11px;
+  border-radius: 6px;
+  font-family: "SF Mono", monospace;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.2em;
+}
+.tag.live { background: var(--accent-red); color: #fff; }
+.tag.afl { background: rgba(255,255,255,.12); color: var(--fg); border: 1px solid rgba(255,255,255,.2); }
+.hero-headline {
+  font-size: 52px; font-weight: 700; letter-spacing: -0.025em;
+  line-height: 1.05; margin-bottom: 12px; max-width: 720px;
+}
+.hero-kicker {
+  font-size: 16px; color: var(--fg-dim);
+  margin-bottom: 22px; max-width: 600px;
+  line-height: 1.5;
+}
+.hero-actions { display: flex; align-items: center; gap: 16px; }
+.btn-secondary {
+  padding: 13px 22px; border-radius: 999px;
+  background: rgba(255,255,255,.1); color: var(--fg);
+  border: 1px solid rgba(255,255,255,.2);
+  font-weight: 500; font-size: 14px;
+  cursor: pointer;
+}
+
+/* Sport sections */
+.sport-section { margin-bottom: 24px; }
+.sport-header {
+  display: flex; align-items: center; gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 16px;
+}
+.sport-header .icon-pill {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--accent-red);
+  display: flex; align-items: center; justify-content: center;
+  padding: 7px; color: #fff;
+}
+.sport-header h3 {
+  font-size: 20px; font-weight: 700; letter-spacing: -0.01em;
+}
+.sport-header .live-count {
+  margin-left: auto;
+  font-family: "SF Mono", monospace; font-size: 11px;
+  color: var(--accent); letter-spacing: 0.18em;
+}
+
+.event-row {
+  display: flex; gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+}
+.event-row:last-child { border-bottom: none; }
+.event-thumb {
+  width: 140px; height: 80px;
+  border-radius: 8px;
+  background-size: cover; background-position: center;
+  flex-shrink: 0;
+  position: relative;
+}
+.event-thumb .live {
+  position: absolute; top: 6px; left: 6px;
+  padding: 2px 6px; font-size: 9px;
+  font-family: monospace; font-weight: 700;
+  background: var(--accent-red); color: #fff;
+  border-radius: 3px;
+}
+.event-info { flex: 1; min-width: 0; }
+.event-info .meta-line {
+  font-family: "SF Mono", monospace; font-size: 10px;
+  color: var(--fg-dimmer); letter-spacing: 0.2em;
+  margin-bottom: 6px;
+}
+.event-info .title {
+  font-size: 15px; font-weight: 600;
+  color: var(--fg); margin-bottom: 6px;
+}
+.event-info .score {
+  font-family: "SF Mono", monospace; font-size: 13px;
+  color: var(--accent); letter-spacing: 0.06em;
+}
+
+/* RIGHT COL — Coming Up */
+.coming-up-title {
+  font-family: "SF Mono", monospace;
+  font-size: 11px; letter-spacing: 0.32em;
+  color: var(--accent); font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+.coming-event {
+  padding: 16px 0;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+  display: flex; gap: 14px; align-items: center;
+}
+.coming-time {
+  display: flex; flex-direction: column; align-items: center;
+  min-width: 56px;
+  text-align: center;
+}
+.coming-time .hour {
+  font-size: 22px; font-weight: 700; color: var(--fg);
+  font-family: "SF Mono", monospace; letter-spacing: -0.02em;
+}
+.coming-time .ampm {
+  font-size: 10px; color: var(--fg-dimmer);
+  font-family: "SF Mono", monospace; letter-spacing: 0.16em;
+}
+.coming-thumb {
+  width: 60px; height: 60px;
+  border-radius: 10px; background-size: cover; background-position: center;
+  flex-shrink: 0;
+}
+.coming-info { flex: 1; min-width: 0; }
+.coming-info .title {
+  font-size: 14px; font-weight: 600; color: var(--fg);
+  margin-bottom: 4px;
+}
+.coming-info .sport {
+  font-family: "SF Mono", monospace; font-size: 10px;
+  color: var(--fg-dimmer); letter-spacing: 0.14em;
+}
+
+/* Clock badge top-right */
+.top-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 24px;
+}
+.page-title {
+  font-size: 28px; font-weight: 700; letter-spacing: -0.02em;
+}
+.clock-mini {
+  font-family: "SF Mono", monospace;
+  font-size: 13px; color: var(--fg-dim); letter-spacing: 0.18em;
+}
+</style>
+</head>
+<body>
+
+<div class="mock-label">Mockup 2 / 5 · Split Editorial</div>
+
+<div id="rail-root"></div>
+
+<main class="main">
+<div class="layout">
+
+  <!-- LEFT — Hero + Sport sections -->
+  <div class="left-col">
+
+    <div class="top-bar">
+      <h1 class="page-title">Live Sports</h1>
+      <div class="clock-mini">4:57 PM · SYDNEY AEDT</div>
+    </div>
+
+    <div class="hero-card">
+      <div class="hero-inner">
+        <div class="hero-tags">
+          <span class="tag live">● LIVE NOW</span>
+          <span class="tag afl">AFL · ROUND 14</span>
+        </div>
+        <h2 class="hero-headline">Western Bulldogs face Adelaide Crows at Marvel Stadium</h2>
+        <p class="hero-kicker">A 17-point comeback in the third quarter has put the Bulldogs back in the race for finals. Adelaide need a win to keep their top-8 hopes alive.</p>
+        <div class="hero-actions">
+          <div class="cta"><svg viewBox="0 0 14 16"><polygon points="0,0 0,16 14,8"/></svg> Watch Live</div>
+          <button class="btn-secondary">Set Reminder</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Football section -->
+    <div class="sport-section">
+      <div class="sport-header">
+        <div class="icon-pill" id="hdr-football"></div>
+        <h3>Football</h3>
+        <span class="live-count">3 LIVE</span>
+      </div>
+
+      <div class="event-row">
+        <div class="event-thumb" style="background-image:url('https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=400&h=240&fit=crop');">
+          <div class="live">LIVE</div>
+        </div>
+        <div class="event-info">
+          <div class="meta-line">PREMIER LEAGUE · ANFIELD · 87'</div>
+          <div class="title">Liverpool vs Chelsea</div>
+          <div class="score">2 — 1   ·   Salah 67'</div>
+        </div>
+      </div>
+
+      <div class="event-row">
+        <div class="event-thumb" style="background-image:url('https://images.unsplash.com/photo-1518604666860-9ed391f76460?w=400&h=240&fit=crop');">
+          <div class="live">LIVE</div>
+        </div>
+        <div class="event-info">
+          <div class="meta-line">LA LIGA · CAMP NOU · 56'</div>
+          <div class="title">Barcelona vs Real Madrid</div>
+          <div class="score">1 — 1   ·   Lewandowski 34'</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Basketball section -->
+    <div class="sport-section">
+      <div class="sport-header">
+        <div class="icon-pill" id="hdr-basketball" style="background: var(--accent-amber);"></div>
+        <h3>Basketball</h3>
+        <span class="live-count">2 LIVE</span>
+      </div>
+
+      <div class="event-row">
+        <div class="event-thumb" style="background-image:url('https://images.unsplash.com/photo-1546519638-68e109498ffc?w=400&h=240&fit=crop');">
+          <div class="live">LIVE</div>
+        </div>
+        <div class="event-info">
+          <div class="meta-line">NBA · CRYPTO ARENA · Q3 8:42</div>
+          <div class="title">LA Lakers vs Boston Celtics</div>
+          <div class="score">78 — 84   ·   Tatum 22 PTS</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT — Coming Up -->
+  <div class="right-col">
+    <div class="coming-up-title">Coming Up Today</div>
+
+    <div class="coming-event">
+      <div class="coming-time"><div class="hour">7:30</div><div class="ampm">PM</div></div>
+      <div class="coming-thumb" style="background-image:url('https://images.unsplash.com/photo-1551958219-acbc608c6377?w=200&h=200&fit=crop');"></div>
+      <div class="coming-info"><div class="title">Arsenal vs Newcastle</div><div class="sport">EPL</div></div>
+    </div>
+
+    <div class="coming-event">
+      <div class="coming-time"><div class="hour">8:45</div><div class="ampm">PM</div></div>
+      <div class="coming-thumb" style="background-image:url('https://images.unsplash.com/photo-1576613109753-27804de2cba8?w=200&h=200&fit=crop');"></div>
+      <div class="coming-info"><div class="title">Warriors vs Bucks</div><div class="sport">NBA</div></div>
+    </div>
+
+    <div class="coming-event">
+      <div class="coming-time"><div class="hour">9:15</div><div class="ampm">PM</div></div>
+      <div class="coming-thumb" style="background-image:url('https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?w=200&h=200&fit=crop');"></div>
+      <div class="coming-info"><div class="title">Djokovic vs Alcaraz</div><div class="sport">ATP HALLE</div></div>
+    </div>
+
+    <div class="coming-event">
+      <div class="coming-time"><div class="hour">10:00</div><div class="ampm">PM</div></div>
+      <div class="coming-thumb" style="background-image:url('https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=200&h=200&fit=crop');"></div>
+      <div class="coming-info"><div class="title">Lions vs Chiefs</div><div class="sport">NFL · MNF</div></div>
+    </div>
+
+    <div class="coming-event">
+      <div class="coming-time"><div class="hour">11:30</div><div class="ampm">PM</div></div>
+      <div class="coming-thumb" style="background-image:url('https://images.unsplash.com/photo-1565992441121-4367c2967103?w=200&h=200&fit=crop');"></div>
+      <div class="coming-info"><div class="title">Jones vs Aspinall</div><div class="sport">UFC 305</div></div>
+    </div>
+
+    <div class="coming-event">
+      <div class="coming-time"><div class="hour">12:00</div><div class="ampm">AM</div></div>
+      <div class="coming-thumb" style="background-image:url('https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=200&h=200&fit=crop');"></div>
+      <div class="coming-info"><div class="title">Australia vs India</div><div class="sport">CRICKET T20</div></div>
+    </div>
+  </div>
+</div>
+</main>
+
+<script src="icons.js"></script>
+<script>
+  document.getElementById('rail-root').innerHTML = RAIL_HTML;
+  document.getElementById('hdr-football').innerHTML = SPORT_ICONS.football;
+  document.getElementById('hdr-basketball').innerHTML = SPORT_ICONS.basketball;
+</script>
+</body>
+</html>

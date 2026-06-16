@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sports Guide — Mockup 5 · Cinema-Reel</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+/* ─── MOCKUP 5 — CINEMA-REEL (DAZN / Apple TV Sports-style) ─── */
+
+body { background: #000; }
+
+/* Full-bleed background */
+.bg-poster {
+  position: absolute; top: 0; left: 64px; right: 0; height: 600px;
+  z-index: 0;
+  background: url('https://images.unsplash.com/photo-1487466365202-1afdb86c764e?w=1900&h=900&fit=crop') center/cover;
+}
+.bg-poster::after {
+  content: ""; position: absolute; inset: 0;
+  background:
+    linear-gradient(180deg, rgba(0,0,0,.4) 0%, rgba(0,0,0,.55) 50%, #000 100%),
+    linear-gradient(90deg, rgba(0,0,0,.65) 0%, transparent 60%);
+}
+
+.main { z-index: 2; padding: 0; }
+
+.body-inner {
+  position: relative; z-index: 2;
+  padding: 48px 56px 24px;
+}
+
+/* TABS */
+.tabs {
+  display: flex; gap: 28px;
+  margin-bottom: 32px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  padding-bottom: 4px;
+}
+.tab {
+  font-size: 16px; font-weight: 500;
+  color: var(--fg-dimmer);
+  padding: 12px 0;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  letter-spacing: -0.01em;
+}
+.tab.active {
+  color: var(--fg);
+  border-bottom-color: var(--accent-red);
+}
+
+/* FEATURED HERO */
+.feature {
+  max-width: 920px;
+  margin-bottom: 56px;
+}
+.feature-tags { display: flex; gap: 8px; margin-bottom: 24px; }
+.tag {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-family: "SF Mono", monospace;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.2em;
+}
+.tag.live { background: var(--accent-red); color: #fff; }
+.tag.network { background: rgba(255,255,255,.16); color: var(--fg); border: 1px solid rgba(255,255,255,.22); }
+
+.feature h1 {
+  font-size: 64px; font-weight: 700; letter-spacing: -0.03em;
+  line-height: 1.0; margin-bottom: 18px;
+  text-shadow: 0 4px 24px rgba(0,0,0,.6);
+}
+.feature-sub {
+  font-size: 18px; color: var(--fg-dim);
+  margin-bottom: 32px; line-height: 1.4;
+  max-width: 600px;
+}
+.feature-actions { display: flex; gap: 14px; align-items: center; }
+.cta-primary {
+  display: inline-flex; align-items: center; gap: 12px;
+  padding: 16px 32px;
+  border-radius: 8px;
+  background: var(--fg); color: #000;
+  font-size: 17px; font-weight: 600;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.cta-primary:hover { transform: scale(1.03); }
+.cta-primary svg { width: 18px; height: 18px; fill: #000; }
+
+.cta-ghost {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 16px 26px;
+  border-radius: 8px;
+  background: rgba(255,255,255,.18); color: var(--fg);
+  border: 1px solid rgba(255,255,255,.25);
+  font-size: 15px; font-weight: 500;
+  cursor: pointer;
+  backdrop-filter: blur(20px);
+}
+.cta-ghost svg { width: 16px; height: 16px; }
+
+/* BOTTOM SECTION — Layout grid */
+.bottom-section {
+  position: relative; z-index: 2;
+  background: linear-gradient(180deg, #000 0%, #060A14 100%);
+  padding: 28px 56px 36px;
+}
+
+/* SPORT FILTER chips */
+.sport-filter {
+  display: flex; gap: 12px;
+  margin-bottom: 28px; align-items: center;
+}
+.sport-filter .label {
+  font-family: "SF Mono", monospace;
+  font-size: 11px; color: var(--fg-dimmer);
+  letter-spacing: 0.24em; margin-right: 8px;
+}
+.sf-chip {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.08);
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.sf-chip.active {
+  background: var(--fg);
+  color: #000;
+  border-color: var(--fg);
+}
+.sf-chip svg { width: 16px; height: 16px; }
+.sf-chip span { font-size: 12px; font-weight: 500; }
+
+/* CAROUSEL ROWS */
+.carousel { margin-bottom: 32px; }
+.car-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.car-title {
+  font-size: 20px; font-weight: 600; letter-spacing: -0.01em;
+}
+.car-more {
+  font-size: 12px; color: var(--fg-dim);
+  font-family: "SF Mono", monospace;
+  letter-spacing: 0.16em;
+}
+
+.car-track {
+  display: flex; gap: 14px;
+}
+.car-card {
+  position: relative;
+  width: 280px;
+  flex-shrink: 0;
+}
+.car-card .poster {
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  background-size: cover; background-position: center;
+}
+.car-card .poster::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(180deg, transparent 50%, rgba(0,0,0,.9));
+}
+.car-card .live-dot {
+  position: absolute; top: 10px; left: 10px;
+  padding: 3px 8px; border-radius: 4px;
+  font-family: "SF Mono", monospace;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.22em;
+  background: var(--accent-red); color: #fff;
+  z-index: 2;
+}
+.car-card .sport-mini {
+  position: absolute; top: 10px; right: 10px;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: rgba(0,0,0,.6);
+  backdrop-filter: blur(10px);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; padding: 6px;
+  z-index: 2;
+}
+.car-card .sport-mini svg { width: 100%; height: 100%; }
+.car-card .info {
+  padding: 12px 4px 0;
+}
+.car-card .info .ttl {
+  font-size: 15px; font-weight: 600;
+  margin-bottom: 4px;
+}
+.car-card .info .sub {
+  font-family: "SF Mono", monospace;
+  font-size: 11px; color: var(--fg-dimmer);
+  letter-spacing: 0.1em;
+}
+</style>
+</head>
+<body>
+
+<div class="mock-label">Mockup 5 / 5 · Cinema-Reel</div>
+
+<div id="rail-root"></div>
+
+<div class="bg-poster"></div>
+
+<main class="main">
+<div class="body-inner">
+
+  <!-- TABS -->
+  <div class="tabs">
+    <div class="tab active">Live Now</div>
+    <div class="tab">Today</div>
+    <div class="tab">This Week</div>
+    <div class="tab">My Sports</div>
+  </div>
+
+  <!-- FEATURED HERO -->
+  <div class="feature">
+    <div class="feature-tags">
+      <span class="tag live">● LIVE</span>
+      <span class="tag network">AFL · ROUND 14</span>
+    </div>
+    <h1>Western Bulldogs<br/>vs Adelaide Crows</h1>
+    <p class="feature-sub">Marvel Stadium · Q3 14:22 · Bulldogs lead 78–65. Live commentary, multi-angle replays and instant stream switching.</p>
+    <div class="feature-actions">
+      <div class="cta-primary">
+        <svg viewBox="0 0 14 16"><polygon points="0,0 0,16 14,8"/></svg>
+        Watch Live
+      </div>
+      <div class="cta-ghost">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12V7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v5"/><path d="M6 16h12v4H6z"/></svg>
+        Multi-angle
+      </div>
+      <div class="cta-ghost">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v6l3 2"/></svg>
+        Set Reminder
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="bottom-section">
+
+  <!-- SPORT FILTER -->
+  <div class="sport-filter">
+    <div class="label">FILTER</div>
+    <div id="filter-root" style="display:flex;gap:12px;"></div>
+  </div>
+
+  <!-- LIVE NOW CAROUSEL -->
+  <div class="carousel">
+    <div class="car-head">
+      <div class="car-title">Live Right Now</div>
+      <div class="car-more">5 EVENTS</div>
+    </div>
+    <div class="car-track">
+      <div class="car-card">
+        <div class="poster" style="background-image:url('https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=600&h=340&fit=crop');">
+          <div class="live-dot">LIVE</div>
+          <div class="sport-mini" id="r1-football"></div>
+        </div>
+        <div class="info"><div class="ttl">Liverpool vs Chelsea</div><div class="sub">EPL · 87' · 2-1</div></div>
+      </div>
+      <div class="car-card">
+        <div class="poster" style="background-image:url('https://images.unsplash.com/photo-1546519638-68e109498ffc?w=600&h=340&fit=crop');">
+          <div class="live-dot">LIVE</div>
+          <div class="sport-mini" id="r1-basketball"></div>
+        </div>
+        <div class="info"><div class="ttl">Lakers vs Celtics</div><div class="sub">NBA · Q3 8:42</div></div>
+      </div>
+      <div class="car-card">
+        <div class="poster" style="background-image:url('https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?w=600&h=340&fit=crop');">
+          <div class="live-dot">LIVE</div>
+          <div class="sport-mini" id="r1-tennis"></div>
+        </div>
+        <div class="info"><div class="ttl">Djokovic vs Alcaraz</div><div class="sub">ATP HALLE · SET 2</div></div>
+      </div>
+      <div class="car-card">
+        <div class="poster" style="background-image:url('https://images.unsplash.com/photo-1565992441121-4367c2967103?w=600&h=340&fit=crop');">
+          <div class="live-dot">LIVE</div>
+          <div class="sport-mini" id="r1-fight"></div>
+        </div>
+        <div class="info"><div class="ttl">Jones vs Aspinall</div><div class="sub">UFC 305 · R3</div></div>
+      </div>
+      <div class="car-card">
+        <div class="poster" style="background-image:url('https://images.unsplash.com/photo-1518604666860-9ed391f76460?w=600&h=340&fit=crop');">
+          <div class="live-dot">LIVE</div>
+          <div class="sport-mini" id="r1-football2"></div>
+        </div>
+        <div class="info"><div class="ttl">Barcelona vs Real Madrid</div><div class="sub">LA LIGA · 56'</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COMING UP CAROUSEL -->
+  <div class="carousel">
+    <div class="car-head">
+      <div class="car-title">Coming Up Today</div>
+      <div class="car-more">8 FIXTURES</div>
+    </div>
+    <div class="car-track">
+      <div class="car-card">
+        <div class="poster" style="background-image:url('https://images.unsplash.com/photo-1551958219-acbc608c6377?w=600&h=340&fit=crop');">
+          <div class="sport-mini" id="r2-football"></div>
+        </div>
+        <div class="info"><div class="ttl">Arsenal vs Newcastle</div><div class="sub">EPL · 7:30 PM</div></div>
+      </div>
+      <div class="car-card">
+        <div class="poster" style="background-image:url('https://images.unsplash.com/photo-1576613109753-27804de2cba8?w=600&h=340&fit=crop');">
+          <div class="sport-mini" id="r2-basketball"></div>
+        </div>
+        <div class="info"><div class="ttl">Warriors vs Bucks</div><div class="sub">NBA · 8:45 PM</div></div>
+      </div>
+      <div class="car-card">
+        <div class="poster" style="background-image:url('https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=600&h=340&fit=crop');">
+          <div class="sport-mini" id="r2-nfl"></div>
+        </div>
+        <div class="info"><div class="ttl">Lions vs Chiefs</div><div class="sub">NFL · 11:00 PM</div></div>
+      </div>
+      <div class="car-card">
+        <div class="poster" style="background-image:url('https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=600&h=340&fit=crop');">
+          <div class="sport-mini" id="r2-cricket"></div>
+        </div>
+        <div class="info"><div class="ttl">Australia vs India</div><div class="sub">T20 · 12:00 AM</div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</main>
+
+<script src="icons.js"></script>
+<script>
+  document.getElementById('rail-root').innerHTML = RAIL_HTML;
+  const filters = [['all','All Sports'],['football','Football'],['basketball','Basketball'],['nfl','NFL'],['tennis','Tennis'],['fight','UFC'],['hockey','Hockey'],['cricket','Cricket'],['rugby','Rugby']];
+  document.getElementById('filter-root').innerHTML = filters.map(([id, label], i) => `
+    <div class="sf-chip ${i === 0 ? 'active' : ''}">${SPORT_ICONS[id]}<span>${label}</span></div>
+  `).join('');
+
+  ['football','basketball','tennis','fight'].forEach(s => {
+    document.getElementById('r1-' + s).innerHTML = SPORT_ICONS[s];
+  });
+  document.getElementById('r1-football2').innerHTML = SPORT_ICONS.football;
+  ['football','basketball','nfl','cricket'].forEach(s => {
+    document.getElementById('r2-' + s).innerHTML = SPORT_ICONS[s];
+  });
+</script>
+</body>
+</html>

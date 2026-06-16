@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sports Guide — Mockup 3 · Card Grid Premium</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+/* ─── MOCKUP 3 — CARD GRID PREMIUM (Apple TV+ Sports-style) ─── */
+.body { padding: 28px 48px; }
+
+.head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 24px;
+}
+.head .title-block .eyebrow { margin-bottom: 4px; }
+.head .title-block h1 {
+  font-size: 38px; font-weight: 700; letter-spacing: -0.025em;
+}
+.head .clock {
+  text-align: right;
+  font-family: "SF Mono", monospace;
+  font-size: 14px; color: var(--fg-dim); letter-spacing: 0.18em;
+}
+
+/* SMALL FEATURED HERO */
+.hero-mini {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 24px;
+  margin-bottom: 36px;
+}
+.hero-mini-poster {
+  position: relative; height: 260px;
+  border-radius: 22px; overflow: hidden;
+  background: url('https://images.unsplash.com/photo-1487466365202-1afdb86c764e?w=1400&h=600&fit=crop') center/cover;
+}
+.hero-mini-poster::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(180deg, transparent 30%, rgba(4,6,11,.95));
+}
+.hero-mini-inner {
+  position: absolute; bottom: 26px; left: 28px; right: 28px; z-index: 2;
+}
+.hero-mini-tags { display: flex; gap: 8px; margin-bottom: 14px; }
+.hero-mini-title {
+  font-size: 32px; font-weight: 700; line-height: 1.1;
+  letter-spacing: -0.02em; margin-bottom: 8px;
+}
+.hero-mini-sub {
+  font-family: "SF Mono", monospace; font-size: 12px;
+  color: var(--fg-dim); letter-spacing: 0.16em;
+}
+
+.tag {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-family: "SF Mono", monospace;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.2em;
+}
+.tag.live { background: var(--accent-red); color: #fff; }
+.tag.afl { background: rgba(255,255,255,.14); color: var(--fg); }
+
+.cta-block {
+  display: flex; align-items: center;
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  padding: 26px 32px;
+  gap: 22px;
+}
+.cta-block .icon-wrap {
+  width: 72px; height: 72px;
+  background: var(--accent-glow);
+  color: var(--accent);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px; flex-shrink: 0;
+}
+.cta-block .icon-wrap svg { width: 100%; height: 100%; }
+.cta-block .info { flex: 1; min-width: 0; }
+.cta-block .label {
+  font-family: "SF Mono", monospace; font-size: 11px;
+  color: var(--fg-dimmer); letter-spacing: 0.24em; margin-bottom: 6px;
+}
+.cta-block h3 {
+  font-size: 22px; font-weight: 600; letter-spacing: -0.01em;
+  margin-bottom: 6px;
+}
+.cta-block .meta {
+  font-family: "SF Mono", monospace; font-size: 11px;
+  color: var(--fg-dim); letter-spacing: 0.14em;
+}
+
+/* Sport filter pills */
+.filters {
+  display: flex; gap: 10px; align-items: center;
+  margin-bottom: 22px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.filters-label {
+  font-family: "SF Mono", monospace; font-size: 11px;
+  color: var(--fg-dimmer); letter-spacing: 0.24em;
+  margin-right: 10px;
+}
+.fchip {
+  display: flex; align-items: center;
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--border);
+  justify-content: center;
+  color: var(--fg-dim);
+  padding: 9px;
+  cursor: pointer;
+}
+.fchip.active {
+  background: var(--accent-glow);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.fchip svg { width: 100%; height: 100%; }
+
+/* 4-COL GRID */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+}
+.gcard {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: 18px;
+  overflow: hidden;
+  background-size: cover; background-position: center;
+  border: 1px solid var(--border);
+}
+.gcard::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(180deg, transparent 40%, rgba(0,0,0,.85));
+}
+.gcard .live-corner {
+  position: absolute; top: 12px; left: 12px;
+  padding: 4px 9px; border-radius: 6px;
+  font-family: "SF Mono", monospace;
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.2em; color: #fff;
+  background: var(--accent-red);
+  z-index: 2;
+}
+.gcard .sport-badge {
+  position: absolute; top: 12px; right: 12px;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,.15);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; padding: 7px; z-index: 2;
+}
+.gcard .sport-badge svg { width: 100%; height: 100%; }
+.gcard .info {
+  position: absolute; bottom: 14px; left: 16px; right: 16px;
+  z-index: 2;
+}
+.gcard .info .title {
+  font-size: 16px; font-weight: 600;
+  color: var(--fg); margin-bottom: 4px;
+  text-shadow: 0 2px 8px rgba(0,0,0,.7);
+}
+.gcard .info .sub {
+  font-family: "SF Mono", monospace;
+  font-size: 10px; color: var(--fg-dim);
+  letter-spacing: 0.14em;
+}
+</style>
+</head>
+<body>
+
+<div class="mock-label">Mockup 3 / 5 · Card Grid Premium</div>
+
+<div id="rail-root"></div>
+
+<main class="main">
+<div class="body">
+
+  <div class="head">
+    <div class="title-block">
+      <div class="eyebrow">LIVE SPORTS · AEDT</div>
+      <h1>Today's Fixtures</h1>
+    </div>
+    <div class="clock">4:57 PM · SYDNEY · WED 16 JUN</div>
+  </div>
+
+  <!-- FEATURED + CTA -->
+  <div class="hero-mini">
+    <div class="hero-mini-poster">
+      <div class="hero-mini-inner">
+        <div class="hero-mini-tags">
+          <span class="tag live">● LIVE NOW</span>
+          <span class="tag afl">AFL · ROUND 14</span>
+        </div>
+        <h2 class="hero-mini-title">Western Bulldogs vs Adelaide Crows</h2>
+        <div class="hero-mini-sub">MARVEL STADIUM · Q3 14:22 · 78 — 65</div>
+      </div>
+    </div>
+    <div class="cta-block">
+      <div class="icon-wrap"><svg viewBox="0 0 14 16" fill="currentColor"><polygon points="0,0 0,16 14,8"/></svg></div>
+      <div class="info">
+        <div class="label">FEATURED · LIVE</div>
+        <h3>Watch Now</h3>
+        <div class="meta">3 STREAMS · ONE-CLICK PLAY</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FILTERS -->
+  <div class="filters">
+    <div class="filters-label">FILTER</div>
+    <div id="filter-root" style="display:flex;gap:10px;"></div>
+  </div>
+
+  <!-- GRID -->
+  <div class="grid">
+    <div class="gcard" style="background-image:url('https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=600&h=340&fit=crop');">
+      <div class="live-corner">LIVE</div>
+      <div class="sport-badge" id="grid-football"></div>
+      <div class="info"><div class="title">Liverpool vs Chelsea</div><div class="sub">EPL · 87'</div></div>
+    </div>
+    <div class="gcard" style="background-image:url('https://images.unsplash.com/photo-1546519638-68e109498ffc?w=600&h=340&fit=crop');">
+      <div class="live-corner">LIVE</div>
+      <div class="sport-badge" id="grid-basketball"></div>
+      <div class="info"><div class="title">Lakers vs Celtics</div><div class="sub">NBA · Q3 8:42</div></div>
+    </div>
+    <div class="gcard" style="background-image:url('https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?w=600&h=340&fit=crop');">
+      <div class="live-corner">LIVE</div>
+      <div class="sport-badge" id="grid-tennis"></div>
+      <div class="info"><div class="title">Djokovic vs Alcaraz</div><div class="sub">ATP HALLE · SET 2</div></div>
+    </div>
+    <div class="gcard" style="background-image:url('https://images.unsplash.com/photo-1565992441121-4367c2967103?w=600&h=340&fit=crop');">
+      <div class="live-corner">LIVE</div>
+      <div class="sport-badge" id="grid-fight"></div>
+      <div class="info"><div class="title">Jones vs Aspinall</div><div class="sub">UFC 305 · R3</div></div>
+    </div>
+
+    <div class="gcard" style="background-image:url('https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=600&h=340&fit=crop');">
+      <div class="sport-badge" id="grid-nfl"></div>
+      <div class="info"><div class="title">Lions vs Chiefs</div><div class="sub">NFL · 11:00 PM</div></div>
+    </div>
+    <div class="gcard" style="background-image:url('https://images.unsplash.com/photo-1518604666860-9ed391f76460?w=600&h=340&fit=crop');">
+      <div class="sport-badge" id="grid-football2"></div>
+      <div class="info"><div class="title">Arsenal vs Newcastle</div><div class="sub">EPL · 7:30 PM</div></div>
+    </div>
+    <div class="gcard" style="background-image:url('https://images.unsplash.com/photo-1576613109753-27804de2cba8?w=600&h=340&fit=crop');">
+      <div class="sport-badge" id="grid-basketball2"></div>
+      <div class="info"><div class="title">Warriors vs Bucks</div><div class="sub">NBA · 8:45 PM</div></div>
+    </div>
+    <div class="gcard" style="background-image:url('https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=600&h=340&fit=crop');">
+      <div class="sport-badge" id="grid-cricket"></div>
+      <div class="info"><div class="title">Australia vs India</div><div class="sub">T20 · 12:00 AM</div></div>
+    </div>
+  </div>
+
+</div>
+</main>
+
+<script src="icons.js"></script>
+<script>
+  document.getElementById('rail-root').innerHTML = RAIL_HTML;
+  const filters = [['all','All'],['football','Football'],['basketball','Basketball'],['nfl','NFL'],['tennis','Tennis'],['fight','UFC'],['hockey','Hockey'],['cricket','Cricket'],['rugby','Rugby']];
+  document.getElementById('filter-root').innerHTML = filters.map(([id, label], i) => `
+    <div class="fchip ${i === 0 ? 'active' : ''}" title="${label}">${SPORT_ICONS[id]}</div>
+  `).join('');
+  ['football','basketball','tennis','fight','nfl','cricket'].forEach(s => {
+    const el = document.getElementById('grid-' + s);
+    if (el) el.innerHTML = SPORT_ICONS[s];
+  });
+  ['football2','basketball2'].forEach((s,i) => {
+    const base = s.replace('2','');
+    document.getElementById('grid-' + s).innerHTML = SPORT_ICONS[base];
+  });
+</script>
+</body>
+</html>
