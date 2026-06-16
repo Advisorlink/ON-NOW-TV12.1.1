@@ -1,5 +1,44 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.61 — Highfly Sports Guide layout + visual robustness (16 Jun 2026).**
+>
+> **User report (with video):** "This looks soooo bad and doesn't fit properly AT ALL — it needs to fit way better and make it functional and use proper images however you need to get those images you get them and make the screen fit 1000% properly that's so annoying."
+>
+> **Visible issues in the video:**
+>   1. Hero rendered "Sky Sports F1" twice (genre line `SKY SPORTS F1` stacked under the centred title `Sky Sports F1`) — looked like a font-rendering glitch.
+>   2. Hero poster background was a low-resolution cloudy/smoky placeholder because the Highfly addon ships no background URL for channel-style content.
+>   3. LIVE NOW cards on a 1080p TV had the last card half-clipped on the right edge (380×214 dp × 5 cards + 18 dp margin + 48 dp padding overflowed the surface).
+>   4. Every card's background looked identical & dead (`#15192B` flat navy) when the addon didn't ship a poster — gave the row a "broken / unfinished" feel.
+>   5. Sport-filter chip labels truncated under the circular icon because chip widths were `wrap_content` and inconsistent.
+>   6. Hero kept featuring 24/7 channels (Sky Sports F1) instead of real matchups (Lakers vs Celtics).
+>
+> **Fixes:**
+>
+> **A. Per-sport vibrant gradient fallback (replaces dead-grey cards):**
+>   • New `/app/android/onnowtv-livetv/app/src/main/res/drawable/highfly_sport_{football,basketball,nfl,hockey,tennis,fight,motor,baseball,rugby,afl,cricket,golf,snooker,darts,other}.xml` — 15 layer-list drawables, each a vibrant 2-stop sport-themed gradient + a top darken sheen.  Football = pitch green, basketball = hardwood orange, NFL = navy/red, hockey = ice blue, tennis = teal-to-clay, fight = crimson/black, motor = carbon/orange, etc.
+>   • New `tv.onnowtv.livetv.ui.SportFallback.drawableFor(genres, title)` maps any Highfly genre or title onto the right gradient.  More-specific tokens (`"american football"`, `"nfl"`) are matched before generic `"football"`.
+>   • `LiveCardsAdapter` + `TodayCardsAdapter` now call `poster.setBackgroundResource(fallback)` AND `poster.load(url) { placeholder(fallback); error(fallback) }` so failed / slow Coil loads still show a beautiful gradient instead of dead navy.
+>   • Same treatment applied to the hero poster.
+>
+> **B. Hero polish:**
+>   • New `pickHeroEvent(list)` prefers events whose title contains `" vs "` / `" vs. "` / `" v "` / `" @ "` (real matchups), falling back to any event whose title differs from its first genre.  Killed the case where the hero was Sky Sports F1.
+>   • `bindHero` now hides `heroLeague` when its uppercase form equals / fully contains / is fully contained in the title's uppercase form — fixing the duplicated "Sky Sports F1" stacking.
+>
+> **C. Layout shrinks to FIT properly on a 1080p TV:**
+>   • Hero `540dp → 480dp`, hero title `68sp → 56sp` (still bold, no longer overlaps siblings).
+>   • LIVE NOW card `380×214 dp → 340×191 dp`, margin `18 → 16 dp`, paddings reduced.
+>   • COMING UP TODAY card `340×140 → 320×128 dp`, margin `18 → 16 dp`.
+>   • Surface paddingHorizontal `48 → 36 dp` on all four rows.
+>   • Sport chip — now fixed `86dp` column with `singleLine=true ellipsize=end gravity=center`, circle `64 → 58 dp`, `marginEnd=8dp`.  All chips align in a tidy uniform grid; labels never overflow.
+>
+> Static-reviewed: all 22 modified/new files pass — no compile/lint issues.  APK rebuild required.  No backend change.
+>
+> Behaviour now:
+>   • Hero opens on a real matchup whenever the addon has one in `sports_live`, falling back gracefully.
+>   • Every card / hero with no Highfly poster shows a sport-themed gradient instead of a generic grey.
+>   • Layout fits cleanly inside a 1920×1080 surface; ~5 LIVE cards fit with the 6th peeking in as a scroll hint.
+>
+
 > **🟢 v2.10.60 — "Skip" no longer suppresses the update prompt (16 Jun 2026).**
 >
 > **User report:** Tapping "Skip for now" on the Update-available dialog made the prompt disappear forever, even after they re-uploaded a new APK to the tile.  "Until I update it, the pop-up has to keep coming up.  It can still say skip, people can still skip it, but every time the tile is tapped it has to show until they install it."

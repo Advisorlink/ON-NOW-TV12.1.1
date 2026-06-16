@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 import tv.onnowtv.livetv.data.HighflySportsRepository
 import tv.onnowtv.livetv.ui.LiveCardsAdapter
 import tv.onnowtv.livetv.ui.SportChipsAdapter
+import tv.onnowtv.livetv.ui.SportFallback
 import tv.onnowtv.livetv.ui.SportFilter
 import tv.onnowtv.livetv.ui.TodayCardsAdapter
 import java.text.SimpleDateFormat
@@ -242,9 +243,9 @@ class HighflySportsGuideActivity : AppCompatActivity() {
         val matchup = list.firstOrNull {
             val t = it.title
             t.contains(" vs ", ignoreCase = true) ||
+                t.contains(" vs. ", ignoreCase = true) ||
                 t.contains(" v ", ignoreCase = true) ||
-                t.contains(" @ ", ignoreCase = true) ||
-                t.contains(" - ", ignoreCase = true)
+                t.contains(" @ ", ignoreCase = true)
         }
         if (matchup != null) return matchup
         return list.firstOrNull { ev ->
@@ -263,7 +264,7 @@ class HighflySportsGuideActivity : AppCompatActivity() {
 
     private fun bindHero(ev: HighflySportsRepository.Event?) {
         if (ev == null) {
-            heroPoster.setBackgroundResource(tv.onnowtv.livetv.R.drawable.highfly_sport_other)
+            heroPoster.setBackgroundResource(R.drawable.highfly_sport_other)
             heroPoster.setImageDrawable(null)
             heroTitle.text = "No live sport right now"
             heroMeta.text = "Check back closer to kickoff"
@@ -277,8 +278,7 @@ class HighflySportsGuideActivity : AppCompatActivity() {
         // poster.  Coil also uses this drawable as placeholder/
         // error so the user never stares at a blank cloud-grey
         // image while a slow / 404 Highfly poster is loaded.
-        val fallback = tv.onnowtv.livetv.ui.SportFallback
-            .drawableFor(ev.genres, ev.title)
+        val fallback = SportFallback.drawableFor(ev.genres, ev.title)
         heroPoster.setBackgroundResource(fallback)
 
         val url = ev.background ?: ev.poster
