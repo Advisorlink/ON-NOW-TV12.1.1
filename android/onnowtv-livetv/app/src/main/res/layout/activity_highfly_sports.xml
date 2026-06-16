@@ -1,282 +1,542 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v2.10.59 — Highfly Sports Guide redesigned to match the user's
-     mockup.  Sections from top to bottom:
-       1. HERO (50% of screen height): featured live event,
-          blurred poster background, centered "TEAM A vs TEAM B"
-          title, big LIVE pill, "Watch Live" CTA.
-       2. LIVE NOW: horizontal row of 16:9 cards with the actual
-          live events from the addon (max 8).
-       3. SPORT FILTER: horizontal scrollable row of circular
-          icon chips — "All Sports" + every sport from the
-          addon's manifest.  Selected chip glows cyan.
-       4. COMING UP TODAY: horizontal row of upcoming-today
-          cards with kickoff time in AEDT.
-     Nothing on this surface reveals the addon URL / source. -->
+<!--
+    v2.10.62 — Highfly Sports Guide rebuilt as the "Cinema-Reel"
+    direction the user picked (mockup 5).
+
+    Structure (left→right, top→bottom):
+
+    [ 64dp V2 RAIL ] [ MAIN SCROLLVIEW ]
+                     ├── HERO (600dp)
+                     │   ├── Full-bleed event poster (TheSportsDB
+                     │   │   banner when found, otherwise per-sport
+                     │   │   gradient drawable).
+                     │   ├── Hero veil + left cone for legibility.
+                     │   ├── TABS bar (Live Now · Today · This Week
+                     │   │   · My Sports).
+                     │   ├── Feature block (tags + 60sp title +
+                     │   │   kicker + Watch Live / Multi-angle /
+                     │   │   Set Reminder CTAs).
+                     │   └── Top-right clock + AEDT label.
+                     └── BOTTOM SECTION (#060A14 → #04060B)
+                         ├── Sport-filter pill row.
+                         ├── "Live Right Now" carousel of 16:9 cards.
+                         └── "Coming Up Today" carousel of 16:9 cards.
+
+    Surface NEVER exposes the addon URL / host / config — by spec.
+-->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#04060B">
 
-    <!-- Ambient deep-navy gradient backdrop. -->
-    <View
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@drawable/highfly_bg_gradient" />
+        android:orientation="horizontal">
 
-    <ScrollView
-        android:id="@+id/highfly_scroll"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:scrollbars="none"
-        android:fillViewport="true"
-        android:descendantFocusability="afterDescendants">
-
+        <!-- ═══════════ LEFT V2 ICON RAIL ═══════════ -->
         <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:layout_width="64dp"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center_horizontal"
+            android:paddingTop="20dp"
+            android:paddingBottom="20dp"
+            android:background="#0E1422">
 
-            <!-- =================== HERO =================== -->
-            <FrameLayout
-                android:id="@+id/hero_root"
-                android:layout_width="match_parent"
-                android:layout_height="480dp"
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="V2"
+                android:textColor="#FF2D55"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                android:fontFamily="sans-serif-black"
+                android:letterSpacing="-0.04"
+                android:shadowColor="#80FF2535"
+                android:shadowDx="0"
+                android:shadowDy="0"
+                android:shadowRadius="14" />
+
+            <Space android:layout_width="0dp" android:layout_height="38dp" />
+
+            <ImageButton android:id="@+id/rail_back"
+                android:layout_width="44dp" android:layout_height="44dp"
+                android:layout_marginBottom="14dp"
+                android:padding="10dp"
+                android:src="@drawable/ic_nav_tv"
+                android:background="@drawable/rail_icon_bg"
                 android:focusable="true"
-                android:clickable="true">
+                android:contentDescription="Back to TV Guide" />
 
-                <!-- Full-bleed blurred poster -->
-                <ImageView
-                    android:id="@+id/hero_poster"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:scaleType="centerCrop"
-                    android:contentDescription="@null" />
+            <ImageButton android:id="@+id/rail_search"
+                android:layout_width="44dp" android:layout_height="44dp"
+                android:layout_marginBottom="14dp"
+                android:padding="10dp"
+                android:src="@drawable/ic_nav_search"
+                android:background="@drawable/rail_icon_bg"
+                android:focusable="true"
+                android:contentDescription="Search" />
 
-                <!-- Dark gradient veil — fades to navy at bottom -->
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:background="@drawable/highfly_hero_veil" />
+            <ImageButton android:id="@+id/rail_refresh"
+                android:layout_width="44dp" android:layout_height="44dp"
+                android:layout_marginBottom="14dp"
+                android:padding="10dp"
+                android:src="@drawable/ic_refresh"
+                android:background="@drawable/rail_icon_bg"
+                android:focusable="true"
+                android:contentDescription="Refresh" />
 
-                <!-- Side-cone gradients so player photos at the
-                     edges of the poster have headroom but the
-                     centre title is fully legible. -->
-                <View
-                    android:layout_width="200dp"
-                    android:layout_height="match_parent"
-                    android:layout_gravity="start"
-                    android:background="@drawable/highfly_hero_side_left" />
+            <ImageButton android:id="@+id/rail_sports"
+                android:layout_width="44dp" android:layout_height="44dp"
+                android:layout_marginBottom="14dp"
+                android:padding="10dp"
+                android:src="@drawable/ic_nav_sports"
+                android:background="@drawable/rail_icon_bg_active"
+                android:focusable="true"
+                android:contentDescription="Sports Guide (current)" />
 
-                <View
-                    android:layout_width="200dp"
-                    android:layout_height="match_parent"
-                    android:layout_gravity="end"
-                    android:background="@drawable/highfly_hero_side_right" />
+            <ImageButton android:id="@+id/rail_library"
+                android:layout_width="44dp" android:layout_height="44dp"
+                android:layout_marginBottom="14dp"
+                android:padding="10dp"
+                android:src="@drawable/ic_nav_library"
+                android:background="@drawable/rail_icon_bg"
+                android:focusable="true"
+                android:contentDescription="My Library" />
 
-                <!-- Centered: LIVE pill + league + "Team A vs Team B" + CTA -->
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center"
-                    android:orientation="vertical"
-                    android:gravity="center_horizontal">
+            <ImageButton android:id="@+id/rail_fullscreen"
+                android:layout_width="44dp" android:layout_height="44dp"
+                android:padding="10dp"
+                android:src="@drawable/ic_nav_fullscreen"
+                android:background="@drawable/rail_icon_bg"
+                android:focusable="true"
+                android:contentDescription="Fullscreen" />
 
-                    <LinearLayout
-                        android:id="@+id/hero_live_pill"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:paddingHorizontal="14dp"
-                        android:paddingVertical="7dp"
-                        android:background="@drawable/highfly_live_pill_bg"
-                        android:visibility="gone">
+            <Space android:layout_width="0dp" android:layout_height="0dp"
+                android:layout_weight="1" />
 
-                        <View
-                            android:layout_width="8dp"
-                            android:layout_height="8dp"
-                            android:background="@drawable/highfly_live_dot"
-                            android:layout_marginEnd="9dp" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="LIVE"
-                            android:textColor="#FFFFFF"
-                            android:textSize="14sp"
-                            android:fontFamily="sans-serif-medium"
-                            android:letterSpacing="0.18" />
-                    </LinearLayout>
-
-                    <TextView
-                        android:id="@+id/hero_league"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="20dp"
-                        android:textColor="#F5F8FF"
-                        android:textSize="20sp"
-                        android:fontFamily="sans-serif"
-                        android:letterSpacing="0.04"
-                        android:singleLine="true"
-                        android:visibility="gone" />
-
-                    <TextView
-                        android:id="@+id/hero_title"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
-                        android:textColor="#FFFFFF"
-                        android:textSize="56sp"
-                        android:fontFamily="sans-serif-medium"
-                        android:letterSpacing="-0.02"
-                        android:gravity="center"
-                        android:maxLines="2"
-                        android:ellipsize="end"
-                        tools:text="Man City vs PSG" />
-
-                    <TextView
-                        android:id="@+id/hero_meta"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
-                        android:textColor="#C2CEE3"
-                        android:textSize="15sp"
-                        android:fontFamily="monospace"
-                        android:letterSpacing="0.1" />
-
-                    <!-- Watch Live CTA -->
-                    <LinearLayout
-                        android:id="@+id/hero_watch_btn"
-                        android:layout_width="wrap_content"
-                        android:layout_height="64dp"
-                        android:layout_marginTop="34dp"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:paddingHorizontal="34dp"
-                        android:background="@drawable/highfly_cta_bg"
-                        android:focusable="true"
-                        android:clickable="true">
-
-                        <!-- Triangle "play" mark -->
-                        <View
-                            android:layout_width="14dp"
-                            android:layout_height="16dp"
-                            android:layout_marginEnd="14dp"
-                            android:background="@drawable/highfly_play_triangle" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Watch Live"
-                            android:textColor="#04060B"
-                            android:textSize="20sp"
-                            android:fontFamily="sans-serif-medium"
-                            android:letterSpacing="-0.01" />
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- Top-right corner: AEDT clock -->
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="top|end"
-                    android:layout_margin="32dp"
-                    android:orientation="vertical"
-                    android:gravity="end">
-
-                    <TextView
-                        android:id="@+id/highfly_clock"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textColor="#F5F8FF"
-                        android:textSize="22sp"
-                        android:fontFamily="monospace"
-                        android:letterSpacing="0.04" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="SYDNEY · AEDT"
-                        android:textColor="#7A8AB2"
-                        android:textSize="11sp"
-                        android:fontFamily="monospace"
-                        android:letterSpacing="0.22" />
-                </LinearLayout>
-
-                <!-- Top-left corner: eyebrow -->
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="top|start"
-                    android:layout_margin="32dp"
-                    android:text="LIVE SPORTS"
-                    android:textColor="#5DC8FF"
-                    android:textSize="12sp"
-                    android:fontFamily="monospace"
-                    android:letterSpacing="0.32" />
-            </FrameLayout>
-
-            <!-- =================== LIVE NOW =================== -->
-            <TextView
-                android:id="@+id/section_live_title"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="26dp"
-                android:paddingHorizontal="36dp"
-                android:text="Live Now"
-                android:textColor="#F5F8FF"
-                android:textSize="20sp"
-                android:fontFamily="sans-serif-medium"
-                android:letterSpacing="-0.01" />
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/section_live_cards"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:paddingHorizontal="36dp"
-                android:paddingVertical="12dp"
-                android:clipToPadding="false"
-                android:scrollbars="none" />
-
-            <!-- =================== SPORT FILTER =================== -->
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/section_sport_filter"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:paddingHorizontal="36dp"
-                android:paddingVertical="12dp"
-                android:clipToPadding="false"
-                android:scrollbars="none" />
-
-            <!-- =================== COMING UP TODAY =================== -->
-            <TextView
-                android:id="@+id/section_today_title"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:paddingHorizontal="36dp"
-                android:text="Coming Up Today"
-                android:textColor="#F5F8FF"
-                android:textSize="20sp"
-                android:fontFamily="sans-serif-medium"
-                android:letterSpacing="-0.01" />
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/section_today_cards"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:paddingHorizontal="36dp"
-                android:paddingVertical="12dp"
-                android:paddingBottom="40dp"
-                android:clipToPadding="false"
-                android:scrollbars="none" />
-
+            <ImageButton android:id="@+id/rail_signout"
+                android:layout_width="44dp" android:layout_height="44dp"
+                android:padding="10dp"
+                android:src="@drawable/ic_nav_signout"
+                android:background="@drawable/rail_icon_bg"
+                android:focusable="true"
+                android:contentDescription="Sign out" />
         </LinearLayout>
-    </ScrollView>
+
+        <!-- ═══════════ MAIN SCROLLVIEW ═══════════ -->
+        <ScrollView
+            android:id="@+id/highfly_scroll"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:scrollbars="none"
+            android:fillViewport="true"
+            android:descendantFocusability="afterDescendants">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <!-- ─────────── HERO ─────────── -->
+                <FrameLayout
+                    android:id="@+id/hero_root"
+                    android:layout_width="match_parent"
+                    android:layout_height="600dp">
+
+                    <ImageView
+                        android:id="@+id/hero_poster"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:scaleType="centerCrop"
+                        android:contentDescription="@null" />
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/highfly_hero_veil" />
+
+                    <View
+                        android:layout_width="900dp"
+                        android:layout_height="match_parent"
+                        android:layout_gravity="start"
+                        android:background="@drawable/highfly_hero_side_left" />
+
+                    <!-- TABS ROW (top, left-aligned) -->
+                    <LinearLayout
+                        android:id="@+id/tabs_row"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="top|start"
+                        android:layout_marginTop="44dp"
+                        android:layout_marginStart="56dp"
+                        android:orientation="horizontal">
+
+                        <TextView android:id="@+id/tab_live"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:paddingHorizontal="6dp" android:paddingVertical="12dp"
+                            android:layout_marginEnd="28dp"
+                            android:text="Live Now"
+                            android:textColor="#F5F8FF"
+                            android:textSize="16sp"
+                            android:fontFamily="sans-serif-medium"
+                            android:focusable="true"
+                            android:background="@drawable/highfly_tab_bg" />
+
+                        <TextView android:id="@+id/tab_today"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:paddingHorizontal="6dp" android:paddingVertical="12dp"
+                            android:layout_marginEnd="28dp"
+                            android:text="Today"
+                            android:textColor="#7A8AB2"
+                            android:textSize="16sp"
+                            android:fontFamily="sans-serif-medium"
+                            android:focusable="true"
+                            android:background="@drawable/highfly_tab_bg" />
+
+                        <TextView android:id="@+id/tab_week"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:paddingHorizontal="6dp" android:paddingVertical="12dp"
+                            android:layout_marginEnd="28dp"
+                            android:text="This Week"
+                            android:textColor="#7A8AB2"
+                            android:textSize="16sp"
+                            android:fontFamily="sans-serif-medium"
+                            android:focusable="true"
+                            android:background="@drawable/highfly_tab_bg" />
+
+                        <TextView android:id="@+id/tab_my"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:paddingHorizontal="6dp" android:paddingVertical="12dp"
+                            android:text="My Sports"
+                            android:textColor="#7A8AB2"
+                            android:textSize="16sp"
+                            android:fontFamily="sans-serif-medium"
+                            android:focusable="true"
+                            android:background="@drawable/highfly_tab_bg" />
+
+                        <!-- Cyan underline indicator under the active tab -->
+                    </LinearLayout>
+
+                    <View
+                        android:id="@+id/tab_indicator"
+                        android:layout_width="62dp"
+                        android:layout_height="2dp"
+                        android:layout_gravity="top|start"
+                        android:layout_marginStart="56dp"
+                        android:layout_marginTop="88dp"
+                        android:background="#FF2D55" />
+
+                    <!-- TOP RIGHT clock cluster -->
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="top|end"
+                        android:layout_marginTop="36dp"
+                        android:layout_marginEnd="56dp"
+                        android:orientation="vertical"
+                        android:gravity="end">
+
+                        <TextView
+                            android:id="@+id/highfly_clock"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="#F5F8FF"
+                            android:textSize="22sp"
+                            android:fontFamily="monospace"
+                            android:letterSpacing="0.04" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="SYDNEY · AEDT"
+                            android:textColor="#7A8AB2"
+                            android:textSize="11sp"
+                            android:fontFamily="monospace"
+                            android:letterSpacing="0.22"
+                            android:layout_gravity="end" />
+                    </LinearLayout>
+
+                    <!-- FEATURE block (left-aligned, vertically centred) -->
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="start|center_vertical"
+                        android:layout_marginTop="72dp"
+                        android:layout_marginStart="56dp"
+                        android:layout_marginEnd="56dp"
+                        android:orientation="vertical">
+
+                        <!-- Tags row -->
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <LinearLayout
+                                android:id="@+id/hero_live_pill"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:paddingHorizontal="12dp"
+                                android:paddingVertical="6dp"
+                                android:background="@drawable/highfly_live_pill_bg"
+                                android:visibility="gone">
+
+                                <View
+                                    android:layout_width="7dp"
+                                    android:layout_height="7dp"
+                                    android:background="@drawable/highfly_live_dot"
+                                    android:layout_marginEnd="8dp" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="LIVE"
+                                    android:textColor="#FFFFFF"
+                                    android:textSize="11sp"
+                                    android:fontFamily="sans-serif-medium"
+                                    android:letterSpacing="0.2" />
+                            </LinearLayout>
+
+                            <TextView
+                                android:id="@+id/hero_league_pill"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="10dp"
+                                android:paddingHorizontal="12dp"
+                                android:paddingVertical="6dp"
+                                android:background="@drawable/highfly_sport_pill_bg"
+                                android:textColor="#F5F8FF"
+                                android:textSize="11sp"
+                                android:fontFamily="sans-serif-medium"
+                                android:letterSpacing="0.2"
+                                android:visibility="gone" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/hero_title"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="22dp"
+                            android:textColor="#FFFFFF"
+                            android:textSize="60sp"
+                            android:fontFamily="sans-serif"
+                            android:textStyle="bold"
+                            android:letterSpacing="-0.03"
+                            android:lineSpacingMultiplier="1.0"
+                            android:maxLines="2"
+                            android:ellipsize="end"
+                            android:shadowColor="#A6000000"
+                            android:shadowDx="0" android:shadowDy="3" android:shadowRadius="18"
+                            tools:text="Western Bulldogs vs Adelaide Crows" />
+
+                        <TextView
+                            android:id="@+id/hero_kicker"
+                            android:layout_width="640dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="18dp"
+                            android:textColor="#C2CEE3"
+                            android:textSize="16sp"
+                            android:lineSpacingExtra="4dp"
+                            android:maxLines="2"
+                            android:ellipsize="end" />
+
+                        <!-- CTA row -->
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="30dp"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <LinearLayout
+                                android:id="@+id/hero_watch_btn"
+                                android:layout_width="wrap_content"
+                                android:layout_height="56dp"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:paddingHorizontal="30dp"
+                                android:background="@drawable/highfly_cta_primary_bg"
+                                android:focusable="true"
+                                android:clickable="true">
+
+                                <View
+                                    android:layout_width="14dp"
+                                    android:layout_height="16dp"
+                                    android:layout_marginEnd="14dp"
+                                    android:background="@drawable/highfly_play_triangle" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Watch Live"
+                                    android:textColor="#04060B"
+                                    android:textSize="17sp"
+                                    android:fontFamily="sans-serif-medium" />
+                            </LinearLayout>
+
+                            <LinearLayout
+                                android:id="@+id/hero_reminder_btn"
+                                android:layout_width="wrap_content"
+                                android:layout_height="56dp"
+                                android:layout_marginStart="14dp"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:paddingHorizontal="22dp"
+                                android:background="@drawable/highfly_cta_ghost_bg"
+                                android:focusable="true"
+                                android:clickable="true">
+
+                                <ImageView
+                                    android:layout_width="18dp"
+                                    android:layout_height="18dp"
+                                    android:layout_marginEnd="10dp"
+                                    android:src="@drawable/ic_bell"
+                                    android:contentDescription="@null" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Set Reminder"
+                                    android:textColor="#F5F8FF"
+                                    android:textSize="15sp"
+                                    android:fontFamily="sans-serif-medium" />
+                            </LinearLayout>
+                        </LinearLayout>
+                    </LinearLayout>
+
+                </FrameLayout>
+
+                <!-- ─────────── BOTTOM SECTION ─────────── -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="#040810"
+                    android:paddingTop="28dp"
+                    android:paddingBottom="36dp">
+
+                    <!-- Sport filter row -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="56dp"
+                        android:paddingBottom="22dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="FILTER"
+                            android:textColor="#7A8AB2"
+                            android:textSize="11sp"
+                            android:fontFamily="monospace"
+                            android:letterSpacing="0.24"
+                            android:layout_marginEnd="14dp" />
+
+                        <androidx.recyclerview.widget.RecyclerView
+                            android:id="@+id/section_sport_filter"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:clipToPadding="false"
+                            android:scrollbars="none" />
+                    </LinearLayout>
+
+                    <!-- LIVE NOW section -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="bottom"
+                        android:paddingHorizontal="56dp"
+                        android:paddingBottom="14dp">
+
+                        <TextView
+                            android:id="@+id/section_live_title"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Live Right Now"
+                            android:textColor="#F5F8FF"
+                            android:textSize="22sp"
+                            android:fontFamily="sans-serif"
+                            android:textStyle="bold"
+                            android:letterSpacing="-0.01" />
+
+                        <TextView
+                            android:id="@+id/section_live_count"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="#7A8AB2"
+                            android:textSize="11sp"
+                            android:fontFamily="monospace"
+                            android:letterSpacing="0.2" />
+                    </LinearLayout>
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/section_live_cards"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingHorizontal="56dp"
+                        android:paddingTop="2dp"
+                        android:paddingBottom="14dp"
+                        android:clipToPadding="false"
+                        android:scrollbars="none" />
+
+                    <!-- COMING UP TODAY section -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="bottom"
+                        android:paddingHorizontal="56dp"
+                        android:paddingTop="22dp"
+                        android:paddingBottom="14dp">
+
+                        <TextView
+                            android:id="@+id/section_today_title"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Coming Up Today"
+                            android:textColor="#F5F8FF"
+                            android:textSize="22sp"
+                            android:fontFamily="sans-serif"
+                            android:textStyle="bold"
+                            android:letterSpacing="-0.01" />
+
+                        <TextView
+                            android:id="@+id/section_today_count"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="#7A8AB2"
+                            android:textSize="11sp"
+                            android:fontFamily="monospace"
+                            android:letterSpacing="0.2" />
+                    </LinearLayout>
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/section_today_cards"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingHorizontal="56dp"
+                        android:paddingTop="2dp"
+                        android:paddingBottom="6dp"
+                        android:clipToPadding="false"
+                        android:scrollbars="none" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+        </ScrollView>
+    </LinearLayout>
 
     <!-- Loader -->
     <TextView

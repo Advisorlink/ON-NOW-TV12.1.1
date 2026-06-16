@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.10.62 — Rail icon background for the CURRENTLY-active rail
+     entry.  Persistent cyan tint so users see at a glance "you are
+     on Sports".  Brighter cyan on focus. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#335DC8FF" />
+            <stroke android:width="1dp" android:color="#5DC8FF" />
+            <corners android:radius="10dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#1F5DC8FF" />
+            <stroke android:width="1dp" android:color="#5DC8FF" />
+            <corners android:radius="10dp" />
+        </shape>
+    </item>
+</selector>
