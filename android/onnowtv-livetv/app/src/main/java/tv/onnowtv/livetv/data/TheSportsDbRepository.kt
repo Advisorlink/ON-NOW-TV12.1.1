@@ -141,27 +141,29 @@ object TheSportsDbRepository {
      * One HTTP round-trip to `/searchteams.php?t={name}` + first-hit
      * extraction.  Returns null on any error or empty result.
      */
-    private fun fetchTeam(name: String): TeamArt? = try {
-        val q = URLEncoder.encode(name, Charsets.UTF_8)
-        val url = URL("$BASE/searchteams.php?t=$q")
-        val body = httpGet(url) ?: return null
-        val obj = JSONObject(body)
-        val arr = obj.optJSONArray("teams") ?: return null
-        if (arr.length() == 0) return null
-        val t = arr.getJSONObject(0)
-        TeamArt(
-            name   = t.optString("strTeam"),
-            badge  = t.optString("strBadge").takeIf { it.isNotBlank() }
-                ?: t.optString("strTeamBadge").takeIf { it.isNotBlank() },
-            banner = t.optString("strBanner").takeIf { it.isNotBlank() }
-                ?: t.optString("strTeamBanner").takeIf { it.isNotBlank() }
-                ?: t.optString("strFanart1").takeIf { it.isNotBlank() }
-                ?: t.optString("strFanart2").takeIf { it.isNotBlank() },
-            sport  = t.optString("strSport").takeIf { it.isNotBlank() },
-        )
-    } catch (t: Throwable) {
-        android.util.Log.w("TheSportsDB", "fetchTeam($name) failed: ${t.message}")
-        null
+    private fun fetchTeam(name: String): TeamArt? {
+        return try {
+            val q = URLEncoder.encode(name, Charsets.UTF_8)
+            val url = URL("$BASE/searchteams.php?t=$q")
+            val body = httpGet(url) ?: return null
+            val obj = JSONObject(body)
+            val arr = obj.optJSONArray("teams") ?: return null
+            if (arr.length() == 0) return null
+            val t = arr.getJSONObject(0)
+            TeamArt(
+                name   = t.optString("strTeam"),
+                badge  = t.optString("strBadge").takeIf { it.isNotBlank() }
+                    ?: t.optString("strTeamBadge").takeIf { it.isNotBlank() },
+                banner = t.optString("strBanner").takeIf { it.isNotBlank() }
+                    ?: t.optString("strTeamBanner").takeIf { it.isNotBlank() }
+                    ?: t.optString("strFanart1").takeIf { it.isNotBlank() }
+                    ?: t.optString("strFanart2").takeIf { it.isNotBlank() },
+                sport  = t.optString("strSport").takeIf { it.isNotBlank() },
+            )
+        } catch (t: Throwable) {
+            android.util.Log.w("TheSportsDB", "fetchTeam($name) failed: ${t.message}")
+            null
+        }
     }
 
     private fun httpGet(url: URL): String? {

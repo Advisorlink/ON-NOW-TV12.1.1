@@ -236,10 +236,42 @@ class MainActivity : AppCompatActivity() {
         // ALSO falls back to UI_MODE_TYPE_TELEVISION for cheap Chinese
         // AOSP boxes that don't always declare leanback but DO ship
         // the TV UI mode.
-        val isTv = packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK) ||
-            packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK_ONLY) ||
-            (resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK) ==
-                Configuration.UI_MODE_TYPE_TELEVISION
+        //
+        // v2.7.93 — HK1 / X96 / MXQ / Tanix / H96 boxes ship AOSP
+        // without LEANBACK and report UI_MODE_TYPE_NORMAL.  They
+        // ALSO have no touchscreen and no telephony.  Add those as
+        // last-resort signals so the app locks landscape + uses
+        // TV-mode UI on those devices too (previously they fell
+        // through to phone mode and rendered in the top half only).
+        val pm = packageManager
+        val cfg = resources.configuration
+        val hasLeanback = pm.hasSystemFeature(PackageManager.FEATURE_LEANBACK) ||
+            pm.hasSystemFeature(PackageManager.FEATURE_LEANBACK_ONLY)
+        val uiModeIsTv = (cfg.uiMode and Configuration.UI_MODE_TYPE_MASK) ==
+            Configuration.UI_MODE_TYPE_TELEVISION
+        val noTouch = !pm.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN) &&
+            !pm.hasSystemFeature("android.hardware.faketouch")
+        val noTelephony = !pm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)
+        val tvBoxModel = run {
+            val needle = "${Build.MANUFACTURER} ${Build.MODEL} ${Build.DEVICE} ${Build.PRODUCT}"
+                .lowercase()
+            listOf(
+                "hk1", "x96", "mxq", "tanix", "h96", "tx3", "tx6", "tx9",
+                "mecool", "transpeed", "ugoos", "magicsee", "beelink",
+                "amlogic", "rockchip", "rk3318", "rk3328", "rk3368", "rk3399",
+                "s905", "s912", "s922", "s928", "atv", "tvbox",
+            ).any { it in needle }
+        }
+        val isTv = hasLeanback || uiModeIsTv || tvBoxModel ||
+            (noTouch && noTelephony)
+
+        android.util.Log.i(
+            "VesperMain",
+            "TV detection: leanback=$hasLeanback uiModeTv=$uiModeIsTv " +
+                "noTouch=$noTouch noTelephony=$noTelephony " +
+                "tvBoxModel=$tvBoxModel → isTv=$isTv " +
+                "(${Build.MANUFACTURER} ${Build.MODEL})",
+        )
 
         // Only lock orientation on TV.  On phones we let the OS pick
         // — forcing landscape on a phone with portrait rotation-lock
@@ -543,7 +575,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Append the deep-link query so App.js's synchronous reader
-        // can pick it up before any React component renders.
+        // can pick it up before any React component renders.  v2.7.93
+        // also appends `platform=tv` so the React UI uses TV-mode
+        // spatial-nav even on cheap HK1 / X96 boxes where the user
+        // agent / window.matchMedia heuristics might otherwise treat
+        // the WebView as a phone.
         val finalBootUrl = run {
             val deepLinkQuery = when {
                 routeExtra.contains("profile=") -> routeExtra.substringAfter("?")
@@ -552,9 +588,12 @@ class MainActivity : AppCompatActivity() {
                 dataQuery.contains("v2ai=")     -> dataQuery
                 else                            -> ""
             }
-            if (deepLinkQuery.isEmpty()) bootUrl
-            else if (bootUrl.contains("?")) "$bootUrl&$deepLinkQuery"
-            else "$bootUrl?$deepLinkQuery"
+            val platformQuery = if (isTv) "mobile=0" else ""
+            val parts = listOf(deepLinkQuery, platformQuery).filter { it.isNotBlank() }
+            val joined = parts.joinToString("&")
+            if (joined.isEmpty()) bootUrl
+            else if (bootUrl.contains("?")) "$bootUrl&$joined"
+            else "$bootUrl?$joined"
         }
 
         setContentView(webView)
