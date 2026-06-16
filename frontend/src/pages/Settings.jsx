@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, Check, ShieldCheck,
     Cloud, Download, Upload, Copy, Loader2, KeyRound, AlertTriangle,
-    Sparkles, Lightbulb, LogOut,
+    Sparkles, Lightbulb, LogOut, Stethoscope,
 } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useBackHandler from '@/hooks/useBackHandler';
@@ -425,6 +425,16 @@ export default function Settings() {
             </div>
 
             {/* ---- SIGN OUT ---- */}
+            <div data-testid="shelf-page" data-settings-section="diagnostics">
+            <SectionHeader
+                eyebrow="Settings · Compatibility"
+                title="Diagnostics"
+                icon={Stethoscope}
+            />
+            <DiagnosticsRow />
+            </div>
+
+            {/* ---- SIGN OUT ---- */}
             <div data-testid="shelf-page" data-settings-section="signout">
             <SectionHeader
                 eyebrow="Settings · Session"
@@ -433,6 +443,130 @@ export default function Settings() {
             />
             <SignOutRow />
             </div>
+            </div>
+        </div>
+    );
+}
+
+function DiagnosticsRow() {
+    // v2.10.28 — Surfaces the native DiagnosticsActivity (System
+    // info dump + Force-software toggle) so users with broken HK1
+    // boxes can hand us a screenshot of exactly what their device
+    // reports.  Two HK1 S905X3 boxes "supposedly" running Android 9
+    // can render the same React UI completely differently because
+    // their System WebView (Chromium) versions differ — this row
+    // is how the user proves which one differs.
+    const isAndroid = typeof window !== 'undefined' &&
+        !!window.OnNowTV && typeof window.OnNowTV.openDiagnostics === 'function';
+    const initialForce = (() => {
+        try {
+            return !!(window.OnNowTV && window.OnNowTV.getForceSoftware &&
+                window.OnNowTV.getForceSoftware());
+        } catch { return false; }
+    })();
+    const [forceSw, setForceSw] = React.useState(initialForce);
+
+    if (!isAndroid) {
+        return (
+            <div
+                data-testid="diagnostics-row"
+                className="vesper-glass rounded-2xl"
+                style={{ padding: '18px 22px', marginBottom: 18 }}
+            >
+                <div style={{ fontSize: 13, color: 'var(--vesper-text-2)' }}>
+                    Diagnostics are only available inside the Android TV app.
+                </div>
+            </div>
+        );
+    }
+
+    const onOpen = () => {
+        try { window.OnNowTV.openDiagnostics(); } catch { /* ignore */ }
+    };
+    const onToggleSoftware = () => {
+        const next = !forceSw;
+        try { window.OnNowTV.setForceSoftware(next); } catch { /* ignore */ }
+        setForceSw(next);
+    };
+
+    return (
+        <div
+            data-testid="diagnostics-row"
+            className="vesper-glass rounded-2xl"
+            style={{ padding: '18px 22px', marginBottom: 18 }}
+        >
+            <div className="flex items-center gap-4">
+                <div
+                    className="flex items-center justify-center shrink-0"
+                    style={{
+                        width: 44, height: 44, borderRadius: '50%',
+                        background:
+                            'linear-gradient(135deg, rgba(93,200,255,0.28) 0%, rgba(93,200,255,0.06) 100%)',
+                        border: '1px solid rgba(93,200,255,0.45)',
+                    }}
+                >
+                    <Stethoscope size={20} style={{ color: '#5DC8FF' }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--vesper-text)' }}>
+                        Device diagnostics
+                    </div>
+                    <div style={{ fontSize: 13, color: 'var(--vesper-text-2)', marginTop: 2 }}>
+                        Print this box&apos;s OS, System WebView, GPU and display info — share it with support if the UI looks wrong on your TV.
+                    </div>
+                </div>
+                <button
+                    data-testid="settings-open-diagnostics"
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
+                    onClick={onOpen}
+                    className="flex items-center gap-2 rounded-full font-sans shrink-0"
+                    style={{
+                        padding: '10px 22px',
+                        background: 'rgba(93,200,255,0.14)',
+                        color: '#5DC8FF',
+                        border: '1px solid rgba(93,200,255,0.45)',
+                        fontSize: 14,
+                        fontWeight: 700,
+                    }}
+                >
+                    Open diagnostics
+                </button>
+            </div>
+
+            <div
+                className="flex items-center gap-4"
+                style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.06)' }}
+            >
+                <div className="flex-1 min-w-0">
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--vesper-text)' }}>
+                        Compatibility mode (software rendering)
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--vesper-text-3)', marginTop: 2 }}>
+                        Forces the WebView off the GPU compositor. Fixes the bottom-left modal / off-centre layout bug on cheap S905X3 / RK33xx boxes with broken Mali drivers. Restart Vesper after toggling.
+                    </div>
+                </div>
+                <button
+                    data-testid="settings-toggle-software"
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
+                    onClick={onToggleSoftware}
+                    className="flex items-center gap-2 rounded-full font-sans shrink-0"
+                    style={{
+                        padding: '8px 18px',
+                        background: forceSw
+                            ? 'linear-gradient(135deg, #5DC8FF 0%, #4aa3e0 100%)'
+                            : 'rgba(255,255,255,0.06)',
+                        color: forceSw ? '#06080F' : 'var(--vesper-text-2)',
+                        border: forceSw ? 'none' : '1px solid rgba(255,255,255,0.16)',
+                        fontSize: 13,
+                        fontWeight: 700,
+                    }}
+                >
+                    {forceSw ? 'On' : 'Off'}
+                </button>
             </div>
         </div>
     );

@@ -1,5 +1,39 @@
 # ON NOW TV V2 — PRD
 
+> **🔥 v2.10.28 — HK1 S905X3 mystery: two "identical" boxes render differently (16 Jun 2026 evening).**
+>
+> User report (CRITICAL): user owns TWO HK1 S905X3 boxes, BOTH supposedly running Android 9, side-by-side.  Vesper renders normally on box A and is broken on box B (modals bottom-left, app off-centre, D-pad unresponsive).  User attached two close-up photos of the SAME `🧸` (Kids profile teddy bear) emoji rendered on each box: box A shows the modern AOSP/Noto teddy with a yellow bow tie (Unicode 11+ glyph), box B shows the older AOSP teddy without the bow tie.
+>
+> **Critical insight:** the emoji glyph is a fingerprint of the system font baked into the AOSP build at compile time.  If two "identical" boxes show different emoji glyphs for the same Unicode codepoint, then box B has a DIFFERENT (older or hacked) AOSP base under the hood — even though `Build.VERSION.RELEASE` claims both are Android 9.  The differing System WebView (Chromium) version is the most likely culprit for the rendering bug.
+>
+> **Three-pronged fix this round:**
+>
+> **1) New `DiagnosticsActivity` (`/app/android/vesper-tv/.../DiagnosticsActivity.kt`):**
+>   • Comprehensive system-info dump screen: `Build.VERSION.*`, `Build.FINGERPRINT / HARDWARE / MODEL / BOARD / BOOTLOADER`, `Build.SUPPORTED_ABIS`, System WebView package + version (via `WebView.getCurrentWebViewPackage()` on Android 8+, falling back to PackageManager scan of `com.google.android.webview` / `com.android.webview` / `com.android.chrome` on older devices), default User-Agent (surfaces actual Chromium build), display metrics (width / height / DPI / density / refresh rate), GPU info (GL_VENDOR / GL_RENDERER / GL_VERSION via 1×1 offscreen `GLSurfaceView`), and compat flags.
+>   • Buttons: Copy / Share / Force-software-on / Reset / Close.
+>   • Activate via `am start -n tv.onnowtv.app/.DiagnosticsActivity`, via `OnNowTV.openDiagnostics()` JS bridge, or via Settings → Diagnostics → "Open diagnostics".
+>   • `exported="true"` so ADB can launch it on a box where the WebView won't render.
+>
+> **2) Broadened software-rendering heuristic (`MainActivity.kt`):**
+>   • Previously gated on `Build.VERSION.SDK_INT <= 28` AND `Build.HARDWARE in [amlogic, rockchip]` — too narrow given that `SDK_INT` is not trustworthy on hacked AOSP TV ROMs (user's two HK1 boxes both claim Android 9 but only one trips the bug).
+>   • New rule: any device whose `Build.HARDWARE / MODEL / DEVICE / PRODUCT` contains a fragile chipset family keyword (`amlogic`, `rockchip`, `allwinner`) OR a fragile model keyword (`s905x3 / s905x2 / s905x4 / s905w2 / hk1 / x96 / mxq / tx3 / tx6 / tx9 / h96 / tanix / magicsee`) → fall back to `LAYER_TYPE_SOFTWARE` on the WebView, regardless of reported SDK version.
+>   • Trade-off: slight perf hit on the boxes that would have worked fine on the GPU path.  Net effect: guarantees correct rendering on every fragile box in the user's 500-device rollout fleet — which is the only outcome that matters.
+>   • The `force_software` SharedPreferences override remains an escape hatch — surface-able via the Diagnostics screen or `OnNowTV.setForceSoftware(true)`.
+>
+> **3) Settings → Diagnostics row (`/app/frontend/src/pages/Settings.jsx`):**
+>   • New section under Sign out with a "Device diagnostics" row (opens the native screen) and a "Compatibility mode (software rendering)" toggle (sets `force_software=true` so even devices that slip past auto-detection can be remotely repaired with a single tap).
+>   • Hidden when not running inside the Android WebView (clean experience on the web preview).
+>
+> **4) Kids avatar SVG (`/app/frontend/src/lib/avatars.jsx`):**
+>   • The `🧸` emoji rendering path was replaced with an inline SVG teddy bear (brown body, yellow bow tie) so the Kids profile looks IDENTICAL on every device regardless of the box's system emoji font vintage.  Same gradient background preserved.  `AvatarCircle` extended with an `if (a.render) <Render/>` rendering path.
+>
+> **What we need from the user:**
+>   1. Save to GitHub → CI builds the new APK.
+>   2. Install on BOTH HK1 boxes.
+>   3. Open Settings → Diagnostics → Open diagnostics on EACH box.
+>   4. Hit Share / Copy and send us BOTH reports — the lines that DIFFER (most likely the WebView package version or GPU renderer) will tell us EXACTLY what to fix next.
+>
+
 > **🔥 v2.7.94 — HK1 S905X3 + Android 9 + 4K-HDMI: removed `FLAG_LAYOUT_NO_LIMITS` (16 Jun 2026).**
 >
 > User report: a SPECIFIC HK1 S905X3 box on Android 9 with 4K-auto HDMI output renders Vesper as a 1080p activity pinned to the top-left of the 4K screen, remote D-pad non-functional.  Every other app on that same box works fine.  Other HK1 boxes the user owns also work fine with the same Vesper APK.

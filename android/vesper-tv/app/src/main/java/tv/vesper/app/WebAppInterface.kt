@@ -1010,4 +1010,62 @@ class WebAppInterface(private val activity: Activity) {
             }
         }.start()
     }
+
+    // ──────────────────────────────────────────────────────────────
+    // v2.10.28 — Diagnostics + compat-mode bridges
+    // ──────────────────────────────────────────────────────────────
+    //
+    // `openDiagnostics()` launches the DiagnosticsActivity, which
+    // prints a fingerprint of the box's runtime (OS / WebView /
+    // GPU / display / compat flags).  Surfaced in the React Settings
+    // page as a single "Diagnostics" row so users with broken boxes
+    // can hand us a screenshot we can actually act on.
+    //
+    // `setForceSoftware(on)` flips the persistent compat-override
+    // pref that MainActivity reads at WebView creation time.  Useful
+    // when a box slips past our auto-detection — the user can
+    // toggle it via the diagnostics screen OR the Settings page
+    // without waiting for a new APK build.
+
+    @JavascriptInterface
+    fun openDiagnostics() {
+        activity.runOnUiThread {
+            try {
+                val intent = Intent(activity, DiagnosticsActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                activity.startActivity(intent)
+            } catch (t: Throwable) {
+                android.util.Log.w("VesperDiag", "openDiagnostics failed", t)
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun setForceSoftware(on: Boolean) {
+        try {
+            activity.getSharedPreferences("vesper-compat", android.content.Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean("force_software", on)
+                .apply()
+            activity.runOnUiThread {
+                Toast.makeText(
+                    activity,
+                    if (on) "Software rendering enabled. Restart the app."
+                    else "Software rendering reset. Restart the app.",
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+        } catch (t: Throwable) {
+            android.util.Log.w("VesperDiag", "setForceSoftware failed", t)
+        }
+    }
+
+    @JavascriptInterface
+    fun getForceSoftware(): Boolean {
+        return try {
+            activity.getSharedPreferences("vesper-compat", android.content.Context.MODE_PRIVATE)
+                .getBoolean("force_software", false)
+        } catch (_: Throwable) { false }
+    }
 }

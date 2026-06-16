@@ -195,10 +195,96 @@ export function avatarEmojiById(id) {
     return '🎬';
 }
 
-/* Synthetic Kids profile avatar (hidden from picker). */
+/* Synthetic Kids profile avatar (hidden from picker).
+ *
+ * v2.10.27 — Render the Kids avatar as an inline SVG instead of
+ * the 🧸 (U+1F9F8 TEDDY BEAR, Unicode 11.0) system emoji.  On
+ * older / heavily-customised Android TV boxes (e.g. HK1 S905X3
+ * running Android 9 with a stripped AOSP emoji font) the system
+ * draws a noticeably different teddy bear glyph — bowtie-less,
+ * cruder lines — than the bow-tied version on modern AOSP/Noto.
+ * Hard-coding the SVG guarantees the Kids profile looks identical
+ * across every device, regardless of the box's emoji-font vintage.
+ *
+ * The `e` field is kept for legacy fallback (and for any reaction
+ * UI that still reads `avatarEmojiById('kids-default')`).
+ */
+function KidsTeddyBear() {
+    return (
+        <svg
+            viewBox="0 0 120 120"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+            style={{
+                width: '78%',
+                height: '78%',
+                display: 'block',
+                pointerEvents: 'none',
+            }}
+        >
+            {/* Outer ears */}
+            <circle cx="30" cy="34" r="14" fill="#9B6B47" />
+            <circle cx="90" cy="34" r="14" fill="#9B6B47" />
+            {/* Inner ears */}
+            <circle cx="30" cy="34" r="7" fill="#D4A47A" />
+            <circle cx="90" cy="34" r="7" fill="#D4A47A" />
+            {/* Head */}
+            <circle cx="60" cy="52" r="28" fill="#B07F5B" />
+            {/* Muzzle */}
+            <ellipse cx="60" cy="62" rx="15" ry="11" fill="#E8C9A8" />
+            {/* Eyes */}
+            <ellipse cx="50" cy="48" rx="3" ry="4" fill="#2A1B0F" />
+            <ellipse cx="70" cy="48" rx="3" ry="4" fill="#2A1B0F" />
+            {/* Eye highlights */}
+            <circle cx="51" cy="46.5" r="0.9" fill="#FFFFFF" />
+            <circle cx="71" cy="46.5" r="0.9" fill="#FFFFFF" />
+            {/* Nose */}
+            <ellipse cx="60" cy="58" rx="3" ry="2.4" fill="#2A1B0F" />
+            {/* Mouth */}
+            <path
+                d="M 54 64 Q 60 69 66 64"
+                stroke="#2A1B0F"
+                strokeWidth="1.8"
+                fill="none"
+                strokeLinecap="round"
+            />
+            {/* Body */}
+            <ellipse cx="60" cy="100" rx="28" ry="20" fill="#B07F5B" />
+            {/* Belly */}
+            <ellipse cx="60" cy="103" rx="15" ry="13" fill="#E8C9A8" />
+            {/* Bow tie — left fan */}
+            <path
+                d="M 47 84 L 56 80 L 56 92 L 47 88 Z"
+                fill="#FCD34D"
+                stroke="#D4A012"
+                strokeWidth="0.6"
+            />
+            {/* Bow tie — right fan */}
+            <path
+                d="M 73 84 L 64 80 L 64 92 L 73 88 Z"
+                fill="#FCD34D"
+                stroke="#D4A012"
+                strokeWidth="0.6"
+            />
+            {/* Bow tie — center knot */}
+            <rect
+                x="56"
+                y="80"
+                width="8"
+                height="12"
+                rx="1.5"
+                fill="#FCD34D"
+                stroke="#D4A012"
+                strokeWidth="0.6"
+            />
+        </svg>
+    );
+}
+
 const KIDS_AVATAR = {
     id: 'kids-default',
     e: '🧸',
+    render: KidsTeddyBear,
     from: '#FFC857',
     to: '#FF6B9D',
     glow: '#FFC857',
@@ -405,6 +491,7 @@ export function AvatarCircle({ avatarId, srcOverride, size = 96, ring = false })
     const a = getAvatar(avatarId);
     const effectiveSrc = srcOverride || a.src;
     const isImage = !!effectiveSrc;
+    const hasRender = typeof a.render === 'function';
     const fontSize = Math.round(size * 0.55);
 
     const baseStyle = {
@@ -449,6 +536,24 @@ export function AvatarCircle({ avatarId, srcOverride, size = 96, ring = false })
                         e.currentTarget.style.visibility = 'hidden';
                     }}
                 />
+            </span>
+        );
+    }
+
+    // v2.10.27 — Inline-SVG render path (used by the Kids avatar so
+    // it doesn't depend on the system emoji font, which varies
+    // wildly on cheap/older Android TV boxes).
+    if (hasRender) {
+        const Render = a.render;
+        return (
+            <span
+                data-testid={`avatar-${avatarId}`}
+                style={{
+                    ...baseStyle,
+                    background: `radial-gradient(circle at 30% 30%, ${a.from}, ${a.to})`,
+                }}
+            >
+                <Render />
             </span>
         );
     }

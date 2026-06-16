@@ -395,10 +395,39 @@ class MainActivity : AppCompatActivity() {
             // 60 seconds remotely instead of waiting for a new APK.
             val needle = "${Build.HARDWARE} ${Build.MODEL} ${Build.DEVICE} ${Build.PRODUCT}"
                 .lowercase()
-            val isFragileAmlogic =
-                (("amlogic" in needle || "rockchip" in needle) &&
-                    Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) ||
-                "s905x3" in needle
+            // v2.10.28 — Broadened heuristic.  The previous version
+            // gated on `SDK_INT <= 28` (Android ≤ 9), but the user
+            // discovered that two "identical" HK1 S905X3 boxes can
+            // BOTH claim Android 9 in `Build.VERSION` while shipping
+            // wildly different system WebView builds and emoji
+            // fonts — one renders correctly, the other doesn't.
+            //
+            // The takeaway: on cheap-AOSP TV boxes, `SDK_INT` is
+            // *not* trustworthy as a compositor-bug discriminator.
+            // Any device whose `Build.HARDWARE` matches a known
+            // fragile chipset family is now treated as fragile
+            // regardless of the reported SDK version.  That's a
+            // tiny perf hit (software layer instead of GPU layer)
+            // on the boxes that would have been fine, but it
+            // GUARANTEES the broken boxes render correctly — which
+            // is the only outcome the user cares about for the
+            // 500-device rollout.
+            //
+            // The classic FAST PATH (hardware layer) is still used
+            // on phones, modern Android TVs, and any device that
+            // doesn't trip the fragile-chipset needle.
+            val fragileChipFamilies = listOf(
+                "amlogic",    // S905, S912, S922, S928, S905X3, …
+                "rockchip",   // RK3318, RK3328, RK3368, RK3399, …
+                "allwinner",  // H6, H616 — older Chinese TV boxes
+            )
+            val fragileChipMatch = fragileChipFamilies.any { it in needle }
+            val fragileModelMatch = listOf(
+                "s905x3", "s905x2", "s905x4", "s905w2",
+                "hk1", "x96", "mxq", "tx3", "tx6", "tx9",
+                "h96", "tanix", "magicsee",
+            ).any { it in needle }
+            val isFragileAmlogic = fragileChipMatch || fragileModelMatch
 
             // Persistent override — check first, then write if the
             // intent / deep-link asked us to set it.

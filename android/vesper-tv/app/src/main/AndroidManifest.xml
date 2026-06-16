@@ -128,6 +128,19 @@
             android:screenOrientation="landscape"
             android:theme="@style/Theme.Vesper.Fullscreen" />
 
+        <!-- v2.10.28 — System Diagnostics screen.
+             android:exported="true" so the user can launch it from a
+             remote ADB session WITHOUT rooting / sideloading a fresh
+             APK:
+                 adb shell am start -n tv.onnowtv.app/tv.vesper.app.DiagnosticsActivity
+             Useful when a specific HK1 box misbehaves but the React
+             side won't load far enough to render the Settings UI. -->
+        <activity
+            android:name=".DiagnosticsActivity"
+            android:exported="true"
+            android:label="Vesper Diagnostics"
+            android:theme="@style/Theme.Vesper.Fullscreen" />
+
         <!-- FileProvider so we can hand the freshly-downloaded APK
              over to the system PackageInstaller via a content:// URI
              (file:// URIs are forbidden from API 24+). -->
