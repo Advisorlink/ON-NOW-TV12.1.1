@@ -1,5 +1,59 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.62 — Highfly Sports Guide rebuilt as "Cinema-Reel" (DAZN-style) + TheSportsDB integration (16 Jun 2026).**
+>
+> **User report (with video):** "Look how this looks. It just doesn't fit f- right... It needs to have the rail on the side so you can see the rest of the app. It has to all look like one app... I don't want it to have any of the icons or anything like that... I want it to be using our own icons that we can get from our own places... show me five different alternatives... pick one... let's do option E."
+>
+> **5 alternatives shown** as HTML mockups served from `/app/frontend/public/sports-mocks-v2/{1..5}.html` (Cinematic Hero, Split Editorial, Card Grid Premium, Live Score Ticker, Cinema-Reel).  User picked **Cinema-Reel** + TheSportsDB.
+>
+> **Scope of this rebuild:**
+>
+> **A. Layout rewrite** (`activity_highfly_sports.xml`, 390 lines):
+>   • The Sports Guide now lives INSIDE the V2 shell — 64dp left icon rail (V2 brand · Back to TV Guide · Search · Refresh · **Sports [active, persistent cyan tint]** · Library · Fullscreen · Sign-out at bottom).  Rail icons all `finish()` so EpgActivity handles the next step; refresh re-fetches the bundle.
+>   • 600dp full-bleed hero (top): cinematic poster fading into the dark bottom section.  Tabs row (Live Now · Today · This Week · My Sports) anchored top-left under the rail's first icon.  Top-right: AEDT clock cluster.  Centre-left: 60sp "Western Bulldogs vs Adelaide Crows"-style title + LIVE pill + LEAGUE pill (only when not duplicate of title) + 16sp 2-line kicker copy + Watch-Live (white pill) and Set-Reminder (translucent ghost) CTAs.
+>   • Bottom section (`#040810`): sport-filter pill row · 22sp "Live Right Now" + count chip · 280×158 dp 16:9 carousel cards · "Coming Up Today" + count chip · same 280×158 dp cards with kickoff time stamped over the poster.
+>
+> **B. Real Material-style sport icons** (`ic_sport_{all,football,basketball,nfl,hockey,tennis,fight,motor,baseball,rugby,afl,cricket,golf,snooker,darts}.xml`):
+>   • 15 new vector drawables, viewport 24×24, paths sourced from Material Symbols (Apache-2.0).
+>   • Used in the sport-filter chips AND the top-right glass-bubble badge of every card.
+>   • `SportFallback.iconFor(genres, title)` resolver mirrors `drawableFor()` so chip icons + card icons + card backgrounds all classify identically.
+>
+> **C. TheSportsDB integration** (`/app/android/onnowtv-livetv/.../data/TheSportsDbRepository.kt`):
+>   • Free public API (`https://www.thesportsdb.com/api/v1/json/3`) — no key required.
+>   • `resolveTeam(name)` → badge + banner URLs.  `resolveMatchHero("Team A vs Team B")` → splits on " vs " / " vs. " / " v " / " @ ", fetches both teams in parallel, returns combined art.
+>   • Heavy `ConcurrentHashMap` caching (both hits AND misses) so each unique team is fetched at most once per process.
+>   • Small expansion map (Lakers→Los Angeles Lakers, Heat→Miami Heat, …) to avoid the famous "Lakers→Mercyhurst" fuzzy-match miss.
+>   • Verified live during dev: Western Bulldogs → real AFL badge; Liverpool → real EPL badge; Los Angeles Lakers → NBA badge + banner.
+>
+> **D. Image pipeline in adapters & hero:**
+>   • Adapter constructor accepts a `LifecycleCoroutineScope` so binding can fire-and-forget enrichment lookups.
+>   • Per-sport gradient is the permanent backdrop on every ImageView (always visible).
+>   • Coil load with `placeholder(fallback)` + `error(fallback)` keeps failed Highfly poster fetches looking intentional.
+>   • If Highfly ships no poster/background, the holder kicks off `scope.launch { TheSportsDbRepository.resolveMatchHero(ev.title) }` and swaps the real banner in when (if) it returns — guarded by `poster.tag == ev.id` so recycler reuse can't paint the wrong image.
+>   • Hero takes the same treatment, additionally falling back to `home.badge ?: away.badge` if neither team has a banner.
+>
+> **E. Sport-filter chip restyle:**
+>   • Horizontal pill ([icon 16dp] [8dp] [label 12sp]) with a single fixed `marginEnd=10dp`.
+>   • States: focus=cyan rim, selected=white fill + black icon/label, default=dark glass + white icon/label.  Icon is `imageTintList` re-tinted in `bind()` to match.
+>
+> **F. Stream resilience preserved:**
+>   • v2.10.59's `streamFallbackByEventId` queue + `resolveStreams` (premium-locked stream filter) carried over unchanged.
+>
+> **Files (new / modified):**
+> - `HighflySportsGuideActivity.kt` (rewritten ~340 lines)
+> - `HighflyAdapters.kt` (rewritten ~230 lines)
+> - `SportFallback.kt` (rewritten, adds `iconFor`)
+> - `TheSportsDbRepository.kt` (NEW)
+> - `activity_highfly_sports.xml` (rewritten ~390 lines, now embeds the 64dp V2 rail)
+> - `item_highfly_live_card.xml` / `item_highfly_today_card.xml` (rewritten 280×158 dp cards)
+> - `item_highfly_sport_chip.xml` (rewritten as horizontal pill)
+> - 15 × `ic_sport_*.xml` Material vector drawables (NEW)
+> - `rail_icon_bg_active.xml`, `highfly_cta_primary_bg.xml`, `highfly_cta_ghost_bg.xml`, `highfly_tab_bg.xml`, `highfly_sport_bubble_bg.xml` (NEW drawables)
+> - `highfly_sport_chip_bg.xml`, `highfly_hero_veil.xml`, `highfly_hero_side_left.xml` (refreshed)
+>
+> Static-reviewed: all files pass.  APK rebuild required.  No backend change.
+>
+
 > **🟢 v2.10.61 — Highfly Sports Guide layout + visual robustness (16 Jun 2026).**
 >
 > **User report (with video):** "This looks soooo bad and doesn't fit properly AT ALL — it needs to fit way better and make it functional and use proper images however you need to get those images you get them and make the screen fit 1000% properly that's so annoying."
