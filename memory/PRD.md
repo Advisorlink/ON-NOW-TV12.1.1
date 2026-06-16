@@ -1,5 +1,36 @@
 # ON NOW TV V2 — PRD
 
+> **🔥 v2.10.63 / v2.7.93 — Live TV build-blocker fix + HK1-box detection (16 Jun 2026).**
+>
+> **Two urgent fixes shipping together.**
+>
+> **Fix 1 — Live TV APK build failed.**  GitHub Actions reported:
+> ```
+> e: TheSportsDbRepository.kt:144 Returns are not allowed for functions with expression body. Use block body in '{...}'
+> Task :app:compileDebugKotlin FAILED
+> ```
+> Root cause: `private fun fetchTeam(name): TeamArt? = try { … return null … }` — `return` statements aren't legal inside expression-bodied functions in Kotlin.  Converted to block body (`fun fetchTeam(name): TeamArt? { return try { … } catch … }`).  Static-reviewed: passes.
+>
+> **Fix 2 — Vesper renders "in the top" + remote unusable on HK1 boxes.**
+> Symptoms (with video): on cheap HK1 / X96 / MXQ / Tanix / Rockchip / Amlogic AOSP TV-boxes, the Vesper WebView app launched in portrait-style render at the top of a landscape HDMI output, and the React UI loaded its mobile/phone layout so the remote D-pad never drove focus.
+>
+> Root cause: the previous TV-detection check in `MainActivity.kt` only looked at `FEATURE_LEANBACK` / `UI_MODE_TYPE_TELEVISION`.  HK1-class boxes ship plain AOSP and declare neither → `isTv=false` → activity orientation never locked → React boots in mobile mode.
+>
+> Fix in `/app/android/vesper-tv/.../MainActivity.kt`:
+>   • Added a **defensive multi-signal TV detector** (`hasLeanback || uiModeIsTv || tvBoxModel || (noTouch && noTelephony)`).
+>   • `tvBoxModel` matches a curated keyword list against `Build.MANUFACTURER / MODEL / DEVICE / PRODUCT`: `hk1, x96, mxq, tanix, h96, tx3/6/9, mecool, transpeed, ugoos, magicsee, beelink, amlogic, rockchip, rk331{8,9} / rk3328 / rk336{8,9} / rk3399, s905 / s912 / s922 / s928, atv, tvbox`.
+>   • `(noTouch && noTelephony)` is the catch-all — any device without a touchscreen AND without telephony is treated as a TV.
+>   • When `isTv=true` the activity now also **injects `?mobile=0` into the React boot URL**, which `useIsMobile()` already understands as a hard TV override (it persists to sessionStorage so even client-side rehydrates respect it).
+>   • Logged the detection result so we can diagnose any boxes that still slip through.
+>
+> Effect on HK1 boxes:
+>   • `requestedOrientation = LANDSCAPE` is set → activity renders full 1920×1080.
+>   • React boots in TV mode → spatial-nav focus, D-pad navigation works.
+>   • No regressions on real phones (touchscreen present → `noTouch=false`; model keywords don't match Pixel / Samsung / OnePlus).
+>
+> Static-reviewed: both fixes pass.  APK rebuild required for both apps.  No backend change.
+>
+
 > **🟢 v2.10.62 — Highfly Sports Guide rebuilt as "Cinema-Reel" (DAZN-style) + TheSportsDB integration (16 Jun 2026).**
 >
 > **User report (with video):** "Look how this looks. It just doesn't fit f- right... It needs to have the rail on the side so you can see the rest of the app. It has to all look like one app... I don't want it to have any of the icons or anything like that... I want it to be using our own icons that we can get from our own places... show me five different alternatives... pick one... let's do option E."
