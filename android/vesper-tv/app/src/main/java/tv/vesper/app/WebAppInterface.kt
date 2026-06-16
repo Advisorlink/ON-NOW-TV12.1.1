@@ -1012,20 +1012,17 @@ class WebAppInterface(private val activity: Activity) {
     }
 
     // ──────────────────────────────────────────────────────────────
-    // v2.10.28 — Diagnostics + compat-mode bridges
+    // v2.10.30 — Diagnostics bridge (LOGIN-SCREEN escape hatch only)
     // ──────────────────────────────────────────────────────────────
     //
     // `openDiagnostics()` launches the DiagnosticsActivity, which
     // prints a fingerprint of the box's runtime (OS / WebView /
-    // GPU / display / compat flags).  Surfaced in the React Settings
-    // page as a single "Diagnostics" row so users with broken boxes
-    // can hand us a screenshot we can actually act on.
-    //
-    // `setForceSoftware(on)` flips the persistent compat-override
-    // pref that MainActivity reads at WebView creation time.  Useful
-    // when a box slips past our auto-detection — the user can
-    // toggle it via the diagnostics screen OR the Settings page
-    // without waiting for a new APK build.
+    // GPU / display).  Surfaced ONLY on the React login screen so
+    // a user with a broken HK1 box can compare the diagnostic
+    // dumps from their working and non-working boxes.  No other
+    // compat-mode toggles — the user explicitly asked us to revert
+    // the broadened software-rendering heuristic after it broke
+    // typing on the previously-working box.
 
     @JavascriptInterface
     fun openDiagnostics() {
@@ -1039,33 +1036,5 @@ class WebAppInterface(private val activity: Activity) {
                 android.util.Log.w("VesperDiag", "openDiagnostics failed", t)
             }
         }
-    }
-
-    @JavascriptInterface
-    fun setForceSoftware(on: Boolean) {
-        try {
-            activity.getSharedPreferences("vesper-compat", android.content.Context.MODE_PRIVATE)
-                .edit()
-                .putBoolean("force_software", on)
-                .apply()
-            activity.runOnUiThread {
-                Toast.makeText(
-                    activity,
-                    if (on) "Software rendering enabled. Restart the app."
-                    else "Software rendering reset. Restart the app.",
-                    Toast.LENGTH_LONG,
-                ).show()
-            }
-        } catch (t: Throwable) {
-            android.util.Log.w("VesperDiag", "setForceSoftware failed", t)
-        }
-    }
-
-    @JavascriptInterface
-    fun getForceSoftware(): Boolean {
-        return try {
-            activity.getSharedPreferences("vesper-compat", android.content.Context.MODE_PRIVATE)
-                .getBoolean("force_software", false)
-        } catch (_: Throwable) { false }
     }
 }

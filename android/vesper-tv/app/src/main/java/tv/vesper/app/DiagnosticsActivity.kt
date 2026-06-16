@@ -133,44 +133,12 @@ class DiagnosticsActivity : AppCompatActivity() {
                 } catch (_: Throwable) { /* no chooser */ }
             }
         }
-        val sweepBtn = Button(this).apply {
-            text = "Force software"
-            setOnClickListener {
-                getSharedPreferences("vesper-compat", MODE_PRIVATE)
-                    .edit()
-                    .putBoolean("force_software", true)
-                    .apply()
-                Toast.makeText(
-                    this@DiagnosticsActivity,
-                    "Software rendering forced. Restart the app.",
-                    Toast.LENGTH_LONG,
-                ).show()
-                refreshReport()
-            }
-        }
-        val clearSweepBtn = Button(this).apply {
-            text = "Reset compat"
-            setOnClickListener {
-                getSharedPreferences("vesper-compat", MODE_PRIVATE)
-                    .edit()
-                    .remove("force_software")
-                    .apply()
-                Toast.makeText(
-                    this@DiagnosticsActivity,
-                    "Compat reset. Restart the app.",
-                    Toast.LENGTH_LONG,
-                ).show()
-                refreshReport()
-            }
-        }
         val closeBtn = Button(this).apply {
             text = "Close"
             setOnClickListener { finish() }
         }
         btnRow.addView(copyBtn)
         btnRow.addView(shareBtn)
-        btnRow.addView(sweepBtn)
-        btnRow.addView(clearSweepBtn)
         btnRow.addView(closeBtn)
 
         col.addView(title)
@@ -204,18 +172,11 @@ class DiagnosticsActivity : AppCompatActivity() {
 
         // Compat heuristic — keep in lock-step with MainActivity's logic.
         val needle = "${Build.HARDWARE} ${Build.MODEL} ${Build.DEVICE} ${Build.PRODUCT}".lowercase()
-        val fragileChipFamilies = listOf("amlogic", "rockchip", "allwinner")
-        val fragileModelKeywords = listOf(
-            "s905x3", "s905x2", "s905x4", "s905w2",
-            "hk1", "x96", "mxq", "tx3", "tx6", "tx9",
-            "h96", "tanix", "magicsee",
-        )
-        val fragileChipMatch = fragileChipFamilies.any { it in needle }
-        val fragileModelMatch = fragileModelKeywords.any { it in needle }
-        val isFragileAmlogic = fragileChipMatch || fragileModelMatch
-        val forceSoftware = getSharedPreferences("vesper-compat", MODE_PRIVATE)
-            .getBoolean("force_software", false)
-        val useSoftware = forceSoftware || isFragileAmlogic
+        val isFragileAmlogic =
+            (("amlogic" in needle || "rockchip" in needle) &&
+                Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) ||
+                "s905x3" in needle
+        val useSoftware = isFragileAmlogic
 
         val sb = StringBuilder(2048)
         sb.appendLine("══ OS ══")
@@ -331,6 +292,32 @@ class DiagnosticsActivity : AppCompatActivity() {
                         glRenderer = gl10?.glGetString(GL10.GL_RENDERER) ?: "?"
                         glVersion = gl10?.glGetString(GL10.GL_VERSION) ?: "?"
                     } catch (_: Throwable) { /* swallow */ }
+                    runOnUiThread {
+                        refreshReport()
+                        try {
+                            // Tear down the dummy surface — we only
+                            // needed the first frame.
+                            (gl.parent as? ViewGroup)?.removeView(gl)
+                        } catch (_: Throwable) { /* swallow */ }
+                    }
+                }
+                override fun onSurfaceChanged(gl10: GL10?, w: Int, h: Int) {}
+                override fun onDrawFrame(gl10: GL10?) {}
+            })
+            gl.layoutParams = ViewGroup.LayoutParams(1, 1)
+            gl.visibility = View.INVISIBLE
+            (window.decorView as ViewGroup).addView(gl)
+        } catch (_: Throwable) {
+            // GL surface couldn't be created (extremely cheap boxes
+            // without GLES2).  Leave the GPU lines as "unknown".
+            runOnUiThread { refreshReport() }
+        }
+    }
+
+    private inline fun safeGet(block: () -> String?): String =
+        try { block() ?: "unknown" } catch (_: Throwable) { "unknown" }
+}
+ /* swallow */ }
                     runOnUiThread {
                         refreshReport()
                         try {

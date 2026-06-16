@@ -1,6 +1,31 @@
 # ON NOW TV V2 — PRD
 
-> **🔥 v2.10.28 — HK1 S905X3 mystery: two "identical" boxes render differently (16 Jun 2026 evening).**
+> **🔥 v2.10.30 — REVERT: broadened software-rendering heuristic broke typing on the previously-working box (16 Jun 2026 night).**
+>
+> User report: after the v2.10.28 APK was installed, the *previously-working* HK1 box could no longer accept text input on the login screen (couldn't even type the username/password).  The previously-broken box was unchanged.  Net: 1 broken box became 2 broken boxes — strictly worse.  Cause: the broadened software-rendering heuristic forced `LAYER_TYPE_SOFTWARE` on EVERY Amlogic / HK1 / etc. device regardless of SDK version.  Software rendering breaks input-event timing on some chipsets, which is what nuked typing.
+>
+> **Reverted in this commit:**
+>   1. `MainActivity.kt` — restored the original narrow heuristic: `(amlogic|rockchip + SDK≤28) || "s905x3"` only.
+>   2. `MainActivity.kt` — removed the MENU long-press → Diagnostics hijack and the `onKeyUp` override.
+>   3. `WebAppInterface.kt` — removed `setForceSoftware()` + `getForceSoftware()` JS bridges.  `openDiagnostics()` kept (needed for the login button).
+>   4. `DiagnosticsActivity.kt` — removed the Force-software / Reset-compat buttons and the force_software pref read.
+>   5. `Settings.jsx` — removed the Diagnostics row entirely.
+>   6. `ProfileSelect.jsx` — removed the Diagnostics button.
+>   7. `avatars.jsx` — reverted the Kids inline-SVG; restored `🧸` emoji rendering.
+>
+> **Kept (deliberately, minimal-touch):**
+>   • `DiagnosticsActivity.kt` (new native screen — needed for the login button to work).
+>   • Manifest entry for `DiagnosticsActivity`.
+>   • `<activity-alias>` `VesperDiagnosticsLauncher` with `LAUNCHER` + `LEANBACK_LAUNCHER` categories — appears as a SECOND tile on the launcher home screen labelled "Vesper Diagnostics".  Pure-native screen, no WebView, works even if Vesper's WebView is dead.
+>   • `OnNowTV.openDiagnostics()` JS bridge.
+>
+> **Added (new minimal change):**
+>   • Tiny amber "Device diagnostics" pill button at the bottom of the LOGIN screen (`LoginScreen.jsx`).  Only renders inside the Android app (gated on `window.OnNowTV?.openDiagnostics`).  The user's broken box can already reach the login screen via the fly-mouse, so a single clickable button here is the most reliable escape hatch for getting both boxes' diagnostic dumps.
+>
+> **Why this is the right shape now:** the user explicitly asked to put the codebase back to "exactly how it was before we started doing all these changes" — i.e. the v2.7.94 state where ONE box worked and ONE box was broken.  Per the user, that's an acceptable baseline.  The ONLY net-new code that ships is the Diagnostics activity + the login-screen button — strictly additive, no behaviour change on either box.  Once both diagnostic dumps are in hand we can identify the EXACT line that differs and apply a SURGICAL fix instead of the shotgun heuristic that caused this regression.
+>
+
+> **🔥 v2.10.28 — HK1 S905X3 mystery: two "identical" boxes render differently (16 Jun 2026 evening).** *(SUPERSEDED — see v2.10.30 revert above.)*
 >
 > User report (CRITICAL): user owns TWO HK1 S905X3 boxes, BOTH supposedly running Android 9, side-by-side.  Vesper renders normally on box A and is broken on box B (modals bottom-left, app off-centre, D-pad unresponsive).  User attached two close-up photos of the SAME `🧸` (Kids profile teddy bear) emoji rendered on each box: box A shows the modern AOSP/Noto teddy with a yellow bow tie (Unicode 11+ glyph), box B shows the older AOSP teddy without the bow tie.
 >
