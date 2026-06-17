@@ -38,6 +38,11 @@ import tv.onnow.launcher.install.ApkInstaller
  */
 object UpdateAvailableDialog {
 
+    /** The only app whose user-data (profiles / favourites /
+     *  collections) we know how to back up.  See `isVesperTile`
+     *  check below — every other tile hides the Backup button. */
+    private const val VESPER_PACKAGE = "tv.vesper.app"
+
     fun show(
         activity: AppCompatActivity,
         item: DockItem,
@@ -57,6 +62,27 @@ object UpdateAvailableDialog {
         val install = dialog.findViewById<Button>(R.id.update_dialog_install)
         val backup = dialog.findViewById<Button>(R.id.update_dialog_backup)
         val skip = dialog.findViewById<Button>(R.id.update_dialog_skip)
+
+        // v2.10.32 — Only the Vesper tile has user-data worth
+        // backing up (profiles, favourites, collections, watch
+        // progress).  For every other tile (Kids, Live TV, Music,
+        // launcher partners, etc.) the "Backup my profiles first"
+        // option is meaningless: it would just bounce the user
+        // into Vesper's settings page even though the tile they
+        // tapped has nothing to do with Vesper.
+        //
+        // So: hide the Backup button entirely on non-Vesper tiles.
+        // We match by either the tile's launch package OR the APK
+        // package it's about to install, because admin-uploaded
+        // tiles can carry either field (or both).
+        val isVesperTile =
+            item.targetPackage == VESPER_PACKAGE ||
+            item.apkPackageId == VESPER_PACKAGE
+        if (isVesperTile) {
+            backup.visibility = android.view.View.VISIBLE
+        } else {
+            backup.visibility = android.view.View.GONE
+        }
 
         title.text = item.label.ifBlank { "Update available" }
         val installedLabel = if (installedVersionCode > 0) "v$installedVersionCode" else "Unknown"
@@ -134,7 +160,7 @@ object UpdateAvailableDialog {
      * Falls back to a toast if Vesper isn't installed.
      */
     private fun openVesperBackup(activity: AppCompatActivity) {
-        val pkg = "tv.vesper.app"
+        val pkg = VESPER_PACKAGE
         val launch = activity.packageManager.getLaunchIntentForPackage(pkg)
         if (launch == null) {
             android.widget.Toast.makeText(
