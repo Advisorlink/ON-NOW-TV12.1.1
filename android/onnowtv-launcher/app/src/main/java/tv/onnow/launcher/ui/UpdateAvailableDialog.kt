@@ -45,6 +45,23 @@ object UpdateAvailableDialog {
         item: DockItem,
         installedVersionCode: Long,
         onSkip: () -> Unit,
+        // v2.10.34 — When true, the dialog is for a FRESH install
+        // (target_package not present on the device) instead of an
+        // UPDATE.  The user asked: "if you click on a tile and
+        // there's no APK installed, it says Application is not
+        // installed. Would you like to install it?"  We reuse this
+        // same dialog (and the same nice progress UI) but swap the
+        // copy:
+        //   • Eyebrow:  "INSTALL REQUIRED"
+        //   • Title:    "Install <tile-label>"
+        //   • Versions: hidden (no installed version exists yet)
+        //   • Body:     "<tile-label> is not installed on this
+        //                device.  Would you like to install it?"
+        //   • Primary:  "Install now"
+        //   • Backup button always hidden — there's nothing to
+        //                back up on a fresh install
+        //   • Skip:     "Cancel"
+        isFreshInstall: Boolean = false,
     ): Dialog {
         val dialog = Dialog(activity).apply {
             requestWindowFeature(Window.FEATURE_NO_TITLE)
@@ -54,12 +71,38 @@ object UpdateAvailableDialog {
             setCanceledOnTouchOutside(false)
         }
 
+        val eyebrow = dialog.findViewById<TextView>(R.id.update_dialog_eyebrow)
         val title = dialog.findViewById<TextView>(R.id.update_dialog_title)
         val versions = dialog.findViewById<TextView>(R.id.update_dialog_versions)
         val body = dialog.findViewById<TextView>(R.id.update_dialog_body)
         val install = dialog.findViewById<Button>(R.id.update_dialog_install)
         val backup = dialog.findViewById<Button>(R.id.update_dialog_backup)
         val skip = dialog.findViewById<Button>(R.id.update_dialog_skip)
+
+        if (isFreshInstall) {
+            // Fresh-install mode — overrides every text field.
+            eyebrow.text = "INSTALL REQUIRED"
+            title.text = "Install ${item.label.ifBlank { "this app" }}"
+            versions.visibility = View.GONE
+            // Per-tile body override still wins if the admin set one.
+            val customBody = item.updatePopupText?.takeIf { it.isNotBlank() }
+            body.text = customBody
+                ?: "${item.label.ifBlank { "This app" }} is not installed on this device. Would you like to install it?"
+            install.text = "Install now"
+            backup.visibility = View.GONE
+            skip.text = "Cancel"
+            install.setOnClickListener {
+                triggerInstall(activity, item, dialog)
+            }
+            backup.setOnClickListener { /* never used in fresh-install mode */ }
+            skip.setOnClickListener {
+                dialog.dismiss()
+                onSkip()
+            }
+            dialog.setOnShowListener { install.requestFocus() }
+            dialog.show()
+            return dialog
+        }
 
         // v2.10.33 — Per-tile body copy override.  Admin-supplied
         // text from the launcher backend's tile editor; if blank we

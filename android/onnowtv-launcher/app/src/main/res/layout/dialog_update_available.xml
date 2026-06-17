@@ -20,6 +20,7 @@
 
     <!-- Eyebrow / "Update available" mono-caps marker -->
     <TextView
+        android:id="@+id/update_dialog_eyebrow"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingHorizontal="38dp"

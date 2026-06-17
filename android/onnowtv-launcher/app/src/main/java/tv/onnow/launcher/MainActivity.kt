@@ -436,6 +436,21 @@ class MainActivity : AppCompatActivity() {
                 startActivity(launchIntent)
                 return
             }
+            // v2.10.34 — Package is NOT installed.  If the admin
+            // attached an APK to this tile, show the fresh-install
+            // dialog: "Application is not installed. Would you like
+            // to install it?"  On confirm we run the same download
+            // + progress + install flow used for updates.
+            if (!item.apkUrl.isNullOrBlank()) {
+                tv.onnow.launcher.ui.UpdateAvailableDialog.show(
+                    activity = this,
+                    item = item,
+                    installedVersionCode = 0L,
+                    isFreshInstall = true,
+                    onSkip = { /* user cancelled — nothing to do */ },
+                )
+                return
+            }
         }
         // 1b. v2.9.2 — Kids tile auto-routes to the standalone Kids
         //     APK even if `target_package` wasn't set by the admin.
