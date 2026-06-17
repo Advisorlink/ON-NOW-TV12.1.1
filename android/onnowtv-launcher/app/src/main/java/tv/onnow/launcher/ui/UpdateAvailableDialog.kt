@@ -4,14 +4,16 @@ import android.app.Dialog
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.view.View
 import android.view.Window
 import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import tv.onnow.launcher.DockItem
 import tv.onnow.launcher.R
 import tv.onnow.launcher.install.ApkInstaller
@@ -93,8 +95,11 @@ object UpdateAvailableDialog {
         versions.text = "Installed: $installedLabel  →  New: $remoteLabel"
 
         install.setOnClickListener {
-            triggerInstall(activity, item)
-            dialog.dismiss()
+            triggerInstall(activity, item, dialog)
+            // v2.10.33 — do NOT dismiss here.  The dialog stays
+            // visible so the user sees the progress UI we're about
+            // to swap in.  It will dismiss itself once the system
+            // installer takes over the foreground.
         }
 
         backup.setOnClickListener {
@@ -117,34 +122,103 @@ object UpdateAvailableDialog {
     }
 
     /**
-     * Download the APK to local cache + hand to the system installer.
-     * Mirrors the existing path in [AppsDrawerActivity.installApk]
-     * but adapted for the dialog flow.  We don't show a progress bar
-     * in the launcher overlay — the system installer takes the user
-     * to its own confirm + progress UI.
+     * v2.10.33 — Download the APK with VISIBLE PROGRESS, then hand
+     * off to the system installer.
+     *
+     * Previous behaviour: dialog dismissed immediately on Update
+     * tap, download ran silently, and the user saw a frozen launcher
+     * home screen for 5–30 seconds (depending on APK size and
+     * network) before the system installer suddenly popped up.
+     * That was confusing on slow networks — felt like nothing was
+     * happening, users would re-tap or panic-back out.
+     *
+     * New behaviour:
+     *   1. Swap the body copy + 3 action buttons OUT, swap the
+     *      progress group IN.  Status reads "Downloading update…".
+     *   2. Lock the dialog (`setCancelable(false)`) so an
+     *      accidental BACK press doesn't kill the download.
+     *   3. Stream `onProgress(percent)` from ApkInstaller back to
+     *      the UI thread; update the progress-bar + percent label
+     *      after every chunk.
+     *   4. On 100 %: status text flips to "Opening installer…",
+     *      we briefly hold the dialog so the user reads it (300 ms),
+     *      then ApkInstaller fires the system install prompt and
+     *      we dismiss our own dialog.
+     *   5. On error: status text shows the error, dialog becomes
+     *      cancellable again so the user can dismiss it.
      */
-    private fun triggerInstall(activity: AppCompatActivity, item: DockItem) {
+    private fun triggerInstall(
+        activity: AppCompatActivity,
+        item: DockItem,
+        dialog: Dialog,
+    ) {
         val url = item.apkUrl ?: return
         if (!ApkInstaller.canInstallNow(activity)) {
             ApkInstaller.requestInstallPermission(activity)
             return
         }
+
+        // ── View references (resolved against the dialog hierarchy) ──
+        val body = dialog.findViewById<TextView>(R.id.update_dialog_body)
+        val install = dialog.findViewById<Button>(R.id.update_dialog_install)
+        val backup = dialog.findViewById<Button>(R.id.update_dialog_backup)
+        val skip = dialog.findViewById<Button>(R.id.update_dialog_skip)
+        val group = dialog.findViewById<LinearLayout>(R.id.update_dialog_progress_group)
+        val status = dialog.findViewById<TextView>(R.id.update_dialog_progress_status)
+        val bar = dialog.findViewById<ProgressBar>(R.id.update_dialog_progress_bar)
+        val percent = dialog.findViewById<TextView>(R.id.update_dialog_progress_percent)
+        val hint = dialog.findViewById<TextView>(R.id.update_dialog_progress_hint)
+
+        // ── Show progress, hide actions ──
+        body.visibility = View.GONE
+        install.visibility = View.GONE
+        backup.visibility = View.GONE
+        skip.visibility = View.GONE
+        group.visibility = View.VISIBLE
+        status.text = "Downloading update…"
+        bar.progress = 0
+        percent.text = "0%"
+        dialog.setCancelable(false)
+
         activity.lifecycleScope.launch {
-            val err = withContext(Dispatchers.IO) {
-                ApkInstaller.downloadAndInstall(
-                    ctx = activity.applicationContext,
-                    apkUrl = url,
-                    suggestedName = "${item.label}.apk",
-                    onProgress = { /* no UI hook — system installer takes over */ },
-                )
-            }
+            val err = ApkInstaller.downloadAndInstall(
+                ctx = activity.applicationContext,
+                apkUrl = url,
+                suggestedName = "${item.label}.apk",
+                onProgress = { pct ->
+                    // Callback fires on the IO thread — bounce to UI.
+                    activity.runOnUiThread {
+                        bar.progress = pct
+                        percent.text = "$pct%"
+                        if (pct >= 100) status.text = "Preparing installer…"
+                    }
+                },
+            )
+
             if (err != null) {
+                // Download or install handoff failed — keep the
+                // dialog open and surface the error so the user can
+                // back out / retry.
+                status.text = "Update failed"
+                percent.text = ""
+                hint.text = err
+                dialog.setCancelable(true)
                 android.widget.Toast.makeText(
                     activity,
                     "Install failed: $err",
                     android.widget.Toast.LENGTH_LONG,
                 ).show()
+                return@launch
             }
+
+            // Success — `downloadAndInstall` has already fired the
+            // system install (or uninstall-then-install) intent.
+            // Flip the copy so the user sees what's coming next,
+            // hold the dialog briefly, then dismiss.
+            status.text = "Opening installer…"
+            hint.text = "Android will now ask you to confirm. Tap INSTALL when prompted."
+            delay(600)
+            try { dialog.dismiss() } catch (_: Throwable) { /* swallow */ }
         }
     }
 

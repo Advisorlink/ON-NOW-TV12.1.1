@@ -57,6 +57,70 @@
         android:fontFamily="monospace"
         android:letterSpacing="0.04" />
 
+    <!-- v2.10.33 — Download / install progress section.
+         Initially hidden — revealed when the user taps "Update now".
+         Replaces the body copy + button cluster while the APK
+         downloads, then while we wait for the system installer to
+         take over. -->
+    <LinearLayout
+        android:id="@+id/update_dialog_progress_group"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="38dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="38dp"
+        android:visibility="gone">
+
+        <!-- Status line — "Downloading update…" then "Opening installer…" -->
+        <TextView
+            android:id="@+id/update_dialog_progress_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#F5F8FF"
+            android:textSize="17sp"
+            android:fontFamily="sans-serif-medium"
+            android:text="Downloading update…"
+            android:paddingBottom="12dp" />
+
+        <!-- Horizontal determinate progress bar -->
+        <ProgressBar
+            android:id="@+id/update_dialog_progress_bar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="10dp"
+            android:max="100"
+            android:progress="0"
+            android:progressTint="#5DC8FF"
+            android:progressBackgroundTint="#1F2A40"
+            android:indeterminate="false" />
+
+        <!-- Percent label under the bar -->
+        <TextView
+            android:id="@+id/update_dialog_progress_percent"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#7A8AB2"
+            android:textSize="13sp"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.04"
+            android:text="0%"
+            android:paddingTop="10dp" />
+
+        <!-- Sub-hint about what happens next -->
+        <TextView
+            android:id="@+id/update_dialog_progress_hint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#5E6C8A"
+            android:textSize="13sp"
+            android:fontFamily="sans-serif"
+            android:lineSpacingExtra="2dp"
+            android:text="Once the download finishes, Android will ask you to confirm the install.  Please don't unplug the box during this step."
+            android:paddingTop="16dp" />
+
+    </LinearLayout>
+
     <!-- Body copy -->
     <TextView
         android:id="@+id/update_dialog_body"
