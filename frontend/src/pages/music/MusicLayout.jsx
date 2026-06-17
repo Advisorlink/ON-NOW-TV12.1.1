@@ -91,11 +91,11 @@ function TunesNav({ theme, onThemeChange }) {
             data-no-row-snap="true"
             onFocus={(e) => {
                 if (!e.target.matches('[data-focusable="true"]')) return;
+                // v2.10.40 — INSTANT expand on focus (no dwell delay).
+                // User said the rail felt chunky/laggy.  220ms+ delays
+                // were the culprit.  Pop out the moment focus lands.
                 clearDwell();
-                dwellTimer.current = setTimeout(() => {
-                    setExpanded(true);
-                    dwellTimer.current = null;
-                }, 300);
+                setExpanded(true);
             }}
             onBlur={(e) => {
                 if (!e.currentTarget.contains(e.relatedTarget)) {
@@ -104,8 +104,9 @@ function TunesNav({ theme, onThemeChange }) {
                 }
             }}
             onMouseEnter={() => {
+                // v2.10.40 — INSTANT expand on hover too.
                 clearDwell();
-                dwellTimer.current = setTimeout(() => setExpanded(true), 220);
+                setExpanded(true);
             }}
             onMouseLeave={() => {
                 clearDwell();

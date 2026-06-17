@@ -31,9 +31,19 @@ export default function MusicArtist() {
     const [data, setData] = useState(null);
     const [err, setErr] = useState(null);
     const { controls } = useMusicPlayer();
+    // v2.10.40 — User asked: "when you choose an album or when you
+    // choose an artist, the focus needs to go to the top line of the
+    // Popular".  We grab a ref to the first track row in the Popular
+    // section and auto-focus it once the data has loaded.  Gated by
+    // a ref so re-renders don't steal focus back on every state
+    // change.  Reset to null whenever the artist id changes so the
+    // next artist's first track gets focused too.
+    const firstTrackRef = React.useRef(null);
+    const hasAutoFocusedRef = React.useRef(null);
 
     useEffect(() => {
         setData(null);
+        hasAutoFocusedRef.current = null;
         musicAPI.artist(id).then((r) => setData(r.data || r)).catch((e) => setErr(e.message || 'failed'));
     }, [id]);
 
@@ -74,10 +84,24 @@ export default function MusicArtist() {
                 <section className="tunes-artist-section">
                     <h2 className="tunes-artist-section__title">Popular</h2>
                     <div className="tunes-artist-tracklist">
-                        {top.slice(0, 10).map((t, i) => (
+                        {top.slice(0, 10).map((t, i) => {
+                            const isFirst = i === 0;
+                            return (
                             <button
                                 type="button"
                                 key={t.id}
+                                ref={(node) => {
+                                    // v2.10.40 — Capture first track for auto-focus.
+                                    if (!isFirst || !node) return;
+                                    firstTrackRef.current = node;
+                                    if (hasAutoFocusedRef.current !== data.id) {
+                                        hasAutoFocusedRef.current = data.id;
+                                        window.requestAnimationFrame(() => {
+                                            try { node.focus({ preventScroll: false }); }
+                                            catch { /* ignore */ }
+                                        });
+                                    }
+                                }}
                                 className="tunes-artist-trackrow"
                                 data-focusable="true"
                                 data-focus-style="tile"
@@ -99,7 +123,8 @@ export default function MusicArtist() {
                                 </span>
                                 <span className="tunes-artist-trackrow__duration">{fmtDur(t.duration)}</span>
                             </button>
-                        ))}
+                            );
+                        })}
                     </div>
                 </section>
             )}

@@ -99,6 +99,44 @@ export function FullScreenPlayer({ onClose }) {
         if (onClose) onClose();
     };
 
+    // v2.10.40 — Back button / Escape closes the full-screen player.
+    //
+    // User feedback: "when the back button is pressed in full screen,
+    // it needs to go back to the previous screen.  So whether that
+    // be the albums or the, or whatever."
+    //
+    // On Android TV WebView, the remote BACK button surfaces in JS
+    // as `event.key === 'Escape'` (the standard Chromium binding)
+    // OR `event.keyCode === 4` (legacy AKEYCODE_BACK on older
+    // Chromium builds, kept as a safety net).  Capturing the event
+    // at the WINDOW level (not the root div) and calling
+    // `stopPropagation()` prevents the browser's default back-nav
+    // behaviour (which would unmount the underlying Album/Artist
+    // page along with the player and dump us on a blank screen).
+    //
+    // Calling `handleClose()` triggers the parent (MiniPlayer)'s
+    // `setExpanded(false)` which removes the FullScreenPlayer
+    // overlay and reveals the Album / Artist / Search page the
+    // user came from — that's the "previous screen".
+    React.useEffect(() => {
+        const onKeyDown = (e) => {
+            // Match common BACK key signals across remotes + browsers.
+            const isBackKey =
+                e.key === 'Escape' ||
+                e.key === 'GoBack' ||
+                e.key === 'BrowserBack' ||
+                e.keyCode === 4 /* AKEYCODE_BACK */ ||
+                e.keyCode === 27 /* Escape */;
+            if (!isBackKey) return;
+            e.preventDefault();
+            e.stopPropagation();
+            handleClose();
+        };
+        window.addEventListener('keydown', onKeyDown, true);
+        return () => window.removeEventListener('keydown', onKeyDown, true);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     // Fetch synced lyrics from LRCLIB whenever the track changes.
     const t = state.current;
     useEffect(() => {
