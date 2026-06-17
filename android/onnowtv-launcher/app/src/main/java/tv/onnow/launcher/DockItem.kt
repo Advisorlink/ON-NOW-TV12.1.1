@@ -44,4 +44,16 @@ data class DockItem(
     val apkPackageId: String? = null,
     val apkVersion: String? = null,
     val apkVersionCode: Long? = null,
+    /* v2.10.33 — Per-tile customisable text shown on the "Update
+       available" popup.  Both are admin-controlled free-form text:
+         updatePopupText  — replaces the default body copy. Blank =
+                            keep the default copy.
+         updateButtonText — text for the secondary button (formerly
+                            the hard-coded "Backup my profiles
+                            first").  Blank = HIDE the button.
+                            When set, clicking the button currently
+                            opens Vesper's backup screen (the only
+                            handler we have wired up). */
+    val updatePopupText: String? = null,
+    val updateButtonText: String? = null,
 )

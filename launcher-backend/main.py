@@ -166,6 +166,27 @@ class DockTile(BaseModel):
     # keep returning it (always null) so JSON parsing doesn't fail on
     # those clients.
     icon_url: Optional[str] = None
+    # v2.10.33 — Per-tile customisable text for the "Update available"
+    # popup that the launcher shows when the installed APK is older
+    # than the admin-uploaded one.  Both fields are completely free-
+    # form — admins can write whatever they want, and the launcher
+    # just renders it as-is.
+    #
+    #   update_popup_text   — replaces the default body copy on the
+    #                          popup ("A newer version of this app
+    #                          is ready to install…").  Leave blank
+    #                          to use the default.
+    #
+    #   update_button_text  — text shown on the secondary "Backup
+    #                          my profiles first" button.  If left
+    #                          blank, the secondary button is HIDDEN
+    #                          entirely on that tile's popup — only
+    #                          "Update now" and "Skip for now"
+    #                          appear.  When set, tapping the button
+    #                          opens Vesper's backup screen (no other
+    #                          handler is wired up yet).
+    update_popup_text: Optional[str]  = None
+    update_button_text: Optional[str] = None
     target_package: Optional[str] = None  # Android package name to launch
     target_url: Optional[str]     = None  # http(s):// URL to open in browser
     accent: Optional[str]         = None  # "#RRGGBB" hex — accent for the section

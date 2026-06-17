@@ -696,6 +696,8 @@ class MainActivity : AppCompatActivity() {
                 apkPackageId   = t.apkPackageId,
                 apkVersion     = t.apkVersion,
                 apkVersionCode = t.apkVersionCode,
+                updatePopupText  = t.updatePopupText,
+                updateButtonText = t.updateButtonText,
             )
         }
         dockItems.clear()

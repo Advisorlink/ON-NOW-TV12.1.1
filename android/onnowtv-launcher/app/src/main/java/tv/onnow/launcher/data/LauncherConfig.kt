@@ -144,6 +144,11 @@ data class DockTileRemote(
     val subheading: String?,
     val description: String?,
     val ctaLabel: String?,
+    /* v2.10.33 — Per-tile override text for the "Update available"
+       popup.  Both nullable — when null, the launcher uses the
+       default body copy and HIDES the secondary button. */
+    val updatePopupText: String?,
+    val updateButtonText: String?,
 )
 
 data class ApkEntryRemote(
@@ -252,6 +257,8 @@ fun parseLauncherConfig(json: String): LauncherConfig {
             subheading     = o.optStringOrNull("subheading"),
             description    = o.optStringOrNull("description"),
             ctaLabel       = o.optStringOrNull("cta_label"),
+            updatePopupText  = o.optStringOrNull("update_popup_text"),
+            updateButtonText = o.optStringOrNull("update_button_text"),
         )
     }
     val apksArr = root.optJSONArray("apks") ?: JSONArray()

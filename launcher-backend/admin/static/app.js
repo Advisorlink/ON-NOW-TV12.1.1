@@ -919,6 +919,8 @@ function renderDock(store) {
                 <div><label>Target URL</label><input data-k="target_url" value="${escapeAttr(t.target_url || '')}" placeholder="e.g. https://news.com"></div>
                 <div><label>APK package id <small>(metadata)</small></label><input data-k="apk_package_id" value="${escapeAttr(t.apk_package_id || '')}" placeholder="e.g. tv.onnowtv.app"></div>
                 <div><label>APK version <small>(metadata)</small></label><input data-k="apk_version" value="${escapeAttr(t.apk_version || '')}" placeholder="e.g. 2.7.85"></div>
+                <div class="span-2"><label>Update popup — body text <small>(shown on the "Update available" popup. Leave blank for the default copy.)</small></label><input data-k="update_popup_text" value="${escapeAttr(t.update_popup_text || '')}" placeholder="A newer version of this app is ready to install…"></div>
+                <div class="span-2"><label>Update popup — secondary button text <small>(extra button next to "Update now". Leave blank to HIDE the button entirely on this tile.)</small></label><input data-k="update_button_text" value="${escapeAttr(t.update_button_text || '')}" placeholder="e.g. Backup my profiles first"></div>
                 <div class="accent-field">
                     <label>Glow colour</label>
                     <div class="accent-pickers">
