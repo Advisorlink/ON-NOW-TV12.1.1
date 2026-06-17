@@ -153,6 +153,31 @@ function TunesNav({ theme, onThemeChange }) {
                         </NavLink>
                     );
                 })}
+                {/* v2.10.39 — Full Screen affordance.  Sits directly
+                    UNDER the Library entry inside the main nav block
+                    (per user request "put full screen button under
+                    librarie").  Dispatches the same `tunes:open-fullscreen`
+                    event MiniPlayer listens for, so it works on every
+                    Music sub-page regardless of whether the mini
+                    player has been expanded before. */}
+                <button
+                    type="button"
+                    className="tunes-nav__item"
+                    data-testid="tunes-nav-fullscreen"
+                    data-focusable="true"
+                    data-focus-style="nav"
+                    tabIndex={0}
+                    onClick={() => {
+                        try {
+                            window.dispatchEvent(new CustomEvent('tunes:open-fullscreen'));
+                        } catch { /* ignore */ }
+                    }}
+                >
+                    <span className="tunes-nav__item-icon">
+                        <Maximize2 size={22} strokeWidth={1.7} />
+                    </span>
+                    <span className="tunes-nav__item-label">Full Screen</span>
+                </button>
             </div>
 
             <div className="tunes-nav__spacer" />
@@ -185,30 +210,6 @@ function TunesNav({ theme, onThemeChange }) {
                     </span>
                     <span className="tunes-nav__item-label">Settings</span>
                 </NavLink>
-                {/* v2.10.38 — Full Screen affordance at the BOTTOM of
-                    the rail.  Dispatches the same `tunes:open-fullscreen`
-                    custom event that MiniPlayer listens for, so it works
-                    whether or not the user has previously expanded the
-                    mini player.  Lives below Settings as the very last
-                    icon in the rail, per user request. */}
-                <button
-                    type="button"
-                    className="tunes-nav__item"
-                    data-testid="tunes-nav-fullscreen"
-                    data-focusable="true"
-                    data-focus-style="nav"
-                    tabIndex={0}
-                    onClick={() => {
-                        try {
-                            window.dispatchEvent(new CustomEvent('tunes:open-fullscreen'));
-                        } catch { /* ignore */ }
-                    }}
-                >
-                    <span className="tunes-nav__item-icon">
-                        <Maximize2 size={22} strokeWidth={1.7} />
-                    </span>
-                    <span className="tunes-nav__item-label">Full Screen</span>
-                </button>
             </div>
 
             {/* Theme picker — only visible when expanded. */}
