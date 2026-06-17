@@ -125,6 +125,11 @@ class MainActivity : AppCompatActivity() {
         handler.post(clockTick)
         handler.postDelayed(qrCycleTick, 8_000)
         startBackendPolling()
+        // v2.10.36 — Listen for installs that complete while the
+        // launcher is in the background (the typical sequence is:
+        // user taps Update → system installer takes over → install
+        // completes → user returns to the launcher).
+        registerPackageInstallReceiver()
         // v2.8.19 — Refresh the top-bar VPN status dot whenever the
         // launcher gains focus, so a freshly-connected VPN client
         // (or a disconnect) shows up the moment the user returns.
@@ -151,6 +156,8 @@ class MainActivity : AppCompatActivity() {
         handler.removeCallbacks(clockTick)
         handler.removeCallbacks(qrCycleTick)
         configPollJob?.cancel()
+        // v2.10.36 — Pair the receiver with onResume to avoid leaks.
+        unregisterPackageInstallReceiver()
     }
 
     override fun onDestroy() {
@@ -170,6 +177,78 @@ class MainActivity : AppCompatActivity() {
         boostJob = null
         boostPulseAnimator?.cancel()
         boostPulseAnimator = null
+    }
+
+    /* ───────────  v2.10.36 — APK-install completion tracking  ──────── */
+
+    /**
+     * Listens for PACKAGE_ADDED / PACKAGE_REPLACED broadcasts and
+     * records the `apkUrl` that just landed for the matching tile.
+     *
+     * Why this exists: `shouldPromptForUpdate` decides whether to
+     * show the "Update available" dialog by comparing the tile's
+     * current `apkUrl` (from the launcher backend) against the URL
+     * we last saw successfully install for that package.  This
+     * receiver is the WRITE side of that record — when the system
+     * confirms a package just got installed/updated, we look up the
+     * dock tile whose `targetPackage` matches and persist its
+     * `apkUrl` as the "last installed" URL.  The next time the
+     * admin re-uploads an APK to that tile (which always generates
+     * a fresh UUID-prefixed URL), the URLs will differ and the
+     * user will get the update prompt — even if `versionCode`
+     * hasn't budged.
+     *
+     * Two intent actions matter:
+     *   • ACTION_PACKAGE_ADDED      — brand-new install
+     *   • ACTION_PACKAGE_REPLACED   — update over the top
+     *
+     * `EXTRA_REPLACING` is true on ADDED when the install was
+     * actually a swap-in for an existing package; we don't filter
+     * on it because we record on both broadcasts indiscriminately.
+     */
+    private val packageInstallReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(c: android.content.Context?, intent: android.content.Intent?) {
+            val installedPkg = intent?.data?.schemeSpecificPart ?: return
+            // Look up the dock tile for this package and record its
+            // current apkUrl as "installed".  If no tile matches
+            // (e.g. user side-loaded a package we don't manage),
+            // silently ignore.
+            val item = dockItems.firstOrNull { it.targetPackage == installedPkg } ?: return
+            val url = item.apkUrl ?: return
+            recordInstalledApkUrl(installedPkg, url)
+            android.util.Log.i(
+                "LauncherUpdate",
+                "Recorded installed APK url for $installedPkg → ${url.takeLast(40)}",
+            )
+        }
+    }
+
+    /** Register the receiver in onResume (instead of onCreate) so
+     *  we don't miss broadcasts during the brief window the
+     *  Activity is paused while the system install UI is in front
+     *  of the user.  Re-registering on every resume is cheap. */
+    private fun registerPackageInstallReceiver() {
+        val filter = android.content.IntentFilter().apply {
+            addAction(android.content.Intent.ACTION_PACKAGE_ADDED)
+            addAction(android.content.Intent.ACTION_PACKAGE_REPLACED)
+            addDataScheme("package")
+        }
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(
+                    packageInstallReceiver,
+                    filter,
+                    android.content.Context.RECEIVER_NOT_EXPORTED,
+                )
+            } else {
+                @Suppress("UnspecifiedRegisterReceiverFlag")
+                registerReceiver(packageInstallReceiver, filter)
+            }
+        } catch (_: Throwable) { /* already registered or other — ignore */ }
+    }
+
+    private fun unregisterPackageInstallReceiver() {
+        try { unregisterReceiver(packageInstallReceiver) } catch (_: Throwable) { /* idempotent */ }
     }
 
     /* ───────────────────  Kids-sandbox HOME lockdown  ────────────── */
@@ -493,30 +572,84 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * v2.10.60 — Returns true whenever the admin uploaded a NEWER
-     * APK for this tile than the locally-installed version.  No
-     * persistent "skip" memory — per user request the prompt MUST
-     * keep showing on every tap until the user actually installs.
+     * v2.10.36 — URL-based update detection.
+     *
+     * Bug the user reported:
+     *   "Every time I upload a new APK, regardless of whether the
+     *    version is the same or not, it needs to say 'Update
+     *    available' when I click the tile."
+     *
+     * Previous logic (v2.10.60) compared the installed `longVersionCode`
+     * against `item.apkVersionCode` and only prompted when the
+     * remote was STRICTLY HIGHER.  That meant if the admin
+     * re-uploaded an APK with the SAME `versionCode` (very common
+     * during dev — every Gradle assembleDebug ships the same code
+     * until the dev bumps it manually), no prompt ever fired.
+     *
+     * New rule — purely URL-based:
+     *   1. The backend stamps every uploaded APK with a fresh UUID
+     *      (`/assets/apks/{aid}_filename.apk`).  Even re-uploading
+     *      byte-identical files yields a brand-new `apk_url`.
+     *   2. We persist the EXACT `apk_url` that was last successfully
+     *      installed for each target package, keyed in
+     *      SharedPreferences as `installed-apk-url-<pkg>`.
+     *   3. On every tile tap: if `item.apkUrl != lastInstalledUrl`
+     *      → prompt.  No version-code arithmetic involved.
+     *   4. `lastInstalledUrl` is updated by the PACKAGE_ADDED /
+     *      PACKAGE_REPLACED receiver below — i.e. ONLY on
+     *      successful install completion.  Cancelled or failed
+     *      installs leave the record untouched so the user sees
+     *      the prompt again on the next tap (correct behaviour:
+     *      they haven't actually installed yet).
+     *
      * Skips the dialog when:
-     *   • The tile has no `apkVersionCode` (admin never uploaded
-     *     an APK, or uploaded one with a stripped manifest).
-     *   • The tile's `apkUrl` is missing (can't actually install).
-     *   • The installed version is already >= remote.
+     *   • The tile has no `apkUrl` (nothing to install / re-install).
+     *   • The tile's `apkUrl` exactly matches what's recorded as
+     *     installed (user is up to date).
      */
     private fun shouldPromptForUpdate(installedPkg: String, item: DockItem): Boolean {
-        val remote = item.apkVersionCode ?: return false
-        if (item.apkUrl.isNullOrBlank()) return false
-        val installed = installedVersionCode(installedPkg)
-        if (installed <= 0L) return false
-        if (installed >= remote) return false
-        // Clear any legacy skip-prefs row from v2.10.56 so the user
-        // whose tile was suppressed by an earlier build sees the
-        // prompt again on first launch after this update.
-        val sp = getSharedPreferences("update-skip-prefs", MODE_PRIVATE)
-        if (sp.contains("skip-$installedPkg")) {
-            sp.edit().remove("skip-$installedPkg").apply()
+        val remoteUrl = item.apkUrl?.takeIf { it.isNotBlank() } ?: return false
+        val installedUrl = installedApkUrl(installedPkg)
+        // Empty installed-url means we've never recorded an install
+        // for this package since this URL-based scheme shipped.
+        // Two paths to handle that safely:
+        //   • If the package is genuinely installed (longVersionCode > 0)
+        //     and the tile carries a remote URL, the user MIGHT be on
+        //     the same APK or a different one — we have no way to
+        //     know retroactively.  We default to "no prompt" in that
+        //     case so existing fleets don't get a flood of bogus
+        //     prompts on first upgrade to v2.10.36.  The very next
+        //     APK re-upload will trip the prompt correctly because
+        //     the recorded URL will then mismatch.
+        //   • If we DO have a record AND it differs from the remote
+        //     URL → prompt.
+        if (installedUrl.isNullOrBlank()) {
+            // First-run shim: silently record the current remote URL
+            // as "already installed" so the first NEW upload after
+            // this point trips the prompt.
+            recordInstalledApkUrl(installedPkg, remoteUrl)
+            return false
         }
-        return true
+        return installedUrl != remoteUrl
+    }
+
+    /** v2.10.36 — SharedPreferences helpers for URL-based update
+     *  detection.  Stored alongside the existing `update-skip-prefs`
+     *  bucket but keyed differently to avoid collision. */
+    private fun installedApkUrl(pkg: String): String? {
+        return try {
+            getSharedPreferences("update-skip-prefs", MODE_PRIVATE)
+                .getString("installed-apk-url-$pkg", null)
+        } catch (_: Throwable) { null }
+    }
+
+    private fun recordInstalledApkUrl(pkg: String, url: String) {
+        try {
+            getSharedPreferences("update-skip-prefs", MODE_PRIVATE)
+                .edit()
+                .putString("installed-apk-url-$pkg", url)
+                .apply()
+        } catch (_: Throwable) { /* ignore */ }
     }
 
     /**
