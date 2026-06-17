@@ -224,7 +224,7 @@ export default function MusicLayout() {
     useSpatialFocus();
 
     const location = useLocation();
-    const mainRef = useRef(null);
+    const rootRef = useRef(null);
 
     const [theme, setTheme] = useState(() => readStoredTheme());
     const changeTheme = (next) => {
@@ -244,24 +244,15 @@ export default function MusicLayout() {
         return () => document.body.removeAttribute('data-music-app');
     }, []);
 
-    // v2.10.35 — RESET SCROLL on every route change inside /music.
-    //
-    // Bug the user reported in the demo video: tapping Justin Bieber
-    // in search results lands on the artist page already scrolled
-    // mid-way down — the hero (artist photo / name / Play button) is
-    // already out of view.  React Router preserves the document
-    // scroll position from the OLD page across route transitions
-    // unless you explicitly reset it.
-    //
-    // We snap the main scroll container to (0, 0) on every pathname
-    // change.  `behavior: 'auto'` (not 'smooth') so the new page
-    // appears already-at-top instead of doing a janky 300 ms scroll
-    // animation when you land.  Also reset window scroll as a belt-
-    // and-braces in case any page renders content above
-    // `.tunes-main`.
+    // v2.10.37 — RESET SCROLL on every route change inside /music.
+    // The canonical scroll container is `.tunes-root` (height:
+    // 100dvh; overflow-y: auto) — NOT `.tunes-main`, which is just
+    // a flex child with no overflow.  Snap to (0,0) so the page
+    // header is on-screen the moment the user lands.  Also reset
+    // window scroll defensively in case any ancestor is scrolling.
     useEffect(() => {
         try {
-            mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+            rootRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
             window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
         } catch { /* private mode / no scrollTo support — ignore */ }
     }, [location.pathname]);
@@ -275,13 +266,14 @@ export default function MusicLayout() {
 
     return (
         <div
+            ref={rootRef}
             className="tunes-root"
             data-theme={theme}
             data-testid="music-layout"
         >
             <div className="tunes-shell">
                 <TunesNav theme={theme} onThemeChange={changeTheme} />
-                <main className="tunes-main" ref={mainRef}>
+                <main className="tunes-main">
                     <Outlet />
                 </main>
             </div>

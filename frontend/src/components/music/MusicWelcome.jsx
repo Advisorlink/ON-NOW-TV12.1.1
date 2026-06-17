@@ -68,17 +68,24 @@ export default function MusicWelcome() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: 'clamp(24px, 4vw, 64px)',
+                padding: 'clamp(16px, 2.5vw, 32px)',
                 background: 'radial-gradient(120% 100% at 30% 10%, rgba(93,200,255,0.18) 0%, rgba(8,12,24,0.92) 45%, rgba(4,6,14,0.98) 80%)',
             }}
         >
             <div
                 style={{
-                    width: 'min(720px, 100%)',
-                    maxHeight: '92vh',
+                    /* v2.10.37 — Compact for 16:9 TV viewports.
+                       Previous size (720 × auto with 56px padding +
+                       three full bullets) overflowed the safe area
+                       on 1080p TVs once title bar + system insets
+                       were taken into account.  Tightened to fit
+                       comfortably inside `92vh - 64px` with room to
+                       spare on 720p panels. */
+                    width: 'min(560px, 100%)',
+                    maxHeight: '88vh',
                     overflowY: 'auto',
-                    borderRadius: 24,
-                    padding: 'clamp(32px, 4vw, 56px)',
+                    borderRadius: 18,
+                    padding: 'clamp(20px, 2.4vw, 32px)',
                     background:
                         'linear-gradient(180deg, rgba(20,28,46,0.88) 0%, rgba(10,15,28,0.92) 100%)',
                     border: '1px solid rgba(93,200,255,0.22)',
@@ -90,18 +97,18 @@ export default function MusicWelcome() {
                 <div
                     aria-hidden="true"
                     style={{
-                        width: 64,
-                        height: 64,
-                        borderRadius: 18,
+                        width: 48,
+                        height: 48,
+                        borderRadius: 14,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         background: 'linear-gradient(135deg, rgba(93,200,255,0.28), rgba(93,200,255,0.06))',
                         border: '1px solid rgba(93,200,255,0.45)',
-                        marginBottom: 24,
+                        marginBottom: 16,
                     }}
                 >
-                    <Music2 size={30} strokeWidth={2.2} style={{ color: '#5DC8FF' }} />
+                    <Music2 size={24} strokeWidth={2.2} style={{ color: '#5DC8FF' }} />
                 </div>
 
                 {/* Eyebrow */}
@@ -110,9 +117,9 @@ export default function MusicWelcome() {
                         textTransform: 'uppercase',
                         fontFamily: 'monospace',
                         letterSpacing: '0.32em',
-                        fontSize: 12,
+                        fontSize: 11,
                         color: '#5DC8FF',
-                        marginBottom: 10,
+                        marginBottom: 8,
                     }}
                 >
                     Welcome to Tunes
@@ -121,8 +128,8 @@ export default function MusicWelcome() {
                 {/* Headline — gradient text */}
                 <h1
                     style={{
-                        margin: '0 0 14px 0',
-                        fontSize: 'clamp(28px, 3.4vw, 42px)',
+                        margin: '0 0 10px 0',
+                        fontSize: 'clamp(22px, 2.4vw, 30px)',
                         fontWeight: 800,
                         lineHeight: 1.1,
                         letterSpacing: '-0.02em',
@@ -139,59 +146,57 @@ export default function MusicWelcome() {
                 {/* Subhead */}
                 <p
                     style={{
-                        margin: '0 0 28px 0',
-                        fontSize: 'clamp(15px, 1.1vw, 17px)',
-                        lineHeight: 1.55,
+                        margin: '0 0 18px 0',
+                        fontSize: 'clamp(13px, 0.9vw, 15px)',
+                        lineHeight: 1.5,
                         color: 'rgba(232,238,250,0.78)',
                     }}
                 >
-                    Quick heads-up before you start — your music, podcasts and
-                    radio stream from YouTube under the hood.  You only have
-                    to sign in once.
+                    Your music, podcasts and radio stream from YouTube under
+                    the hood. You only sign in once.
                 </p>
 
-                {/* Bullets */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 32 }}>
+                {/* Bullets — tightened */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
                     <Bullet
                         icon={Youtube}
-                        title="Streaming via YouTube"
-                        body="We use YouTube's music, podcast and radio libraries to give you free access to millions of tracks — no separate subscription needed."
+                        title="Streams from YouTube"
+                        body="Millions of free tracks, podcasts and radio stations — no extra subscription needed."
                     />
                     <Bullet
                         icon={UserPlus}
-                        title="You don't have to use your real Google account"
+                        title="You don't need your real account"
                         body={
                             <>
-                                Make a brand-new throwaway account just for this if you
-                                want — Tunes won&apos;t mind.  You can{' '}
+                                A brand-new throwaway Google account works perfectly.{' '}
                                 <a
                                     href="https://accounts.google.com/signup"
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     style={{ color: '#5DC8FF', textDecoration: 'underline' }}
                                 >
-                                    create a free Google account
+                                    Create one
                                     <ExternalLink
-                                        size={12}
+                                        size={11}
                                         style={{
                                             display: 'inline-block',
-                                            marginLeft: 4,
+                                            marginLeft: 3,
                                             verticalAlign: '-1px',
                                         }}
                                     />
                                 </a>{' '}
-                                in about 30 seconds.
+                                in 30 seconds.
                             </>
                         }
                     />
                     <Bullet
                         icon={ShieldCheck}
                         title="We never see your password"
-                        body="Sign-in happens directly with Google on their own page.  ON NOW Tunes never receives or stores your password — only a permission token that lets us play the audio."
+                        body="Sign-in happens directly with Google. We only receive a permission token."
                     />
                 </div>
 
-                {/* Continue button */}
+                {/* Continue button — compact */}
                 <button
                     ref={continueRef}
                     type="button"
@@ -202,14 +207,14 @@ export default function MusicWelcome() {
                     onClick={dismiss}
                     style={{
                         width: '100%',
-                        padding: '16px 24px',
+                        padding: '12px 22px',
                         borderRadius: 999,
                         border: 'none',
                         cursor: 'pointer',
                         background:
                             'linear-gradient(135deg, #5DC8FF 0%, #3aa6e0 70%, #2c89be 100%)',
                         color: '#04121F',
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: 800,
                         letterSpacing: '0.02em',
                         boxShadow:
@@ -221,19 +226,18 @@ export default function MusicWelcome() {
                     }}
                 >
                     Got it — let&apos;s go
-                    <ArrowRight size={18} strokeWidth={2.4} />
+                    <ArrowRight size={16} strokeWidth={2.4} />
                 </button>
 
                 <p
                     style={{
-                        margin: '20px 0 0 0',
+                        margin: '12px 0 0 0',
                         textAlign: 'center',
-                        fontSize: 12,
+                        fontSize: 11,
                         color: 'rgba(168,181,199,0.55)',
                     }}
                 >
-                    You&apos;ll only see this welcome once.  You can sign in or
-                    sign out of YouTube any time from Tunes &rsaquo; Settings.
+                    Shown only on first launch.  Manage YouTube sign-in from Tunes &rsaquo; Settings.
                 </p>
             </div>
         </div>
@@ -245,10 +249,10 @@ function Bullet({ icon: Icon, title, body }) {
         <div
             style={{
                 display: 'flex',
-                gap: 16,
+                gap: 12,
                 alignItems: 'flex-start',
-                padding: '16px 18px',
-                borderRadius: 14,
+                padding: '10px 12px',
+                borderRadius: 11,
                 background: 'rgba(255,255,255,0.025)',
                 border: '1px solid rgba(255,255,255,0.06)',
             }}
@@ -256,9 +260,9 @@ function Bullet({ icon: Icon, title, body }) {
             <div
                 aria-hidden="true"
                 style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 10,
+                    width: 30,
+                    height: 30,
+                    borderRadius: 8,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -267,15 +271,15 @@ function Bullet({ icon: Icon, title, body }) {
                     flexShrink: 0,
                 }}
             >
-                <Icon size={18} strokeWidth={2} style={{ color: '#5DC8FF' }} />
+                <Icon size={15} strokeWidth={2} style={{ color: '#5DC8FF' }} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
                 <div
                     style={{
-                        fontSize: 15,
+                        fontSize: 13,
                         fontWeight: 700,
                         color: 'rgba(245,248,255,0.95)',
-                        marginBottom: 4,
+                        marginBottom: 2,
                         letterSpacing: '-0.01em',
                     }}
                 >
@@ -283,8 +287,8 @@ function Bullet({ icon: Icon, title, body }) {
                 </div>
                 <div
                     style={{
-                        fontSize: 13,
-                        lineHeight: 1.5,
+                        fontSize: 12,
+                        lineHeight: 1.45,
                         color: 'rgba(186,196,214,0.78)',
                     }}
                 >

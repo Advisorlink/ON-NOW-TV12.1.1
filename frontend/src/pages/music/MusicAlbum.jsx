@@ -34,10 +34,25 @@ export default function MusicAlbum() {
     const [err, setErr] = useState(null);
     const [liked, setLiked] = useState(false);
     const { state, controls } = useMusicPlayer();
+    // v2.10.37 — User asked: "when you choose an album, it should
+    // focus on the top song to start with".  We grab a ref to the
+    // first track row and call .focus() once the tracks render.
+    // Picking the first SONG (not the Play Album button) is more
+    // useful for D-pad users — pressing Down/OK from there starts
+    // playback of that exact song, and pressing Up takes them back
+    // to the action row.  We auto-focus exactly once per album
+    // load (gated on `data.id`) so a freshly-clicked Play button
+    // doesn't get stolen back on every render.
+    const firstTrackRef = React.useRef(null);
+    const hasAutoFocusedRef = React.useRef(null);
 
     useEffect(() => {
         setData(null);
         setErr(null);
+        // Reset the auto-focus guard whenever the album id changes
+        // so re-navigating between albums in the same session
+        // refocuses each new album's first track.
+        hasAutoFocusedRef.current = null;
         musicAPI.album(id)
             .then((res) => setData(res.data || res))
             .catch((e) => setErr(e.message || 'failed to load'));
@@ -187,9 +202,30 @@ export default function MusicAlbum() {
                     const isCurrent = state.current?.id === t.id;
                     const isPlaying = isCurrent && state.isPlaying;
                     const isExplicit = t.explicit_lyrics;
+                    const isFirst = i === 0;
                     return (
                         <div
                             key={t.id}
+                            ref={(node) => {
+                                // v2.10.37 — Capture the first track's
+                                // DOM node so the effect below can
+                                // .focus() it after mount.  Gated by
+                                // `hasAutoFocusedRef` so the focus
+                                // only fires ONCE per album-id load.
+                                if (!isFirst || !node) return;
+                                firstTrackRef.current = node;
+                                if (hasAutoFocusedRef.current !== data.id) {
+                                    hasAutoFocusedRef.current = data.id;
+                                    // Defer one frame so layout has
+                                    // settled before we set focus —
+                                    // otherwise scrollIntoView fires
+                                    // against a still-shifting tree.
+                                    window.requestAnimationFrame(() => {
+                                        try { node.focus({ preventScroll: false }); }
+                                        catch { /* ignore */ }
+                                    });
+                                }
+                            }}
                             className={
                                 'tunes-track-row' +
                                 (isCurrent ? ' tunes-track-row--playing' : '')

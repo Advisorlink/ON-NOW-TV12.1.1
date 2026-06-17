@@ -85,6 +85,15 @@
     overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    /* v2.10.37 — Generous scroll-padding-top so that when the
+       spatial-focus hook (useSpatialFocus) calls
+       `scrollIntoView({ block: 'start' })` on a freshly focused
+       element it leaves room at the top for the page header to
+       stay visible.  Without this, navigating from the rail into
+       the first row of content scrolls the page header completely
+       out of view — what the user described as "cutting it off
+       up the top". */
+    scroll-padding-top: clamp(80px, 9vh, 120px);
 }
 
 /* ELECTRIC BLUE theme — same structure, cyan/navy palette. */
