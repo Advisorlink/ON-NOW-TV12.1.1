@@ -16,7 +16,7 @@ export default function PodcastDetail() {
         musicAPI.podcastEpisodes(url).then((r) => setData(r.data || r)).catch((e) => setErr(e.message || 'failed'));
     }, [feedUrl]);
 
-    if (err) return <div className="tunes-empty">Couldn't load podcast — {err}</div>;
+    if (err) return <div className="tunes-empty">Couldn't load podcast. {err}</div>;
     if (!data) return <div className="tunes-empty">Loading episodes…</div>;
 
     const { podcast, episodes } = data;

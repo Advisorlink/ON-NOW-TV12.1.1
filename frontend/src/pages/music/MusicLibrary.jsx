@@ -45,7 +45,7 @@ export default function MusicLibrary() {
     return (
         <div data-testid="music-library">
             <h1 className="tunes-page-title">Your Library</h1>
-            <p className="tunes-page-subtitle">Everything you've saved. Liked songs, artists, albums, radio stations, podcasts — and your playlists.</p>
+            <p className="tunes-page-subtitle">Everything you&apos;ve saved. Liked songs, artists, albums, radio stations, podcasts, and your playlists.</p>
 
             {isEmpty && (
                 <div style={{
@@ -151,7 +151,7 @@ export default function MusicLibrary() {
                                 </div>
                                 <div className="tunes-track-list">
                                     {pl.tracks.length === 0 && (
-                                        <div className="tunes-empty">No tracks yet — add some from Search or Album pages.</div>
+                                        <div className="tunes-empty">No tracks yet. Add some from Search or Album pages.</div>
                                     )}
                                     {pl.tracks.map((t, i) => (
                                         <div

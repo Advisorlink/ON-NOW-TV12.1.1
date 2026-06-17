@@ -40,7 +40,7 @@ export default function MusicSearch() {
     return (
         <div data-testid="music-search">
             <h1 className="tunes-page-title">Search</h1>
-            <p className="tunes-page-subtitle">Tracks, albums, artists, radio stations, podcasts — all at once.</p>
+            <p className="tunes-page-subtitle">Tracks, albums, artists, radio stations, podcasts. All at once.</p>
 
             <div className="tunes-search-wrap">
                 <SearchIcon size={22} className="tunes-search-icon" />

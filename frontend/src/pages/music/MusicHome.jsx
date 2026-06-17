@@ -529,7 +529,7 @@ export default function MusicHome() {
                 </>
             )}
 
-            {err && <div className="tunes-empty">Couldn&apos;t load music — {err}</div>}
+            {err && <div className="tunes-empty">Couldn&apos;t load music. {err}</div>}
 
             {trendingAlbums.length > 0 && (
                 <Shelf eyebrow="TRENDING" title="Trending Now" testId="shelf-trending">

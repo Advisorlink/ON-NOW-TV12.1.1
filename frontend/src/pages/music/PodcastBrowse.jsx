@@ -17,7 +17,7 @@ export default function PodcastBrowse() {
                 backgroundClip: 'text',
                 color: 'transparent',
             }}>Podcasts</h1>
-            <p className="tunes-page-subtitle">Top shows from around the world — episodes stream straight from the publisher's feed.</p>
+            <p className="tunes-page-subtitle">Top shows from around the world. Episodes stream straight from the publisher&apos;s feed.</p>
 
             {!podcasts && <div className="tunes-empty">Loading top podcasts…</div>}
 

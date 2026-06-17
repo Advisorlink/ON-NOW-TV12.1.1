@@ -161,7 +161,7 @@ export default function MusicWelcome() {
                     <Bullet
                         icon={Youtube}
                         title="Streams from YouTube"
-                        body="Millions of free tracks, podcasts and radio stations — no extra subscription needed."
+                        body="Millions of free tracks, podcasts and radio stations. No extra subscription needed."
                     />
                     <Bullet
                         icon={UserPlus}
@@ -225,7 +225,7 @@ export default function MusicWelcome() {
                         gap: 8,
                     }}
                 >
-                    Got it — let&apos;s go
+                    Got it. Let&apos;s go
                     <ArrowRight size={16} strokeWidth={2.4} />
                 </button>
 

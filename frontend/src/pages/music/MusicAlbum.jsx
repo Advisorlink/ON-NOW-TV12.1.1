@@ -65,7 +65,7 @@ export default function MusicAlbum() {
         return subscribeMusicLibrary(update);
     }, [data]);
 
-    if (err) return <div className="tunes-empty">Couldn&apos;t load album — {err}</div>;
+    if (err) return <div className="tunes-empty">Couldn&apos;t load album. {err}</div>;
     if (!data) {
         return (
             <div data-testid="music-album">

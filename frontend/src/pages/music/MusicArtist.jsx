@@ -37,7 +37,7 @@ export default function MusicArtist() {
         musicAPI.artist(id).then((r) => setData(r.data || r)).catch((e) => setErr(e.message || 'failed'));
     }, [id]);
 
-    if (err) return <div className="tunes-empty">Couldn&apos;t load artist — {err}</div>;
+    if (err) return <div className="tunes-empty">Couldn&apos;t load artist. {err}</div>;
     if (!data) return <div className="tunes-empty">Loading…</div>;
 
     const top = data.top_tracks || [];
