@@ -2926,3 +2926,262 @@
     .tunes-fullplayer__vocals-btn { padding: 0 10px; width: auto; }
 }
 
+/* ============================================================
+   v2.10.46 — LIBRARY PAGE (two-column TV layout)
+   ─────────────────────────────────────────────────────────────
+   Per user video brief: a clear two-column page where the LEFT
+   column holds artists + songs list + saved radio + saved
+   podcasts, and the RIGHT column holds liked albums in a 3-up
+   grid.  Tile sizes match TV-distance scanning (not the old
+   "auto-fill 180px" grid which produced a single giant card for
+   a sparse library).
+   ============================================================ */
+
+.tunes-library-page {
+    /* Owns the page's own gutter so children can be edge-to-edge
+       inside the two-column grid. */
+}
+
+.tunes-library-empty {
+    padding: 60px;
+    text-align: center;
+    background: var(--tunes-glass-bg, rgba(255, 255, 255, 0.04));
+    border-radius: 18px;
+    border: 1px solid var(--tunes-glass-border, rgba(255, 255, 255, 0.08));
+    margin: 40px var(--tunes-pad-x);
+}
+
+.tunes-library-empty h2 {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0 0 8px;
+}
+
+.tunes-library-empty p {
+    color: var(--vesper-text-2);
+    max-width: 540px;
+    margin: 0 auto;
+}
+
+.tunes-library-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    gap: 36px;
+    padding: 0 var(--tunes-pad-right) 60px var(--tunes-pad-x);
+}
+
+/* Stack columns on narrower screens. */
+@media (max-width: 1100px) {
+    .tunes-library-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.tunes-library-left,
+.tunes-library-right {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.tunes-library-layout .tunes-section {
+    /* Section padding inherits from `.tunes-library-layout` so we
+       can zero the per-section side-padding without affecting
+       global Vesper home/shelf layout. */
+    padding-left: 0;
+    padding-right: 0;
+}
+
+.tunes-library-layout .tunes-section__title {
+    padding-left: 0;
+}
+
+/* Liked Artists — small circular avatars in a wrapping row. */
+.tunes-library-artists {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+    gap: 14px;
+}
+
+.tunes-library-artist {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+    color: inherit;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 12px;
+}
+
+.tunes-library-artist__avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: var(--vesper-bg-2);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.tunes-library-artist__name {
+    font-size: 12px;
+    color: var(--vesper-text);
+    font-weight: 500;
+    max-width: 86px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Compact radio + podcast tiles in the LEFT column — smaller
+   than albums (the right column owns big-art browsing). */
+.tunes-library-compact {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 14px;
+}
+
+.tunes-library-compact__tile {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: transparent;
+    border: none;
+    color: inherit;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+    padding: 0;
+    border-radius: 12px;
+}
+
+.tunes-library-compact__art {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 10px;
+    object-fit: cover;
+    background: var(--vesper-bg-2);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35);
+}
+
+.tunes-library-compact__meta { padding: 0; }
+
+.tunes-library-compact__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--vesper-text);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tunes-library-compact__subtitle {
+    font-size: 11px;
+    color: var(--vesper-text-2);
+    margin: 2px 0 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* RIGHT column — albums.  Hard 3-column grid (not auto-fill) so
+   the layout matches the user's video brief regardless of how
+   many albums are saved. */
+.tunes-library-albums {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 22px;
+}
+
+@media (max-width: 1400px) {
+    .tunes-library-albums { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.tunes-library-album {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: transparent;
+    border: none;
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    padding: 0;
+    border-radius: 12px;
+}
+
+.tunes-library-album__art {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 12px;
+    object-fit: cover;
+    background: var(--vesper-bg-2);
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
+}
+
+.tunes-library-album__title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--vesper-text);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tunes-library-album__artist {
+    font-size: 12px;
+    color: var(--vesper-text-2);
+    margin: 2px 0 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Playlist detail expansion stays the same shape but uses the
+   page's own padding now that the section sits inside the
+   library layout. */
+.tunes-library-playlist-detail {
+    margin-top: 22px;
+    padding: 22px;
+    background: var(--tunes-glass-bg, rgba(255, 255, 255, 0.04));
+    border: 1px solid var(--tunes-glass-border, rgba(255, 255, 255, 0.08));
+    border-radius: 18px;
+}
+
+.tunes-library-playlist-detail__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+
+.tunes-library-playlist-detail__head h3 {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0;
+}
+
+.tunes-library-playlist-detail__head h3 span {
+    color: var(--vesper-text-2);
+    font-weight: 500;
+    font-size: 14px;
+    margin-left: 8px;
+}
+
+/* Small icon-button used in track-row "unlike" controls. */
+.tunes-iconbtn--mini {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--tunes-accent, #ec4899);
+    padding: 8px;
+    border-radius: 999px;
+}
+

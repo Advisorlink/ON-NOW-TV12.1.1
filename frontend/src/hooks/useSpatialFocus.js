@@ -59,7 +59,21 @@ export default function useSpatialFocus() {
 
         const focusables = () => {
             if (cachedFocusables) return cachedFocusables;
-            const all = document.querySelectorAll('[data-focusable="true"]');
+            /* v2.10.46 — Focus-trap support.  When an overlay component
+             * (e.g. `FullScreenPlayer`) wants ALL spatial-focus
+             * navigation to be confined to its subtree, it stamps a
+             * `data-focus-trap="true"` attribute on its root.  We
+             * detect that here and scope the focusables query to
+             * only descendants of the most-recently-added trap
+             * (`lastElementChild` of the matching set).  Without
+             * this the FullScreenPlayer was unreachable on the box:
+             * the rail item that opened it kept focus, and pressing
+             * arrow keys moved focus on the still-visible rail
+             * behind the overlay rather than onto the in-overlay
+             * controls. */
+            const traps = document.querySelectorAll('[data-focus-trap="true"]');
+            const scope = traps.length > 0 ? traps[traps.length - 1] : document;
+            const all = scope.querySelectorAll('[data-focusable="true"]');
             const arr = [];
             for (let i = 0; i < all.length; i++) {
                 const el = all[i];

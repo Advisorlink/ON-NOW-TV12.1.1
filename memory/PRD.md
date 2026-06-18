@@ -1,5 +1,19 @@
 # ON NOW TV V2 — PRD
 
+> **🚨 v2.10.46 — Library 2-column TV layout + Profile/Settings removed + FullScreenPlayer is finally navigable (10 Feb 2026).**
+>
+> Three fixes from the user's video brief:
+>
+> 1. **Library rebuilt** as a true `1fr / 1.4fr` two-column layout.  LEFT column: Liked Artists (small circular avatars) → Liked Songs (vertical list) → Liked Radio → Liked Podcasts (compact tiles).  RIGHT column: Liked Albums in a hard `repeat(3, 1fr)` grid (drops to 2-up below 1400 px).  Old `auto-fill minmax(180px, 1fr)` grid was making a single liked album balloon to 25 % of viewport width.
+>
+> 2. **Profile + Settings rail items removed** completely.  `User` and `SettingsIcon` imports also cleaned up.
+>
+> 3. **FullScreenPlayer is now navigable**: new `data-focus-trap="true"` attribute is honoured by `useSpatialFocus.focusables()` (scopes the focusable query to the trap's subtree), `FullScreenPlayer` stamps the attribute on its root, AND auto-focuses its central Play/Pause button (`playBtnRef`) on mount via `requestAnimationFrame`.  Result: the user lands focused INSIDE the player and can D-pad to every control instead of being stuck on the rail item that opened it.
+>
+> Detailed write-up: `CHANGELOG.md` → `## v2.10.46`.
+
+---
+
 > **🚨 v2.10.45 — Focus no longer hides behind the Artist hero + Left → rail from ANY music row + Welcome card #1 rewrite (10 Feb 2026).**
 >
 > Three things shipped from the video report:

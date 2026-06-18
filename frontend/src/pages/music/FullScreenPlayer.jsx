@@ -58,6 +58,15 @@ export function FullScreenPlayer({ onClose }) {
     const [lyrics, setLyrics] = useState(null);
     const [liked, setLiked] = useState(false);
     const rootRef = useRef(null);
+    // v2.10.46 — Ref on the central Play/Pause button so we can
+    // auto-focus it the instant the player opens.  Without an
+    // explicit focus the rail item that triggered the open stays
+    // focused, leaving the user unable to navigate INTO the
+    // overlay's controls with the D-pad — exactly the symptom in
+    // the user's video ("when we're in full screen we can't
+    // actually navigate around to get out of it, or to change
+    // something, or pause something").
+    const playBtnRef = useRef(null);
     // v2.8.69 — Karaoke mode flag.  Set by the Karaoke landing page
     // via sessionStorage right before playback starts.  When true,
     // the side-panel lyrics + queue are replaced with a centered,
@@ -87,6 +96,24 @@ export function FullScreenPlayer({ onClose }) {
             window.removeEventListener('storage', reread);
             exitFs();
         };
+    }, []);
+
+    // v2.10.46 — Auto-focus the central Play/Pause button when the
+    // FullScreenPlayer opens.  Defer to the next paint so the
+    // useSpatialFocus MutationObserver has a chance to invalidate
+    // its focusable cache (the new `data-focus-trap="true"` root
+    // subtree gets added + the rail-button focus loses its DOM
+    // ancestry inside the trap).  Without this the rail's
+    // "Full Screen" button retains focus, and the spatial hook
+    // tries to navigate from there into the overlay — which works
+    // unpredictably because the rail item is geometrically
+    // outside the player's content area.
+    React.useEffect(() => {
+        const id = requestAnimationFrame(() => {
+            try { playBtnRef.current?.focus({ preventScroll: true }); }
+            catch { /* ignore */ }
+        });
+        return () => cancelAnimationFrame(id);
     }, []);
 
     // v2.8.69 — Wrap onClose so the karaoke-mode flag is cleared
@@ -296,6 +323,7 @@ export function FullScreenPlayer({ onClose }) {
             className={'tunes-fullplayer' + (karaokeMode ? ' tunes-fullplayer--karaoke' : '')}
             data-testid="tunes-fullplayer"
             data-karaoke={karaokeMode ? 'true' : 'false'}
+            data-focus-trap="true"
         >
             {bgSrc && (
                 <div
@@ -588,6 +616,7 @@ export function FullScreenPlayer({ onClose }) {
                         <SkipBack size={28} />
                     </button>
                     <button
+                        ref={playBtnRef}
                         type="button"
                         className="tunes-iconbtn tunes-iconbtn--play"
                         data-focusable="true"

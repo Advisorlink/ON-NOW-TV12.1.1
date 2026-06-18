@@ -14,8 +14,6 @@ import {
     Library,
     Mic2,
     Mic,
-    User,
-    Settings as SettingsIcon,
     Music2,
     Maximize2,
 } from 'lucide-react';
@@ -183,35 +181,10 @@ function TunesNav({ theme, onThemeChange }) {
 
             <div className="tunes-nav__spacer" />
 
-            {/* Profile / settings affordances at the bottom of the rail. */}
-            <div className="tunes-nav__items">
-                <NavLink
-                    to="/music/library"
-                    className="tunes-nav__item"
-                    data-testid="tunes-nav-profile"
-                    data-focusable="true"
-                    data-focus-style="nav"
-                    tabIndex={0}
-                >
-                    <span className="tunes-nav__item-icon">
-                        <User size={22} strokeWidth={1.7} />
-                    </span>
-                    <span className="tunes-nav__item-label">Profile</span>
-                </NavLink>
-                <NavLink
-                    to="/music/library"
-                    className="tunes-nav__item"
-                    data-testid="tunes-nav-settings"
-                    data-focusable="true"
-                    data-focus-style="nav"
-                    tabIndex={0}
-                >
-                    <span className="tunes-nav__item-icon">
-                        <SettingsIcon size={22} strokeWidth={1.7} />
-                    </span>
-                    <span className="tunes-nav__item-label">Settings</span>
-                </NavLink>
-            </div>
+            {/* v2.10.46 — Profile + Settings rail items removed per
+                user request.  Their per-pixel weight on the rail
+                isn't worth the cognitive load on TV-remote users
+                who'd rather see one less row to scroll past. */}
 
             {/* Theme picker — only visible when expanded. */}
             <div className="tunes-nav__theme" data-testid="tunes-theme-toggle">

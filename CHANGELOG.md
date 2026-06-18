@@ -1,5 +1,59 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.46 — Library 2-column layout + Profile/Settings removed + FullScreenPlayer is finally navigable (2026-02-10)
+
+User report (with video): "In the library, the albums show up bad and the songs show up bad — you need to have the albums in a two or three column on the right-hand side, the liked songs need to show up in a list down the left-hand side, and the saved radio stations and podcasts underneath that.  Right now it looks way too big and way too wrong.  Also remove completely the profile and settings buttons from the rail.  And on the full screen we can't actually navigate around it."
+
+### Fix #1 — Library redesigned as a true two-column TV layout
+
+`MusicLibrary.jsx` rebuilt from scratch.  Previous version stacked five generic `.tunes-grid` sections vertically using `repeat(auto-fill, minmax(180px, 1fr))`.  With a sparse library (e.g. one liked album) the auto-fill expanded the lone card to ~25 % of the screen width, producing the giant single tile the user saw in the video.
+
+New layout (`.tunes-library-layout`):
+
+* `display: grid; grid-template-columns: 1fr 1.4fr` (LEFT 41 % / RIGHT 59 %).
+* **LEFT column** (`.tunes-library-left`)
+  * Liked Artists — small circular avatars in a `repeat(auto-fill, minmax(86px, 1fr))` grid.
+  * Liked Songs — vertical list using the existing `.tunes-track-row` styles.
+  * Liked Radio — `.tunes-library-compact` grid (smaller tiles than albums).
+  * Liked Podcasts — same compact grid.
+* **RIGHT column** (`.tunes-library-right`)
+  * Liked Albums — hard `repeat(3, minmax(0, 1fr))` (drops to 2-up below 1400 px wide).  Square album cards with title + artist below.
+
+Playlists section still appears at the top, full-width.  Empty state moved into a dedicated `.tunes-library-empty` block.  Three new shared cards (`TrackRow`, `CompactTile`, `AlbumTile`) replace ~100 lines of inline JSX in the previous file.
+
+### Fix #2 — Profile + Settings rail items removed
+
+Two `NavLink`s at the bottom of `MusicLayout.jsx`'s rail (`data-testid="tunes-nav-profile"` and `data-testid="tunes-nav-settings"`) deleted along with their `User` and `SettingsIcon` lucide-react imports.  Also unrolled the now-redundant `<div className="tunes-nav__items">` wrapper that held them.
+
+### Fix #3 — FullScreenPlayer is finally navigable
+
+The overlay had ~12 `data-focusable="true"` controls (close, fullscreen toggle, vocals, like, scrub bar, shuffle, prev, play/pause, next, repeat, queue items, volume) but the user could never reach them because:
+
+1. **No initial focus** — the rail's "Full Screen" button retained focus after opening the overlay.
+2. **No focus scope** — `useSpatialFocus.focusables()` queried the entire document, so arrow keys could move focus to side-rail items still behind the overlay (geometrically nearby but invisible).
+
+Fixes:
+
+* `useSpatialFocus.focusables()` now respects `data-focus-trap="true"`.  When any element with that attribute is in the DOM, the focusable query is scoped to its subtree.  Generic — any future modal/overlay can opt in.
+* `FullScreenPlayer` root now stamps `data-focus-trap="true"`.
+* `FullScreenPlayer` now auto-focuses its central Play/Pause button (`playBtnRef`) on mount via `requestAnimationFrame` (deferred so the MutationObserver in `useSpatialFocus` has a chance to invalidate its focusable cache after the trap is added).  User now lands focused inside the player and can D-pad to all controls.
+
+### Files touched
+
+- `frontend/src/pages/music/MusicLibrary.jsx` — full rewrite (293 → ~325 lines, with much less inline styling).
+- `frontend/src/pages/music/tunes.css` — `.tunes-library-layout` + companion classes appended at the end.
+- `frontend/src/pages/music/MusicLayout.jsx` — Profile + Settings NavLinks removed, unused lucide imports cleaned.
+- `frontend/src/pages/music/FullScreenPlayer.jsx` — `data-focus-trap="true"` + `playBtnRef` + auto-focus effect.
+- `frontend/src/hooks/useSpatialFocus.js` — focus-trap-aware `focusables()`.
+
+### Smoke test (Playwright)
+
+- `/music/library` with seeded library data: 6 album tiles on the right, 4 song rows + 2 radio tiles on the left, 3 artist avatars at the top of the left column.  `.tunes-library-layout` container present.
+- `data-testid="tunes-nav-profile"` and `data-testid="tunes-nav-settings"` both absent.
+- JS lint clean.
+
+
+
 ## v2.10.45 — Focus no longer hides behind the Artist hero + Left → rail from ANY music row + Welcome card #1 rewrite (2026-02-10)
 
 User report (with video): "Watch this — when I press down on the Popular tracks, the focus ring keeps getting stuck on Chasin' Texas, it keeps going up into the thing.  Every row should be able to move across to the left-hand side rail, not just the top one."  Plus a specific rewrite request for the first Welcome popup card.
