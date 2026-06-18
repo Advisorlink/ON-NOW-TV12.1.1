@@ -49,6 +49,12 @@ function TrackResultRow({ track, list, isCurrent }) {
     // it, bypassing the spatial-focus geometric "nearest below"
     // which was sometimes picking an artist tile in the parallel
     // right column.
+    //
+    // v2.10.58 — Combined handler (delegates Enter/Space to the
+    // long-press hook).  The previous version had `onKeyDown` set
+    // BEFORE `{...tap}` so the spread silently overwrote our
+    // custom DOWN/UP arrow handling — which is why DOWN was still
+    // jumping to the Artists grid in the user's video.
     const onKeyDown = React.useCallback((e) => {
         if (e.key === 'ArrowDown' || e.key === 'Down') {
             const rows = Array.from(
@@ -60,7 +66,10 @@ function TrackResultRow({ track, list, isCurrent }) {
                 e.preventDefault();
                 e.stopPropagation();
                 next.focus({ preventScroll: false });
+                return;
             }
+            // Last row → fall through so spatial nav can leave the
+            // tracklist (e.g. into the Albums grid below).
         } else if (e.key === 'ArrowUp' || e.key === 'Up') {
             const rows = Array.from(
                 document.querySelectorAll('[data-testid^="tunes-result-track-"]'),
@@ -70,9 +79,16 @@ function TrackResultRow({ track, list, isCurrent }) {
                 e.preventDefault();
                 e.stopPropagation();
                 rows[me - 1].focus({ preventScroll: false });
+                return;
             }
+            // First row → fall through so DPad UP reaches the
+            // search input.
         }
-    }, []);
+        // Delegate Enter / Space (and any other keys) to the
+        // long-press hook so tap-to-play + hold-to-Add-to-library
+        // still work.
+        if (typeof tap.onKeyDown === 'function') tap.onKeyDown(e);
+    }, [tap]);
     return (
         <button
             type="button"
@@ -81,8 +97,8 @@ function TrackResultRow({ track, list, isCurrent }) {
             data-focus-style="tile"
             tabIndex={0}
             data-testid={`tunes-result-track-${track.id}`}
-            onKeyDown={onKeyDown}
             {...tap}
+            onKeyDown={onKeyDown}
         >
             <img
                 src={track.album?.cover || ''}
@@ -357,12 +373,14 @@ export default function MusicSearch() {
                         </div>
                     )}
 
-                    {/* ALBUMS — full-width 4-up row */}
+                    {/* ALBUMS — full-width 8-up grid (v2.10.58
+                        shrunk from 6-up because the user reported
+                        the tiles were still "way too big"). */}
                     {results.albums?.length > 0 && (
                         <section className="tunes-section" data-testid="tunes-results-albums">
                             <h2 className="tunes-section__title">Albums</h2>
                             <div className="tunes-search-grid tunes-search-grid--4">
-                                {results.albums.slice(0, 8).map((a) => (
+                                {results.albums.slice(0, 16).map((a) => (
                                     <AlbumResultTile key={a.id} album={a} />
                                 ))}
                             </div>

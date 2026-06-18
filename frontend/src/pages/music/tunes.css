@@ -3569,13 +3569,19 @@
 /* v2.10.54 — Bumped from 4-up to 6-up to shrink the Search album
    tiles.  User reported "the albums inside search are too big,
    they're massive, they need to be smaller". */
-.tunes-search-grid--4 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+/* v2.10.58 — User: "those albums are way too big.  They're so
+   huge.  They need to be shrunken a lot smaller."  Bumped from
+   6-up to 8-up at full HD width (~190 px per tile, half what it
+   was before).  Smaller-screen breakpoints scale down
+   proportionally so the album grid stays consistent at TV
+   distance regardless of WebView width. */
+.tunes-search-grid--4 { grid-template-columns: repeat(8, minmax(0, 1fr)); }
 
 @media (max-width: 1400px) {
-    .tunes-search-grid--4 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .tunes-search-grid--4 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
     .tunes-search-grid--3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 1100px) {
-    .tunes-search-grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .tunes-search-grid--4 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 
