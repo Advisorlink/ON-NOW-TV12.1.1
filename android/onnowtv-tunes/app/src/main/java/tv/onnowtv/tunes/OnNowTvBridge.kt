@@ -120,6 +120,26 @@ class OnNowTvBridge(private val webView: WebView) {
         }
     }
 
+    /** v2.10.42 — Triggered from React when the user dismisses the
+     *  Welcome popup AND is not yet signed in to YouTube.  Delegates
+     *  to MainActivity which swaps the WebView client to the sign-in
+     *  watcher and loads Google's ServiceLogin URL.  Must run on
+     *  the UI thread (MainActivity wraps the body in `runOnUiThread`).
+     *
+     *  React side calls this via:
+     *
+     *      if (window.OnNowTV?.startYouTubeSignIn) {
+     *          window.OnNowTV.startYouTubeSignIn();
+     *      }
+     */
+    @JavascriptInterface
+    fun startYouTubeSignIn() {
+        val ctx = webView.context
+        if (ctx is MainActivity) {
+            ctx.startYouTubeSignInFromBridge()
+        }
+    }
+
     /** v2.8.54 — Whether a signed-in YouTube session is available.
      *  React side uses this to show "you're signed in as …" UI
      *  and to enable the IFrame Player route. */

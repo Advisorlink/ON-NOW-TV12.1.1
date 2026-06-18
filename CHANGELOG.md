@@ -1,5 +1,46 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.42 — Welcome popup now ACTUALLY shows before YouTube sign-in (native boot flow fix) (2026-02-10)
+
+User report (in chat after installing the v2.10.41 APK): "It's still not showing the pop-up before the YouTube login.  That's the first thing that needs to show up.  Make that happen."
+
+### Root cause
+
+The Tunes app's NATIVE `MainActivity.bootFlow()` made a decision on every launch:
+
+```kotlin
+if (isSignedInToYouTube()) {
+    navigateToMusic()                  // → loads React + /music
+} else {
+    webView.loadUrl(SIGN_IN_URL)       // → goes STRAIGHT to Google sign-in
+}
+```
+
+On first launch, no YouTube cookies exist, so the second branch fired and the WebView jumped DIRECTLY to `accounts.google.com/ServiceLogin?service=youtube&continue=…` BEFORE the React bundle was ever loaded.  The `MusicWelcome` popup (which is React code) therefore had zero chance to render — the user landed on a bare Google sign-in card with no context about the YouTube integration or the throwaway-account suggestion.
+
+Even worse: once the user signed in and the watcher swung over to `navigateToMusic()`, the user would land on Music Home with the Welcome popup ALSO not showing — because by then the localStorage flag check (`onnowtv-tunes-welcome-seen-v1`) defaulted to "shown" since no React code had ever run to set it.  Net: the Welcome popup was effectively dead code on the box.
+
+### Fix
+
+1.  **`MainActivity.bootFlow()`** — simplified to ALWAYS `navigateToMusic()`.  The native side no longer makes the sign-in-or-not decision; React drives it.
+2.  **`MainActivity.startYouTubeSignInFromBridge()`** — new method, called from the JS bridge after the user clicks "Got it, let's go" in the Welcome popup.  Swaps the WebView client to `signInWatcherClient()` and loads the Google ServiceLogin URL.  Early-returns if the cookie is already set.
+3.  **`OnNowTvBridge.startYouTubeSignIn()`** — new `@JavascriptInterface` method that React calls.  Delegates to the MainActivity helper above.
+4.  **`MusicWelcome.jsx`** — on dismiss, if a native bridge is present AND the box is not signed in to YouTube, calls `window.OnNowTV.startYouTubeSignIn()` so the sign-in starts AFTER the user has seen the Welcome.  Pure-browser users (no native bridge) just dismiss normally.
+5.  **`MusicWelcome.jsx`** — Welcome's `visible` gating now also considers the YouTube sign-in state: on the native APK, if the box is not signed in, the Welcome ALWAYS shows (regardless of the first-launch flag) so the user can't get stuck on Music Home with a broken IFrame player.
+
+### Files touched
+
+- `android/onnowtv-tunes/app/src/main/java/tv/onnowtv/tunes/MainActivity.kt`
+- `android/onnowtv-tunes/app/src/main/java/tv/onnowtv/tunes/OnNowTvBridge.kt`
+- `frontend/src/components/music/MusicWelcome.jsx`
+
+### Smoke test
+- React side renders the Welcome popup correctly on `localStorage.removeItem` → reload (confirmed via Playwright screenshot at `data-testid="music-welcome"`).
+- Bridge call gated by `typeof window.OnNowTV?.startYouTubeSignIn === 'function'` so no-op in the browser.
+- Kotlin compiles clean (no new imports beyond existing `runOnUiThread`).
+
+
+
 ## v2.10.41 — Fix "the update did nothing" — APK upgrades blocked by stale versionCode (2026-02-10)
 
 User report (in chat, last 5+ pushes): "I built the APK, downloaded it, installed it on the box — nothing changed.  Everything is exactly the same."

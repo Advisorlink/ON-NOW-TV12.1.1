@@ -119,21 +119,46 @@ class MainActivity : AppCompatActivity() {
         bootFlow()
     }
 
-    /** Decide whether to show the sign-in flow or jump straight
-     *  to /music. */
+    /** v2.10.42 — Boot flow reworked.
+     *
+     *  PREVIOUSLY: if the user wasn't signed in to YouTube we sent
+     *  them STRAIGHT to `accounts.google.com/ServiceLogin?...`
+     *  before React had a chance to render.  The React "Welcome to
+     *  Tunes" popup (which explains the YouTube integration AND
+     *  tells the user a fake/throwaway Google account is fine)
+     *  therefore never showed on first launch — they jumped right
+     *  into a bare Google sign-in card with zero context.
+     *
+     *  NOW: we ALWAYS load the React app first, no matter what
+     *  cookie state we're in.  The React side renders the Welcome
+     *  popup (gated by a localStorage flag → only on first launch),
+     *  and when the user clicks "Got it, let's go" the React side
+     *  calls `OnNowTV.startYouTubeSignIn()` which triggers the
+     *  Google sign-in WebView swap.  After successful sign-in our
+     *  watcher swings the WebView client back to the asset loader
+     *  and reloads `/music` — by then the Welcome flag is set, so
+     *  the user lands directly on Music Home with no further
+     *  interruptions. */
     private fun bootFlow() {
-        if (isSignedInToYouTube()) {
-            navigateToMusic()
-        } else {
-            // v2.8.58 — Reverted auto-fill.  Google's anti-automation
-            // flagged the programmatic value-setter and the sign-in
-            // would silently fail or get held in a "Couldn't verify
-            // it's you" loop.  Manual sign-in only.  WebView cookies
-            // persist across normal launches; only `uninstall →
-            // reinstall` wipes them.
+        navigateToMusic()
+    }
+
+    /** v2.10.42 — Called from React (`OnNowTV.startYouTubeSignIn()`)
+     *  when the user dismisses the Welcome popup AND is not yet
+     *  signed in to YouTube.  Swaps the WebView client to the
+     *  sign-in watcher and loads Google's ServiceLogin URL.  Must
+     *  be invoked on the UI thread because we're touching the
+     *  WebView. */
+    fun startYouTubeSignInFromBridge() {
+        runOnUiThread {
+            if (isSignedInToYouTube()) {
+                // Already signed in — nothing to do.  React will see
+                // the same cookie state via `OnNowTV.isSignedInToYouTube()`.
+                return@runOnUiThread
+            }
             Toast.makeText(
                 this,
-                "Sign in to YouTube to play music · use any account, fake is fine",
+                "Sign in to YouTube · use any account, fake is fine",
                 Toast.LENGTH_LONG,
             ).show()
             webView.webViewClient = signInWatcherClient()

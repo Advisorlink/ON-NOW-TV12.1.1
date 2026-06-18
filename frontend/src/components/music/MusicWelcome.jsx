@@ -32,8 +32,29 @@ const STORAGE_KEY = 'onnowtv-tunes-welcome-seen-v1';
 export default function MusicWelcome() {
     const [visible, setVisible] = React.useState(() => {
         if (typeof window === 'undefined') return false;
+        // v2.10.42 — Two reasons the Welcome should show:
+        //   1. First launch (localStorage flag absent).
+        //   2. Running on the Tunes APK AND the box is not yet
+        //      signed in to YouTube.  We can't let the user reach
+        //      Music Home without a YouTube session — the IFrame
+        //      Player would silently fail every play attempt.  By
+        //      showing the Welcome again we get them through
+        //      `bridge.startYouTubeSignIn()` on dismiss.
+        // Browser users (no native bridge) just get the first-launch
+        // gating, since they have no YouTube cookie state to check.
         try {
-            return window.localStorage.getItem(STORAGE_KEY) !== '1';
+            const flagSet = window.localStorage.getItem(STORAGE_KEY) === '1';
+            const bridge = window.OnNowTV;
+            const isNative = !!(bridge && typeof bridge.isNative === 'function' && bridge.isNative());
+            if (isNative && typeof bridge.isSignedInToYouTube === 'function') {
+                const signedIn = !!bridge.isSignedInToYouTube();
+                // Native + not signed in → ALWAYS show.
+                if (!signedIn) return true;
+                // Native + signed in → only on first launch.
+                return !flagSet;
+            }
+            // Browser (no native bridge) — first-launch only.
+            return !flagSet;
         } catch {
             return true;
         }
@@ -43,6 +64,29 @@ export default function MusicWelcome() {
         try { window.localStorage.setItem(STORAGE_KEY, '1'); }
         catch { /* private mode etc — fall through */ }
         setVisible(false);
+
+        // v2.10.42 — On native bridge (the Tunes APK), kick off the
+        // YouTube sign-in flow now that the user has seen the
+        // Welcome.  Previously the native bootFlow jumped straight
+        // to YouTube without giving the React Welcome a chance to
+        // render at all; now the order is correct: Welcome →
+        // user-confirm → YouTube sign-in.
+        //
+        // No-op when running in a browser (no native bridge), and
+        // also no-op if the box is already signed in (the bridge
+        // method itself early-returns).
+        try {
+            const bridge = window.OnNowTV;
+            if (bridge && typeof bridge.startYouTubeSignIn === 'function') {
+                const alreadySignedIn = (
+                    typeof bridge.isSignedInToYouTube === 'function' &&
+                    bridge.isSignedInToYouTube()
+                );
+                if (!alreadySignedIn) {
+                    bridge.startYouTubeSignIn();
+                }
+            }
+        } catch { /* bridge unavailable — ignore */ }
     }, []);
 
     // Auto-focus the Continue button so D-pad users can hit OK

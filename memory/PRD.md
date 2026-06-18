@@ -1,5 +1,18 @@
 # ON NOW TV V2 — PRD
 
+> **🚨 v2.10.42 — Welcome popup now ACTUALLY shows before YouTube sign-in.  Root cause: native bootFlow bypassed React entirely (10 Feb 2026).**
+>
+> The Tunes native `MainActivity.bootFlow()` jumped STRAIGHT to `accounts.google.com/ServiceLogin?...` whenever the YouTube cookie was missing — which is always true on first launch.  The React `MusicWelcome` popup (which explains the YouTube integration + the throwaway-account suggestion) never got a chance to render because React itself never loaded on the unsigned-in path.
+>
+> **Fix shipped:**
+>   1.  `bootFlow()` now ALWAYS navigates to React; the native side no longer makes the sign-in decision.
+>   2.  New `OnNowTV.startYouTubeSignIn()` JS bridge method, called from `MusicWelcome.jsx` on the "Got it, let's go" click.  Native side swaps the WebViewClient and loads the Google sign-in URL.
+>   3.  `MusicWelcome` gating now also considers the YouTube cookie state — on the native APK, if the box isn't signed in, Welcome shows regardless of the first-launch localStorage flag (otherwise the user could end up on Music Home with a broken IFrame player and no way to start sign-in).
+>
+> Detailed write-up: `CHANGELOG.md` → `## v2.10.42`.
+
+---
+
 > **🚨 v2.10.41 — Fixed "the update did nothing" — APK upgrades silently blocked by stale versionCode (10 Feb 2026).**
 >
 > **Root cause:** Four Android build workflows (`build-tunes.yml`, `build-fta.yml`, `build-fta-native.yml`, `build-livetv.yml`) derived `versionCode` from a path-scoped commit count (`git rev-list --count HEAD -- android/<dir>/`).  Because 100% of the recent UX work has lived in `frontend/**` (React), that commit count stayed flat across every workflow run.  Android refuses to install an APK over the existing app when `versionCode` is `<=` the installed value, so the user's "Save to GitHub → wait for Action → download new APK → install" cycle kept producing a same-versionCode APK that the box silently rejected.  Net: every push for ~5 cycles felt like "nothing changed" — because nothing on the box DID change.
