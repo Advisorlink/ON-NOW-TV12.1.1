@@ -1010,5 +1010,4 @@ class WebAppInterface(private val activity: Activity) {
             }
         }.start()
     }
-
 }

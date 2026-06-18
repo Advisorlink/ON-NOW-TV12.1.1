@@ -236,42 +236,10 @@ class MainActivity : AppCompatActivity() {
         // ALSO falls back to UI_MODE_TYPE_TELEVISION for cheap Chinese
         // AOSP boxes that don't always declare leanback but DO ship
         // the TV UI mode.
-        //
-        // v2.7.93 — HK1 / X96 / MXQ / Tanix / H96 boxes ship AOSP
-        // without LEANBACK and report UI_MODE_TYPE_NORMAL.  They
-        // ALSO have no touchscreen and no telephony.  Add those as
-        // last-resort signals so the app locks landscape + uses
-        // TV-mode UI on those devices too (previously they fell
-        // through to phone mode and rendered in the top half only).
-        val pm = packageManager
-        val cfg = resources.configuration
-        val hasLeanback = pm.hasSystemFeature(PackageManager.FEATURE_LEANBACK) ||
-            pm.hasSystemFeature(PackageManager.FEATURE_LEANBACK_ONLY)
-        val uiModeIsTv = (cfg.uiMode and Configuration.UI_MODE_TYPE_MASK) ==
-            Configuration.UI_MODE_TYPE_TELEVISION
-        val noTouch = !pm.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN) &&
-            !pm.hasSystemFeature("android.hardware.faketouch")
-        val noTelephony = !pm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)
-        val tvBoxModel = run {
-            val needle = "${Build.MANUFACTURER} ${Build.MODEL} ${Build.DEVICE} ${Build.PRODUCT}"
-                .lowercase()
-            listOf(
-                "hk1", "x96", "mxq", "tanix", "h96", "tx3", "tx6", "tx9",
-                "mecool", "transpeed", "ugoos", "magicsee", "beelink",
-                "amlogic", "rockchip", "rk3318", "rk3328", "rk3368", "rk3399",
-                "s905", "s912", "s922", "s928", "atv", "tvbox",
-            ).any { it in needle }
-        }
-        val isTv = hasLeanback || uiModeIsTv || tvBoxModel ||
-            (noTouch && noTelephony)
-
-        android.util.Log.i(
-            "VesperMain",
-            "TV detection: leanback=$hasLeanback uiModeTv=$uiModeIsTv " +
-                "noTouch=$noTouch noTelephony=$noTelephony " +
-                "tvBoxModel=$tvBoxModel → isTv=$isTv " +
-                "(${Build.MANUFACTURER} ${Build.MODEL})",
-        )
+        val isTv = packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK) ||
+            packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK_ONLY) ||
+            (resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK) ==
+                Configuration.UI_MODE_TYPE_TELEVISION
 
         // Only lock orientation on TV.  On phones we let the OS pick
         // — forcing landscape on a phone with portrait rotation-lock
@@ -288,30 +256,10 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // v2.7.94 — Critical HK1 S905X3 + Android 9 + 4K-HDMI fix.
-        //
-        // Symptom (verified by user on one specific HK1 S905X3
-        // running Android 9 at 4K-auto HDMI): Vesper rendered as a
-        // 1080p activity pinned to the top-left of the 4K screen.
-        // The launcher (same minSdk/targetSdk, same theme parent,
-        // sideloaded the same way) filled the screen fine.
-        //
-        // Root cause: this activity was adding FLAG_LAYOUT_NO_LIMITS
-        // on top of a theme that ALREADY sets windowFullscreen=true
-        // + windowTranslucentStatus/Navigation=true.  On Android 9 +
-        // S905X3 + 4K HDMI, the window manager interprets that
-        // combination as "render into a compatibility-sized window
-        // (1080p) inside the 4K framebuffer" instead of stretching
-        // to the actual display.  The launcher's theme uses ONLY
-        // `windowFullscreen=true` (no NO_LIMITS, no translucent bar
-        // flags) so it never trips the bug.
-        //
-        // Fix: drop FLAG_LAYOUT_NO_LIMITS entirely.  Edge-to-edge
-        // rendering is already guaranteed by the theme's
-        // `windowFullscreen=true`, which is the standard supported
-        // path.  FLAG_KEEP_SCREEN_ON is preserved (critical for TV
-        // — keeps the box from sleeping during playback).
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        window.addFlags(
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+        )
         // NOTE: applyImmersiveMode() is intentionally NOT called
         // here.  On Android 16 (Pixel 8, Samsung Fold 7) the
         // window.insetsController is null until the DecorView is
@@ -352,82 +300,12 @@ class MainActivity : AppCompatActivity() {
             )
             setBackgroundColor(android.graphics.Color.parseColor("#06080F"))
 
-            // v2.7.94 — GPU layer policy.  THIS IS THE FIX for the
-            // HK1 S905X3 + Android 9 + 4K-HDMI bug the user
-            // reported (modal dialogs rendering bottom-left,
-            // genre panels staying blank, splash artefacting in
-            // a corner).
-            //
-            // PREVIOUSLY we ALWAYS forced the WebView onto
-            // `LAYER_TYPE_HARDWARE` to get 60 fps shelf scrolling
-            // on the older HK1 boxes (S905X / S905W2 / S922X)
-            // whose GPUs are fine.  That's still the right call
-            // for almost every TV box and phone we ship to.
-            //
-            // BUT — the S905X3's Mali-G31 GPU on Android 9 AOSP
-            // firmware has a documented compositor bug where
-            // hardware-layer rendering of WebView at 4K mispositions
-            // `position: fixed` elements, fails async re-renders
-            // of large image-grid layers, and leaves stale framebuffer
-            // tiles in random corners of the surface.  Disabling
-            // hardware layer rendering (forcing software composition
-            // on the WebView's own layer) sidesteps the bug.
-            //
-            // We detect the bad combo defensively:
-            //   • `Build.HARDWARE` contains "amlogic" (any S9xx
-            //     chip) OR "rockchip" (cheaper RK33xx clones)
-            //   • AND Android SDK ≤ 28 (Android 9 — the last AOSP
-            //     release Amlogic shipped with the broken Mali
-            //     driver)
-            //   • OR `Build.MODEL` literally contains "S905X3"
-            //
-            // Working boxes (Android 10+, or non-Amlogic) keep the
-            // fast HARDWARE path.  This change CANNOT regress them.
-            //
-            // ESCAPE HATCH: persist `compat.force_software=true` in
-            // SharedPreferences and software-layer mode is used
-            // regardless of detection.  This can be set without an
-            // APK rebuild by launching the activity once with
-            //   `--ez force_software true`
-            // (via ADB) or via a deep-link `onnowtv://compat?sw=1`.
-            // Critical for the user's 300–500-device rollout — any
-            // box that slips past auto-detection can be patched in
-            // 60 seconds remotely instead of waiting for a new APK.
-            val needle = "${Build.HARDWARE} ${Build.MODEL} ${Build.DEVICE} ${Build.PRODUCT}"
-                .lowercase()
-            val isFragileAmlogic =
-                (("amlogic" in needle || "rockchip" in needle) &&
-                    Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) ||
-                "s905x3" in needle
-
-            // Persistent override — check first, then write if the
-            // intent / deep-link asked us to set it.
-            val compatPrefs = getSharedPreferences("vesper-compat", MODE_PRIVATE)
-            val intentForce = intent?.getBooleanExtra("force_software", false) == true ||
-                (intent?.data?.toString().orEmpty()).contains("sw=1", ignoreCase = true) ||
-                (intent?.data?.toString().orEmpty()).contains("compat=software", ignoreCase = true)
-            if (intentForce) {
-                compatPrefs.edit().putBoolean("force_software", true).apply()
-            }
-            val forceSoftware = compatPrefs.getBoolean("force_software", false)
-
-            val useSoftware = forceSoftware || isFragileAmlogic
-            if (useSoftware) {
-                android.util.Log.w(
-                    "VesperMain",
-                    "Software-layer WebView active. " +
-                        "fragileAmlogic=$isFragileAmlogic forceSoftware=$forceSoftware " +
-                        "needle=[$needle] sdk=${Build.VERSION.SDK_INT}",
-                )
-                setLayerType(android.view.View.LAYER_TYPE_SOFTWARE, null)
-            } else {
-                // Default: dedicated hardware layer so every paint
-                // (and especially shelf scroll transforms) is GPU-
-                // composited.  On the original HK1 / S905W2 / S922X
-                // this is the difference between 30 fps stuttery
-                // scroll and buttery 60 fps LeanBack-style glide.
-                setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
-            }
+            // Force the WebView onto a dedicated hardware layer so
+            // every paint (and especially shelf scroll transforms)
+            // is GPU-composited.  On the HK1's old Mali GPU this is
+            // the difference between 30 fps stuttery scroll and a
+            // buttery 60 fps LeanBack-style glide.
+            setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
             // Bonus on Android 9+: lets the WebView's compositor
             // render off the UI thread (huge win for D-pad nav).
             android.webkit.WebView.setWebContentsDebuggingEnabled(false)
@@ -638,13 +516,6 @@ class MainActivity : AppCompatActivity() {
                                  dataQuery.contains("profile=exit-kids")
         val isV2AIDeepLink     = routeExtra.contains("v2ai=") ||
                                  dataQuery.contains("v2ai=")
-        // v2.10.56 — Launcher's "Backup my profiles first" button on
-        // the Update-available dialog fires us with
-        // `vesper_route=?screen=backup`.  Boot directly to the
-        // Settings → Backup section so the user can save a backup
-        // code before the new APK installs.
-        val isBackupDeepLink   = routeExtra.contains("screen=backup") ||
-                                 dataQuery.contains("screen=backup")
         val isProfileDeepLink  = isKidsDeepLink || isExitKidsDeepLink
 
         val bootUrl = when {
@@ -655,21 +526,11 @@ class MainActivity : AppCompatActivity() {
             // page handles the new title rather than landing on a
             // stale restored route.
             isV2AIDeepLink    -> defaultBoot
-            // Backup-section deep-link → swap the index/Home route
-            // for /settings#backup-section.
-            isBackupDeepLink  -> {
-                val base = defaultBoot.substringBefore("?").trimEnd('/').trimEnd('#')
-                "$base/settings#backup-section"
-            }
             else              -> devUrl ?: restoreUrl ?: defaultBoot
         }
 
         // Append the deep-link query so App.js's synchronous reader
-        // can pick it up before any React component renders.  v2.7.93
-        // also appends `platform=tv` so the React UI uses TV-mode
-        // spatial-nav even on cheap HK1 / X96 boxes where the user
-        // agent / window.matchMedia heuristics might otherwise treat
-        // the WebView as a phone.
+        // can pick it up before any React component renders.
         val finalBootUrl = run {
             val deepLinkQuery = when {
                 routeExtra.contains("profile=") -> routeExtra.substringAfter("?")
@@ -678,12 +539,9 @@ class MainActivity : AppCompatActivity() {
                 dataQuery.contains("v2ai=")     -> dataQuery
                 else                            -> ""
             }
-            val platformQuery = if (isTv) "mobile=0" else ""
-            val parts = listOf(deepLinkQuery, platformQuery).filter { it.isNotBlank() }
-            val joined = parts.joinToString("&")
-            if (joined.isEmpty()) bootUrl
-            else if (bootUrl.contains("?")) "$bootUrl&$joined"
-            else "$bootUrl?$joined"
+            if (deepLinkQuery.isEmpty()) bootUrl
+            else if (bootUrl.contains("?")) "$bootUrl&$deepLinkQuery"
+            else "$bootUrl?$deepLinkQuery"
         }
 
         setContentView(webView)
@@ -726,31 +584,7 @@ class MainActivity : AppCompatActivity() {
                              dataQuery.contains("profile=exit-kids")
             val isV2AI     = routeExtra.contains("v2ai=") ||
                              dataQuery.contains("v2ai=")
-            // v2.10.56 — Launcher Update dialog's "Backup my profiles
-            // first" button.  Navigate the WebView directly to
-            // Settings → Backup section.
-            val isBackup   = routeExtra.contains("screen=backup") ||
-                             dataQuery.contains("screen=backup")
-            if (!webViewReady || (!isKids && !isExitKids && !isV2AI && !isBackup)) return
-            if (isBackup) {
-                val js = """
-                    (function(){
-                        try {
-                            window.location.hash = '#/settings';
-                            setTimeout(function(){
-                                try {
-                                    var el = document.getElementById('backup-section');
-                                    if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
-                                } catch (e) {}
-                            }, 500);
-                        } catch (e) {}
-                    })();
-                """.trimIndent()
-                webView.post {
-                    try { webView.evaluateJavascript(js, null) } catch (_: Throwable) {}
-                }
-                return
-            }
+            if (!webViewReady || (!isKids && !isExitKids && !isV2AI)) return
             // v2.8.25 — V2 AI deep-link: navigate the live React Router
             // to /v2ai-play?title=…&type=… which kicks the search →
             // resolve → autoplay flow.  Re-uses the SAME query the
