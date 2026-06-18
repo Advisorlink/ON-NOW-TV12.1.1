@@ -14,7 +14,7 @@ import 'whatwg-fetch';
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "@/index.css";
-import "@/lib/host"; // sets html.vesper-low-end on genuinely low-end devices
+import "@/lib/host"; // sets html.vesper-host-android / html.vesper-low-end
 import App from "@/App";
 
 // On older Android WebViews (Chrome 52-ish) a runtime error inside

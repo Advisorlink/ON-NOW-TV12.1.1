@@ -183,58 +183,90 @@ body {
 }
 
 /* ------------------------------------------------------------------
-   v2.10.48 — REVERTED Chrome-79-era GPU acceleration hints.
+   v2.10.51 — RESTORED.  These were removed in v2.10.48 on the
+   theory that Chrome 138's native compositor was smarter than
+   the manual hints.  On the user's box the removal made every
+   interaction feel laggy — exactly the symptom we were trying
+   to fix.  Restoring the original GPU acceleration block in full.
 
-   Per user report: "It's when we tried to make it work with WebView
-   79, that's when it started going wrong.  Go back to June 14, take
-   away all that stuff that's making it run like crap."
-
-   The block we removed used to apply:
-
-     * `.vesper-shelf, [data-testid="shelves-region"],
-        [data-testid="home-main"]`
-          → `will-change: scroll-position; transform: translateZ(0);
-             backface-visibility: hidden; contain: layout style;`
-     * `.vesper-shelf-section { contain: layout style }`
-     * `.vesper-shelf-section:has([data-focused="true"]) { z-index: 20 }`
-     * `[data-focusable='true']` → `will-change: transform;
-        transform: translateZ(0); contain: layout style;`
-     * `.vesper-shelf img, [data-testid="shelves-region"] img` →
-        `image-rendering: -webkit-optimize-contrast; transform:
-        translateZ(0); decoding: async;`
-
-   On Chrome 52/79 (the HK1's original System WebView) these manual
-   GPU hints were necessary because the browser's auto-compositor
-   was conservative.  On Chrome 138 (which every HK1 box now runs
-   after the user's manual sideload) they are STRICTLY HARMFUL:
-
-     1.  `[data-focusable='true']` matches ~100+ poster tiles on
-         Home.  Each gets its own compositor layer.  The HK1's
-         Mali-450 GPU only has ~256 MB of texture memory; promoting
-         100+ tiles eats most of it just storing layer bitmaps,
-         leaving nothing for animation buffers.  Result: every
-         focus animation thrashes the texture cache.
-     2.  `contain: layout style` on every focusable tile breaks
-         out of intersection-observer optimizations Chrome 138 does
-         internally — its native lazy-paint is now smarter than our
-         hint.
-     3.  `:has([data-focused="true"])` is re-evaluated on every
-         attribute mutation on any descendant — O(n_shelves) cost
-         per D-pad keypress.  Visible as the "click letter, wait
-         forever" lag the user reported on the search keyboard.
-     4.  `image-rendering: -webkit-optimize-contrast` is a Webkit
-         non-standard property that swapped Lanczos for bilinear
-         filtering — on Chrome 138 the default is already the
-         faster path, AND the override makes posters look chunky.
-
-   What replaces the block: NOTHING.  We let Chrome 138's native
-   compositor + auto-promotion heuristics do their job.  The
-   `image-rendering: auto` (browser default) is sharper.  We keep
-   ONLY `decoding: async` on shelf images since that's a cheap,
-   modern, standards-compliant hint the browser thanks us for.
+   GPU acceleration hints — promote scrollable shelves + focused
+   tiles onto their own compositor layer.  This is the single most
+   important perf knob on the HK1 box's WebView: without it every
+   D-pad press triggers a software re-paint of the WHOLE row (60+
+   posters), causing the chunky "skip" feel.
 ------------------------------------------------------------------ */
+.vesper-shelf,
+[data-testid="shelves-region"],
+[data-testid="home-main"] {
+    will-change: scroll-position;
+    transform: translateZ(0);
+    -webkit-transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    -webkit-overflow-scrolling: touch;
+    /* Tell the browser this scroll container's children are
+       layout-contained — paint / layout of one tile can't affect
+       siblings.  We deliberately omit `paint` from the contain
+       list because `contain: paint` clips painting to the box's
+       content edge, which chops off the bottom ~10 px of a
+       focused tile's scale(1.08) animation.  `layout` + `style`
+       give us the perf win without the clipping. */
+    contain: layout style;
+}
+
+/* Each shelf row is its own paint / layout container so scrolling
+   one row doesn't invalidate sibling rows.  Critical for 60 fps.
+   NOTE: paint containment intentionally OMITTED here — see the
+   comment on `.vesper-shelf` above for why. */
+.vesper-shelf-section {
+    contain: layout style;
+    /* NOTE: we previously also set `content-visibility: auto` here
+       for the off-screen-shelves perf win — but that makes a
+       shelf's descendants render with 0 × 0 layout boxes when the
+       shelf is off-screen, which causes our spatial-focus filter
+       to drop them and the D-pad can't jump to / from off-screen
+       shelves.  The `contain` rule alone gets us the bulk of the
+       perf win without breaking nav. */
+}
+
+/* v2.7.00 — stacking-context lift for the active shelf.  Because
+   `.vesper-shelf-section` carries `contain: layout style` it forms
+   its OWN stacking context, so the focused tile's `z-index: 50`
+   only wins within its own section — the next shelf below paints
+   on top of any overflow from the scale(1.08) animation and clips
+   the bottom edge (progress bar + "X left" on Continue Watching
+   tiles, focus ring on regular posters).  Lift the entire section
+   so its focused-tile overflow always paints above its siblings.
+   `:has()` is Chrome 105+ which the HK1 WebView already supports
+   (we keep it as a progressive enhancement; older WebViews still
+   render the row correctly, they just clip slightly on focus). */
+.vesper-shelf-section:has([data-focused="true"]) {
+    z-index: 20;
+}
+
+/* Every focusable tile gets promoted on-demand so transforms /
+   shadows render off the UI thread. */
+[data-focusable='true'] {
+    /* Limit `will-change` to transform only — older WebViews
+       allocate a full layer for every property listed.  box-shadow
+       compositing comes from the focus-glow rule applying
+       translateZ implicitly via transform: scale(). */
+    will-change: transform;
+    transform: translateZ(0);
+    -webkit-transform: translate3d(0, 0, 0);
+    /* Strict containment on tiles — focus animation can't leak
+       layout pressure into siblings. */
+    contain: layout style;
+}
+
+/* Posters — pre-decode + hint the compositor. */
 .vesper-shelf img,
 [data-testid="shelves-region"] img {
+    image-rendering: -webkit-optimize-contrast;
+    transform: translateZ(0);
+    -webkit-transform: translate3d(0, 0, 0);
+    /* Hint the browser to decode off the main thread when
+       supported (Chrome 65+). */
     decoding: async;
 }
 
@@ -628,45 +660,94 @@ body {
 
 
 /* ------------------------------------------------------------------
-   v2.10.48 — Performance mode REMOVED.
+   v2.10.51 — RESTORED.  These were stripped in v2.10.48 on the
+   theory they were net-negative under Chrome 138.  User feedback
+   on the box says the opposite: removing them slowed everything
+   down.  Restoring the full original `.vesper-host-android` perf-
+   mode block exactly as it was before v2.10.44.
 
-   The block previously here applied a `.vesper-host-android *`
-   universal selector (with 7 chained `:not()` clauses) that killed
-   all animations + applied `image-rendering: optimizeSpeed` +
-   `content-visibility: auto` on every shelf — all justified by the
-   HK1 box's original Chrome 52/79 System WebView.  Now that every
-   HK1 in the field runs Chrome 138 (manual sideload), every one of
-   those overrides is a NET-NEGATIVE on perf:
-
-     * The `*:not()…:not()` selector chain recomputes on every
-       style invalidation — measurable cost with hundreds of tiles.
-     * `image-rendering: optimizeSpeed` makes posters chunky AND on
-       Chrome 138's GPU compositor is slower than the default.
-     * `content-visibility: auto` was supposed to skip off-screen
-       layout, but Chrome 138 has better native lazy-paint
-       heuristics; the manual hint causes extra layout work.
-
-   `.vesper-host-android` is no longer auto-applied by `host.js`
-   (see v2.10.44).  `.vesper-low-end` rules left below for the
-   handful of genuinely low-end devices (`Host.isLowEnd === true`).
+   Performance mode — applied automatically when running inside the
+   OnNowTV Android WebView OR on any device the host detects as
+   low-end (≤2 cores / ≤2 GB RAM heuristic).  Disables the most
+   GPU-expensive effects (backdrop-blur, grain, ken-burns, pulse)
+   so cheap HK1 boxes can scroll at 60 fps.
 ------------------------------------------------------------------ */
-.vesper-low-end .vesper-glass {
+.vesper-low-end .vesper-glass,
+.vesper-host-android .vesper-glass {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     background: rgba(15, 21, 36, 0.92) !important;
 }
-.vesper-low-end .vesper-grain::after {
+.vesper-low-end .vesper-grain::after,
+.vesper-host-android .vesper-grain::after {
     display: none !important;
 }
-.vesper-low-end * {
+.vesper-low-end *,
+.vesper-host-android *:not([data-keep-anim='true']):not(.vesper-spin):not(.vesper-dots):not(.lvtv-spin):not(.kk-spin):not(.orbital-loader):not([data-loading-anim='true']) {
     animation-duration: 0.001s !important;
     animation-iteration-count: 1 !important;
 }
-.vesper-low-end .vesper-spin {
+/* v2.10.24 — Loading spinners MUST keep animating even in perf
+   mode, otherwise the user thinks the app is frozen.  Re-assert
+   the animations the global stripper above would otherwise kill. */
+.vesper-low-end .vesper-spin,
+.vesper-host-android .vesper-spin {
     animation: vesperSpin 1s linear infinite !important;
 }
-.vesper-low-end .vesper-dots {
+.vesper-low-end .vesper-dots,
+.vesper-host-android .vesper-dots {
     animation: vesperDotsPulse 1.4s ease-in-out infinite !important;
+}
+.vesper-low-end [data-focusable='true'],
+.vesper-host-android [data-focusable='true'] {
+    /* Override: snap focus instantly on the TV box.  The 200 ms
+       transition was the biggest source of the "ghost glow under
+       the next tile" the user kept reporting — the previous tile's
+       scale-out was still in flight while the new tile scaled in. */
+    transition: none !important;
+}
+/* Pop-out effect on focused tiles + pills — kept enabled even in
+   perf mode because it's the single most "alive" feedback users get
+   from a TV remote. */
+.vesper-low-end [data-focusable='true'][data-focus-style='tile']:focus-visible,
+.vesper-host-android [data-focusable='true'][data-focus-style='tile']:focus-visible {
+    transform: scale(1.07) translateZ(0) !important;
+    z-index: 5 !important;
+    box-shadow: 0 0 0 3px var(--vesper-blue) !important;
+}
+.vesper-low-end [data-focusable='true'][data-focus-style='pill']:focus-visible,
+.vesper-host-android [data-focusable='true'][data-focus-style='pill']:focus-visible {
+    transform: scale(1.04) translateZ(0) !important;
+    box-shadow: 0 0 0 3px rgba(93, 200, 255, 0.85) !important;
+}
+.vesper-low-end [data-focusable='true'][data-focus-style='quiet']:focus-visible,
+.vesper-host-android [data-focusable='true'][data-focus-style='quiet']:focus-visible {
+    box-shadow: 0 0 0 2px rgba(93, 200, 255, 0.7) !important;
+}
+.vesper-low-end img,
+.vesper-host-android img {
+    image-rendering: optimizeSpeed;
+}
+
+/* `content-visibility: auto` lets the browser skip layout / paint
+   for off-screen shelves entirely.  On Chromium-based WebViews
+   (which all modern HK1 boxes ship) this is a huge win — the
+   browser only paints what's in the scroll viewport.
+   We attach `contain-intrinsic-size` so the placeholder is the
+   same height as a real shelf, preventing scroll jumps. */
+.vesper-low-end .vesper-shelf-section,
+.vesper-host-android .vesper-shelf-section {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 360px;
+}
+
+/* Tighter sizing inside the Android wrapper — cheap HK1 boxes
+   often sit on small TVs (24"-32") where our default desktop
+   sizing felt cramped.  Shrinks paddings + hero so everything
+   fits a 1280x720 panel comfortably. */
+.vesper-host-android {
+    --vesper-side-pad-min: 96px;
+    --vesper-side-pad-max: 132px;
 }
 
 /* Permanently hide the Emergent preview badge AND the

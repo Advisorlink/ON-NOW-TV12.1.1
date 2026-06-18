@@ -1,5 +1,15 @@
 # ON NOW TV V2 — PRD
 
+> **🚨 v2.10.51 — REVERTED v2.10.44 + v2.10.48.  Vesper perf-mode CSS restored exactly as it was (10 Feb 2026).**
+>
+> My v2.10.44 + v2.10.48 attempts to strip the `.vesper-host-android` ruleset + the universal GPU-promotion CSS made performance WORSE on the user's HK1+Chrome-138 box, not better.  All of that code is now restored to the exact state it was in before I touched it.
+>
+> What's restored: `host.js` auto-adds `vesper-host-android` on Android UAs.  `index.css` carries the full GPU-promotion block at the top (`.vesper-shelf` containment hints, `[data-focusable='true']` will-change, posters' translateZ, `:has` lift) AND the full `.vesper-host-android *` perf-mode block in the middle (animation stripper, instant-snap focus transitions, content-visibility on shelves, side-padding overrides).
+>
+> Detailed write-up: `CHANGELOG.md` → `## v2.10.51`.
+
+---
+
 > **🚨 v2.10.50 — Launcher "Update available" prompt no longer re-fires after install (10 Feb 2026).**
 >
 > Two stacked bugs in `MainActivity`:
