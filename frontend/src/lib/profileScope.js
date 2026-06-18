@@ -11,17 +11,52 @@
  * in profiles.js.  If no profile is active we fall back to a
  * deterministic "global" namespace so the app still functions
  * before the user picks a profile (e.g. during a brand-new install).
+ *
+ * v2.10.57 — Per-account-isolation fix.  profiles.js stores the
+ * active-profile-id at the **account-suffixed** key
+ *   `onnowtv-active-profile-v1:<username>`
+ * so each signed-in Vesper account keeps its own active profile.
+ * This file used to read only the legacy un-suffixed key, which
+ * silently returned null on any fresh install (post-v2.10.52
+ * per-account isolation refactor).  That made every `readScopedString`
+ * fall back to the `:global` namespace — meaning ForYouShelf,
+ * Continue Watching, Watched flags etc. lost track of the actual
+ * profile and rendered empty.  We now mirror profiles.js's suffix
+ * logic, with the legacy un-suffixed key kept as a fallback so
+ * pre-v2.10.52 installs continue to work.
  */
 
-const ACTIVE_KEY = 'onnowtv-active-profile-v1';
+const BASE_ACTIVE_KEY = 'onnowtv-active-profile-v1';
+
+/** Mirror of profiles.js `_accountSuffix()`.  Kept inline so this
+ *  module stays import-free and free of circular dependencies. */
+function _accountSuffix() {
+    try {
+        if (typeof localStorage === 'undefined') return '';
+        const raw = localStorage.getItem('vesper-auth-account-v1');
+        if (!raw) return '';
+        const acc = JSON.parse(raw);
+        const u = (acc && acc.username) || '';
+        if (!u) return '';
+        return ':' + String(u).replace(/[^A-Za-z0-9_-]+/g, '_');
+    } catch {
+        return '';
+    }
+}
 
 export function activeProfileId() {
     try {
-        return (
-            (typeof localStorage !== 'undefined' &&
-                localStorage.getItem(ACTIVE_KEY)) ||
-            'global'
-        );
+        if (typeof localStorage === 'undefined') return 'global';
+        // Preferred: the account-suffixed key written by profiles.js
+        // (matches what `setActiveProfile()` writes after v2.10.52).
+        const scoped = localStorage.getItem(BASE_ACTIVE_KEY + _accountSuffix());
+        if (scoped) return scoped;
+        // Legacy fallback: pre-v2.10.52 installs without an account
+        // suffix.  Lets the app continue to work for users still on
+        // legacy storage before they first sign in.
+        const legacy = localStorage.getItem(BASE_ACTIVE_KEY);
+        if (legacy) return legacy;
+        return 'global';
     } catch {
         return 'global';
     }
