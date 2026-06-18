@@ -1,5 +1,40 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.44 — Disable Chrome-79-era "perf mode" auto-class on Android (2026-02-10)
+
+User report (after the v2.10.43 APK + after sideloading Chrome 138 on the HK1): "It's still running at that really slow rate.  When you click on a B-letter it takes forever for it to go through.  Every single time we do an update now, it's super super slow, the actual movement and moving around.  The box is fixed now [Chrome 138], so we don't need to worry about anything.  Go back to exactly how it was before we started fiddling around."
+
+### Root cause
+
+`frontend/src/lib/host.js` was unconditionally adding `vesper-host-android` to `<html>` whenever the user-agent contained `OnNowTV` or `Android`.  That class was the entry point for a large block of "perf mode" CSS in `index.css` that was originally tuned for the HK1 box's original Chrome 52 / Chrome 79 System WebView.  The most expensive offenders:
+
+1.  `.vesper-host-android *:not([data-keep-anim='true']):not(.vesper-spin):not(.vesper-dots):not(.lvtv-spin):not(.kk-spin):not(.orbital-loader):not([data-loading-anim='true']) { animation-duration: 0.001s !important; animation-iteration-count: 1 !important; }` — a universal `*` selector chained with seven `:not()` clauses, recomputed on **every** style invalidation.  With hundreds of focusable tiles on Home / Browse it's a measurable per-frame cost.
+
+2.  `.vesper-host-android .vesper-shelf-section { content-visibility: auto; contain-intrinsic-size: 1px 360px; }` — forces the WebView to maintain intersection state for every shelf on every scroll.  On Chrome 138 the native lazy-paint heuristics are already better; the manual hint causes EXTRA layout work.
+
+3.  `.vesper-host-android img { image-rendering: optimizeSpeed }` — visibly chunky posters AND on Chrome 138's GPU compositor it's slower than the default `auto`.
+
+User's box has been on Chrome 138 since the manual sideload — none of the above is needed any more.
+
+### Fix
+
+`host.js` no longer adds `vesper-host-android` to `<html>`.  Result: every `.vesper-host-android *…` rule in `index.css` matches nothing → zero per-frame cost from the universal selector → smooth D-pad navigation again, animations back to normal.  `.vesper-low-end` is **still** applied when `Host.isLowEnd` is true (genuine ≤2-core / ≤2 GB RAM heuristic), so any truly low-end device opting in via host detection still gets the lightweight chrome.
+
+The CSS rules themselves are LEFT IN `index.css` (the class just never gets applied) so they're available as a future escape hatch if we ever need them again.
+
+### Files touched
+
+- `frontend/src/lib/host.js` — auto-add of `vesper-host-android` removed; long inline comment explains why.
+- `frontend/src/index.js` — comment updated to reflect the new behaviour.
+
+### Smoke test
+
+- Grep confirms `classList.add('vesper-host-android')` is gone (no more call sites).
+- JS lint clean.
+- CSS untouched on purpose (rules now dead code, but kept as documented escape hatch).
+
+
+
 ## v2.10.43 — FullScreen BACK returns to previous page + Artist sticky hero no longer bleeds through (2026-02-10)
 
 User reports after the v2.10.42 APK:

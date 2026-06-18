@@ -1,5 +1,15 @@
 # ON NOW TV V2 — PRD
 
+> **🚨 v2.10.44 — Disable Chrome-79-era "perf mode" auto-class on Android (10 Feb 2026).**
+>
+> `frontend/src/lib/host.js` was unconditionally adding `vesper-host-android` to `<html>` on any Android user-agent.  That class triggered a block of "perf mode" CSS in `index.css` originally tuned for Chrome 52 / Chrome 79: a universal `*:not():not():not():not():not():not():not()` animation-killer, `content-visibility: auto` on every shelf, and `image-rendering: optimizeSpeed` on every image.  Now that every HK1 box in the field runs Chrome 138 (sideloaded), all three are NET-NEGATIVE for performance.
+>
+> **Fix:** Stop auto-applying `vesper-host-android`.  CSS rules left in place as a dead-code escape hatch.  `vesper-low-end` is still applied for genuinely low-end devices (`Host.isLowEnd`).
+>
+> Detailed write-up: `CHANGELOG.md` → `## v2.10.44`.
+
+---
+
 > **🚨 v2.10.43 — FullScreen BACK returns to previous page + Artist sticky hero no longer bleeds through (10 Feb 2026).**
 >
 > Two bugs reported after the v2.10.42 APK: (1) BACK in FullScreenPlayer was hitting `webView.goBack()` which dumped the user onto a wrong URL; (2) the Artist hero used a gradient with a transparent bottom 30%, so track rows scrolling UP were visible *through* the hero, looking like the content was "scrolling into" it.

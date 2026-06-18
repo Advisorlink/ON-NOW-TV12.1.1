@@ -356,10 +356,42 @@ function mimeFor(url, type) {
     return type || 'video/*';
 }
 
-// Expose performance mode to CSS so we can switch off heavy effects.
+// v2.10.44 — DISABLED auto-application of `vesper-host-android`.
+//
+// This class was originally added to opt-in to the aggressive "perf
+// mode" CSS in index.css (`.vesper-host-android *:not(…):not(…):not(…)
+// { animation-duration: 0.001s !important }`, `content-visibility:
+// auto` on every shelf, `image-rendering: optimizeSpeed`, etc.) so
+// the app would run smoothly on the HK1 box's original Chrome 52
+// / Chrome 79 System WebView.
+//
+// User reports (Feb 2026) that ever since they sideloaded Chrome
+// 138 onto the HK1, those overrides are HURTING performance:
+//   * The universal `*` selector with seven chained `:not()` clauses
+//     is recomputed on every style invalidation — a measurable cost
+//     when hundreds of focusables (poster tiles, etc.) repaint.
+//   * `content-visibility: auto` forces extra layout work on every
+//     shelf because the WebView now has to measure intersection
+//     state per frame; on Chrome 138 the native lazy-paint heuristics
+//     are already better than this manual hint.
+//   * `image-rendering: optimizeSpeed` makes posters look chunkier
+//     AND on Chrome 138's GPU compositor it actually slows down
+//     vs. the default `auto`.
+//
+// User's exact ask: "Go back to exactly how it was before we
+// started fiddling around [for the Chrome 138 thing].  The box is
+// fixed now, so we don't need to worry about anything."  Stripping
+// the auto-class addition reverts the runtime behaviour to "modern
+// Chromium defaults", which is what we want now that every HK1 box
+// in the field has Chrome 138 (or newer) installed.
+//
+// `vesper-low-end` is still applied when Host.isLowEnd is true
+// (genuine ≤2-core/≤2-GB devices) — those still benefit from the
+// blur/grain stripping.
 if (typeof document !== 'undefined') {
     if (Host.isLowEnd) document.documentElement.classList.add('vesper-low-end');
-    if (Host.isAndroid) document.documentElement.classList.add('vesper-host-android');
+    // Intentionally NOT adding 'vesper-host-android' anymore.  See
+    // the comment above for the full rationale.
 }
 
 export default Host;
