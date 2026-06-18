@@ -1,5 +1,36 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.53 — Vesper in-app update prompt DISABLED (launcher is now the single source of update truth) (2026-02-10)
+
+User report: "Every time we update GitHub it's sending an update to these boxes and ruining the boxes because of the wrong versions.  The only pop-ups for updates that should happen are through the launcher, not through the app itself at all.  Remove the update completely."
+
+### Fix
+
+`<UpdateGate />` removed from `frontend/src/App.js`'s render tree (commented out, not deleted, so it can be flipped back on with a one-line change later if ever wanted).  The component's `useEffect` only runs when mounted, so:
+
+* No 6-hour `/api/app/latest-version` polling.
+* No comparison against `window.__APP_VERSION__`.
+* No in-app "Update available" popup.
+* No download / install triggered from within Vesper itself.
+
+The launcher's tile-level update flow (see `MainActivity.kt` + `UpdateAvailableDialog.kt` — the `installedApkUrl` vs `remoteUrl` URL comparison + the v2.10.50 self-healing record) is now the SOLE source of update prompts for the Vesper APK.  When the admin uploads a new APK to the launcher backend, the user sees the prompt on the launcher's Movies tile.  Inside Vesper itself: nothing.
+
+### Why this matters operationally
+
+The user's pain pattern: GitHub Actions builds a new APK on every push to `main`, the in-app `UpdateGate` immediately detects "new version" via `/api/app/latest-version`, pops up the install prompt, and the user accidentally installs a freshly-built (potentially broken) build on their box.  Centralising updates through the launcher gives the user one clear chokepoint — they only update by deliberately uploading a known-good APK to the Movies tile.
+
+### Files touched
+
+- `frontend/src/App.js` — wrapped `<UpdateGate />` in JSX comment; long-form explanation comment added so future maintainers don't re-enable it without context.
+
+### Smoke test (Playwright)
+
+- `/` loads cleanly with simulated `window.__APP_VERSION__ = '2.0.0'` (would have triggered the old gate); no update-prompt element in DOM.
+- Bundle clean, lint clean.
+- `UpdateGate.jsx` itself is untouched on disk so the gate can be revived later by un-commenting the single `<UpdateGate />` JSX line.
+
+
+
 ## v2.10.52 — Surgical revert of Vesper-shared files to v2.10.17 (the working Movies APK) (2026-02-10)
 
 User report (5th iteration, very upset): "The Vesper that's attached to the Movies APK section in the launcher is the version that works.  I need you to put everything back to exactly how this is.  But rollback isn't an option because I'll lose hundreds of dollars of paid work on Music + Launcher + Live TV."

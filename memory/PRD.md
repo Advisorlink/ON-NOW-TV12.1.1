@@ -1,5 +1,13 @@
 # ON NOW TV V2 — PRD
 
+> **🚨 v2.10.53 — Vesper in-app update prompt DISABLED.  Launcher is now the SINGLE source of update truth (10 Feb 2026).**
+>
+> `<UpdateGate />` removed from `App.js`'s render tree (JSX-commented, not deleted).  No more 6-hour `/api/app/latest-version` polling.  No more in-app "Update available" popup.  No more accidental installs of freshly-built dev APKs.  All Vesper updates now flow exclusively through the launcher's tile-level update flow.
+>
+> Detailed write-up: `CHANGELOG.md` → `## v2.10.53`.
+
+---
+
 > **🚨 v2.10.52 — Surgical revert of 5 Vesper-shared files to v2.10.17 commit `e12a38e3`.  Music + Launcher + Live TV paid work preserved (10 Feb 2026).**
 >
 > Fetched the launcher backend dock and confirmed: the Movies tile is currently pointing at `onnowtv-v2-debug (26).apk` = `apk_version: 2.10.17`, `apk_version_code: 692`.  Found the matching git commit (`e12a38e3` from 2026-06-09 08:52) and surgically `git checkout`ed JUST the 5 files where post-v2.10.17 drift affected Vesper navigation perf:
