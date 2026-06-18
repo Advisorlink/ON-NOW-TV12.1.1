@@ -243,6 +243,20 @@ function TunesNav({ theme, onThemeChange }) {
                     </button>
                 </div>
             </div>
+
+            {/* v2.10.41 — Visible build-version badge.  Sits at the bottom
+                of the expanded rail so the user can verify at a glance
+                that their sideloaded APK actually picked up the latest
+                React bundle.  Pulls from REACT_APP_VESPER_BUILD_VERSION
+                which the GitHub Actions workflow bakes in at build time
+                (CHANGELOG.md top heading + workflow run number).  Falls
+                back to "dev" when running locally. */}
+            <div className="tunes-nav__build" data-testid="tunes-build-version">
+                <span className="tunes-nav__build-label">Build</span>
+                <span className="tunes-nav__build-value">
+                    {process.env.REACT_APP_VESPER_BUILD_VERSION || 'dev'}
+                </span>
+            </div>
         </nav>
     );
 }

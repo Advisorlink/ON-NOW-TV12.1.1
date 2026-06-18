@@ -336,6 +336,44 @@
     color: var(--vesper-blue-bright);
 }
 
+/* v2.10.41 — Build-version badge.  Tucked at the bottom of the
+   expanded rail so the user can verify which APK build is running. */
+.tunes-nav__build {
+    margin: 12px 12px 4px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    opacity: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: opacity 220ms ease 80ms, max-height 260ms ease;
+}
+
+.tunes-nav[data-expanded="true"] .tunes-nav__build {
+    opacity: 1;
+    max-height: 60px;
+}
+
+.tunes-nav__build-label {
+    font-family: 'Geist Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--vesper-text-3);
+}
+
+.tunes-nav__build-value {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    color: var(--vesper-blue-bright);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
 /* ============================================================
    Main content area
 ============================================================ */

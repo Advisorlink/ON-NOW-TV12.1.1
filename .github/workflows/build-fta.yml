@@ -68,8 +68,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # versionCode = 1 + commit count touching android/onnowtv-fta/
-          VC=$(( 1 + $(git rev-list --count HEAD -- android/onnowtv-fta/ || echo 0) ))
+          # v2.10.41 — versionCode bumped to GITHUB_RUN_NUMBER-based formula
+          # so it strictly increases on every workflow run, even when only
+          # `frontend/**` (React) files changed.  The old `1 + git rev-list
+          # --count HEAD -- android/onnowtv-fta/` formula stayed flat across
+          # frontend-only pushes, which made Android refuse to install the
+          # new APK over the existing one (same versionCode = no upgrade).
+          # Symptom on the box: "I installed the update and nothing changed".
+          # Bias of 1000 guarantees we never collide with the old sequence
+          # already shipped to users.
+          VC=$(( 1000 + GITHUB_RUN_NUMBER ))
           # versionName = first ## v2.8.x heading in CHANGELOG.md, else 1.0.0
           VN=$(grep -m1 -E '^## v[0-9]+\.[0-9]+\.[0-9]+' CHANGELOG.md | sed -E 's/^## v([0-9]+\.[0-9]+\.[0-9]+).*/\1/' || true)
           [ -z "$VN" ] && VN="1.0.0"

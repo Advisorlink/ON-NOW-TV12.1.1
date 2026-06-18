@@ -1,5 +1,47 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.41 — Fix "the update did nothing" — APK upgrades blocked by stale versionCode (2026-02-10)
+
+User report (in chat, last 5+ pushes): "I built the APK, downloaded it, installed it on the box — nothing changed.  Everything is exactly the same."
+
+### Root cause
+
+Four of our Android build workflows derived `versionCode` from `git rev-list --count HEAD -- <android-dir>/`.  Because all the recent UX work has been in `frontend/**` (React) — NOT inside the path-scoped Android directory — that commit count was stuck at the same value across every workflow run.  Android's PackageInstaller refuses to upgrade an app over the existing install when the new APK has a `versionCode <=` the installed one, so the sideload either failed with a silent reject ("App not installed") or installed but kept the previously cached APK in place.  Net effect on the box: the user kept opening the same old build.
+
+Affected workflows:
+
+- `.github/workflows/build-tunes.yml` — `1 + git rev-list --count HEAD -- android/onnowtv-tunes/` → **fixed**
+- `.github/workflows/build-fta.yml` — same pattern → **fixed**
+- `.github/workflows/build-fta-native.yml` — same pattern → **fixed**
+- `.github/workflows/build-livetv.yml` — same pattern → **fixed**
+
+`build-apk.yml` (Vesper) and `build-kids.yml` and `build-launcher.yml` already used `GITHUB_RUN_NUMBER` and were unaffected.
+
+### Fix
+
+All four broken workflows now use `VC=$(( 1000 + GITHUB_RUN_NUMBER ))` — a strictly-increasing integer on every workflow run, regardless of which paths were touched.  Bias of `1000` keeps the new sequence safely above the old commit-count-derived values already shipped to users.
+
+### Visible build badge
+
+To make this kind of "did the new APK actually install?" question instantly answerable on the box, every React build now bakes its build label (`v2.10.41-rc<runNumber>`) into `REACT_APP_VESPER_BUILD_VERSION`.  The Tunes Music nav rail renders that string in a small badge at the bottom of the expanded rail (`data-testid="tunes-build-version"`).  When the user expands the rail on the box, the badge will read the EXACT build label that's running — so any future "did it update?" question becomes a one-second visual check.
+
+### Files touched
+
+- `.github/workflows/build-tunes.yml` — versionCode formula + early version step + `REACT_APP_VESPER_BUILD_VERSION` env injection.
+- `.github/workflows/build-apk.yml`   — same env injection, version step moved before React build.
+- `.github/workflows/build-kids.yml`  — same env injection, version step moved before React build.
+- `.github/workflows/build-fta.yml`, `build-fta-native.yml`, `build-livetv.yml` — versionCode formula fix.
+- `frontend/src/pages/music/MusicLayout.jsx` — render build badge under theme picker.
+- `frontend/src/pages/music/tunes.css` — `.tunes-nav__build` styles.
+
+### Smoke test
+
+- React build runs locally clean (`yarn build` produces a build/ with the env var baked into the JS).
+- Workflow YAML is syntactically valid (no `gh workflow run` available in this sandbox so verification is by visual inspection + grep against `actionlint`-style rules).
+- The user will visually verify on the box: expand the rail → bottom of the rail must read `v2.10.41-rc<N>` once the new APK is installed.
+
+
+
 ## v2.10.17 — Revert v2.10.16 D-pad "polish" (made things worse) (2026-02-09)
 
 User report (`0pqg4a68_20260609_184341.mp4`): "Its running worse than it was before."  My v2.10.16 attempt made navigation visibly worse — trailing focus ring, focus jumps, and hesitation between tiles.

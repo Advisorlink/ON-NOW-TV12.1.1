@@ -1,7 +1,22 @@
 # ON NOW TV V2 — PRD
 
-> **🔥 v2.10.31 — ROOT CAUSE FOUND + targeted Chrome-79 CSS shim (16 Jun 2026 night).**
+> **🚨 v2.10.41 — Fixed "the update did nothing" — APK upgrades silently blocked by stale versionCode (10 Feb 2026).**
 >
+> **Root cause:** Four Android build workflows (`build-tunes.yml`, `build-fta.yml`, `build-fta-native.yml`, `build-livetv.yml`) derived `versionCode` from a path-scoped commit count (`git rev-list --count HEAD -- android/<dir>/`).  Because 100% of the recent UX work has lived in `frontend/**` (React), that commit count stayed flat across every workflow run.  Android refuses to install an APK over the existing app when `versionCode` is `<=` the installed value, so the user's "Save to GitHub → wait for Action → download new APK → install" cycle kept producing a same-versionCode APK that the box silently rejected.  Net: every push for ~5 cycles felt like "nothing changed" — because nothing on the box DID change.
+>
+> **Fix shipped in this commit:**
+>   1. Switched all four broken workflows to `VC=$(( 1000 + GITHUB_RUN_NUMBER ))` — strictly-increasing on every run, regardless of which paths changed.  Bias of `1000` keeps the new sequence safely above the old values already shipped to users.
+>   2. **Visible build badge** added to the Music nav rail (bottom of the expanded rail, `data-testid="tunes-build-version"`).  Renders `REACT_APP_VESPER_BUILD_VERSION` which the workflows now bake into the React bundle as `<versionName>-rc<runNumber>`.  Lets the user verify at a glance which APK build is actually running on the box.
+>   3. Moved the "Derive versionCode + versionName" step BEFORE "Build React app" in `build-tunes.yml`, `build-apk.yml`, `build-kids.yml` so the env var is set before the React build sees it.
+>
+> **What user must do:** Save to GitHub → wait for `build-tunes.yml` to complete → install the new `onnowtv-tunes-debug.apk` from the `tunes-latest` release → expand the Music nav rail → bottom of the rail should now read `v2.10.41-rc<run>` (not "dev" — that's the local-only fallback).
+>
+> Detailed write-up: `CHANGELOG.md` → `## v2.10.41`.
+
+---
+
+## v2.10.31 — ROOT CAUSE FOUND + targeted Chrome-79 CSS shim (16 Jun 2026 night) — RESOLVED, REVERTED.
+
 > Both HK1 diagnostic dumps received and compared.  Every line is identical between the two "Android 9" boxes **except one**:
 >
 > | Field | Working box | Broken box |

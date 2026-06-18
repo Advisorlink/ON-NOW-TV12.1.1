@@ -44,6 +44,46 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Derive versionName + versionCode (early — needed by React build)
+        id: ver
+        run: |
+          # Read the topmost `## v…` line in CHANGELOG.md so the
+          # APK's versionName always matches the latest published
+          # change.  The previous workflow hardcoded "2.7.28" and
+          # never bumped, so the in-app update gate kept seeing
+          # "running == latest" and silently never prompted users
+          # to install new builds.  This step fixes that forever.
+          VNAME=$(grep -m1 -E '^## v[0-9]+\.[0-9]+\.[0-9]+' CHANGELOG.md | sed -E 's/^## v([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+          if [ -z "$VNAME" ]; then
+            echo "❌ Could not parse a version from CHANGELOG.md top heading"
+            exit 1
+          fi
+          # versionCode = 200 + monotonically-increasing CI run number,
+          # which guarantees a strictly higher integer on EVERY push
+          # (Android requires versionCode to increase for upgrades).
+          VCODE=$(( 200 + GITHUB_RUN_NUMBER ))
+          # v2.10.41 — Bake the build label into the React bundle as
+          # REACT_APP_VESPER_BUILD_VERSION so the in-app build badge
+          # (rendered in the Music nav rail) renders the right value.
+          BUILD_LABEL="${VNAME}-rc${GITHUB_RUN_NUMBER}"
+          echo "Detected versionName=$VNAME versionCode=$VCODE buildLabel=$BUILD_LABEL"
+          echo "vname=$VNAME"                                >> "$GITHUB_OUTPUT"
+          echo "vcode=$VCODE"                                >> "$GITHUB_OUTPUT"
+          echo "build_label=$BUILD_LABEL"                    >> "$GITHUB_OUTPUT"
+          echo "REACT_APP_VESPER_BUILD_VERSION=$BUILD_LABEL" >> "$GITHUB_ENV"
+
+          # Extract THIS version's release-notes block from CHANGELOG
+          # — from "## v$VNAME" up to (but excluding) the next "## v".
+          # Saved to a file so the gh-release step can read it via
+          # `body_path:`, instead of stale hardcoded text below.
+          awk -v ver="## v$VNAME" '
+            $0 ~ ver { found=1; print; next }
+            /^## v/  { if (found) exit }
+            found    { print }
+          ' CHANGELOG.md > release-notes.md
+          echo "=== release-notes.md ==="
+          head -40 release-notes.md
+
       - name: Install Yarn deps
         working-directory: frontend
         run: yarn install --network-timeout 600000
@@ -256,40 +296,6 @@ jobs:
           gradle wrapper --gradle-version 8.7
           chmod +x ./gradlew
           ./gradlew --version
-
-      - name: Derive versionName + versionCode from CHANGELOG
-        id: ver
-        run: |
-          # Read the topmost `## v…` line in CHANGELOG.md so the
-          # APK's versionName always matches the latest published
-          # change.  The previous workflow hardcoded "2.7.28" and
-          # never bumped, so the in-app update gate kept seeing
-          # "running == latest" and silently never prompted users
-          # to install new builds.  This step fixes that forever.
-          VNAME=$(grep -m1 -E '^## v[0-9]+\.[0-9]+\.[0-9]+' CHANGELOG.md | sed -E 's/^## v([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
-          if [ -z "$VNAME" ]; then
-            echo "❌ Could not parse a version from CHANGELOG.md top heading"
-            exit 1
-          fi
-          # versionCode = 200 + monotonically-increasing CI run number,
-          # which guarantees a strictly higher integer on EVERY push
-          # (Android requires versionCode to increase for upgrades).
-          VCODE=$(( 200 + GITHUB_RUN_NUMBER ))
-          echo "Detected versionName=$VNAME versionCode=$VCODE"
-          echo "vname=$VNAME" >> "$GITHUB_OUTPUT"
-          echo "vcode=$VCODE" >> "$GITHUB_OUTPUT"
-
-          # Extract THIS version's release-notes block from CHANGELOG
-          # — from "## v$VNAME" up to (but excluding) the next "## v".
-          # Saved to a file so the gh-release step can read it via
-          # `body_path:`, instead of stale hardcoded text below.
-          awk -v ver="## v$VNAME" '
-            $0 ~ ver { found=1; print; next }
-            /^## v/  { if (found) exit }
-            found    { print }
-          ' CHANGELOG.md > release-notes.md
-          echo "=== release-notes.md ==="
-          head -40 release-notes.md
 
       - name: Build debug APK
         working-directory: android/vesper-tv

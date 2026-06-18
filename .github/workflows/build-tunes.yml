@@ -33,6 +33,41 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Derive versionCode + versionName (early — needed by React build)
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          # v2.10.41 — versionCode now derived from GITHUB_RUN_NUMBER
+          # (always-increasing), NOT just commits touching
+          # `android/onnowtv-tunes/`.  The old formula meant
+          # frontend-only changes (which is 95% of Tunes' code, since
+          # the React Music app lives in `frontend/`) never bumped the
+          # versionCode — so every new APK had the SAME versionCode
+          # as the previous one.  Android's PackageInstaller refuses to
+          # upgrade over an existing install when versionCode is equal
+          # ("INSTALL_FAILED_VERSION_DOWNGRADE" / silent reject).  The
+          # symptom on the box was "I installed the new APK and nothing
+          # changed" — because the install never actually replaced the
+          # running app.  GITHUB_RUN_NUMBER guarantees a strictly higher
+          # integer on every single workflow run.  We bias by 1000 so
+          # the new sequence never collides with the old
+          # `1 + commit_count` numbers already shipped to users.
+          VC=$(( 1000 + GITHUB_RUN_NUMBER ))
+          # versionName = first ## v2.x heading in CHANGELOG.md, else 1.0.0
+          VN=$(grep -m1 -E '^## v[0-9]+\.[0-9]+\.[0-9]+' CHANGELOG.md | sed -E 's/^## v([0-9]+\.[0-9]+\.[0-9]+).*/\1/' || true)
+          [ -z "$VN" ] && VN="1.0.0"
+          # Combined human-readable build label baked into the React
+          # bundle as REACT_APP_VESPER_BUILD_VERSION (rendered in the
+          # Tunes nav rail's build badge so the user can verify at a
+          # glance which APK is running on the box).
+          BUILD_LABEL="${VN}-rc${GITHUB_RUN_NUMBER}"
+          echo "VC=$VC"                                 >> $GITHUB_OUTPUT
+          echo "VN=$VN"                                 >> $GITHUB_OUTPUT
+          echo "BUILD_LABEL=$BUILD_LABEL"               >> $GITHUB_OUTPUT
+          echo "REACT_APP_VESPER_BUILD_VERSION=$BUILD_LABEL" >> $GITHUB_ENV
+          echo "versionCode=$VC versionName=$VN buildLabel=$BUILD_LABEL"
+
       - name: Install Yarn deps
         working-directory: frontend
         run: yarn install --network-timeout 600000
@@ -135,20 +170,6 @@ jobs:
           fi
           echo "$GRADLE_DIR/bin" >> "$GITHUB_PATH"
           "$GRADLE_DIR/bin/gradle" --version
-
-      - name: Derive versionCode + versionName
-        id: version
-        shell: bash
-        run: |
-          set -euo pipefail
-          # versionCode = 1 + commit count touching android/onnowtv-tunes/
-          VC=$(( 1 + $(git rev-list --count HEAD -- android/onnowtv-tunes/ || echo 0) ))
-          # versionName = first ## v2.8.x heading in CHANGELOG.md, else 1.0.0
-          VN=$(grep -m1 -E '^## v[0-9]+\.[0-9]+\.[0-9]+' CHANGELOG.md | sed -E 's/^## v([0-9]+\.[0-9]+\.[0-9]+).*/\1/' || true)
-          [ -z "$VN" ] && VN="1.0.0"
-          echo "VC=$VC" >> $GITHUB_OUTPUT
-          echo "VN=$VN" >> $GITHUB_OUTPUT
-          echo "versionCode=$VC versionName=$VN"
 
       - name: Set up keystore (reuse launcher's, same dev signing chain)
         env:

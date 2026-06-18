@@ -52,7 +52,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VC=$(( 1 + $(git rev-list --count HEAD -- android/onnowtv-fta-native/ || echo 0) ))
+          # v2.10.41 — Switched from path-scoped commit count to
+          # GITHUB_RUN_NUMBER so versionCode always increases per run,
+          # even on frontend-only pushes (see build-tunes.yml + build-fta.yml
+          # for the same fix).  Bias of 1000 keeps the new sequence
+          # safely above the old commit-count-derived values.
+          VC=$(( 1000 + GITHUB_RUN_NUMBER ))
           # Use the build counter as the semver patch component so
           # every push bumps the user-visible version + the OTA
           # checker's `isNewer` comparator detects the update.
