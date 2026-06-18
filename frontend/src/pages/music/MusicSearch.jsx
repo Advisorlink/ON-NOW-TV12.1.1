@@ -236,6 +236,29 @@ export default function MusicSearch() {
                     placeholder="What do you want to listen to?"
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
+                    onKeyDown={(e) => {
+                        // v2.10.49 — DOWN from the search input
+                        // should land on the FIRST song row of the
+                        // results (left column), NOT the first
+                        // artist tile (right column).  The spatial
+                        // focus hook's geometric "nearest below"
+                        // sometimes picks Artists because of where
+                        // the search input's bbox center lands; an
+                        // explicit override here delivers the
+                        // user-expected behaviour from the third
+                        // iteration video review: "when you push
+                        // down it needs to go to the songs list".
+                        if (e.key === 'ArrowDown' || e.key === 'Down') {
+                            const firstTrack = document.querySelector(
+                                '[data-testid^="tunes-result-track-"]',
+                            );
+                            if (firstTrack) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                firstTrack.focus({ preventScroll: false });
+                            }
+                        }
+                    }}
                     autoFocus
                     data-testid="tunes-search-input"
                     data-focusable="true"

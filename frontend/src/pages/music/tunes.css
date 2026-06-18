@@ -2965,7 +2965,10 @@
 
 .tunes-library-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    /* v2.10.49 — Closer to 1:1.2 split (Search-style).  Albums
+       on the right are now small 3-up tiles instead of the
+       old `auto-fill minmax(180px, 1fr)` ballooned grid. */
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
     gap: 36px;
     padding: 0 var(--tunes-pad-right) 60px var(--tunes-pad-x);
 }
@@ -2983,6 +2986,33 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
+}
+
+/* v2.10.49 — Hard 3-up grids inside the Library columns.  Match
+   the size of Search's result tiles so Library and Search look
+   visually identical (a deliberate consistency the user asked
+   for in the third iteration video review). */
+.tunes-library-grid-compact {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+}
+
+@media (max-width: 900px) {
+    .tunes-library-grid-compact { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Playlists at the top stay a touch wider — 4-up so the Play All
+   detail panel expanding below feels balanced. */
+.tunes-library-grid-playlists {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 18px;
+    padding: 0 var(--tunes-pad-right) 0 var(--tunes-pad-x);
+}
+
+@media (max-width: 1400px) {
+    .tunes-library-grid-playlists { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 .tunes-library-layout .tunes-section {
@@ -3386,7 +3416,7 @@
 
 .tunes-result-track {
     display: grid;
-    grid-template-columns: 56px minmax(0, 1fr) auto;
+    grid-template-columns: 56px minmax(0, 1fr) auto auto;
     align-items: center;
     gap: 14px;
     width: 100%;

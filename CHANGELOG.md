@@ -1,5 +1,43 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.49 — Library matches Search layout + Long-press fixed for TV remotes + Search DOWN→Songs (2026-02-10)
+
+User feedback (third iteration video review): "The library is way too big.  Make it look like Search — songs down the left, albums on the right, artists underneath the albums.  Long-press isn't working — push and hold should bring up the pop-up like Vesper.  And when you press DOWN from the search bar it should land on the SONGS list, not the artists."
+
+### Fix #1 — Library tiles resized to Search-style
+
+`MusicLibrary.jsx` swapped from custom `.tunes-library-*` classes to the same `.tunes-result-*` classes Search uses.  Result: every library tile is now the same size as a search-result tile (Playwright confirms 3-up albums at ~298 px wide on a 1920-px viewport, down from the old `auto-fill minmax(180px, 1fr)` ballooned ~600+ px tiles).  Layout split moved from `1fr / 1.4fr` to `1fr / 1.2fr` so the right column no longer dominates.
+
+### Fix #2 — Library reordered: Albums → Artists in the RIGHT column
+
+Old layout: LEFT = Artists + Songs + Radio + Podcasts;  RIGHT = Albums.
+
+New layout (matches user spec): LEFT = Songs (list) + Radio + Podcasts;  RIGHT = Albums + Artists (3-up grids, artists below albums for the "follow this artist" affordance).  Playlists section stays full-width at the top.
+
+### Fix #3 — Long-press finally works on TV remotes
+
+`useLongPress.js` now has a KEY-REPEAT fallback path.  Background: many Android TV remotes (incl. the user's box) fire `keydown` → `keyup` instantly when OK is pressed, but ALSO emit repeated `keydown` events while the key is physically held.  The original `setTimeout(700ms)` hold detector therefore NEVER tripped on those remotes — the keyup fired ~50 ms after the initial keydown, cancelling the timer before it could complete.
+
+New path: count `e.repeat === true` keydowns from React's `onKeyDown`.  At `REPEAT_THRESHOLD = 9` (~500-700 ms of physical hold at the typical 50-80 ms repeat rate), fire `onLongPress()` immediately and stamp `data-long-pressed="true"` on the element so `useSpatialFocus`'s keyup handler doesn't ALSO dispatch a regular click on release.  Original setTimeout path kept as fallback for remotes that DO wait for release before firing keyup.
+
+### Fix #4 — Search: DOWN from the input lands on the first Songs row
+
+`MusicSearch.jsx` intercepts `ArrowDown` on the search input directly: calls `document.querySelector('[data-testid^="tunes-result-track-"]').focus()` and `preventDefault`s the event so the spatial-focus hook's geometric "nearest below" can't override it.  Playwright confirms: pressing DOWN from the input lands on the first track (`DAISIES — Justin Bieber`, not the first artist tile).
+
+### Files touched
+
+- `frontend/src/hooks/useLongPress.js` — repeat-count fallback, `data-long-pressed` stamp.
+- `frontend/src/pages/music/MusicLibrary.jsx` — full rewrite using `.tunes-result-*` tile classes; reordered to Songs/Radio/Podcasts left + Albums/Artists right.
+- `frontend/src/pages/music/tunes.css` — `.tunes-library-grid-compact` (3-up), `.tunes-library-grid-playlists` (4-up), layout split adjusted, `.tunes-result-track` grid grew a 4th column for the unlike button.
+- `frontend/src/pages/music/MusicSearch.jsx` — `ArrowDown` interceptor on the search input.
+
+### Smoke test (Playwright)
+
+- `/music/library`: Songs list (6 tracks) LEFT, Albums 3-up + Artists 3-up RIGHT.  Album tile widths ~298 px (vs ~600+ px before).
+- `/music/search?q=justin`: DOWN from the input → focus lands on `tunes-result-track-3454558661` (first song) with pink focus ring.
+
+
+
 ## v2.10.48 — Strip all Chrome-79-era GPU promotion + perf-mode CSS (Vesper is fast again) (2026-02-10)
 
 User report (third repeat after v2.10.41 / v2.10.44): "It's still extremely slow.  You need to go back to June 14.  Take away ALL the stuff you put in there for Chrome 79 / WebView 79.  It's completely stuffed right now."

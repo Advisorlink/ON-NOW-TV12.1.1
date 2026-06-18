@@ -59,6 +59,17 @@ export default function useLongPress(onLongPress, onTap, { duration = 700 } = {}
     const longPressFiredRef = useRef(false);
     const lastReleaseRef = useRef(0);
     const elRef = useRef(null);
+    // v2.10.49 — Key-repeat counter for TV remotes that fire
+    // keydown→keyup instantly on OK button taps but ALSO emit
+    // repeated keydown events while the key is physically held.
+    // The 700 ms setTimeout-based detection never trips on those
+    // remotes (release fires before the timer); the repeat counter
+    // is the only signal we get that the user is actually holding.
+    // Typical Android TV repeat rate is ~50-80 ms → 9 repeats ≈
+    // 500-700 ms of physical hold, which matches the touch-screen
+    // hold-to-context-menu feel users are used to.
+    const repeatCountRef = useRef(0);
+    const REPEAT_THRESHOLD = 9;
 
     useEffect(() => {
         return () => {
@@ -99,10 +110,19 @@ export default function useLongPress(onLongPress, onTap, { duration = 700 } = {}
         if (heldRef.current) return; // already holding
         heldRef.current = true;
         longPressFiredRef.current = false;
+        repeatCountRef.current = 0;
         if (elRef.current) elRef.current.setAttribute('data-holding', 'true');
         timerRef.current = setTimeout(() => {
             longPressFiredRef.current = true;
-            if (elRef.current) elRef.current.removeAttribute('data-holding');
+            if (elRef.current) {
+                elRef.current.removeAttribute('data-holding');
+                // v2.10.49 — Tell `useSpatialFocus`'s keyup handler
+                // we just consumed this OK press as a long-press, so
+                // it won't ALSO fire `target.click()` on release
+                // (which would re-trigger the default tap action on
+                // top of the modal).
+                elRef.current.setAttribute('data-long-pressed', 'true');
+            }
             if (typeof onLongPress === 'function') onLongPress();
         }, duration);
     };
@@ -113,6 +133,7 @@ export default function useLongPress(onLongPress, onTap, { duration = 700 } = {}
             timerRef.current = null;
         }
         heldRef.current = false;
+        repeatCountRef.current = 0;
         if (elRef.current) elRef.current.removeAttribute('data-holding');
     };
 
@@ -136,7 +157,31 @@ export default function useLongPress(onLongPress, onTap, { duration = 700 } = {}
             if (e.key !== 'Enter' && e.key !== ' ') return;
             e.preventDefault();
             e.stopPropagation();
-            if (e.repeat) return;
+            if (e.repeat) {
+                // v2.10.49 — Repeat-count fallback for TV remotes
+                // that emit keydown repeats while OK is held but
+                // DON'T wait for the physical release before
+                // firing keyup (i.e. tap-fire remotes where our
+                // 700 ms setTimeout would never trip because the
+                // release event arrives ~50 ms after the initial
+                // press).  After N repeats we treat the press as
+                // a long-press immediately.
+                if (longPressFiredRef.current) return;
+                repeatCountRef.current += 1;
+                if (repeatCountRef.current >= REPEAT_THRESHOLD) {
+                    longPressFiredRef.current = true;
+                    if (timerRef.current) {
+                        clearTimeout(timerRef.current);
+                        timerRef.current = null;
+                    }
+                    if (elRef.current) {
+                        elRef.current.removeAttribute('data-holding');
+                        elRef.current.setAttribute('data-long-pressed', 'true');
+                    }
+                    if (typeof onLongPress === 'function') onLongPress();
+                }
+                return;
+            }
             start();
         },
         onKeyUp: (e) => {

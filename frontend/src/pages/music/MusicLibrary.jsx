@@ -1,23 +1,27 @@
-// ON NOW TV TUNES — Library page (v2.10.46 two-column TV layout)
-// ============================================================
-// User-requested layout per video brief:
-//   LEFT column  (≈40% of content area)
-//     • Liked Artists   — small circular avatars in a thin shelf
-//     • Liked Songs     — vertical list with art + title + artist
-//     • Liked Radio     — compact grid (smaller tiles)
-//     • Liked Podcasts  — compact grid (smaller tiles)
-//   RIGHT column (≈60%)
-//     • Liked Albums    — fixed 3-column grid of album covers
+// ON NOW TV TUNES — Library page (v2.10.49 — Search-style layout)
+// =============================================================
+// User feedback (third iteration):
+//   "The library is way too big.  It needs to look more like the
+//    search page — songs down the left, albums on the right.
+//    And underneath the albums can be the artists, so you can
+//    follow them as well."
 //
-// Playlists still appear at the top of the page, full-width.
+// New layout (mirrors `MusicSearch`):
+//   LEFT column  (≈1fr)
+//     • Liked Songs    — slim list (same shape as Search results)
+//     • Liked Radio    — compact grid (3-up)
+//     • Liked Podcasts — compact grid (3-up)
+//   RIGHT column (≈1.2fr)
+//     • Liked Albums   — 3-up grid (small tiles, same size as
+//                        Search's result tiles)
+//     • Liked Artists  — 3-up grid (small round avatars, same
+//                        size as Search's result tiles)
 //
-// The new layout is driven by CSS in `tunes.css`
-// (`.tunes-library-layout`, `.tunes-library-left`,
-// `.tunes-library-right`, `.tunes-library-albums`,
-// `.tunes-library-compact`).  We deliberately stopped using the
-// generic `.tunes-grid` for the Library because that grid uses
-// `auto-fill minmax(180px, 1fr)` and produced the giant single
-// album tile shown in the user's video.
+// Playlists stay at the top, full-width.
+//
+// Every tile uses `useTuneTap` so press-and-hold opens the
+// "Add to library" modal (v2.10.49 added a key-repeat fallback
+// so it works on TV remotes that tap-fire instead of hold-fire).
 
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -39,56 +43,51 @@ function fmtDur(secs) {
     return `${m}:${s}`;
 }
 
-/* ── Reusable bits ──────────────────────────────────────────── */
+/* ── Library tiles — reuse Search's compact `.tunes-result-*`
+   styles so Library/Search are visually consistent. ─────────── */
 
-function TrackRow({ track, list, idx, onUnlike }) {
-    // v2.10.47 — useTuneTap delivers:
-    //   • quick tap            → play this track in `list`
-    //   • re-tap while playing → open FullScreen player
-    //   • long-press OK / hold → "Add/Remove from library" modal
+function TrackRow({ track, list, idx, onUnlike, isCurrent }) {
     const tap = useTuneTap({ kind: 'track', item: track, list });
     return (
         <div
-            className="tunes-track-row"
+            className={'tunes-result-track' + (isCurrent ? ' is-playing' : '')}
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
             data-testid={`library-track-${track.id}`}
             {...tap}
         >
-            <div className="tunes-track-row__num">{idx + 1}</div>
             <img
                 src={track.album?.cover || ''}
                 alt=""
-                className="tunes-track-row__art"
+                className="tunes-result-track__art"
                 loading="lazy"
             />
-            <div style={{ minWidth: 0 }}>
-                <p className="tunes-track-row__title">{track.title}</p>
-                <p className="tunes-track-row__artist">{track.artist?.name}</p>
+            <div className="tunes-result-track__meta">
+                <p className="tunes-result-track__title">{track.title}</p>
+                <p className="tunes-result-track__artist">{track.artist?.name}</p>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span className="tunes-track-row__duration">{fmtDur(track.duration)}</span>
-                {onUnlike && (
-                    <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); onUnlike(track); }}
-                        data-focusable="true"
-                        data-focus-style="pill"
-                        tabIndex={0}
-                        className="tunes-iconbtn tunes-iconbtn--mini"
-                        title="Remove from library"
-                        data-testid={`library-track-unlike-${track.id}`}
-                    >
-                        <Heart size={14} fill="currentColor" />
-                    </button>
-                )}
-            </div>
+            <span className="tunes-result-track__time">{fmtDur(track.duration)}</span>
+            {onUnlike && (
+                <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onUnlike(track); }}
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
+                    className="tunes-iconbtn tunes-iconbtn--mini"
+                    title="Remove from library"
+                    data-testid={`library-track-unlike-${track.id}`}
+                    style={{ marginLeft: 8 }}
+                >
+                    <Heart size={14} fill="currentColor" />
+                </button>
+            )}
         </div>
     );
 }
 
-function ArtistAvatar({ artist }) {
+function ArtistTile({ artist }) {
     const navigate = useNavigate();
     const tap = useTuneTap({
         kind: 'artist',
@@ -98,7 +97,7 @@ function ArtistAvatar({ artist }) {
     return (
         <button
             type="button"
-            className="tunes-library-artist"
+            className="tunes-result-tile tunes-result-tile--round"
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
@@ -107,11 +106,41 @@ function ArtistAvatar({ artist }) {
         >
             <img
                 src={artist.picture || ''}
-                alt={artist.name}
-                className="tunes-library-artist__avatar"
+                alt=""
+                className="tunes-result-tile__art tunes-result-tile__art--round"
                 loading="lazy"
             />
-            <span className="tunes-library-artist__name">{artist.name}</span>
+            <p className="tunes-result-tile__title">{artist.name}</p>
+            <p className="tunes-result-tile__subtitle">Artist</p>
+        </button>
+    );
+}
+
+function AlbumTile({ album }) {
+    const navigate = useNavigate();
+    const tap = useTuneTap({
+        kind: 'album',
+        item: album,
+        onTap: () => navigate(`/music/album/${album.id}`),
+    });
+    return (
+        <button
+            type="button"
+            className="tunes-result-tile"
+            data-focusable="true"
+            data-focus-style="tile"
+            tabIndex={0}
+            data-testid={`library-album-${album.id}`}
+            {...tap}
+        >
+            <img
+                src={album.cover || album.cover_xl || ''}
+                alt=""
+                className="tunes-result-tile__art"
+                loading="lazy"
+            />
+            <p className="tunes-result-tile__title">{album.title}</p>
+            <p className="tunes-result-tile__subtitle">{album.artist?.name}</p>
         </button>
     );
 }
@@ -136,52 +165,28 @@ function CompactTile({ item, kind, onPlayRadio }) {
     return (
         <button
             type="button"
-            className="tunes-library-compact__tile"
+            className="tunes-result-tile"
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
             data-testid={`library-${kind}-${item.id}`}
             {...tap}
         >
-            <img
-                src={art}
-                alt={title}
-                className="tunes-library-compact__art"
-                loading="lazy"
-            />
-            <div className="tunes-library-compact__meta">
-                <p className="tunes-library-compact__title">{title}</p>
-                <p className="tunes-library-compact__subtitle">{subtitle}</p>
-            </div>
-        </button>
-    );
-}
-
-function AlbumTile({ album }) {
-    const navigate = useNavigate();
-    const tap = useTuneTap({
-        kind: 'album',
-        item: album,
-        onTap: () => navigate(`/music/album/${album.id}`),
-    });
-    return (
-        <button
-            type="button"
-            className="tunes-library-album"
-            data-focusable="true"
-            data-focus-style="tile"
-            tabIndex={0}
-            data-testid={`library-album-${album.id}`}
-            {...tap}
-        >
-            <img
-                src={album.cover || album.cover_xl || ''}
-                alt={album.title}
-                className="tunes-library-album__art"
-                loading="lazy"
-            />
-            <p className="tunes-library-album__title">{album.title}</p>
-            <p className="tunes-library-album__artist">{album.artist?.name}</p>
+            {kind === 'radio' && !art ? (
+                <div
+                    className="tunes-result-tile__art"
+                    style={{ background: 'linear-gradient(135deg, #064a59, #0a0118)' }}
+                />
+            ) : (
+                <img
+                    src={art}
+                    alt={title}
+                    className="tunes-result-tile__art"
+                    loading="lazy"
+                />
+            )}
+            <p className="tunes-result-tile__title">{title}</p>
+            <p className="tunes-result-tile__subtitle">{subtitle}</p>
         </button>
     );
 }
@@ -192,7 +197,7 @@ export default function MusicLibrary() {
     const [lib, setLib] = useState(getMusicLibrary());
     const [playlists, setPlaylists] = useState(getPlaylists());
     const [activePl, setActivePl] = useState(null);
-    const { controls } = useMusicPlayer();
+    const { state, controls } = useMusicPlayer();
 
     useEffect(() => {
         const u = subscribeMusicLibrary(() => {
@@ -227,19 +232,19 @@ export default function MusicLibrary() {
                 </div>
             )}
 
-            {/* ── Playlists (full-width top section) ───────────── */}
+            {/* Playlists section — full-width top */}
             {playlists.length > 0 && (
                 <section className="tunes-section" data-testid="library-playlists-section">
                     <h2 className="tunes-section__title">
                         <ListMusic size={20} style={{ display: 'inline', verticalAlign: -3, marginRight: 8 }} />
                         Playlists
                     </h2>
-                    <div className="tunes-library-albums">
+                    <div className="tunes-library-grid-playlists">
                         {playlists.map((pl) => (
                             <button
                                 key={pl.id}
                                 type="button"
-                                className="tunes-library-album"
+                                className="tunes-result-tile"
                                 onClick={() => setActivePl(activePl === pl.id ? null : pl.id)}
                                 data-focusable="true"
                                 data-focus-style="tile"
@@ -247,16 +252,16 @@ export default function MusicLibrary() {
                                 data-testid={`playlist-${pl.id}`}
                             >
                                 <div
-                                    className="tunes-library-album__art"
+                                    className="tunes-result-tile__art"
                                     style={{
                                         background: 'linear-gradient(135deg, var(--tunes-accent), var(--tunes-radio))',
                                         display: 'grid', placeItems: 'center',
                                     }}
                                 >
-                                    <ListMusic size={48} color="rgba(255,255,255,0.85)" />
+                                    <ListMusic size={36} color="rgba(255,255,255,0.85)" />
                                 </div>
-                                <p className="tunes-library-album__title">{pl.name}</p>
-                                <p className="tunes-library-album__artist">
+                                <p className="tunes-result-tile__title">{pl.name}</p>
+                                <p className="tunes-result-tile__subtitle">
                                     {pl.tracks.length} track{pl.tracks.length === 1 ? '' : 's'}
                                 </p>
                             </button>
@@ -306,7 +311,7 @@ export default function MusicLibrary() {
                                         </button>
                                     </div>
                                 </div>
-                                <div className="tunes-track-list">
+                                <div className="tunes-search-tracklist">
                                     {pl.tracks.length === 0 && (
                                         <div className="tunes-empty">No tracks yet. Add some from Search or Album pages.</div>
                                     )}
@@ -316,7 +321,7 @@ export default function MusicLibrary() {
                                             track={t}
                                             list={pl.tracks}
                                             idx={i}
-                                            onUnlike={(track) => removeTrackFromPlaylist(pl.id, track.id)}
+                                            isCurrent={state?.current?.id === t.id}
                                         />
                                     ))}
                                 </div>
@@ -326,28 +331,16 @@ export default function MusicLibrary() {
                 </section>
             )}
 
-            {/* ── Two-column layout ─────────────────────────────── */}
+            {/* Two-column layout — same shape as Search */}
             {(hasArtists || hasAlbums || hasTracks || hasRadio || hasPodcasts) && (
                 <div className="tunes-library-layout">
 
-                    {/* LEFT: artists row + songs list + radio + podcasts */}
+                    {/* LEFT: songs list (slim), radio (compact), podcasts (compact) */}
                     <div className="tunes-library-left">
-
-                        {hasArtists && (
-                            <section className="tunes-section" data-testid="library-artist-section">
-                                <h2 className="tunes-section__title">Liked Artists</h2>
-                                <div className="tunes-library-artists">
-                                    {lib.artists.map((a) => (
-                                        <ArtistAvatar key={a.id} artist={a} />
-                                    ))}
-                                </div>
-                            </section>
-                        )}
-
                         {hasTracks && (
                             <section className="tunes-section" data-testid="library-track-section">
                                 <h2 className="tunes-section__title">Liked Songs</h2>
-                                <div className="tunes-track-list">
+                                <div className="tunes-search-tracklist">
                                     {lib.tracks.map((t, i) => (
                                         <TrackRow
                                             key={t.id}
@@ -355,6 +348,7 @@ export default function MusicLibrary() {
                                             list={lib.tracks}
                                             idx={i}
                                             onUnlike={(track) => removeMusicLike('track', track.id)}
+                                            isCurrent={state?.current?.id === t.id}
                                         />
                                     ))}
                                 </div>
@@ -364,7 +358,7 @@ export default function MusicLibrary() {
                         {hasRadio && (
                             <section className="tunes-section" data-testid="library-radio-section">
                                 <h2 className="tunes-section__title">Liked Radio</h2>
-                                <div className="tunes-library-compact">
+                                <div className="tunes-library-grid-compact">
                                     {lib.radio.map((r) => (
                                         <CompactTile
                                             key={r.id}
@@ -380,7 +374,7 @@ export default function MusicLibrary() {
                         {hasPodcasts && (
                             <section className="tunes-section" data-testid="library-podcast-section">
                                 <h2 className="tunes-section__title">Liked Podcasts</h2>
-                                <div className="tunes-library-compact">
+                                <div className="tunes-library-grid-compact">
                                     {lib.podcasts.map((p) => (
                                         <CompactTile key={p.id} item={p} kind="podcast" />
                                     ))}
@@ -389,17 +383,30 @@ export default function MusicLibrary() {
                         )}
                     </div>
 
-                    {/* RIGHT: albums in a 3-column grid */}
-                    {hasAlbums && (
+                    {/* RIGHT: albums 3-up, artists 3-up underneath */}
+                    {(hasAlbums || hasArtists) && (
                         <div className="tunes-library-right">
-                            <section className="tunes-section" data-testid="library-album-section">
-                                <h2 className="tunes-section__title">Liked Albums</h2>
-                                <div className="tunes-library-albums">
-                                    {lib.albums.map((a) => (
-                                        <AlbumTile key={a.id} album={a} />
-                                    ))}
-                                </div>
-                            </section>
+                            {hasAlbums && (
+                                <section className="tunes-section" data-testid="library-album-section">
+                                    <h2 className="tunes-section__title">Liked Albums</h2>
+                                    <div className="tunes-library-grid-compact">
+                                        {lib.albums.map((a) => (
+                                            <AlbumTile key={a.id} album={a} />
+                                        ))}
+                                    </div>
+                                </section>
+                            )}
+
+                            {hasArtists && (
+                                <section className="tunes-section" data-testid="library-artist-section">
+                                    <h2 className="tunes-section__title">Liked Artists</h2>
+                                    <div className="tunes-library-grid-compact">
+                                        {lib.artists.map((a) => (
+                                            <ArtistTile key={a.id} artist={a} />
+                                        ))}
+                                    </div>
+                                </section>
+                            )}
                         </div>
                     )}
                 </div>

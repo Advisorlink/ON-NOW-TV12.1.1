@@ -1,5 +1,18 @@
 # ON NOW TV V2 — PRD
 
+> **🚨 v2.10.49 — Library matches Search layout + Long-press fixed for TV remotes + Search DOWN → Songs (10 Feb 2026).**
+>
+> Four fixes from the third iteration video review:
+>
+> 1.  **Library tiles resized** — now use the same `.tunes-result-*` classes as Search.  Album tiles dropped from ~600+ px to ~298 px wide on 1080p.  Layout split moved `1fr / 1.4fr` → `1fr / 1.2fr` so the right column no longer dominates.
+> 2.  **Library reordered** — LEFT: Songs (list) + Radio + Podcasts.  RIGHT: Albums + Artists (3-up grids, artists below albums per the "follow this artist" affordance).  Playlists stays full-width at top.
+> 3.  **Long-press fixed for TV remotes** — `useLongPress` now has a key-repeat counter fallback (9 repeats ≈ 500-700 ms physical hold).  The original `setTimeout(700ms)` never tripped on tap-fire remotes that emit `keydown` → `keyup` instantly.  Long-press now stamps `data-long-pressed="true"` so `useSpatialFocus`'s keyup handler doesn't ALSO fire a click on release.
+> 4.  **Search DOWN → Songs** — `MusicSearch` intercepts `ArrowDown` on the search input and explicitly focuses the first track row, overriding the spatial-focus hook's geometric "nearest below" which was sometimes picking Artists.
+>
+> Detailed write-up: `CHANGELOG.md` → `## v2.10.49`.
+
+---
+
 > **🚨 v2.10.48 — Stripped ALL Chrome-79-era GPU promotion + perf-mode CSS from `index.css`.  Vesper is fast again on Chrome 138 (10 Feb 2026).**
 >
 > v2.10.44 disabled the `.vesper-host-android` AUTO-CLASS, killing the `*:not()…:not()` animation-stripper.  That wasn't enough — `index.css` ALSO had a top-of-file block (`[data-focusable='true'] { will-change: transform; transform: translateZ(0); contain: layout style }` + sibling rules on `.vesper-shelf`, shelves-region, home-main, posters) that was applied UNCONDITIONALLY to every device.  100+ poster tiles were each getting their own GPU compositor layer on the HK1's Mali-450 (~256 MB texture mem), crushing the cache and making every D-pad press feel laggy.  The `:has([data-focused="true"])` z-index rule was also re-evaluated O(n) per keypress.  All three blocks removed.  Chrome 138's native compositor handles promotion automatically and is smarter than the manual hints.
