@@ -313,7 +313,7 @@ export default function Network() {
                             style={{ color: 'var(--vesper-text-2)' }}
                         >
                             No {subTab === 'tv' ? 'TV shows' : 'movies'}{' '}
-                            currently streamable on {network.name} (US region).
+                            currently streamable on {network.name}.
                         </div>
                     ) : (
                         <>

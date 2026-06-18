@@ -914,10 +914,29 @@ NETWORK_PROVIDERS: Dict[str, Dict[str, Any]] = {
     "disney-plus": {"id": 337, "label": "Disney Plus"},
     "prime-video": {"id": 9, "label": "Amazon Prime Video"},
     "apple-tv": {"id": 350, "label": "Apple TV Plus"},
+    # v2.10.58 — Paramount+ has separate provider IDs per region.
+    # 531 = Paramount+ (US).  For AU we'd use 1853 (Paramount Plus
+    # Channel) which carries the AU catalogue.  We pin the default
+    # region for AU-specialised providers to "AU" below.
     "paramount-plus": {"id": 531, "label": "Paramount Plus"},
     "hulu": {"id": 15, "label": "Hulu"},
+    # v2.10.58 — BINGE and Stan are Australia-only services.  The
+    # /api/networks/{slug} endpoint defaults to region=US, which
+    # returns ZERO titles for these slugs.  PROVIDER_DEFAULT_REGION
+    # below pins them to AU so the Network browser actually shows
+    # content out of the box.
     "binge": {"id": 385, "label": "BINGE"},
     "stan": {"id": 21, "label": "Stan"},
+}
+
+# v2.10.58 — Per-provider default `watch_region` override.  Used
+# when the request doesn't specify ?region= explicitly.  Pins
+# Australia-only / AU-best-catalogue providers to AU so users land
+# on populated tiles instead of empty rails.
+PROVIDER_DEFAULT_REGION: Dict[str, str] = {
+    "binge": "AU",
+    "stan": "AU",
+    "paramount-plus": "AU",
 }
 
 CACHE_TTL_NETWORK = 3600          # 1 hour — TMDB's discover updates daily
@@ -990,7 +1009,7 @@ async def network_titles(
     slug: str,
     type_: str = Query("tv", alias="type"),
     page: int = 1,
-    region: str = "US",
+    region: Optional[str] = None,
 ):
     """Discover titles streamable on a given network via TMDB."""
     cfg = NETWORK_PROVIDERS.get(slug)
@@ -1000,6 +1019,14 @@ async def network_titles(
         raise HTTPException(400, "type must be 'tv' or 'movie'")
     if page < 1 or page > 500:
         raise HTTPException(400, "page out of range")
+
+    # v2.10.58 — If caller didn't pass ?region=, fall back to the
+    # per-provider default (Binge/Stan/Paramount+ → AU) so the
+    # Network browser doesn't render empty rails for AU-only
+    # services.  Other providers still default to US which has the
+    # broadest catalogue on TMDB.
+    if not region:
+        region = PROVIDER_DEFAULT_REGION.get(slug, "US")
 
     cache_key = f"net:{slug}:{type_}:{region}:{page}"
     cached = await cache.get(cache_key)
