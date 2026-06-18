@@ -20,6 +20,7 @@ import {
 import { MiniPlayer } from '../../components/music/MiniPlayer';
 import { ResolverDebug } from '../../components/music/ResolverDebug';
 import MusicWelcome from '../../components/music/MusicWelcome';
+import MusicAddToLibraryModal from '../../components/music/MusicAddToLibraryModal';
 import useSpatialFocus from '../../hooks/useSpatialFocus';
 import './tunes.css';
 import './karaoke.css';
@@ -292,14 +293,24 @@ export default function MusicLayout() {
     useEffect(() => {
         if (typeof window === 'undefined') return undefined;
         window.__onnowtv_handleBack = () => {
-            // 1. FullScreenPlayer overlay open?  Its root has
+            // 1. Add-to-library modal open?  Closes via its own
+            //    Cancel button (which clicks the X).  Highest
+            //    priority — overlays render above FullScreen.
+            const addModalCancel = document.querySelector(
+                '[data-testid="tunes-add-modal-cancel-x"]',
+            );
+            if (addModalCancel) {
+                addModalCancel.click();
+                return true;
+            }
+            // 2. FullScreenPlayer overlay open?  Its root has
             //    `data-testid="tunes-fullplayer"`.
             const fsRoot = document.querySelector('[data-testid="tunes-fullplayer"]');
             if (fsRoot) {
                 window.dispatchEvent(new CustomEvent('tunes:close-fullscreen'));
                 return true;
             }
-            // 2. Welcome popup open?  Click its Continue button —
+            // 3. Welcome popup open?  Click its Continue button —
             //    that runs the dismiss handler which sets the
             //    localStorage flag AND kicks off the YouTube
             //    sign-in via the native bridge.  Equivalent to
@@ -347,6 +358,10 @@ export default function MusicLayout() {
                 follows isn't a surprise.  Self-gates on a
                 localStorage flag → only renders on first visit. */}
             <MusicWelcome />
+            {/* v2.10.47 — Long-press → "Add to library" modal.
+                Listens for `tunes:request-add-to-library` events
+                from any tile inside the music shell. */}
+            <MusicAddToLibraryModal />
             {/* v2.8.85 — KaraokeMicReceiver is now mounted ONLY on
                 KaraokeStage so we don't accidentally open multiple
                 peer connections.  See /pages/music/KaraokeStage.jsx. */}

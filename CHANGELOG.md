@@ -1,5 +1,65 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.47 — Search redesign + Press-and-hold "Add to library" modal + Re-tap playing track opens FullScreen (2026-02-10)
+
+User report: "Search is too hard to navigate and skips a lot.  Make it user-friendly.  ALSO add a press-and-hold pop-up like Vesper has — push & hold on any album / song / podcast → 'Add to library'.  ALSO when you click a song and it's already playing, clicking it again should open the FullScreen player; back returns to the previous screen."
+
+### Fix #1 — Search page redesigned for TV-distance scanning
+
+`MusicSearch.jsx` rebuilt from scratch.  Two root causes for the old "skips a lot" feel:
+
+1.  Each result section used `tunes-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)) }`.  Per-row tile count therefore depended on screen-width parity → focus moves of `→ → → →` didn't translate to predictable jumps.
+2.  Every tile had an INLINE `<LikeButton>` (and tracks an additional `<AddToPlaylistButton>`) absolutely positioned in its top-right corner.  Each was its OWN `data-focusable="true"` — so the spatial-focus hook saw `tile, like, tile, like, tile, like…` arranged in a ragged geometry.  D-pad rights skipped over tiles to land on the next LikeButton, then back-tracked to the next tile.  Exactly the "skips a lot of stuff" symptom.
+
+New layout (`.tunes-search-results` + `.tunes-search-row` + `.tunes-search-grid--N`):
+
+* **Top row:** Songs (slim list, full-width left column) side-by-side with Artists (3-col round-avatar grid).  Two focusable bands instead of three competing surfaces.
+* **Albums row:** hard 4-up grid (drops to 3-up below 1100 px wide).
+* **Radio + Podcasts row:** side-by-side 3-up grids.
+* **Inline LikeButton / AddToPlaylistButton REMOVED** from every tile.  The new long-press modal (Fix #2) provides one consistent way to add things to the library.
+
+### Fix #2 — Press-and-hold → "Add to library" modal
+
+New file `components/music/MusicAddToLibraryModal.jsx`, globally mounted from `MusicLayout`.  Listens for `tunes:request-add-to-library` custom events with payload `{ kind: 'track'|'album'|'artist'|'radio'|'podcast', item }` and shows a small confirmation popup with:
+
+* Square cover artwork
+* Eyebrow: "ADD TO YOUR LIBRARY" or "ALREADY SAVED"
+* Title + subtitle (artist / country / etc.)
+* Primary action: "Add" (toggles to red "Remove" when already liked)
+* Secondary action: "Cancel"
+* Footer hint: "Press & hold OK on any tile to open this menu."
+
+The modal is itself a `data-focus-trap="true"` so spatial-focus arrow keys stay confined to its two buttons.  Auto-focuses the primary button via `requestAnimationFrame` (deferred so the trap's MutationObserver invalidates first).  120 ms safety delay before the keyboard handlers arm, so the user's held-Enter from the original long-press doesn't auto-confirm.  BACK / Escape closes the modal (also added to `MusicLayout`'s `window.__onnowtv_handleBack` priority list).
+
+### Fix #3 — Re-tapping the currently-playing track opens FullScreen
+
+New shared hook `hooks/useTuneTap.js` that wraps `useLongPress` for any music tile:
+
+* Quick tap → calls `onTap(item)` (default: play track / navigate to album / start radio).
+* Long-press OK → fires `tunes:request-add-to-library` for the modal.
+* **Re-tap on a track that's already `state.current` and playing → fires `tunes:open-fullscreen`** — exactly the user's spec.  BACK then collapses the FullScreen (v2.10.43 behaviour preserved) and the user is back on the album / search / library page they came from.
+
+Wired into:
+* `MusicSearch.jsx` — track rows, artist tiles, album tiles, radio tiles, podcast tiles.
+* `MusicLibrary.jsx` — `TrackRow`, `ArtistAvatar`, `AlbumTile`, `CompactTile`.
+
+### Files touched
+
+- `frontend/src/hooks/useTuneTap.js`  (new shared hook)
+- `frontend/src/components/music/MusicAddToLibraryModal.jsx`  (new)
+- `frontend/src/pages/music/MusicLayout.jsx`  (mounts the modal, back-handler updated)
+- `frontend/src/pages/music/MusicSearch.jsx`  (full rewrite)
+- `frontend/src/pages/music/MusicLibrary.jsx`  (uses `useTuneTap` on all tiles)
+- `frontend/src/pages/music/tunes.css`  (.tunes-add-modal + .tunes-search-results + companion classes)
+
+### Smoke test (Playwright)
+
+- `/music/search?q=eminem` → `.tunes-search-results` container present, 6 tracks + 6 artists + 8 albums rendered.
+- Dispatching `tunes:request-add-to-library` event → `[data-testid="tunes-add-to-library-modal"]` mounts with title/subtitle/Add/Cancel.
+- JS lint clean (1 cosmetic unused-eslint-disable warning, harmless).
+
+
+
 ## v2.10.46 — Library 2-column layout + Profile/Settings removed + FullScreenPlayer is finally navigable (2026-02-10)
 
 User report (with video): "In the library, the albums show up bad and the songs show up bad — you need to have the albums in a two or three column on the right-hand side, the liked songs need to show up in a list down the left-hand side, and the saved radio stations and podcasts underneath that.  Right now it looks way too big and way too wrong.  Also remove completely the profile and settings buttons from the rail.  And on the full screen we can't actually navigate around it."

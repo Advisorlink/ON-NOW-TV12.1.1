@@ -1,5 +1,19 @@
 # ON NOW TV V2 — PRD
 
+> **🚨 v2.10.47 — Search redesign + Press-and-hold "Add to library" modal + Re-tap playing track opens FullScreen (10 Feb 2026).**
+>
+> Three things shipped from the user's voice note:
+>
+> 1.  **Search redesign** — `MusicSearch.jsx` rebuilt with uniform tile shapes and hard `repeat(N, 1fr)` grids (no more `auto-fill` width-parity surprises).  Inline LikeButton + AddToPlaylistButton overlays REMOVED from every tile so spatial-focus arrow keys move predictably between tiles.
+>
+> 2.  **`MusicAddToLibraryModal`** (new) — globally mounted, listens for `tunes:request-add-to-library` events.  Shows a Vesper-style "Add to your library?" popup with the item's art, title, subtitle, and Add/Cancel buttons.  Toggles to "Remove from your library?" when the item is already liked.
+>
+> 3.  **`useTuneTap` hook** (new) — combined tap-vs-hold wrapper for every music tile.  Quick tap → default behaviour (play / navigate).  Long-press → fires the add-to-library event.  **Re-tap on currently-playing track → fires `tunes:open-fullscreen`** (exactly the user's spec).  Wired into Search + Library tiles.
+>
+> Detailed write-up: `CHANGELOG.md` → `## v2.10.47`.
+
+---
+
 > **🚨 v2.10.46 — Library 2-column TV layout + Profile/Settings removed + FullScreenPlayer is finally navigable (10 Feb 2026).**
 >
 > Three fixes from the user's video brief:

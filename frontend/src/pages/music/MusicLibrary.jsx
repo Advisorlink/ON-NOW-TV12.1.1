@@ -20,7 +20,7 @@
 // album tile shown in the user's video.
 
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Heart, Trash2, Play, ListMusic } from 'lucide-react';
 import {
     getMusicLibrary,
@@ -31,6 +31,7 @@ import {
     removeTrackFromPlaylist,
 } from '../../lib/music-library';
 import { useMusicPlayer } from '../../hooks/useMusicPlayer';
+import useTuneTap from '../../hooks/useTuneTap';
 
 function fmtDur(secs) {
     const m = Math.floor((secs || 0) / 60);
@@ -41,16 +42,19 @@ function fmtDur(secs) {
 /* ── Reusable bits ──────────────────────────────────────────── */
 
 function TrackRow({ track, list, idx, onUnlike }) {
-    const { controls } = useMusicPlayer();
+    // v2.10.47 — useTuneTap delivers:
+    //   • quick tap            → play this track in `list`
+    //   • re-tap while playing → open FullScreen player
+    //   • long-press OK / hold → "Add/Remove from library" modal
+    const tap = useTuneTap({ kind: 'track', item: track, list });
     return (
         <div
             className="tunes-track-row"
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
-            onClick={() => controls.playTrack(track, list)}
-            onKeyDown={(e) => { if (e.key === 'Enter') controls.playTrack(track, list); }}
             data-testid={`library-track-${track.id}`}
+            {...tap}
         >
             <div className="tunes-track-row__num">{idx + 1}</div>
             <img
@@ -85,14 +89,21 @@ function TrackRow({ track, list, idx, onUnlike }) {
 }
 
 function ArtistAvatar({ artist }) {
+    const navigate = useNavigate();
+    const tap = useTuneTap({
+        kind: 'artist',
+        item: artist,
+        onTap: () => navigate(`/music/artist/${artist.id}`),
+    });
     return (
-        <Link
-            to={`/music/artist/${artist.id}`}
+        <button
+            type="button"
             className="tunes-library-artist"
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
             data-testid={`library-artist-${artist.id}`}
+            {...tap}
         >
             <img
                 src={artist.picture || ''}
@@ -101,21 +112,37 @@ function ArtistAvatar({ artist }) {
                 loading="lazy"
             />
             <span className="tunes-library-artist__name">{artist.name}</span>
-        </Link>
+        </button>
     );
 }
 
 function CompactTile({ item, kind, onPlayRadio }) {
-    const linkTo =
-        kind === 'podcast'
-            ? `/music/podcast/${encodeURIComponent(item.feed_url || '')}`
-            : null;
+    const navigate = useNavigate();
+    const tap = useTuneTap({
+        kind,
+        item,
+        onTap: (it) => {
+            if (kind === 'podcast') {
+                navigate(`/music/podcast/${encodeURIComponent(it.feed_url || '')}`);
+            } else if (kind === 'radio' && onPlayRadio) {
+                onPlayRadio(it);
+            }
+        },
+    });
     const art = item.picture || item.cover || item.favicon || item.artwork || '';
     const title = item.name || item.title;
     const subtitle = item.country || item.subtitle || (kind === 'radio' ? 'Radio' : 'Podcast');
 
-    const inner = (
-        <>
+    return (
+        <button
+            type="button"
+            className="tunes-library-compact__tile"
+            data-focusable="true"
+            data-focus-style="tile"
+            tabIndex={0}
+            data-testid={`library-${kind}-${item.id}`}
+            {...tap}
+        >
             <img
                 src={art}
                 alt={title}
@@ -126,46 +153,26 @@ function CompactTile({ item, kind, onPlayRadio }) {
                 <p className="tunes-library-compact__title">{title}</p>
                 <p className="tunes-library-compact__subtitle">{subtitle}</p>
             </div>
-        </>
-    );
-    if (linkTo) {
-        return (
-            <Link
-                to={linkTo}
-                className="tunes-library-compact__tile"
-                data-focusable="true"
-                data-focus-style="tile"
-                tabIndex={0}
-                data-testid={`library-${kind}-${item.id}`}
-            >
-                {inner}
-            </Link>
-        );
-    }
-    return (
-        <button
-            type="button"
-            className="tunes-library-compact__tile"
-            data-focusable="true"
-            data-focus-style="tile"
-            tabIndex={0}
-            onClick={() => { if (kind === 'radio' && onPlayRadio) onPlayRadio(item); }}
-            data-testid={`library-${kind}-${item.id}`}
-        >
-            {inner}
         </button>
     );
 }
 
 function AlbumTile({ album }) {
+    const navigate = useNavigate();
+    const tap = useTuneTap({
+        kind: 'album',
+        item: album,
+        onTap: () => navigate(`/music/album/${album.id}`),
+    });
     return (
-        <Link
-            to={`/music/album/${album.id}`}
+        <button
+            type="button"
             className="tunes-library-album"
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
             data-testid={`library-album-${album.id}`}
+            {...tap}
         >
             <img
                 src={album.cover || album.cover_xl || ''}
@@ -175,7 +182,7 @@ function AlbumTile({ album }) {
             />
             <p className="tunes-library-album__title">{album.title}</p>
             <p className="tunes-library-album__artist">{album.artist?.name}</p>
-        </Link>
+        </button>
     );
 }
 

@@ -1,16 +1,192 @@
+// ON NOW TV TUNES — Search (v2.10.47 redesign)
+// =============================================================
+// User-feedback rewrite: "When you search something and it comes
+// up it shows like a whole [mess].  It's just too hard to navigate
+// and it skips a lot of stuff."
+//
+// The old version mixed three different grids per result type AND
+// embedded an inline LikeButton + AddToPlaylistButton on top of
+// every tile — so each "row" of focusables had ragged geometry
+// (tile → like → playlist → tile → like → playlist…) which made
+// D-pad rights / lefts skip in unpredictable amounts.
+//
+// The redesign:
+//   * Single uniform tile size per kind (round avatars for
+//     artists, square covers for albums / radio / podcasts, slim
+//     rows for tracks).
+//   * Per-row tile counts via a hard `repeat(N, 1fr)` grid (not
+//     `auto-fill`) so geometry never depends on screen width
+//     parity.
+//   * Inline LikeButton + AddToPlaylistButton REMOVED.  Press-and-
+//     hold OK on any tile opens the same "Add to library" modal
+//     the user just asked for — one consistent affordance instead
+//     of three competing ones.
+//   * Tracks: re-tapping the currently-playing one opens the
+//     FullScreen player (handled by `useTuneTap`).
+
 import React, { useEffect, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { Search as SearchIcon, Radio as RadioIcon, Mic } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { Search as SearchIcon, Radio as RadioIcon, Mic, Music2 } from 'lucide-react';
 import { musicAPI } from '../../lib/music-api';
 import { useMusicPlayer } from '../../hooks/useMusicPlayer';
-import { LikeButton } from '../../components/music/LikeButton';
-import { AddToPlaylistButton } from '../../components/music/AddToPlaylistButton';
+import useTuneTap from '../../hooks/useTuneTap';
 
 function fmtDur(secs) {
     const m = Math.floor((secs || 0) / 60);
     const s = String((secs || 0) % 60).padStart(2, '0');
     return `${m}:${s}`;
 }
+
+/* ── Reusable tiles ─────────────────────────────────────────── */
+
+function TrackResultRow({ track, list, isCurrent }) {
+    const tap = useTuneTap({ kind: 'track', item: track, list });
+    return (
+        <button
+            type="button"
+            className={'tunes-result-track' + (isCurrent ? ' is-playing' : '')}
+            data-focusable="true"
+            data-focus-style="tile"
+            tabIndex={0}
+            data-testid={`tunes-result-track-${track.id}`}
+            {...tap}
+        >
+            <img
+                src={track.album?.cover || ''}
+                alt=""
+                className="tunes-result-track__art"
+                loading="lazy"
+            />
+            <div className="tunes-result-track__meta">
+                <p className="tunes-result-track__title">{track.title}</p>
+                <p className="tunes-result-track__artist">{track.artist?.name}</p>
+            </div>
+            <span className="tunes-result-track__time">{fmtDur(track.duration)}</span>
+        </button>
+    );
+}
+
+function ArtistResultTile({ artist }) {
+    const navigate = useNavigate();
+    const tap = useTuneTap({
+        kind: 'artist',
+        item: artist,
+        onTap: () => navigate(`/music/artist/${artist.id}`),
+    });
+    return (
+        <button
+            type="button"
+            className="tunes-result-tile tunes-result-tile--round"
+            data-focusable="true"
+            data-focus-style="tile"
+            tabIndex={0}
+            data-testid={`search-artist-${artist.id}`}
+            {...tap}
+        >
+            <img
+                src={artist.picture || ''}
+                alt=""
+                className="tunes-result-tile__art tunes-result-tile__art--round"
+                loading="lazy"
+            />
+            <p className="tunes-result-tile__title">{artist.name}</p>
+            <p className="tunes-result-tile__subtitle">Artist</p>
+        </button>
+    );
+}
+
+function AlbumResultTile({ album }) {
+    const navigate = useNavigate();
+    const tap = useTuneTap({
+        kind: 'album',
+        item: album,
+        onTap: () => navigate(`/music/album/${album.id}`),
+    });
+    return (
+        <button
+            type="button"
+            className="tunes-result-tile"
+            data-focusable="true"
+            data-focus-style="tile"
+            tabIndex={0}
+            data-testid={`search-album-${album.id}`}
+            {...tap}
+        >
+            <img
+                src={album.cover || ''}
+                alt=""
+                className="tunes-result-tile__art"
+                loading="lazy"
+            />
+            <p className="tunes-result-tile__title">{album.title}</p>
+            <p className="tunes-result-tile__subtitle">{album.artist?.name}</p>
+        </button>
+    );
+}
+
+function RadioResultTile({ station }) {
+    const tap = useTuneTap({
+        kind: 'radio',
+        item: station,
+        onTap: (s) => {
+            try { musicAPI.radioClick(s.id); } catch { /* ignore */ }
+        },
+    });
+    return (
+        <button
+            type="button"
+            className="tunes-result-tile"
+            data-focusable="true"
+            data-focus-style="tile"
+            tabIndex={0}
+            data-testid={`tunes-result-radio-${station.id}`}
+            {...tap}
+        >
+            <div
+                className="tunes-result-tile__art"
+                style={{
+                    background: station.favicon
+                        ? `center/cover no-repeat url(${station.favicon}), linear-gradient(135deg, #064a59, #0a0118)`
+                        : 'linear-gradient(135deg, #064a59, #0a0118)',
+                }}
+            />
+            <p className="tunes-result-tile__title">{station.name}</p>
+            <p className="tunes-result-tile__subtitle">{station.country || 'Radio'}</p>
+        </button>
+    );
+}
+
+function PodcastResultTile({ podcast }) {
+    const navigate = useNavigate();
+    const tap = useTuneTap({
+        kind: 'podcast',
+        item: podcast,
+        onTap: () => navigate(`/music/podcast/${encodeURIComponent(podcast.feed_url)}`),
+    });
+    return (
+        <button
+            type="button"
+            className="tunes-result-tile"
+            data-focusable="true"
+            data-focus-style="tile"
+            tabIndex={0}
+            data-testid={`search-podcast-${podcast.id || podcast.feed_url}`}
+            {...tap}
+        >
+            <img
+                src={podcast.artwork || ''}
+                alt=""
+                className="tunes-result-tile__art"
+                loading="lazy"
+            />
+            <p className="tunes-result-tile__title">{podcast.title}</p>
+            <p className="tunes-result-tile__subtitle">{podcast.artist || podcast.genre}</p>
+        </button>
+    );
+}
+
+/* ── Page ───────────────────────────────────────────────────── */
 
 export default function MusicSearch() {
     const [params] = useSearchParams();
@@ -19,7 +195,7 @@ export default function MusicSearch() {
     const [results, setResults] = useState(null);
     const [loading, setLoading] = useState(false);
     const debounce = useRef(null);
-    const { controls } = useMusicPlayer();
+    const { state } = useMusicPlayer();
 
     useEffect(() => {
         if (!q.trim()) {
@@ -29,7 +205,8 @@ export default function MusicSearch() {
         clearTimeout(debounce.current);
         debounce.current = setTimeout(() => {
             setLoading(true);
-            musicAPI.search(q.trim())
+            musicAPI
+                .search(q.trim())
                 .then(setResults)
                 .catch(() => setResults(null))
                 .finally(() => setLoading(false));
@@ -37,10 +214,20 @@ export default function MusicSearch() {
         return () => clearTimeout(debounce.current);
     }, [q]);
 
+    const hasResults =
+        results &&
+        ((results.tracks?.length || 0) > 0 ||
+            (results.albums?.length || 0) > 0 ||
+            (results.artists?.length || 0) > 0 ||
+            (results.radio?.length || 0) > 0 ||
+            (results.podcasts?.length || 0) > 0);
+
     return (
-        <div data-testid="music-search">
+        <div data-testid="music-search" className="tunes-search-page">
             <h1 className="tunes-page-title">Search</h1>
-            <p className="tunes-page-subtitle">Tracks, albums, artists, radio stations, podcasts. All at once.</p>
+            <p className="tunes-page-subtitle">
+                Tracks, albums, artists, radio stations, podcasts. All at once.
+            </p>
 
             <div className="tunes-search-wrap">
                 <SearchIcon size={22} className="tunes-search-icon" />
@@ -57,179 +244,118 @@ export default function MusicSearch() {
                 />
             </div>
 
-            {loading && (<div className="tunes-empty">Searching…</div>)}
+            {loading && <div className="tunes-empty">Searching…</div>}
             {!loading && !results && q.length === 0 && (
-                <div className="tunes-empty">Start typing to search across music, radio, and podcasts.</div>
+                <div className="tunes-empty">
+                    Start typing to search across music, radio, and podcasts.
+                </div>
             )}
 
-            {results && (
-                <>
-                    {/* ─── Artists first (matches Spotify UX expectation) ─── */}
-                    {results.artists?.length > 0 && (
-                        <section className="tunes-section" data-testid="tunes-results-artists">
-                            <h2 className="tunes-section__title">Artists</h2>
-                            <div className="tunes-grid">
-                                {results.artists.slice(0, 10).map((ar) => (
-                                    <div key={ar.id} style={{ position: 'relative' }}>
-                                        <Link
-                                            to={`/music/artist/${ar.id}`}
-                                            className="tunes-card"
-                                            data-focusable="true"
-                                            data-focus-style="tile"
-                                            tabIndex={0}
-                                            data-testid={`search-artist-${ar.id}`}
-                                            style={{ textAlign: 'center' }}
-                                        >
-                                            <img src={ar.picture || ''} alt="" className="tunes-card__art tunes-card__art--round" loading="lazy" />
-                                            <div className="tunes-card__body" style={{ textAlign: 'center' }}>
-                                                <p className="tunes-card__title">{ar.name}</p>
-                                                <p className="tunes-card__subtitle">Artist</p>
-                                            </div>
-                                        </Link>
-                                        <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                                            <LikeButton kind="artist" item={ar} size="sm" />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </section>
-                    )}
+            {results && !hasResults && (
+                <div className="tunes-empty">
+                    Nothing matched &quot;{q}&quot;. Try a different search.
+                </div>
+            )}
 
-                    {results.tracks?.length > 0 && (
-                        <section className="tunes-section" data-testid="tunes-results-tracks">
-                            <h2 className="tunes-section__title">Songs</h2>
-                            <div className="tunes-track-list">
-                                {results.tracks.slice(0, 10).map((t, i) => (
-                                    <div
-                                        key={t.id}
-                                        className="tunes-track-row"
-                                        data-focusable="true"
-                                        data-focus-style="tile"
-                                        tabIndex={0}
-                                        onClick={() => controls.playTrack(t, results.tracks)}
-                                        onKeyDown={(e) => { if (e.key === 'Enter') controls.playTrack(t, results.tracks); }}
-                                        data-testid={`tunes-result-track-${t.id}`}
-                                        style={{ gridTemplateColumns: '28px 64px 1fr auto auto auto' }}
-                                    >
-                                        <div className="tunes-track-row__num">{i + 1}</div>
-                                        <img src={t.album?.cover || ''} alt="" className="tunes-track-row__art" loading="lazy" />
-                                        <div>
-                                            <p className="tunes-track-row__title">{t.title}</p>
-                                            <p className="tunes-track-row__artist">{t.artist?.name}</p>
-                                        </div>
-                                        <span className="tunes-track-row__duration">{fmtDur(t.duration)}</span>
-                                        <LikeButton kind="track" item={t} size="sm" />
-                                        <AddToPlaylistButton track={t} />
-                                    </div>
-                                ))}
-                            </div>
-                        </section>
-                    )}
+            {hasResults && (
+                <div className="tunes-search-results">
 
-                    {results.albums?.length > 0 && (
-                        <section className="tunes-section">
-                            <h2 className="tunes-section__title">Albums</h2>
-                            <div className="tunes-grid">
-                                {results.albums.slice(0, 12).map((a) => (
-                                    <div key={a.id} style={{ position: 'relative' }}>
-                                        <Link
-                                            to={`/music/album/${a.id}`}
-                                            className="tunes-card"
-                                            data-focusable="true"
-                                            data-focus-style="tile"
-                                            tabIndex={0}
-                                            data-testid={`search-album-${a.id}`}
-                                        >
-                                            <img src={a.cover || ''} alt="" className="tunes-card__art" loading="lazy" />
-                                            <div className="tunes-card__body">
-                                                <p className="tunes-card__title">{a.title}</p>
-                                                <p className="tunes-card__subtitle">{a.artist?.name}</p>
-                                            </div>
-                                        </Link>
-                                        <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                                            <LikeButton kind="album" item={a} size="sm" />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </section>
-                    )}
-
-                    {results.radio?.length > 0 && (
-                        <section className="tunes-section tunes-section--radio">
-                            <h2 className="tunes-section__title">
-                                <RadioIcon size={18} style={{ display: 'inline', verticalAlign: -3, marginRight: 8 }} />
-                                Radio
-                            </h2>
-                            <div className="tunes-grid">
-                                {results.radio.map((s) => (
-                                    <div key={s.id} style={{ position: 'relative' }}>
-                                        <button
-                                            type="button"
-                                            className="tunes-card"
-                                            onClick={() => { controls.playRadio(s); musicAPI.radioClick(s.id); }}
-                                            data-testid={`tunes-result-radio-${s.id}`}
-                                            data-focusable="true"
-                                            data-focus-style="tile"
-                                            tabIndex={0}
-                                            style={{ textAlign: 'left', cursor: 'pointer' }}
-                                        >
-                                            <div className="tunes-card__art"
-                                                style={{
-                                                    background: s.favicon
-                                                        ? `center/cover no-repeat url(${s.favicon}), linear-gradient(135deg, #064a59, #0a0118)`
-                                                        : 'linear-gradient(135deg, #064a59, #0a0118)',
-                                                }}
+                    {/* TOP MATCHES — songs row first, side-by-side with
+                        the artist grid for fast scanning at TV distance. */}
+                    {(results.tracks?.length > 0 || results.artists?.length > 0) && (
+                        <div className="tunes-search-row tunes-search-row--top">
+                            {results.tracks?.length > 0 && (
+                                <section
+                                    className="tunes-section tunes-search-songs"
+                                    data-testid="tunes-results-tracks"
+                                >
+                                    <h2 className="tunes-section__title">
+                                        <Music2 size={18} style={{ display: 'inline', verticalAlign: -3, marginRight: 8 }} />
+                                        Songs
+                                    </h2>
+                                    <div className="tunes-search-tracklist">
+                                        {results.tracks.slice(0, 6).map((t) => (
+                                            <TrackResultRow
+                                                key={t.id}
+                                                track={t}
+                                                list={results.tracks}
+                                                isCurrent={state?.current?.id === t.id && state?.kind === 'track'}
                                             />
-                                            <div className="tunes-card__body">
-                                                <p className="tunes-card__title">{s.name}</p>
-                                                <p className="tunes-card__subtitle">{s.country || 'Radio'}</p>
-                                            </div>
-                                        </button>
-                                        <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                                            <LikeButton kind="radio" item={s} size="sm" />
-                                        </div>
+                                        ))}
                                     </div>
+                                </section>
+                            )}
+
+                            {results.artists?.length > 0 && (
+                                <section
+                                    className="tunes-section tunes-search-artists"
+                                    data-testid="tunes-results-artists"
+                                >
+                                    <h2 className="tunes-section__title">Artists</h2>
+                                    <div className="tunes-search-artists-grid">
+                                        {results.artists.slice(0, 6).map((ar) => (
+                                            <ArtistResultTile key={ar.id} artist={ar} />
+                                        ))}
+                                    </div>
+                                </section>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ALBUMS — full-width 4-up row */}
+                    {results.albums?.length > 0 && (
+                        <section className="tunes-section" data-testid="tunes-results-albums">
+                            <h2 className="tunes-section__title">Albums</h2>
+                            <div className="tunes-search-grid tunes-search-grid--4">
+                                {results.albums.slice(0, 8).map((a) => (
+                                    <AlbumResultTile key={a.id} album={a} />
                                 ))}
                             </div>
                         </section>
                     )}
 
-                    {results.podcasts?.length > 0 && (
-                        <section className="tunes-section tunes-section--podcast">
-                            <h2 className="tunes-section__title">
-                                <Mic size={18} style={{ display: 'inline', verticalAlign: -3, marginRight: 8 }} />
-                                Podcasts
-                            </h2>
-                            <div className="tunes-grid">
-                                {results.podcasts.map((p) => (
-                                    <div key={p.id} style={{ position: 'relative' }}>
-                                        <Link
-                                            to={`/music/podcast/${encodeURIComponent(p.feed_url)}`}
-                                            className="tunes-card"
-                                            data-focusable="true"
-                                            data-focus-style="tile"
-                                            tabIndex={0}
-                                        >
-                                            <img src={p.artwork || ''} alt="" className="tunes-card__art" loading="lazy" />
-                                            <div className="tunes-card__body">
-                                                <p className="tunes-card__title">{p.title}</p>
-                                                <p className="tunes-card__subtitle">{p.artist || p.genre}</p>
-                                            </div>
-                                        </Link>
-                                        <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                                            <LikeButton kind="podcast" item={p} size="sm" />
-                                        </div>
+                    {/* RADIO + PODCASTS — half-width side-by-side */}
+                    {(results.radio?.length > 0 || results.podcasts?.length > 0) && (
+                        <div className="tunes-search-row">
+                            {results.radio?.length > 0 && (
+                                <section
+                                    className="tunes-section tunes-section--radio"
+                                    data-testid="tunes-results-radio"
+                                >
+                                    <h2 className="tunes-section__title">
+                                        <RadioIcon size={18} style={{ display: 'inline', verticalAlign: -3, marginRight: 8 }} />
+                                        Radio
+                                    </h2>
+                                    <div className="tunes-search-grid tunes-search-grid--3">
+                                        {results.radio.slice(0, 6).map((s) => (
+                                            <RadioResultTile key={s.id} station={s} />
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
-                        </section>
-                    )}
+                                </section>
+                            )}
 
-                    {Object.values(results).every((v) => !Array.isArray(v) || v.length === 0) && (
-                        <div className="tunes-empty">Nothing matched "{q}". Try a different search.</div>
+                            {results.podcasts?.length > 0 && (
+                                <section
+                                    className="tunes-section tunes-section--podcast"
+                                    data-testid="tunes-results-podcasts"
+                                >
+                                    <h2 className="tunes-section__title">
+                                        <Mic size={18} style={{ display: 'inline', verticalAlign: -3, marginRight: 8 }} />
+                                        Podcasts
+                                    </h2>
+                                    <div className="tunes-search-grid tunes-search-grid--3">
+                                        {results.podcasts.slice(0, 6).map((p) => (
+                                            <PodcastResultTile
+                                                key={p.id || p.feed_url}
+                                                podcast={p}
+                                            />
+                                        ))}
+                                    </div>
+                                </section>
+                            )}
+                        </div>
                     )}
-                </>
+                </div>
             )}
         </div>
     );
