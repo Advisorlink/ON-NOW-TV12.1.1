@@ -1,5 +1,18 @@
 # ON NOW TV V2 — PRD
 
+> **🚨 v2.10.50 — Launcher "Update available" prompt no longer re-fires after install (10 Feb 2026).**
+>
+> Two stacked bugs in `MainActivity`:
+>
+> 1.  Receiver lifecycle: `packageInstallReceiver` was registered in `onResume` and unregistered in `onPause`.  When the user tapped Update, the Activity went to onPause → receiver unregistered → `PACKAGE_REPLACED` broadcast fired into the void → URL record never advanced from the OLD URL → "Update available" dialog re-fired forever.
+> 2.  On Android 13+ the receiver was flagged `RECEIVER_NOT_EXPORTED`, which on some OEM stacks (Mediatek HK1 boxes) silently dropped protected system broadcasts.
+>
+> **Fix:** Receiver moved to `onCreate`/`onDestroy` scope.  Flag changed to `RECEIVER_EXPORTED` (zero spoofing risk — PACKAGE_REPLACED is a protected broadcast).  Plus a defensive `healInstalledApkUrls()` self-healing pass in `onResume` + `onConfigUpdated`: if the installed versionCode is >= the backend's expected versionCode, we record the current URL as installed.  Belt-and-braces against any future broadcast misses.
+>
+> Detailed write-up: `CHANGELOG.md` → `## v2.10.50`.
+
+---
+
 > **🚨 v2.10.49 — Library matches Search layout + Long-press fixed for TV remotes + Search DOWN → Songs (10 Feb 2026).**
 >
 > Four fixes from the third iteration video review:

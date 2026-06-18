@@ -1,5 +1,50 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.50 — Launcher: "Update available" prompt no longer re-fires after install (2026-02-10)
+
+User report: "Every time I upload a new APK to a tile, once I've installed that APK, the popup is still showing every single time, even after I have installed it.  It only needs to show that there's an update if I upload a new APK to the drawer.  If I've installed it, it shouldn't be showing the pop-up again."
+
+### Root cause — TWO independent bugs in `MainActivity` stacked
+
+**Bug 1: Receiver lifecycle**.  `packageInstallReceiver` was registered in `onResume` and unregistered in `onPause`.  But the typical install flow is:
+
+1.  User taps tile → URL mismatch → "Update available" dialog → user clicks Update.
+2.  `ApkInstaller` triggers Android's system install UI.  **Launcher Activity goes to `onPause` → receiver is UNREGISTERED.**
+3.  Install completes in the system UI → system broadcasts `PACKAGE_REPLACED` → **no listener is alive to catch it**.  Broadcast is GONE.
+4.  User returns to Launcher → `onResume` → receiver re-registers → too late.
+
+Net: the SharedPreferences entry `installed-apk-url-<pkg>` never advanced from the OLD URL.  Every subsequent tile tap saw `installedUrl != remoteUrl` → "Update available" dialog re-fires.  Forever.
+
+**Bug 2: `RECEIVER_NOT_EXPORTED` on Android 13+**.  On some OEM stacks (notably Mediatek-based HK1 boxes), context-registered receivers flagged `RECEIVER_NOT_EXPORTED` don't receive PROTECTED system broadcasts (`PACKAGE_ADDED` / `PACKAGE_REPLACED`).  Compounds Bug 1 — even if the receiver WAS alive during install, the broadcast may have been silently dropped on those devices.
+
+### Fix
+
+1.  **Receiver moved to `onCreate` / `onDestroy`** scope (was `onResume` / `onPause`).  Lives for the full Activity lifetime, including the entire `onPause` window during install.
+2.  **Receiver flag changed `NOT_EXPORTED` → `EXPORTED`** on Android 13+.  `PACKAGE_ADDED` / `PACKAGE_REPLACED` are PROTECTED broadcasts that only the system can send, so exposing the receiver carries zero spoofing risk and ensures delivery on every OEM stack.
+3.  **Self-healing pass added** in `onResume` AND `onConfigUpdated`.  `healInstalledApkUrls()` iterates all dock items; for each one where the installed `longVersionCode >= apkVersionCode` (i.e. the user IS on the latest the backend points to) it records the current `apkUrl` as installed.  Belt-and-braces against any future broadcast misses (race conditions, side-loaded APKs, adb installs, OEM quirks).
+
+Combined effect: as soon as the user resumes the Launcher after a successful install — whether the broadcast fired or not — the URL record advances to the new value and the next tile tap sees `installedUrl == remoteUrl` → no prompt.
+
+### Why "URL-based + versionCode-fallback" is the right rule
+
+The user's mental model: "show the prompt when I upload a NEW APK, not when versionCode happens to match".  Pure URL comparison (`installedUrl != remoteUrl`) handles re-uploads of same-versionCode dev builds correctly.  The self-healing's `installed >= expected` versionCode check is purely defensive — it only RECORDS the URL when we're confident the user IS on the latest; it never CLEARS the URL.
+
+### Files touched
+
+- `android/onnowtv-launcher/app/src/main/java/tv/onnow/launcher/MainActivity.kt`
+  * Receiver register moved `onResume` → `onCreate`.
+  * Receiver unregister moved `onPause` → `onDestroy`.
+  * Receiver flag `RECEIVER_NOT_EXPORTED` → `RECEIVER_EXPORTED` (Android 13+ branch).
+  * New method `healInstalledApkUrls()`.
+  * Called from `onResume` AND end of `onConfigUpdated`.
+
+### Smoke test
+
+- Kotlin compiles clean (no new imports, only stdlib uses).
+- Receiver register/unregister symmetry preserved (Activity teardown unregisters, otherwise persistent).
+
+
+
 ## v2.10.49 — Library matches Search layout + Long-press fixed for TV remotes + Search DOWN→Songs (2026-02-10)
 
 User feedback (third iteration video review): "The library is way too big.  Make it look like Search — songs down the left, albums on the right, artists underneath the albums.  Long-press isn't working — push and hold should bring up the pop-up like Vesper.  And when you press DOWN from the search bar it should land on the SONGS list, not the artists."

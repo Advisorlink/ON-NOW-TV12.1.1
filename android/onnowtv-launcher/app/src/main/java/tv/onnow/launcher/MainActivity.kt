@@ -118,6 +118,21 @@ class MainActivity : AppCompatActivity() {
         // known remote config the moment the user opens it — even on
         // cold start with no network yet.
         repo.loadCached()?.let { onConfigUpdated(it) }
+
+        // v2.10.50 — Register the package-install receiver at
+        // ACTIVITY-CREATE scope (was previously in onResume).
+        // The old pairing was broken: when the user tapped "Update"
+        // the launcher Activity went to onPause (Android's install
+        // UI takes the foreground), so the receiver was UNREGISTERED
+        // for the entire duration of the install.  When PACKAGE_
+        // REPLACED finally broadcast, no listener caught it, so the
+        // SharedPreferences "installed-apk-url-<pkg>" never advanced
+        // to the new URL.  Next tile tap → URL mismatch → "Update
+        // available" dialog re-shows even though the user just
+        // installed.  Moving the registration to onCreate keeps the
+        // receiver alive across the entire Activity lifetime —
+        // including the onPause window during install.
+        registerPackageInstallReceiver()
     }
 
     override fun onResume() {
@@ -125,11 +140,6 @@ class MainActivity : AppCompatActivity() {
         handler.post(clockTick)
         handler.postDelayed(qrCycleTick, 8_000)
         startBackendPolling()
-        // v2.10.36 — Listen for installs that complete while the
-        // launcher is in the background (the typical sequence is:
-        // user taps Update → system installer takes over → install
-        // completes → user returns to the launcher).
-        registerPackageInstallReceiver()
         // v2.8.19 — Refresh the top-bar VPN status dot whenever the
         // launcher gains focus, so a freshly-connected VPN client
         // (or a disconnect) shows up the moment the user returns.
@@ -149,6 +159,16 @@ class MainActivity : AppCompatActivity() {
         // method name as a stub so older configurations still call
         // through cleanly.
         enforceKidsLockIfNeeded()
+        // v2.10.50 — Self-healing pass for the "installed apk url"
+        // record.  Belt-and-braces: even if the PACKAGE_REPLACED
+        // broadcast was missed for ANY reason (race condition,
+        // older Android quirks, user side-loaded via adb), we
+        // detect "user is on the latest version" by comparing the
+        // freshly-read installed versionCode against the backend's
+        // declared `apkVersionCode` and update the stored URL.
+        // Without this the prompt could keep re-firing forever
+        // after a successful install.
+        healInstalledApkUrls()
     }
 
     override fun onPause() {
@@ -156,12 +176,17 @@ class MainActivity : AppCompatActivity() {
         handler.removeCallbacks(clockTick)
         handler.removeCallbacks(qrCycleTick)
         configPollJob?.cancel()
-        // v2.10.36 — Pair the receiver with onResume to avoid leaks.
-        unregisterPackageInstallReceiver()
+        // v2.10.50 — Receiver intentionally NOT unregistered here
+        // (was the bug — see the onCreate comment above).  Cleanup
+        // moved to onDestroy.
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        // v2.10.50 — Receiver lives for the whole Activity lifetime
+        // now, so cleanup belongs here (was in onPause, which led
+        // to broadcasts being missed during install).
+        unregisterPackageInstallReceiver()
         // v2.10.45 — Release the Wi-Fi callback so we don't leak
         // the lambda + ConnectivityManager reference once the
         // launcher activity is finally torn down.
@@ -177,6 +202,49 @@ class MainActivity : AppCompatActivity() {
         boostJob = null
         boostPulseAnimator?.cancel()
         boostPulseAnimator = null
+    }
+
+    /**
+     * v2.10.50 — Self-healing pass for the "installed apk url"
+     * record.  Belt-and-braces alongside `packageInstallReceiver`.
+     *
+     * For every dock item that carries an `apkUrl` AND a target
+     * package: if the package is installed locally AND its
+     * versionCode is >= the backend's declared `apkVersionCode`,
+     * we know the user IS on the latest build → record the URL.
+     * (versionCode strictly increases per workflow run since
+     * v2.10.41, so "installed >= expected" reliably means "user
+     * has the build the backend currently points to or newer".)
+     *
+     * Without this method, any scenario where the system broadcast
+     * was missed (Activity lifecycle race, OEM quirk, adb-installed
+     * APK, etc.) would leave the URL record permanently stale →
+     * "Update available" prompt re-fires every single tap forever
+     * — the exact symptom the user reported.
+     */
+    private fun healInstalledApkUrls() {
+        val items = dockItems
+        if (items.isEmpty()) return
+        for (item in items) {
+            val pkg = item.targetPackage?.takeIf { it.isNotBlank() } ?: continue
+            val url = item.apkUrl?.takeIf { it.isNotBlank() } ?: continue
+            val installed = installedVersionCode(pkg)
+            if (installed <= 0L) continue // not installed → nothing to heal
+            val expected = item.apkVersionCode ?: 0L
+            // If the backend hasn't declared a versionCode, accept
+            // "package is installed at all" as sufficient evidence
+            // (the older URL would have come from this same package
+            // version anyway).
+            if (expected > 0L && installed < expected) continue
+            val recorded = installedApkUrl(pkg)
+            if (recorded == url) continue // already up to date
+            recordInstalledApkUrl(pkg, url)
+            android.util.Log.i(
+                "LauncherUpdate",
+                "Self-healed installed APK url for $pkg → ${url.takeLast(40)} " +
+                    "(installed=$installed expected=$expected)",
+            )
+        }
     }
 
     /* ───────────  v2.10.36 — APK-install completion tracking  ──────── */
@@ -235,10 +303,23 @@ class MainActivity : AppCompatActivity() {
         }
         try {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                // v2.10.50 — Use RECEIVER_EXPORTED (not NOT_EXPORTED).
+                // PACKAGE_ADDED / PACKAGE_REPLACED are PROTECTED
+                // broadcasts: only the Android system can send
+                // them, so "exporting" the receiver carries zero
+                // spoofing risk.  Some OEM stacks (Mediatek-based
+                // HK1 boxes among them) have shipped buggy bridges
+                // that wouldn't deliver protected broadcasts to
+                // NOT_EXPORTED context-registered receivers on
+                // Android 13+, which combined with the lifecycle
+                // bug above to make the install-completion record
+                // permanently stale.  EXPORTED is the canonical
+                // choice for receivers that exist solely to listen
+                // to system broadcasts.
                 registerReceiver(
                     packageInstallReceiver,
                     filter,
-                    android.content.Context.RECEIVER_NOT_EXPORTED,
+                    android.content.Context.RECEIVER_EXPORTED,
                 )
             } else {
                 @Suppress("UnspecifiedRegisterReceiverFlag")
@@ -874,6 +955,13 @@ class MainActivity : AppCompatActivity() {
         applyTopBarBranding(config.appstore, config.v2ai)
         // v2.8.24 — Refresh the on-home QR overlay panel.
         applyQrVideos(config.qrVideos)
+        // v2.10.50 — Heal the installed-APK URL records now that
+        // we have a fresh dock config.  Without this, the very
+        // first onResume after cold-boot could run with an empty
+        // dockItems list (cache miss + slow network), miss the
+        // self-heal entirely, and leave the URL stuck on whatever
+        // shim value the first-tap path stamped in.
+        healInstalledApkUrls()
     }
 
     /** v2.8.24 — Update the QR video list + repaint the overlay
