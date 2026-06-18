@@ -50,7 +50,7 @@ export default function PosterTile({ item, onSelect, initialFocus = false }) {
                         : null,
                     year: item.year || item.sub,
                     genres: item.genres,
-                    synopsis: item.description,
+                    synopsis: item.overview || item.synopsis || item.description,
                 },
             })
         );

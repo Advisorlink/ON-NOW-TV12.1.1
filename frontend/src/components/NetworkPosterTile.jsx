@@ -69,11 +69,12 @@ export default function NetworkPosterTile({ item }) {
             if (!imdbId) return;
             window.dispatchEvent(new CustomEvent('vesper:request-add-to-list', {
                 detail: {
-                    id:     imdbId,
-                    type:   item.type,    // 'movie' or 'series'
-                    title:  item.title,
-                    poster: img.poster(item.poster),
-                    year:   item.year ? String(item.year).slice(0, 4) : '',
+                    id:       imdbId,
+                    type:     item.type,    // 'movie' or 'series'
+                    title:    item.title,
+                    poster:   img.poster(item.poster),
+                    year:     item.year ? String(item.year).slice(0, 4) : '',
+                    synopsis: item.overview || item.synopsis || '',
                 },
             }));
         } catch {

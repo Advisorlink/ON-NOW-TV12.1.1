@@ -1143,6 +1143,7 @@ function FavouriteCard({ item, type }) {
                     title: item.meta?.name,
                     poster,
                     year: item.meta?.year,
+                    synopsis: item.meta?.synopsis,
                 },
             })
         );

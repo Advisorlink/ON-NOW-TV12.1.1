@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, CalendarDays, Tv, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { API } from '@/lib/api';
 
@@ -212,10 +213,11 @@ export default function LibraryCalendar({ tvFavourites = [], onClose }) {
                         <DetailPanel
                             date={selectedDate}
                             episodes={selectedEpisodes}
+                            onClose={onClose}
                         />
                     </div>
                     {upcomingWeek.length > 0 && (
-                        <UpcomingRail episodes={upcomingWeek} />
+                        <UpcomingRail episodes={upcomingWeek} onClose={onClose} />
                     )}
                 </>
             )}
@@ -508,7 +510,7 @@ function MonthGrid({ grid, byDate, selectedDate, onSelect, monthCursor }) {
     );
 }
 
-function DetailPanel({ date, episodes }) {
+function DetailPanel({ date, episodes, onClose }) {
     if (!date) {
         return null;
     }
@@ -573,7 +575,7 @@ function DetailPanel({ date, episodes }) {
                     }}
                 >
                     {episodes.map((ep) => (
-                        <EpisodeCard key={`${ep.show.imdb_id}-S${ep.season}E${ep.episode}`} ep={ep} />
+                        <EpisodeCard key={`${ep.show.imdb_id}-S${ep.season}E${ep.episode}`} ep={ep} onClose={onClose} />
                     ))}
                 </div>
             )}
@@ -581,14 +583,28 @@ function DetailPanel({ date, episodes }) {
     );
 }
 
-function EpisodeCard({ ep }) {
+function EpisodeCard({ ep, onClose }) {
+    const navigate = useNavigate();
     const still = ep.still_path ? `https://image.tmdb.org/t/p/w300${ep.still_path}` : null;
     const poster = ep.show.poster_path ? `https://image.tmdb.org/t/p/w154${ep.show.poster_path}` : null;
     const thumb = still || poster;
+    const onActivate = () => {
+        // v2.10.58 — Calendar episode card → series detail page so
+        // the user can play the new episode in one click.  Detail
+        // page's stream resolver handles the rest.
+        if (onClose) onClose();
+        if (ep.show.imdb_id) {
+            navigate(`/title/series/${ep.show.imdb_id}`);
+        }
+    };
     return (
-        <div
+        <button
             data-testid={`cal-episode-${ep.show.imdb_id}-S${ep.season}E${ep.episode}`}
-            className="flex"
+            data-focusable="true"
+            data-focus-style="tile"
+            tabIndex={0}
+            onClick={onActivate}
+            className="flex text-left w-full"
             style={{
                 gap: 14,
                 padding: 12,
@@ -596,6 +612,7 @@ function EpisodeCard({ ep }) {
                 background: 'rgba(11,19,34,0.55)',
                 border: `1px solid ${ep.colour}55`,
                 borderLeft: `4px solid ${ep.colour}`,
+                cursor: 'pointer',
             }}
         >
             {thumb && (
@@ -641,11 +658,16 @@ function EpisodeCard({ ep }) {
                     {ep.name || ep.overview || '\u00a0'}
                 </div>
             </div>
-        </div>
+        </button>
     );
 }
 
-function UpcomingRail({ episodes }) {
+function UpcomingRail({ episodes, onClose }) {
+    const navigate = useNavigate();
+    const goToShow = (ep) => {
+        if (onClose) onClose();
+        if (ep.show.imdb_id) navigate(`/title/series/${ep.show.imdb_id}`);
+    };
     return (
         <section
             style={{
@@ -685,13 +707,14 @@ function UpcomingRail({ episodes }) {
                         ? `https://image.tmdb.org/t/p/w300${ep.show.backdrop_path}`
                         : null;
                     return (
-                        <div
+                        <button
                             key={`week-${ep.show.imdb_id}-S${ep.season}E${ep.episode}`}
                             data-testid={`cal-rail-${ep.show.imdb_id}-S${ep.season}E${ep.episode}`}
                             data-focusable="true"
                             data-focus-style="tile"
                             tabIndex={0}
-                            className="relative overflow-hidden"
+                            onClick={() => goToShow(ep)}
+                            className="relative overflow-hidden text-left"
                             style={{
                                 /* v2.10.46-f — Tightened from
                                  * 280 → 240 px so 6-7 tiles fit
@@ -707,6 +730,8 @@ function UpcomingRail({ episodes }) {
                                 borderRadius: 12,
                                 background: '#0B1322',
                                 border: '1px solid rgba(255,255,255,0.06)',
+                                padding: 0,
+                                cursor: 'pointer',
                             }}
                         >
                             {still && (
@@ -764,7 +789,7 @@ function UpcomingRail({ episodes }) {
                                     {ep.show.name}
                                 </div>
                             </div>
-                        </div>
+                        </button>
                     );
                 })}
             </div>

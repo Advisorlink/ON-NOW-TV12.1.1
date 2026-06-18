@@ -481,7 +481,7 @@ function MorphTileImpl({ item, navigate, onTapRecord }) {
                         : null,
                     year: item.year || item.releaseInfo,
                     genres: item.genres,
-                    synopsis: item.description,
+                    synopsis: item.overview || item.synopsis || item.description,
                 },
             })
         );

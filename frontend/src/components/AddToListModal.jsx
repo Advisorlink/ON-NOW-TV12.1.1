@@ -341,6 +341,7 @@ export default function AddToListModal() {
                         name: payload.title,
                         poster: payload.poster,
                         year: payload.year,
+                        synopsis: payload.synopsis,
                     },
                 });
             }
