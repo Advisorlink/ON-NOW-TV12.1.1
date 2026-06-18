@@ -438,7 +438,6 @@ export default function Settings() {
     );
 }
 
-
 function SignOutRow() {
     const { account, logout } = useAuth();
     const [busy, setBusy] = React.useState(false);

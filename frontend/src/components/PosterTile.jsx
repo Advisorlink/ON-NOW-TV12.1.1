@@ -2,17 +2,6 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as img from '@/lib/img';
 import useLongPress from '@/hooks/useLongPress';
-import { API } from '@/lib/api';
-
-/**
- * Module-level memo of TMDB→IMDB resolutions.  The backend caches
- * forever (24h) but this keeps the second long-press on the same
- * tile completely network-free.  Keyed by `${type}:${tmdb_id}`.
- *
- * Surviving HMR reloads isn't critical — the worst case is one extra
- * fetch per tile per cold mount.
- */
-const TMDB_TO_IMDB_MEMO = new Map();
 
 /**
  * Poster tile.  Image renders immediately on mount — we don't try
@@ -46,40 +35,8 @@ export default function PosterTile({ item, onSelect, initialFocus = false }) {
         }
     };
 
-    const onLongPress = async () => {
-        let id = item.imdbId || item.id;
-        // v2.10.53 — TMDB-sourced tiles (For You "Similar to what
-        // you love" / genre rails) carry `tmdbId` + `tmdbType` but
-        // no IMDB id.  Resolve to IMDB on demand so the long-press
-        // "Add to My List" / "Watch Later" flow works on those
-        // tiles too.  Backend response is in-memory cached for 24 h
-        // so the round-trip is typically 50-200 ms; we also memoise
-        // module-side so a second long-press is instant.
-        if (
-            (!id || !id.toString().startsWith('tt')) &&
-            item.tmdbId &&
-            item.tmdbType
-        ) {
-            const memoKey = `${item.tmdbType}:${item.tmdbId}`;
-            if (TMDB_TO_IMDB_MEMO.has(memoKey)) {
-                id = TMDB_TO_IMDB_MEMO.get(memoKey);
-            } else {
-                try {
-                    const r = await fetch(
-                        `${API}/tmdb/imdb/${item.tmdbType}/${item.tmdbId}`
-                    );
-                    if (r.ok) {
-                        const json = await r.json();
-                        if (json && json.imdb_id) {
-                            id = json.imdb_id;
-                            TMDB_TO_IMDB_MEMO.set(memoKey, id);
-                        }
-                    }
-                } catch {
-                    /* ignore — fall through to the guard below */
-                }
-            }
-        }
+    const onLongPress = () => {
+        const id = item.imdbId || item.id;
         if (!id || !id.toString().startsWith('tt')) return;
         window.dispatchEvent(
             new CustomEvent('vesper:request-add-to-list', {

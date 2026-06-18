@@ -72,10 +72,6 @@ export default function Search() {
                 .map((it) => ({
                     id: `kids-search-${it.tmdb_id}`,
                     imdbId: null,
-                    // v2.10.53 — carry TMDB metadata so long-press
-                    // "Add to My List" can resolve IMDB on demand.
-                    tmdbId: it.tmdb_id,
-                    tmdbType: it.type === 'series' ? 'tv' : 'movie',
                     type: it.type,
                     title: it.title,
                     sub: [

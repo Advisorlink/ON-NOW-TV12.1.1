@@ -55,15 +55,6 @@ export default function ForYouShelf() {
                         similarTiles = list.map((it) => ({
                             id: `for-you-sim-${it.type}-${it.tmdb_id}`,
                             imdbId: null,
-                            // v2.10.53 — Carry TMDB metadata so the
-                            // long-press "Add to My List" gesture can
-                            // resolve a real IMDB id on demand.
-                            // Without these two fields PosterTile's
-                            // long-press handler bails because the
-                            // synthetic `for-you-sim-…` id doesn't
-                            // start with `tt`.
-                            tmdbId: it.tmdb_id,
-                            tmdbType: it.type === 'series' ? 'tv' : 'movie',
                             type: it.type,
                             title: it.title,
                             sub: [
@@ -96,9 +87,6 @@ export default function ForYouShelf() {
                         recTiles = list.map((it) => ({
                             id: `for-you-rec-${it.type}-${it.tmdb_id}`,
                             imdbId: null,
-                            // v2.10.53 — see similarTiles above.
-                            tmdbId: it.tmdb_id,
-                            tmdbType: it.type === 'series' ? 'tv' : 'movie',
                             type: it.type,
                             title: it.title,
                             sub: [
