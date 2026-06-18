@@ -1,5 +1,52 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.54 — Vesper restored to the CORRECT v2.10.17 baseline (dc16f1cd) + all 138/79 WebView compat junk removed (2026-02-18)
+
+User report (after watching boxes run terribly): "Its not WORKING!!!!!!! LOOK AT HOW SLOW IT IS AND HOW ITS NOT RENDERING PROPERLY ... the login screen was there in version 2.10.17 ... we don't need to worry about [Chrome 79] anymore.  All that's gone.  I've got 138 Chrome now on all of the boxes ... PUT IT BACK TO THAT VERSION !!!!  THIS IS IT I ATTACHED THE APK."
+
+### What I found
+
+The user attached `onnowtv-v2-debug (26).apk` — `versionName=2.10.17`, `versionCode=692`.  The CI workflow derives `versionCode = 200 + GITHUB_RUN_NUMBER`, so this APK was built from GitHub Actions run #492.  `versionName=2.10.17` was sticky for ~9 days of commits (from `e12a38e3` on 9 Jun 2026 → `dc16f1cd` on 18 Jun 2026) — many real features landed during that window without bumping CHANGELOG top.
+
+The previous "v2.10.52" surgical revert landed on `e12a38e3` (the FIRST v2.10.17 commit) instead of `dc16f1cd` (the LAST).  That accidentally stripped:
+
+* v2.10.4 — `useSpatialFocus` recognising `[data-action-row="true"]` containers so the Detail page's Autoplay row navigates correctly.
+* v2.10.10 — Nav rail vertical isolation in `useSpatialFocus` (focus inside the left rail no longer pages the main scroller).
+* v2.10.24 — Loading spinner animation exclusions in `index.css`'s `.vesper-host-android` block (without these, spinners freeze in perf mode and the app looks half-rendered).
+* v2.10.27 — 120 ms `transform` transition on `[data-focus-style='tile']` (without it the avatar/poster scale-pop reads as a hard snap).
+* The entire login system (`LoginGate.jsx`, `LoginScreen.jsx`, `AuthContext.jsx`, `lib/auth.js`) — these landed during the v2.10.17 era (12 Jun → 17 Jun) and ARE in the user's working APK.
+
+### Fix
+
+Re-revert ONLY the 3 Vesper core files that drifted, this time to `dc16f1cd`:
+
+1.  `frontend/src/hooks/useSpatialFocus.js` — `git show dc16f1cd:... > file` (958 lines, back from 988-line e12a38e3 baseline; re-adds v2.10.4 + v2.10.10).
+2.  `frontend/src/index.css` — `git show dc16f1cd:... > file` (1663 lines, back from 1643-line baseline; re-adds v2.10.24 + v2.10.27).
+3.  `frontend/src/App.js` — `git show dc16f1cd:... > file`, then re-disable `<UpdateGate />` per v2.10.53 (single-line JSX comment).
+
+Diff against `dc16f1cd` after fix:
+* App.js: 7-line UpdateGate JSX comment only.
+* useSpatialFocus.js: 0 lines.
+* index.css: 0 lines.
+
+### What's preserved from this session's Music polish
+
+Untouched on disk (all the user-approved Music work from this session):
+* `useTuneTap.js`, `MusicAddToLibraryModal.jsx`
+* `MusicLibrary.jsx` (2-col layout), `MusicSearch.jsx` (redesign + DOWN nav fix)
+* `MusicAlbum.jsx` (AlbumTrackRow + 1-shot 404 retry), `MusicArtist.jsx` (1-shot retry), `MusicHome.jsx` (useTuneTap)
+* `FullScreenPlayer.jsx` (Back button intercept)
+* `tunes.css` (round avatar focus rings, 6-up album grid)
+
+### Smoke test
+
+* `/` loads cleanly on the preview.
+* Login screen renders without lag, username & password inputs accept text, Sign-in button visible.
+* No console errors related to the unwiring.
+* Lint clean on `App.js` + `useSpatialFocus.js`.
+
+
+
 ## v2.10.53 — Vesper in-app update prompt DISABLED (launcher is now the single source of update truth) (2026-02-10)
 
 User report: "Every time we update GitHub it's sending an update to these boxes and ruining the boxes because of the wrong versions.  The only pop-ups for updates that should happen are through the launcher, not through the app itself at all.  Remove the update completely."

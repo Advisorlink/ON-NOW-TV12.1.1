@@ -658,31 +658,14 @@ function App() {
                                 is published to GitHub Releases.
                                 Combined with the stable debug
                                 keystore (bootstrap-keystore workflow)
-                                future upgrades install in-place.
-
-                                v2.10.53 — DISABLED at user request.
-                                Per the user: "remove the update
-                                completely.  The only pop-ups for
-                                updates should be through the
-                                launcher, not through the app
-                                itself at all.  Every time we
-                                update GitHub it's sending an
-                                update to these boxes and ruining
-                                them with wrong versions."
-
-                                The launcher's own update flow
-                                (tile-level APK url comparison +
-                                self-healing record from v2.10.50)
-                                is the SINGLE source of update
-                                prompts going forward.  Vesper APK
-                                lives or dies as a Movies-tile
-                                child, no longer self-announcing.
-
-                                Keeping the import + commented
-                                JSX so the gate can be flipped
-                                back on later with a one-line
-                                change if the user ever wants
-                                in-app updates back. */}
+                                future upgrades install in-place. */}
+                            {/* v2.10.53 — DISABLED at user request.
+                                "Remove the update completely.  The
+                                only pop-ups for updates should be
+                                through the launcher, not through
+                                the app itself."  Launcher tile
+                                update flow is the SINGLE source
+                                of update prompts. */}
                             {/* <UpdateGate /> */}
                             <OnboardingGate />
                             <BootSplash />

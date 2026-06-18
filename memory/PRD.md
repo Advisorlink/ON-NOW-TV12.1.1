@@ -1,5 +1,26 @@
 # ON NOW TV V2 — PRD
 
+> **🚨 v2.10.54 — Vesper restored to the CORRECT v2.10.17 baseline (`dc16f1cd`, 18 Jun 2026).  138-79 WebView compat junk fully removed (18 Feb 2026).**
+>
+> The previous "surgical revert" landed on `e12a38e3` — the FIRST commit where CHANGELOG top was v2.10.17 (9 Jun 2026), NOT the commit that actually built the user's working APK (versionCode 692, built from `dc16f1cd` on 18 Jun 2026).  The user's working APK has the login screen + the v2.10.4 / v2.10.10 / v2.10.24 / v2.10.27 navigation & perf improvements; reverting to `e12a38e3` accidentally stripped all of those, leaving the login broken + Vesper feeling slow & half-rendered.
+>
+> Now boxes run Chrome 138, so the user explicitly: "138 - 79 webview bullshit ... we don't need to worry about that anymore.  All that's gone.  PUT IT BACK TO THAT VERSION."
+>
+> **Fix:** Re-revert the three core files to `dc16f1cd` exactly, preserving UpdateGate commented-out (per v2.10.53 user request) and ALL Music app polish from this session:
+>
+> 1.  `frontend/src/hooks/useSpatialFocus.js` — back to 958 lines (re-adds v2.10.4 action-row recognition + v2.10.10 nav rail isolation).
+> 2.  `frontend/src/index.css` — back to 1663 lines (re-adds v2.10.27 smooth tile transform + v2.10.24 loading-spinner preservation in perf mode).
+> 3.  `frontend/src/App.js` — matches `dc16f1cd` (LoginGate + AuthProvider intact), UpdateGate stays JSX-commented per v2.10.53.
+>
+> All Music app changes (useTuneTap, MusicAddToLibraryModal, Library 2-col layout, Search redesign, FullScreenPlayer back-button, MusicAlbum/Artist auto-retry + round-avatar focus rings) — PRESERVED untouched.
+>
+> Detailed write-up: `CHANGELOG.md` → `## v2.10.54`.
+
+---
+
+
+# ON NOW TV V2 — PRD
+
 > **🚨 v2.10.53 — Vesper in-app update prompt DISABLED.  Launcher is now the SINGLE source of update truth (10 Feb 2026).**
 >
 > `<UpdateGate />` removed from `App.js`'s render tree (JSX-commented, not deleted).  No more 6-hour `/api/app/latest-version` polling.  No more in-app "Update available" popup.  No more accidental installs of freshly-built dev APKs.  All Vesper updates now flow exclusively through the launcher's tile-level update flow.

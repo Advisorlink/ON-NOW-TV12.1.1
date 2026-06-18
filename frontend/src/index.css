@@ -423,7 +423,15 @@ body {
    blurred glow looks pretty on a high-end laptop but on Chrome 52
    / cheap Android WebViews each blur radius forces an extra paint
    pass per frame, which is what causes the "chunky" feel during
-   rapid D-pad nav.  Pure 3px solid ring is a 1-pixel paint op. */
+   rapid D-pad nav.  Pure 3px solid ring is a 1-pixel paint op.
+   v2.10.27 — Added a tight 120 ms transform transition so the
+   scale-pop doesn't read as a hard snap on the avatar picker.
+   The animation strip rules below leave `transition` properties
+   alone (they only kill `animation`), so this stays smooth even
+   inside `.vesper-host-android`. */
+[data-focus-style='tile'] {
+    transition: transform 120ms ease-out;
+}
 [data-focus-style='tile']:focus-visible,
 [data-focus-style='tile'][data-focused='true'] {
     transform: scale(1.08) translateY(-2px);
@@ -663,9 +671,20 @@ body {
     display: none !important;
 }
 .vesper-low-end *,
-.vesper-host-android *:not([data-keep-anim='true']) {
+.vesper-host-android *:not([data-keep-anim='true']):not(.vesper-spin):not(.vesper-dots):not(.lvtv-spin):not(.kk-spin):not(.orbital-loader):not([data-loading-anim='true']) {
     animation-duration: 0.001s !important;
     animation-iteration-count: 1 !important;
+}
+/* v2.10.24 — Loading spinners MUST keep animating even in perf
+   mode, otherwise the user thinks the app is frozen.  Re-assert
+   the animations the global stripper above would otherwise kill. */
+.vesper-low-end .vesper-spin,
+.vesper-host-android .vesper-spin {
+    animation: vesperSpin 1s linear infinite !important;
+}
+.vesper-low-end .vesper-dots,
+.vesper-host-android .vesper-dots {
+    animation: vesperDotsPulse 1.4s ease-in-out infinite !important;
 }
 .vesper-low-end [data-focusable='true'],
 .vesper-host-android [data-focusable='true'] {
@@ -1640,4 +1659,5 @@ body[data-platform="mobile"] [data-testid^="network-poster-"] {
     box-shadow: 0 0 22px rgba(255, 107, 203, 0.35);
     color: #FFC8E5;
 }
+
 
