@@ -2607,29 +2607,23 @@
 }
 
 .tunes-artist-hero {
-    /* v2.10.35 — Sticky hero.  When the user moves focus down into
-       the Popular tracks list or Discography grid, the spatial
-       focus hook scrolls the page so the focused row pins at ~22%
-       of viewport height — which on this page used to push the
-       artist photo + name + Play button completely out of view.
-       The user reported "the hero needs to stay there properly
-       and be static while you can actually move around the rest
-       of the application".
-       `position: sticky; top: 0` keeps the hero pinned at the top
-       of `.tunes-root`'s scroll container.  The opaque background
-       + small blur + z-index above the rows means content scrolls
-       cleanly UNDER the hero instead of bleeding through.  Inline
-       gap below shifts the first section beneath the hero. */
+    /* v2.10.43 — Sticky hero, SOLID background.
+       Previously this used a `linear-gradient` whose bottom 30%
+       faded to transparent — which meant the track rows scrolling
+       UP beneath the hero were visible *through* that fade.  On
+       the box that read as "the content is scrolling UP INTO the
+       hero" instead of "the content is scrolling cleanly BENEATH
+       the hero".  Replacing the gradient with the opaque page
+       background colour fixes the visual layering: hero pins at
+       top, content scrolls cleanly underneath and disappears the
+       moment it reaches the hero's bottom edge.  A thin 1-px
+       shadow line replaces the gradient melt so the hero's bottom
+       boundary still feels intentional (not a hard cut). */
     position: sticky;
     top: 0;
     z-index: 5;
-    background:
-        linear-gradient(180deg,
-            var(--vesper-bg-0) 0%,
-            var(--vesper-bg-0) 70%,
-            rgba(0, 0, 0, 0) 100%);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background: var(--vesper-bg-0);
+    box-shadow: 0 6px 14px -6px rgba(0, 0, 0, 0.7);
     padding-block: clamp(16px, 2vh, 28px);
     /* Reset the layout's outer padding so the hero stretches the
        full width while sticky — the parent `.tunes-artist-page`

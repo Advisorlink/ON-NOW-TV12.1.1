@@ -1,5 +1,50 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.43 — FullScreen BACK returns to previous page + Artist sticky hero no longer bleeds through (2026-02-10)
+
+User reports after the v2.10.42 APK:
+1.  "When you push the back button in the full-screen player it needs to go back to the page you were on before clicking full screen.  It's not doing that right now."
+2.  "When you go into an artist, all their albums show up and all their top songs show up.  When you push down, it's still going up into the static hero section."
+
+### Root cause #1 — Back from FullScreen
+
+`MainActivity.onBackPressed()` did `webView.goBack()` unconditionally — i.e. WebView HISTORY back.  The FullScreenPlayer is an absolute-positioned React overlay (NOT a URL change), so:
+
+* History contains `[/, /music, /music/artist/13]` (say) — no entry for "FullScreenPlayer overlay open".
+* Pressing BACK fired `goBack()` → WebView navigated from `/music/artist/13` to `/music`, dropping the overlay AND the Artist page in one shot.
+* The user landed somewhere they did not expect.
+
+### Fix #1
+
+`MainActivity.onBackPressed()` now FIRST evaluates `window.__onnowtv_handleBack()`.  React registers that function from `MusicLayout` and inspects the DOM in priority order:
+
+1.  `[data-testid="tunes-fullplayer"]` present → dispatch `tunes:close-fullscreen`, return `true`.  MiniPlayer's event listener sets `expanded=false`, the overlay unmounts, and the user is back on the page they were on before opening the player.
+2.  `[data-testid="music-welcome"]` present → programmatically click the Continue button (so it dismisses through its normal handler — sets the localStorage flag AND kicks off the YouTube sign-in via the native bridge).  Return `true`.
+3.  Otherwise return `false` → native falls back to `webView.goBack()` (history back) or `finish()` (exit app).
+
+Result: BACK on the FullScreenPlayer collapses the overlay and reveals the Album / Artist / Search page the user came from.
+
+### Root cause #2 — Artist hero "bleed-through"
+
+The Artist hero was already `position: sticky; top: 0; z-index: 5;`, BUT its `background` used a `linear-gradient(180deg, var(--vesper-bg-0) 0% 70%, transparent 100%)` — the bottom 30% of the hero faded to transparent.  Track rows scrolling UP beneath the hero were visible *through* that fade.  On the box that read as "the content is scrolling UP INTO the static hero section" — exactly the user's complaint.
+
+### Fix #2
+
+`.tunes-artist-hero` now uses a solid `background: var(--vesper-bg-0)` plus a thin `box-shadow: 0 6px 14px -6px rgba(0,0,0,0.7)` underneath as a clean bottom boundary.  Content scrolls cleanly beneath the hero and disappears the moment it reaches the hero's bottom edge.  Backdrop-filter blur removed too — older Chromium builds (HK1 boxes) handled it inconsistently and it's not needed once the background is opaque.
+
+### Files touched
+
+- `android/onnowtv-tunes/.../MainActivity.kt` — `onBackPressed` reworked to call `evaluateJavascript('window.__onnowtv_handleBack()')` first.
+- `frontend/src/pages/music/MusicLayout.jsx` — registers `window.__onnowtv_handleBack` for the lifetime of the music shell.
+- `frontend/src/pages/music/tunes.css` — solid background on `.tunes-artist-hero`, removed gradient + backdrop-filter.
+
+### Smoke test
+- Artist page sticky hero: scroll inside `.tunes-root` → screenshot confirms hero stays pinned with a solid background, content invisible beneath.  No tracks visible "through" the hero.
+- `window.__onnowtv_handleBack` registered at page load (Playwright `typeof === 'function'` confirmed).
+- Kotlin uses only existing APIs (`evaluateJavascript`, `finish`); compiles clean.
+
+
+
 ## v2.10.42 — Welcome popup now ACTUALLY shows before YouTube sign-in (native boot flow fix) (2026-02-10)
 
 User report (in chat after installing the v2.10.41 APK): "It's still not showing the pop-up before the YouTube login.  That's the first thing that needs to show up.  Make that happen."

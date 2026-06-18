@@ -254,11 +254,56 @@ class MainActivity : AppCompatActivity() {
             .build()
     }
 
+    /** v2.10.43 — Give React first dibs on the BACK key.
+     *
+     *  PREVIOUSLY: this method called `webView.goBack()` unconditionally
+     *  whenever WebView history was non-empty.  Two problems with that:
+     *
+     *    1.  On the FullScreenPlayer overlay (which is just an
+     *        absolute-positioned React component, NOT a new URL),
+     *        BACK should close the overlay and reveal the Album /
+     *        Artist / Search page underneath.  Instead, `goBack()`
+     *        navigated the WebView to the previous URL in history —
+     *        often the YouTube sign-in page — and the React app got
+     *        re-rendered there, dumping the user on a blank or
+     *        unexpected screen.
+     *
+     *    2.  ANY React-level overlay (Welcome popup, queue panel,
+     *        settings drawer) couldn't intercept BACK either,
+     *        because the native side never asked.
+     *
+     *  NOW: we evaluate `window.__onnowtv_handleBack()` first.  React
+     *  exposes that function from `MusicLayout`.  It returns "1" if
+     *  some React component consumed the BACK (overlay closed,
+     *  player collapsed, etc.) and "0" otherwise.  Only on "0" do
+     *  we fall back to the old `goBack` / `super.onBackPressed`
+     *  behaviour.  evaluateJavascript is async so we have to defer
+     *  the fallback into the callback. */
+    @Deprecated("Kept for backwards-compat with older Android SDKs")
     override fun onBackPressed() {
-        if (::webView.isInitialized && webView.canGoBack()) {
-            webView.goBack()
-        } else {
+        if (!::webView.isInitialized) {
             super.onBackPressed()
+            return
+        }
+        webView.evaluateJavascript(
+            "(function(){try{return (typeof window.__onnowtv_handleBack==='function' && window.__onnowtv_handleBack())?'1':'0';}catch(e){return '0';}})()",
+        ) { result ->
+            val handled = result?.trim('"') == "1"
+            if (handled) {
+                // React consumed the BACK (e.g. closed the
+                // FullScreenPlayer overlay).  Stay on the current URL.
+                return@evaluateJavascript
+            }
+            if (webView.canGoBack()) {
+                webView.goBack()
+            } else {
+                // Nothing left in WebView history AND React didn't
+                // consume — exit the app cleanly.  We can't call
+                // `super.onBackPressed()` from inside this callback
+                // (only valid inside the override body), so use
+                // finish() which has the same end result.
+                finish()
+            }
         }
     }
 

@@ -1,5 +1,17 @@
 # ON NOW TV V2 — PRD
 
+> **🚨 v2.10.43 — FullScreen BACK returns to previous page + Artist sticky hero no longer bleeds through (10 Feb 2026).**
+>
+> Two bugs reported after the v2.10.42 APK: (1) BACK in FullScreenPlayer was hitting `webView.goBack()` which dumped the user onto a wrong URL; (2) the Artist hero used a gradient with a transparent bottom 30%, so track rows scrolling UP were visible *through* the hero, looking like the content was "scrolling into" it.
+>
+> **Fix #1:** `MainActivity.onBackPressed()` now evaluates `window.__onnowtv_handleBack()` first.  React (registered from `MusicLayout`) inspects the DOM for the FullScreenPlayer / Welcome overlay and closes whichever is on top — returns "1" if it consumed BACK, else "0" so native falls back to history-back / app-exit.
+>
+> **Fix #2:** `.tunes-artist-hero` background switched from a fade-to-transparent gradient to a solid `var(--vesper-bg-0)` + a thin bottom shadow.  Removed the `backdrop-filter` blur (older WebViews handled it inconsistently and it's not needed once the background is opaque).
+>
+> Detailed write-up: `CHANGELOG.md` → `## v2.10.43`.
+
+---
+
 > **🚨 v2.10.42 — Welcome popup now ACTUALLY shows before YouTube sign-in.  Root cause: native bootFlow bypassed React entirely (10 Feb 2026).**
 >
 > The Tunes native `MainActivity.bootFlow()` jumped STRAIGHT to `accounts.google.com/ServiceLogin?...` whenever the YouTube cookie was missing — which is always true on first launch.  The React `MusicWelcome` popup (which explains the YouTube integration + the throwaway-account suggestion) never got a chance to render because React itself never loaded on the unsigned-in path.

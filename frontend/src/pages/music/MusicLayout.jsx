@@ -298,6 +298,55 @@ export default function MusicLayout() {
         } catch { /* private mode / no scrollTo support — ignore */ }
     }, [location.pathname]);
 
+    // v2.10.43 — React-driven BACK key handler for the Tunes APK.
+    //
+    // The native `MainActivity.onBackPressed()` evaluates
+    // `window.__onnowtv_handleBack()` BEFORE doing its own
+    // `webView.goBack()`.  React returns "1" if it consumed the
+    // BACK (closed an overlay / collapsed the player), or "0" to
+    // let native fall back to history-back / app-exit.
+    //
+    // We check overlays in priority order:
+    //   1. FullScreenPlayer expanded?  (Maximize2-icon rail item / mini-player open
+    //       dispatches `tunes:open-fullscreen`; the close event is
+    //       `tunes:close-fullscreen`.)
+    //   2. Welcome popup visible?  (Renders `data-testid="music-welcome"`
+    //       in the DOM only while open.)
+    //
+    // We deliberately do NOT route-pop here.  React Router's normal
+    // browser-history `goBack` is handled by native via
+    // `webView.goBack()` AFTER React returns "0".
+    useEffect(() => {
+        if (typeof window === 'undefined') return undefined;
+        window.__onnowtv_handleBack = () => {
+            // 1. FullScreenPlayer overlay open?  Its root has
+            //    `data-testid="tunes-fullplayer"`.
+            const fsRoot = document.querySelector('[data-testid="tunes-fullplayer"]');
+            if (fsRoot) {
+                window.dispatchEvent(new CustomEvent('tunes:close-fullscreen'));
+                return true;
+            }
+            // 2. Welcome popup open?  Click its Continue button —
+            //    that runs the dismiss handler which sets the
+            //    localStorage flag AND kicks off the YouTube
+            //    sign-in via the native bridge.  Equivalent to
+            //    the user pressing OK with their remote's center
+            //    key, just routed through BACK.
+            const welcomeContinue = document.querySelector(
+                '[data-testid="music-welcome-continue"]',
+            );
+            if (welcomeContinue) {
+                welcomeContinue.click();
+                return true;
+            }
+            return false;
+        };
+        return () => {
+            try { delete window.__onnowtv_handleBack; }
+            catch { window.__onnowtv_handleBack = undefined; }
+        };
+    }, []);
+
     // No extra focusin scroll handler.  Vesper's useSpatialFocus()
     // already handles edge-comfort horizontal scroll inside rails
     // and row-pin vertical scroll between shelves with hardware-
