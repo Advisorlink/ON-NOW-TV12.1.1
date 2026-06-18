@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { musicAPI } from '../../lib/music-api';
 import { useMusicPlayer } from '../../hooks/useMusicPlayer';
+import useTuneTap from '../../hooks/useTuneTap';
 import {
     isMusicLiked, toggleMusicLike, subscribeMusicLibrary,
 } from '../../lib/music-library';
@@ -25,6 +26,60 @@ function fmtDur(secs) {
 
 function albumCover(a) {
     return a?.cover_xl || a?.cover_big || a?.cover_medium || a?.cover || '';
+}
+
+/* v2.10.54 — AlbumTrackRow extracted so we can call `useTuneTap`
+   per-row (hooks can't be called inside a `.map()` callback).
+   Quick tap plays the track; re-tap on the currently-playing row
+   opens FullScreen; press-and-hold opens the "Add to library"
+   modal. */
+function AlbumTrackRow({ t, i, tracks, isFirst, firstTrackRef, hasAutoFocusedRef, dataId }) {
+    const { state } = useMusicPlayer();
+    const isCurrent = state.current?.id === t.id;
+    const isPlaying = isCurrent && state.isPlaying;
+    const isExplicit = t.explicit_lyrics;
+    const tap = useTuneTap({ kind: 'track', item: t, list: tracks });
+    return (
+        <div
+            ref={(node) => {
+                if (!isFirst || !node) return;
+                firstTrackRef.current = node;
+                if (hasAutoFocusedRef.current !== dataId) {
+                    hasAutoFocusedRef.current = dataId;
+                    window.requestAnimationFrame(() => {
+                        try { node.focus({ preventScroll: false }); }
+                        catch { /* ignore */ }
+                    });
+                }
+            }}
+            className={
+                'tunes-track-row' +
+                (isCurrent ? ' tunes-track-row--playing' : '')
+            }
+            data-focusable="true"
+            data-focus-style="tile"
+            tabIndex={0}
+            data-testid={`tunes-album-track-${t.id}`}
+            {...tap}
+        >
+            <div className="tunes-track-row__num">
+                {isCurrent
+                    ? (isPlaying
+                        ? <Pause size={14} />
+                        : <Play size={14} fill="currentColor" />)
+                    : (i + 1)}
+            </div>
+            <div>
+                <p className="tunes-track-row__title">{t.title}</p>
+            </div>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {isExplicit && (
+                    <span className="tunes-track-row__pill">E</span>
+                )}
+            </span>
+            <span className="tunes-track-row__time">{fmtDur(t.duration)}</span>
+        </div>
+    );
 }
 
 export default function MusicAlbum() {
@@ -53,9 +108,20 @@ export default function MusicAlbum() {
         // so re-navigating between albums in the same session
         // refocuses each new album's first track.
         hasAutoFocusedRef.current = null;
-        musicAPI.album(id)
-            .then((res) => setData(res.data || res))
-            .catch((e) => setErr(e.message || 'failed to load'));
+        // v2.10.54 — One-shot auto-retry on transient 404/500 from
+        // Deezer's /album endpoint (rate-limit / edge-cache miss).
+        // User: "you have to go back out of it and back into it"
+        // before the album loads.  Retry once 600 ms later.
+        let cancelled = false;
+        const fetchOnce = () => musicAPI.album(id).then((r) => r.data || r);
+        fetchOnce()
+            .then((d) => { if (!cancelled) setData(d); })
+            .catch(() => new Promise((res) => setTimeout(res, 600))
+                .then(fetchOnce)
+                .then((d) => { if (!cancelled) setData(d); })
+                .catch((e) => { if (!cancelled) setErr(e?.message || 'failed to load'); }),
+            );
+        return () => { cancelled = true; };
     }, [id]);
 
     useEffect(() => {
@@ -198,84 +264,18 @@ export default function MusicAlbum() {
             </div>
 
             <div className="tunes-track-list">
-                {tracks.map((t, i) => {
-                    const isCurrent = state.current?.id === t.id;
-                    const isPlaying = isCurrent && state.isPlaying;
-                    const isExplicit = t.explicit_lyrics;
-                    const isFirst = i === 0;
-                    return (
-                        <div
-                            key={t.id}
-                            ref={(node) => {
-                                // v2.10.37 — Capture the first track's
-                                // DOM node so the effect below can
-                                // .focus() it after mount.  Gated by
-                                // `hasAutoFocusedRef` so the focus
-                                // only fires ONCE per album-id load.
-                                if (!isFirst || !node) return;
-                                firstTrackRef.current = node;
-                                if (hasAutoFocusedRef.current !== data.id) {
-                                    hasAutoFocusedRef.current = data.id;
-                                    // Defer one frame so layout has
-                                    // settled before we set focus —
-                                    // otherwise scrollIntoView fires
-                                    // against a still-shifting tree.
-                                    window.requestAnimationFrame(() => {
-                                        try { node.focus({ preventScroll: false }); }
-                                        catch { /* ignore */ }
-                                    });
-                                }
-                            }}
-                            className={
-                                'tunes-track-row' +
-                                (isCurrent ? ' tunes-track-row--playing' : '')
-                            }
-                            data-focusable="true"
-                            data-focus-style="tile"
-                            tabIndex={0}
-                            onClick={() => {
-                                if (isCurrent) controls.toggle();
-                                else controls.playTrack(t, tracks);
-                            }}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    if (isCurrent) controls.toggle();
-                                    else controls.playTrack(t, tracks);
-                                }
-                            }}
-                            data-testid={`tunes-album-track-${t.id}`}
-                        >
-                            <div className="tunes-track-row__num">
-                                {isCurrent
-                                    ? (isPlaying
-                                        ? <Pause size={14} />
-                                        : <Play size={14} fill="currentColor" />)
-                                    : (i + 1)}
-                            </div>
-                            <div>
-                                <p className="tunes-track-row__title">{t.title}</p>
-                            </div>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                {isExplicit && (
-                                    <span className="tunes-track-row__pill">E</span>
-                                )}
-                            </span>
-                            <span className="tunes-track-row__time">{fmtDur(t.duration)}</span>
-                            <button
-                                type="button"
-                                className={
-                                    'tunes-track-row__add' +
-                                    (isCurrent ? ' tunes-track-row__add--added' : '')
-                                }
-                                aria-label="Add to playlist"
-                                onClick={(e) => e.stopPropagation()}
-                                data-testid={`tunes-album-track-add-${t.id}`}
-                            >
-                                {isCurrent ? <Check size={14} /> : <Plus size={14} />}
-                            </button>
-                        </div>
-                    );
-                })}
+                {tracks.map((t, i) => (
+                    <AlbumTrackRow
+                        key={t.id}
+                        t={t}
+                        i={i}
+                        tracks={tracks}
+                        isFirst={i === 0}
+                        firstTrackRef={firstTrackRef}
+                        hasAutoFocusedRef={hasAutoFocusedRef}
+                        dataId={data.id}
+                    />
+                ))}
             </div>
             </div>
         </div>

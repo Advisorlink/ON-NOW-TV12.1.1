@@ -43,8 +43,27 @@ export default function MusicArtist() {
 
     useEffect(() => {
         setData(null);
+        setErr(null);
         hasAutoFocusedRef.current = null;
-        musicAPI.artist(id).then((r) => setData(r.data || r)).catch((e) => setErr(e.message || 'failed'));
+        // v2.10.54 — One-shot auto-retry on transient failure.
+        // User report: "sometimes the artists or the albums are
+        // saying 4:04 error, and you have to go back out of it
+        // and back into it."  Deezer's /artist endpoint can
+        // intermittently 404 / 500 (rate-limit, regional edge
+        // cache misses).  We retry once with a 600 ms delay
+        // before surfacing the error — typically clears those
+        // transient failures without needing the user to
+        // navigate away and back.
+        let cancelled = false;
+        const fetchOnce = () => musicAPI.artist(id).then((r) => r.data || r);
+        fetchOnce()
+            .then((d) => { if (!cancelled) setData(d); })
+            .catch(() => new Promise((res) => setTimeout(res, 600))
+                .then(fetchOnce)
+                .then((d) => { if (!cancelled) setData(d); })
+                .catch((e) => { if (!cancelled) setErr(e?.message || 'failed'); }),
+            );
+        return () => { cancelled = true; };
     }, [id]);
 
     if (err) return <div className="tunes-empty">Couldn&apos;t load artist. {err}</div>;

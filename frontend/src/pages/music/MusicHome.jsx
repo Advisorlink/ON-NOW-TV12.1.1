@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { musicAPI } from '../../lib/music-api';
 import { useMusicPlayer } from '../../hooks/useMusicPlayer';
+import useTuneTap from '../../hooks/useTuneTap';
 
 /* -- Image helpers --------------------------------------------
  * v2.8.61 — Deezer CDN URLs contain the image size in the URL
@@ -227,14 +228,23 @@ function MusicHero({ slides }) {
 /* -- Album tile (text overlaid on cover) ---------------------- */
 function AlbumTile({ album }) {
     const cover = albumCover(album);
+    const navigate = useNavigate();
+    // v2.10.54 — useTuneTap so press-and-hold opens the
+    // "Add to library" modal from Home, just like Search.
+    const tap = useTuneTap({
+        kind: 'album',
+        item: album,
+        onTap: () => navigate(`/music/album/${album.id}`),
+    });
     return (
-        <Link
-            to={`/music/album/${album.id}`}
+        <button
+            type="button"
             className="tunes-tile"
             data-testid={`tunes-album-${album.id}`}
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
+            {...tap}
         >
             {cover ? (
                 <img
@@ -254,14 +264,16 @@ function AlbumTile({ album }) {
                 <p className="tunes-tile__title">{album.title}</p>
                 <p className="tunes-tile__subtitle">{album.artist?.name || ''}</p>
             </div>
-        </Link>
+        </button>
     );
 }
 
 /* -- Track tile (uses album cover; clicking plays the track) -- */
 function TrackTile({ track, queue }) {
-    const { controls } = useMusicPlayer();
     const cover = albumCover(track.album);
+    // v2.10.54 — useTuneTap handles play (default), re-tap →
+    // FullScreen, long-press → "Add to library" modal.
+    const tap = useTuneTap({ kind: 'track', item: track, list: queue });
     return (
         <button
             type="button"
@@ -270,7 +282,7 @@ function TrackTile({ track, queue }) {
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
-            onClick={() => controls.playTrack(track, queue)}
+            {...tap}
         >
             {cover ? (
                 <img
@@ -297,14 +309,22 @@ function TrackTile({ track, queue }) {
 /* -- Artist tile (round, caption below) ----------------------- */
 function ArtistTile({ artist }) {
     const pic = artistPic(artist);
+    const navigate = useNavigate();
+    // v2.10.54 — useTuneTap for press-and-hold "Add to library".
+    const tap = useTuneTap({
+        kind: 'artist',
+        item: artist,
+        onTap: () => navigate(`/music/artist/${artist.id}`),
+    });
     return (
-        <Link
-            to={`/music/artist/${artist.id}`}
+        <button
+            type="button"
             className="tunes-tile tunes-tile--artist"
             data-testid={`tunes-artist-${artist.id}`}
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
+            {...tap}
         >
             <div className="tunes-tile__art-wrap">
                 {pic ? (
@@ -327,7 +347,7 @@ function ArtistTile({ artist }) {
                     {artist.nb_fan ? `${Math.round(artist.nb_fan / 1000)}K fans` : 'Artist'}
                 </p>
             </div>
-        </Link>
+        </button>
     );
 }
 

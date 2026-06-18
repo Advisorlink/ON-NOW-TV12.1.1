@@ -42,6 +42,37 @@ function fmtDur(secs) {
 
 function TrackResultRow({ track, list, isCurrent }) {
     const tap = useTuneTap({ kind: 'track', item: track, list });
+    // v2.10.54 — Column-locked DOWN nav.  User: "when you search
+    // and push down, it needs to go down the row, down the column
+    // that it's under directly, not go over to artists".  We
+    // explicitly find the next track row in DOM order and focus
+    // it, bypassing the spatial-focus geometric "nearest below"
+    // which was sometimes picking an artist tile in the parallel
+    // right column.
+    const onKeyDown = React.useCallback((e) => {
+        if (e.key === 'ArrowDown' || e.key === 'Down') {
+            const rows = Array.from(
+                document.querySelectorAll('[data-testid^="tunes-result-track-"]'),
+            );
+            const me = rows.findIndex((el) => el === e.currentTarget);
+            const next = me >= 0 && me < rows.length - 1 ? rows[me + 1] : null;
+            if (next) {
+                e.preventDefault();
+                e.stopPropagation();
+                next.focus({ preventScroll: false });
+            }
+        } else if (e.key === 'ArrowUp' || e.key === 'Up') {
+            const rows = Array.from(
+                document.querySelectorAll('[data-testid^="tunes-result-track-"]'),
+            );
+            const me = rows.findIndex((el) => el === e.currentTarget);
+            if (me > 0) {
+                e.preventDefault();
+                e.stopPropagation();
+                rows[me - 1].focus({ preventScroll: false });
+            }
+        }
+    }, []);
     return (
         <button
             type="button"
@@ -50,6 +81,7 @@ function TrackResultRow({ track, list, isCurrent }) {
             data-focus-style="tile"
             tabIndex={0}
             data-testid={`tunes-result-track-${track.id}`}
+            onKeyDown={onKeyDown}
             {...tap}
         >
             <img

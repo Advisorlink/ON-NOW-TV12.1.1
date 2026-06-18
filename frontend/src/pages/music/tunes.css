@@ -3511,6 +3511,28 @@
     border-radius: 50%;
 }
 
+/* v2.10.54 — Round focus ring + scale-pop for round avatar tiles.
+   The default `[data-focus-style='tile']:focus-visible` paints a
+   rectangular box-shadow ring around the WHOLE tile (art + caption
+   below).  For round artist avatars the user reported "when you're
+   hovering over a circle, it needs to have the circle that's
+   highlighted, not a rectangle around it".  We override the focus
+   shadow to fall on the round image itself + drop the outer
+   rectangle. */
+.tunes-result-tile--round:focus-visible {
+    box-shadow: none !important;
+    outline: none !important;
+}
+.tunes-result-tile--round:focus-visible .tunes-result-tile__art--round {
+    box-shadow:
+        0 0 0 3px var(--vesper-blue, #5DC8FF),
+        0 0 24px rgba(93, 200, 255, 0.55);
+    transform: scale(1.06);
+}
+.tunes-result-tile__art--round {
+    transition: transform 140ms ease-out, box-shadow 140ms ease-out;
+}
+
 .tunes-result-tile__title {
     font-size: 13px;
     font-weight: 600;
@@ -3544,10 +3566,16 @@
 }
 
 .tunes-search-grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.tunes-search-grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+/* v2.10.54 — Bumped from 4-up to 6-up to shrink the Search album
+   tiles.  User reported "the albums inside search are too big,
+   they're massive, they need to be smaller". */
+.tunes-search-grid--4 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 
-@media (max-width: 1100px) {
-    .tunes-search-grid--4 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 1400px) {
+    .tunes-search-grid--4 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
     .tunes-search-grid--3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 1100px) {
+    .tunes-search-grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
