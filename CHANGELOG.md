@@ -1,5 +1,46 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.45 — Focus no longer hides behind the Artist hero + Left → rail from ANY music row + Welcome card #1 rewrite (2026-02-10)
+
+User report (with video): "Watch this — when I press down on the Popular tracks, the focus ring keeps getting stuck on Chasin' Texas, it keeps going up into the thing.  Every row should be able to move across to the left-hand side rail, not just the top one."  Plus a specific rewrite request for the first Welcome popup card.
+
+### Bug #1 — Focus invisible behind the sticky Artist hero
+
+`useSpatialFocus.focusEl()` was pinning the focused row at `scrollerTop + max(scrollerHeight * 0.22, 90)` — i.e. ~22% of viewport height from the top of the scroll container.  On the Artist page the scroll container is `.tunes-root`, and `.tunes-artist-hero` is `position: sticky; top: 0` with a rendered height of ~270 px on 1080p.  22% of 800 px viewport = 176 px, so the row-pin target line landed INSIDE the hero's rectangle.  Result: every newly-focused track was scrolled to a position UNDER the opaque sticky hero (the v2.10.43 fix correctly made it solid, so the track became completely invisible) and the user only saw the old focused track's ring lingering above.  Classic "focus ring stuck" perception.
+
+### Fix #1
+
+`useSpatialFocus` now detects ANY element inside the scroll container that's marked `data-sticky-overlay="true"` and currently pinned to the top edge.  It measures that overlay's rendered height and adds it as a top-padding for the row-pin math.  The new target line is `stickyOffset + max(availableHeight * 0.12, 24)` — `availableHeight` is `scrollerHeight − stickyOffset`, the actually-visible content area BELOW the overlay.  Result: focused rows land 24-50 px below the overlay's bottom edge, fully visible, never occluded.
+
+`MusicArtist.jsx` opts in by stamping `data-sticky-overlay="true"` on the `<header className="tunes-artist-hero">`.  The hook is generic so any future sticky overlay just needs the same attribute.
+
+Verified via Playwright: focused 5th track now lands at `y=476 px`, hero bottom edge at `y=270 px` → `occluded: false`.
+
+### Bug #2 — Left arrow couldn't escape to the rail from non-first rows in Music
+
+`useSpatialFocus` had a strict "Left from any non-first shelf-page STAYS PUT" rule, motivated by a Vesper user-spec complaint ("I went into Popular Movies and now my focus is in the menu" surprise).  The Music app's narrower self-collapsing rail doesn't suffer from that surprise, AND the user explicitly asked: "every row should be able to move across to the left-hand side rail — any row should be able to move to the rail."
+
+### Fix #2
+
+Left-edge fallback now checks `document.body[data-music-app="true"]` (the flag MusicLayout sets) OR `.tunes-root` ancestor.  When inside the Music app, Left from any row escapes straight to the nav rail.  All other Vesper pages keep the strict "first shelf only" behaviour.
+
+### Bug #3 — Welcome popup card #1 copy
+
+User-supplied verbatim rewrite for the first Welcome card.  Old text: "Streams from YouTube — Millions of free tracks, podcasts and radio stations.  No extra subscription needed."  New text: "Here's a little secret… under the hood of V2 Music is good old YouTube.  Unlimited music, podcasts, radio… we built our own design to recreate an incredible music player but take the mp4 from YouTube so it's always free and no ads.  Lol shhh 😜🤫"  Tone matches the user's verbatim ask.
+
+### Files touched
+
+- `frontend/src/hooks/useSpatialFocus.js` — sticky-overlay offset detection; Music-app Left-to-rail exception.
+- `frontend/src/pages/music/MusicArtist.jsx` — `data-sticky-overlay="true"` on the hero header.
+- `frontend/src/components/music/MusicWelcome.jsx` — first-card title + body rewrite.
+
+### Smoke test
+- Playwright: artist page → focus 5th track → fully visible below hero (`occluded: false`).
+- `window.__onnowtv_handleBack` still registered (no regression to v2.10.43).
+- JS lint clean.
+
+
+
 ## v2.10.44 — Disable Chrome-79-era "perf mode" auto-class on Android (2026-02-10)
 
 User report (after the v2.10.43 APK + after sideloading Chrome 138 on the HK1): "It's still running at that really slow rate.  When you click on a B-letter it takes forever for it to go through.  Every single time we do an update now, it's super super slow, the actual movement and moving around.  The box is fixed now [Chrome 138], so we don't need to worry about anything.  Go back to exactly how it was before we started fiddling around."

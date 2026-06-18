@@ -54,7 +54,7 @@ export default function MusicArtist() {
 
     return (
         <div data-testid="music-artist" className="tunes-artist-page">
-            <header className="tunes-artist-hero">
+            <header className="tunes-artist-hero" data-sticky-overlay="true">
                 <img
                     src={data.picture || ''}
                     alt={data.name}

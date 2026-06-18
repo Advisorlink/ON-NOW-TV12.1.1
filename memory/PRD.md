@@ -1,5 +1,19 @@
 # ON NOW TV V2 — PRD
 
+> **🚨 v2.10.45 — Focus no longer hides behind the Artist hero + Left → rail from ANY music row + Welcome card #1 rewrite (10 Feb 2026).**
+>
+> Three things shipped from the video report:
+>
+> 1. `useSpatialFocus.focusEl()` now detects `[data-sticky-overlay="true"]` elements pinned to the top of the scroll container, measures their rendered height, and offsets the row-pin target by that amount.  Focused rows can no longer land underneath sticky headers like the Artist hero.  Playwright-verified: 5th track now lands at `y=476 px` with hero bottom at `y=270 px` (no occlusion).
+>
+> 2. Left-edge fallback now checks `body[data-music-app="true"]` / `.tunes-root` ancestor.  Inside the Music app, Left from ANY row escapes to the rail.  Vesper retains the strict "first shelf only" behaviour.
+>
+> 3. Welcome popup card #1 rewritten verbatim from the user's spec: "Here's a little secret… under the hood of V2 Music is good old YouTube…".
+>
+> Detailed write-up: `CHANGELOG.md` → `## v2.10.45`.
+
+---
+
 > **🚨 v2.10.44 — Disable Chrome-79-era "perf mode" auto-class on Android (10 Feb 2026).**
 >
 > `frontend/src/lib/host.js` was unconditionally adding `vesper-host-android` to `<html>` on any Android user-agent.  That class triggered a block of "perf mode" CSS in `index.css` originally tuned for Chrome 52 / Chrome 79: a universal `*:not():not():not():not():not():not():not()` animation-killer, `content-visibility: auto` on every shelf, and `image-rendering: optimizeSpeed` on every image.  Now that every HK1 box in the field runs Chrome 138 (sideloaded), all three are NET-NEGATIVE for performance.

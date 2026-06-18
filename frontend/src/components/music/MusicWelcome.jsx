@@ -204,8 +204,16 @@ export default function MusicWelcome() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
                     <Bullet
                         icon={Youtube}
-                        title="Streams from YouTube"
-                        body="Millions of free tracks, podcasts and radio stations. No extra subscription needed."
+                        title="Here's a little secret..."
+                        body={
+                            <>
+                                Under the hood of V2 Music is good old YouTube.
+                                Unlimited music, podcasts, radio… we built our
+                                own design to recreate an incredible music
+                                player but take the mp4 from YouTube so it’s
+                                always free and no ads. Lol shhh 😜🤫
+                            </>
+                        }
                     />
                     <Bullet
                         icon={UserPlus}

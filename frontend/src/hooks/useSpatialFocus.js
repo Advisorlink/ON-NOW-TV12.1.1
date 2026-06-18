@@ -571,6 +571,53 @@ export default function useSpatialFocus() {
                 vs.closest?.('[data-no-row-snap="true"]');
             if (skipRowPin) return;
 
+            /* v2.10.45 — Sticky-overlay offset.  If the scroll
+             * container has a `position: sticky` element pinned at
+             * its top (marked with `data-sticky-overlay="true"`),
+             * the row-pin target must clear that overlay's BOTTOM
+             * edge — otherwise focused rows get scrolled UNDER the
+             * sticky hero and become invisible.  Bug reported on
+             * the Artist page: the user pressed Down through the
+             * "Popular" track list and the focused track kept
+             * disappearing behind the Artist hero.  The focus ring
+             * was "stuck" because the actually-focused element was
+             * occluded by the hero overlay above it.
+             *
+             * We pick the LARGEST overlay rectangle inside the
+             * scroll container that's currently visible at the top
+             * (rect.top <= scrollerTop + 4 && rect.bottom > scrollerTop),
+             * then add its rendered height as a top-padding for the
+             * row-pin math. */
+            let stickyOffset = 0;
+            try {
+                const overlays = vs.querySelectorAll
+                    ? vs.querySelectorAll('[data-sticky-overlay="true"]')
+                    : [];
+                let scrollerTopForOverlay;
+                if (
+                    vs === document.scrollingElement ||
+                    vs === document.body ||
+                    vs === document.documentElement
+                ) {
+                    scrollerTopForOverlay = 0;
+                } else {
+                    scrollerTopForOverlay = vs.getBoundingClientRect().top;
+                }
+                for (let i = 0; i < overlays.length; i++) {
+                    const orect = overlays[i].getBoundingClientRect();
+                    // Overlay is "pinned at the top of the scroller"
+                    // when its top edge is within a few pixels of
+                    // the scroll container's top edge.
+                    if (
+                        orect.top <= scrollerTopForOverlay + 4 &&
+                        orect.bottom > scrollerTopForOverlay
+                    ) {
+                        const height = orect.bottom - scrollerTopForOverlay;
+                        if (height > stickyOffset) stickyOffset = height;
+                    }
+                }
+            } catch { /* defensive — feature still works without offset */ }
+
             /* v2.7.19 — Snap-row fast-path.  When the focused tile
              * lives inside a `[data-testid="shelf-page"]` (Home's
              * snap-container layout), bypass the pixel-pin scroll
@@ -598,6 +645,11 @@ export default function useSpatialFocus() {
             // Pin the TOP edge of the focused row roughly a fifth of
             // the way down so the shelf eyebrow + title above it is
             // always visible AND the focus ring isn't clipped.
+            // v2.10.45 — `stickyOffset` (computed above) pushes the
+            // target line BELOW any pinned overlay (e.g. Artist
+            // hero) so focused rows are never occluded by a sticky
+            // header.  Falls back to the original 22%-of-viewport
+            // logic when no sticky overlay is present.
             let scrollerTop;
             let scrollerHeight;
             if (
@@ -612,8 +664,10 @@ export default function useSpatialFocus() {
                 scrollerTop = sr.top;
                 scrollerHeight = sr.height;
             }
+            // Available content height below the sticky overlay.
+            const availableHeight = Math.max(120, scrollerHeight - stickyOffset);
             const targetTop =
-                scrollerTop + Math.max(scrollerHeight * 0.22, 90);
+                scrollerTop + stickyOffset + Math.max(availableHeight * 0.12, 24);
             const delta = rect.top - targetTop;
             if (Math.abs(delta) > 4) {
                 queueScroll(vs, 0, delta);
@@ -670,35 +724,56 @@ export default function useSpatialFocus() {
                  * catalogues, Upcoming Movies, etc.) Left STOPS —
                  * the focus stays on the leftmost tile.  Prevents
                  * the "I went into Popular Movies and now my focus
-                 * is in the menu" surprise the user reported. */
+                 * is in the menu" surprise the user reported.
+                 *
+                 * v2.10.45 — EXCEPT for the Music app, where the
+                 * user explicitly asked: "every row should be able
+                 * to move across to the left-hand side rail, not
+                 * just the top one — any row should be able to move
+                 * to the rail".  The Music app's rail is narrower
+                 * and self-collapsing, so the "accidental jump to
+                 * menu" risk that motivated the Vesper restriction
+                 * doesn't apply.  Detected via the music shell's
+                 * `body[data-music-app="true"]` flag set in
+                 * MusicLayout, plus the Tunes-root container as a
+                 * fallback. */
                 const navItems = document.querySelectorAll(
                     `${NAV_RAIL.split(',').map((s) => s.trim() + ' [data-focusable="true"]').join(', ')}`
                 );
                 const inNav = active.closest(NAV_RAIL);
+                const isMusicApp =
+                    document.body?.getAttribute('data-music-app') === 'true' ||
+                    !!active.closest('.tunes-root');
                 if (!inNav && navItems.length > 0) {
-                    const curPage = active.closest(ROW_PAGE);
-                    if (curPage) {
-                        // Only allow nav escape from the FIRST shelf
-                        // page (Continue Watching).  Detect by DOM
-                        // order: no preceding shelf-page sibling.
-                        let prev = curPage.previousElementSibling;
-                        let isFirstShelf = true;
-                        while (prev) {
-                            if (prev.matches(ROW_PAGE)) {
-                                isFirstShelf = false;
-                                break;
+                    if (isMusicApp) {
+                        // Music app: always allow Left → rail from
+                        // any row, regardless of shelf position.
+                        focusEl(navItems[0], 'left');
+                    } else {
+                        const curPage = active.closest(ROW_PAGE);
+                        if (curPage) {
+                            // Only allow nav escape from the FIRST shelf
+                            // page (Continue Watching).  Detect by DOM
+                            // order: no preceding shelf-page sibling.
+                            let prev = curPage.previousElementSibling;
+                            let isFirstShelf = true;
+                            while (prev) {
+                                if (prev.matches(ROW_PAGE)) {
+                                    isFirstShelf = false;
+                                    break;
+                                }
+                                prev = prev.previousElementSibling;
                             }
-                            prev = prev.previousElementSibling;
-                        }
-                        if (isFirstShelf) {
+                            if (isFirstShelf) {
+                                focusEl(navItems[0], 'left');
+                            }
+                            // Else: do nothing — focus stays put.
+                        } else {
+                            // No shelf-page ancestor (e.g. Library /
+                            // Settings page) — preserve legacy escape
+                            // behaviour so non-home pages still work.
                             focusEl(navItems[0], 'left');
                         }
-                        // Else: do nothing — focus stays put.
-                    } else {
-                        // No shelf-page ancestor (e.g. Library /
-                        // Settings page) — preserve legacy escape
-                        // behaviour so non-home pages still work.
-                        focusEl(navItems[0], 'left');
                     }
                 }
             } else if (dir === 'up') {
