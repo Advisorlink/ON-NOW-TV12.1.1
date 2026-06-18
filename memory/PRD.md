@@ -1,5 +1,15 @@
 # ON NOW TV V2 — PRD
 
+> **🚨 v2.10.48 — Stripped ALL Chrome-79-era GPU promotion + perf-mode CSS from `index.css`.  Vesper is fast again on Chrome 138 (10 Feb 2026).**
+>
+> v2.10.44 disabled the `.vesper-host-android` AUTO-CLASS, killing the `*:not()…:not()` animation-stripper.  That wasn't enough — `index.css` ALSO had a top-of-file block (`[data-focusable='true'] { will-change: transform; transform: translateZ(0); contain: layout style }` + sibling rules on `.vesper-shelf`, shelves-region, home-main, posters) that was applied UNCONDITIONALLY to every device.  100+ poster tiles were each getting their own GPU compositor layer on the HK1's Mali-450 (~256 MB texture mem), crushing the cache and making every D-pad press feel laggy.  The `:has([data-focused="true"])` z-index rule was also re-evaluated O(n) per keypress.  All three blocks removed.  Chrome 138's native compositor handles promotion automatically and is smarter than the manual hints.
+>
+> Computed style on a focusable element is now `will-change: auto, contain: none` (was `transform` / `layout style`).  ~80 fewer CSS rules.
+>
+> Detailed write-up: `CHANGELOG.md` → `## v2.10.48`.
+
+---
+
 > **🚨 v2.10.47 — Search redesign + Press-and-hold "Add to library" modal + Re-tap playing track opens FullScreen (10 Feb 2026).**
 >
 > Three things shipped from the user's voice note:

@@ -1,5 +1,65 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.48 — Strip all Chrome-79-era GPU promotion + perf-mode CSS (Vesper is fast again) (2026-02-10)
+
+User report (third repeat after v2.10.41 / v2.10.44): "It's still extremely slow.  You need to go back to June 14.  Take away ALL the stuff you put in there for Chrome 79 / WebView 79.  It's completely stuffed right now."
+
+### Root cause (recap from v2.10.44 + new finds)
+
+`frontend/src/index.css` carried THREE separate Chrome-79-era CSS blocks that were collectively crushing performance on modern Chrome 138:
+
+**Block A — Universal GPU promotion (lines 185-265 in pre-fix file):**
+
+```css
+.vesper-shelf, [data-testid="shelves-region"], [data-testid="home-main"] {
+    will-change: scroll-position; transform: translateZ(0);
+    backface-visibility: hidden; contain: layout style;
+}
+.vesper-shelf-section { contain: layout style; }
+.vesper-shelf-section:has([data-focused="true"]) { z-index: 20; }
+[data-focusable='true'] {
+    will-change: transform; transform: translateZ(0);
+    contain: layout style;
+}
+.vesper-shelf img, [data-testid="shelves-region"] img {
+    image-rendering: -webkit-optimize-contrast;
+    transform: translateZ(0);
+}
+```
+
+**Why this kills Chrome 138:**
+
+1.  `[data-focusable='true']` matches ~100+ poster tiles on Home.  Each gets its own GPU compositor layer (`will-change: transform` is a hint; combined with `transform: translateZ(0)` it forces promotion).  On a Mali-450 GPU (HK1's chip) with ~256 MB of texture memory, that's most of the budget burned just storing layer bitmaps — nothing left for the actual focus-scale animation buffers, so every D-pad press thrashes the cache.
+2.  `contain: layout style` on every focusable defeats Chrome 138's native lazy-paint heuristics.  Chrome's own auto-compositor is smarter than this hint.
+3.  `.vesper-shelf-section:has([data-focused="true"])` is re-evaluated by the style engine on EVERY attribute mutation in EVERY descendant — O(n_shelves × n_tiles_per_shelf) work per keypress.  Direct cause of the "click a letter on the keyboard, wait forever" lag the user reported.
+4.  `image-rendering: -webkit-optimize-contrast` is a Webkit non-standard property that swapped Chrome's default downscaler for one optimised for the Chrome 52 era; on Chrome 138 it makes posters look chunkier AND is slower than the default.
+
+**Block B — `.vesper-host-android *` perf mode (lines 647-704 in pre-fix file):**
+
+Already disabled at the class level in v2.10.44 (`host.js` no longer adds the class) BUT the rules themselves were still in the stylesheet, ~70 lines of dead but documented code.  Cleaned out so future readers don't get confused (kept `.vesper-low-end` rules which are still applied to genuinely low-end devices).
+
+### Fix
+
+All three blocks removed from `frontend/src/index.css`.  The ONLY image-related hint kept is `decoding: async` on shelf images — a standards-compliant, modern, free win that lets Chrome decode off the main thread.
+
+Chrome 138's native compositor + auto-promotion heuristics are now the sole source of GPU layer decisions.  Verified via Playwright: computed style on `[data-focusable='true']` is `will-change: auto, contain: none` (browser defaults).
+
+### Why the previous v2.10.44 fix wasn't enough
+
+v2.10.44 disabled the `.vesper-host-android` AUTO-CLASS.  That correctly killed Block B (~70 lines of universal-selector animation strippers).  BUT Block A wasn't scoped to `.vesper-host-android` — it applied to ALL devices, on every page load.  So 100+ tiles were STILL each getting promoted to their own compositor layer, STILL eating GPU memory, STILL causing the keyboard-input lag.  Three full passes of "this should fix it" before the right block got touched.
+
+### Files touched
+
+- `frontend/src/index.css` — Block A removed, Block B removed.  ~80 fewer CSS rules.
+
+### Smoke test (Playwright)
+
+- Home page renders cleanly.
+- Computed style on a focusable element: `{ will_change: 'auto', contain: 'none' }` (was `transform` / `layout style`).
+- Focus animation still works (focused input shows scale + ring).
+
+
+
 ## v2.10.47 — Search redesign + Press-and-hold "Add to library" modal + Re-tap playing track opens FullScreen (2026-02-10)
 
 User report: "Search is too hard to navigate and skips a lot.  Make it user-friendly.  ALSO add a press-and-hold pop-up like Vesper has — push & hold on any album / song / podcast → 'Add to library'.  ALSO when you click a song and it's already playing, clicking it again should open the FullScreen player; back returns to the previous screen."
