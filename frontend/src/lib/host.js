@@ -356,19 +356,7 @@ function mimeFor(url, type) {
     return type || 'video/*';
 }
 
-// v2.10.51 — REVERTED v2.10.44.  Restoring the auto-application of
-// `vesper-host-android` exactly as it was before the Chrome-138 chase.
-//
-// User explicit ask: "Take it back to the same app that it was back
-// then.  I need it to be exactly the same.  It's running like shit."
-//
-// Apologies for the back-and-forth — my v2.10.44 attempt to disable
-// this class on the assumption it was net-negative under Chrome 138
-// was based on a hypothesis that didn't survive contact with the
-// user's box.  The actual on-device behaviour is the opposite: the
-// `.vesper-host-android` ruleset (animation strippers, content-
-// visibility hints, image-rendering optimizations) is what KEPT
-// the HK1 fluid.  Removing it made every interaction feel laggy.
+// Expose performance mode to CSS so we can switch off heavy effects.
 if (typeof document !== 'undefined') {
     if (Host.isLowEnd) document.documentElement.classList.add('vesper-low-end');
     if (Host.isAndroid) document.documentElement.classList.add('vesper-host-android');

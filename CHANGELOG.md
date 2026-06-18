@@ -1,5 +1,63 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.52 — Surgical revert of Vesper-shared files to v2.10.17 (the working Movies APK) (2026-02-10)
+
+User report (5th iteration, very upset): "The Vesper that's attached to the Movies APK section in the launcher is the version that works.  I need you to put everything back to exactly how this is.  But rollback isn't an option because I'll lose hundreds of dollars of paid work on Music + Launcher + Live TV."
+
+### What I did
+
+Pulled the working APK metadata from the user's launcher backend:
+
+```
+launcher.api.dock_tiles[movies] = {
+  apk_filename:     "onnowtv-v2-debug (26).apk"
+  apk_package_id:   "tv.onnowtv.app"
+  apk_version:      "2.10.17"
+  apk_version_code: 692
+}
+```
+
+Found the matching commit in git: `e12a38e3` (2026-06-09 08:52) — CHANGELOG top heading at that commit is `## v2.10.17`.
+
+Surgically restored ONLY the four files that are shared between Vesper and Music/Launcher and had drifted from v2.10.17 in ways that affect Vesper performance:
+
+1.  `frontend/src/hooks/useSpatialFocus.js` — back to 988 lines (was 1048 after my v2.10.45+46 additions of sticky-overlay-offset detection, focus-trap support, and music-app-left exception).
+2.  `frontend/src/hooks/useLongPress.js` — back to 167 lines (was 179 after my v2.10.49 repeat-count fallback).
+3.  `frontend/src/index.css` — back to 1643 lines (was 1672 after the v2.10.27-era 120 ms tile transition + various other post-v2.10.17 additions).
+4.  `frontend/src/lib/host.js` — back to v2.10.17 (auto-class addition was already restored in v2.10.51; this also drops the long explanation comment I added so the diff is now `0` lines vs v2.10.17).
+5.  `frontend/src/index.js` — comment restored to v2.10.17 wording.
+
+### What was NOT restored (kept current to preserve paid work)
+
+* All `frontend/src/pages/music/**`  — Music app fixes (Library, Search, FullScreenPlayer, etc.)
+* All `frontend/src/components/music/**`  — Welcome popup, AddToLibrary modal, etc.
+* `frontend/src/hooks/useTuneTap.js`, `useMusicPlayer.js`  — Music-only hooks
+* `frontend/src/lib/music-library.js`, `music-api.js`  — Music storage + API
+* All `android/onnowtv-launcher/**`  — Launcher Kotlin fixes (install-URL self-healing etc.)
+* All `android/onnowtv-tunes/**`  — Tunes APK native flow (Welcome → bridge → YouTube sign-in)
+* All `.github/workflows/build-*.yml`  — versionCode formula fix that makes APK upgrades actually install
+* `LoginGate.jsx`, `AuthContext`, etc.  — Google auth wiring around the Vesper shell
+
+### Known Music-side trade-offs (transient — can be re-added safely without touching shared files)
+
+Restoring `useSpatialFocus.js` to v2.10.17 means Music loses, for now:
+
+* Focus-trap support inside `FullScreenPlayer` + `MusicAddToLibraryModal` — arrows may briefly leak to the rail behind the overlay.  Can be re-added with a Music-only `useEffect` that calls `.focus()` on the right element and a small overlay event filter — without touching the shared hook.
+* Sticky-overlay focus offset on the Artist page — focused tracks may temporarily land behind the artist hero again.  Can be re-added via a Music-only `useLayoutEffect` that adjusts the page scrollTop after focus changes.
+* "Left from any music row escapes to the rail" — temporarily reverts to "first-row only" (Vesper default).
+* Long-press repeat-count fallback for tap-fire TV remotes — temporarily reverts to setTimeout-based hold detection.
+
+Each of these can be re-implemented as a Music-only patch (in `pages/music/**` or `components/music/**`) that doesn't touch `useSpatialFocus` or `useLongPress`, so Vesper stays at v2.10.17 perf forever.  Will do that as a follow-up if the user confirms Vesper is fast again.
+
+### Smoke test
+
+✅ Vesper `/` loads, login screen renders, focused tile `will-change: transform`, `contain: layout style` (exactly v2.10.17 perf-mode behaviour).
+✅ Music `/music` loads, nav rail intact (Profile/Settings still removed per v2.10.46), Home skeleton renders.
+✅ No bundle errors.
+✅ Lint clean.
+
+
+
 ## v2.10.51 — REVERTED v2.10.44 + v2.10.48 — Vesper perf-mode CSS restored exactly as it was (2026-02-10)
 
 User report (very upset, fourth iteration): "You are absolutely ruining me.  This is not working with the Vespa.  All these things that you're taking out aren't working.  I need you to revert it back to the same code that it was when you started playing around with it for the 1-3-8, the 1-7-9 thing.  I need it to be exactly the same.  It's running like shit."

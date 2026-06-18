@@ -183,12 +183,6 @@ body {
 }
 
 /* ------------------------------------------------------------------
-   v2.10.51 — RESTORED.  These were removed in v2.10.48 on the
-   theory that Chrome 138's native compositor was smarter than
-   the manual hints.  On the user's box the removal made every
-   interaction feel laggy — exactly the symptom we were trying
-   to fix.  Restoring the original GPU acceleration block in full.
-
    GPU acceleration hints — promote scrollable shelves + focused
    tiles onto their own compositor layer.  This is the single most
    important perf knob on the HK1 box's WebView: without it every
@@ -429,15 +423,7 @@ body {
    blurred glow looks pretty on a high-end laptop but on Chrome 52
    / cheap Android WebViews each blur radius forces an extra paint
    pass per frame, which is what causes the "chunky" feel during
-   rapid D-pad nav.  Pure 3px solid ring is a 1-pixel paint op.
-   v2.10.27 — Added a tight 120 ms transform transition so the
-   scale-pop doesn't read as a hard snap on the avatar picker.
-   The animation strip rules below leave `transition` properties
-   alone (they only kill `animation`), so this stays smooth even
-   inside `.vesper-host-android`. */
-[data-focus-style='tile'] {
-    transition: transform 120ms ease-out;
-}
+   rapid D-pad nav.  Pure 3px solid ring is a 1-pixel paint op. */
 [data-focus-style='tile']:focus-visible,
 [data-focus-style='tile'][data-focused='true'] {
     transform: scale(1.08) translateY(-2px);
@@ -660,12 +646,6 @@ body {
 
 
 /* ------------------------------------------------------------------
-   v2.10.51 — RESTORED.  These were stripped in v2.10.48 on the
-   theory they were net-negative under Chrome 138.  User feedback
-   on the box says the opposite: removing them slowed everything
-   down.  Restoring the full original `.vesper-host-android` perf-
-   mode block exactly as it was before v2.10.44.
-
    Performance mode — applied automatically when running inside the
    OnNowTV Android WebView OR on any device the host detects as
    low-end (≤2 cores / ≤2 GB RAM heuristic).  Disables the most
@@ -683,20 +663,9 @@ body {
     display: none !important;
 }
 .vesper-low-end *,
-.vesper-host-android *:not([data-keep-anim='true']):not(.vesper-spin):not(.vesper-dots):not(.lvtv-spin):not(.kk-spin):not(.orbital-loader):not([data-loading-anim='true']) {
+.vesper-host-android *:not([data-keep-anim='true']) {
     animation-duration: 0.001s !important;
     animation-iteration-count: 1 !important;
-}
-/* v2.10.24 — Loading spinners MUST keep animating even in perf
-   mode, otherwise the user thinks the app is frozen.  Re-assert
-   the animations the global stripper above would otherwise kill. */
-.vesper-low-end .vesper-spin,
-.vesper-host-android .vesper-spin {
-    animation: vesperSpin 1s linear infinite !important;
-}
-.vesper-low-end .vesper-dots,
-.vesper-host-android .vesper-dots {
-    animation: vesperDotsPulse 1.4s ease-in-out infinite !important;
 }
 .vesper-low-end [data-focusable='true'],
 .vesper-host-android [data-focusable='true'] {
@@ -1671,5 +1640,4 @@ body[data-platform="mobile"] [data-testid^="network-poster-"] {
     box-shadow: 0 0 22px rgba(255, 107, 203, 0.35);
     color: #FFC8E5;
 }
-
 

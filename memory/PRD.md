@@ -1,5 +1,23 @@
 # ON NOW TV V2 — PRD
 
+> **🚨 v2.10.52 — Surgical revert of 5 Vesper-shared files to v2.10.17 commit `e12a38e3`.  Music + Launcher + Live TV paid work preserved (10 Feb 2026).**
+>
+> Fetched the launcher backend dock and confirmed: the Movies tile is currently pointing at `onnowtv-v2-debug (26).apk` = `apk_version: 2.10.17`, `apk_version_code: 692`.  Found the matching git commit (`e12a38e3` from 2026-06-09 08:52) and surgically `git checkout`ed JUST the 5 files where post-v2.10.17 drift affected Vesper navigation perf:
+>
+> 1.  `frontend/src/hooks/useSpatialFocus.js` (988 lines, was 1048)
+> 2.  `frontend/src/hooks/useLongPress.js` (167 lines, was 179)
+> 3.  `frontend/src/index.css` (1643 lines, was 1672 — removes the 120 ms tile transform transition added in v2.10.27)
+> 4.  `frontend/src/lib/host.js` (back to v2.10.17 exactly)
+> 5.  `frontend/src/index.js` (comment restored)
+>
+> Everything else preserved: `pages/music/**`, `components/music/**`, `useTuneTap`, `useMusicPlayer`, `music-library`, `music-api`, `android/onnowtv-launcher/**`, `android/onnowtv-tunes/**`, `.github/workflows/build-*.yml`, auth wiring around the Vesper shell.
+>
+> Music will temporarily lose four UX features (focus-trap in FullScreen + AddToLibrary modal, sticky-overlay focus offset on Artist, music-app left-to-rail from non-first rows, long-press repeat-count fallback for tap-fire TV remotes).  Each can be re-added as a Music-only patch in `pages/music/**` without touching `useSpatialFocus` or `useLongPress` — preserving Vesper's v2.10.17 perf forever.
+>
+> Detailed write-up: `CHANGELOG.md` → `## v2.10.52`.
+
+---
+
 > **🚨 v2.10.51 — REVERTED v2.10.44 + v2.10.48.  Vesper perf-mode CSS restored exactly as it was (10 Feb 2026).**
 >
 > My v2.10.44 + v2.10.48 attempts to strip the `.vesper-host-android` ruleset + the universal GPU-promotion CSS made performance WORSE on the user's HK1+Chrome-138 box, not better.  All of that code is now restored to the exact state it was in before I touched it.
