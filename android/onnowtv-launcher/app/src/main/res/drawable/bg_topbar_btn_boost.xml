@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Boost pill background — warm cyan→magenta→violet hero gradient.
-  Mirrors the visual weight of the V2 AI pill so the two hero
-  pills sit side-by-side as paired hero actions, while still being
-  distinguishable thanks to the warmer accent.
+  v2.10.58 — Boost pill background.  Swapped from the warm
+  pink/violet hero gradient to a cool deep-blue → electric-cyan
+  gradient at user request ("it needs to be a blue gradient, not
+  a pink one").  Sized to match the other top-bar pills (44dp).
 -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Focused: brighter inner gradient + white border ring -->
@@ -15,9 +15,9 @@
                     <gradient
                         android:type="linear"
                         android:angle="45"
-                        android:startColor="#FFFF7A1A"
-                        android:centerColor="#FFFF2D9C"
-                        android:endColor="#FFB04CFF"
+                        android:startColor="#FF1D4ED8"
+                        android:centerColor="#FF3B82F6"
+                        android:endColor="#FF22D3EE"
                         android:useLevel="false" />
                     <stroke
                         android:width="2dp"
@@ -26,16 +26,16 @@
             </item>
         </layer-list>
     </item>
-    <!-- Resting: cooler gradient, no border -->
+    <!-- Resting: deeper blue gradient, no border -->
     <item>
         <shape android:shape="rectangle">
             <corners android:radius="9999dp" />
             <gradient
                 android:type="linear"
                 android:angle="45"
-                android:startColor="#FFEA5814"
-                android:centerColor="#FFE91E63"
-                android:endColor="#FF9333EA"
+                android:startColor="#FF1E3A8A"
+                android:centerColor="#FF2563EB"
+                android:endColor="#FF0EA5E9"
                 android:useLevel="false" />
         </shape>
     </item>

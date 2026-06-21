@@ -143,33 +143,30 @@
 
             <!-- v2.10.45 — BOOST pill (RAM cleaner).  Sits right
                  next to the V2 AI pill so the two hero actions are
-                 visually paired.  Uses the same hero-pill height
-                 (64 dp) but a warm cyan→magenta→violet gradient so
-                 the user can tell them apart at a glance.  Click
-                 triggers MainActivity.performBoost() which kills
-                 background processes + shows the full-screen
-                 boost animation overlay. -->
+                 visually paired.
+                 v2.10.58 — User requested same size as the other
+                 pills (VPN / Speed Test) and a blue gradient
+                 instead of the pink one.  Height dropped 64dp →
+                 44dp, padding tightened, icon shrunk to match. -->
             <LinearLayout
                 android:id="@+id/topbar_btn_boost"
                 android:layout_width="wrap_content"
-                android:layout_height="64dp"
-                android:minWidth="138dp"
+                android:layout_height="44dp"
                 android:layout_marginStart="14dp"
                 android:orientation="horizontal"
-                android:gravity="center"
-                android:paddingHorizontal="26dp"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="18dp"
                 android:background="@drawable/bg_topbar_btn_boost"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:clickable="true"
-                android:elevation="6dp"
                 android:nextFocusDown="@id/dock"
                 android:nextFocusLeft="@id/topbar_btn_v2ai"
                 android:nextFocusRight="@id/topbar_btn_vpn">
 
                 <ImageView
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
                     android:src="@drawable/ic_boost_rocket"
                     android:tint="#FFFFFFFF"
                     android:contentDescription="@null" />
@@ -177,16 +174,12 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
+                    android:layout_marginStart="8dp"
                     android:textColor="#FFFFFFFF"
-                    android:textSize="17sp"
-                    android:letterSpacing="0.18"
+                    android:textSize="14sp"
+                    android:letterSpacing="0.14"
                     android:fontFamily="sans-serif-medium"
                     android:textStyle="bold"
-                    android:shadowColor="#A6000814"
-                    android:shadowDx="0"
-                    android:shadowDy="2"
-                    android:shadowRadius="6"
                     android:text="BOOST" />
             </LinearLayout>
 
