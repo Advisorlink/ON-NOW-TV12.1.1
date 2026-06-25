@@ -2,7 +2,28 @@
 <html lang="en">
     <head>
         <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <!-- v2.10.62 — Force a FIXED 1920 px logical viewport on every
+             host (HK1, factory Chrome, desktop preview).  Vesper is a
+             TV-first app designed against a 1080p (1920×1080) grid;
+             cheap HK1 boxes report wildly different "device-width"
+             values depending on their DPI / display config (some
+             1920, some 1280, some 960), which on the bad boxes makes
+             the SAME APK render every element ~1.5–2× too big and
+             overflows the right edge — actor avatars push past the
+             screen, watch-later thumbs clip off, "Starting Playback"
+             overlay sits in the upper-left corner instead of covering
+             the whole TV, focus-scroll math fires against the wrong
+             page height so D-pad-down stops scrolling, etc.
+             Locking the meta to `width=1920` makes the WebView treat
+             the logical viewport as 1920 px regardless of physical
+             resolution / DPI; WebView's own scaler (with
+             `useWideViewPort=true` + `loadWithOverviewMode=true` set
+             in MainActivity) then maps the 1920-grid paint onto the
+             real display area, so every HK1 box looks identical to
+             the "good" 1920 box.  initial-scale=1 keeps the WebView
+             from auto-zooming on first load; user-scalable=no blocks
+             the rare TV-remote pinch gesture from breaking the lock. -->
+        <meta name="viewport" content="width=1920, initial-scale=1, user-scalable=no" />
         <!-- v2.10.58 — Tell the WebView to render in DARK color
              scheme + sRGB color space.  Some Google-TV WebViews
              default to a "preferred-color-scheme: light" mode that
