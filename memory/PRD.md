@@ -6797,3 +6797,92 @@ needs blur to remain on Android (e.g. a frosted video chrome), add an
 opt-in exception `:not([data-keep-backdrop='true'])` mirroring the
 existing `[data-keep-anim='true']` pattern in the same CSS block.
 
+
+
+---
+
+## v2.10.62 — Viewport-meta lock = the REAL fix for "broken HK1 box" layout (Jun 25, 2026)
+
+### Problem (corrected RCA after v2.10.61 missed the mark)
+User rebuilt the APK with v2.10.61's backdrop-filter strip and tested on
+real hardware — *nothing was different*. After more careful questioning
+it became clear the symptom is **layout/scale, not paint**:
+- Library actor rail: only 1 of 7 actors visible (the rest pushed off
+  the right edge of the screen).
+- Watch Later rail: only 2 of 4 thumbs visible per row.
+- "Starting Playback" overlay sat in the upper-left quadrant instead of
+  covering the whole TV.
+- Onboarding "Choose preferred content" screen: D-pad-down focus into
+  the first category row didn't scroll the page (focus-scroll math was
+  computed against a viewport height that didn't match the actual
+  paint area).
+- All of this happened on ONE HK1 box. The other identical-looking HK1
+  box renders correctly with the same APK.
+
+### Root cause (corrected)
+Cheap HK1 boxes ship with **different DPI / display-density configs**.
+With viewport meta `width=device-width, initial-scale=1` and
+MainActivity's `setDefaultZoom(ZoomDensity.FAR)` + `useWideViewPort=true`
++ `loadWithOverviewMode=true`, the WebView's reported
+`window.innerWidth` is `physical_px ÷ DPI_scale`:
+- Working HK1 box → 1920 logical px.
+- Broken HK1 box → 1280 (or 960) logical px, depending on DPI config.
+
+Same CSS pixel sizes evaluated against a smaller logical viewport →
+elements render ~1.5–2× larger proportionally → right-edge overflow,
+clipped rails, focus-scroll math fires against the wrong page-height,
+loading overlays cover only the upper-left of the screen.
+
+### Fix
+**`/app/frontend/public/index.html`** — Single-line viewport meta change:
+```html
+<meta name="viewport" content="width=1920, initial-scale=1, user-scalable=no" />
+```
+This forces every WebView (HK1, factory Chrome, desktop preview) to lay
+out the React tree against a **fixed 1920 px logical grid** regardless
+of physical resolution or DPI. MainActivity's pre-existing
+`useWideViewPort=true` + `loadWithOverviewMode=true` then map that
+1920-grid paint onto the real display area, so every HK1 box renders
+identically to the working 1920 box.
+
+`user-scalable=no` blocks the rare TV-remote pinch gesture (some
+gyro-remotes have a built-in pinch) from breaking the lock at runtime.
+Acceptable accessibility tradeoff for a TV-first product.
+
+**Native MainActivity.kt is UNCHANGED** — per user's standing rule.
+
+### Why CRA dev-server needed a restart
+`public/index.html` is NOT hot-reloaded by webpack-dev-server, so a
+supervisor restart (`sudo supervisorctl restart frontend`) was needed
+for the new meta to be served at the preview URL.
+
+### Testing
+- iteration_51: 100% PASS, no regressions.
+- Under HK1 UA + mobile-emulation mode (which matches Android WebView's
+  rendering pipeline), `document.documentElement.clientWidth` locks to
+  1920 at every browser-window size (1280, 1366, 1600, 1920).
+- `vesper-host-android` class + backdrop-filter strip from v2.10.61
+  continue to function as designed (zero computed `backdrop-filter`
+  under HK1 UA).
+- Tab-based focus traversal always lands within the visible viewport
+  (no off-screen focus loss).
+- Working-box parity (1920 native + desktop UA): class absent, blur
+  preserved on the Welcome card.
+
+### Deployment note for user
+Because the APK loads the React bundle FROM the host URL
+(`https://onnowtv.duckdns.org/` in production builds; the preview pod
+otherwise), the user must:
+1. Save to GitHub → CI rebuilds the React bundle + the APK
+2. Reinstall the rebuilt APK on the broken HK1 box
+
+The viewport meta is in `public/index.html` which gets bundled into the
+built `index.html` shipped by the CI pipeline, so once CI redeploys
+both boxes will render identically.
+
+### Belt-and-braces follow-up (optional, NOT implemented today)
+If a future HK1 firmware variant ignores the meta but respects CSS, we
+could add an early-running script that programmatically sets
+`document.documentElement.style.width = '1920px'`. Not needed for
+today's known-broken boxes.
+
