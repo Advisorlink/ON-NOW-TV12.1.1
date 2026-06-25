@@ -6724,3 +6724,76 @@ scrubbing slow, skip-next replaying same episode.
 - Cold deep-links (/library, /search) force the profile picker —
   pre-existing bootstrap behaviour.
 - Cosmetic console warning: `fetchpriority` casing on an <img>.
+
+
+---
+
+## v2.10.61 — GPU compositing safety net for factory-Chrome HK1 boxes (Jun 25, 2026)
+
+### Problem
+On the user's *broken* HK1 Android TV box (factory Chrome 138, sideloaded
+URL — NOT the OnNowTV WebView wrapper), every overlay that used
+`backdrop-filter: blur(...)` failed to composite correctly:
+- The `series-autoplay-loader` ("Starting Playback" interstitial) painted
+  as a giant empty grey rectangle covering 70 % of the screen.
+- The `watch-later-expanded` Library modal, `notify-popover`, Detail
+  page CastHint pill, and assorted glass-card overlays all rendered as
+  flat opaque slabs with content bleeding through the gaps.
+- A working HK1 box rendered the same code correctly — same APK
+  build, different GPU/WebView combo.
+
+### Root cause
+- ~30 inline `style={{backdropFilter: 'blur(...)'}}` overlays
+  throughout the React codebase relied on the WebView's blur shader.
+- The existing perf-mode CSS only stripped `backdrop-filter` for
+  elements with class `.vesper-glass` — inline-styled overlays were
+  never touched.
+- The `.vesper-host-android` HTML class was applied *only* when
+  `window.OnNowTV.isAndroidHost` was present. Factory Chrome on the
+  broken HK1 never injected this bridge → the class never applied →
+  the perf protections never kicked in.
+
+### Fix (2 files)
+**`/app/frontend/src/lib/host.js`** — Added `isAndroidWebViewHost`
+flag: true if the strict OnNowTV bridge is present, OR the UA matches
+`/Android/i` with viewport ≥ 1200 px, OR the UA matches known TV-box
+patterns (`Linux Android`, `AFT*`, `HK1`, `RK3`, `MagicBox`, `TV Box`).
+Native bridges (playVideo, voice search) remain gated on the *strict*
+`isAndroid` flag so phones/desktops never accidentally invoke
+non-existent native methods. CSS class application now driven by the
+broader flag.
+
+**`/app/frontend/src/index.css`** — Extended the existing perf-mode
+block with a universal cascade rule that strips backdrop-filter from
+every descendant under `.vesper-host-android` / `.vesper-low-end`:
+```css
+.vesper-low-end *,
+.vesper-host-android * {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+```
+Per CSS cascade spec, `!important` from a stylesheet beats inline
+`style="..."` declared *without* `!important`, so this overrides every
+React `style={{backdropFilter: 'blur(...)'}}` in the codebase.
+Underlying `background-color` rgba alpha (0.6–0.96 in most overlays)
+is preserved → overlays still look properly dark, just without blur.
+
+### Testing
+- iteration_50: 100 % PASS, no regressions.
+- Under HK1 UA spoof, `vesper-host-android` IS on `<html>` and ZERO
+  elements have computed `backdrop-filter !== 'none'` across Login,
+  Home, Library, Music, Detail.
+- Under normal desktop Chrome UA, class is absent and synthetic inline-
+  blur overlays retain their full blur — working HK1 box is unaffected.
+
+### Known acceptable trade-off (documented per testing-agent feedback)
+Large Android tablets (Pixel Tablet, Galaxy Tab S9 in landscape) will
+also trip the `Android UA + viewport ≥ 1200 px` heuristic and therefore
+lose backdrop-filter blur. Acceptable because perf-mode is purely
+visual: backgrounds stay dark via their underlying rgba alpha; the
+absence of blur is imperceptible on most content. If a component ever
+needs blur to remain on Android (e.g. a frosted video chrome), add an
+opt-in exception `:not([data-keep-backdrop='true'])` mirroring the
+existing `[data-keep-anim='true']` pattern in the same CSS block.
+
