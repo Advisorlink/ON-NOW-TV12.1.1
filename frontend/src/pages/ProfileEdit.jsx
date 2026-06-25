@@ -122,8 +122,35 @@ export default function ProfileEdit() {
 
     const visibleAvatars = AVATARS.filter((a) => !a.hidden);
 
+    // v2.10.58 — Google-certified Android TV box scroll fix.  User
+    // reported that on his Google TV (Chrome 138 WebView), the
+    // viewing-style genre picker doesn't scroll when D-pad focus
+    // reaches the bottom of the visible area — focus moves but
+    // the container stays still, so tiles below the fold are
+    // unreachable.  Defensive `scrollIntoView({block:'nearest'})`
+    // on every focusin inside this wizard guarantees that whatever
+    // gets focus is brought into view, even if the global
+    // useSpatialFocus pixel-pin math misses on this particular
+    // WebView's viewport reporting.
+    const rootRef = React.useRef(null);
+    React.useEffect(() => {
+        const root = rootRef.current;
+        if (!root) return undefined;
+        const onFocusIn = (e) => {
+            const t = e.target;
+            if (!t || !(t instanceof HTMLElement)) return;
+            if (!root.contains(t)) return;
+            try {
+                t.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            } catch { /* legacy WebView fallback */ }
+        };
+        root.addEventListener('focusin', onFocusIn, true);
+        return () => root.removeEventListener('focusin', onFocusIn, true);
+    }, []);
+
     return (
         <div
+            ref={rootRef}
             data-testid="profile-edit"
             className="relative w-screen flex flex-col"
             style={{
@@ -136,6 +163,13 @@ export default function ProfileEdit() {
                 overflowY:
                     step === 'name' ? 'hidden' : 'auto',
                 overflowX: 'hidden',
+                /* v2.10.58 — scroll-margin gives focused tiles
+                 * ~120 px of breathing room when scrollIntoView()
+                 * snaps them into view, so they don't end up
+                 * jammed against the top of the WebView. */
+                scrollPaddingTop: 120,
+                scrollPaddingBottom: 120,
+                scrollBehavior: 'smooth',
             }}
         >
             <header
