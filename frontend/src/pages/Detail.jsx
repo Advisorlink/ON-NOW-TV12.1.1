@@ -72,6 +72,29 @@ export default function Detail() {
     const { type, id } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
+    // v2.10.58 — Defensive scrollIntoView for HK1 boxes whose
+    // Chrome 138 WebView occasionally misses useSpatialFocus's
+    // pixel-pin scroll math (especially inside the TV-show
+    // episode list, which can be 20+ rows tall).  Whenever focus
+    // moves to any descendant of <main>, snap it into view.
+    // No-op when already visible, so HK1 boxes on Chrome 79 (and
+    // pages where useSpatialFocus already scrolled correctly) are
+    // unaffected.
+    const detailMainRef = useRef(null);
+    useEffect(() => {
+        const root = detailMainRef.current;
+        if (!root) return undefined;
+        const onFocusIn = (e) => {
+            const t = e.target;
+            if (!t || !(t instanceof HTMLElement)) return;
+            if (!root.contains(t)) return;
+            try {
+                t.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            } catch { /* legacy WebView fallback */ }
+        };
+        root.addEventListener('focusin', onFocusIn, true);
+        return () => root.removeEventListener('focusin', onFocusIn, true);
+    }, []);
     const resumeRequested = useMemo(
         () => new URLSearchParams(location.search).get('resume') === '1',
         [location.search]
@@ -1754,6 +1777,7 @@ export default function Detail() {
             />
 
             <main
+                ref={detailMainRef}
                 className={`relative z-10 w-full h-full ${
                     /* Hide overflow on movies + initial TV view
                      * (where Cast row is bottom-anchored).  Allow
@@ -1770,7 +1794,17 @@ export default function Detail() {
                  * episode list is fully reachable — turn the flag
                  * off in that mode. */
                 data-no-row-snap={seriesEpisodesShown ? undefined : 'true'}
-                style={{ padding: '40px 80px 60px 80px' }}
+                style={{
+                    padding: '40px 80px 60px 80px',
+                    /* v2.10.58 — Defensive scroll padding so a
+                     * focused episode row never jams against the
+                     * top/bottom of the WebView on Chrome 138
+                     * HK1 boxes whose useSpatialFocus pixel-pin
+                     * math sometimes misses. */
+                    scrollPaddingTop: 120,
+                    scrollPaddingBottom: 120,
+                    scrollBehavior: 'smooth',
+                }}
             >
                 <div className="flex items-center gap-3 mb-5">
                     <button
