@@ -100,8 +100,31 @@ export default function Library() {
         return () => window.removeEventListener('keydown', onKey);
     }, [navigate]);
 
+    // v2.10.58 — Defensive scroll-into-view for Google-TV boxes
+    // whose Chrome 138 WebView occasionally misses
+    // useSpatialFocus's pixel-pin math (same fix shipped to
+    // ProfileEdit for the viewing-style wizard).  Any focused
+    // descendant gets snapped into view; no-op when already
+    // visible, so HK1 boxes are unaffected.
+    const libraryRef = useRef(null);
+    useEffect(() => {
+        const root = libraryRef.current;
+        if (!root) return undefined;
+        const onFocusIn = (e) => {
+            const t = e.target;
+            if (!t || !(t instanceof HTMLElement)) return;
+            if (!root.contains(t)) return;
+            try {
+                t.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            } catch { /* legacy WebView fallback */ }
+        };
+        root.addEventListener('focusin', onFocusIn, true);
+        return () => root.removeEventListener('focusin', onFocusIn, true);
+    }, []);
+
     return (
         <div
+            ref={libraryRef}
             data-testid="library-page"
             className="relative w-screen"
             style={{
@@ -109,6 +132,12 @@ export default function Library() {
                 overflowY: 'auto',
                 overflowX: 'hidden',
                 background: 'var(--vesper-bg-0)',
+                /* v2.10.58 — Defensive scroll margins so
+                 * focused tiles never jam against the WebView
+                 * edges on Chrome 138 Google-TV boxes. */
+                scrollPaddingTop: 120,
+                scrollPaddingBottom: 120,
+                scrollBehavior: 'smooth',
                 /* v2.7.85 — Page padding tuned for 1920×1080 TV.  Was
                    100 / 60 / 48 / 120; the right column + first row
                    were getting clipped because the focused-tile

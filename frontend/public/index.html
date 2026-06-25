@@ -3,6 +3,13 @@
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <!-- v2.10.58 — Tell the WebView to render in DARK color
+             scheme + sRGB color space.  Some Google-TV WebViews
+             default to a "preferred-color-scheme: light" mode that
+             desaturates the brand blue into a washed-out grey.
+             color-scheme: dark forces the browser to use dark
+             system theme colors and consistent sRGB rendering. -->
+        <meta name="color-scheme" content="dark" />
         <meta name="theme-color" content="#06080F" />
         <meta name="description" content="ON NOW TV V2 — TV-first media client" />
         <link rel="icon" type="image/png" href="/brand/onnowtv-logo.png" />

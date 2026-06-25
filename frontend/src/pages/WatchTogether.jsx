@@ -67,6 +67,59 @@ export default function WatchTogether() {
     // BACK key → Home.
     useBackHandler('/');
 
+    // v2.10.58 — Defensive D-pad recovery for Google-TV boxes.
+    // User reported "it's not letting me use the remote in the
+    // Watch Together part."  When useSpatialFocus's initial-focus
+    // retry window (1.8 s) closes before the user's interaction,
+    // and React state changes the `view` between 'landing' / 'host'
+    // / 'join' / 'room', NO new tile is auto-focused, so the D-pad
+    // has no anchor and the page feels frozen.
+    //
+    // Re-prime focus whenever `view` changes: pick the new view's
+    // `[data-initial-focus]` element, or fall back to the first
+    // focusable inside <main>.  Also add a scrollIntoView focusin
+    // listener (same belt-and-braces fix shipped to ProfileEdit &
+    // Library) so any focused tile is always brought into view.
+    const wtRootRef = useRef(null);
+    useEffect(() => {
+        // Wait one frame for the new view's DOM to mount, then
+        // try preferred → fallback.  Three retries cover slow TVs.
+        const timers = [60, 250, 700].map((ms) =>
+            setTimeout(() => {
+                const root = wtRootRef.current;
+                if (!root) return;
+                const ae = document.activeElement;
+                if (ae && root.contains(ae) && ae.matches('[data-focusable="true"]')) {
+                    return;  // Already inside, leave it.
+                }
+                const preferred = root.querySelector(
+                    '[data-focusable="true"][data-initial-focus="true"]'
+                );
+                const fallback = preferred || root.querySelector('[data-focusable="true"]');
+                if (fallback) {
+                    fallback.focus({ preventScroll: true });
+                    fallback.setAttribute('data-focused', 'true');
+                }
+            }, ms)
+        );
+        return () => timers.forEach(clearTimeout);
+    }, [view]);
+
+    useEffect(() => {
+        const root = wtRootRef.current;
+        if (!root) return undefined;
+        const onFocusIn = (e) => {
+            const t = e.target;
+            if (!t || !(t instanceof HTMLElement)) return;
+            if (!root.contains(t)) return;
+            try {
+                t.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            } catch { /* legacy WebView fallback */ }
+        };
+        root.addEventListener('focusin', onFocusIn, true);
+        return () => root.removeEventListener('focusin', onFocusIn, true);
+    }, []);
+
     /** Open the websocket for the chosen code & role.  Idempotent
      *  while we're still mounted. */
     const connect = (code, role) => {
@@ -258,12 +311,19 @@ export default function WatchTogether() {
 
     return (
         <div
+            ref={wtRootRef}
             className="relative w-screen flex"
             style={{
                 background: 'var(--vesper-bg-0)',
                 height: '100dvh',
                 color: 'var(--vesper-text)',
                 overflow: 'hidden',
+                /* v2.10.58 — Defensive scroll margins so focused
+                 * tiles never jam against the WebView edges on
+                 * Chrome 138 Google-TV boxes. */
+                scrollPaddingTop: 120,
+                scrollPaddingBottom: 120,
+                scrollBehavior: 'smooth',
             }}
             data-testid="watch-together"
         >
