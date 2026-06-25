@@ -666,6 +666,28 @@ body {
     -webkit-backdrop-filter: none !important;
     background: rgba(15, 21, 36, 0.92) !important;
 }
+
+/* v2.10.61 — GPU compositing safety net for HK1 / factory-Chrome 138
+   Android TV boxes.  Chrome 138 on the failing HK1 hardware fails
+   to composite `backdrop-filter: blur(...)` layers correctly — the
+   buggy WebView paints the rectangle as a solid opaque grey box
+   (only where children sit), leaving huge empty grey patches on
+   the "Starting Playback" loader, Watch-Later modal, notification
+   popover, Cast hint, Detail-page overlays, etc.  The previous
+   override above only targeted `.vesper-glass`, leaving every
+   inline React `style={{ backdropFilter: 'blur(8px)' }}` untouched.
+   Killing backdrop-filter site-wide on Android-WebView hosts (this
+   rule beats inline styles because `!important` from a stylesheet
+   wins over an inline style declared *without* `!important`, per
+   the CSS cascade spec) restores correct compositing while leaving
+   the underlying background-colour alpha intact — overlays still
+   look dark, just without the blur.  Working boxes are unaffected
+   because they don't carry the `.vesper-host-android` class. */
+.vesper-low-end *,
+.vesper-host-android * {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
 .vesper-low-end .vesper-grain::after,
 .vesper-host-android .vesper-grain::after {
     display: none !important;

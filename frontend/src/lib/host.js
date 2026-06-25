@@ -17,6 +17,25 @@ const Host = (() => {
     const isAndroid = !!a && typeof a.isAndroidHost === 'function';
     const isOnNowTV = /OnNowTV\//.test(ua);
 
+    // v2.10.61 — Broader "Android-WebView host" detection.  The
+    // strict `isAndroid` flag above only fires when the OnNowTV
+    // native bridge is injected, so factory Chrome 138 / sideloaded
+    // browsers on HK1 / Fire TV / generic Android TV boxes never
+    // pick up the `.vesper-host-android` perf-mode CSS.  Result:
+    // backdrop-filter blur layers compositing-fail and leave huge
+    // empty grey rectangles where the Starting-Playback / loading
+    // overlays should be.  We add a second flag that's true when
+    // we're on any Android UA running on a TV-sized viewport
+    // (>=1200 px) — phones in landscape would be smaller — so the
+    // same perf protections apply.  Native bridges (playVideo etc.)
+    // remain gated on the strict `isAndroid` flag.
+    const isAndroidUA = /Android/i.test(ua);
+    const vpW = typeof window !== 'undefined' ? (window.innerWidth || 0) : 0;
+    const isAndroidWebViewHost =
+        isAndroid ||
+        (isAndroidUA && vpW >= 1200) ||
+        /Linux\s*\(.*Android|AFT[A-Z]+|TV\s*Box|HK1|RK3|MagicBox/i.test(ua);
+
     let lowEnd = false;
     if (isAndroid) {
         try {
@@ -311,6 +330,8 @@ const Host = (() => {
         isAndroid,
         isOnNowTV,
         isLowEnd: lowEnd,
+        // v2.10.61 — broader perf-host flag (factory Chrome on TV, etc.)
+        isAndroidWebViewHost,
         playVideo,
         playExternal,
         voiceSearch,
@@ -359,7 +380,12 @@ function mimeFor(url, type) {
 // Expose performance mode to CSS so we can switch off heavy effects.
 if (typeof document !== 'undefined') {
     if (Host.isLowEnd) document.documentElement.classList.add('vesper-low-end');
-    if (Host.isAndroid) document.documentElement.classList.add('vesper-host-android');
+    // v2.10.61 — Apply the perf-mode CSS class for ANY Android-WebView
+    // host (native wrapper OR factory Chrome 138 on TV), not just the
+    // native OnNowTV bridge.  This is what makes the global
+    // backdrop-filter strip-out work on factory-Chrome HK1 boxes that
+    // were rendering loading overlays as solid grey rectangles.
+    if (Host.isAndroidWebViewHost) document.documentElement.classList.add('vesper-host-android');
 }
 
 export default Host;
