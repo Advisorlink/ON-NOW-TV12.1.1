@@ -35,6 +35,17 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
         </intent>
+        <!-- v2.10.53 — Allow the WebView dependency check to read
+             versionName of the active System WebView provider on
+             Android 11+ (which scopes package visibility). -->
+        <package android:name="com.google.android.webview" />
+        <package android:name="com.android.webview" />
+        <package android:name="com.android.chrome" />
+        <!-- v2.10.53 — Allow firing the Launcher's APKM install
+             activity (ACTION_INSTALL_APKM) from Vesper. -->
+        <intent>
+            <action android:name="tv.onnow.launcher.ACTION_INSTALL_APKM" />
+        </intent>
     </queries>
 
     <!-- TV / leanback compatibility flags so HK1 + Android TV launchers

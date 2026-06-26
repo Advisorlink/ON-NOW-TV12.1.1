@@ -95,4 +95,9 @@ dependencies {
 
     // JSON parsing for the future backend integration.
     implementation("org.json:json:20240303")
+
+    // v2.10.53 — LocalBroadcastManager used by the in-house
+    // APKM installer to relay PackageInstaller status callbacks
+    // from the global broadcast back into the install activity.
+    implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
 }

@@ -2464,6 +2464,17 @@ async def upload_apk(
     """
     if not file.filename:
         raise HTTPException(400, "filename missing")
+    # v2.10.53 — Accept both plain `.apk` and split-APK bundles
+    # (`.apkm` / `.xapk` / `.apks`).  The Launcher's in-house APKM
+    # installer (v2.10.53+) handles all three formats natively, so
+    # admins can drop any of them onto the App Store.
+    ALLOWED_EXTS = {".apk", ".apkm", ".xapk", ".apks"}
+    incoming_ext = Path(file.filename).suffix.lower()
+    if incoming_ext not in ALLOWED_EXTS:
+        raise HTTPException(
+            400,
+            f"Unsupported file type {incoming_ext!r}. Allowed: {sorted(ALLOWED_EXTS)}",
+        )
     aid = uuid.uuid4().hex[:12]
     safe_name = f"{aid}_{Path(file.filename).name}"
     target = DATA_DIR / "apks" / safe_name
@@ -2472,11 +2483,38 @@ async def upload_apk(
             await f.write(chunk)
 
     # Introspect the APK that just landed.  Runs in a thread pool —
-    # pyaxmlparser is blocking I/O.
+    # pyaxmlparser is blocking I/O.  Bundles (.apkm/.xapk/.apks)
+    # are ZIP archives of split APKs; pyaxmlparser only knows how
+    # to read a plain APK, so for bundles we extract `base.apk`
+    # from the ZIP first and introspect that.
     from apk_meta import inspect_apk
+    introspect_target = target
+    if incoming_ext in {".apkm", ".xapk", ".apks"}:
+        import zipfile
+        import tempfile
+        try:
+            with zipfile.ZipFile(target) as zf:
+                base_entry = next(
+                    (n for n in zf.namelist()
+                     if n.lower().endswith(".apk")
+                     and "split" not in n.lower()),
+                    None,
+                ) or next(
+                    (n for n in zf.namelist() if n.lower().endswith(".apk")),
+                    None,
+                )
+                if base_entry:
+                    tmp = Path(tempfile.gettempdir()) / f"{aid}_base.apk"
+                    with zf.open(base_entry) as src, open(tmp, "wb") as dst:
+                        dst.write(src.read())
+                    introspect_target = tmp
+        except Exception:
+            # Fall back to scanning the bundle directly; pyaxmlparser
+            # will most likely fail gracefully and return {}.
+            pass
     meta = await asyncio.to_thread(
         inspect_apk,
-        target,
+        introspect_target,
         DATA_DIR / "apk_icons",
         aid,
     )
@@ -2524,6 +2562,85 @@ def delete_apk(aid: str) -> dict:
     store["apks"] = [a for a in store.get("apks", []) if a["id"] != aid]
     _save_store(store)
     return {"ok": True}
+
+
+# ── v2.10.53 — System dependency distribution ─────────────────────
+# The Vesper TV app (and other clients) call this PUBLIC endpoint
+# at launch to fetch missing system-level dependencies, e.g.
+# Android System WebView 138.  The admin uploads the bundle once
+# via the App Store ("system dependency" pseudo-app) and pins the
+# id under `system_deps[<name>]` in the store; this endpoint maps
+# the friendly name to the underlying file.
+#
+# Why public?  The client doing the fetch is a TV box at first
+# boot — it doesn't yet have an admin JWT and the file has no
+# private content (it's a public WebView APKM).  We still rate-limit
+# elsewhere to prevent obvious abuse.
+@app.get("/api/system-deps/{name}.apkm")
+def get_system_dep_apkm(name: str):
+    """Return the APKM bundle registered under `system_deps[name]`.
+
+    Maps `webview-138` → the APK / APKM the admin uploaded and
+    registered.  Falls back to scanning the `apks` array for any
+    entry whose `name` matches the requested key.
+    """
+    from fastapi.responses import FileResponse, JSONResponse
+    store = _load_store()
+    deps = store.get("system_deps") or {}
+    target_path: Optional[Path] = None
+
+    # Path 1 — explicit system_deps mapping.
+    if name in deps:
+        rel = (deps[name] or {}).get("apk_url") or ""
+        if rel.startswith("/assets/apks/"):
+            target_path = DATA_DIR / "apks" / Path(rel).name
+
+    # Path 2 — find by app-store name match (case-insensitive).
+    if target_path is None:
+        wanted = name.replace("-", " ").lower()
+        for a in store.get("apks", []):
+            if (a.get("name") or "").strip().lower().startswith(wanted):
+                rel = a.get("apk_url") or ""
+                if rel.startswith("/assets/apks/"):
+                    target_path = DATA_DIR / "apks" / Path(rel).name
+                    break
+
+    if target_path is None or not target_path.exists():
+        return JSONResponse(
+            {"detail": f"system dependency {name!r} not registered"},
+            status_code=404,
+        )
+    return FileResponse(
+        target_path,
+        media_type="application/vnd.android.package-archive",
+        filename=f"{name}.apkm",
+    )
+
+
+@app.post(
+    "/api/admin/system-deps/{name}",
+    dependencies=[Depends(require_admin)],
+)
+def set_system_dep(name: str, body: dict) -> dict:
+    """Pin an existing `apks` entry as the canonical bundle for a
+    named system dependency (e.g. `webview-138`).  Body shape:
+        { "apk_id": "abc123def456" }
+    """
+    aid = (body or {}).get("apk_id")
+    if not aid:
+        raise HTTPException(400, "apk_id required")
+    store = _load_store()
+    entry = next((a for a in store.get("apks", []) if a["id"] == aid), None)
+    if not entry:
+        raise HTTPException(404, f"apk_id {aid!r} not found")
+    store.setdefault("system_deps", {})[name] = {
+        "apk_id":   aid,
+        "apk_url":  entry.get("apk_url"),
+        "version_name": entry.get("version_name"),
+        "updated_at":   now_ts(),
+    }
+    _save_store(store)
+    return {"ok": True, "dep": store["system_deps"][name]}
 
 
 # ── v1.9 — App Store drag/drop helpers ─────────────────────────────

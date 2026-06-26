@@ -207,6 +207,21 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        /* v2.10.53 — One-shot WebView 138 dependency check.  If
+           the device's Android System WebView major version is
+           below 138, raise a friendly install prompt.  Tapping
+           "Install" fires the in-house APKM installer hosted by
+           the Launcher (ACTION_INSTALL_APKM).  The prompt is
+           remembered per-installed-version so we don't nag the
+           user repeatedly.  Returns true when a dialog was shown
+           — we still continue with the rest of onCreate so that
+           if the user dismisses, Vesper still renders normally. */
+        try {
+            tv.vesper.app.deps.WebViewDependencyCheck.checkAndPromptIfNeeded(this)
+        } catch (t: Throwable) {
+            android.util.Log.w("MainActivity", "WebView dep check failed", t)
+        }
+
         /* v2.7.86 — One-time migration: force ExoPlayer as the
            player backend on first launch of this build for users
            whose phone has somehow ended up on LibVLC despite the

@@ -133,6 +133,24 @@
             android:theme="@style/Theme.OnNowLauncher.NoActionBar"
             android:screenOrientation="landscape" />
 
+        <!-- v2.10.53 — Public APKM / split-APK installer.  Any other
+             app on the box (Vesper, Live TV, Music, Kids…) fires the
+             implicit action `tv.onnow.launcher.ACTION_INSTALL_APKM`
+             with EXTRA_URL or EXTRA_PATH to trigger a seamless
+             system-prompted install.  Replaces the need for users
+             to sideload APK Mirror Installer for split-APK bundles. -->
+        <activity
+            android:name=".install.apkm.InstallApkmActivity"
+            android:exported="true"
+            android:configChanges="orientation|keyboardHidden|screenSize|locale|fontScale|uiMode"
+            android:theme="@style/Theme.OnNowLauncher.NoActionBar"
+            android:screenOrientation="landscape">
+            <intent-filter>
+                <action android:name="tv.onnow.launcher.ACTION_INSTALL_APKM" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <!-- FileProvider — exposes the downloaded APK files in cache
              dir so the system package installer can read them on
              Android N+. -->
