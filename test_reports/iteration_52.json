@@ -1,0 +1,59 @@
+{
+  "summary": "v2.10.53-b WebView-138 DNS fix + Path-3 synonym matcher — ALL 10 review items GREEN. Static checks on the Vesper Kotlin file confirm the new PROD_LAUNCHER_BASE constant (byte-equal to LauncherRepository.DEFAULT_BASE_URL), the cross-app SharedPreferences keys, and the backend _SYNONYM_GROUPS. Live curl + 14/14 pytest cases (8 regression + 6 new) prove the production naming convention 'com.android.chrome_138.0.7204.180-...apkmirror.com' matches a webview-138 request, while 'On Now Tv Live' correctly 404s. Pre-baked 164 MB APKM and store.json are restored byte-perfect (md5 verified, apks count unchanged, no .iter52bak leftovers).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "WebViewDependencyCheck.kt",
+        "issue": "The literal string 'launcher.onnowtv.tv' still appears ONCE in the file — but only inside a doc comment on line 54 describing the deprecated placeholder ('placeholder `launcher.onnowtv.tv` which caused UnknownHostException'). No code path references it. The runtime-equivalent test (bundleUrl resolution to onnowtv.duckdns.org) is satisfied. The static review item says 'must return zero hits' via grep; if the reviewer wants a strictly-zero grep, change the comment to e.g. 'placeholder host' without the FQDN. Flagging for transparency only — does not affect behaviour."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "static_android_checks": {
+    "WebViewDependencyCheck.kt PROD_LAUNCHER_BASE": "PASS — line 59: `private const val PROD_LAUNCHER_BASE = \"https://onnowtv.duckdns.org/launcher\"` (byte-equal to LauncherRepository.DEFAULT_BASE_URL line 47).",
+    "WebViewDependencyCheck.kt LAUNCHER_PREFS/KEY": "PASS — lines 65–66: `LAUNCHER_PREFS = \"launcher_repo\"`, `LAUNCHER_BASE_KEY = \"launcher.base_url\"` — both byte-equal to LauncherRepository PREFS const (line 49).",
+    "WebViewDependencyCheck.kt bundleUrl resolution order": "PASS — BuildConfig.LAUNCHER_BACKEND_URL → cross-app SharedPreferences `launcher_repo`/`launcher.base_url` → PROD_LAUNCHER_BASE. Final URL: https://onnowtv.duckdns.org/launcher/api/system-deps/webview-138.apkm.",
+    "Reference LauncherRepository.kt DEFAULT_BASE_URL": "UNCHANGED — line 47 still 'https://onnowtv.duckdns.org/launcher'.",
+    "main.py _SYNONYM_GROUPS": "PASS — lines 2643–2654 contain a set with {webview, androidsystemwebview, androidwebview, googlewebview, chrome, googlechrome, comandroidchrome, comgoogleandroidwebview}. All five required synonyms present.",
+    "placeholder host literal grep": "1 hit on line 54 — DOC COMMENT ONLY (history note), no functional impact. Flagged in 'minor' above."
+  },
+  "runtime_backend_checks": {
+    "GET /api/system-deps/webview-138.apkm (Path 1, pre-baked)": "200 + Content-Type application/vnd.android.package-archive + size 171693753 bytes (164 MB).",
+    "GET /api/system-deps/webview-138.apkm (Path 3, pre-baked removed, com.android.chrome_138... entry)": "200 — synonym matcher catches Chrome production naming.",
+    "GET /api/system-deps/webview-138.apkm (Path 3, pre-baked removed, 'On Now Tv Live' only)": "404 — negative control passes.",
+    "GET /api/system-deps/webview-138.apkm (Path 3, 'Android System WebView 138')": "200 — standalone WebView label matched.",
+    "GET /api/system-deps/webview-138.apkm (Path 3, GoogleWebView/com.android.chrome 138/Webview 138)": "200 — extra synonym variants covered."
+  },
+  "test_report_links": [
+    "/app/launcher-backend/tests/test_apkm_system_deps.py",
+    "/app/launcher-backend/tests/test_synonym_matcher.py",
+    "/app/test_reports/pytest/iter52_full.xml",
+    "/app/test_reports/pytest/iter52_synonym.xml",
+    "/app/test_reports/pytest/iter52_apkm.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: Rewrite the line-54 doc comment in WebViewDependencyCheck.kt to drop the literal 'launcher.onnowtv.tv' substring if you want `grep -c launcher.onnowtv.tv` to return 0. e.g. 'placeholder host (now removed)'. Behavioural impact: zero.",
+    "OPTIONAL (carry-over from iter51): main.py Path-2 fuzzy match (`name.replace('-',' ').startswith`) is still admin-unbounded; Path-3 synonym matcher inherits the same public-callable trust boundary. Consider gating Path 2/3 behind an admin allowlist long-term.",
+    "OPTIONAL (carry-over): require_admin is still a no-op (main.py:515)."
+  ],
+  "critical_code_review_comments": [
+    "main.py _SYNONYM_GROUPS now lives as a function-local literal inside get_system_dep_apkm — fine for one group but if 'play-services-138' is added next, factor to module-level for reuse and unit-test isolation.",
+    "Path-3 candidate generation only fires when the request matches `^([a-z]+)(\\d+)$` after normalisation. Inputs like `webview-138-beta` will normalise to `webview138beta`, miss the regex, and silently fall through to the literal-only candidate. Document or generalise the regex if non-major-version dep tags are expected.",
+    "WebViewDependencyCheck.kt bundleUrl reads cross-app SharedPreferences via createPackageContext(CONTEXT_IGNORE_SECURITY) — this works ONLY because both apps are signed with the same sharedUserId or the Launcher's SP is in MODE_WORLD_READABLE. If you ever bump targetSdk and tighten, the override will silently stop working. Add a debug log when launcherOverride hits or misses so field diagnosis stays cheap."
+  ],
+  "updated_files": [
+    "/app/launcher-backend/tests/test_synonym_matcher.py (new — 6 Path-3 tests, snapshot/restore-safe)"
+  ],
+  "success_rate": {"backend": "100% (14/14 pytest — 8 regression + 6 new synonym)", "frontend": "n/a (skipped per request)"},
+  "test_credentials": "Launcher admin (preview): Bearer onnow-launcher-admin-dev. require_admin is a no-op (main.py:515), so token isn't enforced.",
+  "seed_data_creation": "Transient per-test: 64-byte dummy .apk files + apks[] entries in store.json (chrome138, aswv138, onnowlive, wv138plain, gwv138, cac138). All cleaned via fixtures (snapshot_state module + clean_store_between_tests function). Pre-baked webview-138.apkm renamed to .iter52bak during synonym tests, renamed back at teardown. Final state verified: 164 MB file present + md5 6170eb405fb191d5bee4d6abd77e067e, store.json apks count = 5, no .iter52bak files remain.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Two test files in /app/launcher-backend/tests/: test_apkm_system_deps.py (regression, 8 cases) and test_synonym_matcher.py (Path-3 synonym groups, 6 cases). Both are snapshot/restore-safe — they back up store.json and rename (not delete) the pre-baked 164 MB APKM. Run `cd /app && python -m pytest launcher-backend/tests/ -v`. Launcher backend on port 8002 (supervisor). If you mutate store.json or remove the pre-baked file manually for adhoc curl, take a shutil.copy2 backup first; the pre-baked path is /app/launcher-backend/data/system-deps/webview-138.apkm.",
+  "rca of the issue": "Original bug = Vesper TV emitted UnknownHostException because WebViewDependencyCheck.kt fell back to the never-registered DNS name `launcher.onnowtv.tv` when no override was set. Fix: replaced placeholder with PROD_LAUNCHER_BASE='https://onnowtv.duckdns.org/launcher' (byte-equal to LauncherRepository.DEFAULT_BASE_URL) and added a cross-app SharedPreferences read so a single Launcher base-URL override propagates to Vesper automatically. Secondary bug = Path-3 fuzzy match used a literal 'webview' substring test, so when production has the dep stored under its raw APKMirror name `com.android.chrome_138.0.7204.180-...apkmirror.com`, the request `webview-138` would 404 even though the file existed. Fix: _SYNONYM_GROUPS expands a slug+version key into all aliases in the same group, so webview ↔ chrome ↔ androidsystemwebview ↔ googlewebview ↔ comandroidchrome all match. Negative control: an unrelated 'On Now Tv Live' entry still returns 404 (no false positives)."
+}

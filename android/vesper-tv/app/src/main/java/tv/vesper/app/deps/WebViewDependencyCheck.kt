@@ -45,18 +45,62 @@ object WebViewDependencyCheck {
     private const val EXTRA_TITLE = "tv.onnow.launcher.extra.TITLE"
 
     /**
-     * Where to fetch the WebView 138 APKM bundle.  The Launcher
-     * Admin hosts it under a stable path; we resolve the host at
-     * runtime from BuildConfig if available, otherwise fall back
-     * to the production launcher domain.
+     * Production launcher-backend URL.  MUST match the value used
+     * by `LauncherRepository.DEFAULT_BASE_URL` so Vesper hits the
+     * same Nginx host that already proxies `/launcher/` → the
+     * uvicorn backend on 127.0.0.1:8002.
+     *
+     * v2.10.53-b — Earlier this fell back to the non-existent
+     * placeholder `launcher.onnowtv.tv` which caused
+     * `UnknownHostException` ("unable to resolve host") on every
+     * client.  Production runs on the Contabo VPS at
+     * `onnowtv.duckdns.org` behind nginx with a `/launcher` prefix.
+     */
+    private const val PROD_LAUNCHER_BASE = "https://onnowtv.duckdns.org/launcher"
+
+    /** SharedPreferences key the Launcher uses to override the
+     *  production base URL at runtime.  We mirror it so that
+     *  if the user ever points their Launcher at a different
+     *  backend (e.g. preview pod), Vesper follows automatically. */
+    private const val LAUNCHER_PREFS    = "launcher_repo"
+    private const val LAUNCHER_BASE_KEY = "launcher.base_url"
+
+    /**
+     * Where to fetch the WebView 138 APKM bundle.
+     *
+     * Resolution order (first hit wins):
+     *   1. BuildConfig.LAUNCHER_BACKEND_URL (if the Vesper build
+     *      script ever wires one — currently it doesn't, kept here
+     *      for future build-variant overrides).
+     *   2. The Launcher's own SharedPreferences `launcher.base_url`
+     *      key — so a single override flips both apps in sync.
+     *   3. The production default `https://onnowtv.duckdns.org/launcher`.
      */
     private fun bundleUrl(ctx: Context): String {
-        val host = runCatching {
+        val buildConfigUrl = runCatching {
             val clazz = Class.forName("${ctx.packageName}.BuildConfig")
             val f = clazz.getField("LAUNCHER_BACKEND_URL")
-            (f.get(null) as? String)?.trimEnd('/')
+            (f.get(null) as? String)?.trim()?.trimEnd('/')?.takeIf { it.isNotEmpty() }
         }.getOrNull()
-        val base = host ?: "https://launcher.onnowtv.tv"
+
+        val launcherOverride = runCatching {
+            // Cross-app SharedPreferences read.  Same `MODE_PRIVATE`
+            // store but accessed by name; works because the Launcher
+            // and Vesper run in their own UIDs — we are reading a
+            // file on a path Android won't share.  Falls through to
+            // null when the Launcher isn't installed or the user
+            // never opened it, which is what we want.
+            ctx.createPackageContext(
+                "tv.onnow.launcher",
+                Context.CONTEXT_IGNORE_SECURITY,
+            ).getSharedPreferences(LAUNCHER_PREFS, Context.MODE_PRIVATE)
+                .getString(LAUNCHER_BASE_KEY, null)
+                ?.trim()
+                ?.trimEnd('/')
+                ?.takeIf { it.isNotEmpty() }
+        }.getOrNull()
+
+        val base = buildConfigUrl ?: launcherOverride ?: PROD_LAUNCHER_BASE
         return "$base/api/system-deps/webview-138.apkm"
     }
 

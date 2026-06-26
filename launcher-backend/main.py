@@ -2623,15 +2623,53 @@ def get_system_dep_apkm(name: str):
         #   • "WebView 138"
         #   • "Android System WebView 138"
         #   • "Webview138"  /  "WEBVIEW_138_apkm"
+        #   • "com.android.chrome_138.0.7204.180_..."  (raw APKMirror
+        #     filename — Chrome ships as the WebView provider on
+        #     some boxes, so it should match `webview-138`).
         # Normalisation: lowercase + strip every non-alphanumeric
         # char, then substring-test the requested key against the
-        # normalised name.  `webview-138` → `webview138`.
+        # normalised name.  `webview-138` → `webview138`.  For known
+        # synonym groups (webview↔chrome↔android system webview)
+        # we expand the candidate set so any of them wins.
         if target_path is None:
             import re
-            norm = lambda s: re.sub(r"[^a-z0-9]", "", (s or "").lower())
-            wanted_norm = norm(name)  # e.g. "webview138"
+
+            def _norm(s: Optional[str]) -> str:
+                return re.sub(r"[^a-z0-9]", "", (s or "").lower())
+
+            # Synonym groups — each key shares its set's words.
+            # Adding more dependency types in future (e.g. play
+            # services) is a one-liner here.
+            _SYNONYM_GROUPS: list[set[str]] = [
+                {
+                    "webview",                    # standalone System WebView
+                    "androidsystemwebview",
+                    "androidwebview",
+                    "googlewebview",
+                    "chrome",                     # Chrome ships an embedded WebView
+                    "googlechrome",
+                    "comandroidchrome",           # raw package-name prefix in filenames
+                    "comgoogleandroidwebview",
+                },
+            ]
+
+            wanted_norm = _norm(name)  # e.g. "webview138"
+            # Split into <slug><version> when possible so we can swap the slug.
+            m = re.match(r"^([a-z]+)(\d+)$", wanted_norm)
+
+            candidates: set[str] = {wanted_norm}
+            if m:
+                slug, version = m.group(1), m.group(2)
+                for group in _SYNONYM_GROUPS:
+                    if slug in group:
+                        candidates.update(alias + version for alias in group)
+                        break
+
             for a in store.get("apks", []):
-                if wanted_norm and wanted_norm in norm(a.get("name")):
+                name_norm = _norm(a.get("name"))
+                if not name_norm:
+                    continue
+                if any(c and c in name_norm for c in candidates):
                     rel = a.get("apk_url") or ""
                     if rel.startswith("/assets/apks/"):
                         target_path = DATA_DIR / "apks" / Path(rel).name
