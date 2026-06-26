@@ -169,6 +169,92 @@ jobs:
             "$VPS_USER@$VPS_HOST" \
             "ls -lh '$VPS_PATH/data/system-deps/' 2>&1; sha256sum '$VPS_PATH/data/system-deps/'*.apkm 2>&1"
 
+      - name: Diagnose where the live launcher reads its DATA_DIR from
+        env:
+          SSHPASS: ${{ secrets.VPS_SSH_PASSWORD }}
+          VPS_HOST: ${{ steps.targets.outputs.host }}
+          VPS_USER: ${{ steps.targets.outputs.user }}
+          VPS_PATH: ${{ steps.detect.outputs.install_path }}
+        run: |
+          # v2.10.53-g — The rsync target ($VPS_PATH) is detected
+          # heuristically (first matching candidate dir), but the
+          # RUNNING launcher service may have its DATA_DIR set to
+          # a different path via systemd Environment=DATA_DIR=...
+          # or via the process's WorkingDirectory.  If those don't
+          # match, system-dep swaps (like WebView 138 APKM) silently
+          # no-op from the device's perspective because the live
+          # service keeps serving the old file from elsewhere.
+          #
+          # This step:
+          #   1. Locates EVERY `data/system-deps` dir on disk.
+          #   2. Identifies the running launcher service's actual
+          #      DATA_DIR.
+          #   3. Mirrors the freshly-rsynced apkm to every found
+          #      `data/system-deps` dir (brute-force safety net so
+          #      we don't have to guess which one is live).
+          #   4. Reloads nginx in case it's caching the response.
+          sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+            "$VPS_USER@$VPS_HOST" "VPS_PATH='$VPS_PATH' bash -s" << 'EOF'
+            set -uo pipefail
+
+            echo '── 1. systemd service inspection ──'
+            for svc in onnowtv-launcher onnow-launcher launcher-backend onnowtv onnow; do
+              if systemctl list-unit-files 2>/dev/null | grep -q "^${svc}\.service"; then
+                echo "── ${svc}.service ──"
+                systemctl show "${svc}.service" -p WorkingDirectory -p ExecStart -p Environment -p MainPID 2>/dev/null
+                echo ""
+              fi
+            done
+
+            echo '── 2. /proc inspection of any python proc running main.py ──'
+            for pid in $(pgrep -af "python.*main\\.py" 2>/dev/null | awk '{print $1}'); do
+              echo "PID $pid:"
+              echo "  cwd:    $(readlink /proc/$pid/cwd 2>/dev/null)"
+              echo "  exe:    $(readlink /proc/$pid/exe 2>/dev/null)"
+              echo "  cmdline: $(tr '\\0' ' ' < /proc/$pid/cmdline 2>/dev/null)"
+              echo "  DATA_DIR env: $(tr '\\0' '\\n' < /proc/$pid/environ 2>/dev/null | grep -E '^DATA_DIR=' | head -1)"
+              echo ""
+            done
+
+            echo '── 3. ALL system-deps dirs on disk + their webview-138.apkm SHA ──'
+            mapfile -t DIRS < <(find /opt /srv /var/lib /home -maxdepth 6 -type d -name 'system-deps' 2>/dev/null)
+            for d in "${DIRS[@]}"; do
+              echo "── $d ──"
+              ls -lh "$d" 2>&1 | head -20
+              [ -f "$d/webview-138.apkm" ] && sha256sum "$d/webview-138.apkm"
+              [ -f "$d/webview-138.apk"  ] && sha256sum "$d/webview-138.apk"
+              echo ""
+            done
+
+            echo '── 4. Brute-force mirror: copy fresh apkm into every found dir ──'
+            SRC="$VPS_PATH/data/system-deps/webview-138.apkm"
+            if [ ! -f "$SRC" ]; then
+              echo "ERROR: source $SRC does not exist on VPS — rsync target is wrong"
+              exit 0
+            fi
+            SRC_SHA=$(sha256sum "$SRC" | awk '{print $1}')
+            echo "Source: $SRC ($SRC_SHA)"
+            for d in "${DIRS[@]}"; do
+              [ "$d" = "$VPS_PATH/data/system-deps" ] && continue
+              echo "  → copying to $d/webview-138.apkm"
+              cp -f "$SRC" "$d/webview-138.apkm" 2>&1 || echo "    (skipped — $?)"
+              # also delete any stale .apk so the .apkm fallback path doesn't shadow us
+              [ -f "$d/webview-138.apk" ] && rm -f "$d/webview-138.apk" && echo "    (removed stale webview-138.apk in $d)"
+            done
+
+            echo '── 5. Reload nginx to drop any cached response ──'
+            nginx -s reload 2>/dev/null && echo "  nginx reloaded" || echo "  (nginx reload skipped — not present or no perms)"
+            systemctl reload nginx 2>/dev/null && echo "  systemctl reloaded nginx" || true
+
+            echo '── 6. Final verification — what every system-deps dir holds now ──'
+            for d in "${DIRS[@]}"; do
+              echo "$d:"
+              [ -f "$d/webview-138.apkm" ] && sha256sum "$d/webview-138.apkm"
+              [ -f "$d/webview-138.apk"  ] && sha256sum "$d/webview-138.apk"
+            done
+EOF
+
+
       - name: Install new Python dependencies (idempotent)
         env:
           SSHPASS: ${{ secrets.VPS_SSH_PASSWORD }}
