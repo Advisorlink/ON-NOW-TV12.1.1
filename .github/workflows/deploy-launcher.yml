@@ -217,7 +217,7 @@ jobs:
             done
 
             echo '── 3. ALL system-deps dirs on disk + their webview-138.apkm SHA ──'
-            mapfile -t DIRS < <(find /opt /srv /var/lib /home -maxdepth 6 -type d -name 'system-deps' 2>/dev/null)
+            mapfile -t DIRS < <(find /opt /srv /var/lib /var/www /var/cache /home /etc/nginx -maxdepth 6 -type d -name 'system-deps' 2>/dev/null)
             for d in "${DIRS[@]}"; do
               echo "── $d ──"
               ls -lh "$d" 2>&1 | head -20
@@ -225,6 +225,28 @@ jobs:
               [ -f "$d/webview-138.apk"  ] && sha256sum "$d/webview-138.apk"
               echo ""
             done
+
+            echo '── 3b. Any webview-138.apkm/apk file ANYWHERE on disk ──'
+            find / -name 'webview-138.apk*' -type f 2>/dev/null | while read f; do
+              echo "  $(ls -lh "$f")"
+              sha256sum "$f"
+            done
+
+            echo '── 3c. Nginx config — anything matching system-deps or alias/root ──'
+            if command -v nginx >/dev/null 2>&1; then
+              echo "Nginx full config dump (grep'd for system-deps and proxy_cache):"
+              nginx -T 2>/dev/null | grep -B 2 -A 4 -iE "system-deps|proxy_cache|alias|root\s+/|location.*launcher" | head -80
+              echo ""
+              echo "Nginx cache directories:"
+              find /var/cache/nginx /var/lib/nginx -maxdepth 4 -type d 2>/dev/null | head -10
+            fi
+
+            echo '── 3d. Probe FastAPI directly on localhost (bypass nginx) ──'
+            curl -s -D /tmp/h_fastapi.txt -o /tmp/fastapi_apkm "http://127.0.0.1:8002/api/system-deps/webview-138.apkm" 2>&1 | head -3
+            echo "FastAPI direct response headers:"
+            head -20 /tmp/h_fastapi.txt 2>/dev/null
+            echo "FastAPI direct file SHA:"
+            [ -f /tmp/fastapi_apkm ] && sha256sum /tmp/fastapi_apkm
 
             echo '── 4. Brute-force mirror: copy fresh apkm into every found dir ──'
             SRC="$VPS_PATH/data/system-deps/webview-138.apkm"
@@ -242,9 +264,16 @@ jobs:
               [ -f "$d/webview-138.apk" ] && rm -f "$d/webview-138.apk" && echo "    (removed stale webview-138.apk in $d)"
             done
 
-            echo '── 5. Reload nginx to drop any cached response ──'
+            echo '── 5. Reload nginx + purge any cached responses to drop old served file ──'
+            # Purge proxy_cache if any
+            if [ -d /var/cache/nginx ]; then
+              find /var/cache/nginx -type f -name '*' 2>/dev/null | xargs rm -f 2>/dev/null || true
+              echo "  cleared /var/cache/nginx contents"
+            fi
             nginx -s reload 2>/dev/null && echo "  nginx reloaded" || echo "  (nginx reload skipped — not present or no perms)"
             systemctl reload nginx 2>/dev/null && echo "  systemctl reloaded nginx" || true
+            # Also restart the launcher service so it re-opens any cached file handles
+            systemctl restart onnowtv-launcher 2>/dev/null && echo "  onnowtv-launcher.service restarted" || true
 
             echo '── 6. Final verification — what every system-deps dir holds now ──'
             for d in "${DIRS[@]}"; do
@@ -252,6 +281,9 @@ jobs:
               [ -f "$d/webview-138.apkm" ] && sha256sum "$d/webview-138.apkm"
               [ -f "$d/webview-138.apk"  ] && sha256sum "$d/webview-138.apk"
             done
+
+            # Always exit 0 — diagnostic step must not fail the deploy
+            exit 0
           EOF
 
 
