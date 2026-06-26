@@ -8,6 +8,6 @@
         your production backend.
     -->
     <string name="app_url" translatable="false">
-        https://onnowtv.duckdns.org/
+        https://onnowhub.com/
     </string>
 </resources>

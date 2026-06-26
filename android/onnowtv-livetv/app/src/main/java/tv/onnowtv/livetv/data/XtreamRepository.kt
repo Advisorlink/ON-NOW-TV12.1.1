@@ -24,7 +24,10 @@ object XtreamRepository {
      * Production backend that holds the managed Xtream provider.  The
      * APK ships pointing here — no per-device config needed.
      */
-    const val BACKEND_BASE = "https://onnowtv.duckdns.org"
+    // v2.10.58 — Cloudflare-fronted production host.  DNS resolves
+    // to a Cloudflare Anycast IP; nginx on the Contabo VPS still
+    // serves the same /api/* routes via the new server_name.
+    const val BACKEND_BASE = "https://onnowhub.com"
 
     private const val ENDPOINT = "/api/xtream/instant-bundle"
     private const val PER_CHANNEL_EPG = "/api/xtream/epg/"

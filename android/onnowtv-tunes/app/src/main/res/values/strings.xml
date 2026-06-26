@@ -7,10 +7,11 @@
         a separate route inside the same React bundle Vesper uses.
         Point this at your production backend.
 
-        Default: Contabo VPS production host (Nginx-terminated TLS,
-        reverse-proxied to backend on 127.0.0.1:8001).
+        Default: Cloudflare-fronted onnowhub.com (proxies to the Contabo
+        VPS where Nginx terminates TLS and reverse-proxies to backend on
+        127.0.0.1:8001).  v2.10.58 — migrated off DuckDNS.
     -->
     <string name="app_url" translatable="false">
-        https://onnowtv.duckdns.org/
+        https://onnowhub.com/
     </string>
 </resources>

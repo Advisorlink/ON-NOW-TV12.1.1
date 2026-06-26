@@ -1,5 +1,28 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.58 — Phase 2 domain migration: Vesper TV / Live TV / Kids / Tunes / FTA → onnowhub.com (16 Jun 2026).**
+>
+> User asked to finish migrating the rest of the app suite off DuckDNS now that the launcher is on `onnowhub.com`.  Critical constraint from the previous handoff: the four other apps have **certificate pinning** against the DuckDNS Let's Encrypt cert, so naive URL swaps would brick them.
+>
+> Pre-migration validation:
+>   • `curl https://onnowhub.com/api/` → 200 (Cloudflare → VPS via new server_name)
+>   • `curl https://onnowhub.com/launcher/` → 200
+>   • `curl https://onnowtv.duckdns.org/api/` → 200 (still direct VPS)
+>
+> Key insight that unlocked the migration safely: `network_security_config.xml` pins ONLY `<domain>onnowtv.duckdns.org</domain>`.  New traffic to `onnowhub.com` falls into `<base-config>` which uses system trust → validates Cloudflare's edge cert without any code change.  `IntegrityGuard.verifyBackendPin()` still probes DuckDNS directly to check the LE cert — that path is independent of user-facing traffic and continues to work since the VPS still serves DuckDNS with the original LE cert.  Zero pin changes required.
+>
+> Files flipped (20 total):
+>   • **App-facing URL constants (13)** — `strings.xml` for vesper-tv / onnowtv-kids / onnowtv-tunes / onnowtv-fta; Kotlin fallbacks in `XtreamRepository`, `SportsRepository`, `FtaRepository`, `WebAppInterface`, `ExoPlayerActivity`, `WebViewDependencyCheck`, and `build.gradle.kts` for fta-native.
+>   • **CI workflows (7)** — `build-kids.yml`, `build-tunes.yml`, `build-apk.yml`, `deploy-frontend.yml` (`REACT_APP_BACKEND_URL` baked into bundles); `build-fta.yml` / `build-livetv.yml` release notes; `deploy-launcher.yml` smoke-test probes both domains.
+>
+> Intentionally NOT touched:
+>   • `network_security_config.xml` (4 files) — DuckDNS pin retained as defence-in-depth for any legacy traffic.
+>   • `IntegrityGuard.kt verifyBackendPin()` — native LE-cert probe stays on DuckDNS.
+>   • `ResilientHttp.kt` (launcher) — DuckDNS retained in `FALLBACK_HOSTS` for the launcher's own resilience.
+>   • Post-deploy origin health checks (`deploy-backend.yml`, `deploy-frontend.yml`) — probe origin via DuckDNS so they bypass Cloudflare caching.
+>
+> Verified: 8 Kotlin files brace-balanced (0 diff); 4 strings.xml + 7 YAML workflows parse cleanly.  Static-only (cannot compile Kotlin in this pod) — user must Save to GitHub → CI builds 4 new APKs → sideload to confirm cold boot lands on `onnowhub.com` instead of DuckDNS.
+>
 > **🟢 v2.10.57 — Bundled wallpapers for zero-flash cold start (16 Jun 2026).**
 >
 > User reported the launcher *still* showed grey placeholder rectangles on cold boot — specifically the **fullscreen wallpapers** behind each focused tile.  Reviewed v2.10.56's `BuiltInAssets`: it bundled the 8 small tile-FRONT images, App Store hero/logo, and V2 AI hero, but **not the 9 fullscreen wallpapers** (the biggest loading-flash offenders — each ~1.5 MB PNG on the backend).  Worse, the substring match `tile-movies` collided with both `/tile_images/tile-movies-…` AND `/wallpapers/tile-movies-…`, so wallpaper URLs were resolving to the *small* tile drawable and stretching into a blurry mess.

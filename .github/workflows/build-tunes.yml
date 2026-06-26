@@ -17,7 +17,8 @@ env:
   # v2.8.70 — REACT_APP_BACKEND_URL baked into the bundled JS.  The
   # APK now ships the React app offline (file:///android_asset/web/)
   # and only the API calls (/api/...) reach out to the live VPS.
-  REACT_APP_BACKEND_URL: https://onnowtv.duckdns.org
+  # v2.10.58 — Cloudflare-fronted production host.
+  REACT_APP_BACKEND_URL: https://onnowhub.com
 
 jobs:
   build:

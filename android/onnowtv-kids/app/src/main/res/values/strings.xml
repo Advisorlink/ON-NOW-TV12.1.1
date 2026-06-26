@@ -6,14 +6,17 @@
         Point this at your deployed ON NOW TV V2 instance.  This is the
         only line you should ever need to change in this project.
 
-        v2.8.40 — Migrated to the Contabo VPS production host
-        (onnowtv.duckdns.org).  Nginx terminates TLS via Let's Encrypt
-        and reverse-proxies /api/* → backend on 127.0.0.1:8001 and
+        v2.10.58 — Migrated to Cloudflare-fronted onnowhub.com.
+        Cloudflare proxies edge traffic to the same Contabo VPS where
+        Nginx reverse-proxies /api/* → backend on 127.0.0.1:8001 and
         /launcher/* → the launcher admin backend on 127.0.0.1:8002.
-        Earlier value (preview pod, retired):
+        DuckDNS (onnowtv.duckdns.org) is still resolvable for fallback
+        and as a security pin target — see network_security_config.xml.
+        Earlier values (retired):
+            https://onnowtv.duckdns.org/
             https://rebrand-app-5.preview.emergentagent.com/
     -->
     <string name="app_url" translatable="false">
-        https://onnowtv.duckdns.org/
+        https://onnowhub.com/
     </string>
 </resources>

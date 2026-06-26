@@ -14,7 +14,8 @@ import java.util.concurrent.TimeUnit
  */
 object FtaRepository {
 
-    const val BACKEND_BASE = "https://onnowtv.duckdns.org"
+    // v2.10.58 — Cloudflare-fronted (was onnowtv.duckdns.org).
+    const val BACKEND_BASE = "https://onnowhub.com"
     const val DEFAULT_CITY = "Brisbane"
 
     private val http: OkHttpClient = OkHttpClient.Builder()

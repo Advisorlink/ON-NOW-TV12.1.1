@@ -170,7 +170,7 @@ jobs:
             Install:
             1. Download `onnowtv-fta-release.apk` (or `-debug.apk`) below.
             2. Sideload onto your HK1 box via `adb install` or a file-explorer app.
-            3. Launch — the app loads the live EPG over HTTPS from `onnowtv.duckdns.org`.
+            3. Launch — the app loads the live EPG over HTTPS from `onnowhub.com` (Cloudflare-fronted).
 
             Network: the APK does not bundle the React build — it loads it
             live from the production VPS so updating the UI is just a backend

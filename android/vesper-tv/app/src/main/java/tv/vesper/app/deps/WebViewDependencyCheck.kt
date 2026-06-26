@@ -56,7 +56,8 @@ object WebViewDependencyCheck {
      * runs on the Contabo VPS at `onnowtv.duckdns.org` behind
      * nginx with a `/launcher` prefix.
      */
-    private const val PROD_LAUNCHER_BASE = "https://onnowtv.duckdns.org/launcher"
+    // v2.10.58 — Cloudflare-fronted production default (was DuckDNS).
+    private const val PROD_LAUNCHER_BASE = "https://onnowhub.com/launcher"
 
     /** SharedPreferences key the Launcher uses to override the
      *  production base URL at runtime.  We mirror it so that

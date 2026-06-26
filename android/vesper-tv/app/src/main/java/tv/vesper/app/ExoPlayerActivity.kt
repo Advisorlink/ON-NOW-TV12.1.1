@@ -1447,7 +1447,7 @@ class ExoPlayerActivity : ComponentActivity() {
             ?.trim()
             ?.trimEnd('/')
             ?.takeIf { it.isNotBlank() }
-            ?: "https://onnowtv.duckdns.org"
+            ?: "https://onnowhub.com"  // v2.10.58 — Cloudflare-fronted default
     }
     /** Tune the running ExoPlayer to a different live channel in-place
      *  — no activity restart, no black flash.  Just swaps the media

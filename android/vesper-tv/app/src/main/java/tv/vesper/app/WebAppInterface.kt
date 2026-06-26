@@ -981,7 +981,7 @@ class WebAppInterface(private val activity: Activity) {
                     ?.trim()
                     ?.trimEnd('/')
                     ?.takeIf { it.isNotBlank() }
-                    ?: "https://onnowtv.duckdns.org"
+                    ?: "https://onnowhub.com"  // v2.10.58 — Cloudflare-fronted default
                 // Talk to the LAUNCHER backend, not Vesper's backend —
                 // the kids-lock endpoint lives under /launcher/* on
                 // the VPS Nginx proxy.

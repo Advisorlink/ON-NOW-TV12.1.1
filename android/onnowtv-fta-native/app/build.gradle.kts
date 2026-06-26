@@ -17,8 +17,9 @@ android {
         // Backend base URL the in-app updater + repository hit.
         // Overridable per-build via -PbackendBase=… in case we ever
         // need to point a debug APK at a staging stack.
+        // v2.10.58 — Cloudflare-fronted production default.
         val backendBase = (project.findProperty("backendBase") as String?)
-            ?: "https://onnowtv.duckdns.org"
+            ?: "https://onnowhub.com"
         buildConfigField("String", "BACKEND_BASE", "\"$backendBase\"")
     }
 

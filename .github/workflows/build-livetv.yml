@@ -153,7 +153,7 @@ jobs:
             Install:
             1. Download `onnowtv-livetv-release.apk` (or `-debug.apk`) below.
             2. Sideload via `adb install` or a file-explorer app.
-            3. Launch — bundle loads from `onnowtv.duckdns.org`.
+            3. Launch — bundle loads from `onnowhub.com` (Cloudflare-fronted).
           files: |
             onnowtv-livetv-debug.apk
             onnowtv-livetv-release.apk

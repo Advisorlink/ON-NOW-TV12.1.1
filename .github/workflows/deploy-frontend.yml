@@ -55,7 +55,8 @@ jobs:
           DISABLE_ESLINT_PLUGIN: 'true'
           # Bake the production backend URL into the bundle so the
           # SPA always talks to the live VPS — never the preview pod.
-          REACT_APP_BACKEND_URL: https://onnowtv.duckdns.org
+          # v2.10.58 — Cloudflare-fronted production host.
+          REACT_APP_BACKEND_URL: https://onnowhub.com
         run: |
           yarn build
           ls -la build/

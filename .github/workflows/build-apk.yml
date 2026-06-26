@@ -25,11 +25,10 @@ env:
   # v2.6.79: TEMPORARY rollback to the PREVIEW URL while the
   # production deployment at `rebrand-app-5.emergent.host` is
   # returning Cloudflare 520 / nginx 502.  Preview pod is rock-
-  # solid so this keeps clients working while we (a) wait for
-  # Emergent support to fix prod OR (b) migrate to a Contabo VPS.
-  # Will swap to the Contabo domain (vesper.tv / similar) once
-  # the VPS is provisioned.
-  REACT_APP_BACKEND_URL: https://onnowtv.duckdns.org
+  # v2.10.58 — Cloudflare-fronted production host.  DuckDNS retained
+  # as a fallback hostname (still resolvable) but new builds bake in
+  # the new domain for edge-cached, DNS-resilient API calls.
+  REACT_APP_BACKEND_URL: https://onnowhub.com
 
 jobs:
   build:

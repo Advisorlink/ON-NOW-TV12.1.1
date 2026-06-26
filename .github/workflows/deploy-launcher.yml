@@ -492,15 +492,19 @@ jobs:
           # Try the most common URLs people host the launcher under.
           # Any 200 OR 401 (auth still on) is a green light — the
           # process is up.  Only fail when nothing responds.
-          for path in /launcher/api/admin/store /launcher/admin/ /api/admin/store /admin/; do
-            for proto in https http; do
-              url="$proto://onnowtv.duckdns.org$path"
-              code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 10 "$url" || echo 000)
-              echo "$url → HTTP $code"
-              if [ "$code" = "200" ] || [ "$code" = "401" ]; then
-                echo "✅ Launcher responding at $url"
-                exit 0
-              fi
+          # v2.10.58 — Probe Cloudflare first, fall back to DuckDNS so
+          # we still catch problems even if the new domain has a hiccup.
+          for host in onnowhub.com onnowtv.duckdns.org; do
+            for path in /launcher/api/admin/store /launcher/admin/ /api/admin/store /admin/; do
+              for proto in https http; do
+                url="$proto://$host$path"
+                code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 10 "$url" || echo 000)
+                echo "$url → HTTP $code"
+                if [ "$code" = "200" ] || [ "$code" = "401" ]; then
+                  echo "✅ Launcher responding at $url"
+                  exit 0
+                fi
+              done
             done
           done
           echo "::warning::Could not confirm the launcher is responding over HTTPS."
