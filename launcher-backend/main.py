@@ -2618,11 +2618,20 @@ def get_system_dep_apkm(name: str):
             if rel.startswith("/assets/apks/"):
                 target_path = DATA_DIR / "apks" / Path(rel).name
 
-        # Path 3 — find by app-store name match (case-insensitive).
+        # Path 3 — find by App Store name match.  Robust to common
+        # naming variants the admin might use:
+        #   • "WebView 138"
+        #   • "Android System WebView 138"
+        #   • "Webview138"  /  "WEBVIEW_138_apkm"
+        # Normalisation: lowercase + strip every non-alphanumeric
+        # char, then substring-test the requested key against the
+        # normalised name.  `webview-138` → `webview138`.
         if target_path is None:
-            wanted = name.replace("-", " ").lower()
+            import re
+            norm = lambda s: re.sub(r"[^a-z0-9]", "", (s or "").lower())
+            wanted_norm = norm(name)  # e.g. "webview138"
             for a in store.get("apks", []):
-                if (a.get("name") or "").strip().lower().startswith(wanted):
+                if wanted_norm and wanted_norm in norm(a.get("name")):
                     rel = a.get("apk_url") or ""
                     if rel.startswith("/assets/apks/"):
                         target_path = DATA_DIR / "apks" / Path(rel).name
