@@ -138,6 +138,11 @@ jobs:
           # NEVER delete the data/ directory on the VPS — it holds
           # uploaded APKs, wallpapers, the store.json that drives the
           # admin UI, etc.  And NEVER overwrite .env on the VPS.
+          #
+          # EXCEPTION: data/system-deps/ is code-managed (ships the
+          # WebView 138 APKM that Vesper auto-installs).  We include
+          # it in rsync so swapping it in-repo actually reaches the
+          # VPS — otherwise system-dep updates silently no-op.
           sshpass -e rsync -avz \
             --exclude="__pycache__" \
             --exclude="*.pyc" \
@@ -146,7 +151,11 @@ jobs:
             --exclude="*.bak*" \
             --exclude="*.log" \
             --exclude=".pytest_cache" \
-            --exclude="data/" \
+            --exclude="data/apks/" \
+            --exclude="data/apk_icons/" \
+            --exclude="data/tile_apks/" \
+            --exclude="data/store.json" \
+            --exclude="data/store.json.bak" \
             -e "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15" \
             launcher-backend/ "$VPS_USER@$VPS_HOST:$VPS_PATH/"
 

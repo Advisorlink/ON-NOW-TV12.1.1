@@ -1599,8 +1599,13 @@ launcher-backend/data/apks/*.apk
 .local_safety_net/_snapshots/snapshot_PRE_REVERT_20260625_133347/launcher-backend/data/apks/04c407ffb13b_onnowtv-v2-debug
 .local_safety_net/_snapshots/snapshot_PRE_REVERT_20260625_133347/launcher-backend/data/apks/02931c0eaf3d_onnowtv-v2-debug
 
-# v2.10.53 — Pre-baked system-dependency APKMs (WebView, etc) are too large for GitHub.
-# They live on disk only.  Drop them into launcher-backend/data/system-deps/ on each deploy.
-launcher-backend/data/system-deps/*.apkm
-launcher-backend/data/system-deps/*.apk
-launcher-backend/data/system-deps/webview-138.apkm
+# v2.10.53-e — System-dependency APKMs (WebView 138 etc) ARE
+# small enough to ship in-repo (the arm-v7a build is 68 MB,
+# well under GitHub's 100 MB ceiling) and MUST ship via git +
+# deploy-launcher.yml so a Save-to-GitHub push actually
+# updates what the VPS serves.  Previously these were
+# gitignored which silently broke every system-dep swap.
+!launcher-backend/data/system-deps/
+!launcher-backend/data/system-deps/*.apkm
+!launcher-backend/data/system-deps/*.apk
+!launcher-backend/data/system-deps/README.md
