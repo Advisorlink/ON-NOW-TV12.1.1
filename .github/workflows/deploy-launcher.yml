@@ -253,70 +253,91 @@ jobs:
               find /var/cache/nginx /var/lib/nginx -maxdepth 4 -type d 2>/dev/null | head -10
             fi
 
-            echo '── 3d. Probe FastAPI directly on localhost (bypass nginx) ──'
-            curl -s -D /tmp/h_fastapi.txt -o /tmp/fastapi_apkm "http://127.0.0.1:8002/api/system-deps/webview-138.apkm" 2>&1 | head -3
-            echo "FastAPI direct response headers:"
-            head -20 /tmp/h_fastapi.txt 2>/dev/null
-            echo "FastAPI direct file SHA:"
-            [ -f /tmp/fastapi_apkm ] && sha256sum /tmp/fastapi_apkm
-
-            echo '── 4. Brute-force mirror: copy fresh apkm into every found dir ──'
-            SRC="$VPS_PATH/data/system-deps/webview-138.apkm"
-            if [ ! -f "$SRC" ]; then
-              echo "ERROR: source $SRC does not exist on VPS — rsync target is wrong"
-              exit 0
-            fi
-            SRC_SHA=$(sha256sum "$SRC" | awk '{print $1}')
-            echo "Source: $SRC ($SRC_SHA)"
-            for d in "${DIRS[@]}"; do
-              [ "$d" = "$VPS_PATH/data/system-deps" ] && continue
-              echo "  → copying to $d/webview-138.apkm"
-              cp -f "$SRC" "$d/webview-138.apkm" 2>&1 || echo "    (skipped — $?)"
-              # also delete any stale .apk so the .apkm fallback path doesn't shadow us
-              [ -f "$d/webview-138.apk" ] && rm -f "$d/webview-138.apk" && echo "    (removed stale webview-138.apk in $d)"
+            echo '── 3e. Find EVERY store.json on the host (= every plausible data dir) ──'
+            find / -name 'store.json' -type f 2>/dev/null | while read sf; do
+              dir=$(dirname "$sf")
+              apk_count=$(find "$dir/apks" -maxdepth 1 -type f 2>/dev/null | wc -l)
+              size=$(stat -c '%s' "$sf" 2>/dev/null)
+              mtime=$(stat -c '%y' "$sf" 2>/dev/null)
+              echo "  $sf"
+              echo "    size=${size}b, mtime=$mtime, apks_in_sibling_apks_dir=$apk_count"
             done
 
-            echo '── 4b. Force DATA_DIR in .env to the working-dir data folder ──'
-            # If the launcher .env has DATA_DIR pointing somewhere
-            # that doesn't contain our freshly-rsynced file, FastAPI
-            # falls back to the App Store entry (Path 2/3) and serves
-            # the old x86 build under data/apks/.  Fix in one shot by
-            # forcing DATA_DIR to $VPS_PATH/data.
+            echo '── 3f. Current .env contents (DATA_DIR line only, no secrets) ──'
             ENVFILE="$VPS_PATH/.env"
-            EXPECTED="$VPS_PATH/data"
             if [ -f "$ENVFILE" ]; then
+              grep -E '^DATA_DIR=' "$ENVFILE" || echo "  (no DATA_DIR line in .env — using default)"
+            fi
+
+            echo '── 4b. Auto-detect the REAL production data directory ──'
+            # v2.10.53-h URGENT FIX — previous version of this step
+            # blindly forced DATA_DIR=$VPS_PATH/data which hid the
+            # admin's full App Store from the launcher service when
+            # the production data lived under a different path
+            # (e.g. /opt/onnowtv/launcher/data or /srv/...).
+            #
+            # New algorithm: scan every plausible launcher data dir
+            # on the host, pick the one with the MOST apks in it —
+            # that's the live production data — and point DATA_DIR
+            # there.  If $VPS_PATH/data wins (because the operator
+            # never had a separate data dir), that's also fine.
+            BEST_DATA=""
+            BEST_COUNT=0
+            for cand in \
+                /opt/onnowtv-launcher/data \
+                /opt/onnowtv/launcher/data \
+                /opt/onnowtv/data \
+                /srv/onnowtv-launcher/data \
+                /srv/onnowtv/launcher/data \
+                /opt/launcher-backend/data \
+                /var/lib/onnowtv-launcher/data \
+                /var/lib/onnowtv-launcher \
+                "$VPS_PATH/data"; do
+              if [ -d "$cand/apks" ]; then
+                c=$(find "$cand/apks" -maxdepth 1 -type f \( -name '*.apk' -o -name '*.apkm' \) 2>/dev/null | wc -l)
+                store_size=$(stat -c '%s' "$cand/store.json" 2>/dev/null || echo 0)
+                echo "  $cand → $c apks, store.json=${store_size}b"
+                # Score = apk_count * 10 + store_size_kb — prefer
+                # dirs that have BOTH apks and a real store.json.
+                score=$((c * 10 + store_size / 1024))
+                if [ "$score" -gt "$BEST_COUNT" ]; then
+                  BEST_COUNT=$score
+                  BEST_DATA=$cand
+                fi
+              fi
+            done
+            echo ""
+            echo "  Winner: $BEST_DATA (score=$BEST_COUNT)"
+
+            ENVFILE="$VPS_PATH/.env"
+            if [ -n "$BEST_DATA" ] && [ -f "$ENVFILE" ]; then
               CURRENT=$(grep -E '^DATA_DIR=' "$ENVFILE" | tail -1 | cut -d= -f2-)
               echo "  Current DATA_DIR in .env: '${CURRENT:-<unset>}'"
-              echo "  Expected:                 '$EXPECTED'"
-              if [ "$CURRENT" != "$EXPECTED" ]; then
-                echo "  → fixing .env"
-                # Remove any existing DATA_DIR line, then append the right one
-                sed -i '/^DATA_DIR=/d' "$ENVFILE"
-                echo "DATA_DIR=$EXPECTED" >> "$ENVFILE"
-                NEEDS_RESTART=1
-              else
-                echo "  (already correct, no change)"
-              fi
-            else
-              echo "  .env not found at $ENVFILE — creating with DATA_DIR=$EXPECTED"
-              echo "DATA_DIR=$EXPECTED" > "$ENVFILE"
+              echo "  Setting to:               '$BEST_DATA'"
+              # SAFETY: snapshot the .env before mutating it so we
+              # can roll back manually if this still picks the wrong
+              # dir.  Keep up to 5 generations.
+              cp -p "$ENVFILE" "$ENVFILE.bak.$(date +%s)" 2>/dev/null || true
+              ls -t "$ENVFILE.bak."* 2>/dev/null | tail -n +6 | xargs -r rm -f
+              sed -i '/^DATA_DIR=/d' "$ENVFILE"
+              echo "DATA_DIR=$BEST_DATA" >> "$ENVFILE"
               NEEDS_RESTART=1
             fi
 
-            echo '── 4c. Also nuke any stale webview-138.apk under data/apks/ ──'
-            # The OLD x86 file was almost certainly uploaded to the
-            # App Store and lives as `data/apks/<uuid>_<name>.apk`.
-            # That's what Path 2/3 resolves to when Path 1 misses.
-            # We want to keep the App Store entries intact (so the
-            # admin UI doesn't break), but we DO want to remove the
-            # actual stale .apk binary file so even if Path 2/3 wins
-            # it can't return the old content.  Be conservative: only
-            # remove files whose name contains "webview" or "chrome".
-            find "$VPS_PATH/data/apks" -maxdepth 1 -type f \
-                \( -iname '*webview*138*' -o -iname '*chrome*138*' \) 2>/dev/null | while read f; do
-              echo "  → removing stale $f ($(stat -c '%s bytes' "$f" 2>/dev/null))"
-              rm -f "$f"
-            done
+            echo '── 4c. Mirror new apkm into the WINNER data dir (so Path 1 hits) ──'
+            # The rsync wrote to $VPS_PATH/data/system-deps/.  If
+            # the winner is a DIFFERENT data dir, the new apkm must
+            # also live in that dir's system-deps/ subfolder.
+            SRC="$VPS_PATH/data/system-deps/webview-138.apkm"
+            if [ -n "$BEST_DATA" ] && [ -f "$SRC" ] && [ "$BEST_DATA" != "$VPS_PATH/data" ]; then
+              mkdir -p "$BEST_DATA/system-deps"
+              echo "  Copying $SRC → $BEST_DATA/system-deps/webview-138.apkm"
+              cp -f "$SRC" "$BEST_DATA/system-deps/webview-138.apkm"
+              # Remove any stale .apk fallback that would shadow the .apkm
+              [ -f "$BEST_DATA/system-deps/webview-138.apk" ] && rm -f "$BEST_DATA/system-deps/webview-138.apk" && echo "  (removed stale .apk fallback in winner)"
+            else
+              echo "  (winner is the rsync target — no extra copy needed)"
+            fi
 
             echo '── 5. Reload nginx + purge any cached responses to drop old served file ──'
             # Purge proxy_cache if any
