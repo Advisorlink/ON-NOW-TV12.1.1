@@ -284,6 +284,7 @@ jobs:
             BEST_DATA=""
             BEST_COUNT=0
             for cand in \
+                /app/launcher-backend/data \
                 /opt/onnowtv-launcher/data \
                 /opt/onnowtv/launcher/data \
                 /opt/onnowtv/data \
