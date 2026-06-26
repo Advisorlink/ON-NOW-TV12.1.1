@@ -46,18 +46,20 @@ object ResilientHttp {
     /** Production VPS IPv4.  Update on VPS migration. */
     private const val FALLBACK_IP = "62.84.181.66"
 
-    private val fallbackDns = Dns { hostname ->
-        try {
-            Dns.SYSTEM.lookup(hostname)
-        } catch (uhe: UnknownHostException) {
-            if (hostname.equals(FALLBACK_HOST, ignoreCase = true)) {
-                Log.w(
-                    TAG,
-                    "System DNS failed for $hostname — falling back to hardcoded IP $FALLBACK_IP",
-                )
-                listOf(InetAddress.getByName(FALLBACK_IP))
-            } else {
-                throw uhe
+    private val fallbackDns: Dns = object : Dns {
+        override fun lookup(hostname: String): List<InetAddress> {
+            return try {
+                Dns.SYSTEM.lookup(hostname)
+            } catch (uhe: UnknownHostException) {
+                if (hostname.equals(FALLBACK_HOST, ignoreCase = true)) {
+                    Log.w(
+                        TAG,
+                        "System DNS failed for $hostname — falling back to hardcoded IP $FALLBACK_IP",
+                    )
+                    listOf(InetAddress.getByName(FALLBACK_IP))
+                } else {
+                    throw uhe
+                }
             }
         }
     }
