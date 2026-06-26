@@ -2489,6 +2489,7 @@ async def upload_apk(
     # from the ZIP first and introspect that.
     from apk_meta import inspect_apk
     introspect_target = target
+    bundle_tmp: Optional[Path] = None
     if incoming_ext in {".apkm", ".xapk", ".apks"}:
         import zipfile
         import tempfile
@@ -2504,20 +2505,29 @@ async def upload_apk(
                     None,
                 )
                 if base_entry:
-                    tmp = Path(tempfile.gettempdir()) / f"{aid}_base.apk"
-                    with zf.open(base_entry) as src, open(tmp, "wb") as dst:
+                    bundle_tmp = Path(tempfile.gettempdir()) / f"{aid}_base.apk"
+                    with zf.open(base_entry) as src, open(bundle_tmp, "wb") as dst:
                         dst.write(src.read())
-                    introspect_target = tmp
+                    introspect_target = bundle_tmp
         except Exception:
             # Fall back to scanning the bundle directly; pyaxmlparser
             # will most likely fail gracefully and return {}.
             pass
-    meta = await asyncio.to_thread(
-        inspect_apk,
-        introspect_target,
-        DATA_DIR / "apk_icons",
-        aid,
-    )
+    try:
+        meta = await asyncio.to_thread(
+            inspect_apk,
+            introspect_target,
+            DATA_DIR / "apk_icons",
+            aid,
+        )
+    finally:
+        # v2.10.53 — Clean up the bundle's extracted base.apk tmp
+        # so long-running pods don't accumulate .apk files in /tmp.
+        if bundle_tmp is not None:
+            try:
+                bundle_tmp.unlink(missing_ok=True)
+            except Exception:
+                pass
 
     icon_url_final = icon_url
     if not icon_url_final and meta.get("icon_path"):
