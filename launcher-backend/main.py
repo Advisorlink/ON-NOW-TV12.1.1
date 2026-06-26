@@ -2749,6 +2749,184 @@ def set_system_dep(name: str, body: dict) -> dict:
     return {"ok": True, "dep": store["system_deps"][name]}
 
 
+# ════════════════════════════════════════════════════════════════════
+#  Home Update — operator-managed launcher self-update
+#
+#  v2.10.55 — Operator wants a one-click way to ship a NEW launcher
+#  APK to every client box in the field WITHOUT touching the boxes.
+#
+#  Flow:
+#    1. Operator drops the freshly-built launcher APK into the admin
+#       UI's "Home Update" section.  Backend stashes it at
+#       `DATA_DIR/system-deps/home-update.apk` and records the
+#       inspected metadata (versionCode, versionName, sha256) in
+#       `store.json → home_update`.
+#    2. TV clients call GET /api/launcher/home-update/info on demand
+#       (e.g. when the user taps the "Home Update" pill in the App
+#       Store) to see if an update is available + what version.
+#    3. Clients download GET /api/system-deps/home-update.apk and
+#       stream it into Android's PackageInstaller.  Because every
+#       repo build is signed with the same committed keystore, the
+#       new APK installs as an IN-PLACE UPGRADE — no uninstall, no
+#       data wipe, no parsing error.
+#
+#  Endpoints:
+#    POST   /api/admin/home-update/upload     — admin uploads APK
+#    GET    /api/admin/home-update/status     — admin sees pinned ver
+#    DELETE /api/admin/home-update            — admin clears pin
+#    GET    /api/launcher/home-update/info    — public, what's pinned
+#    GET    /api/system-deps/home-update.apk  — public, the binary
+# ════════════════════════════════════════════════════════════════════
+
+HOME_UPDATE_FILENAME = "home-update.apk"
+
+
+def _home_update_path() -> Path:
+    return DATA_DIR / "system-deps" / HOME_UPDATE_FILENAME
+
+
+def _home_update_meta(store: dict | None = None) -> dict:
+    s = store if store is not None else _load_store()
+    return (s.get("home_update") or {}).copy()
+
+
+@app.post(
+    "/api/admin/home-update/upload",
+    dependencies=[Depends(require_admin)],
+)
+async def upload_home_update(file: UploadFile = File(...)) -> dict:
+    """Receive the freshly-built launcher APK, store it on disk, and
+    record its metadata in `store.json`.  The TV clients can then
+    download it via `/api/system-deps/home-update.apk`.
+    """
+    if not file.filename or not file.filename.lower().endswith(".apk"):
+        raise HTTPException(400, "expected a `.apk` file (not split)")
+    target = _home_update_path()
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    # v2.10.55 — Stream upload to disk first, then inspect.  The
+    # operator's launcher APK is ~30–50 MB so this is faster than
+    # reading the whole thing into memory.
+    h = hashlib.sha256()
+    size = 0
+    async with aiofiles.open(target, "wb") as f:
+        while chunk := await file.read(1024 * 1024):
+            h.update(chunk)
+            size += len(chunk)
+            await f.write(chunk)
+
+    # Best-effort metadata extraction — we still record SOMETHING
+    # even if pyaxmlparser fails (rare, but APK metadata isn't a
+    # blocker for serving the file).
+    pkg_id: Optional[str] = None
+    version_name: Optional[str] = None
+    version_code: Optional[int] = None
+    try:
+        from apk_meta import inspect_apk
+        meta = await asyncio.to_thread(
+            inspect_apk, target, DATA_DIR / "apk_icons",
+            "home_update_icon",
+        )
+        pkg_id = meta.get("package_id")
+        version_name = meta.get("version_name")
+        version_code = meta.get("version_code")
+    except Exception as e:
+        # Log but don't fail — operator can still ship the binary.
+        print(f"[home-update] metadata extraction failed: {e}")
+
+    store = _load_store()
+    store["home_update"] = {
+        "filename":     HOME_UPDATE_FILENAME,
+        "size":         size,
+        "sha256":       h.hexdigest(),
+        "package_id":   pkg_id,
+        "version_name": version_name,
+        "version_code": version_code,
+        "uploaded_at":  now_ts(),
+    }
+    _save_store(store)
+    return {"ok": True, "home_update": store["home_update"]}
+
+
+@app.get(
+    "/api/admin/home-update/status",
+    dependencies=[Depends(require_admin)],
+)
+def home_update_status() -> dict:
+    """Returns the metadata for the current pinned home-update APK."""
+    meta = _home_update_meta()
+    if not meta:
+        return {"pinned": False, "home_update": None}
+    # Also surface whether the file is actually on disk (could have
+    # been manually deleted, in which case the admin should re-upload).
+    on_disk = _home_update_path().exists()
+    return {"pinned": True, "on_disk": on_disk, "home_update": meta}
+
+
+@app.delete(
+    "/api/admin/home-update",
+    dependencies=[Depends(require_admin)],
+)
+def home_update_clear() -> dict:
+    """Clear the pinned home-update APK + remove the binary on disk.
+    The TV "Home Update" pill will show "Up to date" after this."""
+    target = _home_update_path()
+    if target.exists():
+        target.unlink(missing_ok=True)
+    store = _load_store()
+    store.pop("home_update", None)
+    _save_store(store)
+    return {"ok": True}
+
+
+@app.get("/api/launcher/home-update/info")
+def home_update_info(
+    current_version_code: Optional[int] = None,
+    device_id: Optional[str] = None,
+) -> dict:
+    """Public — TV clients call this to see if an update is
+    available.  If `current_version_code` is supplied, we set
+    `has_update = pinned.version_code > current_version_code`,
+    otherwise we just return that an update IS pinned (the device
+    decides whether to install).
+    """
+    meta = _home_update_meta()
+    if not meta or not _home_update_path().exists():
+        return {"has_update": False, "home_update": None}
+    apk_url = f"{PUBLIC_BASE_URL}/api/system-deps/home-update.apk"
+    pinned_vc = meta.get("version_code")
+    has_update = True
+    if current_version_code is not None and pinned_vc is not None:
+        has_update = int(pinned_vc) > int(current_version_code)
+    return {
+        "has_update":    has_update,
+        "apk_url":       apk_url,
+        "size":          meta.get("size"),
+        "sha256":        meta.get("sha256"),
+        "package_id":    meta.get("package_id"),
+        "version_name":  meta.get("version_name"),
+        "version_code":  meta.get("version_code"),
+        "uploaded_at":   meta.get("uploaded_at"),
+    }
+
+
+@app.get("/api/system-deps/home-update.apk")
+def get_home_update_apk():
+    """Serve the pinned home-update APK as a binary download.
+    Same Content-Disposition trick as the App Store /assets/apks/*
+    so Android's DownloadManager / PackageInstaller can use the
+    right extension."""
+    from fastapi.responses import FileResponse
+    target = _home_update_path()
+    if not target.exists() or not target.is_file():
+        raise HTTPException(404, "No home update pinned. Upload one in the admin UI.")
+    return FileResponse(
+        target,
+        media_type="application/vnd.android.package-archive",
+        filename=HOME_UPDATE_FILENAME,
+    )
+
+
 # ── v1.9 — App Store drag/drop helpers ─────────────────────────────
 @app.post("/api/admin/apks/inspect", dependencies=[Depends(require_admin)])
 async def inspect_apk_endpoint(file: UploadFile = File(...)) -> dict:

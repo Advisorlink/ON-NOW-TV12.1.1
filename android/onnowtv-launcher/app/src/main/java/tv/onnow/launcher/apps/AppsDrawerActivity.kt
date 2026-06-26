@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.text.TextUtils
 import android.view.Gravity
@@ -19,6 +20,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.res.ResourcesCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.CoroutineScope
@@ -26,6 +28,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import tv.onnow.launcher.ImageLoader
 import tv.onnow.launcher.R
 import tv.onnow.launcher.data.ApkEntryRemote
@@ -182,9 +186,187 @@ class AppsDrawerActivity : AppCompatActivity() {
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT,
         ))
+
+        // v2.10.55 — HOME UPDATE pill, top-right corner.
+        // Renders when the operator has pinned a launcher APK in
+        // the admin UI's "Home Update" section.  Tap → confirm →
+        // download the pinned APK via ApkInstaller → fires the
+        // system install prompt → in-place upgrade (same keystore =
+        // no data loss, no parsing error).
+        homeUpdatePill = buildHomeUpdatePill().also {
+            it.visibility = View.GONE
+            val lp = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+            )
+            lp.gravity = Gravity.TOP or Gravity.END
+            lp.topMargin = dp(40)
+            lp.rightMargin = dp(56)
+            root.addView(it, lp)
+        }
+
         setContentView(root)
 
         loadAndRender()
+        refreshHomeUpdatePill()
+    }
+
+    /** Top-right pill — visible only when an admin-pinned launcher
+     *  update is available on the backend. */
+    private var homeUpdatePill: View? = null
+    private var homeUpdateLabel: TextView? = null
+    private var homeUpdateInfo: JSONObject? = null
+
+    private fun buildHomeUpdatePill(): View {
+        val pill = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(dp(20), dp(10), dp(22), dp(10))
+            background = makeHomeUpdatePillBg()
+            isClickable = true
+            isFocusable = true
+            elevation = dp(4).toFloat()
+        }
+        val icon = TextView(this).apply {
+            text = "↻"
+            textSize = 18f
+            setTextColor(Color.WHITE)
+            typeface = makeFont(700)
+            setPadding(0, 0, dp(8), 0)
+        }
+        pill.addView(icon)
+
+        val label = TextView(this).apply {
+            text = "HOME UPDATE"
+            textSize = 13f
+            letterSpacing = 0.14f
+            setTextColor(Color.WHITE)
+            typeface = makeFont(700)
+            setShadowLayer(4f, 0f, 2f, Color.parseColor("#A6000814"))
+        }
+        homeUpdateLabel = label
+        pill.addView(label)
+
+        pill.setOnClickListener { onHomeUpdatePillClicked() }
+        return pill
+    }
+
+    private fun makeHomeUpdatePillBg(): android.graphics.drawable.Drawable {
+        // Same cool cyan→blue→indigo gradient as the topbar Boost
+        // pill — keeps the visual language consistent.
+        val shape = android.graphics.drawable.GradientDrawable(
+            android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+            intArrayOf(
+                Color.parseColor("#FF06B6D4"),
+                Color.parseColor("#FF2563EB"),
+                Color.parseColor("#FF4F46E5"),
+            ),
+        )
+        shape.cornerRadius = dp(9999).toFloat()
+        return shape
+    }
+
+    private fun refreshHomeUpdatePill() {
+        lifecycleScope.launch {
+            val info = fetchHomeUpdateInfo()
+            homeUpdateInfo = info
+            val show = info != null && info.optBoolean("has_update", false)
+            homeUpdatePill?.visibility = if (show) View.VISIBLE else View.GONE
+            if (show) {
+                val ver = info?.optString("version_name").orEmpty()
+                homeUpdateLabel?.text =
+                    if (ver.isNotEmpty()) "HOME UPDATE · $ver" else "HOME UPDATE"
+            }
+        }
+    }
+
+    private suspend fun fetchHomeUpdateInfo(): JSONObject? =
+        withContext(Dispatchers.IO) {
+            try {
+                val repo = LauncherRepository(this@AppsDrawerActivity)
+                val cur = packageManager.getPackageInfo(packageName, 0)
+                val vc = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+                    cur.longVersionCode else @Suppress("DEPRECATION") cur.versionCode.toLong()
+                val url = repo.baseUrlPublic().trimEnd('/') +
+                    "/api/launcher/home-update/info?current_version_code=$vc"
+                val req = okhttp3.Request.Builder().url(url).get().build()
+                tv.onnow.launcher.net.ResilientHttp.client.newCall(req).execute().use { r ->
+                    val body = r.body?.string() ?: return@withContext null
+                    JSONObject(body)
+                }
+            } catch (_: Throwable) {
+                null
+            }
+        }
+
+    private fun onHomeUpdatePillClicked() {
+        val info = homeUpdateInfo ?: run {
+            android.widget.Toast.makeText(
+                this, "No home update info available yet — try again in a moment.",
+                android.widget.Toast.LENGTH_SHORT,
+            ).show()
+            return
+        }
+        val ver = info.optString("version_name", "(unknown)")
+        val sizeMb = (info.optLong("size", 0L) / (1024.0 * 1024.0))
+        val msg = buildString {
+            append("Install launcher update $ver?\n\n")
+            append("• Size: ${"%.1f".format(sizeMb)} MB\n")
+            append("• Installs in-place — your registration, dock and settings are preserved.\n")
+            append("• The launcher will briefly close to complete installation.")
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Home Update")
+            .setMessage(msg)
+            .setPositiveButton("Install") { _, _ -> downloadAndInstallHomeUpdate(info) }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun downloadAndInstallHomeUpdate(info: JSONObject) {
+        if (!ApkInstaller.canInstallNow(this)) {
+            android.widget.Toast.makeText(
+                this,
+                "Grant 'Install unknown apps' to ON NOW TV V2 in the Settings page that just opened.",
+                android.widget.Toast.LENGTH_LONG,
+            ).show()
+            ApkInstaller.requestInstallPermission(this)
+            return
+        }
+        val apkUrl = info.optString("apk_url")
+        if (apkUrl.isEmpty()) {
+            android.widget.Toast.makeText(
+                this, "No download URL — please re-upload in the admin.",
+                android.widget.Toast.LENGTH_LONG,
+            ).show()
+            return
+        }
+        // Tiny progress toast loop so the user sees something while
+        // a 30-50 MB launcher APK downloads.
+        val progressToast = android.widget.Toast.makeText(
+            this, "Downloading update… 0%", android.widget.Toast.LENGTH_LONG,
+        )
+        progressToast.show()
+        lifecycleScope.launch {
+            val err = ApkInstaller.downloadAndInstall(
+                this@AppsDrawerActivity,
+                apkUrl,
+                suggestedName = "home-update.apk",
+                onProgress = { pct ->
+                    runOnUiThread { progressToast.setText("Downloading update… $pct%") }
+                },
+            )
+            if (err != null) {
+                android.widget.Toast.makeText(
+                    this@AppsDrawerActivity,
+                    "Home update failed: $err",
+                    android.widget.Toast.LENGTH_LONG,
+                ).show()
+            }
+            // On success, ApkInstaller has fired the system install
+            // prompt — the user will see the standard Android update
+            // dialog.  No further action needed from this activity.
+        }
     }
 
     private var uninstallReceiver: android.content.BroadcastReceiver? = null

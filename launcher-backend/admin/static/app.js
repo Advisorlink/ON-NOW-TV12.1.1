@@ -1105,6 +1105,128 @@ let _activeStoreId = null;
     }
 })();
 
+/* ──────────────────────────────────────────────────────────────────
+ *  v2.10.55 — Home Update upload wiring
+ *  Drop a launcher APK into the section in the App Store tab;
+ *  it's POSTed to /api/admin/home-update/upload and the
+ *  "Currently pinned" readout refreshes from /status.
+ * ──────────────────────────────────────────────────────────────────*/
+(function setupHomeUpdateDropzone() {
+    const zone     = $('#homeUpdateDropZone');
+    const input    = $('#homeUpdateDropFile');
+    const browse   = $('#homeUpdateBrowse');
+    const prog     = $('#homeUpdateProgress');
+    const pinned   = $('#homeUpdatePinned');
+    const clearBtn = $('#homeUpdateClear');
+    if (!zone || !input) return;
+
+    function fmtBytes(n) {
+        if (!n) return '?';
+        if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+        return (n / 1024 / 1024).toFixed(2) + ' MB';
+    }
+
+    async function refreshStatus() {
+        try {
+            const r = await api('/api/admin/home-update/status');
+            if (!r.pinned || !r.home_update) {
+                pinned.textContent = 'No home update uploaded yet.';
+                clearBtn.hidden = true;
+                return;
+            }
+            const m = r.home_update;
+            const dot = r.on_disk ? '🟢' : '🔴 (file missing on disk!)';
+            const when = m.uploaded_at
+                ? new Date(m.uploaded_at * 1000).toLocaleString()
+                : '?';
+            pinned.innerHTML =
+                `${dot} <strong>${m.version_name || '(unknown version)'}</strong>` +
+                ` &middot; vcode <code>${m.version_code ?? '?'}</code>` +
+                ` &middot; ${fmtBytes(m.size)}` +
+                ` &middot; sha256 <code>${(m.sha256 || '').slice(0, 16)}…</code>` +
+                ` &middot; uploaded ${when}` +
+                (m.package_id ? `<br><span style="opacity:0.6;">${m.package_id}</span>` : '');
+            clearBtn.hidden = false;
+        } catch (e) {
+            pinned.textContent = 'Could not load status: ' + e.message;
+        }
+    }
+
+    zone.addEventListener('click', (e) => {
+        if (e.target === browse) return;
+        input.click();
+    });
+    browse.addEventListener('click', (e) => {
+        e.stopPropagation();
+        input.click();
+    });
+    ['dragenter', 'dragover'].forEach((ev) =>
+        zone.addEventListener(ev, (e) => {
+            e.preventDefault();
+            zone.classList.add('drag-over');
+        }),
+    );
+    ['dragleave', 'drop'].forEach((ev) =>
+        zone.addEventListener(ev, (e) => {
+            e.preventDefault();
+            zone.classList.remove('drag-over');
+        }),
+    );
+    zone.addEventListener('drop', (e) => {
+        const f = Array.from(e.dataTransfer?.files || [])
+            .find((x) => /\.apk$/i.test(x.name));
+        if (f) uploadOne(f);
+    });
+    input.addEventListener('change', () => {
+        const f = (input.files || [])[0];
+        if (f) uploadOne(f);
+        input.value = '';
+    });
+
+    clearBtn.addEventListener('click', async () => {
+        if (!confirm('Remove the current pinned home-update APK?\n' +
+                     'Client boxes will stop seeing the "Home Update" pill.')) return;
+        try {
+            await api('/api/admin/home-update', { method: 'DELETE' });
+            toast('Home Update cleared');
+            await refreshStatus();
+        } catch (e) {
+            toast('Failed: ' + e.message, true);
+        }
+    });
+
+    async function uploadOne(f) {
+        prog.hidden = false;
+        prog.textContent = `Uploading ${f.name} (${fmtBytes(f.size)})…`;
+        try {
+            const form = new FormData();
+            form.append('file', f);
+            const r = await api('/api/admin/home-update/upload', {
+                method: 'POST', body: form,
+            });
+            prog.textContent =
+                `✓ Pinned ${r.home_update?.version_name || f.name} ` +
+                `(vcode ${r.home_update?.version_code ?? '?'})`;
+            toast('Home Update pinned');
+            await refreshStatus();
+        } catch (e) {
+            prog.textContent = `✗ ${f.name}: ${e.message}`;
+            toast('Upload failed: ' + e.message, true);
+        }
+        setTimeout(() => { prog.hidden = true; }, 6000);
+    }
+
+    // Initial load — and also re-poll whenever the App Store tab
+    // becomes active so the operator sees up-to-date info.
+    refreshStatus();
+    document.addEventListener('click', (e) => {
+        if (e.target?.dataset?.tab === 'appstore') {
+            setTimeout(refreshStatus, 250);
+        }
+    });
+})();
+
+
 function renderApks(store) {
     const grid  = $('#appStoreGrid');
     const empty = $('#appStoreEmpty');

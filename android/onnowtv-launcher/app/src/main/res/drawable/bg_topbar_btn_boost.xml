@@ -1,9 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Boost pill background — warm cyan→magenta→violet hero gradient.
-  Mirrors the visual weight of the V2 AI pill so the two hero
-  pills sit side-by-side as paired hero actions, while still being
-  distinguishable thanks to the warmer accent.
+  Boost pill background — cool cyan → indigo gradient.
+
+  v2.10.55 — Restored the smaller cool-blue look the operator
+  designed weeks ago.  Previous iteration mirrored the V2 AI hero
+  pill (warm cyan→magenta→violet, 64 dp tall) so the two pills
+  paired visually, but the operator wants Boost to sit in the
+  secondary-action row visually: smaller height, cool palette,
+  so V2 AI remains the singular hero in the top bar.
+
+  Resting: cyan-500 → blue-500 → indigo-500   (Tailwind palette)
+  Focused: brighter same family + white border ring (1080-screen
+           keyboard navigation must remain obvious)
 -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Focused: brighter inner gradient + white border ring -->
@@ -15,9 +23,9 @@
                     <gradient
                         android:type="linear"
                         android:angle="45"
-                        android:startColor="#FFFF7A1A"
-                        android:centerColor="#FFFF2D9C"
-                        android:endColor="#FFB04CFF"
+                        android:startColor="#FF22D3EE"
+                        android:centerColor="#FF3B82F6"
+                        android:endColor="#FF6366F1"
                         android:useLevel="false" />
                     <stroke
                         android:width="2dp"
@@ -26,16 +34,16 @@
             </item>
         </layer-list>
     </item>
-    <!-- Resting: cooler gradient, no border -->
+    <!-- Resting: cooler still, no border -->
     <item>
         <shape android:shape="rectangle">
             <corners android:radius="9999dp" />
             <gradient
                 android:type="linear"
                 android:angle="45"
-                android:startColor="#FFEA5814"
-                android:centerColor="#FFE91E63"
-                android:endColor="#FF9333EA"
+                android:startColor="#FF06B6D4"
+                android:centerColor="#FF2563EB"
+                android:endColor="#FF4F46E5"
                 android:useLevel="false" />
         </shape>
     </item>

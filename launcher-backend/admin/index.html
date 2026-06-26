@@ -451,6 +451,43 @@
         <!-- App Store grid — populated by renderAppStore() -->
         <div id="appStoreGrid" class="appstore-grid"></div>
         <p id="appStoreEmpty" class="appstore-empty" hidden>Your store is empty.  Drag an APK into the dropzone above to add your first app.</p>
+
+        <!-- v2.10.55 — HOME UPDATE: launcher self-update pin.
+             The operator drops the latest launcher APK here and it
+             becomes downloadable by every client box via the
+             "Home Update" pill in the App Store top-right.  The
+             pill triggers an in-place upgrade (same signature ⇒
+             no parsing error, no data wipe). -->
+        <div class="appstore-colors-section" id="homeUpdateSection" style="margin-top:32px;">
+            <h3 class="appstore-colors-title">Home Update <span style="opacity:0.55;font-weight:400;font-size:12px;">— launcher self-update</span></h3>
+            <p class="appstore-colors-hint" style="margin:6px 0 14px;">
+                Drop your freshly-built <strong>launcher APK</strong> here.  Every TV box will see a new "Home Update" pill appear in the App Store top-right within ~30 seconds.  Clicking it installs the APK as an <strong>in-place upgrade</strong> &mdash; client data (registration, dock, settings) is preserved.
+            </p>
+
+            <!-- Pinned-version readout -->
+            <div id="homeUpdateStatus" class="appstore-colors-row" style="background:#0a1424;border:1px solid var(--border);border-radius:10px;padding:14px 18px;flex-wrap:wrap;gap:14px;">
+                <div style="flex:1;min-width:260px;">
+                    <div style="font-size:11px;letter-spacing:0.16em;color:#5DC8FF;text-transform:uppercase;margin-bottom:6px;">Currently pinned</div>
+                    <div id="homeUpdatePinned" style="font-family:ui-monospace,monospace;font-size:13px;color:var(--text-primary);">No home update uploaded yet.</div>
+                </div>
+                <button id="homeUpdateClear" type="button" class="apk-drop-link" hidden>Remove pin</button>
+            </div>
+
+            <!-- Drag-drop zone — mirrors the App Store apkDropZone style -->
+            <div id="homeUpdateDropZone" class="apk-drop" style="margin-top:14px;">
+                <input type="file" id="homeUpdateDropFile" accept=".apk,application/vnd.android.package-archive" hidden>
+                <div class="apk-drop-inner">
+                    <div class="apk-drop-icon">
+                        <svg viewBox="0 0 24 24" width="36" height="36" aria-hidden="true">
+                            <path fill="currentColor" d="M12 2 4 10h4v6h8v-6h4l-8-8zm-8 18v2h16v-2H4z"/>
+                        </svg>
+                    </div>
+                    <div class="apk-drop-title">Drop launcher APK here</div>
+                    <div class="apk-drop-sub">or <button id="homeUpdateBrowse" type="button" class="apk-drop-link">browse</button>.  We extract version + sha256 automatically.</div>
+                    <div id="homeUpdateProgress" class="apk-drop-progress" hidden></div>
+                </div>
+            </div>
+        </div>
     </section>
 
     <!-- Edit drawer ─ v1.9 — Slides in from the right when an
