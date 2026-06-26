@@ -1,5 +1,19 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.57 — Bundled wallpapers for zero-flash cold start (16 Jun 2026).**
+>
+> User reported the launcher *still* showed grey placeholder rectangles on cold boot — specifically the **fullscreen wallpapers** behind each focused tile.  Reviewed v2.10.56's `BuiltInAssets`: it bundled the 8 small tile-FRONT images, App Store hero/logo, and V2 AI hero, but **not the 9 fullscreen wallpapers** (the biggest loading-flash offenders — each ~1.5 MB PNG on the backend).  Worse, the substring match `tile-movies` collided with both `/tile_images/tile-movies-…` AND `/wallpapers/tile-movies-…`, so wallpaper URLs were resolving to the *small* tile drawable and stretching into a blurry mess.
+>
+> Fix in two parts:
+>
+> **1. Bundled 9 wallpapers as WebP** — `res/drawable-nodpi/builtin_wp_<slug>.webp`. Source PNGs (~13.7 MB total) → cwebp `-q 75 -resize 1920 0` → **644 KB total** (44–159 KB each).  Slugs: `movies`, `sports`, `music`, `kids`, `google`, `youtube`, `apps`, `settings`, `live_tv`.
+>
+> **2. Path-aware matching** — `BuiltInAssets.MAPPINGS` rewritten to use folder-prefixed slugs (`wallpapers/tile-movies`, `tile_images/tile-movies`), wallpapers listed FIRST so they win the `lower.contains()` match.  Same code path through `ImageLoader.load()` / `loadBitmap()` — no caller changes needed.
+>
+> Total drawable-nodpi APK bundle: **1.9 MB** (16 tile/hero WebPs + 9 wallpaper WebPs).  Cold-start UI now paints instantly — every dock tile, every fullscreen wallpaper, the App Store hero+logo, and the V2 AI hero appear on the very first frame, with the network fetch quietly overlaying a fresh copy in the background if the operator has uploaded a different image.
+>
+> Touched: `BuiltInAssets.kt` (rewrite), `drawable-nodpi/builtin_wp_*.webp` (9 new).  No backend / Vesper / Live TV / Kids / Tunes changes.  Verified all `R.drawable.builtin_wp_*` references resolve and Kotlin parses (3=3 braces, 21=21 parens, 0 diff).  User must Save to GitHub → CI builds APK → sideload to verify on TV.
+>
 > **🟢 v2.10.52 — 5 P0/P1 user requests in one drop (15 Jun 2026).**
 >
 > User listed five fixes after the production rollout finished: profile isolation per Vesper account, no Detail-page loading interstitial before the player, a stream-selection button that works for TV-show episodes (not just movies), a player-settings popover for buffer + subtitle delay, and a D-pad nav fix so Backup & Restore stops being skipped in Settings.  All five shipped this drop.
