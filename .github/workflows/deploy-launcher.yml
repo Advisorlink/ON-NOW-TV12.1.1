@@ -252,7 +252,7 @@ jobs:
               [ -f "$d/webview-138.apkm" ] && sha256sum "$d/webview-138.apkm"
               [ -f "$d/webview-138.apk"  ] && sha256sum "$d/webview-138.apk"
             done
-EOF
+          EOF
 
 
       - name: Install new Python dependencies (idempotent)
