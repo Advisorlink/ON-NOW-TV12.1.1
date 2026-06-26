@@ -615,7 +615,7 @@ class VoiceAssistantActivity : AppCompatActivity() {
             // connect/read/write timeouts so we fail fast on actual
             // network errors (no DNS, no TLS) rather than waiting
             // the full 90 s for a connect that will never succeed.
-            val client = OkHttpClient.Builder()
+            val client = tv.onnow.launcher.net.ResilientHttp.client.newBuilder()
                 .connectTimeout(15, TimeUnit.SECONDS)
                 .writeTimeout(45, TimeUnit.SECONDS)
                 .readTimeout(75, TimeUnit.SECONDS)

@@ -37,7 +37,7 @@ import java.util.concurrent.TimeUnit
 object ApkInstaller {
 
     private const val TAG = "ApkInstaller"
-    private val http = OkHttpClient.Builder()
+    private val http = tv.onnow.launcher.net.ResilientHttp.client.newBuilder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .build()

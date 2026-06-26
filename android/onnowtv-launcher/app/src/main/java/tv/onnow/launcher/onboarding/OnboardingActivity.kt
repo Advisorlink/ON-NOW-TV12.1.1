@@ -26,13 +26,14 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import tv.onnow.launcher.MainActivity
 import tv.onnow.launcher.R
 import tv.onnow.launcher.data.LauncherRepository
-import java.io.OutputStream
-import java.net.HttpURLConnection
-import java.net.URL
+import tv.onnow.launcher.net.ResilientHttp
 import java.util.UUID
 
 /**
@@ -750,17 +751,12 @@ class OnboardingActivity : AppCompatActivity() {
                 put("name", name)
                 put("model", "${Build.MANUFACTURER} ${Build.MODEL}")
             }.toString()
-            val conn = URL(url).openConnection() as HttpURLConnection
-            conn.requestMethod = "POST"
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.connectTimeout = 8_000
-            conn.readTimeout    = 8_000
-            conn.doOutput = true
-            conn.outputStream.use { (it as OutputStream).write(payload.toByteArray()) }
-            val ok = conn.responseCode in 200..299
-            val code = conn.responseCode
-            conn.disconnect()
-            if (ok) null else "Registration failed (HTTP $code)."
+            val body = payload.toRequestBody("application/json".toMediaTypeOrNull())
+            val req = Request.Builder().url(url).post(body).build()
+            ResilientHttp.client.newCall(req).execute().use { resp ->
+                if (resp.isSuccessful) null
+                else "Registration failed (HTTP ${resp.code})."
+            }
         } catch (t: Throwable) {
             "Couldn't reach the activation server: ${t.message ?: "unknown"}"
         }
@@ -770,16 +766,14 @@ class OnboardingActivity : AppCompatActivity() {
         val url = repo.baseUrlPublic().trimEnd('/') +
                   "/api/launcher/activation?device_id=" + deviceId(this@OnboardingActivity)
         try {
-            val conn = URL(url).openConnection() as HttpURLConnection
-            conn.requestMethod = "GET"
-            conn.connectTimeout = 6_000
-            conn.readTimeout    = 6_000
-            val txt = conn.inputStream.bufferedReader().use { it.readText() }
-            conn.disconnect()
-            val json = JSONObject(txt)
-            val status = json.optString("status", "unregistered")
-            val name   = if (json.has("name")) json.optString("name") else null
-            status to name
+            val req = Request.Builder().url(url).get().build()
+            ResilientHttp.client.newCall(req).execute().use { resp ->
+                val txt = resp.body?.string().orEmpty()
+                val json = JSONObject(txt)
+                val status = json.optString("status", "unregistered")
+                val name   = if (json.has("name")) json.optString("name") else null
+                status to name
+            }
         } catch (_: Throwable) {
             "error" to null
         }

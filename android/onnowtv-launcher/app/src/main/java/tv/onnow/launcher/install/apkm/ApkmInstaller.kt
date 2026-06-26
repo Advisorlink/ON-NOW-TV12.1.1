@@ -41,7 +41,7 @@ object ApkmInstaller {
     private const val TAG = "ApkmInstaller"
     private const val BUFFER = 256 * 1024  // 256 KB streaming buffer
 
-    private val http = OkHttpClient.Builder()
+    private val http = tv.onnow.launcher.net.ResilientHttp.client.newBuilder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(120, TimeUnit.SECONDS)
         .build()

@@ -39,7 +39,7 @@ object ImageLoader {
     }
     private val mainHandler = Handler(Looper.getMainLooper())
     private val memCache = ConcurrentHashMap<String, Bitmap>()
-    private val client = OkHttpClient.Builder()
+    private val client = tv.onnow.launcher.net.ResilientHttp.client.newBuilder()
         .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
         .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
         .build()

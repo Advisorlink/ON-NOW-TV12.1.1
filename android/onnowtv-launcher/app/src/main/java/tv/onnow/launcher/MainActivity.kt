@@ -491,11 +491,10 @@ class MainActivity : AppCompatActivity() {
                 .deviceId(this@MainActivity)
             val url = repo.baseUrlPublic().trimEnd('/') +
                       "/api/launcher/activation?device_id=$deviceId"
-            val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
-            conn.connectTimeout = 6_000
-            conn.readTimeout    = 6_000
-            val txt = conn.inputStream.bufferedReader().use { it.readText() }
-            conn.disconnect()
+            val req = okhttp3.Request.Builder().url(url).get().build()
+            val txt = tv.onnow.launcher.net.ResilientHttp.client.newCall(req).execute().use {
+                it.body?.string().orEmpty()
+            }
             val status = org.json.JSONObject(txt).optString("status", "active")
             if (status != "active") {
                 getSharedPreferences(

@@ -8,10 +8,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.util.concurrent.TimeUnit
+import tv.onnow.launcher.net.ResilientHttp
 
 /**
  * LauncherRepository
@@ -50,10 +49,7 @@ class LauncherRepository(
         private const val KEY_CONFIG_JSON = "config_json"
     }
 
-    private val http: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .build()
+    private val http = ResilientHttp.client
 
     private val _config = MutableStateFlow<LauncherConfig?>(null)
     val config: StateFlow<LauncherConfig?> = _config.asStateFlow()
