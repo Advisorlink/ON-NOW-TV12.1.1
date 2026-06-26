@@ -6,14 +6,12 @@ import android.os.Build
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipFile
-import java.util.zip.ZipInputStream
 
 /**
  * ApkmInstaller
@@ -164,6 +162,29 @@ object ApkmInstaller {
      * Iterate every `*.apk` entry inside the ZIP bundle and stream
      * each one directly into a uniquely-named session slot.
      * PackageInstaller treats the whole set of splits as one app.
+     *
+     * v2.10.53-f — SPLIT-CONFIG FILTERING.  We must NOT blindly
+     * ship every `.apk` inside the bundle to PackageInstaller —
+     * doing that on an ARM TV box with a multi-arch APKM puts
+     * x86 native libs into the session and Android then rejects
+     * the install with `INSTALL_FAILED_NO_MATCHING_ABIS` or
+     * `INSTALL_FAILED_INVALID_APK`.  APK Mirror Installer's
+     * special sauce is doing this same filtering.
+     *
+     * Filter rules:
+     *   • `base.apk`                           → always include.
+     *   • Feature splits (`split_<feature>.apk` that DON'T match
+     *     a `split_config.*.apk` pattern)      → always include.
+     *   • `split_config.<abi>.apk`             → include only if
+     *     the device's `Build.SUPPORTED_ABIS` lists that ABI.
+     *   • `split_config.<lang>.apk`            → include the
+     *     device's primary language + English fallback.
+     *   • `split_config.<dpi>dpi.apk`          → include the
+     *     device's matching DPI bucket + nearest neighbour.
+     *
+     * Anything that doesn't match keeps Android happy (no
+     * conflicting native libs) and dramatically shrinks the
+     * install size.
      */
     private fun streamBundleIntoSession(
         bundle: File,
@@ -171,11 +192,21 @@ object ApkmInstaller {
     ) {
         var count = 0
         ZipFile(bundle).use { zf ->
-            val entries = zf.entries().toList()
+            val all = zf.entries().toList()
                 .filter { !it.isDirectory && it.name.lowercase().endsWith(".apk") }
                 .sortedBy { it.name }
-            require(entries.isNotEmpty()) { "Bundle ${bundle.name} contains no .apk entries." }
-            for (entry in entries) {
+            require(all.isNotEmpty()) { "Bundle ${bundle.name} contains no .apk entries." }
+
+            val keep = selectSplitsForDevice(all.map { it.name })
+            val kept = all.filter { keep.contains(it.name) }
+            Log.i(
+                TAG,
+                "Selected ${kept.size}/${all.size} splits for device " +
+                    "(ABIs=${Build.SUPPORTED_ABIS.toList()}): " +
+                    kept.joinToString { it.name },
+            )
+
+            for (entry in kept) {
                 val safeName = "split_${count}_" +
                     entry.name.replace(Regex("[^A-Za-z0-9_.-]"), "_")
                 zf.getInputStream(entry).use { input ->
@@ -188,6 +219,78 @@ object ApkmInstaller {
             }
         }
         Log.i(TAG, "Streamed $count splits from ${bundle.name} into session.")
+    }
+
+    /** ABI / language / density split-selector — same logic APK
+     *  Mirror Installer uses. */
+    private fun selectSplitsForDevice(names: List<String>): Set<String> {
+        val abiTokens = Build.SUPPORTED_ABIS.map { it.replace('-', '_') }
+            .toSet()  // e.g. {armeabi_v7a, armeabi, arm64_v8a}
+        val deviceLang = java.util.Locale.getDefault().language.lowercase()  // e.g. "en"
+        val keep = LinkedHashSet<String>()
+
+        // ── Pass 1: always include base + non-config splits ──
+        for (n in names) {
+            val lower = n.lowercase()
+            if (lower == "base.apk" || lower.endsWith("/base.apk")) {
+                keep.add(n); continue
+            }
+            // Feature splits look like `split_<feature>.apk` but NOT
+            // `split_config.<abi>.apk`.  Anything that doesn't start
+            // with the literal token `split_config.` is a feature.
+            val isConfigSplit = lower.contains("split_config.") ||
+                                lower.contains("config.")
+            if (!isConfigSplit && lower.startsWith("split_")) {
+                keep.add(n)
+            }
+        }
+
+        // ── Pass 2: ABI config splits ──
+        for (n in names) {
+            val lower = n.lowercase()
+            for (abi in abiTokens) {
+                // Matches "split_config.armeabi_v7a.apk", "config.arm64_v8a.apk", etc.
+                if (lower.contains("config.$abi.apk") ||
+                    lower.contains(".$abi.apk")) {
+                    keep.add(n); break
+                }
+            }
+        }
+
+        // ── Pass 3: language config splits ── (device lang + en fallback)
+        val wantedLangs = setOf(deviceLang, "en")
+        for (n in names) {
+            val lower = n.lowercase()
+            for (lang in wantedLangs) {
+                if (lower.contains("config.$lang.apk")) {
+                    keep.add(n); break
+                }
+            }
+        }
+
+        // ── Pass 4: DPI config splits ──  (best-match, fallback xxhdpi)
+        val targetDpi = when {
+            android.content.res.Resources.getSystem().displayMetrics.densityDpi >= 560 -> "xxxhdpi"
+            android.content.res.Resources.getSystem().displayMetrics.densityDpi >= 400 -> "xxhdpi"
+            android.content.res.Resources.getSystem().displayMetrics.densityDpi >= 280 -> "xhdpi"
+            android.content.res.Resources.getSystem().displayMetrics.densityDpi >= 200 -> "hdpi"
+            else -> "mdpi"
+        }
+        val dpiFallback = setOf(targetDpi, "xxhdpi", "tvdpi", "nodpi")
+        for (n in names) {
+            val lower = n.lowercase()
+            for (dpi in dpiFallback) {
+                if (lower.contains("config.${dpi}.apk")) {
+                    keep.add(n); break
+                }
+            }
+        }
+
+        // ── Safety net ── if filtering kept NOTHING (e.g.
+        // single-APK bundle with no base.apk naming), fall back
+        // to keeping everything — better an over-broad install
+        // than no install.
+        return if (keep.isEmpty()) names.toSet() else keep
     }
 
     private fun streamApkIntoSession(
