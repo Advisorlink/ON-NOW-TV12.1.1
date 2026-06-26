@@ -1,0 +1,28 @@
+{
+  "summary": "v2.10.53-d DoH-fallback verification (static-grep + backend regression). All 8 static checks PASS: ResilientDns.kt exists (4103 bytes > 1500), declares `class ResilientDns(`, implements `okhttp3.Dns` (via `: Dns`), imports `okhttp3.dnsoverhttps.DnsOverHttps`, hard-codes bootstrap IPs 1.1.1.1/1.0.0.1/2606:4700:4700::1111/2606:4700:4700::1001 (all 4 via `InetAddress.getByName`), defines `CACHE_TTL_MS = 5L*60L*1000L`, and `lookup()` walks the cache→system→DoH fallback chain. All 3 OkHttp builders (LauncherRepository.kt L57, ApkmInstaller.kt L48, ApkInstaller.kt L43) call `.dns(tv.onnow.launcher.net.ResilientDns())`. build.gradle.kts L108 has `implementation(\"com.squareup.okhttp3:okhttp-dnsoverhttps:4.12.0\")` and matches L94 `okhttp:4.12.0`. Vesper-side files (WebViewDependencyCheck.kt + AndroidManifest.xml) untouched in this drop — last-mtime predates ResilientDns.kt creation. Backend regression 18/18 PASS (test_apkm_system_deps 8/8, test_iter53_production_shape 4/4, test_synonym_matcher 6/6). Pre-baked webview-138.apkm intact: md5=6170eb405fb191d5bee4d6abd77e067e, size=171693753 bytes.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/launcher-backend/tests/test_apkm_system_deps.py",
+    "/app/launcher-backend/tests/test_iter53_production_shape.py",
+    "/app/launcher-backend/tests/test_synonym_matcher.py",
+    "/app/test_reports/pytest/iter54_pytest.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ResilientDns.kt cache: `ConcurrentHashMap` with 5-min TTL — correct. Minor nit: never evicts expired entries, so on a long-lived process the map grows unbounded across all hosts ever looked up. Negligible in a TV-box Launcher (few hostnames), so leaving as-is.",
+    "ResilientDns.kt `includeIPv6(false)` is set as the comment states, matching the IPv4-only assumption for TV boxes. The IPv6 bootstrap IPs are still present (good — DoH still works if device prefers IPv6 to reach 1.1.1.1 over the v6 internet).",
+    "ResilientDns.kt L86 `catch (uhe: UnknownHostException) { throw uhe }` then rethrows-with-context for any other Throwable — exception semantics preserved correctly for OkHttp retry logic.",
+    "All three builders pass a fresh `ResilientDns()` instance — each builder gets its own in-process cache. Acceptable (cache is per-OkHttpClient anyway) but a singleton in a DI graph would be marginally more efficient. Low priority.",
+    "build.gradle.kts dep version pinned to 4.12.0 = matches existing okhttp dep — no transitive resolver conflict possible.",
+    "No backend code changed in this iteration — store.json apks array still contains the seeded `prod1` entry from iter53, but the synonym-matcher tests now pass (fixture issue from iter53 was resolved by the main agent between drops). 18/18 baseline confirmed."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "18/18 = 100%", "frontend": "N/A — backend-only test scope per review_request"},
+  "test_credentials": "N/A — launcher-backend on localhost:8002, no auth required for tested endpoints.",
+  "seed_data_creation": "None — only ran existing pytest suite. Pre-baked /app/launcher-backend/data/system-deps/webview-138.apkm verified byte-identical (md5 + size) after run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter54 = green baseline. Re-run with `cd /app && python -m pytest launcher-backend/tests/ -v` (18/18 expected). For any future DoH/ResilientDns work: the class is Kotlin-only and cannot be unit-tested in the preview pod — only static grep + manual on-device verification. The 4 hard-coded bootstrap IPs must remain (removing any one would break the DoH-when-system-resolver-is-dead invariant). All 3 OkHttp builders MUST keep their `.dns(ResilientDns())` call — if a fourth network client is ever added in the Launcher module, it MUST also wire ResilientDns.",
+  "rca of the issue": "Original user bug: TV-box-side DNS could not resolve `onnowtv.duckdns.org` (router/ISP DNS blocking or stale NXDOMAIN for DuckDNS). Pre-fix the Launcher threw raw UnknownHostException to the UI. Fix: ResilientDns wraps Dns.SYSTEM with a DoH-via-Cloudflare-1.1.1.1 fallback whose own bootstrap uses hard-coded IPs (1.1.1.1, 1.0.0.1 + IPv6 equivalents), so the fallback path itself never depends on DNS. Wired into all 3 OkHttp client builders in the Launcher module so registration, APKM-install, and legacy-APK-install all survive broken-router-DNS environments. Verification limited to static grep + backend regression per agent_to_agent_context_note (Android Kotlin doesn't execute in this pod). On-device behaviour must be validated on a real TV box."
+}

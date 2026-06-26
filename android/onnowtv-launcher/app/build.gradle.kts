@@ -100,4 +100,10 @@ dependencies {
     // APKM installer to relay PackageInstaller status callbacks
     // from the global broadcast back into the install activity.
     implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
+
+    // v2.10.53-d — DNS-over-HTTPS fallback so the Launcher /
+    // installer keep working on boxes whose router DNS doesn't
+    // resolve DuckDNS subdomains (the cause of "Unable to resolve
+    // host onnowtv.duckdns.org" on the device-registration screen).
+    implementation("com.squareup.okhttp3:okhttp-dnsoverhttps:4.12.0")
 }

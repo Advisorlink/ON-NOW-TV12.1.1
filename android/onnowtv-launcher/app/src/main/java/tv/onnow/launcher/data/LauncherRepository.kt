@@ -51,6 +51,10 @@ class LauncherRepository(
     }
 
     private val http: OkHttpClient = OkHttpClient.Builder()
+        // v2.10.53-d — Survive boxes with broken router DNS.
+        // ResilientDns tries the system resolver first and falls
+        // back to Cloudflare DoH (1.1.1.1) on UnknownHostException.
+        .dns(tv.onnow.launcher.net.ResilientDns())
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
