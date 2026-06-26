@@ -2590,30 +2590,43 @@ def delete_apk(aid: str) -> dict:
 def get_system_dep_apkm(name: str):
     """Return the APKM bundle registered under `system_deps[name]`.
 
-    Maps `webview-138` → the APK / APKM the admin uploaded and
-    registered.  Falls back to scanning the `apks` array for any
-    entry whose `name` matches the requested key.
+    Resolution order (first hit wins):
+      1. Pre-baked file at `data/system-deps/{name}.apkm` — the
+         simplest path, no admin setup needed.  Just drop the file
+         on the server and clients get it instantly.
+      2. Explicit admin-pinned mapping in `store['system_deps']`.
+      3. Fuzzy match against the App Store's `apks` by name prefix.
+
+    Falls through to 404 when nothing matches.  Public on purpose —
+    TV clients hit this on first boot before they have any auth.
     """
     from fastapi.responses import FileResponse, JSONResponse
-    store = _load_store()
-    deps = store.get("system_deps") or {}
     target_path: Optional[Path] = None
 
-    # Path 1 — explicit system_deps mapping.
-    if name in deps:
-        rel = (deps[name] or {}).get("apk_url") or ""
-        if rel.startswith("/assets/apks/"):
-            target_path = DATA_DIR / "apks" / Path(rel).name
+    # Path 1 — pre-baked file on disk (preferred).
+    safe_name = name.replace("/", "").replace("..", "")
+    prebaked = DATA_DIR / "system-deps" / f"{safe_name}.apkm"
+    if prebaked.exists() and prebaked.is_file():
+        target_path = prebaked
 
-    # Path 2 — find by app-store name match (case-insensitive).
+    # Path 2 — explicit system_deps mapping in the store.
     if target_path is None:
-        wanted = name.replace("-", " ").lower()
-        for a in store.get("apks", []):
-            if (a.get("name") or "").strip().lower().startswith(wanted):
-                rel = a.get("apk_url") or ""
-                if rel.startswith("/assets/apks/"):
-                    target_path = DATA_DIR / "apks" / Path(rel).name
-                    break
+        store = _load_store()
+        deps = store.get("system_deps") or {}
+        if name in deps:
+            rel = (deps[name] or {}).get("apk_url") or ""
+            if rel.startswith("/assets/apks/"):
+                target_path = DATA_DIR / "apks" / Path(rel).name
+
+        # Path 3 — find by app-store name match (case-insensitive).
+        if target_path is None:
+            wanted = name.replace("-", " ").lower()
+            for a in store.get("apks", []):
+                if (a.get("name") or "").strip().lower().startswith(wanted):
+                    rel = a.get("apk_url") or ""
+                    if rel.startswith("/assets/apks/"):
+                        target_path = DATA_DIR / "apks" / Path(rel).name
+                        break
 
     if target_path is None or not target_path.exists():
         return JSONResponse(
