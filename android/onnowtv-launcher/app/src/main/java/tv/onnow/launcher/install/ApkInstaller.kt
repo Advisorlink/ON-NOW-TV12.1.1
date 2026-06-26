@@ -38,9 +38,6 @@ object ApkInstaller {
 
     private const val TAG = "ApkInstaller"
     private val http = OkHttpClient.Builder()
-        // v2.10.53-d — DoH fallback so APK installs survive boxes
-        // with broken router DNS (see ResilientDns header comment).
-        .dns(tv.onnow.launcher.net.ResilientDns())
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .build()
