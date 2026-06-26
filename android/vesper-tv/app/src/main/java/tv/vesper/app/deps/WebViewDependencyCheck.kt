@@ -50,11 +50,11 @@ object WebViewDependencyCheck {
      * same Nginx host that already proxies `/launcher/` → the
      * uvicorn backend on 127.0.0.1:8002.
      *
-     * v2.10.53-b — Earlier this fell back to the non-existent
-     * placeholder `launcher.onnowtv.tv` which caused
-     * `UnknownHostException` ("unable to resolve host") on every
-     * client.  Production runs on the Contabo VPS at
-     * `onnowtv.duckdns.org` behind nginx with a `/launcher` prefix.
+     * v2.10.53-b — Earlier this fell back to a non-existent
+     * placeholder host which caused `UnknownHostException`
+     * ("unable to resolve host") on every client.  Production
+     * runs on the Contabo VPS at `onnowtv.duckdns.org` behind
+     * nginx with a `/launcher` prefix.
      */
     private const val PROD_LAUNCHER_BASE = "https://onnowtv.duckdns.org/launcher"
 
