@@ -144,6 +144,13 @@ class MainActivity : AppCompatActivity() {
         // method name as a stub so older configurations still call
         // through cleanly.
         enforceKidsLockIfNeeded()
+        // v2.10.59 — After Android's package installer returns we
+        // need to re-evaluate every dock tile's UPDATE pill: the
+        // freshly-installed APK may now match the pinned version
+        // (pill hides) or a still-mismatched tile keeps its pill.
+        // Cheap — DockAdapter.onBindViewHolder re-checks each tile
+        // against PackageManager on every refresh.
+        if (::dockAdapter.isInitialized) dockAdapter.notifyDataSetChanged()
     }
 
     override fun onPause() {
@@ -265,7 +272,11 @@ class MainActivity : AppCompatActivity() {
         // both at edges (no escape) and mid-list (no leaks).
         val lm = LinearLayoutManager(this, RecyclerView.HORIZONTAL, false)
         binding.dock.layoutManager = lm
-        dockAdapter = DockAdapter(dockItems) { item -> onTileSelected(item) }
+        dockAdapter = DockAdapter(
+            items = dockItems,
+            onSelect = { item -> onTileSelected(item) },
+            onInstallRequest = { item -> onTileInstallRequested(item) },
+        )
         // v2.8.20 — Per-item UP arrow climbs to the VPN pill.
         dockAdapter.nextFocusUpResId = binding.topbarBtnVpn.id
         binding.dock.adapter = dockAdapter
@@ -447,6 +458,93 @@ class MainActivity : AppCompatActivity() {
         ).show()
     }
 
+    /* ─────────────  Per-tile APK update — v2.10.59  ────────────── */
+
+    /**
+     * Rebase a backend-relative APK URL (e.g. `/assets/apks/foo.apk`,
+     * or `/apks/foo.apk`) against the live launcher base URL so it
+     * downloads through whichever host the launcher is currently
+     * talking to (Cloudflare → onnowhub.com primary, DuckDNS → VPS
+     * fallback via ResilientHttp).  Absolute URLs are returned as-is.
+     */
+    private fun rebaseTileApkUrl(raw: String): String {
+        val v = raw.trim()
+        if (v.startsWith("http://") || v.startsWith("https://")) return v
+        val base = repo.baseUrlPublic().trimEnd('/')
+        val path = if (v.startsWith("/")) v else "/$v"
+        return "$base$path"
+    }
+
+    /**
+     * Invoked when the user clicks the UPDATE pill on a dock tile.
+     * Mirrors the AppsDrawer's Home Update flow exactly:
+     *   1. Verify Install-unknown-apps permission, prompt if missing.
+     *   2. Download the APK via ApkInstaller with a progress toast.
+     *   3. ApkInstaller fires the system install dialog — user taps
+     *      INSTALL and Android performs an in-place upgrade because
+     *      the new APK is signed with the same keystore as the
+     *      currently-installed one.
+     */
+    private fun onTileInstallRequested(item: DockItem) {
+        val apkUrl = item.apkUrl?.trim().orEmpty()
+        if (apkUrl.isEmpty()) {
+            Toast.makeText(
+                this,
+                "No APK pinned for \"${item.label}\" — re-upload in the admin.",
+                Toast.LENGTH_LONG,
+            ).show()
+            return
+        }
+        if (!tv.onnow.launcher.install.ApkInstaller.canInstallNow(this)) {
+            Toast.makeText(
+                this,
+                "Grant 'Install unknown apps' to ON NOW TV V2 in the Settings page that just opened.",
+                Toast.LENGTH_LONG,
+            ).show()
+            tv.onnow.launcher.install.ApkInstaller.requestInstallPermission(this)
+            return
+        }
+        val installed = isPackageInstalled(item.apkPackageId)
+        val verb = if (installed) "Update" else "Install"
+        val progress = Toast.makeText(
+            this, "$verb ${item.label}… 0%", Toast.LENGTH_LONG,
+        )
+        progress.show()
+        lifecycleScope.launch {
+            val err = tv.onnow.launcher.install.ApkInstaller.downloadAndInstall(
+                this@MainActivity,
+                apkUrl,
+                suggestedName = "tile-${item.key}.apk",
+                onProgress = { pct ->
+                    runOnUiThread { progress.setText("$verb ${item.label}… $pct%") }
+                },
+            )
+            if (err != null) {
+                Toast.makeText(
+                    this@MainActivity,
+                    "$verb failed: $err",
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+            // After Android's install dialog completes, onResume()
+            // re-binds the dock — the pill self-hides because
+            // PackageManager will now report the matching version.
+        }
+    }
+
+    /** Cheap PackageManager check.  Null/blank id → false. */
+    private fun isPackageInstalled(pkg: String?): Boolean {
+        if (pkg.isNullOrBlank()) return false
+        return try {
+            packageManager.getPackageInfo(pkg, 0)
+            true
+        } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
+            false
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
     /* ──────────────────────────  Wallpaper  ───────────────────────── */
 
     private fun applyWallpaperForTile(item: DockItem) {
@@ -613,6 +711,12 @@ class MainActivity : AppCompatActivity() {
                 subheading     = t.subheading,
                 description    = t.description,
                 ctaLabel       = t.ctaLabel,
+                // v2.10.59 — Per-tile APK pin so the dock can paint an
+                // "Update Available" pill above the tile the moment the
+                // operator pins a new APK in the admin UI.
+                apkUrl         = t.apkUrl?.let { rebaseTileApkUrl(it) },
+                apkPackageId   = t.apkPackageId,
+                apkVersion     = t.apkVersion,
             )
         }
         dockItems.clear()

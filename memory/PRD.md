@@ -1,5 +1,28 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.59 — Per-tile UPDATE pill + auto-detected APK metadata (16 Jun 2026).**
+>
+> User reported the long-standing bug: pinning an APK to a dock tile in the admin UI doesn't surface an update on the launcher until the box is restarted.  Root cause: `DockTileRemote` (backend → wire format) carries `apk_url` / `apk_package_id` / `apk_version`, but the `DockItem` (on-screen model) silently dropped all three fields, so there was literally **zero install-detection logic** anywhere in the launcher — the tile would launch the package if present and otherwise fall back to a generic toast.  The 30-sec config poll WAS firing; it just had nothing useful to do with the pinned-APK fields.
+>
+> Fix lands across 7 files:
+>
+> **Frontend (launcher) — DockItem.kt, MainActivity.kt, DockAdapter.kt, item_dock.xml**
+>   • `DockItem` gains `apkUrl`, `apkPackageId`, `apkVersion`.
+>   • `MainActivity.onConfigUpdated` plumbs them through, rebasing relative URLs (e.g. `/assets/tile_apks/x.apk`) against `repo.baseUrlPublic()` so installs follow whichever host the launcher is on (Cloudflare primary, DuckDNS fallback via ResilientHttp).
+>   • `item_dock.xml` wraps the existing vertical stack in an outer `FrameLayout` and adds a floating `update_pill` TextView pinned `top|center_horizontal` with `translationY=-12dp` so it visually floats ABOVE the tile.  `visibility=gone` by default → dock baseline unchanged when no update pending.
+>   • `DockAdapter.bindUpdatePill` re-evaluates every tile on every refresh against `PackageManager.getPackageInfo().versionName`.  State machine: no APK pinned → no pill; pinned but package missing → "↻ INSTALL · vX"; installed but version mismatch → "↻ UPDATE · vX"; installed and version matches → no pill.
+>   • Focus wiring: tile's `nextFocusUpId` → pill when visible (default top-bar VPN otherwise).  Pill `nextFocusDownId` → its own tile, `nextFocusUpId` → top bar.  D-pad UP from tile lands on the pill exactly as the user described.
+>   • Pill click → `onTileInstallRequested` → same `ApkInstaller.downloadAndInstall()` flow Home Update uses → Android shows the system install dialog → in-place upgrade (same keystore = no uninstall).
+>   • `onResume()` calls `dockAdapter.notifyDataSetChanged()` so the pill self-hides the moment the user returns from Android's installer.
+>   • Pill styling matches the Home Update pill exactly: cyan→blue→indigo gradient (`#06B6D4 → #2563EB → #4F46E5`), 13sp bold white text with 0.14 letter-spacing.
+>
+> **Backend — launcher-backend/main.py, admin/static/app.js, admin/index.html**
+>   • `POST /api/admin/dock/{key}/apk` now auto-extracts `package_id` + `version_name` from the uploaded APK manifest via the same `apk_meta.inspect_apk()` helper the App Store upload uses.  Admin form fields override the extracted values (for stripped-manifest builds); otherwise the manifest wins.  This is critical for reliable version-compare — the launcher's `PackageManager.getPackageInfo().versionName` MUST match a trustworthy string, not a typo.
+>   • Endpoint response gains `auto_extracted: {package_id, version_name}` so the admin UI can show a "✓ detected vX.Y.Z" hint in the upload toast.
+>   • Admin cache-bust bumped to `v=2.10.59`.
+>
+> Smoke-tested live: POST to `/api/admin/dock/movies/apk` with a fake zero-byte APK returns `auto_extracted: {package_id: null, version_name: null}` cleanly (no crash on missing manifest), generation bumps correctly, cleanup DELETE works.  Brace/paren balance verified for all 3 modified Kotlin files (0 diff each).  XML parses, Python imports clean.  Real Android compilation happens in CI.
+>
 > **🟢 v2.10.58 — Phase 2 domain migration: Vesper TV / Live TV / Kids / Tunes / FTA → onnowhub.com (16 Jun 2026).**
 >
 > User asked to finish migrating the rest of the app suite off DuckDNS now that the launcher is on `onnowhub.com`.  Critical constraint from the previous handoff: the four other apps have **certificate pinning** against the DuckDNS Let's Encrypt cert, so naive URL swaps would brick them.

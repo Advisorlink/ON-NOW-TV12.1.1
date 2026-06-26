@@ -921,14 +921,25 @@ function bindDockHandlers() {
                 if (verInput && verInput.value.trim()) form.append('apk_version',    verInput.value.trim());
             }
             try {
-                await api(`/api/admin/dock/${encodeURIComponent(key)}/${kind}`, {
+                const result = await api(`/api/admin/dock/${encodeURIComponent(key)}/${kind}`, {
                     method: 'POST',
                     body: form,
                 });
                 const friendly = kind === 'image' ? 'Tile image'
                               : kind === 'wallpaper' ? 'Wallpaper'
                               : 'APK';
-                toast(`${friendly} uploaded for ${key}`);
+                // v2.10.59 — Surface the manifest-extracted metadata
+                // so the operator sees the package + version the
+                // launcher will compare against PackageManager.
+                let detail = '';
+                if (kind === 'apk' && result && result.auto_extracted) {
+                    const pkg = result.auto_extracted.package_id;
+                    const ver = result.auto_extracted.version_name;
+                    if (pkg || ver) {
+                        detail = ` · ${pkg || '(no pkg)'} v${ver || '?'}`;
+                    }
+                }
+                toast(`${friendly} uploaded for ${key}${detail}`);
                 refreshAll();
             } catch (e) { toast('Upload failed: ' + e.message, true); }
         });

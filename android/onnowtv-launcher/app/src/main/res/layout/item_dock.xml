@@ -1,95 +1,128 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  v0.7 — Image-only dock tile with floor reflection.
+  v2.10.59 — Image-only dock tile + per-tile UPDATE pill.
 
   STRUCTURE
   ─────────
-  Vertical LinearLayout holds the tile + reflection so both
-  scale together during the focus animation.
+  Outer FrameLayout (`tile_outer`) so the update pill can float
+  ABOVE the tile via negative translationY without affecting the
+  dock's vertical baseline.  `clipChildren=false` is critical at
+  EVERY level up to the RecyclerView so the pill (and the focus
+  halo) can render outside their own bounds.
 
-  • `tile_root`   — focus owner.  Outer FrameLayout does NOT clip
-                    its children, so the focused foreground halo
-                    drawable can paint OUTSIDE the tile rectangle.
-                    Inner `tile_clip` carries the rounded
-                    background + `clipToOutline="true"` that crops
-                    the ImageView to a rounded card.
+  • `tile_outer`    — FrameLayout, no clipping.  Houses the vertical
+                      content stack at the BOTTOM and the floating
+                      pill anchored to the TOP.
+  • `tile_root`     — focus owner for the tile itself.  Inner
+                      `tile_clip` carries the rounded background +
+                      clipToOutline that crops the ImageView.
+  • `reflection_clip` — floor reflection (mirrored copy of icon).
+  • `update_pill`   — focusable pill rendered above the tile when
+                      the per-tile APK pin differs from what's
+                      installed.  Defaults to GONE so layout
+                      collapses back to the original height when
+                      no update is pending.  Visibility + label
+                      driven by DockAdapter.
 
-  • `reflection_clip` — rounded clip surface beneath the tile that
-                        shows the SAME bitmap flipped vertically
-                        (scaleY=-1).  A fade gradient overlay
-                        attenuates the bottom so the reflection
-                        dies smoothly into the floor.
-
-  No labels — admin bakes any title text into the JPEG itself.
+  No labels on the tile itself — admin bakes any title text into
+  the JPEG.
 -->
-<LinearLayout
+<FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/tile_outer"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:clipChildren="false">
+    android:clipChildren="false"
+    android:clipToPadding="false">
 
-    <!-- Main tile (focus owner + halo) -->
-    <FrameLayout
-        android:id="@+id/tile_root"
-        android:layout_width="300dp"
-        android:layout_height="168dp"
-        android:layout_marginHorizontal="10dp"
-        android:clipChildren="false"
-        android:focusable="true"
-        android:focusableInTouchMode="true"
-        android:clickable="true">
+    <!-- ────────── Tile + reflection (vertical stack) ────────── -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:clipChildren="false">
 
+        <!-- Main tile (focus owner + halo) -->
         <FrameLayout
-            android:id="@+id/tile_clip"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="@drawable/dock_tile_resting"
+            android:id="@+id/tile_root"
+            android:layout_width="300dp"
+            android:layout_height="168dp"
+            android:layout_marginHorizontal="10dp"
+            android:clipChildren="false"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:clickable="true">
+
+            <FrameLayout
+                android:id="@+id/tile_clip"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/dock_tile_resting"
+                android:clipToOutline="true">
+
+                <ImageView
+                    android:id="@+id/icon"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop"
+                    android:contentDescription="@null"
+                    tools:src="@drawable/ic_dock_tv" />
+            </FrameLayout>
+        </FrameLayout>
+
+        <!-- Floor reflection (mirrored copy of the image, fades into bg) -->
+        <FrameLayout
+            android:id="@+id/reflection_clip"
+            android:layout_width="300dp"
+            android:layout_height="60dp"
+            android:layout_marginHorizontal="10dp"
+            android:layout_marginTop="2dp"
+            android:background="@drawable/dock_reflection_clip"
             android:clipToOutline="true">
 
             <ImageView
-                android:id="@+id/icon"
+                android:id="@+id/reflection"
+                android:layout_width="match_parent"
+                android:layout_height="168dp"
+                android:layout_gravity="top"
+                android:scaleType="centerCrop"
+                android:scaleY="-1"
+                android:alpha="0.30"
+                android:contentDescription="@null" />
+
+            <View
+                android:id="@+id/reflection_fade"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:scaleType="centerCrop"
-                android:contentDescription="@null"
-                tools:src="@drawable/ic_dock_tv" />
+                android:background="@drawable/dock_reflection_fade" />
         </FrameLayout>
+    </LinearLayout>
 
-    </FrameLayout>
+    <!-- ────────── Floating UPDATE pill ────────── -->
+    <!-- Pinned to top-center of the outer FrameLayout, translated
+         UPWARD via negative translationY in DockAdapter so it
+         actually floats ABOVE the tile.  GONE by default. -->
+    <TextView
+        android:id="@+id/update_pill"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:translationY="-12dp"
+        android:visibility="gone"
+        android:paddingHorizontal="20dp"
+        android:paddingVertical="8dp"
+        android:textSize="13sp"
+        android:textColor="#FFFFFFFF"
+        android:textStyle="bold"
+        android:letterSpacing="0.14"
+        android:elevation="6dp"
+        android:focusable="true"
+        android:focusableInTouchMode="false"
+        android:clickable="true"
+        android:contentDescription="Update available for this app"
+        tools:text="↻ UPDATE · v2.10.55"
+        tools:visibility="visible" />
 
-    <!-- Floor reflection (mirrored copy of the image, fades into bg) -->
-    <FrameLayout
-        android:id="@+id/reflection_clip"
-        android:layout_width="300dp"
-        android:layout_height="60dp"
-        android:layout_marginHorizontal="10dp"
-        android:layout_marginTop="2dp"
-        android:background="@drawable/dock_reflection_clip"
-        android:clipToOutline="true">
-
-        <!-- Same source as the main image, but flipped vertically.
-             The ImageView is the full TILE height (168 dp) anchored
-             at the top of the 60-dp container, so the visible 60 dp
-             slice equals the BOTTOM portion of the source bitmap. -->
-        <ImageView
-            android:id="@+id/reflection"
-            android:layout_width="match_parent"
-            android:layout_height="168dp"
-            android:layout_gravity="top"
-            android:scaleType="centerCrop"
-            android:scaleY="-1"
-            android:alpha="0.30"
-            android:contentDescription="@null" />
-
-        <!-- Vertical fade — transparent on top (right under tile)
-             → solid bg_deep at the bottom (dies into the floor). -->
-        <View
-            android:id="@+id/reflection_fade"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="@drawable/dock_reflection_fade" />
-    </FrameLayout>
-
-</LinearLayout>
+</FrameLayout>

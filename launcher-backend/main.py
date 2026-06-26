@@ -2283,9 +2283,14 @@ async def upload_tile_apk(
 ) -> dict:
     """Upload the APK that gets sideloaded when the user taps this
     tile and `target_package` is not yet installed on the device.
-    Admin can optionally supply `apk_package_id` and `apk_version` so
-    the launcher can do version-bump checks without parsing the APK
-    itself."""
+
+    v2.10.59 — `apk_package_id` and `apk_version` are now auto-
+    extracted from the APK manifest via pyaxmlparser whenever the
+    admin doesn't supply explicit overrides.  This is what enables
+    the launcher's UPDATE pill to detect a freshly-pinned version
+    without restarting the box — the launcher's version-compare
+    against PackageManager.versionName needs a trustworthy
+    version_name, not a typed-by-hand string."""
     store = _load_store()
     tile = _find_tile(store, key)
     if not file.filename:
@@ -2302,10 +2307,39 @@ async def upload_tile_apk(
     _delete_tile_asset_file(tile.get("apk_url"))
     tile["apk_url"]      = f"/assets/tile_apks/{safe_name}"
     tile["apk_filename"] = file.filename
-    if apk_package_id:
-        tile["apk_package_id"] = apk_package_id.strip() or None
-    if apk_version:
-        tile["apk_version"] = apk_version.strip() or None
+
+    # v2.10.59 — Auto-extract package_id + version_name from the
+    # APK manifest.  Admin-provided form fields override (they're
+    # the source-of-truth for stripped-manifest builds), otherwise
+    # we trust the manifest.  Same `inspect_apk` helper the App
+    # Store upload uses.
+    extracted_pkg: Optional[str] = None
+    extracted_ver: Optional[str] = None
+    try:
+        from apk_meta import inspect_apk
+        meta = await asyncio.to_thread(
+            inspect_apk,
+            target,
+            DATA_DIR / "apk_icons",
+            f"_tile_{key}_{uuid.uuid4().hex[:6]}",
+        )
+        if isinstance(meta, dict):
+            extracted_pkg = (meta.get("package_id") or "").strip() or None
+            extracted_ver = (meta.get("version_name") or "").strip() or None
+    except Exception as exc:  # noqa: BLE001
+        # Manifest extraction is best-effort — operator can still
+        # supply values manually if pyaxmlparser fails.
+        log.warning("inspect_apk failed for tile %s: %s", key, exc)
+
+    if apk_package_id and apk_package_id.strip():
+        tile["apk_package_id"] = apk_package_id.strip()
+    elif extracted_pkg:
+        tile["apk_package_id"] = extracted_pkg
+    if apk_version and apk_version.strip():
+        tile["apk_version"] = apk_version.strip()
+    elif extracted_ver:
+        tile["apk_version"] = extracted_ver
+
     _save_store(store)
     return {
         "ok": True,
@@ -2313,6 +2347,12 @@ async def upload_tile_apk(
         "apk_filename": tile["apk_filename"],
         "apk_package_id": tile.get("apk_package_id"),
         "apk_version": tile.get("apk_version"),
+        # v2.10.59 — Tell the admin UI whether we auto-extracted so
+        # it can show a "✓ detected v1.2.3" hint next to the inputs.
+        "auto_extracted": {
+            "package_id": extracted_pkg,
+            "version_name": extracted_ver,
+        },
         "generation": store["generation"],
     }
 

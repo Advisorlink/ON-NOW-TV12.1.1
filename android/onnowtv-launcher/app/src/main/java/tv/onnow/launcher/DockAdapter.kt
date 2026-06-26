@@ -26,10 +26,23 @@ import tv.onnow.launcher.databinding.ItemDockBinding
  * assign it to `tile_root.foreground` directly in the focus listener
  * (and clear it when focus moves away).  Same effect, zero state
  * machine, 100% reliable.
+ *
+ * v2.10.59 — Per-tile UPDATE pill.  Each tile now compares its
+ * pinned `apkPackageId` + `apkVersion` against PackageManager and
+ * renders a cyan→blue→indigo pill ABOVE the tile when the operator
+ * has pinned a newer (or absent) APK.  Pressing UP from the tile
+ * focuses the pill; clicking it kicks off the same ApkInstaller
+ * flow the AppsDrawer's Home Update pill uses — Android shows the
+ * standard install dialog, the new APK is signed with the same
+ * keystore so it upgrades in place without an uninstall.  The
+ * pill auto-hides after a successful install because
+ * MainActivity.onResume() calls notifyDataSetChanged() and the
+ * version check now matches.
  */
 class DockAdapter(
     private val items: List<DockItem>,
     private val onSelect: (DockItem) -> Unit,
+    private val onInstallRequest: ((DockItem) -> Unit)? = null,
 ) : RecyclerView.Adapter<DockAdapter.VH>() {
 
     /** v1.0 — Admin-controlled tile size (in dp).  MainActivity
@@ -59,21 +72,15 @@ class DockAdapter(
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         val item        = items[position]
+        val ctx         = holder.itemView.context
         val image       = holder.binding.icon
         val reflection  = holder.binding.reflection
         val reflectBox  = holder.binding.reflectionClip
 
-        // v2.8.20 — UP arrow climbs to the top-bar VPN pill.  LEFT/
-        // RIGHT are handled by MainActivity.dispatchKeyEvent (edge
-        // trap) so they never escape the dock.
-        if (nextFocusUpResId != 0) {
-            holder.binding.tileRoot.nextFocusUpId = nextFocusUpResId
-        }
-
         // v1.0 — Resize the tile + reflection to the admin-edited
         // dimensions.  Reflection slot is locked at ~36 % of tile
         // height so its proportions stay tasteful at any tile size.
-        val density = holder.itemView.resources.displayMetrics.density
+        val density = ctx.resources.displayMetrics.density
         val tileWpx = (tileWidthDp  * density).toInt()
         val tileHpx = (tileHeightDp * density).toInt()
         val reflHpx = (tileHpx * 0.36f).toInt().coerceAtLeast((30 * density).toInt())
@@ -104,7 +111,7 @@ class DockAdapter(
             reflectBox.visibility = View.VISIBLE
         } else {
             image.imageTintList = android.content.res.ColorStateList.valueOf(
-                holder.itemView.context.getColor(R.color.text_primary)
+                ctx.getColor(R.color.text_primary)
             )
             image.scaleType = ImageView.ScaleType.CENTER_INSIDE
             image.setImageResource(item.iconRes)
@@ -137,6 +144,109 @@ class DockAdapter(
         }
 
         tileRoot.setOnClickListener { onSelect(item) }
+
+        // ────────── v2.10.59 — UPDATE pill ──────────
+        bindUpdatePill(holder, item)
+    }
+
+    /**
+     * Re-evaluate the install state for this tile against the live
+     * PackageManager and paint / hide the pill accordingly.
+     *
+     * State machine:
+     *   • apkUrl null/blank      → NO pill (no APK pinned)
+     *   • apkPackageId null      → NO pill (can't compare versions)
+     *   • package not installed  → "↻ INSTALL" pill
+     *   • installed version ≠
+     *     pinned version         → "↻ UPDATE · vX.Y.Z" pill
+     *   • installed == pinned    → NO pill (already up to date)
+     */
+    private fun bindUpdatePill(holder: VH, item: DockItem) {
+        val pill = holder.binding.updatePill
+        val tileRoot = holder.binding.tileRoot
+        val state = computeInstallState(holder.itemView.context, item)
+
+        if (state == InstallState.NONE) {
+            pill.visibility = View.GONE
+            pill.setOnClickListener(null)
+            // When no pill, UP from tile climbs to the top bar.
+            if (nextFocusUpResId != 0) {
+                tileRoot.nextFocusUpId = nextFocusUpResId
+            }
+            return
+        }
+
+        // Compose label.
+        val pinnedVer = item.apkVersion?.takeIf { it.isNotBlank() }
+        pill.text = when (state) {
+            InstallState.INSTALL ->
+                if (pinnedVer != null) "↻ INSTALL · v$pinnedVer" else "↻ INSTALL"
+            InstallState.UPDATE  ->
+                if (pinnedVer != null) "↻ UPDATE · v$pinnedVer" else "↻ UPDATE"
+            else                 -> "↻ UPDATE"
+        }
+        pill.background = buildPillBackground()
+        pill.visibility = View.VISIBLE
+
+        // Focus wiring: pressing UP on the tile now climbs to the
+        // pill (which sits visually above), and the pill's UP keeps
+        // climbing to the top-bar.
+        pill.id = pill.id  // keep its own xml id
+        tileRoot.nextFocusUpId = pill.id
+        if (nextFocusUpResId != 0) {
+            pill.nextFocusUpId = nextFocusUpResId
+        }
+        pill.nextFocusDownId = tileRoot.id
+
+        // Soft focus glow on the pill itself.
+        pill.setOnFocusChangeListener { v, hasFocus ->
+            val scale = if (hasFocus) 1.08f else 1.0f
+            v.animate().scaleX(scale).scaleY(scale).setDuration(140).start()
+        }
+
+        pill.setOnClickListener { onInstallRequest?.invoke(item) }
+    }
+
+    /** State of the per-tile APK pin vs PackageManager. */
+    private enum class InstallState { NONE, INSTALL, UPDATE }
+
+    private fun computeInstallState(ctx: Context, item: DockItem): InstallState {
+        val apkUrl = item.apkUrl?.trim().orEmpty()
+        val pkg    = item.apkPackageId?.trim().orEmpty()
+        if (apkUrl.isEmpty() || pkg.isEmpty()) return InstallState.NONE
+        val installed = try {
+            ctx.packageManager.getPackageInfo(pkg, 0)
+        } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
+            null
+        } catch (_: Throwable) {
+            null
+        }
+        if (installed == null) return InstallState.INSTALL
+        val pinned = item.apkVersion?.trim().orEmpty()
+        if (pinned.isEmpty()) {
+            // No version metadata from backend — be conservative: if
+            // the package is installed we assume it's good enough and
+            // don't pester the user.  Operator can re-pin to force.
+            return InstallState.NONE
+        }
+        val current = installed.versionName?.trim().orEmpty()
+        return if (current == pinned) InstallState.NONE else InstallState.UPDATE
+    }
+
+    /** Pill background — small cyan → blue → indigo gradient,
+     *  matching the Home Update pill in AppsDrawerActivity so the
+     *  visual language stays consistent. */
+    private fun buildPillBackground(): GradientDrawable {
+        val shape = GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            intArrayOf(
+                Color.parseColor("#FF06B6D4"),
+                Color.parseColor("#FF2563EB"),
+                Color.parseColor("#FF4F46E5"),
+            ),
+        )
+        shape.cornerRadius = 9999f  // fully pill-shaped
+        return shape
     }
 
     /* ───────────────────  Per-tile focus halo  ─────────────────── */
