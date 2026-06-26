@@ -207,13 +207,25 @@ jobs:
             done
 
             echo '── 2. /proc inspection of any python proc running main.py ──'
-            for pid in $(pgrep -af "python.*main\\.py" 2>/dev/null | awk '{print $1}'); do
+            for pid in $(pgrep -af "python.*main\\.py|uvicorn.*main:app" 2>/dev/null | awk '{print $1}'); do
               echo "PID $pid:"
               echo "  cwd:    $(readlink /proc/$pid/cwd 2>/dev/null)"
               echo "  exe:    $(readlink /proc/$pid/exe 2>/dev/null)"
               echo "  cmdline: $(tr '\\0' ' ' < /proc/$pid/cmdline 2>/dev/null)"
               echo "  DATA_DIR env: $(tr '\\0' '\\n' < /proc/$pid/environ 2>/dev/null | grep -E '^DATA_DIR=' | head -1)"
+              echo "  ALL non-secret env vars:"
+              tr '\\0' '\\n' < /proc/$pid/environ 2>/dev/null | grep -vE 'KEY|TOKEN|PASSWORD|SECRET' | sed 's/^/    /'
               echo ""
+            done
+
+            echo '── 2b. .env file content on VPS (redacting secrets) ──'
+            for envfile in /opt/onnowtv-launcher/.env /opt/onnowtv/launcher/.env /etc/onnowtv-launcher.env; do
+              if [ -f "$envfile" ]; then
+                echo "── $envfile ──"
+                grep -vE "KEY|TOKEN|PASSWORD|SECRET" "$envfile" | sed 's/^/  /'
+                echo "  (lines with secrets above were redacted)"
+                echo ""
+              fi
             done
 
             echo '── 3. ALL system-deps dirs on disk + their webview-138.apkm SHA ──'
@@ -262,6 +274,48 @@ jobs:
               cp -f "$SRC" "$d/webview-138.apkm" 2>&1 || echo "    (skipped — $?)"
               # also delete any stale .apk so the .apkm fallback path doesn't shadow us
               [ -f "$d/webview-138.apk" ] && rm -f "$d/webview-138.apk" && echo "    (removed stale webview-138.apk in $d)"
+            done
+
+            echo '── 4b. Force DATA_DIR in .env to the working-dir data folder ──'
+            # If the launcher .env has DATA_DIR pointing somewhere
+            # that doesn't contain our freshly-rsynced file, FastAPI
+            # falls back to the App Store entry (Path 2/3) and serves
+            # the old x86 build under data/apks/.  Fix in one shot by
+            # forcing DATA_DIR to $VPS_PATH/data.
+            ENVFILE="$VPS_PATH/.env"
+            EXPECTED="$VPS_PATH/data"
+            if [ -f "$ENVFILE" ]; then
+              CURRENT=$(grep -E '^DATA_DIR=' "$ENVFILE" | tail -1 | cut -d= -f2-)
+              echo "  Current DATA_DIR in .env: '${CURRENT:-<unset>}'"
+              echo "  Expected:                 '$EXPECTED'"
+              if [ "$CURRENT" != "$EXPECTED" ]; then
+                echo "  → fixing .env"
+                # Remove any existing DATA_DIR line, then append the right one
+                sed -i '/^DATA_DIR=/d' "$ENVFILE"
+                echo "DATA_DIR=$EXPECTED" >> "$ENVFILE"
+                NEEDS_RESTART=1
+              else
+                echo "  (already correct, no change)"
+              fi
+            else
+              echo "  .env not found at $ENVFILE — creating with DATA_DIR=$EXPECTED"
+              echo "DATA_DIR=$EXPECTED" > "$ENVFILE"
+              NEEDS_RESTART=1
+            fi
+
+            echo '── 4c. Also nuke any stale webview-138.apk under data/apks/ ──'
+            # The OLD x86 file was almost certainly uploaded to the
+            # App Store and lives as `data/apks/<uuid>_<name>.apk`.
+            # That's what Path 2/3 resolves to when Path 1 misses.
+            # We want to keep the App Store entries intact (so the
+            # admin UI doesn't break), but we DO want to remove the
+            # actual stale .apk binary file so even if Path 2/3 wins
+            # it can't return the old content.  Be conservative: only
+            # remove files whose name contains "webview" or "chrome".
+            find "$VPS_PATH/data/apks" -maxdepth 1 -type f \
+                \( -iname '*webview*138*' -o -iname '*chrome*138*' \) 2>/dev/null | while read f; do
+              echo "  → removing stale $f ($(stat -c '%s bytes' "$f" 2>/dev/null))"
+              rm -f "$f"
             done
 
             echo '── 5. Reload nginx + purge any cached responses to drop old served file ──'
