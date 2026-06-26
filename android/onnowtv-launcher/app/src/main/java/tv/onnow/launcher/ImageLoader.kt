@@ -48,6 +48,14 @@ object ImageLoader {
      * Load a URL into an ImageView.  If the URL is null/blank, the
      * placeholder is applied immediately.  Otherwise the function
      * returns instantly and the image lands on the view when ready.
+     *
+     * v2.10.56 — INSTANT-LOAD path.  If the URL matches a bundled
+     * built-in asset (see BuiltInAssets), the bundled drawable is
+     * applied IMMEDIATELY so cold-start no longer flashes grey
+     * placeholders for ~2 seconds.  The network fetch still runs
+     * in the background to pick up any operator-changed image,
+     * and overlays only if the URL hasn't been served from
+     * mem-cache yet.
      */
     fun load(view: ImageView, url: String?, placeholderRes: Int? = null) {
         if (url.isNullOrBlank()) {
@@ -59,8 +67,15 @@ object ImageLoader {
             view.setImageBitmap(it)
             return
         }
-        // Placeholder while loading.
-        placeholderRes?.let { view.setImageResource(it) }
+        // INSTANT bundled built-in (e.g. dock tile, hero, V2 AI bg)
+        // — paint it before the placeholder, so cold-start is
+        // visually indistinguishable from a fully cached run.
+        val builtin = BuiltInAssets.resourceForUrl(url)
+        if (builtin != null) {
+            view.setImageResource(builtin)
+        } else {
+            placeholderRes?.let { view.setImageResource(it) }
+        }
         // Tag so a stale view doesn't paint a slow earlier load.
         view.tag = url
         executor.submit {
@@ -71,6 +86,10 @@ object ImageLoader {
                     if (view.tag == url) view.setImageBitmap(bmp)
                 }
             }
+            // If the network fetch fails AND we already painted a
+            // built-in, leave the built-in in place — better than
+            // a grey placeholder.  No-op needed; the early
+            // setImageResource() above stays in effect.
         }
     }
 
@@ -78,12 +97,29 @@ object ImageLoader {
      * Load a URL and call back on the main thread with the bitmap (or
      * null on failure).  Used for the fullscreen wallpaper where we
      * want to know when the image is ready so we can fade it in.
+     *
+     * v2.10.56 — If a bundled built-in exists for this URL, decode
+     * THAT immediately and hand it to the caller so the wallpaper
+     * fade-in animation can start on first frame instead of after
+     * a 2-second network round-trip.  Then re-fetch from the URL
+     * in the background and call back a SECOND time with the
+     * network version if it differs (most callers' callback is
+     * idempotent — they just swap the wallpaper bitmap, which is
+     * cheap and invisible if it's the same image).
      */
     fun loadBitmap(ctx: Context, url: String?, callback: (Bitmap?) -> Unit) {
         if (url.isNullOrBlank()) {
             callback(null); return
         }
         memCache[url]?.let { callback(it); return }
+        // INSTANT built-in fallback.
+        val builtin = BuiltInAssets.resourceForUrl(url)
+        if (builtin != null) {
+            try {
+                val bmp = android.graphics.BitmapFactory.decodeResource(ctx.resources, builtin)
+                if (bmp != null) callback(bmp)
+            } catch (_: Throwable) { /* fall through to network */ }
+        }
         executor.submit {
             val bmp = fetch(ctx, url)
             if (bmp != null) memCache[url] = bmp
