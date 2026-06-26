@@ -143,7 +143,11 @@ jobs:
           # WebView 138 APKM that Vesper auto-installs).  We include
           # it in rsync so swapping it in-repo actually reaches the
           # VPS — otherwise system-dep updates silently no-op.
-          sshpass -e rsync -avz \
+          echo "Local files about to be synced (system-deps in particular):"
+          ls -lh launcher-backend/data/system-deps/ || echo "  (no system-deps dir in checkout!)"
+          echo ""
+          echo "rsync --itemize-changes for full visibility:"
+          sshpass -e rsync -avz --itemize-changes \
             --exclude="__pycache__" \
             --exclude="*.pyc" \
             --exclude=".env" \
@@ -158,6 +162,12 @@ jobs:
             --exclude="data/store.json.bak" \
             -e "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15" \
             launcher-backend/ "$VPS_USER@$VPS_HOST:$VPS_PATH/"
+
+          echo ""
+          echo "Post-sync verification — what's on the VPS NOW:"
+          sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+            "$VPS_USER@$VPS_HOST" \
+            "ls -lh '$VPS_PATH/data/system-deps/' 2>&1; sha256sum '$VPS_PATH/data/system-deps/'*.apkm 2>&1"
 
       - name: Install new Python dependencies (idempotent)
         env:
