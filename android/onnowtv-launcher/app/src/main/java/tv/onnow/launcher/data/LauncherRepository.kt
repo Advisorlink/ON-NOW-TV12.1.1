@@ -33,17 +33,22 @@ class LauncherRepository(
 
         /** Override at runtime via SharedPreferences "launcher.base_url".
          *
-         *  v2.8.40 — Cut over to the Contabo VPS production host.
-         *  Nginx proxies the /launcher/ path to 127.0.0.1:8002 (the
-         *  launcher backend's uvicorn).  FastAPI's root_path is
-         *  configured for the /launcher prefix server-side, so
-         *  every relative path under this base URL Just Works.
+         *  v2.10.54 — Cloudflare migration.  Cut the primary base URL
+         *  over to the Cloudflare-fronted `onnowhub.com`.  Old fleets
+         *  still on the DuckDNS base URL keep working unchanged
+         *  because nginx listens on BOTH `server_name`s and serves
+         *  identical content.  When a launcher install is upgraded
+         *  to this build, ResilientHttp's multi-host DNS resolver
+         *  will silently fall back to DuckDNS or the hardcoded IP
+         *  if Cloudflare ever has an outage — so cutting over here
+         *  is a strict reliability upgrade, never a regression.
          *
-         *  Earlier value (preview pod, retired):
+         *  Earlier values (retired):
+         *    https://onnowtv.duckdns.org/launcher
          *    https://rebrand-app-5.preview.emergentagent.com/api/launcher-admin
          */
         const val DEFAULT_BASE_URL =
-            "https://onnowtv.duckdns.org/launcher"
+            "https://onnowhub.com/launcher"
 
         private const val PREFS = "launcher_repo"
         private const val KEY_CONFIG_JSON = "config_json"

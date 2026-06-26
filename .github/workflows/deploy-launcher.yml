@@ -322,6 +322,21 @@ jobs:
               ls -t "$ENVFILE.bak."* 2>/dev/null | tail -n +6 | xargs -r rm -f
               sed -i '/^DATA_DIR=/d' "$ENVFILE"
               echo "DATA_DIR=$BEST_DATA" >> "$ENVFILE"
+
+              # v2.10.54 — also align PUBLIC_BASE_URL with the
+              # Cloudflare-fronted production host.  The backend
+              # uses this to build absolute apk_url / icon_url /
+              # wallpaper_url returns, so clients on the new
+              # launcher (which uses onnowhub.com) get URLs that
+              # match the host they're already talking to (avoids
+              # an unnecessary cross-host hop on every asset).
+              CUR_PUB=$(grep -E '^PUBLIC_BASE_URL=' "$ENVFILE" | tail -1 | cut -d= -f2-)
+              EXPECTED_PUB="https://onnowhub.com/launcher"
+              echo "  Current PUBLIC_BASE_URL:  '${CUR_PUB:-<unset>}'"
+              echo "  Setting to:               '$EXPECTED_PUB'"
+              sed -i '/^PUBLIC_BASE_URL=/d' "$ENVFILE"
+              echo "PUBLIC_BASE_URL=$EXPECTED_PUB" >> "$ENVFILE"
+
               NEEDS_RESTART=1
             fi
 
@@ -357,6 +372,42 @@ jobs:
               [ -f "$d/webview-138.apkm" ] && sha256sum "$d/webview-138.apkm"
               [ -f "$d/webview-138.apk"  ] && sha256sum "$d/webview-138.apk"
             done
+
+            echo '── 7. Ensure nginx accepts onnowhub.com (Cloudflare migration) ──'
+            # v2.10.54 — Make sure nginx server_name includes both
+            # the new Cloudflare-fronted host and the legacy DuckDNS
+            # one.  Cloudflare proxies inbound HTTPS to origin :443,
+            # so the VPS must answer for "Host: onnowhub.com" even
+            # though no Let's Encrypt cert exists for that name yet
+            # (Cloudflare's Full SSL mode is permissive about origin
+            # cert hostname mismatch).
+            CONF=$(find /etc/nginx/sites-enabled /etc/nginx/conf.d -type f -name '*onnow*' 2>/dev/null | head -1)
+            if [ -z "$CONF" ]; then
+              CONF=$(find /etc/nginx -type f \( -name '*.conf' -o -name 'default' \) -exec grep -l 'onnowtv.duckdns.org' {} \; 2>/dev/null | head -1)
+            fi
+            if [ -n "$CONF" ] && [ -f "$CONF" ]; then
+              echo "  nginx vhost file: $CONF"
+              if grep -qE '^\s*server_name\b.*onnowhub\.com' "$CONF"; then
+                echo "  (server_name already lists onnowhub.com, no change)"
+              else
+                cp -p "$CONF" "$CONF.bak.$(date +%s)"
+                # Append onnowhub.com to every server_name line that
+                # mentions onnowtv.duckdns.org.
+                sed -i -E '/^[[:space:]]*server_name[[:space:]]/{ /onnowhub\.com/!s/(onnowtv\.duckdns\.org)/\1 onnowhub.com www.onnowhub.com/g; }' "$CONF"
+                echo "  Updated server_name to include onnowhub.com:"
+                grep -E '^\s*server_name' "$CONF" | sed 's/^/    /'
+                # Validate the resulting config before reload.
+                if nginx -t 2>&1; then
+                  systemctl reload nginx 2>/dev/null || nginx -s reload 2>/dev/null
+                  echo "  nginx config valid + reloaded"
+                else
+                  echo "  ⚠️  nginx -t failed, rolled back to backup"
+                  cp -p "$CONF.bak."* "$CONF" 2>/dev/null
+                fi
+              fi
+            else
+              echo "  (could not locate the launcher nginx vhost file — manual setup may be needed)"
+            fi
 
             # Always exit 0 — diagnostic step must not fail the deploy
             exit 0
