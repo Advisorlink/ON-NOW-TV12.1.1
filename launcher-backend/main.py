@@ -2608,15 +2608,44 @@ def get_system_dep_apkm(name: str):
     prebaked = DATA_DIR / "system-deps" / f"{safe_name}.apkm"
     if prebaked.exists() and prebaked.is_file():
         target_path = prebaked
+    else:
+        # Same lookup but the admin happened to drop the file with
+        # a `.apk` extension — accept it either way.
+        prebaked_apk = DATA_DIR / "system-deps" / f"{safe_name}.apk"
+        if prebaked_apk.exists() and prebaked_apk.is_file():
+            target_path = prebaked_apk
 
     # Path 2 — explicit system_deps mapping in the store.
     if target_path is None:
         store = _load_store()
         deps = store.get("system_deps") or {}
+
+        def _resolve_apk_url(rel: str) -> Optional[Path]:
+            """Resolve any `apk_url` field — relative OR absolute —
+            to a real on-disk Path under DATA_DIR/apks/.
+
+            Historical formats we've seen in the wild:
+              • `/assets/apks/abc_App.apk`              (relative, dev)
+              • `/launcher/assets/apks/abc_App.apk`     (relative w/ prefix)
+              • `https://host/launcher/assets/apks/abc_App.apk` (absolute, prod)
+              • `https://host/assets/apks/abc_App.apk`  (absolute, no prefix)
+            We extract just the filename component and reuse the
+            local apks directory.
+            """
+            if not rel:
+                return None
+            from urllib.parse import urlparse
+            parsed_path = urlparse(rel).path if rel.startswith("http") else rel
+            if "/assets/apks/" not in parsed_path:
+                return None
+            filename = Path(parsed_path).name
+            if not filename:
+                return None
+            candidate = DATA_DIR / "apks" / filename
+            return candidate if candidate.exists() else None
+
         if name in deps:
-            rel = (deps[name] or {}).get("apk_url") or ""
-            if rel.startswith("/assets/apks/"):
-                target_path = DATA_DIR / "apks" / Path(rel).name
+            target_path = _resolve_apk_url((deps[name] or {}).get("apk_url") or "")
 
         # Path 3 — find by App Store name match.  Robust to common
         # naming variants the admin might use:
@@ -2670,9 +2699,9 @@ def get_system_dep_apkm(name: str):
                 if not name_norm:
                     continue
                 if any(c and c in name_norm for c in candidates):
-                    rel = a.get("apk_url") or ""
-                    if rel.startswith("/assets/apks/"):
-                        target_path = DATA_DIR / "apks" / Path(rel).name
+                    resolved = _resolve_apk_url(a.get("apk_url") or "")
+                    if resolved:
+                        target_path = resolved
                         break
 
     if target_path is None or not target_path.exists():
@@ -2680,10 +2709,17 @@ def get_system_dep_apkm(name: str):
             {"detail": f"system dependency {name!r} not registered"},
             status_code=404,
         )
+    # v2.10.53-c — Use the file's REAL extension so the downstream
+    # client (Vesper's ApkmInstaller) reads the correct format hint.
+    # The endpoint accepts both `.apk` (single APK) and `.apkm` /
+    # `.xapk` / `.apks` (split-APK bundles).  Installer also
+    # double-checks by inspecting ZIP contents on the device.
+    actual_ext = target_path.suffix.lower() or ".apkm"
+    download_name = f"{name}{actual_ext}"
     return FileResponse(
         target_path,
         media_type="application/vnd.android.package-archive",
-        filename=f"{name}.apkm",
+        filename=download_name,
     )
 
 

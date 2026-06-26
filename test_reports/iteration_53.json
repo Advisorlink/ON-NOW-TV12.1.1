@@ -1,0 +1,37 @@
+{
+  "summary": "v2.10.53-c verification: all four iteration-53 code fixes confirmed via static grep + 4 new live-curl backend tests. Production-shape absolute-URL matching (Bug #2), real-suffix preservation in Content-Disposition (Bug #3a), and ApkmInstaller content-based isBundle (Bug #3b static check) all PASS. Pre-baked webview-138.apkm md5 = 6170eb405fb191d5bee4d6abd77e067e and size = 171693753 bytes verified intact AFTER full test run. However, 3/14 of the previously-green pytest regression suite now FAIL — caused by a stale `prod1` App-Store fixture entry committed into `/app/launcher-backend/data/store.json` that pollutes the `test_synonym_matcher.py` snapshot and breaks its 'clean candidate set' assumption. This is a test-fixture collision, NOT a regression of the v2.10.53-c code fixes — every code-path the review asked about works correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/system-deps/webview-138.apkm", "issue": "test_synonym_matcher.py snapshot includes a permanently-seeded `prod1` apk entry in store.json (id=prod1, chrome_138 absolute URL → /assets/apks/d22b455c094b_*.apk 1024-byte dummy). This entry was committed for production-shape live-curl verification but the older synonym tests assume a clean apks array. Result: 3 tests fail because the matcher correctly finds prod1 first (1024 bytes returned vs. 64 expected) and the 'unrelated only' negative control no longer has an empty positive-match set (200 returned vs. 404 expected). Matcher logic itself is CORRECT."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/launcher-backend/tests/test_iter53_production_shape.py",
+    "/app/test_reports/pytest/iter53_pytest.xml"
+  ],
+  "action_items": [
+    "Update /app/launcher-backend/tests/test_synonym_matcher.py `clean_store_between_tests` fixture to WIPE store['apks'] = [] before each test (currently it only deletes dummy files but restores from a snapshot that contains prod1). One-line fix: read STORE_BACKUP, set apks=[], write back. This will restore 14/14 baseline AND keep the iter53 production-shape coverage.",
+    "Alternative: remove the committed `prod1` entry from `/app/launcher-backend/data/store.json` (lines 168-173) and have the production-shape live-curl tests inject it themselves. Cleaner long-term — store.json should not carry fixture data.",
+    "(NO-CODE) DEPLOY: production launcher at https://onnowtv.duckdns.org/launcher still 404s on /api/system-deps/{name}.apkm — the user must merge branch `vesper-rollback-26jun` into `main`, or manually trigger `deploy-launcher.yml` on the branch. Flag to user clearly."
+  ],
+  "critical_code_review_comments": [
+    "main.py:2623 `_resolve_apk_url` helper is correctly defined locally inside the endpoint; handles `https://host/...` (urlparse path), `/assets/apks/...`, and `/launcher/assets/apks/...` substring forms. Verified all three formats via test_1 and indirectly via test_4.",
+    "main.py:2717 `actual_ext = target_path.suffix.lower() or '.apkm'` and download_name composition is correct — verified .apkm preserved (test_2) and .apk preserved (test_1, test_3).",
+    "main.py:2614 prebaked.apk fallback works — verified test_3.",
+    "ApkmInstaller.kt:148-161 isBundle now opens ZipFile and checks for any non-directory entry ending with `.apk`. Old `file.name.lowercase().endsWith('.apkm')` string is GONE from the function body (confirmed via grep). Native runtime not testable here — static check only as instructed.",
+    "Minor nit (not blocking): `_resolve_apk_url` is a closure defined inside the request handler — could be a module-level helper to enable direct unit testing without hitting the HTTP layer. Low priority.",
+    "Minor nit: store.json carries a fixture-shaped `prod1` apk entry permanently. Smells like test data committed into the runtime store. See action_items #2."
+  ],
+  "updated_files": [
+    "/app/launcher-backend/tests/test_iter53_production_shape.py (NEW — 4 production-shape live-curl tests with byte-perfect teardown)"
+  ],
+  "success_rate": {"backend": "15/18 = 83% (4/4 new iter53 production-shape PASS, 8/8 system-deps PASS, 3/6 synonym-matcher PASS due to store.json fixture collision — NOT a code regression)", "frontend": "N/A — backend-only test scope"},
+  "test_credentials": "N/A — launcher-backend on localhost:8002, no auth required for these endpoints.",
+  "seed_data_creation": "Pre-existing committed seed in /app/launcher-backend/data/store.json (entry id=prod1) and /app/launcher-backend/data/apks/d22b455c094b_com.android.chrome_138*.apk (1024-byte dummy). My new test file backs up store.json then restores byte-perfect; pre-baked webview-138.apkm md5 verified identical before and after (6170eb405fb191d5bee4d6abd77e067e, 171693753 bytes).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run `cd /app && python -m pytest launcher-backend/tests/ -v`. Expect: 15/18 today; after main agent applies action_item #1 or #2, expect 18/18. Always verify pre-baked file md5 + size at end (constants above). For live curl, launcher-backend listens on localhost:8002 (supervisor managed). The 4 production-shape scenarios are now codified in /app/launcher-backend/tests/test_iter53_production_shape.py — keep them green.",
+  "rca of the issue": "The 3 synonym-matcher test failures share a single root cause: the `snapshot_state` fixture in test_synonym_matcher.py takes its STORE_BACKUP at module-setup time. Between iter52 and iter53 a new `prod1` apk entry (chrome_138 absolute URL + 1024-byte dummy file) was permanently committed to /app/launcher-backend/data/store.json — presumably as fixture data for the iter53 live-curl production-shape verification. The snapshot now captures that entry, the `clean_store_between_tests` fixture restores TO that snapshot, and so every test's apks list silently contains prod1 plus whatever the test itself adds. The matcher correctly finds prod1's 1024-byte payload (vs. the test's expected 64-byte file) and answers positively even on the negative-control test. Reproduction: `cd /app && python -m pytest launcher-backend/tests/test_synonym_matcher.py -v` → 3 fails. Mitigation: either (A) augment `clean_store_between_tests` to wipe apks list (1-line change), or (B) remove the committed prod1 entry from store.json and inject it in-test. Code under test in main.py is NOT defective — it does exactly what v2.10.53-c was designed to do."
+}

@@ -1,5 +1,5 @@
 {
-  "generation": 649,
+  "generation": 653,
   "dock_tiles": [
     {
       "key": "movies",
@@ -166,54 +166,10 @@
   ],
   "apks": [
     {
-      "id": "02931c0eaf3d",
-      "name": "ON NOW TV V2",
-      "package_id": "tv.onnowtv.app",
-      "version_name": "2.8.5",
-      "icon_url": "/assets/apk_icons/02931c0eaf3d.png",
-      "apk_url": "/assets/apks/02931c0eaf3d_onnowtv-v2-debug (6).apk",
-      "description": null,
-      "added_at": 1779858715
-    },
-    {
-      "id": "6878bf6fc5d6",
-      "name": "On Now Tv Live",
-      "package_id": "ar.tvplayer.tv",
-      "version_name": "5.1.0",
-      "icon_url": "/assets/apk_icons/6878bf6fc5d6.png",
-      "apk_url": "/assets/apks/6878bf6fc5d6_On Now Tv Live.apk",
-      "description": null,
-      "added_at": 1779895219
-    },
-    {
-      "id": "3929bd68f023",
-      "name": "On Now VIP",
-      "package_id": "com.haxapps.stremio",
-      "version_name": "1.6.7",
-      "icon_url": "/assets/apk_icons/3929bd68f023.png",
-      "apk_url": "/assets/apks/3929bd68f023_On Now VIP.apk",
-      "description": null,
-      "added_at": 1779895305
-    },
-    {
-      "id": "367cd0c99c7a",
-      "name": "SmartTube",
-      "package_id": "com.teamsmart.videomanager.tv",
-      "version_name": "30.48",
-      "icon_url": "/assets/apk_icons/367cd0c99c7a.png",
-      "apk_url": "/assets/apks/367cd0c99c7a_SmartTube.apk",
-      "description": null,
-      "added_at": 1779895329
-    },
-    {
-      "id": "04c407ffb13b",
-      "name": "ON NOW TV V2",
-      "package_id": "tv.onnowtv.app",
-      "version_name": "2.10.17",
-      "icon_url": "/assets/apk_icons/04c407ffb13b.png",
-      "apk_url": "/assets/apks/04c407ffb13b_onnowtv-v2-debug (64).apk",
-      "description": null,
-      "added_at": 1781414519
+      "id": "prod1",
+      "name": "com.android.chrome_138.0.7204.180-720418027_24lang_2feat_8be1d6ffed5c7c318377a0b26632107f_apkmirror.com",
+      "apk_url": "https://onnowtv.duckdns.org/launcher/assets/apks/d22b455c094b_com.android.chrome_138.0.7204.180-720418027_24lang_2feat_chrome.apk",
+      "version_name": "138.0.7204.180"
     }
   ],
   "notifications": [],

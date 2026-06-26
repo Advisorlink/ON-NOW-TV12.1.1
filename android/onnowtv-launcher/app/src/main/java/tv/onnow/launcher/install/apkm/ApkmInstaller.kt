@@ -133,9 +133,31 @@ object ApkmInstaller {
 
     /* ───────── internals ───────── */
 
+    /**
+     * Decide whether `file` is a SPLIT-APK BUNDLE (.apkm / .xapk /
+     * .apks containing multiple .apk entries) or a SINGLE plain
+     * .apk (which is also a ZIP, but contains AndroidManifest.xml /
+     * classes.dex — no nested .apk files).
+     *
+     * Why not just look at the filename?  v2.10.53-b shipped with
+     * `endsWith(".apkm")` etc, but production renamed the file to
+     * `.apk` during upload — so a real bundle was being treated as
+     * a single APK.  Looking INSIDE the ZIP is bulletproof: if
+     * there are nested `.apk` entries, it's a bundle.
+     */
     private fun isBundle(file: File): Boolean {
-        val n = file.name.lowercase()
-        return n.endsWith(".apkm") || n.endsWith(".xapk") || n.endsWith(".apks") || n.endsWith(".zip")
+        if (file.length() < 4) return false
+        return try {
+            ZipFile(file).use { zf ->
+                zf.entries().asSequence().any {
+                    !it.isDirectory && it.name.lowercase().endsWith(".apk")
+                }
+            }
+        } catch (_: Throwable) {
+            // Not a ZIP at all → treat as plain APK and let
+            // PackageInstaller reject it with a meaningful error.
+            false
+        }
     }
 
     /**
