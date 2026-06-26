@@ -1,5 +1,5 @@
 {
-  "generation": 653,
+  "generation": 657,
   "dock_tiles": [
     {
       "key": "movies",
@@ -164,14 +164,7 @@
       "cta_label": null
     }
   ],
-  "apks": [
-    {
-      "id": "prod1",
-      "name": "com.android.chrome_138.0.7204.180-720418027_24lang_2feat_8be1d6ffed5c7c318377a0b26632107f_apkmirror.com",
-      "apk_url": "https://onnowtv.duckdns.org/launcher/assets/apks/d22b455c094b_com.android.chrome_138.0.7204.180-720418027_24lang_2feat_chrome.apk",
-      "version_name": "138.0.7204.180"
-    }
-  ],
+  "apks": [],
   "notifications": [],
   "devices": {
     "e94aa7c6-d9b1-4cbd-a4fb-89c4aebdb0d1": {

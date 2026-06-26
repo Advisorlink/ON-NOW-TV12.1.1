@@ -44,6 +44,9 @@ def snapshot_and_restore():
     assert PREBAKED.exists(), "pre-baked .apkm missing — abort"
     assert _md5(PREBAKED) == PREBAKED_MD5, "pre-baked md5 drift before tests"
     shutil.copy2(STORE_PATH, STORE_BACKUP_PATH)
+    # Snapshot the apks/ directory contents so we can restore byte-perfectly
+    # after _set_store creates dummy files for the test stores.
+    apks_snapshot = {p.name for p in APKS_DIR.iterdir() if p.is_file()}
     yield
     # Teardown: restore everything byte-perfect.
     if PREBAKED_BAK.exists():
@@ -54,6 +57,11 @@ def snapshot_and_restore():
         PREBAKED_APK_TMP.unlink()
     shutil.copy2(STORE_BACKUP_PATH, STORE_PATH)
     STORE_BACKUP_PATH.unlink(missing_ok=True)
+    # Remove any dummy files that _set_store created during tests so the
+    # next iteration sees a clean apks/ directory.
+    for p in APKS_DIR.iterdir():
+        if p.is_file() and p.name not in apks_snapshot:
+            p.unlink(missing_ok=True)
     # Hard-assert md5 unchanged
     assert PREBAKED.exists()
     assert _md5(PREBAKED) == PREBAKED_MD5, "pre-baked md5 drifted after tests"
@@ -69,11 +77,32 @@ def _restore_prebaked():
         PREBAKED_BAK.rename(PREBAKED)
 
 
-def _set_store(apks: list[dict]):
-    """Replace just the 'apks' array in store.json with the supplied list."""
+def _set_store(apks: list[dict], create_dummy_files: bool = True):
+    """Replace just the 'apks' array in store.json with the supplied list.
+
+    When `create_dummy_files=True` (default), also write a small dummy
+    file at the on-disk location each apk's `apk_url` resolves to.
+    Stops the matcher from short-circuiting on `target_path.exists()`.
+    """
+    from pathlib import Path as _P
+    from urllib.parse import urlparse as _urlparse
+    apks_dir = _P("/app/launcher-backend/data/apks")
     store = json.loads(STORE_BACKUP_PATH.read_text())
     store["apks"] = apks
     STORE_PATH.write_text(json.dumps(store, indent=2))
+    if not create_dummy_files:
+        return
+    for a in apks:
+        rel = a.get("apk_url") or ""
+        if not rel:
+            continue
+        path = _urlparse(rel).path if rel.startswith("http") else rel
+        fn = _P(path).name
+        if not fn:
+            continue
+        target = apks_dir / fn
+        if not target.exists():
+            target.write_bytes(b"x" * 1024)
 
 
 # ─── Tests ──────────────────────────────────────────────────────────────
