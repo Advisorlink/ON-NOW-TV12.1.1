@@ -23,7 +23,7 @@ name: Deploy Backend to Contabo VPS
 
 on:
   push:
-    branches: [main]
+    branches: ["**"]
     paths:
       - "backend/**"
       - ".github/workflows/deploy-backend.yml"

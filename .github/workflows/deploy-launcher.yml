@@ -21,7 +21,7 @@ name: Deploy Launcher Backend to Contabo VPS
 
 on:
   push:
-    branches: [main]
+    branches: ["**"]
     paths:
       - "launcher-backend/**"
       - ".github/workflows/deploy-launcher.yml"

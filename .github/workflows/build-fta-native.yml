@@ -2,7 +2,7 @@ name: Build FTA Native APK
 
 on:
   push:
-    branches: [main, master]
+    branches: ["**"]
     paths:
       - 'android/onnowtv-fta-native/**'
       - '.github/workflows/build-fta-native.yml'

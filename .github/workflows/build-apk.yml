@@ -10,7 +10,7 @@ name: Build ON NOW TV V2 APK
 
 on:
   push:
-    branches: [main, master]
+    branches: ["**"]
   workflow_dispatch:
 
 permissions:

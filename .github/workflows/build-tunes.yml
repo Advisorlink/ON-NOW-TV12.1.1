@@ -2,7 +2,7 @@ name: Build ON NOW TV Tunes APK
 
 on:
   push:
-    branches: [ main ]
+    branches: ["**"]
     paths:
       - 'android/onnowtv-tunes/**'
       - 'frontend/**'

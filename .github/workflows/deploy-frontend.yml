@@ -16,7 +16,7 @@ name: Deploy Frontend to Contabo VPS
 
 on:
   push:
-    branches: [main]
+    branches: ["**"]
     paths:
       - "frontend/**"
       - ".github/workflows/deploy-frontend.yml"

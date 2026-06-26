@@ -8,7 +8,7 @@ name: Build ON NOW TV V2 Launcher APK
 
 on:
   push:
-    branches: [main, master]
+    branches: ["**"]
     paths:
       - 'android/onnowtv-launcher/**'
       - '.github/workflows/build-launcher.yml'

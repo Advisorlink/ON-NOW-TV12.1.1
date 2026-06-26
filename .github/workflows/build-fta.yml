@@ -10,7 +10,7 @@ on:
   # rebuild is cheap (~2 min) and keeps the version code aligned with
   # the rest of the suite.
   push:
-    branches: [main, master]
+    branches: ["**"]
   workflow_dispatch:
 
 permissions:
