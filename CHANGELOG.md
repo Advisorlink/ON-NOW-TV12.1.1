@@ -1,6 +1,44 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
-## v2.10.68 — Kids/Vesper hard separation + still pill with focus shine (2026-02-27)
+## v2.10.69 — Kids app fully decoupled from Vesper (2026-02-27)
+
+User feedback was explicit: *"The Kids section should not have a Vesper login.  They should not share the same login.  They should not have anything.  The Kids section should not have a profile selection screen.  The Kids section is the Kids section. The Kids app is the Kids app. That is it.  Once you click on the Kids app, it opens up the [setup] that you choose a PIN for the kids, you choose what rating, and then it opens up the Kids section.  And then if you try to get out of it … you need the PIN to get out of it."*
+
+This is now the actual implementation, not just the branding-coat-of-paint version v2.10.68 shipped.
+
+### Standalone Kids APK boot flow (verified live)
+1. Open Kids app → URL has `?profile=kids`.
+2. `App.js`'s module-load IIFE sets `window.__vesperBootProfileKids = true` BEFORE React mounts (so `DeepLinkHandler` stripping the query string later doesn't matter).
+3. `<LoginGate>` sees `isKidsApp() === true` and **returns children directly** — no Vesper auth round-trip, no LoginScreen render, no JWT.
+4. `<App>` renders `<KidsAppRoutes>` instead of the full Vesper `<Routes>` tree.  KidsAppRoutes contains ONLY: `/` (KidsHome / Setup gate), `/kids/setup`, `/kids/settings`, `/kids/exit-pin`, `/search`, `/title/*`, `/play`, `/resolve/*`, catch-all → `/`.  No `/profiles`, no `/library`, no `/settings`, no `/music`, no `/fta`, no `/live-tv`, no `/sources` — they are physically not in the route table so a curious kid cannot type their way out.
+5. First launch: PIN not yet configured → `<Navigate to="/kids/setup">`.  KidsSetup wizard (existing, untouched) collects PIN + max movie rating + max TV rating → writes to `onnowtv-kids-config-v1` → `navigate('/', { replace: true })`.
+6. KidsAppRoutes subscribes to `vesper:kids-config-change` via `useState`/`useEffect`, so the PIN-just-saved event triggers a re-render with `pinConfigured = true` → KidsHome renders.
+7. Every subsequent launch: PIN is already in localStorage → goes straight to KidsHome.
+
+### Vesper has nothing Kids-related anywhere
+- `profiles.js::listProfiles()` filters out the synthetic Kids profile entry unless `isKidsApp() === true`.  Vesper / Tunes / FTA / browser **never** see a Kids tile in their profile picker.  Verified live: Vesper picker shows only `Add Profile`.
+- `VesperOnlyChrome` short-circuits to `null` in Kids context (no toasts, no nudges, no reminders, no dev badge — Kids app is dead-quiet).
+- Login screen branding kept at `ON NOW TV · V2` (no "Vesper" wording anywhere) for any context that DOES render the login screen.
+
+### PIN-gated exit (existing flow, now correctly routed)
+- `KidsExitPin` accepts the 4-digit PIN, then calls `window.OnNowTV.exitVesperToLauncher()` (native bridge) — Kids APK Activity `finish()`es, user lands back on the ON NOW Launcher.
+- `useKidsBackGuard` pushes a sentinel history entry on every Kids route + routes any popstate to `/kids/exit-pin`.  Hardware Back from the remote = PIN gate.
+- `useKidsKioskGuard` updated to treat `/` as a valid Kids path (was the long-standing bug that made KidsHome bounce to the exit-PIN on every entry); also navigates to `/` instead of the non-existent `/kids` when the user returns from HOME inside the standalone Kids APK.
+
+### Files touched
+- `frontend/src/App.js` — new `<KidsAppRoutes>`; branch in `<App>` render; `<VesperOnlyChrome>` Kids short-circuit.
+- `frontend/src/lib/profiles.js` — new `isKidsApp()` helper; broadened `isKidsActive()`; Kids-tile filter in `listProfiles()`.
+- `frontend/src/components/LoginGate.jsx` — early-return for Kids APK.
+- `frontend/src/hooks/useKidsKioskGuard.js` — `/` now Kids-allowed; visibility-redirect lands on `/` in standalone Kids APK.
+
+### Verified live (preview pod)
+- `/?profile=kids` clean state → `/kids/setup` (no login, no profile picker).
+- PIN 1234 → confirm → choose ratings → finish → lands on `/` showing `KidsHome` with `data-kids-theme="1"` and `KidsSideNav`.
+- Pre-seed PIN + reload `/?profile=kids` → goes straight to KidsHome.
+- `/` (no kids context) → Vesper LoginScreen with `ON NOW TV · V2`; after sign-in → picker has ONLY `Add Profile` (no Kids tile).
+- Lint clean on `App.js`, `profiles.js`, `LoginGate.jsx`, `useKidsKioskGuard.js`.
+
+
 
 User attached a video showing the launcher's per-tile UPDATE pill pulsating frantically and asked for it to "just be still and have a slight animation like a light shine over it when you get to that tile".  Also: "I dont want the kids to have anything to do with Vespa at all… take out ALL of the kids stuff from Vespa including the profile selection bit … the kids app shouldn't have Vesper login attached, it's ITS OWN APP NOT VESPA, so fix it all."
 
@@ -26,6 +64,15 @@ Verified live:
 - `window.__vesperBootProfileKids` correctly reports `true`/`false` in each context.
 - Lint clean on `App.js`, `profiles.js`, `LoginScreen.jsx`.  `DockAdapter.kt` braces 50=50, parens 185=185 — static-only verification; Kotlin compile runs in CI.
 
+
+## v2.10.68 — Launcher dock pill: still at rest + focus-driven shine (2026-02-27)
+
+User attached a video showing the launcher's per-tile UPDATE pill pulsating frantically and asked for it to *"just be still and have a slight animation like a light shine over it when you get to that tile"*.
+
+### Fix
+`DockAdapter.bindUpdatePill` no longer starts an INFINITE+REVERSE `ValueAnimator` on every visible pill.  Pill stays motionless at `scale=1.0 / alpha=1.0 / elevation=8dp` at rest.  A new `triggerPillShine(pill)` helper is invoked from the tile's `OnFocusChangeListener` whenever the tile underneath gains focus — fires a single 620 ms scale 1.00 → 1.06 → 1.00 wink + brief elevation boost (8dp → 16dp → 8dp) with `AccelerateDecelerateInterpolator`, giving the badge a brief "twinkle" as the user lands on the tile, then returning to rest.  Animator stashed on `R.id.update_pill` tag so the next recycle / rapid D-pad sweep cancels any in-flight shine cleanly.
+
+`DockAdapter.kt` braces 50=50, parens 185=185 — static-verified; Kotlin compile runs in CI.
 
 ## v2.10.65 — APK version bump for launcher UPDATE-pill testing (2026-02-16)
 

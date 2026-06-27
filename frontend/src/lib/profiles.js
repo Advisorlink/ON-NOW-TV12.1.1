@@ -225,8 +225,33 @@ export function clearActiveProfile() {
 }
 
 export function isKidsActive() {
+    // v2.10.69 — Two paths to "kids is active":
+    //   • Standalone Kids APK (`window.__vesperBootProfileKids`
+    //     set by App.js's module-load IIFE before React mounts).
+    //     The Kids APK has NO profile system, NO Vesper login —
+    //     the boot flag is the source of truth.
+    //   • Legacy in-Vesper "Kids profile" (still used by the old
+    //     Vesper APK builds that share a device with a child).
+    //     Reads the active profile id.
+    if (isKidsApp()) return true;
     const p = getActiveProfile();
     return p?.id === 'kids';
+}
+
+/**
+ * v2.10.69 — True when the page was booted as the standalone Kids
+ * APK (or a `?profile=kids` deep-link in a browser).  The boot
+ * flag is set by `App.js`'s module-load IIFE BEFORE React mounts
+ * and BEFORE `DeepLinkHandler` strips `?profile=kids` from the URL,
+ * so it stays accurate for the lifetime of the page no matter how
+ * many times components re-render.
+ *
+ * Use this anywhere you need "is the user inside the Kids app"
+ * without dragging the profile system into it.
+ */
+export function isKidsApp() {
+    if (typeof window === 'undefined') return false;
+    return window.__vesperBootProfileKids === true;
 }
 
 /** True if this profile requires a PIN before it can be made active. */

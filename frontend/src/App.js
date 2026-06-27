@@ -39,7 +39,7 @@ import FeatureNudge from '@/components/FeatureNudge';
 import NotifyHitWatcher from '@/components/NotifyHitWatcher';
 import DeepLinkHandler from '@/components/DeepLinkHandler';
 import { ThemeProvider } from '@/themes/ThemeProvider';
-import { getActiveProfile, isKidsActive, getKidsConfig } from '@/lib/profiles';
+import { getActiveProfile, isKidsActive, getKidsConfig, isKidsApp } from '@/lib/profiles';
 import { AVATARS } from '@/lib/avatars';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import MobileBottomNav from '@/components/MobileBottomNav';
@@ -649,6 +649,11 @@ function VesperOnlyChrome() {
     // it feel like one half-broken app instead of two clean ones.
     const location = useLocation();
     if (location.pathname.startsWith('/music')) return null;
+    // v2.10.69 — Kids APK is a separate product too — no Vesper
+    // chrome at all (no toasts, no nudges, no reminders, no dev
+    // badge).  The user explicitly said "the Kids section is the
+    // Kids section… that's it".
+    if (isKidsApp()) return null;
     // v2.10.5 — Suppress all notifications + nudges while a Kids
     // profile is active.  Kids should never see "new episode of
     // The Boys is out" toasts, addon hit alerts, or growth-style
@@ -669,6 +674,70 @@ function VesperOnlyChrome() {
     );
 }
 
+/**
+ * v2.10.69 — Standalone Kids APK route tree.  Mounted whenever the
+ * page boots in Kids context (`window.__vesperBootProfileKids ===
+ * true`, set by the App.js module-load IIFE before React mounts).
+ *
+ * Contract per user spec:
+ *   • NO Vesper login screen.  NO shared credentials.  NO JWT.
+ *   • NO profile picker.  Kids is the only product on this APK.
+ *   • First launch (PIN not configured) → /kids/setup (PIN +
+ *     content rating wizard).
+ *   • Every subsequent launch → KidsHome at "/".
+ *   • Exit is gated by /kids/exit-pin — correct PIN calls the
+ *     native bridge to finish() back to the launcher.  Wrong PIN
+ *     just clears and re-prompts.
+ *   • Only the routes a child legitimately needs: Home, Search,
+ *     Detail, Player, Resolve, Settings, Setup, Exit-PIN.
+ *     Everything else (Sources, Library, /music, /fta, /live-tv,
+ *     /watch-together, /profiles, /v2ai-play, /networks, /person)
+ *     is hard-removed from the route table so a curious kid
+ *     can't type their way out.  Unknown paths → "/".
+ */
+function KidsAppRoutes() {
+    // v2.10.69 — Re-read the kids config on every render AND
+    // subscribe to its change event so the "first-run setup ⇒
+    // KidsHome" hand-off is reactive.  Without the subscription
+    // the `<Routes>` inside us re-renders on every navigation but
+    // our own function body doesn't, so `pinConfigured` stays
+    // false and `<Navigate to="/kids/setup">` loops back to setup
+    // forever even after the PIN is saved.
+    const [cfg, setCfg] = useState(() => getKidsConfig());
+    useEffect(() => {
+        const sync = () => setCfg(getKidsConfig());
+        window.addEventListener('vesper:kids-config-change', sync);
+        window.addEventListener('storage', sync);
+        return () => {
+            window.removeEventListener('vesper:kids-config-change', sync);
+            window.removeEventListener('storage', sync);
+        };
+    }, []);
+    const pinConfigured = !!(cfg.pin && cfg.pin.length === 4);
+    return (
+        <Routes>
+            <Route
+                path="/"
+                element={
+                    pinConfigured
+                        ? <KidsHome />
+                        : <Navigate to="/kids/setup" replace />
+                }
+            />
+            <Route path="/kids/setup"    element={<KidsSetup />} />
+            <Route path="/kids/settings" element={<KidsSettings />} />
+            <Route path="/kids/exit-pin" element={<KidsExitPin />} />
+            <Route path="/search"        element={<Search />} />
+            <Route path="/title/:type/:id" element={<Detail />} />
+            <Route path="/title/:id"     element={<Detail />} />
+            <Route path="/play"          element={<Player />} />
+            <Route path="/resolve/:type/:id" element={<Resolve />} />
+            {/* Catch-all: anything else bounces back to KidsHome */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+    );
+}
+
 function App() {
     return (
         <div className="App">
@@ -680,7 +749,10 @@ function App() {
                             <MobilePlatformRoot>
                                 <LoginGate>
                                     <VesperOnlyChrome />
-                                    <Routes>
+                                    {isKidsApp() ? (
+                                        <KidsAppRoutes />
+                                    ) : (
+                                        <Routes>
                                 <Route path="/profiles" element={<RequireProfile><ProfileSelect /></RequireProfile>} />
                                 <Route path="/profiles/new" element={<RequireProfile><ProfileEdit /></RequireProfile>} />
                                 <Route path="/profiles/edit/:id" element={<RequireProfile><ProfileEdit /></RequireProfile>} />
@@ -749,6 +821,7 @@ function App() {
                                     /music/karaoke and triggers playback. */}
                                 <Route path="/music/karaoke/play/:trackId" element={<KaraokeLegacyStage />} />
                             </Routes>
+                                    )}
                             {/* v2.8.64 — YouTube IFrame Player host
                                 lifted from MusicLayout to App level
                                 so it stays mounted for /music/karaoke/

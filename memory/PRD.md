@@ -1,5 +1,24 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.69 — Kids app fully decoupled from Vesper (27 Jun 2026).**
+>
+> User had to repeat the requirement THREE times before I implemented it correctly.  v2.10.67 / v2.10.68 only rebranded the login screen — the Kids APK was still funneled through Vesper's auth + profile picker.  This release rips that out.
+>
+>   • **`<LoginGate>`** — early-return for `isKidsApp()`.  Kids APK never sees the Vesper login screen, never calls `/api/auth/login`, never holds a JWT.
+>   • **`<App>`** — new `<KidsAppRoutes>` mounted instead of the Vesper `<Routes>` tree when `isKidsApp() === true`.  Contains ONLY: `/` (KidsHome / Setup gate), `/kids/setup`, `/kids/settings`, `/kids/exit-pin`, `/search`, `/title/*`, `/play`, `/resolve/*`, catch-all → `/`.  No `/profiles`, no `/library`, no `/settings`, no `/music`, no `/fta`, no `/live-tv` — physically removed from the route table.  KidsAppRoutes subscribes to `vesper:kids-config-change` so the "PIN just saved → KidsHome renders" hand-off is reactive (without this it loops back to Setup).
+>   • **`profiles.js`** — new `isKidsApp()` helper; broadened `isKidsActive()`; `listProfiles()` filters Kids tile out unless `isKidsApp()`.  Verified live: Vesper profile picker has ONLY `Add Profile`.
+>   • **`<VesperOnlyChrome>`** — returns `null` in Kids context (no toasts, no nudges, no reminders, no dev badge).  Kids app is dead-quiet, no Vesper UI bleed.
+>   • **`useKidsKioskGuard`** — long-standing bug fixed: `/` is now treated as a valid Kids path, so KidsHome no longer auto-bounces to the exit-PIN on entry.  Visibility-redirect lands on `/` (not the non-existent `/kids`) in the standalone Kids APK.
+>
+> Verified live:
+>   - `/?profile=kids` clean → `/kids/setup` (NO login, NO profile picker).
+>   - PIN 1234 → confirm → ratings → finish → lands on `/` showing `<KidsHome>` with `data-kids-theme="1"`.
+>   - Pre-seed PIN + reload `/?profile=kids` → goes STRAIGHT to KidsHome.
+>   - `/` (no kids context) → Vesper LoginScreen with `ON NOW TV · V2`; after sign-in → picker has ONLY `Add Profile`.
+>
+> **🟢 v2.10.68 — Launcher dock pill: still at rest + focus-driven shine.**
+> `DockAdapter.bindUpdatePill` no longer starts the INFINITE+REVERSE pulse `ValueAnimator`.  Pill stays motionless at rest.  New `triggerPillShine(pill)` plays a single 620 ms scale 1.00 → 1.06 → 1.00 + elevation 8dp → 16dp → 8dp wink whenever the tile underneath gains focus.
+
 > **🟢 v2.10.68 — Kids/Vesper hard separation + still pill with focus shine (27 Jun 2026).**
 >
 > User attached a video of the launcher pill pulsating too fast, plus an explicit ask to strip every trace of Kids from Vesper.  Four-part fix shipping together.

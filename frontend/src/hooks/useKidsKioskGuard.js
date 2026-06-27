@@ -19,12 +19,18 @@
 
 import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { getKidsConfig, isKidsActive } from '@/lib/profiles';
+import { getKidsConfig, isKidsActive, isKidsApp } from '@/lib/profiles';
 
 const KIDS_ROUTE_RE = /^\/kids(\/|$)/;
 const ALLOWED_AUX_ROUTES = ['/title', '/play', '/resolve', '/search'];
 
 function isKidsAllowedPath(pathname) {
+    // v2.10.69 — The Kids home page is at `/` in the standalone
+    // Kids APK (and also via HomeRouter in legacy in-Vesper kids
+    // mode), so root is always a legitimate Kids path.  Without
+    // this, the kiosk guard bounces the user straight from Kids
+    // Setup → Kids Home → /kids/exit-pin in a single tick.
+    if (pathname === '/') return true;
     if (KIDS_ROUTE_RE.test(pathname)) return true;
     // The Kids experience can navigate into title detail / player —
     // those are still inside the kid-safe sandbox.  Anything else
@@ -64,8 +70,12 @@ export default function useKidsKioskGuard() {
             if (document.visibilityState !== 'visible') return;
             if (!armed()) return;
             reArmLock();
-            if (!isKidsAllowedPath(window.location.hash.replace(/^#/, '') || '/')) {
-                navigate('/kids', { replace: true });
+            const curPath = window.location.hash.replace(/^#/, '') || window.location.pathname || '/';
+            if (!isKidsAllowedPath(curPath)) {
+                // v2.10.69 — In the standalone Kids APK the home is
+                // at `/`; the legacy `/kids` route doesn't exist
+                // there.  Just go home.
+                navigate(isKidsApp() ? '/' : '/kids', { replace: true });
             }
         };
         document.addEventListener('visibilitychange', onVisibility);
