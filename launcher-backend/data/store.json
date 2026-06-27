@@ -1,5 +1,5 @@
 {
-  "generation": 665,
+  "generation": 668,
   "dock_tiles": [
     {
       "key": "movies",
@@ -7,10 +7,10 @@
       "sub": "On demand",
       "image_url": "/assets/tile_images/tile-movies-aae330fb.png",
       "wallpaper_url": "/assets/wallpapers/tile-movies-08302cb0.png",
-      "apk_url": null,
-      "apk_filename": null,
-      "apk_package_id": null,
-      "apk_version": null,
+      "apk_url": "/assets/tile_apks/tile-movies-fa41ccba.apk",
+      "apk_filename": "wrong-apk.apk",
+      "apk_package_id": "tv.example.wrong",
+      "apk_version": "99.0.0",
       "target_package": "tv.onnowtv.app",
       "target_url": null,
       "accent": "#3dd8ff",

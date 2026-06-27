@@ -206,6 +206,16 @@ function renderUploadProgress(li, kind, file) {
             pctEl.textContent = '✓';
             detail.textContent = `✓ ${msg}`;
         },
+        warn(msg) {
+            // v2.10.62 — Yellow/amber state distinct from success
+            // (green) and error (red).  Used to flag the upload
+            // succeeded BUT something is suspicious — currently the
+            // package-mismatch guard.  Sticky so the operator
+            // actually reads it.
+            wrap.dataset.state = 'warn';
+            pctEl.textContent = '⚠';
+            detail.textContent = msg;
+        },
         error(msg) {
             wrap.dataset.state = 'error';
             pctEl.textContent = '✗';
@@ -1111,13 +1121,26 @@ function bindDockHandlers() {
                 }
                 row.success(`${friendly} uploaded${detail}`);
                 toast(`${friendly} uploaded for ${key}${detail}`);
-                // Hold the success state visible briefly BEFORE
-                // refreshAll() wipes the dock list and re-renders.
-                // The render itself doubles as confirmation, but
-                // letting the bar pin at 100% for a moment makes
-                // the success feel solid instead of disappearing
-                // mid-animation.
-                setTimeout(() => refreshAll(), 900);
+                // v2.10.62 — Loud warning when the uploaded APK's
+                // manifest package doesn't match the tile's target.
+                // This is the guard-rail against the "I uploaded
+                // Vesper to the FTA tile and clicked Install on the
+                // TV — it installed Vesper" disaster.  We surface
+                // it as a sticky red toast AND inline under the
+                // upload bar so the operator has to actively
+                // acknowledge before moving on.  When a warning
+                // fires we deliberately skip the auto-refresh so
+                // the operator actually reads the amber bar instead
+                // of having it wiped by the dock re-render.
+                const warning = (kind === 'apk' && result && result.package_mismatch_warning) || null;
+                if (warning) {
+                    toast(warning, true);
+                    row.warn(warning);
+                } else {
+                    // Hold the success state visible briefly BEFORE
+                    // refreshAll() wipes the dock list and re-renders.
+                    setTimeout(() => refreshAll(), 900);
+                }
             } catch (e) {
                 row.error(e.message || 'Upload failed');
                 toast('Upload failed: ' + e.message, true);

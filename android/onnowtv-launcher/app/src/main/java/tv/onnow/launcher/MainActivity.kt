@@ -566,13 +566,20 @@ class MainActivity : AppCompatActivity() {
      * show a pill.  Mirrors the same logic DockAdapter uses, so what
      * you see in the status string MUST match what's on screen.
      *
-     * Output:  "INST:apps,settings UPD:movies,music"
-     *          empty string when no pills.
+     * v2.10.62 — Updated to mirror the new downgrade-safe compare:
+     * tiles whose pinned version is OLDER or equal to installed are
+     * tagged `OK` (not a pill), so the operator can tell at a glance
+     * "ah, that's why no UPDATE pill — versions match / pinned is
+     * older".
+     *
+     * Output:  "INST:apps,settings UPD:movies(2.10.20→2.10.21)
+     *           OK:music(2.10.17=2.10.17) SKIP:fta(noVer)"
      */
     private fun buildPillStateSummary(): String {
         val installNames = mutableListOf<String>()
         val updateNames  = mutableListOf<String>()
-        val skips = mutableListOf<String>()
+        val okNames      = mutableListOf<String>()
+        val skips        = mutableListOf<String>()
         for (item in dockItems) {
             val apkUrl = item.apkUrl?.trim().orEmpty()
             val pkg    = item.apkPackageId?.trim().orEmpty()
@@ -590,20 +597,41 @@ class MainActivity : AppCompatActivity() {
             }
             val pinned = item.apkVersion?.trim().orEmpty()
             if (pinned.isEmpty()) {
-                // No version metadata to compare against — the pill
-                // can't fire.  Note this so the operator knows
-                // re-upload is needed to populate version_name.
                 skips.add("${item.key}(noVer)")
                 continue
             }
             val current = info.versionName?.trim().orEmpty()
-            if (current != pinned) updateNames.add("${item.key}(${current}→${pinned})")
+            val cmp = compareVersionsSimple(pinned, current)
+            when {
+                cmp > 0 -> updateNames.add("${item.key}(${current}→${pinned})")
+                cmp < 0 -> okNames.add("${item.key}(${current}>${pinned})")   // pinned older
+                else    -> okNames.add("${item.key}(${current}=${pinned})")    // equal
+            }
         }
         val parts = mutableListOf<String>()
         if (installNames.isNotEmpty()) parts.add("INST:${installNames.joinToString(",")}")
         if (updateNames.isNotEmpty())  parts.add("UPD:${updateNames.joinToString(",")}")
+        if (okNames.isNotEmpty())      parts.add("OK:${okNames.joinToString(",")}")
         if (skips.isNotEmpty())        parts.add("SKIP:${skips.joinToString(",")}")
         return parts.joinToString(" ")
+    }
+
+    /** v2.10.62 — Same lightweight semver compare used by
+     *  DockAdapter.compareVersions, duplicated here so MainActivity
+     *  doesn't need to expose the adapter's internals. */
+    private fun compareVersionsSimple(a: String, b: String): Int {
+        if (a.isBlank() && b.isBlank()) return 0
+        if (a.isBlank()) return -1
+        if (b.isBlank()) return  1
+        val pa = a.split(Regex("[^0-9]+")).filter { it.isNotEmpty() }
+        val pb = b.split(Regex("[^0-9]+")).filter { it.isNotEmpty() }
+        val n = maxOf(pa.size, pb.size)
+        for (i in 0 until n) {
+            val ai = pa.getOrNull(i)?.toIntOrNull() ?: 0
+            val bi = pb.getOrNull(i)?.toIntOrNull() ?: 0
+            if (ai != bi) return ai.compareTo(bi)
+        }
+        return 0
     }
 
     /* ──────────────────────────  Wallpaper  ───────────────────────── */
@@ -784,14 +812,19 @@ class MainActivity : AppCompatActivity() {
                 // "Update Available" pill above the tile the moment the
                 // operator pins a new APK in the admin UI.
                 //
-                // v2.10.61 — Fall back to `target_package` when the
-                // operator didn't (or couldn't) provide an explicit
-                // `apk_package_id` — older backend uploads predate the
-                // auto-extractor.  As long as one of the two yields a
-                // valid package name we can do the version compare.
+                // v2.10.62 — DO NOT fall back to `target_package` for
+                // the install check.  Mixing the two caused a horrible
+                // bug: a tile whose APK upload was the wrong package
+                // (e.g. accidentally uploading Vesper to the Free-To-Air
+                // tile) would render an Install pill keyed off
+                // `target_package` and then install the wrong APK from
+                // `apk_url` when the user clicked.  We now strictly
+                // use the manifest-extracted `apk_package_id` so the
+                // tile only ever offers an install for the package
+                // that's actually inside the pinned APK file — never
+                // for an unrelated `target_package` declaration.
                 apkUrl         = t.apkUrl?.let { rebaseTileApkUrl(it) },
-                apkPackageId   = (t.apkPackageId?.takeIf { it.isNotBlank() }
-                                  ?: t.targetPackage?.takeIf { it.isNotBlank() }),
+                apkPackageId   = t.apkPackageId?.takeIf { it.isNotBlank() },
                 apkVersion     = t.apkVersion,
             )
         }

@@ -369,6 +369,27 @@ header nav { display: flex; gap: 8px; align-items: center; }
 .upload-progress[data-state="error"] .up-detail {
     color: #F87171;
 }
+
+/* v2.10.62 — Warn state: amber, used for the package-mismatch
+   guard.  Sits between success (green) and error (red) — the upload
+   succeeded but the operator should re-check what they pinned. */
+.upload-progress[data-state="warn"] {
+    border-color: rgba(245, 158, 11, 0.55);
+    background: rgba(245, 158, 11, 0.10);
+}
+.upload-progress[data-state="warn"] .up-fill {
+    background: linear-gradient(90deg, #F59E0B, #D97706);
+    box-shadow: 0 0 14px rgba(245, 158, 11, 0.55);
+    animation: none;
+}
+.upload-progress[data-state="warn"] .up-pct,
+.upload-progress[data-state="warn"] .up-detail {
+    color: #FBBF24;
+}
+.upload-progress[data-state="warn"] .up-detail {
+    white-space: normal;
+    line-height: 1.4;
+}
 .apk-preview.empty-state {
     color: var(--txt-tertiary);
     font-size: 13px;

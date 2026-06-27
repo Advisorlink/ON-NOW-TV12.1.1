@@ -2340,6 +2340,27 @@ async def upload_tile_apk(
     elif extracted_ver:
         tile["apk_version"] = extracted_ver
 
+    # v2.10.62 — Sanity-check: if the manifest's package name differs
+    # from the tile's existing `target_package` (which the operator
+    # set up explicitly when configuring the tile), surface a warning
+    # in the response so the admin UI can show a confirmation toast
+    # before the operator silently pins the wrong APK to a tile.
+    # Example: uploading Vesper TV (`tv.onnowtv.app`) to a tile whose
+    # `target_package` is `tv.onnowtv.fta.recycler` would otherwise
+    # quietly install Vesper when the user clicks the launcher's
+    # INSTALL pill.  That's the exact bug v2.10.62 closes.
+    mismatch_warning = None
+    target_pkg = (tile.get("target_package") or "").strip()
+    final_apk_pkg = (tile.get("apk_package_id") or "").strip()
+    if target_pkg and final_apk_pkg and target_pkg != final_apk_pkg:
+        mismatch_warning = (
+            f"⚠ APK contains package '{final_apk_pkg}' but this tile's "
+            f"target_package is '{target_pkg}'. The launcher will install "
+            f"'{final_apk_pkg}' (not '{target_pkg}') when the user clicks "
+            f"the tile's INSTALL pill. Re-upload the correct APK if this "
+            f"isn't what you intended."
+        )
+
     _save_store(store)
     return {
         "ok": True,
@@ -2353,6 +2374,8 @@ async def upload_tile_apk(
             "package_id": extracted_pkg,
             "version_name": extracted_ver,
         },
+        # v2.10.62 — Wrong-APK guard rail.  See block above.
+        "package_mismatch_warning": mismatch_warning,
         "generation": store["generation"],
     }
 

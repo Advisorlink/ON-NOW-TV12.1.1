@@ -153,13 +153,16 @@ class DockAdapter(
      * Re-evaluate the install state for this tile against the live
      * PackageManager and paint / hide the pill accordingly.
      *
-     * State machine:
+     * State machine (v2.10.62 — downgrade-safe):
      *   • apkUrl null/blank      → NO pill (no APK pinned)
      *   • apkPackageId null      → NO pill (can't compare versions)
      *   • package not installed  → "↻ INSTALL" pill
-     *   • installed version ≠
-     *     pinned version         → "↻ UPDATE · vX.Y.Z" pill
-     *   • installed == pinned    → NO pill (already up to date)
+     *   • pinned version > installed (semver) → "↻ UPDATE · vX" pill
+     *   • pinned version <= installed         → NO pill
+     *     (Android refuses downgrades — showing a pill that fails
+     *     silently is worse than no pill at all.  If the operator
+     *     genuinely wants to ship an older build, they should bump
+     *     versionCode on the package or uninstall first.)
      */
     private fun bindUpdatePill(holder: VH, item: DockItem) {
         val pill = holder.binding.updatePill
@@ -230,7 +233,49 @@ class DockAdapter(
             return InstallState.NONE
         }
         val current = installed.versionName?.trim().orEmpty()
-        return if (current == pinned) InstallState.NONE else InstallState.UPDATE
+        // v2.10.62 — Strictly NEWER than installed = UPDATE.  Equal
+        // or older = NO pill, because Android refuses downgrades
+        // (the install would fail silently and the pill would stay
+        // forever, which is exactly the bug the user hit).
+        return if (compareVersions(pinned, current) > 0) {
+            InstallState.UPDATE
+        } else {
+            InstallState.NONE
+        }
+    }
+
+    /**
+     * v2.10.62 — Lightweight semantic-version comparator for
+     * Android `versionName` strings.  Splits on `.` and any
+     * non-numeric separator (`-rc.1`, `+build7`), compares each
+     * numeric segment as an integer, falls back to lexical compare
+     * for non-numeric segments.
+     *
+     * Returns:
+     *   > 0  if a is newer than b
+     *   == 0 if equal (or both unparseable / blank)
+     *   < 0  if a is older than b
+     *
+     * Examples:
+     *   "2.10.17" vs "2.10.20"  → -1   (a is older)
+     *   "2.10.20" vs "2.10.17"  →  1   (a is newer)
+     *   "2.10.17" vs "2.10.17"  →  0
+     *   "2.10"    vs "2.10.0"   →  0
+     *   "2.10.17-rc1" vs "2.10.17" → 0 (numeric parts equal)
+     */
+    private fun compareVersions(a: String, b: String): Int {
+        if (a.isBlank() && b.isBlank()) return 0
+        if (a.isBlank()) return -1
+        if (b.isBlank()) return  1
+        val pa = a.split(Regex("[^0-9]+")).filter { it.isNotEmpty() }
+        val pb = b.split(Regex("[^0-9]+")).filter { it.isNotEmpty() }
+        val n = maxOf(pa.size, pb.size)
+        for (i in 0 until n) {
+            val ai = pa.getOrNull(i)?.toIntOrNull() ?: 0
+            val bi = pb.getOrNull(i)?.toIntOrNull() ?: 0
+            if (ai != bi) return ai.compareTo(bi)
+        }
+        return 0
     }
 
     /** Pill background — small cyan → blue → indigo gradient,

@@ -1,5 +1,22 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.62 — Downgrade-safe pill + wrong-APK guard rail (16 Jun 2026).**
+>
+> User hit two showstoppers after sideloading v2.10.61:
+>   1. **Free-to-Air tile → click INSTALL → installs Vesper** (not the FTA app).  Caused by my v2.10.61 `target_package` fallback: the FTA tile had `target_package=tv.onnowtv.fta.recycler` but its `apk_url` was pinned to a Vesper APK.  My fallback used `target_package` to gate the pill, then the user clicked Install and the download fired against the wrong-pinned `apk_url`.  Wrong call.
+>   2. **Music UPDATE pill won't clear after install.**  Music pinned at `v2.10.17`; user's installed Tunes at a higher version.  Naive `current != pinned` returned `UPDATE`.  User clicked → Android refused the downgrade → install failed silently → pill stayed forever.
+>   3. User was understandably worried Music/Kids were "secretly Vesper".  Verified they are NOT — Music = `tv.onnowtv.tunes`, Kids = `tv.onnowtv.kids`, completely standalone packages.
+>
+> Three fixes shipping:
+>
+>   • **REVERT the `target_package` fallback.**  `DockItem.apkPackageId` now comes strictly from `apk_package_id` (which is the manifest-extracted package of whatever APK is pinned).  If that's empty, no pill.  Period.  Stops the wrong-APK install dead.
+>
+>   • **Semver-aware compare** in `DockAdapter.computeInstallState` + `MainActivity.buildPillStateSummary`.  New `compareVersions(a, b)` splits on non-numeric, integer-compares each segment.  Pill ONLY shows when `pinned > installed`; equal or older → NONE.  Music pill disappears the moment installed ≥ pinned, even if the strings differ.
+>
+>   • **Backend wrong-APK guard rail** in `POST /api/admin/dock/{key}/apk`.  If the uploaded APK's manifest package differs from the tile's `target_package`, the response carries `package_mismatch_warning`.  The admin UI renders an amber inline bar AND a sticky red toast under the upload row; auto-refresh is suppressed when warned so the operator MUST acknowledge before the dock re-paints.
+>
+> Live-validated against production config: movies/music/kids/free-to-air all behave correctly under the new logic.  Free-to-Air re-uploaded by user is now pinned to `tv.onnowtv.fta.recycler v0.1.15` — the actual FTA package, no longer Vesper.  Smoke-tested the amber warning UI in Playwright: state transitions to `warn`, banner copies the mismatch detail, screenshot confirmed.
+>
 > **🟢 v2.10.61 — Pill hotfix + visible diagnostic (16 Jun 2026).**
 >
 > User reported: uploaded an APK to a dock tile in admin, the upload progress UI worked, but the pill never appeared on the TV.  Root-cause analysis:
