@@ -311,19 +311,27 @@ function Field({ icon: Icon, label, testid, trailing, children }) {
 }
 
 function Header() {
-    // v2.10.67 — Host-aware branding.  The same React bundle is
+    // v2.10.68 — Host-aware branding.  The same React bundle is
     // served to every APK shell (Vesper / Kids / Tunes / FTA) and to
     // plain browsers, so the login header has to figure out which
-    // product it's branding for at runtime.  Detection order:
-    //   1.  URL `?profile=kids` query (Kids APK always boots with
-    //       this; works for v2.10.17-era APKs that predate the
-    //       getHostPackage native bridge)
-    //   2.  `window.__vesperHostPackage === 'tv.onnowtv.kids'` (set
-    //       by App.js's module-load probe when the bridge is
-    //       available)
-    // Anything else → keep the Vesper branding.
+    // product it's branding for at runtime.
+    //
+    // Detection order (first match wins):
+    //   1.  Module-load boot flag set by App.js BEFORE
+    //       DeepLinkHandler can strip `?profile=kids` from the URL.
+    //       This is the canonical truth for the lifetime of the
+    //       page and survives every React re-render.
+    //   2.  Live URL `?profile=kids` query (defensive — covers
+    //       the case where this component renders before App.js's
+    //       module-load IIFE somehow).
+    //   3.  Native host bridge says package = `tv.onnowtv.kids`.
+    //
+    // Anything else → keep the ON NOW · V2 branding (no "Vesper"
+    // wording anywhere — the user explicitly asked for that
+    // separation per v2.10.68).
     const isKidsContext = (() => {
         if (typeof window === 'undefined') return false;
+        if (window.__vesperBootProfileKids === true) return true;
         try {
             const sp = new URLSearchParams(window.location.search);
             if (sp.get('profile') === 'kids') return true;
@@ -331,7 +339,7 @@ function Header() {
         if (window.__vesperHostPackage === 'tv.onnowtv.kids') return true;
         return false;
     })();
-    const eyebrow = isKidsContext ? 'ON NOW · KIDS' : 'Vesper · v2';
+    const eyebrow = isKidsContext ? 'ON NOW · KIDS' : 'ON NOW TV · V2';
     const heading = isKidsContext ? 'Welcome, little one' : 'Welcome back';
     const sub = isKidsContext
         ? 'Sign in to start watching shows just for you.'

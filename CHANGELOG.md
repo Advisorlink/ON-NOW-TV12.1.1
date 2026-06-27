@@ -1,5 +1,32 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.68 — Kids/Vesper hard separation + still pill with focus shine (2026-02-27)
+
+User attached a video showing the launcher's per-tile UPDATE pill pulsating frantically and asked for it to "just be still and have a slight animation like a light shine over it when you get to that tile".  Also: "I dont want the kids to have anything to do with Vespa at all… take out ALL of the kids stuff from Vespa including the profile selection bit … the kids app shouldn't have Vesper login attached, it's ITS OWN APP NOT VESPA, so fix it all."
+
+Four-part fix shipping in lockstep.
+
+### 1. Launcher pill: no constant pulse, focus-driven shine
+`DockAdapter.bindUpdatePill` no longer starts an INFINITE+REVERSE ValueAnimator on every visible pill.  Pill stays motionless at scale=1.0 / alpha=1.0 / elevation=8dp at rest.  A new `triggerPillShine(pill)` helper is invoked from the tile's `OnFocusChangeListener` whenever the tile underneath gains focus — fires a single 620 ms scale 1.00 → 1.06 → 1.00 wink + brief elevation boost (8dp → 16dp → 8dp) with `AccelerateDecelerateInterpolator`, gives the badge a brief "twinkle" as the user lands on the tile, then returns to rest.  Animator stashed on `R.id.update_pill` tag so the next recycle/focus cancels any in-flight shine cleanly.
+
+### 2. Login screen branding is now host-aware AND survives URL-strip
+Root cause: `DeepLinkHandler.useEffect` strips `?profile=kids` via `history.replaceState` immediately on mount.  Any subsequent re-render of `LoginScreen.Header` read `window.location.search === ''` and fell back to the Vesper branding — exactly the bug the user has been hitting for two iterations.
+
+Fix: `App.js` captures the kids context at MODULE-LOAD time (before any React mount) into a new `window.__vesperBootProfileKids` flag.  `LoginScreen.Header` consults this flag FIRST (URL/host kept as defensive fallbacks).  Plus the Vesper fallback eyebrow flipped from `Vesper · v2` to `ON NOW TV · V2` — no "Vesper" wording remains on the login screen in any context.
+
+### 3. Kids profile removed from Vesper's profile picker
+`profiles.js` no longer unconditionally appends the synthetic Kids profile to `listProfiles()`.  The Kids tile is auto-included ONLY when `window.__vesperBootProfileKids === true`.  In Vesper / Tunes / FTA / browser contexts the Kids entry is also actively filtered OUT, so any stale localStorage from older builds can't leak a Kids tile back into the adult picker.  Cascading effect: `getActiveProfile()` now returns `null` for `active='kids'` outside Kids context → `isKidsActive()` → `false` → all `<RequireProfile>` kids-sandbox branches stay dormant.
+
+### 4. HomeRouter guard simplified
+`HomeRouter` now keys its kids-allow check on `window.__vesperBootProfileKids` rather than re-reading the (already-stripped) URL.  Same effect, fewer moving parts.
+
+Verified live:
+- `/` (Vesper) → eyebrow `ON NOW TV · V2`, heading `Welcome back`, profile picker after login has only "Add Profile" (no Kids tile).
+- `/?profile=kids` (Kids) → eyebrow `ON NOW · KIDS`, heading `Welcome, little one`, profile picker after login has the Kids tile.
+- `window.__vesperBootProfileKids` correctly reports `true`/`false` in each context.
+- Lint clean on `App.js`, `profiles.js`, `LoginScreen.jsx`.  `DockAdapter.kt` braces 50=50, parens 185=185 — static-only verification; Kotlin compile runs in CI.
+
+
 ## v2.10.65 — APK version bump for launcher UPDATE-pill testing (2026-02-16)
 
 User request: bump every APK to a known-newer versionName so the launcher's per-tile UPDATE pill can be verified end-to-end (pinned > installed → pill fires → install in-place upgrade → pill auto-hides).

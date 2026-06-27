@@ -181,6 +181,17 @@ if (typeof window !== 'undefined') {
         const isVesperHost = hostPackage === 'tv.onnowtv.app';
         const isKidsHost   = hostPackage === 'tv.onnowtv.kids';
 
+        // v2.10.68 — Persist the Kids boot context as a module-load
+        // flag.  `DeepLinkHandler` strips `?profile=kids` from the
+        // URL via `history.replaceState` immediately on mount, so
+        // any component that later re-renders and reads
+        // `window.location.search` will see an EMPTY string and
+        // mis-detect the host.  Stash the truth here once, before
+        // React mounts, and let LoginScreen / profile helpers
+        // consult this flag for the lifetime of the page.
+        window.__vesperBootProfileKids =
+            profileParam === 'kids' || isKidsHost;
+
         // v2.10.63 — Sweep ALL keys matching the active-profile
         // prefix (`onnowtv-active-profile-v1`, plus the per-account
         // suffixed variants like `:JOHN`) so the boot-time clear
@@ -432,30 +443,16 @@ function RequireProfile({ children }) {
 }
 
 function HomeRouter() {
-    // v2.10.67 — DENY-BY-DEFAULT kids guard that works on ALL APK
-    // versions, not just the new ones with the host-package bridge.
-    //
-    // Rule: render KidsHome ONLY in an EXPLICIT kids context:
-    //   • Current URL contains `?profile=kids` (the Kids APK boots
-    //     with this baked into the URL), OR
-    //   • The native host bridge confirms package = `tv.onnowtv.kids`.
-    //
-    // Any other context (Vesper TV, Tunes, FTA, plain browser, or
-    // an old Vesper APK without the bridge) gets bounced to the
-    // profile picker even if stale localStorage says active=kids.
-    // This is the bug user kept hitting: their v2.10.17-era Vesper
-    // APK has no host bridge so v2.10.63's host-detection silently
-    // disabled itself, leaving the stale `=kids` value in place.
+    // v2.10.68 — DENY-BY-DEFAULT kids guard.  Kids UI renders only
+    // when the module-load boot flag confirms we booted in Kids
+    // context (`?profile=kids` deep-link or Kids APK host package).
+    // The boot flag is captured BEFORE DeepLinkHandler strips the
+    // query string, so it remains accurate for the lifetime of the
+    // page.  Any other context (Vesper TV, Tunes, FTA, plain
+    // browser) gets bounced to the profile picker even if stale
+    // localStorage still says active=kids.
     if (isKidsActive() && typeof window !== 'undefined') {
-        let explicit = false;
-        try {
-            const sp = new URLSearchParams(window.location.search);
-            if (sp.get('profile') === 'kids') explicit = true;
-        } catch { /* parse failure: treat as not-explicit */ }
-        if (!explicit && window.__vesperHostPackage === 'tv.onnowtv.kids') {
-            explicit = true;
-        }
-        if (!explicit) {
+        if (window.__vesperBootProfileKids !== true) {
             try {
                 for (let i = localStorage.length - 1; i >= 0; i--) {
                     const k = localStorage.key(i);

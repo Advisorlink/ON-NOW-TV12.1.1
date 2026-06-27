@@ -101,8 +101,21 @@ export function listProfiles() {
      * array rather than crashing on `.some()`.  We never want
      * a bad localStorage blob to brick the entire app. */
     const all = Array.isArray(raw) ? raw : [];
-    const hasKids = all.some((p) => p && p.id === 'kids');
-    return hasKids ? all : [...all, KIDS_PROFILE];
+    // v2.10.68 — Kids profile is auto-appended ONLY in the Kids
+    // app context (standalone Kids APK or `?profile=kids`
+    // deep-link).  Vesper / Tunes / FTA / browser must never see
+    // the Kids tile in their profile picker — the user requested
+    // hard separation.  We also strip any Kids profile that
+    // managed to get persisted in earlier builds so a stale
+    // localStorage value can never leak it into the Vesper UI.
+    const isKidsCtx = (
+        typeof window !== 'undefined' &&
+        window.__vesperBootProfileKids === true
+    );
+    const filtered = isKidsCtx ? all : all.filter((p) => p && p.id !== 'kids');
+    if (!isKidsCtx) return filtered;
+    const hasKids = filtered.some((p) => p && p.id === 'kids');
+    return hasKids ? filtered : [...filtered, KIDS_PROFILE];
 }
 
 export function saveProfile(partial) {

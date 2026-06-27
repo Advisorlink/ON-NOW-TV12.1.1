@@ -137,6 +137,10 @@ class DockAdapter(
             if (hasFocus) {
                 tileRoot.foreground = halo
                 target.animate().scaleX(1.04f).scaleY(1.04f).setDuration(140).start()
+                // v2.10.68 — Fire a ONE-SHOT "light shine" on the
+                // update pill whenever this tile gains focus.  No
+                // animation at rest — pill stays perfectly still.
+                triggerPillShine(holder.binding.updatePill)
             } else {
                 tileRoot.foreground = null
                 target.animate().scaleX(1.0f).scaleY(1.0f).setDuration(140).start()
@@ -210,33 +214,66 @@ class DockAdapter(
             tileRoot.nextFocusUpId = nextFocusUpResId
         }
 
-        // v2.10.66 — Subtle continuous pulse so the badge reads as a
-        // HOVERING attention-grabber rather than a label glued to
-        // the tile.  Uses a single ValueAnimator with INFINITE +
-        // REVERSE so we never stack chained .withEndAction
-        // callbacks on view recycle.
+        // v2.10.68 — Pill is now PERFECTLY STILL at rest.  The user
+        // complained the old infinite pulse pulsated way too fast
+        // and felt frantic.  New UX: pill stays static; a one-shot
+        // "light shine" only plays when the tile underneath gains
+        // focus (see triggerPillShine, called from the tile's focus
+        // listener above).
         // First cancel any old animator stashed on the view (the
         // adapter recycles holders, so the same pill TextView may
         // have a previous tile's animator still running).
         (pill.getTag(R.id.update_pill) as? android.animation.Animator)?.cancel()
-        pill.alpha = 1f
+        pill.setTag(R.id.update_pill, null)
+        pill.alpha  = 1f
         pill.scaleX = 1f
         pill.scaleY = 1f
-        val pulse = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 820L
-            repeatCount = android.animation.ValueAnimator.INFINITE
-            repeatMode = android.animation.ValueAnimator.REVERSE
+    }
+
+    /**
+     * v2.10.68 — One-shot "light shine" on the update pill when the
+     * tile underneath gains focus.  Quick scale 1.00 → 1.06 → 1.00
+     * over 620 ms with a soft alpha boost, giving the badge a brief
+     * twinkle as the user lands on the tile.  No infinite repeat —
+     * the pill stays motionless at rest.
+     *
+     * Stashed animator on the view's tag so any in-flight shine is
+     * cancelled cleanly when the adapter recycles the holder (or
+     * the user rapidly D-pads across tiles).
+     */
+    private fun triggerPillShine(pill: View) {
+        if (pill.visibility != View.VISIBLE) return
+        (pill.getTag(R.id.update_pill) as? android.animation.Animator)?.cancel()
+        pill.alpha  = 1f
+        pill.scaleX = 1f
+        pill.scaleY = 1f
+        val shine = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 620L
             interpolator = android.view.animation.AccelerateDecelerateInterpolator()
             addUpdateListener { a ->
                 val t = a.animatedValue as Float
-                val s = 1.0f + 0.04f * t        // 1.00 → 1.04
-                pill.scaleX = s
-                pill.scaleY = s
-                pill.alpha  = 1.0f - 0.22f * t  // 1.00 → 0.78
+                // Smooth in-and-out: 0 → 1 → 0 over the run so the
+                // pill returns to its resting visual at the end.
+                val pulse = if (t < 0.5f) (t * 2f) else (1f - (t - 0.5f) * 2f)
+                pill.scaleX = 1.0f + 0.06f * pulse
+                pill.scaleY = 1.0f + 0.06f * pulse
+                // Cap alpha at 1.0 — we tweak elevation instead for
+                // the "brighter" look mid-animation.
+                pill.alpha     = 1.0f
+                pill.elevation = (8f + 8f * pulse) * pill.resources.displayMetrics.density
             }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    pill.scaleX = 1f
+                    pill.scaleY = 1f
+                    pill.alpha  = 1f
+                    pill.elevation = 8f * pill.resources.displayMetrics.density
+                    pill.setTag(R.id.update_pill, null)
+                }
+            })
         }
-        pill.setTag(R.id.update_pill, pulse)
-        pulse.start()
+        pill.setTag(R.id.update_pill, shine)
+        shine.start()
     }
 
     /** State of the per-tile APK pin vs PackageManager. */

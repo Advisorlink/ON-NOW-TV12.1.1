@@ -1,5 +1,26 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.68 — Kids/Vesper hard separation + still pill with focus shine (27 Jun 2026).**
+>
+> User attached a video of the launcher pill pulsating too fast, plus an explicit ask to strip every trace of Kids from Vesper.  Four-part fix shipping together.
+>
+>   • **`DockAdapter.bindUpdatePill`** — removed the INFINITE+REVERSE pulse `ValueAnimator`.  Pill now stays motionless (scale 1.0 / alpha 1.0 / elevation 8dp) at rest.  New `triggerPillShine(pill)` helper invoked from the tile's `OnFocusChangeListener` plays a single 620 ms wink (scale 1.00 → 1.06 → 1.00 + elevation 8dp → 16dp → 8dp, `AccelerateDecelerateInterpolator`) whenever the tile underneath gains focus.  Animator stashed on `R.id.update_pill` tag so recycling / rapid D-pad sweeps cancel cleanly.
+>
+>   • **`App.js` module-load IIFE** — captures kids-context truth into `window.__vesperBootProfileKids` BEFORE React mounts, so the value survives `DeepLinkHandler`'s `history.replaceState` strip of `?profile=kids`.  This was the actual bug that kept defeating the previous two iterations of the Kids branding fix.
+>
+>   • **`LoginScreen.jsx`** — `Header` now consults `window.__vesperBootProfileKids` first (URL/host kept as defensive fallbacks).  Vesper fallback eyebrow changed from `Vesper · v2` to `ON NOW TV · V2` — no "Vesper" wording anywhere on the login screen, in any context.
+>
+>   • **`profiles.js`** — `listProfiles()` no longer unconditionally auto-appends `KIDS_PROFILE`.  In Kids context the tile is appended (or kept) as before; in every other context (Vesper / Tunes / FTA / browser) the Kids entry is actively filtered out, so stale localStorage from old builds can't leak the Kids tile back into Vesper's picker.
+>
+>   • **`HomeRouter`** simplified to key its kids-allow check on `window.__vesperBootProfileKids` (same source of truth as everything else).
+>
+> Verified live:
+>   - `/` (Vesper) → eyebrow `ON NOW TV · V2`, heading `Welcome back`, profile picker has ONLY `Add Profile` (no Kids tile).
+>   - `/?profile=kids` (Kids) → eyebrow `ON NOW · KIDS`, heading `Welcome, little one`, profile picker has the Kids tile.
+>   - `window.__vesperBootProfileKids` reports `true`/`false` correctly in each context.
+>   - Lint clean on `App.js`, `profiles.js`, `LoginScreen.jsx`.  `DockAdapter.kt` braces 50=50, parens 185=185 — static-only; Kotlin compile runs in CI when user clicks Save to GitHub.
+>
+
 > **🟢 v2.10.66 — Tile-click installs/updates + non-focusable pill badge (16 Jun 2026).**
 >
 > User reported the pill UX feels wrong: it visually reads as part of the tile so clicking the tile just launches the app instead of installing.  D-pad UP did focus the pill, but the user had to think about that.  New ask: tile click should DO the install when there's one pending, and the pill should be a pure visual badge (not a focus target).
