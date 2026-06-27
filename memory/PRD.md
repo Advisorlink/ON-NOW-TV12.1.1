@@ -1,5 +1,28 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.63 — Vesper/Kids isolation: profile state + auth lockout (16 Jun 2026).**
+>
+> User reported a horrible cross-contamination: open Kids app → exit → open Vesper Movies → Vesper renders KidsHome.  Plus: failed Kids login locks out Vesper login.  Root-causes traced:
+>
+>   1. **Profile leak via account-suffixed localStorage.**  `App.js`'s boot-time clear cleared the BASE key `onnowtv-active-profile-v1` but `getActiveProfileId()` reads the per-account suffixed key (`onnowtv-active-profile-v1:JOHN` when signed in).  The clear missed it, so any user who'd ever entered Kids mode via the pre-v2.9.2 launcher integration was stuck booting into KidsHome forever inside Vesper.
+>   2. **Auth lockout cross-app bleed.**  Backend's `auth_router.py` keyed `login_attempts` by `IP:username`.  Vesper + Kids running on the same box share IP + username, so 5 failed Kids logins blocked the same user in Vesper.
+>
+> Three fixes shipping:
+>
+>   • **`OnNowTV.getHostPackage()`** — new `@JavascriptInterface` on both `vesper-tv` and `onnowtv-kids` WebAppInterfaces returning the package name.  Lets React tell which APK shell it's running in.  Cached at module-load on `window.__vesperHostPackage`.
+>
+>   • **Boot-time profile sweep + Vesper hard-guard** in `App.js`:
+>     - On every cold boot without a `?profile=` deep-link, iterate `localStorage` and remove every key starting with `onnowtv-active-profile-v1` (base + all suffixes).  No more lingering `:JOHN=kids`.
+>     - When `window.__vesperHostPackage === 'tv.onnowtv.app'`, sweep all `*=kids` profile values BEFORE React renders.  Belt-and-braces.
+>     - `HomeRouter` rejects Kids mode at render time when host is Vesper — clears any stale kids keys and bounces to `/profiles`.  Triple defence so Vesper can never render KidsHome again.
+>
+>   • **Per-app lockout scoping** in `auth_router.py` + `frontend/lib/auth.js`:
+>     - `LoginRequest` gains optional `client_id: str`.  Frontend pulls it from `OnNowTV.getHostPackage()`.
+>     - Lockout identifier is now `IP:username:client_id` (or `IP:username` when caller didn't send one, preserving browser/legacy-APK behaviour).
+>     - Smoke-tested live: 5x failed login from `client_id=tv.onnowtv.kids` returns 429 on the 6th kids attempt, but the same user from `client_id=tv.onnowtv.app` still gets a clean 401 (independent lockout slot).
+>
+> Verified: Python lint clean, JS lint clean on `App.js` + `auth.js`, Kotlin braces balanced on both WebAppInterfaces (151=151), live frontend screenshots show clean boot.  Live login lockout test confirmed isolation between client_ids.
+>
 > **🟢 v2.10.62 — Downgrade-safe pill + wrong-APK guard rail (16 Jun 2026).**
 >
 > User hit two showstoppers after sideloading v2.10.61:

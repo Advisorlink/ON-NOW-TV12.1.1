@@ -161,6 +161,60 @@ if (typeof window !== 'undefined') {
         const LAST_NON_KIDS_KEY = 'onnowtv-last-non-kids-profile';
         const KIDS_CFG_KEY = 'onnowtv-kids-config-v1';
 
+        // v2.10.63 — Detect the host APK so we can refuse to render
+        // Kids UI inside Vesper.  Kids has been a STANDALONE APK
+        // (tv.onnowtv.kids) since v2.9.2 — Vesper is the Movies/TV
+        // app and must never enter Kids mode, no matter what stale
+        // localStorage value lingers from the pre-v2.9.2 era when
+        // Kids was a profile inside Vesper.  Stashed on window so
+        // HomeRouter (and anything else that reads it) doesn't have
+        // to repeat the OnNowTV.getHostPackage probe.
+        const hostPackage = (() => {
+            try {
+                if (typeof window.OnNowTV?.getHostPackage === 'function') {
+                    return String(window.OnNowTV.getHostPackage() || '');
+                }
+            } catch { /* not in a native shell */ }
+            return '';
+        })();
+        window.__vesperHostPackage = hostPackage;
+        const isVesperHost = hostPackage === 'tv.onnowtv.app';
+        const isKidsHost   = hostPackage === 'tv.onnowtv.kids';
+
+        // v2.10.63 — Sweep ALL keys matching the active-profile
+        // prefix (`onnowtv-active-profile-v1`, plus the per-account
+        // suffixed variants like `:JOHN`) so the boot-time clear
+        // actually clears them all.  The previous version cleared
+        // only the base key, but `getActiveProfileId()` reads the
+        // PER-ACCOUNT suffixed key when the user is signed in —
+        // which meant the clear missed it and Vesper would keep
+        // landing on Kids UI forever for logged-in operators.
+        const findAllActiveKeys = () => {
+            const out = [];
+            try {
+                for (let i = 0; i < localStorage.length; i++) {
+                    const k = localStorage.key(i);
+                    if (k && k.indexOf(ACTIVE_KEY) === 0) out.push(k);
+                }
+            } catch { /* storage disabled */ }
+            return out;
+        };
+
+        // v2.10.63 — Vesper hard-guard.  If we're running inside the
+        // Vesper APK, NUKE every profile key whose value is 'kids'
+        // before any React component reads it.  This is belt-and-
+        // -braces alongside the runtime guard in HomeRouter.
+        if (isVesperHost) {
+            try {
+                for (const k of findAllActiveKeys()) {
+                    if (localStorage.getItem(k) === 'kids') {
+                        localStorage.removeItem(k);
+                    }
+                }
+            } catch { /* ignore */ }
+        }
+
+
         // v2.8.23 — V2 AI deep-link.  The Launcher's V2 AI voice
         // assistant opens Vesper with `?v2ai=<title>&type=movie|series&autoplay=1`.
         // Rewrite this to the SPA route `/v2ai-play?title=...&type=...`
@@ -254,8 +308,17 @@ if (typeof window !== 'undefined') {
             // (the user is invoking the assistant FROM the launcher,
             // not switching profiles), so honour the in-flight
             // skip-flag set up by the v2ai handler above.
-            if (cur && !window.__vesperSkipProfileClear) {
-                localStorage.removeItem(ACTIVE_KEY);
+            //
+            // v2.10.63 — Sweep ALL profile keys (base + per-account
+            // suffixed) instead of just the base.  Account-scoped
+            // suffixed keys were surviving the clear and causing
+            // Vesper to land on Kids UI forever for signed-in users.
+            if (!window.__vesperSkipProfileClear) {
+                try {
+                    for (const k of findAllActiveKeys()) {
+                        localStorage.removeItem(k);
+                    }
+                } catch { /* ignore */ }
             }
         }
     } catch { /* ignore — malformed URL / disabled storage */ }
@@ -358,6 +421,28 @@ function RequireProfile({ children }) {
 }
 
 function HomeRouter() {
+    // v2.10.63 — Hard guard: Vesper TV must NEVER render Kids UI.
+    // Kids has been a standalone APK (`tv.onnowtv.kids`) since
+    // v2.9.2, but stale `onnowtv-active-profile-v1:*=kids` in
+    // signed-in users' localStorage was causing Vesper to keep
+    // booting into KidsHome.  If somehow we end up here in Kids
+    // mode while running inside Vesper, sweep every active-profile
+    // key, then bounce to the profile picker so the user can pick
+    // an adult profile.
+    if (isKidsActive() &&
+        typeof window !== 'undefined' &&
+        window.__vesperHostPackage === 'tv.onnowtv.app') {
+        try {
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+                const k = localStorage.key(i);
+                if (k && k.indexOf('onnowtv-active-profile-v1') === 0 &&
+                    localStorage.getItem(k) === 'kids') {
+                    localStorage.removeItem(k);
+                }
+            }
+        } catch { /* ignore */ }
+        return <Navigate to="/profiles" replace />;
+    }
     return isKidsActive() ? <KidsHome /> : <Home />;
 }
 

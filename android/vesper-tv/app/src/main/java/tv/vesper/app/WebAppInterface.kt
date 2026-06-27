@@ -45,6 +45,35 @@ class WebAppInterface(private val activity: Activity) {
         return out.toString()
     }
 
+    /**
+     * v2.10.63 — Host-package identity for the React app.
+     *
+     * Returned values:
+     *   "tv.onnowtv.app"    Vesper TV (Movies / TV)
+     *   "tv.onnowtv.kids"   Kids
+     *   "tv.onnowtv.tunes"  Tunes
+     *   "tv.onnowtv.fta"    FTA
+     *
+     * Lets the React frontend tell which APK shell it's running
+     * inside.  Critical for two flows:
+     *
+     *   1. HARD GUARD against Vesper ever rendering KidsHome.  Vesper
+     *      used to host a "Kids profile" inside the same React app
+     *      (pre-v2.9.2).  Kids is now a standalone APK and Vesper
+     *      must never enter Kids mode, no matter what stale
+     *      localStorage value lingers from the old integration.
+     *
+     *   2. Per-app login lockout scoping.  The backend keys
+     *      brute-force lockouts by `IP:username` today, which means
+     *      a failed login in Kids blocks the same user in Vesper
+     *      (same IP, same username).  Once the React app sends
+     *      `app_id=<host_package>` with /auth/login, the backend
+     *      can key lockouts by `IP:username:app_id` so the two
+     *      apps don't punish each other.
+     */
+    @JavascriptInterface
+    fun getHostPackage(): String = activity.packageName
+
     @JavascriptInterface
     fun playVideo(url: String, title: String?, mime: String?) {
         // Legacy bridge — kept for backwards compat with v1.1.x APKs.

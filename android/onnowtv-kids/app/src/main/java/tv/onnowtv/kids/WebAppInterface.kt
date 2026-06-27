@@ -45,6 +45,12 @@ class WebAppInterface(private val activity: Activity) {
         return out.toString()
     }
 
+    /** v2.10.63 — see Vesper WebAppInterface.kt for full docstring.
+     *  Returns "tv.onnowtv.kids" so the React app knows it's running
+     *  inside the Kids APK shell. */
+    @JavascriptInterface
+    fun getHostPackage(): String = activity.packageName
+
     @JavascriptInterface
     fun playVideo(url: String, title: String?, mime: String?) {
         // Legacy bridge — kept for backwards compat with v1.1.x APKs.

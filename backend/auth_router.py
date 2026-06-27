@@ -129,6 +129,13 @@ async def _record_attempt(
 class LoginRequest(BaseModel):
     username: str = Field(min_length=1, max_length=128)
     password: str = Field(min_length=1, max_length=256)
+    # v2.10.63 — Optional per-app client identifier so the
+    # brute-force lockout doesn't bleed across our four APK
+    # shells (Vesper / Kids / Tunes / FTA).  Frontend passes
+    # `window.OnNowTV.getHostPackage()` here.  When omitted
+    # (web browser, older APK) we keep the legacy keying so
+    # behaviour stays identical.
+    client_id: Optional[str] = Field(default=None, max_length=64)
 
 
 class AccountCreate(BaseModel):
@@ -267,7 +274,14 @@ def build_auth_router(db_provider) -> APIRouter:
             raise HTTPException(400, "Username required")
 
         ip = (request.client.host if request.client else "?") or "?"
-        identifier = f"{ip}:{username.lower()}"
+        # v2.10.63 — Scope the brute-force counter by client_id when
+        # the caller supplies one so a Kids-app lockout doesn't
+        # cascade into a Vesper-app lockout for the same IP+username.
+        client_id = (req.client_id or "").strip().lower()
+        identifier = (
+            f"{ip}:{username.lower()}:{client_id}" if client_id
+            else f"{ip}:{username.lower()}"
+        )
 
         if await _is_locked_out(db, identifier):
             raise HTTPException(

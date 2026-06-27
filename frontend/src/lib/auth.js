@@ -88,10 +88,27 @@ function _formatApiError(detail) {
 }
 
 export async function apiLogin(username, password) {
+    // v2.10.63 — Scope brute-force lockouts per-APK.  Without
+    // client_id, the backend keys lockouts by IP+username, which
+    // means a failed login in the Kids APK blocks the same user
+    // from logging into Vesper (same box → same IP → same name).
+    // window.OnNowTV.getHostPackage() returns the package name of
+    // whichever APK shell hosts this WebView; empty in a plain
+    // browser context (treated as "default" by the backend).
+    let clientId = '';
+    try {
+        if (typeof window !== 'undefined' &&
+            typeof window.OnNowTV?.getHostPackage === 'function') {
+            clientId = String(window.OnNowTV.getHostPackage() || '');
+        }
+    } catch { /* not in a native shell */ }
+    const body = clientId
+        ? { username, password, client_id: clientId }
+        : { username, password };
     const res = await fetch(`${API}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
