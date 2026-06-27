@@ -1,5 +1,51 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.70 — Kids Detail playback fix + Kids splash branding + pill nudge (2026-02-27)
+
+User feedback after v2.10.69:
+> *"When you click on a movie or a TV show to watch it in the Kids section, it ends up going back to that Exit App thing.  Also, we need to remove the Similar and also the Actors away from the Kids section.  Also, I wanted to say On Now Kids when it starts, not On Now TV2.  And also have a logo, a different logo — maybe K2 for the logo.  And just move that Update button, just up just a little tiny bit more."*
+
+Five-part fix shipping together.
+
+### 1. Kids Detail playback no longer bounces to exit-PIN
+Root cause: `useKidsBackGuard` was pushing a sentinel history entry on EVERY kids-allowed path (KidsHome, Detail, Player, Resolve, Search) and intercepting every `popstate` event by routing to `/kids/exit-pin`.  So as soon as the Player closed itself (or the user pressed remote Back to leave the title detail), `navigate(-1)` fired `history.back()` → popstate → guard slammed them to the PIN gate.
+
+Fix: only push the sentinel and intercept popstate on the TOPMOST kids paths (`/`, `/kids`, and the exit-PIN itself).  Any deeper page (Detail, Player, Resolve, Search) now lets normal Back pop the stack — KidsHome → Detail → Player → Detail → KidsHome works the way users expect.  The native HOME-button kiosk lock is still enforced separately by `useKidsKioskGuard`.
+
+Verified live: poster click → `/title/movie/<imdb>` (Detail renders) → browser Back → `/` (KidsHome renders, NOT exit-PIN).
+
+### 2. Cast / Similar / Filmography removed from Kids Detail
+The `<CastRow>` on the Detail page hosts three view modes — Cast, Filmography (the actor's other titles, which can include adult work), and Similar (TMDB recommendations, not guaranteed kid-safe).  Any of these is a tap-away escape from the kid-safe zone.
+
+Fix: wrap the entire cast-lane render block in `!isKidsActive()` so it never mounts in Kids context.  Verified live: `document.querySelector('[data-testid="detail-cast-lane"]')` is null on the Kids Detail page.
+
+### 3. Boot splash branding — "ON NOW K2" + warm backdrop
+`BootSplash` is now host-aware via `isKidsApp()`:
+- **Kids APK**: wordmark `ON NOW K2` (sunshine-yellow accent `#FFD24A`), tagline `Welcome to ON NOW Kids`, grape/berry radial backdrop (`#3c1f5e → #0c0717 → #050309`), matching yellow sweep underline + shadow.
+- **Vesper / other**: unchanged `ON NOW V2` cyan splash.
+
+The "K2" mark + sunshine yellow gives Kids its own visual identity (no Vesper blue bleed) while keeping the V2/K2 symmetry the user asked for.
+
+### 4. KidsHome footer
+`ON NOW TV · KIDS` → `ON NOW · KIDS`.  Drops the "TV" filler so the standalone Kids product reads as its own brand.
+
+### 5. Launcher dock pill — nudged up
+`item_dock.xml`: pill `translationY=-30dp` → `-42dp`.  Sits noticeably higher above the tile artwork now per *"just up just a little tiny bit more"*.  Animation behaviour unchanged (still still at rest, one-shot focus shine from v2.10.68).
+
+### Files touched
+- `frontend/src/hooks/useKidsBackGuard.js` — topmost-only sentinel gate.
+- `frontend/src/pages/Detail.jsx` — `!isKidsActive()` guard on cast lane.
+- `frontend/src/components/BootSplash.jsx` — host-aware branding.
+- `frontend/src/pages/KidsHome.jsx` — footer string trim.
+- `android/onnowtv-launcher/.../res/layout/item_dock.xml` — pill translationY.
+
+### Verified live
+- Kids splash: wordmark `ON NOW K2`, tagline `WELCOME TO ON NOW KIDS`.
+- Vesper splash: unchanged `ON NOW V2`.
+- Poster click → Detail renders WITHOUT cast lane.  Back → KidsHome (not exit-PIN).
+- Lint clean.  XML / Kotlin compiles in CI.
+
+
 ## v2.10.69 — Kids app fully decoupled from Vesper (2026-02-27)
 
 User feedback was explicit: *"The Kids section should not have a Vesper login.  They should not share the same login.  They should not have anything.  The Kids section should not have a profile selection screen.  The Kids section is the Kids section. The Kids app is the Kids app. That is it.  Once you click on the Kids app, it opens up the [setup] that you choose a PIN for the kids, you choose what rating, and then it opens up the Kids section.  And then if you try to get out of it … you need the PIN to get out of it."*

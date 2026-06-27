@@ -50,6 +50,29 @@ export default function useKidsBackGuard() {
         // the user straight back into Vesper if HOME is pressed.
         try { window.OnNowTV?.setKidsLock?.(true); } catch { /* ignore */ }
 
+        // v2.10.70 — Only TRAP the user with a sentinel on the
+        // topmost kids pages (KidsHome at "/" and the exit-PIN
+        // itself).  Any deeper page (Detail, Player, Resolve,
+        // Search) must allow normal Back so the user can pop
+        // KidsHome → Detail → Player → Detail → KidsHome.  Without
+        // this, the back-guard intercepted EVERY popstate and
+        // bounced the user to /kids/exit-pin the moment they tried
+        // to back out of the player — exactly the bug the user
+        // reported as "clicking on a movie ends up going back to
+        // that Exit App thing".
+        const isTopmostKidsPath =
+            location.pathname === '/' ||
+            location.pathname === '/kids' ||
+            location.pathname.startsWith('/kids/exit-pin');
+        if (!isTopmostKidsPath) {
+            // Normal back navigation is allowed inside the
+            // sandbox.  We still keep the locked window flag set
+            // so the native HOME handler routes to the PIN gate.
+            return () => {
+                /* nothing to clean up at this depth */
+            };
+        }
+
         // Push a sentinel so the very next Back has somewhere to
         // land that we control.
         try {

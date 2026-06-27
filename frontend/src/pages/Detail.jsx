@@ -2688,8 +2688,16 @@ export default function Detail() {
                  Horizontal scrolling strip of actor cards.  Hero
                  stays anchored at the top, cast row stays anchored
                  at the bottom.  Page itself never scrolls.  Solid
-                 backdrop ensures the hero never bleeds through. */}
-            {tmdbInfo?.tmdb_id && !seriesEpisodesShown && (
+                 backdrop ensures the hero never bleeds through.
+
+                 v2.10.70 — Suppressed entirely in Kids context.
+                 The Cast row's internal view modes include
+                 'filmography' (actor's other titles, may be adult)
+                 and 'similar' (TMDB recommendations, not always
+                 kid-safe), so it's a tap-away escape hatch from
+                 the kid-safe zone.  Per user spec the Kids Detail
+                 page MUST NOT show actors or similar titles. */}
+            {tmdbInfo?.tmdb_id && !seriesEpisodesShown && !isKidsActive() && (
                 <div
                     data-testid="detail-cast-lane"
                     style={{

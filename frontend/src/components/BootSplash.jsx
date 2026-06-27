@@ -1,7 +1,15 @@
 /**
- * <BootSplash/> — full-screen "ON NOW V2" welcome splash.
+ * <BootSplash/> — full-screen welcome splash.
  *
- * v2.8.88 — Redesigned per user request:
+ * v2.10.70 — Host-aware branding.  Standalone Kids APK shows
+ *   "ON NOW K2" wordmark with a warm sunshine-yellow accent mark
+ *   and the tagline "Welcome to ON NOW Kids".  Every other context
+ *   (Vesper / Tunes / FTA / browser) keeps the cyan "ON NOW V2"
+ *   wordmark.  Per user spec: *"On Now Kids when it starts, not
+ *   On Now TV2.  And also have a logo, a different logo.  Maybe
+ *   K2 for the logo."*
+ *
+ * v2.8.88 — Original "ON NOW V2" splash design:
  *   • Big "ON NOW" + accent "V2" wordmark with subtle glow.
  *   • "Welcome to ON NOW V2" tagline beneath.
  *   • Cinematic radial backdrop, no centered indeterminate spinner
@@ -12,8 +20,25 @@
  *     at 2200ms hard so a broken signal never costs real time.
  */
 import React, { useEffect, useState } from 'react';
+import { isKidsApp } from '@/lib/profiles';
 
 export default function BootSplash({ minDurationMs = 1800, hardCapMs = 2200 }) {
+    const kids = isKidsApp();
+    const accentMark = kids ? 'K2' : 'V2';
+    const tagline    = kids ? 'Welcome to ON\u00A0NOW\u00A0Kids' : 'Welcome to ON\u00A0NOW\u00A0V2';
+    // Sunshine-yellow accent for Kids, the existing cyan for V2.
+    const accentColor       = kids ? '#FFD24A' : 'var(--vesper-blue-bright, #5DC8FF)';
+    const accentGlow24      = kids ? 'rgba(255,210,74,0.55)' : 'rgba(93,200,255,0.55)';
+    const accentGlow60      = kids ? 'rgba(255,210,74,0.25)' : 'rgba(93,200,255,0.25)';
+    const wordmarkShadow    = kids ? '0 8px 60px rgba(255,210,74,0.28)' : '0 8px 60px rgba(93,200,255,0.28)';
+    const sweepColor        = kids ? 'rgba(255,210,74,0.85)' : 'rgba(93,200,255,0.85)';
+    const sweepShadow       = kids ? '0 0 12px rgba(255,210,74,0.45)' : '0 0 12px rgba(93,200,255,0.45)';
+    // Warmer backdrop for Kids so the splash matches the rest of
+    // the kid-safe theme (grape/berry rather than blue navy).
+    const backdrop = kids
+        ? 'radial-gradient(ellipse at 50% 35%, #3c1f5e 0%, #0c0717 65%, #050309 100%)'
+        : 'radial-gradient(ellipse at 50% 35%, #0e2548 0%, #050912 65%, #02030A 100%)';
+
     const [open, setOpen] = useState(true);
     const [leaving, setLeaving] = useState(false);
 
@@ -35,8 +60,7 @@ export default function BootSplash({ minDurationMs = 1800, hardCapMs = 2200 }) {
             className="fixed inset-0 flex flex-col items-center justify-center"
             style={{
                 zIndex: 95,
-                background:
-                    'radial-gradient(ellipse at 50% 35%, #0e2548 0%, #050912 65%, #02030A 100%)',
+                background: backdrop,
                 color: '#fff',
                 gap: 18,
                 opacity: leaving ? 0 : 1,
@@ -67,7 +91,7 @@ export default function BootSplash({ minDurationMs = 1800, hardCapMs = 2200 }) {
                     display: 'flex',
                     alignItems: 'baseline',
                     gap: 'clamp(12px, 1vw, 22px)',
-                    textShadow: '0 8px 60px rgba(93,200,255,0.28)',
+                    textShadow: wordmarkShadow,
                     animation:
                         'vesper-splash-rise 700ms cubic-bezier(.16,1,.3,1) both',
                 }}
@@ -75,12 +99,12 @@ export default function BootSplash({ minDurationMs = 1800, hardCapMs = 2200 }) {
                 <span>ON&nbsp;NOW</span>
                 <span
                     style={{
-                        color: 'var(--vesper-blue-bright, #5DC8FF)',
+                        color: accentColor,
                         textShadow:
-                            '0 0 24px rgba(93,200,255,0.55), 0 0 60px rgba(93,200,255,0.25)',
+                            `0 0 24px ${accentGlow24}, 0 0 60px ${accentGlow60}`,
                     }}
                 >
-                    V2
+                    {accentMark}
                 </span>
             </div>
 
@@ -92,11 +116,11 @@ export default function BootSplash({ minDurationMs = 1800, hardCapMs = 2200 }) {
                     width: 'clamp(180px, 18vw, 320px)',
                     height: 2,
                     background:
-                        'linear-gradient(90deg, transparent 0%, rgba(93,200,255,0.85) 50%, transparent 100%)',
+                        `linear-gradient(90deg, transparent 0%, ${sweepColor} 50%, transparent 100%)`,
                     backgroundSize: '200% 100%',
                     animation: 'vesper-splash-sweep 1.6s ease-in-out infinite',
                     borderRadius: 999,
-                    boxShadow: '0 0 12px rgba(93,200,255,0.45)',
+                    boxShadow: sweepShadow,
                 }}
             />
 
@@ -112,7 +136,7 @@ export default function BootSplash({ minDurationMs = 1800, hardCapMs = 2200 }) {
                         'vesper-splash-fade 900ms 250ms ease-out both',
                 }}
             >
-                Welcome to ON&nbsp;NOW&nbsp;V2
+                {tagline}
             </div>
 
             <style>{`

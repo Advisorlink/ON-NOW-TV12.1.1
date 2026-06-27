@@ -254,7 +254,7 @@ export default function KidsHome() {
                                 textTransform: 'uppercase',
                             }}
                         >
-                            ON NOW TV · KIDS
+                            ON NOW · KIDS
                         </div>
                         <div
                             className="vesper-mono"

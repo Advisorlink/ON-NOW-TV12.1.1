@@ -1,5 +1,14 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.70 — Kids Detail playback fix + K2 splash + pill nudge (27 Jun 2026).**
+>
+>   • **Playback bug fixed.** `useKidsBackGuard` only pushes the sentinel + intercepts popstate on TOPMOST kids paths (`/`, `/kids`, `/kids/exit-pin`).  Detail / Player / Resolve / Search now allow normal Back, so the user can KidsHome → Detail → Player → Detail → KidsHome without bouncing to the PIN gate.
+>   • **Cast / Similar / Filmography removed** from Kids Detail.  `<CastRow>` wrapped in `!isKidsActive()` — verified live, `[data-testid="detail-cast-lane"]` is null on Kids Detail.
+>   • **Boot splash branding host-aware.**  Kids APK shows `ON NOW K2` in sunshine yellow (`#FFD24A`) on a grape/berry backdrop with `Welcome to ON NOW Kids` tagline.  Vesper unchanged.
+>   • **KidsHome footer** trimmed from `ON NOW TV · KIDS` → `ON NOW · KIDS`.
+>   • **Launcher dock pill** `translationY` `-30dp` → `-42dp` (a little higher above the tile, per user).
+>
+
 > **🟢 v2.10.69 — Kids app fully decoupled from Vesper (27 Jun 2026).**
 >
 > User had to repeat the requirement THREE times before I implemented it correctly.  v2.10.67 / v2.10.68 only rebranded the login screen — the Kids APK was still funneled through Vesper's auth + profile picker.  This release rips that out.

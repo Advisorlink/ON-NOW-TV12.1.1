@@ -101,20 +101,22 @@
     </LinearLayout>
 
     <!-- ────────── Floating UPDATE pill ────────── -->
+    <!-- v2.10.70 — Bumped translationY from -30dp to -42dp so the
+         pill sits noticeably HIGHER above the tile.  User report:
+         *"just move that Update button, just up just a little tiny
+         bit more"*.  Still anchored top|center_horizontal so it
+         stays visually centered over the tile artwork. -->
     <!-- v2.10.66 — Pure VISUAL BADGE.  The pill is no longer
          focusable; the tile click itself triggers the install/
-         update when there's one pending.  Sitting clearly ABOVE
-         the tile (translationY=-30dp instead of the previous
-         -12dp) so it never reads as part of the tile.  Picked
-         up by DockAdapter.bindUpdatePill — visibility GONE by
-         default so layout collapses cleanly when no update
-         pending. -->
+         update when there's one pending.  Picked up by
+         DockAdapter.bindUpdatePill — visibility GONE by default
+         so layout collapses cleanly when no update pending. -->
     <TextView
         android:id="@+id/update_pill"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|center_horizontal"
-        android:translationY="-30dp"
+        android:translationY="-42dp"
         android:visibility="gone"
         android:paddingHorizontal="22dp"
         android:paddingVertical="8dp"
