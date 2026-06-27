@@ -101,28 +101,34 @@
     </LinearLayout>
 
     <!-- ────────── Floating UPDATE pill ────────── -->
-    <!-- Pinned to top-center of the outer FrameLayout, translated
-         UPWARD via negative translationY in DockAdapter so it
-         actually floats ABOVE the tile.  GONE by default. -->
+    <!-- v2.10.66 — Pure VISUAL BADGE.  The pill is no longer
+         focusable; the tile click itself triggers the install/
+         update when there's one pending.  Sitting clearly ABOVE
+         the tile (translationY=-30dp instead of the previous
+         -12dp) so it never reads as part of the tile.  Picked
+         up by DockAdapter.bindUpdatePill — visibility GONE by
+         default so layout collapses cleanly when no update
+         pending. -->
     <TextView
         android:id="@+id/update_pill"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|center_horizontal"
-        android:translationY="-12dp"
+        android:translationY="-30dp"
         android:visibility="gone"
-        android:paddingHorizontal="20dp"
+        android:paddingHorizontal="22dp"
         android:paddingVertical="8dp"
         android:textSize="13sp"
         android:textColor="#FFFFFFFF"
         android:textStyle="bold"
         android:letterSpacing="0.14"
-        android:elevation="6dp"
-        android:focusable="true"
+        android:elevation="8dp"
+        android:focusable="false"
         android:focusableInTouchMode="false"
-        android:clickable="true"
-        android:contentDescription="Update available for this app"
-        tools:text="↻ UPDATE · v2.10.55"
+        android:clickable="false"
+        android:duplicateParentState="false"
+        android:contentDescription="Update available — press this tile to install"
+        tools:text="↻ UPDATE · v2.10.65"
         tools:visibility="visible" />
 
 </FrameLayout>

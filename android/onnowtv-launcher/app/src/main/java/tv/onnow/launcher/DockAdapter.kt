@@ -170,9 +170,14 @@ class DockAdapter(
         val state = computeInstallState(holder.itemView.context, item)
 
         if (state == InstallState.NONE) {
+            // v2.10.66 — Stop any pulse animator left over from a
+            // recycled holder before hiding, otherwise the animator
+            // keeps running silently on a GONE view.
+            (pill.getTag(R.id.update_pill) as? android.animation.Animator)?.cancel()
+            pill.setTag(R.id.update_pill, null)
             pill.visibility = View.GONE
             pill.setOnClickListener(null)
-            // When no pill, UP from tile climbs to the top bar.
+            // No pill → UP from tile climbs to the top bar.
             if (nextFocusUpResId != 0) {
                 tileRoot.nextFocusUpId = nextFocusUpResId
             }
@@ -191,23 +196,47 @@ class DockAdapter(
         pill.background = buildPillBackground()
         pill.visibility = View.VISIBLE
 
-        // Focus wiring: pressing UP on the tile now climbs to the
-        // pill (which sits visually above), and the pill's UP keeps
-        // climbing to the top-bar.
-        pill.id = pill.id  // keep its own xml id
-        tileRoot.nextFocusUpId = pill.id
+        // v2.10.66 — Pill is a PURE VISUAL BADGE now.  No focus, no
+        // click target.  Tile-click handles install (see
+        // MainActivity.onTileSelected).  Defensive cleanups in case
+        // a recycled holder still had focus wiring set:
+        pill.isFocusable           = false
+        pill.isFocusableInTouchMode = false
+        pill.isClickable           = false
+        pill.setOnClickListener(null)
+        pill.setOnFocusChangeListener(null)
+        // Keep UP from tile going to the top bar, NOT the pill.
         if (nextFocusUpResId != 0) {
-            pill.nextFocusUpId = nextFocusUpResId
-        }
-        pill.nextFocusDownId = tileRoot.id
-
-        // Soft focus glow on the pill itself.
-        pill.setOnFocusChangeListener { v, hasFocus ->
-            val scale = if (hasFocus) 1.08f else 1.0f
-            v.animate().scaleX(scale).scaleY(scale).setDuration(140).start()
+            tileRoot.nextFocusUpId = nextFocusUpResId
         }
 
-        pill.setOnClickListener { onInstallRequest?.invoke(item) }
+        // v2.10.66 — Subtle continuous pulse so the badge reads as a
+        // HOVERING attention-grabber rather than a label glued to
+        // the tile.  Uses a single ValueAnimator with INFINITE +
+        // REVERSE so we never stack chained .withEndAction
+        // callbacks on view recycle.
+        // First cancel any old animator stashed on the view (the
+        // adapter recycles holders, so the same pill TextView may
+        // have a previous tile's animator still running).
+        (pill.getTag(R.id.update_pill) as? android.animation.Animator)?.cancel()
+        pill.alpha = 1f
+        pill.scaleX = 1f
+        pill.scaleY = 1f
+        val pulse = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 820L
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            repeatMode = android.animation.ValueAnimator.REVERSE
+            interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+            addUpdateListener { a ->
+                val t = a.animatedValue as Float
+                val s = 1.0f + 0.04f * t        // 1.00 → 1.04
+                pill.scaleX = s
+                pill.scaleY = s
+                pill.alpha  = 1.0f - 0.22f * t  // 1.00 → 0.78
+            }
+        }
+        pill.setTag(R.id.update_pill, pulse)
+        pulse.start()
     }
 
     /** State of the per-tile APK pin vs PackageManager. */

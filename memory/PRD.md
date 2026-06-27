@@ -1,5 +1,21 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.66 — Tile-click installs/updates + non-focusable pill badge (16 Jun 2026).**
+>
+> User reported the pill UX feels wrong: it visually reads as part of the tile so clicking the tile just launches the app instead of installing.  D-pad UP did focus the pill, but the user had to think about that.  New ask: tile click should DO the install when there's one pending, and the pill should be a pure visual badge (not a focus target).
+>
+> Plus: the user wants auto-uninstall for signature-conflict cases ("if it's not conflicting with the current app that's there. It does the automatic uninstall and re-install").
+>
+> Three changes shipping:
+>
+>   • **Tile click is now the install action.**  `MainActivity.onTileSelected` checks `computeTileInstallState(item)` first; if it returns INSTALL or UPDATE the tile click invokes `onTileInstallRequested(item)` and returns.  Only when nothing is pending does it fall through to the launch / URL / built-in-shortcut chain.  Logic mirrors `DockAdapter.computeInstallState` exactly so what you see as a pill is what tile-click responds to.
+>
+>   • **Pill is a pure visual badge.**  `item_dock.xml` flips the pill to `focusable=false clickable=false`, bumps `translationY` from `-12dp` to `-30dp`, lifts elevation to `8dp`.  `DockAdapter.bindUpdatePill` removes focus wiring and adds a continuous `ValueAnimator` pulse (1.00↔1.04 scale, 1.00↔0.78 alpha, 820ms each direction, REVERSE/INFINITE) so the badge reads as a hovering attention-grabber rather than a label glued to the tile.  Animator is keyed off `R.id.update_pill` tag so recycled holders cancel cleanly without stacking.
+>
+>   • **Auto-uninstall on signature conflict** in `ApkInstaller.downloadAndInstall`.  After download we read the APK's signature via `getPackageArchiveInfo(GET_SIGNATURES)`, compare to the installed package's signature, and if they differ we fire `ACTION_UNINSTALL_PACKAGE` first with a clear toast: "Old version of '${pkg}' is signed differently. Uninstall it, then tap the tile again to install the new build."  The user accepts the uninstall, returns to the launcher (onResume runs), the pill re-evaluates to INSTALL state, and the next tile-click downloads + installs cleanly with no leftover Android error dialogs.
+>
+> Verified: braces balanced across MainActivity (309=309), DockAdapter (47=47), ApkInstaller (36=36).  Layout XML parses.  `compareVersionsSimple` already lives on MainActivity from v2.10.61 so `computeTileInstallState` has it in scope.  Static-only — Android compile happens in CI.
+>
 > **🟢 v2.10.65 — APK version bump for launcher UPDATE-pill testing (16 Jun 2026).**
 >
 > User asked to bump every APK to a newer versionName so the per-tile UPDATE pill can be verified end-to-end (pinned > installed → pill fires → install in-place upgrade → pill auto-hides).

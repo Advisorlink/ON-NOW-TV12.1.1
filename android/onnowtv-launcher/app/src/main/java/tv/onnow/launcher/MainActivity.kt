@@ -403,6 +403,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onTileSelected(item: DockItem) {
+        // v2.10.66 — Tile-click takes priority for install/update.
+        // The previous flow required the user to D-pad UP to focus
+        // the floating pill — but visually the pill sits close to
+        // the tile and the user reported clicking the tile just
+        // launched the (potentially out-of-date) app instead of
+        // upgrading.  Now if the tile has a PENDING install OR
+        // update against the launcher's APK pin, the tile click
+        // fires the install flow first; only when there's nothing
+        // to install do we fall through to the launch logic below.
+        val pendingState = computeTileInstallState(item)
+        if (pendingState != TileInstallState.NONE) {
+            onTileInstallRequested(item)
+            return
+        }
+
         // 1. If the tile points at a target package + the package is
         //    installed, launch it directly.  v2.9.2 — Kids is now
         //    a STANDALONE APK (`tv.onnowtv.kids`).  The "kids" tile
@@ -444,6 +459,12 @@ class MainActivity : AppCompatActivity() {
         //     installed at any version we ALWAYS launch (step 1),
         //     because the UPDATE pill above the tile is the right
         //     place to opt-in to a version bump, not the tile itself.
+        //
+        //     v2.10.66 — Now handled at the top of this method via
+        //     computeTileInstallState; this block is dead code kept
+        //     for the rare race where pendingState was NONE but the
+        //     package is missing after the check (e.g. user just
+        //     uninstalled).  Defensive fallback.
         if (!item.apkUrl.isNullOrBlank() &&
             !item.apkPackageId.isNullOrBlank() &&
             !isPackageInstalled(item.apkPackageId)
@@ -472,6 +493,31 @@ class MainActivity : AppCompatActivity() {
             "Set a target in the Launcher admin for \"${item.label}\".",
             Toast.LENGTH_SHORT,
         ).show()
+    }
+
+    /** v2.10.66 — Mirror of DockAdapter.computeInstallState used to
+     *  decide whether a tile-click should install/update instead of
+     *  launching.  Kept identical to the adapter's semver-aware
+     *  logic so what the operator sees as a pill is exactly what
+     *  the tile-click responds to. */
+    private enum class TileInstallState { NONE, INSTALL, UPDATE }
+    private fun computeTileInstallState(item: DockItem): TileInstallState {
+        val apkUrl = item.apkUrl?.trim().orEmpty()
+        val pkg    = item.apkPackageId?.trim().orEmpty()
+        if (apkUrl.isEmpty() || pkg.isEmpty()) return TileInstallState.NONE
+        val info = try {
+            packageManager.getPackageInfo(pkg, 0)
+        } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
+            null
+        } catch (_: Throwable) {
+            null
+        }
+        if (info == null) return TileInstallState.INSTALL
+        val pinned = item.apkVersion?.trim().orEmpty()
+        if (pinned.isEmpty()) return TileInstallState.NONE
+        val current = info.versionName?.trim().orEmpty()
+        return if (compareVersionsSimple(pinned, current) > 0)
+            TileInstallState.UPDATE else TileInstallState.NONE
     }
 
     /* ─────────────  Per-tile APK update — v2.10.59  ────────────── */

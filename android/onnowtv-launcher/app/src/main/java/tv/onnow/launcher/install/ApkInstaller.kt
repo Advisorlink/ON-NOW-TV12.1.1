@@ -76,6 +76,28 @@ object ApkInstaller {
                     }
                 }
             }
+            // v2.10.66 — Proactive signature-conflict guard.  Android
+            // refuses to install an APK over a package with a
+            // different signing certificate ("App not installed —
+            // package conflicts" — opaque, dead-end for the user).
+            // Before firing the install prompt we read the APK's
+            // signature, compare to the currently-installed
+            // package's signature, and if they differ we kick off an
+            // uninstall flow first so the user can re-install
+            // cleanly afterward.
+            val conflict = detectSignatureConflict(ctx, out)
+            if (conflict != null) {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    android.widget.Toast.makeText(
+                        ctx,
+                        "Old version of '${conflict}' is signed differently. " +
+                                "Uninstall it, then tap the tile again to install the new build.",
+                        android.widget.Toast.LENGTH_LONG,
+                    ).show()
+                }
+                launchUninstallPrompt(ctx, conflict)
+                return@withContext null   // not an error, just deferred
+            }
             launchInstallPrompt(ctx, out)
             null
         } catch (e: IOException) {
@@ -84,6 +106,61 @@ object ApkInstaller {
         } catch (t: Throwable) {
             Log.e(TAG, "install failed", t)
             "Install failed: ${t.message}"
+        }
+    }
+
+    /**
+     * v2.10.66 — Returns the package name of the installed app that
+     * has a DIFFERENT signing certificate than the freshly-downloaded
+     * APK, or `null` if there's no conflict (new install, or same
+     * signing cert as already installed).  Used to decide whether
+     * we need to uninstall first.
+     */
+    @Suppress("DEPRECATION")
+    private fun detectSignatureConflict(ctx: Context, apk: File): String? {
+        return try {
+            val pm = ctx.packageManager
+            val apkInfo = pm.getPackageArchiveInfo(
+                apk.absolutePath,
+                android.content.pm.PackageManager.GET_SIGNATURES,
+            ) ?: return null
+            val apkPkg = apkInfo.packageName ?: return null
+            // Walk to the installed app's signatures.
+            val installed = try {
+                pm.getPackageInfo(
+                    apkPkg,
+                    android.content.pm.PackageManager.GET_SIGNATURES,
+                )
+            } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
+                return null    // not installed → no conflict
+            }
+            val apkSigs = apkInfo.signatures?.map { it.toCharsString() }?.toSet().orEmpty()
+            val instSigs = installed.signatures?.map { it.toCharsString() }?.toSet().orEmpty()
+            if (apkSigs.isEmpty() || instSigs.isEmpty()) return null
+            if (apkSigs == instSigs) null else apkPkg
+        } catch (t: Throwable) {
+            Log.w(TAG, "signature check failed", t)
+            null   // be permissive — let Android's own error UI handle it
+        }
+    }
+
+    /**
+     * v2.10.66 — Fire the system uninstall confirmation for
+     * [packageName].  After the user accepts, MainActivity.onResume
+     * is called and DockAdapter re-binds the pill — which will now
+     * compute INSTALL state (because PackageInfo lookup returns
+     * null) and the operator's next tile click triggers the
+     * download + install cleanly.
+     */
+    private fun launchUninstallPrompt(ctx: Context, packageName: String) {
+        val intent = Intent(Intent.ACTION_UNINSTALL_PACKAGE).apply {
+            data = Uri.parse("package:$packageName")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        try {
+            ctx.startActivity(intent)
+        } catch (t: Throwable) {
+            Log.e(TAG, "uninstall intent failed", t)
         }
     }
 
