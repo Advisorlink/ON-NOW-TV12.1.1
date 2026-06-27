@@ -1,5 +1,22 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.76 — Kids movie click + Vesper boot: hard-guard both directions (27 Jun 2026).**
+>
+> Two P0 bugs reported by user, both fixed in a single drop.
+>
+>   • **Bug 1 — Clicking a movie in Kids bounces to Exit-PIN.**  Root cause: `useKidsBackGuard` and `useKidsKioskGuard` were both setting `window.__vesperKidsLocked = '1'` on EVERY kids path (including `/title/...`, `/play`, `/search`).  The Kids APK's native `MainActivity.onKeyDown` BACK handler reads that flag and unconditionally bounces to `/kids/exit-pin` when locked — so pressing BACK on a movie's Detail page sent the user to PIN gate instead of returning to KidsHome.  Fix: BOTH hooks now only set the native lock flag on TOPMOST kids paths (`/`, `/kids`, `/kids/exit-pin`).  On deep paths the flag is explicitly cleared to `''` so the native BACK does a normal `webView.goBack()`.  Backend kids-lock (launcher HOME guard) stays armed at all depths via the separate `reArmBackendLock` signal.
+>   • **Bug 2 — Installing Vesper 2 APK opens to Kids UI.**  Root cause: any stale `?profile=kids` URL or `localStorage[onnowtv-kids-config-v1]` from a pre-v2.9.2 Vesper build could leak into `window.__vesperBootProfileKids = true`, triggering `<KidsAppRoutes>` instead of the Vesper route tree.  Fix: `App.js` module-load IIFE now contains a Vesper hard-guard — when `hostPackage === 'tv.onnowtv.app'`, it (a) synchronously strips `?profile=kids` from the URL via `history.replaceState`, (b) forces `__vesperBootProfileKids = false` regardless of any URL or host hint, and (c) nukes any persisted `onnowtv-kids-config-v1` + per-account-suffixed variants + `onnowtv-last-non-kids-profile` breadcrumb.  Defence in depth: even with stale state, Vesper boots into its own UI.
+>
+> Verified by `testing_agent_v3_fork` iter56 — 100% backend + 100% frontend pass:
+>   • Step 0 KidsHome: `__vesperKidsLocked == '1'` (PASS — native BACK bounces to PIN at root, intended).
+>   • Step 1 Detail (`/title/movie/tt29355505`): `__vesperKidsLocked == ''` (PASS — native BACK does `goBack()`).
+>   • Step 2 back-from-detail: lands on `/` (KidsHome), `__vesperKidsLocked == '1'` re-armed.
+>   • Step 4 plain `/` (no `?profile=kids`): `__vesperBootProfileKids == false`, KidsHome NOT rendered.
+>   • Regression: testuser login + `/api/streams/movie/tt0111161` still 200 OK.
+>
+> Touched: `useKidsBackGuard.js`, `useKidsKioskGuard.js`, `App.js`.  Lint clean on all three.  New regression suite at `/app/backend/tests/test_iter56_regression.py`.
+
+
 > **🟢 v2.10.75 — Install/Update: centred blue progress bar that STAYS + auto-uninstall (27 Jun 2026).**
 >
 > Two bugs in the launcher tile install/update flow:
