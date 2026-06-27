@@ -1,5 +1,18 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.60 — Inline upload progress UI in launcher admin (16 Jun 2026).**
+>
+> User reported the dock-tile APK upload was a black box: click "Upload APK", nothing visible happens, then minutes later it just appears done.  No feedback during multi-megabyte transfers → operator thinks the page is frozen.
+>
+> Root cause: the admin's `api()` helper is built on `fetch()`, which doesn't expose upload-progress events.  We needed `XMLHttpRequest` (still the only browser API with `xhr.upload.onprogress`).
+>
+> Fix in 3 files:
+>   • `admin/static/app.js` — Added `uploadWithProgress(path, formData, onProgress)` helper using XHR with 3 lifecycle stages (`upload` → byte progress, `processing` → server-side manifest parsing, `done` → JSON received).  Added `renderUploadProgress(li, kind, file)` which mounts an inline `.upload-progress` block INSIDE the relevant media row (`.tile-apk-row` for APKs, `.media-slot` for image/wallpaper).  Wired into the dock upload handler so all 3 upload types (image, wallpaper, APK) get the progress UI.
+>   • `admin/static/style.css` — Added ~90 lines of styling: cyan→blue→indigo gradient fill matching the launcher pill, barber-pole stripe animation for the `processing` state, green flash for `done`, red flash for `error`.  Tabular-num font on the percentage so digits don't jitter as they tick up.
+>   • `admin/index.html` — Cache-bust to `v=2.10.60`.
+>
+> Smoke-tested via Playwright in the pod: programmatically dropped a 3 MB fake APK on the Movies tile's input, captured 2 screenshots showing the bar at `processing → done`, final state was `done` with `✓ APK uploaded` in green, then cleanup `clear-apk` ran successfully.  No pollution of `store.json`.
+>
 > **🟢 v2.10.59 — Per-tile UPDATE pill + auto-detected APK metadata (16 Jun 2026).**
 >
 > User reported the long-standing bug: pinning an APK to a dock tile in the admin UI doesn't surface an update on the launcher until the box is restarted.  Root cause: `DockTileRemote` (backend → wire format) carries `apk_url` / `apk_package_id` / `apk_version`, but the `DockItem` (on-screen model) silently dropped all three fields, so there was literally **zero install-detection logic** anywhere in the launcher — the tile would launch the package if present and otherwise fall back to a generic toast.  The 30-sec config poll WAS firing; it just had nothing useful to do with the pinned-APK fields.

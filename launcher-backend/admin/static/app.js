@@ -50,6 +50,170 @@ async function api(path, opts = {}) {
     return r.json();
 }
 
+/* ─────────────  Upload-with-progress (v2.10.60)  ─────────────
+ *
+ * `api()` is built on fetch() which does NOT expose upload-progress
+ * events.  For file uploads — especially multi-megabyte APKs — the
+ * operator needs to SEE the bytes flowing or they assume the page
+ * is frozen.  This helper uses XHR (still the only browser API
+ * with progress) and surfaces:
+ *
+ *   • onProgress({ stage, pct, loaded, total })
+ *       stage = 'upload'    →  bytes flowing to server
+ *       stage = 'processing'→  upload finished, server is parsing
+ *       stage = 'done'      →  server returned JSON
+ *
+ * Returns the same JSON object `api()` would return.  Throws on
+ * non-2xx so callers can `catch (e) { ... }` exactly as before.
+ */
+function uploadWithProgress(path, formData, onProgress) {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', _abs(path), true);
+        xhr.withCredentials = true;
+        xhr.responseType = 'text';
+
+        xhr.upload.addEventListener('progress', (e) => {
+            if (!e.lengthComputable) return;
+            const pct = Math.round((e.loaded / e.total) * 100);
+            onProgress && onProgress({
+                stage: 'upload',
+                pct,
+                loaded: e.loaded,
+                total: e.total,
+            });
+        });
+        // The browser fires `load` once the response body has been
+        // fully received.  Between `upload.loadend` and `load`
+        // there's a brief window where the server is doing work
+        // (e.g. inspect_apk parsing the manifest).  Mark that as
+        // the 'processing' stage so the row UI doesn't sit at
+        // "100%" looking stuck.
+        xhr.upload.addEventListener('loadend', () => {
+            onProgress && onProgress({ stage: 'processing', pct: 100 });
+        });
+        xhr.addEventListener('load', () => {
+            if (xhr.status === 401) {
+                showLogin();
+                reject(new Error('Unauthorized'));
+                return;
+            }
+            if (xhr.status < 200 || xhr.status >= 300) {
+                reject(new Error(xhr.responseText || `${xhr.status} error`));
+                return;
+            }
+            try {
+                const json = JSON.parse(xhr.responseText || '{}');
+                onProgress && onProgress({ stage: 'done', pct: 100 });
+                resolve(json);
+            } catch (e) {
+                reject(new Error('Invalid JSON from server'));
+            }
+        });
+        xhr.addEventListener('error', () => reject(new Error('Network error')));
+        xhr.addEventListener('abort',  () => reject(new Error('Cancelled')));
+        // Expose abort so the UI can wire a Cancel button.
+        onProgress && onProgress({ stage: 'upload', pct: 0, xhr });
+        xhr.send(formData);
+    });
+}
+
+/** Format a byte count as "X.X MB" / "X KB" for the progress label. */
+function fmtBytes(n) {
+    if (!Number.isFinite(n)) return '';
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * v2.10.60 — Inline upload progress UI for dock tile media slots.
+ *
+ * Renders (or re-uses) a `.upload-progress` block inside the relevant
+ * media row, then returns an object with `update / success / error`
+ * methods the caller drives as the XHR fires.
+ *
+ *   • Upload phase   →  blue fill grows with byte progress + live
+ *                       "320 KB / 1.4 MB · 23%" label.
+ *   • Processing     →  100% fill with subtle barber-pole stripes
+ *                       so the operator knows the server is
+ *                       extracting the APK manifest (~0.3–2 s).
+ *   • Done           →  green fill + "✓ Uploaded foo.apk · pkg vX".
+ *                       Stays visible ~0.9 s before refreshAll()
+ *                       redraws the row.
+ *   • Error          →  red fill + "✗ failure reason".
+ *
+ * Lives INSIDE the relevant media container (`.tile-apk-row` for
+ * APKs, `.media-slot` for image/wallpaper) so the operator always
+ * sees feedback right next to the button they clicked — not just
+ * a fleeting toast.
+ */
+function renderUploadProgress(li, kind, file) {
+    const container = kind === 'apk'
+        ? li.querySelector('.tile-apk-row')
+        : li.querySelector(`input[data-act="upload-${kind}"]`)?.closest('.media-slot');
+    if (!container) {
+        // Fallback: toast only.
+        return {
+            update() {}, success() {}, error() {},
+        };
+    }
+    // Remove any stale bar from a previous upload in this slot.
+    container.querySelectorAll('.upload-progress').forEach((el) => el.remove());
+
+    const wrap = document.createElement('div');
+    wrap.className = 'upload-progress';
+    wrap.dataset.kind = kind;
+    wrap.dataset.state = 'upload';
+    wrap.innerHTML = `
+        <div class="up-row">
+            <span class="up-name" title="${escapeAttr(file.name)}">${escapeAttr(file.name)}</span>
+            <span class="up-pct">0%</span>
+        </div>
+        <div class="up-bar"><div class="up-fill" style="width:0%"></div></div>
+        <div class="up-detail">Preparing upload · ${fmtBytes(file.size)}</div>
+    `;
+    container.appendChild(wrap);
+
+    const fill   = wrap.querySelector('.up-fill');
+    const pctEl  = wrap.querySelector('.up-pct');
+    const detail = wrap.querySelector('.up-detail');
+
+    return {
+        update(ev, file) {
+            if (ev.stage === 'upload') {
+                wrap.dataset.state = 'upload';
+                fill.style.width = `${ev.pct}%`;
+                pctEl.textContent = `${ev.pct}%`;
+                if (Number.isFinite(ev.loaded) && Number.isFinite(ev.total)) {
+                    detail.textContent =
+                        `${fmtBytes(ev.loaded)} / ${fmtBytes(ev.total)} · uploading`;
+                } else {
+                    detail.textContent = `Uploading · ${fmtBytes(file.size)}`;
+                }
+            } else if (ev.stage === 'processing') {
+                wrap.dataset.state = 'processing';
+                fill.style.width = '100%';
+                pctEl.textContent = '100%';
+                detail.textContent = kind === 'apk'
+                    ? 'Extracting APK manifest (package + version)…'
+                    : 'Server is processing the file…';
+            }
+        },
+        success(msg) {
+            wrap.dataset.state = 'done';
+            fill.style.width = '100%';
+            pctEl.textContent = '✓';
+            detail.textContent = `✓ ${msg}`;
+        },
+        error(msg) {
+            wrap.dataset.state = 'error';
+            pctEl.textContent = '✗';
+            detail.textContent = `✗ ${msg}`;
+        },
+    };
+}
+
 /* ─────────────  Auth (v2.8.126 — disabled, single-operator mode) ───── */
 function showLogin() { /* no-op — auth is off */ showApp(); }
 function showApp()   { $('#login').hidden = true;  $('#app').hidden = false;  refreshAll(); startDevicePolling(); }
@@ -898,7 +1062,7 @@ function bindDockHandlers() {
         });
     });
 
-    /* Image / wallpaper / APK upload */
+    /* Image / wallpaper / APK upload — v2.10.60 with inline progress UI */
     $$('#dockList input[type="file"]').forEach((inp) => {
         inp.addEventListener('change', async () => {
             const f = inp.files && inp.files[0];
@@ -920,11 +1084,17 @@ function bindDockHandlers() {
                 if (pkgInput && pkgInput.value.trim()) form.append('apk_package_id', pkgInput.value.trim());
                 if (verInput && verInput.value.trim()) form.append('apk_version',    verInput.value.trim());
             }
+            // Disable the picker so the operator can't fire a second
+            // upload mid-flight (would invalidate the progress UI).
+            inp.disabled = true;
+            const li = inp.closest('li');
+            const row = renderUploadProgress(li, kind, f);
             try {
-                const result = await api(`/api/admin/dock/${encodeURIComponent(key)}/${kind}`, {
-                    method: 'POST',
-                    body: form,
-                });
+                const result = await uploadWithProgress(
+                    `/api/admin/dock/${encodeURIComponent(key)}/${kind}`,
+                    form,
+                    (ev) => row.update(ev, f),
+                );
                 const friendly = kind === 'image' ? 'Tile image'
                               : kind === 'wallpaper' ? 'Wallpaper'
                               : 'APK';
@@ -939,9 +1109,20 @@ function bindDockHandlers() {
                         detail = ` · ${pkg || '(no pkg)'} v${ver || '?'}`;
                     }
                 }
+                row.success(`${friendly} uploaded${detail}`);
                 toast(`${friendly} uploaded for ${key}${detail}`);
-                refreshAll();
-            } catch (e) { toast('Upload failed: ' + e.message, true); }
+                // Hold the success state visible briefly BEFORE
+                // refreshAll() wipes the dock list and re-renders.
+                // The render itself doubles as confirmation, but
+                // letting the bar pin at 100% for a moment makes
+                // the success feel solid instead of disappearing
+                // mid-animation.
+                setTimeout(() => refreshAll(), 900);
+            } catch (e) {
+                row.error(e.message || 'Upload failed');
+                toast('Upload failed: ' + e.message, true);
+                inp.disabled = false;
+            }
         });
     });
 
