@@ -70,7 +70,21 @@ class EpgGridAdapter(
         favourites: Set<String> = emptySet(),
     ) {
         this.channels.clear(); this.channels.addAll(channels)
-        this.programmesByChannel.clear(); this.programmesByChannel.putAll(programmes)
+        // v2.10.73 — Pre-filter programmes to the visible window
+        // ONCE here at submit time rather than inside every row
+        // bind.  Channels with hundreds of programmes (e.g. ABC
+        // News loops) were paying that filter cost on every
+        // vertical scroll bind, which is one of the things
+        // contributing to the "chunky" D-pad feel the user
+        // reported.
+        val endMs = gridStartMs + windowHours * 3_600_000L
+        this.programmesByChannel.clear()
+        for ((ch, list) in programmes) {
+            val trimmed = list.filter { p ->
+                p.stopMs > gridStartMs && p.startMs < endMs
+            }
+            this.programmesByChannel[ch] = trimmed
+        }
         this.gridStartMs = gridStartMs
         this.windowHours = windowHours
         this.favourites.clear(); this.favourites.addAll(favourites)
@@ -170,6 +184,25 @@ class EpgGridAdapter(
         val scroller: HorizontalScrollView = itemView.findViewById(R.id.row_scroll)
         val strip: FrameLayout      = itemView.findViewById(R.id.row_strip)
 
+        /**
+         * v2.10.73 — Per-row programme-cell view pool.
+         *
+         * The previous implementation called `strip.removeAllViews()`
+         * + re-inflated `item_programme_cell` for every programme on
+         * every row bind.  With ~20–25 visible programmes per row
+         * and 8+ rows kept in the off-screen cache, that meant
+         * inflating ~200 cells on every D-pad nudge in the worst
+         * case — directly responsible for the "chunky" feel the
+         * user reported.
+         *
+         * The pool holds the cell Views the row has previously
+         * inflated.  On rebind we ATTACH as many as we need, REUSE
+         * their TextView fields, and HIDE the surplus (rather than
+         * detaching them, so a subsequent rebind with more cells
+         * gets an O(1) `attach + update` instead of an inflate).
+         */
+        private val cellPool: ArrayList<View> = ArrayList(32)
+
         fun bind(
             channel: FtaChannel,
             programmes: List<FtaProgramme>,
@@ -195,51 +228,66 @@ class EpgGridAdapter(
             // Favourite marker — a soft cyan glow on the row rail.
             itemView.findViewById<View>(R.id.row_rail).isActivated = isFavourite
 
-            // --- Programme strip ---
-            strip.removeAllViews()
+            // --- Programme strip — pooled rebind ---
             val pxPerMin = ctx.dp(9f)
             val pxPerMs = pxPerMin / 60_000f
-            // 12-hour window by default = enough for "Coming Up" but
-            // not so wide that we measure 24 h of cells the user
-            // can't see.
             val stripWidthPx = (windowHours * 60 * pxPerMin).toInt()
             strip.layoutParams = strip.layoutParams.also { it.width = stripWidthPx }
 
             val nowMs = System.currentTimeMillis()
             val endMs = gridStartMs + windowHours * 3_600_000L
-
             val inflater = LayoutInflater.from(ctx)
+
+            // v2.10.73 — Pool-reuse loop.  We never `removeAllViews()`
+            // — instead we walk through the programmes, pick a pooled
+            // cell (or inflate a new one if the pool's exhausted),
+            // and update its fields.  Surplus pooled cells are kept
+            // attached but set to GONE so the next bind can grab
+            // them without an inflate.
+            var poolIndex = 0
             for (p in programmes) {
-                if (p.stopMs <= gridStartMs) continue       // already finished
-                if (p.startMs >= endMs) continue            // beyond visible window
-                val leftMs = (p.startMs - gridStartMs).coerceAtLeast(0L)
-                val durMs  = (p.stopMs - maxOf(p.startMs, gridStartMs)).coerceAtLeast(60_000L)
-                val left = (leftMs.toFloat() * pxPerMs).toInt()
-                val width = (durMs.toFloat() * pxPerMs).toInt().coerceAtLeast(ctx.dp(60f).toInt())
-                val cellView = inflater.inflate(R.layout.item_programme_cell, strip, false)
+                // The submit-time pre-filter already trimmed to the
+                // window, but defensive guards stay cheap.
+                if (p.stopMs <= gridStartMs) continue
+                if (p.startMs >= endMs) continue
+
+                val cellView: View = if (poolIndex < cellPool.size) {
+                    cellPool[poolIndex].also { it.visibility = View.VISIBLE }
+                } else {
+                    val v = inflater.inflate(R.layout.item_programme_cell, strip, false)
+                    cellPool.add(v)
+                    strip.addView(v)
+                    v
+                }
+                poolIndex++
+
                 val titleV: TextView = cellView.findViewById(R.id.cell_title)
                 val timeV: TextView = cellView.findViewById(R.id.cell_time)
                 val nextV: TextView = cellView.findViewById(R.id.cell_next_pill)
                 val liveV: TextView = cellView.findViewById(R.id.cell_live_pill)
                 titleV.text = p.title.ifBlank { "—" }
                 timeV.text = formatStartLabel(p.startMs)
-                // "LIVE" pill on the programme currently airing.
                 val isLive = p.startMs <= nowMs && p.stopMs > nowMs
                 liveV.visibility = if (isLive) View.VISIBLE else View.GONE
-                // "NEXT" pill on the first programme that hasn't
-                // started yet (within the next 90 minutes).  Hidden
-                // for the live cell so we don't double-pill.
                 nextV.visibility = if (!isLive && p.startMs > nowMs && p.startMs - nowMs < 90 * 60_000L)
                     View.VISIBLE else View.GONE
-                val lp = FrameLayout.LayoutParams(
-                    width - ctx.dp(3f).toInt(),
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                ).apply {
-                    leftMargin = left
-                    topMargin = ctx.dp(3f).toInt()
-                    bottomMargin = ctx.dp(3f).toInt()
-                }
+
+                val leftMs = (p.startMs - gridStartMs).coerceAtLeast(0L)
+                val durMs  = (p.stopMs - maxOf(p.startMs, gridStartMs)).coerceAtLeast(60_000L)
+                val left = (leftMs.toFloat() * pxPerMs).toInt()
+                val width = (durMs.toFloat() * pxPerMs).toInt().coerceAtLeast(ctx.dp(60f).toInt())
+                val lp = (cellView.layoutParams as? FrameLayout.LayoutParams)
+                    ?: FrameLayout.LayoutParams(
+                        width - ctx.dp(3f).toInt(),
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                    )
+                lp.width = width - ctx.dp(3f).toInt()
+                lp.height = FrameLayout.LayoutParams.MATCH_PARENT
+                lp.leftMargin = left
+                lp.topMargin = ctx.dp(3f).toInt()
+                lp.bottomMargin = ctx.dp(3f).toInt()
                 cellView.layoutParams = lp
+
                 cellView.setOnClickListener { onProgrammeOpen(channel, p) }
                 cellView.setOnLongClickListener {
                     onFavouriteToggle(channel)
@@ -248,7 +296,13 @@ class EpgGridAdapter(
                 cellView.setOnFocusChangeListener { _, hasFocus ->
                     if (hasFocus) onProgrammeFocus(channel, p)
                 }
-                strip.addView(cellView)
+            }
+            // Hide any surplus cells the previous binding had.
+            for (i in poolIndex until cellPool.size) {
+                cellPool[i].visibility = View.GONE
+                cellPool[i].setOnClickListener(null)
+                cellPool[i].setOnLongClickListener(null)
+                cellPool[i].setOnFocusChangeListener(null)
             }
 
             scroller.setOnScrollChangeListener { _, x, _, _, _ ->

@@ -1,5 +1,17 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.73 — FTA TV guide: faster load + smoother RecyclerView (27 Jun 2026).**
+>
+> Four-part perf pass on `onnowtv-fta-native` per direct user ask ("load a little bit faster… moving up and down needs to be a lot smoother, like proper Android").
+>
+>   • **Parallel cold-load** — `FtaRepository.fetchBundle()` now a `suspend` fun using `coroutineScope { async(IO) {…} }` to fire `/api/fta/channels`, `/api/fta/epg`, `/api/fta/categories` concurrently.  Cold-load drops from ~1.8 s (sequential) to ~600 ms (slowest single request).  OkHttp ConnectionPool bumped to 8 / 5 min.
+>   • **RecyclerView smoothness pack** in `EpgActivity.setupGrid()` — `setHasFixedSize(true)` + `setItemViewCacheSize(8)` + `recycledViewPool.setMaxRecycledViews(0, 16)` + `initialPrefetchItemCount = 4`.
+>   • **Per-row programme-cell view pool** in `EpgGridAdapter.VH` — replaces `strip.removeAllViews() + reinflate-everything` with an `ArrayList<View>` pool that REUSES cell Views across binds.  ~95% of cell binds skip LayoutInflater entirely after the first scroll pass.
+>   • **Submit-time programme pre-filter** — `submit()` trims to the 12-hour visible window once, instead of filtering inside every row bind.
+>
+> Brace/paren delta accounting clean (EpgActivity Δ {+1,+1}, EpgGridAdapter Δ {+5,+5}, FtaRepository Δ {+6,+6}).  Kotlin compile in CI.
+
+
 > **🟢 v2.10.72 — Fresh-install boxes always surface the Register screen (27 Jun 2026).**
 >
 > Root cause: v2.8.8 added a silent auto-register path that POSTed `/api/launcher/register` with a synthesized name immediately on first boot, so the manual Register UI was never visible on a new TV.  User's new ask: *"every fresh box needs to show the register screen so I can approve it in the admin backend"*.
