@@ -1,0 +1,48 @@
+{
+  "summary": "Verified both P0 Kids-bug fixes via Playwright on the live preview URL. BUG 1 FIX confirmed: clicking a kids poster navigates to /title/movie/<id> (NOT /kids/exit-pin) and __vesperKidsLocked clears to ''. Back from Detail returns to KidsHome with locked='1'. BUG 2 FIX confirmed: plain / (no ?profile=kids) yields __vesperBootProfileKids=false and KidsHome is NOT rendered. Regression checks pass: /api/auth/login (testuser/testpass123) returns a JWT, /api/streams/movie/tt0111161 returns streams, and ?profile=kids with no PIN routes to /kids/setup.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_evidence": {
+    "step0_kidsHome_locked": "'1' (PASS)",
+    "step1_poster_click_url": "/title/movie/tt29355505 (PASS - NOT /kids/exit-pin)",
+    "step1_detail_locked": "'' (PASS - empty string, allows native goBack)",
+    "step2_back_url": "/ (KidsHome, PASS)",
+    "step2_back_locked": "'1' (PASS - re-armed at topmost)",
+    "step2_kidsHome_present": "true (PASS)",
+    "step4_plain_root_bootKids": "false (PASS - Vesper boot)",
+    "step4_kidsHome_rendered": "false (PASS - no kids UI leak)",
+    "step5_no_pin_setup_redirect": "/kids/setup (PASS)",
+    "auth_login": "200 OK, JWT issued (PASS)",
+    "streams_shawshank": "200 OK, streams returned (PASS)"
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter56_regression.py",
+    "/app/test_reports/pytest/iter56_regression.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "useKidsBackGuard's popstate handler always navigates to /kids/exit-pin when ANY popstate fires while on a topmost kids path. In-app pushState+popstate to /search from KidsHome therefore bounces to exit-pin. This is intended kiosk behavior for hardware BACK at root, but be aware it also triggers for any synthetic popstate. Not a bug for the user's actual flow (poster click is a navigate(), not a popstate).",
+    "App.js is 909 lines — consider extracting the module-load IIFE (lines 156-401) into a separate boot-guard module for maintainability.",
+    "isKidsAllowedPath includes '/search' as allowed-aux, but the back-guard's onPop will still bounce away from it if it's reached via a back action. The interaction between useKidsBackGuard and useKidsKioskGuard is subtle — recommend a doc-comment block explaining the split (topmost vs deep) is the only contract guarantee."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter56_regression.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "test_credentials": "testuser / testpass123 (Vesper login); Kids PIN 1234 seeded via localStorage onnowtv-kids-config-v1",
+  "seed_data_creation": "Playwright pre-seeded localStorage with kids PIN=1234 and onnowtv-active-profile-v1=kids before navigating with ?profile=kids.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration 56 validated both P0 fixes for ON NOW TV V2 Kids/Vesper APKs. The JS flag window.__vesperKidsLocked is the source of truth for the native Android onKeyDown BACK handler — set to '1' on topmost kids paths (/, /kids, /kids/exit-pin) and '' on deep paths (/title/*, /play, /search, /resolve/*). Vesper host (tv.onnowtv.app) hard-guards against kids context regardless of stale localStorage. Backend regression suite at /app/backend/tests/test_iter56_regression.py covers auth + streams.",
+  "rca of the issue": "Original bug: useKidsBackGuard set window.__vesperKidsLocked='1' unconditionally whenever kids was active with PIN. The Kids APK's native MainActivity.onKeyDown BACK handler reads this flag and bounces to /kids/exit-pin when locked. Result: clicking a movie poster → Detail loaded → user pressed BACK → bounced to exit-pin instead of returning to KidsHome. Fix: both useKidsBackGuard and useKidsKioskGuard now set the flag only on TOPMOST kids paths (isTopmostKidsPath checks /, /kids, /kids/exit-pin) and explicitly clear it to '' on deep paths so the native BACK handler does a normal webView.goBack(). Verified: locked='1' on KidsHome, locked='' on /title/movie/tt29355505, and back-from-detail correctly returns to KidsHome (not exit-pin). Separately, Vesper hard-guard in App.js module-load IIFE forces __vesperBootProfileKids=false when hostPackage==='tv.onnowtv.app', strips ?profile=kids from URL, and nukes persisted kids config to prevent the Kids UI from rendering inside the Movies/TV APK."
+}

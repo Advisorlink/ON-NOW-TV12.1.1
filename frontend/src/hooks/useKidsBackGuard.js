@@ -42,12 +42,14 @@ export default function useKidsBackGuard() {
             try { window.OnNowTV?.setKidsLock?.(false); } catch { /* ignore */ }
             return undefined;
         }
-        // Expose lock-state to the native back handler.
-        try { window.__vesperKidsLocked = '1'; } catch { /* ignore */ }
-        // v2.8.42 — Notify the LAUNCHER (via its backend) that this
-        // box is now in Kids+PIN sandbox mode.  Launcher's
-        // MainActivity.onResume() polls the matching GET and bounces
-        // the user straight back into Vesper if HOME is pressed.
+        // v2.10.71 — `__vesperKidsLocked` controls whether the Kids
+        // APK's native `onKeyDown` BACK handler intercepts the press
+        // and bounces to `/kids/exit-pin`.  Only set it when the
+        // user is on a TOPMOST kids path — when they're deep in
+        // `/title/...` or `/play`, the native BACK must do a normal
+        // `webView.goBack()` so they can navigate Detail → Home.
+        // The launcher backend kids-lock (HOME button defence) is
+        // always set since HOME is always sandbox-locked.
         try { window.OnNowTV?.setKidsLock?.(true); } catch { /* ignore */ }
 
         // v2.10.70 — Only TRAP the user with a sentinel on the
@@ -65,13 +67,18 @@ export default function useKidsBackGuard() {
             location.pathname === '/kids' ||
             location.pathname.startsWith('/kids/exit-pin');
         if (!isTopmostKidsPath) {
-            // Normal back navigation is allowed inside the
-            // sandbox.  We still keep the locked window flag set
-            // so the native HOME handler routes to the PIN gate.
+            // Deep inside the sandbox (Detail, Player, Resolve,
+            // Search) — explicitly clear the native BACK lock so
+            // pressing BACK on the remote does a normal goBack()
+            // instead of bouncing to the PIN gate.
+            try { window.__vesperKidsLocked = ''; } catch { /* ignore */ }
             return () => {
                 /* nothing to clean up at this depth */
             };
         }
+        // Topmost kids path — arm the native BACK lock so pressing
+        // BACK at this depth bounces to the PIN gate.
+        try { window.__vesperKidsLocked = '1'; } catch { /* ignore */ }
 
         // Push a sentinel so the very next Back has somewhere to
         // land that we control.

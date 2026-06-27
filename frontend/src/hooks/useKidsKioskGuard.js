@@ -38,6 +38,19 @@ function isKidsAllowedPath(pathname) {
     return ALLOWED_AUX_ROUTES.some((p) => pathname.startsWith(p));
 }
 
+/**
+ * v2.10.71 — True when the path is a TOPMOST kids surface (Home,
+ * Exit-PIN gate).  Topmost paths are the only ones where the
+ * native BACK handler should bounce to the PIN gate — pressing
+ * BACK on a Detail / Player / Search page must do a normal
+ * `webView.goBack()` so the user can pop out of the sandbox depth.
+ */
+function isTopmostKidsPath(pathname) {
+    return pathname === '/' ||
+        pathname === '/kids' ||
+        pathname.startsWith('/kids/exit-pin');
+}
+
 export default function useKidsKioskGuard() {
     const navigate = useNavigate();
     const location = useLocation();
@@ -49,19 +62,34 @@ export default function useKidsKioskGuard() {
             return !!(cfg.pin && cfg.pin.length === 4);
         };
 
-        const reArmLock = () => {
+        // v2.10.71 — Split the lock-arming into two independent
+        // signals so deep paths don't trigger the native BACK
+        // bounce-to-PIN (which broke movie playback).
+        //   • Backend kids-lock (launcher HOME guard) — ALWAYS on.
+        //   • Native BACK lock (`__vesperKidsLocked`) — ONLY on
+        //     topmost kids paths.  Clear it everywhere else so the
+        //     remote BACK button does a normal `webView.goBack()`.
+        const reArmBackendLock = () => {
             try { window.OnNowTV?.setKidsLock?.(true); } catch { /* ignore */ }
-            try { window.__vesperKidsLocked = '1'; } catch { /* ignore */ }
+        };
+        const armNativeBackLock = (topmost) => {
+            try {
+                window.__vesperKidsLocked = topmost ? '1' : '';
+            } catch { /* ignore */ }
         };
 
         // Path-watch: redirect to /kids/exit-pin if route escapes
         // the sandbox while kids is locked.
         if (armed() && !isKidsAllowedPath(location.pathname)) {
-            reArmLock();
+            reArmBackendLock();
+            armNativeBackLock(true);
             navigate('/kids/exit-pin', { replace: true });
             return undefined;
         }
-        if (armed()) reArmLock();
+        if (armed()) {
+            reArmBackendLock();
+            armNativeBackLock(isTopmostKidsPath(location.pathname));
+        }
 
         // Visibility guard: when the user returns from a HOME press
         // (Vesper backgrounded → foregrounded), force them back into
@@ -69,8 +97,9 @@ export default function useKidsKioskGuard() {
         const onVisibility = () => {
             if (document.visibilityState !== 'visible') return;
             if (!armed()) return;
-            reArmLock();
+            reArmBackendLock();
             const curPath = window.location.hash.replace(/^#/, '') || window.location.pathname || '/';
+            armNativeBackLock(isTopmostKidsPath(curPath));
             if (!isKidsAllowedPath(curPath)) {
                 // v2.10.69 — In the standalone Kids APK the home is
                 // at `/`; the legacy `/kids` route doesn't exist
@@ -83,7 +112,9 @@ export default function useKidsKioskGuard() {
 
         // Heartbeat re-arm every 30 s — paranoid defence against the
         // launcher backend forgetting our lock.
-        const interval = setInterval(() => { if (armed()) reArmLock(); }, 30_000);
+        const interval = setInterval(() => {
+            if (armed()) reArmBackendLock();
+        }, 30_000);
 
         return () => {
             document.removeEventListener('visibilitychange', onVisibility);

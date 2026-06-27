@@ -156,7 +156,7 @@ if (typeof window !== 'undefined') {
 if (typeof window !== 'undefined') {
     try {
         const params = new URLSearchParams(window.location.search);
-        const profileParam = params.get('profile');
+        let profileParam = params.get('profile');
         const ACTIVE_KEY = 'onnowtv-active-profile-v1';
         const LAST_NON_KIDS_KEY = 'onnowtv-last-non-kids-profile';
         const KIDS_CFG_KEY = 'onnowtv-kids-config-v1';
@@ -181,6 +181,32 @@ if (typeof window !== 'undefined') {
         const isVesperHost = hostPackage === 'tv.onnowtv.app';
         const isKidsHost   = hostPackage === 'tv.onnowtv.kids';
 
+        // v2.10.71 — VESPER HARD-GUARD.  When the host APK is the
+        // Movies/TV one (`tv.onnowtv.app`), the Kids context must
+        // be impossible to enter, no matter what stale state the
+        // device carries.  This runs at module-load BEFORE any
+        // React component reads `__vesperBootProfileKids` or the
+        // active-profile localStorage entries:
+        //   • Strip `?profile=kids` from the URL synchronously.
+        //   • Strip the equivalent `vesper_route` style query.
+        //   • Treat any incoming `profile=kids` as if it never
+        //     arrived (so `profileParam` below sees null).
+        // The Movies/TV launcher tile fires a clean intent, but if
+        // a legacy launcher or stale WebView lastUrl ever carried
+        // the kids query through, this guard guarantees Vesper
+        // still boots into its own UI.
+        if (isVesperHost && profileParam === 'kids') {
+            try {
+                params.delete('profile');
+                const search = params.toString();
+                const cleanUrl = window.location.pathname +
+                    (search ? `?${search}` : '') +
+                    (window.location.hash || '');
+                window.history.replaceState({}, '', cleanUrl);
+            } catch { /* ignore */ }
+            profileParam = null;
+        }
+
         // v2.10.68 — Persist the Kids boot context as a module-load
         // flag.  `DeepLinkHandler` strips `?profile=kids` from the
         // URL via `history.replaceState` immediately on mount, so
@@ -189,8 +215,12 @@ if (typeof window !== 'undefined') {
         // mis-detect the host.  Stash the truth here once, before
         // React mounts, and let LoginScreen / profile helpers
         // consult this flag for the lifetime of the page.
-        window.__vesperBootProfileKids =
-            profileParam === 'kids' || isKidsHost;
+        //
+        // v2.10.71 — Vesper host is NEVER kids context regardless
+        // of any URL or localStorage hint.
+        window.__vesperBootProfileKids = isVesperHost
+            ? false
+            : (profileParam === 'kids' || isKidsHost);
 
         // v2.10.63 — Sweep ALL keys matching the active-profile
         // prefix (`onnowtv-active-profile-v1`, plus the per-account
@@ -233,6 +263,30 @@ if (typeof window !== 'undefined') {
                         localStorage.removeItem(k);
                     }
                 }
+            } catch { /* ignore */ }
+        }
+
+        // v2.10.71 — VESPER hard-guard sweep.  When we're booting
+        // inside the Movies/TV APK, also nuke any persisted kids
+        // CONFIG (PIN, ratings) and the last-non-kids breadcrumb.
+        // The Kids APK is fully standalone now — its config lives
+        // in its OWN sandboxed WebView storage and Vesper has no
+        // legitimate use for kids state on disk.  Nuking it ensures
+        // a one-time clean-up for users updating from pre-v2.9.2
+        // Vesper builds and prevents any future leak from turning
+        // Vesper into a kids surface.
+        if (isVesperHost) {
+            try {
+                localStorage.removeItem(KIDS_CFG_KEY);
+                localStorage.removeItem(LAST_NON_KIDS_KEY);
+                // Per-account-suffixed kids configs too.
+                const toRemove = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const k = localStorage.key(i);
+                    if (!k) continue;
+                    if (k.indexOf(KIDS_CFG_KEY) === 0) toRemove.push(k);
+                }
+                toRemove.forEach((k) => localStorage.removeItem(k));
             } catch { /* ignore */ }
         }
 
