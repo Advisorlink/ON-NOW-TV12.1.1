@@ -814,9 +814,40 @@ class MainActivity : AppCompatActivity() {
             // must NOT allow normal goBack() / finish().  Instead
             // route the WebView to /kids/exit-pin so the parent
             // has to enter the PIN before any escape.
-            webView.evaluateJavascript("(window.__vesperKidsLocked||'')") { lockedRaw ->
-                val locked = (lockedRaw?.trim('"') ?: "") == "1"
-                if (locked) {
+            //
+            // v2.10.76 — DEFENSIVE PATH CHECK.  Older React bundles
+            // (pre-v2.10.76) set `__vesperKidsLocked='1'` on ALL
+            // kids paths, including `/title/...` and `/play`.  That
+            // caused pressing BACK on a movie's Detail page to
+            // bounce to the PIN gate instead of returning to
+            // KidsHome — exactly the bug the user reported as
+            // "clicking a movie ends up on the PIN page".  Even
+            // with the React-side fix shipped, we belt-and-braces
+            // it natively: only honour the lock when the WebView
+            // is on a TOPMOST kids surface.  Any deeper path
+            // (Detail, Player, Resolve, Search) does a normal
+            // `goBack()` so the user can pop layer-by-layer.
+            webView.evaluateJavascript(
+                "(function(){try{return JSON.stringify({l:(window.__vesperKidsLocked||''),u:String(window.location.href||'')});}catch(_){return '{}';}})()",
+            ) { rawJson ->
+                val cleaned = rawJson
+                    ?.removePrefix("\"")?.removeSuffix("\"")
+                    ?.replace("\\\"", "\"")
+                    ?: ""
+                val lockedRaw = Regex("\"l\":\"([^\"]*)\"")
+                    .find(cleaned)?.groupValues?.getOrNull(1) ?: ""
+                val urlRaw = Regex("\"u\":\"([^\"]*)\"")
+                    .find(cleaned)?.groupValues?.getOrNull(1) ?: ""
+                val locked = lockedRaw == "1"
+                val hash = urlRaw.substringAfter('#', missingDelimiterValue = "/")
+                    .substringBefore('?')
+                    .substringBefore('#')
+                val isTopmostKidsPath =
+                    hash == "/" ||
+                    hash == "" ||
+                    hash == "/kids" ||
+                    hash.startsWith("/kids/exit-pin")
+                if (locked && isTopmostKidsPath) {
                     runOnUiThread {
                         webView.evaluateJavascript(
                             "window.location.hash = '#/kids/exit-pin';",
