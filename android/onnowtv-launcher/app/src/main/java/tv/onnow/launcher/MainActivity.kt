@@ -435,6 +435,22 @@ class MainActivity : AppCompatActivity() {
                 return
             }
         }
+        // 1c. v2.10.59 — APK pinned but package not installed.  Click
+        //     the tile → trigger the same install flow the UPDATE pill
+        //     uses (download via ApkInstaller → system install dialog).
+        //     This is the "Application's not installed, would you like
+        //     to install it?" UX the operator expects.  We only fire
+        //     this when the package is genuinely missing — if it's
+        //     installed at any version we ALWAYS launch (step 1),
+        //     because the UPDATE pill above the tile is the right
+        //     place to opt-in to a version bump, not the tile itself.
+        if (!item.apkUrl.isNullOrBlank() &&
+            !item.apkPackageId.isNullOrBlank() &&
+            !isPackageInstalled(item.apkPackageId)
+        ) {
+            onTileInstallRequested(item)
+            return
+        }
         // 2. If the tile has a target URL, open it in a browser.
         val url = item.targetUrl
         if (!url.isNullOrBlank()) {
