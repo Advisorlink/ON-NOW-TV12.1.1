@@ -1,5 +1,20 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.61 — Pill hotfix + visible diagnostic (16 Jun 2026).**
+>
+> User reported: uploaded an APK to a dock tile in admin, the upload progress UI worked, but the pill never appeared on the TV.  Root-cause analysis:
+>
+>   1. The production launcher APK currently running is `v0.1.91` (uploaded **before** the v2.10.59 pill code was committed).  Pill literally not in the running launcher.
+>   2. Of the 5 tiles with APKs pinned in production, only 3 had complete metadata (`apk_package_id` + `apk_version`).  `free-to-air` was missing both, `live-tv2` was missing `apk_package_id` — both predated the v2.10.59 auto-extractor.
+>   3. Movies/Music/Kids pinned at `v2.10.17` — operator may already have those exact versions installed → version compare returns NONE → pill correctly hides.  Without a visible diagnostic, looks like "feature broken".
+>
+> Three fixes:
+>   • **Fallback to `target_package`** in `MainActivity.onConfigUpdated` — `apkPackageId = (t.apkPackageId ?: t.targetPackage)`.  Live-tv2 & free-to-air retroactively become pill-capable (live-tv2 already has version; free-to-air still needs a re-upload to get the auto-extracted version).
+>   • **`buildPillStateSummary()`** — formats per-tile pill state into the existing debug status bar.  Format: `OK · gen 2306 · dockBot=-16dp · 123ms · UPD:movies(2.10.17→2.10.17),music(2.10.17→2.10.17) SKIP:free-to-air(noVer)`.  The presence of `pills:` in the status string is a 1-second visual test that the v2.10.59+ code is running.
+>   • **Skip diagnostic** — tiles with no `apk_version` now appear as `SKIP:<key>(noVer)` so the operator immediately knows which tile needs re-upload.
+>
+> Wire format unchanged.  Static-verified: braces balanced (292=292, diff=0), Kotlin parses.
+>
 > **🟢 v2.10.60 — Inline upload progress UI in launcher admin (16 Jun 2026).**
 >
 > User reported the dock-tile APK upload was a black box: click "Upload APK", nothing visible happens, then minutes later it just appears done.  No feedback during multi-megabyte transfers → operator thinks the page is frozen.

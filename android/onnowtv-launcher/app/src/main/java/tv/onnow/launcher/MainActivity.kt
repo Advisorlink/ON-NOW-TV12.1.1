@@ -561,6 +561,51 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * v2.10.61 — Build a debug-bar summary of which tiles currently
+     * show a pill.  Mirrors the same logic DockAdapter uses, so what
+     * you see in the status string MUST match what's on screen.
+     *
+     * Output:  "INST:apps,settings UPD:movies,music"
+     *          empty string when no pills.
+     */
+    private fun buildPillStateSummary(): String {
+        val installNames = mutableListOf<String>()
+        val updateNames  = mutableListOf<String>()
+        val skips = mutableListOf<String>()
+        for (item in dockItems) {
+            val apkUrl = item.apkUrl?.trim().orEmpty()
+            val pkg    = item.apkPackageId?.trim().orEmpty()
+            if (apkUrl.isEmpty() || pkg.isEmpty()) continue
+            val info = try {
+                packageManager.getPackageInfo(pkg, 0)
+            } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
+                null
+            } catch (_: Throwable) {
+                null
+            }
+            if (info == null) {
+                installNames.add(item.key)
+                continue
+            }
+            val pinned = item.apkVersion?.trim().orEmpty()
+            if (pinned.isEmpty()) {
+                // No version metadata to compare against — the pill
+                // can't fire.  Note this so the operator knows
+                // re-upload is needed to populate version_name.
+                skips.add("${item.key}(noVer)")
+                continue
+            }
+            val current = info.versionName?.trim().orEmpty()
+            if (current != pinned) updateNames.add("${item.key}(${current}→${pinned})")
+        }
+        val parts = mutableListOf<String>()
+        if (installNames.isNotEmpty()) parts.add("INST:${installNames.joinToString(",")}")
+        if (updateNames.isNotEmpty())  parts.add("UPD:${updateNames.joinToString(",")}")
+        if (skips.isNotEmpty())        parts.add("SKIP:${skips.joinToString(",")}")
+        return parts.joinToString(" ")
+    }
+
     /* ──────────────────────────  Wallpaper  ───────────────────────── */
 
     private fun applyWallpaperForTile(item: DockItem) {
@@ -661,8 +706,16 @@ class MainActivity : AppCompatActivity() {
                     onConfigUpdated(fresh)
                     val took = System.currentTimeMillis() - ts
                     val dockM = currentLayout.dockMarginBottomDp
+                    // v2.10.61 — Surface per-tile install/update state
+                    // in the debug bar so the operator can verify at
+                    // a glance which tiles should be showing the pill.
+                    // The "pills:" segment is the tell: if it's absent,
+                    // you're running an old launcher APK without the
+                    // v2.10.59 pill code.
+                    val pillSummary = buildPillStateSummary()
                     updateDebugStatus(
-                        "OK · gen ${fresh.generation} · dockBot=${dockM}dp · ${took}ms",
+                        "OK · gen ${fresh.generation} · dockBot=${dockM}dp · ${took}ms · " +
+                                (if (pillSummary.isNotEmpty()) pillSummary else "pills:none"),
                         true,
                     )
                 } else {
@@ -730,8 +783,15 @@ class MainActivity : AppCompatActivity() {
                 // v2.10.59 — Per-tile APK pin so the dock can paint an
                 // "Update Available" pill above the tile the moment the
                 // operator pins a new APK in the admin UI.
+                //
+                // v2.10.61 — Fall back to `target_package` when the
+                // operator didn't (or couldn't) provide an explicit
+                // `apk_package_id` — older backend uploads predate the
+                // auto-extractor.  As long as one of the two yields a
+                // valid package name we can do the version compare.
                 apkUrl         = t.apkUrl?.let { rebaseTileApkUrl(it) },
-                apkPackageId   = t.apkPackageId,
+                apkPackageId   = (t.apkPackageId?.takeIf { it.isNotBlank() }
+                                  ?: t.targetPackage?.takeIf { it.isNotBlank() }),
                 apkVersion     = t.apkVersion,
             )
         }
