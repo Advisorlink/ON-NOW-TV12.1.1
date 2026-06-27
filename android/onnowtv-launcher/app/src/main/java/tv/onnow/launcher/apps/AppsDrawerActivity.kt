@@ -207,9 +207,133 @@ class AppsDrawerActivity : AppCompatActivity() {
 
         setContentView(root)
 
+        // v2.10.71 — Hidden 5-second long-press in the top-left
+        // corner opens the BULK INSTALL surface (download + install
+        // every pinned APK in one queued sweep — for fresh-box
+        // setups).  Invisible until ~2s of holding, then a small
+        // progress ring fades in so you know it's registering.  At
+        // 5s: short audible click + launch BulkInstallActivity.
+        installBulkInstallGesture(root)
+
         loadAndRender()
         refreshHomeUpdatePill()
     }
+
+    /* v2.10.71 — Hidden BULK-INSTALL gesture.  See the comment at
+     * the call site in onCreate.  Touch lifecycle:
+     *
+     *   t=0     finger goes down somewhere in the top-left 120×120dp
+     *           zone.  We start the 5-second timer.
+     *   t=2s    a small accent-coloured progress ring fades in at
+     *           the corner, growing as the hold continues.  Gives
+     *           the operator a visual cue that the gesture is
+     *           registering (per direct user request).
+     *   t=5s    quick MediaActionSound click + the ring snaps to
+     *           full + launch BulkInstallActivity.  Resets state.
+     *
+     *   Finger lifted before 5s → cancel timer, hide the ring.
+     *
+     *   The zone view itself is invisible and NOT focusable, so the
+     *   D-pad keeps falling through to the App-store grid behind it.
+     *   The gesture only fires via a physical touch (TV remotes
+     *   without a touch sensor never see it — exactly the kind of
+     *   "developer-only" gate the user wanted).
+     */
+    private fun installBulkInstallGesture(root: FrameLayout) {
+        val zone = View(this).apply {
+            isClickable = false
+            isFocusable = false
+            isFocusableInTouchMode = false
+            background = null
+        }
+        val lp = FrameLayout.LayoutParams(dp(120), dp(120)).apply {
+            gravity = Gravity.TOP or Gravity.START
+        }
+        root.addView(zone, lp)
+
+        // The visual progress ring (hidden until ~2s into the hold).
+        val ring = View(this).apply {
+            visibility = View.GONE
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#33FFD24A"))
+                setStroke(dp(2), Color.parseColor("#88FFD24A"))
+            }
+        }
+        val ringLp = FrameLayout.LayoutParams(dp(36), dp(36)).apply {
+            gravity = Gravity.TOP or Gravity.START
+            topMargin = dp(20)
+            leftMargin = dp(20)
+        }
+        root.addView(ring, ringLp)
+
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        var showRunnable: Runnable? = null
+        var fireRunnable: Runnable? = null
+        var growAnimator: android.animation.ValueAnimator? = null
+
+        fun cancelAll() {
+            showRunnable?.let { handler.removeCallbacks(it) }
+            fireRunnable?.let { handler.removeCallbacks(it) }
+            growAnimator?.cancel()
+            ring.visibility = View.GONE
+            ring.scaleX = 1f
+            ring.scaleY = 1f
+            ring.alpha = 1f
+        }
+
+        zone.setOnTouchListener { _, ev ->
+            when (ev.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    cancelAll()
+                    // After 2s of holding: reveal the ring + start
+                    // a 3-second grow animation toward "full" so the
+                    // user sees their progress.
+                    showRunnable = Runnable {
+                        ring.alpha = 0f
+                        ring.scaleX = 0.6f
+                        ring.scaleY = 0.6f
+                        ring.visibility = View.VISIBLE
+                        growAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+                            duration = 3000L
+                            interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+                            addUpdateListener { a ->
+                                val t = a.animatedValue as Float
+                                ring.alpha = 0.55f + 0.45f * t
+                                val s = 0.6f + 0.7f * t
+                                ring.scaleX = s
+                                ring.scaleY = s
+                            }
+                            start()
+                        }
+                    }.also { handler.postDelayed(it, 2000L) }
+
+                    // After 5s of holding: audible click + open
+                    // BulkInstallActivity.
+                    fireRunnable = Runnable {
+                        try {
+                            val click = android.media.MediaActionSound()
+                            click.play(android.media.MediaActionSound.FOCUS_COMPLETE)
+                        } catch (_: Throwable) { /* best-effort */ }
+                        cancelAll()
+                        startActivity(Intent(
+                            this@AppsDrawerActivity,
+                            tv.onnow.launcher.install.BulkInstallActivity::class.java,
+                        ))
+                    }.also { handler.postDelayed(it, 5000L) }
+                    true
+                }
+                android.view.MotionEvent.ACTION_UP,
+                android.view.MotionEvent.ACTION_CANCEL -> {
+                    cancelAll()
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+
 
     /** Top-right pill — visible only when an admin-pinned launcher
      *  update is available on the backend. */

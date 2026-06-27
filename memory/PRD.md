@@ -1,5 +1,19 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.71 — Bulk-install all apps on a fresh box (27 Jun 2026).**
+>
+> User asked for a hidden, no-confirm-per-app way to install every pinned APK on a new TV box.  Multi-piece delivery:
+>
+>   • **Backend** — new public `GET /api/bulk/manifest` on the launcher-backend returns every pinned APK (key, label, package_id, version, absolute apk_url, apk_filename, icon_url, size_bytes).  Public (launcher has no admin token).  4 pytest contract tests in `tests/test_bulk_install_manifest.py` all green.
+>   • **New `BulkInstallActivity`** (Kotlin) — full-screen list of apps with status pills (`PENDING → DL n% → DOWNLOADED → INSTALLING → INSTALLED / FAILED`), live status banner, big `Install all apps` button.  Phase 1 downloads every APK to `cacheDir/bulk_apks/*`; Phase 2 fires the system install intent for each with a 1.2s gap so dialogs render in order.  Per-app failures don't halt the queue.
+>   • **Hidden gesture** in `AppsDrawerActivity` — invisible 120×120dp zone in the top-left corner.  Touch DOWN starts a 5s timer; at 2s a sunshine-yellow ring fades in and grows; at 5s a `MediaActionSound.FOCUS_COMPLETE` audible click fires and `BulkInstallActivity` launches.  Zone is `!focusable/!clickable` so D-pad falls through — only a physical touch ever opens it.
+>   • **AndroidManifest** — `BulkInstallActivity` registered (exported=false, landscape, NoActionBar).
+>
+> **Documented caveat**: Android requires per-app install confirmation for any non-system launcher.  Operator will press OK ~N times on a fresh box (once per pinned APK).  Far better than finding each APK by hand; can't be eliminated without root/device-owner.
+>
+> Static-verified Kotlin (braces 69=69 / 168=168, parens 284=284 / 503=503); Kotlin compile runs in CI when user clicks Save to GitHub.
+
+
 > **🟢 v2.10.70 — Kids Detail playback fix + K2 splash + pill nudge (27 Jun 2026).**
 >
 >   • **Playback bug fixed.** `useKidsBackGuard` only pushes the sentinel + intercepts popstate on TOPMOST kids paths (`/`, `/kids`, `/kids/exit-pin`).  Detail / Player / Resolve / Search now allow normal Back, so the user can KidsHome → Detail → Player → Detail → KidsHome without bouncing to the PIN gate.

@@ -2393,6 +2393,67 @@ def clear_tile_apk(key: str) -> dict:
     return {"ok": True, "generation": store["generation"]}
 
 
+# ───────────────────────── Bulk install manifest ─────────────────────────
+#
+# v2.10.71 — Powers the launcher's hidden "Install all apps" flow.  The
+# user wanted a way to bulk-install every pinned APK on a fresh box in
+# one shot, so they don't have to find each APK by hand.  The launcher
+# fires a 5-second long-press in the top-left corner of the Apps drawer,
+# opens a hidden BulkInstallActivity, GETs this manifest, downloads
+# every APK to cache first, then fires the system install prompt for
+# each in sequence.
+#
+# Public (no admin auth required) — the same machine that's allowed to
+# fetch /api/launcher/config is implicitly allowed to install the apps
+# the admin has pinned for it.  We do NOT expose admin-only metadata
+# here; just the bare minimum the installer queue needs.
+
+@app.get("/api/bulk/manifest")
+def bulk_install_manifest(request: Request) -> dict:
+    """Return every dock tile that has a pinned APK.  The launcher's
+    BulkInstallActivity uses this to drive its sequential download +
+    install queue."""
+    store = _load_store()
+    items: list[dict] = []
+    for tile in store.get("dock_tiles", []):
+        apk_url = tile.get("apk_url")
+        if not apk_url:
+            continue
+        items.append({
+            "key":         tile["key"],
+            "label":       tile.get("label") or tile["key"],
+            "package_id":  tile.get("apk_package_id") or tile.get("target_package") or "",
+            "version":     tile.get("apk_version") or "",
+            "apk_url":     _abs(apk_url),
+            "apk_filename": tile.get("apk_filename") or "",
+            "icon_url":    _abs(tile.get("image_url") or tile.get("icon_url")),
+            "size_bytes":  _safe_filesize(tile.get("apk_url")),
+        })
+    return {
+        "apks": items,
+        "generation": store.get("generation", 0),
+        "count": len(items),
+    }
+
+
+def _safe_filesize(asset_url: Optional[str]) -> int:
+    """Best-effort byte size for an /assets/* URL.  Returns 0 if the
+    file is missing — the installer treats 0 as "unknown" and just
+    streams without a progress bar."""
+    if not asset_url:
+        return 0
+    try:
+        rel = asset_url.lstrip("/")
+        if not rel.startswith("assets/"):
+            return 0
+        path = DATA_DIR / rel[len("assets/"):]
+        return path.stat().st_size if path.exists() else 0
+    except Exception:  # noqa: BLE001
+        return 0
+
+
+
+
 @app.post("/api/admin/dock/{key}/apk-meta", dependencies=[Depends(require_admin)])
 def set_tile_apk_meta(key: str, payload: dict) -> dict:
     """Update apk_package_id / apk_version on a tile that already has

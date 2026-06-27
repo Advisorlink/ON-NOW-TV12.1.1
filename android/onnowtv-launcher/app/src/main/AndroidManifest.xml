@@ -151,6 +151,18 @@
             </intent-filter>
         </activity>
 
+        <!-- v2.10.71 — Hidden BULK INSTALL surface.  Reached only by
+             a 5-second long-press in the top-left corner of the Apps
+             drawer.  Lets a fresh-box owner download + install every
+             pinned APK in one queued sweep instead of finding each
+             one by hand.  Not exported — internal launch only. -->
+        <activity
+            android:name=".install.BulkInstallActivity"
+            android:exported="false"
+            android:configChanges="orientation|keyboardHidden|screenSize|locale|fontScale|uiMode"
+            android:theme="@style/Theme.OnNowLauncher.NoActionBar"
+            android:screenOrientation="landscape" />
+
         <!-- FileProvider — exposes the downloaded APK files in cache
              dir so the system package installer can read them on
              Android N+. -->

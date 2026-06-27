@@ -1,5 +1,77 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.71 — Bulk-install all apps on a fresh box (2026-02-27)
+
+User feature request: *"I want a way so I can get… on a new box install, I can open up the launcher and in the apps section, push and hold for five seconds in the top left-hand corner.  And then it opens up a section where it says 'Install all apps' — all of our apps are held on the [launcher backend] somewhere — so it'll install all of them at once.  I don't want to have to click install on each of them.  Like a backup basically.  So it installs all the apps in one hit and then it's ready to go."*
+
+User-confirmed choices (via ask_human v2.10.71/Q1):
+1. Long-press: **silent at first + audible click + visual ring** when it triggers.
+2. Policy: **reinstall everything every time** (like a real backup, no "skip already installed" check).
+3. Strategy: **download all APKs to cache FIRST, then install** (system dialogs land back-to-back with no download wait between them).
+
+### 1. Launcher-backend endpoint
+New public `GET /api/bulk/manifest` on `launcher-backend/main.py`:
+
+```json
+{
+  "apks": [
+    {
+      "key":          "movies",
+      "label":        "Movies/TV",
+      "package_id":   "tv.onnowtv.app",
+      "version":      "2.10.71",
+      "apk_url":      "https://onnowhub.com/launcher/assets/tile_apks/tile-movies-abcd1234.apk",
+      "apk_filename": "vesper-2.10.71.apk",
+      "icon_url":     "https://onnowhub.com/launcher/assets/tile_images/tile-movies-aae330fb.png",
+      "size_bytes":   8650752
+    }
+  ],
+  "generation": 668,
+  "count": 1
+}
+```
+
+Only tiles that already have a pinned APK appear.  No admin auth — the launcher itself has no Bearer token and must drive bulk install on a fresh box.  4 pytest contract tests (`tests/test_bulk_install_manifest.py`) lock the shape so future refactors can't silently break the Kotlin client.
+
+### 2. New `BulkInstallActivity` (Kotlin)
+`onnowtv-launcher/.../install/BulkInstallActivity.kt` — full-screen UI with:
+- Eyebrow `ON NOW · BULK INSTALL`, title `Install every app, all at once`.
+- Live status banner that narrates the queue (`Downloading 3 of 5: Vesper TV…` → `All apps queued.  Close this screen when you're done confirming dialogs.`).
+- One row per app from the manifest with a status pill (`PENDING → DL 73% → DOWNLOADED → INSTALLING → INSTALLED` or `FAILED`).
+- Big focusable `Install all apps` button.  Disabled while running.
+- Footer warning that Android will pop one confirmation dialog per APK (unavoidable for non-system launchers).
+
+Queue logic:
+- **Phase 1**: download every APK to `cacheDir/bulk_apks/*` sequentially with live percentage on the pill (`OkHttp` + 64KB chunks).  A download failure marks that app `FAILED` and the queue keeps going.
+- **Phase 2**: fire the system install intent for every successfully-downloaded APK in sequence with a 1200ms gap between each so the system has time to render its dialog before the next one stacks.
+
+### 3. Hidden long-press gesture in `AppsDrawerActivity`
+`installBulkInstallGesture(root)` — invisible 120×120dp zone in the top-left corner with a touch listener:
+- `t = 0` (DOWN): start 5-second timer.
+- `t = 2s`: fade in a small sunshine-yellow ring at the corner, then animate it growing toward "full" over the remaining 3s so the operator gets visual feedback that the gesture is registering.
+- `t = 5s`: `MediaActionSound.FOCUS_COMPLETE` audible click + `startActivity(BulkInstallActivity::class)`.
+- DOWN released before 5s → cancel timer, hide ring, reset.
+
+The zone view is `!isFocusable / !isClickable`, so D-pad focus keeps falling through to the App Store grid behind it — only a physical touch ever triggers this gate.
+
+### 4. AndroidManifest
+`tv.onnow.launcher.install.BulkInstallActivity` registered with `exported=false`, landscape orientation, NoActionBar theme.
+
+### Files touched / added
+- `launcher-backend/main.py` — `/api/bulk/manifest` + `_safe_filesize` helper.
+- `launcher-backend/tests/test_bulk_install_manifest.py` — 4 contract tests.
+- `android/onnowtv-launcher/app/src/main/java/tv/onnow/launcher/install/BulkInstallActivity.kt` — **new**.
+- `android/onnowtv-launcher/app/src/main/java/tv/onnow/launcher/apps/AppsDrawerActivity.kt` — long-press gesture installer.
+- `android/onnowtv-launcher/app/src/main/AndroidManifest.xml` — activity registration.
+
+### Verified
+- Backend: `curl http://127.0.0.1:8002/api/bulk/manifest` returns expected JSON.  4/4 pytest contract tests pass in 0.17s.
+- Kotlin: brace balance 69=69 (BulkInstallActivity), 168=168 (AppsDrawerActivity), parens 284=284 / 503=503.  Static-only; Kotlin compile runs in CI when the user clicks Save to GitHub.
+
+### User-facing caveat (documented in the activity's footer text)
+Android REQUIRES per-app system install confirmation for any non-device-owner / non-system launcher.  So on a fresh box the operator will press OK on the remote N times (once per pinned APK).  That's still vastly better than finding each APK by hand — single sweep, ~5 D-pad clicks, done.
+
+
 ## v2.10.70 — Kids Detail playback fix + Kids splash branding + pill nudge (2026-02-27)
 
 User feedback after v2.10.69:
