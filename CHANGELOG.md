@@ -1,5 +1,51 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.75 — Install/Update: centred blue progress bar that stays + auto-uninstall (2026-02-27)
+
+User report: *"When it's doing the install or when it's doing the update, it only shows the loading for a few seconds and then the percentage thing disappears.  Can we have that loading bar, that nice blue loading bar that we used to have in the middle, and make sure it lasts all the way until the actual install page pops up.  Also should automatically be uninstalling the previous app because I don't want them to have to click Uninstall as well."*
+
+Three fixes, two paths.
+
+### 1. Launcher tile install — centred modal progress dialog
+Root cause: `MainActivity.onTileInstallRequested` used `Toast.makeText(…, Toast.LENGTH_LONG)` to surface download progress.  Android auto-dismisses `LENGTH_LONG` after ~3.5s regardless of work in progress — so any download longer than that left the user with no feedback until the system install dialog finally surfaced.
+
+Fix: new `InstallProgressDialog` (pure programmatic Kotlin, 176 lines) — a centred modal with the V2-brand cyan progress bar, "Updating X / Installing X" title, percent indicator, and a status sub-line.  Stays up for the FULL lifecycle: download → optional uninstall round-trip → just before the system install dialog overlays it (then dismissed via `handler.postDelayed({…}, 1200)` so it doesn't strand under the system UI).  No XML — matches the rest of the launcher's pure-Kotlin UI style.
+
+### 2. Launcher tile install — auto-uninstall + auto-resume install
+Previous signature-conflict path required the user to:
+  1. Tap tile → download → conflict detected → Toast message + system Uninstall dialog.
+  2. Tap Uninstall.
+  3. Navigate BACK to the tile.
+  4. Tap the tile AGAIN to re-download + install.
+
+New flow (`ApkInstaller.downloadAndInstall` gained an optional `onConflict: ((conflictPkg, apkFile) -> Unit)?` parameter):
+  1. Tap tile → download → conflict detected → progress dialog updates to *"Uninstalling old X. We'll install the new version automatically as soon as it's gone."* → fires `ACTION_DELETE` via `ActivityResultLauncher`.
+  2. User taps Uninstall in the system dialog.
+  3. Activity result callback fires → re-calls `ApkInstaller.launchInstallPrompt(this, cachedApk)` automatically.
+  4. System Install dialog appears → user taps Install → done.
+
+`launchInstallPrompt` was promoted from `private` to `internal` so the activity-result callback can re-fire it without going through `downloadAndInstall` again.  The cached APK file path + tile label are stashed in two new MainActivity fields (`pendingApkAfterUninstall`, `pendingTileLabelAfterUninstall`) and cleared on consumption.
+
+### 3. React UpdateGate — keep blue bar visible in openExternal fallback
+A related regression in the React Vesper APK self-update flow: the `openExternal` fallback (used by older builds without the `installApk` native bridge) called `setBusy(false)` immediately after launching the external browser.  That invalidated the `{busy && progress >= 0 && …}` render guard, vanishing the centred blue bar within a single frame.
+
+Fix: in the openExternal branch of `UpdateGate.handleInstall`, replace `setBusy(false)` with `setStage('downloaded') + setProgress(100)`.  Busy stays true, bar stays visible at 100% with the "Opening installer…" status — matches the native `installApk` happy path.
+
+### Files touched
+- `android/onnowtv-launcher/.../install/InstallProgressDialog.kt` — **new** (centred modal, blue cyan progress bar).
+- `android/onnowtv-launcher/.../install/ApkInstaller.kt` — optional `onConflict` callback in `downloadAndInstall`; `launchInstallPrompt` made internal.
+- `android/onnowtv-launcher/.../MainActivity.kt` — `installProgressDialog` field, `uninstallResultLauncher` (`ActivityResultLauncher<Intent>`), `pendingApkAfterUninstall` / `pendingTileLabelAfterUninstall` fields, rewritten `onTileInstallRequested`.
+- `frontend/src/components/UpdateGate.jsx` — `handleInstall` openExternal branch keeps `busy=true`.
+
+### Verified
+- **Backend (pytest 3/3 PASS via testing_agent_v3_fork iter55)**: `/api/addons` 200, `/api/streams/movie/tt0111161` returns streams correctly tagged with `_addon_source` + `_quality_label` (extended `_ADDON_SOURCE_MAP` from v2.10.74 didn't break detection).
+- **Frontend (testing_agent_v3_fork iter55)**: app boots with 0 console errors and 0 page errors; sign-in flow works end-to-end with `testuser`/`testpass123`; UpdateGate.jsx static review confirms `busy=true` is preserved in the openExternal branch so the render guard `{busy && progress >= 0}` stays truthy.
+- **Kotlin static check**: brace/paren delta accounting clean — MainActivity Δ {+16, +16} ({+36, +36}), ApkInstaller Δ {+2, +2} ({+9, +9}), InstallProgressDialog 19/19, 67/67.  Compile runs in CI on Save to GitHub.
+
+### Caveat (documented in InstallProgressDialog's class header)
+Android requires user confirmation on both the Uninstall AND Install system dialogs — the launcher can't auto-tap them.  But the new flow eliminates the manual "navigate back, re-click the tile" step in between, so the worst case is now two D-pad clicks instead of two clicks + a tile re-tap + a second full download cycle.
+
+
 ## v2.10.74 — EasyNews++ support: synopsis, rich badges, CW art hydrator (2026-02-27)
 
 User report: *"I've just added a new add-on called Easy News++.  When I play something, it doesn't show the synopsis or anything like that.  It doesn't show if it's 1080p, doesn't show Dolby Digital and all that sort of stuff.  Can you double-check why Easy News isn't showing the synopsis and it's not showing the image when we go back to continue watching."*

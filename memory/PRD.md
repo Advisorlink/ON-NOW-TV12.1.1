@@ -1,5 +1,16 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.75 — Install/Update: centred blue progress bar that STAYS + auto-uninstall (27 Jun 2026).**
+>
+> Two bugs in the launcher tile install/update flow:
+>
+>   • **Toast progress bar vanished mid-download.**  `MainActivity.onTileInstallRequested` used `Toast.LENGTH_LONG` (~3.5s auto-dismiss).  Replaced with new `InstallProgressDialog` — a centred modal with V2-brand cyan progress bar, "Updating X" title, percent indicator, status sub-line.  Stays up through the full lifecycle (download → optional uninstall round-trip → system install dialog).  Pure programmatic Kotlin, 176 lines, no extra XML.
+>   • **Signature-conflict path required a manual re-tap.**  New flow: `ApkInstaller.downloadAndInstall` accepts an optional `onConflict: ((pkg, apkFile) -> Unit)?` callback.  `MainActivity` registers an `ActivityResultLauncher<Intent>` for `ACTION_DELETE`; on conflict it stashes the downloaded APK + tile label, fires the uninstall via the launcher, and on result callback re-fires `ApkInstaller.launchInstallPrompt` (now `internal` instead of `private`) with the cached APK.  Two D-pad clicks total (Uninstall, Install) — no tile re-tap, no second download.
+>   • **React UpdateGate openExternal regression.**  Replaced `setBusy(false)` with `setStage('downloaded') + setProgress(100)` so the centred blue bar's render guard `{busy && progress >= 0}` stays truthy.
+>
+> Verified by `testing_agent_v3_fork` iter55: 3/3 backend pytest PASS, 0 frontend console errors, app boots cleanly, UpdateGate static-review confirms `busy=true` is preserved in openExternal branch.  Kotlin static check clean — MainActivity Δ {+16, +16} ({+36, +36}), ApkInstaller Δ {+2, +2} ({+9, +9}), InstallProgressDialog 19/19 67/67.
+
+
 > **🟢 v2.10.74 — EasyNews++ support: synopsis, rich badges, CW art hydrator (27 Jun 2026).**
 >
 > Three independent fixes covering all three symptoms of the user's *"Easy News++ doesn't show synopsis, no Dolby/1080p info, no CW image"* report.
