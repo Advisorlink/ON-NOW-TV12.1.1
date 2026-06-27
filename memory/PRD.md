@@ -1,5 +1,17 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.72 — Fresh-install boxes always surface the Register screen (27 Jun 2026).**
+>
+> Root cause: v2.8.8 added a silent auto-register path that POSTed `/api/launcher/register` with a synthesized name immediately on first boot, so the manual Register UI was never visible on a new TV.  User's new ask: *"every fresh box needs to show the register screen so I can approve it in the admin backend"*.
+>
+> Fix (launcher-side only):
+>   • **`OnboardingActivity.decidePhase()`** — silent auto-register block removed.  When the backend says `unregistered`, the activity now falls straight through to `PHASE_REGISTER` (manual name-entry UI with the on-screen keyboard).
+>   • **`renderRegisterPhase()`** pre-fills `typedName` with `autoRegisterDeviceName()` (manufacturer + model + last-6 of device id) so the operator can either edit to a custom label or press Register immediately.
+>   • Returning boxes (`status=active` already in the backend / locally cached) are unaffected — they skip Onboarding entirely just like before.  A factory-reset + reinstall correctly behaves as a fresh install.
+>
+> Static-verified Kotlin (braces 133=133, parens 496=496); compile runs in CI on Save to GitHub.
+
+
 > **🟢 v2.10.71 — Bulk-install all apps on a fresh box (27 Jun 2026).**
 >
 > User asked for a hidden, no-confirm-per-app way to install every pinned APK on a new TV box.  Multi-piece delivery:

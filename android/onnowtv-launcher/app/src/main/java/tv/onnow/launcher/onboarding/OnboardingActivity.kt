@@ -186,37 +186,29 @@ class OnboardingActivity : AppCompatActivity() {
         }
         // We DO have network — go ask the backend first.
         lifecycleScope.launch {
-            var (remoteStatus, name) = fetchActivationStatus()
+            val (remoteStatus, name) = fetchActivationStatus()
 
-            // v2.8.8 — Silent auto-register flow.  Per direct user
-            // requirement: with 500+ trusted clients the user can
-            // NOT manually approve every device.  When the backend
-            // says "unregistered" we automatically POST a fresh
-            // registration with a sensible default name (device
-            // make + last 6 of the device id) — and because the
-            // backend now defaults new devices to status="active"
-            // (AUTO_APPROVE_DEVICES=1), the very next activation
-            // poll returns "active" and the launcher boots with
-            // ZERO user interaction.  The manual register UI only
-            // appears as a last-resort fallback if the auto-register
-            // call itself fails (e.g. network glitch mid-handshake).
-            if (remoteStatus == "unregistered") {
-                val defaultName = autoRegisterDeviceName()
-                val regErr = doRegister(defaultName)
-                if (regErr == null) {
-                    // Re-fetch — should now be "active" with
-                    // AUTO_APPROVE_DEVICES on, or "pending" if the
-                    // admin has explicitly disabled auto-approve.
-                    val (after, afterName) = fetchActivationStatus()
-                    remoteStatus = after
-                    name = afterName
-                    getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                        .putString(KEY_NAME, defaultName)
-                        .apply()
-                }
-                // If regErr != null, fall through with status still
-                // "unregistered" → manual register UI as fallback.
-            }
+            // v2.10.72 — User explicitly requested: EVERY fresh
+            // install MUST surface the manual register screen so
+            // the box appears in the launcher-backend admin UI
+            // under the name the operator types, and the operator
+            // approves it from there.  Per direct user quote:
+            // *"any time that I'm installing it onto a new box, I
+            // need it to say register the device… so it shows up
+            // in the launcher backend so I can approve it.  Only
+            // on a new install though"*.
+            //
+            // The previous v2.8.8 "silent auto-register" flow is
+            // removed.  When the backend says "unregistered" we
+            // now fall through to PHASE_REGISTER (the manual UI)
+            // unconditionally — that's exactly the screen the
+            // user wants on every fresh box.
+            //
+            // Returning boxes already in the "active" / "pending" /
+            // "blocked" state on the backend are unaffected: their
+            // status is persisted locally and the launcher boots
+            // straight into the previous experience with ZERO
+            // friction (per *"Only on a new install though"*).
 
             // Persist whatever the backend says (so we have a
             // useful fallback next time the network is down).
@@ -302,7 +294,14 @@ class OnboardingActivity : AppCompatActivity() {
 
     private fun renderRegisterPhase() {
         root.removeAllViews()
-        typedName = ""
+        // v2.10.72 — Pre-fill the name field with a sensible default
+        // (manufacturer + last 6 of the device id) so the operator can
+        // just press REGISTER and have the box show up in the admin
+        // backend with a meaningful name — or edit it first if they
+        // want a custom label (e.g. "Lounge TV").  Faster onboarding
+        // without sacrificing the explicit "show up so I can approve
+        // it" surface the user asked for.
+        typedName = autoRegisterDeviceName()
         shiftOn = false
 
         // v2.8.7 — Outer scroll-safe column.  `clipChildren=false`

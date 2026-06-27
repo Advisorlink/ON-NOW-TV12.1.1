@@ -1,5 +1,30 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.72 — Fresh-install boxes always surface the Register screen (2026-02-27)
+
+User feedback: *"When I'm installing the launcher onto a new box, it's not asking me to register the device.  I need it to say register the device, because right now it's not saying register the device.  So I need to make sure that it says that — so it shows up in the launcher backend so I can approve it.  Only on a new install though."*
+
+### Root cause
+v2.8.8 added a "silent auto-register" path inside `OnboardingActivity.decidePhase()`.  The original ask back then was: with 500+ trusted boxes the user can't manually approve every one, so when the backend returned `status=unregistered`, the launcher would synthesize a default name (`{Manufacturer} {Model} · {last 6 of device id}`), POST `/api/launcher/register` automatically, then poll for activation.  With `AUTO_APPROVE_DEVICES=1` server-side the box would land at `status=active` and the launcher would jump straight to home — **with no UI ever shown** on the new TV.
+
+That's exactly the bug the user reports today: the manual Register screen is now invisible on fresh installs.
+
+### Fix (launcher-side only — no backend changes)
+- **Removed** the silent auto-register block in `OnboardingActivity.decidePhase()`.  When the backend says `unregistered`, the activity now falls straight through to `PHASE_REGISTER` (the manual name-entry UI with the on-screen keyboard).
+- **Pre-fill** for speed: `renderRegisterPhase()` now seeds `typedName` with `autoRegisterDeviceName()` (manufacturer + model + last-6 of device id), so the operator can either edit it to a custom label (e.g. *"Lounge TV"*) or just press Register and ship.  The device appears in the admin backend immediately under that name — the operator approves it from the Connected Devices panel.
+
+### Returning boxes unaffected
+The fix only changes the `unregistered` branch.  Boxes already in `active` / `pending` / `blocked` state on the backend skip Onboarding entirely as before — `MainActivity.onCreate` reads `OnboardingActivity.currentStatus(this)` and only routes to Onboarding when the local cached status isn't `active`.  So a reinstall on the SAME physical box (same SharedPreferences = same `device_id` → backend still has the record) boots straight into the launcher home with zero friction.
+
+A reinstall AFTER a factory reset (SharedPreferences wiped → new `device_id` generated) is, correctly, a "fresh install" → manual register screen appears.  That's the user's intended behaviour: *"every time I'm installing it onto a new box"*.
+
+### Files touched
+- `android/onnowtv-launcher/app/src/main/java/tv/onnow/launcher/onboarding/OnboardingActivity.kt` — silent auto-register block removed (decidePhase) + register screen pre-fill (renderRegisterPhase).
+
+### Verified
+- Kotlin static check: braces 133=133, parens 496=496, 883 lines.  No compile error surface.  Kotlin compile runs in CI when the user clicks Save to GitHub.
+
+
 ## v2.10.71 — Bulk-install all apps on a fresh box (2026-02-27)
 
 User feature request: *"I want a way so I can get… on a new box install, I can open up the launcher and in the apps section, push and hold for five seconds in the top left-hand corner.  And then it opens up a section where it says 'Install all apps' — all of our apps are held on the [launcher backend] somewhere — so it'll install all of them at once.  I don't want to have to click install on each of them.  Like a backup basically.  So it installs all the apps in one hit and then it's ready to go."*
