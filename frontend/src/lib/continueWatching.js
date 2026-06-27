@@ -341,3 +341,77 @@ export function getProgress(id) {
     const list = readAll();
     return list.find((x) => x.id === id) || null;
 }
+
+
+/**
+ * v2.10.74 — Background art hydrator.
+ *
+ * Some addons (EasyNews++ being a recent example) hand back streams
+ * whose IMDB id doesn't resolve in Cinemeta at the moment Detail.jsx
+ * runs its `Vesper.getMeta()` call.  When that meta lookup returns
+ * null, the `cw.upsert(…)` at play-time stores empty strings for
+ * `poster` / `backdrop` / `synopsis`, and the Continue Watching
+ * shelf later renders the tile with no image and no description.
+ *
+ * `hydrateMissingArt()` walks every CW entry, looks up the ones
+ * missing both `poster` AND `backdrop`, and writes the art back
+ * to localStorage in-place.  Safe to call repeatedly — entries
+ * that already have art are skipped, and a single in-flight
+ * lookup-per-id is dedup'd via the module-level `_inflight` set.
+ *
+ * Calls the standard `/api/meta/:type/:id` endpoint via the
+ * caller-supplied `getMeta` helper so this module stays free of
+ * direct axios / fetch dependencies (Home.jsx passes
+ * `Vesper.getMeta` in).
+ */
+const _inflight = new Set();
+
+export async function hydrateMissingArt(getMeta) {
+    if (typeof getMeta !== 'function') return;
+    const list = readAll();
+    if (!Array.isArray(list) || list.length === 0) return;
+    // Only the entries that actually need help.
+    const needy = list.filter(
+        (e) => e?.id && !e.poster && !e.backdrop && !_inflight.has(e.id),
+    );
+    if (needy.length === 0) return;
+
+    for (const entry of needy) {
+        _inflight.add(entry.id);
+        try {
+            // Series ids look like `tt12345:s2:e3` — strip the
+            // season/episode bits so we ask cinemeta for the SHOW.
+            const baseId = entry.id.split(':')[0];
+            const fetchType = entry.type === 'series' ? 'series' : 'movie';
+            const r = await getMeta(fetchType, baseId);
+            const m = r?.data?.meta || null;
+            if (!m) continue;
+            // Re-read on write so we don't clobber concurrent
+            // upserts that may have happened while the network
+            // call was in flight.
+            const fresh = readAll();
+            const idx = fresh.findIndex((e) => e.id === entry.id);
+            if (idx < 0) continue;
+            fresh[idx] = {
+                ...fresh[idx],
+                title: fresh[idx].title || m.name || '',
+                poster: fresh[idx].poster || m.poster || '',
+                backdrop: fresh[idx].backdrop || m.background || m.poster || '',
+                synopsis: fresh[idx].synopsis || m.description || '',
+                year: fresh[idx].year || m.releaseInfo || m.year || '',
+                rating: fresh[idx].rating || m.imdbRating || '',
+                runtime: fresh[idx].runtime || m.runtime || '',
+                genres: fresh[idx].genres?.length ? fresh[idx].genres : (m.genres || []),
+            };
+            writeAll(fresh);
+        } catch {
+            /* network blip — try again on next Home mount */
+        } finally {
+            _inflight.delete(entry.id);
+        }
+    }
+    // Tell any subscribed shelf to re-read the list.
+    try {
+        window.dispatchEvent(new CustomEvent('vesper:cw-hydrated'));
+    } catch { /* SSR / non-browser */ }
+}

@@ -1,5 +1,20 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.74 — EasyNews++ support: synopsis, rich badges, CW art hydrator (27 Jun 2026).**
+>
+> Three independent fixes covering all three symptoms of the user's *"Easy News++ doesn't show synopsis, no Dolby/1080p info, no CW image"* report.
+>
+>   • **Backend** — `_ADDON_SOURCE_MAP` recognises the EasyNews family (`easynews / easy-news / easy_news → EASYNEWS`) so the source chip in the StreamPickerModal lights up correctly.
+>   • **Frontend `streamMeta.js`** — `qualityTags()` expanded from 8 → 26 patterns: full HDR family (DV / HDR10+ / HDR10 / HDR), audio codec hierarchy (Atmos / TrueHD / DTS-HD MA / DTS-HD / DTS:X / DTS / DD+ / DD5.1 / FLAC / AAC / MP3), 7.1 / 5.1 channel pills, video codecs (HEVC / AV1 / H.264), source types (REMUX / BluRay / WEB-DL / WEB-Rip / HDTV / DVDRip).  New `sizeLabel()` for the size pill.
+>   • **`StreamPickerModal`** — header redesigned with poster thumbnail (64×96), title, and 3-line clamped synopsis above the stream list.  Each row now renders the full `qualityTags(s)` chip strip + a separate file-size pill, capped at 6 tags so the row never wraps to a 3rd line.
+>   • **CW art hydrator** — new `hydrateMissingArt(getMeta)` in `lib/continueWatching.js` walks every CW entry missing poster + backdrop, kicks off a background `/api/meta/:type/:id` lookup, and merges art/synopsis/year/rating/runtime/genres back into the entry.  Fires on Home mount; `ContinueWatchingShelf` subscribes to the new `vesper:cw-hydrated` event so tiles light up immediately.  In-flight de-dup via a module-level `Set`.
+>
+> Verified end-to-end:
+>   - Backend: `_detect_addon_source({'_addon_name':'EasyNews++'}) → 'EASYNEWS'`.
+>   - Frontend: 4 sample titles parsed correctly — Dolby Vision UHD REMUX produces `{4K, DV, HDR10+, HDR10, Atmos, TrueHD, 7.1, HEVC, REMUX, BluRay}` in the right order.
+>   - Lint clean on all 6 touched files.
+
+
 > **🟢 v2.10.73 — FTA TV guide: faster load + smoother RecyclerView (27 Jun 2026).**
 >
 > Four-part perf pass on `onnowtv-fta-native` per direct user ask ("load a little bit faster… moving up and down needs to be a lot smoother, like proper Android").

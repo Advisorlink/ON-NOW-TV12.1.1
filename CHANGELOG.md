@@ -1,5 +1,59 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.74 — EasyNews++ support: synopsis, rich badges, CW art hydrator (2026-02-27)
+
+User report: *"I've just added a new add-on called Easy News++.  When I play something, it doesn't show the synopsis or anything like that.  It doesn't show if it's 1080p, doesn't show Dolby Digital and all that sort of stuff.  Can you double-check why Easy News isn't showing the synopsis and it's not showing the image when we go back to continue watching."*
+
+Three independent fixes covering all three symptoms.
+
+### 1. Backend recognition — EasyNews family
+`_ADDON_SOURCE_MAP` extended with `easynews / easy-news / easy_news → EASYNEWS`.  Now every stream coming from the classic `stremio-easynews-addon`, EasyNews++, and any custom fork resolves to the `EASYNEWS` source chip in the StreamPickerModal instead of falling back to the generic first-word-of-addon-name guess.
+
+Verified: `_detect_addon_source({'_addon_name':'EasyNews++'}) → 'EASYNEWS'`.
+
+### 2. Frontend stream metadata — full badge set
+`/lib/streamMeta.js` `qualityTags()` previously surfaced 8 patterns (DV / HDR10+ / HDR / Atmos / REMUX / BluRay / WEB-DL / WEBRip).  Expanded to 26 patterns covering everything EasyNews++ titles embed:
+
+  - **HDR family** — Dolby Vision (`DV`), HDR10+, HDR10, plain HDR.
+  - **Audio codecs** (specific → general) — Atmos, TrueHD, DTS-HD MA, DTS-HD, DTS:X, DTS, DD+ (E-AC3 / DDP), DD5.1 (AC3), FLAC, AAC, MP3.
+  - **Channels** — 7.1, 5.1 (only emitted if not already captured by a more-specific codec pattern).
+  - **Video codecs** — HEVC (h.265 / x265), AV1, H.264 (x264 / AVC).
+  - **Source type** — REMUX, BluRay, WEB-DL, WEB-Rip, HDTV, DVDRip.
+
+Also added `sizeLabel(stream)` — best-effort extraction of `"12.4 GB"` / `"850 MB"` from titles so the picker can show a size pill, and dedup'd `qualityTags()` against duplicate labels via a `Set`.
+
+Live-tested against four sample titles (EasyNews++ Atmos 4K, BluRay 1080p HEVC, 720p HDTV x264 AAC, Dolby Vision REMUX) — every expected tag appears in the right order.
+
+### 3. StreamPickerModal — synopsis + rich badge strip
+- **Header** redesigned: poster thumbnail (64×96, cinemeta-sourced), title, and a 3-line clamped synopsis are now visible above the stream list.  Accepts either `meta.name` / `meta.description` (cinemeta shape) or `meta.title` / `meta.synopsis` (legacy / hand-built shape).
+- **Per-stream chip strip** now renders the full `qualityTags(s)` output + a separate file-size pill.  Capped at 6 tags so the row never wraps to a 3rd line on narrower modal widths.  Each chip uses its tone color (gold for HDR family, violet for audio, cyan for codec/release).
+
+### 4. Continue Watching art hydrator
+Root cause of *"no image when I go back to continue watching"*: when an EasyNews++-resolved stream is played, `Vesper.getMeta()` had returned null for the title at the moment `cw.upsert()` ran, so the entry was stored with empty `poster` / `backdrop` / `synopsis` — and `ContinueWatchingShelf` correctly rendered a dark-grey tile with no image.
+
+New `hydrateMissingArt(getMeta)` in `lib/continueWatching.js`:
+  - Walks every CW entry on Home mount.
+  - For each entry missing BOTH `poster` AND `backdrop`, kicks off a background `/api/meta/:type/:id` lookup (using the stripped `tt12345` from any `tt12345:s2:e3` series id).
+  - On success, merges the art / synopsis / year / rating / runtime / genres into the existing entry without clobbering newer upserts.
+  - Dispatches `vesper:cw-hydrated` when done — `ContinueWatchingShelf` subscribes and refreshes immediately so tiles light up without waiting for the 30 s poll.
+  - In-flight de-dup via a module-level `Set` so rapid Home re-mounts don't fire duplicate requests.
+
+Home.jsx imports `Vesper.getMeta` + calls `hydrateCwArt(Vesper.getMeta)` inside its existing CW refresh effect.
+
+### Files touched
+- `backend/server.py` — `_ADDON_SOURCE_MAP` extended.
+- `frontend/src/lib/streamMeta.js` — `qualityTags()` expanded to 26 patterns; new `sizeLabel()`.
+- `frontend/src/components/StreamPickerModal.jsx` — header redesign (poster + synopsis), per-row chip strip wiring.
+- `frontend/src/lib/continueWatching.js` — new `hydrateMissingArt()` helper.
+- `frontend/src/pages/Home.jsx` — fires the hydrator + listens for `vesper:cw-hydrated`.
+- `frontend/src/components/ContinueWatchingShelf.jsx` — listens for `vesper:cw-hydrated` so tiles refresh the moment art arrives.
+
+### Verified
+- Backend: `_detect_addon_source({'_addon_name':'EasyNews++'}) → 'EASYNEWS'`.
+- Frontend: 4 sample EasyNews++/Torrentio titles parsed end-to-end produce the expected badge sets.
+- Lint clean on all 5 frontend files + backend.
+
+
 ## v2.10.73 — FTA TV guide: faster load + smoother RecyclerView (2026-02-27)
 
 User feedback: *"Make sure the native free-to-air TV guide loads a little bit faster and moving up and down between channels needs to be a lot smoother, like proper Android.  Right now it's still a little bit chunky and a little bit hard to get working, but it's working well when it plays."*

@@ -511,6 +511,14 @@ _ADDON_SOURCE_MAP = [
     ("aiostreams", "AIO"),
     ("jackett",    "JACKETT"),
     ("orion",      "ORION"),
+    # v2.10.74 — Easynews family (Usenet aggregator).  Includes
+    # the classic stremio-easynews-addon + EasyNews++.  Surfaced
+    # as the "EASYNEWS" source chip in the StreamPickerModal so
+    # the operator can see at a glance which back-end resolved
+    # the stream.
+    ("easynews",   "EASYNEWS"),
+    ("easy-news",  "EASYNEWS"),
+    ("easy_news",  "EASYNEWS"),
 ]
 
 

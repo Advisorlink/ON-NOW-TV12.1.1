@@ -97,27 +97,85 @@ export function qualityBadge(stream) {
 }
 
 /**
- * Extra tags (HDR / DV / ATMOS / REMUX / WEB-DL) — small inline
- * pills the renderer can append next to the main quality badge.
+ * Extra tags (HDR / DV / ATMOS / REMUX / WEB-DL / audio codecs /
+ * video codecs) — small inline pills the renderer appends next to
+ * the main quality badge.
+ *
+ * v2.10.74 — Expanded for Easynews++ releases, which embed rich
+ * codec / channel info in their titles (e.g.,
+ *   "Movie.2024.2160p.WEB-DL.DDP5.1.Atmos.HEVC-FGT.mkv").
+ * The picker now surfaces:
+ *   • HDR family — HDR10+, Dolby Vision, plain HDR
+ *   • Audio    — Atmos, TrueHD, DTS-HD/MA/X, DTS, DD+ (E-AC3), AC3,
+ *                AAC, FLAC, MP3, plus 5.1 / 7.1 channel pills
+ *   • Video    — HEVC (h.265), AV1, x264 (h.264)
+ *   • Source   — REMUX, BluRay, WEB-DL, WEBRip, HDTV
+ * Ordering of TAG_PATTERNS matters — the renderer dedups by
+ * label, so put the most-specific pattern first (e.g. DTS-HD MA
+ * before plain DTS, HDR10+ before HDR10 before HDR).
  */
 const TAG_PATTERNS = [
-    { test: /\bdolby[\s.-]?vision\b|\bdv\b/i, label: 'DV', tone: 'gold' },
-    { test: /\bhdr10\+\b|\bhdr10plus\b/i, label: 'HDR10+', tone: 'gold' },
-    { test: /\bhdr\b/i, label: 'HDR', tone: 'gold' },
-    { test: /\batmos\b/i, label: 'Atmos', tone: 'violet' },
-    { test: /\bremux\b/i, label: 'REMUX', tone: 'cyan' },
-    { test: /\bbluray\b|\bblu-ray\b/i, label: 'BluRay', tone: 'cyan' },
-    { test: /\bweb-?dl\b/i, label: 'WEB-DL', tone: 'neutral' },
-    { test: /\bwebrip\b/i, label: 'WEB-Rip', tone: 'neutral' },
+    /* ── HDR family ── */
+    { test: /\bdolby[\s.\-_]?vision\b|\bdv\b/i, label: 'DV', tone: 'gold' },
+    { test: /\bhdr10\+|\bhdr10plus\b/i,         label: 'HDR10+', tone: 'gold' },
+    { test: /\bhdr10\b/i,                       label: 'HDR10', tone: 'gold' },
+    { test: /\bhdr\b/i,                         label: 'HDR', tone: 'gold' },
+    /* ── Audio codecs (most specific first) ── */
+    { test: /\batmos\b/i,                       label: 'Atmos', tone: 'violet' },
+    { test: /\btruehd\b/i,                      label: 'TrueHD', tone: 'violet' },
+    { test: /\bdts[\s.\-_]?hd[\s.\-_]?ma\b/i,   label: 'DTS-HD MA', tone: 'violet' },
+    { test: /\bdts[\s.\-_]?hd\b/i,              label: 'DTS-HD', tone: 'violet' },
+    { test: /\bdts[\s.\-_]?x\b/i,               label: 'DTS:X', tone: 'violet' },
+    { test: /\bdts\b/i,                         label: 'DTS', tone: 'violet' },
+    { test: /\bddp\b|\bddp5\.?1\b|\be[-_.]?ac3\b|\bdd\+/i, label: 'DD+', tone: 'violet' },
+    { test: /\bdd5\.?1\b|\bac3\b/i,             label: 'DD5.1', tone: 'violet' },
+    { test: /\bflac\b/i,                        label: 'FLAC', tone: 'violet' },
+    { test: /\baac\b/i,                         label: 'AAC', tone: 'violet' },
+    { test: /\bmp3\b/i,                         label: 'MP3', tone: 'muted' },
+    /* ── Channels (only when not already captured by a codec) ── */
+    { test: /\b7\.?1\b/i,                       label: '7.1', tone: 'muted' },
+    { test: /\b5\.?1\b/i,                       label: '5.1', tone: 'muted' },
+    /* ── Video codecs ── */
+    { test: /\b(hevc|h\.?265|x265)\b/i,         label: 'HEVC', tone: 'cyan' },
+    { test: /\bav1\b/i,                         label: 'AV1', tone: 'cyan' },
+    { test: /\b(h\.?264|x264|avc)\b/i,          label: 'H.264', tone: 'cyan' },
+    /* ── Source / release type ── */
+    { test: /\bremux\b/i,                       label: 'REMUX', tone: 'cyan' },
+    { test: /\bbluray\b|\bblu-ray\b/i,          label: 'BluRay', tone: 'cyan' },
+    { test: /\bweb-?dl\b/i,                     label: 'WEB-DL', tone: 'neutral' },
+    { test: /\bwebrip\b/i,                      label: 'WEB-Rip', tone: 'neutral' },
+    { test: /\bhdtv\b/i,                        label: 'HDTV', tone: 'neutral' },
+    { test: /\bdvdrip\b/i,                      label: 'DVDRip', tone: 'muted' },
 ];
 
 export function qualityTags(stream) {
     const haystack = `${stream?.title || ''} ${stream?.name || ''}`;
     const out = [];
+    const seen = new Set();
     for (const t of TAG_PATTERNS) {
-        if (t.test.test(haystack)) out.push({ label: t.label, tone: t.tone });
+        if (seen.has(t.label)) continue;
+        if (t.test.test(haystack)) {
+            seen.add(t.label);
+            out.push({ label: t.label, tone: t.tone });
+        }
     }
     return out;
+}
+
+/**
+ * v2.10.74 — Best-effort file-size extraction from a stream title.
+ * Returns a normalised string like "12.4 GB" / "850 MB" / null.
+ * Used by StreamPickerModal so the user can see how chunky each
+ * link is before committing.
+ */
+export function sizeLabel(stream) {
+    const haystack = `${stream?.title || ''} ${stream?.name || ''}`;
+    // Match e.g. "💾 12.4 GB", "[850 MB]", "Movie.2024.4.7GB.mkv".
+    const m = haystack.match(/(\d+(?:[.,]\d+)?)\s*(GB|MB)\b/i);
+    if (!m) return null;
+    const num = parseFloat(m[1].replace(',', '.'));
+    if (!isFinite(num)) return null;
+    return `${num} ${m[2].toUpperCase()}`;
 }
 
 export const toneColors = {

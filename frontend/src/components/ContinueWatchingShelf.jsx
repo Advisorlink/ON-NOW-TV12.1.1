@@ -33,10 +33,16 @@ export default function ContinueWatchingShelf() {
         };
         document.addEventListener('visibilitychange', onVis);
         window.addEventListener('focus', tick);
+        // v2.10.74 — Re-read entries the moment hydrateMissingArt
+        // finishes a backfill, so poster-less rows (typical for
+        // EasyNews++ plays before cinemeta backfills) light up
+        // without waiting for the next 30-second poll.
+        window.addEventListener('vesper:cw-hydrated', tick);
         return () => {
             clearInterval(id);
             document.removeEventListener('visibilitychange', onVis);
             window.removeEventListener('focus', tick);
+            window.removeEventListener('vesper:cw-hydrated', tick);
         };
     }, []);
 

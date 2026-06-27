@@ -16,7 +16,8 @@ import { useAddons } from '@/hooks/useAddons';
 import { useLiveShelves } from '@/hooks/useLiveShelves';
 import { useLiveHeroes } from '@/hooks/useLiveHeroes';
 import Lazy from '@/components/Lazy';
-import { getEntries as listContinueWatching } from '@/lib/continueWatching';
+import { getEntries as listContinueWatching, hydrateMissingArt as hydrateCwArt } from '@/lib/continueWatching';
+import { Vesper } from '@/lib/api';
 import { getViewingStyle } from '@/lib/viewingStyle';
 import useIsMobile from '@/lib/useIsMobile';
 
@@ -391,14 +392,22 @@ export default function Home() {
             } catch { setHasViewingStyle(false); }
         };
         refresh();
+        // v2.10.74 — Kick off the background art hydrator on every
+        // Home mount.  Walks every CW entry missing poster+backdrop
+        // (e.g. EasyNews++ plays where cinemeta returned null) and
+        // fills the art in-place from /api/meta.  Dispatches
+        // `vesper:cw-hydrated` when done so the shelf re-renders.
+        hydrateCwArt(Vesper.getMeta).catch(() => {});
         window.addEventListener('vesper:profile-change', refresh);
         window.addEventListener('vesper:viewing-style-change', refresh);
         window.addEventListener('vesper:cw-change', refresh);
+        window.addEventListener('vesper:cw-hydrated', refresh);
         window.addEventListener('storage', refresh);
         return () => {
             window.removeEventListener('vesper:profile-change', refresh);
             window.removeEventListener('vesper:viewing-style-change', refresh);
             window.removeEventListener('vesper:cw-change', refresh);
+            window.removeEventListener('vesper:cw-hydrated', refresh);
             window.removeEventListener('storage', refresh);
         };
     }, []);

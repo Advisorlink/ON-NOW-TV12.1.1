@@ -27,7 +27,7 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { qualityBadge, toneColors } from '@/lib/streamMeta';
+import { qualityBadge, qualityTags, sizeLabel, toneColors } from '@/lib/streamMeta';
 import * as img from '@/lib/img';
 
 // Inline streamMode helper — matches Detail.jsx's definition.
@@ -164,32 +164,83 @@ export default function StreamPickerModal({
                         'vesper-stream-unavail-in 280ms cubic-bezier(.16,1,.3,1) both',
                 }}
             >
-                <div className="flex items-center justify-between mb-5">
-                    <div>
-                        <div
-                            className="vesper-eyebrow"
-                            style={{ color: 'var(--vesper-blue-bright)' }}
-                        >
-                            Available streams
-                        </div>
-                        <div
-                            className="vesper-display"
-                            style={{
-                                fontSize: 22,
-                                letterSpacing: '-0.02em',
-                                marginTop: 4,
-                            }}
-                        >
-                            Choose a stream to test
+                <div className="flex items-start justify-between mb-5 gap-4">
+                    <div className="flex items-start gap-4 min-w-0 flex-1">
+                        {/* v2.10.74 — Poster thumb so the user can see
+                            what they're picking a link FOR.  Falls
+                            back to a placeholder when the meta layer
+                            had no poster (e.g. cinemeta miss). */}
+                        {meta?.poster ? (
+                            <img
+                                src={meta.poster}
+                                alt=""
+                                style={{
+                                    width: 64,
+                                    height: 96,
+                                    objectFit: 'cover',
+                                    borderRadius: 8,
+                                    flexShrink: 0,
+                                    border: '1px solid rgba(255,255,255,0.10)',
+                                    boxShadow: '0 6px 18px rgba(0,0,0,0.40)',
+                                }}
+                            />
+                        ) : null}
+                        <div className="min-w-0 flex-1">
+                            <div
+                                className="vesper-eyebrow"
+                                style={{ color: 'var(--vesper-blue-bright)' }}
+                            >
+                                Available streams
+                            </div>
+                            <div
+                                className="vesper-display"
+                                style={{
+                                    fontSize: 22,
+                                    letterSpacing: '-0.02em',
+                                    marginTop: 4,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                }}
+                            >
+                                {/* Cinemeta returns `name`/`description`;
+                                    older callers may pass `title`/`synopsis`.
+                                    Accept either shape so we don't have to
+                                    rename fields all over Detail.jsx. */}
+                                {meta?.title || meta?.name || 'Choose a stream to test'}
+                            </div>
+                            {/* v2.10.74 — Movie synopsis lives under
+                                the title so the operator knows the
+                                plot before committing to a link.
+                                Clamped to 3 lines to keep the modal
+                                compact. */}
+                            {(meta?.synopsis || meta?.description) && (
+                                <div
+                                    data-testid="stream-picker-synopsis"
+                                    style={{
+                                        marginTop: 8,
+                                        fontSize: 12,
+                                        lineHeight: 1.45,
+                                        color: 'var(--vesper-text-2)',
+                                        display: '-webkit-box',
+                                        WebkitBoxOrient: 'vertical',
+                                        WebkitLineClamp: 3,
+                                        overflow: 'hidden',
+                                    }}
+                                >
+                                    {meta?.synopsis || meta?.description}
+                                </div>
+                            )}
                         </div>
                     </div>
                     <div
-                        className="vesper-mono"
+                        className="vesper-mono shrink-0"
                         style={{
                             fontSize: 11,
                             color: 'var(--vesper-text-3)',
                             letterSpacing: '0.22em',
                             textTransform: 'uppercase',
+                            paddingTop: 6,
                         }}
                     >
                         {streams.length} found
@@ -212,6 +263,14 @@ export default function StreamPickerModal({
                         {streams.map((s, i) => {
                             const mode = streamMode(s);
                             const badge = qualityBadge(s);
+                            // v2.10.74 — Rich badges for each stream:
+                            // HDR family, audio codec (Atmos / DTS-HD
+                            // MA / DD+ / …), video codec (HEVC / AV1),
+                            // source type (REMUX / BluRay / WEB-DL).
+                            // Capped at 6 so the row never wraps to a
+                            // 3rd line on smaller modal widths.
+                            const tags = qualityTags(s).slice(0, 6);
+                            const size = sizeLabel(s);
                             const rawLabel = s.title || s.name || '(untitled)';
                             const titleLine = rawLabel.split('\n')[0];
                             const isCurrent = i === currentIdx;
@@ -368,6 +427,54 @@ export default function StreamPickerModal({
                                                         }}
                                                     >
                                                         🇬🇧 ENG
+                                                    </span>
+                                                )}
+                                                {/* v2.10.74 — Rich quality tags
+                                                    (HDR, DV, Atmos, HEVC, BluRay,
+                                                    WEB-DL, …) parsed from the
+                                                    stream title.  Per-tone colour
+                                                    so audio chips stay violet,
+                                                    HDR family gold, codecs cyan. */}
+                                                {tags.map((t, ti) => {
+                                                    const tone = safeTone(t.tone);
+                                                    return (
+                                                        <span
+                                                            key={`tag-${ti}-${t.label}`}
+                                                            data-testid={`modal-stream-${i}-tag-${t.label}`}
+                                                            style={{
+                                                                padding: '2px 7px',
+                                                                borderRadius: 4,
+                                                                background: tone.bg,
+                                                                border: `1px solid ${tone.border}`,
+                                                                color: tone.fg,
+                                                                fontWeight: 700,
+                                                                letterSpacing: '0.12em',
+                                                            }}
+                                                        >
+                                                            {t.label}
+                                                        </span>
+                                                    );
+                                                })}
+                                                {/* v2.10.74 — File-size pill (only
+                                                    when the title contains an
+                                                    obvious "12.4 GB" / "850 MB"
+                                                    token).  Helps the operator
+                                                    pick a link that won't choke
+                                                    the box. */}
+                                                {size && (
+                                                    <span
+                                                        data-testid={`modal-stream-${i}-size`}
+                                                        style={{
+                                                            padding: '2px 7px',
+                                                            borderRadius: 4,
+                                                            background: 'rgba(255,255,255,0.05)',
+                                                            border: '1px solid rgba(255,255,255,0.12)',
+                                                            color: 'var(--vesper-text-3)',
+                                                            fontWeight: 600,
+                                                            letterSpacing: '0.1em',
+                                                        }}
+                                                    >
+                                                        {size}
                                                     </span>
                                                 )}
                                                 <span style={{ opacity: 0.7 }}>
