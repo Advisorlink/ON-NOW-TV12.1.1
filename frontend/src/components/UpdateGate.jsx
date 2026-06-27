@@ -193,8 +193,15 @@ export default function UpdateGate() {
             }
             if (window.OnNowTV?.openExternal) {
                 window.OnNowTV.openExternal(info.apk_url);
+                // v2.10.75 — Keep `busy` true so the centred blue
+                // progress bar stays visible while the external
+                // browser fetches the APK and the user navigates
+                // the system installer.  We can't track real
+                // progress on this fallback path, so we pin at
+                // 100% with the "Opening installer…" status —
+                // matches the legitimate "downloaded" stage above.
                 setStage('downloaded');
-                setBusy(false);
+                setProgress(100);
                 return;
             }
             // No native bridge available — typical for v2.6.2 and

@@ -1,0 +1,33 @@
+{
+  "summary": "Regression test for v2.10.75 UpdateGate.jsx fix (keep blue progress bar visible after Install in openExternal fallback path) + v2.10.74 frontend changes + backend stream-tagging pipeline with new EasyNews entry in _ADDON_SOURCE_MAP. Backend: 3/3 pytest tests passed (/api/addons 200, /api/streams/movie/tt0111161 returns streams tagged with _addon_source and _quality_label, easynews entry doesn't break detector variety). Frontend: app boots with 0 console errors and 0 page errors; sign-in with testuser/testpass123 navigated from / -> /profiles cleanly. UpdateGate did not appear during the run (backend /api/app/latest-version did not report a newer version than the injected window.__APP_VERSION__='1.0.0' within the gate's check cadence), which is expected and explicitly noted as acceptable by the request. Static code review of UpdateGate.jsx handleInstall() lines 184-223 confirms the openExternal branch now sets stage='downloaded', progress=100 and DOES NOT set busy=false, so the centred bar render guard `{busy && progress >= 0}` (lines 424-443) stays truthy after Install is clicked — fix is correctly applied.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter55_updategate_streams.py",
+    "/app/test_reports/pytest/iter55_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "UpdateGate.jsx handleInstall openExternal branch fix is correct: setStage('downloaded') + setProgress(100) + omitting setBusy(false) keeps the centred blue progress bar render condition `{busy && progress >= 0}` (lines 424-443) truthy. The bar will remain visible until the parent component unmounts (e.g. user navigates away or app version updates). Note: there is no auto-dismiss timer in the React path either — if the user cancels the browser download, the gate stays at 100% indefinitely. Not a regression vs the Android Toast bug being fixed, but worth a future enhancement (a manual 'Cancel'/'Try again' affordance).",
+    "Location guard in UpdateGate.jsx lines 173-182 matches `/profile` and `/profile/` but NOT `/profiles` (the actual route after login). Since the gate did not render during testing anyway, this is moot today, but if a build ever reports a newer version, the gate WOULD overlay the profile picker. Consider adding `path === '/profiles' || path.startsWith('/profiles')` to onPreEntry. Low priority."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100% (no errors; gate flow not exercised due to live update endpoint not signalling an update)"
+  },
+  "test_credentials": "testuser / testpass123 (Vesper sign-in, per review_request — works on this preview pod)",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The UpdateGate.jsx fix is pod-verifiable only via static review unless backend /api/app/latest-version is mocked to return a version > window.__APP_VERSION__. The check interval in UpdateGate runs on mount + an interval; injecting localStorage 'vesper-update-info-v1' with a cached future-version JSON may be a more reliable way to force the gate to render for a deeper E2E test. The Android Kotlin part of the fix (InstallProgressDialog + ActivityResultLauncher for auto-uninstall) cannot be tested in this pod and is verified by user sideload.",
+  "rca of the issue": "Original Android bug: progress UI used Toast.LENGTH_LONG (~3.5s auto-dismiss) — fixed in Kotlin by switching to a modal InstallProgressDialog (not testable here). Original React-side bug: the openExternal fallback in UpdateGate.handleInstall called setBusy(false) immediately after launching the external browser, which invalidated the `{busy && progress >= 0}` render guard and made the centred blue bar vanish in <1 frame. Fix: in the openExternal branch, replace the setBusy(false) with setStage('downloaded') + setProgress(100), keeping busy=true so the guard stays truthy. Verified by code review at /app/frontend/src/components/UpdateGate.jsx:184-223 and 424-443."
+}

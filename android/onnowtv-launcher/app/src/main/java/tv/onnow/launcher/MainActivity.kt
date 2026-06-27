@@ -537,6 +537,61 @@ class MainActivity : AppCompatActivity() {
         return "$base$path"
     }
 
+    /* v2.10.75 — Centred install-progress UI fields.  The dialog is
+     * created when the user clicks a tile that has a pending
+     * install/update, lives through the download phase, and (if
+     * needed) through the signature-conflict uninstall hand-off,
+     * before dismissing as the system install intent fires.
+     *
+     * `pendingApkAfterUninstall` holds the downloaded APK file
+     * across the uninstall round-trip so the result callback can
+     * re-fire the install for the same APK without re-downloading.
+     * `pendingTileLabelAfterUninstall` keeps the friendly label
+     * for the dialog's status text. */
+    private var installProgressDialog: tv.onnow.launcher.install.InstallProgressDialog? = null
+    private var pendingApkAfterUninstall: java.io.File? = null
+    private var pendingTileLabelAfterUninstall: String? = null
+
+    /* v2.10.75 — ActivityResultLauncher for the uninstall hand-off.
+     * Registered at onCreate (must be registered before STARTED).
+     * The system uninstall confirmation comes back to us as an
+     * Activity result; we then re-fire the install for the cached
+     * APK so the user doesn't have to navigate back to the tile and
+     * click it again. */
+    private val uninstallResultLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+    ) { _ ->
+        // Whether the user confirmed or cancelled, we land back here
+        // ~immediately.  We treat "package now uninstalled" as the
+        // success signal — re-fire the install for the cached APK.
+        val apk  = pendingApkAfterUninstall
+        val lbl  = pendingTileLabelAfterUninstall.orEmpty()
+        pendingApkAfterUninstall = null
+        pendingTileLabelAfterUninstall = null
+        if (apk != null && apk.exists()) {
+            installProgressDialog?.setTitle("Installing $lbl")
+            installProgressDialog?.setMessage("Opening the system installer…")
+            installProgressDialog?.setProgress(100)
+            try {
+                tv.onnow.launcher.install.ApkInstaller.launchInstallPrompt(this, apk)
+            } catch (t: Throwable) {
+                Toast.makeText(
+                    this, "Install failed: ${t.message}", Toast.LENGTH_LONG,
+                ).show()
+            }
+            // Give the install dialog ~1s to render, then dismiss
+            // our progress overlay so it's not stranded under the
+            // system UI.
+            handler.postDelayed({
+                installProgressDialog?.dismiss()
+                installProgressDialog = null
+            }, 1200L)
+        } else {
+            installProgressDialog?.dismiss()
+            installProgressDialog = null
+        }
+    }
+
     /**
      * Invoked when the user clicks the UPDATE pill on a dock tile.
      * Mirrors the AppsDrawer's Home Update flow exactly:
@@ -546,6 +601,17 @@ class MainActivity : AppCompatActivity() {
      *      INSTALL and Android performs an in-place upgrade because
      *      the new APK is signed with the same keystore as the
      *      currently-installed one.
+     *
+     * v2.10.75 — Replaced the Toast.LENGTH_LONG progress bubble
+     * (which auto-dismissed after ~3.5 s mid-download, leaving the
+     * user with no feedback) with a centred modal blue progress bar
+     * that stays up for the full lifecycle of the operation.  Also
+     * added auto-uninstall-then-install: when the new APK is signed
+     * with a different key than the installed one, we now drive the
+     * uninstall via an ActivityResultLauncher and AUTO-fire the
+     * install once the uninstall result comes back — instead of
+     * the previous "show toast, fire uninstall, user must re-tap
+     * tile" two-step flow.
      */
     private fun onTileInstallRequested(item: DockItem) {
         val apkUrl = item.apkUrl?.trim().orEmpty()
@@ -567,18 +633,62 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val installed = isPackageInstalled(item.apkPackageId)
-        val verb = if (installed) "Update" else "Install"
-        val progress = Toast.makeText(
-            this, "$verb ${item.label}… 0%", Toast.LENGTH_LONG,
+        val verb = if (installed) "Updating" else "Installing"
+
+        // v2.10.75 — Centred blue progress bar in the middle of the
+        // screen.  Stays up through download + any conflict-resolution
+        // uninstall round-trip, dismisses when the system install
+        // dialog is about to take over visually.
+        installProgressDialog?.dismiss()
+        installProgressDialog = tv.onnow.launcher.install.InstallProgressDialog.show(
+            this,
+            "$verb ${item.label}",
+            "Downloading the latest build from the server…",
         )
-        progress.show()
+
         lifecycleScope.launch {
             val err = tv.onnow.launcher.install.ApkInstaller.downloadAndInstall(
                 this@MainActivity,
                 apkUrl,
                 suggestedName = "tile-${item.key}.apk",
                 onProgress = { pct ->
-                    runOnUiThread { progress.setText("$verb ${item.label}… $pct%") }
+                    runOnUiThread { installProgressDialog?.setProgress(pct) }
+                },
+                onConflict = { conflictPkg, apkFile ->
+                    // v2.10.75 — Auto-uninstall + auto-resume install.
+                    // Stash the downloaded APK so the result launcher
+                    // can re-fire the install once Android confirms
+                    // the uninstall.
+                    pendingApkAfterUninstall = apkFile
+                    pendingTileLabelAfterUninstall = item.label
+                    installProgressDialog?.setTitle("Uninstalling old ${item.label}")
+                    installProgressDialog?.setMessage(
+                        "Tap UNINSTALL on the next screen.  We'll install the new version " +
+                                "automatically as soon as it's gone.",
+                    )
+                    installProgressDialog?.setProgress(100)
+                    val intent = Intent(Intent.ACTION_DELETE).apply {
+                        data = Uri.parse("package:$conflictPkg")
+                        // Ask Android to return us a confirmation
+                        // result code so we know when to re-fire the
+                        // install.  Some OEMs ignore this flag but
+                        // we still land back via the result launcher
+                        // when the uninstall Activity finishes.
+                        putExtra(Intent.EXTRA_RETURN_RESULT, true)
+                    }
+                    try {
+                        uninstallResultLauncher.launch(intent)
+                    } catch (t: Throwable) {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Could not start uninstall: ${t.message}",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                        installProgressDialog?.dismiss()
+                        installProgressDialog = null
+                        pendingApkAfterUninstall = null
+                        pendingTileLabelAfterUninstall = null
+                    }
                 },
             )
             if (err != null) {
@@ -587,6 +697,24 @@ class MainActivity : AppCompatActivity() {
                     "$verb failed: $err",
                     Toast.LENGTH_LONG,
                 ).show()
+                installProgressDialog?.dismiss()
+                installProgressDialog = null
+                return@launch
+            }
+            // No conflict path — download finished cleanly,
+            // ApkInstaller has fired the system install intent.
+            // Update dialog to "Opening installer…" and give it
+            // a moment to render before we dismiss.
+            if (pendingApkAfterUninstall == null) {
+                runOnUiThread {
+                    installProgressDialog?.setTitle("Installing ${item.label}")
+                    installProgressDialog?.setMessage("Opening the system installer…")
+                    installProgressDialog?.setProgress(100)
+                }
+                handler.postDelayed({
+                    installProgressDialog?.dismiss()
+                    installProgressDialog = null
+                }, 1200L)
             }
             // After Android's install dialog completes, onResume()
             // re-binds the dock — the pill self-hides because

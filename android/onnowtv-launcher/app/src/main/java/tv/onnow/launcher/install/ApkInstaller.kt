@@ -44,12 +44,27 @@ object ApkInstaller {
 
     /**
      * @return null on success; an error message on failure.
+     *
+     * @param onConflict  v2.10.75 — Optional callback fired when
+     *   the downloaded APK targets a package already installed
+     *   with a DIFFERENT signing certificate.  When provided, this
+     *   helper does NOT auto-fire the uninstall prompt — it just
+     *   reports the conflict (with the conflicting package name +
+     *   the downloaded APK file) and returns `null`.  The caller
+     *   is then responsible for driving the uninstall flow and
+     *   calling [launchInstallPrompt] with the cached APK file
+     *   once the user confirms the uninstall.  When `onConflict`
+     *   is `null` (the legacy default) the previous behaviour
+     *   stands: a Toast + uninstall intent fires automatically,
+     *   and the user must re-tap the tile to install the new
+     *   version.
      */
     suspend fun downloadAndInstall(
         ctx: Context,
         apkUrl: String,
         suggestedName: String? = null,
         onProgress: ((Int) -> Unit)? = null,
+        onConflict: ((conflictPkg: String, apkFile: File) -> Unit)? = null,
     ): String? = withContext(Dispatchers.IO) {
         try {
             val target = File(ctx.cacheDir, "downloads").apply { mkdirs() }
@@ -82,11 +97,23 @@ object ApkInstaller {
             // package conflicts" — opaque, dead-end for the user).
             // Before firing the install prompt we read the APK's
             // signature, compare to the currently-installed
-            // package's signature, and if they differ we kick off an
-            // uninstall flow first so the user can re-install
-            // cleanly afterward.
+            // package's signature, and if they differ we hand off
+            // to either the caller's `onConflict` (v2.10.75 path —
+            // auto-resume install after uninstall) OR the legacy
+            // launchUninstallPrompt fallback.
             val conflict = detectSignatureConflict(ctx, out)
             if (conflict != null) {
+                if (onConflict != null) {
+                    // v2.10.75 — Hand the conflict to the caller so
+                    // they can drive an ActivityResultLauncher-based
+                    // auto-resume flow.  Do NOT show a Toast or
+                    // launch the uninstall ourselves — the caller
+                    // will orchestrate everything.
+                    withContext(Dispatchers.Main) {
+                        onConflict(conflict, out)
+                    }
+                    return@withContext null
+                }
                 android.os.Handler(android.os.Looper.getMainLooper()).post {
                     android.widget.Toast.makeText(
                         ctx,
@@ -169,8 +196,14 @@ object ApkInstaller {
      * "Allow installs from this source?" dialog (Android 8+) plus
      * the package-installer UI listing permissions, then the user
      * taps INSTALL.
+     *
+     * v2.10.75 — Made `internal` so callers driving an
+     * `ActivityResultLauncher`-based auto-resume after uninstall
+     * (see `MainActivity.onTileInstallRequested`) can re-fire the
+     * install for the already-downloaded APK without going through
+     * `downloadAndInstall` again.
      */
-    private fun launchInstallPrompt(ctx: Context, apk: File) {
+    internal fun launchInstallPrompt(ctx: Context, apk: File) {
         val authority = "${ctx.packageName}.fileprovider"
         val uri: Uri = FileProvider.getUriForFile(ctx, authority, apk)
         val intent = Intent(Intent.ACTION_VIEW).apply {
