@@ -200,11 +200,22 @@ if (typeof window !== 'undefined') {
             return out;
         };
 
-        // v2.10.63 — Vesper hard-guard.  If we're running inside the
-        // Vesper APK, NUKE every profile key whose value is 'kids'
-        // before any React component reads it.  This is belt-and-
-        // -braces alongside the runtime guard in HomeRouter.
-        if (isVesperHost) {
+        // v2.10.67 — UNCONDITIONAL kids sweep.  The previous v2.10.63
+        // fix gated this on `isVesperHost === true`, which only works
+        // when the NEW Vesper APK with the `getHostPackage` bridge
+        // is installed.  Users still on the v2.10.17-era Vesper APK
+        // have NO bridge → hostPackage is '' → guard doesn't fire →
+        // they keep landing in KidsHome despite our "fix" because
+        // their account-suffixed localStorage still says `=kids`.
+        //
+        // New rule that works for ALL running APK versions:
+        // unless this is an EXPLICIT kids context (`?profile=kids`
+        // deep-link OR confirmed Kids host package), sweep every
+        // profile key whose value is 'kids'.  The Kids APK always
+        // boots with `?profile=kids` in its URL, so this only
+        // strips stale state from Vesper / Tunes / FTA / browser.
+        const isExplicitKidsContext = profileParam === 'kids' || isKidsHost;
+        if (!isExplicitKidsContext) {
             try {
                 for (const k of findAllActiveKeys()) {
                     if (localStorage.getItem(k) === 'kids') {
@@ -421,27 +432,41 @@ function RequireProfile({ children }) {
 }
 
 function HomeRouter() {
-    // v2.10.63 — Hard guard: Vesper TV must NEVER render Kids UI.
-    // Kids has been a standalone APK (`tv.onnowtv.kids`) since
-    // v2.9.2, but stale `onnowtv-active-profile-v1:*=kids` in
-    // signed-in users' localStorage was causing Vesper to keep
-    // booting into KidsHome.  If somehow we end up here in Kids
-    // mode while running inside Vesper, sweep every active-profile
-    // key, then bounce to the profile picker so the user can pick
-    // an adult profile.
-    if (isKidsActive() &&
-        typeof window !== 'undefined' &&
-        window.__vesperHostPackage === 'tv.onnowtv.app') {
+    // v2.10.67 — DENY-BY-DEFAULT kids guard that works on ALL APK
+    // versions, not just the new ones with the host-package bridge.
+    //
+    // Rule: render KidsHome ONLY in an EXPLICIT kids context:
+    //   • Current URL contains `?profile=kids` (the Kids APK boots
+    //     with this baked into the URL), OR
+    //   • The native host bridge confirms package = `tv.onnowtv.kids`.
+    //
+    // Any other context (Vesper TV, Tunes, FTA, plain browser, or
+    // an old Vesper APK without the bridge) gets bounced to the
+    // profile picker even if stale localStorage says active=kids.
+    // This is the bug user kept hitting: their v2.10.17-era Vesper
+    // APK has no host bridge so v2.10.63's host-detection silently
+    // disabled itself, leaving the stale `=kids` value in place.
+    if (isKidsActive() && typeof window !== 'undefined') {
+        let explicit = false;
         try {
-            for (let i = localStorage.length - 1; i >= 0; i--) {
-                const k = localStorage.key(i);
-                if (k && k.indexOf('onnowtv-active-profile-v1') === 0 &&
-                    localStorage.getItem(k) === 'kids') {
-                    localStorage.removeItem(k);
+            const sp = new URLSearchParams(window.location.search);
+            if (sp.get('profile') === 'kids') explicit = true;
+        } catch { /* parse failure: treat as not-explicit */ }
+        if (!explicit && window.__vesperHostPackage === 'tv.onnowtv.kids') {
+            explicit = true;
+        }
+        if (!explicit) {
+            try {
+                for (let i = localStorage.length - 1; i >= 0; i--) {
+                    const k = localStorage.key(i);
+                    if (k && k.indexOf('onnowtv-active-profile-v1') === 0 &&
+                        localStorage.getItem(k) === 'kids') {
+                        localStorage.removeItem(k);
+                    }
                 }
-            }
-        } catch { /* ignore */ }
-        return <Navigate to="/profiles" replace />;
+            } catch { /* ignore */ }
+            return <Navigate to="/profiles" replace />;
+        }
     }
     return isKidsActive() ? <KidsHome /> : <Home />;
 }

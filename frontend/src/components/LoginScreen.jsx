@@ -311,6 +311,32 @@ function Field({ icon: Icon, label, testid, trailing, children }) {
 }
 
 function Header() {
+    // v2.10.67 — Host-aware branding.  The same React bundle is
+    // served to every APK shell (Vesper / Kids / Tunes / FTA) and to
+    // plain browsers, so the login header has to figure out which
+    // product it's branding for at runtime.  Detection order:
+    //   1.  URL `?profile=kids` query (Kids APK always boots with
+    //       this; works for v2.10.17-era APKs that predate the
+    //       getHostPackage native bridge)
+    //   2.  `window.__vesperHostPackage === 'tv.onnowtv.kids'` (set
+    //       by App.js's module-load probe when the bridge is
+    //       available)
+    // Anything else → keep the Vesper branding.
+    const isKidsContext = (() => {
+        if (typeof window === 'undefined') return false;
+        try {
+            const sp = new URLSearchParams(window.location.search);
+            if (sp.get('profile') === 'kids') return true;
+        } catch { /* parse failure: keep default */ }
+        if (window.__vesperHostPackage === 'tv.onnowtv.kids') return true;
+        return false;
+    })();
+    const eyebrow = isKidsContext ? 'ON NOW · KIDS' : 'Vesper · v2';
+    const heading = isKidsContext ? 'Welcome, little one' : 'Welcome back';
+    const sub = isKidsContext
+        ? 'Sign in to start watching shows just for you.'
+        : 'Sign in to your account to access movies, TV shows and your library.';
+
     return (
         <div style={{ animation: 'vesperLoginFade 540ms ease both' }}>
             <div
@@ -323,7 +349,7 @@ function Header() {
                     fontWeight: 700,
                 }}
             >
-                Vesper · v2
+                {eyebrow}
             </div>
             <h1
                 className="vesper-display"
@@ -336,7 +362,7 @@ function Header() {
                     textShadow: '0 6px 24px rgba(0,0,0,0.55)',
                 }}
             >
-                Welcome back
+                {heading}
             </h1>
             <p
                 style={{
@@ -347,8 +373,7 @@ function Header() {
                     maxWidth: '38ch',
                 }}
             >
-                Sign in to your account to access movies, TV shows
-                and your library.
+                {sub}
             </p>
         </div>
     );
