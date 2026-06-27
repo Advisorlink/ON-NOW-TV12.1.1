@@ -1,5 +1,25 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.65 — APK version bump for launcher UPDATE-pill testing (2026-02-16)
+
+User request: bump every APK to a known-newer versionName so the launcher's per-tile UPDATE pill can be verified end-to-end (pinned > installed → pill fires → install in-place upgrade → pill auto-hides).
+
+All five APKs (`vesper-tv`, `onnowtv-kids`, `onnowtv-tunes`, `onnowtv-livetv`, `onnowtv-fta`) derive their `versionName` from the topmost `## v…` heading in this file via their respective `build-*.yml` workflows.  Adding this single entry at the top bumps all of them in lockstep on the next CI run, with `versionCode` advancing monotonically off `GITHUB_RUN_NUMBER` so Android accepts the upgrade.
+
+Aggregates the runtime fixes from the v2.10.59 → v2.10.63 burst that hadn't been folded into CHANGELOG yet:
+
+- **Per-tile UPDATE pill** on the launcher dock (v2.10.59) — cyan→blue→indigo gradient floats above any tile whose pinned APK package differs from installed; D-pad UP focuses the pill, click installs in-place via `ApkInstaller`.
+- **APK manifest auto-extraction** in `POST /api/admin/dock/{key}/apk` so the operator no longer types `package_id`/`version_name` — pyaxmlparser reads the manifest of the uploaded APK and persists the values for the launcher's compare.
+- **Inline upload-progress UI** in the launcher admin (v2.10.60) — XHR-driven byte progress + barber-pole "processing" stripes + green ✓ done state, all inside the same row the operator clicked.
+- **Downgrade-safe pill semver compare** (v2.10.62) — pill ONLY shows when pinned > installed (semver-aware split on non-numeric); equal or older = no pill, because Android refuses downgrades.
+- **Wrong-APK guard rail** at upload time (v2.10.62) — if the uploaded APK's manifest package differs from the tile's `target_package`, the admin UI flashes an amber inline bar plus sticky red toast and skips the auto-refresh until the operator acknowledges.
+- **Vesper / Kids isolation** (v2.10.63) — boot-time sweep of every `onnowtv-active-profile-v1*` localStorage key + `HomeRouter` hard-guard so Vesper can never render KidsHome regardless of stale profile state.  New `OnNowTV.getHostPackage()` JS bridge lets the React frontend tell apart Vesper / Kids / Tunes / FTA.
+- **Per-app auth lockout scoping** (v2.10.63) — `LoginRequest.client_id` plumbed end-to-end; brute-force counter keys by `IP:username:client_id`, so a failed Kids login no longer locks the same user out of Vesper.
+- **Phase 2 domain migration** (v2.10.58) — all four downstream APKs (Vesper / Kids / Tunes / FTA) now point at `https://onnowhub.com` (Cloudflare-fronted).  DuckDNS pin retained in `network_security_config.xml` as defence-in-depth for legacy traffic.
+- **Bundled production tile + wallpaper WebPs** in the launcher APK (v2.10.57) — first-frame paint, no placeholder flash.
+
+
+
 ## v2.10.17 — Revert v2.10.16 D-pad "polish" (made things worse) (2026-02-09)
 
 User report (`0pqg4a68_20260609_184341.mp4`): "Its running worse than it was before."  My v2.10.16 attempt made navigation visibly worse — trailing focus ring, focus jumps, and hesitation between tiles.

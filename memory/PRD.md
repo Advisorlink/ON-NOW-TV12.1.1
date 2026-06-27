@@ -1,5 +1,15 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.65 — APK version bump for launcher UPDATE-pill testing (16 Jun 2026).**
+>
+> User asked to bump every APK to a newer versionName so the per-tile UPDATE pill can be verified end-to-end (pinned > installed → pill fires → install in-place upgrade → pill auto-hides).
+>
+> All five workflow-driven APKs (`vesper-tv`, `onnowtv-kids`, `onnowtv-tunes`, `onnowtv-livetv`, `onnowtv-fta`) derive `versionName` from the topmost `## v…` heading in `CHANGELOG.md` via their respective `build-*.yml`.  Adding one new entry at the top bumps all 5 in lockstep with the next CI run.  `versionCode` advances independently from `GITHUB_RUN_NUMBER` so Android accepts the upgrade.  The sixth APK on the lineup, `onnowtv-fta-native` (the standalone receiver-style FTA app, package `tv.onnowtv.fta.recycler`), versions via `0.1.<commit-count>` and auto-bumps because Phase 2 domain migration touched its tree this session.
+>
+> Verified the extraction logic: `grep -m1 -E '^## v[0-9]+\.[0-9]+\.[0-9]+' CHANGELOG.md` now returns `2.10.65`.  Per-tile pin → install comparison simulated against live production config — all 5 tiles will fire the UPDATE pill after the user re-pins the new builds (movies/music/kids/live-tv2 jumping from `2.10.17` → `2.10.65`, free-to-air from `0.1.15` to whatever the next fta-native commit-count produces).
+>
+> The CHANGELOG entry also folds in the runtime fixes from v2.10.59 → v2.10.63 (pill + auto-extraction + progress UI + downgrade-safe semver + wrong-APK guard + Vesper/Kids isolation + auth lockout scoping) which had been documented only in this PRD until now.  Future devs reading CHANGELOG will see the whole arc.
+>
 > **🟢 v2.10.63 — Vesper/Kids isolation: profile state + auth lockout (16 Jun 2026).**
 >
 > User reported a horrible cross-contamination: open Kids app → exit → open Vesper Movies → Vesper renders KidsHome.  Plus: failed Kids login locks out Vesper login.  Root-causes traced:
