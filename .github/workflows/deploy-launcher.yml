@@ -409,6 +409,64 @@ jobs:
               echo "  (could not locate the launcher nginx vhost file — manual setup may be needed)"
             fi
 
+            echo '── 8. Ensure nginx forwards WebSocket Upgrade headers under /launcher/ ──'
+            # v2.10.87 — The Remote Support feature is the FIRST and
+            # only WebSocket endpoint on the launcher backend.  Most
+            # nginx vhost configs proxy `/launcher/` without
+            # `proxy_set_header Upgrade` + `Connection upgrade` +
+            # `proxy_http_version 1.1`, which silently kills the WS
+            # handshake — the browser sees an immediate 1006 close.
+            # Patch the location block in place so the handshake
+            # works without manual VPS surgery.
+            if [ -n "$CONF" ] && [ -f "$CONF" ]; then
+              if grep -qE 'proxy_set_header[[:space:]]+Upgrade' "$CONF"; then
+                echo "  (Upgrade header already forwarded — no change)"
+              else
+                cp -p "$CONF" "$CONF.bak.ws.$(date +%s)"
+                # Inject the three required directives + a sensible
+                # WS idle timeout into every `location` block that
+                # already does proxy_pass to 127.0.0.1:8002 (i.e. the
+                # launcher backend).  Idempotent: the grep above
+                # guards against double-injection.
+                python3 - "$CONF" << 'PYEOF'
+import re, sys, pathlib
+p = pathlib.Path(sys.argv[1])
+text = p.read_text()
+new_directives = (
+    "        proxy_http_version 1.1;\n"
+    "        proxy_set_header Upgrade $http_upgrade;\n"
+    "        proxy_set_header Connection \"upgrade\";\n"
+    "        proxy_read_timeout 3600s;\n"
+    "        proxy_send_timeout 3600s;\n"
+)
+# Find location blocks whose body contains proxy_pass to :8002 and
+# inject the WS directives right before that proxy_pass line.
+pattern = re.compile(
+    r'(location\b[^{]*\{[^}]*?)(\s*proxy_pass\s+http://(?:127\.0\.0\.1|localhost):8002[^;]*;)',
+    flags=re.DOTALL,
+)
+def repl(m):
+    head, pp = m.group(1), m.group(2)
+    if "proxy_set_header Upgrade" in head:
+        return m.group(0)
+    return head + "\n" + new_directives + pp
+new_text, n = pattern.subn(repl, text)
+if n > 0 and new_text != text:
+    p.write_text(new_text)
+    print(f"  patched {n} location block(s) in {p}")
+else:
+    print(f"  no location block matched in {p} — manual review may be needed")
+PYEOF
+                if nginx -t 2>&1; then
+                  systemctl reload nginx 2>/dev/null || nginx -s reload 2>/dev/null
+                  echo "  WS-upgrade patch applied, nginx reloaded"
+                else
+                  echo "  ⚠️  nginx -t failed after WS patch, rolling back"
+                  cp -p "$CONF.bak.ws."* "$CONF" 2>/dev/null
+                fi
+              fi
+            fi
+
             # Always exit 0 — diagnostic step must not fail the deploy
             exit 0
           EOF

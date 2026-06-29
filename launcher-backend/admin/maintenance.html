@@ -615,7 +615,38 @@ main {
     function openWebSocket(url) {
         ws = new WebSocket(url);
         ws.binaryType = 'arraybuffer';
+        /* v2.10.87 — Connection diagnostics.  Previously a silently-
+         * failing WebSocket upgrade left the operator stuck on the
+         * spinning "Connecting…" button forever.  Now we:
+         *   - log the WS URL to the console for easy inspection
+         *   - reset the Connect button + show a red error banner if
+         *     the WS doesn't open within 8 s
+         *   - surface the actual close code if the upgrade is
+         *     rejected (most common: 4404 = session expired, or a
+         *     generic 1006 when nginx isn't forwarding Upgrade
+         *     headers under /launcher/)
+         */
+        console.log('[maintenance] opening WS:', url);
+        let opened = false;
+        const failTimer = setTimeout(() => {
+            if (!opened) {
+                console.warn('[maintenance] WS open timed out after 8s — ' + url);
+                showError(
+                    'Couldn\u2019t open the live session (timed out). ' +
+                    'Most likely cause: the server isn\u2019t forwarding WebSocket ' +
+                    'upgrade headers under /launcher/. Check the browser dev console ' +
+                    'for the exact WS error.'
+                );
+                connectBtn.disabled = false;
+                connectBtn.textContent = 'Connect';
+                try { ws.close(); } catch { /* */ }
+                ws = null;
+            }
+        }, 8000);
         ws.onopen = () => {
+            opened = true;
+            clearTimeout(failTimer);
+            console.log('[maintenance] WS open');
             pairingScreen.style.display = 'none';
             sessionScreen.style.display = 'block';
             sessionStatus.textContent = 'Connected — waiting for screen…';
@@ -631,11 +662,27 @@ main {
             }
         };
         ws.onclose = (e) => {
-            sessionStatus.textContent = 'Session ended (' + e.code + ')';
-            placeholder.style.display = 'flex';
+            console.warn('[maintenance] WS close', e.code, e.reason);
+            clearTimeout(failTimer);
+            if (!opened) {
+                // Closed BEFORE we ever opened — surface the code so
+                // the operator (or me, in dev console) can act on it.
+                const hint = (e.code === 1006)
+                    ? ' (server may not be forwarding WebSocket headers under /launcher/)'
+                    : (e.code === 4404)
+                    ? ' (session expired — ask the customer to re-open Support)'
+                    : '';
+                showError('Live session refused (code ' + e.code + ')' + hint);
+                connectBtn.disabled = false;
+                connectBtn.textContent = 'Connect';
+            } else {
+                sessionStatus.textContent = 'Session ended (' + e.code + ')';
+                placeholder.style.display = 'flex';
+            }
             ws = null;
         };
-        ws.onerror = () => {
+        ws.onerror = (ev) => {
+            console.warn('[maintenance] WS error', ev);
             sessionStatus.textContent = 'Connection error';
         };
     }
