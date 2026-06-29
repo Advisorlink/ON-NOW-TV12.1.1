@@ -418,27 +418,57 @@ jobs:
             # handshake — the browser sees an immediate 1006 close.
             # Patch the location block in place so the handshake
             # works without manual VPS surgery.
-            if [ -n "$CONF" ] && [ -f "$CONF" ]; then
-              if grep -qE 'proxy_set_header[[:space:]]+Upgrade' "$CONF"; then
-                echo "  (Upgrade header already forwarded — no change)"
+            #
+            # Detect the vhost file aggressively — try multiple
+            # filename patterns + a content-match fallback, because
+            # the same nginx vhost may have been renamed by the
+            # operator at any point.
+            WS_CONF="$CONF"
+            if [ -z "$WS_CONF" ] || [ ! -f "$WS_CONF" ]; then
+              WS_CONF=$(find /etc/nginx/sites-enabled /etc/nginx/conf.d /etc/nginx -type f 2>/dev/null \
+                | xargs grep -l 'proxy_pass.*:8002' 2>/dev/null \
+                | head -1)
+            fi
+            echo "  vhost candidate for WS patch: ${WS_CONF:-<none found>}"
+            if [ -n "$WS_CONF" ] && [ -f "$WS_CONF" ]; then
+              # Block-scoped check: walk the config and decide
+              # patched/not based ONLY on the location block whose
+              # body contains `proxy_pass ...:8002`.  A simple
+              # `grep -B N` would falsely match the apex Vesper
+              # block's WebSocket headers (Watch Together party
+              # sockets) if it happened to be N lines above.
+              IS_PATCHED=$(awk '
+                /\{/        { upgrade_in_block = 0 }
+                /proxy_set_header[[:space:]]+Upgrade/ { upgrade_in_block = 1 }
+                /proxy_pass[[:space:]]+http:\/\/(127\.0\.0\.1|localhost):8002/ {
+                  if (upgrade_in_block) { print "yes"; exit }
+                  else                  { print "no";  exit }
+                }
+              ' "$WS_CONF")
+              echo "  :8002 block already has Upgrade header? ${IS_PATCHED:-unknown}"
+              if [ "$IS_PATCHED" = "yes" ]; then
+                echo "  (Upgrade header already present in the :8002 block — no change)"
               else
-                cp -p "$CONF" "$CONF.bak.ws.$(date +%s)"
-                # Inject the three required directives + a sensible
+                cp -p "$WS_CONF" "$WS_CONF.bak.ws.$(date +%s)"
+                # Inject the four required directives + a sensible
                 # WS idle timeout right BEFORE every proxy_pass line
                 # that targets the launcher backend (127.0.0.1:8002).
                 # Pure sed → no nested heredoc → no YAML drama.
-                # Idempotent: the outer grep already exited early
-                # if `proxy_set_header Upgrade` was present anywhere.
-                sed -i -E '/proxy_pass[[:space:]]+http:\/\/(127\.0\.0\.1|localhost):8002/i\        proxy_http_version 1.1;\n        proxy_set_header Upgrade $http_upgrade;\n        proxy_set_header Connection "upgrade";\n        proxy_read_timeout 3600s;\n        proxy_send_timeout 3600s;' "$CONF"
-                echo "  injected WS upgrade headers into $CONF"
+                sed -i -E '/proxy_pass[[:space:]]+http:\/\/(127\.0\.0\.1|localhost):8002/i\        proxy_http_version 1.1;\n        proxy_set_header Upgrade $http_upgrade;\n        proxy_set_header Connection "upgrade";\n        proxy_read_timeout 3600s;\n        proxy_send_timeout 3600s;' "$WS_CONF"
+                echo "  injected WS upgrade headers into $WS_CONF"
+                echo "  diff preview:"
+                diff -u "$WS_CONF.bak.ws."* "$WS_CONF" 2>/dev/null | head -20 | sed 's/^/    /'
                 if nginx -t 2>&1; then
                   systemctl reload nginx 2>/dev/null || nginx -s reload 2>/dev/null
                   echo "  WS-upgrade patch applied, nginx reloaded"
                 else
                   echo "  ⚠️  nginx -t failed after WS patch, rolling back"
-                  cp -p "$CONF.bak.ws."* "$CONF" 2>/dev/null
+                  cp -p "$WS_CONF.bak.ws."* "$WS_CONF" 2>/dev/null
                 fi
               fi
+            else
+              echo "  ⚠️  Could not find an nginx vhost file containing 'proxy_pass.*:8002' — "
+              echo "      WebSocket Remote Support will not work until this is fixed manually."
             fi
 
             # Always exit 0 — diagnostic step must not fail the deploy
