@@ -2179,14 +2179,15 @@ class MainActivity : AppCompatActivity() {
      *  package now reports the matching versionName as installed. */
     private fun promotePendingBuildIds() {
         val prefs = getBuildIdsPrefs(this)
-        val all = prefs.all
+        val all: Map<String, *> = prefs.all
         if (all.isEmpty()) return
         val ed = prefs.edit()
         var dirty = false
-        for ((k, v) in all) {
+        for (entry in all.entries) {
+            val k = entry.key
             if (!k.startsWith("pending_install_build_id_")) continue
             val pkg = k.removePrefix("pending_install_build_id_")
-            val pendingBuildId = v as? String ?: continue
+            val pendingBuildId = (entry.value as? String) ?: continue
             val item = dockItems.firstOrNull { it.apkPackageId == pkg }
             val installedPkgInfo = try {
                 packageManager.getPackageInfo(pkg, 0)
