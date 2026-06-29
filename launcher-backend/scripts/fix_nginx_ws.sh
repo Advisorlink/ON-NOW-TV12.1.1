@@ -32,20 +32,77 @@ log() { echo "[fix-nginx-ws] $*"; }
 
 # Block-scoped check: returns "yes" if the `location` block whose
 # body contains `proxy_pass ...:8002` ALREADY has a
-# `proxy_set_header Upgrade` line, "no" otherwise, "" if no :8002
-# block exists in the file.  We walk the file line-by-line and
-# reset the "upgrade seen" flag at every `{` so the result reflects
-# only the block actually containing the :8002 proxy_pass.
+# `proxy_http_version 1.1;` line (which is the signal directive
+# we use for "this block has been patched at some point").
+# Returns "no" if the block exists but is unpatched.
+# Returns ""   if no :8002 block exists in the file.
+#
+# We use `proxy_http_version` as the signal (not `Upgrade`) because
+# a previous partially-broken patch may have injected
+# `proxy_http_version` WITHOUT the Upgrade headers — and we don't
+# want to double-inject and trip the "duplicate directive" error.
 ws_block_status() {
     local f="$1"
     awk '
-        /\{/                                                                 { upg = 0 }
-        /proxy_set_header[[:space:]]+Upgrade/                                { upg = 1 }
+        /\{/                                                                 { phv = 0 }
+        /proxy_http_version[[:space:]]+1\.1/                                 { phv = 1 }
         /proxy_pass[[:space:]]+http:\/\/(127\.0\.0\.1|localhost):8002/ {
-            print (upg ? "yes" : "no")
+            print (phv ? "yes" : "no")
             exit
         }
     ' "$f"
+}
+
+# Remove ANY of the four WS-upgrade-related directives from the
+# `location` block containing `proxy_pass ...:8002`.  Used to
+# normalise the block before a fresh injection so we never end up
+# with duplicate `proxy_http_version` lines from a half-applied
+# previous patch.  Lines OUTSIDE the :8002 block (e.g. the apex
+# Vesper backend block on :8001) are untouched.
+strip_ws_directives_from_8002_block() {
+    local f="$1"
+    awk '
+        function emit_buf(   i) { for (i = 1; i <= n; i++) print buf[i]; n = 0 }
+        # When we see a new `{`, flush whatever we were buffering
+        # (no :8002 in it → keep verbatim) and start a fresh buffer.
+        /\{/ {
+            if (in_block) { emit_buf() }
+            in_block = 1
+            n = 0
+            buf[++n] = $0
+            next
+        }
+        # Inside a buffered block, hold lines until we know whether
+        # this block targets :8002.
+        in_block {
+            buf[++n] = $0
+            if (/proxy_pass[[:space:]]+http:\/\/(127\.0\.0\.1|localhost):8002/) {
+                is_8002 = 1
+            }
+            if (/\}/) {
+                if (is_8002) {
+                    # Strip WS-upgrade-related directives from this block.
+                    for (i = 1; i <= n; i++) {
+                        if (buf[i] ~ /proxy_http_version[[:space:]]+1\.1/)             continue
+                        if (buf[i] ~ /proxy_set_header[[:space:]]+Upgrade/)            continue
+                        if (buf[i] ~ /proxy_set_header[[:space:]]+Connection[[:space:]]+"upgrade"/) continue
+                        if (buf[i] ~ /proxy_read_timeout[[:space:]]+3600s/)            continue
+                        if (buf[i] ~ /proxy_send_timeout[[:space:]]+3600s/)            continue
+                        print buf[i]
+                    }
+                } else {
+                    emit_buf()
+                }
+                in_block = 0
+                is_8002  = 0
+                n = 0
+                next
+            }
+            next
+        }
+        # Outside any buffered block — emit verbatim.
+        { print }
+    ' "$f" > "$f.tmp.ws" && mv "$f.tmp.ws" "$f"
 }
 
 # Inject the four required directives + long idle timeouts
@@ -86,24 +143,30 @@ patch_one() {
     local status
     status=$(ws_block_status "$f")
     log "  $f → ws_block_status=${status:-no_8002_block}"
-    case "$status" in
-        yes)
-            log "    (already has Upgrade header in the :8002 block — skipping)"
-            return 0
-            ;;
-        no)
-            local bak="$f.bak.ws.$(date +%s)"
-            cp -p "$f" "$bak"
-            log "    backed up to $bak"
-            inject_ws_directives "$f"
-            log "    injected WS upgrade directives"
-            return 1   # signal: this file changed
-            ;;
-        *)
-            log "    (no proxy_pass to :8002 in this file — skipping)"
-            return 0
-            ;;
-    esac
+    if [ -z "$status" ]; then
+        log "    (no proxy_pass to :8002 in this file — skipping)"
+        return 0
+    fi
+
+    # Always back up, always strip, always inject — a single
+    # deterministic end state regardless of what previous (possibly
+    # half-broken) patches left behind.  If nginx -t hates the
+    # result, we roll back from the backup.
+    local bak="$f.bak.ws.$(date +%s)"
+    cp -p "$f" "$bak"
+    log "    backed up to $bak"
+    strip_ws_directives_from_8002_block "$f"
+    inject_ws_directives "$f"
+    # If the file is byte-identical to the backup after our work,
+    # there was nothing to fix.  Skip claiming "changed" so the
+    # workflow doesn't reload nginx for no reason.
+    if cmp -s "$f" "$bak"; then
+        log "    (no change after strip+inject — already canonical)"
+        rm -f "$bak"
+        return 0
+    fi
+    log "    strip + inject complete (config differs from backup)"
+    return 1   # signal: this file changed
 }
 
 run_real() {
@@ -254,22 +317,102 @@ EOF
     upg_count=$(grep -c 'proxy_set_header Upgrade' "$tmp/c5.conf")
     assert_eq "c5: both :8002 blocks patched" "2" "$upg_count"
 
-    # ── Case 6: idempotency on a patched file
-    inject_ws_directives "$tmp/c1.conf"   # run again on already-patched
+    # ── Case 6: idempotency on a fully-patched file
+    # Re-running patch_one on c1 (already patched after step above)
+    # MUST be a no-op — strip + inject produces an identical file.
+    patch_one "$tmp/c1.conf" || true
+    local phv_count_c1
+    phv_count_c1=$(grep -c 'proxy_http_version' "$tmp/c1.conf")
+    # Expected: 2 — one in Vesper block, one in launcher block. NOT 3.
+    assert_eq "c6: idempotent — no duplicate proxy_http_version" "2" "$phv_count_c1"
     local upg_count_c1
     upg_count_c1=$(grep -c 'proxy_set_header Upgrade' "$tmp/c1.conf")
-    # Should be 2: one in Vesper block (original), one in launcher block (injected).
-    # NOT 3 — re-running shouldn't double-inject the launcher block.
-    # NOTE: the current sed will re-inject because the detection is in
-    # the wrapper, not the sed itself.  Document this behaviour: the
-    # caller MUST gate inject_ws_directives() on ws_block_status() != yes.
-    # This test documents that we DON'T re-inject when the wrapper is used.
-    # We just verify the wrapper's gating works:
-    if [ "$(ws_block_status "$tmp/c1.conf")" = "yes" ]; then
-        assert_eq "c6: idempotent gate detects already-patched" "yes" "yes"
-    else
-        assert_eq "c6: idempotent gate detects already-patched" "yes" "no"
-    fi
+    assert_eq "c6: idempotent — no duplicate Upgrade header" "2" "$upg_count_c1"
+
+    # ── Case 7: PRODUCTION FAILURE RECOVERY — a previous botched
+    # patch left behind proxy_http_version WITHOUT the Upgrade /
+    # Connection headers (or with them duplicated).  The script must
+    # CLEAN UP this junk and produce a canonical patched block.
+    cat > "$tmp/c7.conf" <<'EOF'
+server {
+    location /launcher/ {
+        proxy_http_version 1.1;
+        proxy_pass http://127.0.0.1:8002/;
+        proxy_set_header Host $host;
+    }
+}
+EOF
+    assert_eq "c7: partial-patch signal detected" "yes" "$(ws_block_status "$tmp/c7.conf")"
+    patch_one "$tmp/c7.conf" || true
+    local phv_count_c7 upg_count_c7 conn_count_c7
+    phv_count_c7=$(grep -c 'proxy_http_version' "$tmp/c7.conf")
+    upg_count_c7=$(grep -c 'proxy_set_header Upgrade' "$tmp/c7.conf")
+    conn_count_c7=$(grep -c 'proxy_set_header Connection "upgrade"' "$tmp/c7.conf")
+    assert_eq "c7: recovery — exactly one proxy_http_version" "1" "$phv_count_c7"
+    assert_eq "c7: recovery — Upgrade header present"       "1" "$upg_count_c7"
+    assert_eq "c7: recovery — Connection upgrade present"   "1" "$conn_count_c7"
+
+    # ── Case 7b: nginx -t would have failed on a duplicate.  After
+    # patch_one, no directive should appear twice in the launcher block.
+    local dup_count_c7b
+    dup_count_c7b=$(awk '/location \/launcher/,/}/' "$tmp/c7.conf" | grep -c 'proxy_http_version')
+    assert_eq "c7b: no duplicate in launcher block"         "1" "$dup_count_c7b"
+
+    # ── Case 8: strip_ws_directives_from_8002_block leaves the
+    # Vesper block intact while cleaning the launcher block.
+    cat > "$tmp/c8.conf" <<'EOF'
+server {
+    location /api/watch-party/ {
+        proxy_pass http://127.0.0.1:8001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+    location /launcher/ {
+        proxy_http_version 1.1;
+        proxy_read_timeout 3600s;
+        proxy_pass http://127.0.0.1:8002/;
+        proxy_set_header Host $host;
+    }
+}
+EOF
+    strip_ws_directives_from_8002_block "$tmp/c8.conf"
+    # Vesper block must still have its WS directives untouched.
+    local vesper_phv
+    vesper_phv=$(awk '/location \/api\/watch-party/,/}/' "$tmp/c8.conf" | grep -c 'proxy_http_version')
+    assert_eq "c8: Vesper block untouched after strip" "1" "$vesper_phv"
+    # Launcher block must be CLEAN of WS directives now.
+    local launcher_phv
+    launcher_phv=$(awk '/location \/launcher\//,/}/' "$tmp/c8.conf" | grep -c 'proxy_http_version')
+    assert_eq "c8: launcher block cleaned by strip" "0" "$launcher_phv"
+
+    # ── Case 9: DUPLICATE-DIRECTIVE failure mode — file already
+    # contains DUPLICATED proxy_http_version (this is the actual
+    # state currently sitting on the VPS that caused the last 3
+    # deploys to fail).  patch_one MUST normalise it to a single
+    # canonical block.
+    cat > "$tmp/c9.conf" <<'EOF'
+server {
+    location /launcher/ {
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_pass http://127.0.0.1:8002/;
+        proxy_set_header Host $host;
+    }
+}
+EOF
+    patch_one "$tmp/c9.conf" || true
+    local phv_count_c9
+    phv_count_c9=$(grep -c 'proxy_http_version' "$tmp/c9.conf")
+    assert_eq "c9: deduplicated to exactly one proxy_http_version" "1" "$phv_count_c9"
 
     echo ""
     echo "── Test summary: $pass passed, $fail failed ──"
