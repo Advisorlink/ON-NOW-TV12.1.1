@@ -507,7 +507,20 @@ main {
     'use strict';
 
     /* ─────────────────  Config  ───────────────── */
-    const API_BASE = '';   // same-origin
+    /* v2.10.87 — When the admin UI is served behind a reverse proxy
+     * at a sub-path (e.g. https://onnowhub.com/launcher/admin/
+     * maintenance), `/api/...` paths would resolve to the WRONG
+     * backend — they'd hit the apex Vesper backend, not the
+     * launcher backend.  Detect the prefix from the current URL
+     * the same way `/admin/static/app.js` already does, and prepend
+     * it to every API call (HTTP + WebSocket).  In local dev (page
+     * at `/admin/maintenance` with no prefix) API_BASE = "" so
+     * nothing changes. */
+    const API_BASE = (() => {
+        const p = window.location.pathname;
+        const m = p.match(/^(.*?)\/admin(?:\/|$)/);
+        return m && m[1] ? m[1] : '';
+    })();
     /* v2.10.87 — Admin Bearer token removed per operator request.
      * The launcher backend's `require_admin` is already a no-op
      * (see main.py), and the 6-digit pairing code IS the access
@@ -592,7 +605,11 @@ main {
 
     function wsBase() {
         const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        return proto + '//' + location.host;
+        /* v2.10.87 — Same sub-path handling as the HTTP API base.
+         * In prod behind nginx the launcher backend lives at
+         * `/launcher/...` so the WS upgrade target must be
+         * `wss://onnowhub.com/launcher/api/support/host/<sid>`. */
+        return proto + '//' + location.host + API_BASE;
     }
 
     function openWebSocket(url) {
