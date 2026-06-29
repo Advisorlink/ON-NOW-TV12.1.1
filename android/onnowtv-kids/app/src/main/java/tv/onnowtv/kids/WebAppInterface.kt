@@ -165,6 +165,10 @@ class WebAppInterface(private val activity: Activity) {
                     // v2.7.28 — no FLAG_ACTIVITY_NEW_TASK so back
                     // returns to wherever the player was launched
                     // from (Detail page in WebView) — not Home.
+                    // v2.10.79 — NO_USER_ACTION: prevent
+                    // MainActivity.onUserLeaveHint() from firing and
+                    // bouncing the user to the kids exit-PIN page.
+                    flags = android.content.Intent.FLAG_ACTIVITY_NO_USER_ACTION
                 }
                 activity.startActivity(intent)
             } catch (e: Exception) {
@@ -268,6 +272,18 @@ class WebAppInterface(private val activity: Activity) {
                     putExtra(VlcPlayerActivity.EXTRA_STREAMS_JSON, streamsJson)
                     putExtra(VlcPlayerActivity.EXTRA_CURRENT_STREAM_IDX, currentStreamIdx)
                     // v2.7.28 — no NEW_TASK: BACK returns to detail.
+                    // v2.10.79 — NO_USER_ACTION is CRITICAL in the
+                    // Kids APK.  Without it, Android fires
+                    // MainActivity.onUserLeaveHint() the moment we
+                    // startActivity(player) — and that handler's job
+                    // is to bounce the user to /kids/exit-pin because
+                    // it ASSUMES the leave is a HOME-button press.
+                    // Net result: clicking Play silently sends the
+                    // user to the PIN gate instead of the player.
+                    // This flag tells Android "this is NOT a user
+                    // leaving the app, just an in-app activity
+                    // transition" so onUserLeaveHint stays quiet.
+                    flags = android.content.Intent.FLAG_ACTIVITY_NO_USER_ACTION
                 }
                 activity.startActivity(intent)
             } catch (e: Exception) {
@@ -350,6 +366,10 @@ class WebAppInterface(private val activity: Activity) {
                     putExtra(VlcPlayerActivity.EXTRA_PARTY_AVATAR_EMOJI, partyAvatarEmoji ?: "")
                     putExtra(VlcPlayerActivity.EXTRA_PARTY_DISPLAY_NAME, partyDisplayName ?: "")
                     // v2.7.28 — no NEW_TASK: BACK returns to detail.
+                    // v2.10.79 — NO_USER_ACTION: prevent
+                    // MainActivity.onUserLeaveHint() from firing and
+                    // bouncing the user to the kids exit-PIN page.
+                    flags = android.content.Intent.FLAG_ACTIVITY_NO_USER_ACTION
                 }
                 activity.startActivity(intent)
             } catch (e: Exception) {
@@ -389,6 +409,10 @@ class WebAppInterface(private val activity: Activity) {
                     putExtra(VlcPlayerActivity.EXTRA_BACKDROP, backdrop ?: "")
                     putExtra(VlcPlayerActivity.EXTRA_TYPE, "trailer")
                     // v2.7.28 — no NEW_TASK: BACK returns to detail.
+                    // v2.10.79 — NO_USER_ACTION: prevent
+                    // MainActivity.onUserLeaveHint() from firing and
+                    // bouncing the user to the kids exit-PIN page.
+                    flags = android.content.Intent.FLAG_ACTIVITY_NO_USER_ACTION
                 }
                 activity.startActivity(intent)
             } catch (e: Exception) {
@@ -419,7 +443,12 @@ class WebAppInterface(private val activity: Activity) {
                         putExtra("decode_mode", 1)
                     }
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        // v2.10.79 — Suppress MainActivity.onUserLeaveHint()
+                        // so the kids HOME-bounce-back doesn't trap
+                        // the parent on the exit-PIN gate when they
+                        // (legitimately) pick an external player.
+                        Intent.FLAG_ACTIVITY_NO_USER_ACTION
                 }
                 val chooser = Intent.createChooser(intent, "Play with…")
                 activity.startActivity(chooser)

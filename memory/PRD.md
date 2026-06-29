@@ -1,5 +1,28 @@
 # ON NOW TV V2 — PRD
 
+> **🔴 v2.10.79 — Kids movie click → PIN bounce ACTUALLY FIXED (29 Jun 2026).**
+>
+> True root cause finally located.  Every previous "fix" (v2.10.71 / .76 / .77) targeted the React-side rating gate, sentinel-pushing back guard, and native BACK handler — none of those was the real source of the bug.  The actual culprit was **Android lifecycle behaviour around `startActivity()`**:
+>
+>   1. User clicks Play on a Kids movie.
+>   2. WebView JS calls `OnNowTV.playInternalRichV2(...)`.
+>   3. Kotlin bridge runs `activity.startActivity(ExoPlayerActivity intent)`.
+>   4. **The intent had no `FLAG_ACTIVITY_NO_USER_ACTION` flag.**  By default Android treats any in-task `startActivity` from a user-action handler as a "user leaving the current activity" event and fires the calling activity's `onUserLeaveHint()` callback.
+>   5. Kids `MainActivity.onUserLeaveHint()` is wired to interpret EVERY leave as a HOME-button press → it schedules an 80 ms `bounceBack` that re-launches MainActivity on top of the player with the `KIDS_ARMED_BY_HOME` extra set.
+>   6. ~80 ms later, MainActivity comes back to foreground (over ExoPlayer).  `onResume` reads `KIDS_ARMED_BY_HOME=true` and calls `navigateToExitPin("home")` → WebView hash becomes `#/kids/exit-pin`.
+>   7. User sees the PIN gate.  Player never gets to fully render.
+>
+> Fix: **Add `FLAG_ACTIVITY_NO_USER_ACTION`** to every `startActivity` in `tv.onnowtv.kids.WebAppInterface`:
+>   • `playInternal` (lines 161–173)
+>   • `playInternalRichV2` (the main play path, lines 251–288)
+>   • `playInternalParty` (Watch Together hosting, lines 348–374)
+>   • `playTrailer` (lines 395–417)
+>   • `playExternal` (system-player chooser, lines 437–453)
+>
+> Per Android docs: "If set, this flag will prevent the normal `onUserLeaveHint()` callback from being called on the current frontmost activity before it is paused."  Genuine HOME-button presses STILL trigger `onUserLeaveHint` (system-initiated, not subject to this flag) → PIN gate still fires for real HOME presses ✓.
+>
+> **User action required:**  Save to GitHub → CI rebuild Kids APK → sideload.  After reinstall, clicking Play on any Kids movie launches the player directly — no PIN bounce, no 80 ms ghost overlay.
+
 > **🟢 v2.10.78 — Stream picker NardBadges PNG icon set (29 Jun 2026).**
 >
 > User pointed to [vowl313/NardBadges](https://github.com/vowl313/NardBadges) as the look they wanted — community-standard Stremio PNG icon pack with 112 badge images covering resolution / release type / HDR family / audio codec / channels / video codec / 3D / language flags.  Picker was previously text chips with coloured borders, which the user described as not looking "proper".
