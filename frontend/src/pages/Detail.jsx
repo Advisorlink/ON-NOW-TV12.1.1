@@ -825,55 +825,102 @@ export default function Detail() {
     // to anything that even mentions "1080" — UNLESS it's 4K-labelled
     // (some Plex titles tag both "1080" and "4K" in the same string;
     // we'd rather wait than misfire into a too-large stream).
+    //
+    // v2.10.80 — User-requested cascade priority:
+    //   1. EasyNews++ 1080p (first one) — Usenet streams are usually
+    //      cached + direct, lowest latency to first frame.
+    //   2. EasyNews++ any 1080p variant.
+    //   3. Torrentio 1080p (≤ 3 GB, English) — debrid-cached so plays
+    //      instantly when available.
+    //   4. EP-STREM / Plexio direct (premium addon).
+    //   5. Any English 1080p direct.
+    //   6. null → picker.
+    // Also exports `orderedStreams` so the player's "next stream"
+    // shortcut cycles in THIS order — the 10 s buffer watchdog on
+    // the player will auto-advance through them when the first one
+    // stalls.
+    const isEasyNews = (s) =>
+        /easy[\s_-]?news/i.test(
+            `${s._addon_id || ''} ${s._addon_name || ''} ${s._addon_source || ''} ${s.name || ''}`
+        );
+    const isTorrentio = (s) =>
+        /torrentio/i.test(`${s._addon_id || ''} ${s._addon_name || ''}`);
+    const isEpStrem = (s) =>
+        /plexio|ep[\s-]?strem/i.test(
+            `${s._addon_id || ''} ${s._addon_name || ''} ${s.name || ''}`
+        );
+
     const autoplayCandidate = useMemo(() => {
         if (type !== 'movie') return null;
         if (!streams || streams.length === 0) return null;
         const non4k = streams.filter((s) => !is4K(s));
-        // v2.7.37 — AUTOPLAY PRIORITY (user-defined):
-        //   1. EP-STREM / Plexio direct link (user's premium addon)
-        //   2. Torrentio fallback — but ONLY streams ≤ 3 GB
-        //      (huge BDRemux files were buffering within 30 s on the
-        //      HK1 even on a good connection — too much CDN jitter
-        //      for a 50+ GB pull).
-        //   3. Any English-strict 1080p ≤ 3 GB
-        //   4. Any English 1080p ≤ 3 GB (last resort)
-        //   5. null → user sees the picker
-        //
-        // English requirement: strict-English preferred at every
-        // tier so libVLC never accidentally lands on a foreign
-        // audio track (see v2.7.36 backend tagging).
         const SIZE_CAP_GB = 3.0;
-        const isEpStrem = (s) =>
-            /plexio|ep[\s-]?strem/i.test(
-                `${s._addon_id || ''} ${s._addon_name || ''} ${s.name || ''}`
-            );
-        const isTorrentio = (s) =>
-            /torrentio/i.test(`${s._addon_id || ''} ${s._addon_name || ''}`);
         const strict = (s) => s._english_strict === true;
         const english = (s) => s._is_english !== false;
         const direct = (s) => streamMode(s) === 'direct';
-        // Size guard — null size = unknown; we ALLOW unknowns through
-        // (rare for Torrentio, common for direct CDN addons like
-        // Plexio that don't expose filesize).
         const underCap = (s) =>
             typeof s._size_gb !== 'number' || s._size_gb <= SIZE_CAP_GB;
 
         return (
-            // Tier 1 — EP-STREM (Plexio) direct, English
-            non4k.find((s) => isEpStrem(s) && direct(s) && english(s)) ||
-            non4k.find((s) => isEpStrem(s) && english(s)) ||
-            // Tier 2 — Torrentio under 3 GB, strict English, 1080p direct
+            // Tier 1 — EasyNews++ 1080p English-strict, direct
+            non4k.find((s) => isEasyNews(s) && is1080p(s) && direct(s) && strict(s)) ||
+            non4k.find((s) => isEasyNews(s) && is1080p(s) && direct(s) && english(s)) ||
+            non4k.find((s) => isEasyNews(s) && is1080p(s) && english(s)) ||
+            // Tier 2 — EasyNews++ ANY 1080p (last resort within EN++)
+            non4k.find((s) => isEasyNews(s) && is1080p(s)) ||
+            // Tier 3 — Torrentio under 3 GB, English, 1080p direct
             non4k.find((s) => isTorrentio(s) && direct(s) && is1080p(s) && strict(s) && underCap(s)) ||
             non4k.find((s) => isTorrentio(s) && is1080p(s) && strict(s) && underCap(s)) ||
             non4k.find((s) => isTorrentio(s) && is1080p(s) && english(s) && underCap(s)) ||
-            // Tier 3 — any addon, strict English, 1080p, under cap
+            // Tier 4 — EP-STREM / Plexio direct, English
+            non4k.find((s) => isEpStrem(s) && direct(s) && english(s)) ||
+            non4k.find((s) => isEpStrem(s) && english(s)) ||
+            // Tier 5 — any addon, strict English, 1080p, under cap
             non4k.find((s) => direct(s) && is1080p(s) && strict(s) && underCap(s)) ||
             non4k.find((s) => is1080p(s) && strict(s) && underCap(s)) ||
-            // Tier 4 — any English 1080p under cap (multi-lang ok)
+            // Tier 6 — any English 1080p under cap (multi-lang ok)
             non4k.find((s) => is1080p(s) && english(s) && underCap(s)) ||
             null
         );
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [streams, type]);
+
+    // v2.10.80 — Re-order the streams list passed to the native
+    // player so its in-player "next stream" cycle (used by the 10 s
+    // buffer-stall watchdog) tries titles in this priority:
+    //   EasyNews++ 1080p → Torrentio 1080p → EP-STREM/Plexio →
+    //   any 1080p direct → everything else.
+    // The picker still shows ALL streams in this same priority so
+    // the user can manually pick a different rank.
+    const orderedStreams = useMemo(() => {
+        if (!streams || streams.length === 0) return streams;
+        const SIZE_CAP_GB = 3.0;
+        const score = (s) => {
+            const dir   = streamMode(s) === 'direct' ? 0 : 1;
+            const eng   = s._is_english !== false ? 0 : 1;
+            const strict = s._english_strict === true ? 0 : 1;
+            const four = is4K(s) ? 1 : 0;
+            const ten = is1080p(s) ? 0 : 1;
+            const sized = typeof s._size_gb !== 'number' || s._size_gb <= SIZE_CAP_GB ? 0 : 1;
+            // Addon-source priority: 0 = EasyNews++, 1 = Torrentio,
+            // 2 = EP-STREM/Plexio, 3 = everything else.
+            const src =
+                isEasyNews(s)   ? 0 :
+                isTorrentio(s)  ? 1 :
+                isEpStrem(s)    ? 2 :
+                3;
+            // Lower score = higher priority.  Source is the dominant
+            // term (×100) so EasyNews+ comes before any Torrentio
+            // regardless of resolution/English/strict.
+            return src * 100 + ten * 20 + four * 50 + dir * 4
+                + strict * 2 + eng + sized * 10;
+        };
+        return [...streams]
+            .map((s, i) => ({ s, i, key: score(s) }))
+            .sort((a, b) => a.key - b.key || a.i - b.i)
+            .map((x) => x.s);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [streams]);
 
     // PARTY-MODE fallback: when the user is in a Watch Together
     // session we MUST start *something* — getting stuck on the
@@ -1582,8 +1629,12 @@ export default function Detail() {
                     // v2.7.25 — pass full streams list + the index
                     // we're about to play, so the native player can
                     // surface its in-player picker overlay.
-                    streamsList: streams,
-                    currentStreamIdx: streams.findIndex((s) => s === stream),
+                    // v2.10.80 — Use `orderedStreams` (cascade-sorted
+                    // EasyNews++ 1080p → Torrentio 1080p → …) so the
+                    // player's buffer-stall auto-advance walks the
+                    // list in priority order.
+                    streamsList: orderedStreams,
+                    currentStreamIdx: orderedStreams.findIndex((s) => s === stream),
                 })
             ) {
                 if (partyCode) partyBreadcrumb('playStream:native-launched', {});

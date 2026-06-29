@@ -1,5 +1,30 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.80 — EasyNews++ priority cascade + 10s buffer auto-advance + (i) Buffering Info button (29 Jun 2026).**
+>
+> Three user-requested wins shipped in one drop.
+>
+>   • **EasyNews++ first, Torrentio next, anything else last** (`Detail.jsx`).  Rewrote `autoplayCandidate` selection AND introduced a sibling memo `orderedStreams` (passed to native player as `streamsList`).  Priority order:
+>     1. EasyNews++ 1080p (English-strict direct preferred).
+>     2. EasyNews++ any 1080p variant.
+>     3. Torrentio 1080p ≤ 3 GB (English-strict / English / direct).
+>     4. EP-STREM / Plexio direct, English.
+>     5. Any addon, English-strict 1080p, under 3 GB.
+>     6. Any English 1080p ≤ 3 GB (last resort).
+>     Score formula: `src*100 + ten*20 + four*50 + dir*4 + strict*2 + eng + sized*10` — addon-source is the dominant dimension so EN++ beats Torrentio regardless of resolution / English / file-size deltas.
+>
+>   • **10-second buffer-stall watchdog** (`ExoPlayerActivity.kt` in BOTH Vesper-tv and onnowtv-kids).  After `player.prepare()` we launch a `lifecycleScope` coroutine that delays 10 s and then checks if `STATE_READY` ever fired.  If not — and there's a next entry in `altStreams` — it calls `switchStream(currentStreamIdx + 1)` automatically.  This walks the cascade-ordered list, so the user gets EN++ → Torrentio → … without lifting a finger.  Watchdog is cancelled the instant the first frame plays, so a mid-playback network blip can't kick the user to a different stream.  Also re-armed on every manual `switchStream` (from the picker) so the next-stream's stall protection kicks in too.
+>
+>   • **(i) Buffering Info button** added to the LEFT dock cluster in `PlayerOverlay.kt` (Vesper).  Tap → opens `BufferingInfoSheet` showing:
+>     – Big number: live buffer-ahead in seconds, colour-coded (green ≥ 30s, yellow 15-29s, red < 15s).
+>     – Secondary stats: Buffered %, Bitrate kbps, Target threshold (30s).
+>     – Plain-English explainer card: "Above 30s = comfortable / Below 30s = borderline.  Tap Stream button to pick a different link.  EasyNews++ direct + Torrentio debrid-cached usually buffer fastest."
+>     – `Got it` dismiss pill, BACK / ESC also dismiss.
+>
+>   • **Stream picker for TV episodes** — verified working without code change.  Detail.jsx's `playStream` passes `streamsList: orderedStreams` regardless of `type` (`movie` / `series`), so the picker's `hasStreams = streamList.size > 1` gate fires identically.  No regression.
+>
+> **User action required:**  Save to GitHub → CI rebuild Vesper + Kids APKs → sideload.  All three changes ship together.
+
 > **🔴 v2.10.79 — Kids movie click → PIN bounce ACTUALLY FIXED (29 Jun 2026).**
 >
 > True root cause finally located.  Every previous "fix" (v2.10.71 / .76 / .77) targeted the React-side rating gate, sentinel-pushing back guard, and native BACK handler — none of those was the real source of the bug.  The actual culprit was **Android lifecycle behaviour around `startActivity()`**:

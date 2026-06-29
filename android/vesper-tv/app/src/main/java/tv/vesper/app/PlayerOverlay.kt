@@ -38,6 +38,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -197,6 +198,11 @@ fun PlayerOverlay(
     val pos by collectAsStateSafe(positionMs, 0L)
     val dur by collectAsStateSafe(durationMs, 0L)
     val bufAhead by collectAsStateSafe(bufferAheadMs, 0L)
+    // v2.10.80 — Surface buffer-percent + bitrate for the Info sheet
+    // (buffering diagnostics shown when the user taps the new (i)
+    // button in the LEFT dock cluster).
+    val bufferedPercentValue by collectAsStateSafe(bufferedPercent, 0)
+    val bitrate by collectAsStateSafe(bitrateKbps, 0L)
     val loading by collectAsStateSafe(isLoading, true)
     val error by collectAsStateSafe(errorMessage, null)
     val audios by collectAsStateSafe(audioTracks, emptyList())
@@ -312,12 +318,13 @@ fun PlayerOverlay(
                 onPickAudio = { bump(); sheet = SheetKind.Audio },
                 onPickSubs  = { bump(); sheet = SheetKind.Subs },
                 onPickStream= { bump(); sheet = SheetKind.Stream },
+                onPickInfo  = { bump(); sheet = SheetKind.Info },
                 onNextEp    = { bump(); onNextEpisode() },
                 onClose     = { bump(); onClose() },
             )
         }
 
-        // ── Picker sheet (Audio / Subs / Stream) ───────────────────
+        // ── Picker sheet (Audio / Subs / Stream / Info) ───────────
         AnimatedVisibility(
             visible = sheet != SheetKind.None,
             enter = fadeIn(tween(200)),
@@ -354,6 +361,12 @@ fun PlayerOverlay(
                     },
                     onDismiss = { sheet = SheetKind.None; bump() },
                 )
+                SheetKind.Info -> BufferingInfoSheet(
+                    bufferAheadMs = bufAhead,
+                    bufferedPercent = bufferedPercentValue,
+                    bitrateKbps = bitrate,
+                    onDismiss = { sheet = SheetKind.None; bump() },
+                )
                 SheetKind.None -> Unit
             }
         }
@@ -386,7 +399,7 @@ fun PlayerOverlay(
     }
 }
 
-private enum class SheetKind { None, Audio, Subs, Stream }
+private enum class SheetKind { None, Audio, Subs, Stream, Info }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Full loading screen (first play only)
@@ -624,6 +637,8 @@ private fun ControlDock(
     onPickAudio: () -> Unit,
     onPickSubs: () -> Unit,
     onPickStream: () -> Unit,
+    // v2.10.80 — Buffering Info sheet (left-dock, after Stream).
+    onPickInfo: () -> Unit = {},
     onNextEp: () -> Unit = {},
     onClose: () -> Unit,
 ) {
@@ -849,7 +864,7 @@ private fun ControlDock(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                // LEFT cluster: Audio / Subs / Stream picker
+                // LEFT cluster: Audio / Subs / Stream picker / Info
                 Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     DockButton(
                         Icons.Default.Audiotrack,
@@ -867,6 +882,15 @@ private fun ControlDock(
                         "Stream",
                         enabled = hasStreams,
                         onClick = onPickStream,
+                    )
+                    // v2.10.80 — (i) Buffering Diagnostics button.
+                    // Always enabled — even when streams=1 the user
+                    // wants to see the buffer-ahead seconds so they
+                    // can judge whether the current link is healthy.
+                    DockButton(
+                        Icons.Default.Info,
+                        "Info",
+                        onClick = onPickInfo,
                     )
                 }
                 // CENTER cluster: Back10 / PLAY-PAUSE (focused) / Fwd10
@@ -1260,6 +1284,205 @@ private fun TrackRow(
         }
     }
 }
+
+/**
+ * v2.10.80 — Buffering Info bottom-sheet.
+ *
+ * Tap (i) in the dock to surface this card.  Shows the live
+ * buffer-ahead (in seconds), buffered-percent of the loaded
+ * portion, and current bitrate — the three numbers that tell the
+ * user at a glance whether the current stream is healthy.
+ */
+@Composable
+private fun BufferingInfoSheet(
+    bufferAheadMs: Long,
+    bufferedPercent: Int,
+    bitrateKbps: Long,
+    onDismiss: () -> Unit,
+) {
+    val dismissFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        try { dismissFocus.requestFocus() } catch (_: Exception) {}
+    }
+    val bufferSec = (bufferAheadMs / 1000L).toInt()
+    val healthyThreshold = 30
+    val (bufferColor, bufferAdvice) = when {
+        bufferSec >= 60 -> Pair(
+            Color(0xFF7AEB8A),
+            "Excellent — this stream is comfortable, sit back.",
+        )
+        bufferSec >= healthyThreshold -> Pair(
+            Color(0xFF7AEB8A),
+            "Healthy — playback should be smooth.",
+        )
+        bufferSec >= 15 -> Pair(
+            Color(0xFFFFD54F),
+            "Borderline — watch for stalls; consider another link.",
+        )
+        else -> Pair(
+            Color(0xFFFF6B6B),
+            "Low — playback may stall.  Open Stream picker → pick another link.",
+        )
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xE6020610))
+            .onKeyEvent { ev ->
+                if (ev.type == KeyEventType.KeyDown
+                    && (ev.key == Key.Back || ev.key == Key.Escape)
+                ) { onDismiss(); true } else false
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier
+                .width(620.dp)
+                .background(
+                    Color(0xFF0B1220),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+                )
+                .padding(28.dp),
+            horizontalAlignment = Alignment.Start,
+        ) {
+            Text(
+                "Buffering diagnostics",
+                color = Color.White,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Live numbers for the stream currently playing.",
+                color = Color.White.copy(alpha = 0.6f),
+                fontSize = 13.sp,
+            )
+            Spacer(Modifier.height(22.dp))
+
+            // ── Big number: buffer ahead in seconds ──
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    bufferSec.toString(),
+                    color = bufferColor,
+                    fontSize = 64.sp,
+                    fontWeight = FontWeight.Black,
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "s ahead",
+                    color = Color.White.copy(alpha = 0.72f),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(bottom = 14.dp),
+                )
+            }
+            Spacer(Modifier.height(2.dp))
+            Text(
+                bufferAdvice,
+                color = bufferColor,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+
+            Spacer(Modifier.height(22.dp))
+
+            // ── Secondary numbers row ──
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
+            ) {
+                BufferingStat(label = "Buffered", value = "${bufferedPercent}%")
+                BufferingStat(
+                    label = "Bitrate",
+                    value = if (bitrateKbps > 0) "${bitrateKbps} kbps" else "—",
+                )
+                BufferingStat(label = "Target", value = "${healthyThreshold}s+")
+            }
+
+            Spacer(Modifier.height(22.dp))
+
+            // ── Plain-English explainer ──
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Color(0xFF11192B),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                    )
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    "What does this mean?",
+                    color = Color(0xFF5DC8FF),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.4.sp,
+                )
+                Text(
+                    "The big number is how many seconds of video have been downloaded " +
+                        "AHEAD of where you're watching.  The higher, the safer.",
+                    color = Color.White.copy(alpha = 0.78f),
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                )
+                Text(
+                    "Above ${healthyThreshold}s = comfortable — no stutters likely.\n" +
+                        "Below ${healthyThreshold}s = borderline — the stream may stall.  " +
+                        "Tap the Stream button next to me, pick a different link " +
+                        "(EasyNews++ direct streams or Torrentio debrid-cached ones " +
+                        "usually buffer fastest).",
+                    color = Color.White.copy(alpha = 0.78f),
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                )
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            // ── Dismiss pill ──
+            Box(
+                modifier = Modifier
+                    .focusRequester(dismissFocus)
+                    .focusable()
+                    .clickable { onDismiss() }
+                    .background(
+                        Color(0xFF5DC8FF),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
+                    )
+                    .padding(horizontal = 24.dp, vertical = 10.dp),
+            ) {
+                Text(
+                    "Got it",
+                    color = Color(0xFF020610),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BufferingStat(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.Start) {
+        Text(
+            label.uppercase(),
+            color = Color.White.copy(alpha = 0.5f),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.4.sp,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            value,
+            color = Color.White,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
 
 @Composable
 private fun StreamPickerSheet(

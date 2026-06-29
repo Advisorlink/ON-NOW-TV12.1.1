@@ -37,6 +37,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 
 /**
@@ -276,6 +277,32 @@ class ExoPlayerActivity : ComponentActivity() {
     )
     private var altStreams: List<StreamEntry> = emptyList()
     private var currentStreamIdx: Int = -1
+
+    // v2.10.80 — Buffer-stall watchdog.  Same logic as Vesper.
+    private var bufferStallJob: kotlinx.coroutines.Job? = null
+    private var firstReadyReachedForCurrentStream: Boolean = false
+    private val BUFFER_STALL_TIMEOUT_MS = 10_000L
+
+    private fun armBufferStallWatchdog() {
+        bufferStallJob?.cancel()
+        firstReadyReachedForCurrentStream = false
+        bufferStallJob = androidx.lifecycle.lifecycleScope.launch {
+            kotlinx.coroutines.delay(BUFFER_STALL_TIMEOUT_MS)
+            if (firstReadyReachedForCurrentStream) return@launch
+            val nextIdx = currentStreamIdx + 1
+            if (nextIdx in altStreams.indices) {
+                Log.w(TAG, "Buffer-stall: auto-advancing to stream $nextIdx")
+                switchStream(nextIdx)
+            } else {
+                errorMessageFlow.value =
+                    "Stream isn't loading — open the stream picker to try another."
+            }
+        }
+    }
+    private fun cancelBufferStallWatchdog() {
+        bufferStallJob?.cancel()
+        bufferStallJob = null
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -560,6 +587,10 @@ class ExoPlayerActivity : ComponentActivity() {
                                        state == Player.STATE_IDLE)
                 if (state == Player.STATE_READY) {
                     durationMsFlow.value = player.duration.coerceAtLeast(0L)
+                    // v2.10.80 — Cancel stall watchdog once stream
+                    // actually starts playing.
+                    firstReadyReachedForCurrentStream = true
+                    cancelBufferStallWatchdog()
                 }
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -582,6 +613,13 @@ class ExoPlayerActivity : ComponentActivity() {
         player.setMediaItem(item, startPos)
         player.prepare()
         player.playWhenReady = true
+        // v2.10.80 — Arm the buffer-stall watchdog so a stream URL
+        // that never produces a first frame gets auto-replaced after
+        // 10 s with the next candidate from the cascade-ordered
+        // streams list.  Only useful when altStreams.size > 1.
+        if (altStreams.size > 1) {
+            armBufferStallWatchdog()
+        }
 
         // ─── UI: PlayerView (raw video surface, no native controls) + Compose overlay ───
         val root = FrameLayout(this).apply {
@@ -809,6 +847,7 @@ class ExoPlayerActivity : ComponentActivity() {
         try { pollScope.cancel() } catch (_: Exception) {}
         try { partyVoice?.release() } catch (_: Exception) {}
         try { liveGuide?.release() } catch (_: Exception) {}
+        try { cancelBufferStallWatchdog() } catch (_: Exception) {}
         try { player.release() } catch (_: Exception) {}
     }
 
@@ -976,6 +1015,11 @@ class ExoPlayerActivity : ComponentActivity() {
             player.setMediaItem(item, resumePos)
             player.prepare()
             player.playWhenReady = true
+            // v2.10.80 — Re-arm the buffer-stall watchdog so the
+            // cascade walks forward again if this one also stalls.
+            if (altStreams.size > 1) {
+                armBufferStallWatchdog()
+            }
         } catch (e: Exception) {
             Log.e(TAG, "switchStream failed", e)
             errorMessageFlow.value = "Could not switch stream"
