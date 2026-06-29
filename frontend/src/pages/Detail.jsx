@@ -248,9 +248,19 @@ export default function Detail() {
     /* v2.8.5 — Kids hard-block.  When in Kids mode, we look up the
      * title's US certification via the find-by-imdb endpoint (which
      * now also returns `rating`).  If the cert exceeds the parent's
-     * configured max for movies / TV, we redirect to KidsHome — so
-     * even a kid pasting a /title/ URL directly can't reach adult
-     * content. */
+     * configured max for movies / TV, we BLOCK playback IN-PLACE —
+     * see the `ratingBlocked` state below.  A modal appears with
+     * "Not allowed in Kids mode" + back to KidsHome CTA.
+     *
+     * v2.10.77 — Previously navigated to `/` via `replace: true`.
+     * The OLD pre-v2.10.69 React bundle's kids-kiosk-guard treated
+     * `/` as a non-allowed path and bounced the user to
+     * `/kids/exit-pin` immediately — the user reported as "clicking
+     * a movie automatically goes to the PIN page".  Even on the
+     * current bundle a hard redirect is jarring UX.  Better: keep
+     * the user on the title page and surface a polite explainer so
+     * they understand WHY they can't play it. */
+    const [ratingBlocked, setRatingBlocked] = useState(false);
     useEffect(() => {
         let cancel = false;
         if (!id || !id.startsWith('tt')) {
@@ -278,7 +288,10 @@ export default function Detail() {
                             : cfg.maxRatingMovie;
                         const allowed = isRatingAllowed(cert, ceiling);
                         if (!allowed && !cancel) {
-                            navigate('/', { replace: true });
+                            // v2.10.77 — In-place block.  NO navigation.
+                            // The Detail UI shows a "Not allowed in
+                            // Kids mode" overlay and disables play.
+                            setRatingBlocked(true);
                         }
                     }
                 }
@@ -884,6 +897,9 @@ export default function Detail() {
 
     // Manual trigger for the on-page Play button.
     const triggerAutoplay = () => {
+        // v2.10.77 — Kids rating gate: do nothing if blocked.  The
+        // overlay explains why; user can press Back to leave.
+        if (ratingBlocked) return;
         if (autoplayCandidate) {
             playStream(autoplayCandidate);
             return;
@@ -1170,6 +1186,11 @@ export default function Detail() {
         if (type === 'series') return; // series uses per-episode flow
         if (streamLoading) return;
         if (partyCode) return; // handled by the dedicated party useEffect above
+        // v2.10.77 — Kids rating gate: if the title is blocked by
+        // the parent's configured max rating, do NOT auto-fire the
+        // player.  The Detail UI shows a "Not allowed in Kids mode"
+        // overlay instead.
+        if (ratingBlocked) return;
         /* If streams finished loading and there's literally nothing
          * playable, surface the cinematic "Coming Soon" modal so the
          * user can add the title to their notify list — same as the
@@ -1204,7 +1225,7 @@ export default function Detail() {
         setAutoplayFired(true);
         window.setTimeout(() => playStream(chosen), 0);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [streams, streamLoading, autoplayRequested, type, autoplayCandidate, partyCode]);
+    }, [streams, streamLoading, autoplayRequested, type, autoplayCandidate, partyCode, ratingBlocked]);
 
     /* ---------- PARTY AUTOPLAY for TV SERIES ----------
      * When the host picks a TV show in Watch Together and selects a
@@ -2755,6 +2776,89 @@ export default function Detail() {
                     meta={meta}
                     onClose={() => setShowUnavailableModal(false)}
                 />
+            )}
+
+            {/* v2.10.77 — Kids rating block overlay.  When the title
+                exceeds the parent's configured ceiling, we surface a
+                centred glass card instead of redirecting (which on
+                older bundles bounced the user to the PIN gate).  D-pad
+                BACK from this overlay returns to KidsHome via the
+                standard webView.goBack() path; no custom handling
+                required because the modal doesn't push a history
+                entry. */}
+            {ratingBlocked && (
+                <div
+                    data-testid="detail-rating-blocked-overlay"
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(8, 11, 26, 0.92)',
+                        backdropFilter: 'blur(18px)',
+                        WebkitBackdropFilter: 'blur(18px)',
+                        zIndex: 9999,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '32px',
+                    }}
+                >
+                    <div
+                        style={{
+                            maxWidth: 520,
+                            width: '100%',
+                            padding: '36px 32px',
+                            borderRadius: 24,
+                            background: 'linear-gradient(160deg, rgba(255,213,79,0.12), rgba(155,89,182,0.18))',
+                            border: '1px solid rgba(255,213,79,0.35)',
+                            color: '#fff',
+                            textAlign: 'center',
+                            boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+                        }}
+                    >
+                        <div style={{
+                            fontSize: 56,
+                            marginBottom: 12,
+                        }} aria-hidden="true">🐻</div>
+                        <h2 style={{
+                            fontFamily: '"Fraunces", Georgia, serif',
+                            fontSize: 28,
+                            margin: '0 0 12px',
+                            fontWeight: 700,
+                        }}>
+                            Not for ON NOW Kids
+                        </h2>
+                        <p style={{
+                            fontSize: 16,
+                            lineHeight: 1.5,
+                            opacity: 0.85,
+                            margin: '0 0 24px',
+                        }}>
+                            This movie is rated above what a grown-up has allowed in Kids mode.
+                            Ask a parent to change the rating in Kids Settings, or press Back to find something else to watch.
+                        </p>
+                        <button
+                            data-testid="detail-rating-blocked-back"
+                            data-focusable="true"
+                            data-focus-style="pill"
+                            data-initial-focus="true"
+                            tabIndex={0}
+                            autoFocus
+                            onClick={() => navigate(-1)}
+                            style={{
+                                padding: '14px 28px',
+                                borderRadius: 999,
+                                border: 'none',
+                                background: '#ffd54f',
+                                color: '#241b00',
+                                fontSize: 16,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                            }}
+                        >
+                            Back to Kids Home
+                        </button>
+                    </div>
+                </div>
             )}
 
             {/* v2.7.22 — Stream picker modal.  Opened by the
