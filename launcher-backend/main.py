@@ -2411,6 +2411,11 @@ def clear_tile_apk(key: str) -> dict:
     tile["apk_filename"]   = None
     tile["apk_package_id"] = None
     tile["apk_version"]    = None
+    # v2.10.81 — Also clear the build_id so a re-upload mints a
+    # fresh one (and so /api/launcher/config doesn't keep emitting a
+    # stale build_id with apk_url=null, which would otherwise leave
+    # the UPDATE pill stuck on a tile that has no APK pinned).
+    tile["apk_build_id"]   = None
     _save_store(store)
     return {"ok": True, "generation": store["generation"]}
 

@@ -1,5 +1,25 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.81 — Launcher UPDATE pill fires on EVERY re-upload + centred install dialog for HOME UPDATE (29 Jun 2026).**
+>
+> User-reported P0 bug: *"Launcher updates in the backend aren't triggering the update popup on the TV box. No matter if it's an old version or a new version, if I update it in the backend, it needs to show that it needs an update."*  Plus user explicit request: the HOME UPDATE install flow must show the same centred blue progress dialog used for per-tile installs (v2.10.75) — not the Toast that vanishes mid-download.
+>
+> Root cause (per-tile + home-update share the same bug): launcher's UPDATE pill keyed exclusively off `versionName` semver compare.  Operator re-uploading a hotfix with the same versionName → backend stored it cleanly but `pinned == installed` → no pill on the box.  Operator's only workaround was bumping versionName on every push, which broke their fast-iteration cycle.
+>
+>   • **Backend** — every APK upload now mints a fresh UUIDv4 hex `build_id` (per-tile `apk_build_id` on `/api/admin/dock/{key}/apk`; `build_id` on `/api/admin/home-update/upload`).  Build_id rotates on every upload regardless of whether the file bytes or versionName changed.  Exposed in `/api/launcher/config` (per-tile) and `/api/launcher/home-update/info` (home-update).  `home-update/info?current_build_id=<id>` returns `has_update=False` when matching, `True` otherwise.  Legacy clients omitting the param fall back to version_code compare or default-to-true when an APK is pinned.  DELETE endpoints also clear `apk_build_id`/`build_id` so a re-upload mints a genuinely fresh state (testing-agent caught this — fixed).
+>
+>   • **Android Launcher** — `DockTileRemote.apkBuildId` parsed from JSON; plumbed through `DockItem.apkBuildId` → `DockAdapter.computeInstallState` / `MainActivity.computeTileInstallState`.  Pill fires when `installed_build_id_<pkg>` (SharedPrefs) differs from remote `apkBuildId`.  Pending-install lifecycle: stash `pending_install_build_id_<pkg>` on click → promote to `installed_build_id_<pkg>` in `onResume` after the package's versionName confirms the install landed → failed installs don't false-clear the pill.  Silent baseline: on the first config poll after the launcher upgrade, any tile whose package is already installed but has no stored build_id silently records the current pinned `apkBuildId` so existing boxes don't show every tile as "UPDATE" on first launch.
+>
+>   • **Home Update centred install dialog** — `AppsDrawerActivity.downloadAndInstallHomeUpdate` swapped from `Toast.LENGTH_LONG` (~3.5s auto-dismiss) to `InstallProgressDialog.show` (the same centred blue progress modal v2.10.75 introduced for per-tile installs).  Stays up through download → "Opening the system installer…" hand-off → dismiss.  After a successful install, the freshly-installed `build_id` is written to SharedPrefs via the new static `MainActivity.writeInstalledBuildId` so the next `/api/launcher/home-update/info` poll reports `has_update=false` until the operator re-uploads.
+>
+>   • **Defence in depth — `current_build_id` precedence over `current_version_code`** — when both are sent, the backend trusts build_id (since version_code-based detection can NEVER fire on a same-version rebuild).  When only version_code is sent (legacy clients), original semver path still works.  Backwards-compatible upgrade path: a box running v2.10.80 hits the new backend with version_code only → backend says `has_update=True` only on version_code bumps (legacy behaviour preserved); once the box upgrades to v2.10.81+ it starts sending build_id and the operator's same-version push correctly fires the pill.
+>
+> Verified end-to-end via 12 pytest tests in `/app/launcher-backend/tests/test_build_id_pill_trigger.py` + `/app/launcher-backend/tests/test_build_id_edge_cases.py` — 100% pass.  Tests cover: build_id minting on upload, rotation on re-upload of identical bytes, `/api/launcher/config` payload includes apk_build_id, has_update=False when current_build_id matches, has_update=True when stale, end-to-end stale-device scenario, build_id UUID format validation, DELETE clears build_id on both endpoints, legacy no-query fallback.  Kotlin static-verified (brace + paren delta clean on MainActivity.kt, DockAdapter.kt, LauncherConfig.kt, AppsDrawerActivity.kt).
+>
+> Touched: `launcher-backend/main.py` (`+58 -8`), `MainActivity.kt` (`+143 -3`), `DockAdapter.kt` (`+18 -0`), `LauncherConfig.kt` (`+7 -0`), `AppsDrawerActivity.kt` (`+60 -16`).  New tests `test_build_id_pill_trigger.py` (6) + `test_build_id_edge_cases.py` (6).
+>
+> **User action required:**  Save to GitHub → CI rebuilds the Launcher APK → sideload onto the box.  After reinstall: re-upload any tile or the launcher itself in the admin → the UPDATE pill appears on the TV within one config-poll cycle (≤30 s) regardless of whether versionName changed.
+
 > **🟢 v2.10.80 — EasyNews++ priority cascade + 10s buffer auto-advance + (i) Buffering Info button (29 Jun 2026).**
 >
 > Three user-requested wins shipped in one drop.
