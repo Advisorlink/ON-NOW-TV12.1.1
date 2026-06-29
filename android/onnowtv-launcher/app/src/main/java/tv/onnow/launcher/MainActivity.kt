@@ -1,6 +1,8 @@
 package tv.onnow.launcher
 
+import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
@@ -150,7 +152,14 @@ class MainActivity : AppCompatActivity() {
         // (pill hides) or a still-mismatched tile keeps its pill.
         // Cheap — DockAdapter.onBindViewHolder re-checks each tile
         // against PackageManager on every refresh.
-        if (::dockAdapter.isInitialized) dockAdapter.notifyDataSetChanged()
+        // v2.10.81 — Promote any pending build_id whose package is
+        // now installed at the matching versionName.  Done BEFORE
+        // notifyDataSetChanged so the pill state machine sees the
+        // promoted build_id on the very next bind pass.
+        if (::dockAdapter.isInitialized) {
+            promotePendingBuildIds()
+            dockAdapter.notifyDataSetChanged()
+        }
     }
 
     override fun onPause() {
@@ -513,6 +522,17 @@ class MainActivity : AppCompatActivity() {
             null
         }
         if (info == null) return TileInstallState.INSTALL
+        // v2.10.81 — build_id mismatch is the authoritative signal.
+        // If the backend stamped a fresh build_id (every upload mints
+        // one) AND the box's last-installed build_id for this package
+        // differs, that's an UPDATE regardless of versionName.
+        val pinnedBuild = item.apkBuildId?.trim().orEmpty()
+        if (pinnedBuild.isNotEmpty()) {
+            val installedBuild = readInstalledBuildId(this, pkg)
+            if (installedBuild.isNotEmpty() && installedBuild != pinnedBuild) {
+                return TileInstallState.UPDATE
+            }
+        }
         val pinned = item.apkVersion?.trim().orEmpty()
         if (pinned.isEmpty()) return TileInstallState.NONE
         val current = info.versionName?.trim().orEmpty()
@@ -634,6 +654,12 @@ class MainActivity : AppCompatActivity() {
         }
         val installed = isPackageInstalled(item.apkPackageId)
         val verb = if (installed) "Updating" else "Installing"
+
+        // v2.10.81 — Stash the build_id we're about to install so
+        // onResume can promote it to installed_build_id_<pkg> once
+        // the package version confirms the install landed.  No-op
+        // if either field is missing.
+        stashPendingInstallBuildId(item.apkPackageId, item.apkBuildId)
 
         // v2.10.75 — Centred blue progress bar in the middle of the
         // screen.  Stays up through download + any conflict-resolution
@@ -1000,10 +1026,21 @@ class MainActivity : AppCompatActivity() {
                 apkUrl         = t.apkUrl?.let { rebaseTileApkUrl(it) },
                 apkPackageId   = t.apkPackageId?.takeIf { it.isNotBlank() },
                 apkVersion     = t.apkVersion,
+                // v2.10.81 — Backend-stamped build_id, used by the
+                // pill state machine to detect re-uploads of the
+                // SAME versionName.  See comparePillBuildIdMatters
+                // and DockAdapter.computeInstallState.
+                apkBuildId     = t.apkBuildId?.takeIf { it.isNotBlank() },
             )
         }
         dockItems.clear()
         dockItems.addAll(mapped)
+        // v2.10.81 — Silent baseline: for every tile whose package is
+        // ALREADY installed but we have no stored build_id yet (fresh
+        // launcher upgrade case), record the current pinned build_id
+        // without showing an UPDATE pill.  Subsequent pushes will
+        // mint a new build_id and the pill will fire correctly.
+        baselineInstalledBuildIds()
         // v1.0 — Apply admin-edited Layout Editor values BEFORE
         // notifying the adapter so the new tile dimensions land on
         // the first render (no flash of old size).
@@ -2103,6 +2140,103 @@ class MainActivity : AppCompatActivity() {
         return span
     }
 
+    /* ─────────────────  v2.10.81 — Build-id tracking  ───────────────
+     *
+     * The launcher stores the build_id it last installed for every
+     * pinned package in SharedPrefs.  When the backend's pinned
+     * apk_build_id differs, DockAdapter.computeInstallState fires
+     * the UPDATE pill regardless of whether versionName changed.
+     *
+     * Storage layout in `BUILD_IDS_PREFS`:
+     *   installed_build_id_<package>  : last verified-installed build_id
+     *   pending_install_build_id_<package> : build_id of the in-flight install
+     *
+     * Lifecycle:
+     *   1. User clicks INSTALL pill → stashPendingInstallBuildId
+     *      writes pending_install_build_id_<pkg>.
+     *   2. After the system installer finishes, onResume calls
+     *      promotePendingBuildIds.  For each pending entry, if the
+     *      package is now installed AND its versionName matches the
+     *      pinned versionName, we move pending → installed.
+     *   3. On every config update, baselineInstalledBuildIds is
+     *      called.  For any tile whose package is installed but
+     *      installed_build_id is empty (fresh launcher install,
+     *      legacy boxes upgrading to v2.10.81), we silently record
+     *      the current pinned build_id so the UPDATE pill doesn't
+     *      false-fire on the FIRST poll after the launcher upgrade.
+     */
+
+    /** Record that we're about to install this build_id for [pkg]. */
+    private fun stashPendingInstallBuildId(pkg: String?, buildId: String?) {
+        if (pkg.isNullOrBlank() || buildId.isNullOrBlank()) return
+        getBuildIdsPrefs(this)
+            .edit()
+            .putString("pending_install_build_id_$pkg", buildId)
+            .apply()
+    }
+
+    /** Walk every dock tile; promote any pending build_id whose
+     *  package now reports the matching versionName as installed. */
+    private fun promotePendingBuildIds() {
+        val prefs = getBuildIdsPrefs(this)
+        val all = prefs.all
+        if (all.isEmpty()) return
+        val ed = prefs.edit()
+        var dirty = false
+        for ((k, v) in all) {
+            if (!k.startsWith("pending_install_build_id_")) continue
+            val pkg = k.removePrefix("pending_install_build_id_")
+            val pendingBuildId = v as? String ?: continue
+            val item = dockItems.firstOrNull { it.apkPackageId == pkg }
+            val installedPkgInfo = try {
+                packageManager.getPackageInfo(pkg, 0)
+            } catch (_: Throwable) { null }
+            if (installedPkgInfo == null) {
+                // Install failed (uninstalled / never completed).
+                ed.remove(k); dirty = true; continue
+            }
+            val installedVer = installedPkgInfo.versionName?.trim().orEmpty()
+            val pinnedVer = item?.apkVersion?.trim().orEmpty()
+            // Promote when versions match, OR when we have no pinned
+            // version to compare against (operator pushed a build
+            // without a versionName declaration; trust the install
+            // succeeded since the package is installed at all).
+            val versionsMatch = pinnedVer.isEmpty() || installedVer == pinnedVer
+            if (versionsMatch) {
+                ed.putString("installed_build_id_$pkg", pendingBuildId)
+                ed.remove(k)
+                dirty = true
+            }
+        }
+        if (dirty) ed.apply()
+    }
+
+    /** Silent baseline.  For every tile whose package is installed
+     *  but installed_build_id is unrecorded, record the current
+     *  pinned build_id so the pill doesn't false-fire on first
+     *  config poll after upgrading to v2.10.81. */
+    private fun baselineInstalledBuildIds() {
+        val prefs = getBuildIdsPrefs(this)
+        val ed = prefs.edit()
+        var dirty = false
+        for (item in dockItems) {
+            val pkg = item.apkPackageId?.trim().orEmpty()
+            val buildId = item.apkBuildId?.trim().orEmpty()
+            if (pkg.isEmpty() || buildId.isEmpty()) continue
+            val key = "installed_build_id_$pkg"
+            if (prefs.contains(key)) continue
+            val installed = try {
+                packageManager.getPackageInfo(pkg, 0)
+            } catch (_: Throwable) { null }
+            if (installed == null) continue   // not installed → pill will be INSTALL, no baseline needed
+            // Package installed + no record → record the current
+            // pinned build_id silently.
+            ed.putString(key, buildId)
+            dirty = true
+        }
+        if (dirty) ed.apply()
+    }
+
     /* ──────────────────────────  Back / Home  ───────────────────── */
 
     @Suppress("OVERRIDE_DEPRECATION")
@@ -2115,6 +2249,35 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         binding.dock.post {
             binding.dock.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
+        }
+    }
+
+    companion object {
+        /** SharedPreferences file storing per-package build_id state.
+         *  v2.10.81 — see MainActivity's "Build-id tracking" block. */
+        const val BUILD_IDS_PREFS = "onnowtv_build_ids_v1"
+
+        fun getBuildIdsPrefs(ctx: Context): SharedPreferences =
+            ctx.getSharedPreferences(BUILD_IDS_PREFS, Context.MODE_PRIVATE)
+
+        /** Cached build_id of the LAST install we verified for [pkg].
+         *  Empty string when nothing was recorded yet (caller treats
+         *  empty as "unknown — don't fire UPDATE on this alone"). */
+        fun readInstalledBuildId(ctx: Context, pkg: String): String {
+            if (pkg.isBlank()) return ""
+            return getBuildIdsPrefs(ctx).getString("installed_build_id_$pkg", "") ?: ""
+        }
+
+        /** Overwrite the installed_build_id for [pkg].  Used by the
+         *  home-update flow in AppsDrawerActivity after a successful
+         *  launcher self-install — for dock tiles this is set via
+         *  the pending → installed promotion in onResume. */
+        fun writeInstalledBuildId(ctx: Context, pkg: String, buildId: String) {
+            if (pkg.isBlank() || buildId.isBlank()) return
+            getBuildIdsPrefs(ctx)
+                .edit()
+                .putString("installed_build_id_$pkg", buildId)
+                .apply()
         }
     }
 }

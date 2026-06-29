@@ -31,6 +31,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import tv.onnow.launcher.ImageLoader
+import tv.onnow.launcher.MainActivity
 import tv.onnow.launcher.R
 import tv.onnow.launcher.data.ApkEntryRemote
 import tv.onnow.launcher.data.AppStoreMeta
@@ -411,8 +412,18 @@ class AppsDrawerActivity : AppCompatActivity() {
                 val cur = packageManager.getPackageInfo(packageName, 0)
                 val vc = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
                     cur.longVersionCode else @Suppress("DEPRECATION") cur.versionCode.toLong()
+                // v2.10.81 — Also send the build_id of the last
+                // self-update we installed.  The backend compares
+                // against the pinned `build_id` (UUID minted on every
+                // admin re-upload) so re-pushing the same versionName
+                // STILL fires has_update on this box.
+                val cachedBuildId = MainActivity.readInstalledBuildId(
+                    this@AppsDrawerActivity, packageName,
+                )
+                val buildQs = if (cachedBuildId.isNotEmpty())
+                    "&current_build_id=$cachedBuildId" else ""
                 val url = repo.baseUrlPublic().trimEnd('/') +
-                    "/api/launcher/home-update/info?current_version_code=$vc"
+                    "/api/launcher/home-update/info?current_version_code=$vc$buildQs"
                 val req = okhttp3.Request.Builder().url(url).get().build()
                 tv.onnow.launcher.net.ResilientHttp.client.newCall(req).execute().use { r ->
                     val body = r.body?.string() ?: return@withContext null
@@ -465,28 +476,54 @@ class AppsDrawerActivity : AppCompatActivity() {
             ).show()
             return
         }
-        // Tiny progress toast loop so the user sees something while
-        // a 30-50 MB launcher APK downloads.
-        val progressToast = android.widget.Toast.makeText(
-            this, "Downloading update… 0%", android.widget.Toast.LENGTH_LONG,
+        val pinnedBuildId = info.optString("build_id").orEmpty()
+        val pinnedVer = info.optString("version_name", "").trim()
+        val titleVer = if (pinnedVer.isNotEmpty()) "v$pinnedVer" else "launcher"
+
+        // v2.10.81 — Centred blue InstallProgressDialog, matching the
+        // per-tile install UX (v2.10.75).  Stays up through download
+        // and gracefully hands off to the system installer.  Replaces
+        // the old Toast that vanished mid-download.
+        val dialog = tv.onnow.launcher.install.InstallProgressDialog.show(
+            this,
+            "Updating $titleVer",
+            "Downloading the latest launcher build from the server…",
         )
-        progressToast.show()
         lifecycleScope.launch {
             val err = ApkInstaller.downloadAndInstall(
                 this@AppsDrawerActivity,
                 apkUrl,
                 suggestedName = "home-update.apk",
                 onProgress = { pct ->
-                    runOnUiThread { progressToast.setText("Downloading update… $pct%") }
+                    runOnUiThread { dialog.setProgress(pct) }
                 },
             )
             if (err != null) {
-                android.widget.Toast.makeText(
-                    this@AppsDrawerActivity,
-                    "Home update failed: $err",
-                    android.widget.Toast.LENGTH_LONG,
-                ).show()
+                runOnUiThread {
+                    dialog.dismiss()
+                    android.widget.Toast.makeText(
+                        this@AppsDrawerActivity,
+                        "Home update failed: $err",
+                        android.widget.Toast.LENGTH_LONG,
+                    ).show()
+                }
+                return@launch
             }
+            // v2.10.81 — Save the freshly-installed build_id so the
+            // next /api/launcher/home-update/info poll reports
+            // has_update=false until the operator re-uploads.
+            if (pinnedBuildId.isNotEmpty()) {
+                MainActivity.writeInstalledBuildId(
+                    this@AppsDrawerActivity, packageName, pinnedBuildId,
+                )
+            }
+            // Hand off to the system installer UI.
+            runOnUiThread {
+                dialog.setTitle("Installing $titleVer")
+                dialog.setMessage("Opening the system installer…")
+                dialog.setProgress(100)
+            }
+            android.os.Handler(mainLooper).postDelayed({ dialog.dismiss() }, 1200L)
             // On success, ApkInstaller has fired the system install
             // prompt — the user will see the standard Android update
             // dialog.  No further action needed from this activity.

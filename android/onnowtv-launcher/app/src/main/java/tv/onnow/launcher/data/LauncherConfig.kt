@@ -128,6 +128,12 @@ data class DockTileRemote(
     val apkFilename: String?,
     val apkPackageId: String?,
     val apkVersion: String?,
+    /* v2.10.81 — Backend-stamped build_id (UUIDv4 hex).  Mints fresh
+       on every admin re-upload regardless of whether versionName
+       changes.  The launcher compares this to the cached
+       `installed_build_id_<pkg>` SharedPrefs value to decide whether
+       to fire the UPDATE pill — even when versionName is identical. */
+    val apkBuildId: String?,
     val targetPackage: String?,
     val targetUrl: String?,
     val accent: String?,
@@ -237,6 +243,7 @@ fun parseLauncherConfig(json: String): LauncherConfig {
             apkFilename    = o.optStringOrNull("apk_filename"),
             apkPackageId   = o.optStringOrNull("apk_package_id"),
             apkVersion     = o.optStringOrNull("apk_version"),
+            apkBuildId     = o.optStringOrNull("apk_build_id"),
             targetPackage  = o.optStringOrNull("target_package"),
             targetUrl      = o.optStringOrNull("target_url"),
             accent         = o.optStringOrNull("accent"),

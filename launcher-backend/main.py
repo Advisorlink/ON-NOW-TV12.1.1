@@ -2988,6 +2988,14 @@ async def upload_home_update(file: UploadFile = File(...)) -> dict:
         "package_id":   pkg_id,
         "version_name": version_name,
         "version_code": version_code,
+        # v2.10.81 — Stamp a fresh UUIDv4 hex on every upload so the
+        # launcher's HOME UPDATE pill fires regardless of whether the
+        # operator bumped versionCode/versionName.  The TV box stores
+        # the last installed build_id in SharedPrefs; if the pinned
+        # one differs we light up the pill.  This is the fix for
+        # operator-reported "I re-uploaded the same version and the
+        # pill never appeared on the box."
+        "build_id":     uuid.uuid4().hex,
         "uploaded_at":  now_ts(),
     }
     _save_store(store)
@@ -3028,21 +3036,45 @@ def home_update_clear() -> dict:
 @app.get("/api/launcher/home-update/info")
 def home_update_info(
     current_version_code: Optional[int] = None,
+    current_build_id: Optional[str] = None,
     device_id: Optional[str] = None,
 ) -> dict:
     """Public — TV clients call this to see if an update is
-    available.  If `current_version_code` is supplied, we set
-    `has_update = pinned.version_code > current_version_code`,
-    otherwise we just return that an update IS pinned (the device
-    decides whether to install).
+    available.
+
+    Update detection (v2.10.81) — TWO independent signals, either
+    fires has_update=True:
+
+      1. `current_version_code` < pinned `version_code` (legacy
+         semver bump path).
+      2. `current_build_id` != pinned `build_id` (NEW — fires on
+         every fresh re-upload regardless of versionCode, so the
+         operator can push a rebuild of the SAME version to every
+         box and the HOME UPDATE pill still appears).
+
+    A device that doesn't send either param defaults to
+    has_update=True whenever an APK is pinned (lets the device
+    decide).  Once a device starts sending `current_build_id`, the
+    backend ONLY says has_update=True when there's an actual change
+    to install — never on every poll.
     """
     meta = _home_update_meta()
     if not meta or not _home_update_path().exists():
         return {"has_update": False, "home_update": None}
     apk_url = f"{PUBLIC_BASE_URL}/api/system-deps/home-update.apk"
     pinned_vc = meta.get("version_code")
+    pinned_build_id = meta.get("build_id")
+
+    # Default: pinned APK exists → update available.  Refined below
+    # when caller provides comparison hints.
     has_update = True
-    if current_version_code is not None and pinned_vc is not None:
+
+    # Refinement 1 — build_id mismatch is the authoritative signal.
+    if current_build_id is not None and pinned_build_id is not None:
+        has_update = (current_build_id != pinned_build_id)
+    # Refinement 2 — fall back to version_code compare when build_id
+    # isn't provided (older launcher builds).
+    elif current_version_code is not None and pinned_vc is not None:
         has_update = int(pinned_vc) > int(current_version_code)
     return {
         "has_update":    has_update,
@@ -3052,6 +3084,7 @@ def home_update_info(
         "package_id":    meta.get("package_id"),
         "version_name":  meta.get("version_name"),
         "version_code":  meta.get("version_code"),
+        "build_id":      pinned_build_id,
         "uploaded_at":   meta.get("uploaded_at"),
     }
 

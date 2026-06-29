@@ -1,0 +1,45 @@
+{
+  "summary": "v2.10.81 build_id pill-trigger backend verification. Ran 12 backend tests across 2 suites against http://localhost:8002: all 6 pre-existing tests in test_build_id_pill_trigger.py PASS (build_id minting, rotation on re-upload, has_update logic with matching/stale current_build_id, end-to-end stale-device scenario, home-update build_id flow). Added 6 supplementary edge-case tests — 5 pass, 1 FAILS (real bug found): DELETE /api/admin/dock/{key}/apk does NOT clear apk_build_id from store.json. Home-update DELETE works correctly (entire home_update dict popped). Build_id minting is verified as a valid 32-char lower-hex UUID hex on both surfaces, /api/launcher/config exposes apk_build_id on every dock tile (null when not pinned), and legacy clients without current_build_id query param still receive has_update=True when an APK is pinned.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "DELETE /api/admin/dock/{key}/apk",
+        "issue": "Handler at /app/launcher-backend/main.py:2405-2415 (clear_tile_apk) sets apk_url/apk_filename/apk_package_id/apk_version to None but does NOT reset apk_build_id. After a delete, store.json still carries the previous apk_build_id — so /api/launcher/config keeps emitting a stale apk_build_id with apk_url=null, which means a TV box that already has the stale APK installed will see installed_build_id != backend_build_id forever and the UPDATE pill will stick on a tile that has no APK pinned (or worse, point to a non-existent download URL). Fix: add `tile[\"apk_build_id\"] = None` to the field-clear block (also `tile[\"apk_version\"] = None` is already there, this is the matching pattern). The home-update DELETE (line 3024) does not have this bug because it pops the whole `home_update` dict.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/launcher-backend/tests/test_build_id_pill_trigger.py",
+    "/app/launcher-backend/tests/test_build_id_edge_cases.py",
+    "/app/test_reports/pytest/iteration_57_combined.xml",
+    "/app/test_reports/pytest/iteration_57_build_id.xml"
+  ],
+  "action_items": [
+    "Add `tile[\"apk_build_id\"] = None` inside the clear_tile_apk handler at /app/launcher-backend/main.py:2410-2413 so DELETE /api/admin/dock/{key}/apk fully clears the build_id (matches the explicit requirement in the review-request: 'Backend cleanup: DELETE /api/admin/dock/{key}/apk and DELETE /api/admin/home-update both clear the build_id from store.json'). After the fix the test test_dock_delete_clears_apk_build_id will pass."
+  ],
+  "critical_code_review_comments": [
+    "main.py is 4007 lines — well past the 700-line soft cap. Future refactor should split admin endpoints, launcher endpoints and store helpers into separate modules.",
+    "Bug pattern note: per-tile field clears at line 2410-2413 use an explicit-field list, while home-update uses dict.pop. The explicit-field pattern is fragile — any new field added (like apk_build_id was) is silently forgotten on DELETE. Consider either (a) a helper _reset_tile_apk_fields(tile) that resets all apk_* fields, or (b) maintain a TILE_APK_FIELDS constant the handler iterates.",
+    "build_id detection logic in home_update_info correctly handles all 3 cases (matching → has_update=False, stale → True, missing → fallback to version_code or True if APK pinned) — verified end-to-end."
+  ],
+  "updated_files": [
+    "/app/launcher-backend/tests/test_build_id_edge_cases.py (NEW — 6 supplementary edge-case tests)"
+  ],
+  "success_rate": {
+    "backend": "91.6% (11/12 tests pass — 1 real bug found in DELETE dock APK cleanup)",
+    "frontend": "N/A (skipped per request)"
+  },
+  "test_credentials": "LAUNCHER_BACKEND_URL=http://localhost:8002, LAUNCHER_ADMIN_TOKEN=onnow-launcher-admin-dev (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Tests upload a 4-byte fake APK (zip magic only) and clean up via DELETE in module-scope teardown.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "v2.10.81 build_id pill trigger: all 6 pre-existing tests PASS. New edge-case suite at /app/launcher-backend/tests/test_build_id_edge_cases.py adds 6 tests; the only failure is test_dock_delete_clears_apk_build_id which exposes a real bug in main.py:clear_tile_apk that the main agent needs to patch (one-liner). Re-run with: `LAUNCHER_BACKEND_URL=http://localhost:8002 LAUNCHER_ADMIN_TOKEN=onnow-launcher-admin-dev python -m pytest /app/launcher-backend/tests/test_build_id_pill_trigger.py /app/launcher-backend/tests/test_build_id_edge_cases.py -v` from /app/launcher-backend.",
+  "rca of the issue": "RCA: When v2.10.81 introduced the new apk_build_id field on dock tiles, the upload handler (main.py:2331) was updated to mint a fresh UUID hex, but the DELETE handler (main.py:2405 clear_tile_apk) was missed — it still only resets the original 4 fields (apk_url/apk_filename/apk_package_id/apk_version). Reproduction: `curl -X POST -H 'Authorization: Bearer onnow-launcher-admin-dev' -F 'file=@/tmp/fake.apk' http://localhost:8002/api/admin/dock/movies/apk` → check `cat /app/launcher-backend/data/store.json | jq '.dock_tiles[]|select(.key==\"movies\").apk_build_id'` (returns hex) → `curl -X DELETE -H 'Authorization: Bearer onnow-launcher-admin-dev' http://localhost:8002/api/admin/dock/movies/apk` → re-check apk_build_id (STILL returns the hex — bug). Mitigation: add `tile[\"apk_build_id\"] = None` to the clear block; ideally also factor the field reset into a helper so future new apk_* fields can't repeat this miss."
+}

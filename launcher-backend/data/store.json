@@ -1,5 +1,5 @@
 {
-  "generation": 668,
+  "generation": 726,
   "dock_tiles": [
     {
       "key": "movies",
@@ -7,17 +7,18 @@
       "sub": "On demand",
       "image_url": "/assets/tile_images/tile-movies-aae330fb.png",
       "wallpaper_url": "/assets/wallpapers/tile-movies-08302cb0.png",
-      "apk_url": "/assets/tile_apks/tile-movies-fa41ccba.apk",
-      "apk_filename": "wrong-apk.apk",
-      "apk_package_id": "tv.example.wrong",
-      "apk_version": "99.0.0",
+      "apk_url": null,
+      "apk_filename": null,
+      "apk_package_id": null,
+      "apk_version": null,
       "target_package": "tv.onnowtv.app",
       "target_url": null,
       "accent": "#3dd8ff",
       "heading": "Movies/Tv",
       "subheading": "Your favorite movies and TV shows.",
       "description": "Stream blockbusters, discover hidden gems, even experience a huge collection of stunning 4K visuals. All from the comfort of your couch. Dive into a cinematic universe with endless options, curated picks just for you, your very own library and save it to your own profile. Get ready for an immersive viewing experience like no other With the all new On Now V2!!",
-      "cta_label": "ENTER"
+      "cta_label": "ENTER",
+      "apk_build_id": "bf14136b897943f7af0b5599f525139b"
     },
     {
       "key": "sports",

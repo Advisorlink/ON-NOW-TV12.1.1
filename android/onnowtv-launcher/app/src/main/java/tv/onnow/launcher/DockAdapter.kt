@@ -291,6 +291,22 @@ class DockAdapter(
             null
         }
         if (installed == null) return InstallState.INSTALL
+
+        // v2.10.81 — Build-id mismatch is the AUTHORITATIVE signal.
+        // The backend mints a fresh UUID on every admin re-upload,
+        // so when the cached `installed_build_id_<pkg>` differs from
+        // the remote `apkBuildId`, the operator has pushed something
+        // new — fire UPDATE even if versionName is unchanged.  This
+        // is the fix for the operator's "I re-uploaded the same
+        // version and the pill never appeared" report.
+        val pinnedBuild = item.apkBuildId?.trim().orEmpty()
+        if (pinnedBuild.isNotEmpty()) {
+            val installedBuild = MainActivity.readInstalledBuildId(ctx, pkg)
+            if (installedBuild.isNotEmpty() && installedBuild != pinnedBuild) {
+                return InstallState.UPDATE
+            }
+        }
+
         val pinned = item.apkVersion?.trim().orEmpty()
         if (pinned.isEmpty()) {
             // No version metadata from backend — be conservative: if
