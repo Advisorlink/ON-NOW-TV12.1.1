@@ -151,7 +151,14 @@ class InstallProgressDialog private constructor(
                 textSize = 13f
                 setTextColor(Color.parseColor("#FFAAB6C5"))
                 gravity = Gravity.CENTER
-                lineSpacingExtra = dp(2).toFloat()
+                // v2.10.83 — Kotlin can't synthesize a setter for
+                // `lineSpacingExtra` (TextView only exposes a getter
+                // for it; the setter is `setLineSpacing(add, mult)`
+                // for both fields together).  Call the Java setter
+                // directly with multiplier=1.0 to preserve default
+                // line height while adding 2 dp of breathing room
+                // between wrapped lines.
+                setLineSpacing(dp(2).toFloat(), 1.0f)
             }
             root.addView(messageView)
 

@@ -794,6 +794,20 @@ function KidsAppRoutes() {
 }
 
 function App() {
+    // v2.10.83 — Install the global focus-bookmark listener ONCE at
+    // app boot.  Records the data-testid + scroll positions of any
+    // [data-focusable] tile that gets clicked or Enter-pressed, so
+    // useFocusRestore on Home / Network / Library / Catalog / Person
+    // can return the highlight to that exact tile when the user
+    // presses BACK from the detail page.
+    React.useEffect(() => {
+        try {
+            // Lazy-imported to keep this file's import graph stable.
+            // eslint-disable-next-line global-require
+            const { installFocusBookmarkListener } = require('@/hooks/useFocusRestore');
+            installFocusBookmarkListener();
+        } catch { /* hook lookup failed — non-fatal */ }
+    }, []);
     return (
         <div className="App">
             <ErrorBoundary>

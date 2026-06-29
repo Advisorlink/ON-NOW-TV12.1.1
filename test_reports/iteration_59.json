@@ -1,0 +1,73 @@
+{
+  "summary": "Iteration 59 — Verified (a) cross-page focus-restore feature (useFocusRestore hook + global click/keydown bookmark listener) end-to-end on Library page, including stale-purge gate, bookmark write-on-click, restore-after-Back, and bookmark clear-after-restore. (b) Kotlin compile fix in InstallProgressDialog.kt line 161 (`setLineSpacing(dp(2).toFloat(), 1.0f)`) verified by static grep — no `lineSpacingExtra =` or `lineSpacingMultiplier =` direct assignment in any Kotlin file under /app/android/onnowtv-launcher/. (c) Iteration-57 build-id pill suite (12) + iteration-58 networks/trailer suite (11) all 23 still pass.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "android_static_review": {
+    "kotlin_compile_fix_verified": true,
+    "evidence": "grep -rn 'lineSpacingExtra\\s*=\\|lineSpacingMultiplier\\s*=' /app/android/onnowtv-launcher/app/src/main/java/ → empty. The only `lineSpacingExtra` hits are in /res/layout/activity_main.xml (XML attribute — handled by Android resource compiler, not Kotlin synthetic setter, so SAFE).",
+    "additional_finding": {
+      "file": "/app/android/onnowtv-launcher/app/src/main/java/tv/onnow/launcher/install/BulkInstallActivity.kt",
+      "lines": [126, 181],
+      "code": "lineHeight = dp(20)  / lineHeight = dp(18)",
+      "issue": "TextView.setLineHeight(int) requires API 28+. minSdk is 23. This COMPILES fine (target API 34 JAR has the setter) but will throw NoSuchMethodError at runtime on Android 6.0-8.1 boxes (API 23-27). Not the bug that broke CI, but a latent runtime crash for older TV boxes.",
+      "priority": "MEDIUM",
+      "fix": "Wrap with `if (Build.VERSION.SDK_INT >= 28) lineHeight = dp(20)` OR call `setLineSpacing(extra, multiplier)` instead."
+    }
+  },
+  "focus_restore_e2e": {
+    "listener_installed_once": true,
+    "evidence_listener": "Synthetic dispatch on /profiles wrote `vesper:focus:/profiles` bookmark — listener is live at App boot before user auth.",
+    "hook_wired_in_pages": ["Home.jsx (ready:true)", "Network.jsx (ready:!loading && items>0)", "Library.jsx (ready:true)", "Person.jsx (ready:!busy && !!data)", "Search.jsx (ready:true)"],
+    "library_e2e": {
+      "tile_click_wrote_bookmark": true,
+      "bookmark_payload": "{testId:'library-back', scroll:{chain:[{sel:'[data-testid=\"library-page\"]',top:0,left:0}], windowTop:0, windowLeft:0}, ts:...}",
+      "back_restored_focus": true,
+      "restored_testid_matches_clicked": true,
+      "bookmark_cleared_after_restore": true
+    },
+    "staleness_gate": {
+      "stale_2h_bookmark_purged_on_load": true,
+      "evidence": "Manually wrote ts=Date.now()-2h to sessionStorage['vesper:focus:/library'], navigated to /library, bookmark removed without restoration."
+    },
+    "network_page_test": "PARTIAL — direct page.goto('/networks/binge') was bounced to /profiles by the app's profile gate. Hook is wired and imports verified by code review (line 56 of Network.jsx). Manual on-device verification recommended."
+  },
+  "regression_suites": {
+    "iter57_build_id_pill": "12/12 PASS",
+    "iter58_networks_trailer": "11/11 PASS",
+    "combined": "23/23 PASS in 2.09s",
+    "report": "/app/test_reports/pytest/iter59_regression.xml"
+  },
+  "test_report_links": [
+    "/app/test_reports/pytest/iter59_regression.xml",
+    "/app/launcher-backend/tests/test_build_id_pill_trigger.py",
+    "/app/launcher-backend/tests/test_build_id_edge_cases.py",
+    "/app/backend/tests/test_iter58_networks_trailer.py"
+  ],
+  "action_items": [
+    "[OPTIONAL/MEDIUM] BulkInstallActivity.kt:126 + :181 — wrap `lineHeight = dp(N)` with API 28+ guard or use setLineSpacing. Not the cause of the iteration-59 CI failure but will crash on API 23-27 TV boxes at runtime.",
+    "[INFO ONLY] Network page focus-restore could not be E2E-tested in preview pod because /networks/binge requires an active profile and direct goto was bounced — code wiring verified; recommend user verify on-device once v2.10.83 lands."
+  ],
+  "critical_code_review_comments": [
+    "useFocusRestore.js architecture is clean: capture-phase listener installed once via _installed guard prevents duplicate listeners across remounts. RESTORE_WINDOW_MS=2200 + 80ms tick gives ~27 retries which is generous for slow data loads.",
+    "Bookmark is keyed by pathname, so /networks/binge and /networks/disney get separate bookmarks — good.",
+    "1-hour staleness gate is sensible and verified to purge.",
+    "captureScrollChain walks ancestor scroll containers and only stores those with a stable selector (data-testid/id/data-shelf-rail) — gracefully degrades if no selector found.",
+    "Restoration calls scrollIntoView({block:'center', inline:'center'}) after applyScrollChain — correct order so the highlighted tile is centered AFTER container scroll positions land.",
+    "App.js uses require() inside useEffect to dodge circular imports — pragmatic given the hook depends on react-router-dom."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100% (Library E2E full pass; Network page wiring verified statically)"},
+  "test_credentials": "testuser / testpass123 (Vesper), onnow-launcher-admin-dev (launcher)",
+  "seed_data_creation": "Seeded test profile via localStorage: onnowtv-profiles-v1:testuser + onnowtv-active-profile-v1:testuser → 'p-test1' Tester.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "useFocusRestore hook is solid. Profile gate in preview pod requires post-login localStorage seed with `:testuser` suffix on profile keys (lib/profiles.js line 53). Use window.history.pushState + popstate event for in-app navigation — page.goto() may be intercepted by route guards.",
+  "rca_of_the_kotlin_issue": "Kotlin synthetic property assignment `view.lineSpacingExtra = X` requires both getter+setter named consistently. Android TextView has `getLineSpacingExtra()` but the setter is `setLineSpacing(float add, float multiplier)` — two args, different name. Kotlin can't synthesize `set` from this, hence the compile error `Val cannot be reassigned`. Fix: call the Java setter directly with both args, which is exactly what line 161 now does."
+}

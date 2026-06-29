@@ -11,6 +11,7 @@ import UpcomingMoviesShelf from '@/components/UpcomingMoviesShelf';
 import TabGridView from '@/components/TabGridView';
 import FullscreenButton from '@/components/FullscreenButton';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
+import useFocusRestore from '@/hooks/useFocusRestore';
 import useHomeBackHandler from '@/hooks/useHomeBackHandler';
 import { useAddons } from '@/hooks/useAddons';
 import { useLiveShelves } from '@/hooks/useLiveShelves';
@@ -23,6 +24,11 @@ import useIsMobile from '@/lib/useIsMobile';
 
 export default function Home() {
     useSpatialFocus();
+    // v2.10.83 — Back from Detail must return focus to the exact
+    // tile the user clicked, not the top-left of the grid.  The hook
+    // retries for ~2 s after mount so it works even while ForYou /
+    // Continue-Watching / Networks are still streaming in.
+    useFocusRestore({ ready: true });
     const { addons } = useAddons();
     const location = useLocation();
     const isMobile = useIsMobile();

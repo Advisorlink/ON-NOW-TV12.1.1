@@ -25,6 +25,7 @@ import SideNav from '@/components/SideNav';
 import useBackHandler from '@/hooks/useBackHandler';
 import useLongPress from '@/hooks/useLongPress';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
+import useFocusRestore from '@/hooks/useFocusRestore';
 import {
     isActorInLibrary,
     addActorToLibrary,
@@ -42,6 +43,9 @@ export default function Person() {
 
     useSpatialFocus();
     useBackHandler(() => navigate(-1));
+    // v2.10.83 — Return focus to the tile the user came from on this
+    // actor's filmography when they Back out of a Detail page.
+    useFocusRestore({ ready: !busy && !!data });
 
     useEffect(() => {
         let cancel = false;
