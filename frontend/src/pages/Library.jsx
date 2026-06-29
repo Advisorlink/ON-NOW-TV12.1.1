@@ -17,7 +17,6 @@ import {
     Trash2,
 } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
-import useFocusRestore from '@/hooks/useFocusRestore';
 import useLongPress from '@/hooks/useLongPress';
 import {
     listFavouritesByType,
@@ -46,10 +45,6 @@ import { Vesper } from '@/lib/api';
  */
 export default function Library() {
     useSpatialFocus();
-    // v2.10.83 — Restore focus to the exact tile when returning
-    // from a Detail / Actor page.  Library entries hydrate from
-    // localStorage synchronously so `ready: true` is fine.
-    useFocusRestore({ ready: true });
     const [tv, setTv] = useState(listFavouritesByType('series'));
     const [watchLater, setWatchLater] = useState(listWatchLater());
     const [actors, setActors] = useState(listActors());

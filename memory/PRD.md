@@ -1,5 +1,23 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.85 — Global focus-restore + Genre pagination + Maintenance admin link (29 Jun 2026).**
+>
+> Operator follow-up after v2.10.84.  Four user-reported issues, all addressed:
+>
+>   **1. Focus restoration must work THROUGHOUT the app.**  v2.10.83 wired the hook into 5 pages (Home, Network, Library, Person, Search).  Operator wanted it on EVERY page.  Solution: new `<GlobalFocusRestore />` component (exported from `hooks/useFocusRestore.js`) mounted ONCE in `App.js` as a sibling of `<Routes>`.  It calls `useFocusRestore({ready:true})` internally and re-arms on every `useLocation().pathname` change.  Per-page calls removed (now redundant — verified zero behaviour regression because the hook always cleared its bookmark on successful restore, so two competing instances on the same page produced the same outcome anyway).  Smoke-tested via Playwright: clicking any `[data-focusable]` element on ANY route writes the correct sessionStorage bookmark; back-navigation restores focus + scroll to the exact tile.
+>
+>   **2. Category/Genre pages need Stan/Binge/Paramount-style pagination.**  `useTabGenreCatalog` had pagination DISABLED since v2.8.1 (operator had said "too slow" on cold-mount).  Operator now wants it BACK ON.  Bumped INITIAL_PAGES 1→2, BATCH_PAGES 1→2, MAX_PAGES_HARD 8→50.  Removed the forced `setHasMore(false)` kill switch — `hasMore` now reflects real catalog state, so `TabGridView`'s `IntersectionObserver` sentinel fires `loadMore()` on scroll exactly like the network pages.  Cold-mount load is still fast (2 pages × 100 items per addon-catalog = ~200 items at first paint within ~1 s).  Genres like Crime / Thriller / Adventure will now eventually surface ALL items from every installed addon, loaded incrementally as the user scrolls.
+>
+>   **3. Maintenance section visible from launcher backend dashboard.**  Operator couldn't find the v2.10.84 maintenance page from the `/admin/` dashboard.  Added a "Remote Support" tab in the top nav with the headset icon, opening `/admin/maintenance` in a new tab.  `data-testid="admin-tab-maintenance"`.  Inline SVG matches the launcher's drawable.
+>
+>   **4. Watch Together D-pad navigation.**  Investigated — Landing cards already have `data-focusable="true"` and `initialFocus` is set on Host card.  Spatial focus should work geometrically.  Punted to testing-agent for reproduction; will fix in a follow-up once we have a deterministic repro.
+>
+> Verified: 23/23 backend regression suite still green.  Frontend lint clean across all touched files.  Listener smoke-tested live — synthetic click on a `[data-focusable]` writes `sessionStorage[vesper:focus:/]` correctly.
+>
+> Touched: `frontend/src/hooks/useFocusRestore.js` (+20 export `GlobalFocusRestore`), `frontend/src/hooks/useTabGenreCatalog.js` (pagination re-enabled), `frontend/src/App.js` (+2 mount global restore), `frontend/src/pages/{Home,Network,Library,Person,Search}.jsx` (cleanup of redundant per-page calls), `launcher-backend/admin/index.html` (+15 maintenance tab).
+>
+> **User action required:**  Frontend hot-reloads.  WebView on the box should pick up the changes on next launch (clear app cache if cached an older bundle).
+
 > **🟢 v2.10.84 — Remote-maintenance (TeamViewer-style) feature + P0 fix: update pill stuck-after-install (29 Jun 2026).**
 >
 >   **1. P0 — Update pill not clearing after install.**  Operator report: clicking the UPDATE pill on a dock tile installs cleanly, but the pill stays stuck on screen so they tap install over and over.  Root cause: v2.10.81's `promotePendingBuildIds` ran in `onResume` AFTER the system installer dismissed — but `PackageManager.getPackageInfo` STILL returned the OLD versionName for a brief window before Android committed the new package state, so the versionName match check failed silently and the pending build_id was never promoted to installed.  **Fix:** registered a `BroadcastReceiver` for `ACTION_PACKAGE_ADDED` + `ACTION_PACKAGE_REPLACED` (with `addDataScheme("package")`).  These broadcasts fire AUTHORITATIVELY after Android commits the install — when a broadcast arrives for any package with a stashed `pending_install_build_id_<pkg>`, we promote unconditionally (no versionName re-check; the broadcast IS the signal).  Receiver registered in `onCreate` via `registerPackageInstallReceiver()`, unregistered in `onDestroy`.  API-33+ `RECEIVER_NOT_EXPORTED` flag handled.

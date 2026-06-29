@@ -43,6 +43,7 @@ import { getActiveProfile, isKidsActive, getKidsConfig, isKidsApp } from '@/lib/
 import { AVATARS } from '@/lib/avatars';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import MobileBottomNav from '@/components/MobileBottomNav';
+import { GlobalFocusRestore } from '@/hooks/useFocusRestore';
 // v2.10.77 — UpdateGate import removed; in-app update prompt killed
 // at user request, updates now flow ONLY through the Launcher.
 import Onboarding, { hasSeenOnboarding } from '@/components/Onboarding';
@@ -818,6 +819,7 @@ function App() {
                             <MobilePlatformRoot>
                                 <LoginGate>
                                     <VesperOnlyChrome />
+                                    <GlobalFocusRestore />
                                     {isKidsApp() ? (
                                         <KidsAppRoutes />
                                     ) : (

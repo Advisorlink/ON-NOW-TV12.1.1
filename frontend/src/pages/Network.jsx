@@ -5,7 +5,6 @@ import SideNav from '@/components/SideNav';
 import FullscreenButton from '@/components/FullscreenButton';
 import NetworkPosterTile from '@/components/NetworkPosterTile';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
-import useFocusRestore from '@/hooks/useFocusRestore';
 import useBackHandler from '@/hooks/useBackHandler';
 import { findNetwork } from '@/lib/networks';
 import { API } from '@/lib/api';
@@ -48,12 +47,6 @@ export default function Network() {
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
     const [error, setError] = useState(null);
-
-    // v2.10.83 — Back from Detail must return focus to the exact
-    // tile the user came from on this network's grid.  We gate
-    // restoration on `loading === false && items.length > 0` so the
-    // tile selector has actual DOM to find.
-    useFocusRestore({ ready: !loading && items.length > 0 });
 
     // Reset whenever the slug or sub-tab changes
     useEffect(() => {

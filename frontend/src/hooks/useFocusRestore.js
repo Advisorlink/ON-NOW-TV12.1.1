@@ -287,3 +287,23 @@ export function bookmarkCurrentFocus() {
         });
     } catch { /* */ }
 }
+
+/* ─────────────  Global mount — runs on EVERY route  ──────────── *
+ *
+ * v2.10.85 — Drop a single instance of <GlobalFocusRestore /> below
+ * <Routes> in App.js and you automatically get scroll/focus
+ * restoration on every page that has data-focusable tiles — no
+ * per-page wiring needed.  The rAF retry window inside
+ * useFocusRestore handles pages whose data loads async; pages whose
+ * tiles never appear simply leave the bookmark untouched until the
+ * staleness gate purges it (1 h default).
+ *
+ * Internally just `useFocusRestore({ ready: true })`, which is
+ * keyed on `useLocation().pathname` so it re-arms on every
+ * navigation.  Replaces (and is functionally a superset of) the
+ * per-page calls on Home / Network / Library / Person / Search.
+ */
+export function GlobalFocusRestore() {
+    useFocusRestore({ ready: true });
+    return null;
+}

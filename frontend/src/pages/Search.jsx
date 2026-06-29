@@ -6,7 +6,6 @@ import FullscreenButton from '@/components/FullscreenButton';
 import PosterTile from '@/components/PosterTile';
 import TVKeyboard from '@/components/TVKeyboard';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
-import useFocusRestore from '@/hooks/useFocusRestore';
 import useBackHandler from '@/hooks/useBackHandler';
 import { useAddons } from '@/hooks/useAddons';
 import KidsBlockedMessage from '@/components/KidsBlockedMessage';
@@ -27,10 +26,6 @@ import Host from '@/lib/host';
 export default function Search() {
     useSpatialFocus();
     useBackHandler('/');
-    // v2.10.83 — Return focus to the tile the user clicked from the
-    // search results grid when they Back out of Detail.  Results
-    // hydrate as the query types so we gate on `searched && !busy`.
-    useFocusRestore({ ready: true });
     const kids = isKidsActive();
     const { addons } = useAddons();
     const [q, setQ] = useState('');

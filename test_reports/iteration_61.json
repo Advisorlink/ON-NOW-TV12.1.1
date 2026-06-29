@@ -1,0 +1,57 @@
+{
+  "summary": "Iteration 61 — v2.10.85 focus-restore + category pagination + admin Maintenance tab review. (1) Global focus-bookmark listener confirmed working end-to-end on a real page (clicked profile-add on /profiles → /profiles/new → browser back → document.activeElement restored to profile-add AND sessionStorage['vesper:focus:/profiles'] cleared). (2) Synthetic test confirms capture-phase click listener writes vesper:focus:<path> with testId on every [data-focusable] click. (3) GlobalFocusRestore mounted exactly ONCE in App.js inside Router via <GlobalFocusRestore/> beneath VesperOnlyChrome; useFocusRestore re-arms on every pathname change via useLocation. (4) Backend regression — 23/23 launcher-backend tests (test_support_session.py + test_build_id_pill_trigger.py + test_build_id_edge_cases.py) PASS in 0.28 s. (5) Admin /admin/ — <a data-testid='admin-tab-maintenance' href='/admin/maintenance' target='_blank' rel='noopener'> tab IS rendered at line 51-64 of /app/launcher-backend/admin/index.html right after Backup tab and before Sign out, with the Remote-Support headset SVG icon. Both /admin/ and /admin/maintenance return HTTP 200. (6) useTabGenreCatalog code review: INITIAL_PAGES=2, BATCH_PAGES=2, MAX_PAGES_HARD=50; hasMore now correctly tracks pairs.some(!exhausted) on initial-burst settle AND on every loadMore; per-pair lastSkip advanced correctly; cache-stale fast-path also re-derives pairsRef so loadMore stays callable. (7) Watch Together Landing — code review confirms ChoiceCard renders <button data-testid=… data-focusable=true tabIndex=0> with host/join siblings inside a `grid-template-columns: repeat(2,…)` so ArrowRight from Host → Join is geometrically valid for useSpatialFocus.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "WatchTogether D-pad runtime verification + /library, /search, /person focus-restore round-trip",
+        "issue": "Could not execute end-to-end runtime tests on these routes because the preview pod's testuser account has NO profile saved, so RequireProfile bounces every non-/profiles route to /profiles. Profile-creation UI requires multi-step avatar picker that the headless Playwright run could not complete in-session.",
+        "affected_selectors": ["watch-together-host", "watch-together-join", "party-search-input-wrap"]
+      }
+    ],
+    "design_issues": []
+  },
+  "verifications": {
+    "focus_restore_synthetic_write": "PASS — injected button.click() wrote {testId:'regr-test-btn', scroll:{...}, ts} to sessionStorage['vesper:focus:/library']",
+    "focus_restore_real_roundtrip_on_/profiles": "PASS — profile-add clicked → nav to /profiles/new → page.go_back() → document.activeElement[data-testid] === 'profile-add' AND sessionStorage['vesper:focus:/profiles'] === null after restore",
+    "bookmark_cleanup_after_restore": "PASS — safeRemove(key) runs inside the rAF callback after successful .focus()",
+    "global_focus_restore_mounted_once": "PASS — App.js line 822 has <GlobalFocusRestore/> mounted exactly once inside Router, beneath VesperOnlyChrome and before the Routes table",
+    "useFocusRestore_keyed_on_pathname": "PASS — useLocation() pathname dep in both useEffects; restoredRef + deadlineRef reset on every pathname change",
+    "per_page_useFocusRestore_calls_removed": "Verified via grep — Home.jsx/Network.jsx/Library.jsx/Person.jsx/Search.jsx no longer import useFocusRestore default export (only GlobalFocusRestore in App.js does)",
+    "watch_together_landing_dom": "PASS by code inspection — WatchTogether.jsx:340-355 renders ChoiceCard host+join siblings; ChoiceCard:361-368 sets data-focusable=true + tabIndex=0 + data-testid",
+    "watch_together_room_search_card": "PASS by code inspection — line 752: data-testid='party-search-input-wrap', line 756: data-focusable='true'",
+    "tab_genre_catalog_pagination_constants": "PASS — INITIAL_PAGES=2, BATCH_PAGES=2, MAX_PAGES_HARD=50 (useTabGenreCatalog.js:66-69); hasMore=pairs.some(!exhausted) on settle (line 375-379) + on every loadMore (line 235-237)",
+    "admin_maintenance_tab_in_index_html": "PASS — admin/index.html:51-64 <a data-testid='admin-tab-maintenance' href='/admin/maintenance' target='_blank' rel='noopener'> rendered after Backup tab",
+    "admin_maintenance_route_serves_200": "PASS — curl http://localhost:8002/admin/maintenance → 200",
+    "backend_regression_23_of_23": "PASS — 23/23 in 0.28 s (see /app/test_reports/pytest/iter61_required.xml)"
+  },
+  "test_report_links": [
+    "/app/test_reports/pytest/iter61_required.xml",
+    "/app/launcher-backend/tests/test_support_session.py",
+    "/app/launcher-backend/tests/test_build_id_pill_trigger.py",
+    "/app/launcher-backend/tests/test_build_id_edge_cases.py"
+  ],
+  "action_items": [
+    "MAIN AGENT MANUAL TEST: On a real device or browser with a saved Vesper profile, validate the Watch Together D-pad runtime — focus Host card, press ArrowRight, assert document.activeElement becomes Join. The DOM structure is correct (siblings in 2-col grid, both data-focusable=true), so this should work — but I could not verify at runtime in the headless pod. If it fails, look at useSpatialFocus geometric scorer first (above-fold gate + visibility check).",
+    "MAIN AGENT MANUAL TEST: Verify category/genre pagination at runtime by scrolling to the bottom of a TV-genre grid (Crime/Thriller). The IntersectionObserver in TabGridView should pump loadMore() and totalLoaded should grow. Code review confirms the hook plumbing is correct.",
+    "OPTIONAL: Seed the preview-pod testuser account with a default profile in /app/scripts so subsequent Playwright runs can exercise /library, /search, /person, /watch-together without the avatar-picker blocker. A single localStorage seed of onnowtv-profiles-v1 + onnowtv-active-profile-v1 in the LoginGate post-auth hook would work."
+  ],
+  "critical_code_review_comments": [
+    "GlobalFocusRestore is a zero-body component (returns null) — clean React pattern, no extra DOM. The single mount at App.js:822 is correct.",
+    "useFocusRestore correctly resets restoredRef + deadlineRef on every pathname change so a new bookmark on a re-entered route isn't shadowed by the previous restoredRef=true state.",
+    "Bookmark cleanup is keyed on the EXACT same `vesper:focus:<pathname>` key used by the writer — verified by storageKey() helper. No leak risk.",
+    "60-minute staleness gate (line 214) prevents disorienting restores after long idle — good UX choice.",
+    "useTabGenreCatalog: hasMore correctly reflects pair-exhaustion not item count, so a pair returning 0 across a whole batch is the only thing that exhausts it (line 211-214 in runOneBatch). Robust.",
+    "Cache-stale fast-path at line 284-305 correctly re-derives pairsRef before returning, so loadMore stays callable on fresh cache hits. Was a previous regression risk — well handled.",
+    "Minor: useFocusRestore uses `require('@/hooks/useFocusRestore')` inside App.js useEffect for installFocusBookmarkListener — works but is a webpack require which the ESLint global-require rule would normally flag (and is disabled on that line). Could be a normal ESM import without the lazy gymnastics; not blocking.",
+    "Watch Together D-pad: cards live in a CSS grid with gridTemplateColumns:'repeat(2, minmax(260px, 1fr))' — they ARE side-by-side at 1080p+ widths. If the user reports D-pad doesn't work at runtime, the most likely culprit is useSpatialFocus's above-fold gate skipping the join card when the page first mounts; second guess is the SideNav stealing focus on the very first ArrowRight. Worth instrumenting useSpatialFocus with a console.debug of the candidate list + scorer output during a single D-pad press."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (23/23)", "frontend": "Code review PASS on all 5 features; runtime E2E PASS on focus-restore round-trip via /profiles; runtime BLOCKED on /library + /watch-together due to no-profile gate"},
+  "test_credentials": "testuser / testpass123 (from /app/memory/test_credentials.md). Account exists and signs in but has NO saved profile, so RequireProfile bounces to /profiles for every gated route.",
+  "seed_data_creation": "None.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "To unblock UI E2E on /library/search/person/watch-together, FIRST seed a profile by either: (a) writing onnowtv-profiles-v1=[{id:'p1',name:'Tester',avatar:'a1',kids:false}] + onnowtv-active-profile-v1='p1' to localStorage AFTER LoginGate completes, or (b) walking through /profiles/new → name → avatar → save in Playwright. Path (a) requires knowing which Vesper profile-store schema the build uses; check /app/frontend/src/lib/profiles.js for the right shape — my injection didn't take in this run."
+}

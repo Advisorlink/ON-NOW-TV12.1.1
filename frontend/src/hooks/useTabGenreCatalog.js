@@ -39,36 +39,34 @@ import * as cache from '@/lib/cache';
  *                  nothing if a batch is already inflight or hasMore=false).
  */
 /*
- *  v2.8.1 — BACKGROUND PAGINATION DISABLED.
+ *  v2.10.85 — BACKGROUND PAGINATION RE-ENABLED (user request).
  *
- *  User feedback Feb 27, 2026: "take out that whole thing we did
- *  before where it loads all those extra movies and stuff.  Take
- *  that out for now, because it's running too slow".
- *
- *  This hook used to fire `4 pages × N (addon,catalog) pairs` in
- *  parallel on first mount, then continue paginating via an
- *  IntersectionObserver as the user scrolled.  On a typical box
- *  with 3-4 addons each exposing 2-3 genre-supporting catalogs,
- *  that's 24+ concurrent HTTP requests followed by 50+ more as the
- *  user scrolled — which thrashed the network and chunked the UI
- *  on every cold render.
+ *  Feb 27 we'd disabled this because cold-mount was hammering the
+ *  network with 24+ concurrent requests.  User now wants the SAME
+ *  scroll-driven pagination that Stan/Binge/Paramount use on the
+ *  /networks/<slug> pages — load a first page fast, then
+ *  IntersectionObserver fires more pages as the user scrolls.
  *
  *  Configuration NOW:
- *    INITIAL_PAGES = 1   — single round-trip per pair (~100 items).
- *    BATCH_PAGES   = 1   — manual loadMore() still works if called
- *                          explicitly, but is no longer auto-fired.
- *    MAX_PAGES_HARD low  — safety cap, basically never hit.
- *  And `hasMore` is forced to `false` at the end of the initial
- *  effect, so the IntersectionObserver sentinel in `TabGridView`
- *  never triggers `loadMore()` on scroll.
+ *    INITIAL_PAGES = 2   — first burst (2 pages × 100 items per
+ *                          addon-catalog pair) gives ~200 items at
+ *                          first paint, a clean 16-row 1080p grid.
+ *    BATCH_PAGES   = 2   — every loadMore() pulls another 200 per
+ *                          catalog so scrolling stays buttery.
+ *    MAX_PAGES_HARD = 50 — safety cap (~5,000 unique items per
+ *                          catalog before we declare exhaustion).
  *
- *  To re-enable deep pagination later, bump these constants back
- *  to (4, 4, 50) and remove the `setHasMore(false)` override.
+ *  The hook now mirrors the on-demand strategy described above:
+ *  `hasMore` stays true as long as at least one catalog can still
+ *  serve a fresh page.  TabGridView's IntersectionObserver pumps
+ *  loadMore() whenever the sentinel near the bottom of the grid
+ *  enters the viewport, so the user sees a seamless infinite scroll
+ *  identical to the Stan/Binge experience.
  */
 const PAGE_SIZE = 100;
-const INITIAL_PAGES = 1;
-const BATCH_PAGES = 1;
-const MAX_PAGES_HARD = 8;
+const INITIAL_PAGES = 2;
+const BATCH_PAGES = 2;
+const MAX_PAGES_HARD = 50;
 const TTL_MS = 30 * 60 * 1000;
 
 function buildKey(type, addons, genre) {
@@ -369,12 +367,16 @@ export function useTabGenreCatalog(addons, type, genre, seedItems) {
             pushState();
             setLoading(false);
             setProgress(1);
-            // v2.8.1 — KEEP `hasMore` FALSE so the IntersectionObserver
-            // in TabGridView NEVER auto-fires `loadMore()` on scroll.
-            // This is the kill switch for the aggressive background
-            // pagination — see top-of-file note for context / how to
-            // re-enable later.
-            setHasMore(false);
+            // v2.10.85 — `hasMore` reflects whether ANY (addon, catalog)
+            // pair still has unfetched pages.  TabGridView's
+            // IntersectionObserver pumps loadMore() on scroll so the
+            // grid behaves identically to /networks/<slug> (Stan,
+            // Binge, Paramount+ etc.).  See top-of-file rationale.
+            const anyAlive = pairs.some(({ addon, cat }) => {
+                const id = `${addon.id}|${cat.id}`;
+                return !exhaustedRef.current.has(id);
+            });
+            setHasMore(anyAlive);
 
             // Cache what we have so far (initial burst).
             try { cache.set(key, { items: Array.from(seenRef.current.values()) }); }
