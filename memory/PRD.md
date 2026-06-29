@@ -1,5 +1,19 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.77 — In-app updates KILLED + EasyNews++ parity (synopsis + badges) + Kids rating in-place block (29 Jun 2026).**
+>
+> Three changes shipped at user request:
+>
+>   • **Removed ALL in-app update prompts from Vesper/Movies.**  `<UpdateGate />` unmounted in `App.js`.  When the user opens Vesper now it goes straight into the app — no "ON NOW TV 2.0 Update available" popup, ever.  Updates flow EXCLUSIVELY through the Launcher tile's UPDATE pill from now on.  `UpdateGate.jsx` component file kept on disk (the launcher's APK install flow still uses the native progress bridge it wires up), but it's no longer rendered in the React tree.
+>   • **EasyNews++ stream picker badges + loading-screen synopsis.**  Two fixes in one drop:
+>       – `streamMeta.js` — `qualityBadge`, `qualityTags`, `sizeLabel` now ALSO scan `stream.description` (previously only `title` + `name`).  EasyNews++ writes codec/HDR/audio/size tokens to the description field, so before this their 4K / Atmos / HEVC / 12.4 GB chips were invisible in the StreamPickerModal.  Now they render with the same chip set Torrentio titles get.
+>       – `find-by-imdb` backend extended (cache bumped `v2`→`v3`) to also return `overview`, `poster_url`, `backdrop_url`, `title`, `year` from the TMDB `/find/` response (no extra TMDB call — same /find/ payload that already had these fields).  Detail.jsx stashes them on `tmdbInfo` and uses them as fallback for `synopsis` / `poster` / `backdrop` / `year` when `meta?.description` is empty (which happens for EasyNews++ titles that Cinemeta doesn't know).  Every player loading card now has the movie's synopsis to render, regardless of which addon supplied the stream.
+>   • **Kids movie click → PIN bounce: in-place rating block.**  v2.10.76 fixed the native-side BACK lock; v2.10.77 also rewrites Detail.jsx's kids-rating gate to be NON-redirecting.  Old behaviour: `navigate('/', { replace: true })` when rating exceeded ceiling, which on pre-v2.10.69 bundles bounced the user to `/kids/exit-pin`.  New behaviour: `setRatingBlocked(true)` → renders a centred 🐻 glass-card overlay reading "Not for ON NOW Kids" with a single "Back to Kids Home" button.  No navigation, no PIN bounce risk.  Autoplay short-circuits when `ratingBlocked === true`.
+>
+> Verified by Playwright smoke + lint clean on `App.js`, `Detail.jsx`, `streamMeta.js`, `useKidsBackGuard.js`, `useKidsKioskGuard.js`, plus backend curl confirming `/api/tmdb/find-by-imdb/tt0111161` returns the Shawshank overview + poster + backdrop + title + year fields.
+>
+> **User action required:**  Save to GitHub → CI rebuild Vesper + Kids APKs → sideload onto the box.  All three fixes ship with the React bundle baked into each APK.
+
 > **🟢 v2.10.76 — Kids movie click + Vesper boot: hard-guard both directions (27 Jun 2026).**
 >
 > Two P0 bugs reported by user, both fixed in a single drop.

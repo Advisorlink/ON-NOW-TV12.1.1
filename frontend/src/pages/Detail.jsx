@@ -278,6 +278,16 @@ export default function Detail() {
                     setTmdbInfo({
                         tmdb_id: data.tmdb_id,
                         media_type: data.media_type,
+                        // v2.10.77 — Synopsis + art fallbacks for the
+                        // player loading screen.  When Cinemeta doesn't
+                        // have a record (EasyNews++ titles often miss),
+                        // these TMDB fields are the only place we can
+                        // get a description / poster / backdrop from.
+                        overview: data.overview || '',
+                        poster_url: data.poster_url || '',
+                        backdrop_url: data.backdrop_url || '',
+                        title: data.title || '',
+                        year: data.year || '',
                     });
                     // Kids rating gate.
                     if (isKidsActive()) {
@@ -1524,6 +1534,9 @@ export default function Detail() {
                         meta?.poster_url ||
                         meta?.background ||
                         meta?.backdrop ||
+                        // v2.10.77 — TMDB fallback (Cinemeta misses
+                        // for some addons, notably EasyNews++).
+                        tmdbInfo?.poster_url ||
                         (id && id.startsWith('tt')
                             ? `https://images.metahub.space/poster/medium/${id}/img`
                             : ''),
@@ -1532,6 +1545,8 @@ export default function Detail() {
                         meta?.backdrop ||
                         meta?.backdrop_url ||
                         meta?.poster ||
+                        tmdbInfo?.backdrop_url ||
+                        tmdbInfo?.poster_url ||
                         (id && id.startsWith('tt')
                             ? `https://images.metahub.space/background/medium/${id}/img`
                             : ''),
@@ -1539,8 +1554,14 @@ export default function Detail() {
                         meta?.description ||
                         meta?.overview ||
                         meta?.synopsis ||
+                        // v2.10.77 — Synopsis fallback from TMDB so
+                        // the player loading card always has the
+                        // movie's overview to render, even when the
+                        // active addon (e.g. EasyNews++) returns a
+                        // title that Cinemeta can't resolve.
+                        tmdbInfo?.overview ||
                         '',
-                    year: meta?.releaseInfo || meta?.year || '',
+                    year: meta?.releaseInfo || meta?.year || tmdbInfo?.year || '',
                     rating: meta?.imdbRating || '',
                     runtime: meta?.runtime || '',
                     genres: meta?.genres || [],

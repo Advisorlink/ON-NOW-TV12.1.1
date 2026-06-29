@@ -87,9 +87,17 @@ export function is4K(stream) {
 /**
  * Returns the first matching quality badge for a stream, or null.
  * `tone` is a UI hint that the renderer can map to a color scheme.
+ *
+ * v2.10.77 — The haystack now ALSO includes the stream's
+ * `description` field.  EasyNews++ (and other Usenet addons) put
+ * the full release-name token-list there rather than in `title`,
+ * which meant their 4K / 1080p / Atmos / HEVC / WEB-DL badges were
+ * invisible in the picker before.
  */
 export function qualityBadge(stream) {
-    const haystack = `${stream?.title || ''} ${stream?.name || ''}`;
+    const haystack = `${stream?.title || ''} ${stream?.name || ''} ${
+        stream?.description || ''
+    }`;
     for (const p of QUALITY_PATTERNS) {
         if (p.test.test(haystack)) return { label: p.label, tone: p.tone };
     }
@@ -149,7 +157,12 @@ const TAG_PATTERNS = [
 ];
 
 export function qualityTags(stream) {
-    const haystack = `${stream?.title || ''} ${stream?.name || ''}`;
+    // v2.10.77 — Also scan `description` so EasyNews++ titles whose
+    // codec/audio/HDR tokens live there (rather than `title`) light
+    // up with the same chip set the user sees on Torrentio titles.
+    const haystack = `${stream?.title || ''} ${stream?.name || ''} ${
+        stream?.description || ''
+    }`;
     const out = [];
     const seen = new Set();
     for (const t of TAG_PATTERNS) {
@@ -169,7 +182,12 @@ export function qualityTags(stream) {
  * link is before committing.
  */
 export function sizeLabel(stream) {
-    const haystack = `${stream?.title || ''} ${stream?.name || ''}`;
+    // v2.10.77 — Also scan `description` so EasyNews++ file-size
+    // tokens (which live in description rather than title) render
+    // a chip in the picker.
+    const haystack = `${stream?.title || ''} ${stream?.name || ''} ${
+        stream?.description || ''
+    }`;
     // Match e.g. "💾 12.4 GB", "[850 MB]", "Movie.2024.4.7GB.mkv".
     const m = haystack.match(/(\d+(?:[.,]\d+)?)\s*(GB|MB)\b/i);
     if (!m) return null;

@@ -43,7 +43,8 @@ import { getActiveProfile, isKidsActive, getKidsConfig, isKidsApp } from '@/lib/
 import { AVATARS } from '@/lib/avatars';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import MobileBottomNav from '@/components/MobileBottomNav';
-import UpdateGate from '@/components/UpdateGate';
+// v2.10.77 — UpdateGate import removed; in-app update prompt killed
+// at user request, updates now flow ONLY through the Launcher.
 import Onboarding, { hasSeenOnboarding } from '@/components/Onboarding';
 import BootSplash from '@/components/BootSplash';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -885,15 +886,16 @@ function App() {
                                 target on the Karaoke stage and audio
                                 stayed at 0:00. */}
                             <GlobalYouTubeHost />
-                            {/* Auto-update gate re-enabled in v2.6.22.
-                                Every device running v2.6.21+ will
-                                check on launch + every 6 h, prompt
-                                a one-tap install when a newer APK
-                                is published to GitHub Releases.
-                                Combined with the stable debug
-                                keystore (bootstrap-keystore workflow)
-                                future upgrades install in-place. */}
-                            <UpdateGate />
+                            {/* v2.10.77 — In-app UpdateGate REMOVED at
+                                user request.  Updates are now ONLY
+                                driven by the Launcher (tile UPDATE
+                                pill).  Vesper / Movies opens straight
+                                into content with no "Update available"
+                                popup ever.  Component file kept on
+                                disk for the native progress bridge
+                                wiring (used by Launcher's APK install
+                                flow), but no longer mounted in the
+                                React tree. */}
                             <OnboardingGate />
                             <BootSplash />
                                 </LoginGate>

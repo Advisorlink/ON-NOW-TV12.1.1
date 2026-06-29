@@ -1100,7 +1100,7 @@ async def tmdb_find_by_imdb(imdb_id: str):
     """
     if not imdb_id.startswith("tt"):
         raise HTTPException(400, "imdb_id must start with 'tt'")
-    cache_key = f"find_by_imdb:{imdb_id}:v2"  # v2 = includes rating
+    cache_key = f"find_by_imdb:{imdb_id}:v3"  # v3 = includes overview + art
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, **cached}
@@ -1108,13 +1108,46 @@ async def tmdb_find_by_imdb(imdb_id: str):
     data = await _tmdb_get(
         f"/find/{imdb_id}", {"external_source": "imdb_id"}
     )
-    out: Dict[str, Any] = {"tmdb_id": None, "media_type": None, "rating": None}
+    out: Dict[str, Any] = {
+        "tmdb_id": None,
+        "media_type": None,
+        "rating": None,
+        # v2.10.77 — Synopsis + art fallbacks for the player loading
+        # screen.  Some addons (EasyNews++ in particular) hand back
+        # streams whose IMDB id doesn't resolve in Cinemeta, so
+        # `Vesper.getMeta()` returns null and Detail.jsx ends up
+        # passing an EMPTY synopsis to the native player loading
+        # card.  The /find/ endpoint already returns the full movie /
+        # tv result objects in the same response — extracting them
+        # here costs us zero extra TMDB calls and gives every player
+        # launch a baseline synopsis + poster + backdrop fallback.
+        "overview": None,
+        "poster_url": None,
+        "backdrop_url": None,
+        "title": None,
+        "year": None,
+    }
+    hit = None
     if data.get("movie_results"):
-        out["tmdb_id"] = data["movie_results"][0].get("id")
+        hit = data["movie_results"][0]
+        out["tmdb_id"] = hit.get("id")
         out["media_type"] = "movie"
     elif data.get("tv_results"):
-        out["tmdb_id"] = data["tv_results"][0].get("id")
+        hit = data["tv_results"][0]
+        out["tmdb_id"] = hit.get("id")
         out["media_type"] = "tv"
+    if hit:
+        out["overview"] = (hit.get("overview") or "").strip() or None
+        out["title"] = hit.get("title") or hit.get("name") or None
+        poster_path = hit.get("poster_path")
+        if poster_path:
+            out["poster_url"] = f"https://image.tmdb.org/t/p/w780{poster_path}"
+        backdrop_path = hit.get("backdrop_path")
+        if backdrop_path:
+            out["backdrop_url"] = f"https://image.tmdb.org/t/p/w1280{backdrop_path}"
+        date = hit.get("release_date") or hit.get("first_air_date") or ""
+        if date and len(date) >= 4:
+            out["year"] = date[:4]
 
     # ── Pull US certification — only one extra TMDB call. ──
     if out["tmdb_id"]:
