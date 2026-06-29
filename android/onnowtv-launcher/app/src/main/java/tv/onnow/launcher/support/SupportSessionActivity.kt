@@ -278,6 +278,24 @@ class SupportSessionActivity : ComponentActivity() {
         //   GET   /api/support/host/inputs/{sid}   — long-poll inputs
         runOnUiThread { setStatus("Connected — waiting for technician…") }
 
+        // v2.10.89 — Open the persistent root shell NOW (while the
+        // user is still looking at the Support activity) so the
+        // Magisk superuser prompt appears exactly once, in a
+        // predictable place.  Subsequent input commands reuse the
+        // same shell — no more flashing dialog per key-press.
+        Thread {
+            val ok = RootInputDispatcher.ensureShell()
+            if (!ok) {
+                runOnUiThread {
+                    setStatus(
+                        "Could not get root shell — controls won't work. " +
+                            "Tap the superuser prompt to allow.",
+                        warn = true,
+                    )
+                }
+            }
+        }.also { it.isDaemon = true }.start()
+
         // 1) POST hello once so the operator's panel can render
         //    device-id + screen resolution immediately.
         Thread {
@@ -339,6 +357,18 @@ class SupportSessionActivity : ComponentActivity() {
                 }
             }
         }.also { it.isDaemon = true; it.start() }
+
+        // v2.10.89 — IMPORTANT: get the Support activity out of the
+        // way so MediaProjection captures the actual TV interface,
+        // not this code-display screen.  `moveTaskToBack(true)`
+        // keeps the activity ALIVE in the back stack (so screen
+        // capture + input polling keep running) but the launcher
+        // comes back to the foreground for the customer.  A 600 ms
+        // delay lets the "Connected" status be visible briefly so
+        // the customer knows the session started.
+        window.decorView.postDelayed({
+            try { moveTaskToBack(true) } catch (_: Throwable) {}
+        }, 600)
     }
 
     override fun onDestroy() {
@@ -348,6 +378,8 @@ class SupportSessionActivity : ComponentActivity() {
         inputPollerThread = null
         screenCapture?.stop()
         screenCapture = null
+        // v2.10.89 — Close the persistent root shell.
+        try { RootInputDispatcher.shutdown() } catch (_: Throwable) {}
         sessionId?.let { sid ->
             // Fire-and-forget cancel so the backend reaps fast.
             Thread {
