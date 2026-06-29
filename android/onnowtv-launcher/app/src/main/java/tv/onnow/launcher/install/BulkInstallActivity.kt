@@ -4,6 +4,7 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
@@ -123,7 +124,14 @@ class BulkInstallActivity : AppCompatActivity() {
             text = "Loading the app manifest from the backend…"
             textSize = 14f
             setTextColor(Color.parseColor("#FFAAB6C5"))
-            lineHeight = dp(20)
+            // v2.10.83 — TextView.setLineHeight is API 28+.  Use
+            // setLineSpacing() (since API 1) on older boxes so we
+            // don't NoSuchMethodError-crash on Android 6/7/8.1 TVs.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                lineHeight = dp(20)
+            } else {
+                setLineSpacing(dp(6).toFloat(), 1.0f)
+            }
         }
         column.addView(headerSubtitle)
         column.addView(spacer(dp(20)))
@@ -178,7 +186,12 @@ class BulkInstallActivity : AppCompatActivity() {
                     "for every dialog — the queue advances automatically as each install finishes."
             textSize = 12f
             setTextColor(Color.parseColor("#FF6F7E92"))
-            lineHeight = dp(18)
+            // v2.10.83 — API 28+ guard, see headerSubtitle comment.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                lineHeight = dp(18)
+            } else {
+                setLineSpacing(dp(5).toFloat(), 1.0f)
+            }
         })
 
         scroll.addView(column, ViewGroup.LayoutParams(

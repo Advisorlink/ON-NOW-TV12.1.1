@@ -109,7 +109,12 @@ export default function LoginScreen() {
                             ref={userRef}
                             data-testid="login-username-input"
                             data-focusable="true"
-                            data-focus-style="pill"
+                            // v2.10.83 — focus ring lives on the
+                            // wrapper via `.vesper-login-field:focus-within`
+                            // so it draws around icon + input together
+                            // without crowding the icon.  `bare` style
+                            // suppresses any input-level outline.
+                            data-focus-style="bare"
                             tabIndex={0}
                             type="text"
                             autoComplete="username"
@@ -154,7 +159,8 @@ export default function LoginScreen() {
                         <input
                             data-testid="login-password-input"
                             data-focusable="true"
-                            data-focus-style="pill"
+                            // v2.10.83 — see username input note above.
+                            data-focus-style="bare"
                             tabIndex={0}
                             type={showPass ? 'text' : 'password'}
                             autoComplete="current-password"
@@ -287,15 +293,25 @@ function Field({ icon: Icon, label, testid, trailing, children }) {
                 {label}
             </label>
             <div
+                // v2.10.83 — Focus ring lives on the WRAPPER (via
+                // `:focus-within` in CSS), not on the inner <input>.
+                // Previously the input itself wore `data-focus-style="pill"`,
+                // so the 2 px outline ring hugged the input tightly and
+                // crowded the 18 px icon to its left.  Promoting the
+                // ring up to the wrapper means it draws around the
+                // icon + input together with proper breathing room.
+                className="vesper-login-field"
                 style={{
                     position: 'relative',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 10,
+                    gap: 14,
                     background: 'rgba(255,255,255,0.04)',
                     border: '1px solid rgba(255,255,255,0.10)',
                     borderRadius: 16,
-                    padding: '4px 12px',
+                    padding: '10px 16px',
+                    transition:
+                        'border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease',
                 }}
             >
                 <Icon

@@ -492,7 +492,21 @@ body {
 [data-focus-style='bare'][data-focused='true'] input {
     outline: none !important;
     box-shadow: none !important;
-    -webkit-tap-highlight-color: transparent !important;
+    -webkit-tap-highlight-color: transparent !important;}
+
+/* v2.10.83 — Login screen input wrapper.  When ANY descendant
+   (username input, password input, eye-toggle button) has focus,
+   draw a SOFT glowing ring around the entire pill so the icon
+   AND input both sit inside the ring with breathing room.  The
+   input itself uses `data-focus-style="bare"` (above) so we don't
+   double-paint a ring on the inner box. */
+.vesper-login-field:focus-within {
+    border-color: var(--vesper-blue-bright, #5DC8FF) !important;
+    background: rgba(93, 200, 255, 0.06) !important;
+    box-shadow:
+        0 0 0 1.5px var(--vesper-blue-bright, #5DC8FF),
+        0 0 24px 4px rgba(93, 200, 255, 0.40),
+        0 0 48px 12px rgba(93, 200, 255, 0.18);
 }
 
 /* Nav focus — sidebar */

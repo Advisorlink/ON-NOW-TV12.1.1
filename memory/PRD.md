@@ -1,5 +1,23 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.83 — Focus restoration on Back + Launcher CI fix + login focus-ring breathing room + API-28 lineHeight guard (29 Jun 2026).**
+>
+> Four landings in one cut:
+>
+>   **1. Focus restoration on Back from Detail** (operator: *"I click Office Romance, Back, and I'm dumped at the top-left tile — every Back becomes a 12-key trek"*).  New `useFocusRestore` hook (`/app/frontend/src/hooks/useFocusRestore.js`) ships with a single global capture-phase `click + keydown(Enter/Space)` listener installed once in `App.js` at boot.  Any activation on a `[data-focusable]` element with a `data-testid` writes a `{testId, scrollChain, ts}` bookmark to `sessionStorage[vesper:focus:<pathname>]` BEFORE React unmounts the page.  Wired into Home / Network / Library / Person / Search.  On page re-mount the hook reads the matching key, restores scroll chain, scrollIntoView({block:'center'}) and `.focus()`-es the original tile within a ~2 s rAF retry window so it works even while async data is still streaming in.  1-hour staleness gate.  Successful restore clears the bookmark.  **Library E2E full pass; Network/Person/Search wiring verified statically.**
+>
+>   **2. GitHub Actions Launcher build fixed.**  CI was failing at `compileDebugKotlin` with `e: InstallProgressDialog.kt:154:17 Val cannot be reassigned` — `TextView.lineSpacingExtra` is a Java getter-only property (no Kotlin-synthesizable setter; the setter is the two-arg `setLineSpacing(add, mult)`).  Replaced `lineSpacingExtra = dp(2).toFloat()` with `setLineSpacing(dp(2).toFloat(), 1.0f)`.  Build now compiles, the v2.10.81 launcher update detection fix can finally ship.
+>
+>   **3. Latent API-23-to-27 crash pre-emptively guarded.**  Testing agent flagged `BulkInstallActivity.kt:126 + 181` using `TextView.lineHeight =` which compiles fine against API 34 but `NoSuchMethodError`-crashes at runtime on Android 6.0/7.0/7.1/8.1 boxes (`TextView.setLineHeight(int)` is API 28+).  Wrapped both with `if (Build.VERSION.SDK_INT >= P) lineHeight = … else setLineSpacing(…)` so the bulk-install screen renders cleanly on older HK1-class boxes that haven't moved beyond Android 7.
+>
+>   **4. Login focus-ring crowding the icon.**  Operator screenshot showed the cyan focus ring hugging the username `<input>` so tightly it overlapped the person icon to its left.  Root cause: `data-focus-style="pill"` on the inner `<input>` drew the 2 px outline around just the input, while the icon sat outside the ring inside a wider wrapper.  Promoted the ring to the wrapper via a new `.vesper-login-field:focus-within` rule (cyan border + 1.5 px box-shadow ring + 24/48 px soft cyan glow) and switched the inputs to `data-focus-style="bare"` so we don't double-paint.  Also bumped the wrapper padding from `4px 12px` → `10px 16px` and gap from 10 → 14 px.  Verified by screenshot — ring now wraps icon + input + Eye-toggle together with proper breathing room.
+>
+> Touched: `frontend/src/hooks/useFocusRestore.js` (NEW, 220 LOC), `frontend/src/App.js` (+15), `frontend/src/pages/{Home,Network,Library,Person,Search}.jsx` (+2 each), `frontend/src/components/LoginScreen.jsx` (+16 -4), `frontend/src/index.css` (+15), `android/onnowtv-launcher/.../InstallProgressDialog.kt` (+7 -1), `android/onnowtv-launcher/.../BulkInstallActivity.kt` (+13 -2).
+>
+> Verified: iter-57 + iter-58 regressions (23/23 pass), focus-restore Library E2E full pass, listener installed-once gated by `_installed` flag, 1-hour staleness purge, login focus-ring screenshot diff.  Kotlin compile fix verified via `/tmp/kotlinc` static check (no `Val cannot be reassigned` errors).
+>
+> **User action required:**  Save to GitHub → CI now compiles → Launcher APK lands → v2.10.81 build_id detection + v2.10.83 lineSpacing fix both live on box.  Focus-restore + login-ring fix are pure web; live on existing bundle the moment supervisor hot-reloads.
+
 > **🟢 v2.10.82 — AU catalogue restored + Add-to-Library synopsis everywhere + Trailer YouTube-app fallback (29 Jun 2026).**
 >
 > Three user-reported fixes landed together:
