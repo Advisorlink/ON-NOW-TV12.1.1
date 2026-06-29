@@ -424,6 +424,48 @@ class WebAppInterface(private val activity: Activity) {
         }
     }
 
+    /**
+     * v2.10.82 — Hard-fallback for trailer playback when the
+     * yt-dlp extraction route on the backend can't return a
+     * playable URL (signature changes, geo-restriction, etc.).
+     *
+     * Tries in order:
+     *   1. `vnd.youtube:{id}` — opens the YouTube TV / mobile app
+     *      directly to the video (best UX, HD by default, sound
+     *      always works).
+     *   2. `https://www.youtube.com/watch?v={id}` via ACTION_VIEW
+     *      — any installed video viewer (Chrome, Brave, etc.).
+     *
+     * Called from TrailerModal.jsx whenever the primary extract
+     * route fails so the user always gets a working trailer.
+     */
+    @JavascriptInterface
+    fun playYoutubeFallback(youtubeId: String, title: String?) {
+        val id = youtubeId.trim()
+        if (id.isBlank()) return
+        activity.runOnUiThread {
+            val tries = listOf(
+                Intent(Intent.ACTION_VIEW, Uri.parse("vnd.youtube:$id"))
+                    .apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK },
+                Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=$id"))
+                    .apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK },
+            )
+            for (intent in tries) {
+                try {
+                    if (intent.resolveActivity(activity.packageManager) != null) {
+                        activity.startActivity(intent)
+                        return@runOnUiThread
+                    }
+                } catch (_: Throwable) { /* try next */ }
+            }
+            Toast.makeText(
+                activity,
+                "No app available to play this trailer.  Install YouTube and try again.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
     @JavascriptInterface
     fun playExternal(url: String, title: String?, mime: String?) {
         // Opt-in path: hand to system video player (VLC stand-alone,

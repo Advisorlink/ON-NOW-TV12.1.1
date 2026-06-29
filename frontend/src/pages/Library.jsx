@@ -27,6 +27,7 @@ import {
     removeFromNotifyList,
 } from '@/lib/library';
 import LibraryCalendar from '@/components/LibraryCalendar';
+import { Vesper } from '@/lib/api';
 
 /**
  * /library — My Library.
@@ -1134,18 +1135,43 @@ function FavouriteCard({ item, type }) {
     const poster = item.meta?.poster;
 
     const onTap = () => navigate(`/title/${type}/${item.id}`);
-    const onLongPress = () => {
+    const onLongPress = async () => {
+        // v2.10.82 — Lazy-fetch the synopsis from the meta endpoint
+        // since the library's stored `meta` doesn't carry it (only
+        // name/poster/year).  Fire the event WITHOUT synopsis first
+        // so the modal appears instantly, then update by re-firing
+        // once the description lands.  Cached on the backend so the
+        // second-and-onward long-press is sub-100 ms.
+        const baseDetail = {
+            id: item.id,
+            type,
+            title: item.meta?.name,
+            poster,
+            year: item.meta?.year,
+        };
         window.dispatchEvent(
             new CustomEvent('vesper:request-add-to-list', {
-                detail: {
-                    id: item.id,
-                    type,
-                    title: item.meta?.name,
-                    poster,
-                    year: item.meta?.year,
-                },
+                detail: baseDetail,
             })
         );
+        try {
+            const m = await Vesper.getMeta(type, item.id);
+            const description = m?.data?.meta?.description;
+            const background = m?.data?.meta?.background;
+            const genres = m?.data?.meta?.genres;
+            if (description || background || genres) {
+                window.dispatchEvent(
+                    new CustomEvent('vesper:request-add-to-list', {
+                        detail: {
+                            ...baseDetail,
+                            synopsis: description,
+                            background,
+                            genres,
+                        },
+                    })
+                );
+            }
+        } catch { /* swallow — modal still works without it */ }
     };
     const press = useLongPress(onLongPress, onTap);
 

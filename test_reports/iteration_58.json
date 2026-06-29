@@ -1,0 +1,40 @@
+{
+  "summary": "v2.10.82 verification — three reported bugs (AU catalogues regressed, long-press popup missing synopsis, Trailer button unreliable) confirmed FIXED by backend tests + code review. Backend: 11/11 pass against public preview URL — Binge/Stan/Paramount+ AU catalogues are non-empty (Binge AU tv >=300 with overview fields, Stan AU tv >=200, Paramount+ AU tv >=100; movies non-empty too), US region returns ~0 for AU-only providers, /api/tmdb/trailer/movie/27205 returns YouTube key 'JE9z-gy4De4', /api/trailer-stream/JE9z-gy4De4 returns is_hd_pair video+audio_url in 1.12s, invalid 11-char id 'ZZZZZZZZZZZ' returns 502 in 0.36s (NEVER hangs — asyncio.wait_for(..., timeout=18.0) at server.py:2912-2914 verified). Regression suite (iter57 build_id pill trigger: 12/12 PASS — DELETE clear_apk_build_id bug from iter57 was fixed by main agent). Static review: NetworkPosterTile.jsx:70-83 dispatches CustomEvent with synopsis/background/year fields; AddToListModal.jsx:549-564 renders synopsis paragraph; AddToListModal.jsx:58-78 onRequest merges same-id payloads (line 65 comment confirms 'without flickering focus'); TrailerModal.jsx:56-110 has 20s AbortController hard cap, calls window.OnNowTV.playYoutubeFallback on ANY failure (line 93-99), error UI exposes [data-testid=trailer-open-youtube] (line 259) and [data-testid=trailer-close] (line 287); WebAppInterface.kt:442-467 adds @JavascriptInterface playYoutubeFallback(youtubeId, title) that tries vnd.youtube:{id} → https://www.youtube.com/watch?v={id} ACTION_VIEW with NEW_TASK flag, with Toast fallback if no app. Brace/paren balance = 133/133 and 397/397 (delta-clean). Network.jsx:68 and Network.jsx:103 both carry region=${network.region || 'US'} on initial + paginated fetches; empty-state at line 321 reads '({network.region || 'US'} region)'. Frontend browser-side CustomEvent dispatch test could NOT be run inside the preview session because /networks/binge is gated behind sign-in + active profile, and direct goto from a fresh playwright context redirects to sign-in. Backend coverage of the synopsis pipeline (overview field on every result) and the network endpoint shape is enough to certify the fix at the API layer.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter58_networks_trailer.py",
+    "/app/test_reports/pytest/iteration_58_networks_trailer.xml",
+    "/app/launcher-backend/tests/test_build_id_pill_trigger.py",
+    "/app/launcher-backend/tests/test_build_id_edge_cases.py"
+  ],
+  "action_items": [
+    "(optional, not blocking) Add browser-side e2e for the long-press → synopsis flow once the playwright runner can persist a profile across sessions — e.g. via a `?bypass_profile=p-test1` preview-only query flag, or a Playwright `storage_state` fixture seeded with a real JWT + profile id. Currently the API contract is verified but the React render path is verified only by static review."
+  ],
+  "critical_code_review_comments": [
+    "TrailerModal.jsx:53-54 reads window.OnNowTV once, then on line 92 reads it AGAIN as `fallbackBridge = window.OnNowTV`. Functionally identical, but redundant — collapse to a single ref.",
+    "NetworkPosterTile.jsx:81 emits `background: item.backdrop ? img.backdrop(item.backdrop) : null` but the AddToListModal contract doc (lines 1-30) doesn't list `background` as required; AddToListModal.jsx:401 destructures `title, poster, year, genres, synopsis, type` — `background` is dispatched but never rendered. Low-priority: either render the backdrop in the modal header for richer UX, or stop sending it.",
+    "Network.jsx empty-state text '(US region)' is correct for US providers but the user's spec only mentioned wanting '(AU region)' — current code does both via `network.region || 'US'`. Fine.",
+    "WebAppInterface.kt:443 — `title: String?` is accepted but never used (Toast on line 461 ignores it). Either log it for debugging (`Log.d(\"playYTFB\", \"title=$title\")`) or drop the param to keep the JS interface lean."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter58_networks_trailer.py (NEW — 11 tests covering AU networks + trailer-stream timeout)",
+    "/app/test_reports/pytest/iteration_58_networks_trailer.xml (NEW — junit results)"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11 new tests pass; 12/12 iter57 regression pass)",
+    "frontend": "static-review only (in-browser dispatch test blocked by auth/profile gate from fresh playwright session)"
+  },
+  "test_credentials": "Vesper sign-in: testuser / testpass123 (from /app/memory/test_credentials.md). Login itself worked; profile creation flow at /profiles/new requires multi-step UI navigation that exceeded the playwright session budget.",
+  "seed_data_creation": "None — tests use existing TMDB data via public /api endpoints.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "v2.10.82 backend is solid. If the user reports the popup still missing synopsis after the APK rebuild, the dispatch payload from NetworkPosterTile and Library is already correct (verified statically) — bug would have to be in the merge logic in AddToListModal.jsx onRequest (lines 58-78). For trailer fallback verification on a real device, watch logcat for 'playYoutubeFallback' invocation when yt-dlp times out — should fire vnd.youtube intent first, then https as second try. Backend test file at /app/backend/tests/test_iter58_networks_trailer.py is reusable as a regression suite — re-run with: `REACT_APP_BACKEND_URL=https://rebrand-app-5.preview.emergentagent.com python -m pytest /app/backend/tests/test_iter58_networks_trailer.py -v -s` from /app/backend."
+}

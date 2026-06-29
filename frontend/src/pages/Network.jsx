@@ -62,7 +62,10 @@ export default function Network() {
         (async () => {
             try {
                 const r = await fetch(
-                    `${API}/networks/${slug}?type=${subTab}&page=1`,
+                    // v2.10.82 — Restore region query param (regressed in
+                    // v2.10.36).  Binge & Stan are AU-only on TMDB; under
+                    // the default US region they return zero titles.
+                    `${API}/networks/${slug}?type=${subTab}&page=1&region=${network.region || 'US'}`,
                     { cache: 'no-store' }
                 );
                 if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -95,7 +98,9 @@ export default function Network() {
         try {
             const next = page + 1;
             const r = await fetch(
-                `${API}/networks/${slug}?type=${subTab}&page=${next}`,
+                // v2.10.82 — Carry the same region param on subsequent
+                // pages so the catalogue stays consistent.
+                `${API}/networks/${slug}?type=${subTab}&page=${next}&region=${network.region || 'US'}`,
                 { cache: 'no-store' }
             );
             if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -313,7 +318,7 @@ export default function Network() {
                             style={{ color: 'var(--vesper-text-2)' }}
                         >
                             No {subTab === 'tv' ? 'TV shows' : 'movies'}{' '}
-                            currently streamable on {network.name} (US region).
+                            currently streamable on {network.name} ({network.region || 'US'} region).
                         </div>
                     ) : (
                         <>

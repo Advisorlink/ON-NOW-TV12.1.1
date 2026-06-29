@@ -57,11 +57,23 @@ export default function AddToListModal() {
     useEffect(() => {
         const onRequest = (e) => {
             if (!e.detail || !e.detail.id) return;
-            lastFocusedRef.current = document.activeElement;
-            lastFocusedTestIdRef.current =
-                document.activeElement?.getAttribute?.('data-testid') || null;
-            armedRef.current = false;
-            setPayload(e.detail);
+            // v2.10.82 — When the same id fires again WHILE the
+            // modal is open (e.g. Library long-press fires once
+            // immediately and then again with the lazy-fetched
+            // synopsis), merge the new fields in instead of
+            // re-mounting the modal — that way the popup gains
+            // the synopsis without flickering focus, and we don't
+            // re-arm the keydown trap.
+            setPayload((prev) => {
+                if (prev && prev.id === e.detail.id && prev.type === e.detail.type) {
+                    return { ...prev, ...e.detail };
+                }
+                lastFocusedRef.current = document.activeElement;
+                lastFocusedTestIdRef.current =
+                    document.activeElement?.getAttribute?.('data-testid') || null;
+                armedRef.current = false;
+                return e.detail;
+            });
         };
         window.addEventListener('vesper:request-add-to-list', onRequest);
         return () =>

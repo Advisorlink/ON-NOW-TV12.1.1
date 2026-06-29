@@ -69,11 +69,18 @@ export default function NetworkPosterTile({ item }) {
             if (!imdbId) return;
             window.dispatchEvent(new CustomEvent('vesper:request-add-to-list', {
                 detail: {
-                    id:     imdbId,
-                    type:   item.type,    // 'movie' or 'series'
-                    title:  item.title,
-                    poster: img.poster(item.poster),
-                    year:   item.year ? String(item.year).slice(0, 4) : '',
+                    id:       imdbId,
+                    type:     item.type,    // 'movie' or 'series'
+                    title:    item.title,
+                    poster:   img.poster(item.poster),
+                    // v2.10.82 — Carry the TMDB overview through so
+                    // the Add-to-Library popup shows the synopsis
+                    // instead of being a bare title-only card.  Also
+                    // pass backdrop so the modal poster art swap
+                    // can use it as a fallback.
+                    background: item.backdrop ? img.backdrop(item.backdrop) : null,
+                    year:     item.year ? String(item.year).slice(0, 4) : '',
+                    synopsis: item.overview,
                 },
             }));
         } catch {

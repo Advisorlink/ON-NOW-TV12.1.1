@@ -32,7 +32,13 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
      * fight the iframe.  As soon as we get a youtubeKey, fetch the
      * extracted stream URLs from the backend and launch the native
      * player.  If the bridge isn't available (web preview), fall
-     * through to the iframe path below. */
+     * through to the iframe path below.
+     *
+     * v2.10.82 — Added a 20-second hard timeout on the extract
+     * call (yt-dlp can occasionally hang behind YouTube signature
+     * changes / geo blocks).  On ANY failure on Android we now
+     * hand off to the YouTube app via `playYoutubeFallback` so the
+     * trailer ALWAYS plays — never a stuck "Loading…" screen. */
     useEffect(() => {
         if (!youtubeKey) return undefined;
         if (nativeLaunchedRef.current) return undefined;
@@ -47,12 +53,17 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
         const bridge = (typeof window !== 'undefined') ? window.OnNowTV : null;
         if (!bridge) return undefined;
         let cancel = false;
+        const ac = new AbortController();
+        const timeoutId = setTimeout(() => {
+            try { ac.abort(); } catch { /* ignore */ }
+        }, 20000);  // 20 s hard cap
         (async () => {
             try {
                 setResolving(true);
                 setResolveError(null);
                 const r = await fetch(
-                    `${process.env.REACT_APP_BACKEND_URL}/api/trailer-stream/${encodeURIComponent(youtubeKey)}`
+                    `${process.env.REACT_APP_BACKEND_URL}/api/trailer-stream/${encodeURIComponent(youtubeKey)}`,
+                    { signal: ac.signal },
                 );
                 if (!r.ok) throw new Error(`extract failed (${r.status})`);
                 const j = await r.json();
@@ -73,11 +84,31 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
                 setTimeout(() => onClose?.(), 80);
             } catch (e) {
                 if (cancel) return;
-                setResolveError(e?.message || 'Could not extract trailer.');
+                // v2.10.82 — Try the YouTube app fallback bridge
+                // method before showing an error.  This means the
+                // user STILL gets a working trailer when yt-dlp
+                // chokes or times out.  No more "stuck on Loading"
+                // — the screen always opens with playable video.
+                const fallbackBridge = window.OnNowTV;
+                if (fallbackBridge && typeof fallbackBridge.playYoutubeFallback !== 'undefined') {
+                    try {
+                        nativeLaunchedRef.current = true;
+                        fallbackBridge.playYoutubeFallback(youtubeKey, title || 'Trailer');
+                        setTimeout(() => onClose?.(), 80);
+                        return;
+                    } catch { /* fall through to error UI */ }
+                }
+                setResolveError(e?.name === 'AbortError'
+                    ? 'Trailer extraction timed out.  Open YouTube?'
+                    : (e?.message || 'Could not extract trailer.'));
                 setResolving(false);
             }
         })();
-        return () => { cancel = true; };
+        return () => {
+            cancel = true;
+            clearTimeout(timeoutId);
+            try { ac.abort(); } catch { /* ignore */ }
+        };
     }, [youtubeKey, title, poster, backdrop, onClose]);
 
     /* Hardware back / Escape → close (fullscreen ↘ windowed; then
@@ -157,7 +188,122 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
                 >
                     {resolving ? 'Loading trailer in HD…' : 'Opening trailer…'}
                 </div>
+                <button
+                    data-testid="trailer-cancel"
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
+                    onClick={onClose}
+                    style={{
+                        marginTop: 18,
+                        height: 40,
+                        paddingLeft: 18,
+                        paddingRight: 18,
+                        borderRadius: 999,
+                        background: 'rgba(255,255,255,0.08)',
+                        color: 'rgba(255,255,255,0.85)',
+                        border: '1px solid rgba(255,255,255,0.16)',
+                        fontSize: 13,
+                        cursor: 'pointer',
+                    }}
+                >
+                    Cancel
+                </button>
                 <style>{`@keyframes vesper-spin { to { transform: rotate(360deg); } }`}</style>
+            </div>
+        );
+    }
+
+    /* v2.10.82 — Error UI for Android.  Shows when both the
+     * extract AND the YouTube-app fallback have failed.  Gives
+     * the user a clear retry path instead of an empty modal. */
+    if (nativeHandoff && resolveError) {
+        return (
+            <div
+                data-testid="trailer-modal"
+                style={{
+                    position: 'fixed',
+                    inset: 0,
+                    zIndex: 200,
+                    background: 'rgba(6,8,15,0.94)',
+                    backdropFilter: 'blur(10px)',
+                    WebkitBackdropFilter: 'blur(10px)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexDirection: 'column',
+                    gap: 14,
+                    color: '#fff',
+                    padding: 24,
+                }}
+            >
+                <div
+                    className="vesper-display"
+                    style={{ fontSize: 26, letterSpacing: '-0.02em' }}
+                >
+                    Trailer not available
+                </div>
+                <div
+                    style={{
+                        fontSize: 14,
+                        color: 'rgba(255,255,255,0.7)',
+                        maxWidth: 460,
+                        textAlign: 'center',
+                        lineHeight: 1.5,
+                    }}
+                >
+                    {resolveError}
+                </div>
+                <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
+                    <button
+                        data-testid="trailer-open-youtube"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={() => {
+                            try {
+                                window.OnNowTV?.playYoutubeFallback?.(
+                                    youtubeKey, title || 'Trailer',
+                                );
+                            } catch { /* ignore */ }
+                            setTimeout(() => onClose?.(), 100);
+                        }}
+                        style={{
+                            height: 44,
+                            paddingLeft: 20,
+                            paddingRight: 22,
+                            borderRadius: 999,
+                            background: 'var(--vesper-blue, #5DC8FF)',
+                            color: 'var(--vesper-bg-0, #06080F)',
+                            border: 'none',
+                            fontSize: 14,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        Open in YouTube
+                    </button>
+                    <button
+                        data-testid="trailer-close"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={onClose}
+                        style={{
+                            height: 44,
+                            paddingLeft: 20,
+                            paddingRight: 22,
+                            borderRadius: 999,
+                            background: 'rgba(255,255,255,0.08)',
+                            color: '#fff',
+                            border: '1px solid rgba(255,255,255,0.18)',
+                            fontSize: 14,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        Cancel
+                    </button>
+                </div>
             </div>
         );
     }

@@ -2902,7 +2902,20 @@ async def trailer_stream(youtube_id: str):
         return info
 
     try:
-        info = await loop.run_in_executor(None, _extract)
+        # v2.10.82 — Hard timeout on the yt-dlp call.  Without it,
+        # yt-dlp can occasionally hang for 60+ seconds behind a
+        # YouTube signature change or transient geo block, leaving
+        # the trailer modal stuck on "Loading trailer in HD…".
+        # 18 s is comfortably above the typical 4-8 s extract time
+        # while still failing fast enough that the frontend can
+        # gracefully fall back to the YouTube-app Intent.
+        info = await asyncio.wait_for(
+            loop.run_in_executor(None, _extract),
+            timeout=18.0,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("yt-dlp extract timeout for %s", safe_id)
+        raise HTTPException(504, "trailer_extract_timeout")
     except Exception as e:                                       # noqa: BLE001
         logger.exception("yt-dlp extract failed: %s", e)
         raise HTTPException(502, f"trailer_extract_failed: {e}")
