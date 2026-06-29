@@ -56,10 +56,29 @@ inject_ws_directives() {
 }
 
 # Find every nginx config file that mentions :8002.
+# Constraints:
+#   • Only look at directories nginx actually loads from
+#     (`sites-enabled/` and `conf.d/`).  `sites-available/` is just
+#     inventory — patching it would inject a SECOND copy of the
+#     directives via the `sites-enabled/` symlink and trip
+#     nginx -t with "duplicate directive".
+#   • Skip our own backup files (`*.bak.ws.*`, `*.bak`).
+#   • De-duplicate by canonical path (realpath) so a symlinked file
+#     isn't processed twice.
 find_launcher_configs() {
-    # GNU grep across the usual nginx dirs; -l = list filenames only.
-    grep -lER 'proxy_pass[[:space:]]+http://(127\.0\.0\.1|localhost):8002' \
-        /etc/nginx 2>/dev/null
+    {
+        grep -lER 'proxy_pass[[:space:]]+http://(127\.0\.0\.1|localhost):8002' \
+            /etc/nginx/sites-enabled /etc/nginx/conf.d 2>/dev/null
+    } \
+        | grep -v -E '\.bak(\.|$)' \
+        | while IFS= read -r f; do
+              # Resolve symlink → real path so we only patch each
+              # actual file once even when listed under both
+              # sites-enabled (symlink) and sites-available (target).
+              # `readlink -f` falls back to the path itself if not a link.
+              realpath -m "$f" 2>/dev/null || readlink -f "$f" 2>/dev/null || echo "$f"
+          done \
+        | awk '!seen[$0]++'
 }
 
 patch_one() {

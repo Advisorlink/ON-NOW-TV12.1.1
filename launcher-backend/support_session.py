@@ -101,6 +101,23 @@ class SupportSession:
     controller_ws: Optional[WebSocket] = None
     frames_relayed: int = 0
     host_hello: dict | None = None
+    # v2.10.87 — HTTP-polling fallback for operator browsers behind
+    # CDNs / proxies that refuse WebSocket upgrades (Cloudflare's
+    # free-plan WAF on certain zones, corporate firewalls, etc).
+    # The host always uses WS (it's outbound from the box → backend
+    # and that works), but the controller can choose its protocol.
+    # We hold the latest JPEG frame + a monotonically-increasing
+    # seq number so the browser can poll
+    # `GET /api/support/poll/frame/{sid}?since=<seq>` and get the
+    # newest frame whenever it changes.  Pending inputs from the
+    # controller are buffered in a deque until the host's WS picks
+    # them up via the existing relay (or via a NEW polling endpoint
+    # if we ever drop WS entirely).
+    latest_frame: Optional[bytes] = None
+    latest_frame_seq: int = 0
+    pending_inputs: list = field(default_factory=list)
+    pending_input_seq: int = 0
+    last_controller_poll: Optional[float] = None
 
     def is_expired(self, now: Optional[float] = None) -> bool:
         now = now if now is not None else time.time()
@@ -267,6 +284,106 @@ def _admin_dep_factory(require_admin):
         return {"sessions": [s.summary() for s in _sessions.values()]}
 
 
+# ─────────────────────────  HTTP-polling fallback  ──────────────────
+#
+# v2.10.87 — Operator browsers that sit behind a CDN / WAF that
+# refuses WebSocket upgrades (Cloudflare on certain plans/paths,
+# corporate firewalls, some country-level filtering) need a way to
+# drive a support session over plain HTTPS.  These endpoints replace
+# the controller-side WebSocket with two ordinary HTTP requests:
+#
+#   GET  /api/support/poll/frame/{sid}?since=<seq>
+#        Long-polls (up to ~25 s) until a newer frame is available
+#        than `since`.  Returns the JPEG body with the new seq in
+#        the `X-Frame-Seq` header.  204 No Content if the host
+#        disconnects with no frame.
+#
+#   POST /api/support/input/{sid}
+#        Body: {"action":"tap"|"swipe"|"key"|"text", ...}
+#        Forwards the input to the host's WebSocket.
+#
+# The HOST side still uses its outbound WebSocket (which works fine —
+# only the BROWSER side hits the upgrade-blocking proxies).
+#
+# These are intentionally OUTSIDE the `_admin_dep_factory` so they
+# can be called from a plain <script> without auth — the 6-digit
+# session code already gated the access via `/controller/connect`.
+
+
+from fastapi.responses import Response  # noqa: E402
+
+
+@router.get("/poll/frame/{session_id}")
+async def poll_frame(session_id: str, since: int = 0, wait: float = 20.0):
+    """Long-poll for the next JPEG frame newer than `since`.
+    Returns image/jpeg with X-Frame-Seq header, or 204 if no
+    new frame arrives within `wait` seconds."""
+    sess = _sessions.get(session_id)
+    if sess is None:
+        raise HTTPException(404, "session_not_found")
+    # Hard cap the wait so a stuck client can't tie up workers.
+    wait = max(0.1, min(wait, 25.0))
+    deadline = time.time() + wait
+    while True:
+        if sess.latest_frame is not None and sess.latest_frame_seq > since:
+            sess.last_controller_poll = time.time()
+            return Response(
+                content=sess.latest_frame,
+                media_type="image/jpeg",
+                headers={
+                    "X-Frame-Seq": str(sess.latest_frame_seq),
+                    "Cache-Control": "no-store",
+                },
+            )
+        if time.time() >= deadline:
+            sess.last_controller_poll = time.time()
+            return Response(status_code=204, headers={"X-Frame-Seq": str(sess.latest_frame_seq)})
+        await asyncio.sleep(0.1)
+
+
+@router.get("/poll/hello/{session_id}")
+async def poll_hello(session_id: str):
+    """One-shot fetch of the host_hello + screen geometry once the
+    host WS opens.  Returns {hello: null} until the host connects."""
+    sess = _sessions.get(session_id)
+    if sess is None:
+        raise HTTPException(404, "session_not_found")
+    sess.last_controller_poll = time.time()
+    return {
+        "hello": sess.host_hello,
+        "host_connected": sess.host_ws is not None,
+        "device_id": sess.device_id,
+        "latest_frame_seq": sess.latest_frame_seq,
+    }
+
+
+@router.post("/input/{session_id}")
+async def post_input(session_id: str, payload: dict = None):
+    """Send an input command (tap / key / swipe / text) to the host.
+    Forwards via the host's WebSocket — the host still uses WS for
+    its outbound connection, which works fine on every CDN tested."""
+    sess = _sessions.get(session_id)
+    if sess is None:
+        raise HTTPException(404, "session_not_found")
+    if not payload or not isinstance(payload, dict):
+        raise HTTPException(400, "missing_payload")
+    payload.setdefault("type", "input")
+    host = sess.host_ws
+    if host is None:
+        # Host isn't connected yet — buffer for when it joins.  Cap
+        # the buffer so a misbehaving operator can't OOM the backend.
+        if len(sess.pending_inputs) > 200:
+            sess.pending_inputs.pop(0)
+        sess.pending_inputs.append(payload)
+        return {"ok": True, "queued": True}
+    try:
+        await host.send_text(json.dumps(payload))
+        return {"ok": True, "queued": False}
+    except Exception as e:
+        logger.warning("input forward failed: %s", e)
+        raise HTTPException(502, "host_ws_send_failed")
+
+
 # ─────────────────────────  WebSocket pair  ───────────────────────
 
 
@@ -287,6 +404,16 @@ async def support_host_ws(websocket: WebSocket, session_id: str):
             await websocket.close(code=4409)
             return
         sess.host_ws = websocket
+    # v2.10.87 — Flush any inputs the operator queued while the box
+    # was still booting up the support session.  The host_ws now
+    # exists so we can deliver them.
+    queued = list(sess.pending_inputs)
+    sess.pending_inputs.clear()
+    for q in queued:
+        try:
+            await websocket.send_text(json.dumps(q))
+        except Exception:
+            break
     try:
         while True:
             msg = await websocket.receive()
@@ -295,6 +422,11 @@ async def support_host_ws(websocket: WebSocket, session_id: str):
                 frame = msg["bytes"]
                 sess.last_frame_at = time.time()
                 sess.frames_relayed += 1
+                # v2.10.87 — Also stash for HTTP-polling controllers.
+                # Cap at 2 MB so a runaway box can't blow up memory.
+                if len(frame) < 2 * 1024 * 1024:
+                    sess.latest_frame = frame
+                    sess.latest_frame_seq += 1
                 ctrl = sess.controller_ws
                 if ctrl is not None:
                     try:

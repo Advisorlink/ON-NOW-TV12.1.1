@@ -548,7 +548,8 @@ main {
     const disconnectBtn = document.getElementById('disconnect-btn');
 
     /* ─────────────────  Session state  ───────────────── */
-    let ws = null;
+    /* v2.10.87 — `let ws` is gone.  Controller side now uses
+     * `sessionId` + the polling loop in pollFramesLoop(). */
     let frameCounter = 0;
     let lastSampleTs = Date.now();
     let lastSampleBytes = 0;
@@ -594,8 +595,19 @@ main {
             }
             const data = await r.json();
             kvDevice.textContent = data.device_id || '—';
-            const wsUrl = wsBase() + data.ws_path;
-            openWebSocket(wsUrl);
+            sessionId = data.session_id;
+            /* v2.10.87 — Switched the controller side from WebSocket
+             * to plain HTTPS long-polling so it works through ANY
+             * reverse proxy / CDN (Cloudflare free plan was
+             * silently 1006-ing the WS upgrade for /launcher/ paths).
+             * The HOST side still uses its outbound WebSocket — that
+             * one works fine because it's the box initiating the
+             * connection.
+             */
+            pairingScreen.style.display = 'none';
+            sessionScreen.style.display = 'block';
+            sessionStatus.textContent = 'Connected — waiting for screen…';
+            startPolling();
         } catch (e) {
             showError(e.message || 'Connection failed.');
             connectBtn.disabled = false;
@@ -603,89 +615,104 @@ main {
         }
     }
 
-    function wsBase() {
-        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        /* v2.10.87 — Same sub-path handling as the HTTP API base.
-         * In prod behind nginx the launcher backend lives at
-         * `/launcher/...` so the WS upgrade target must be
-         * `wss://onnowhub.com/launcher/api/support/host/<sid>`. */
-        return proto + '//' + location.host + API_BASE;
+    /* ─────────────────  HTTP polling loop  ───────────────── */
+    let sessionId = null;
+    let polling = false;
+    let lastSeq = 0;
+
+    async function pollHelloOnce() {
+        if (!sessionId) return;
+        try {
+            const r = await fetch(API_BASE + '/api/support/poll/hello/' + sessionId);
+            if (!r.ok) return;
+            const j = await r.json();
+            if (j.hello) {
+                kvDevice.textContent = j.hello.device_id || j.device_id || '—';
+                kvBuild.textContent = j.hello.build || '—';
+                if (j.hello.screen_w && j.hello.screen_h) {
+                    kvRes.textContent = j.hello.screen_w + ' × ' + j.hello.screen_h;
+                    screenW = j.hello.screen_w;
+                    screenH = j.hello.screen_h;
+                }
+            }
+        } catch { /* ignore */ }
     }
 
-    function openWebSocket(url) {
-        ws = new WebSocket(url);
-        ws.binaryType = 'arraybuffer';
-        /* v2.10.87 — Connection diagnostics.  Previously a silently-
-         * failing WebSocket upgrade left the operator stuck on the
-         * spinning "Connecting…" button forever.  Now we:
-         *   - log the WS URL to the console for easy inspection
-         *   - reset the Connect button + show a red error banner if
-         *     the WS doesn't open within 8 s
-         *   - surface the actual close code if the upgrade is
-         *     rejected (most common: 4404 = session expired, or a
-         *     generic 1006 when nginx isn't forwarding Upgrade
-         *     headers under /launcher/)
-         */
-        console.log('[maintenance] opening WS:', url);
-        let opened = false;
-        const failTimer = setTimeout(() => {
-            if (!opened) {
-                console.warn('[maintenance] WS open timed out after 8s — ' + url);
-                showError(
-                    'Couldn\u2019t open the live session (timed out). ' +
-                    'Most likely cause: the server isn\u2019t forwarding WebSocket ' +
-                    'upgrade headers under /launcher/. Check the browser dev console ' +
-                    'for the exact WS error.'
+    async function pollFramesLoop() {
+        while (polling) {
+            try {
+                const r = await fetch(
+                    API_BASE + '/api/support/poll/frame/' + sessionId +
+                    '?since=' + lastSeq + '&wait=20',
                 );
-                connectBtn.disabled = false;
-                connectBtn.textContent = 'Connect';
-                try { ws.close(); } catch { /* */ }
-                ws = null;
+                if (!polling) break;
+                if (r.status === 404) {
+                    showError('Session ended.');
+                    stopPolling();
+                    return;
+                }
+                if (r.status === 204) {
+                    // No new frame within the wait window — loop.
+                    const seqHdr = r.headers.get('X-Frame-Seq');
+                    if (seqHdr) lastSeq = parseInt(seqHdr, 10) || lastSeq;
+                    continue;
+                }
+                if (!r.ok) {
+                    await new Promise((s) => setTimeout(s, 500));
+                    continue;
+                }
+                const buf = await r.arrayBuffer();
+                const seqHdr = r.headers.get('X-Frame-Seq');
+                if (seqHdr) lastSeq = parseInt(seqHdr, 10) || lastSeq;
+                onFrame(buf);
+            } catch (e) {
+                if (!polling) break;
+                console.warn('[maintenance] frame poll error', e);
+                await new Promise((s) => setTimeout(s, 1000));
             }
-        }, 8000);
-        ws.onopen = () => {
-            opened = true;
-            clearTimeout(failTimer);
-            console.log('[maintenance] WS open');
-            pairingScreen.style.display = 'none';
-            sessionScreen.style.display = 'block';
-            sessionStatus.textContent = 'Connected — waiting for screen…';
-        };
-        ws.onmessage = (e) => {
-            if (e.data instanceof ArrayBuffer) {
-                onFrame(e.data);
-            } else if (typeof e.data === 'string') {
-                try {
-                    const obj = JSON.parse(e.data);
-                    onControl(obj);
-                } catch { /* */ }
-            }
-        };
-        ws.onclose = (e) => {
-            console.warn('[maintenance] WS close', e.code, e.reason);
-            clearTimeout(failTimer);
-            if (!opened) {
-                // Closed BEFORE we ever opened — surface the code so
-                // the operator (or me, in dev console) can act on it.
-                const hint = (e.code === 1006)
-                    ? ' (server may not be forwarding WebSocket headers under /launcher/)'
-                    : (e.code === 4404)
-                    ? ' (session expired — ask the customer to re-open Support)'
-                    : '';
-                showError('Live session refused (code ' + e.code + ')' + hint);
-                connectBtn.disabled = false;
-                connectBtn.textContent = 'Connect';
-            } else {
-                sessionStatus.textContent = 'Session ended (' + e.code + ')';
-                placeholder.style.display = 'flex';
-            }
-            ws = null;
-        };
-        ws.onerror = (ev) => {
-            console.warn('[maintenance] WS error', ev);
-            sessionStatus.textContent = 'Connection error';
-        };
+        }
     }
+
+    function startPolling() {
+        polling = true;
+        lastSeq = 0;
+        // Pull hello once up-front so the device-id panel populates
+        // before any frames arrive.
+        pollHelloOnce();
+        // Re-poll hello every 5 s in case the box reconnects.
+        const helloTimer = setInterval(() => {
+            if (!polling) { clearInterval(helloTimer); return; }
+            pollHelloOnce();
+        }, 5000);
+        // Kick off the frame poll loop.
+        pollFramesLoop();
+    }
+
+    function stopPolling() {
+        polling = false;
+        sessionId = null;
+    }
+
+    /* Replacement for the old WS send().  Posts the input over
+     * plain HTTPS — backend forwards it to the host's WS. */
+    async function sendInput(payload) {
+        if (!sessionId) return;
+        try {
+            await fetch(API_BASE + '/api/support/input/' + sessionId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+        } catch (e) {
+            console.warn('[maintenance] input send failed', e);
+        }
+    }
+
+    /* v2.10.87 — wsBase() + openWebSocket() were removed.  The
+     * controller side now uses plain HTTPS long-polling (see
+     * `pollFramesLoop` above) so the operator browser doesn't need
+     * any reverse-proxy WebSocket support.  The HOST (TV box) still
+     * uses its outbound WebSocket, which works fine on every CDN. */
 
     function onFrame(buf) {
         totalBytes += buf.byteLength;
@@ -744,10 +771,9 @@ main {
     }, 1000);
 
     /* ─────────────────  D-pad + buttons  ───────────────── */
-    function sendInput(payload) {
-        if (!ws || ws.readyState !== WebSocket.OPEN) return;
-        try { ws.send(JSON.stringify(payload)); } catch { /* */ }
-    }
+    /* v2.10.87 — sendInput() is now declared up in the polling
+     * section (replaces the WS-based one).  This block just wires
+     * UI to it. */
 
     document.querySelectorAll('[data-key]').forEach((btn) => {
         btn.addEventListener('click', () => {
@@ -783,7 +809,7 @@ main {
     });
 
     disconnectBtn.addEventListener('click', () => {
-        if (ws) ws.close();
+        stopPolling();
         sessionScreen.style.display = 'none';
         pairingScreen.style.display = 'flex';
         codeInput.value = '';
