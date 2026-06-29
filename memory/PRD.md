@@ -1,5 +1,37 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.84 — Remote-maintenance (TeamViewer-style) feature + P0 fix: update pill stuck-after-install (29 Jun 2026).**
+>
+>   **1. P0 — Update pill not clearing after install.**  Operator report: clicking the UPDATE pill on a dock tile installs cleanly, but the pill stays stuck on screen so they tap install over and over.  Root cause: v2.10.81's `promotePendingBuildIds` ran in `onResume` AFTER the system installer dismissed — but `PackageManager.getPackageInfo` STILL returned the OLD versionName for a brief window before Android committed the new package state, so the versionName match check failed silently and the pending build_id was never promoted to installed.  **Fix:** registered a `BroadcastReceiver` for `ACTION_PACKAGE_ADDED` + `ACTION_PACKAGE_REPLACED` (with `addDataScheme("package")`).  These broadcasts fire AUTHORITATIVELY after Android commits the install — when a broadcast arrives for any package with a stashed `pending_install_build_id_<pkg>`, we promote unconditionally (no versionName re-check; the broadcast IS the signal).  Receiver registered in `onCreate` via `registerPackageInstallReceiver()`, unregistered in `onDestroy`.  API-33+ `RECEIVER_NOT_EXPORTED` flag handled.
+>
+>   **2. NEW — Full remote-maintenance ("TeamViewer for ON NOW TV boxes").**  Operator brief: "headset icon next to Wi-Fi → click it → I get a code → operator enters code on laptop → live screen + full remote control".  Built the entire stack in this session:
+>
+>      • **Backend** (`launcher-backend/support_session.py`, NEW 380 LOC):
+>        - `POST /api/support/host/register` mints a 32-char hex session_id + 6-digit pairing code (TTL 300 s), with 8-attempt collision avoidance + MAX_SESSIONS=64 hard cap.
+>        - `POST /api/support/controller/connect` looks up the code, returns the controller WebSocket path (returns 409 if a controller is already paired).
+>        - `WS /api/support/host/{sid}` + `WS /api/support/controller/{sid}` — bidirectional pairing: host streams binary JPEG frames + JSON metrics; controller streams JSON input commands back.  Backpressure: failed controller send clears `sess.controller_ws` so the host stops re-trying.
+>        - `GET /api/support/sessions` admin listing; `POST /api/support/host/cancel` for box-initiated teardown.
+>
+>      • **Operator UI** (`launcher-backend/admin/maintenance.html`, NEW 700 LOC):
+>        - Dark glassmorphic design matching the rest of admin — soft cyan focus rings, headset hero icon, big monospace 6-digit code input, single-button Connect.
+>        - Session view: live 16:9 canvas + pulse-dot "Connected" status pill + full D-pad cluster (UP/DOWN/LEFT/RIGHT/OK) + Back/Home/Recents/Menu/Vol−/Vol+ rows + text-input row that streams chars/backspaces to the host + End-session button.
+>        - Click-to-tap on the canvas: normalised coordinates 0..1 dispatched as `{action:"tap"}` so any screen geometry works.
+>        - Diagnostics: Device ID, build, resolution, live FPS + kbps + latency.
+>
+>      • **Android — SupportSessionActivity** (NEW 250 LOC): mints code via HTTP POST, displays "475  882" big monospace at 88 sp with cyan glow, MediaProjection consent flow via `ActivityResultContracts.StartActivityForResult`, status pill transitions amber → green when paired, keeps screen on during the session.
+>
+>      • **Android — ScreenCaptureController** (NEW 150 LOC): `MediaProjection` → `VirtualDisplay` → `ImageReader` (RGBA_8888, half-resolution, dedicated `HandlerThread`).  Per-frame: bitmap copy → row-stride crop → `Bitmap.compress(JPEG, quality=55)` → `ws.send(bytes)`.  Throttled to 6 fps so a 1080p box stays under 200 kB/s.
+>
+>      • **Android — RootInputDispatcher** (NEW 110 LOC): boxes are rooted per operator confirmation, so we use `Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))` to inject `input tap X Y`, `input swipe`, `input keyevent KEYCODE_*`, `input text "..."`.  Falls back to plain `sh -c` if su not present (some firmware grants `input` to system apps).  Key aliases map operator-friendly names (DPAD_UP, BACK, HOME, RECENTS, MENU, VOL_UP, VOL_DOWN, POWER, DEL, ENTER, OK→DPAD_CENTER) to Android KEYCODE_ strings.
+>
+>      • **Apps Drawer top bar** — new `supportIcon` `ImageView` (36 dp) RIGHT BEFORE the Wi-Fi icon, source `@drawable/ic_support_headset` (new vector drawable — headband arc + 2 earpiece pills + boom mic).  Click handler in `MainActivity.bindTopBarActions` launches `SupportSessionActivity`.  Manifest registration added.
+>
+> Verified end-to-end via **23/23 pytest** in `/app/launcher-backend/tests/test_support_session.py` + `test_build_id_pill_trigger.py` + `test_build_id_edge_cases.py` (HTTP register/connect/cancel/sessions, WebSocket pairing, frame relay, input forwarding, duplicate-controller 409, bad-code 404, build_id rotation, baseline behaviour).  **Playwright E2E** confirmed the operator admin page in full: pairing screen renders, numeric-only + 6-char input truncation works, bad-code error banner surfaces, valid code transitions to session screen, all 14 `data-testid` attributes present, D-pad input dispatches to host WebSocket (host receives `{"type":"input","action":"key","key":"DPAD_UP"}`), End-session closes WS and returns to pairing.  Kotlin static-verified via `/tmp/kotlinc` — no `Val cannot be reassigned` or syntax errors.
+>
+> Touched: `launcher-backend/support_session.py` (NEW 380), `launcher-backend/main.py` (+14), `launcher-backend/admin/maintenance.html` (NEW 700), `launcher-backend/tests/test_support_session.py` (NEW 230).  Android: `support/SupportSessionActivity.kt` (NEW 250), `support/ScreenCaptureController.kt` (NEW 150), `support/RootInputDispatcher.kt` (NEW 110), `MainActivity.kt` (+118), `AndroidManifest.xml` (+8), `res/layout/activity_main.xml` (+19), `res/drawable/ic_support_headset.xml` (NEW).
+>
+> **User action required:**  Save to GitHub → CI rebuilds Launcher APK (already passing now that v2.10.83 fixed `lineSpacingExtra`) → sideload to box.  The remote-maintenance backend + admin page is live on the existing pod the moment supervisor hot-reloads; you can already mint codes and click around the operator UI — only the *box* side needs the new APK.
+
 > **🟢 v2.10.83 — Focus restoration on Back + Launcher CI fix + login focus-ring breathing room + API-28 lineHeight guard (29 Jun 2026).**
 >
 > Four landings in one cut:

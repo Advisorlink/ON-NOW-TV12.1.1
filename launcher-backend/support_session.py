@@ -64,6 +64,7 @@ HTTP endpoints
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import secrets
 import time
@@ -307,7 +308,6 @@ async def support_host_ws(websocket: WebSocket, session_id: str):
                 txt = msg["text"]
                 if txt:
                     try:
-                        import json
                         obj = json.loads(txt)
                         if obj.get("type") == "hello":
                             sess.host_hello = obj
@@ -355,7 +355,6 @@ async def support_controller_ws(websocket: WebSocket, session_id: str):
     # it already.
     if sess.host_hello is not None:
         try:
-            import json
             await websocket.send_text(json.dumps({"type": "host_hello", **sess.host_hello}))
         except Exception:
             pass
@@ -386,7 +385,6 @@ async def support_controller_ws(websocket: WebSocket, session_id: str):
                     # Tell the host "bye" so the box can release
                     # MediaProjection and return to the dock.
                     try:
-                        import json
                         await host.send_text(json.dumps({"type": "controller_bye"}))
                     except Exception:
                         pass
