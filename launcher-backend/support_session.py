@@ -72,7 +72,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 
 logger = logging.getLogger("launcher-backend.support")
 
@@ -360,28 +360,139 @@ async def poll_hello(session_id: str):
 @router.post("/input/{session_id}")
 async def post_input(session_id: str, payload: dict = None):
     """Send an input command (tap / key / swipe / text) to the host.
-    Forwards via the host's WebSocket — the host still uses WS for
-    its outbound connection, which works fine on every CDN tested."""
+    Queues it for the host to fetch — works for both WS-based hosts
+    (host_ws picks it up via flush) and HTTP-polling hosts (box GETs
+    it via /host/inputs/{sid})."""
     sess = _sessions.get(session_id)
     if sess is None:
         raise HTTPException(404, "session_not_found")
     if not payload or not isinstance(payload, dict):
         raise HTTPException(400, "missing_payload")
     payload.setdefault("type", "input")
+    # v2.10.88 — Always queue.  If a host_ws is connected, it gets
+    # flushed below.  If the host is HTTP-polling, it picks up the
+    # input via /host/inputs/{sid}?since=<seq>.  Cap queue size so a
+    # misbehaving operator can't OOM the backend.
+    if len(sess.pending_inputs) > 200:
+        sess.pending_inputs.pop(0)
+    sess.pending_input_seq += 1
+    item = {"seq": sess.pending_input_seq, "payload": payload}
+    sess.pending_inputs.append(item)
+    # Wake any host long-poller.
+    ev = _input_events.get(session_id)
+    if ev is not None:
+        ev.set()
+    # If a WS host is connected, also push immediately for low latency.
     host = sess.host_ws
-    if host is None:
-        # Host isn't connected yet — buffer for when it joins.  Cap
-        # the buffer so a misbehaving operator can't OOM the backend.
-        if len(sess.pending_inputs) > 200:
-            sess.pending_inputs.pop(0)
-        sess.pending_inputs.append(payload)
-        return {"ok": True, "queued": True}
-    try:
-        await host.send_text(json.dumps(payload))
-        return {"ok": True, "queued": False}
-    except Exception as e:
-        logger.warning("input forward failed: %s", e)
-        raise HTTPException(502, "host_ws_send_failed")
+    if host is not None:
+        try:
+            await host.send_text(json.dumps(payload))
+        except Exception as e:
+            logger.warning("input forward failed: %s", e)
+    return {"ok": True, "seq": sess.pending_input_seq}
+
+
+# ─────────────────────────  HTTP-polling for the BOX  ───────────────
+#
+# v2.10.88 — The TV box used to stream frames over an outbound
+# WebSocket.  In practice that connection got killed within ~60-90s
+# on Cloudflare's free plan (the customer's box showed "Connection
+# lost — restart to retry").  Switch the box to plain HTTP too:
+#
+#   POST /api/support/host/hello/{sid}      — one-shot, sets host_hello
+#   POST /api/support/host/frame/{sid}      — multipart JPEG upload, ~6/s
+#   GET  /api/support/host/inputs/{sid}     — long-poll for queued
+#                                              operator inputs
+#
+# This eliminates every WebSocket from the entire feature — works on
+# any CDN, behind any firewall, no nginx tuning required.
+
+# Per-session asyncio.Event used to wake up host long-pollers the
+# instant an operator posts an input.  Lives separate from the
+# session dataclass so we don't have to make every session ctor
+# async.
+_input_events: dict[str, asyncio.Event] = {}
+
+
+def _input_event_for(sid: str) -> asyncio.Event:
+    ev = _input_events.get(sid)
+    if ev is None:
+        ev = asyncio.Event()
+        _input_events[sid] = ev
+    return ev
+
+
+@router.post("/host/hello/{session_id}")
+async def host_hello_post(session_id: str, payload: dict = None):
+    """Box posts its hello info (device_id, build, screen geometry)
+    here once at the start of an HTTP-polling session.  Same payload
+    shape as the old WS hello message."""
+    sess = _sessions.get(session_id)
+    if sess is None:
+        raise HTTPException(404, "session_not_found")
+    if not payload or not isinstance(payload, dict):
+        raise HTTPException(400, "missing_payload")
+    sess.host_hello = payload
+    if not sess.device_id and payload.get("device_id"):
+        sess.device_id = payload["device_id"]
+    return {"ok": True}
+
+
+@router.post("/host/frame/{session_id}")
+async def host_frame_post(session_id: str, request: Request):
+    """Box posts a JPEG frame here.  Body is the raw JPEG bytes
+    (Content-Type: image/jpeg).  We stash it in the session so the
+    operator's polling browser picks it up via /poll/frame/{sid}."""
+    sess = _sessions.get(session_id)
+    if sess is None:
+        raise HTTPException(404, "session_not_found")
+    body = await request.body()
+    if not body:
+        raise HTTPException(400, "empty_frame")
+    if len(body) > 2 * 1024 * 1024:
+        raise HTTPException(413, "frame_too_large")
+    sess.last_frame_at = time.time()
+    sess.frames_relayed += 1
+    sess.latest_frame = body
+    sess.latest_frame_seq += 1
+    return {"ok": True, "seq": sess.latest_frame_seq}
+
+
+@router.get("/host/inputs/{session_id}")
+async def host_inputs_get(session_id: str, since: int = 0, wait: float = 20.0):
+    """Box long-polls for queued operator inputs.  Returns up to
+    ~25 s after the first input is available (or `wait` seconds if
+    nothing arrives).  Response: `{inputs: [{seq, payload}, ...]}`.
+    Box passes the highest `seq` it has processed as `since` on the
+    next request to avoid re-processing.
+
+    This endpoint is what makes the BOX side proxy-agnostic — plain
+    HTTPS long-poll, no WebSocket needed."""
+    sess = _sessions.get(session_id)
+    if sess is None:
+        raise HTTPException(404, "session_not_found")
+    wait = max(0.1, min(wait, 25.0))
+    deadline = time.time() + wait
+    ev = _input_event_for(session_id)
+    while True:
+        # Filter inputs newer than `since`.
+        new_items = [it for it in sess.pending_inputs if it.get("seq", 0) > since]
+        if new_items:
+            # Drop everything <= last delivered to keep memory bounded.
+            max_seq = max(it["seq"] for it in new_items)
+            sess.pending_inputs = [
+                it for it in sess.pending_inputs if it.get("seq", 0) > max_seq
+            ]
+            ev.clear()
+            return {"inputs": new_items, "max_seq": max_seq}
+        remaining = deadline - time.time()
+        if remaining <= 0:
+            return {"inputs": [], "max_seq": since}
+        try:
+            await asyncio.wait_for(ev.wait(), timeout=remaining)
+        except asyncio.TimeoutError:
+            return {"inputs": [], "max_seq": since}
+        ev.clear()
 
 
 # ─────────────────────────  WebSocket pair  ───────────────────────
@@ -404,14 +515,16 @@ async def support_host_ws(websocket: WebSocket, session_id: str):
             await websocket.close(code=4409)
             return
         sess.host_ws = websocket
-    # v2.10.87 — Flush any inputs the operator queued while the box
-    # was still booting up the support session.  The host_ws now
-    # exists so we can deliver them.
+    # v2.10.87/v2.10.88 — Flush any inputs the operator queued while
+    # the box was still booting up the support session.  The
+    # `pending_inputs` queue holds `{seq, payload}` items so HTTP-
+    # polling hosts can track which they've processed; for WS hosts
+    # we only need the payload.
     queued = list(sess.pending_inputs)
     sess.pending_inputs.clear()
     for q in queued:
         try:
-            await websocket.send_text(json.dumps(q))
+            await websocket.send_text(json.dumps(q.get("payload", q)))
         except Exception:
             break
     try:

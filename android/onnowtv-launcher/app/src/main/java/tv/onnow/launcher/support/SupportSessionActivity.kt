@@ -19,10 +19,6 @@ import tv.onnow.launcher.net.ResilientHttp
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.WebSocket
-import okhttp3.WebSocketListener
-import okhttp3.Response
-import okio.ByteString
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
@@ -66,8 +62,9 @@ class SupportSessionActivity : ComponentActivity() {
     private lateinit var repo: LauncherRepository
     private var sessionId: String? = null
     private var sessionCode: String? = null
-    private var hostWs: WebSocket? = null
     private var screenCapture: ScreenCaptureController? = null
+    @Volatile private var pollingActive = false
+    private var inputPollerThread: Thread? = null
 
     private lateinit var codeView: TextView
     private lateinit var statusView: TextView
@@ -271,56 +268,86 @@ class SupportSessionActivity : ComponentActivity() {
 
     private fun startStreaming(resultCode: Int, data: Intent) {
         val sid = sessionId ?: return
-        val wsUrl = repo.baseUrlPublic().trimEnd('/').replaceFirst("http", "ws") +
-                "/api/support/host/$sid"
-        val req = Request.Builder().url(wsUrl).build()
-        hostWs = ResilientHttp.client.newWebSocket(req, object : WebSocketListener() {
-            override fun onOpen(webSocket: WebSocket, response: Response) {
-                runOnUiThread { setStatus("Connected — waiting for technician…") }
+        val base = repo.baseUrlPublic().trimEnd('/')
+        // v2.10.88 — Pure-HTTP session.  No WebSocket anywhere — the
+        // previous WS-based design got killed by Cloudflare's free
+        // plan idle timeout ~60-90s in.  Three HTTP endpoints do all
+        // the work:
+        //   POST  /api/support/host/hello/{sid}    — one-shot hello
+        //   POST  /api/support/host/frame/{sid}    — JPEG per frame
+        //   GET   /api/support/host/inputs/{sid}   — long-poll inputs
+        runOnUiThread { setStatus("Connected — waiting for technician…") }
+
+        // 1) POST hello once so the operator's panel can render
+        //    device-id + screen resolution immediately.
+        Thread {
+            try {
                 val hello = JSONObject().apply {
-                    put("type", "hello")
                     put("device_id", deviceId())
                     put("build", android.os.Build.MODEL ?: "unknown")
                     put("screen_w", resources.displayMetrics.widthPixels)
                     put("screen_h", resources.displayMetrics.heightPixels)
-                }
-                webSocket.send(hello.toString())
-                screenCapture = ScreenCaptureController(
-                    this@SupportSessionActivity, resultCode, data, webSocket,
-                )
-                screenCapture?.start()
+                }.toString().toRequestBody("application/json".toMediaTypeOrNull())
+                val req = Request.Builder()
+                    .url("$base/api/support/host/hello/$sid")
+                    .post(hello).build()
+                ResilientHttp.client.newCall(req).execute().close()
+            } catch (t: Throwable) {
+                Log.w(TAG, "host/hello POST failed", t)
             }
-            override fun onMessage(webSocket: WebSocket, text: String) {
-                val parsed = try { JSONObject(text) } catch (_: Throwable) { return }
-                if (parsed.optString("type") == "input") {
-                    runOnUiThread { setStatus("Technician connected — live") }
-                    RootInputDispatcher.handle(this@SupportSessionActivity, parsed)
-                } else if (parsed.optString("type") == "controller_bye") {
-                    runOnUiThread {
-                        setStatus("Technician disconnected — session ending…", warn = true)
-                        finish()
+        }.start()
+
+        // 2) Start streaming frames — the capture controller now
+        //    POSTs each JPEG to /host/frame/{sid}.
+        screenCapture = ScreenCaptureController(
+            this@SupportSessionActivity, resultCode, data,
+            "$base/api/support/host/frame/$sid",
+        )
+        screenCapture?.start()
+
+        // 3) Long-poll for operator inputs in a background thread.
+        pollingActive = true
+        inputPollerThread = Thread {
+            var since = 0L
+            while (pollingActive) {
+                try {
+                    val url = "$base/api/support/host/inputs/$sid?since=$since&wait=20"
+                    val req = Request.Builder().url(url).get().build()
+                    val resp = ResilientHttp.client.newCall(req).execute()
+                    val body = resp.use { it.body?.string().orEmpty() }
+                    if (body.isEmpty()) {
+                        Thread.sleep(500)
+                        continue
                     }
+                    val parsed = JSONObject(body)
+                    val maxSeq = parsed.optLong("max_seq", since)
+                    if (maxSeq > since) since = maxSeq
+                    val arr = parsed.optJSONArray("inputs") ?: continue
+                    if (arr.length() == 0) continue
+                    runOnUiThread { setStatus("Technician connected — live") }
+                    for (i in 0 until arr.length()) {
+                        val item = arr.optJSONObject(i) ?: continue
+                        val payload = item.optJSONObject("payload") ?: continue
+                        RootInputDispatcher.handle(this@SupportSessionActivity, payload)
+                    }
+                } catch (t: Throwable) {
+                    if (!pollingActive) break
+                    Log.w(TAG, "input long-poll error", t)
+                    // Brief back-off so a flapping network doesn't
+                    // spin the CPU.
+                    try { Thread.sleep(1500) } catch (_: InterruptedException) { break }
                 }
             }
-            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                runOnUiThread {
-                    setStatus("Session closed.", warn = true)
-                    finish()
-                }
-            }
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                Log.w(TAG, "host ws failure", t)
-                runOnUiThread { setStatus("Connection lost — restart to retry.", warn = true) }
-            }
-        })
+        }.also { it.isDaemon = true; it.start() }
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        pollingActive = false
+        inputPollerThread?.interrupt()
+        inputPollerThread = null
         screenCapture?.stop()
         screenCapture = null
-        hostWs?.close(1000, "user_exit")
-        hostWs = null
         sessionId?.let { sid ->
             // Fire-and-forget cancel so the backend reaps fast.
             Thread {
