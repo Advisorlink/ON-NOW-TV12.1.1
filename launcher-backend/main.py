@@ -58,6 +58,8 @@ from fastapi import (
     HTTPException,
     Request,
     UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
@@ -570,6 +572,19 @@ app.mount("/assets/qr",          StaticFiles(directory=str(DATA_DIR / "qr")),   
 ADMIN_DIR = Path(__file__).parent / "admin"
 if ADMIN_DIR.exists():
     app.mount("/admin/static", StaticFiles(directory=str(ADMIN_DIR / "static")), name="admin-static")
+
+
+# ─────────────────────────────────────────────────────────────────
+#  v2.10.84 — Remote-maintenance / support sessions
+#
+#  Six-digit code pairing between a TV box and an operator's laptop.
+#  Live JPEG screen frames + remote input dispatch via Accessibility
+#  Service on the Android side.  See support_session.py for the
+#  protocol + session manager.
+# ─────────────────────────────────────────────────────────────────
+from support_session import router as support_router, _admin_dep_factory  # noqa: E402
+_admin_dep_factory(require_admin)
+app.include_router(support_router)
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -3990,6 +4005,18 @@ def admin_index() -> HTMLResponse:
     html_path = ADMIN_DIR / "index.html"
     if not html_path.exists():
         return HTMLResponse("<h1>Admin UI not deployed</h1>", status_code=500)
+    return HTMLResponse(html_path.read_text(encoding="utf-8"))
+
+
+@app.get("/admin/maintenance", response_class=HTMLResponse)
+@app.get("/admin/maintenance/", response_class=HTMLResponse)
+def admin_maintenance_page() -> HTMLResponse:
+    """v2.10.84 — Remote support / maintenance page.  Pairs with the
+    TV box via a 6-digit code and brokers a live screen + remote
+    input session.  See support_session.py for protocol details."""
+    html_path = ADMIN_DIR / "maintenance.html"
+    if not html_path.exists():
+        return HTMLResponse("<h1>Maintenance UI not deployed</h1>", status_code=500)
     return HTMLResponse(html_path.read_text(encoding="utf-8"))
 
 

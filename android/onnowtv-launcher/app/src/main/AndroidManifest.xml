@@ -133,6 +133,17 @@
             android:theme="@style/Theme.OnNowLauncher.NoActionBar"
             android:screenOrientation="landscape" />
 
+        <!-- v2.10.84 — Remote-maintenance / support session.  Mints a
+             6-digit pairing code, captures the screen via
+             MediaProjection, and dispatches operator input via root
+             shell commands.  See support/SupportSessionActivity.kt. -->
+        <activity
+            android:name=".support.SupportSessionActivity"
+            android:exported="false"
+            android:configChanges="orientation|keyboardHidden|screenSize|locale|fontScale|uiMode"
+            android:theme="@style/Theme.OnNowLauncher.NoActionBar"
+            android:screenOrientation="landscape" />
+
         <!-- v2.10.53 — Public APKM / split-APK installer.  Any other
              app on the box (Vesper, Live TV, Music, Kids…) fires the
              implicit action `tv.onnow.launcher.ACTION_INSTALL_APKM`

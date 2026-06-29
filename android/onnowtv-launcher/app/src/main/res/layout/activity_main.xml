@@ -313,6 +313,25 @@
             android:orientation="horizontal"
             android:gravity="end|center_vertical">
 
+            <!-- v2.10.84 — Remote-maintenance / customer support
+                 entry point.  Headset icon → opens a 6-digit
+                 pairing screen the customer reads to the
+                 technician, who then takes remote control of the
+                 box via the admin dashboard at /admin/maintenance. -->
+            <ImageView
+                android:id="@+id/supportIcon"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginEnd="10dp"
+                android:padding="6dp"
+                android:src="@drawable/ic_support_headset"
+                android:tint="@color/text_primary"
+                android:focusable="true"
+                android:focusableInTouchMode="false"
+                android:clickable="true"
+                android:background="@drawable/bg_topbar_btn"
+                android:contentDescription="Remote support" />
+
             <ImageView
                 android:id="@+id/wifiIcon"
                 android:layout_width="36dp"

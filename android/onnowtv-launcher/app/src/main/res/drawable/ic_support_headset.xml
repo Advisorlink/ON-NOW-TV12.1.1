@@ -1,0 +1,38 @@
+<!--
+  v2.10.84 — Headset icon for the Apps Drawer "Remote support" button.
+  Sits next to the Wi-Fi icon.  Customer presses OK to open the
+  pairing screen (SupportSessionActivity), which mints a 6-digit code
+  the technician enters in the admin dashboard at /admin/maintenance.
+
+  Drawn as a stylised headset (headband arc + two earpiece pills +
+  a tiny boom mic dot).  Matches the visual weight of ic_wifi so the
+  two icons sit balanced side-by-side in the top bar.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Headband arc -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M4,13 a8,8 0 0,1 16,0" />
+    <!-- Left earpiece (rounded rect) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M3,13 m0,0 a2,2 0 0,1 2,-2 h2 a2,2 0 0,1 2,2 v4 a2,2 0 0,1 -2,2 h-2 a2,2 0 0,1 -2,-2 z" />
+    <!-- Right earpiece (rounded rect) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M15,13 m0,0 a2,2 0 0,1 2,-2 h2 a2,2 0 0,1 2,2 v4 a2,2 0 0,1 -2,2 h-2 a2,2 0 0,1 -2,-2 z" />
+    <!-- Boom mic extending from right earpiece -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M19,19 v1.5 a1.5,1.5 0 0,1 -1.5,1.5 h-3" />
+</vector>

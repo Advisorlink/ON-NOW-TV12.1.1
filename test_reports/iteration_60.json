@@ -1,0 +1,64 @@
+{
+  "summary": "Iteration 60 — Verified v2.10.84 remote-maintenance (TeamViewer-style) feature end-to-end + the launcher-update-pill stuck-on-success P0 BroadcastReceiver fix. (A) 23/23 pytest tests pass (11 new test_support_session.py + 12 v2.10.81 build_id regression). (B) Full Playwright E2E on /admin/maintenance: pairing screen renders, numeric-only + 6-char truncation works, bad code surfaces 'code_not_found_or_expired' banner, valid code transitions to session screen, all 14 required data-testids present, real WebSocket input round-trip verified (D-pad UP → host receives JSON {type:'input',action:'key',key:'DPAD_UP'}, same for DPAD_CENTER/BACK), end-session button closes WS and returns to pairing with cleared input. (C) Android static review of all 5 files green — manifest activity declaration matches spec exactly, supportIcon ImageView sits RIGHT BEFORE wifiIcon in activity_main.xml line 322 vs 336, ic_support_headset.xml exists, BroadcastReceiver in MainActivity.kt promotes pending_install_build_id_<pkg> → installed_build_id_<pkg> on ACTION_PACKAGE_ADDED/REPLACED with NO version-name check (broadcast itself is authoritative), registered in onCreate via registerPackageInstallReceiver() and unregistered in onDestroy.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "backend_test_results": {
+    "test_support_session.py": "11/11 PASS (HTTP register/connect/cancel/sessions + WebSocket pairing + frame relay + input forwarding + duplicate-controller 409 + bad-code 404)",
+    "test_build_id_pill_trigger.py": "6/6 PASS",
+    "test_build_id_edge_cases.py": "6/6 PASS",
+    "combined": "23/23 PASS in 0.30s",
+    "report": "/app/test_reports/pytest/iter60_combined.xml"
+  },
+  "frontend_e2e_results": {
+    "pairing_screen_renders": true,
+    "code_input_filters_to_digits_only_max_6": "PASS (typed 'abc12def345xy789' → input value '123457')",
+    "bad_code_shows_error_banner": "PASS (banner text: 'code_not_found_or_expired')",
+    "pairing_screen_stays_after_bad_code": true,
+    "valid_code_transitions_to_session_screen": true,
+    "status_pill_text": "Connected — waiting for screen…",
+    "missing_testids_on_session_screen": [],
+    "all_14_required_testids_present": true,
+    "dpad_up_dispatched_to_host_ws": "PASS (host received {\"type\":\"input\",\"action\":\"key\",\"key\":\"DPAD_UP\"})",
+    "dpad_ok_dispatched": "PASS (DPAD_CENTER)",
+    "back_key_dispatched": "PASS (BACK)",
+    "end_session_returns_to_pairing_cleared": true,
+    "controller_bye_sent_to_host_on_disconnect": "PASS (host received {\"type\":\"controller_bye\"})"
+  },
+  "android_static_review": {
+    "files_present": [
+      "support/SupportSessionActivity.kt",
+      "support/ScreenCaptureController.kt",
+      "support/RootInputDispatcher.kt",
+      "res/drawable/ic_support_headset.xml"
+    ],
+    "manifest_activity_declaration": "PASS — AndroidManifest.xml:141-145 declares .support.SupportSessionActivity with exported=false, configChanges=orientation|keyboardHidden|screenSize|locale|fontScale|uiMode, theme=Theme.OnNowLauncher.NoActionBar, screenOrientation=landscape — matches spec exactly.",
+    "layout_supportIcon_before_wifiIcon": "PASS — activity_main.xml:322 supportIcon ImageView, then activity_main.xml:336 wifiIcon ImageView. Source=@drawable/ic_support_headset.",
+    "broadcast_receiver_promotion_logic": "PASS — MainActivity.kt:2301-2349 registerPackageInstallReceiver() filters ACTION_PACKAGE_ADDED + ACTION_PACKAGE_REPLACED with addDataScheme(\"package\"), reads pending_install_build_id_<pkg>, writes installed_build_id_<pkg>, removes pending key, calls dockAdapter.notifyDataSetChanged(). NO version-name match check — the broadcast itself is the authoritative signal as designed. Also handles RECEIVER_NOT_EXPORTED for API 33+.",
+    "receiver_lifecycle": "PASS — registered in onCreate (MainActivity.kt:135), unregistered in onDestroy (lines 207-212) inside a try/catch with field nulled afterwards.",
+    "support_icon_click_handler": "PASS — MainActivity.kt:1736-1743 launches tv.onnow.launcher.support.SupportSessionActivity::class.java.",
+    "note": "Code review verifies all 4 new Kotlin files are syntactically clean by inspection; full kotlinc compile happens on the user's GitHub Actions pipeline as noted in the request."
+  },
+  "test_report_links": [
+    "/app/test_reports/pytest/iter60_combined.xml",
+    "/app/launcher-backend/tests/test_support_session.py",
+    "/app/launcher-backend/tests/test_build_id_pill_trigger.py",
+    "/app/launcher-backend/tests/test_build_id_edge_cases.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "support_session.py architecture is sound: in-memory dict + asyncio.Lock is fine for single-process, MAX_SESSIONS=64 hard cap prevents memory blow-up, 8-attempt retry on code collision degrades gracefully to 503 code_space_exhausted (theoretically possible at >900k active codes — irrelevant in practice).",
+    "Host hello payload is captured into sess.host_hello and replayed to the controller on connect, so the operator sees device geometry even if the host sent hello before the controller paired. Verified in playwright run.",
+    "Controller→host input is JSON-text-only forwarded; binary frames are not bidirectional. Correct asymmetry.",
+    "Backpressure handling: if controller send_bytes raises, sess.controller_ws is cleared so the host stops trying to relay — prevents tight error loops.",
+    "BroadcastReceiver is the right architectural fix for the stale-PackageManager onResume bug: it fires AFTER the install commit so no versionName/build_id race is possible. Sound P0 RCA.",
+    "Minor observation (not blocking): support_session.py imports 'json' inside three hot paths (inside the ws receive loops) instead of at module top — works but is a style nit.",
+    "Minor observation (not blocking): require_admin is currently a no-op per the test file's docstring ('Admin auth is currently disabled launcher-wide… until it's re-enabled'). When auth is re-enabled, the two tests test_controller_connect_returns_404_without_auth_when_admin_gate_open and test_sessions_list_responds_under_open_admin_gate must be updated to expect 401/403."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (23/23)", "frontend": "100% (full E2E including WebSocket input round-trip)"},
+  "test_credentials": "Admin token: onnow-launcher-admin-dev (currently a no-op gate — see code review comment).",
+  "seed_data_creation": "Minted ephemeral pairing codes via /api/support/host/register during tests; sessions auto-reap after 300s.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Maintenance page lives at http://localhost:8002/admin/maintenance (NOT on the React preview ingress at port 3000). To exercise the full WS flow open a Python websockets client to the host endpoint in parallel with Playwright as in iter60_combined.xml; controller-side input arrives at the host as JSON text frames identical to what the controller sends. Admin token gate is currently open — bad/missing token still returns meaningful 404s for invalid codes per test_controller_connect_returns_404_without_auth_when_admin_gate_open."
+}

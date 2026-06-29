@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Color
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -62,6 +63,13 @@ class MainActivity : AppCompatActivity() {
     private var currentWallpaperUrl: String? = null
     private var currentLayout: LayoutSettings = LayoutSettings()
 
+    /* v2.10.84 — Authoritative listener for PackageManager-commit
+     * events.  See MainActivity.onCreate / registerPackageInstallReceiver
+     * for the rationale; tracks the last-installed package so we can
+     * cross-check the pending build_id immediately when the broadcast
+     * lands instead of waiting for the next onResume cycle. */
+    private var packageInstallReceiver: android.content.BroadcastReceiver? = null
+
     /* Mutable list of tiles rendered in the dock.  Empty on cold
      * launch — populated as soon as the first config arrives (or
      * the cached config is loaded from disk). */
@@ -115,6 +123,16 @@ class MainActivity : AppCompatActivity() {
         bindTopBar()
         bindTopBarActions()
         bindDock()
+
+        // v2.10.84 — Authoritative install-complete signal via system
+        // broadcasts.  onResume can fire BEFORE Android's package DB
+        // commits the new versionName, so the promote-pending logic
+        // would see stale data and leave the UPDATE pill stuck on
+        // screen even though the install succeeded.  Listening for
+        // ACTION_PACKAGE_ADDED / ACTION_PACKAGE_REPLACED removes the
+        // race — the broadcast fires AFTER commit so getPackageInfo
+        // always returns the freshly-installed versionName.
+        registerPackageInstallReceiver()
 
         // Hydrate from disk cache so the launcher renders the LAST
         // known remote config the moment the user opens it — even on
@@ -171,7 +189,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // v2.10.45 — Release the Wi-Fi callback so we don't leak
+        // v1 — Release the Wi-Fi callback so we don't leak
         // the lambda + ConnectivityManager reference once the
         // launcher activity is finally torn down.
         wifiCallback?.let { cb ->
@@ -186,6 +204,12 @@ class MainActivity : AppCompatActivity() {
         boostJob = null
         boostPulseAnimator?.cancel()
         boostPulseAnimator = null
+        // v2.10.84 — Unregister the package-install broadcast so we
+        // don't leak the receiver after MainActivity tears down.
+        packageInstallReceiver?.let {
+            try { unregisterReceiver(it) } catch (_: Throwable) { /* */ }
+        }
+        packageInstallReceiver = null
     }
 
     /* ───────────────────  Kids-sandbox HOME lockdown  ────────────── */
@@ -1708,6 +1732,24 @@ class MainActivity : AppCompatActivity() {
                 } catch (_: Throwable) { /* device with no settings activity — ignore */ }
             }
         }
+        // v2.10.84 — Remote support / maintenance entry point.
+        // Tapping the headset icon opens SupportSessionActivity which
+        // mints a pairing code and starts streaming the screen to the
+        // operator dashboard at /admin/maintenance.
+        binding.supportIcon.setOnClickListener {
+            try {
+                startActivity(
+                    android.content.Intent(this,
+                        tv.onnow.launcher.support.SupportSessionActivity::class.java)
+                )
+            } catch (t: Throwable) {
+                Toast.makeText(
+                    this,
+                    "Could not start support session: ${t.message}",
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
         // Reflect live VPN state on the pill's status dot.
         refreshVpnDot()
     }
@@ -2236,6 +2278,74 @@ class MainActivity : AppCompatActivity() {
             dirty = true
         }
         if (dirty) ed.apply()
+    }
+
+    /* ─────────  v2.10.84 — Authoritative install-complete listener  ─
+     *
+     * Bug fixed:  onResume fires when Android dismisses the install
+     * dialog, BUT the package DB hasn't necessarily committed the new
+     * versionName by then — so promotePendingBuildIds saw the OLD
+     * versionName, the match check failed, the pending build_id was
+     * never promoted, and the UPDATE pill stayed on screen forever.
+     * User reported clicking install over and over because the pill
+     * refused to disappear.
+     *
+     * Fix:  Subscribe to ACTION_PACKAGE_ADDED + ACTION_PACKAGE_REPLACED
+     * which Android broadcasts AFTER commit.  When the broadcast
+     * arrives for any package with a pending build_id stash, we know
+     * the install really succeeded — promote the build_id and rebind
+     * the dock immediately.  No timing assumptions, no polling, no
+     * stale PackageManager state.
+     */
+
+    private fun registerPackageInstallReceiver() {
+        if (packageInstallReceiver != null) return
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: android.content.Context?, intent: Intent?) {
+                if (intent == null) return
+                val pkg = intent.data?.schemeSpecificPart ?: return
+                if (pkg.isBlank()) return
+                // Only act on packages we have a pending build_id for.
+                val prefs = getBuildIdsPrefs(this@MainActivity)
+                val pendingKey = "pending_install_build_id_$pkg"
+                val pendingBuildId = prefs.getString(pendingKey, null)
+                if (pendingBuildId.isNullOrBlank()) {
+                    // No pending install for this package — could be a
+                    // user-driven sideload from outside our flow.
+                    // Still trigger a rebind so any non-build_id state
+                    // (e.g. version-bump pills) settles correctly.
+                    if (::dockAdapter.isInitialized) {
+                        dockAdapter.notifyDataSetChanged()
+                    }
+                    return
+                }
+                // Promote — authoritative.  The broadcast fires AFTER
+                // commit, so we don't need to re-check versionName.
+                prefs.edit()
+                    .putString("installed_build_id_$pkg", pendingBuildId)
+                    .remove(pendingKey)
+                    .apply()
+                if (::dockAdapter.isInitialized) {
+                    dockAdapter.notifyDataSetChanged()
+                }
+            }
+        }
+        val filter = android.content.IntentFilter().apply {
+            addAction(Intent.ACTION_PACKAGE_ADDED)
+            addAction(Intent.ACTION_PACKAGE_REPLACED)
+            // The data scheme is required for package broadcasts.
+            addDataScheme("package")
+        }
+        try {
+            // Android 13 (API 33+) requires explicit export flag.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("UnspecifiedRegisterReceiverFlag")
+                registerReceiver(receiver, filter)
+            }
+            packageInstallReceiver = receiver
+        } catch (_: Throwable) { /* receiver may have been registered already */ }
     }
 
     /* ──────────────────────────  Back / Home  ───────────────────── */

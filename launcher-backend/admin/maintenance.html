@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ON NOW TV · Maintenance</title>
+<style>
+:root {
+    --bg-0: #06080F;
+    --bg-1: #0B1018;
+    --bg-2: #131A26;
+    --border: rgba(255, 255, 255, 0.08);
+    --border-hi: rgba(93, 200, 255, 0.4);
+    --text: #E8ECF3;
+    --text-dim: rgba(232, 236, 243, 0.62);
+    --text-mute: rgba(232, 236, 243, 0.40);
+    --blue: #5DC8FF;
+    --blue-dim: #2BA0E0;
+    --green: #5DFFAB;
+    --red: #FF5D7A;
+    --amber: #FFAE5D;
+}
+* { box-sizing: border-box; }
+html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg-0);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+body {
+    background:
+        radial-gradient(circle at 30% 20%, rgba(93, 200, 255, 0.08) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(43, 160, 224, 0.06) 0%, transparent 55%),
+        var(--bg-0);
+}
+
+/* Header */
+.topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 32px;
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(12px);
+    background: rgba(6, 8, 15, 0.7);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+.brand-mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--blue) 0%, var(--blue-dim) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--bg-0);
+    font-weight: 800;
+    font-size: 16px;
+}
+.brand-name {
+    font-size: 11px;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    font-weight: 600;
+}
+.brand-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin-top: 2px;
+}
+.back-link {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 13px;
+    padding: 8px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    transition: all 0.18s ease;
+}
+.back-link:hover { color: var(--blue); border-color: var(--border-hi); }
+
+/* Main shell */
+main {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 40px 32px;
+}
+
+/* Hero / pairing screen */
+.hero {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    flex-direction: column;
+    gap: 24px;
+    padding: 40px 0;
+}
+.hero-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, rgba(93, 200, 255, 0.18) 0%, rgba(43, 160, 224, 0.08) 100%);
+    border: 1px solid var(--border-hi);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--blue);
+    box-shadow: 0 0 48px rgba(93, 200, 255, 0.2);
+}
+.hero-icon svg { width: 30px; height: 30px; }
+.hero-eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--blue);
+}
+.hero-title {
+    font-size: 38px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin: 0;
+}
+.hero-sub {
+    font-size: 15px;
+    color: var(--text-dim);
+    max-width: 520px;
+    text-align: center;
+    line-height: 1.55;
+}
+.code-input-row {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    margin-top: 16px;
+}
+.code-input {
+    width: 280px;
+    height: 64px;
+    font-family: 'SF Mono', Consolas, monospace;
+    font-size: 32px;
+    font-weight: 700;
+    text-align: center;
+    letter-spacing: 0.32em;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1.5px solid var(--border);
+    border-radius: 16px;
+    color: var(--text);
+    outline: none;
+    transition: all 0.2s ease;
+}
+.code-input::placeholder { color: var(--text-mute); font-weight: 400; letter-spacing: 0.12em; }
+.code-input:focus {
+    border-color: var(--blue);
+    background: rgba(93, 200, 255, 0.06);
+    box-shadow: 0 0 0 4px rgba(93, 200, 255, 0.15);
+}
+.btn {
+    height: 64px;
+    padding: 0 30px;
+    border: none;
+    border-radius: 16px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.btn-primary {
+    background: linear-gradient(135deg, var(--blue) 0%, var(--blue-dim) 100%);
+    color: var(--bg-0);
+    box-shadow: 0 8px 24px rgba(93, 200, 255, 0.25);
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(93, 200, 255, 0.35); }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+.btn-secondary {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text);
+    border: 1px solid var(--border);
+    height: 44px;
+    padding: 0 18px;
+    border-radius: 12px;
+    font-size: 13px;
+}
+.btn-secondary:hover { background: rgba(255, 255, 255, 0.08); border-color: var(--border-hi); }
+.error-banner {
+    margin-top: 18px;
+    padding: 12px 20px;
+    border-radius: 12px;
+    background: rgba(255, 93, 122, 0.1);
+    border: 1px solid rgba(255, 93, 122, 0.3);
+    color: var(--red);
+    font-size: 13px;
+}
+
+/* Session UI */
+.session-shell {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 24px;
+    align-items: start;
+}
+@media (max-width: 1100px) {
+    .session-shell { grid-template-columns: 1fr; }
+}
+.screen-frame {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    overflow: hidden;
+    aspect-ratio: 16 / 9;
+    position: relative;
+    cursor: crosshair;
+}
+.screen-frame canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: contain;
+}
+.screen-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 14px;
+    color: var(--text-mute);
+}
+.screen-placeholder svg { width: 48px; height: 48px; }
+.screen-placeholder-label {
+    font-size: 11px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+}
+.pulse-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--blue);
+    box-shadow: 0 0 0 0 var(--blue);
+    animation: pulse 1.6s infinite;
+}
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(93, 200, 255, 0.6); }
+    70% { box-shadow: 0 0 0 14px rgba(93, 200, 255, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(93, 200, 255, 0); }
+}
+
+/* Side panel */
+.panel {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 24px;
+}
+.panel + .panel { margin-top: 18px; }
+.panel-title {
+    font-size: 10px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    font-weight: 700;
+    margin: 0 0 16px;
+}
+.kv { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
+.kv-key { color: var(--text-mute); }
+.kv-val { color: var(--text); font-family: 'SF Mono', monospace; font-size: 12px; }
+
+/* D-pad cluster */
+.dpad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 8px;
+    aspect-ratio: 1 / 1;
+    margin-bottom: 12px;
+}
+.dpad-btn {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.12s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.dpad-btn:hover { background: rgba(93, 200, 255, 0.12); border-color: var(--border-hi); }
+.dpad-btn:active { transform: scale(0.94); background: var(--blue); color: var(--bg-0); }
+.dpad-btn.center {
+    background: linear-gradient(135deg, var(--blue) 0%, var(--blue-dim) 100%);
+    color: var(--bg-0);
+    border: none;
+}
+.dpad-btn.empty { background: transparent; border: none; pointer-events: none; }
+
+.aux-row {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-top: 12px;
+}
+.aux-btn {
+    height: 44px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.12s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+.aux-btn:hover { background: rgba(93, 200, 255, 0.12); border-color: var(--border-hi); }
+.aux-btn:active { transform: scale(0.96); }
+.aux-btn.danger { color: var(--red); }
+.aux-btn.danger:hover { background: rgba(255, 93, 122, 0.1); border-color: rgba(255, 93, 122, 0.3); }
+
+.text-row { margin-top: 14px; }
+.text-row input {
+    width: 100%;
+    height: 44px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0 14px;
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+}
+.text-row input:focus { border-color: var(--blue); background: rgba(93, 200, 255, 0.06); }
+.text-hint {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--text-mute);
+}
+
+.status-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 999px;
+    background: rgba(93, 255, 171, 0.08);
+    border: 1px solid rgba(93, 255, 171, 0.24);
+    color: var(--green);
+    font-size: 12px;
+    font-weight: 600;
+    width: fit-content;
+    margin-bottom: 16px;
+}
+.status-banner.warn {
+    background: rgba(255, 174, 93, 0.08);
+    border-color: rgba(255, 174, 93, 0.24);
+    color: var(--amber);
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+    <div class="brand">
+        <div class="brand-mark">ON</div>
+        <div>
+            <div class="brand-name">ON NOW TV · admin</div>
+            <div class="brand-title">Maintenance</div>
+        </div>
+    </div>
+    <a class="back-link" href="/admin">← Back to dashboard</a>
+</header>
+
+<main>
+
+<!-- Pairing screen (shown when no session is active) -->
+<section id="pairing-screen" class="hero">
+    <div class="hero-icon">
+        <!-- Headset icon -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H3v-7zM21 14h-3a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h3v-7z" />
+            <path d="M3 14a9 9 0 0 1 18 0" />
+        </svg>
+    </div>
+    <div class="hero-eyebrow">Remote support</div>
+    <h1 class="hero-title">Enter the 6-digit code</h1>
+    <p class="hero-sub">
+        Ask the customer to open <strong>Support</strong> from the ON NOW TV launcher
+        (the headset icon next to the Wi-Fi button). A code will appear on their TV — type
+        it below to take control of the box.
+    </p>
+    <div class="code-input-row">
+        <input
+            id="code-input"
+            class="code-input"
+            type="text"
+            inputmode="numeric"
+            maxlength="6"
+            pattern="[0-9]*"
+            placeholder="000 000"
+            autocomplete="off"
+            data-testid="support-code-input"
+        />
+        <button
+            id="connect-btn"
+            class="btn btn-primary"
+            data-testid="support-connect-button"
+        >Connect</button>
+    </div>
+    <div id="error-banner" class="error-banner" style="display:none"></div>
+</section>
+
+<!-- Active session screen -->
+<section id="session-screen" style="display:none">
+    <div class="status-banner">
+        <span class="pulse-dot"></span>
+        <span id="session-status">Connecting…</span>
+    </div>
+    <div class="session-shell">
+        <div class="screen-frame" id="screen-frame">
+            <canvas id="screen-canvas" width="1920" height="1080" data-testid="support-screen-canvas"></canvas>
+            <div class="screen-placeholder" id="screen-placeholder">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <rect x="2" y="3" width="20" height="14" rx="2" />
+                    <line x1="8" y1="21" x2="16" y2="21" />
+                    <line x1="12" y1="17" x2="12" y2="21" />
+                </svg>
+                <div class="screen-placeholder-label">Waiting for screen capture…</div>
+            </div>
+        </div>
+        <div>
+            <div class="panel">
+                <h3 class="panel-title">Device</h3>
+                <div class="kv"><span class="kv-key">Device ID</span><span class="kv-val" id="kv-device-id">—</span></div>
+                <div class="kv"><span class="kv-key">Build</span><span class="kv-val" id="kv-build">—</span></div>
+                <div class="kv"><span class="kv-key">Resolution</span><span class="kv-val" id="kv-res">—</span></div>
+                <div class="kv"><span class="kv-key">FPS</span><span class="kv-val" id="kv-fps">0</span></div>
+                <div class="kv"><span class="kv-key">Bandwidth</span><span class="kv-val" id="kv-kbps">0 kbps</span></div>
+                <div class="kv"><span class="kv-key">Latency</span><span class="kv-val" id="kv-lat">—</span></div>
+            </div>
+            <div class="panel">
+                <h3 class="panel-title">Remote control</h3>
+                <div class="dpad">
+                    <div class="dpad-btn empty"></div>
+                    <button class="dpad-btn" data-key="DPAD_UP" data-testid="support-dpad-up" title="Up">▲</button>
+                    <div class="dpad-btn empty"></div>
+                    <button class="dpad-btn" data-key="DPAD_LEFT" data-testid="support-dpad-left" title="Left">◀</button>
+                    <button class="dpad-btn center" data-key="DPAD_CENTER" data-testid="support-dpad-ok" title="OK">OK</button>
+                    <button class="dpad-btn" data-key="DPAD_RIGHT" data-testid="support-dpad-right" title="Right">▶</button>
+                    <div class="dpad-btn empty"></div>
+                    <button class="dpad-btn" data-key="DPAD_DOWN" data-testid="support-dpad-down" title="Down">▼</button>
+                    <div class="dpad-btn empty"></div>
+                </div>
+                <div class="aux-row">
+                    <button class="aux-btn" data-key="BACK" data-testid="support-key-back">Back</button>
+                    <button class="aux-btn" data-key="HOME" data-testid="support-key-home">Home</button>
+                    <button class="aux-btn" data-key="RECENTS" data-testid="support-key-recents">Recents</button>
+                    <button class="aux-btn" data-key="MENU" data-testid="support-key-menu">Menu</button>
+                </div>
+                <div class="aux-row">
+                    <button class="aux-btn" data-key="VOL_DOWN" data-testid="support-key-voldown">Vol −</button>
+                    <button class="aux-btn" data-key="VOL_UP" data-testid="support-key-volup">Vol +</button>
+                </div>
+                <div class="text-row">
+                    <input
+                        id="text-input"
+                        type="text"
+                        placeholder="Type to send keystrokes…"
+                        data-testid="support-text-input"
+                    />
+                    <div class="text-hint">Each character is sent to the focused field on the TV box.</div>
+                </div>
+                <div class="aux-row" style="margin-top: 16px;">
+                    <button class="aux-btn danger" id="disconnect-btn" data-testid="support-disconnect">End session</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+</main>
+
+<script>
+(function() {
+    'use strict';
+
+    /* ─────────────────  Config  ───────────────── */
+    const API_BASE = '';   // same-origin
+    const ADMIN_TOKEN_KEY = 'onnowtv_admin_token';
+    function adminToken() {
+        return localStorage.getItem(ADMIN_TOKEN_KEY)
+            || prompt('Enter the launcher admin Bearer token:')
+            || '';
+    }
+
+    /* ─────────────────  DOM refs  ───────────────── */
+    const pairingScreen = document.getElementById('pairing-screen');
+    const sessionScreen = document.getElementById('session-screen');
+    const codeInput = document.getElementById('code-input');
+    const connectBtn = document.getElementById('connect-btn');
+    const errorBanner = document.getElementById('error-banner');
+    const sessionStatus = document.getElementById('session-status');
+    const canvas = document.getElementById('screen-canvas');
+    const placeholder = document.getElementById('screen-placeholder');
+    const ctx = canvas.getContext('2d');
+    const kvDevice = document.getElementById('kv-device-id');
+    const kvBuild = document.getElementById('kv-build');
+    const kvRes = document.getElementById('kv-res');
+    const kvFps = document.getElementById('kv-fps');
+    const kvKbps = document.getElementById('kv-kbps');
+    const kvLat = document.getElementById('kv-lat');
+    const textInput = document.getElementById('text-input');
+    const disconnectBtn = document.getElementById('disconnect-btn');
+
+    /* ─────────────────  Session state  ───────────────── */
+    let ws = null;
+    let frameCounter = 0;
+    let lastSampleTs = Date.now();
+    let lastSampleBytes = 0;
+    let totalBytes = 0;
+    let screenW = 1920, screenH = 1080;
+
+    function showError(msg) {
+        errorBanner.textContent = msg;
+        errorBanner.style.display = 'block';
+    }
+    function hideError() { errorBanner.style.display = 'none'; }
+
+    /* ─────────────────  Pairing  ───────────────── */
+    codeInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') connect();
+    });
+    codeInput.addEventListener('input', (e) => {
+        e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
+        hideError();
+    });
+    connectBtn.addEventListener('click', connect);
+
+    async function connect() {
+        hideError();
+        const code = (codeInput.value || '').trim();
+        if (code.length !== 6) {
+            showError('Code must be exactly 6 digits.');
+            return;
+        }
+        connectBtn.disabled = true;
+        connectBtn.textContent = 'Connecting…';
+        try {
+            const r = await fetch(API_BASE + '/api/support/controller/connect', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + adminToken(),
+                },
+                body: JSON.stringify({ code }),
+            });
+            if (!r.ok) {
+                const body = await r.json().catch(() => ({}));
+                throw new Error(body.detail || ('HTTP ' + r.status));
+            }
+            const data = await r.json();
+            kvDevice.textContent = data.device_id || '—';
+            const wsUrl = wsBase() + data.ws_path;
+            openWebSocket(wsUrl);
+        } catch (e) {
+            showError(e.message || 'Connection failed.');
+            connectBtn.disabled = false;
+            connectBtn.textContent = 'Connect';
+        }
+    }
+
+    function wsBase() {
+        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        return proto + '//' + location.host;
+    }
+
+    function openWebSocket(url) {
+        ws = new WebSocket(url);
+        ws.binaryType = 'arraybuffer';
+        ws.onopen = () => {
+            pairingScreen.style.display = 'none';
+            sessionScreen.style.display = 'block';
+            sessionStatus.textContent = 'Connected — waiting for screen…';
+        };
+        ws.onmessage = (e) => {
+            if (e.data instanceof ArrayBuffer) {
+                onFrame(e.data);
+            } else if (typeof e.data === 'string') {
+                try {
+                    const obj = JSON.parse(e.data);
+                    onControl(obj);
+                } catch { /* */ }
+            }
+        };
+        ws.onclose = (e) => {
+            sessionStatus.textContent = 'Session ended (' + e.code + ')';
+            placeholder.style.display = 'flex';
+            ws = null;
+        };
+        ws.onerror = () => {
+            sessionStatus.textContent = 'Connection error';
+        };
+    }
+
+    function onFrame(buf) {
+        totalBytes += buf.byteLength;
+        const blob = new Blob([buf], { type: 'image/jpeg' });
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => {
+            // Resize canvas to actual screen ratio when we get first frame.
+            if (canvas.width !== img.naturalWidth || canvas.height !== img.naturalHeight) {
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                screenW = img.naturalWidth;
+                screenH = img.naturalHeight;
+                kvRes.textContent = screenW + ' × ' + screenH;
+            }
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            URL.revokeObjectURL(url);
+            placeholder.style.display = 'none';
+            sessionStatus.textContent = 'Live';
+        };
+        img.src = url;
+        frameCounter++;
+    }
+
+    function onControl(obj) {
+        if (obj && (obj.type === 'host_hello' || obj.type === 'hello')) {
+            kvDevice.textContent = obj.device_id || '—';
+            kvBuild.textContent = obj.build || '—';
+            if (obj.screen_w && obj.screen_h) {
+                kvRes.textContent = obj.screen_w + ' × ' + obj.screen_h;
+                screenW = obj.screen_w;
+                screenH = obj.screen_h;
+            }
+        }
+        if (obj && obj.type === 'metrics') {
+            if (typeof obj.fps === 'number') kvFps.textContent = obj.fps.toFixed(1);
+            if (typeof obj.kbps === 'number') kvKbps.textContent = obj.kbps.toFixed(0) + ' kbps';
+        }
+        if (obj && obj.type === 'controller_bye') {
+            // Host closed — drop us back to pairing.
+        }
+    }
+
+    setInterval(() => {
+        const now = Date.now();
+        const dt = (now - lastSampleTs) / 1000;
+        if (dt > 0) {
+            const fps = frameCounter / dt;
+            const kbps = ((totalBytes - lastSampleBytes) * 8) / dt / 1000;
+            kvFps.textContent = fps.toFixed(1);
+            kvKbps.textContent = kbps.toFixed(0) + ' kbps';
+            lastSampleTs = now;
+            lastSampleBytes = totalBytes;
+            frameCounter = 0;
+        }
+    }, 1000);
+
+    /* ─────────────────  D-pad + buttons  ───────────────── */
+    function sendInput(payload) {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        try { ws.send(JSON.stringify(payload)); } catch { /* */ }
+    }
+
+    document.querySelectorAll('[data-key]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            sendInput({ type: 'input', action: 'key', key: btn.dataset.key });
+        });
+    });
+
+    /* Click-to-tap on the screen canvas */
+    canvas.addEventListener('click', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width;
+        const y = (e.clientY - rect.top) / rect.height;
+        sendInput({ type: 'input', action: 'tap', x: x, y: y });
+    });
+
+    /* Text input — send each char individually so it works with both
+     * text fields AND key-by-key input on Android. */
+    let lastText = '';
+    textInput.addEventListener('input', () => {
+        const cur = textInput.value;
+        // Find the diff and send only the new char(s).
+        if (cur.length > lastText.length) {
+            const added = cur.slice(lastText.length);
+            sendInput({ type: 'input', action: 'text', chars: added });
+        } else if (cur.length < lastText.length) {
+            // Backspace(s)
+            const n = lastText.length - cur.length;
+            for (let i = 0; i < n; i++) {
+                sendInput({ type: 'input', action: 'key', key: 'DEL' });
+            }
+        }
+        lastText = cur;
+    });
+
+    disconnectBtn.addEventListener('click', () => {
+        if (ws) ws.close();
+        sessionScreen.style.display = 'none';
+        pairingScreen.style.display = 'flex';
+        codeInput.value = '';
+        codeInput.focus();
+        connectBtn.disabled = false;
+        connectBtn.textContent = 'Connect';
+    });
+
+    /* Auto-focus the code input on load. */
+    setTimeout(() => codeInput.focus(), 100);
+})();
+</script>
+
+</body>
+</html>
