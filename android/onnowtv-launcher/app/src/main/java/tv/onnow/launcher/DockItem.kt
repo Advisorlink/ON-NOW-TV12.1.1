@@ -53,4 +53,13 @@ data class DockItem(
     val apkUrl: String? = null,
     val apkPackageId: String? = null,
     val apkVersion: String? = null,
+    /* v2.10.81 — Per-tile build-id, stamped fresh on every backend
+     * upload regardless of versionName.  Compared against the
+     * `installed_build_id_<package>` SharedPreferences entry the
+     * launcher writes after each successful install — when they
+     * differ AND the package is installed, the UPDATE pill fires
+     * even when the admin re-pinned the same versionName (the
+     * common rebuild-no-bump case the operator was complaining
+     * about). */
+    val apkBuildId: String? = null,
 )

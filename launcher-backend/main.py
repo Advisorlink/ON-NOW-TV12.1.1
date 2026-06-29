@@ -154,6 +154,15 @@ class DockTile(BaseModel):
     apk_filename: Optional[str]   = None   # original upload filename, for display
     apk_package_id: Optional[str] = None
     apk_version: Optional[str]    = None
+    # v2.10.81 — Stamped fresh (UUIDv4 hex) on every APK upload.  The
+    # launcher persists the build-id of the LAST install it ran, then
+    # compares it to this field — when they differ, the tile shows the
+    # UPDATE pill regardless of whether `apk_version` changed.  This
+    # is the fix for the operator complaint that re-uploading an APK
+    # with the same versionName silently did NOT light up the pill
+    # (Android refuses downgrades but admins still want a re-push to
+    # be visible to every box on a same-version rebuild).
+    apk_build_id: Optional[str]   = None
     # Deprecated.  Older client builds (pre-v0.2) read `icon_url`; we
     # keep returning it (always null) so JSON parsing doesn't fail on
     # those clients.
@@ -586,6 +595,7 @@ def _build_config(store: dict) -> LauncherConfig:
                 apk_filename=t.get("apk_filename"),
                 apk_package_id=t.get("apk_package_id"),
                 apk_version=t.get("apk_version"),
+                apk_build_id=t.get("apk_build_id"),
                 icon_url=None,  # deprecated — see DockTile docstring
                 target_package=t.get("target_package"),
                 target_url=t.get("target_url"),
@@ -2097,6 +2107,7 @@ def set_dock(dock_tiles: list[DockTile]) -> dict:
             "wallpaper_url": t.get("wallpaper_url"),
             "apk_url": t.get("apk_url"),
             "apk_filename": t.get("apk_filename"),
+            "apk_build_id": t.get("apk_build_id"),
         }
         for t in store.get("dock_tiles", [])
     }
@@ -2108,6 +2119,9 @@ def set_dock(dock_tiles: list[DockTile]) -> dict:
         d["wallpaper_url"] = prev.get("wallpaper_url")
         d["apk_url"]      = prev.get("apk_url")
         d["apk_filename"] = prev.get("apk_filename")
+        # v2.10.81 — preserve the per-tile build-id across dock saves
+        # (it's stamped only by the APK upload endpoint).
+        d["apk_build_id"] = prev.get("apk_build_id")
         d.pop("icon_url", None)  # deprecated; never persist
         new_dock.append(d)
     store["dock_tiles"] = new_dock
@@ -2151,6 +2165,7 @@ def add_dock_tile(payload: dict | None = None) -> dict:
         "apk_filename": None,
         "apk_package_id": None,
         "apk_version": None,
+        "apk_build_id": None,
         "target_package": (p.get("target_package") or "").strip() or None,
         "target_url": (p.get("target_url") or "").strip() or None,
         "accent": (p.get("accent") or "").strip() or None,
@@ -2307,6 +2322,13 @@ async def upload_tile_apk(
     _delete_tile_asset_file(tile.get("apk_url"))
     tile["apk_url"]      = f"/assets/tile_apks/{safe_name}"
     tile["apk_filename"] = file.filename
+    # v2.10.81 — Fresh build-id on every upload so the launcher's
+    # per-tile UPDATE pill fires unconditionally on the next box
+    # poll, regardless of whether the operator bumped versionName.
+    # Pure UUIDv4 hex (no APK SHA — operator might re-upload the
+    # very same .apk binary with different metadata and still want
+    # the pill to light up on every box).
+    tile["apk_build_id"] = uuid.uuid4().hex
 
     # v2.10.59 — Auto-extract package_id + version_name from the
     # APK manifest.  Admin-provided form fields override (they're
