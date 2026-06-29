@@ -205,3 +205,141 @@ export const toneColors = {
     muted: { fg: '#7E8A9C', bg: 'rgba(126,138,156,0.10)', border: 'rgba(126,138,156,0.18)' },
     red: { fg: '#FF6B6B', bg: 'rgba(255,107,107,0.14)', border: 'rgba(255,107,107,0.32)' },
 };
+
+
+/* ──────────────────────────────────────────────────────────────
+ * v2.10.78 — NardBadges icon set
+ *
+ * The community-standard Stremio badge pack (github.com/vowl313/
+ * NardBadges) gives every stream a uniform look across addons.
+ * Each badge is a 48×24 PNG hosted on raw.githubusercontent.com.
+ *
+ * `nardResolutionIcon(stream)` returns the LARGE resolution chip
+ * the picker renders on the left of each row.  `nardChips(stream)`
+ * returns the full ordered list of secondary chips (release type,
+ * HDR family, audio codec, video codec, language).
+ * ──────────────────────────────────────────────────────────────*/
+
+const NARD_BASE =
+    'https://raw.githubusercontent.com/vowl313/NardBadges/main/';
+
+function _streamText(s) {
+    return `${s?.title || ''} ${s?.name || ''} ${s?.description || ''}`;
+}
+
+/** Resolution badge — 4K / FHD / HD or null. */
+export function nardResolutionIcon(stream) {
+    const t = _streamText(stream);
+    if (/\b(2160p?|4k|uhd)\b/i.test(t) && !/\b(1080p?|720p?)\b/i.test(t)) {
+        return { url: `${NARD_BASE}res-4k.png`, label: '4K' };
+    }
+    if (/\b1080p?\b|\bfhd\b|\bfull[ ._-]?hd\b/i.test(t)) {
+        return { url: `${NARD_BASE}res-fhd.png`, label: 'FHD' };
+    }
+    if (/\b720p?\b|\bhd\b/i.test(t)) {
+        return { url: `${NARD_BASE}res-hd.png`, label: 'HD' };
+    }
+    return null;
+}
+
+/* Each chip carries `{ url, label, group }` so the renderer can
+ * group them visually (e.g. release type first, then HDR, then
+ * audio, then video codec). */
+function _push(out, seenGroups, group, url, label) {
+    if (seenGroups.has(group)) return;
+    seenGroups.add(group);
+    out.push({ url, label, group });
+}
+
+/** Returns ordered list of NardBadges secondary chips. */
+export function nardChips(stream) {
+    const t = _streamText(stream);
+    const out = [];
+    const seen = new Set();
+
+    // ── Release type (max 1) ──
+    if (/\bremux\b/i.test(t)) _push(out, seen, 'rel', `${NARD_BASE}rel-remux.png`, 'REMUX');
+    else if (/\bbluray\b|\bblu-?ray\b/i.test(t)) _push(out, seen, 'rel', `${NARD_BASE}rel-bluray.png`, 'BluRay');
+    else if (/\bweb[-._ ]?dl\b/i.test(t)) _push(out, seen, 'rel', `${NARD_BASE}rel-webdl.png`, 'WEB-DL');
+    else if (/\bweb[-._ ]?rip\b/i.test(t)) _push(out, seen, 'rel', `${NARD_BASE}rel-webrip.png`, 'WEBRip');
+
+    // ── HDR family (max 1; combo icons take priority) ──
+    const hasDV = /\b(dv|dovi|dolby[\s._-]?vision)\b/i.test(t);
+    const hasHDR10p = /\bhdr[\s._-]?10[\s._-]?(\+|plus)\b/i.test(t);
+    const hasHDR10 = /\bhdr[\s._-]?10\b/i.test(t) && !hasHDR10p;
+    const hasHDR = /\bhdr\b|\bhlg\b/i.test(t) && !hasHDR10 && !hasHDR10p;
+    const hasAtmos = /\batmos\b/i.test(t);
+    const hasTrueHD = /\btruehd\b/i.test(t);
+    const hasDDP = /\bddp\b|\bddp5\.?1\b|\be[-._]?ac3\b|\bdd\+/i.test(t);
+    const hasDD = /\bdd5\.?1\b|\bac3\b/i.test(t);
+    const hasIMAXE = /\bimax[\s._-]?enhanced\b/i.test(t);
+    const hasIMAX = /\bimax\b/i.test(t) && !hasIMAXE;
+
+    if (hasDV && hasAtmos) _push(out, seen, 'vis', `${NARD_BASE}vis-atmos-dv.png`, 'Atmos · DV');
+    else if (hasDV && hasTrueHD) _push(out, seen, 'vis', `${NARD_BASE}vis-truehd-dv.png`, 'TrueHD · DV');
+    else if (hasDV && hasDDP) _push(out, seen, 'vis', `${NARD_BASE}vis-ddp-dv.png`, 'DD+ · DV');
+    else if (hasDV && hasDD) _push(out, seen, 'vis', `${NARD_BASE}vis-dd-dv.png`, 'DD · DV');
+    else if (hasDV) _push(out, seen, 'vis', `${NARD_BASE}vis-dv.png`, 'DV');
+    else if (hasHDR10p) _push(out, seen, 'vis', `${NARD_BASE}vis-hdr10plus.png`, 'HDR10+');
+    else if (hasHDR10) _push(out, seen, 'vis', `${NARD_BASE}vis-hdr10.png`, 'HDR10');
+    else if (hasHDR) _push(out, seen, 'vis', `${NARD_BASE}vis-hdr.png`, 'HDR');
+    if (hasIMAXE) _push(out, seen, 'imax', `${NARD_BASE}vis-imax-enhanced.png`, 'IMAX Enhanced');
+    else if (hasIMAX) _push(out, seen, 'imax', `${NARD_BASE}vis-imax.png`, 'IMAX');
+
+    // ── Audio codec — pick the strongest (max 1).  HDR-combos
+    // above already encode Atmos/TrueHD/DD/DDP with DV, so only
+    // surface a standalone audio chip when no DV-combo was used.
+    const visualUsedDV = out.some((c) => c.group === 'vis' && /DV/.test(c.label));
+    if (!visualUsedDV) {
+        if (hasAtmos) _push(out, seen, 'aud', `${NARD_BASE}aud-atmos.png`, 'Atmos');
+        else if (hasTrueHD) _push(out, seen, 'aud', `${NARD_BASE}aud-truehd.png`, 'TrueHD');
+        else if (/\bdts[\s._-]?hd[\s._-]?ma\b/i.test(t)) _push(out, seen, 'aud', `${NARD_BASE}aud-dtshdma.png`, 'DTS-HD MA');
+        else if (/\bdts[\s._-]?hd\b/i.test(t)) _push(out, seen, 'aud', `${NARD_BASE}aud-dtshd.png`, 'DTS-HD');
+        else if (/\bdts[\s._-]?x\b/i.test(t)) _push(out, seen, 'aud', `${NARD_BASE}aud-dtsx.png`, 'DTS:X');
+        else if (/\bdts\b/i.test(t)) _push(out, seen, 'aud', `${NARD_BASE}aud-dts.png`, 'DTS');
+        else if (hasDDP) _push(out, seen, 'aud', `${NARD_BASE}aud-ddplus.png`, 'DD+');
+        else if (hasDD) _push(out, seen, 'aud', `${NARD_BASE}aud-dd.png`, 'DD');
+        else if (/\bflac\b/i.test(t)) _push(out, seen, 'aud', `${NARD_BASE}flac.png`, 'FLAC');
+        else if (/\baac\b/i.test(t)) _push(out, seen, 'aud', `${NARD_BASE}aac.png`, 'AAC');
+        else if (/\bmp3\b/i.test(t)) _push(out, seen, 'aud', `${NARD_BASE}mp3.png`, 'MP3');
+    }
+
+    // ── Channels (max 1) ──
+    if (/\b7\.?1\b/i.test(t)) _push(out, seen, 'ch', `${NARD_BASE}ch71.png`, '7.1');
+    else if (/\b6\.?1\b/i.test(t)) _push(out, seen, 'ch', `${NARD_BASE}ch61.png`, '6.1');
+    else if (/\b5\.?1\b/i.test(t)) _push(out, seen, 'ch', `${NARD_BASE}ch51.png`, '5.1');
+    else if (/\b2\.?0\b/i.test(t)) _push(out, seen, 'ch', `${NARD_BASE}ch20.png`, '2.0');
+
+    // ── Video codec (max 1) ──
+    if (/\b(hevc|h\.?265|x265)\b/i.test(t)) _push(out, seen, 'vcodec', `${NARD_BASE}codec-hevc.png`, 'HEVC');
+    else if (/\bav1\b/i.test(t)) _push(out, seen, 'vcodec', `${NARD_BASE}codec-av1.png`, 'AV1');
+    else if (/\b(h\.?264|x264|avc)\b/i.test(t)) _push(out, seen, 'vcodec', `${NARD_BASE}codec-avc.png`, 'AVC');
+
+    // ── 3D ──
+    if (/\b3d\b/i.test(t)) _push(out, seen, '3d', `${NARD_BASE}3d.png`, '3D');
+
+    return out;
+}
+
+/**
+ * Format the "meta line" under the title (NardBadges-style):
+ *   🔌 ADDON · ⚡ Cached · 💾 Size · 🌱 Seeders
+ * Returns an array of `{ icon, text }` so the renderer can space
+ * them with separators.
+ */
+export function nardMetaLine(stream) {
+    const out = [];
+    if (stream?._addon_source) {
+        out.push({ icon: '🔌', text: String(stream._addon_source) });
+    }
+    if (stream?._pm_cached) {
+        out.push({ icon: '⚡', text: 'Cached' });
+    }
+    const size = sizeLabel(stream);
+    if (size) out.push({ icon: '💾', text: size });
+    const seeders = stream?._seeders || stream?.seeders;
+    if (typeof seeders === 'number' && seeders > 0) {
+        out.push({ icon: '🌱', text: String(seeders) });
+    }
+    return out;
+}

@@ -1,5 +1,20 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.78 — Stream picker NardBadges PNG icon set (29 Jun 2026).**
+>
+> User pointed to [vowl313/NardBadges](https://github.com/vowl313/NardBadges) as the look they wanted — community-standard Stremio PNG icon pack with 112 badge images covering resolution / release type / HDR family / audio codec / channels / video codec / 3D / language flags.  Picker was previously text chips with coloured borders, which the user described as not looking "proper".
+>
+>   • **`streamMeta.js`** — added `nardResolutionIcon(stream)` (big left badge: 4K / FHD / HD), `nardChips(stream)` (ordered list of PNG chips: release type → HDR → audio → channels → video codec → 3D, deduped by group), and `nardMetaLine(stream)` (emoji-led meta line: 🔌 ADDON · ⚡ Cached · 💾 Size · 🌱 Seeders).  All three scan title + name + description so EasyNews++ release-name tokens (which live in `description`) light up the same way Torrentio titles do.
+>   • **`StreamPickerModal.jsx`** — rewrote each row:
+>       – Left tile renders the resolution PNG (or falls back to the legacy text badge for streams missing a resolution token).
+>       – New chip row directly under the title: 22-px PNGs from `raw.githubusercontent.com/vowl313/NardBadges/main/<icon>.png` with hover-title tooltips for accessibility.
+>       – Meta line is now emoji-led (🔌 ⚡ 💾 🌱 🇬🇧) instead of uppercase letter-spaced text — reads at a glance even at low contrast.
+>   • **HDR-audio combo icons** — when DV + Atmos/TrueHD/DDP/DD coexist in a title, we render the single combined `vis-atmos-dv.png` (etc.) instead of two separate chips, matching the NardBadges visual contract.
+>
+> Verified by standalone HTML render-test (`/tmp/picker-test.png`) — 4 stream rows (REMUX 4K HDR10 Atmos 7.1, WEB-DL FHD DDP Atmos 5.1, BluRay FHD DV DDP, WEBRip HD AAC 2.0) all render with the correct PNG icons + meta line.  Lint clean.  Frontend webpack rebuilds successfully.
+>
+> **User action required:**  Save to GitHub → CI rebuild Vesper + Kids APKs → sideload.  All visual changes live in the React bundle baked into each APK.
+
 > **🟢 v2.10.77 — In-app updates KILLED + EasyNews++ parity (synopsis + badges) + Kids rating in-place block (29 Jun 2026).**
 >
 > Three changes shipped at user request:

@@ -27,7 +27,15 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { qualityBadge, qualityTags, sizeLabel, toneColors } from '@/lib/streamMeta';
+import {
+    qualityBadge,
+    qualityTags,
+    sizeLabel,
+    toneColors,
+    nardResolutionIcon,
+    nardChips,
+    nardMetaLine,
+} from '@/lib/streamMeta';
 import * as img from '@/lib/img';
 
 // Inline streamMode helper — matches Detail.jsx's definition.
@@ -262,15 +270,20 @@ export default function StreamPickerModal({
                     <ul className="space-y-3">
                         {streams.map((s, i) => {
                             const mode = streamMode(s);
-                            const badge = qualityBadge(s);
-                            // v2.10.74 — Rich badges for each stream:
-                            // HDR family, audio codec (Atmos / DTS-HD
-                            // MA / DD+ / …), video codec (HEVC / AV1),
-                            // source type (REMUX / BluRay / WEB-DL).
-                            // Capped at 6 so the row never wraps to a
-                            // 3rd line on smaller modal widths.
-                            const tags = qualityTags(s).slice(0, 6);
-                            const size = sizeLabel(s);
+                            // v2.10.78 — NardBadges PNG icon set.
+                            // Left "badge tile" is now the resolution
+                            // PNG (4K / FHD / HD).  The secondary chip
+                            // row uses PNG icons for release type, HDR
+                            // family, audio codec, channels, video
+                            // codec — matching the look the user
+                            // pointed to in vowl313/NardBadges.
+                            const resIcon = nardResolutionIcon(s);
+                            const chips = nardChips(s).slice(0, 8);
+                            // Backwards-compat: keep text-quality
+                            // badge for streams that don't carry a
+                            // resolution token (rare).
+                            const fallbackBadge = !resIcon ? qualityBadge(s) : null;
+                            const metaLine = nardMetaLine(s);
                             const rawLabel = s.title || s.name || '(untitled)';
                             const titleLine = rawLabel.split('\n')[0];
                             const isCurrent = i === currentIdx;
@@ -299,31 +312,44 @@ export default function StreamPickerModal({
                                         <span
                                             className="shrink-0 flex flex-col items-center justify-center"
                                             style={{
-                                                width: badge ? 56 : 40,
+                                                width: 64,
                                                 minHeight: 48,
                                                 borderRadius: 10,
-                                                background: badge
-                                                    ? safeTone(badge.tone).bg
+                                                background: resIcon || fallbackBadge
+                                                    ? 'rgba(255,255,255,0.04)'
                                                     : 'rgba(93,200,255,0.16)',
-                                                color: badge
-                                                    ? safeTone(badge.tone).fg
+                                                color: fallbackBadge
+                                                    ? safeTone(fallbackBadge.tone).fg
                                                     : accent,
-                                                border: badge
-                                                    ? `1px solid ${safeTone(badge.tone).border}`
-                                                    : 'none',
+                                                border: fallbackBadge
+                                                    ? `1px solid ${safeTone(fallbackBadge.tone).border}`
+                                                    : '1px solid rgba(255,255,255,0.08)',
                                                 padding: '6px 4px',
                                             }}
                                         >
-                                            {badge ? (
+                                            {resIcon ? (
+                                                <img
+                                                    data-testid={`modal-stream-${i}-res-icon`}
+                                                    src={resIcon.url}
+                                                    alt={resIcon.label}
+                                                    style={{
+                                                        height: 26,
+                                                        width: 'auto',
+                                                        objectFit: 'contain',
+                                                        imageRendering: '-webkit-optimize-contrast',
+                                                    }}
+                                                    loading="lazy"
+                                                />
+                                            ) : fallbackBadge ? (
                                                 <span
                                                     style={{
                                                         fontSize:
-                                                            badge.label.length <= 3 ? 16 : 12,
+                                                            fallbackBadge.label.length <= 3 ? 16 : 12,
                                                         fontWeight: 800,
                                                         letterSpacing: '-0.02em',
                                                     }}
                                                 >
-                                                    {badge.label}
+                                                    {fallbackBadge.label}
                                                 </span>
                                             ) : (
                                                 <span style={{ fontSize: 14, fontWeight: 700 }}>
@@ -370,116 +396,88 @@ export default function StreamPickerModal({
                                                 )}
                                             </div>
                                             <div
-                                                className="vesper-mono flex items-center gap-1.5 flex-wrap"
+                                                className="flex items-center gap-2 flex-wrap"
                                                 style={{
-                                                    fontSize: 10,
-                                                    color: 'var(--vesper-text-3)',
-                                                    letterSpacing: '0.08em',
-                                                    marginTop: 6,
-                                                    textTransform: 'uppercase',
+                                                    marginTop: 8,
                                                 }}
                                             >
-                                                {/* v2.7.48 — addon source chip (TORRENTIO, MEDIAFUSION, COMET, …) */}
-                                                {s._addon_source && (
-                                                    <span
-                                                        data-testid={`modal-stream-${i}-source`}
+                                                {/* v2.10.78 — NardBadges PNG chip row.
+                                                    Release type (BluRay / WebDL / Remux),
+                                                    HDR family (DV / HDR10+ / HDR10 / HDR),
+                                                    audio codec (Atmos / DTS / DD+ / …),
+                                                    channel count, video codec, 3D —
+                                                    rendered as 22 px PNG icons hosted on
+                                                    github.com/vowl313/NardBadges so every
+                                                    addon's streams (Torrentio, EasyNews++,
+                                                    Plexio, MediaFusion…) share the same
+                                                    visual vocabulary. */}
+                                                {chips.map((c) => (
+                                                    <img
+                                                        key={`chip-${c.group}-${c.label}`}
+                                                        data-testid={`modal-stream-${i}-chip-${c.group}`}
+                                                        src={c.url}
+                                                        alt={c.label}
+                                                        title={c.label}
                                                         style={{
-                                                            padding: '2px 7px',
+                                                            height: 22,
+                                                            width: 'auto',
+                                                            objectFit: 'contain',
                                                             borderRadius: 4,
-                                                            background: 'rgba(93,200,255,0.14)',
-                                                            border: '1px solid rgba(93,200,255,0.30)',
-                                                            color: 'var(--vesper-blue-bright)',
-                                                            fontWeight: 700,
-                                                            letterSpacing: '0.14em',
+                                                            imageRendering: '-webkit-optimize-contrast',
+                                                        }}
+                                                        loading="lazy"
+                                                    />
+                                                ))}
+                                            </div>
+                                            <div
+                                                className="vesper-mono flex items-center gap-2.5 flex-wrap"
+                                                style={{
+                                                    fontSize: 11,
+                                                    color: 'var(--vesper-text-3)',
+                                                    letterSpacing: '0.04em',
+                                                    marginTop: 8,
+                                                }}
+                                            >
+                                                {/* v2.10.78 — NardBadges-style meta line:
+                                                    🔌 ADDON  ·  ⚡ Cached  ·  💾 Size  ·  🌱 Seeders.
+                                                    Emoji-led so each token reads at a
+                                                    glance even at low contrast. */}
+                                                {metaLine.map((m, mi) => (
+                                                    <span
+                                                        key={`meta-${mi}-${m.text}`}
+                                                        data-testid={`modal-stream-${i}-meta-${m.icon}`}
+                                                        style={{
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: 4,
+                                                            fontWeight: m.icon === '⚡' ? 700 : 500,
+                                                            color: m.icon === '⚡'
+                                                                ? '#7AEB8A'
+                                                                : 'var(--vesper-text-2)',
                                                         }}
                                                     >
-                                                        {s._addon_source}
+                                                        <span aria-hidden="true">{m.icon}</span>
+                                                        <span>{m.text}</span>
                                                     </span>
-                                                )}
-                                                {/* Premiumize-cached chip */}
-                                                {s._pm_cached && (
-                                                    <span
-                                                        data-testid={`modal-stream-${i}-cached`}
-                                                        style={{
-                                                            padding: '2px 7px',
-                                                            borderRadius: 4,
-                                                            background: 'rgba(122,235,138,0.16)',
-                                                            border: '1px solid rgba(122,235,138,0.35)',
-                                                            color: '#7AEB8A',
-                                                            fontWeight: 700,
-                                                            letterSpacing: '0.14em',
-                                                        }}
-                                                    >
-                                                        ⚡ CACHED
-                                                    </span>
-                                                )}
-                                                {/* English chip */}
+                                                ))}
                                                 {s._is_english && (
                                                     <span
+                                                        data-testid={`modal-stream-${i}-eng`}
                                                         style={{
-                                                            padding: '2px 7px',
-                                                            borderRadius: 4,
-                                                            background: 'rgba(255,255,255,0.06)',
-                                                            border: '1px solid rgba(255,255,255,0.15)',
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: 4,
                                                             color: 'var(--vesper-text-2)',
-                                                            fontWeight: 700,
-                                                            letterSpacing: '0.14em',
+                                                            fontWeight: 500,
                                                         }}
                                                     >
-                                                        🇬🇧 ENG
+                                                        <span aria-hidden="true">🇬🇧</span>
+                                                        <span>ENG</span>
                                                     </span>
                                                 )}
-                                                {/* v2.10.74 — Rich quality tags
-                                                    (HDR, DV, Atmos, HEVC, BluRay,
-                                                    WEB-DL, …) parsed from the
-                                                    stream title.  Per-tone colour
-                                                    so audio chips stay violet,
-                                                    HDR family gold, codecs cyan. */}
-                                                {tags.map((t, ti) => {
-                                                    const tone = safeTone(t.tone);
-                                                    return (
-                                                        <span
-                                                            key={`tag-${ti}-${t.label}`}
-                                                            data-testid={`modal-stream-${i}-tag-${t.label}`}
-                                                            style={{
-                                                                padding: '2px 7px',
-                                                                borderRadius: 4,
-                                                                background: tone.bg,
-                                                                border: `1px solid ${tone.border}`,
-                                                                color: tone.fg,
-                                                                fontWeight: 700,
-                                                                letterSpacing: '0.12em',
-                                                            }}
-                                                        >
-                                                            {t.label}
-                                                        </span>
-                                                    );
-                                                })}
-                                                {/* v2.10.74 — File-size pill (only
-                                                    when the title contains an
-                                                    obvious "12.4 GB" / "850 MB"
-                                                    token).  Helps the operator
-                                                    pick a link that won't choke
-                                                    the box. */}
-                                                {size && (
-                                                    <span
-                                                        data-testid={`modal-stream-${i}-size`}
-                                                        style={{
-                                                            padding: '2px 7px',
-                                                            borderRadius: 4,
-                                                            background: 'rgba(255,255,255,0.05)',
-                                                            border: '1px solid rgba(255,255,255,0.12)',
-                                                            color: 'var(--vesper-text-3)',
-                                                            fontWeight: 600,
-                                                            letterSpacing: '0.1em',
-                                                        }}
-                                                    >
-                                                        {size}
-                                                    </span>
-                                                )}
-                                                <span style={{ opacity: 0.7 }}>
+                                                <span style={{ opacity: 0.55 }}>
                                                     {mode === 'direct'
-                                                        ? 'direct stream'
+                                                        ? '◉ direct'
                                                         : mode === 'torrent'
                                                         ? 'magnet / torrent'
                                                         : mode}
