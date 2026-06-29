@@ -54,6 +54,30 @@ const keyProfiles    = () => BASE_PROFILES    + _accountSuffix();
 const keyActive      = () => BASE_ACTIVE      + _accountSuffix();
 const keyKidsConfig  = () => BASE_KIDS_CONFIG + _accountSuffix();
 
+/* v2.10.86 — Read-side fallback to BOTH suffixed (`:USERNAME`) and
+ * unsuffixed legacy keys.  Fixes a real-user race: on a fresh page
+ * load `vesper-auth-account-v1` is restored asynchronously by the
+ * auth bootstrap, so the very FIRST render of <RequireProfile> can
+ * see `_accountSuffix() === ''` and resolve `keyActive()` to the
+ * UNSUFFIXED key — missing the suffixed value that was actually
+ * written.  Result: user gets bounced to /profiles on every hard
+ * refresh.  Solution: on reads, try the suffixed key first and fall
+ * back to the unsuffixed legacy key if missing.  Writes still use
+ * the suffixed key only (no behaviour change there). */
+function _readBothScopes(baseKey) {
+    try {
+        const suffix = _accountSuffix();
+        if (suffix) {
+            const v = localStorage.getItem(baseKey + suffix);
+            if (v !== null) return v;
+        }
+        // Fallback to unsuffixed (legacy or pre-auth-hydration boot).
+        return localStorage.getItem(baseKey);
+    } catch {
+        return null;
+    }
+}
+
 const DEFAULT_KIDS_CONFIG = {
     maxRatingMovie: 'PG',
     maxRatingSeries: 'TV-PG',
