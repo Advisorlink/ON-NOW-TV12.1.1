@@ -495,35 +495,6 @@ jobs:
               echo '✅ Restart sequence finished.'
             "
 
-      - name: Ensure nginx forwards WebSocket Upgrade headers (Remote Support)
-        env:
-          SSHPASS: ${{ secrets.VPS_SSH_PASSWORD }}
-          VPS_HOST: ${{ steps.targets.outputs.host }}
-          VPS_USER: ${{ steps.targets.outputs.user }}
-          VPS_PATH: ${{ steps.detect.outputs.install_path }}
-        run: |
-          # v2.10.87 — Remote Support (Maintenance) uses a WebSocket
-          # at /launcher/api/support/{host,controller}/{sid}.  nginx
-          # vhosts originally configured only for plain HTTP do NOT
-          # forward Upgrade / Connection headers, so the browser sees
-          # an immediate 1006 close and the operator gets stuck on
-          # "Connecting…".
-          #
-          # The fix lives in scripts/fix_nginx_ws.sh (rsynced above).
-          # It's self-tested (`TEST=1 ./fix_nginx_ws.sh` runs 9 unit
-          # tests) so we can iterate on it like normal code instead
-          # of fighting nested heredocs in YAML.
-          sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
-            "$VPS_USER@$VPS_HOST" "
-              set -e
-              chmod +x '$VPS_PATH/scripts/fix_nginx_ws.sh' 2>/dev/null || true
-              if [ -x '$VPS_PATH/scripts/fix_nginx_ws.sh' ]; then
-                bash '$VPS_PATH/scripts/fix_nginx_ws.sh'
-              else
-                echo '::warning::scripts/fix_nginx_ws.sh missing on the VPS after rsync — Remote Support WebSocket may not work.'
-              fi
-            "
-
       - name: Smoke-test the launcher admin page
         run: |
           # Try the most common URLs people host the launcher under.
