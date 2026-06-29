@@ -424,39 +424,13 @@ jobs:
               else
                 cp -p "$CONF" "$CONF.bak.ws.$(date +%s)"
                 # Inject the three required directives + a sensible
-                # WS idle timeout into every `location` block that
-                # already does proxy_pass to 127.0.0.1:8002 (i.e. the
-                # launcher backend).  Idempotent: the grep above
-                # guards against double-injection.
-                python3 - "$CONF" << 'PYEOF'
-import re, sys, pathlib
-p = pathlib.Path(sys.argv[1])
-text = p.read_text()
-new_directives = (
-    "        proxy_http_version 1.1;\n"
-    "        proxy_set_header Upgrade $http_upgrade;\n"
-    "        proxy_set_header Connection \"upgrade\";\n"
-    "        proxy_read_timeout 3600s;\n"
-    "        proxy_send_timeout 3600s;\n"
-)
-# Find location blocks whose body contains proxy_pass to :8002 and
-# inject the WS directives right before that proxy_pass line.
-pattern = re.compile(
-    r'(location\b[^{]*\{[^}]*?)(\s*proxy_pass\s+http://(?:127\.0\.0\.1|localhost):8002[^;]*;)',
-    flags=re.DOTALL,
-)
-def repl(m):
-    head, pp = m.group(1), m.group(2)
-    if "proxy_set_header Upgrade" in head:
-        return m.group(0)
-    return head + "\n" + new_directives + pp
-new_text, n = pattern.subn(repl, text)
-if n > 0 and new_text != text:
-    p.write_text(new_text)
-    print(f"  patched {n} location block(s) in {p}")
-else:
-    print(f"  no location block matched in {p} — manual review may be needed")
-PYEOF
+                # WS idle timeout right BEFORE every proxy_pass line
+                # that targets the launcher backend (127.0.0.1:8002).
+                # Pure sed → no nested heredoc → no YAML drama.
+                # Idempotent: the outer grep already exited early
+                # if `proxy_set_header Upgrade` was present anywhere.
+                sed -i -E '/proxy_pass[[:space:]]+http:\/\/(127\.0\.0\.1|localhost):8002/i\        proxy_http_version 1.1;\n        proxy_set_header Upgrade $http_upgrade;\n        proxy_set_header Connection "upgrade";\n        proxy_read_timeout 3600s;\n        proxy_send_timeout 3600s;' "$CONF"
+                echo "  injected WS upgrade headers into $CONF"
                 if nginx -t 2>&1; then
                   systemctl reload nginx 2>/dev/null || nginx -s reload 2>/dev/null
                   echo "  WS-upgrade patch applied, nginx reloaded"
