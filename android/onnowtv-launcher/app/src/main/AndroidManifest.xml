@@ -14,6 +14,15 @@
          This is a normal permission (no runtime grant required). -->
     <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
 
+    <!-- v2.10.89 — Remote Support runs as a foreground service so
+         screen capture + input polling survive the user pressing
+         HOME or backgrounding the support activity.  Required on
+         Android 9+; mediaProjection foregroundServiceType is
+         REQUIRED on Android 14+. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <!-- Sideload APKs published from the admin backend. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- v2.8.5 — REQUEST_DELETE_PACKAGES is REQUIRED on Android 11+
@@ -143,6 +152,20 @@
             android:configChanges="orientation|keyboardHidden|screenSize|locale|fontScale|uiMode"
             android:theme="@style/Theme.OnNowLauncher.NoActionBar"
             android:screenOrientation="landscape" />
+
+        <!-- v2.10.89 — Foreground service that hosts MediaProjection,
+             screen capture, and the input long-poller.  The activity
+             above just collects the projection consent and hands
+             off; the service keeps running after the activity
+             finishes so the customer can navigate to the launcher
+             home and the operator still sees + controls it.
+             foregroundServiceType="mediaProjection" is REQUIRED on
+             Android 14+ for any service that calls
+             MediaProjectionManager.getMediaProjection(). -->
+        <service
+            android:name=".support.SupportForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
 
         <!-- v2.10.53 — Public APKM / split-APK installer.  Any other
              app on the box (Vesper, Live TV, Music, Kids…) fires the

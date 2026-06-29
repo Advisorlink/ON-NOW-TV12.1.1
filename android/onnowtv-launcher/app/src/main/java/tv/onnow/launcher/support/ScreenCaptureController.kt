@@ -46,7 +46,13 @@ class ScreenCaptureController(
 ) {
     companion object {
         private const val TAG = "ScreenCapture"
-        private const val TARGET_FPS = 6
+        // v2.10.89 — Bumped from 6 → 12 fps.  At our 960×540 capture
+        // size + JPEG quality 55 each frame is ~25-60 KB; 12 fps
+        // averages ~500 kbps, well within a typical Australian TV-
+        // box uplink.  The perceived responsiveness improvement is
+        // dramatic — feels closer to AnyDesk than to a stop-motion
+        // slideshow.
+        private const val TARGET_FPS = 12
         private const val JPEG_QUALITY = 55
     }
 
@@ -151,5 +157,17 @@ class ScreenCaptureController(
         projection = null
         handler = null
         handlerThread = null
+    }
+
+    /** v2.10.89 — Tell the capture loop "send the next frame ASAP",
+     *  ignoring the regular fps throttle.  Called by the input
+     *  poller after dispatching a burst of operator inputs so the
+     *  operator sees the screen update immediately rather than
+     *  waiting up to 1/TARGET_FPS for the next regular tick. */
+    fun requestImmediateFrame() {
+        // Resetting lastFrameAt to 0 makes the throttle check
+        // pass on the very next image-available callback, which
+        // typically fires within a few ms on a 60Hz display.
+        lastFrameAt = 0L
     }
 }

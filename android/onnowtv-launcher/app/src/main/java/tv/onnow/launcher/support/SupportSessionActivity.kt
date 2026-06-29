@@ -62,9 +62,8 @@ class SupportSessionActivity : ComponentActivity() {
     private lateinit var repo: LauncherRepository
     private var sessionId: String? = null
     private var sessionCode: String? = null
-    private var screenCapture: ScreenCaptureController? = null
-    @Volatile private var pollingActive = false
-    private var inputPollerThread: Thread? = null
+    // v2.10.89 — Activity no longer owns capture / polling state.
+    // Everything lives in SupportForegroundService now.
 
     private lateinit var codeView: TextView
     private lateinit var statusView: TextView
@@ -269,129 +268,39 @@ class SupportSessionActivity : ComponentActivity() {
     private fun startStreaming(resultCode: Int, data: Intent) {
         val sid = sessionId ?: return
         val base = repo.baseUrlPublic().trimEnd('/')
-        // v2.10.88 — Pure-HTTP session.  No WebSocket anywhere — the
-        // previous WS-based design got killed by Cloudflare's free
-        // plan idle timeout ~60-90s in.  Three HTTP endpoints do all
-        // the work:
-        //   POST  /api/support/host/hello/{sid}    — one-shot hello
-        //   POST  /api/support/host/frame/{sid}    — JPEG per frame
-        //   GET   /api/support/host/inputs/{sid}   — long-poll inputs
-        runOnUiThread { setStatus("Connected — waiting for technician…") }
-
-        // v2.10.89 — Open the persistent root shell NOW (while the
-        // user is still looking at the Support activity) so the
-        // Magisk superuser prompt appears exactly once, in a
-        // predictable place.  Subsequent input commands reuse the
-        // same shell — no more flashing dialog per key-press.
-        Thread {
-            val ok = RootInputDispatcher.ensureShell()
-            if (!ok) {
-                runOnUiThread {
-                    setStatus(
-                        "Could not get root shell — controls won't work. " +
-                            "Tap the superuser prompt to allow.",
-                        warn = true,
-                    )
-                }
-            }
-        }.also { it.isDaemon = true }.start()
-
-        // 1) POST hello once so the operator's panel can render
-        //    device-id + screen resolution immediately.
-        Thread {
-            try {
-                val hello = JSONObject().apply {
-                    put("device_id", deviceId())
-                    put("build", android.os.Build.MODEL ?: "unknown")
-                    put("screen_w", resources.displayMetrics.widthPixels)
-                    put("screen_h", resources.displayMetrics.heightPixels)
-                }.toString().toRequestBody("application/json".toMediaTypeOrNull())
-                val req = Request.Builder()
-                    .url("$base/api/support/host/hello/$sid")
-                    .post(hello).build()
-                ResilientHttp.client.newCall(req).execute().close()
-            } catch (t: Throwable) {
-                Log.w(TAG, "host/hello POST failed", t)
-            }
-        }.start()
-
-        // 2) Start streaming frames — the capture controller now
-        //    POSTs each JPEG to /host/frame/{sid}.
-        screenCapture = ScreenCaptureController(
-            this@SupportSessionActivity, resultCode, data,
-            "$base/api/support/host/frame/$sid",
-        )
-        screenCapture?.start()
-
-        // 3) Long-poll for operator inputs in a background thread.
-        pollingActive = true
-        inputPollerThread = Thread {
-            var since = 0L
-            while (pollingActive) {
-                try {
-                    val url = "$base/api/support/host/inputs/$sid?since=$since&wait=20"
-                    val req = Request.Builder().url(url).get().build()
-                    val resp = ResilientHttp.client.newCall(req).execute()
-                    val body = resp.use { it.body?.string().orEmpty() }
-                    if (body.isEmpty()) {
-                        Thread.sleep(500)
-                        continue
-                    }
-                    val parsed = JSONObject(body)
-                    val maxSeq = parsed.optLong("max_seq", since)
-                    if (maxSeq > since) since = maxSeq
-                    val arr = parsed.optJSONArray("inputs") ?: continue
-                    if (arr.length() == 0) continue
-                    runOnUiThread { setStatus("Technician connected — live") }
-                    for (i in 0 until arr.length()) {
-                        val item = arr.optJSONObject(i) ?: continue
-                        val payload = item.optJSONObject("payload") ?: continue
-                        RootInputDispatcher.handle(this@SupportSessionActivity, payload)
-                    }
-                } catch (t: Throwable) {
-                    if (!pollingActive) break
-                    Log.w(TAG, "input long-poll error", t)
-                    // Brief back-off so a flapping network doesn't
-                    // spin the CPU.
-                    try { Thread.sleep(1500) } catch (_: InterruptedException) { break }
-                }
-            }
-        }.also { it.isDaemon = true; it.start() }
-
-        // v2.10.89 — IMPORTANT: get the Support activity out of the
-        // way so MediaProjection captures the actual TV interface,
-        // not this code-display screen.  `moveTaskToBack(true)`
-        // keeps the activity ALIVE in the back stack (so screen
-        // capture + input polling keep running) but the launcher
-        // comes back to the foreground for the customer.  A 600 ms
-        // delay lets the "Connected" status be visible briefly so
-        // the customer knows the session started.
-        window.decorView.postDelayed({
-            try { moveTaskToBack(true) } catch (_: Throwable) {}
-        }, 600)
+        // v2.10.89 — Hand off to the foreground service.  The service
+        // takes ownership of MediaProjection, the persistent root
+        // shell, the screen-capture loop, AND the input long-poller,
+        // so all of those survive the activity finishing.  This is
+        // what makes the customer's launcher home naturally come
+        // back to the foreground (and to the captured screen) after
+        // they grant projection consent.
+        val svc = Intent(this, SupportForegroundService::class.java).apply {
+            action = SupportForegroundService.ACTION_START
+            putExtra(SupportForegroundService.EX_RESULT_CODE, resultCode)
+            putExtra(SupportForegroundService.EX_RESULT_DATA, data)
+            putExtra(SupportForegroundService.EX_SESSION_ID, sid)
+            putExtra(SupportForegroundService.EX_BASE_URL, base)
+            putExtra(SupportForegroundService.EX_DEVICE_ID, deviceId())
+        }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            startForegroundService(svc)
+        } else {
+            startService(svc)
+        }
+        // Finish so the launcher home returns to view.  The service
+        // keeps capturing + dispatching inputs in the background.
+        finish()
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        pollingActive = false
-        inputPollerThread?.interrupt()
-        inputPollerThread = null
-        screenCapture?.stop()
-        screenCapture = null
-        // v2.10.89 — Close the persistent root shell.
-        try { RootInputDispatcher.shutdown() } catch (_: Throwable) {}
-        sessionId?.let { sid ->
-            // Fire-and-forget cancel so the backend reaps fast.
-            Thread {
-                try {
-                    val body = JSONObject().apply { put("session_id", sid) }.toString()
-                        .toRequestBody("application/json".toMediaTypeOrNull())
-                    val url = repo.baseUrlPublic().trimEnd('/') + "/api/support/host/cancel"
-                    ResilientHttp.client.newCall(Request.Builder().url(url).post(body).build())
-                        .execute().close()
-                } catch (_: Throwable) { /* */ }
-            }.start()
-        }
+        // v2.10.89 — Activity no longer owns the session.  All the
+        // teardown logic (screen capture, input poller, shell,
+        // /host/cancel POST) lives in
+        // SupportForegroundService.onDestroy().  Stopping the
+        // service from outside (notification tap, or the operator
+        // hanging up) is the canonical way to end a session.
     }
 
     private fun deviceId(): String =
