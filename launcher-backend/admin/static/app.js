@@ -1206,29 +1206,43 @@ function bindDockHandlers() {
             const kind = act === 'upload-image' ? 'image'
                        : act === 'upload-wallpaper' ? 'wallpaper'
                        : 'apk';
-            const form = new FormData();
-            form.append('file', f);
-            // For APK uploads, also send any metadata the admin has
-            // already typed into the field row.  The endpoint persists
-            // them on the tile so the launcher can do version checks.
-            if (kind === 'apk') {
-                const li = inp.closest('li');
-                const pkgInput = li.querySelector('input[data-k="apk_package_id"]');
-                const verInput = li.querySelector('input[data-k="apk_version"]');
-                if (pkgInput && pkgInput.value.trim()) form.append('apk_package_id', pkgInput.value.trim());
-                if (verInput && verInput.value.trim()) form.append('apk_version',    verInput.value.trim());
-            }
             // Disable the picker so the operator can't fire a second
             // upload mid-flight (would invalidate the progress UI).
             inp.disabled = true;
             const li = inp.closest('li');
             const row = renderUploadProgress(li, kind, f);
             try {
-                const result = await uploadWithProgress(
-                    `/api/admin/dock/${encodeURIComponent(key)}/${kind}`,
-                    form,
-                    (ev) => row.update(ev, f),
-                );
+                let result;
+                if (kind === 'apk') {
+                    // v2.10.97 — Chunked upload bypasses the proxy
+                    // body cap (Cloudflare 100 MB / Nginx defaults).
+                    // For tile APKs we pin admin-typed package_id +
+                    // version overrides into the finalize body so the
+                    // server's behaviour matches the legacy single-
+                    // POST endpoint 1-for-1.
+                    const pkgInput = li.querySelector('input[data-k="apk_package_id"]');
+                    const verInput = li.querySelector('input[data-k="apk_version"]');
+                    const finalizeBody = { key };
+                    if (pkgInput && pkgInput.value.trim()) finalizeBody.apk_package_id = pkgInput.value.trim();
+                    if (verInput && verInput.value.trim()) finalizeBody.apk_version    = verInput.value.trim();
+                    result = await uploadInChunks({
+                        file: f,
+                        kind: 'dock-apk',
+                        finalizeBody,
+                        onProgress: (ev) => row.update(ev, f),
+                    });
+                } else {
+                    // Image / wallpaper — tiny, single POST is fine
+                    // and the legacy endpoint stays the source of
+                    // truth.  No chunked overhead.
+                    const form = new FormData();
+                    form.append('file', f);
+                    result = await uploadWithProgress(
+                        `/api/admin/dock/${encodeURIComponent(key)}/${kind}`,
+                        form,
+                        (ev) => row.update(ev, f),
+                    );
+                }
                 const friendly = kind === 'image' ? 'Tile image'
                               : kind === 'wallpaper' ? 'Wallpaper'
                               : 'APK';
@@ -1247,22 +1261,11 @@ function bindDockHandlers() {
                 toast(`${friendly} uploaded for ${key}${detail}`);
                 // v2.10.62 — Loud warning when the uploaded APK's
                 // manifest package doesn't match the tile's target.
-                // This is the guard-rail against the "I uploaded
-                // Vesper to the FTA tile and clicked Install on the
-                // TV — it installed Vesper" disaster.  We surface
-                // it as a sticky red toast AND inline under the
-                // upload bar so the operator has to actively
-                // acknowledge before moving on.  When a warning
-                // fires we deliberately skip the auto-refresh so
-                // the operator actually reads the amber bar instead
-                // of having it wiped by the dock re-render.
                 const warning = (kind === 'apk' && result && result.package_mismatch_warning) || null;
                 if (warning) {
                     toast(warning, true);
                     row.warn(warning);
                 } else {
-                    // Hold the success state visible briefly BEFORE
-                    // refreshAll() wipes the dock list and re-renders.
                     setTimeout(() => refreshAll(), 900);
                 }
             } catch (e) {

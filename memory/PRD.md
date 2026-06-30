@@ -1,5 +1,24 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.97c — Dock-tile APK chunked upload (the actual fix for the 116 MB Vesper stuck-at-1.4 MB bug) (30 Jun 2026).**
+>
+> Follow-up to v2.10.97b.  The first chunked-upload drop wired the App Store + Home Update dropzones but the operator was uploading via the **Dock** tab (the per-tile APK uploader at `/api/admin/dock/{key}/apk`) — a third upload path that was still using a single-POST request and getting truncated at the Cloudflare 100 MB body cap.
+>
+> Verified via the operator's screen-recording: the stuck state happens on the Dock tile uploader, on the Movies/TV tile, with filename `omnewtv-v2-debug (69).apk` size 116.1 MB.  Progress label shows "Uploading… 1% · 1.4 MB / 116.1 MB" and freezes.
+>
+> Fix — extend the chunked finalize endpoint to handle a third kind:
+>
+> **Backend** (`launcher-backend/main.py`):
+>   • `POST /api/admin/uploads/chunk/finalize/{upload_id}` body now accepts **`kind: "dock-apk"`** in addition to `apk` and `home-update`.  When `kind=dock-apk`, the body must also include `key` (the dock tile key, e.g. `"movies"`), and optional admin overrides `apk_package_id` + `apk_version`.  Renames the staging file to `tile_apks/tile-{key}-{rand}.apk`, drops the previous tile APK, runs the same `inspect_apk` metadata extraction, applies the package-mismatch guard rail, and stamps a fresh `apk_build_id` — 1-for-1 behavior parity with the legacy `/api/admin/dock/{key}/apk` single-POST endpoint.
+>
+> **Admin UI** (`launcher-backend/admin/static/app.js`):
+>   • The Dock-tab APK file input now branches: `kind=apk` (tile APK) → `uploadInChunks({kind:'dock-apk', finalizeBody:{key, apk_package_id, apk_version}})`.  Image + wallpaper uploads on the same tile keep their existing single-POST path (they're tiny, well under any proxy cap, no need for chunked overhead).
+>
+> End-to-end verified: 15 MB random blob uploaded as 4×4 MB chunks → finalize with `kind=dock-apk, key=movies, apk_package_id=tv.test.dummy, apk_version=1.2.3` → tile-apk record correctly updated, fresh build_id stamped, package-mismatch warning fired as expected (test pkg ≠ tile's `target_package`).  30-chunk init for the operator's actual filename + size returns a clean upload_id.  Cleanup deletes the test pin cleanly via the existing DELETE endpoint.
+>
+> Touched: `launcher-backend/main.py` (+80 lines: new `kind=dock-apk` branch in the finalize endpoint), `launcher-backend/admin/static/app.js` (~30 lines: dock-tile uploader branches on `kind==='apk'` to use chunked).
+
+
 > **🟢 v2.10.97b — Chunked APK upload (Vesper 116 MB build no longer stuck) (30 Jun 2026).**
 >
 > Operator P0: "I'm trying to upload the new Vesper build to the backend and it's stuck at 1.4 MB.  Other APKs work fine.  Vesper APK is 116 MB.  We really need to make sure that doesn't get stuck."

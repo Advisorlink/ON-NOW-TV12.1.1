@@ -2909,8 +2909,8 @@ async def upload_chunk_finalize(
         )
 
     kind = str(payload.get("kind") or "").lower().strip()
-    if kind not in {"apk", "home-update"}:
-        raise HTTPException(400, "kind must be 'apk' or 'home-update'")
+    if kind not in {"apk", "home-update", "dock-apk"}:
+        raise HTTPException(400, "kind must be 'apk', 'home-update', or 'dock-apk'")
 
     src_path = _chunk_path(upload_id)
     if not src_path.exists():
@@ -2994,6 +2994,87 @@ async def upload_chunk_finalize(
         _save_store(store)
         _chunk_uploads.pop(upload_id, None)
         return {"ok": True, "apk": entry, "auto_detected": meta}
+
+    # kind == "home-update"  (or "dock-apk" — see branch right above)
+    if kind == "dock-apk":
+        tile_key = str(payload.get("key") or "").strip()
+        if not tile_key:
+            raise HTTPException(400, "dock-apk requires `key` (tile key)")
+        if not filename.lower().endswith(".apk"):
+            raise HTTPException(400, "dock-apk requires a plain .apk file")
+        store = _load_store()
+        tile = _find_tile(store, tile_key)
+        safe_name = f"tile-{tile_key}-{uuid.uuid4().hex[:8]}.apk"
+        target = DATA_DIR / "tile_apks" / safe_name
+        try:
+            src_path.rename(target)
+        except OSError:
+            shutil.copy(src_path, target)
+            src_path.unlink(missing_ok=True)
+        # Drop the previous APK file so we don't accumulate orphans.
+        _delete_tile_asset_file(tile.get("apk_url"))
+        tile["apk_url"]      = f"/assets/tile_apks/{safe_name}"
+        tile["apk_filename"] = filename
+        # Fresh build-id so the launcher's per-tile UPDATE pill fires
+        # unconditionally on the next box poll (matches the legacy
+        # /api/admin/dock/{key}/apk endpoint behaviour).
+        tile["apk_build_id"] = uuid.uuid4().hex
+
+        extracted_pkg: Optional[str] = None
+        extracted_ver: Optional[str] = None
+        try:
+            from apk_meta import inspect_apk
+            meta = await asyncio.to_thread(
+                inspect_apk,
+                target,
+                DATA_DIR / "apk_icons",
+                f"_tile_{tile_key}_{uuid.uuid4().hex[:6]}",
+            )
+            if isinstance(meta, dict):
+                extracted_pkg = (meta.get("package_id") or "").strip() or None
+                extracted_ver = (meta.get("version_name") or "").strip() or None
+        except Exception as exc:                                     # noqa: BLE001
+            log.warning("inspect_apk failed for tile %s: %s", tile_key, exc)
+
+        admin_pkg = (payload.get("apk_package_id") or "").strip() or None
+        admin_ver = (payload.get("apk_version") or "").strip() or None
+        if admin_pkg:
+            tile["apk_package_id"] = admin_pkg
+        elif extracted_pkg:
+            tile["apk_package_id"] = extracted_pkg
+        if admin_ver:
+            tile["apk_version"] = admin_ver
+        elif extracted_ver:
+            tile["apk_version"] = extracted_ver
+
+        # Same target-package mismatch guard rail as the legacy endpoint.
+        mismatch_warning = None
+        target_pkg = (tile.get("target_package") or "").strip()
+        final_apk_pkg = (tile.get("apk_package_id") or "").strip()
+        if target_pkg and final_apk_pkg and target_pkg != final_apk_pkg:
+            mismatch_warning = (
+                f"⚠ APK contains package '{final_apk_pkg}' but this tile's "
+                f"target_package is '{target_pkg}'. The launcher will install "
+                f"'{final_apk_pkg}' (not '{target_pkg}') when the user clicks "
+                f"the tile's INSTALL pill. Re-upload the correct APK if this "
+                f"isn't what you intended."
+            )
+
+        _save_store(store)
+        _chunk_uploads.pop(upload_id, None)
+        return {
+            "ok": True,
+            "apk_url": _abs(tile["apk_url"]),
+            "apk_filename": tile["apk_filename"],
+            "apk_package_id": tile.get("apk_package_id"),
+            "apk_version": tile.get("apk_version"),
+            "auto_extracted": {
+                "package_id": extracted_pkg,
+                "version_name": extracted_ver,
+            },
+            "package_mismatch_warning": mismatch_warning,
+            "generation": store["generation"],
+        }
 
     # kind == "home-update"
     if not filename.lower().endswith(".apk"):
