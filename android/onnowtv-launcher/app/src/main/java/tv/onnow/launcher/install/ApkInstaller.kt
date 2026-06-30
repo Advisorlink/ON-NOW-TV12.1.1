@@ -102,6 +102,35 @@ object ApkInstaller {
             // auto-resume install after uninstall) OR the legacy
             // launchUninstallPrompt fallback.
             val conflict = detectSignatureConflict(ctx, out)
+
+            // v2.10.93 — On rooted boxes (the customer's case), bypass
+            // the whole intent-based install dance + signature-
+            // conflict prompt.  A detached root shell does
+            // `pm install -r -d` first, falls back to
+            // `pm uninstall && pm install` on signature mismatch,
+            // and survives the launcher being SIGKILLed mid-update.
+            // This is what the customer wants when they say "always
+            // has to update to the new one — uninstall the other
+            // one automatically and reinstall this".
+            if (RootApkInstaller.isRootAvailable()) {
+                // For a fresh install (no conflicting package yet),
+                // we still pass packageName so the post-install
+                // `am start` knows what to relaunch.
+                val apkPkg = conflict
+                    ?: ctx.packageManager.getPackageArchiveInfo(out.absolutePath, 0)?.packageName
+                    ?: ctx.packageName
+                // relaunch=true ONLY when we're updating the launcher
+                // itself; otherwise leave the user where they were.
+                val relaunch = (apkPkg == ctx.packageName)
+                val ok = RootApkInstaller.install(ctx, out, apkPkg, relaunch = relaunch)
+                if (ok) {
+                    Log.i(TAG, "root install launched for $apkPkg (relaunch=$relaunch)")
+                    return@withContext null
+                }
+                Log.w(TAG, "root install launch failed; falling back to intent flow")
+                // Falls through to the legacy intent-based path.
+            }
+
             if (conflict != null) {
                 if (onConflict != null) {
                     // v2.10.75 — Hand the conflict to the caller so
