@@ -46,14 +46,12 @@ class ScreenCaptureController(
 ) {
     companion object {
         private const val TAG = "ScreenCapture"
-        // v2.10.89 — Bumped from 6 → 12 fps.  At our 960×540 capture
-        // size + JPEG quality 45 each frame is ~20-45 KB; 12 fps
-        // averages ~400 kbps, well within a typical Australian TV-
-        // box uplink.
-        // v2.10.90 — Quality lowered 55 → 45 for ~20% smaller frames
-        // and faster upload over slow ADSL/4G uplinks.  Text in the
-        // launcher menus is still legible.
-        private const val TARGET_FPS = 12
+        // v2.10.91 — Bumped 12 → 15 fps now that the operator side
+        // is on a persistent streaming HTTP connection (no per-frame
+        // request overhead).  At 960×540 / quality 45 each frame
+        // averages ~22 KB → 15 fps ≈ 350 kbps, still well within
+        // a typical Aussie ADSL/4G uplink.
+        private const val TARGET_FPS = 15
         private const val JPEG_QUALITY = 45
     }
 

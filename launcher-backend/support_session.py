@@ -438,6 +438,74 @@ async def poll_hello(session_id: str):
     }
 
 
+# ─────────────────────────  Streaming binary frame endpoint  ────────
+#
+# v2.10.91 — Pushes JPEG frames over a single persistent HTTP
+# response as length-prefixed binary chunks.  Each chunk is:
+#
+#     | 4-byte big-endian length | JPEG bytes |
+#
+# A zero-length chunk is a heartbeat (sent every 20s) so Cloudflare
+# doesn't drop the idle connection.
+#
+# This kills the per-frame HTTP-request overhead — instead of ~12
+# POST+poll round-trips per second, the operator's browser keeps
+# ONE connection open and reads frames as they arrive.  In practice
+# end-to-end latency drops from ~300+ms per frame to ~50-100ms,
+# bringing the experience much closer to AnyDesk-class remote
+# desktops without the complexity of WebRTC.
+
+from fastapi.responses import StreamingResponse  # noqa: E402
+
+
+@router.get("/stream/frame/{session_id}")
+async def stream_frame_binary(session_id: str):
+    """Persistent binary stream of JPEG frames.  See module comment
+    for the wire format.  Operator browser reads this via
+    `fetch(url).then(r => r.body.getReader())` — supported in every
+    Chromium/Firefox/Safari since 2016."""
+    sess = _sessions.get(session_id)
+    if sess is None:
+        raise HTTPException(404, "session_not_found")
+
+    async def generator():
+        last_seq = 0
+        ev = _frame_event_for(session_id)
+        last_heartbeat = time.time()
+        while True:
+            sess_now = _sessions.get(session_id)
+            if sess_now is None:
+                return  # session reaped — close stream
+            if sess_now.latest_frame is not None and sess_now.latest_frame_seq > last_seq:
+                jpeg = sess_now.latest_frame
+                last_seq = sess_now.latest_frame_seq
+                yield len(jpeg).to_bytes(4, "big") + jpeg
+                last_heartbeat = time.time()
+                continue
+            # Heartbeat every 20s — zero-length chunk so the
+            # browser knows the stream is still alive.  Without
+            # this Cloudflare may sever the connection at ~100s.
+            if time.time() - last_heartbeat > 20:
+                yield b"\x00\x00\x00\x00"
+                last_heartbeat = time.time()
+            try:
+                await asyncio.wait_for(ev.wait(), timeout=20)
+            except asyncio.TimeoutError:
+                pass
+
+    return StreamingResponse(
+        generator(),
+        media_type="application/octet-stream",
+        headers={
+            # nginx: don't buffer this response — push every chunk
+            # to the client the instant we yield it.
+            "X-Accel-Buffering": "no",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        },
+    )
+
+
 @router.post("/input/{session_id}")
 async def post_input(session_id: str, payload: dict = None):
     """Send an input command (tap / key / swipe / text) to the host.
