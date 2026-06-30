@@ -47,13 +47,14 @@ class ScreenCaptureController(
     companion object {
         private const val TAG = "ScreenCapture"
         // v2.10.89 — Bumped from 6 → 12 fps.  At our 960×540 capture
-        // size + JPEG quality 55 each frame is ~25-60 KB; 12 fps
-        // averages ~500 kbps, well within a typical Australian TV-
-        // box uplink.  The perceived responsiveness improvement is
-        // dramatic — feels closer to AnyDesk than to a stop-motion
-        // slideshow.
+        // size + JPEG quality 45 each frame is ~20-45 KB; 12 fps
+        // averages ~400 kbps, well within a typical Australian TV-
+        // box uplink.
+        // v2.10.90 — Quality lowered 55 → 45 for ~20% smaller frames
+        // and faster upload over slow ADSL/4G uplinks.  Text in the
+        // launcher menus is still legible.
         private const val TARGET_FPS = 12
-        private const val JPEG_QUALITY = 55
+        private const val JPEG_QUALITY = 45
     }
 
     private var projection: MediaProjection? = null

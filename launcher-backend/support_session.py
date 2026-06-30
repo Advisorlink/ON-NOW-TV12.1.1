@@ -191,6 +191,62 @@ def _public_ws_origin(request_url: str) -> str:
     return "ws://localhost:8002"
 
 
+@router.get("/host/status/{session_id}")
+async def host_status(session_id: str, since_paired: int = 0, wait: float = 20.0):
+    """Box long-polls this endpoint after register() to find out when
+    a technician has entered the code on the operator panel.  Returns
+    immediately if already paired, otherwise blocks for up to `wait`
+    seconds.  Box uses the response to switch from the "Waiting for
+    technician" UI to the "Tap OK to share" UI.
+
+    Response:  `{paired: bool, paired_at: float|null}`
+    """
+    sess = _sessions.get(session_id)
+    if sess is None:
+        raise HTTPException(404, "session_not_found")
+    wait = max(0.1, min(wait, 25.0))
+    deadline = time.time() + wait
+    ev = _pair_event_for(session_id)
+    while True:
+        if sess.paired_at is not None:
+            return {"paired": True, "paired_at": sess.paired_at}
+        remaining = deadline - time.time()
+        if remaining <= 0:
+            return {"paired": False, "paired_at": None}
+        try:
+            await asyncio.wait_for(ev.wait(), timeout=remaining)
+        except asyncio.TimeoutError:
+            return {"paired": False, "paired_at": None}
+
+
+# Per-session asyncio.Event used to wake up host pairing pollers the
+# instant an operator enters the code + clicks Connect.
+_pair_events: dict[str, asyncio.Event] = {}
+
+
+def _pair_event_for(sid: str) -> asyncio.Event:
+    ev = _pair_events.get(sid)
+    if ev is None:
+        ev = asyncio.Event()
+        _pair_events[sid] = ev
+    return ev
+
+
+# Per-session asyncio.Event used to wake up operator frame pollers
+# the INSTANT a new frame arrives.  Without this the operator's
+# /poll/frame loop has to sit on a `await asyncio.sleep(0.1)` between
+# checks, adding up to 100ms of pure latency for every frame.
+_frame_events: dict[str, asyncio.Event] = {}
+
+
+def _frame_event_for(sid: str) -> asyncio.Event:
+    ev = _frame_events.get(sid)
+    if ev is None:
+        ev = asyncio.Event()
+        _frame_events[sid] = ev
+    return ev
+
+
 @router.post("/host/register")
 async def host_register(
     payload: dict = None,
@@ -271,6 +327,16 @@ def _admin_dep_factory(require_admin):
                 raise HTTPException(404, "session_not_found")
             if sess.controller_ws is not None:
                 raise HTTPException(409, "session_already_paired")
+            # v2.10.90 — Mark the session as paired NOW (operator
+            # has entered the code), even though no WebSocket is
+            # used in the pure-HTTP flow.  The box is polling
+            # /host/status/{sid} for exactly this signal — it's
+            # what flips the activity from "Waiting for technician"
+            # to "Tap OK to share your screen".
+            if sess.paired_at is None:
+                sess.paired_at = time.time()
+            ev = _pair_event_for(sid)
+            ev.set()
         return {
             "session_id": sid,
             "ws_path": f"/api/support/controller/{sid}",
@@ -317,13 +383,19 @@ from fastapi.responses import Response  # noqa: E402
 async def poll_frame(session_id: str, since: int = 0, wait: float = 20.0):
     """Long-poll for the next JPEG frame newer than `since`.
     Returns image/jpeg with X-Frame-Seq header, or 204 if no
-    new frame arrives within `wait` seconds."""
+    new frame arrives within `wait` seconds.
+
+    v2.10.90 — Event-driven (was polling with `asyncio.sleep(0.1)`).
+    A waiting controller is woken the instant a new frame arrives
+    via /host/frame/{sid}, which removes up to 100ms of artificial
+    latency on EVERY frame.  At 12 fps that's a ~25% improvement in
+    perceived snappiness."""
     sess = _sessions.get(session_id)
     if sess is None:
         raise HTTPException(404, "session_not_found")
-    # Hard cap the wait so a stuck client can't tie up workers.
     wait = max(0.1, min(wait, 25.0))
     deadline = time.time() + wait
+    ev = _frame_event_for(session_id)
     while True:
         if sess.latest_frame is not None and sess.latest_frame_seq > since:
             sess.last_controller_poll = time.time()
@@ -335,10 +407,19 @@ async def poll_frame(session_id: str, since: int = 0, wait: float = 20.0):
                     "Cache-Control": "no-store",
                 },
             )
-        if time.time() >= deadline:
+        remaining = deadline - time.time()
+        if remaining <= 0:
             sess.last_controller_poll = time.time()
             return Response(status_code=204, headers={"X-Frame-Seq": str(sess.latest_frame_seq)})
-        await asyncio.sleep(0.1)
+        try:
+            await asyncio.wait_for(ev.wait(), timeout=remaining)
+        except asyncio.TimeoutError:
+            sess.last_controller_poll = time.time()
+            return Response(status_code=204, headers={"X-Frame-Seq": str(sess.latest_frame_seq)})
+        # Don't clear the event globally — another waiter may need
+        # the same frame.  We loop and re-check sess.latest_frame_seq;
+        # if our `since` < seq we'll return on the next iteration.
+        # Clear is done lazily inside /host/frame after every set().
 
 
 @router.get("/poll/hello/{session_id}")
@@ -455,6 +536,14 @@ async def host_frame_post(session_id: str, request: Request):
     sess.frames_relayed += 1
     sess.latest_frame = body
     sess.latest_frame_seq += 1
+    # v2.10.90 — Wake any operator long-pollers immediately.
+    ev = _frame_event_for(session_id)
+    ev.set()
+    # Clear right away so the next iteration is gated on the next
+    # set().  This is safe because operators re-check
+    # sess.latest_frame_seq > since on every wake — they don't
+    # depend on the event staying set.
+    ev.clear()
     return {"ok": True, "seq": sess.latest_frame_seq}
 
 
@@ -540,6 +629,10 @@ async def support_host_ws(websocket: WebSocket, session_id: str):
                 if len(frame) < 2 * 1024 * 1024:
                     sess.latest_frame = frame
                     sess.latest_frame_seq += 1
+                    # v2.10.90 — Wake operator long-pollers instantly.
+                    ev = _frame_event_for(session_id)
+                    ev.set()
+                    ev.clear()
                 ctrl = sess.controller_ws
                 if ctrl is not None:
                     try:

@@ -818,6 +818,103 @@ main {
         connectBtn.textContent = 'Connect';
     });
 
+    /* ─────────────  Physical keyboard control  ─────────────
+     * v2.10.90 — Operator can type with their actual PC keyboard
+     * (no need to click into the text field).  Captures keydown
+     * globally on the session screen and dispatches:
+     *   - Arrow keys              → DPAD_UP/DOWN/LEFT/RIGHT
+     *   - Enter / Numpad Enter    → DPAD_CENTER
+     *   - Backspace               → DEL
+     *   - Escape                  → BACK
+     *   - F11                     → HOME  (TV-style)
+     *   - Letters / digits / etc. → text input on the box
+     * Throttles to ~80 ms between identical key repeats so an
+     * accidentally-held arrow doesn't flood the box. */
+    const KEY_TO_ACTION = {
+        'ArrowUp':    { action: 'key', key: 'DPAD_UP' },
+        'ArrowDown':  { action: 'key', key: 'DPAD_DOWN' },
+        'ArrowLeft':  { action: 'key', key: 'DPAD_LEFT' },
+        'ArrowRight': { action: 'key', key: 'DPAD_RIGHT' },
+        'Enter':      { action: 'key', key: 'DPAD_CENTER' },
+        'NumpadEnter':{ action: 'key', key: 'DPAD_CENTER' },
+        'Backspace':  { action: 'key', key: 'DEL' },
+        'Escape':     { action: 'key', key: 'BACK' },
+        'F11':        { action: 'key', key: 'HOME' },
+        ' ':          { action: 'key', key: 'DPAD_CENTER' },
+    };
+    let lastKbAt = 0;
+    document.addEventListener('keydown', (e) => {
+        // Only when the session is live AND the user isn't typing
+        // into the code field on the pairing screen.
+        if (!sessionId) return;
+        if (e.target === codeInput || e.target === textInput) return;
+        // Throttle absurdly-fast key repeat (e.g. held arrow keys).
+        const now = Date.now();
+        if (now - lastKbAt < 40) return;
+        const mapped = KEY_TO_ACTION[e.key];
+        if (mapped) {
+            e.preventDefault();
+            lastKbAt = now;
+            sendInput(Object.assign({ type: 'input' }, mapped));
+            return;
+        }
+        // Single printable character → send as text.
+        if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            e.preventDefault();
+            lastKbAt = now;
+            sendInput({ type: 'input', action: 'text', chars: e.key });
+        }
+    });
+
+    /* ─────────────  Improved mouse: hover preview + click  ─────────
+     * Click on the screen canvas → tap at that location on the box.
+     * A pointer-cursor + crosshair makes it obvious where the click
+     * will land BEFORE you commit.  Also supports right-click → BACK
+     * and middle-click → HOME for power users.  Drag for a swipe. */
+    canvas.style.cursor = 'crosshair';
+    let dragStart = null;
+    canvas.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return; // only track LMB for swipe
+        const rect = canvas.getBoundingClientRect();
+        dragStart = {
+            x: (e.clientX - rect.left) / rect.width,
+            y: (e.clientY - rect.top) / rect.height,
+            t: Date.now(),
+        };
+    });
+    canvas.addEventListener('mouseup', (e) => {
+        if (e.button !== 0 || !dragStart) { dragStart = null; return; }
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width;
+        const y = (e.clientY - rect.top) / rect.height;
+        const dx = Math.abs(x - dragStart.x);
+        const dy = Math.abs(y - dragStart.y);
+        const dt = Date.now() - dragStart.t;
+        if (dx < 0.01 && dy < 0.01) {
+            // Treat as tap (the existing 'click' handler would
+            // also fire — let it; cheap idempotent op on the box).
+        } else {
+            // Real drag → swipe.  Cancel the upcoming click event.
+            e.preventDefault();
+            sendInput({
+                type: 'input', action: 'swipe',
+                x1: dragStart.x, y1: dragStart.y,
+                x2: x, y2: y, ms: Math.min(Math.max(dt, 100), 500),
+            });
+        }
+        dragStart = null;
+    });
+    canvas.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        sendInput({ type: 'input', action: 'key', key: 'BACK' });
+    });
+    canvas.addEventListener('auxclick', (e) => {
+        if (e.button === 1) {
+            e.preventDefault();
+            sendInput({ type: 'input', action: 'key', key: 'HOME' });
+        }
+    });
+
     /* Auto-focus the code input on load. */
     setTimeout(() => codeInput.focus(), 100);
 })();

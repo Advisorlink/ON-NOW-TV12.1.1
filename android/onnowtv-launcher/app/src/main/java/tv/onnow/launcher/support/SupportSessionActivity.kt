@@ -62,6 +62,9 @@ class SupportSessionActivity : ComponentActivity() {
     private lateinit var repo: LauncherRepository
     private var sessionId: String? = null
     private var sessionCode: String? = null
+    @Volatile private var paired: Boolean = false
+    @Volatile private var pairingPollerActive: Boolean = true
+    private var pairingPollerThread: Thread? = null
     // v2.10.89 — Activity no longer owns capture / polling state.
     // Everything lives in SupportForegroundService now.
 
@@ -253,8 +256,67 @@ class SupportSessionActivity : ComponentActivity() {
             sessionId = resp.optString("session_id")
             sessionCode = resp.optString("code")
             codeView.text = formatCode(sessionCode!!)
-            startMediaProjectionConsent()
+            // v2.10.90 — DO NOT auto-request MediaProjection here.
+            // On rooted / system-trusted boxes the consent dialog
+            // can auto-grant in <100ms, finishing the activity
+            // before the customer can even read the code.  Instead,
+            // long-poll /host/status/{sid} and only request screen
+            // permission once the operator has actually entered
+            // the code on their laptop and clicked Connect.
+            startPairingPoller()
         }
+    }
+
+    private fun startPairingPoller() {
+        val sid = sessionId ?: return
+        val base = repo.baseUrlPublic().trimEnd('/')
+        pairingPollerThread = Thread {
+            while (pairingPollerActive && !paired) {
+                try {
+                    val url = "$base/api/support/host/status/$sid?wait=20"
+                    val req = Request.Builder().url(url).get().build()
+                    val body = ResilientHttp.client.newCall(req).execute()
+                        .use { it.body?.string().orEmpty() }
+                    if (body.isEmpty()) continue
+                    val parsed = JSONObject(body)
+                    if (parsed.optBoolean("paired", false)) {
+                        paired = true
+                        runOnUiThread { onTechnicianPaired() }
+                        return@Thread
+                    }
+                } catch (t: Throwable) {
+                    if (!pairingPollerActive) return@Thread
+                    Log.w(TAG, "pairing poll error", t)
+                    try { Thread.sleep(1500) } catch (_: InterruptedException) { return@Thread }
+                }
+            }
+        }.also { it.isDaemon = true; it.start() }
+    }
+
+    private fun onTechnicianPaired() {
+        // Visual feedback — customer now sees that the operator is
+        // on the line and is being asked to authorise screen share.
+        setStatus("Technician connected — press OK on your remote to share screen", warn = false)
+        subtitleView.text =
+            "Pressing OK / SELECT will show the Android screen-share permission.\n" +
+                "Tap \"Start now\" on that prompt to begin the support session."
+        // Visual cue on the code: dim it so the user knows the
+        // important action is now the OK key, not the code.
+        codeView.setTextColor(0x665DC8FF.toInt())
+    }
+
+    /** Capture DPAD_CENTER / ENTER as the consent trigger so the
+     *  customer doesn't have to find any on-screen button.  Any
+     *  other key (or BACK) is handled by the default behaviour
+     *  (BACK = finish the activity). */
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
+        if (paired && (keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER
+                    || keyCode == android.view.KeyEvent.KEYCODE_ENTER
+                    || keyCode == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER)) {
+            startMediaProjectionConsent()
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
     }
 
     private fun formatCode(c: String): String =
@@ -295,12 +357,17 @@ class SupportSessionActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // v2.10.89 — Activity no longer owns the session.  All the
-        // teardown logic (screen capture, input poller, shell,
-        // /host/cancel POST) lives in
-        // SupportForegroundService.onDestroy().  Stopping the
-        // service from outside (notification tap, or the operator
-        // hanging up) is the canonical way to end a session.
+        // v2.10.90 — Stop the pairing poller if still active.
+        pairingPollerActive = false
+        pairingPollerThread?.interrupt()
+        pairingPollerThread = null
+        // v2.10.89 — Activity no longer owns the streaming session.
+        // All teardown for an ACTIVE session (capture, polling,
+        // shell, /host/cancel POST) lives in
+        // SupportForegroundService.onDestroy().  If the user backs
+        // out of this screen BEFORE pairing, the session reaper on
+        // the backend will clean up the stale code after a few
+        // minutes — no explicit cancel needed.
     }
 
     private fun deviceId(): String =
