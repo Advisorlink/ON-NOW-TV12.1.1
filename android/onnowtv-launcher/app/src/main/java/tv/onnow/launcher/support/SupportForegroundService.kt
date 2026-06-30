@@ -127,6 +127,11 @@ class SupportForegroundService : Service() {
         //    polls — the backend's `wait` parameter is the
         //    throttle, and inputs return immediately when one
         //    arrives.
+        //    v2.10.94 — Use `longPollClient` (30s readTimeout) so
+        //    okhttp doesn't time out before the backend's 20s hold
+        //    window completes.  Eliminates the 1.5-3s input-lag
+        //    pulses caused by the previous 15s timeout + 1500ms
+        //    error sleep cycle.
         pollingActive = true
         inputPollerThread = Thread {
             var since = 0L
@@ -134,7 +139,7 @@ class SupportForegroundService : Service() {
                 try {
                     val url = "${baseUrl}/api/support/host/inputs/$sid?since=$since&wait=20"
                     val req = Request.Builder().url(url).get().build()
-                    val body = ResilientHttp.client.newCall(req).execute()
+                    val body = ResilientHttp.longPollClient.newCall(req).execute()
                         .use { it.body?.string().orEmpty() }
                     if (body.isEmpty()) continue
                     val parsed = JSONObject(body)
@@ -156,7 +161,12 @@ class SupportForegroundService : Service() {
                 } catch (t: Throwable) {
                     if (!pollingActive) break
                     Log.w(TAG, "input long-poll error", t)
-                    try { Thread.sleep(1500) } catch (_: InterruptedException) { break }
+                    // v2.10.94 — Was Thread.sleep(1500) which created
+                    // a 1.5-3s "deaf" window where any operator input
+                    // arrived too late.  Now: tiny jitter to avoid a
+                    // thundering-herd reconnect on transient network
+                    // hiccups, then retry.
+                    try { Thread.sleep(50) } catch (_: InterruptedException) { break }
                 }
             }
         }.also { it.isDaemon = true; it.start() }

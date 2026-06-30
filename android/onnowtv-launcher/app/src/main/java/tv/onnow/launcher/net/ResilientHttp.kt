@@ -88,4 +88,20 @@ object ResilientHttp {
         // OkHttp retries the request once before surfacing the error.
         .retryOnConnectionFailure(true)
         .build()
+
+    /** v2.10.94 — Dedicated client for endpoints that long-poll the
+     *  backend.  The Remote Support input + pairing pollers ask the
+     *  backend to hold the request for up to 20 seconds before
+     *  returning; with the default 15s readTimeout above the box
+     *  would SocketTimeoutException out of the poll BEFORE the
+     *  backend could deliver the event, then sleep 1.5s before
+     *  retrying — adding 1.5-3 seconds of input lag every cycle.
+     *
+     *  This client gives long-polls 30 seconds of read time, well
+     *  past the backend's 20s hold window, so the only way the
+     *  request ends is the backend actually responding with data
+     *  (instant input → instant dispatch). */
+    val longPollClient: OkHttpClient = client.newBuilder()
+        .readTimeout(30, TimeUnit.SECONDS)
+        .build()
 }

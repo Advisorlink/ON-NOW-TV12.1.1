@@ -275,7 +275,10 @@ class SupportSessionActivity : ComponentActivity() {
                 try {
                     val url = "$base/api/support/host/status/$sid?wait=20"
                     val req = Request.Builder().url(url).get().build()
-                    val body = ResilientHttp.client.newCall(req).execute()
+                    // v2.10.94 — longPollClient (30s readTimeout) so
+                    // okhttp doesn't bail before the backend's 20s
+                    // hold window completes.
+                    val body = ResilientHttp.longPollClient.newCall(req).execute()
                         .use { it.body?.string().orEmpty() }
                     if (body.isEmpty()) continue
                     val parsed = JSONObject(body)
@@ -287,7 +290,9 @@ class SupportSessionActivity : ComponentActivity() {
                 } catch (t: Throwable) {
                     if (!pairingPollerActive) return@Thread
                     Log.w(TAG, "pairing poll error", t)
-                    try { Thread.sleep(1500) } catch (_: InterruptedException) { return@Thread }
+                    // v2.10.94 — Tiny jitter, not 1.5s — see
+                    // SupportForegroundService for full rationale.
+                    try { Thread.sleep(50) } catch (_: InterruptedException) { return@Thread }
                 }
             }
         }.also { it.isDaemon = true; it.start() }
