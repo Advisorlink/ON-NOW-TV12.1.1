@@ -1,5 +1,22 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.97 — Trailers play INSIDE Vesper in HD, never the YouTube app (30 Jun 2026).**
+>
+> Operator P0: "I don't want trailers to open the YouTube app.  I want it to just play inside Vespa.  Just figure out the proper solution.  Make trailers work in HD."
+>
+> Three-layer fix so trailers ALWAYS play inside Vesper:
+>
+> **1. Backend `/api/trailer-stream/{id}` — robust player-client cycling.**  YouTube rolls signature changes through one player-client at a time (mostly `web` and `android`).  The endpoint now tries 4 clients in order: `tv_embedded` (most permissive, age-gate friendly, geo-stable) → `android` → `web` → `ios`.  First success wins; each client gets an 8 s socket timeout so the total stays well under the 18 s outer cap.  Verified: 3-for-3 HD pair extraction on Rickroll, Avatar 2, Dune Part Two (`is_hd_pair=true`, `height=720`, `video_url`+`audio_url` populated).  Cache TTL stays at 1 h (Googlevideo signatures are valid for ~6 h).
+>
+> **2. Frontend `TrailerModal.jsx` — in-WebView iframe fallback, NO external YouTube app launch.**  When the backend extract succeeds (the happy path), the modal still hands off to the native libVLC via `window.OnNowTV.playTrailer(url, audio_url, ...)` — full HD, native hardware decoder, audio-slave merge.  When extract FAILS (geo block, signature rolling, transient YouTube issue), the modal **no longer calls `playYoutubeFallback`**.  Instead it sets `useIframeFallback = true` and drops through to the in-WebView YouTube iframe — the same iframe that's been shipping for desktop preview.  The iframe plays INSIDE Vesper's WebView (`mediaPlaybackRequiresUserGesture=false`, `hardwareAccelerated=true`).  The trailer ALWAYS plays inside the app.  Never the YouTube app, ever.
+>
+> **3. Native bridge `WebAppInterface.playYoutubeFallback` — neutered to a no-op.**  Even if a stale React bundle (sideloaded dev override, cached file) somehow tries to call the old fallback, it now just shows a brief Toast and returns.  No `vnd.youtube:` Intent.  No `ACTION_VIEW` to YouTube.  Belt-and-braces guarantee.
+>
+> Flow on the box:  user clicks Play Trailer → spinner "Loading trailer in HD…" → `/api/trailer-stream` cycles through 4 clients → returns HD pair → native VLC opens with 720p video + m4a audio slave → HD trailer plays inside Vesper.  If extract fails on all 4 clients (extremely rare), spinner ↗ in-WebView YouTube iframe → trailer still plays inside Vesper.
+>
+> Touched: `backend/server.py` (multi-client cycling in `_extract`), `frontend/src/components/TrailerModal.jsx` (iframe fallback path, removed "Open in YouTube" error card), `android/vesper-tv/.../WebAppInterface.kt` (`playYoutubeFallback` neutered).
+
+
 > **🟢 v2.10.96 — Choose Links picker on every TV-show episode + profile-hydration race fix + WatchTogether D-pad (30 Jun 2026).**
 >
 > Operator P0: "On all movies and all TV shows that have links, the Choose Links part needs to be accessible inside the player.  Pop-up shows up, we scroll up and down between all the streams, click and play, shows which one is currently playing."

@@ -24,6 +24,12 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
     const [fullscreen, setFullscreen] = useState(false);
     const [resolving, setResolving] = useState(false);
     const [resolveError, setResolveError] = useState(null);
+    // v2.10.97 — When the native extract fails on Android we now
+    // pivot to the in-WebView YouTube iframe (which plays INSIDE
+    // Vesper, not the YouTube app).  This flag flips the modal
+    // from the "native VLC handoff" state to the iframe render
+    // path without unmounting.
+    const [useIframeFallback, setUseIframeFallback] = useState(false);
     const cardRef = useRef(null);
     const nativeLaunchedRef = useRef(false);
 
@@ -42,6 +48,7 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
     useEffect(() => {
         if (!youtubeKey) return undefined;
         if (nativeLaunchedRef.current) return undefined;
+        if (useIframeFallback) return undefined;
         // v2.7.54 — Simplest reliable check: just see if the bridge
         // OBJECT exists.  `window.OnNowTV` is only ever injected by
         // MainActivity.addJavascriptInterface(...) — never present
@@ -84,24 +91,22 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
                 setTimeout(() => onClose?.(), 80);
             } catch (e) {
                 if (cancel) return;
-                // v2.10.82 — Try the YouTube app fallback bridge
-                // method before showing an error.  This means the
-                // user STILL gets a working trailer when yt-dlp
-                // chokes or times out.  No more "stuck on Loading"
-                // — the screen always opens with playable video.
-                const fallbackBridge = window.OnNowTV;
-                if (fallbackBridge && typeof fallbackBridge.playYoutubeFallback !== 'undefined') {
-                    try {
-                        nativeLaunchedRef.current = true;
-                        fallbackBridge.playYoutubeFallback(youtubeKey, title || 'Trailer');
-                        setTimeout(() => onClose?.(), 80);
-                        return;
-                    } catch { /* fall through to error UI */ }
-                }
-                setResolveError(e?.name === 'AbortError'
-                    ? 'Trailer extraction timed out.  Open YouTube?'
-                    : (e?.message || 'Could not extract trailer.'));
+                // v2.10.97 — Backend extract failed.  Pivot to the
+                // IN-WEBVIEW iframe so the trailer STILL plays
+                // inside Vesper — the user explicitly does NOT want
+                // an external YouTube-app launch.  The iframe
+                // renders via the same code path the desktop /
+                // browser-preview uses below (line ~310).  We log
+                // the underlying error so a future debug session
+                // can see WHICH client chain failed on the box.
+                // eslint-disable-next-line no-console
+                console.warn(
+                    '[TrailerModal] extract failed, switching to in-WebView iframe:',
+                    e?.message || e
+                );
                 setResolving(false);
+                setResolveError(null);
+                setUseIframeFallback(true);
             }
         })();
         return () => {
@@ -109,7 +114,7 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
             clearTimeout(timeoutId);
             try { ac.abort(); } catch { /* ignore */ }
         };
-    }, [youtubeKey, title, poster, backdrop, onClose]);
+    }, [youtubeKey, title, poster, backdrop, onClose, useIframeFallback]);
 
     /* Hardware back / Escape → close (fullscreen ↘ windowed; then
      * windowed ↘ closed). */
@@ -147,8 +152,18 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
 
     if (!youtubeKey) return null;
 
+    // v2.10.97 — Render decision:
+    //   • If we have the native bridge AND the iframe fallback
+    //     hasn't been triggered AND there's no resolveError, show
+    //     the "Loading trailer in HD…" spinner card.  The useEffect
+    //     above is calling the backend extract + native VLC handoff.
+    //   • If extract failed (useIframeFallback === true) OR we're
+    //     in a plain browser (no native bridge), drop through to
+    //     the in-WebView iframe path below.  The iframe ALWAYS
+    //     plays inside Vesper — never launches the external
+    //     YouTube app (user spec).
     const nativeHandoff = (typeof window !== 'undefined') && !!window.OnNowTV;
-    if (nativeHandoff && !resolveError) {
+    if (nativeHandoff && !useIframeFallback && !resolveError) {
         return (
             <div
                 data-testid="trailer-modal"
@@ -214,99 +229,14 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
         );
     }
 
-    /* v2.10.82 — Error UI for Android.  Shows when both the
-     * extract AND the YouTube-app fallback have failed.  Gives
-     * the user a clear retry path instead of an empty modal. */
-    if (nativeHandoff && resolveError) {
-        return (
-            <div
-                data-testid="trailer-modal"
-                style={{
-                    position: 'fixed',
-                    inset: 0,
-                    zIndex: 200,
-                    background: 'rgba(6,8,15,0.94)',
-                    backdropFilter: 'blur(10px)',
-                    WebkitBackdropFilter: 'blur(10px)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexDirection: 'column',
-                    gap: 14,
-                    color: '#fff',
-                    padding: 24,
-                }}
-            >
-                <div
-                    className="vesper-display"
-                    style={{ fontSize: 26, letterSpacing: '-0.02em' }}
-                >
-                    Trailer not available
-                </div>
-                <div
-                    style={{
-                        fontSize: 14,
-                        color: 'rgba(255,255,255,0.7)',
-                        maxWidth: 460,
-                        textAlign: 'center',
-                        lineHeight: 1.5,
-                    }}
-                >
-                    {resolveError}
-                </div>
-                <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
-                    <button
-                        data-testid="trailer-open-youtube"
-                        data-focusable="true"
-                        data-focus-style="pill"
-                        tabIndex={0}
-                        onClick={() => {
-                            try {
-                                window.OnNowTV?.playYoutubeFallback?.(
-                                    youtubeKey, title || 'Trailer',
-                                );
-                            } catch { /* ignore */ }
-                            setTimeout(() => onClose?.(), 100);
-                        }}
-                        style={{
-                            height: 44,
-                            paddingLeft: 20,
-                            paddingRight: 22,
-                            borderRadius: 999,
-                            background: 'var(--vesper-blue, #5DC8FF)',
-                            color: 'var(--vesper-bg-0, #06080F)',
-                            border: 'none',
-                            fontSize: 14,
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                        }}
-                    >
-                        Open in YouTube
-                    </button>
-                    <button
-                        data-testid="trailer-close"
-                        data-focusable="true"
-                        data-focus-style="pill"
-                        tabIndex={0}
-                        onClick={onClose}
-                        style={{
-                            height: 44,
-                            paddingLeft: 20,
-                            paddingRight: 22,
-                            borderRadius: 999,
-                            background: 'rgba(255,255,255,0.08)',
-                            color: '#fff',
-                            border: '1px solid rgba(255,255,255,0.18)',
-                            fontSize: 14,
-                            cursor: 'pointer',
-                        }}
-                    >
-                        Cancel
-                    </button>
-                </div>
-            </div>
-        );
-    }
+    /* v2.10.97 — When extract fails on Android, we no longer show
+     * an "Open in YouTube" error card.  Instead we set
+     * `useIframeFallback = true` in the effect above, which falls
+     * through to the in-WebView iframe render path below.  That
+     * iframe plays YouTube INSIDE Vesper — never launches the
+     * external YouTube app (user spec).  The block that used to
+     * live here (the "Trailer not available" error card with the
+     * "Open in YouTube" button) is intentionally removed. */
 
     const params = new URLSearchParams({
         autoplay: '1',

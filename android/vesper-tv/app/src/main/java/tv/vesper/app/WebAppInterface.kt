@@ -425,43 +425,21 @@ class WebAppInterface(private val activity: Activity) {
     }
 
     /**
-     * v2.10.82 — Hard-fallback for trailer playback when the
-     * yt-dlp extraction route on the backend can't return a
-     * playable URL (signature changes, geo-restriction, etc.).
-     *
-     * Tries in order:
-     *   1. `vnd.youtube:{id}` — opens the YouTube TV / mobile app
-     *      directly to the video (best UX, HD by default, sound
-     *      always works).
-     *   2. `https://www.youtube.com/watch?v={id}` via ACTION_VIEW
-     *      — any installed video viewer (Chrome, Brave, etc.).
-     *
-     * Called from TrailerModal.jsx whenever the primary extract
-     * route fails so the user always gets a working trailer.
+     * v2.10.97 — DISABLED.  Operator spec: trailers must NEVER
+     * launch the external YouTube app.  When the backend extract
+     * fails, the React layer (`TrailerModal.jsx`) now pivots to an
+     * in-WebView iframe that plays YouTube INSIDE Vesper.  We keep
+     * this method as a no-op so old React bundles (sideloaded dev
+     * overrides, stale cache) can't accidentally trigger a YouTube-
+     * app launch.  Just shows a polite Toast and returns.
      */
     @JavascriptInterface
     fun playYoutubeFallback(youtubeId: String, title: String?) {
-        val id = youtubeId.trim()
-        if (id.isBlank()) return
         activity.runOnUiThread {
-            val tries = listOf(
-                Intent(Intent.ACTION_VIEW, Uri.parse("vnd.youtube:$id"))
-                    .apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK },
-                Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=$id"))
-                    .apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK },
-            )
-            for (intent in tries) {
-                try {
-                    if (intent.resolveActivity(activity.packageManager) != null) {
-                        activity.startActivity(intent)
-                        return@runOnUiThread
-                    }
-                } catch (_: Throwable) { /* try next */ }
-            }
             Toast.makeText(
                 activity,
-                "No app available to play this trailer.  Install YouTube and try again.",
-                Toast.LENGTH_LONG
+                "Trailer unavailable — please try again in a moment.",
+                Toast.LENGTH_SHORT
             ).show()
         }
     }

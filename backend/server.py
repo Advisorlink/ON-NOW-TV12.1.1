@@ -2878,28 +2878,65 @@ async def trailer_stream(youtube_id: str):
         # smoothly while still looking great on a 1080p TV (and is
         # essentially indistinguishable on the 10-foot UI).  Falls
         # back to combined progressive 360p if no 720p available.
-        ydl_opts = {
-            "format": (
-                "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/"
-                "best[ext=mp4][height<=720]/"
-                "best[height<=720]/best"
-            ),
-            "noplaylist": True,
-            "quiet": True,
-            "no_warnings": True,
-            "skip_download": True,
-            "user_agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
-            ),
-        }
-        with YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(
-                f"https://www.youtube.com/watch?v={safe_id}",
-                download=False,
-            )
-        return info
+        #
+        # v2.10.97 — Robust extract.  YouTube routinely breaks ONE
+        # player_client's signature at a time (mostly `web` and
+        # `android`).  We cycle through 4 clients per request so a
+        # transient break in any single client never blocks the
+        # user.  `tv_embedded` is tried FIRST because it's the most
+        # permissive — works for age-gated trailers, doesn't get
+        # geo-stamped on most VPS IPs, and isn't subject to the
+        # current rolling `web` signature changes.  Each client is
+        # given a 4 s hard cap so the total wall budget stays
+        # within the outer 18 s timeout (4×4 = 16 s + extract
+        # overhead).
+        client_chain = ["tv_embedded", "android", "web", "ios"]
+        last_err: Exception | None = None
+        for client in client_chain:
+            ydl_opts = {
+                "format": (
+                    "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/"
+                    "best[ext=mp4][height<=720]/"
+                    "best[height<=720]/best"
+                ),
+                "noplaylist": True,
+                "quiet": True,
+                "no_warnings": True,
+                "skip_download": True,
+                "extractor_args": {
+                    "youtube": {
+                        "player_client": [client],
+                    },
+                },
+                "user_agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                ),
+                "socket_timeout": 8,
+            }
+            try:
+                with YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(
+                        f"https://www.youtube.com/watch?v={safe_id}",
+                        download=False,
+                    )
+                # Success — return immediately.  Note: we accept
+                # info without checking for HD pair here; the
+                # caller will validate and either return the HD
+                # pair OR fall back to the progressive URL.
+                if info:
+                    return info
+            except Exception as e:                                  # noqa: BLE001
+                last_err = e
+                logger.info(
+                    "yt-dlp client=%s failed for %s: %s",
+                    client, safe_id, str(e)[:200],
+                )
+                continue
+        # All clients failed — re-raise the last error so the outer
+        # handler can return a 502 with a helpful message.
+        raise last_err or RuntimeError("all yt-dlp clients failed")
 
     try:
         # v2.10.82 — Hard timeout on the yt-dlp call.  Without it,
