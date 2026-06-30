@@ -120,10 +120,10 @@ class VesperWebViewClient : WebViewClient() {
         request: WebResourceRequest?
     ): Boolean {
         val url = request?.url?.toString() ?: return false
+        val isMainFrame = request.isForMainFrame
         // Allow our own asset URLs and any HTTPS API call to bubble
         // through the WebView itself.
         if (url.startsWith("file:///android_asset/")) return false
-        if (url.startsWith("https://")) return false
         // Intent URLs from the YouTube iframe try to launch the
         // YouTube app — swallow them silently so the embedded
         // <video> stays in-page.  Same for any youtube://
@@ -136,6 +136,29 @@ class VesperWebViewClient : WebViewClient() {
             Log.d("VesperWebView", "Swallowing YouTube app intent: $url")
             return true
         }
+        // v2.11.0 — Also swallow any MAIN-FRAME navigation to a
+        // YouTube domain.  This is what the iframe's "Watch on
+        // YouTube" overlay tries to do (it navigates the TOP
+        // window to https://www.youtube.com/watch?v=…) — without
+        // this guard Android happily switches to youtube.com or
+        // offers to open the YouTube app.  We only block MAIN
+        // frame nav: the iframe's own loads use
+        // `shouldInterceptRequest`, not this method, so the embed
+        // itself is unaffected.
+        if (isMainFrame) {
+            val host = request.url.host?.lowercase() ?: ""
+            if (host == "www.youtube.com" ||
+                host == "m.youtube.com" ||
+                host == "youtube.com" ||
+                host == "youtu.be" ||
+                host == "www.youtube-nocookie.com" ||
+                host == "youtube-nocookie.com"
+            ) {
+                Log.d("VesperWebView", "Swallowing main-frame nav to YouTube: $url")
+                return true
+            }
+        }
+        if (url.startsWith("https://")) return false
         // Anything else (mailto:, market://, magnet:, …)
         // we let Android handle natively.
         return try {

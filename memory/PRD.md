@@ -1,5 +1,26 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.11.0 — Trailers play INSIDE Vesper, period.  Single-path iframe + WebView guards (30 Jun 2026).**
+>
+> Operator (3rd time around): "I'm really sick of trailers not working.  Asks to start YouTube when it shouldn't, then doesn't play in the native player.  Either have a YouTube player INSIDE Vesper, or find a trailer API.  Just make it work."
+>
+> Previous v2.10.97 chain — yt-dlp extract → libVLC HD-pair → iframe fallback — was deceptively fragile across three failure modes (yt-dlp signature rolls; libVLC video+audio slave merge fails on some codecs; iframe occasionally redirects to YouTube app via popup attempt).  Operator was bouncing between all three.
+>
+> **New strategy — ONE path, no extract, no native handoff:**
+>
+> **1. `TrailerModal.jsx` rewritten as iframe-only.**  Always renders `<iframe src="https://www.youtube-nocookie.com/embed/{id}?autoplay=1&modestbranding=1&rel=0&controls=1&playsinline=1&iv_load_policy=3&fs=0&vq=hd1080&cc_load_policy=0&enablejsapi=1&widget_referrer=…&origin=…">`.  Switched domain to **youtube-nocookie.com** (privacy-enhanced; fewer overlays, less aggressive about "Watch on YouTube" prompts, no GDPR cookie banner that sometimes blocks playback).  Removed the entire yt-dlp/libVLC handoff path + the loading spinner branch + unused state (`resolving`, `resolveError`, `nativeLaunchedRef`).  Trailer modal now renders the iframe on first mount — no extract delay, no chance of stuck-on-loading.
+>
+> **2. `MainActivity.kt` — added `onCreateWindow` override + popup-support settings.**  YouTube iframes attempt `window.open("Watch on YouTube")` for the "Watch on YouTube" overlay — without an `onCreateWindow` override Android's default kicks the URL out to the YouTube app via ACTION_VIEW intent (and shows the user the "Open in?" picker).  The fix: enable `setSupportMultipleWindows(true)` + `javaScriptCanOpenWindowsAutomatically = true` so `onCreateWindow` actually fires, then have it return `false` (no popup, no Intent, popup attempt cleanly swallowed).
+>
+> **3. `VesperWebViewClient.kt` — main-frame nav guard.**  `shouldOverrideUrlLoading` now ALSO swallows MAIN-FRAME navigation to `youtube.com / m.youtube.com / youtu.be / youtube-nocookie.com`.  Iframe sub-frame loads use `shouldInterceptRequest` (not this method), so the embed itself isn't blocked — only the top-level "navigate away from Vesper" attempts.  Combined with the existing `intent:// / vnd.youtube:` swallow, every conceivable path to launching the YouTube app is now blocked.
+>
+> Net result: tap Play Trailer → modal opens → iframe loads from youtube-nocookie.com → autoplay → 1080p video → controls + seek work → ESC/Back closes.  Zero possibility of the YouTube app launching.  No backend extract = no signature-roll failures.  No native player = no codec/slave-merge surprises.
+>
+> Verified at runtime: modal opens for Shawshank Redemption → iframe URL has all 9 lockdown params (`autoplay=1 modestbranding=1 rel=0 controls=1 playsinline=1 iv_load_policy=3 fs=0 vq=hd1080 enablejsapi=1`) → 0 JS errors → renders cleanly inside Vesper.
+>
+> Touched: `frontend/src/components/TrailerModal.jsx` (-~70 lines: removed entire extract + spinner branch, switched iframe to youtube-nocookie), `android/vesper-tv/.../MainActivity.kt` (+22 lines: onCreateWindow swallow + popup-support settings), `android/vesper-tv/.../VesperWebViewClient.kt` (+24 lines: main-frame YouTube domain guard).
+
+
 > **🟢 v2.10.99 — THE actual reason Choose Links wasn't showing on TV episodes (30 Jun 2026).**
 >
 > Operator: "STILL NOT SHOWING THE ABILITY TO CHOOSE A STREAM IN THE PLAYER FOR TV SERIES!!!"  Submitted a video of Spider-Noir S1E4 playing — bottom dock showed Audio · Subtitles · Display · Rewind · Play · Forward.  No Choose Links button.  Re-investigated and found the actual root cause that v2.10.96 missed.

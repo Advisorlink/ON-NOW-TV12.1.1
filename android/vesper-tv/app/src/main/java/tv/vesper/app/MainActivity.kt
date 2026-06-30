@@ -344,6 +344,17 @@ class MainActivity : AppCompatActivity() {
                 useWideViewPort = true
                 mediaPlaybackRequiresUserGesture = false
                 mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+                // v2.11.0 — Enable popup support so our
+                // onCreateWindow override actually fires.  Without
+                // these, window.open() inside the YouTube iframe is
+                // silently dropped and YouTube's player then
+                // navigates the TOP window instead — kicking us out
+                // of Vesper entirely.  With these on, onCreateWindow
+                // intercepts the popup attempt and returns `false`,
+                // cleanly cancelling it without touching the host
+                // page.
+                setSupportMultipleWindows(true)
+                javaScriptCanOpenWindowsAutomatically = true
                 // v2.7.80 SECURITY — Lock down file:// access.
                 // We never load file URLs from anywhere except our
                 // bundled assets, and we MUST forbid them entirely
@@ -410,6 +421,31 @@ class MainActivity : AppCompatActivity() {
                     } else {
                         request.deny()
                     }
+                }
+
+                /* v2.11.0 — Swallow popup attempts from inside the
+                 * WebView.  YouTube's iframe player tries to open
+                 * "Watch on YouTube" in a new window via
+                 * window.open() — without this override, Android's
+                 * default behaviour is to launch the YouTube app
+                 * (because the resolved Intent has the YouTube
+                 * package as a handler).
+                 *
+                 * Returning `false` and NOT calling resultMsg.sendToTarget()
+                 * cleanly cancels the popup — the iframe player
+                 * stays open INSIDE Vesper and the user just
+                 * doesn't get the unwanted redirect. */
+                override fun onCreateWindow(
+                    view: WebView?,
+                    isDialog: Boolean,
+                    isUserGesture: Boolean,
+                    resultMsg: android.os.Message?,
+                ): Boolean {
+                    android.util.Log.d(
+                        "VesperWebView",
+                        "Swallowed popup attempt (isUserGesture=$isUserGesture)"
+                    )
+                    return false
                 }
 
                 // v2.10.31 — File chooser for the custom-avatar

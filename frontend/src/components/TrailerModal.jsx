@@ -22,99 +22,26 @@ import { X, Maximize2, Minimize2 } from 'lucide-react';
 
 export default function TrailerModal({ youtubeKey, title, poster, backdrop, onClose }) {
     const [fullscreen, setFullscreen] = useState(false);
-    const [resolving, setResolving] = useState(false);
-    const [resolveError, setResolveError] = useState(null);
-    // v2.10.97 — When the native extract fails on Android we now
-    // pivot to the in-WebView YouTube iframe (which plays INSIDE
-    // Vesper, not the YouTube app).  This flag flips the modal
-    // from the "native VLC handoff" state to the iframe render
-    // path without unmounting.
-    const [useIframeFallback, setUseIframeFallback] = useState(false);
     const cardRef = useRef(null);
-    const nativeLaunchedRef = useRef(false);
 
-    /* ----- Native-VLC path (Android WebView) ---------------------
-     * On the HK1 box, we'd rather hand the trailer to libVLC than
-     * fight the iframe.  As soon as we get a youtubeKey, fetch the
-     * extracted stream URLs from the backend and launch the native
-     * player.  If the bridge isn't available (web preview), fall
-     * through to the iframe path below.
+    /* v2.11.0 — Trailer playback strategy rewrite.
      *
-     * v2.10.82 — Added a 20-second hard timeout on the extract
-     * call (yt-dlp can occasionally hang behind YouTube signature
-     * changes / geo blocks).  On ANY failure on Android we now
-     * hand off to the YouTube app via `playYoutubeFallback` so the
-     * trailer ALWAYS plays — never a stuck "Loading…" screen. */
-    useEffect(() => {
-        if (!youtubeKey) return undefined;
-        if (nativeLaunchedRef.current) return undefined;
-        if (useIframeFallback) return undefined;
-        // v2.7.54 — Simplest reliable check: just see if the bridge
-        // OBJECT exists.  `window.OnNowTV` is only ever injected by
-        // MainActivity.addJavascriptInterface(...) — never present
-        // on web preview / desktop.  Avoid `typeof === 'function'`
-        // (Android returns 'object'), avoid `'playTrailer' in bridge`
-        // (some WebViews enumerate @JavascriptInterface methods
-        // lazily and the property only appears AFTER the first call
-        // attempt).  Just trust the object.
-        const bridge = (typeof window !== 'undefined') ? window.OnNowTV : null;
-        if (!bridge) return undefined;
-        let cancel = false;
-        const ac = new AbortController();
-        const timeoutId = setTimeout(() => {
-            try { ac.abort(); } catch { /* ignore */ }
-        }, 20000);  // 20 s hard cap
-        (async () => {
-            try {
-                setResolving(true);
-                setResolveError(null);
-                const r = await fetch(
-                    `${process.env.REACT_APP_BACKEND_URL}/api/trailer-stream/${encodeURIComponent(youtubeKey)}`,
-                    { signal: ac.signal },
-                );
-                if (!r.ok) throw new Error(`extract failed (${r.status})`);
-                const j = await r.json();
-                if (cancel) return;
-                const url = j?.url || j?.progressive_url;
-                if (!url) throw new Error('no playable URL');
-                nativeLaunchedRef.current = true;
-                window.OnNowTV.playTrailer(
-                    url,
-                    j?.audio_url || '',
-                    title || 'Trailer',
-                    poster || '',
-                    backdrop || ''
-                );
-                // The native player overlays the WebView immediately.
-                // Close our modal so the WebView returns to a clean
-                // state behind it.
-                setTimeout(() => onClose?.(), 80);
-            } catch (e) {
-                if (cancel) return;
-                // v2.10.97 — Backend extract failed.  Pivot to the
-                // IN-WEBVIEW iframe so the trailer STILL plays
-                // inside Vesper — the user explicitly does NOT want
-                // an external YouTube-app launch.  The iframe
-                // renders via the same code path the desktop /
-                // browser-preview uses below (line ~310).  We log
-                // the underlying error so a future debug session
-                // can see WHICH client chain failed on the box.
-                // eslint-disable-next-line no-console
-                console.warn(
-                    '[TrailerModal] extract failed, switching to in-WebView iframe:',
-                    e?.message || e
-                );
-                setResolving(false);
-                setResolveError(null);
-                setUseIframeFallback(true);
-            }
-        })();
-        return () => {
-            cancel = true;
-            clearTimeout(timeoutId);
-            try { ac.abort(); } catch { /* ignore */ }
-        };
-    }, [youtubeKey, title, poster, backdrop, onClose, useIframeFallback]);
+     * Previous chain (yt-dlp extract → libVLC HD-pair → iframe
+     * fallback) was deceptively fragile: yt-dlp can stall behind
+     * YouTube signature rolls, libVLC sometimes can't merge the
+     * video+audio slave on specific codecs, and we'd end up
+     * bouncing between three code paths none of which would land.
+     *
+     * The new strategy is ONE path: the in-WebView YouTube IFrame
+     * embed via `youtube-nocookie.com/embed/{id}`.  Plays in HD
+     * (player auto-selects 1080p on a decent connection),
+     * stays inside Vesper's WebView (VesperWebViewClient swallows
+     * every YouTube intent + main-frame nav, MainActivity's
+     * WebChromeClient `onCreateWindow` blocks every popup
+     * attempt), supports controls / seek / fullscreen, never
+     * breaks behind yt-dlp signature changes because there's no
+     * extraction step.
+     */
 
     /* Hardware back / Escape → close (fullscreen ↘ windowed; then
      * windowed ↘ closed). */
@@ -152,82 +79,13 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
 
     if (!youtubeKey) return null;
 
-    // v2.10.97 — Render decision:
-    //   • If we have the native bridge AND the iframe fallback
-    //     hasn't been triggered AND there's no resolveError, show
-    //     the "Loading trailer in HD…" spinner card.  The useEffect
-    //     above is calling the backend extract + native VLC handoff.
-    //   • If extract failed (useIframeFallback === true) OR we're
-    //     in a plain browser (no native bridge), drop through to
-    //     the in-WebView iframe path below.  The iframe ALWAYS
-    //     plays inside Vesper — never launches the external
-    //     YouTube app (user spec).
-    const nativeHandoff = (typeof window !== 'undefined') && !!window.OnNowTV;
-    if (nativeHandoff && !useIframeFallback && !resolveError) {
-        return (
-            <div
-                data-testid="trailer-modal"
-                style={{
-                    position: 'fixed',
-                    inset: 0,
-                    zIndex: 200,
-                    background: 'rgba(6,8,15,0.92)',
-                    backdropFilter: 'blur(10px)',
-                    WebkitBackdropFilter: 'blur(10px)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexDirection: 'column',
-                    gap: 18,
-                    color: '#fff',
-                }}
-            >
-                <div
-                    style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: 999,
-                        border: '3px solid rgba(255,255,255,0.18)',
-                        borderTopColor: 'var(--vesper-blue, #5DC8FF)',
-                        animation: 'vesper-spin 0.9s linear infinite',
-                    }}
-                />
-                <div
-                    className="vesper-mono"
-                    style={{
-                        fontSize: 11,
-                        letterSpacing: '0.32em',
-                        color: 'rgba(255,255,255,0.7)',
-                        textTransform: 'uppercase',
-                    }}
-                >
-                    {resolving ? 'Loading trailer in HD…' : 'Opening trailer…'}
-                </div>
-                <button
-                    data-testid="trailer-cancel"
-                    data-focusable="true"
-                    data-focus-style="pill"
-                    tabIndex={0}
-                    onClick={onClose}
-                    style={{
-                        marginTop: 18,
-                        height: 40,
-                        paddingLeft: 18,
-                        paddingRight: 18,
-                        borderRadius: 999,
-                        background: 'rgba(255,255,255,0.08)',
-                        color: 'rgba(255,255,255,0.85)',
-                        border: '1px solid rgba(255,255,255,0.16)',
-                        fontSize: 13,
-                        cursor: 'pointer',
-                    }}
-                >
-                    Cancel
-                </button>
-                <style>{`@keyframes vesper-spin { to { transform: rotate(360deg); } }`}</style>
-            </div>
-        );
-    }
+    // v2.11.0 — Iframe is the SOLE playback path.  No spinner card,
+    // no native libVLC handoff, no extract.  Always renders the
+    // YouTube iframe directly so the trailer plays inside Vesper's
+    // WebView — WebView-level guards (VesperWebViewClient
+    // main-frame nav swallow + MainActivity onCreateWindow swallow)
+    // ensure clicks inside the iframe can't trigger a YouTube-app
+    // launch.
 
     /* v2.10.97 — When extract fails on Android, we no longer show
      * an "Open in YouTube" error card.  Instead we set
@@ -247,9 +105,18 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
         iv_load_policy: '3',
         fs: '0',
         vq: 'hd1080',                       // request HD by default
+        cc_load_policy: '0',
+        enablejsapi: '1',
+        widget_referrer: typeof window !== 'undefined' ? window.location.origin : '',
         origin: typeof window !== 'undefined' ? window.location.origin : '',
     });
-    const src = `https://www.youtube.com/embed/${encodeURIComponent(youtubeKey)}?${params}`;
+    /* v2.11.0 — Switched to `youtube-nocookie.com` host.  This is
+     * YouTube's privacy-enhanced embed domain — fewer overlays, less
+     * aggressive about offering to "Watch on YouTube", and treats
+     * embeds as first-class users (no GDPR cookie banner that
+     * sometimes blocks playback in EU regions).  Identical video
+     * catalog as youtube.com. */
+    const src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(youtubeKey)}?${params}`;
 
     return (
         <div
