@@ -682,7 +682,7 @@ private fun ControlDock(
                     )
                     DockButton(
                         Icons.Default.PlaylistPlay,
-                        "Stream",
+                        "Choose Links",
                         enabled = hasStreams,
                         onClick = onPickStream,
                     )
@@ -955,11 +955,20 @@ private fun StreamPickerSheet(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = "SWITCH STREAM",
+                text = "CHOOSE LINKS",
                 color = CyanPrimary,
                 fontSize = 13.sp,
                 fontFamily = FontFamily.Monospace,
                 letterSpacing = 3.sp,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = if (streams.isEmpty())
+                    "No alternate streams"
+                else
+                    "${streams.size} sources · D-pad UP/DOWN · OK to switch",
+                color = TextMuted,
+                fontSize = 12.sp,
             )
             Spacer(Modifier.height(28.dp))
             if (streams.isEmpty()) {

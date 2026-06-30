@@ -23,6 +23,7 @@ import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { API, Vesper } from '@/lib/api';
 import { qualityBadge, qualityTags, toneColors, is1080p, is4K } from '@/lib/streamMeta';
+import { orderStreams, isEasyNews, isTorrentio, isEpStrem } from '@/lib/streamOrder';
 import { getAutoplay1080p } from '@/lib/prefs';
 import { isKidsActive, getActiveProfile, isRatingAllowed, getKidsConfig } from '@/lib/profiles';
 import { avatarEmojiById } from '@/lib/avatars';
@@ -835,20 +836,10 @@ export default function Detail() {
     //   4. EP-STREM / Plexio direct (premium addon).
     //   5. Any English 1080p direct.
     //   6. null → picker.
-    // Also exports `orderedStreams` so the player's "next stream"
-    // shortcut cycles in THIS order — the 10 s buffer watchdog on
-    // the player will auto-advance through them when the first one
-    // stalls.
-    const isEasyNews = (s) =>
-        /easy[\s_-]?news/i.test(
-            `${s._addon_id || ''} ${s._addon_name || ''} ${s._addon_source || ''} ${s.name || ''}`
-        );
-    const isTorrentio = (s) =>
-        /torrentio/i.test(`${s._addon_id || ''} ${s._addon_name || ''}`);
-    const isEpStrem = (s) =>
-        /plexio|ep[\s-]?strem/i.test(
-            `${s._addon_id || ''} ${s._addon_name || ''} ${s.name || ''}`
-        );
+    // v2.10.96 — Source-of-truth moved to `/lib/streamOrder.js` so
+    // movies (Detail.jsx) and TV episodes (SeriesEpisodes.jsx) share
+    // the same cascade priority.  The helpers `isEasyNews`,
+    // `isTorrentio`, `isEpStrem` are imported above for reuse.
 
     const autoplayCandidate = useMemo(() => {
         if (type !== 'movie') return null;
@@ -885,42 +876,14 @@ export default function Detail() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [streams, type]);
 
-    // v2.10.80 — Re-order the streams list passed to the native
-    // player so its in-player "next stream" cycle (used by the 10 s
-    // buffer-stall watchdog) tries titles in this priority:
-    //   EasyNews++ 1080p → Torrentio 1080p → EP-STREM/Plexio →
-    //   any 1080p direct → everything else.
-    // The picker still shows ALL streams in this same priority so
-    // the user can manually pick a different rank.
-    const orderedStreams = useMemo(() => {
-        if (!streams || streams.length === 0) return streams;
-        const SIZE_CAP_GB = 3.0;
-        const score = (s) => {
-            const dir   = streamMode(s) === 'direct' ? 0 : 1;
-            const eng   = s._is_english !== false ? 0 : 1;
-            const strict = s._english_strict === true ? 0 : 1;
-            const four = is4K(s) ? 1 : 0;
-            const ten = is1080p(s) ? 0 : 1;
-            const sized = typeof s._size_gb !== 'number' || s._size_gb <= SIZE_CAP_GB ? 0 : 1;
-            // Addon-source priority: 0 = EasyNews++, 1 = Torrentio,
-            // 2 = EP-STREM/Plexio, 3 = everything else.
-            const src =
-                isEasyNews(s)   ? 0 :
-                isTorrentio(s)  ? 1 :
-                isEpStrem(s)    ? 2 :
-                3;
-            // Lower score = higher priority.  Source is the dominant
-            // term (×100) so EasyNews+ comes before any Torrentio
-            // regardless of resolution/English/strict.
-            return src * 100 + ten * 20 + four * 50 + dir * 4
-                + strict * 2 + eng + sized * 10;
-        };
-        return [...streams]
-            .map((s, i) => ({ s, i, key: score(s) }))
-            .sort((a, b) => a.key - b.key || a.i - b.i)
-            .map((x) => x.s);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [streams]);
+    // v2.10.96 — `orderedStreams` now delegates to the shared
+    // /lib/streamOrder.js helper so movies + TV episodes use ONE
+    // source of truth for stream cascade priority.  This is what
+    // the native in-player picker uses as its scroll list.
+    const orderedStreams = useMemo(
+        () => orderStreams(streams),
+        [streams]
+    );
 
     // PARTY-MODE fallback: when the user is in a Watch Together
     // session we MUST start *something* — getting stuck on the

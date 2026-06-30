@@ -1,0 +1,56 @@
+{
+  "summary": "Iteration 63 — Lightweight backend regression PASSED (auth/login JWT + /api/streams/movie/tt0111161). Frontend hydration-race fix (_readBothScopes in /lib/profiles.js) is IN PLACE in source but DOES NOT solve the bouncing bug at runtime: a hard navigation to /library wipes BOTH the suffixed (onnowtv-active-profile-v1:testuser) AND unsuffixed (onnowtv-active-profile-v1) active-profile keys during boot. The read-fallback can't help when the key is being actively deleted. All gated-route runtime tests (SeriesEpisodes mount on /title/series/tt0903747, Detail.jsx mount on /title/movie/tt0111161, Watch Together party-search-input-wrap focus + quickpicks) are BLOCKED behind this bouncer — every page.goto bounces to /profiles before the route mounts.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Cold-load profile-hydration race (v2.10.96 _readBothScopes fix)",
+        "issue": "The fix is in /lib/profiles.js (verified: lines 67-79, 121-153, 234-242, 304-318) but is INSUFFICIENT. The runtime diagnostic dump after `page.goto('/library')` shows both `onnowtv-active-profile-v1:testuser` and the unsuffixed `onnowtv-active-profile-v1` keys are MISSING after the goto — both were present in localStorage immediately before the goto (seeded to 'p-test-1') and got deleted during the SPA boot. Because the read-side fallback can only return whatever localStorage HAS, and both scopes are wiped, /RequireProfile sees active=null and Navigate('/profiles', replace=true). Net effect: hard refresh on /library STILL bounces to /profiles. The hydration race is not the actual bug — there is a boot-time `clearActiveProfile()` / explicit `removeItem` happening somewhere else in the SPA (likely in LoginGate post-auth, or HomeRouter's stale-cleanup loop in App.js ~510-523, or a useEffect that fires before active-profile validation).",
+        "affected_selectors": ["library tabs", "lib-fav-tile-*"]
+      }
+    ],
+    "design_issues": []
+  },
+  "verifications": {
+    "backend_login_jwt": "PASS — POST /api/auth/login {username:'testuser',password:'testpass123'} → 200 with valid 3-segment JWT in `token` field",
+    "backend_streams_movie_shawshank": "PASS — GET /api/streams/movie/tt0111161 → 200 with non-empty `streams` array (verified via pytest)",
+    "frontend_login_form": "PASS — UI login works, vesper-auth-token-v1 + vesper-auth-account-v1 persist in localStorage post-submit",
+    "frontend_profile_picker_render": "PASS — seeded `onnowtv-profiles-v1:testuser=[{id:'p-test-1',...}]` renders the Test tile in the picker; data-testid='profile-p-test-1' present",
+    "frontend_hard_reload_library_stays_on_library": "FAIL — `_readBothScopes` is in source but at runtime BOTH suffixed AND unsuffixed active-profile keys are deleted during the SPA boot of `/library`. URL: `https://.../profiles` after the page.reload. Diagnostic: { suffixed: null, unsuffixed: null, profilesSuffixedLen: 99, profilesUnsuffixedLen: 99 }",
+    "frontend_series_detail_mount_no_runtime_error": "BLOCKED — every goto to /title/series/tt0903747 immediately redirects to /profiles; SeriesEpisodes never mounts in this preview pod. NOTE: source review of SeriesEpisodes.jsx (orderStreams import) is syntactically clean (no missing imports), and the Host.playVideo call at line 419-425 now does pass streamsList + currentStreamIdx — code-level looks correct.",
+    "frontend_movie_detail_mount_no_runtime_error": "BLOCKED — same redirect to /profiles. Source review of Detail.jsx line 883 (orderedStreams = useMemo(() => orderStreams(streams), [streams])) is syntactically clean; streamOrder.js exports orderStreams/pickAutoplayCandidate/isEasyNews/isTorrentio/isEpStrem as advertised.",
+    "frontend_watch_together_initial_focus": "BLOCKED — /watch-together also bounces. Source review of WatchTogether.jsx (review_request line ~757) was not fetched directly, but code-level Watch Together landing structure was verified in iteration 61. Cannot confirm `party-search-input-wrap[data-initial-focus='true']` is in the DOM at runtime because we never reach Landing → Host."
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter63_regression.py",
+    "/app/test_reports/pytest/iter63_regression.xml"
+  ],
+  "action_items": [
+    "MAIN AGENT MUST FIX: The v2.10.96 _readBothScopes patch in /lib/profiles.js is necessary but NOT sufficient — something in the SPA boot is actively deleting BOTH `onnowtv-active-profile-v1:testuser` AND `onnowtv-active-profile-v1` between the seed and the first paint of /library. Suspects (in priority order): (1) HomeRouter's stale-kids-cleanup loop at App.js ~line 510-523 — instrument it to log every removeItem call; (2) a LoginGate post-auth useEffect calling clearActiveProfile() on every fresh boot when no active profile exists in React state at mount time; (3) RequireProfile itself calling clearActiveProfile() before its first render reads the value. Recommended fix: replace any boot-time `removeItem('onnowtv-active-profile-v1*')` with a guarded version that ONLY removes when the value points to a non-existent profile id. Also confirm setActiveProfile uses the SAME suffix scheme as keys being deleted.",
+    "MAIN AGENT VERIFY ON REAL DEVICE (browser, not Playwright): does the v2.10.96 build STILL bounce a non-Playwright session to /profiles on hard refresh of /library? If YES, the issue affects production users, not just headless. If NO, the issue is Playwright/preview-pod specific.",
+    "Once the bouncer is fixed, retest the three blocked items: SeriesEpisodes mount on /title/series/tt0903747 (no console errors after orderStreams import), Detail.jsx mount on /title/movie/tt0111161, and WatchTogether landing → Host → confirm party-search-input-wrap has data-initial-focus='true' and ArrowDown lands on a [data-testid^='party-quickpick'] tile."
+  ],
+  "critical_code_review_comments": [
+    "/lib/streamOrder.js (new): clean, well-documented, single source of truth — orderStreams() returns a NEW array (immutable), addon-source weighted ×100 so source ranking dominates which matches the operator spec. No issues.",
+    "/lib/profiles.js _readBothScopes (lines 67-79): correctly tries suffixed-then-unsuffixed and swallows errors. But because both scopes get wiped by boot cleanup elsewhere, this is band-aid over a deeper bug. Reviewer recommendation: locate and gate the boot cleanup before relying on the read-fallback.",
+    "Detail.jsx line 883 (orderedStreams = orderStreams(streams)) and SeriesEpisodes.jsx (Host.playVideo now passes streamsList + currentStreamIdx) look syntactically correct per source review — could not verify runtime mount due to the gate-bounce blocker.",
+    "WatchTogether.jsx data-initial-focus='true' on party-search-input-wrap and the shelf-page wrapper around quickpicks — could not verify at runtime; recommend manual smoke on real browser."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter63_regression.py (new, 2 tests, both passing)"
+  ],
+  "success_rate": {
+    "backend": "100% (2/2)",
+    "frontend": "Login form + profile-tile render verified. Hydration-race fix runtime: FAIL. SeriesEpisodes/Detail/WatchTogether runtime: BLOCKED behind the bouncer."
+  },
+  "test_credentials": "testuser / testpass123 (works, JWT issued)",
+  "seed_data_creation": "Profile seed: { id:'p-test-1', name:'Test', avatarId:'fn-popcorn-fg', kids:false }. Stored under both suffixed and unsuffixed onnowtv-profiles-v1 keys. Renders in picker; active-key gets wiped on boot.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend is healthy (auth + streams). Run /app/backend/tests/test_iter63_regression.py for the smoke. The frontend BLOCKER is well-characterised in this iteration's RCA: the active-profile keys are wiped at boot before _readBothScopes can read them. Once the main agent patches the boot-time removeItem (search the repo for `removeItem('onnowtv-active-profile-v1'` and `clearActiveProfile()` to find the offender), the three blocked frontend tests can be exercised. In the meantime, /lib/streamOrder.js source review is clean, Detail.jsx and SeriesEpisodes.jsx import paths look correct, and the WatchTogether data-initial-focus attribute should appear in DOM once the bouncer is gone.",
+  "rca_of_the_issue": "ROOT CAUSE: a boot-time SPA cleanup is unconditionally deleting BOTH `onnowtv-active-profile-v1:testuser` AND `onnowtv-active-profile-v1` localStorage keys on every hard navigation, BEFORE RequireProfile's first read. Verified via Playwright diagnostic: state BEFORE goto = { 'onnowtv-active-profile-v1:testuser': 'p-test-1', 'onnowtv-active-profile-v1': 'p-test-1' }; state AFTER `page.goto('/library')` = both keys ABSENT (only the profile-list keys survive). Because the keys are gone, the v2.10.96 _readBothScopes fix has nothing to read and getActiveProfileId() returns null → Navigate('/profiles', replace=true). REPRODUCTION: (1) login at /, (2) page.evaluate to seed both suffixed and unsuffixed profiles + active keys, (3) page.goto('/library'), (4) dump localStorage — both active keys gone, URL = /profiles. MITIGATION: locate the offending boot-time removeItem (top candidates: App.js HomeRouter stale-cleanup loop ~510-523, LoginGate post-auth effect, or a useEffect in RequireProfile) and gate it so it only removes when the active value points to a non-existent profile id."
+}

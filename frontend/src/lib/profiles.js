@@ -119,7 +119,17 @@ function writeJSON(key, value) {
 // ---------- Profiles ----------
 
 export function listProfiles() {
-    const raw = readJSON(keyProfiles(), []);
+    /* v2.10.96 — Read both suffixed and unsuffixed scopes so a hard
+     * refresh that hits before `vesper-auth-account-v1` is restored
+     * still finds the user's saved profiles instead of bouncing them
+     * back to /profiles. */
+    let raw;
+    try {
+        const txt = _readBothScopes(BASE_PROFILES);
+        raw = txt ? JSON.parse(txt) : [];
+    } catch {
+        raw = [];
+    }
     /* Defensive: if a previous version stored profiles as an
      * object / null / something else, fall back to an empty
      * array rather than crashing on `.some()`.  We never want
@@ -222,11 +232,13 @@ export function getActiveProfile() {
 }
 
 export function getActiveProfileId() {
-    try {
-        return localStorage.getItem(keyActive());
-    } catch {
-        return null;
-    }
+    /* v2.10.96 — Cold-load hydration race: `vesper-auth-account-v1`
+     * is restored asynchronously by /lib/auth.js so the first render
+     * may see `_accountSuffix() === ''` and miss the suffixed value
+     * that's actually persisted.  Read both scopes (suffixed →
+     * unsuffixed fallback) so /RequireProfile resolves correctly on
+     * the first render. */
+    return _readBothScopes(BASE_ACTIVE);
 }
 
 export function setActiveProfile(id) {
@@ -292,7 +304,17 @@ export function checkProfilePin(p, entered) {
 // ---------- Kids config ----------
 
 export function getKidsConfig() {
-    return { ...DEFAULT_KIDS_CONFIG, ...readJSON(keyKidsConfig(), {}) };
+    /* v2.10.96 — Read both suffixed + unsuffixed scopes so the kids
+     * gate doesn't briefly fall back to defaults on first paint after
+     * a hard refresh (auth bootstrap is async). */
+    let stored = {};
+    try {
+        const txt = _readBothScopes(BASE_KIDS_CONFIG);
+        stored = txt ? JSON.parse(txt) : {};
+    } catch {
+        stored = {};
+    }
+    return { ...DEFAULT_KIDS_CONFIG, ...(stored || {}) };
 }
 
 export function saveKidsConfig(partial) {

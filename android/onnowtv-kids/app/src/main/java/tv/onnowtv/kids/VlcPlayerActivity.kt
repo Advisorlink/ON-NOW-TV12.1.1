@@ -473,8 +473,13 @@ class VlcPlayerActivity : AppCompatActivity() {
         btnStreams = findViewById(R.id.btn_streams)
         // v2.7.27 — show the in-player Streams button whenever there
         // are 2+ alt streams.  Click → same overlay as MENU key.
+        // v2.10.96 — Label now reads "Choose Links · n" so the user
+        // can see at a glance how many alternate sources are
+        // available, matching the operator's verbiage for the
+        // feature on every movie + TV-show episode.
         if (streamsList.size > 1) {
             btnStreams.visibility = android.view.View.VISIBLE
+            btnStreams.text = "Choose Links · ${streamsList.size}"
             btnStreams.setOnClickListener {
                 lastFocusedControl = btnStreams
                 showStreamPicker()
@@ -2087,7 +2092,7 @@ class VlcPlayerActivity : AppCompatActivity() {
         // Cyan eyebrow strip with a thin gradient underline.  Adds
         // the premium "section header" vibe the user is after.
         val eyebrow = android.widget.TextView(this).apply {
-            text = "PICK YOUR STREAM"
+            text = "CHOOSE LINKS"
             setTextColor(0xFF5DC8FF.toInt())
             textSize = 10f
             letterSpacing = 0.32f
@@ -2103,7 +2108,7 @@ class VlcPlayerActivity : AppCompatActivity() {
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
         val subline = android.widget.TextView(this).apply {
-            text = "${streamsList.size} sources · ranked by quality"
+            text = "${streamsList.size} sources · D-pad UP/DOWN · OK to switch"
             setTextColor(0xFF8A93A8.toInt())
             textSize = 12f
             letterSpacing = 0.06f

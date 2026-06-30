@@ -13,6 +13,7 @@ import { Vesper } from '@/lib/api';
 import { API } from '@/lib/api';
 import Host from '@/lib/host';
 import { qualityBadge, qualityTags, toneColors, is1080p } from '@/lib/streamMeta';
+import { orderStreams } from '@/lib/streamOrder';
 import { getAutoplay1080p } from '@/lib/prefs';
 import * as cw from '@/lib/continueWatching';
 
@@ -412,6 +413,16 @@ export default function SeriesEpisodes({
                 durationMs: existing?.durationMs || 0,
                 route: `/title/series/${meta?.id || ''}`,
             });
+            // v2.10.96 — Pass the FULL episode stream list (cascade-
+            // ordered: EasyNews++ → Torrentio → … via streamOrder)
+            // into the native player so the in-player "Choose Links"
+            // picker overlay is available on every TV episode, not
+            // just movies.  The picker lets the viewer swap streams
+            // without leaving the player (essential when a stream
+            // buffers or breaks mid-watch).
+            const epStreams = (episodeStreams[ep.id]?.streams) || [];
+            const ordered = orderStreams(epStreams);
+            const currentIdx = ordered.findIndex((s) => s === stream);
             if (
                 Host.playVideo({
                     url: playUrl,
@@ -441,6 +452,10 @@ export default function SeriesEpisodes({
                     genres: meta?.genres || [],
                     cwId,
                     startAtMs: existing?.positionMs || 0,
+                    // Stream picker payload — cascade-ordered list +
+                    // index of the stream we're about to play.
+                    streamsList: ordered,
+                    currentStreamIdx: currentIdx,
                 })
             ) return;
             navigate(
@@ -587,7 +602,6 @@ export default function SeriesEpisodes({
                 className="flex items-center"
                 style={{
                     gap: 'clamp(8px, 0.7vw, 12px)',
-                    marginBottom: 24,
                     overflowX: 'auto',
                     overflowY: 'hidden',
                     flexWrap: 'nowrap',

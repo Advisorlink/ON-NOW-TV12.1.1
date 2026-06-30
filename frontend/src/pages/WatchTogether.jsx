@@ -754,6 +754,7 @@ function MoviePicker({ onPick }) {
                             role="button"
                             tabIndex={0}
                             data-focusable="true"
+                            data-initial-focus="true"
                             onClick={() => setKeyboardOpen(true)}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' || e.key === ' ') {
@@ -816,7 +817,10 @@ function MoviePicker({ onPick }) {
                             have vote_average ≥ 6 + 40+ votes — the
                             backend filters this. */}
                         {!keyboardOpen && !q && (
-                            <div style={{ marginTop: 18, width: '100%', maxWidth: 1100 }}>
+                            <div
+                                data-testid="shelf-page"
+                                style={{ marginTop: 18, width: '100%', maxWidth: 1100 }}
+                            >
                                 <div
                                     className="vesper-mono"
                                     style={{
@@ -828,7 +832,7 @@ function MoviePicker({ onPick }) {
                                         marginBottom: 14,
                                     }}
                                 >
-                                    Or jump straight in · This week's top picks
+                                    Or jump straight in · This week&rsquo;s top picks
                                 </div>
                                 {picksBusy ? (
                                     <div className="flex items-center justify-center gap-2" style={{ color: 'var(--vesper-text-3)' }}>
@@ -955,7 +959,7 @@ function MoviePicker({ onPick }) {
                     <Loader2 className="vesper-spin" size={20} /> Searching…
                 </div>
             ) : searched && results.length > 0 ? (
-                <>
+                <div data-testid="shelf-page">
                     <h2 className="vesper-display" style={{ fontSize: 24, letterSpacing: '-0.02em', marginBottom: 12 }}>
                         {results.length} result{results.length === 1 ? '' : 's'} for &ldquo;{q}&rdquo;
                     </h2>
@@ -993,7 +997,7 @@ function MoviePicker({ onPick }) {
                             </button>
                         ))}
                     </div>
-                </>
+                </div>
             ) : searched && results.length === 0 ? (
                 <p style={{ color: 'var(--vesper-text-2)', textAlign: 'center' }}>
                     No results for &ldquo;{q}&rdquo;.
