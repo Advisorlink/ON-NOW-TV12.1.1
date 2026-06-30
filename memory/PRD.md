@@ -1,5 +1,26 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.99 — THE actual reason Choose Links wasn't showing on TV episodes (30 Jun 2026).**
+>
+> Operator: "STILL NOT SHOWING THE ABILITY TO CHOOSE A STREAM IN THE PLAYER FOR TV SERIES!!!"  Submitted a video of Spider-Noir S1E4 playing — bottom dock showed Audio · Subtitles · Display · Rewind · Play · Forward.  No Choose Links button.  Re-investigated and found the actual root cause that v2.10.96 missed.
+>
+> **Root cause:**  `frontend/src/lib/host.js` line 105 serialised each stream as `{ url: s.url || '', infoHash: s.infoHash || null, ... }` when calling the native `playInternalRichV2(streamsJson)` bridge.  Torrent streams (Torrentio etc.) carry `infoHash` instead of a direct `url` — so for every torrent stream the bridge payload had `url: ''`.  Then on the native side, `ExoPlayerActivity.kt` line 585 dropped every entry with a blank URL: `if (url.isBlank()) continue`.  Result for TV episodes whose sources are 100 % Torrentio (the common case, including Spider-Noir S1E4): the native `streamList` ended up EMPTY → `hasStreams = streamList.size > 1` was `false` → Compose `DockButton(..., enabled = hasStreams, ...)` rendered disabled and effectively invisible.  Movies showed it because they typically have at least one EasyNews++ direct URL in the cascade.  v2.10.96 fixed `SeriesEpisodes.jsx` to PASS the streams, but the serialiser stripped torrents during JSON build.  Single-file bug; deceptively subtle because the React-side picker (StreamPickerModal) handles `infoHash` natively and the operator only saw it inside the native player.
+>
+> **Fix (three layers):**
+>
+> **1. `host.js` — inline magnet builder.**  Convert torrent streams to a `magnet:?xt=urn:btih:<infoHash>&dn=<name>&tr=...` URL before the JSON serialise, so every stream entry has a non-empty `url`.  Trackers are pulled from the `sources` array (each `tracker:udp://...` source becomes a `&tr=` query param).  This duplicates the buildMagnet logic that already exists in `Detail.jsx` and `SeriesEpisodes.jsx` — kept inline rather than extracted to avoid a 3rd cross-cutting helper file.  Result: a 4-stream mix of 1 direct + 3 torrents now passes 4 entries to the native bridge instead of 1.  **Button now appears.**
+>
+> **2. `WebAppInterface.kt` (Vesper + Kids) — force VlcPlayer for magnet URLs.**  Bridge previously routed by user preference (`shouldUseExoPlayer`) regardless of URL scheme.  ExoPlayer has no bittorrent demuxer; libVLC does.  Picking ExoPlayer for a magnet URL silently fails ("unsupported URI") leaving a black screen.  Now: `val useExo = !isMagnet && shouldUseExoPlayer(activity)`.  ExoPlayer for normal HTTP streams; libVLC for magnet — user preference still honoured for everything that ExoPlayer can play.
+>
+> **3. `ExoPlayerActivity.switchStream` (Vesper + Kids) — hand off to VlcPlayer when user picks a magnet from the picker.**  Previously called `player.setMediaItem(magnet:...)` directly which silently fails.  Now: when `entry.url.startsWith("magnet:", ...)`, launch a fresh `VlcPlayerActivity` with all the same metadata + the resume position + the full streamsJson + the newly-picked index, then `finish()` ourselves.  The user sees a seamless swap from ExoPlayer to libVLC with the torrent now actually playing.
+>
+> **Verified at runtime** via a node-level replay of the host.js mapping: a 4-stream mix (1 direct, 3 torrent) used to produce 1 entry passing the native filter; now produces 4 entries, all with valid URLs.  `hasStreams = streamList.size > 1` flips from `false` to `true` → DockButton enables → **Choose Links button appears**.
+>
+> **Critical note for shipping:** The host.js fix is React-only.  The moment the operator closes & reopens Vesper, the new bundle loads and the button appears — no new APK build required for the button visibility.  The Kotlin changes (auto-VLC routing for magnets) need a new APK for the actual PICK action to play torrents through VLC instead of failing in ExoPlayer.
+>
+> Touched: `frontend/src/lib/host.js` (+18 lines: inline toMagnet + replaced `url: s.url || ''` with `url: s.url || toMagnet(s) || ''`), `android/vesper-tv/.../WebAppInterface.kt` (3 lines: magnet → useExo=false), `android/onnowtv-kids/.../WebAppInterface.kt` (same 3 lines), `android/vesper-tv/.../ExoPlayerActivity.kt` (+35 lines: magnet handoff in switchStream), `android/onnowtv-kids/.../ExoPlayerActivity.kt` (same handoff).
+
+
 > **🟢 v2.10.98 — Auto-uninstall on Vesper update + Back-up-profiles button on the profile picker (30 Jun 2026).**
 >
 > Two operator P0s in one drop:

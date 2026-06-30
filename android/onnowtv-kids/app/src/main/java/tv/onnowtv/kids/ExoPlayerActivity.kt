@@ -992,8 +992,41 @@ class ExoPlayerActivity : ComponentActivity() {
     /** Switch to one of the alternate streams parsed at startup. */
     private fun switchStream(idx: Int) {
         if (idx !in altStreams.indices) return
-        val resumePos = player.currentPosition.coerceAtLeast(0L)
         val entry = altStreams[idx]
+        val resumePos = player.currentPosition.coerceAtLeast(0L)
+        // v2.10.99 — Magnet URLs need libVLC; ExoPlayer can't decode
+        // them.  Hand off to VlcPlayerActivity with all metadata + the
+        // resume position + the updated stream index so the picker
+        // keeps working on the VLC side.
+        if (entry.url.startsWith("magnet:", ignoreCase = true)) {
+            try {
+                val streamsJson = intent.getStringExtra(VlcPlayerActivity.EXTRA_STREAMS_JSON)
+                val handoff = android.content.Intent(this, VlcPlayerActivity::class.java).apply {
+                    putExtra(VlcPlayerActivity.EXTRA_URL, entry.url)
+                    putExtra(VlcPlayerActivity.EXTRA_TITLE, intent.getStringExtra(VlcPlayerActivity.EXTRA_TITLE))
+                    putExtra(VlcPlayerActivity.EXTRA_SUB_URL, intent.getStringExtra(VlcPlayerActivity.EXTRA_SUB_URL))
+                    putExtra(VlcPlayerActivity.EXTRA_POSTER, intent.getStringExtra(VlcPlayerActivity.EXTRA_POSTER))
+                    putExtra(VlcPlayerActivity.EXTRA_BACKDROP, intent.getStringExtra(VlcPlayerActivity.EXTRA_BACKDROP))
+                    putExtra(VlcPlayerActivity.EXTRA_SYNOPSIS, intent.getStringExtra(VlcPlayerActivity.EXTRA_SYNOPSIS))
+                    putExtra(VlcPlayerActivity.EXTRA_YEAR, intent.getStringExtra(VlcPlayerActivity.EXTRA_YEAR))
+                    putExtra(VlcPlayerActivity.EXTRA_RATING, intent.getStringExtra(VlcPlayerActivity.EXTRA_RATING))
+                    putExtra(VlcPlayerActivity.EXTRA_RUNTIME, intent.getStringExtra(VlcPlayerActivity.EXTRA_RUNTIME))
+                    putExtra(VlcPlayerActivity.EXTRA_GENRES, intent.getStringExtra(VlcPlayerActivity.EXTRA_GENRES))
+                    putExtra(VlcPlayerActivity.EXTRA_TYPE, intent.getStringExtra(VlcPlayerActivity.EXTRA_TYPE))
+                    putExtra(VlcPlayerActivity.EXTRA_START_AT_MS, resumePos)
+                    putExtra(VlcPlayerActivity.EXTRA_CW_ID, intent.getStringExtra(VlcPlayerActivity.EXTRA_CW_ID))
+                    putExtra(VlcPlayerActivity.EXTRA_STREAMS_JSON, streamsJson)
+                    putExtra(VlcPlayerActivity.EXTRA_CURRENT_STREAM_IDX, idx)
+                }
+                startActivity(handoff)
+                finish()
+                return
+            } catch (e: Exception) {
+                Log.e(TAG, "magnet handoff to VlcPlayer failed", e)
+                errorMessageFlow.value = "Could not switch to torrent stream"
+                return
+            }
+        }
         currentStreamIdx = idx
         streamUrl = entry.url
         streamsFlow.value = altStreams.mapIndexed { i, s ->

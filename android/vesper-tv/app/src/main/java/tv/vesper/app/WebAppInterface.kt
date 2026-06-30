@@ -265,7 +265,18 @@ class WebAppInterface(private val activity: Activity) {
                 // launch to ExoPlayerActivity instead.  Both
                 // activities accept the same key extras (`stream_url`,
                 // `title`, `start_at_ms`) so the bridge is identical.
-                val useExo = ExoPlayerActivity.shouldUseExoPlayer(activity)
+                //
+                // v2.10.99 — Force VlcPlayerActivity whenever the URL
+                // is a magnet: / torrent.  ExoPlayer has no
+                // bittorrent demuxer; libVLC does.  Picking ExoPlayer
+                // for a magnet URL silently fails ("unsupported URI")
+                // with the user staring at a black screen.  This
+                // override respects the user's ExoPlayer preference
+                // for every NORMAL (HTTP) stream and only swaps to
+                // VLC when there's no other option.
+                val isMagnet = url.startsWith("magnet:", ignoreCase = true) ||
+                               url.startsWith("file://torrent/", ignoreCase = true)
+                val useExo = !isMagnet && ExoPlayerActivity.shouldUseExoPlayer(activity)
                 val targetClass = if (useExo) {
                     ExoPlayerActivity::class.java
                 } else {
