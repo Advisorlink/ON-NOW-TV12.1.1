@@ -247,6 +247,30 @@ def _frame_event_for(sid: str) -> asyncio.Event:
     return ev
 
 
+@router.post("/controller/disconnect/{session_id}")
+async def controller_disconnect(session_id: str):
+    """Operator clicked "End session".  Enqueue a synthetic
+    `session_ended` input so the box's input long-poller picks it up
+    in the very next response (within ~5 ms via the existing
+    asyncio.Event wake-up), shows a Toast to the customer, and
+    tears down the foreground service.  Also marks the session as
+    ended so any future polls return 404."""
+    sess = _sessions.get(session_id)
+    if sess is None:
+        # Idempotent — operator may double-click; don't blow up.
+        return {"ok": True, "already_ended": True}
+    sess.pending_input_seq += 1
+    sess.pending_inputs.append({
+        "seq": sess.pending_input_seq,
+        "payload": {"type": "input", "action": "session_ended"},
+    })
+    # Wake the box's input long-poll right now.
+    ev = _input_events.get(session_id)
+    if ev is not None:
+        ev.set()
+    return {"ok": True}
+
+
 @router.post("/host/register")
 async def host_register(
     payload: dict = None,

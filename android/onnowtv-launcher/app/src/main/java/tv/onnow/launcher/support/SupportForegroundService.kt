@@ -150,6 +150,25 @@ class SupportForegroundService : Service() {
                     for (i in 0 until arr.length()) {
                         val item = arr.optJSONObject(i) ?: continue
                         val payload = item.optJSONObject("payload") ?: continue
+                        // v2.10.94 — Operator pressed "End session"
+                        // on their laptop.  Show a Toast on the TV
+                        // so the customer knows the session is over
+                        // and their screen is no longer shared, then
+                        // tear the service down.  Skip
+                        // RootInputDispatcher — this is a control
+                        // signal, not a key/tap to forward.
+                        if (payload.optString("action") == "session_ended") {
+                            android.os.Handler(mainLooper).post {
+                                android.widget.Toast.makeText(
+                                    applicationContext,
+                                    "Screen share ended — your screen is no longer being shared.",
+                                    android.widget.Toast.LENGTH_LONG,
+                                ).show()
+                            }
+                            pollingActive = false
+                            stopSelf()
+                            return@Thread
+                        }
                         RootInputDispatcher.handle(this, payload)
                     }
                     // Force-trigger an immediate frame after a burst

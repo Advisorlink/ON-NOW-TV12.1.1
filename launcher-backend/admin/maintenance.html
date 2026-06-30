@@ -832,6 +832,17 @@ main {
     });
 
     disconnectBtn.addEventListener('click', () => {
+        // v2.10.94 — Notify the backend so the box gets a Toast
+        // ("Screen share ended by support") and tears down its
+        // foreground service.  Fire-and-forget — the UI flips
+        // back to the pairing screen regardless of whether the
+        // POST succeeds (the session reaper will clean up
+        // eventually anyway).
+        if (sessionId) {
+            fetch(API_BASE + '/api/support/controller/disconnect/' + sessionId, {
+                method: 'POST',
+            }).catch(() => { /* ignore */ });
+        }
         stopPolling();
         sessionScreen.style.display = 'none';
         pairingScreen.style.display = 'flex';
