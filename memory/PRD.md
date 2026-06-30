@@ -1,5 +1,26 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.96 — Choose Links picker on every TV-show episode + profile-hydration race fix + WatchTogether D-pad (30 Jun 2026).**
+>
+> Operator P0: "On all movies and all TV shows that have links, the Choose Links part needs to be accessible inside the player.  Pop-up shows up, we scroll up and down between all the streams, click and play, shows which one is currently playing."
+>
+> **1. Choose Links on every TV-show episode.**  The in-player picker overlay (shipped v2.7.25 for movies) was invisible on episodes because `SeriesEpisodes.jsx → playStream()` never passed `streamsList` / `currentStreamIdx` to `Host.playVideo()`.  Movies worked because `Detail.jsx` did pass them.  **Fix:** SeriesEpisodes now passes the full episode stream array — cascade-ordered (EasyNews++ → Torrentio → EP-STREM/Plexio → everything else) — plus the current playing index.  Movies + episodes now use ONE shared source of truth for cascade priority: **new `/lib/streamOrder.js`** exporting `orderStreams()`, `pickAutoplayCandidate()`, and the source-detector helpers `isEasyNews / isTorrentio / isEpStrem`.  `Detail.jsx`'s `orderedStreams` is now a one-line delegate to the helper.
+>
+> **2. Native picker UX polish.**  Button label on Vesper VLC, ExoPlayer, Kids VLC, and Kids ExoPlayer overlay all now read **"Choose Links · N"** (was "Streams" / "Stream").  Picker sheet eyebrow updated to **`CHOOSE LINKS`** with subline **"N sources · D-pad UP/DOWN · OK to switch"**.  "Now Playing" cyan pill on the active row already shipped — verified.
+>
+> **3. profiles.js cold-load hydration race.**  Wired the existing `_readBothScopes()` helper into `getActiveProfileId()`, `listProfiles()`, and `getKidsConfig()`.  Previously these read only the suffixed key (`onnowtv-active-profile-v1:USERNAME`), but on the first render after a hard SPA navigation `_accountSuffix()` could return `''` because auth-account hydration is async — bouncing logged-in operators back to `/profiles`.  Read-side now tries suffixed first, falls back to unsuffixed; writes still use suffixed only.  Note: cold-boot to `/profiles` is INTENTIONAL behaviour from v2.8.5 (kids-safety guarantee — children can't sneak into an adult profile by leaving the TV on the wrong screen); this fix only addresses intra-session navigation races.
+>
+> **4. WatchTogether D-pad dead zones.**  Added `data-initial-focus="true"` to `party-search-input-wrap` (Host view) so D-pad lands on the search input when entering Host-a-party (was landing in the SideNav rail).  Wrapped the quickpicks shelf and search-results grid in `data-testid="shelf-page"` so the spatial-focus framework can do row-jumps UP/DOWN between the search input and the result tiles.
+>
+> Pre-existing housekeeping fixed in the same pass: duplicate `marginBottom` key in SeriesEpisodes seasons rail; unescaped apostrophe in WatchTogether subhead.
+>
+> Verified at runtime: SPA navigation `Login → Profiles → /library` no longer bounces, `/title/series/tt0903747` reaches `SeriesEpisodes` mount without errors, no JS errors during the full flow.  Backend regression suite still green (auth/login JWT + `/api/streams/movie/tt0111161` non-empty array).
+>
+> Touched: **NEW** `frontend/src/lib/streamOrder.js`; `frontend/src/components/SeriesEpisodes.jsx`, `frontend/src/pages/Detail.jsx`, `frontend/src/lib/profiles.js`, `frontend/src/pages/WatchTogether.jsx`; `android/vesper-tv/.../VlcPlayerActivity.kt`, `android/vesper-tv/.../PlayerOverlay.kt`, `android/onnowtv-kids/.../VlcPlayerActivity.kt`, `android/onnowtv-kids/.../PlayerOverlay.kt`.
+>
+> **User action required:** push to GitHub → CI builds the new Vesper + Kids APKs → the "Choose Links · N" button + popup appear on every episode that has 2+ sources.
+
+
 > **🟢 v2.10.85 — Global focus-restore + Genre pagination + Maintenance admin link (29 Jun 2026).**
 >
 > Operator follow-up after v2.10.84.  Four user-reported issues, all addressed:
