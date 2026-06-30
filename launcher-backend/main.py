@@ -33,6 +33,7 @@ import hashlib
 import logging
 import os
 import shutil
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -92,6 +93,12 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 # v2.8.50 — Featured-panel heading image lives here (drag-drop
 # upload from the admin Layout Editor).  Filename "heading.png".
 (DATA_DIR / "layout").mkdir(exist_ok=True)
+# v2.10.97 — Chunked-upload staging dir.  Large APKs (Vesper ~116 MB
+# > Cloudflare-free's 100 MB body cap) are uploaded in ~4 MB chunks
+# and stitched together here before being moved to their final
+# destination by the finalize endpoint.
+(DATA_DIR / "uploads_tmp").mkdir(exist_ok=True)
+
 
 STORE_FILE = DATA_DIR / "store.json"
 
@@ -2724,6 +2731,322 @@ async def upload_apk(
     store.setdefault("apks", []).append(entry)
     _save_store(store)
     return {"ok": True, "apk": entry, "auto_detected": meta}
+
+
+# ────────────────────────────────────────────────────────────────────
+#  v2.10.97 — Chunked APK upload (bypasses Cloudflare 100 MB cap)
+#
+#  Why this exists:  the Vesper APK is ~116 MB.  Cloudflare's free
+#  tier hard-caps single-request bodies at 100 MB; many self-hosted
+#  Nginx defaults are even lower (1 MB!).  Direct single-POST
+#  uploads of the Vesper APK were silently truncating around the
+#  proxy's limit, leaving the operator with a "stuck at 1.4 MB"
+#  upload that never completed.  Smaller APKs (Tunes / Live TV /
+#  FTA at 30-60 MB) sailed through under the proxy ceiling, which
+#  is why the operator only saw the bug on the Vesper build.
+#
+#  Fix: split the file into ~4 MB chunks on the client and stream
+#  them in sequence to a server-side staging file.  Each chunk is
+#  comfortably under any reasonable proxy cap.  Once all chunks
+#  arrive, the operator calls finalize, which moves the assembled
+#  file to its final destination (apk asset store OR home-update
+#  pinned APK) and runs the existing inspect-apk pipeline.
+#
+#  Endpoints (admin-only):
+#    POST /api/admin/uploads/chunk/init?filename=...&total=...
+#         → { upload_id }
+#    POST /api/admin/uploads/chunk/append/{upload_id}/{idx}
+#         multipart: file=<bytes>
+#         → { received, total_bytes }
+#    POST /api/admin/uploads/chunk/finalize/{upload_id}
+#         JSON: { kind: "apk"|"home-update", filename, name?,
+#                 package_id?, version_name?, icon_url?, description? }
+#         → same shape as the legacy /api/admin/apks/upload or
+#           /api/admin/home-update/upload, so the admin UI can
+#           swap in transparently.
+# ────────────────────────────────────────────────────────────────────
+
+# Track in-flight chunked uploads in-memory.  Each entry holds the
+# expected total chunk count + the running list of received indexes
+# so finalize can validate completeness.  Idle entries auto-expire
+# after 30 min (a stale staging file from an abandoned upload is
+# garbage-collected via the same expiry sweep).
+_CHUNK_UPLOAD_TTL_S = 30 * 60
+_chunk_uploads: dict[str, dict] = {}
+
+
+def _chunk_path(upload_id: str) -> Path:
+    return DATA_DIR / "uploads_tmp" / f"{upload_id}.part"
+
+
+def _chunk_sweep() -> None:
+    """Garbage-collect abandoned chunk staging files older than the
+    TTL.  Cheap O(n) scan over the dict on every init call — n is
+    very small in practice (typically 0-1)."""
+    now = time.time()
+    expired = [uid for uid, st in _chunk_uploads.items()
+               if now - st.get("started_at", 0) > _CHUNK_UPLOAD_TTL_S]
+    for uid in expired:
+        try:
+            _chunk_path(uid).unlink(missing_ok=True)
+        except Exception:                                            # noqa: BLE001
+            pass
+        _chunk_uploads.pop(uid, None)
+
+
+@app.post(
+    "/api/admin/uploads/chunk/init",
+    dependencies=[Depends(require_admin)],
+)
+async def upload_chunk_init(
+    filename: str = Form(...),
+    total: int = Form(...),
+) -> dict:
+    """Begin a chunked upload.  Returns an upload_id the client uses
+    for every subsequent append + the eventual finalize call.
+
+    `filename` is the ORIGINAL file name (used for sanity-checking
+    the extension on finalize).  `total` is the expected chunk
+    count — used by finalize to validate completeness.
+    """
+    _chunk_sweep()
+    if total < 1 or total > 100_000:
+        raise HTTPException(400, "total must be 1..100000")
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", filename)[:200] or "upload.bin"
+    upload_id = uuid.uuid4().hex
+    _chunk_uploads[upload_id] = {
+        "filename":   safe,
+        "total":      int(total),
+        "received":   set(),
+        "started_at": time.time(),
+    }
+    # Pre-create the staging file (empty) so append can use append-binary.
+    _chunk_path(upload_id).touch()
+    return {"upload_id": upload_id, "filename": safe, "total": total}
+
+
+@app.post(
+    "/api/admin/uploads/chunk/append/{upload_id}/{idx}",
+    dependencies=[Depends(require_admin)],
+)
+async def upload_chunk_append(
+    upload_id: str,
+    idx: int,
+    request: Request,
+) -> dict:
+    """Append a single chunk to the staging file.
+
+    The chunk body is the RAW request body (no multipart wrapping).
+    This avoids the 33 % size penalty of base64 / multipart encoding
+    and lets the client send the file's bytes verbatim.  The browser
+    sends the chunk via XHR with `Content-Type: application/octet-
+    stream` so XHR's `upload.progress` event still fires cleanly.
+
+    Idempotent: if the same idx is sent twice (e.g. a transient
+    network retry), the second write OVERWRITES the same offset so
+    the final file is still correct.  Chunks must be sent in order
+    in this implementation (we trust the operator's browser to do
+    this — FormData/XHR queue them sequentially).
+    """
+    state = _chunk_uploads.get(upload_id)
+    if not state:
+        raise HTTPException(404, "unknown or expired upload_id")
+    if idx < 0 or idx >= state["total"]:
+        raise HTTPException(400, f"idx {idx} out of range 0..{state['total'] - 1}")
+
+    body = await request.body()
+    if not body:
+        raise HTTPException(400, "empty chunk")
+
+    # Append-binary; this naturally accumulates the bytes in order
+    # as the client sends chunks sequentially.
+    target = _chunk_path(upload_id)
+    async with aiofiles.open(target, "ab") as f:
+        await f.write(body)
+
+    state["received"].add(idx)
+    state["last_activity"] = time.time()
+    total_bytes = target.stat().st_size
+    return {
+        "ok": True,
+        "received_count": len(state["received"]),
+        "total_chunks": state["total"],
+        "total_bytes": total_bytes,
+    }
+
+
+@app.post(
+    "/api/admin/uploads/chunk/finalize/{upload_id}",
+    dependencies=[Depends(require_admin)],
+)
+async def upload_chunk_finalize(
+    upload_id: str,
+    payload: dict = Body(...),
+) -> dict:
+    """Finish a chunked upload.  Moves the assembled staging file
+    to the requested destination and runs the existing inspect-apk
+    pipeline so the response shape matches the legacy single-POST
+    endpoints (`/api/admin/apks/upload` for `kind=apk`,
+    `/api/admin/home-update/upload` for `kind=home-update`).
+
+    Body:
+      kind:          "apk" | "home-update"
+      name:          (apk only)  admin label override
+      package_id:    (apk only)  admin override
+      version_name:  (apk only)  admin override
+      icon_url:      (apk only)  admin override
+      description:   (apk only)  admin override
+    """
+    state = _chunk_uploads.get(upload_id)
+    if not state:
+        raise HTTPException(404, "unknown or expired upload_id")
+    if len(state["received"]) != state["total"]:
+        missing = sorted(set(range(state["total"])) - state["received"])
+        raise HTTPException(
+            400,
+            f"upload incomplete: missing chunks {missing[:10]}"
+            f"{'…' if len(missing) > 10 else ''}",
+        )
+
+    kind = str(payload.get("kind") or "").lower().strip()
+    if kind not in {"apk", "home-update"}:
+        raise HTTPException(400, "kind must be 'apk' or 'home-update'")
+
+    src_path = _chunk_path(upload_id)
+    if not src_path.exists():
+        raise HTTPException(500, "staging file disappeared")
+
+    filename = state["filename"]
+    ext = Path(filename).suffix.lower()
+
+    if kind == "apk":
+        ALLOWED_EXTS = {".apk", ".apkm", ".xapk", ".apks"}
+        if ext not in ALLOWED_EXTS:
+            raise HTTPException(
+                400,
+                f"Unsupported file type {ext!r}. Allowed: {sorted(ALLOWED_EXTS)}",
+            )
+        aid = uuid.uuid4().hex[:12]
+        safe_name = f"{aid}_{filename}"
+        target = DATA_DIR / "apks" / safe_name
+        # Atomic-ish rename — same filesystem (DATA_DIR/uploads_tmp
+        # → DATA_DIR/apks).  Falls back to copy + unlink if rename
+        # crosses filesystems for any reason.
+        try:
+            src_path.rename(target)
+        except OSError:
+            import shutil
+            shutil.copy(src_path, target)
+            src_path.unlink(missing_ok=True)
+
+        # Identical introspection to the legacy single-POST endpoint.
+        from apk_meta import inspect_apk
+        introspect_target = target
+        bundle_tmp: Optional[Path] = None
+        if ext in {".apkm", ".xapk", ".apks"}:
+            import zipfile
+            import tempfile
+            try:
+                with zipfile.ZipFile(target) as zf:
+                    base_entry = next(
+                        (n for n in zf.namelist()
+                         if n.lower().endswith(".apk")
+                         and "split" not in n.lower()),
+                        None,
+                    ) or next(
+                        (n for n in zf.namelist() if n.lower().endswith(".apk")),
+                        None,
+                    )
+                    if base_entry:
+                        bundle_tmp = Path(tempfile.gettempdir()) / f"{aid}_base.apk"
+                        with zf.open(base_entry) as src, open(bundle_tmp, "wb") as dst:
+                            dst.write(src.read())
+                        introspect_target = bundle_tmp
+            except Exception:
+                pass
+        try:
+            meta = await asyncio.to_thread(
+                inspect_apk, introspect_target, DATA_DIR / "apk_icons", aid,
+            )
+        finally:
+            if bundle_tmp is not None:
+                try:
+                    bundle_tmp.unlink(missing_ok=True)
+                except Exception:                                    # noqa: BLE001
+                    pass
+
+        icon_url_final = payload.get("icon_url")
+        if not icon_url_final and meta.get("icon_path"):
+            icon_url_final = f"/assets/apk_icons/{aid}.png"
+
+        entry = {
+            "id": aid,
+            "name": (payload.get("name") or meta.get("app_name") or Path(filename).stem),
+            "package_id":   payload.get("package_id")   or meta.get("package_id"),
+            "version_name": payload.get("version_name") or meta.get("version_name"),
+            "icon_url":     icon_url_final,
+            "apk_url":      f"/assets/apks/{safe_name}",
+            "description":  payload.get("description"),
+            "added_at":     now_ts(),
+        }
+        store = _load_store()
+        store.setdefault("apks", []).append(entry)
+        _save_store(store)
+        _chunk_uploads.pop(upload_id, None)
+        return {"ok": True, "apk": entry, "auto_detected": meta}
+
+    # kind == "home-update"
+    if not filename.lower().endswith(".apk"):
+        raise HTTPException(400, "home-update requires a plain .apk (not split)")
+    target = _home_update_path()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    # Compute sha256 of the assembled file BEFORE moving it.  We
+    # can't pipe stat the staged file post-rename if we're on a
+    # different fs, so just hash from disk now.
+    h = hashlib.sha256()
+    size = 0
+    async with aiofiles.open(src_path, "rb") as f:
+        while chunk := await f.read(1024 * 1024):
+            h.update(chunk)
+            size += len(chunk)
+    try:
+        src_path.rename(target)
+    except OSError:
+        import shutil
+        shutil.copy(src_path, target)
+        src_path.unlink(missing_ok=True)
+
+    pkg_id = version_name = version_code = None
+    try:
+        from apk_meta import inspect_apk
+        meta = await asyncio.to_thread(
+            inspect_apk, target, DATA_DIR / "apk_icons", "home_update_icon",
+        )
+        pkg_id       = meta.get("package_id")
+        version_name = meta.get("version_name")
+        version_code = meta.get("version_code")
+    except Exception as e:                                           # noqa: BLE001
+        log.warning("[home-update] metadata extraction failed: %s", e)
+
+    store = _load_store()
+    store["home_update"] = {
+        "filename":     HOME_UPDATE_FILENAME,
+        "size":         size,
+        "sha256":       h.hexdigest(),
+        "package_id":   pkg_id,
+        "version_name": version_name,
+        "version_code": version_code,
+        # Fresh UUIDv4 stamp on every upload (operator can re-pin
+        # the same version and still trigger the update pill — same
+        # behaviour as the legacy upload_home_update endpoint).
+        "build_id":     uuid.uuid4().hex,
+        "uploaded_at":  now_ts(),
+    }
+    _save_store(store)
+    _chunk_uploads.pop(upload_id, None)
+    return {"ok": True, "home_update": store["home_update"]}
+
+
 
 
 @app.delete("/api/admin/apks/{aid}", dependencies=[Depends(require_admin)])

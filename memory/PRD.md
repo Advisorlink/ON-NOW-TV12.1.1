@@ -1,5 +1,32 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.97b — Chunked APK upload (Vesper 116 MB build no longer stuck) (30 Jun 2026).**
+>
+> Operator P0: "I'm trying to upload the new Vesper build to the backend and it's stuck at 1.4 MB.  Other APKs work fine.  Vesper APK is 116 MB.  We really need to make sure that doesn't get stuck."
+>
+> Root cause: Cloudflare-free hard-caps single-request bodies at **100 MB**.  Vesper at 116 MB exceeds it; smaller APKs (Tunes, Live TV, FTA, Launcher at 30-60 MB) sailed through.  Self-hosted Nginx defaults are even tighter (1 MB out of the box).  The single-POST `/api/admin/apks/upload` and `/api/admin/home-update/upload` had no way to dodge a proxy ceiling — the request was silently truncated and the operator saw a frozen progress label.  Compounding the bug: the legacy upload was built on `fetch()` with no `upload.progress` event, so the operator had zero visibility — the label said "Uploading vesper.apk…" and never updated.
+>
+> Fix — 3 new endpoints **+** a new admin-UI chunked uploader:
+>
+> **Backend** (`/app/launcher-backend/main.py`):
+>   • `POST /api/admin/uploads/chunk/init` — `filename` + `total` → returns an `upload_id`.  Pre-creates an empty staging file under `DATA_DIR/uploads_tmp/{upload_id}.part`.
+>   • `POST /api/admin/uploads/chunk/append/{upload_id}/{idx}` — raw `application/octet-stream` body, append-binary to the staging file.  Each chunk is ~4 MB (well under any reasonable proxy cap, including Cloudflare's 100 MB).
+>   • `POST /api/admin/uploads/chunk/finalize/{upload_id}` — JSON body `{kind: "apk" | "home-update", name?, package_id?, version_name?, icon_url?, description?}`.  Validates all chunks received, renames the staging file to the requested destination, then runs the existing `inspect_apk` pipeline (pyaxmlparser for package id / version / icon).  Response shape matches the legacy single-POST endpoints (`{ok, apk, auto_detected}` for `kind=apk`, `{ok, home_update}` for `kind=home-update`) so the admin UI stays compatible.
+>   • In-memory upload registry with a 30 min TTL + auto-sweep so stale stagings get garbage-collected.
+>
+> **Admin UI** (`/app/launcher-backend/admin/static/app.js`):
+>   • New `uploadInChunks({file, kind, onProgress})` helper that slices the File via `Blob.slice()`, posts each chunk via XHR with `Content-Type: application/octet-stream`, surfaces `upload.progress` events as `{stage, pct, loaded, total}` callbacks, then issues the JSON finalize.
+>   • Both APK dropzones rewired:
+>     - **App Store apks dropzone** → now shows `Uploading 1/1 — vesper.apk · 47% · 54.2 MB / 116.0 MB` updating in real time.
+>     - **Home Update dropzone** (the one that ships Vesper) → same chunked path, same live byte-by-byte progress.
+>
+> End-to-end verified:  20 MB random blob uploads in 5×4 MB chunks → finalize returns sha256 + size + fresh `build_id`.  12 MB APK upload via `kind=apk` → stored under `/assets/apks/{aid}_test.apk`, store.json updated.  Negative test (missing chunk index) correctly returns `400 upload incomplete: missing chunks [1]`.  30-chunk init for `vesper-tv-v2.10.96.apk` (120 MB) returns clean upload_id, ready for the full real-world upload.
+>
+> Net effect: Vesper APK uploads now work regardless of the upstream proxy's body cap.  Operator sees real percentage + MB / MB progress instead of a frozen label.
+>
+> Touched: `launcher-backend/main.py` (+~250 lines: 3 endpoints + helpers + new `uploads_tmp/` dir), `launcher-backend/admin/static/app.js` (+~110 lines: chunked helper + both dropzone rewires).
+
+
 > **🟢 v2.10.97 — Trailers play INSIDE Vesper in HD, never the YouTube app (30 Jun 2026).**
 >
 > Operator P0: "I don't want trailers to open the YouTube app.  I want it to just play inside Vespa.  Just figure out the proper solution.  Make trailers work in HD."

@@ -118,6 +118,130 @@ function uploadWithProgress(path, formData, onProgress) {
     });
 }
 
+/* ─────────────  Chunked upload (v2.10.97)  ─────────────
+ *
+ * Bypasses the 100 MB request-body cap on Cloudflare's free tier
+ * (and any other reverse-proxy body limit, e.g. Nginx's 1 MB
+ * default).  Splits the file into 4 MB chunks and streams them
+ * sequentially to /api/admin/uploads/chunk/append/{upload_id}/{idx}
+ * via XHR — each chunk is comfortably under any reasonable proxy
+ * cap.  Progress events fire continuously across all chunks so the
+ * UI bar moves in one smooth motion from 0 → 100 %.
+ *
+ *   uploadInChunks({
+ *     file,           // File object
+ *     kind,           // 'apk' | 'home-update'
+ *     finalizeBody,   // optional fields merged into the finalize POST
+ *     onProgress,     // ({stage, pct, loaded, total}) callback
+ *   })
+ *     → resolves with whatever the legacy single-POST endpoint
+ *       would have returned (apk entry / home_update meta).
+ *
+ * Returns: { ok, apk?, home_update?, auto_detected? }.  Throws on
+ * any chunk failure or finalize failure.
+ */
+const CHUNK_BYTES = 4 * 1024 * 1024;  // 4 MB — well under any proxy cap
+
+function _putChunk(uploadId, idx, blob, onProgress) {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST',
+            _abs(`/api/admin/uploads/chunk/append/${encodeURIComponent(uploadId)}/${idx}`),
+            true,
+        );
+        xhr.withCredentials = true;
+        xhr.responseType = 'text';
+        xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+        xhr.upload.addEventListener('progress', (e) => {
+            if (!e.lengthComputable) return;
+            onProgress && onProgress(e.loaded);
+        });
+        xhr.addEventListener('load', () => {
+            if (xhr.status === 401) { showLogin(); reject(new Error('Unauthorized')); return; }
+            if (xhr.status < 200 || xhr.status >= 300) {
+                reject(new Error(xhr.responseText || `chunk ${idx} failed (${xhr.status})`));
+                return;
+            }
+            try { resolve(JSON.parse(xhr.responseText || '{}')); }
+            catch { reject(new Error('chunk response not JSON')); }
+        });
+        xhr.addEventListener('error', () => reject(new Error(`chunk ${idx} network error`)));
+        xhr.addEventListener('abort', () => reject(new Error('Cancelled')));
+        xhr.send(blob);
+    });
+}
+
+async function uploadInChunks({ file, kind, finalizeBody = {}, onProgress }) {
+    const total = Math.max(1, Math.ceil(file.size / CHUNK_BYTES));
+
+    // 1) init
+    const initForm = new FormData();
+    initForm.append('filename', file.name);
+    initForm.append('total', String(total));
+    const initRes = await fetch(_abs('/api/admin/uploads/chunk/init'), {
+        method: 'POST',
+        body: initForm,
+        credentials: 'same-origin',
+    });
+    if (initRes.status === 401) { showLogin(); throw new Error('Unauthorized'); }
+    if (!initRes.ok) {
+        const t = await initRes.text();
+        throw new Error(t || `init failed (${initRes.status})`);
+    }
+    const { upload_id } = await initRes.json();
+
+    // 2) append, chunk by chunk, in sequence
+    let cumulative = 0;
+    let inflight = 0;
+    for (let i = 0; i < total; i++) {
+        const from = i * CHUNK_BYTES;
+        const to = Math.min(from + CHUNK_BYTES, file.size);
+        const blob = file.slice(from, to);
+        inflight = 0;
+        // eslint-disable-next-line no-await-in-loop
+        await _putChunk(upload_id, i, blob, (loaded) => {
+            inflight = loaded;
+            const sent = cumulative + inflight;
+            const pct = Math.min(99, Math.round((sent / file.size) * 100));
+            onProgress && onProgress({
+                stage: 'upload',
+                pct,
+                loaded: sent,
+                total: file.size,
+            });
+        });
+        cumulative += (to - from);
+        onProgress && onProgress({
+            stage: 'upload',
+            pct: Math.min(99, Math.round((cumulative / file.size) * 100)),
+            loaded: cumulative,
+            total: file.size,
+        });
+    }
+
+    // 3) finalize — server stitches + introspects the assembled file
+    onProgress && onProgress({ stage: 'processing', pct: 99, loaded: file.size, total: file.size });
+    const finRes = await fetch(
+        _abs(`/api/admin/uploads/chunk/finalize/${encodeURIComponent(upload_id)}`),
+        {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ kind, ...finalizeBody }),
+        },
+    );
+    if (finRes.status === 401) { showLogin(); throw new Error('Unauthorized'); }
+    if (!finRes.ok) {
+        const t = await finRes.text();
+        throw new Error(t || `finalize failed (${finRes.status})`);
+    }
+    const out = await finRes.json();
+    onProgress && onProgress({ stage: 'done', pct: 100, loaded: file.size, total: file.size });
+    return out;
+}
+
+
+
 /** Format a byte count as "X.X MB" / "X KB" for the progress label. */
 function fmtBytes(n) {
     if (!Number.isFinite(n)) return '';
@@ -1297,14 +1421,26 @@ let _activeStoreId = null;
         for (let i = 0; i < files.length; i++) {
             const f = files[i];
             prog.hidden = false;
-            prog.textContent = `Uploading ${i + 1} / ${files.length} — ${f.name}…`;
+            prog.textContent =
+                `Uploading ${i + 1} / ${files.length} — ${f.name} (${fmtBytes(f.size)})…`;
             try {
-                const form = new FormData();
-                form.append('file', f);
-                // Name omitted on purpose — backend will use the
-                // extracted app label.  Admin can rename later.
-                const r = await api('/api/admin/apks/upload', {
-                    method: 'POST', body: form,
+                // v2.10.97 — Use chunked upload so large APKs (Vesper
+                // ~116 MB) sail under Cloudflare's 100 MB body cap.
+                // Updates the prog label in real time as bytes flow.
+                const r = await uploadInChunks({
+                    file: f,
+                    kind: 'apk',
+                    onProgress: ({ stage, pct, loaded, total }) => {
+                        if (stage === 'upload') {
+                            prog.textContent =
+                                `Uploading ${i + 1} / ${files.length} — ` +
+                                `${f.name} · ${pct}% · ` +
+                                `${fmtBytes(loaded)} / ${fmtBytes(total)}`;
+                        } else if (stage === 'processing') {
+                            prog.textContent =
+                                `Processing ${f.name}… (extracting APK metadata)`;
+                        }
+                    },
                 });
                 prog.textContent =
                     `✓ ${r.apk?.name || f.name} added — ` +
@@ -1414,10 +1550,23 @@ let _activeStoreId = null;
         prog.hidden = false;
         prog.textContent = `Uploading ${f.name} (${fmtBytes(f.size)})…`;
         try {
-            const form = new FormData();
-            form.append('file', f);
-            const r = await api('/api/admin/home-update/upload', {
-                method: 'POST', body: form,
+            // v2.10.97 — Chunked upload bypasses Cloudflare-free's
+            // 100 MB body cap (Vesper APK is ~116 MB) and shows
+            // real byte-level progress so the operator can SEE the
+            // bytes flowing instead of staring at a frozen label.
+            const r = await uploadInChunks({
+                file: f,
+                kind: 'home-update',
+                onProgress: ({ stage, pct, loaded, total }) => {
+                    if (stage === 'upload') {
+                        prog.textContent =
+                            `Uploading ${f.name} · ${pct}% · ` +
+                            `${fmtBytes(loaded)} / ${fmtBytes(total)}`;
+                    } else if (stage === 'processing') {
+                        prog.textContent =
+                            `Processing ${f.name}… (extracting APK metadata + sha256)`;
+                    }
+                },
             });
             prog.textContent =
                 `✓ Pinned ${r.home_update?.version_name || f.name} ` +
