@@ -1,5 +1,36 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.10.98 — Auto-uninstall on Vesper update + Back-up-profiles button on the profile picker (30 Jun 2026).**
+>
+> Two operator P0s in one drop:
+>
+> **1. Auto-uninstall on side-app update (the actual "not installing Vesper" bug).**  Per v2.10.95 the launcher only routed launcher-self-updates + signature-conflict cases through `RootApkInstaller` — Vesper / Tunes / Live TV / FTA updates fell back to the intent-based install flow, which CANNOT auto-uninstall the existing copy.  Result: operator pushes a new Vesper APK → user taps "Update Vesper" → Android's Package Installer either silently no-ops (same `versionCode`) or surfaces "Application not installed" (signature drift) with no way forward.  Fix in `ApkInstaller.kt`:
+>
+> ```kotlin
+> val isUpdate = try {
+>     ctx.packageManager.getPackageInfo(apkPkg, 0); true
+> } catch (_: NameNotFoundException) { false }
+> val rootNeeded =
+>     (conflict != null) ||
+>     (apkPkg == ctx.packageName) ||
+>     isUpdate
+> ```
+>
+> Any re-install of an **already-installed** package now goes through `RootApkInstaller.install(...)` on rooted boxes.  That installer's chain is `pm install -r -d "$apk" || (pm uninstall "$pkg" && pm install "$apk")` — happy path is a clean in-place update, fallback auto-uninstalls then re-installs.  Fresh first-installs of side-apps still use the intent flow so the user doesn't see a Magisk prompt for their very first download from the App Store.
+>
+> **2. Backup / Restore on the main profile picker.**  Operator: "we gotta move the backup section onto the actual main page where the profiles are. It should say Manage Profiles, Back Up Profiles, Load From Backup."  Previously the only way to back up was via Settings → Backup, which is gated behind `RequireProfile` — useless if you're at the profile picker before clicking Update.
+>
+> New page `ProfileBackup.jsx` at `/profiles/backup` (added to `NO_PROFILE_REQUIRED`).  Mirrors `ProfileLoad.jsx` UX: cyan glass-card panel → "CHOOSE A PIN & SAVE" CTA → PinGate (4 digits) → POST `/api/backup/save` → big mono 6-character code with Copy button.  Reuses `collectBackupPayload()` so the saved payload is byte-identical to Settings → Backup (a code saved here restores cleanly from anywhere).
+>
+> ProfileSelect screen now shows three pills under the avatar grid: **Manage profiles** (existing, unchanged) → **Back up profiles** (new, → `/profiles/backup`) → **Load from backup** (renamed from "Load existing profile" → `/profiles/load`).  Operator can now back up BEFORE clicking Update on Vesper without leaving the picker.
+>
+> The pre-existing UpdateGate "Back up first" button still works as before — clicking it now jumps to Settings#backup OR (if you're on the picker) to `/profiles/backup`, depending on context.
+>
+> End-to-end verified: navigate to `/profiles` → all three pills render with correct labels → click "Back up profiles" → `/profiles/backup` page mounts cleanly with "CHOOSE A PIN & SAVE" focused → save round-trip on the backend returns a clean 6-character code that round-trips through `/api/backup/restore` successfully.  Zero JS errors.
+>
+> Touched: `android/onnowtv-launcher/.../ApkInstaller.kt` (8 lines: expanded `rootNeeded` to include `isUpdate`), `frontend/src/pages/ProfileBackup.jsx` (NEW, 230 lines), `frontend/src/pages/ProfileSelect.jsx` (new pill button + label rename), `frontend/src/App.js` (route registration + NO_PROFILE_REQUIRED).
+
+
 > **🟢 v2.10.97c — Dock-tile APK chunked upload (the actual fix for the 116 MB Vesper stuck-at-1.4 MB bug) (30 Jun 2026).**
 >
 > Follow-up to v2.10.97b.  The first chunked-upload drop wired the App Store + Home Update dropzones but the operator was uploading via the **Dock** tab (the per-tile APK uploader at `/api/admin/dock/{key}/apk`) — a third upload path that was still using a single-POST request and getting truncated at the Cloudflare 100 MB body cap.

@@ -110,33 +110,41 @@ object ApkInstaller {
             // `pm uninstall && pm install` on signature mismatch,
             // and survives the launcher being SIGKILLed mid-update.
             //
-            // v2.10.95 — RESTRICTED scope.  The customer reported
-            // seeing a Magisk superuser prompt for EVERY install,
-            // which is annoying for routine app-store installs that
-            // don't need root.  Now we only invoke RootApkInstaller
-            // when root is genuinely required:
-            //   (a) signature conflict detected ('Application not
-            //       installed' fixer — the original motivation)
-            //   (b) self-update of the LAUNCHER (apkPkg ==
-            //       ctx.packageName) — the launcher updating itself
-            //       has its own SIGKILL-mid-install hazard that
-            //       intent-based install doesn't handle, and
-            //       launcher updates are exactly where signature
-            //       drift between CI builds is most common.
-            //
-            // For everything else (first-time side-app installs,
-            // tile updates with matching signatures), we fall
-            // through to the regular intent flow → no su prompt,
-            // no Magisk dialog, normal Android install UX.
+            // v2.10.98 — Expanded scope: ALSO route side-app
+            // UPDATES through the root installer.  Previously
+            // (v2.10.95 spec) we only used root for signature-
+            // conflict + launcher self-update, leaving Vesper /
+            // Tunes / Live TV / FTA updates on the intent flow.
+            // The intent flow won't auto-uninstall the existing
+            // copy, so every time the operator pushed a new Vesper
+            // build the update dialog either silently no-op'd or
+            // surfaced "Application not installed" with no way
+            // forward.  By using root for *any* re-install of an
+            // already-installed package, `pm install -r -d` handles
+            // the happy path and the `|| pm uninstall && pm install`
+            // fallback handles signature drift — both auto-uninstall
+            // the existing copy as a side-effect.  Fresh first
+            // installs of side-apps still use the intent flow so the
+            // user doesn't see a Magisk prompt for their very first
+            // download of an app from the App Store.
             val apkPkg = conflict
                 ?: ctx.packageManager.getPackageArchiveInfo(out.absolutePath, 0)?.packageName
                 ?: ctx.packageName
-            val rootNeeded = (conflict != null) || (apkPkg == ctx.packageName)
+            val isUpdate = try {
+                ctx.packageManager.getPackageInfo(apkPkg, 0)
+                true
+            } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
+                false
+            }
+            val rootNeeded =
+                (conflict != null) ||
+                (apkPkg == ctx.packageName) ||
+                isUpdate
             if (rootNeeded && RootApkInstaller.isRootAvailable()) {
                 val relaunch = (apkPkg == ctx.packageName)
                 val ok = RootApkInstaller.install(ctx, out, apkPkg, relaunch = relaunch)
                 if (ok) {
-                    Log.i(TAG, "root install launched for $apkPkg (relaunch=$relaunch)")
+                    Log.i(TAG, "root install launched for $apkPkg (isUpdate=$isUpdate, relaunch=$relaunch)")
                     return@withContext null
                 }
                 Log.w(TAG, "root install launch failed; falling back to intent flow")

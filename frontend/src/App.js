@@ -14,6 +14,7 @@ import Library from '@/pages/Library';
 import ProfileSelect from '@/pages/ProfileSelect';
 import ProfileEdit from '@/pages/ProfileEdit';
 import ProfileLoad from '@/pages/ProfileLoad';
+import ProfileBackup from '@/pages/ProfileBackup';
 import KidsHome from '@/pages/KidsHome';
 import KidsExitPin from '@/pages/KidsExitPin';
 import KidsSetup from '@/pages/KidsSetup';
@@ -438,6 +439,7 @@ const NO_PROFILE_REQUIRED = [
     '/profiles/new',
     '/profiles/edit',
     '/profiles/load',
+    '/profiles/backup',
     '/kids/exit-pin',
 ];
 
@@ -828,6 +830,7 @@ function App() {
                                 <Route path="/profiles/new" element={<RequireProfile><ProfileEdit /></RequireProfile>} />
                                 <Route path="/profiles/edit/:id" element={<RequireProfile><ProfileEdit /></RequireProfile>} />
                                 <Route path="/profiles/load" element={<RequireProfile><ProfileLoad /></RequireProfile>} />
+                                <Route path="/profiles/backup" element={<RequireProfile><ProfileBackup /></RequireProfile>} />
                                 <Route path="/kids/exit-pin" element={<RequireProfile><KidsExitPin /></RequireProfile>} />
                                 <Route path="/kids/setup" element={<RequireProfile><KidsSetup /></RequireProfile>} />
                                 <Route path="/kids/settings" element={<RequireProfile><KidsSettings /></RequireProfile>} />
