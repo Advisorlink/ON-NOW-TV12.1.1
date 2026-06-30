@@ -407,6 +407,12 @@ class ExoPlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // v2.10.95 — Route hardware volume keys to STREAM_MUSIC so
+        // playback volume steps in 15 increments instead of the 3-7
+        // of STREAM_RING.  Critical here because this is the actual
+        // media playback activity.
+        volumeControlStream = android.media.AudioManager.STREAM_MUSIC
+
         // v2.7.82 SECURITY — FLAG_SECURE prevents screen recording /
         // mirroring / task-switcher screenshots of paid content.
         // v2.7.89 — Temporarily disabled so the user can capture

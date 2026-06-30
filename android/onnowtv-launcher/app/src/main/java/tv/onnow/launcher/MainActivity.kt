@@ -101,6 +101,14 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // v2.10.95 — Route hardware volume keys to STREAM_MUSIC so
+        // they step in 15 increments instead of falling back to
+        // STREAM_RING (3-7 steps → user experiences this as "only
+        // off or loud").  Applies the moment the launcher is the
+        // foreground activity, which is also when the user's
+        // remote control is most likely to trigger volume changes.
+        volumeControlStream = android.media.AudioManager.STREAM_MUSIC
+
         // v1.7 — Activation gate.  If this box hasn't been approved
         // by the admin yet, route to the Onboarding flow (Wi-Fi →
         // Register → Pending/Blocked) BEFORE we render the dock.

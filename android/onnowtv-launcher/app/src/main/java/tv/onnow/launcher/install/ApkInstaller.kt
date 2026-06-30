@@ -109,18 +109,30 @@ object ApkInstaller {
             // `pm install -r -d` first, falls back to
             // `pm uninstall && pm install` on signature mismatch,
             // and survives the launcher being SIGKILLed mid-update.
-            // This is what the customer wants when they say "always
-            // has to update to the new one — uninstall the other
-            // one automatically and reinstall this".
-            if (RootApkInstaller.isRootAvailable()) {
-                // For a fresh install (no conflicting package yet),
-                // we still pass packageName so the post-install
-                // `am start` knows what to relaunch.
-                val apkPkg = conflict
-                    ?: ctx.packageManager.getPackageArchiveInfo(out.absolutePath, 0)?.packageName
-                    ?: ctx.packageName
-                // relaunch=true ONLY when we're updating the launcher
-                // itself; otherwise leave the user where they were.
+            //
+            // v2.10.95 — RESTRICTED scope.  The customer reported
+            // seeing a Magisk superuser prompt for EVERY install,
+            // which is annoying for routine app-store installs that
+            // don't need root.  Now we only invoke RootApkInstaller
+            // when root is genuinely required:
+            //   (a) signature conflict detected ('Application not
+            //       installed' fixer — the original motivation)
+            //   (b) self-update of the LAUNCHER (apkPkg ==
+            //       ctx.packageName) — the launcher updating itself
+            //       has its own SIGKILL-mid-install hazard that
+            //       intent-based install doesn't handle, and
+            //       launcher updates are exactly where signature
+            //       drift between CI builds is most common.
+            //
+            // For everything else (first-time side-app installs,
+            // tile updates with matching signatures), we fall
+            // through to the regular intent flow → no su prompt,
+            // no Magisk dialog, normal Android install UX.
+            val apkPkg = conflict
+                ?: ctx.packageManager.getPackageArchiveInfo(out.absolutePath, 0)?.packageName
+                ?: ctx.packageName
+            val rootNeeded = (conflict != null) || (apkPkg == ctx.packageName)
+            if (rootNeeded && RootApkInstaller.isRootAvailable()) {
                 val relaunch = (apkPkg == ctx.packageName)
                 val ok = RootApkInstaller.install(ctx, out, apkPkg, relaunch = relaunch)
                 if (ok) {

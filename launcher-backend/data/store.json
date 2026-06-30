@@ -1,5 +1,5 @@
 {
-  "generation": 970,
+  "generation": 971,
   "dock_tiles": [
     {
       "key": "movies",
@@ -6656,6 +6656,15 @@
       "registered_at": 1779968880,
       "last_seen_at": 1779983658,
       "last_ip": "34.160.159.238"
+    },
+    "test-1782814527": {
+      "id": "test-1782814527",
+      "name": "smoke test",
+      "model": "x86",
+      "status": "pending",
+      "registered_at": 1782814527,
+      "last_seen_at": 1782814527,
+      "last_ip": "127.0.0.1"
     }
   },
   "appstore": {

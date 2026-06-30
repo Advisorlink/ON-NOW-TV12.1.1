@@ -126,7 +126,15 @@ PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://localhost:8002").rst
 # keep whatever status the admin has set (idempotent re-register).
 # Set AUTO_APPROVE_DEVICES=0 in the env to revert to the legacy
 # "pending until admin approves" gate.
-_AUTO_APPROVE_RAW = os.environ.get("AUTO_APPROVE_DEVICES", "1").strip().lower()
+# v2.10.95 — DEFAULT FLIPPED.  Was "1" (auto-approve every new
+# device), now "0" (require manual approval).  The operator
+# explicitly asked for this: when a customer registers a new box
+# the launcher must NOT let them in — they should see the "Contact
+# On Now TV support" blocked screen until the operator approves
+# them from the admin backend.  Existing fleet is unaffected
+# (their status is already "active" in the DB).  Set
+# AUTO_APPROVE_DEVICES=1 in the env to revert if needed.
+_AUTO_APPROVE_RAW = os.environ.get("AUTO_APPROVE_DEVICES", "0").strip().lower()
 AUTO_APPROVE_DEVICES: bool = _AUTO_APPROVE_RAW not in ("0", "false", "no", "off", "")
 
 

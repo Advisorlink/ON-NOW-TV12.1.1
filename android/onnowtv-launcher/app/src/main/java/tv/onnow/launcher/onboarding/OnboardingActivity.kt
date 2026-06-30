@@ -294,14 +294,15 @@ class OnboardingActivity : AppCompatActivity() {
 
     private fun renderRegisterPhase() {
         root.removeAllViews()
-        // v2.10.72 — Pre-fill the name field with a sensible default
-        // (manufacturer + last 6 of the device id) so the operator can
-        // just press REGISTER and have the box show up in the admin
-        // backend with a meaningful name — or edit it first if they
-        // want a custom label (e.g. "Lounge TV").  Faster onboarding
-        // without sacrificing the explicit "show up so I can approve
-        // it" surface the user asked for.
-        typedName = autoRegisterDeviceName()
+        // v2.10.95 — Name field starts EMPTY.  Was pre-filled with
+        // "manufacturer · device-id-suffix" which both (a) confused
+        // customers ("why is my TV called rk3328 · 4b9c2e?") and
+        // (b) parked the blinking cursor at the right edge of the
+        // pre-filled text, which the operator was seeing as a
+        // mysterious "flashing line on the right hand side".
+        // Empty default → cursor sits at the left → customer
+        // types whatever name they want from scratch.
+        typedName = ""
         shiftOn = false
 
         // v2.8.7 — Outer scroll-safe column.  `clipChildren=false`
@@ -505,12 +506,15 @@ class OnboardingActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_HORIZONTAL
         })
         card.addView(spacer(dp(20)))
-        card.addView(eyebrow("ACTIVATION REQUIRED"))
+        card.addView(eyebrow("ACCOUNT BLOCKED"))
         card.addView(spacer(dp(12)))
-        card.addView(displayTitle("ON NOW TV is blocked"))
+        card.addView(displayTitle("Your account is blocked"))
         card.addView(spacer(dp(18)))
         card.addView(
-            subtitle("Please contact support for further assistance.")
+            subtitle(
+                "Please contact ON NOW TV support to have your hub unlocked.\n\n" +
+                    "Our team will activate your box as soon as your account is verified."
+            )
         )
         card.addView(spacer(dp(28)))
 

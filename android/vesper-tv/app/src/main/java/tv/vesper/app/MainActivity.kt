@@ -173,6 +173,16 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // v2.10.95 — Route hardware volume keys to STREAM_MUSIC.
+        // Without this, Android picks the "currently active" stream,
+        // which on a TV-box-WebView combo with no audio actively
+        // playing falls back to STREAM_RING.  STREAM_RING typically
+        // has only 3-7 steps on these boxes, which the user
+        // experiences as volume that "only goes off or loud" with
+        // no in-between.  STREAM_MUSIC has 15 steps and is what the
+        // ExoPlayer / WebView <video> actually plays through.
+        volumeControlStream = android.media.AudioManager.STREAM_MUSIC
+
         // v2.7.82 SECURITY — FLAG_SECURE blocks the OS from screen-
         // shotting the activity (including from the recents
         // task-switcher, screen-recording APIs, and Chromecast
