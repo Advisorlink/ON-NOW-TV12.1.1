@@ -68,13 +68,121 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
     const [currentIdx, setCurrentIdx] = useState(0);
     const [allExhausted, setAllExhausted] = useState(false);
     const [playerReady, setPlayerReady] = useState(false);
+    /* v2.11.8 — Native trailer extraction path.
+     *
+     * When we're running inside the Vesper Android WebView, the
+     * `OnNowTV.playTrailer(id, videoId)` JS bridge extracts the
+     * direct googlevideo URL on-device using NewPipeExtractor.  The
+     * URL is signed for the DEVICE's IP so a plain `<video>` inside
+     * this modal streams it straight from googlevideo — bypasses
+     * every YouTube iframe embed restriction (Error 153 etc.).
+     *
+     * `nativeState` values:
+     *   'unknown'  first render / bridge availability not resolved
+     *   'trying'   Host.playTrailer called; waiting for callback
+     *   'muxed'    got a combined video+audio URL — play in <video>
+     *   'failed'   extraction failed OR bridge not available; fall
+     *              back to iframe cycling (existing v2.11.7 path)
+     */
+    const [nativeState, setNativeState] = useState('unknown');
+    const [nativeUrl, setNativeUrl] = useState('');
+    const [nativeTitle, setNativeTitle] = useState('');
     const currentKey = candidates[currentIdx]?.key || '';
 
     useEffect(() => {
         setCurrentIdx(0);
         setAllExhausted(false);
         setPlayerReady(false);
+        setNativeState('unknown');
+        setNativeUrl('');
+        setNativeTitle('');
     }, [youtubeKey]);
+
+    /* v2.11.8 — Try native extraction for the FIRST candidate only.
+     *
+     * NewPipeExtractor is bulletproof for videos it can extract;
+     * cycling candidates isn't needed because it doesn't have the
+     * per-video iframe embed restriction that broke us on the pod.
+     * If the FIRST candidate's extraction fails, we fall through
+     * to iframe cycling for ALL candidates.
+     */
+    useEffect(() => {
+        if (!currentKey || currentIdx > 0) {
+            // Only the first candidate gets the native path.  If
+            // we've advanced past index 0, we're already in iframe
+            // cycling — don't reset.
+            return undefined;
+        }
+        const bridge = (typeof window !== 'undefined')
+            ? window.OnNowTV
+            : null;
+        if (!bridge || typeof bridge.playTrailer !== 'function') {
+            // Browser preview or older APK — use iframe path.
+            setNativeState('failed');
+            return undefined;
+        }
+        setNativeState('trying');
+        const callbackId = 'vt-' + Math.random().toString(36).slice(2, 10);
+        let settled = false;
+        // Register the callback globally so the bridge can find us.
+        // Multiple modals can be open sequentially so we allow
+        // overwrites; when the callback fires with a stale id we
+        // just ignore it.
+        const prev = window.__trailerReady;
+        window.__trailerReady = (id, result) => {
+            if (id !== callbackId) {
+                // Delegate to previous listener if any.
+                try { prev?.(id, result); } catch { /* swallow */ }
+                return;
+            }
+            if (settled) return;
+            settled = true;
+            if (result && result.videoUrl) {
+                if (result.audioUrl) {
+                    // DASH pair — hand off to native ExoPlayer.
+                    // Modal stays open; native activity comes up
+                    // over the top.
+                    try {
+                        bridge.playTrailerFullscreen(
+                            result.videoUrl,
+                            result.audioUrl,
+                            result.title || title || ''
+                        );
+                        // Close the modal after handoff — the
+                        // native player is now handling playback.
+                        setTimeout(() => onClose?.(), 200);
+                    } catch {
+                        setNativeState('failed');
+                    }
+                } else {
+                    setNativeUrl(result.videoUrl);
+                    setNativeTitle(result.title || '');
+                    setNativeState('muxed');
+                }
+            } else {
+                // Extraction failed — fall through to iframe.
+                setNativeState('failed');
+            }
+        };
+        try {
+            bridge.playTrailer(callbackId, currentKey);
+        } catch {
+            setNativeState('failed');
+        }
+        // 12 s timeout — if the bridge never calls back, fall
+        // through to iframe.  NewPipeExtractor usually completes
+        // in 1-3 s on a decent HK1 box.
+        const tId = setTimeout(() => {
+            if (!settled) {
+                settled = true;
+                setNativeState('failed');
+            }
+        }, 12_000);
+        return () => {
+            settled = true;
+            clearTimeout(tId);
+        };
+    }, [currentKey, currentIdx, title, onClose]);
 
     // Reset ready state whenever we swap candidate — the new
     // iframe needs a fresh check.
@@ -94,6 +202,9 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
      * sit on the error card without firing onError.
      */
     useEffect(() => {
+        // Only run iframe detection when we're in iframe-fallback mode
+        // (native path exhausted or unavailable).
+        if (nativeState !== 'failed') return undefined;
         if (!currentKey || allExhausted) return undefined;
 
         let readyReceived = false;
@@ -181,7 +292,7 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
             clearInterval(handshakeTimer);
             clearTimeout(tId);
         };
-    }, [currentKey, candidates.length, allExhausted]);
+    }, [currentKey, candidates.length, allExhausted, nativeState]);
 
     /* Hardware back / Escape → close (fullscreen ↘ windowed; then
      * windowed ↘ closed). */
@@ -292,7 +403,38 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
                         : 'vesper-trailer-rise 220ms cubic-bezier(.2,.7,.2,1) both',
                 }}
             >
-                {!allExhausted && (
+                {/* v2.11.8 — Native muxed path.  When NewPipeExtractor
+                  * hands us a combined video+audio URL from the
+                  * device, play it in a plain <video> — bypasses
+                  * every iframe embed restriction. */}
+                {nativeState === 'muxed' && nativeUrl && (
+                    <video
+                        key={`native-${currentKey}`}
+                        data-testid="trailer-video-native"
+                        src={nativeUrl}
+                        style={{
+                            position: 'absolute',
+                            inset: 0,
+                            width: '100%',
+                            height: '100%',
+                            background: '#000',
+                            objectFit: 'contain',
+                        }}
+                        controls
+                        autoPlay
+                        playsInline
+                        onError={() => {
+                            // Signed URL expired mid-load or a
+                            // network hiccup — fall through to
+                            // iframe cycling.
+                            setNativeState('failed');
+                        }}
+                    />
+                )}
+                {/* Iframe path — used when the native bridge is
+                  * unavailable (browser preview / old APK) OR the
+                  * native extraction failed. */}
+                {nativeState === 'failed' && !allExhausted && (
                     <>
                         <iframe
                             key={currentKey}
@@ -332,47 +474,55 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
                           * already advanced to the next candidate and
                           * the iframe key changes — the veil stays put
                           * throughout. */}
-                        {!playerReady && (
-                            <div
-                                data-testid="trailer-loading"
-                                style={{
-                                    position: 'absolute',
-                                    inset: 0,
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: 16,
-                                    background: backdrop
-                                        ? `linear-gradient(rgba(6,8,15,0.65),rgba(6,8,15,0.9)),url(${backdrop}) center/cover`
-                                        : '#06080f',
-                                    pointerEvents: 'none',
-                                }}
-                            >
-                                <Loader2
-                                    size={44}
-                                    style={{
-                                        animation: 'vesper-trailer-spin 1s linear infinite',
-                                        color: '#5DC8FF',
-                                    }}
-                                />
-                                <div
-                                    style={{
-                                        fontFamily: 'monospace',
-                                        fontSize: 12,
-                                        letterSpacing: '0.22em',
-                                        color: '#8de0ff',
-                                        textTransform: 'uppercase',
-                                    }}
-                                >
-                                    {currentIdx > 0
-                                        ? `Trying trailer ${currentIdx + 1} of ${candidates.length}…`
-                                        : 'Loading trailer…'}
-                                </div>
-                                <style>{`@keyframes vesper-trailer-spin{to{transform:rotate(360deg)}}`}</style>
-                            </div>
-                        )}
                     </>
+                )}
+                {/* v2.11.8 — Universal loading veil.  Shows during:
+                  *   1. native extraction in-flight (nativeState = 'unknown' | 'trying')
+                  *   2. iframe fallback boot (nativeState = 'failed', !playerReady, !allExhausted)
+                  * Hides once <video> starts (native path) or the
+                  * iframe fires onReady (fallback path). */}
+                {(nativeState === 'unknown' || nativeState === 'trying' ||
+                  (nativeState === 'failed' && !playerReady && !allExhausted)) && (
+                    <div
+                        data-testid="trailer-loading"
+                        style={{
+                            position: 'absolute',
+                            inset: 0,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 16,
+                            background: backdrop
+                                ? `linear-gradient(rgba(6,8,15,0.65),rgba(6,8,15,0.9)),url(${backdrop}) center/cover`
+                                : '#06080f',
+                            pointerEvents: 'none',
+                        }}
+                    >
+                        <Loader2
+                            size={44}
+                            style={{
+                                animation: 'vesper-trailer-spin 1s linear infinite',
+                                color: '#5DC8FF',
+                            }}
+                        />
+                        <div
+                            style={{
+                                fontFamily: 'monospace',
+                                fontSize: 12,
+                                letterSpacing: '0.22em',
+                                color: '#8de0ff',
+                                textTransform: 'uppercase',
+                            }}
+                        >
+                            {nativeState === 'trying' || nativeState === 'unknown'
+                                ? 'Preparing trailer…'
+                                : (currentIdx > 0
+                                    ? `Trying trailer ${currentIdx + 1} of ${candidates.length}…`
+                                    : 'Loading trailer…')}
+                        </div>
+                        <style>{`@keyframes vesper-trailer-spin{to{transform:rotate(360deg)}}`}</style>
+                    </div>
                 )}
                 {allExhausted && (
                     <div

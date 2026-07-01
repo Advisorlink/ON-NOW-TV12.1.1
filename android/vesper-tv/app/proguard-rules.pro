@@ -113,3 +113,16 @@
 # attacker can no longer locate the security code by grepping for
 # "IntegrityGuard" or "signingCertMatches" in the obfuscated DEX.
 #-keep class tv.vesper.app.security.IntegrityGuard { *; }
+
+# v2.11.8 — NewPipeExtractor ProGuard rules (from the official
+# NewPipeExtractor README).  Mozilla Rhino is used at runtime to
+# execute YouTube's obfuscated signature-decoding JavaScript;
+# stripping its classes breaks stream URL extraction.
+-keep class org.mozilla.javascript.** { *; }
+-keep class org.mozilla.classfile.ClassFileWriter
+-dontwarn org.mozilla.javascript.tools.**
+
+# Keep NewPipeExtractor entry points reachable from our Kotlin code.
+-keep class org.schabi.newpipe.extractor.** { *; }
+-dontwarn org.schabi.newpipe.extractor.**
+

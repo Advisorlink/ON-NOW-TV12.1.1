@@ -1070,4 +1070,92 @@ class WebAppInterface(private val activity: Activity) {
             }
         }.start()
     }
+
+    /**
+     * v2.11.8 — Native YouTube trailer extraction bridge.
+     *
+     * From React (TrailerModal.jsx):
+     *   window.OnNowTV.playTrailer(callbackId, videoId)
+     *
+     * Runs [YouTubeTrailerExtractor.extract] on a background thread
+     * (network + Rhino JavaScript inside NewPipeExtractor) then
+     * calls back into the WebView with:
+     *   window.__trailerReady(callbackId, resultOrNull)
+     *
+     * `result` shape:
+     *   {
+     *     videoUrl: string,        // signed googlevideo URL
+     *     audioUrl: string | '',   // set only for DASH HD pair
+     *     title:    string,        // "MOTU · Official Trailer" etc.
+     *     height:   number         // 0 when unknown
+     *   }
+     * `null` when extraction fails (network / signature roll / video
+     * removed).  React falls back to iframe cycling.
+     *
+     * The extracted URL is signed for the DEVICE's IP (that's the
+     * whole point of running the extraction on-device) so a plain
+     * `<video src={result.videoUrl}>` inside the modal streams
+     * straight from googlevideo.com with no proxy layer.
+     */
+    @JavascriptInterface
+    fun playTrailer(callbackId: String, videoId: String) {
+        Thread {
+            val streams = try {
+                YouTubeTrailerExtractor.extract(videoId)
+            } catch (t: Throwable) {
+                android.util.Log.w("VesperTrailer", "extract threw", t)
+                null
+            }
+            val mainAct = activity as? MainActivity ?: return@Thread
+            val js = if (streams != null) {
+                val vUrl = escapeJsString(streams.videoUrl)
+                val aUrl = escapeJsString(streams.audioUrl ?: "")
+                val title = escapeJsString(streams.title)
+                val height = streams.heightPx
+                "window.__trailerReady && window.__trailerReady(" +
+                    "'${escapeJsString(callbackId)}', " +
+                    "{videoUrl:'$vUrl', audioUrl:'$aUrl', title:'$title', height:$height})"
+            } else {
+                "window.__trailerReady && window.__trailerReady(" +
+                    "'${escapeJsString(callbackId)}', null)"
+            }
+            mainAct.runOnUiThread {
+                mainAct.webViewOrNull()?.evaluateJavascript(js, null)
+            }
+        }.start()
+    }
+
+    /**
+     * v2.11.8 — Fullscreen trailer via ExoPlayer when the extractor
+     * returned a DASH pair (video-only + audio-only).  HTML5
+     * `<video>` in the WebView can't merge separate streams; the
+     * native player can.  Launched as a lightweight overlay
+     * ExoPlayerActivity intent.
+     */
+    @JavascriptInterface
+    fun playTrailerFullscreen(videoUrl: String, audioUrl: String, title: String) {
+        if (videoUrl.isBlank()) return
+        activity.runOnUiThread {
+            try {
+                val intent = Intent(activity, ExoPlayerActivity::class.java).apply {
+                    putExtra(VlcPlayerActivity.EXTRA_URL, videoUrl)
+                    putExtra(VlcPlayerActivity.EXTRA_TITLE, title.ifBlank { "Trailer" })
+                    putExtra(VlcPlayerActivity.EXTRA_TYPE, "trailer")
+                    // Signal to ExoPlayerActivity that this is a
+                    // simple trailer (no scrubber, no continue-
+                    // watching, no party mode).  Read-side handles
+                    // gracefully — unknown extras are ignored.
+                    if (audioUrl.isNotBlank()) {
+                        putExtra("trailerAudioUrl", audioUrl)
+                    }
+                }
+                activity.startActivity(intent)
+            } catch (t: Throwable) {
+                android.util.Log.w("VesperTrailer", "playTrailerFullscreen", t)
+            }
+        }
+    }
+
+    private fun escapeJsString(s: String): String =
+        s.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
 }

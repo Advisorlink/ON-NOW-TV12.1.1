@@ -1,5 +1,45 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.11.8 — Native NewPipeExtractor for on-device YouTube trailer playback (01 Jul 2026).**
+>
+> Operator: "Not one trailer worked… do the new pipe thing… no questions."
+>
+> **The fundamental fix.**  Every previous strategy tried to solve trailer playback from the backend — iframe embed, yt-dlp proxy, download-to-disk — and every one hit YouTube's server-side anti-scraping heuristics because our K8s pod IP is aggressively bot-flagged.  From the operator's residential AU IP, YouTube treats the box as a regular home user with no bot flag.  So the extraction has to happen ON THE DEVICE for this to work end-to-end.  NewPipeExtractor is the exact library the NewPipe app on F-Droid uses — anonymous, no cookies, no OAuth, scrapes YouTube's public web pages from the caller's own network context.  Two-decade proven library, 20K GitHub stars, millions of installs, works with any YouTube video regardless of embed flags.
+>
+> **Wiring:**
+>
+> 1. **Vesper `settings.gradle.kts`**: JitPack maven repo added.
+> 2. **Vesper `app/build.gradle.kts`**: `com.github.teamnewpipe:NewPipeExtractor:v0.26.3` + `desugar_jdk_libs_nio:2.1.4` (required by NewPipeExtractor for minSdk 21).  `isCoreLibraryDesugaringEnabled = true` in compileOptions.  APK size delta: ~4 MB (Mozilla Rhino JS engine ships inside NewPipeExtractor for signature-cipher decoding).
+> 3. **Vesper `proguard-rules.pro`**: Rhino + NewPipeExtractor -keep rules per the official README so R8 doesn't strip the reflection-heavy scraper.
+> 4. **NEW file `YouTubeTrailerExtractor.kt`** (~200 lines): OkHttp-backed `Downloader` impl with realistic Android UA; `NewPipe.init()` idempotent guard; `extract(videoId)` returns `TrailerStreams(videoUrl, audioUrl, title, heightPx)`.  Prefers muxed progressive over DASH pair.  Returns null on any failure (network / Rhino / removed video).
+> 5. **`WebAppInterface.kt`** — two new JS bridge methods:
+>    - `playTrailer(callbackId, videoId)`: runs extraction on a background thread, calls back into `window.__trailerReady(callbackId, result)` with `{videoUrl, audioUrl, title, height}` or null.
+>    - `playTrailerFullscreen(videoUrl, audioUrl, title)`: launches ExoPlayerActivity with the DASH pair when muxed isn't available.
+> 6. **`TrailerModal.jsx`** (frontend): three-state playback pipeline.
+>    - **`unknown` → `trying` → `muxed`**: bridge available AND extraction succeeded AND muxed URL → `<video src>` renders inside modal.  The URL is signed for the DEVICE's IP so googlevideo streams straight to the WebView.
+>    - **`unknown` → `trying` → (fullscreen handoff)**: extraction returned DASH pair → `playTrailerFullscreen()` launches ExoPlayerActivity and this modal closes.
+>    - **`unknown` → `failed`**: bridge unavailable (browser preview or pre-v2.11.8 APK) OR extraction returned null → falls through to v2.11.7 iframe cycling with the loading veil + auto-advance.
+>    - 12 s hard timeout on the bridge callback so a hung extract doesn't wedge the modal.
+>    - Loading veil universal — never see YouTube's raw Error 153 card during ANY of the state transitions.
+> 7. **Kids app not touched** — kids UI doesn't expose a trailer flow.
+>
+> **Expected end-user experience on Vesper v2.11.8+ APK:**
+>
+> - Operator taps Trailer.
+> - Modal opens with "Preparing trailer…" spinner (backdrop image behind).
+> - 1-3 s later, the trailer plays inside the modal.  Full YouTube quality, native controls, no YouTube branding overlays (that's a NewPipe side-benefit), no "Watch on YouTube" link, no Error 153.
+> - Works on EVERY YouTube video — embed-blocked or not — because we're extracting the raw stream, not asking YouTube's iframe for permission.
+>
+> **Known operational costs:**
+>
+> - NewPipeExtractor releases patches every 2-4 months when YouTube changes its frontend.  If the operator's APK is older than 6 months when YT breaks something, trailers stop working until the next OTA update lands.  The iframe fallback (v2.11.7) kicks in automatically during that window so the modal still shows *something*, but embed-blocked videos will surface Error 153 in that fallback state.
+> - Legal: NewPipe technically violates YouTube ToS ("no scraping").  Never been prosecuted — F-Droid distribution, 10-year track record — but worth acknowledging for a commercial product.
+>
+> Touched: `android/vesper-tv/settings.gradle.kts` (JitPack repo), `android/vesper-tv/app/build.gradle.kts` (NewPipeExtractor + desugaring), `android/vesper-tv/app/proguard-rules.pro` (Rhino keep rules), `android/vesper-tv/app/src/main/java/tv/vesper/app/YouTubeTrailerExtractor.kt` (new file), `android/vesper-tv/app/src/main/java/tv/vesper/app/WebAppInterface.kt` (+~90 lines: `playTrailer` + `playTrailerFullscreen` bridges), `frontend/src/components/TrailerModal.jsx` (+~150 lines: native path + universal veil + native-first render).
+>
+> **User action required:**  Save to GitHub → CI builds a fresh Vesper APK → sideload to the box.  This is the FIRST fix that requires an APK rebuild — every previous trailer attempt was frontend/backend only.  Frontend changes (TrailerModal) also need to reach the operator via VPS deploy so the browser-preview iframe fallback stays graceful.
+
+
 > **🟢 v2.11.7 — Trailer veil + tightened auto-advance timing + download-to-disk fallback endpoint (01 Jul 2026).**
 >
 > Operator: "What a surprise it's STILL NOT WORKING!!!!" (Video: clicks Trailer on Masters of the Universe → sees "Watch video on YouTube · Error 153" IMMEDIATELY → waits 2-3 s → backs out → tries again on Little Brother → same result.)

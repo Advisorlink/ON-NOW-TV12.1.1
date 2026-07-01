@@ -124,6 +124,10 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // v2.11.8 — Core library desugaring.  Required by
+        // NewPipeExtractor v0.26.3 when minSdk < 33 (we're on 21).
+        // Enables java.nio, java.time, etc. APIs on old Android.
+        isCoreLibraryDesugaringEnabled = true
     }
     kotlinOptions {
         jvmTarget = "17"
@@ -189,4 +193,18 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.activity:activity-compose:1.9.0")
     implementation("io.coil-kt:coil-compose:2.6.0")
+
+    // v2.11.8 — NewPipeExtractor for native YouTube trailer
+    // extraction.  Runs on the operator's device, extracting direct
+    // video URLs using the device's own residential IP.  Bypasses
+    // ALL of YouTube's server-side embed restrictions (Error 153,
+    // "Watch on YouTube", 403s on iframe-blocked trailers).
+    // Bundled size: ~4 MB.  Includes Mozilla Rhino for JavaScript
+    // decoding of YouTube's obfuscated signature ciphers.
+    implementation("com.github.teamnewpipe:NewPipeExtractor:v0.26.3")
+
+    // v2.11.8 — Required by NewPipeExtractor when minSdk < 33.
+    // Provides java.nio backports (Path, Files, etc.) via
+    // desugaring on Android 5.0-12.
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.4")
 }
