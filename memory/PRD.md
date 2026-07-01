@@ -1,5 +1,22 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.11.3 — Kotlin compile fix: removed orphan `*/` + duplicate `NextEpisodeThumbnail` in Vesper `PlayerOverlay.kt` (01 Jul 2026).**
+>
+> Follow-up to v2.11.2.  Previous session inserted the new `StreamPickerChip` composable but the `search_replace` that stitched the surrounding KDoc back together left an **orphan `*/` block** (lines 1223-1226) and a **duplicate `NextEpisodeThumbnail` function** (lines 1228-1244 duplicating the legit one at 1097-1114) in `android/vesper-tv/app/src/main/java/tv/vesper/app/PlayerOverlay.kt`.  Result: `compileDebugKotlin` would have failed with "Conflicting declarations: `private fun NextEpisodeThumbnail(url: String)`" plus a stray-comment syntax error.  Kids `PlayerOverlay.kt` was untouched by that regression.
+>
+> Fix: single surgical `search_replace` that deleted the 23 lines of dead code between `StreamPickerChip`'s closing `}` and `DockButton`'s opening `@Composable`.  Post-fix:
+>   • Comment count balanced: `/*=6, */=6` (was `/*=6, */=7`).
+>   • Braces / parens / brackets balanced at 0 across the whole file (code-only, after stripping comments + strings).
+>   • Each Composable declared exactly once (`NextEpisodeThumbnail`, `StreamPickerChip`).
+>   • File shrank from 2434 → 2412 lines.
+>
+> Verified statically via Python-driven Kotlin sanity check (brace/paren balance + `private fun` declaration count).  No runtime effect on already-installed APKs — only unblocks the NEXT CI build.
+>
+> Touched: `android/vesper-tv/app/src/main/java/tv/vesper/app/PlayerOverlay.kt` (-23 lines).
+>
+> **User action required:**  Save to GitHub → CI can now build the Vesper APK cleanly.  The v2.11.2 `StreamPickerChip` UX ships with it.
+
+
 > **🟢 v2.11.2 — Airtight trailer sandbox + prominent Choose Links chip in ExoPlayer (30 Jun 2026).**
 >
 > Operator: "The trailers still aren't playing.  They need to actually play, not just say 'Open YouTube'.  Also, the EXO Player isn't showing the section so I can choose what link to watch — I think you've only done it in the bloody LibVLC Player."

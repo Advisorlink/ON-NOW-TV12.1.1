@@ -1221,28 +1221,6 @@ private fun StreamPickerChip(count: Int, onClick: () -> Unit) {
     }
 }
 
-
- * border + rounded corners visually tether it to the pill.
- */
-@Composable
-private fun NextEpisodeThumbnail(url: String) {
-    Box(
-        modifier = Modifier
-            .height(54.dp)
-            .width(96.dp)
-            .clip(RoundedCornerShape(6.dp))
-            .border(1.dp, Color(0x665DC8FF), RoundedCornerShape(6.dp))
-            .background(Color(0xFF06080F)),
-    ) {
-        AsyncImage(
-            model = url,
-            contentDescription = "Next episode thumbnail",
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-        )
-    }
-}
-
 @Composable
 private fun DockButton(
     icon: ImageVector,
