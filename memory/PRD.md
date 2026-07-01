@@ -1,4 +1,26 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.12.4 — Update-confirm dialog restyled to match launcher aesthetic (Feb 2026).**
+>
+> Operator screenshot showed the v2.12.2 "Update Movies/TV?" AlertDialog as a stock Material 2 white sheet sitting on top of the deep-navy launcher — jarring visual clash with the neon-cyan tile borders + "BOOST" glow + purple update-badge pill.
+>
+> **Fix — themed custom-view dialog:**
+>
+> 1. **New drawable `bg_update_dialog_card.xml`** — 20 dp rounded card, deep-navy fill (`#F00A1220`, matches `dock_bg`), 1 dp cyan-accent stroke at 33 % alpha (`#552BB6FF`).
+> 2. **New drawable `bg_update_dialog_btn_primary.xml`** — solid cyan pill (`#FF2BB6FF`), pressed → darker cyan (`#FF1F8FE0`), D-pad focus → brighter cyan (`#FF3AC1FF`) with a 2 dp white ring so TV remote users can see the highlight from across the room.
+> 3. **New drawable `bg_update_dialog_btn_secondary.xml`** — outlined cyan pill (transparent fill, 1 dp cyan stroke at 50 % alpha).  Focus + press states light up with translucent cyan fill + full-brightness stroke.
+> 4. **New drawable `bg_update_dialog_btn_ghost.xml`** — nearly-transparent Cancel affordance.  Slight brighten on press/focus for D-pad visibility.
+> 5. **New layout `dialog_update_confirm.xml`** — vertical `LinearLayout` with:
+>    - Cyan "UPDATE AVAILABLE" badge (letter-spaced 0.14 caps, mirrors the "UPDATE · v2.10.75" pill already on tiles).
+>    - Bold 22 sp title (`Update ${label}?`).
+>    - 14 sp secondary-grey body copy (matches `text_secondary` #8EA0B7) with `lineSpacingExtra` 4dp for TV readability.
+>    - Three focus-styled buttons: Back Up (primary) → Install (secondary) → Cancel (ghost).  Focus starts on Back Up so a reflex D-pad tap does the safe thing.
+> 6. **`MainActivity.showPreUpdateBackupDialog()`** rewritten — inflates the new layout instead of using `AlertDialog.Builder.setTitle/setMessage`.  The `AlertDialog` container itself is neutralised: `setBackgroundDrawableResource(android.R.color.transparent)` strips the system chrome; the card drawable IS the dialog visual.  `dimAmount = 0.72f` gives a properly-dark backdrop for TV so the card reads as elevated instead of floating in murk.
+>
+> All 5 new XML resources validate as well-formed via ElementTree.  Kotlin syntax clean via `kotlinc 1.9.23` (only expected `R.layout/R.id` unresolved-reference errors from missing R class in the standalone check — AAPT generates it at build time).
+>
+> **User action required:**  Save to GitHub → CI rebuilds Launcher APK → sideload.  Next update prompt will pop the new themed card instead of the Material sheet.
+
+
 > **🟢 v2.12.3 — Force English on ALL TMDB responses + Streailer title sanitization (Feb 2026).**
 >
 > Operator report: "most trailers still aren't in English, and the headings aren't in English either — I don't want multi-language headings, it needs to play them in English."  Two related root causes:

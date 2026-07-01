@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Pre-update backup dialog layout — matches the launcher's
+    neon-navy aesthetic (deep navy fill, cyan accent, letter-spaced
+    caps buttons).  Shown by MainActivity.showPreUpdateBackupDialog()
+    before running any update-install pipeline.
+
+    Layout: an icon strip at the top, a bold title, a body paragraph,
+    then three horizontally-arranged buttons (primary Back Up,
+    secondary Install Now, tertiary Cancel).  DPI-independent — the
+    same file scales from a phone form-factor to a 4K TV.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/update_dialog_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_update_dialog_card"
+    android:padding="28dp">
+
+    <!-- Header strip — big cyan-tinted UPDATE badge so it visually
+         echoes the "UPDATE · v2.10.75" pill already used on tiles. -->
+    <TextView
+        android:id="@+id/update_dialog_badge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="6dp"
+        android:background="@drawable/bg_update_dialog_btn_secondary"
+        android:textColor="#FF2BB6FF"
+        android:textSize="11sp"
+        android:letterSpacing="0.14"
+        android:fontFamily="sans-serif-medium"
+        android:textStyle="bold"
+        android:text="UPDATE AVAILABLE" />
+
+    <!-- Title -->
+    <TextView
+        android:id="@+id/update_dialog_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:textColor="#FFF4F7FB"
+        android:textSize="22sp"
+        android:letterSpacing="0.01"
+        android:fontFamily="sans-serif-medium"
+        android:textStyle="bold"
+        tools:text="Update Movies/TV?" />
+
+    <!-- Body copy -->
+    <TextView
+        android:id="@+id/update_dialog_message"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:textColor="#FF8EA0B7"
+        android:textSize="14sp"
+        android:lineSpacingExtra="4dp"
+        android:fontFamily="sans-serif"
+        tools:text="This will replace the currently-installed version. Back up your profiles first — the old app data (profiles, collections, favourites) will be cleared when the new version installs." />
+
+    <!-- Button row.  Primary on the LEFT (matches TV D-pad first-focus
+         convention where the top-left/first-item is the "yes" answer).
+         Order: Back up profiles first → Install now → Cancel. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="26dp"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/update_dialog_btn_backup"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_update_dialog_btn_primary"
+            android:textColor="#FF04060B"
+            android:textSize="13sp"
+            android:letterSpacing="0.08"
+            android:fontFamily="sans-serif-medium"
+            android:textStyle="bold"
+            android:textAllCaps="true"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
+            android:text="Back up profiles first" />
+
+        <Button
+            android:id="@+id/update_dialog_btn_install"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:layout_marginStart="10dp"
+            android:background="@drawable/bg_update_dialog_btn_secondary"
+            android:textColor="#FF2BB6FF"
+            android:textSize="13sp"
+            android:letterSpacing="0.08"
+            android:fontFamily="sans-serif-medium"
+            android:textStyle="bold"
+            android:textAllCaps="true"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
+            android:text="Install now" />
+
+        <Button
+            android:id="@+id/update_dialog_btn_cancel"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:layout_marginStart="10dp"
+            android:paddingHorizontal="18dp"
+            android:background="@drawable/bg_update_dialog_btn_ghost"
+            android:textColor="#FF8EA0B7"
+            android:textSize="13sp"
+            android:letterSpacing="0.08"
+            android:fontFamily="sans-serif-medium"
+            android:textStyle="bold"
+            android:textAllCaps="true"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
+            android:text="Cancel" />
+    </LinearLayout>
+</LinearLayout>

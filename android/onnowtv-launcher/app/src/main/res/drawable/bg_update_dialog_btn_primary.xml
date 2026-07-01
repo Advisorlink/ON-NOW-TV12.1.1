@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Primary "Back up profiles first" button background.  Solid cyan
+    accent — matches the OnNowTV2 hero-blue palette and the neon
+    tile borders on the launcher home.  Rounded pill.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="24dp" />
+            <solid android:color="#FF1F8FE0" />
+        </shape>
+    </item>
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="24dp" />
+            <solid android:color="#FF3AC1FF" />
+            <stroke android:width="2dp" android:color="#FFF4F7FB" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="24dp" />
+            <solid android:color="#FF2BB6FF" />
+        </shape>
+    </item>
+</selector>

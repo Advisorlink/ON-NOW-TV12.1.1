@@ -719,24 +719,59 @@ class MainActivity : AppCompatActivity() {
      *     the update ACTUALLY lands even if versionCodes match.
      *
      *   • **Cancel** → dismiss, no-op.
+     *
+     * v2.12.4 — Uses a custom themed layout (`dialog_update_confirm`)
+     * instead of `android.app.AlertDialog.Builder` because the system
+     * default dialog is a light-mode Material 2 sheet that clashes
+     * badly with the launcher's neon-navy aesthetic (deep navy
+     * background, cyan accent, letter-spaced caps buttons).  The
+     * new dialog is a rounded card with a subtle cyan glow border
+     * and three focus-styled buttons for D-pad users on a TV.
      */
     private fun showPreUpdateBackupDialog(item: DockItem) {
-        android.app.AlertDialog.Builder(this)
-            .setTitle("Update ${item.label}?")
-            .setMessage(
-                "This will replace the currently-installed version.\n\n" +
-                    "Would you like to back up your profiles first?  " +
-                    "The old app data (profiles, collections, favourites) " +
-                    "will be cleared when the new version installs.",
-            )
-            .setPositiveButton("Back up profiles first") { _, _ ->
-                launchVesperBackupPage()
-            }
-            .setNeutralButton("Install now") { _, _ ->
-                proceedWithTileInstall(item, installed = true)
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
+        val view = layoutInflater.inflate(R.layout.dialog_update_confirm, null, false)
+
+        val titleView = view.findViewById<android.widget.TextView>(R.id.update_dialog_title)
+        val messageView = view.findViewById<android.widget.TextView>(R.id.update_dialog_message)
+        val btnBackup = view.findViewById<android.widget.Button>(R.id.update_dialog_btn_backup)
+        val btnInstall = view.findViewById<android.widget.Button>(R.id.update_dialog_btn_install)
+        val btnCancel = view.findViewById<android.widget.Button>(R.id.update_dialog_btn_cancel)
+
+        titleView.text = "Update ${item.label}?"
+        messageView.text =
+            "This will replace the currently-installed version.\n\n" +
+                "Would you like to back up your profiles first?  " +
+                "The old app data (profiles, collections, favourites) " +
+                "will be cleared when the new version installs."
+
+        // Use a transparent-framed AlertDialog so ONLY our custom
+        // card is visible — no default system chrome around it.
+        val dialog = android.app.AlertDialog.Builder(
+            this,
+            android.R.style.Theme_Material_Dialog_Alert,
+        )
+            .setView(view)
+            .setCancelable(true)
+            .create()
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        dialog.window?.setDimAmount(0.72f)
+
+        btnBackup.setOnClickListener {
+            dialog.dismiss()
+            launchVesperBackupPage()
+        }
+        btnInstall.setOnClickListener {
+            dialog.dismiss()
+            proceedWithTileInstall(item, installed = true)
+        }
+        btnCancel.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        dialog.show()
+        // First-focus goes on "Back up profiles first" — safest
+        // default action for a TV user who reflexively taps OK.
+        btnBackup.requestFocus()
     }
 
     /**
