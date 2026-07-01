@@ -1092,6 +1092,26 @@ private fun NextEpisodePill(onClick: () -> Unit) {
  *
  * Sized roughly 64×96 (16:9 at 96 px wide) to match the pill's
  * vertical footprint without dominating the dock.  A thin cyan
+ * border + rounded corners visually tether it to the pill.
+ */
+@Composable
+private fun NextEpisodeThumbnail(url: String) {
+    Box(
+        modifier = Modifier
+            .height(54.dp)
+            .width(96.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .border(1.dp, Color(0x665DC8FF), RoundedCornerShape(6.dp))
+            .background(Color(0xFF06080F)),
+    ) {
+        AsyncImage(
+            model = url,
+            contentDescription = "Next episode thumbnail",
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+        )
+    }
+}
 
 /**
  * v2.11.2 — StreamPickerChip.  Cyan-bordered pill that surfaces
