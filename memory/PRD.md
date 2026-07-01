@@ -1,4 +1,23 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.12.9 — Trailer buffer bump: eliminate the "buffers once mid-play" stall (Feb 2026).**
+>
+> Operator report: "trailers buffer once — at 5 s or halfway through — then play OK the rest of the way."  A single mid-play stall on an otherwise-working trailer is textbook evidence of the pre-play buffer running dry.
+>
+> **Root cause**: `ExoPlayerActivity`'s `DefaultLoadControl` set `bufferForPlaybackMs = 3_000` (3 s) for fast start-up on movies / live TV.  But for a YouTube trailer served from googlevideo.com as a DASH audio+video pair, each byte range must round-trip separately through YouTube's per-connection anonymous-IP throttle (~2-3 Mbps).  When any window of ~3 seconds happens to be slower than realtime (dropped packet, TCP retransmit, throttle bandwidth shift), the 3 s cushion is exhausted and ExoPlayer stalls.  Once the initial burst is spent the buffer refills, so we never stall again — hence the "one buffer, then fine" pattern.
+>
+> **Fix**: Detect the trailer path via `trailerAudioUrl.isNotBlank()` and bump for that case only:
+> - **`bufferForPlaybackMs: 3_000 → 8_000`** — wait 8 s of buffered content before starting playback.  Trivial UX cost on a 30-90 s trailer (user already knows a trailer is loading), and absorbs any per-chunk throttle glitch during playback.
+> - **`bufferForPlaybackAfterRebufferMs: 3_000 → 12_000`** — if we DO stall despite the pre-buffer, wait for a 12 s cushion before resuming so we don't stall again immediately.
+>
+> Movies / live TV keep the fast-start `3 s / 3 s` values.  Regular movie streams have proper DASH/HLS manifests that don't suffer YouTube's per-connection throttling.
+>
+> Kotlin syntax verified clean via `kotlinc 1.9.23`.
+>
+> **User action required**: Save to GitHub → CI rebuilds Vesper APK → sideload.
+>
+> **If it STILL stalls after this ships:** Reply and I'll add a **Settings → Trailer quality → 720p / 1080p / 1440p** toggle stored in SharedPreferences.  I didn't add it pre-emptively because the buffer bump should solve the root cause on its own; a quality toggle only helps if 1080p is genuinely too much bandwidth for the box's Wi-Fi (which we haven't confirmed yet — the "one stall then fine" pattern is really a buffer problem, not a bandwidth problem).
+
+
 > **🟢 v2.12.8 — "Back up profiles first" now finds Vesper (Feb 2026).**
 >
 > Operator report: after the v2.12.2 update dialog shipped, tapping "Back up profiles first" always showed the "Vesper isn't installed" toast — even though Vesper was clearly running on the box.

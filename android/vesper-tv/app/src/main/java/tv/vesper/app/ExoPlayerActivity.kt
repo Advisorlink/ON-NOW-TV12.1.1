@@ -641,12 +641,30 @@ class ExoPlayerActivity : ComponentActivity() {
         // user reported seeks "take ages to start playing".  Drop
         // to 3 s so the new position resumes ~3x faster on a
         // healthy CDN.  Initial start drops 6→3s too.
+        // v2.12.9 — Trailer path needs a MUCH bigger pre-play buffer
+        // than regular movie playback.  The single mid-play stall
+        // the operator saw ("buffers once at 5s or halfway then plays
+        // OK") is the DASH audio+video streams from googlevideo.com
+        // hitting a slow chunk after ~3-5 s of playback because YT
+        // throttles anonymous residential-IP connections to ~2-3 Mbps
+        // once the initial burst is spent.  With 3 s of pre-play
+        // buffer, ANY throttled window > 3 s = stall.
+        //
+        // Bump `bufferForPlayback` to 8 s (starts a bit slower —
+        // acceptable for a 30-90 s trailer since the user knows a
+        // trailer is loading) and `bufferForPlaybackAfterRebuffer`
+        // to 12 s (if we do stall, wait for a proper cushion before
+        // resuming so we don't stall again immediately).  Regular
+        // movie playback keeps the fast-start 3 s / 3 s values.
+        val isTrailerPath = trailerAudioUrl.isNotBlank()
+        val bufferForPlayback = if (isTrailerPath) 8_000 else 3_000
+        val bufferForPlaybackAfterRebuffer = if (isTrailerPath) 12_000 else 3_000
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                50_000,    // minBufferMs — keep refilling toward 50 s
-                120_000,   // maxBufferMs — long soak room
-                3_000,     // bufferForPlaybackMs — start fast (was 6 000)
-                3_000,     // bufferForPlaybackAfterRebufferMs (was 10 000)
+                50_000,                              // minBufferMs — keep refilling toward 50 s
+                120_000,                             // maxBufferMs — long soak room
+                bufferForPlayback,                   // bufferForPlaybackMs
+                bufferForPlaybackAfterRebuffer,      // bufferForPlaybackAfterRebufferMs
             )
             .setPrioritizeTimeOverSizeThresholds(true)
             .setTargetBufferBytes(C.LENGTH_UNSET)
