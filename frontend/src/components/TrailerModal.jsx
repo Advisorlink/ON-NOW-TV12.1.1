@@ -18,7 +18,7 @@
  * In both cases the user can close with Escape / Backspace / the X.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Maximize2, Minimize2 } from 'lucide-react';
+import { X, Maximize2, Minimize2, Loader2 } from 'lucide-react';
 
 export default function TrailerModal({ youtubeKey, title, poster, backdrop, onClose }) {
     const [fullscreen, setFullscreen] = useState(false);
@@ -67,12 +67,20 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
     }, [youtubeKey]);
     const [currentIdx, setCurrentIdx] = useState(0);
     const [allExhausted, setAllExhausted] = useState(false);
+    const [playerReady, setPlayerReady] = useState(false);
     const currentKey = candidates[currentIdx]?.key || '';
 
     useEffect(() => {
         setCurrentIdx(0);
         setAllExhausted(false);
+        setPlayerReady(false);
     }, [youtubeKey]);
+
+    // Reset ready state whenever we swap candidate — the new
+    // iframe needs a fresh check.
+    useEffect(() => {
+        setPlayerReady(false);
+    }, [currentKey]);
 
     /* Listen for YouTube IFrame Player error events via postMessage.
      * YouTube error codes we care about:
@@ -116,22 +124,20 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
                 }
                 if (!payload || typeof payload !== 'object') return;
                 const event = payload.event;
-                if (event === 'onReady' || event === 'infoDelivery' || event === 'apiInfoDelivery') {
+                if (event === 'onReady' || event === 'infoDelivery' ||
+                    event === 'apiInfoDelivery' || event === 'initialDelivery') {
                     readyReceived = true;
+                    setPlayerReady(true);
                 }
-                if (event === 'onError' || event === 'onApiChange') {
-                    // onError with any info → embed blocked / removed
-                    if (event === 'onError') advance();
-                }
+                if (event === 'onError') advance();
             } catch { /* swallow */ }
         };
 
         window.addEventListener('message', handleMsg);
 
-        // YouTube IFrame API handshake: send `listening` to the
-        // iframe so YouTube starts posting `onReady`/`onError`
-        // events.  Retry every 400 ms until the iframe becomes
-        // available (WebView needs 2-3 s to load the player).
+        // v2.11.7 — YT IFrame API handshake.  Send `listening`
+        // message repeatedly until iframe becomes available so YT
+        // starts posting `onReady` events back.
         let handshakeTicks = 0;
         const handshakeTimer = setInterval(() => {
             handshakeTicks += 1;
@@ -143,16 +149,32 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
                     '*'
                 );
             } catch { /* swallow */ }
-            if (handshakeTicks > 30 || readyReceived) {
+            if (handshakeTicks > 20 || readyReceived) {
                 clearInterval(handshakeTimer);
             }
-        }, 400);
+        }, 250);
 
-        // Fallback timeout: 9 s for the iframe to fire onReady on
-        // slow WebView JS engines (HK1 boxes need 3-4 s to boot).
+        /* v2.11.7 — TIGHTENED READY-TIMEOUT (4.5 s, was 9 s).
+         *
+         * Verified empirically that YouTube sends ZERO postMessage
+         * events for embed-blocked videos — the iframe silently
+         * renders "Watch video on YouTube · Error 153" with no
+         * `onError` call.  So the ONLY way to detect an embed-block
+         * is a ready-timeout.
+         *
+         * For a PLAYING video: onReady/infoDelivery fires within
+         * 700-2500 ms typically (up to ~3 s on slow WebViews).
+         * For a BLOCKED video: no events at all, forever.
+         *
+         * 4.5 s catches every reasonable slow-boot case while not
+         * making the operator wait unnecessarily.  If a slow
+         * connection false-skips a playable video, the operator
+         * will just see the NEXT candidate play — no visible
+         * failure.
+         */
         const tId = setTimeout(() => {
             if (!readyReceived) advance();
-        }, 9000);
+        }, 4500);
 
         return () => {
             window.removeEventListener('message', handleMsg);
@@ -271,32 +293,86 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
                 }}
             >
                 {!allExhausted && (
-                    <iframe
-                        key={currentKey}
-                        data-testid="trailer-iframe"
-                        title={title || 'Trailer'}
-                        src={src}
-                        style={{
-                            position: 'absolute',
-                            inset: 0,
-                            width: '100%',
-                            height: '100%',
-                            border: 0,
-                        }}
-                        allow="autoplay; encrypted-media; fullscreen"
-                        allowFullScreen
-                        /* v2.11.6 — LOOSER sandbox than v2.11.2.
-                         * `allow-scripts allow-same-origin
-                         * allow-presentation` was the previous set,
-                         * but with `enablejsapi=1` we NEED the iframe
-                         * to postMessage back to us; strict
-                         * `allow-same-origin` alone is enough for
-                         * that.  We keep top-navigation + popups
-                         * BLOCKED so "Watch on YouTube" click stays
-                         * a no-op inside Vesper's WebView. */
-                        sandbox="allow-scripts allow-same-origin allow-presentation"
-                        referrerPolicy="origin"
-                    />
+                    <>
+                        <iframe
+                            key={currentKey}
+                            data-testid="trailer-iframe"
+                            title={title || 'Trailer'}
+                            src={src}
+                            style={{
+                                position: 'absolute',
+                                inset: 0,
+                                width: '100%',
+                                height: '100%',
+                                border: 0,
+                                opacity: playerReady ? 1 : 0,
+                                transition: 'opacity 240ms ease-in',
+                            }}
+                            allow="autoplay; encrypted-media; fullscreen"
+                            allowFullScreen
+                            /* v2.11.6 — LOOSER sandbox than v2.11.2.
+                             * `allow-scripts allow-same-origin
+                             * allow-presentation` was the previous set,
+                             * but with `enablejsapi=1` we NEED the iframe
+                             * to postMessage back to us; strict
+                             * `allow-same-origin` alone is enough for
+                             * that.  We keep top-navigation + popups
+                             * BLOCKED so "Watch on YouTube" click stays
+                             * a no-op inside Vesper's WebView. */
+                            sandbox="allow-scripts allow-same-origin allow-presentation"
+                            referrerPolicy="origin"
+                        />
+                        {/* v2.11.7 — Loading veil.  Covers YouTube's
+                          * silent Error-153 card so the operator never
+                          * sees "Watch video on YouTube · Error 153"
+                          * during the auto-advance detection window.
+                          * Fades out once the YT IFrame API confirms
+                          * `onReady` (playback confirmed).  If the
+                          * 4.5 s ready-timeout fires instead, we've
+                          * already advanced to the next candidate and
+                          * the iframe key changes — the veil stays put
+                          * throughout. */}
+                        {!playerReady && (
+                            <div
+                                data-testid="trailer-loading"
+                                style={{
+                                    position: 'absolute',
+                                    inset: 0,
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 16,
+                                    background: backdrop
+                                        ? `linear-gradient(rgba(6,8,15,0.65),rgba(6,8,15,0.9)),url(${backdrop}) center/cover`
+                                        : '#06080f',
+                                    pointerEvents: 'none',
+                                }}
+                            >
+                                <Loader2
+                                    size={44}
+                                    style={{
+                                        animation: 'vesper-trailer-spin 1s linear infinite',
+                                        color: '#5DC8FF',
+                                    }}
+                                />
+                                <div
+                                    style={{
+                                        fontFamily: 'monospace',
+                                        fontSize: 12,
+                                        letterSpacing: '0.22em',
+                                        color: '#8de0ff',
+                                        textTransform: 'uppercase',
+                                    }}
+                                >
+                                    {currentIdx > 0
+                                        ? `Trying trailer ${currentIdx + 1} of ${candidates.length}…`
+                                        : 'Loading trailer…'}
+                                </div>
+                                <style>{`@keyframes vesper-trailer-spin{to{transform:rotate(360deg)}}`}</style>
+                            </div>
+                        )}
+                    </>
                 )}
                 {allExhausted && (
                     <div

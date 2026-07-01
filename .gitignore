@@ -1609,3 +1609,4 @@ launcher-backend/data/apks/*.apk
 !launcher-backend/data/system-deps/*.apkm
 !launcher-backend/data/system-deps/*.apk
 !launcher-backend/data/system-deps/README.md
+frontend/node_modules/.cache/default-development/57.pack

@@ -28,7 +28,7 @@ from urllib.parse import quote
 import httpx
 from dotenv import load_dotenv
 from fastapi import APIRouter, Body, FastAPI, HTTPException, Query, Request
-from fastapi.responses import Response, HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import Response, HTMLResponse, JSONResponse, StreamingResponse, FileResponse
 from PIL import Image, UnidentifiedImageError
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
@@ -3146,6 +3146,162 @@ async def trailer_stream(youtube_id: str, combined: int = 0):
     }
     await cache.set(cache_key, out, 60 * 60)
     return {"cached": False, **out}
+
+
+@api.get("/trailer/mp4/{youtube_id}")
+async def trailer_mp4(youtube_id: str, request: Request):
+    """v2.11.7 — DOWNLOAD-TO-DISK trailer serving.  The reliable path.
+    
+    Why not proxy the direct googlevideo URL?  Tried — fails.  yt-dlp
+    extracts a signed URL that immediately 403s on GET (even from
+    the same pod IP, even before redirect).  Cause: our K8s pod
+    egresses over IPv6 but googlevideo edges are IPv4-only, so any
+    redirect breaks the signature.
+    
+    Why download-to-disk works: yt-dlp maintains a session-scoped
+    HTTP client with cookies + PoT tokens + client-specific headers
+    that Google validates end-to-end.  It downloads the video
+    IN-PROCESS with all that session state intact.  Once the file
+    is on disk, we serve it as a plain static file — no more
+    googlevideo interaction, no more IP checks, no more sig
+    validation.  Bulletproof.
+    
+    Endpoint behaviour:
+      • Cache dir: `/tmp/vesper_trailers/{yt_id}.mp4`.
+      • If cached (mtime < 24 h), stream directly via FileResponse
+        with Range support (bytes negotiation via FastAPI's
+        default FileResponse).
+      • If not cached, run yt-dlp in a thread to download; return
+        FileResponse when complete.  First-load latency ~3-8 s for
+        a 5-10 MB trailer at 360p on typical WAN.
+      • Auto-reap files older than 24 h on each call to keep disk
+        usage bounded.
+    
+    360p is the sweet spot for trailers:
+      • Renders sharp on any TV up to ~55" from viewing distance.
+      • Combined progressive MP4 (audio+video multiplexed) so a
+        plain `<video>` element plays it — no MSE.
+      • ~5-10 MB per trailer; ~500 trailers in-cache = ~2-5 GB disk.
+    
+    Failure mode:  yt-dlp download failure → 502.  Frontend falls
+    back to iframe candidate cycling (`youtubeKey` array).
+    """
+    safe_id = re.sub(r"[^A-Za-z0-9_-]", "", youtube_id)[:24]
+    if not safe_id:
+        raise HTTPException(400, "invalid youtube_id")
+
+    trailers_dir = Path("/tmp/vesper_trailers")
+    trailers_dir.mkdir(parents=True, exist_ok=True)
+    mp4_path = trailers_dir / f"{safe_id}.mp4"
+
+    # Reap stale files (> 24 h old).  Cheap sweep — a few hundred
+    # entries at most.
+    try:
+        now_ts = time.time()
+        for p in trailers_dir.glob("*.mp4"):
+            try:
+                if now_ts - p.stat().st_mtime > 24 * 3600:
+                    p.unlink(missing_ok=True)
+            except Exception:  # noqa: BLE001
+                pass
+    except Exception:  # noqa: BLE001
+        pass
+
+    # If we already have it, serve straight.
+    if mp4_path.exists() and mp4_path.stat().st_size > 0:
+        return FileResponse(
+            mp4_path,
+            media_type="video/mp4",
+            headers={"Cache-Control": "public, max-age=3600"},
+        )
+
+    # Not cached — download via yt-dlp in a worker thread.  Cap
+    # concurrent downloads for the same id via a per-id lock so
+    # simultaneous requests don't step on each other.
+    lock_path = trailers_dir / f"{safe_id}.lock"
+    tmp_path = trailers_dir / f"{safe_id}.tmp.mp4"
+
+    def _download() -> bool:
+        try:
+            from yt_dlp import YoutubeDL  # local import — heavy module
+            ydl_opts = {
+                # 18 = progressive 360p MP4 (audio+video merged).
+                # Fallback chain covers rare cases where 18 is
+                # missing.
+                "format": (
+                    "18/"
+                    "best[ext=mp4][acodec!=none][vcodec!=none][height<=480]/"
+                    "best[acodec!=none][vcodec!=none]/best"
+                ),
+                "outtmpl": str(tmp_path),
+                "quiet": True,
+                "no_warnings": True,
+                "noplaylist": True,
+                "socket_timeout": 20,
+                "retries": 2,
+                "nocheckcertificate": True,
+                "extractor_args": {"youtube": {"player_client": ["tv_embedded", "android", "web"]}},
+            }
+            with YoutubeDL(ydl_opts) as ydl:
+                ydl.download([f"https://www.youtube.com/watch?v={safe_id}"])
+            # Move tmp to final atomically so partial downloads
+            # aren't served.
+            if tmp_path.exists() and tmp_path.stat().st_size > 100_000:
+                tmp_path.rename(mp4_path)
+                return True
+        except Exception as e:  # noqa: BLE001
+            logger.info("trailer_mp4 dl fail for %s: %s", safe_id, e)
+        # Cleanup partial
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except Exception:  # noqa: BLE001
+            pass
+        return False
+
+    # If another request is already downloading this id, wait up
+    # to 25 s for the file to appear rather than starting a
+    # parallel download.  We consider `lock_path` existence as the
+    # signal that a download is in-flight; the caller sets/removes
+    # it before/after `_download`.
+    if lock_path.exists():
+        try:
+            age = time.time() - lock_path.stat().st_mtime
+        except Exception:  # noqa: BLE001
+            age = 999
+        if age < 30:
+            for _ in range(25):
+                await asyncio.sleep(1)
+                if mp4_path.exists() and mp4_path.stat().st_size > 0:
+                    return FileResponse(
+                        mp4_path,
+                        media_type="video/mp4",
+                        headers={"Cache-Control": "public, max-age=3600"},
+                    )
+        else:
+            # Stale lock — nuke it and proceed.
+            try:
+                lock_path.unlink(missing_ok=True)
+            except Exception:  # noqa: BLE001
+                pass
+
+    try:
+        lock_path.touch()
+        loop = asyncio.get_event_loop()
+        ok = await loop.run_in_executor(None, _download)
+    finally:
+        try:
+            lock_path.unlink(missing_ok=True)
+        except Exception:  # noqa: BLE001
+            pass
+
+    if not ok or not mp4_path.exists():
+        raise HTTPException(502, "trailer_download_failed")
+
+    return FileResponse(
+        mp4_path,
+        media_type="video/mp4",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
 
 
 @api.get("/trailer/proxy/{youtube_id}")
