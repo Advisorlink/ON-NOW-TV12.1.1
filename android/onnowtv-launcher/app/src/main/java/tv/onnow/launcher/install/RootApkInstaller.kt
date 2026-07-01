@@ -89,12 +89,26 @@ object RootApkInstaller {
      *                    comes back up on its own); `false` for
      *                    side-app updates (where we don't want to
      *                    abruptly switch to the side app).
+     * @param forceCleanInstall  v2.12.2 — When `true`, UNCONDITIONALLY
+     *                    `pm uninstall` before `pm install`.  This is
+     *                    required for updates because on some rooted
+     *                    firmwares `pm install -r -d` returns Success
+     *                    but silently no-ops when the versionCode is
+     *                    the same as the installed one (the operator's
+     *                    exact repro: "installer says installed, but
+     *                    nothing changed").  A clean uninstall+install
+     *                    guarantees the new APK actually lands.  Set
+     *                    this to `true` whenever the target package is
+     *                    already installed; leave it `false` on fresh
+     *                    installs so `pm uninstall` doesn't error
+     *                    on a non-existent package.
      */
     fun install(
         ctx: Context,
         apk: File,
         packageName: String,
         relaunch: Boolean = true,
+        forceCleanInstall: Boolean = false,
     ): Boolean {
         if (!isRootAvailable()) {
             Log.i(TAG, "no root — caller should use intent-based install")
@@ -124,16 +138,23 @@ object RootApkInstaller {
             ":"
         val script = buildString {
             append("(")
-            // First attempt: in-place reinstall with downgrade
-            // permitted.  -r = replace existing app, -d = allow
-            // downgrade across versionCodes.
-            append("pm install -r -d \"$apkPath\"")
-            // If that fails — usually signature mismatch — uninstall
-            // then install clean.  Note: this drops app data; for
-            // the launcher itself that's basically harmless since
-            // all persisted state is in /data/local/tmp/onnowtv-* or
-            // the backend.
-            append(" || (pm uninstall \"$packageName\" && pm install \"$apkPath\")")
+            if (forceCleanInstall) {
+                // v2.12.2 — Update path.  Nuke the old package first so
+                // Android CANNOT no-op the install (see kdoc above for
+                // why `pm install -r -d` alone isn't enough).  We
+                // ignore the uninstall exit code because on some
+                // firmwares `pm uninstall` returns non-zero even on
+                // success (e.g. when the package has no data dir).
+                append("pm uninstall \"$packageName\" ; ")
+                append("pm install \"$apkPath\"")
+            } else {
+                // Fresh install path.  Try -r -d first for cases where
+                // the caller was wrong about the "not installed" state
+                // (race with another install), then fall back to a
+                // clean uninstall+install if that fails.
+                append("pm install -r -d \"$apkPath\"")
+                append(" || (pm uninstall \"$packageName\" && pm install \"$apkPath\")")
+            }
             // Re-launch the launcher (or no-op for side-app updates).
             append(" ; $relaunchCmd")
             // Clean up the cached APK so we don't fill the box's

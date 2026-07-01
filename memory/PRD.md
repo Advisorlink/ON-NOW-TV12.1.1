@@ -1,4 +1,36 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.12.2 — APK updates now truly reinstall + pre-update profile-backup prompt (Feb 2026).**
+>
+> Operator report: "when I install a new APK on the box, it says 'installed' but nothing actually changed — old version stays."  Root cause: `pm install -r -d` on the rooted HK1 firmware silently no-ops when the incoming APK's versionCode matches the installed one (a common failure mode on CI-signed rebuilds where the version bump script skips because commit-count-since-last-tag didn't move).  The launcher previously TRIED `pm install -r -d` first and only fell back to `pm uninstall && pm install` on non-zero exit — but a false-success exit code from `pm install -r -d` shortcuts the fallback entirely.
+>
+> **Fixes:**
+>
+> 1. **`RootApkInstaller.install()`** — new `forceCleanInstall: Boolean = false` parameter.  When `true`, the root shell script is `pm uninstall <pkg> ; pm install <apk>` — no `pm install -r -d` attempt.  The uninstall is unconditional (its exit code is ignored — some firmwares return non-zero on success when the package has no data dir).  This GUARANTEES the new APK actually lands even when versionCodes match.
+> 2. **`ApkInstaller.downloadAndInstall()`** — calls `RootApkInstaller.install(..., forceCleanInstall = isUpdate)`.  Fresh installs still use the try-`-r -d`-first path so `pm uninstall` doesn't error on a non-existent package.  Only re-installs of an already-on-device package get the clean uninstall+install treatment.
+> 3. **`MainActivity.onTileInstallRequested()` (launcher)** — split into `onTileInstallRequested()` + `proceedWithTileInstall()`.  When the target package is already installed, we now show a three-button `AlertDialog` BEFORE the install pipeline starts:
+>    - **Back up profiles first** → deep-link Vesper to `#/profiles/backup` via `putExtra("vesper_route", "#/profiles/backup")` + `FLAG_ACTIVITY_CLEAR_TOP`.  User completes backup at their own pace, comes back, re-taps the tile to run the update.  We don't stash the install for auto-resume — safer to make the user re-confirm than surprise-install seconds after backup finishes.
+>    - **Install now** → proceeds to `proceedWithTileInstall(item, installed=true)`.  The root path then does the clean uninstall+install.
+>    - **Cancel** → dismiss, no-op.
+>    Non-installed (fresh) tiles skip the dialog entirely and go straight into the install pipeline.
+> 4. **Vesper `MainActivity.kt`** — extended the `vesper_route` intent extra to accept bare `#/...` hash routes.  Previously the extra only supported `profile=…` / `v2ai=…` query fragments; the launcher's new backup prompt needs to deep-link to an arbitrary SPA route.  The hash is appended to the boot URL AFTER any query params so HashRouter reads it synchronously on load.
+>
+> **Behaviour matrix** (Vesper package as example):
+>
+> | Scenario                                         | Old behaviour              | New behaviour |
+> |--------------------------------------------------|----------------------------|---------------|
+> | Vesper not installed → tap tile                  | Download + install prompt  | Download + install prompt (unchanged) |
+> | Vesper installed, tap tile → "Install now"       | `pm install -r -d` (may no-op) | `pm uninstall && pm install` (guaranteed) |
+> | Vesper installed, tap tile → "Back up profiles first" | N/A (dialog didn't exist)  | Launches Vesper at `#/profiles/backup`; install NOT started |
+> | Vesper installed, tap tile → "Cancel"            | N/A                        | No-op |
+>
+> **Verified:**
+>   * Kotlin syntax verified clean via `kotlinc 1.9.23` on all 4 touched files — only expected "unresolved reference" errors (Android SDK JAR not available in this pod, but CI has it).
+>   * Vesper's `vesper_route` intent parsing extended in place — profile switch + V2 AI deep-links still work (the hash-route branch runs AFTER the query branch and just appends `#/...` at the end).
+>   * No frontend changes required — the `/profiles/backup` route already exists (added in v2.10.98) and works standalone (no active profile required).
+>
+> **User action required:** Save to GitHub → CI rebuilds Launcher + Vesper APKs → sideload both.  Once the new Launcher runs, EVERY update to a tile-pinned package will pop the backup dialog before install and the install itself will truly replace the old APK (verify by watching `adb logcat -s RootApkInstaller` — you'll see `root install launched for <pkg> (isUpdate=true, ..., forceClean=true)`).
+
+
 > **🟢 v2.12.1 — Trailers now HD + English (Feb 2026).**
 >
 > Two related bugs the user reported the moment v2.11.8 native NewPipeExtractor trailers went live: (a) trailers played but were LOW-RES (usually 360p), and (b) trailers were often in the wrong language (Japanese/Spanish/etc.).

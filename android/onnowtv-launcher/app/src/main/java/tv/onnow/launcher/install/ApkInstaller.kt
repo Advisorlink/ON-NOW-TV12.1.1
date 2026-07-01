@@ -142,9 +142,19 @@ object ApkInstaller {
                 isUpdate
             if (rootNeeded && RootApkInstaller.isRootAvailable()) {
                 val relaunch = (apkPkg == ctx.packageName)
-                val ok = RootApkInstaller.install(ctx, out, apkPkg, relaunch = relaunch)
+                // v2.12.2 — Force clean uninstall+install whenever the
+                // package is already on-device.  Fixes the operator's
+                // "installer says installed but nothing changed" bug
+                // where `pm install -r -d` alone silently no-ops.
+                val ok = RootApkInstaller.install(
+                    ctx,
+                    out,
+                    apkPkg,
+                    relaunch = relaunch,
+                    forceCleanInstall = isUpdate,
+                )
                 if (ok) {
-                    Log.i(TAG, "root install launched for $apkPkg (isUpdate=$isUpdate, relaunch=$relaunch)")
+                    Log.i(TAG, "root install launched for $apkPkg (isUpdate=$isUpdate, relaunch=$relaunch, forceClean=$isUpdate)")
                     return@withContext null
                 }
                 Log.w(TAG, "root install launch failed; falling back to intent flow")

@@ -685,6 +685,99 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val installed = isPackageInstalled(item.apkPackageId)
+
+        // v2.12.2 — If this is an UPDATE (the package is already on
+        // the box), give the user a chance to back up their profiles
+        // BEFORE we uninstall the old version.  Vesper stores user
+        // profiles + collections + favourites in localStorage — the
+        // launcher's forced clean-install path (pm uninstall + pm
+        // install) drops that data along with the old APK.  The
+        // backup UI lives inside Vesper at `#/profiles/backup`, so
+        // "Back up first" fires a deep-link intent to Vesper and
+        // returns without touching the install pipeline; the user
+        // completes the backup + comes back to the launcher and
+        // re-taps the tile to actually run the update.
+        if (installed) {
+            showPreUpdateBackupDialog(item)
+            return
+        }
+
+        proceedWithTileInstall(item, installed = false)
+    }
+
+    /**
+     * v2.12.2 — Pre-update dialog with three actions:
+     *
+     *   • **Back up profiles first** → deep-link Vesper to
+     *     `#/profiles/backup`.  User backs up, comes back, re-taps
+     *     the tile to install.  We do NOT stash the install intent
+     *     — safer to make the user re-confirm than surprise-install
+     *     a few seconds after backup finishes.
+     *
+     *   • **Install now** → run the standard install pipeline.
+     *     The root-installer path will pm-uninstall + pm-install so
+     *     the update ACTUALLY lands even if versionCodes match.
+     *
+     *   • **Cancel** → dismiss, no-op.
+     */
+    private fun showPreUpdateBackupDialog(item: DockItem) {
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Update ${item.label}?")
+            .setMessage(
+                "This will replace the currently-installed version.\n\n" +
+                    "Would you like to back up your profiles first?  " +
+                    "The old app data (profiles, collections, favourites) " +
+                    "will be cleared when the new version installs.",
+            )
+            .setPositiveButton("Back up profiles first") { _, _ ->
+                launchVesperBackupPage()
+            }
+            .setNeutralButton("Install now") { _, _ ->
+                proceedWithTileInstall(item, installed = true)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    /**
+     * Launch Vesper directly to the `#/profiles/backup` route so the
+     * user can save their profiles + collections + favourites before
+     * we uninstall the old build.  If Vesper isn't installed (edge
+     * case — user is updating something OTHER than Vesper and Vesper
+     * itself isn't on the box), fall back to a Toast telling them.
+     */
+    private fun launchVesperBackupPage() {
+        val vesperPkg = "tv.vesper.app"
+        val launch = packageManager.getLaunchIntentForPackage(vesperPkg)
+        if (launch == null) {
+            Toast.makeText(
+                this,
+                "Vesper isn't installed on this box — install it first to use the profile backup UI.",
+                Toast.LENGTH_LONG,
+            ).show()
+            return
+        }
+        launch.putExtra("vesper_route", "#/profiles/backup")
+        launch.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        try {
+            startActivity(launch)
+        } catch (t: Throwable) {
+            Toast.makeText(
+                this,
+                "Could not open Vesper: ${t.message}",
+                Toast.LENGTH_LONG,
+            ).show()
+        }
+    }
+
+    /**
+     * The original body of `onTileInstallRequested` — downloads the
+     * APK, drives the conflict-resolution flow, and fires the system
+     * install prompt.  Split out in v2.12.2 so the pre-update backup
+     * dialog can gate the call.
+     */
+    private fun proceedWithTileInstall(item: DockItem, installed: Boolean) {
+        val apkUrl = item.apkUrl?.trim().orEmpty()
         val verb = if (installed) "Updating" else "Installing"
 
         // v2.10.81 — Stash the build_id we're about to install so

@@ -592,7 +592,16 @@ class MainActivity : AppCompatActivity() {
 
         // Append the deep-link query so App.js's synchronous reader
         // can pick it up before any React component renders.
+        //
+        // v2.12.2 — Also honour bare hash routes ("#/profiles/backup",
+        // "#/settings/apps", etc.) so the launcher's pre-update
+        // profile-backup prompt can deep-link directly into the SPA
+        // route that hosts the backup UI.
         val finalBootUrl = run {
+            val hashRoute = when {
+                routeExtra.startsWith("#/") -> routeExtra
+                else                        -> ""
+            }
             val deepLinkQuery = when {
                 routeExtra.contains("profile=") -> routeExtra.substringAfter("?")
                 routeExtra.contains("v2ai=")    -> routeExtra.substringAfter("?")
@@ -600,9 +609,17 @@ class MainActivity : AppCompatActivity() {
                 dataQuery.contains("v2ai=")     -> dataQuery
                 else                            -> ""
             }
-            if (deepLinkQuery.isEmpty()) bootUrl
-            else if (bootUrl.contains("?")) "$bootUrl&$deepLinkQuery"
-            else "$bootUrl?$deepLinkQuery"
+            var url = bootUrl
+            if (deepLinkQuery.isNotEmpty()) {
+                url = if (url.contains("?")) "$url&$deepLinkQuery" else "$url?$deepLinkQuery"
+            }
+            if (hashRoute.isNotEmpty()) {
+                // Hash always goes at the very end and replaces any
+                // existing hash — HashRouter reads it synchronously
+                // on load and pushes it as the initial route.
+                url = url.substringBefore("#") + hashRoute
+            }
+            url
         }
 
         setContentView(webView)
