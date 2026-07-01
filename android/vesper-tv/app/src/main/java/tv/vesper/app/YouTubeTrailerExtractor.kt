@@ -176,12 +176,16 @@ object YouTubeTrailerExtractor {
             // no DASH plumbing.  Typically 720p max on newer
             // uploads, 360p on older ones.  If none exist, fall
             // through to the DASH pair (video-only + audio-only).
+            //
+            // Note: NewPipeExtractor's Stream.getUrl() is annotated
+            // as nullable Java (`@Nullable String`) — Kotlin sees
+            // `String?`.  We filter out null/blank before dereferencing.
             val muxed = extractor.videoStreams
-                ?.filter { it.url.isNotBlank() }
+                ?.filter { !it.url.isNullOrBlank() }
                 ?.maxByOrNull { it.height.takeIf { h -> h > 0 } ?: 0 }
             if (muxed != null) {
                 return TrailerStreams(
-                    videoUrl = muxed.url,
+                    videoUrl = muxed.url ?: "",
                     audioUrl = null,
                     title = extractor.name ?: "Trailer",
                     heightPx = muxed.height.takeIf { it > 0 } ?: 0,
@@ -189,15 +193,15 @@ object YouTubeTrailerExtractor {
             }
 
             val bestVideo = extractor.videoOnlyStreams
-                ?.filter { it.url.isNotBlank() }
+                ?.filter { !it.url.isNullOrBlank() }
                 ?.maxByOrNull { it.height.takeIf { h -> h > 0 } ?: 0 }
             val bestAudio = extractor.audioStreams
-                ?.filter { it.url.isNotBlank() }
+                ?.filter { !it.url.isNullOrBlank() }
                 ?.maxByOrNull { it.averageBitrate.takeIf { b -> b > 0 } ?: 0 }
             if (bestVideo != null && bestAudio != null) {
                 return TrailerStreams(
-                    videoUrl = bestVideo.url,
-                    audioUrl = bestAudio.url,
+                    videoUrl = bestVideo.url ?: "",
+                    audioUrl = bestAudio.url ?: "",
                     title = extractor.name ?: "Trailer",
                     heightPx = bestVideo.height.takeIf { it > 0 } ?: 0,
                 )

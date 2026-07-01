@@ -1,5 +1,16 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.11.8-hotfix — Fixed 4 Kotlin nullability compile errors in `YouTubeTrailerExtractor.kt` (01 Jul 2026).**
+>
+> CI failure: `compileDebugKotlin FAILED` — 4 errors on lines 184/192/195/199 of `YouTubeTrailerExtractor.kt`.  Root cause: NewPipeExtractor's `Stream.getUrl()` (and `AudioStream.getUrl()`) are annotated `@Nullable String` in the Java source, so Kotlin sees them as `String?` — but my extract() code called `.url.isNotBlank()` (nullable receiver, needs safe-call) and assigned `.url` directly to non-nullable `videoUrl:String` fields on the `TrailerStreams` data class.
+>
+> Fix: replaced `filter { it.url.isNotBlank() }` with `filter { !it.url.isNullOrBlank() }`, and `videoUrl = muxed.url` with `videoUrl = muxed.url ?: ""`.  Same treatment for all four sites (muxed video URL, video-only URL, audio-only URL, DASH pair audio URL).  Belt-and-suspenders — after the null-safe filter the value is guaranteed non-null, but the `?: ""` fallback also placates the type checker without needing `!!` unsafe unwraps.
+>
+> Confirmed clean: Kotlin brace/paren balance = 0/0 across both new files; no other files touched by v2.11.8 need patching.
+>
+> **User action:**  Re-run Save-to-GitHub — the fresh push builds cleanly now.
+
+
 > **🟢 v2.11.8 — Native NewPipeExtractor for on-device YouTube trailer playback (01 Jul 2026).**
 >
 > Operator: "Not one trailer worked… do the new pipe thing… no questions."
