@@ -123,7 +123,7 @@ export async function resolveTrackStream(track, opts) {
         title = `${title} karaoke`;
     }
 
-    const result = await _doResolve(artist, title, karaoke, track.id);
+    const result = await _doResolve(artist, title, karaoke, track.id, track);
 
     // Karaoke fallback: if no karaoke version exists, retry with the
     // ORIGINAL title so the user at least hears the song (better
@@ -134,7 +134,7 @@ export async function resolveTrackStream(track, opts) {
     return result;
 }
 
-async function _doResolve(artist, title, karaokeFlag, trackId) {
+async function _doResolve(artist, title, karaokeFlag, trackId, track) {
     const emit = (detail) => {
         try {
             if (typeof window !== 'undefined') {

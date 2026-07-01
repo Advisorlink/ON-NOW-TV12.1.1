@@ -46,17 +46,14 @@ class OnNowTvBridge(private val webView: WebView) {
     /**
      * Resolve a YouTube audio URL for the given artist + title.
      *
-     * v2.8.52 — Tries the **custom InnerTubeResolver first** (direct
-     * youtubei/v1 calls with the ANDROID client — no PoToken, no
-     * signature deciphering, no NewPipe baggage).  Falls back to
-     * NewPipeExtractor only if InnerTube returns no result.
-     *
-     * Both resolvers run on this box's residential IP, so the bot
-     * detection that blocks our datacenter VPS doesn't apply.
+     * v2.12.0 — NewPipeExtractor is now the ONLY resolver.  It
+     * runs anonymously from this box's residential IP, requires no
+     * cookies, no YouTube sign-in, and returns direct
+     * googlevideo.com CDN URLs the HTML5 `<audio>` element streams
+     * with zero VPS involvement.
      *
      * Invokes `window.__onnowtvMusicCB(callbackId, jsonPayload)` when
-     * done.  `jsonPayload` follows the same shape regardless of which
-     * resolver actually succeeded.
+     * done.
      */
     @JavascriptInterface
     fun resolveYouTubeAudio(artist: String, title: String, callbackId: String) {
@@ -67,24 +64,7 @@ class OnNowTvBridge(private val webView: WebView) {
         scope.launch {
             val payload = try {
                 withContext(Dispatchers.IO) {
-                    // 1) InnerTube (our own resolver) — primary path.
-                    val direct = tv.onnowtv.tunes.youtube.InnerTubeResolver
-                        .resolve(artist, title)
-                    if (direct.optBoolean("ok", false)) {
-                        direct
-                    } else {
-                        // 2) NewPipeExtractor fallback (kept around in
-                        //    case InnerTube starts requiring PoToken
-                        //    in the future).  Most "ok=false" returns
-                        //    from InnerTube will land here.
-                        val np = YouTubeResolver.resolve(artist, title)
-                        // Stash the InnerTube error on the payload so
-                        // the debug overlay can show both reasons.
-                        if (!np.optBoolean("ok", false)) {
-                            np.put("inner_tube_error", direct.optString("error", ""))
-                        }
-                        np
-                    }
+                    YouTubeResolver.resolve(artist, title)
                 }
             } catch (t: Throwable) {
                 Log.w(TAG, "bridge resolve crashed", t)
@@ -92,42 +72,6 @@ class OnNowTvBridge(private val webView: WebView) {
             }
             postCallback(callbackId, payload)
         }
-    }
-
-    /** Drop all in-memory NewPipe caches.  Useful after sign-in. */
-    @JavascriptInterface
-    fun resetResolver() {
-        // Resolver cache is a private ConcurrentHashMap; the lightest
-        // way to nuke it is to keep the public surface clean and just
-        // reset the singleton.  Future iteration: expose a clearCache().
-    }
-
-    /** v2.8.54 — Sign out of YouTube on this box.  Clears the
-     *  process-wide cookie store and reloads the sign-in flow.
-     *  Called from React via `window.OnNowTV.signOut()`. */
-    @JavascriptInterface
-    fun signOut() {
-        webView.post {
-            android.webkit.CookieManager.getInstance().removeAllCookies(null)
-            android.webkit.CookieManager.getInstance().flush()
-            android.webkit.WebStorage.getInstance().deleteAllData()
-            // Restart the activity so the boot flow re-runs and sees
-            // the cleared cookies → kicks the user back to sign-in.
-            val ctx = webView.context
-            if (ctx is android.app.Activity) {
-                ctx.recreate()
-            }
-        }
-    }
-
-    /** v2.8.54 — Whether a signed-in YouTube session is available.
-     *  React side uses this to show "you're signed in as …" UI
-     *  and to enable the IFrame Player route. */
-    @JavascriptInterface
-    fun isSignedInToYouTube(): Boolean {
-        val cookies = android.webkit.CookieManager.getInstance()
-            .getCookie("https://www.youtube.com") ?: ""
-        return cookies.contains("LOGIN_INFO") || cookies.contains("SAPISID")
     }
 
     private fun postCallback(callbackId: String, payload: JSONObject) {

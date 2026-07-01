@@ -1,4 +1,26 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.12.0 — Tunes app migrated to native NewPipeExtractor (YouTube sign-in removed) (Feb 2026).**
+>
+> Follow-up to v2.11.8 (which added on-device NewPipeExtractor for Vesper trailers).  The Tunes music app used to force users through a YouTube sign-in WebView at first boot, which then let the InnerTube resolver (with SAPISID cookies) fetch ad-free direct googlevideo CDN URLs.  Falling back to a backend admin-cookies flow (`yt-dlp` + Netscape `cookies.txt` files uploaded via a hidden admin page) when the user wasn't signed in.  Both paths were fragile:
+>
+>   • The forced sign-in blocked first-launch UX until the user typed their Google credentials on a TV remote.
+>   • The admin-cookies flow required an operator to manually rotate cookies every 2-4 weeks.
+>   • Both approaches were legally awkward ("we made you sign into YouTube").
+>
+> **v2.12.0 rip-out**:
+>
+> 1. **`MainActivity.kt`** — deleted the entire boot-flow sign-in gate (`SIGN_IN_URL`, `signInWatcherClient`, `isSignedInToYouTube`, `bootFlow`, `navigateToMusic`).  Kiosk WebView now boots directly to `assets/web/index.html#/music` via `WebViewAssetLoader`.  No login, no cookies read, no gate.
+> 2. **`OnNowTvBridge.kt`** — trimmed to a single resolver path.  `resolveYouTubeAudio(artist, title, cbId)` now calls only `YouTubeResolver` (NewPipeExtractor).  Deleted the InnerTube fallback + `signOut()` + `isSignedInToYouTube()` bridge methods (nothing in React called them).
+> 3. **Deleted files**: `youtube/InnerTubeResolver.kt` (339 lines — needed SAPISID cookies), `youtube/WebViewCookieJar.kt` (44 lines — only used by InnerTube).
+> 4. **`backend/music_api.py`** — deleted `_youtube_resolve`, `_pick_cookie_file`, `_list_cookie_files`, `_cookie_file_summary`, `_check_admin_token`, `_safe_cookie_name`, `_ensure_cookies_dir`, `_resolve_cookies_dir`, `_bump_cookie_stat`, `YT_COOKIES_DIR`, `YT_COOKIES_DIR_ENV`, `_yt_cookie_stats`, `_yt_cookie_rr_idx`, `_COOKIE_FILENAME_RE`.  Deleted admin endpoints `GET/POST/DELETE /api/music/admin/cookies/{status,upload,{name},test}`.  Updated `/api/music/stream/{track_id}` resolver chain to skip YouTube (now handled 100 % on-device) → JioSaavn → Audius → Deezer preview.  Cache key bumped `v4 → v5`; ping build `v0.2.0 → v0.3.0`.  Removed unused imports (`File`, `Form`, `UploadFile`).  Net -479 lines.
+> 5. **`backend/server.py`** — deleted `_ADMIN_MUSIC_COOKIES_HTML` (~290-line HTML string) + the two route handlers `/admin/music-cookies` and `/api/admin/music-cookies`.  Net -292 lines.
+> 6. **`frontend/src/lib/musicResolver.js`** — small correctness fix: `_doResolve()` now receives the full `track` object so line 303's `track.preview_url` fallback works (previously `track` was undefined at that line — dead code that becomes reachable now that YouTube is not the primary backend path).
+>
+> Verified: backend restart clean, `/api/music/ping` returns v0.3.0, `/api/music/stream/{id}` returns preview-fallback correctly (JioSaavn/Audius attempted, no YouTube step), `/api/music/yt-search` still works (yt-dlp anonymous search, no cookies needed), removed admin endpoints return 404.  Kotlin brace/paren balance = 0/0 across all touched files.  Frontend lint clean.  Net -1210 lines across 7 files.
+>
+> **User action required:**  Save to GitHub → CI rebuilds Tunes APK → sideload to box.  Backend endpoints are live on the preview pod the moment supervisor hot-reloads; on the VPS after next `git pull` + `systemctl restart onnowtv-backend.service`.
+
+
 
 > **🟢 v2.11.8-hotfix — Fixed 4 Kotlin nullability compile errors in `YouTubeTrailerExtractor.kt` (01 Jul 2026).**
 >

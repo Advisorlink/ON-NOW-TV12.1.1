@@ -1,0 +1,35 @@
+{
+  "summary": "Backend-only regression + migration test for v2.12.0 Tunes NewPipeExtractor migration. 25/25 pytest cases passed. Verified: (1) /api/music/ping returns build v0.3.0 ok:true, (2) home/search/album/artist/genre/radio/podcasts/lyrics all work, (3) /api/music/stream/{id} resolver chain now correctly returns preview fallback with source='preview' and reason='no full-track match found on JioSaavn / Audius' for both mainstream (Adele Hello) and obscure tracks with NO 'youtube' string in source/reason, (4) /api/music/yt-search anonymous still works and returns karaoke_confident flag, (5) all 6 deleted admin cookies endpoints correctly return 404 (both /api/music/admin/cookies/* and the /admin/music-cookies + /api/admin/music-cookies HTML pages), (6) regression: /api/streams/movie/tt0111161, /api/tmdb/trailer/movie/155, /api/tmdb/upcoming-movies, /api/xtream/instant-bundle, and /api/auth/login (testuser/testpass123) all still pass.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter64_music_migration.py",
+    "/app/test_reports/pytest/iter64_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Note: music_api endpoints wrap payloads in {cached: bool, data: {...}} — kept consistent. Tests unwrap accordingly.",
+    "Resolver chain (music_api.py ~line 1063) confirmed: JioSaavn -> Audius -> preview fallback. No YouTube references in response source/reason strings.",
+    "Deleted admin cookies HTML page (server.py ~4534) properly removed — GET returns 404 with token present."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter64_music_migration.py (created)"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "not tested (out of scope)"
+  },
+  "test_credentials": "testuser/testpass123 for /api/auth/login (verified working)",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "backend test file /app/backend/tests/test_iter64_music_migration.py can be reused as regression for music_api. Note: response payloads are wrapped as {cached, data} — use _unwrap() helper. Preview-fallback is the EXPECTED outcome from this K8s pod because JioSaavn/Audius upstream commonly return no full-track match; that response shape (stream_url:null, source:preview, is_full_track:false, reason mentioning JioSaavn/Audius) is the acceptance criteria per task spec.",
+  "rca of the issue": "N/A — no bugs found. All requested endpoints behave per spec."
+}
