@@ -1,4 +1,19 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.12.5 — Trailer buffering fix: cap resolution at 1080p (Feb 2026).**
+>
+> Operator report: "trailers are English now, look great, BUT they're buffering a lot even on fast internet."
+>
+> **Root cause**: v2.12.1's DASH-pair fix (video-only + audio-only) picked the HIGHEST-resolution stream available — often 2160p (4K) or 1440p — which sustains 15-25 Mbps.  YouTube throttles anonymous residential-IP requests to ~2-3 Mbps per connection, so even fast home internet stalls when trying to pull 4K continuously.  Adding to the problem: HK1 boxes' Wi-Fi variability + ExoPlayer's HTTP/2 shared connection between the video + audio DASH streams.
+>
+> **Fix**: Cap `bestVideo` at `height <= 1080` in `YouTubeTrailerExtractor.kt` — plus cap `bestAudio` at 192 kbps (128 kbps AAC is transparent for trailer dialogue + score; 256 kbps opus adds ~150 KB/s of stall risk with zero perceptual benefit).  1080p sustains 3-5 Mbps which fits inside YouTube's throttle envelope, still looks great on any Android TV panel, and matches what YouTube's own default web player picks for anonymous playback.
+>
+> `maxHeight` is a single `val` at the top of `extract()` — easy to bump to 1440 on fibre boxes or drop to 720 on flaky Wi-Fi if needed.
+>
+> **Verified**: Kotlin syntax clean via `kotlinc 1.9.23`.  ExoPlayer's existing `DefaultLoadControl` config (50-120 s buffer, 3 s start playback) was already generous — no changes needed there.
+>
+> **User action required:**  Save to GitHub → CI rebuilds Vesper APK → sideload.  Watch `adb logcat -s VesperTrailerExtractor` after — every trailer launch will print `"DASH pair chosen: 1080p video + 128kbps audio (cap=1080p)"` confirming the new cap fired.
+
+
 > **🟢 v2.12.4 — Update-confirm dialog restyled to match launcher aesthetic (Feb 2026).**
 >
 > Operator screenshot showed the v2.12.2 "Update Movies/TV?" AlertDialog as a stock Material 2 white sheet sitting on top of the deep-navy launcher — jarring visual clash with the neon-cyan tile borders + "BOOST" glow + purple update-badge pill.

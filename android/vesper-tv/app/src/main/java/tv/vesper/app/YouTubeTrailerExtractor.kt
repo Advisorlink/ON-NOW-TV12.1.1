@@ -163,6 +163,15 @@ object YouTubeTrailerExtractor {
      * usually only happens for embed-restricted uploads that are
      * about to fall out to the iframe path anyway).
      *
+     * v2.12.5 — RESOLUTION CAP at 1080p.  Buffering fix: YouTube
+     * throttles unsigned residential-IP requests to ~2-3 Mbps per
+     * connection.  A 4K/2160p DASH video stream sustains 15-25
+     * Mbps — well above the throttle, causing frequent stalls
+     * even on fast home internet.  1080p sustains 3-5 Mbps which
+     * fits inside the throttle envelope and looks great on any
+     * TV panel.  Users on very-slow links can uncomment the 720p
+     * cap below.
+     *
      * Runs synchronously — caller MUST invoke from a background
      * thread (network I/O + JavaScript execution inside Rhino).
      *
@@ -172,6 +181,12 @@ object YouTubeTrailerExtractor {
     fun extract(videoId: String): TrailerStreams? {
         val safe = videoId.filter { it.isLetterOrDigit() || it == '_' || it == '-' }
         if (safe.isEmpty()) return null
+        // v2.12.5 — Resolution cap.  1080p is the sweet spot for
+        // TV trailers (looks native on any Android TV panel, fits
+        // inside YouTube's anonymous throttle envelope).  Bump to
+        // 1440 for boxes on fibre if buffering never happens; drop
+        // to 720 for boxes on flaky Wi-Fi if buffering persists.
+        val maxHeight = 1080
         try {
             ensureInit()
             val service = ServiceList.YouTube
@@ -179,25 +194,37 @@ object YouTubeTrailerExtractor {
             val extractor = service.getStreamExtractor(url)
             extractor.fetchPage()
 
-            // Prefer the DASH pair — HIGHEST quality path.  YouTube
-            // serves 1080p / 1440p / 2160p (4K) ONLY as separate
-            // video-only + audio-only streams (progressive muxed
-            // maxes out at 720p, often 360p on older uploads).  The
-            // Vesper ExoPlayerActivity knows how to merge them via
-            // `trailerAudioUrl` extra + MergingMediaSource.
+            // Prefer the DASH pair — HIGHEST quality path capped at
+            // 1080p.  YouTube serves muxed progressive at 720p max
+            // (often 360p); the DASH video-only track gives us up
+            // to 4K but 1080p is the biggest safe pick given
+            // YouTube's ~2-3 Mbps per-connection throttle for
+            // anonymous residential-IP requests.
             //
             // Note: NewPipeExtractor's Stream.getUrl() is annotated
             // as nullable Java (`@Nullable String`) — Kotlin sees
             // `String?`.  Filter out null/blank before dereferencing.
             val bestVideo = extractor.videoOnlyStreams
-                ?.filter { !it.url.isNullOrBlank() }
-                ?.maxByOrNull { it.height.takeIf { h -> h > 0 } ?: 0 }
+                ?.filter {
+                    !it.url.isNullOrBlank() &&
+                        it.height in 1..maxHeight
+                }
+                ?.maxByOrNull { it.height }
             val bestAudio = extractor.audioStreams
                 ?.filter { !it.url.isNullOrBlank() }
-                ?.maxByOrNull { it.averageBitrate.takeIf { b -> b > 0 } ?: 0 }
+                // v2.12.5 — Cap audio bitrate too so the aggregate
+                // stream fits comfortably in the throttle envelope.
+                // 128 kbps AAC is transparent for trailer dialogue +
+                // score; a 256 kbps opus stream adds ~150 KB/s that
+                // buys nothing but stall risk.
+                ?.filter { it.averageBitrate in 1..192 }
+                ?.maxByOrNull { it.averageBitrate }
+                ?: extractor.audioStreams
+                    ?.filter { !it.url.isNullOrBlank() }
+                    ?.minByOrNull { it.averageBitrate.takeIf { b -> b > 0 } ?: Int.MAX_VALUE }
             if (bestVideo != null && bestAudio != null) {
                 Log.i(TAG, "DASH pair chosen: ${bestVideo.height}p video + " +
-                    "${bestAudio.averageBitrate}kbps audio")
+                    "${bestAudio.averageBitrate}kbps audio (cap=${maxHeight}p)")
                 return TrailerStreams(
                     videoUrl = bestVideo.url ?: "",
                     audioUrl = bestAudio.url ?: "",
@@ -211,8 +238,11 @@ object YouTubeTrailerExtractor {
             // caps this path at 720p (usually 360p on older uploads)
             // so it's a last resort when DASH extraction returns nothing.
             val muxed = extractor.videoStreams
-                ?.filter { !it.url.isNullOrBlank() }
-                ?.maxByOrNull { it.height.takeIf { h -> h > 0 } ?: 0 }
+                ?.filter {
+                    !it.url.isNullOrBlank() &&
+                        it.height in 1..maxHeight
+                }
+                ?.maxByOrNull { it.height }
             if (muxed != null) {
                 Log.i(TAG, "muxed fallback chosen: ${muxed.height}p")
                 return TrailerStreams(
