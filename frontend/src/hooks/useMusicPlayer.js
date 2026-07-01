@@ -67,7 +67,56 @@ class PlayerEngine {
         });
         this.audio.addEventListener('error', (e) => {
             // eslint-disable-next-line no-console
-            console.warn('[music-player] audio error', e);
+            console.warn('[music-player] audio decode error', e, this.audio?.error?.code);
+            // v2.12.6 — Auto-recover.  When the HTML5 <audio> element
+            // fails to decode a native-bridge URL (WebM Opus on old
+            // WebViews, expired signature, HLS manifest, etc.) fall
+            // through to the YouTube IFrame Player using the same
+            // yt_id if we have one.  Otherwise skip to Deezer preview
+            // or the next track — the user hears SOMETHING immediately
+            // instead of silent nothing.
+            if (this.activeEngine !== 'audio') return;
+            const cur = this.state.current;
+            if (!cur) return;
+            // Guard against loops — only auto-recover once per track.
+            if (cur._audioErrorRetried) {
+                if (cur.preview_url && cur.preview_url !== this.audio?.src) {
+                    // Try the 30-second Deezer preview as last resort.
+                    this.update({
+                        current: { ...cur, _streamSource: 'preview', _isFullTrack: false },
+                    });
+                    this._setSource(cur.preview_url);
+                }
+                return;
+            }
+            // First recovery attempt.
+            if (cur._ytId || cur._streamSource === 'newpipe' || cur._streamSource === 'youtube-direct') {
+                const ytId = cur._ytId || cur._resolvedYtId;
+                if (ytId) {
+                    // eslint-disable-next-line no-console
+                    console.info('[music-player] recovering via YouTube IFrame for', ytId);
+                    this.update({
+                        current: {
+                            ...cur,
+                            _audioErrorRetried: true,
+                            _streamSource: 'youtube-iframe',
+                            _isFullTrack: true,
+                            _ytId: ytId,
+                        },
+                    });
+                    this._playYouTubeVideo(ytId);
+                    return;
+                }
+            }
+            // No yt_id available — try Deezer preview.
+            if (cur.preview_url) {
+                // eslint-disable-next-line no-console
+                console.info('[music-player] recovering via Deezer preview');
+                this.update({
+                    current: { ...cur, _audioErrorRetried: true, _streamSource: 'preview', _isFullTrack: false },
+                });
+                this._setSource(cur.preview_url);
+            }
         });
     }
     subscribe(fn) {
@@ -325,6 +374,14 @@ class PlayerEngine {
                     _resolving: false,
                     _isFullTrack: !!resolved.is_full_track,
                     _streamSource: resolved.source,
+                    // v2.12.6 — Stash yt_id so the <audio> error
+                    // handler can fall through to the YouTube
+                    // IFrame Player using the SAME video if HTML5
+                    // <audio> can't decode the native URL (WebM
+                    // Opus on old WebViews, expired signature, HLS
+                    // manifest, etc.).
+                    _ytId: resolved.yt_id || null,
+                    _resolvedYtId: resolved.yt_id || null,
                 },
             });
             this._setSource(resolved.stream_url);

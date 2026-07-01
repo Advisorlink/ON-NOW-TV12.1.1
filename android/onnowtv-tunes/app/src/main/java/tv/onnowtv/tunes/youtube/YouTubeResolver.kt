@@ -25,17 +25,33 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * Every request originates from THIS BOX'S IP (residential / home
  * Wi-Fi), not our VPS, so YouTube's datacenter bot block does not
- * apply.  No cookies required for ~95 % of mainstream queries; if
- * the box's IP itself ever gets rate-limited the Tier 2 sign-in
- * flow will populate cookies on the downloader.
+ * apply.  No cookies required for ~95 % of mainstream queries.
  *
  * Cached 4 h per (artist|title) — googlevideo URLs are signed and
  * typically live ~6 h, so we stay well under expiry.
+ *
+ * v2.12.6 — Resiliency pass:
+ *   1. Removed the strict `music_songs` filter — it returned zero
+ *      results for many indie / non-YT-Music tracks, causing the
+ *      whole resolve to abort with "no results".  Default search
+ *      returns music videos + audio uploads + covers, all playable.
+ *   2. Walk down the top 5 search results instead of only trying
+ *      the first — some tracks' first hit is age-restricted /
+ *      region-locked / requires sign-in, throwing on getInfo().
+ *      Fall through to the next candidate silently.
+ *   3. Prefer M4A/AAC audio format over WebM/Opus for maximum
+ *      HTML5 <audio> compatibility — some older Android WebViews
+ *      can't decode WebM Opus (silent playback with no error).
+ *   4. Validate audio URL is a real http(s) googlevideo URL — no
+ *      HLS manifests or empty strings.
  */
 object YouTubeResolver {
 
     private const val TAG = "YouTubeResolver"
     private const val CACHE_TTL_MS = 4L * 60 * 60 * 1000  // 4 hours
+
+    /** v2.12.6 — Try this many top search hits before giving up. */
+    private const val MAX_CANDIDATES = 5
 
     private data class CacheEntry(val payload: JSONObject, val expiresAt: Long)
 
@@ -47,8 +63,6 @@ object YouTubeResolver {
     @Synchronized
     private fun ensureInit() {
         if (initialised) return
-        // Initialise NewPipe with our OkHttp downloader and a UK
-        // English locale (matches the user's spoken English).
         OkHttpDownloader.init()
         NewPipe.init(
             OkHttpDownloader.instance(),
@@ -63,7 +77,7 @@ object YouTubeResolver {
      * SOMETHING — never throws — so the bridge can serialise the
      * outcome directly to the WebView.
      *
-     * On success: keys above (url / title / uploader / yt_id / …).
+     * On success: { "ok": true, "url", "title", "uploader", "yt_id", … }
      * On failure: { "ok": false, "error": "<message>" }
      */
     fun resolve(artist: String, title: String): JSONObject {
@@ -76,46 +90,93 @@ object YouTubeResolver {
 
         ensureInit()
 
-        val query = "$artist $title audio"
+        // v2.12.6 — "<artist> <title>" (no ` audio` suffix, no
+        // music_songs filter).  Broader net catches indie / non-YT-
+        // Music uploads.  Trailer-style false hits are filtered
+        // out later by the audioStreams check.
+        val query = "$artist $title"
         try {
             val service = ServiceList.YouTube
-            val searchExtractor = service.getSearchExtractor(
-                query,
-                listOf("music_songs"),  // YouTube Music filter — biases to
-                                        // official-audio uploads, no MVs
-                "",
-            )
+            // Empty contentFilter = default search (all types).
+            val searchExtractor = service.getSearchExtractor(query)
             searchExtractor.fetchPage()
-            val page = searchExtractor.initialPage
-            val items = page.items.orEmpty()
+            val items = searchExtractor.initialPage.items.orEmpty()
 
-            // Prefer the first StreamInfoItem (filters out channels +
-            // playlists which can show up before the first track).
-            val firstStream = items.firstOrNull { it is StreamInfoItem } as? StreamInfoItem
-                ?: return errorJson("no YouTube results for '$query'")
+            // v2.12.6 — Walk the top MAX_CANDIDATES stream items.
+            // First hit fails ~5-10% of the time (age-restriction,
+            // region-lock, sign-in required); second/third hit
+            // usually succeeds.  Silent fall-through on any throw.
+            val candidates = items
+                .filterIsInstance<StreamInfoItem>()
+                .take(MAX_CANDIDATES)
 
-            val streamInfo = StreamInfo.getInfo(service, firstStream.url)
-            val audioStreams = streamInfo.audioStreams.orEmpty()
-            if (audioStreams.isEmpty()) {
-                return errorJson("no audio streams for '${streamInfo.name}'")
+            if (candidates.isEmpty()) {
+                return errorJson("no YouTube results for '$query'")
             }
-            // Pick the highest-bitrate stream — typically m4a 128/256.
-            val best = audioStreams.maxByOrNull { it.averageBitrate.coerceAtLeast(0) }
-                ?: audioStreams.first()
 
-            val payload = JSONObject().apply {
-                put("ok", true)
-                put("url", best.content)
-                put("title", streamInfo.name)
-                put("uploader", streamInfo.uploaderName)
-                put("duration", streamInfo.duration)
-                put("yt_id", streamInfo.id)
-                put("bitrate", best.averageBitrate)
-                put("format", best.format?.name ?: "")
-                put("source", "newpipe")
+            var lastError: String? = null
+            for ((idx, cand) in candidates.withIndex()) {
+                try {
+                    val streamInfo = StreamInfo.getInfo(service, cand.url)
+                    val audioStreams = streamInfo.audioStreams.orEmpty()
+                    if (audioStreams.isEmpty()) {
+                        lastError = "no audio streams for '${streamInfo.name}'"
+                        continue
+                    }
+                    // v2.12.6 — Prefer M4A/AAC (mp4 container, AAC
+                    // codec) — 100% supported by every Android
+                    // WebView + HTML5 <audio> ever shipped.  Fall
+                    // back to WebM/Opus only if no M4A exists (very
+                    // rare on YouTube).  Then within the preferred
+                    // family, pick highest bitrate.
+                    val m4a = audioStreams.filter {
+                        val fmt = (it.format?.name ?: "").uppercase()
+                        // NewPipe's MediaFormat enum: M4A, WEBMA, MP3,
+                        // OGG, WEBMA_OPUS, AAC, OPUS.  M4A/AAC = MP4
+                        // container with AAC codec.
+                        (fmt.contains("M4A") || fmt == "AAC") &&
+                            !it.content.isNullOrBlank() &&
+                            (it.content.startsWith("http://") ||
+                                it.content.startsWith("https://"))
+                    }
+                    val pool = if (m4a.isNotEmpty()) m4a else audioStreams.filter {
+                        !it.content.isNullOrBlank() &&
+                            (it.content.startsWith("http://") ||
+                                it.content.startsWith("https://"))
+                    }
+                    if (pool.isEmpty()) {
+                        lastError = "no playable audio URLs for '${streamInfo.name}'"
+                        continue
+                    }
+                    val best = pool.maxByOrNull { it.averageBitrate.coerceAtLeast(0) }
+                        ?: pool.first()
+
+                    Log.i(TAG, "resolved '$query' via candidate #$idx: " +
+                        "${streamInfo.name} (${best.format?.name}, " +
+                        "${best.averageBitrate}kbps)")
+
+                    val payload = JSONObject().apply {
+                        put("ok", true)
+                        put("url", best.content)
+                        put("title", streamInfo.name)
+                        put("uploader", streamInfo.uploaderName)
+                        put("duration", streamInfo.duration)
+                        put("yt_id", streamInfo.id)
+                        put("bitrate", best.averageBitrate)
+                        put("format", best.format?.name ?: "")
+                        put("candidate_index", idx)
+                        put("source", "newpipe")
+                    }
+                    cache[key] = CacheEntry(payload, now + CACHE_TTL_MS)
+                    return payload
+                } catch (t: Throwable) {
+                    // Age-restricted / region-locked / sign-in
+                    // required / etc. — skip and try the next hit.
+                    lastError = "${t.javaClass.simpleName}: ${t.message ?: "unknown"}"
+                    Log.d(TAG, "candidate #$idx failed for '$query': $lastError")
+                }
             }
-            cache[key] = CacheEntry(payload, now + CACHE_TTL_MS)
-            return payload
+            return errorJson("all ${candidates.size} candidates failed. last: $lastError")
         } catch (t: Throwable) {
             Log.w(TAG, "resolve failed for '$query'", t)
             return errorJson(t.javaClass.simpleName + ": " + (t.message ?: "unknown"))

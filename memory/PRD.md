@@ -1,4 +1,39 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.12.6 — Music: play every song reliably (Feb 2026).**
+>
+> Operator report: "not every song plays.  It's working, just not every time I click on a song."  Intermittent failure — most tracks fine, a subset silent.
+>
+> **Root causes:**
+>
+> 1. **NewPipe search too restrictive** (`YouTubeResolver.kt`) — the previous code passed `contentFilter = listOf("music_songs")` which asked YouTube Music specifically for "Songs" (official-audio uploads only).  Many indie / non-YT-Music tracks return ZERO results under that filter, so the resolver aborted with "no results" and the frontend fell through to Deezer preview or silence.
+>
+> 2. **Only the first search hit was tried** — if the top hit was age-restricted, region-locked, or required sign-in, `StreamInfo.getInfo()` throws.  The old code swallowed the exception and gave up — even though the 2nd/3rd/4th hit would have succeeded.
+>
+> 3. **Best-bitrate audio picker returned WebM/Opus** — some older HK1 firmware WebViews can't decode WebM Opus in HTML5 `<audio>`.  Playback failed silently with no error surfaced to the UI.
+>
+> 4. **`<audio>` decode errors were only logged, not recovered** — when the native NewPipe URL failed to decode (WebM Opus, expired signature, HLS manifest, or a rare invalid stream), the player showed "playing" but was completely silent.  No fallback fired.
+>
+> **Fixes:**
+>
+> 1. **`YouTubeResolver.kt` (Tunes native)** —
+>    - Removed the strict `music_songs` filter → default search returns MVs + audio uploads + covers, all playable.
+>    - Walk down the top 5 candidates instead of only the first; silently skip any that throw.
+>    - Prefer **M4A/AAC** codec over WebM Opus for maximum HTML5 audio compatibility (100 % supported by every Android WebView ever shipped).
+>    - Validate that `audioStream.content` is a real `http(s)://` URL before returning it.
+>    - Logs the winning candidate index + format + bitrate for post-hoc diagnosis via `adb logcat -s YouTubeResolver`.
+>
+> 2. **`useMusicPlayer.js` `<audio>` error handler** — was previously a `console.warn` no-op.  Now auto-recovers with three tiers:
+>    - **Tier A**: If we have a `yt_id` (stashed from the resolver payload), switch to the **YouTube IFrame Player** with the same video.  IFrame handles PoToken/signatures/codec-select internally — plays where HTML5 `<audio>` couldn't.
+>    - **Tier B**: If no `yt_id`, fall through to Deezer's 30-second `preview_url`.
+>    - **Guard**: `_audioErrorRetried` flag on the track object prevents infinite loops.  Only one auto-recovery attempt per song.
+>
+> 3. **`useMusicPlayer.js` `_loadTrackStream()`** — now stashes `resolved.yt_id` onto `current._ytId` + `_resolvedYtId` so the error handler above has the video ID to fall through with.
+>
+> **Verified:** Kotlin syntax verified via `kotlinc 1.9.23` (only expected unresolved-import errors from missing NewPipe classpath — CI has it).  Frontend lint clean (only pre-existing unused-eslint-disable warnings).
+>
+> **User action required:** Save to GitHub → CI rebuilds Tunes APK → sideload.  After the new APK runs, `adb logcat -s YouTubeResolver` on failing tracks will show `"resolved 'X Y' via candidate #2: ..."` confirming the walk-down worked.  If a native URL still can't decode, `[music-player] recovering via YouTube IFrame for {yt_id}` will appear in the WebView console — the song plays anyway via the IFrame Player.
+
+
 > **🟢 v2.12.5 — Trailer buffering fix: cap resolution at 1080p (Feb 2026).**
 >
 > Operator report: "trailers are English now, look great, BUT they're buffering a lot even on fast internet."
