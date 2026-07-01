@@ -1,4 +1,24 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.12.10 — Music: NewPipe now actually plays (over-aggressive IFrame fallback fixed) (Feb 2026).**
+>
+> Operator report: "NewPipe isn't working in music — it's only playing the YouTube IFrame thing, not NewPipe."
+>
+> **Root cause**: v2.12.6's `<audio>` error recovery handler was TOO aggressive.  It fired on EVERY error event, including:
+> - `MEDIA_ERR_ABORTED` (code 1) — fires EVERY time `_setSource()` swaps `audio.src` for a new track (browser cancels the previous stream).
+> - `MEDIA_ERR_NETWORK` (code 2) — transient Wi-Fi glitches.
+>
+> So every time the user clicked a track, the stale MEDIA_ERR_ABORTED from the previous src fired against the NEW track's context, my handler flagged it as a decode failure, and immediately switched to YouTube IFrame Player.  Result: NewPipe URL was resolved correctly, briefly assigned to `<audio>`, then instantly replaced with IFrame playback — ads included.
+>
+> **Fix (`useMusicPlayer.js`):**
+> 1. **Selective error-code filter** — only auto-recover when `audio.error.code === 3` (MEDIA_ERR_DECODE) or `=== 4` (MEDIA_ERR_SRC_NOT_SUPPORTED).  Codes 1 + 2 are ignored — the browser will retry them internally or the next play attempt will succeed.
+> 2. **Src-change debounce** — `_setSource()` stamps `_lastSetSourceAt = Date.now()`; the error handler bails out if a src change happened in the last 500 ms.  Prevents any race between "old src's error event" arriving after "new src has been assigned".
+> 3. Frontend lint clean (only pre-existing unused-eslint-disable warnings, cosmetic).
+>
+> **User action required**: Save to GitHub → push deploy → hard-refresh Tunes app.  Backend / APK changes NOT required — this is a pure frontend fix.  On the box, the new bundle is live the moment Vesper WebView reloads (any launch/relaunch of Tunes picks it up).
+>
+> After deploy, `[music-player]` console messages will only show `"recovering via YouTube IFrame for {ytId}"` when a track TRULY can't decode.  In normal use, every song plays through the ad-free NewPipe URL — no IFrame Player, no ads.
+
+
 > **🟢 v2.12.9 — Trailer buffer bump: eliminate the "buffers once mid-play" stall (Feb 2026).**
 >
 > Operator report: "trailers buffer once — at 5 s or halfway through — then play OK the rest of the way."  A single mid-play stall on an otherwise-working trailer is textbook evidence of the pre-play buffer running dry.

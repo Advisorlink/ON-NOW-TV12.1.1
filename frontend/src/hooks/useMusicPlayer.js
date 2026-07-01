@@ -66,18 +66,34 @@ class PlayerEngine {
             });
         });
         this.audio.addEventListener('error', (e) => {
+            const code = this.audio?.error?.code;
+            const src = this.audio?.src || '';
             // eslint-disable-next-line no-console
-            console.warn('[music-player] audio decode error', e, this.audio?.error?.code);
-            // v2.12.6 — Auto-recover.  When the HTML5 <audio> element
-            // fails to decode a native-bridge URL (WebM Opus on old
-            // WebViews, expired signature, HLS manifest, etc.) fall
-            // through to the YouTube IFrame Player using the same
-            // yt_id if we have one.  Otherwise skip to Deezer preview
-            // or the next track — the user hears SOMETHING immediately
-            // instead of silent nothing.
+            console.warn('[music-player] audio error', { code, src: src.slice(0, 120) });
+            // v2.12.10 — Selective auto-recovery.  Only switch to
+            // YouTube IFrame Player when the error is a GENUINE
+            // decode/unsupported-format failure (codes 3 + 4).
+            // The previous v2.12.6 handler fired on EVERY error
+            // event — including `MEDIA_ERR_ABORTED` (code 1, which
+            // fires every time we change `audio.src` to load a new
+            // track) and `MEDIA_ERR_NETWORK` (code 2, transient
+            // Wi-Fi glitches).  That over-triggered the IFrame
+            // fallback so every song ended up on IFrame + ads
+            // instead of the ad-free NewPipe direct URL.
+            //
+            //   code 1 = MEDIA_ERR_ABORTED         → ignore (source change)
+            //   code 2 = MEDIA_ERR_NETWORK         → ignore (transient)
+            //   code 3 = MEDIA_ERR_DECODE          → recover (real codec bug)
+            //   code 4 = MEDIA_ERR_SRC_NOT_SUPPORTED → recover (bad URL/format)
+            if (code !== 3 && code !== 4) return;
             if (this.activeEngine !== 'audio') return;
             const cur = this.state.current;
             if (!cur) return;
+            // Also skip recovery if this src was set less than 500 ms
+            // ago — that's a race between _setSource() and the WebView
+            // firing a stale error from the PREVIOUS src.
+            const setAt = this._lastSetSourceAt || 0;
+            if (Date.now() - setAt < 500) return;
             // Guard against loops — only auto-recover once per track.
             if (cur._audioErrorRetried) {
                 if (cur.preview_url && cur.preview_url !== this.audio?.src) {
@@ -131,6 +147,11 @@ class PlayerEngine {
         if (!this.audio || !url) return;
         this._stopYouTube();
         this.activeEngine = 'audio';
+        // v2.12.10 — Timestamp the src change so the audio-error
+        // handler above can distinguish a "real" decode error from
+        // the spurious MEDIA_ERR_ABORTED event that fires when we
+        // swap the src to a new track.
+        this._lastSetSourceAt = Date.now();
         try {
             this.audio.src = url;
             this.audio.play().catch(() => {});
