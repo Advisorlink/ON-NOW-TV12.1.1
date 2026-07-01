@@ -1,5 +1,22 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.11.1 — SideNav appears INSTANTLY on LEFT (no slide, no dwell) (30 Jun 2026).**
+>
+> Operator: "Any row on the home screen — push LEFT, the menu should JUST APPEAR.  I don't want it to slide out anymore, it's taking too long.  From any row, once you push left after you get to the end of the row, menu is just there."
+>
+> Two-layer instant reveal:
+>
+> **1. Dwell timer removed.**  Previous behaviour armed a 300 ms `setTimeout` on focus-enter before calling `setExpanded(true)` — that dwell was there to prevent accidental "LEFT-then-RIGHT round trips" from surfacing the rail, but the operator explicitly wants that behaviour NOW.  Fix: `onFocus` calls `setExpanded(true)` synchronously — the rail is expanded in state before the next paint.
+>
+> **2. Width transition removed.**  Previous CSS had `transition-[width,background] duration-300` — 300 ms width slide from `76px → 240px`.  Fix: dropped the width from the transition property list entirely.  `transition: 'background 180ms ease-out'` still fades the gradient in gently (so the background doesn't pop harshly), but the WIDTH snaps instantly.  Total render-to-visible-menu time: 1 frame (~16 ms) instead of ~600 ms (300 ms dwell + 300 ms slide).
+>
+> Same instant behaviour on the way out — when focus leaves the rail (`onBlur`), `setExpanded(false)` runs immediately and the width snaps back to `76px`.  No lingering half-open state on slow TV boxes.
+>
+> Verified via Playwright: focus lands on a SideNav item → 20 ms later `offsetWidth === 240px`.  Blur → 20 ms later `offsetWidth === 76px`.  Zero JS errors across the full flow.  Every home-page row already had spatial-focus LEFT routing to the SideNav (works via the existing `useSpatialFocus` framework — nothing else to wire).
+>
+> Touched: `frontend/src/components/SideNav.jsx` — removed dwell setTimeout (~4 lines), removed `transition-[width,background] duration-300` class, added explicit `transition: 'background 180ms ease-out'` inline style.
+
+
 > **🟢 v2.11.0 — Trailers play INSIDE Vesper, period.  Single-path iframe + WebView guards (30 Jun 2026).**
 >
 > Operator (3rd time around): "I'm really sick of trailers not working.  Asks to start YouTube when it shouldn't, then doesn't play in the native player.  Either have a YouTube player INSIDE Vesper, or find a trailer API.  Just make it work."

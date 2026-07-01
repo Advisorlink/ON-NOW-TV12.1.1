@@ -50,11 +50,12 @@ export default function SideNav() {
     const currentFilter = new URLSearchParams(location.search).get('filter');
     const activePath = location.pathname;
 
-    // 300 ms dwell timer — the rail only expands after the focus
-    // has been on a nav button for a moment.  This prevents
-    // accidental "I tapped LEFT at the leftmost tile and the menu
-    // popped open" surprises — a quick LEFT-then-RIGHT round trip
-    // never actually surfaces the rail.
+    // v2.11.1 — Dwell removed.  Operator: "any row on the home
+    // screen — push LEFT, menu just appears, no slide-out."  The
+    // old 300 ms dwell + 300 ms width slide added up to ~600 ms of
+    // perceived lag.  Now: focus enters the rail → menu is THERE.
+    // We keep the ref + clearDwell() helper so the click-navigate
+    // handlers below still compile, but they're now no-ops.
     const dwellTimer = React.useRef(null);
     const clearDwell = () => {
         if (dwellTimer.current) {
@@ -148,13 +149,11 @@ export default function SideNav() {
                 // focusable child.
                 if (!e.target.matches('[data-focusable="true"]')) return;
                 if (navigatingAway) return;
-                // 300 ms dwell — quick LEFT-RIGHT round trips never
-                // actually expand the rail.
+                // v2.11.1 — Instant expansion.  Operator wants the
+                // menu to JUST APPEAR the moment LEFT lands on the
+                // rail — no 300 ms dwell, no 300 ms width slide.
                 clearDwell();
-                dwellTimer.current = setTimeout(() => {
-                    setExpanded(true);
-                    dwellTimer.current = null;
-                }, 300);
+                setExpanded(true);
             }}
             onBlur={(e) => {
                 if (!e.currentTarget.contains(e.relatedTarget)) {
@@ -162,7 +161,7 @@ export default function SideNav() {
                     setExpanded(false);
                 }
             }}
-            className="fixed left-0 top-0 bottom-0 z-40 flex flex-col py-7 transition-[width,background] duration-300"
+            className="fixed left-0 top-0 bottom-0 z-40 flex flex-col py-7"
             style={{
                 width: isExpanded ? '240px' : '76px',
                 background: isExpanded
@@ -171,6 +170,12 @@ export default function SideNav() {
                     // and it causes visible compositor jank on D-pad scroll.
                     ? 'linear-gradient(90deg, rgba(8,11,20,0.98) 0%, rgba(8,11,20,0.95) 60%, rgba(8,11,20,0.0) 100%)'
                     : 'transparent',
+                // v2.11.1 — No width transition.  Background fades
+                // gently (180 ms) so the gradient doesn't pop in
+                // jarringly, but the rail's WIDTH snaps to its new
+                // value INSTANTLY — the menu is just THERE the
+                // moment LEFT lands.  Per operator spec.
+                transition: 'background 180ms ease-out',
             }}
         >
             {/* Brand mark — single "ON NOW TV2" wordmark where the
