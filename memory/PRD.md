@@ -1,4 +1,27 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.12.7 — Launcher self-update: fix "launcher disappears" bug (Feb 2026).**
+>
+> Operator report: "when I update the launcher, the old version gets uninstalled BUT the new version never installs — the launcher is completely gone from the box, so I can't even see the new one."
+>
+> **Root cause** — a subtle Android package-manager side effect I missed in v2.12.2:
+>
+> The downloaded APK lives at `Context.cacheDir/downloads/<file>.apk`, which resolves to `/data/data/tv.onnow.launcher/cache/downloads/<file>.apk`.  When `pm uninstall tv.onnow.launcher` runs, Android wipes the ENTIRE `/data/data/tv.onnow.launcher/` tree — including our cached APK.  The subsequent `pm install "$apkPath"` then fails silently because the file no longer exists.  Result: launcher uninstalled + no APK left to reinstall from = device with no launcher at all.  (Non-launcher updates weren't affected because the launcher's cache dir survives when we uninstall a different package.)
+>
+> **Fix** — stage the APK to `/data/local/tmp/` BEFORE any pm command runs:
+>
+> 1. **`cp "$apkPath" "$tmpApkPath"`** at the top of the script — copies the APK to `/data/local/tmp/onnow_install_$$.apk` (shell UID 2000-owned, not tied to any app's data dir, survives any `pm uninstall`).
+> 2. **`&& chmod 644 && test -s`** guards — abort BEFORE `pm uninstall` runs if the copy failed or produced an empty file.  Prevents the "half-done" state where we uninstalled but couldn't reinstall.
+> 3. **All `pm install` references use `$tmpApkPath`** — safe from the uninstall wipe.
+> 4. **`sleep 1` between uninstall and install** — gives PackageManager time to fully commit the uninstall.  Without this, some HK1 firmwares race and return `INSTALL_FAILED_ALREADY_EXISTS`.
+> 5. **`setsid` in addition to `nohup`** — creates a brand-new session + process group so the detached shell can't be reached by any SIGKILL Android sends to the launcher's UID during uninstall.  Belt + braces detachment.
+> 6. **`</dev/null >/dev/null 2>&1`** on the outer wrapper — fully detaches all file descriptors from the launcher's process.
+> 7. **`rm -f "$tmpApkPath" "$apkPath"`** at the end — cleans up both the tmp staging copy AND the original cache file (whichever still exists after the update).
+>
+> **Verified:**  All three script variants (update, fresh install, fresh-with-uninstall-fallback) pass `sh -n` syntax check.  Kotlin `kotlinc 1.9.23` reports zero syntax errors on `RootApkInstaller.kt`.
+>
+> **User action required:**  Save to GitHub → CI rebuilds Launcher APK → sideload.  The FIRST update after this fix ships will fully work end-to-end — old launcher uninstalls, new launcher installs, `am start` fires to wake it back up.  Watch `/data/local/tmp/onnow_install_*.log` on the box to see the actual pm command output if anything still misbehaves.
+
+
 > **🟢 v2.12.6 — Music: play every song reliably (Feb 2026).**
 >
 > Operator report: "not every song plays.  It's working, just not every time I click on a song."  Intermittent failure — most tracks fine, a subset silent.

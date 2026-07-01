@@ -130,6 +130,29 @@ object RootApkInstaller {
         //   • Use $$ as the inner-shell PID for the log filename
         //     so concurrent installs don't clobber each other.
         val apkPath = apk.absolutePath
+        // v2.12.7 — CRITICAL FIX for "launcher disappears after
+        // update" bug.  The downloaded APK lives in the launcher's
+        // own cache dir (`/data/data/tv.onnow.launcher/cache/
+        // downloads/`).  When `pm uninstall tv.onnow.launcher`
+        // runs, Android wipes THE ENTIRE
+        // `/data/data/tv.onnow.launcher/` tree — including our
+        // cached APK.  The subsequent `pm install "$apkPath"` then
+        // fails with "file not found" and the device is left with
+        // no launcher at all.
+        //
+        // Fix: first `cp` the APK to `/data/local/tmp/` (owned by
+        // shell UID 2000, NOT tied to any app's data dir → survives
+        // uninstall of any package).  All pm-install commands
+        // reference the tmp copy; the original cache file can be
+        // wiped by pm-uninstall and we don't care.  We `rm -f` the
+        // tmp copy at the end so we don't accumulate stale APKs.
+        //
+        // Bonus: /data/local/tmp/ is readable by the "install"
+        // user Android uses to open the APK during `pm install`,
+        // so we don't need to worry about SELinux label mismatch
+        // on the cache-dir path (which sometimes causes install
+        // permission errors on HK1 firmwares).
+        val tmpApkPath = "/data/local/tmp/onnow_install_\$\$.apk"
         val logPath = "/data/local/tmp/onnow_install_\$\$.log"
         val mainActivity = ".MainActivity"   // launcher activity
         val relaunchCmd = if (relaunch)
@@ -137,6 +160,15 @@ object RootApkInstaller {
         else
             ":"
         val script = buildString {
+            append("(")
+            // v2.12.7 — Stage the APK to /data/local/tmp/ FIRST so
+            // uninstall of the target package can't nuke it.  If
+            // the copy fails (disk full, permission denied), ABORT
+            // the whole flow BEFORE `pm uninstall` runs — otherwise
+            // we'd end up with an uninstalled launcher and no APK
+            // to reinstall from.
+            append("cp \"$apkPath\" \"$tmpApkPath\" && chmod 644 \"$tmpApkPath\" && ")
+            append("test -s \"$tmpApkPath\" && ")
             append("(")
             if (forceCleanInstall) {
                 // v2.12.2 — Update path.  Nuke the old package first so
@@ -146,23 +178,40 @@ object RootApkInstaller {
                 // firmwares `pm uninstall` returns non-zero even on
                 // success (e.g. when the package has no data dir).
                 append("pm uninstall \"$packageName\" ; ")
-                append("pm install \"$apkPath\"")
+                // v2.12.7 — 1-second breather so PackageManager
+                // fully commits the uninstall before we try to
+                // install.  Without this, some HK1 firmwares race
+                // the two operations and the install returns
+                // INSTALL_FAILED_ALREADY_EXISTS.
+                append("sleep 1 ; ")
+                append("pm install \"$tmpApkPath\"")
             } else {
                 // Fresh install path.  Try -r -d first for cases where
                 // the caller was wrong about the "not installed" state
                 // (race with another install), then fall back to a
                 // clean uninstall+install if that fails.
-                append("pm install -r -d \"$apkPath\"")
-                append(" || (pm uninstall \"$packageName\" && pm install \"$apkPath\")")
+                append("pm install -r -d \"$tmpApkPath\"")
+                append(" || (pm uninstall \"$packageName\" && sleep 1 && pm install \"$tmpApkPath\")")
             }
             // Re-launch the launcher (or no-op for side-app updates).
             append(" ; $relaunchCmd")
-            // Clean up the cached APK so we don't fill the box's
-            // limited internal storage over multiple updates.
-            append(" ; rm -f \"$apkPath\"")
+            // Close the inner group.
+            append(")")
+            // Clean up BOTH the tmp copy AND the original cache
+            // file (if the original still exists — for non-launcher
+            // updates the cache-dir survives, and for launcher
+            // updates it was already nuked by pm-uninstall).
+            append(" ; rm -f \"$tmpApkPath\" \"$apkPath\"")
             append(") > $logPath 2>&1")
         }
-        val rootCmd = "nohup sh -c '$script' >/dev/null 2>&1 &"
+        // v2.12.7 — `setsid` in addition to `nohup` for belt-and-
+        // braces detachment.  `setsid` creates a brand-new session
+        // + process group so the child is fully divorced from the
+        // launcher's process tree.  When Android sends SIGKILL to
+        // every process in the launcher's UID during uninstall,
+        // the setsid'd shell is in a DIFFERENT UID (root, via su)
+        // AND a different session — untouchable.
+        val rootCmd = "nohup setsid sh -c '$script' </dev/null >/dev/null 2>&1 &"
 
         return try {
             Log.i(TAG, "launching detached root install for $packageName")
