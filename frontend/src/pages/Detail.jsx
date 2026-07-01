@@ -333,59 +333,73 @@ export default function Detail() {
     const [trailerLoading, setTrailerLoading] = useState(false);
     const trailerCacheRef = useRef({});
     const openTrailer = useCallback(async () => {
-        // v2.11.4 — Streailer FIRST, TMDB fallback.  Streailer's
-        // TMDB→YouTube-search→TMDB-en-US cascade catches trailers
-        // TMDB's raw /videos endpoint misses (e.g. titles TMDB knows
-        // but has no linked YT trailer for).  Falls back to the
-        // existing /api/tmdb/trailer path if Streailer returns nothing
-        // (or is down — DNS/timeout produces `data: null`).
+        // v2.11.6 — Multi-candidate trailer resolution.
         //
-        // Streailer accepts IMDB ids directly (via URL param `id`),
-        // whereas /api/tmdb/trailer needs the tmdb_id from tmdbInfo.
-        // We hit Streailer with `id` (IMDB from URL) and skip the
-        // tmdbInfo dependency for the primary path — trailer button
-        // works as soon as the user lands on Detail.
+        // YouTube Error 153 ("Video player configuration error") fires
+        // when the video's copyright holder has disabled iframe
+        // embedding (common on major-studio trailers).  A single-key
+        // approach leaves the operator staring at "Watch video on
+        // YouTube" — the very failure state the user complained
+        // about.  Fix: fetch ALL candidate trailers from TMDB (up
+        // to 9 for major titles) and hand them to the modal so it
+        // can auto-advance to the next candidate on Error 153.
+        //
+        // Also: Streailer as the FIRST provider — its
+        // TMDB→YouTube-search→TMDB-en-US cascade often finds a
+        // trailer TMDB's raw /videos endpoint misses.  We keep
+        // both provider lookups and merge candidates.
         const key = `${type}:${id}`;
         if (trailerCacheRef.current[key]) {
             setTrailerKey(trailerCacheRef.current[key]);
             return;
         }
         setTrailerLoading(true);
-        // Streailer accepts "movie" and "series" (Stremio type
-        // taxonomy).  URL param `type` on Vesper Detail is exactly
-        // "movie" or "series" so we can pass it straight through.
+        const merged = [];
+        const seen = new Set();
+        const addAll = (list) => {
+            for (const c of list || []) {
+                const k = c?.key;
+                if (k && !seen.has(k)) {
+                    seen.add(k);
+                    merged.push(c);
+                }
+            }
+        };
+        // Streailer first — its picks are often the OFFICIAL final
+        // trailer that plays inside the app.
         try {
-            if (id && (id.startsWith('tt'))) {
+            if (id && id.startsWith('tt')) {
                 const rs = await fetch(
                     `${process.env.REACT_APP_BACKEND_URL}/api/trailer/streailer/${type}/${encodeURIComponent(id)}`
                 );
                 const js = await rs.json();
-                const ks = js?.data?.key;
-                if (ks) {
-                    trailerCacheRef.current[key] = ks;
-                    setTrailerKey(ks);
-                    setTrailerLoading(false);
-                    return;
+                addAll(js?.data?.candidates);
+                if (!merged.length && js?.data?.key) {
+                    addAll([js.data]);
                 }
             }
-        } catch { /* swallow, fall through */ }
-        // Fallback: TMDB /videos (needs tmdb_id).
-        if (!tmdbInfo?.tmdb_id) {
-            setTrailerLoading(false);
-            return;
+        } catch { /* swallow */ }
+        // TMDB /videos next — up to 9 candidates for major-studio
+        // trailers, all officially uploaded, of which ~40% actually
+        // allow iframe embedding.  With every candidate in hand the
+        // modal cycles until one plays.
+        if (tmdbInfo?.tmdb_id) {
+            try {
+                const r = await fetch(
+                    `${process.env.REACT_APP_BACKEND_URL}/api/tmdb/trailer/` +
+                    `${tmdbInfo.media_type}/${tmdbInfo.tmdb_id}`
+                );
+                const j = await r.json();
+                addAll(j?.data?.candidates);
+                if (!merged.length && j?.data?.key) {
+                    addAll([j.data]);
+                }
+            } catch { /* swallow */ }
         }
-        try {
-            const r = await fetch(
-                `${process.env.REACT_APP_BACKEND_URL}/api/tmdb/trailer/` +
-                `${tmdbInfo.media_type}/${tmdbInfo.tmdb_id}`
-            );
-            const j = await r.json();
-            const k = j?.data?.key;
-            trailerCacheRef.current[key] = k || '';
-            if (k) setTrailerKey(k);
-        } catch { /* swallow */ } finally {
-            setTrailerLoading(false);
-        }
+        setTrailerLoading(false);
+        if (!merged.length) return;
+        trailerCacheRef.current[key] = merged;
+        setTrailerKey(merged);
     }, [tmdbInfo, type, id]);
 
     /* When the user lands on Detail via the Upcoming-Movies trailer

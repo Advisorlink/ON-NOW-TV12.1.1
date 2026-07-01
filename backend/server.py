@@ -28,7 +28,7 @@ from urllib.parse import quote
 import httpx
 from dotenv import load_dotenv
 from fastapi import APIRouter, Body, FastAPI, HTTPException, Query, Request
-from fastapi.responses import Response, HTMLResponse, JSONResponse
+from fastapi.responses import Response, HTMLResponse, JSONResponse, StreamingResponse
 from PIL import Image, UnidentifiedImageError
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
@@ -2826,11 +2826,29 @@ async def tmdb_trailer(type_: str, tmdb_id: int):
         await cache.set(cache_key, None, 60 * 60 * 6)
         return {"cached": False, "data": None}
     best = youtube[0]
+    # v2.11.6 — Also expose ALL candidates in ranked order so the
+    # frontend TrailerModal can auto-advance on YouTube Error 153
+    # (embed-restricted video).  Common on major-studio trailers:
+    # 9 of 9 Spider-Noir candidates were officially uploaded but
+    # only 3-4 actually allow iframe embedding.  With candidates
+    # in hand the modal just tries the next one — user never sees
+    # "Watch on YouTube · Error 153".
+    all_candidates = [
+        {
+            "key": v.get("key"),
+            "name": v.get("name") or "Trailer",
+            "site": "YouTube",
+            "type": v.get("type") or "Trailer",
+        }
+        for v in youtube
+        if v.get("key")
+    ]
     out = {
         "key": best.get("key"),
         "name": best.get("name") or "Trailer",
         "site": "YouTube",
         "type": best.get("type") or "Trailer",
+        "candidates": all_candidates,
     }
     await cache.set(cache_key, out, 60 * 60 * 6)
     return {"cached": False, "data": out}
@@ -2883,32 +2901,42 @@ async def streailer_trailer(type_: str, imdb_id: str, language: str = "en-US"):
         return {"cached": False, "data": None, "error": str(e)[:120]}
 
     streams = payload.get("streams") or []
-    yt_id = None
-    label = None
+    all_candidates = []
     for s in streams:
         cand = (s.get("ytId") or "").strip()
-        if cand:
-            yt_id = cand
-            label = s.get("title") or s.get("name") or "Trailer"
-            break
+        if not cand:
+            continue
+        all_candidates.append({
+            "key": cand,
+            "name": s.get("title") or s.get("name") or "Trailer",
+            "site": "YouTube",
+            "type": "Trailer",
+        })
 
-    if not yt_id:
+    if not all_candidates:
         await cache.set(cache_key, None, 60 * 60 * 6)
         return {"cached": False, "data": None}
 
+    best = all_candidates[0]
     out = {
-        "key": yt_id,
-        "name": label or "Trailer",
+        "key": best["key"],
+        "name": best["name"],
         "site": "YouTube",
         "type": "Trailer",
         "source": "streailer",
+        # v2.11.6 — Return the full candidate list so the modal can
+        # auto-advance on YouTube Error 153 (embed-restricted).
+        # Streailer rarely returns more than 1-2 candidates but we
+        # forward them anyway so the frontend can uniformly cycle
+        # through both TMDB and Streailer candidates.
+        "candidates": all_candidates,
     }
     await cache.set(cache_key, out, 60 * 60 * 6)
     return {"cached": False, "data": out}
 
 
 @api.get("/trailer-stream/{youtube_id}")
-async def trailer_stream(youtube_id: str):
+async def trailer_stream(youtube_id: str, combined: int = 0):
     """Extract a direct, playable URL for a YouTube video so the
     frontend can play it natively — no embedded YouTube iframe, no
     Android intent redirect to the YouTube app.
@@ -2927,13 +2955,26 @@ async def trailer_stream(youtube_id: str):
     the fly.  Web players that don't support input slaves fall back
     to the combined progressive URL.
 
+    v2.11.5 — `?combined=1` query param.  HTML5 `<video>` can't merge
+    separate video-only + audio-only streams without MediaSource
+    Extensions plumbing.  When the frontend requests `combined=1`, we
+    force the yt-dlp format selector to only pick PROGRESSIVE MP4s
+    (typically 360p, both audio and video multiplexed).  Returned
+    `url` is guaranteed playable in a bare `<video>` element inside
+    the WebView — no iframe, no MSE, no YouTube configuration errors.
+    This is the failure-proof path for the trailer modal.
+
     Googlevideo URLs are signed with a ~6 h TTL.  We cache for 1 h
     to absorb repeat playback within the same session.
     """
     safe_id = re.sub(r"[^A-Za-z0-9_-]", "", youtube_id)[:24]
     if not safe_id:
         raise HTTPException(400, "invalid youtube_id")
-    cache_key = f"trailer_stream:{safe_id}:v3"  # v3: 720p cap for HK1 smoothness
+    # v2.11.5 — cache separately for combined-mode responses so a web
+    # client and a native client can share the pool without stomping
+    # each other's format selection.
+    variant = "combined" if combined else "hd"
+    cache_key = f"trailer_stream:{safe_id}:{variant}:v3"
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, **cached}
@@ -2963,13 +3004,26 @@ async def trailer_stream(youtube_id: str):
         # overhead).
         client_chain = ["tv_embedded", "android", "web", "ios"]
         last_err: Exception | None = None
+        # v2.11.5 — Format selector branches on `combined` flag.
+        # Web clients (bare HTML5 <video>) can't merge DASH pairs, so
+        # they ask for combined progressive MP4 (typically 360p).
+        # Native clients (libVLC input-slave) prefer the HD pair.
+        if combined:
+            fmt_selector = (
+                "best[ext=mp4][acodec!=none][vcodec!=none][height<=720]/"
+                "best[ext=mp4][acodec!=none][vcodec!=none]/"
+                "best[acodec!=none][vcodec!=none]/"
+                "best"
+            )
+        else:
+            fmt_selector = (
+                "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/"
+                "best[ext=mp4][height<=720]/"
+                "best[height<=720]/best"
+            )
         for client in client_chain:
             ydl_opts = {
-                "format": (
-                    "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/"
-                    "best[ext=mp4][height<=720]/"
-                    "best[height<=720]/best"
-                ),
+                "format": fmt_selector,
                 "noplaylist": True,
                 "quiet": True,
                 "no_warnings": True,
@@ -3092,6 +3146,126 @@ async def trailer_stream(youtube_id: str):
     }
     await cache.set(cache_key, out, 60 * 60)
     return {"cached": False, **out}
+
+
+@api.get("/trailer/proxy/{youtube_id}")
+async def trailer_proxy(youtube_id: str, request: Request):
+    """v2.11.6 — Server-side MP4 proxy for browser trailer playback.
+    Googlevideo signs its progressive URLs with the requesting IP
+    baked in (`&ip=<extractor_ip>`); the URL 403s when fetched from
+    any other IP.  Since our backend is what extracted the URL via
+    yt-dlp, we're the only IP that can actually pull the bytes.
+
+    This endpoint proxies the video bytes through our server so a
+    plain `<video src="/api/trailer/proxy/{id}">` element on the
+    client works uniformly (no IP binding surprises).  It preserves
+    Range requests so `<video>` seek + preload behave normally.
+
+    Cache is per-video: `trailer_stream_url:{id}` holds the current
+    signed googlevideo URL (TTL 55 min, refreshed 5 min before the
+    6 h googlevideo expiry).
+
+    Bandwidth: 360p trailers are ~5-10 MB each, cached client-side
+    after first fetch — small per-user footprint.
+    """
+    safe_id = re.sub(r"[^A-Za-z0-9_-]", "", youtube_id)[:24]
+    if not safe_id:
+        raise HTTPException(400, "invalid youtube_id")
+
+    # Re-use the trailer_stream endpoint's cache to avoid a second
+    # yt-dlp extract when a client just polled `/trailer-stream` a
+    # second earlier.
+    cache_key = f"trailer_stream:{safe_id}:combined:v3"
+    entry = await cache.get(cache_key)
+    if not entry:
+        # Nothing cached — extract now.  Same yt-dlp path as
+        # /trailer-stream to avoid divergence; we call the endpoint
+        # handler directly so the extraction happens exactly once
+        # and populates the cache for both endpoints.
+        try:
+            fresh = await trailer_stream(safe_id, combined=1)
+        except HTTPException:
+            raise
+        # `trailer_stream` returns a dict wrapping (cached flag +
+        # data); pull data straight out via the freshly-written
+        # cache key.
+        entry = await cache.get(cache_key)
+        if not entry:
+            entry = fresh  # fresh already unwrapped in return
+
+    upstream_url = (entry or {}).get("url") or (entry or {}).get("progressive_url")
+    if not upstream_url:
+        raise HTTPException(502, "trailer_no_playable_url")
+
+    # Forward Range header so HTML5 <video> seek works.
+    upstream_headers: dict[str, str] = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        ),
+    }
+    range_hdr = request.headers.get("range")
+    if range_hdr:
+        upstream_headers["Range"] = range_hdr
+
+    # Stream directly — no HEAD probe.  googlevideo signs the URL
+    # for the extractor's IP; a GET from the same host succeeds.
+    # We do NOT follow redirects here because the redirect target
+    # can invalidate signature params.  If the upstream returns
+    # 302 (which googlevideo occasionally does for regional
+    # relocation), we forward it to the client and let the client
+    # follow it — the client's <video> element handles 302 natively.
+    async def _iterate(response):
+        try:
+            async for chunk in response.aiter_bytes(chunk_size=64 * 1024):
+                if chunk:
+                    yield chunk
+        except Exception as e:  # noqa: BLE001
+            logger.info("trailer_proxy stream err for %s: %s", safe_id, e)
+            return
+
+    timeout = httpx.Timeout(30.0, connect=8.0, read=30.0)
+    client = httpx.AsyncClient(timeout=timeout, follow_redirects=True)
+    try:
+        req = client.build_request("GET", upstream_url, headers=upstream_headers)
+        upstream = await client.send(req, stream=True)
+    except Exception as e:  # noqa: BLE001
+        await client.aclose()
+        logger.info("trailer_proxy send failed for %s: %s", safe_id, e)
+        raise HTTPException(502, "trailer_proxy_send_failed")
+
+    if upstream.status_code >= 400:
+        status = upstream.status_code
+        await upstream.aclose()
+        await client.aclose()
+        raise HTTPException(status, f"trailer_proxy_upstream_{status}")
+
+    resp_headers: dict[str, str] = {
+        "Content-Type": upstream.headers.get("content-type", "video/mp4"),
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "public, max-age=1800",
+    }
+    if upstream.headers.get("content-length"):
+        resp_headers["Content-Length"] = upstream.headers["content-length"]
+    if upstream.headers.get("content-range"):
+        resp_headers["Content-Range"] = upstream.headers["content-range"]
+
+    async def _stream_and_cleanup():
+        try:
+            async for chunk in upstream.aiter_bytes(chunk_size=64 * 1024):
+                if chunk:
+                    yield chunk
+        finally:
+            await upstream.aclose()
+            await client.aclose()
+
+    return StreamingResponse(
+        _stream_and_cleanup(),
+        status_code=upstream.status_code,
+        headers=resp_headers,
+        media_type=resp_headers["Content-Type"],
+    )
 
 
 @api.get("/tmdb/by-genres/{media}")

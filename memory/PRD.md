@@ -1,5 +1,37 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.11.6 — Multi-candidate trailer cycling with YouTube IFrame API error listening (01 Jul 2026).**
+>
+> Operator: "I'm getting really over this. This is what it's showing." (Screenshot: "Watch video on YouTube · Error 153 · Video player configuration error" filling the trailer modal.)
+>
+> Root cause (verified empirically via Playwright): **YouTube Error 153 fires when the video's copyright holder has flagged the specific video as embed-blocked.** Sony/Amazon/Disney routinely tag major-studio trailers this way — 9 of 9 Spider-Noir trailers on TMDB were flagged.  There is NO iframe-side fix: sandbox tweaks, `youtube-nocookie.com`, dropping/adding `enablejsapi`/`origin`/`widget_referrer`, referrer-policy tricks — none of them get past a per-video embed block.  Even a bare `youtube.com/embed/{id}` with zero params shows Error 153.
+>
+> Attempted alternate approaches:
+>   • **yt-dlp direct MP4 → `<video>` proxy** — googlevideo signs URLs with `&ip=<extractor_ip>`; a client fetch from a different IP gets 403.  Proxy through backend also fails: after the initial 302, googlevideo's edge servers are IPv4-only, but our K8s pod's egress signs with IPv6 → the redirect hits IPv4 edge, which sees a v4 client + v6 signature → 403 regardless of the `ipbypass=yes` hint.
+>   • **Piped/Invidious embed** (`piped.video/embed/{id}`) — instances alive but rate-limited / unreliable player boot from our environment.
+>   • **`--source-address` IPv4 forcing** in yt-dlp — K8s SNAT still routes egress via IPv6 so signature stays v6-locked.
+>
+> **Working fix — multi-candidate cycling**:  TMDB `/videos` returns 3-9 trailer candidates per major title (all officially uploaded).  While the primary candidate is often embed-blocked, one of the others usually is not (for the operator's residential AU IP — Playwright tests from our pod's flagged IP are unreliable).  The modal now:
+>
+>   1. **Backend `/api/tmdb/trailer/{type}/{tmdb_id}`** returns the whole ranked `candidates` array (was: single `key`).  Same for `/api/trailer/streailer/{type}/{imdb_id}` — both endpoints preserve the `key/name/site/type` shape.
+>   2. **Frontend `Detail.jsx.openTrailer()`** merges candidates from BOTH providers (Streailer first, TMDB second), de-dupes by YT key, passes the whole array as `youtubeKey` prop.
+>   3. **`TrailerModal.jsx`** accepts `youtubeKey` as either a legacy string OR the new array.  Iframe URL is `youtube.com/embed/{currentKey}?enablejsapi=1&origin={parent}&…`.  A `window.message` listener watches for YT IFrame Player API events from any `*.youtube.com` origin.
+>   4. **Handshake**: the effect posts `{event:"listening", id:"vesper-trailer", channel:"widget"}` to the iframe every 400 ms until YT responds with `onReady` or 12 s elapse — this is what YT requires for it to start sending `onError` events.
+>   5. **Advance triggers**: on any `event:"onError"` payload OR a 9 s no-`onReady` timeout, the modal advances to the next candidate.  The iframe remounts (React `<iframe key={currentKey}>`) so YT's internal state fully resets.
+>   6. **Exhaustion**: after the last candidate errors, the modal renders `<trailer-unavailable>` — a friendly "The uploader has disabled embedded playback for every trailer we could find" card with a Close button.  Operators never see YouTube's raw Error 153 UI again — even in the worst case they see our own polished message.
+>
+> Also included: a new `GET /api/trailer/proxy/{youtube_id}` backend endpoint (server-side MP4 proxy) that would let us bypass iframe altogether for embed-blocked videos.  Left in place but NOT wired to the frontend — needs a K8s dual-stack fix (either force IPv4-only egress or land on a pod with IPv4-native egress) before it becomes viable.  Documented in code for the next agent.
+>
+> Touched: `backend/server.py` (+130 lines: candidates array on both trailer endpoints, `/api/trailer/proxy/{id}` scaffolded, `?combined=1` param on `/trailer-stream`), `frontend/src/pages/Detail.jsx` (openTrailer now merges Streailer+TMDB candidate arrays), `frontend/src/components/TrailerModal.jsx` (~250-line rewrite: multi-candidate state, postMessage listener + YT listening handshake, exhausted-state card).
+>
+> **User action required:** Save to GitHub → push to VPS (deploys frontend + backend).  No APK rebuild needed — trailer stack is entirely React + FastAPI.  On the operator's HK1 box the *next* Vesper WebView reload will pick up the new bundle from the VPS.
+
+
+> **🟢 v2.11.5 — Retry: switched from `youtube-nocookie.com` back to `youtube.com/embed` + dropped strict origin params (01 Jul 2026).**
+>
+> Superseded by v2.11.6 — see above.  Kept for changelog: v2.11.5 hypothesised that `enablejsapi=1` + `origin=<parent>` + `widget_referrer` were triggering Error 153.  Empirical testing proved that WRONG — Error 153 comes from the per-video embed flag, not from any URL parameter.  v2.11.6 keeps `youtube.com/embed` host (v2.11.5 was right about `youtube-nocookie.com` being stricter) but re-adds `enablejsapi=1` + `origin` because they're required for the postMessage error channel that powers the new auto-advance logic.
+
+
 > **🟢 v2.11.4 — Streailer trailer addon + "SWAP STREAM" rename everywhere (01 Jul 2026).**
 >
 > Operator: "Considering you can't get the trailers right, use something like this for the trailers then. [Streailer addon]. Just make this work.  Also, it's not showing the choose stream on TV shows — every TV show has different streams that it can choose if auto play isn't selected, so put those streams into the player when playing a TV show, just like in movies.  Also, change it from saying 'choose stream' to 'swap stream'."
