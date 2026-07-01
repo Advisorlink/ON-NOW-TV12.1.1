@@ -782,7 +782,14 @@ class MainActivity : AppCompatActivity() {
      * itself isn't on the box), fall back to a Toast telling them.
      */
     private fun launchVesperBackupPage() {
-        val vesperPkg = "tv.vesper.app"
+        // v2.12.8 — Vesper's runtime applicationId is `tv.onnowtv.app`.
+        // (`tv.vesper.app` is the Kotlin package/namespace only — a
+        // compile-time thing that never appears in the installed
+        // package list.)  Using the wrong id caused the "Vesper isn't
+        // installed" toast to fire even on boxes where Vesper was
+        // clearly running.  Same fix already applied in the v2 AI
+        // deep-link path in `VoiceAssistantActivity.kt`.
+        val vesperPkg = "tv.onnowtv.app"
         val launch = packageManager.getLaunchIntentForPackage(vesperPkg)
         if (launch == null) {
             Toast.makeText(

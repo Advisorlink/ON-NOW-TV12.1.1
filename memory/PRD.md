@@ -1,4 +1,17 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.12.8 — "Back up profiles first" now finds Vesper (Feb 2026).**
+>
+> Operator report: after the v2.12.2 update dialog shipped, tapping "Back up profiles first" always showed the "Vesper isn't installed" toast — even though Vesper was clearly running on the box.
+>
+> **Root cause**: I hardcoded `val vesperPkg = "tv.vesper.app"` in `launchVesperBackupPage()`.  That's Vesper's Kotlin package (namespace / import path), NOT its Android runtime applicationId.  Vesper's actual installed package is **`tv.onnowtv.app`** — visible in the Vesper module's `build.gradle.kts` (`applicationId = "tv.onnowtv.app"`), the launcher's own `<queries>` block, and already used correctly in the `isPackageInstalled` check at line 286 of the same file + the V2 AI deep-link in `VoiceAssistantActivity.kt` (which even has a comment explaining the pitfall — I missed it).
+>
+> **Fix**: One-line change in `MainActivity.launchVesperBackupPage()` — `"tv.vesper.app"` → `"tv.onnowtv.app"`.  The v2.12.2 deep-link intent extra (`putExtra("vesper_route", "#/profiles/backup")`) + Vesper's `MainActivity.kt` extension to honour bare `#/…` hash routes are both already in place and correct — only the package ID was wrong.
+>
+> Kotlin syntax verified clean via `kotlinc 1.9.23`.
+>
+> **User action required:**  Save to GitHub → CI rebuilds Launcher APK → sideload.  Next update prompt's "Back up profiles first" button will jump straight into Vesper's `/profiles/backup` route.
+
+
 > **🟢 v2.12.7 — Launcher self-update: fix "launcher disappears" bug (Feb 2026).**
 >
 > Operator report: "when I update the launcher, the old version gets uninstalled BUT the new version never installs — the launcher is completely gone from the box, so I can't even see the new one."
