@@ -180,6 +180,27 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
                     }}
                     allow="autoplay; encrypted-media; fullscreen"
                     allowFullScreen
+                    /* v2.11.2 — Airtight sandbox.  Without these flags
+                     * the YouTube iframe can (and DOES on real
+                     * WebViews) attempt to navigate the top window
+                     * to youtube.com, trigger `window.open()` to
+                     * launch the YouTube app, or fire an Intent that
+                     * Android resolves to the YouTube package.  The
+                     * sandbox attribute strips ALL of those powers
+                     * from the iframe:
+                     *   allow-scripts        JS runs (needed for player)
+                     *   allow-same-origin    postMessage to YT (needed for JS API)
+                     *   allow-presentation   FS + media session (nice-to-have)
+                     * NOTABLY MISSING:
+                     *   allow-top-navigation → iframe CANNOT navigate parent
+                     *   allow-popups         → iframe CANNOT open new windows
+                     *   allow-forms          → iframe CANNOT submit forms
+                     * Result: every "Watch on YouTube" click inside
+                     * the iframe becomes a no-op that stays inside
+                     * Vesper.  No WebView-level guards needed at
+                     * all — works even on old Vesper APKs. */
+                    sandbox="allow-scripts allow-same-origin allow-presentation"
+                    referrerPolicy="origin"
                 />
 
                 {/* HUD pills — top right */}

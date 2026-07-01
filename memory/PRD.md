@@ -1,5 +1,20 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.11.2 — Airtight trailer sandbox + prominent Choose Links chip in ExoPlayer (30 Jun 2026).**
+>
+> Operator: "The trailers still aren't playing.  They need to actually play, not just say 'Open YouTube'.  Also, the EXO Player isn't showing the section so I can choose what link to watch — I think you've only done it in the bloody LibVLC Player."
+>
+> Two fixes:
+>
+> **1. Trailer iframe hardened with `sandbox` attribute.**  v2.11.0 killed the extract path and switched to `youtube-nocookie.com` iframe, and the Kotlin `onCreateWindow` + main-frame nav guards were meant to swallow every YouTube-app launch attempt.  But those Kotlin guards need a new APK — until the operator pushes to GitHub and installs the new build, the OLD APK could still pop the "Open YouTube?" prompt.  Fix: added `sandbox="allow-scripts allow-same-origin allow-presentation"` to the iframe.  Critical flags EXCLUDED: `allow-top-navigation` (iframe cannot redirect parent window), `allow-popups` (iframe cannot `window.open()`), `allow-forms` (iframe cannot submit).  Result: every "Watch on YouTube" click inside the iframe becomes a silent no-op.  Also added `referrerPolicy="origin"` so YouTube treats it as a first-class embed.  **Works on the CURRENT APK — no build required.**  React-only fix, ships immediately on reload.
+>
+> **2. Choose Links button rebuilt as a prominent cyan chip in ExoPlayer.**  Root cause of the operator's "it's not showing" complaint: v2.10.96 added the button to `PlayerOverlay.kt` but rendered it as one of five identical grey icon-circles in a row (Audio · Subs · Choose Links · Info · Play-controls).  At 3 m from the TV, the icon was indistinguishable from its neighbours — users literally couldn't spot it.  Fix: replaced the DockButton with a new `StreamPickerChip` composable — a cyan-bordered pill with the text `CHOOSE LINKS` and a bright count badge (e.g. `4` for a 4-stream episode).  Fires a **3-second attention glow-pulse on first mount** so the operator's eye is drawn to it before hunting.  Falls back to a subtle 55%-alpha cyan border after the pulse ends.  Hidden entirely when there are ≤ 1 streams (instead of the previous "invisibly dim disabled circle").  Applied to both Vesper (`/app/android/vesper-tv/…/PlayerOverlay.kt`) AND Kids (`/app/android/onnowtv-kids/…/PlayerOverlay.kt`).
+>
+> Verified: iframe sandbox confirmed at runtime via Playwright — `allow-scripts allow-same-origin allow-presentation`, no `allow-top-navigation`, no `allow-popups`.  Modal renders "The Shawshank Redemption" trailer, no JS errors.
+>
+> Touched: `frontend/src/components/TrailerModal.jsx` (added `sandbox` + `referrerPolicy` attributes on the iframe), `android/vesper-tv/.../PlayerOverlay.kt` (new `StreamPickerChip` composable + wire), `android/onnowtv-kids/.../PlayerOverlay.kt` (same).
+
+
 > **🟢 v2.11.1 — SideNav appears INSTANTLY on LEFT (no slide, no dwell) (30 Jun 2026).**
 >
 > Operator: "Any row on the home screen — push LEFT, the menu should JUST APPEAR.  I don't want it to slide out anymore, it's taking too long.  From any row, once you push left after you get to the end of the row, menu is just there."

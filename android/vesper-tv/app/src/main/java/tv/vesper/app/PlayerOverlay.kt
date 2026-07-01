@@ -309,6 +309,7 @@ fun PlayerOverlay(
                 hasAudio    = audios.size > 1,
                 hasSubs     = subs.isNotEmpty(),
                 hasStreams  = streamList.size > 1,
+                streamCount = streamList.size,
                 hasNextEp   = hasNext,
                 nextEpThumbnailUrl = nextEpThumb,
                 logoUrl     = logoUrlValue,
@@ -628,6 +629,7 @@ private fun ControlDock(
     hasAudio: Boolean,
     hasSubs: Boolean,
     hasStreams: Boolean,
+    streamCount: Int = 0,
     hasNextEp: Boolean = false,
     nextEpThumbnailUrl: String = "",
     logoUrl: String = "",
@@ -877,12 +879,31 @@ private fun ControlDock(
                         "Subtitles",
                         onClick = onPickSubs,
                     )
-                    DockButton(
-                        Icons.Default.PlaylistPlay,
-                        "Choose Links",
-                        enabled = hasStreams,
-                        onClick = onPickStream,
-                    )
+                    /* v2.11.2 — CHOOSE LINKS emphasized.
+                     *
+                     * Operator's #1 recurring pain: "the EXO Player
+                     * isn't showing the section so I can choose what
+                     * link to watch."  In v2.10.96 we added the
+                     * button but rendered it as a plain grey circle
+                     * with a generic icon — indistinguishable at 3 m
+                     * from the surrounding Audio / Subtitles /
+                     * Info circles.  Users literally couldn't spot
+                     * it in the row of five icons.
+                     *
+                     * The fix: wrap it in a cyan-bordered pill with
+                     * the stream count front-and-centre.  Renders as
+                     * a proper "chip" instead of an icon among icons.
+                     * Also fires a brief 3-second glow-pulse when
+                     * the player first appears with >1 stream, so
+                     * the user's eye is drawn to it BEFORE they hunt
+                     * for it.  When there's only 1 stream the chip
+                     * is hidden entirely (not just disabled). */
+                    if (hasStreams) {
+                        StreamPickerChip(
+                            count = streamCount,
+                            onClick = onPickStream,
+                        )
+                    }
                     // v2.10.80 — (i) Buffering Diagnostics button.
                     // Always enabled — even when streams=1 the user
                     // wants to see the buffer-ahead seconds so they
@@ -1071,6 +1092,116 @@ private fun NextEpisodePill(onClick: () -> Unit) {
  *
  * Sized roughly 64×96 (16:9 at 96 px wide) to match the pill's
  * vertical footprint without dominating the dock.  A thin cyan
+
+/**
+ * v2.11.2 — StreamPickerChip.  Cyan-bordered pill that surfaces
+ * how many alternate streams are available and opens the picker
+ * sheet on tap.  Made visually distinct from the surrounding
+ * icon-only DockButtons so the user can spot it at 3 m from the TV.
+ *
+ * Fires a 3-second glow pulse on first appearance so the user's
+ * eye is drawn to it before they hunt for it — after that the pulse
+ * stops and the chip just holds a subtle cyan border.
+ */
+@Composable
+private fun StreamPickerChip(count: Int, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    // 3-second attention pulse on first mount only.
+    var pulseOn by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(3_000)
+        pulseOn = false
+    }
+    val infinite = androidx.compose.animation.core.rememberInfiniteTransition(label = "streamPulse")
+    val pulseAlpha by infinite.animateFloat(
+        initialValue = 0.55f,
+        targetValue  = 1.0f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(
+                durationMillis = 900,
+                easing = androidx.compose.animation.core.FastOutSlowInEasing,
+            ),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
+        ),
+        label = "streamPulseAlpha",
+    )
+    val borderAlpha = if (pulseOn) pulseAlpha else 0.55f
+
+    val bg = when {
+        focused -> CyanPrimary
+        else    -> Color(0x1A5DC8FF)  // subtle cyan tint
+    }
+    val fg = when {
+        focused -> NavyDeep
+        else    -> Color(0xFF8de0ff)
+    }
+    val border = if (focused)
+        CyanPrimary
+    else
+        CyanPrimary.copy(alpha = borderAlpha)
+
+    Row(
+        modifier = Modifier
+            .height(56.dp)
+            .clip(RoundedCornerShape(28.dp))
+            .background(bg)
+            .border(
+                width = if (focused) 3.dp else 2.dp,
+                color = border,
+                shape = RoundedCornerShape(28.dp),
+            )
+            .onFocusChanged { focused = it.isFocused }
+            .focusable()
+            .onKeyEvent { ev ->
+                if (ev.type == KeyEventType.KeyDown
+                    && (ev.key == Key.Enter ||
+                        ev.key == Key.DirectionCenter ||
+                        ev.key == Key.NumPadEnter)
+                ) { onClick(); true } else false
+            }
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(horizontal = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Default.PlaylistPlay,
+            contentDescription = "Choose Links",
+            tint = fg,
+            modifier = Modifier.size(22.dp),
+        )
+        Text(
+            text = "CHOOSE LINKS",
+            color = fg,
+            fontSize = 12.sp,
+            fontFamily = FontFamily.Monospace,
+            letterSpacing = 1.6.sp,
+        )
+        if (count > 1) {
+            Box(
+                modifier = Modifier
+                    .height(22.dp)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(if (focused) NavyDeep.copy(alpha = 0.35f) else Color(0x335DC8FF))
+                    .padding(horizontal = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = count.toString(),
+                    color = fg,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace,
+                )
+            }
+        }
+    }
+}
+
+
  * border + rounded corners visually tether it to the pill.
  */
 @Composable

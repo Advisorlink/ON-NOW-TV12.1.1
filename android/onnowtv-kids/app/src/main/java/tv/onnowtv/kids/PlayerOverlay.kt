@@ -265,6 +265,7 @@ fun PlayerOverlay(
                 hasAudio    = audios.size > 1,
                 hasSubs     = subs.isNotEmpty(),
                 hasStreams  = streamList.size > 1,
+                streamCount = streamList.size,
                 onPlayPause = { bump(); onPlayPause() },
                 onSeekBy    = { dt -> bump(); onSeekBy(dt) },
                 onPickAudio = { bump(); sheet = SheetKind.Audio },
@@ -553,6 +554,7 @@ private fun ControlDock(
     hasAudio: Boolean,
     hasSubs: Boolean,
     hasStreams: Boolean,
+    streamCount: Int = 0,
     onPlayPause: () -> Unit,
     onSeekBy: (Long) -> Unit,
     onPickAudio: () -> Unit,
@@ -680,12 +682,16 @@ private fun ControlDock(
                         "Subtitles",
                         onClick = onPickSubs,
                     )
-                    DockButton(
-                        Icons.Default.PlaylistPlay,
-                        "Choose Links",
-                        enabled = hasStreams,
-                        onClick = onPickStream,
-                    )
+                    /* v2.11.2 — CHOOSE LINKS emphasized (see vesper-tv
+                     * PlayerOverlay for detailed rationale).  Chip
+                     * variant with cyan border + count badge + 3s
+                     * attention pulse on first mount. */
+                    if (hasStreams) {
+                        StreamPickerChip(
+                            count = streamCount,
+                            onClick = onPickStream,
+                        )
+                    }
                 }
                 // CENTER cluster: Back10 / PLAY-PAUSE (focused) / Fwd10
                 Row(
@@ -804,6 +810,102 @@ private fun DockButton(
         )
     }
 }
+
+/**
+ * v2.11.2 — StreamPickerChip.  Cyan-bordered pill that surfaces the
+ * alternate-stream count.  Made visually distinct from surrounding
+ * icon-only DockButtons so the user spots it at 3 m from the TV.
+ * Fires a 3-second attention glow on first mount.  See vesper-tv
+ * PlayerOverlay.kt for detailed rationale.
+ */
+@Composable
+private fun StreamPickerChip(count: Int, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    var pulseOn by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(3_000)
+        pulseOn = false
+    }
+    val infinite = androidx.compose.animation.core.rememberInfiniteTransition(label = "streamPulse")
+    val pulseAlpha by infinite.animateFloat(
+        initialValue = 0.55f,
+        targetValue  = 1.0f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(
+                durationMillis = 900,
+                easing = androidx.compose.animation.core.FastOutSlowInEasing,
+            ),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
+        ),
+        label = "streamPulseAlpha",
+    )
+    val borderAlpha = if (pulseOn) pulseAlpha else 0.55f
+
+    val bg = if (focused) CyanPrimary else Color(0x1A5DC8FF)
+    val fg = if (focused) NavyDeep else Color(0xFF8de0ff)
+    val border = if (focused) CyanPrimary else CyanPrimary.copy(alpha = borderAlpha)
+
+    Row(
+        modifier = Modifier
+            .height(56.dp)
+            .clip(RoundedCornerShape(28.dp))
+            .background(bg)
+            .border(
+                width = if (focused) 3.dp else 2.dp,
+                color = border,
+                shape = RoundedCornerShape(28.dp),
+            )
+            .onFocusChanged { focused = it.isFocused }
+            .focusable()
+            .onKeyEvent { ev ->
+                if (ev.type == KeyEventType.KeyDown
+                    && (ev.key == Key.Enter ||
+                        ev.key == Key.DirectionCenter ||
+                        ev.key == Key.NumPadEnter)
+                ) { onClick(); true } else false
+            }
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(horizontal = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Default.PlaylistPlay,
+            contentDescription = "Choose Links",
+            tint = fg,
+            modifier = Modifier.size(22.dp),
+        )
+        Text(
+            text = "CHOOSE LINKS",
+            color = fg,
+            fontSize = 12.sp,
+            fontFamily = FontFamily.Monospace,
+            letterSpacing = 1.6.sp,
+        )
+        if (count > 1) {
+            Box(
+                modifier = Modifier
+                    .height(22.dp)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(if (focused) NavyDeep.copy(alpha = 0.35f) else Color(0x335DC8FF))
+                    .padding(horizontal = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = count.toString(),
+                    color = fg,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace,
+                )
+            }
+        }
+    }
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Track picker sheet (Audio / Subtitles)
