@@ -1,4 +1,30 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.12.3 — Force English on ALL TMDB responses + Streailer title sanitization (Feb 2026).**
+>
+> Operator report: "most trailers still aren't in English, and the headings aren't in English either — I don't want multi-language headings, it needs to play them in English."  Two related root causes:
+>
+> **Root cause A (headings not English)**: `_tmdb_get(path, params)` at `backend/server.py:935` did NOT default `language=en-US` on its outbound TMDB request.  34 of the 40+ call-sites in the codebase omitted the `language` param, so TMDB responded with the movie's ORIGINAL language (Japanese titles for anime, French titles for French films, Korean for Squid Game, Italian for Il cavaliere oscuro, etc.).  This leaked foreign titles + synopses across every home shelf, discover row, search result, detail page, trending row, credits list, external-ID lookup, and season detail in the app.
+>
+> **Root cause B (Streailer trailer names in foreign languages)**: Streailer's response `title` field is documented as the MOVIE title in the requested language, but in practice comes back in the film's ORIGINAL language regardless of `?language=en-US` (verified: "Il cavaliere oscuro" for Dark Knight, JP kanji for Godzilla).  The Detail.jsx trailer merge put Streailer FIRST, so its foreign-titled candidate was the one the modal displayed.
+>
+> **Fixes:**
+>
+> 1. **Single-point defaults in `_tmdb_get()`** — merge `{"language": "en-US"}` into every outbound TMDB request unless the caller explicitly overrides it.  This cascades to all 34+ un-flagged call-sites without touching each one.  Result: home shelves, discover, search, trending, credits, party picks, upcoming movies, kids shelves, TV/movie detail lookups, season lookups, person lookups — all now return English titles + English synopses.
+> 2. **Trailer filter tightened (`/api/tmdb/trailer/{type}/{id}`)** — 3-tier strategy: (1) strict `iso_639_1 == "en"` AND no foreign markers in `name`; (2) fall back to `iso_639_1 in ("en","")` if empty; (3) fall back to any trailer as last resort.  `_has_cjk()` catches Japanese/Chinese/Korean characters; `_FOREIGN_MARKERS` catches "VF", "VOSTFR", "Bande-Annonce", "Español", "Latino", "Português", "Deutsch", "Italiano", Russian/Polish/Turkish/Arabic markers.  Cache bumped `v2en → v3en`.
+> 3. **Streailer title sanitization (`/api/trailer/streailer/{type}/{id}`)** — Streailer's `title` field is unreliable (returns the movie's localized title, not the trailer name).  Always hardcode `"Trailer"` as the display name regardless of what upstream sent.  The underlying YouTube video (`ytId`) is still the English trailer Streailer picked.  Cache bumped `v1 → v3en`.
+> 4. **`Detail.jsx` trailer provider order reversed** — TMDB `/videos` is now tried FIRST (its `iso_639_1` filter is authoritative); Streailer is fallback only, reached when TMDB returned zero candidates.  Previously Streailer ran first and its foreign-titled candidate always ended up as `candidates[0]`.
+>
+> **Verified live** on the preview pod after backend restart (cache empty):
+>   * `GET /api/tmdb/trending?media=tv&window=week` → X-Men '97, House of the Dragon, FROM, The Bear, Agent Kim Reactivated (was 킴 요원 재기동) ✓
+>   * `GET /api/tmdb/search?q=demon+slayer` → "Demon Slayer: Kimetsu no Yaiba", "Demon Slayer" (was JP kanji) ✓
+>   * `GET /api/tmdb/upcoming-movies` → "The Odyssey", "Moana", "Evil Dead Burn", "Pinocchio: Unstrung", "Rosebush Pruning" ✓
+>   * `GET /api/tmdb/trailer/movie/940721` (Godzilla Minus One, was JP) → "Tickets Now Available", "TV Spot 'That's Godzilla'", "Official Teaser" ✓
+>   * `GET /api/trailer/streailer/movie/tt0468569` (was "Il cavaliere oscuro") → `name: "Trailer"` ✓
+>   * All 8 core TMDB endpoints return HTTP 200; Python lint clean.
+>
+> **User action required:**  None on the box side — this is a backend change and takes effect immediately.  Cache invalidation is automatic (in-memory cache resets on supervisor restart, which happened when the fix landed).  On the VPS, take effect after next `git pull` + `systemctl restart onnowtv-backend.service`.  Save-to-GitHub + push is enough — no APK rebuild needed.
+
+
 > **🟢 v2.12.2 — APK updates now truly reinstall + pre-update profile-backup prompt (Feb 2026).**
 >
 > Operator report: "when I install a new APK on the box, it says 'installed' but nothing actually changed — old version stays."  Root cause: `pm install -r -d` on the rooted HK1 firmware silently no-ops when the incoming APK's versionCode matches the installed one (a common failure mode on CI-signed rebuilds where the version bump script skips because commit-count-since-last-tag didn't move).  The launcher previously TRIED `pm install -r -d` first and only fell back to `pm uninstall && pm install` on non-zero exit — but a false-success exit code from `pm install -r -d` shortcuts the fallback entirely.

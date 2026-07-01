@@ -939,12 +939,23 @@ async def _tmdb_get(path: str, params: Optional[Dict[str, Any]] = None) -> Any:
         "Authorization": f"Bearer {TMDB_BEARER}",
         "accept": "application/json",
     }
+    # v2.12.3 — Force `language=en-US` on EVERY TMDB call unless the
+    # caller explicitly overrides it.  Without this default, TMDB
+    # returns responses in the movie's original language (Japanese
+    # for anime, French for French films, etc.) — which surfaces as
+    # multi-language titles + synopses across the entire app (home
+    # shelves, discover, search, detail pages, trending, credits,
+    # ...).  Setting the default here is a single-point fix that
+    # cascades to all 34+ TMDB endpoints without touching each one.
+    merged_params: Dict[str, Any] = {"language": "en-US"}
+    if params:
+        merged_params.update(params)
     async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
         try:
             r = await client.get(
                 f"{TMDB_BASE}{path}",
                 headers=headers,
-                params=params or {},
+                params=merged_params,
             )
             r.raise_for_status()
             return r.json()
@@ -2815,7 +2826,7 @@ async def tmdb_trailer(type_: str, tmdb_id: int):
     Picks Trailer > Teaser, Official > anything, newest first."""
     if type_ not in ("movie", "tv"):
         raise HTTPException(400, "type must be 'movie' or 'tv'")
-    cache_key = f"trailer:{type_}:{tmdb_id}:v2en"
+    cache_key = f"trailer:{type_}:{tmdb_id}:v3en"
     cached = await cache.get(cache_key)
     if cached is not None:
         return {"cached": True, "data": cached}
@@ -2829,16 +2840,68 @@ async def tmdb_trailer(type_: str, tmdb_id: int):
     # Spanish, French, etc.) with an `iso_639_1` tag.  Without
     # filtering, the newest-uploaded foreign trailer often outranks
     # the English one on `published_at` and the user gets served a
-    # Japanese trailer.  Prefer strictly English; fall back to any
-    # only when there's no English trailer at all.
-    def is_english(v):
+    # Japanese trailer.
+    #
+    # v2.12.3 — Tightened filter.  Previously accepted `iso_639_1`
+    # of "en" OR blank because some studios leave the tag empty on
+    # English uploads.  In practice, blank iso_639_1 on TMDB is used
+    # more often for foreign-language uploads than English ones
+    # (studios who tag properly tag English; those who don't tag are
+    # usually foreign markets who never bothered).  So now:
+    #   1. Strict pass — iso_639_1 == "en" AND no foreign markers
+    #      in the trailer name.
+    #   2. If empty, permissive pass — accept blank iso_639_1 too.
+    #   3. If STILL empty, fall through to any trailer (last resort
+    #      — better than nothing).
+    # Foreign-marker heuristic catches titles like "予告編",
+    # "Bande-Annonce VF", "Tráiler Español", "Trailer 日本語吹替版",
+    # etc. that leak through even a strict iso_639_1 filter.
+    def _has_cjk(s):
+        # CJK Unified Ideographs, Hiragana, Katakana, Hangul syllables.
+        # Any character with codepoint in these ranges = definitely
+        # not an English trailer.
+        return any(
+            0x3040 <= ord(c) <= 0x30FF or   # hiragana + katakana
+            0x4E00 <= ord(c) <= 0x9FFF or   # CJK unified
+            0xAC00 <= ord(c) <= 0xD7A3      # hangul
+            for c in s
+        )
+    _FOREIGN_MARKERS = (
+        # French
+        "vf", "vostfr", "bande-annonce", "bande annonce",
+        # Spanish + Portuguese
+        "español", "espanol", "castellano", "latino", "trailer español",
+        "português", "portugues", "dublado", "legendado",
+        # German + Italian
+        "deutsch", "german sub", "italiano", "sottotitoli",
+        # Nordic
+        "svensk", "norsk", "dansk",
+        # Slavic
+        "русский", "polski", "cesky",
+        # Turkish, Arabic
+        "türkçe", "العربية", "مترجم",
+        # Explicit dub markers
+        "dub", "dubbed", "sub", "subtitulado",
+    )
+    def _foreign_hint_in_name(v):
+        name = (v.get("name") or "").lower()
+        if _has_cjk(v.get("name") or ""):
+            return True
+        return any(marker in name for marker in _FOREIGN_MARKERS)
+    def is_strict_english(v):
+        return (v.get("iso_639_1") or "").lower() == "en" and not _foreign_hint_in_name(v)
+    def is_permissive_english(v):
         lang = (v.get("iso_639_1") or "").lower()
-        # Some studios leave the language tag blank on English uploads —
-        # accept "en" and "" (blank).  Everything else is a foreign dub.
-        return lang in ("en", "")
-    english_only = [v for v in youtube if is_english(v)]
-    if english_only:
-        youtube = english_only
+        return lang in ("en", "") and not _foreign_hint_in_name(v)
+    strict = [v for v in youtube if is_strict_english(v)]
+    if strict:
+        youtube = strict
+    else:
+        permissive = [v for v in youtube if is_permissive_english(v)]
+        if permissive:
+            youtube = permissive
+        # else: leave `youtube` as-is (last resort — better foreign
+        # trailer than none at all).
     def rank(v):
         type_score = 3 if v.get("type") == "Trailer" else (2 if v.get("type") == "Teaser" else 1)
         official = 1 if v.get("official") else 0
@@ -2906,7 +2969,7 @@ async def streailer_trailer(type_: str, imdb_id: str, language: str = "en-US"):
     if not imdb_id.startswith("tt"):
         raise HTTPException(400, "imdb_id must start with 'tt'")
     lang = (language or "en-US").strip() or "en-US"
-    cache_key = f"streailer:{type_}:{imdb_id}:{lang}:v1"
+    cache_key = f"streailer:{type_}:{imdb_id}:{lang}:v3en"
     cached = await cache.get(cache_key)
     if cached is not None:
         return {"cached": True, "data": cached}
@@ -2931,9 +2994,19 @@ async def streailer_trailer(type_: str, imdb_id: str, language: str = "en-US"):
         cand = (s.get("ytId") or "").strip()
         if not cand:
             continue
+        # v2.12.3 — Streailer's `title` field is the MOVIE title in
+        # TMDB's default localization — NOT the trailer's own name —
+        # and it comes back in the film's original language even
+        # when we request `?language=en-US` (verified: "Il cavaliere
+        # oscuro" comes back for Dark Knight, "テルマエ・ロマエ" for
+        # the JP title, etc.).  Since it's unreliable AND semantically
+        # wrong (it's not a trailer name), always use a safe generic
+        # "Trailer" label.  The underlying YouTube video itself is
+        # still the English trailer Streailer picked for our
+        # requested language.
         all_candidates.append({
             "key": cand,
-            "name": s.get("title") or s.get("name") or "Trailer",
+            "name": "Trailer",
             "site": "YouTube",
             "type": "Trailer",
         })

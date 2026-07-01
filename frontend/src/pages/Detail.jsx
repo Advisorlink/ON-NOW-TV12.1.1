@@ -365,21 +365,21 @@ export default function Detail() {
                 }
             }
         };
-        // Streailer first — its picks are often the OFFICIAL final
-        // trailer that plays inside the app.
-        try {
-            if (id && id.startsWith('tt')) {
-                const rs = await fetch(
-                    `${process.env.REACT_APP_BACKEND_URL}/api/trailer/streailer/${type}/${encodeURIComponent(id)}`
-                );
-                const js = await rs.json();
-                addAll(js?.data?.candidates);
-                if (!merged.length && js?.data?.key) {
-                    addAll([js.data]);
-                }
-            }
-        } catch { /* swallow */ }
-        // TMDB /videos next — up to 9 candidates for major-studio
+        // v2.12.3 — TMDB /videos FIRST.  It's the ONLY source with
+        // a reliable `iso_639_1` field so the backend can strictly
+        // filter to English trailers.  Streailer is fallback only.
+        //
+        // Previously (v2.11.6 spec) Streailer ran first because its
+        // scraper sometimes finds trailers TMDB missed — but that
+        // ordering meant Streailer's untrustworthy `title` field
+        // (which echoes the movie's original-language localization
+        // even with `?language=en-US`) sometimes flashed foreign
+        // text in the modal header.  With TMDB first, Streailer
+        // only surfaces when TMDB has zero English candidates,
+        // and the backend already sanitises Streailer titles to
+        // "Trailer" when they look foreign.
+        //
+        // TMDB /videos — up to 9 candidates for major-studio
         // trailers, all officially uploaded, of which ~40% actually
         // allow iframe embedding.  With every candidate in hand the
         // modal cycles until one plays.
@@ -393,6 +393,23 @@ export default function Detail() {
                 addAll(j?.data?.candidates);
                 if (!merged.length && j?.data?.key) {
                     addAll([j.data]);
+                }
+            } catch { /* swallow */ }
+        }
+        // Streailer as SECONDARY provider — its TMDB→YouTube-search→
+        // TMDB-en-US cascade often finds a trailer TMDB's raw /videos
+        // endpoint misses.  Only reached when TMDB returned nothing.
+        if (!merged.length) {
+            try {
+                if (id && id.startsWith('tt')) {
+                    const rs = await fetch(
+                        `${process.env.REACT_APP_BACKEND_URL}/api/trailer/streailer/${type}/${encodeURIComponent(id)}`
+                    );
+                    const js = await rs.json();
+                    addAll(js?.data?.candidates);
+                    if (!merged.length && js?.data?.key) {
+                        addAll([js.data]);
+                    }
                 }
             } catch { /* swallow */ }
         }
