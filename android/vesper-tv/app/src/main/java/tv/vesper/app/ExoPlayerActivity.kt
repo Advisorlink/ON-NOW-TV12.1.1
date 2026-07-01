@@ -31,6 +31,8 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.source.MergingMediaSource
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.cancel
@@ -72,6 +74,9 @@ class ExoPlayerActivity : ComponentActivity() {
     private lateinit var player: ExoPlayer
     private var streamUrl: String = ""
     private var streamTitle: String = ""
+    /** v2.12.1 — YouTube DASH audio-only slave for HD trailers.  See
+     *  intent-reading block for details. */
+    private var trailerAudioUrl: String = ""
     private var startAtMs: Long = 0L
     private var synopsis: String = ""
     private var year: String = ""
@@ -469,6 +474,13 @@ class ExoPlayerActivity : ComponentActivity() {
         backdrop    = intent.getStringExtra(VlcPlayerActivity.EXTRA_BACKDROP) ?: ""
         poster      = intent.getStringExtra(VlcPlayerActivity.EXTRA_POSTER) ?: ""
         cwId        = intent.getStringExtra(VlcPlayerActivity.EXTRA_CW_ID) ?: ""
+        // v2.12.1 — Optional YouTube DASH audio-only slave URL.  Set
+        // by `WebAppInterface.playTrailerFullscreen()` for HD YouTube
+        // trailers where NewPipeExtractor returned a video-only 1080p+
+        // stream (YouTube caps muxed at 720p — often 360p).  When
+        // present, we build a MergingMediaSource(video, audio) below
+        // so the trailer plays in true HD WITH sound.
+        trailerAudioUrl = intent.getStringExtra("trailerAudioUrl") ?: ""
 
         // v2.10.40 — Seed the reactive PlayerInfo flow with the
         // initial extras so the Compose overlay reads the right
@@ -783,7 +795,25 @@ class ExoPlayerActivity : ComponentActivity() {
         // a valid timestamp.  The "> 5_000" threshold preserves the
         // existing UX (skip resume for the first 5 s of a stream).
         val startPos = if (startAtMs > 5_000L) startAtMs else 0L
-        player.setMediaItem(item, startPos)
+        // v2.12.1 — YouTube HD trailer path: NewPipeExtractor returned a
+        // video-only 1080p+ URL plus a separate audio-only URL.  Build a
+        // MergingMediaSource so ExoPlayer plays them together.  Merged
+        // sources CAN'T be created from a single MediaItem — we go
+        // through the source factory manually for both streams.
+        if (trailerAudioUrl.isNotBlank()) {
+            val progressiveFactory = ProgressiveMediaSource.Factory(httpFactory)
+            val videoSource = progressiveFactory.createMediaSource(
+                MediaItem.fromUri(streamUrl),
+            )
+            val audioSource = progressiveFactory.createMediaSource(
+                MediaItem.fromUri(trailerAudioUrl),
+            )
+            val merged = MergingMediaSource(videoSource, audioSource)
+            player.setMediaSource(merged, startPos)
+            Log.i(TAG, "trailer HD DASH pair: video=$streamUrl audio=$trailerAudioUrl")
+        } else {
+            player.setMediaItem(item, startPos)
+        }
         player.prepare()
         player.playWhenReady = true
         // v2.10.80 — Arm the buffer-stall watchdog so a stream URL

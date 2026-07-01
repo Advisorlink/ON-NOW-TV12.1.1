@@ -2703,7 +2703,7 @@ async def tmdb_upcoming_movies(
         # YouTube trailer key — TMDB /videos endpoint.  Pick the
         # first official YouTube trailer.  Cache 24 h since trailers
         # rarely change once uploaded.
-        tk = f"tmdb_trailer:movie:{tmdb_id}"
+        tk = f"tmdb_trailer:movie:{tmdb_id}:v2en"
         cached_trailer = await cache.get(tk)
         if cached_trailer:
             item["trailer_key"] = cached_trailer
@@ -2712,8 +2712,15 @@ async def tmdb_upcoming_movies(
             try:
                 vids = await _tmdb_get(f"/movie/{tmdb_id}/videos")
                 results = vids.get("results") or []
-                # Prefer official YouTube trailers, then teasers.
-                yt = [v for v in results if v.get("site") == "YouTube" and v.get("key")]
+                # v2.12.1 — Prefer English-language YouTube trailers.
+                # Without this filter, foreign-language dubs (Japanese,
+                # Spanish, French, etc.) sometimes rank first because
+                # they were uploaded later.
+                def _is_en(v):
+                    lang = (v.get("iso_639_1") or "").lower()
+                    return lang in ("en", "")
+                yt_all = [v for v in results if v.get("site") == "YouTube" and v.get("key")]
+                yt = [v for v in yt_all if _is_en(v)] or yt_all
                 trailer = (
                     next((v for v in yt if v.get("type") == "Trailer" and v.get("official")), None)
                     or next((v for v in yt if v.get("type") == "Trailer"), None)
@@ -2808,7 +2815,7 @@ async def tmdb_trailer(type_: str, tmdb_id: int):
     Picks Trailer > Teaser, Official > anything, newest first."""
     if type_ not in ("movie", "tv"):
         raise HTTPException(400, "type must be 'movie' or 'tv'")
-    cache_key = f"trailer:{type_}:{tmdb_id}:v1"
+    cache_key = f"trailer:{type_}:{tmdb_id}:v2en"
     cached = await cache.get(cache_key)
     if cached is not None:
         return {"cached": True, "data": cached}
@@ -2817,10 +2824,28 @@ async def tmdb_trailer(type_: str, tmdb_id: int):
     )
     videos = data.get("results") or []
     youtube = [v for v in videos if (v.get("site") or "").lower() == "youtube"]
+    # v2.12.1 — Language filter.  TMDB returns YouTube trailers in
+    # every language a studio has uploaded (Japanese-dubbed, LATAM
+    # Spanish, French, etc.) with an `iso_639_1` tag.  Without
+    # filtering, the newest-uploaded foreign trailer often outranks
+    # the English one on `published_at` and the user gets served a
+    # Japanese trailer.  Prefer strictly English; fall back to any
+    # only when there's no English trailer at all.
+    def is_english(v):
+        lang = (v.get("iso_639_1") or "").lower()
+        # Some studios leave the language tag blank on English uploads —
+        # accept "en" and "" (blank).  Everything else is a foreign dub.
+        return lang in ("en", "")
+    english_only = [v for v in youtube if is_english(v)]
+    if english_only:
+        youtube = english_only
     def rank(v):
         type_score = 3 if v.get("type") == "Trailer" else (2 if v.get("type") == "Teaser" else 1)
         official = 1 if v.get("official") else 0
-        return (type_score, official, v.get("published_at") or "")
+        # Strongly prefer explicit "en" over blank language tag, in
+        # case a foreign trailer leaked through the filter above.
+        lang_score = 1 if (v.get("iso_639_1") or "").lower() == "en" else 0
+        return (lang_score, type_score, official, v.get("published_at") or "")
     youtube.sort(key=rank, reverse=True)
     if not youtube:
         await cache.set(cache_key, None, 60 * 60 * 6)

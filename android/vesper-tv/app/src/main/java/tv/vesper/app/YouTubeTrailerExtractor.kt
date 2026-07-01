@@ -154,7 +154,15 @@ object YouTubeTrailerExtractor {
     }
 
     /**
-     * Extract the best available progressive stream for [videoId].
+     * Extract the best available stream for [videoId].
+     *
+     * v2.12.1 — HD PRIORITY: DASH pair (video-only + audio-only,
+     * up to 4K) is tried FIRST because YouTube only serves muxed
+     * MP4 up to 720p — and often only 360p on older uploads.
+     * Fall back to muxed only when DASH extraction fails (rare —
+     * usually only happens for embed-restricted uploads that are
+     * about to fall out to the iframe path anyway).
+     *
      * Runs synchronously — caller MUST invoke from a background
      * thread (network I/O + JavaScript execution inside Rhino).
      *
@@ -171,27 +179,16 @@ object YouTubeTrailerExtractor {
             val extractor = service.getStreamExtractor(url)
             extractor.fetchPage()
 
-            // Prefer a MUXED (audio+video combined) progressive
-            // stream — plays as a plain HTTP MP4 on ExoPlayer with
-            // no DASH plumbing.  Typically 720p max on newer
-            // uploads, 360p on older ones.  If none exist, fall
-            // through to the DASH pair (video-only + audio-only).
+            // Prefer the DASH pair — HIGHEST quality path.  YouTube
+            // serves 1080p / 1440p / 2160p (4K) ONLY as separate
+            // video-only + audio-only streams (progressive muxed
+            // maxes out at 720p, often 360p on older uploads).  The
+            // Vesper ExoPlayerActivity knows how to merge them via
+            // `trailerAudioUrl` extra + MergingMediaSource.
             //
             // Note: NewPipeExtractor's Stream.getUrl() is annotated
             // as nullable Java (`@Nullable String`) — Kotlin sees
-            // `String?`.  We filter out null/blank before dereferencing.
-            val muxed = extractor.videoStreams
-                ?.filter { !it.url.isNullOrBlank() }
-                ?.maxByOrNull { it.height.takeIf { h -> h > 0 } ?: 0 }
-            if (muxed != null) {
-                return TrailerStreams(
-                    videoUrl = muxed.url ?: "",
-                    audioUrl = null,
-                    title = extractor.name ?: "Trailer",
-                    heightPx = muxed.height.takeIf { it > 0 } ?: 0,
-                )
-            }
-
+            // `String?`.  Filter out null/blank before dereferencing.
             val bestVideo = extractor.videoOnlyStreams
                 ?.filter { !it.url.isNullOrBlank() }
                 ?.maxByOrNull { it.height.takeIf { h -> h > 0 } ?: 0 }
@@ -199,11 +196,30 @@ object YouTubeTrailerExtractor {
                 ?.filter { !it.url.isNullOrBlank() }
                 ?.maxByOrNull { it.averageBitrate.takeIf { b -> b > 0 } ?: 0 }
             if (bestVideo != null && bestAudio != null) {
+                Log.i(TAG, "DASH pair chosen: ${bestVideo.height}p video + " +
+                    "${bestAudio.averageBitrate}kbps audio")
                 return TrailerStreams(
                     videoUrl = bestVideo.url ?: "",
                     audioUrl = bestAudio.url ?: "",
                     title = extractor.name ?: "Trailer",
                     heightPx = bestVideo.height.takeIf { it > 0 } ?: 0,
+                )
+            }
+
+            // Fallback: muxed progressive stream — plain HTTP MP4 that
+            // an HTML5 <video> can play with zero DASH plumbing.  YT
+            // caps this path at 720p (usually 360p on older uploads)
+            // so it's a last resort when DASH extraction returns nothing.
+            val muxed = extractor.videoStreams
+                ?.filter { !it.url.isNullOrBlank() }
+                ?.maxByOrNull { it.height.takeIf { h -> h > 0 } ?: 0 }
+            if (muxed != null) {
+                Log.i(TAG, "muxed fallback chosen: ${muxed.height}p")
+                return TrailerStreams(
+                    videoUrl = muxed.url ?: "",
+                    audioUrl = null,
+                    title = extractor.name ?: "Trailer",
+                    heightPx = muxed.height.takeIf { it > 0 } ?: 0,
                 )
             }
             return null

@@ -1,4 +1,30 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.12.1 — Trailers now HD + English (Feb 2026).**
+>
+> Two related bugs the user reported the moment v2.11.8 native NewPipeExtractor trailers went live: (a) trailers played but were LOW-RES (usually 360p), and (b) trailers were often in the wrong language (Japanese/Spanish/etc.).
+>
+> **Root cause (HD)**: `YouTubeTrailerExtractor.kt` was preferring the MUXED progressive stream first (`extractor.videoStreams`) — YouTube caps muxed at 720p and almost every older upload only has 360p muxed.  The DASH pair path (video-only 1080p+ + audio-only 128kbps) was tried ONLY as fallback and never fired in practice.  Additionally, `WebAppInterface.playTrailerFullscreen()` passed a `trailerAudioUrl` intent extra that `ExoPlayerActivity` completely ignored — so even if the DASH pair path HAD fired, playback would have been silent.
+>
+> **Root cause (English)**: `/api/tmdb/trailer/{type}/{id}` in `server.py` did NOT filter by `iso_639_1 == "en"` — TMDB returns every localized official trailer a studio has uploaded, and the newer foreign-dub uploads outrank the older English original on the `published_at` tiebreaker in the `rank()` sort.  Same bug in the `_resolve()` inner function used by `/api/tmdb/upcoming-movies` (line ~2713).
+>
+> **Fixes:**
+>
+> 1. **`YouTubeTrailerExtractor.kt`** — reverse resolver priority.  DASH pair (up to 4K) is tried FIRST; muxed 720p is fallback only.  Emits `Log.i(TAG, "DASH pair chosen: ${height}p video + ${bitrate}kbps audio")` so operators can grep logcat to confirm HD.
+> 2. **`ExoPlayerActivity.kt`** — added `trailerAudioUrl` field + intent-extra read + `MergingMediaSource(videoSource, audioSource)` path around `player.setMediaItem()`.  Imports `MergingMediaSource` + `ProgressiveMediaSource` from `androidx.media3.exoplayer.source.*` (already in the Gradle deps via `media3-exoplayer:1.4.1`).  Emits `Log.i(TAG, "trailer HD DASH pair: video=... audio=...")` for confirmation.
+> 3. **`server.py` `/api/tmdb/trailer/{type}/{id}`** — added `is_english(v)` filter that accepts `iso_639_1 == "en"` OR blank (some studios leave it blank on English uploads).  Preserves the ranked candidates list (used by the frontend for iframe-fallback cycling) so all English options are shown in order.  Also added `lang_score` as the topmost tiebreaker in `rank()`.  Cache key bumped `v1 → v2en` to force fresh resolves.
+> 4. **`server.py` `_resolve()` inside `/api/tmdb/upcoming-movies`** — same English filter (uses `yt_all` → `yt_english` fallback pattern to keep behaviour graceful when only foreign trailers exist).  Cache prefix bumped `tmdb_trailer:movie:{id}` → `tmdb_trailer:movie:{id}:v2en`.
+>
+> **Verified live:**
+>
+>   * `GET /api/tmdb/trailer/tv/119051` (Wednesday) → `"'New York Comic-Con' Trailer"` (English).
+>   * `GET /api/tmdb/trailer/movie/940721` (Godzilla Minus One) → English Netflix trailers, not Japanese originals.
+>   * `GET /api/tmdb/trailer/movie/155` (Dark Knight) → `"Original Theatrical Trailer"` (regression pass).
+>   * Kotlin syntax verified clean by kotlinc (only unresolved-import errors for Android SDK types — expected in standalone check; CI has the SDK).
+>   * Python lint clean.
+>
+> **User action required:**  Save to GitHub → CI rebuilds Vesper APK → sideload.  Backend fixes are live on the pod immediately; on the VPS after next `git pull` + `systemctl restart onnowtv-backend.service`.  Once the new APK is running, DevTools → filter logcat for `VesperExo` will show `"trailer HD DASH pair: ..."` on every trailer launch, confirming the HD path is firing.
+
+
 > **🟢 v2.12.0 — Tunes app migrated to native NewPipeExtractor (YouTube sign-in removed) (Feb 2026).**
 >
 > Follow-up to v2.11.8 (which added on-device NewPipeExtractor for Vesper trailers).  The Tunes music app used to force users through a YouTube sign-in WebView at first boot, which then let the InnerTube resolver (with SAPISID cookies) fetch ad-free direct googlevideo CDN URLs.  Falling back to a backend admin-cookies flow (`yt-dlp` + Netscape `cookies.txt` files uploaded via a hidden admin page) when the user wasn't signed in.  Both paths were fragile:
