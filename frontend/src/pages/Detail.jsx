@@ -333,14 +333,48 @@ export default function Detail() {
     const [trailerLoading, setTrailerLoading] = useState(false);
     const trailerCacheRef = useRef({});
     const openTrailer = useCallback(async () => {
-        if (!tmdbInfo?.tmdb_id) return;
-        const key = `${tmdbInfo.media_type}:${tmdbInfo.tmdb_id}`;
+        // v2.11.4 — Streailer FIRST, TMDB fallback.  Streailer's
+        // TMDB→YouTube-search→TMDB-en-US cascade catches trailers
+        // TMDB's raw /videos endpoint misses (e.g. titles TMDB knows
+        // but has no linked YT trailer for).  Falls back to the
+        // existing /api/tmdb/trailer path if Streailer returns nothing
+        // (or is down — DNS/timeout produces `data: null`).
+        //
+        // Streailer accepts IMDB ids directly (via URL param `id`),
+        // whereas /api/tmdb/trailer needs the tmdb_id from tmdbInfo.
+        // We hit Streailer with `id` (IMDB from URL) and skip the
+        // tmdbInfo dependency for the primary path — trailer button
+        // works as soon as the user lands on Detail.
+        const key = `${type}:${id}`;
         if (trailerCacheRef.current[key]) {
             setTrailerKey(trailerCacheRef.current[key]);
             return;
         }
+        setTrailerLoading(true);
+        // Streailer accepts "movie" and "series" (Stremio type
+        // taxonomy).  URL param `type` on Vesper Detail is exactly
+        // "movie" or "series" so we can pass it straight through.
         try {
-            setTrailerLoading(true);
+            if (id && (id.startsWith('tt'))) {
+                const rs = await fetch(
+                    `${process.env.REACT_APP_BACKEND_URL}/api/trailer/streailer/${type}/${encodeURIComponent(id)}`
+                );
+                const js = await rs.json();
+                const ks = js?.data?.key;
+                if (ks) {
+                    trailerCacheRef.current[key] = ks;
+                    setTrailerKey(ks);
+                    setTrailerLoading(false);
+                    return;
+                }
+            }
+        } catch { /* swallow, fall through */ }
+        // Fallback: TMDB /videos (needs tmdb_id).
+        if (!tmdbInfo?.tmdb_id) {
+            setTrailerLoading(false);
+            return;
+        }
+        try {
             const r = await fetch(
                 `${process.env.REACT_APP_BACKEND_URL}/api/tmdb/trailer/` +
                 `${tmdbInfo.media_type}/${tmdbInfo.tmdb_id}`
@@ -352,7 +386,7 @@ export default function Detail() {
         } catch { /* swallow */ } finally {
             setTrailerLoading(false);
         }
-    }, [tmdbInfo]);
+    }, [tmdbInfo, type, id]);
 
     /* When the user lands on Detail via the Upcoming-Movies trailer
      * card (which appends `?autoplay-trailer=1` to the URL), fire
@@ -2107,7 +2141,7 @@ export default function Detail() {
                                         border: '1px solid rgba(255,255,255,0.18)',
                                     }}
                                 >
-                                    Choose stream
+                                    Swap stream
                                     <span
                                         className="vesper-mono"
                                         style={{
@@ -2175,7 +2209,7 @@ export default function Detail() {
                                 ) : streams && streams.length > 0 ? (
                                     <>
                                         <Play size={18} fill="currentColor" />
-                                        Choose stream
+                                        Swap stream
                                         <span
                                             className="ml-1 vesper-mono"
                                             style={{

@@ -479,7 +479,7 @@ class VlcPlayerActivity : AppCompatActivity() {
         // feature on every movie + TV-show episode.
         if (streamsList.size > 1) {
             btnStreams.visibility = android.view.View.VISIBLE
-            btnStreams.text = "Choose Links · ${streamsList.size}"
+            btnStreams.text = "Swap Stream · ${streamsList.size}"
             btnStreams.setOnClickListener {
                 lastFocusedControl = btnStreams
                 showStreamPicker()
@@ -2095,7 +2095,7 @@ class VlcPlayerActivity : AppCompatActivity() {
         // Cyan eyebrow strip with a thin gradient underline.  Adds
         // the premium "section header" vibe the user is after.
         val eyebrow = android.widget.TextView(this).apply {
-            text = "CHOOSE LINKS"
+            text = "SWAP STREAM"
             setTextColor(0xFF5DC8FF.toInt())
             textSize = 10f
             letterSpacing = 0.32f

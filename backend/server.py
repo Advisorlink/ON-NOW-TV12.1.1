@@ -2836,6 +2836,77 @@ async def tmdb_trailer(type_: str, tmdb_id: int):
     return {"cached": False, "data": out}
 
 
+@api.get("/trailer/streailer/{type_}/{imdb_id}")
+async def streailer_trailer(type_: str, imdb_id: str, language: str = "en-US"):
+    """v2.11.4 — Streailer Stremio addon proxy.  Multi-language trailer
+    provider with a smarter TMDB→YouTube fallback chain than TMDB's
+    raw /videos endpoint.  Catches trailers the built-in `/tmdb/trailer`
+    misses (e.g. titles TMDB knows but doesn't have a linked YT video
+    for).  Returns the same `{data:{key,name,site,type}}` shape so
+    Detail.jsx can swap sources with zero UI changes.
+
+    Args:
+        type_: "movie" or "series"
+        imdb_id: IMDB tt-id (e.g. "tt0111161")
+        language: TMDB language tag (default en-US)
+
+    Streailer contract (verified 01-Jul-2026):
+        GET https://streailer.elfhosted.com/language={lang}/stream/{type}/{id}.json
+        → { streams: [{ ytId, title, name, behaviorHints }] }
+
+    We cache the ytId per (imdb, lang) for 6 h to keep TMDB roll
+    behaviour under control (Streailer already caches internally).
+    """
+    if type_ not in ("movie", "series"):
+        raise HTTPException(400, "type must be 'movie' or 'series'")
+    imdb_id = (imdb_id or "").strip()
+    if not imdb_id.startswith("tt"):
+        raise HTTPException(400, "imdb_id must start with 'tt'")
+    lang = (language or "en-US").strip() or "en-US"
+    cache_key = f"streailer:{type_}:{imdb_id}:{lang}:v1"
+    cached = await cache.get(cache_key)
+    if cached is not None:
+        return {"cached": True, "data": cached}
+
+    url = f"https://streailer.elfhosted.com/language={lang}/stream/{type_}/{imdb_id}.json"
+    try:
+        async with httpx.AsyncClient(timeout=6.0) as client:
+            r = await client.get(url, follow_redirects=True)
+            if r.status_code != 200:
+                await cache.set(cache_key, None, 60 * 60 * 6)
+                return {"cached": False, "data": None}
+            payload = r.json()
+    except Exception as e:
+        # Streailer down / DNS / timeout — negative-cache 10 min so we
+        # don't hammer it; Detail.jsx will fall back to /tmdb/trailer.
+        await cache.set(cache_key, None, 60 * 10)
+        return {"cached": False, "data": None, "error": str(e)[:120]}
+
+    streams = payload.get("streams") or []
+    yt_id = None
+    label = None
+    for s in streams:
+        cand = (s.get("ytId") or "").strip()
+        if cand:
+            yt_id = cand
+            label = s.get("title") or s.get("name") or "Trailer"
+            break
+
+    if not yt_id:
+        await cache.set(cache_key, None, 60 * 60 * 6)
+        return {"cached": False, "data": None}
+
+    out = {
+        "key": yt_id,
+        "name": label or "Trailer",
+        "site": "YouTube",
+        "type": "Trailer",
+        "source": "streailer",
+    }
+    await cache.set(cache_key, out, 60 * 60 * 6)
+    return {"cached": False, "data": out}
+
+
 @api.get("/trailer-stream/{youtube_id}")
 async def trailer_stream(youtube_id: str):
     """Extract a direct, playable URL for a YouTube video so the

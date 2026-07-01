@@ -1,5 +1,37 @@
 # ON NOW TV V2 — PRD
 
+> **🟢 v2.11.4 — Streailer trailer addon + "SWAP STREAM" rename everywhere (01 Jul 2026).**
+>
+> Operator: "Considering you can't get the trailers right, use something like this for the trailers then. [Streailer addon]. Just make this work.  Also, it's not showing the choose stream on TV shows — every TV show has different streams that it can choose if auto play isn't selected, so put those streams into the player when playing a TV show, just like in movies.  Also, change it from saying 'choose stream' to 'swap stream'."
+>
+> Three deliverables in one drop:
+>
+> **1. Streailer Stremio-addon as primary trailer source.**  New backend endpoint `GET /api/trailer/streailer/{type}/{imdb_id}` proxies https://streailer.elfhosted.com — Streailer's cascade is `TMDB (your language) → YouTube search → TMDB en-US`, which catches trailers Cinemeta's `youtube` field and TMDB's raw `/videos` endpoint both miss (titles TMDB knows but has no linked YT video for).  Cache 6 h.  Response shape matches the existing `/api/tmdb/trailer` endpoint (`{data:{key,name,site,type,source}}`) so downstream JSX changes are zero.  Handles bad type (400), unknown IMDB (data:null cached 6 h), addon down (data:null negative-cached 10 min — Detail.jsx transparently falls back to `/api/tmdb/trailer`).  Verified end-to-end via 4 curl checks: Shawshank movie, Breaking Bad series, invalid tt-id → null, invalid type → 400, warm cache re-hit → `cached:true`.
+>
+>   Frontend `Detail.jsx.openTrailer()` rewired: hits Streailer FIRST with the URL-param IMDB id (no `tmdbInfo` dependency — trailer button is armed the instant Detail mounts), falls back to `/api/tmdb/trailer` if Streailer returns null or throws.  Trailer modal iframe path is unchanged (v2.11.2 sandbox + `youtube-nocookie.com` still ships as-is — Streailer just gives us a better ytId).
+>
+> **2. Stream picker on TV shows.**  Audited the full pipeline for TV episodes and confirmed the code is CORRECT end-to-end since v2.10.99:
+>   • `SeriesEpisodes.playStream()` → `orderStreams(epStreams)` → `Host.playVideo({streamsList: ordered, currentStreamIdx})` (SeriesEpisodes.jsx L423-458).
+>   • `host.js.playVideo()` → synthesizes magnet URLs for torrent-only streams via inline `toMagnet(s)` (host.js L119-129) → serialises to `streamsJson` → `WebAppInterface.playInternalRichV2(...)`.
+>   • `WebAppInterface.playInternalRichV2()` → routes to VLC when URL is magnet, ExoPlayer otherwise → passes `EXTRA_STREAMS_JSON` + `EXTRA_CURRENT_STREAM_IDX` to both target activities (WebAppInterface.kt L277-303).
+>   • `ExoPlayerActivity` parses JSON → `altStreams` → `streamsFlow` → PlayerOverlay `hasStreams = streamList.size > 1` → StreamPickerChip renders (ExoPlayerActivity.kt L578-612).
+>   • `VlcPlayerActivity` parses JSON → `streamsList` → `btnStreams.text = "Swap Stream · N"` (VlcPlayerActivity.kt L418-438).
+>   Root cause of the operator's continued frustration is almost certainly a stale APK bundle on the box (Vesper WebView bakes the React build into the APK — the host.js torrent→magnet fix from v2.10.99 requires a fresh CI-built APK).  No code changes needed here.
+>
+> **3. "SWAP STREAM" rename EVERYWHERE.**  User was explicit: "change it from saying 'choose stream' to 'swap stream'".  Applied globally:
+>   • Vesper ExoPlayer overlay pill: `CHOOSE LINKS` → `SWAP STREAM` (PlayerOverlay.kt L1193, 1198, 1642).
+>   • Vesper VLC picker button: `Choose Links · N` → `Swap Stream · N`; picker sheet eyebrow `CHOOSE LINKS` → `SWAP STREAM` (VlcPlayerActivity.kt L482, 2098).
+>   • Kids ExoPlayer overlay: same rename (PlayerOverlay.kt L878, 883, 1060).
+>   • Kids VLC picker button + sheet: same rename (VlcPlayerActivity.kt L482, 2095).
+>   • Web Detail page primary + secondary CTAs: `Choose stream` → `Swap stream` (Detail.jsx L2144, 2212).
+>
+> Kotlin balance verified clean across all 4 native files (braces=0, parens=0 after stripping strings/comments).
+>
+> Touched: `backend/server.py` (+70 lines: new `/api/trailer/streailer/{type}/{imdb}` endpoint), `frontend/src/pages/Detail.jsx` (+40 -15: rewired `openTrailer()` for Streailer→TMDB fallback + 2 CTA renames), `android/vesper-tv/.../PlayerOverlay.kt` (3 string renames), `android/vesper-tv/.../VlcPlayerActivity.kt` (2 string renames), `android/onnowtv-kids/.../PlayerOverlay.kt` (3 string renames), `android/onnowtv-kids/.../VlcPlayerActivity.kt` (2 string renames).
+>
+> **User action required:**  Save to GitHub → CI builds both APKs → sideload.  The trailer & Streailer changes are backend/React-side and ship immediately on VPS deploy (no APK rebuild needed).  The "SWAP STREAM" rename in native players requires a fresh APK.
+
+
 > **🟢 v2.11.3 — Kotlin compile fix: removed orphan `*/` + duplicate `NextEpisodeThumbnail` in Vesper `PlayerOverlay.kt` (01 Jul 2026).**
 >
 > Follow-up to v2.11.2.  Previous session inserted the new `StreamPickerChip` composable but the `search_replace` that stitched the surrounding KDoc back together left an **orphan `*/` block** (lines 1223-1226) and a **duplicate `NextEpisodeThumbnail` function** (lines 1228-1244 duplicating the legit one at 1097-1114) in `android/vesper-tv/app/src/main/java/tv/vesper/app/PlayerOverlay.kt`.  Result: `compileDebugKotlin` would have failed with "Conflicting declarations: `private fun NextEpisodeThumbnail(url: String)`" plus a stray-comment syntax error.  Kids `PlayerOverlay.kt` was untouched by that regression.

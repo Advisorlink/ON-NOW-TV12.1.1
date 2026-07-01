@@ -875,12 +875,12 @@ private fun StreamPickerChip(count: Int, onClick: () -> Unit) {
     ) {
         Icon(
             imageVector = Icons.Default.PlaylistPlay,
-            contentDescription = "Choose Links",
+            contentDescription = "Swap Stream",
             tint = fg,
             modifier = Modifier.size(22.dp),
         )
         Text(
-            text = "CHOOSE LINKS",
+            text = "SWAP STREAM",
             color = fg,
             fontSize = 12.sp,
             fontFamily = FontFamily.Monospace,
@@ -1057,7 +1057,7 @@ private fun StreamPickerSheet(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = "CHOOSE LINKS",
+                text = "SWAP STREAM",
                 color = CyanPrimary,
                 fontSize = 13.sp,
                 fontFamily = FontFamily.Monospace,
