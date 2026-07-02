@@ -27,7 +27,7 @@ from urllib.parse import quote
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import APIRouter, Body, FastAPI, HTTPException, Query, Request
+from fastapi import APIRouter, Body, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response, HTMLResponse, JSONResponse, StreamingResponse, FileResponse
 from PIL import Image, UnidentifiedImageError
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -4135,8 +4135,37 @@ async def sports_find(req: SportsQueryRequest):
 # ============================================================================
 import httpx as _httpx_launcher
 
-_LAUNCHER_BACKEND = "http://localhost:8002"
+_LAUNCHER_BACKEND = os.environ.get("LAUNCHER_BACKEND_URL") or "http://localhost:8002"
 _LAUNCHER_PROXY_PREFIX = "/api/launcher-admin"
+
+
+# v2.13.0 — V2 AI in-app proxy.  The Vesper React app now hosts the
+# V2 AI assistant page itself (moved out of the launcher).  These two
+# endpoints forward to the launcher backend's Whisper + intent
+# pipeline so the frontend only ever talks to REACT_APP_BACKEND_URL.
+@app.post("/api/v2ai/process")
+async def v2ai_process_proxy(
+    file: UploadFile = File(...),
+    device_id: Optional[str] = Form(None),
+):
+    raw = await file.read()
+    async with _httpx_launcher.AsyncClient(timeout=120.0) as client:
+        r = await client.post(
+            f"{_LAUNCHER_BACKEND}/api/launcher/v2ai/process",
+            files={"file": (file.filename or "audio.webm", raw, file.content_type or "application/octet-stream")},
+            data={"device_id": device_id or ""},
+        )
+    return Response(content=r.content, status_code=r.status_code, media_type="application/json")
+
+
+@app.post("/api/v2ai/process-text")
+async def v2ai_process_text_proxy(payload: dict = Body(...)):
+    async with _httpx_launcher.AsyncClient(timeout=120.0) as client:
+        r = await client.post(
+            f"{_LAUNCHER_BACKEND}/api/launcher/v2ai/process-text",
+            json=payload,
+        )
+    return Response(content=r.content, status_code=r.status_code, media_type="application/json")
 
 
 def _rewrite_admin_html(body: bytes) -> bytes:

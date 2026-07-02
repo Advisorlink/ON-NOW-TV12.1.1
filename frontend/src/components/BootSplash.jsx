@@ -31,17 +31,22 @@ export default function BootSplash({ minDurationMs = 1800, hardCapMs = 2200 }) {
     const tagline    = kids ? 'Welcome to ON\u00A0NOW\u00A0Kids'
         : music ? 'Welcome to ON\u00A0NOW\u00A0V2\u00A0Music'
         : 'Welcome to ON\u00A0NOW\u00A0V2';
-    // Sunshine-yellow accent for Kids, the existing cyan for V2.
-    const accentColor       = kids ? '#FFD24A' : 'var(--vesper-blue-bright, #5DC8FF)';
-    const accentGlow24      = kids ? 'rgba(255,210,74,0.55)' : 'rgba(93,200,255,0.55)';
-    const accentGlow60      = kids ? 'rgba(255,210,74,0.25)' : 'rgba(93,200,255,0.25)';
-    const wordmarkShadow    = kids ? '0 8px 60px rgba(255,210,74,0.28)' : '0 8px 60px rgba(93,200,255,0.28)';
-    const sweepColor        = kids ? 'rgba(255,210,74,0.85)' : 'rgba(93,200,255,0.85)';
-    const sweepShadow       = kids ? '0 0 12px rgba(255,210,74,0.45)' : '0 0 12px rgba(93,200,255,0.45)';
+    // Sunshine-yellow accent for Kids, hot pink for the Music app,
+    // the existing cyan for V2.
+    const accentColor       = kids ? '#FFD24A' : music ? '#FF5CA8' : 'var(--vesper-blue-bright, #5DC8FF)';
+    const accentGlow24      = kids ? 'rgba(255,210,74,0.55)' : music ? 'rgba(255,92,168,0.55)' : 'rgba(93,200,255,0.55)';
+    const accentGlow60      = kids ? 'rgba(255,210,74,0.25)' : music ? 'rgba(255,92,168,0.25)' : 'rgba(93,200,255,0.25)';
+    const wordmarkShadow    = kids ? '0 8px 60px rgba(255,210,74,0.28)' : music ? '0 8px 60px rgba(255,92,168,0.28)' : '0 8px 60px rgba(93,200,255,0.28)';
+    const sweepColor        = kids ? 'rgba(255,210,74,0.85)' : music ? 'rgba(255,122,184,0.85)' : 'rgba(93,200,255,0.85)';
+    const sweepShadow       = kids ? '0 0 12px rgba(255,210,74,0.45)' : music ? '0 0 12px rgba(255,92,168,0.45)' : '0 0 12px rgba(93,200,255,0.45)';
     // Warmer backdrop for Kids so the splash matches the rest of
     // the kid-safe theme (grape/berry rather than blue navy).
+    // v2.13.0 — Music gets a pink-tinted backdrop per user spec:
+    // "the splash screen needs to have that pinkish sort of look".
     const backdrop = kids
         ? 'radial-gradient(ellipse at 50% 35%, #3c1f5e 0%, #0c0717 65%, #050309 100%)'
+        : music
+        ? 'radial-gradient(ellipse at 50% 35%, #47102e 0%, #170313 65%, #08020a 100%)'
         : 'radial-gradient(ellipse at 50% 35%, #0e2548 0%, #050912 65%, #02030A 100%)';
 
     const [open, setOpen] = useState(true);

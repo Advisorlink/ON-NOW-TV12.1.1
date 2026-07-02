@@ -124,7 +124,7 @@
     display: flex;
     flex-direction: column;
     padding: 22px 12px;
-    transition: width 280ms ease, background 280ms ease;
+    transition: background 280ms ease;
     width: 76px;
     background: transparent;
     will-change: width;

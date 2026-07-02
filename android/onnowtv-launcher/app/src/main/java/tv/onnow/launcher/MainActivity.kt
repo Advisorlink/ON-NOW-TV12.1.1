@@ -1244,7 +1244,7 @@ class MainActivity : AppCompatActivity() {
         // Surface any new admin-broadcast notifications.
         surfaceNotifications(config)
         // v2.8.20 — Apply admin-uploadable logo + top-bar pill colors.
-        applyTopBarBranding(config.appstore, config.v2ai)
+        applyTopBarBranding(config.appstore)
         // v2.8.24 — Refresh the on-home QR overlay panel.
         applyQrVideos(config.qrVideos)
     }
@@ -1281,13 +1281,10 @@ class MainActivity : AppCompatActivity() {
 
     /** v2.8.20 — Recolour the top-bar action pills and swap the
      *  bundled logo for an admin-uploaded image, if set.
-     *  v2.8.26 — Also swaps the V2 AI pill's lightning-bolt icon
-     *  for an admin-uploaded image if `cfg.v2ai.buttonImageUrl` is
-     *  set.  Tint is dropped on the override so colour PNGs render
-     *  as uploaded. */
+     *  v2.13.0 — V2 AI pill removed — the assistant now lives
+     *  inside the Vesper app itself. */
     private fun applyTopBarBranding(
         appstore: tv.onnow.launcher.data.AppStoreMeta,
-        v2ai: tv.onnow.launcher.data.V2AIConfig = tv.onnow.launcher.data.V2AIConfig(),
     ) {
         // Logo: prefer the admin upload, fall back to the bundled
         // play-tile + wordmark layout that's already in the XML.
@@ -1330,39 +1327,11 @@ class MainActivity : AppCompatActivity() {
         val textColor      = parseHexSafely(textHex,    Color.parseColor("#FFFFFFFF"))
         val focusBgColor   = parseHexSafely(focusBgHex, Color.parseColor("#FF2BB6FF"))
         val focusTextColor = parseHexSafely(focusFgHex, Color.parseColor("#FF04060B"))
-        listOf(binding.topbarBtnVpn, binding.topbarBtnSpeed, binding.topbarBtnV2ai).forEach { pill ->
-            // v2.8.38 — V2 AI pill can override the shared top-bar
-            // palette with its own colors set on the V2 AI admin
-            // tab.  Any null override falls back to the shared
-            // value above.
-            val isV2ai = pill === binding.topbarBtnV2ai
-            // v2.8.49 — When the V2 AI tab has NO color overrides at
-            // all, leave the XML-defined cyan→magenta→violet gradient
-            // background in place (it's the new "hero" look).  Solid
-            // colors only kick in when the admin explicitly customises.
-            val v2aiHasColorOverride = isV2ai && (
-                !v2ai.buttonBgColor.isNullOrBlank() ||
-                !v2ai.buttonTextColor.isNullOrBlank() ||
-                !v2ai.buttonFocusBgColor.isNullOrBlank() ||
-                !v2ai.buttonFocusTextColor.isNullOrBlank()
-            )
-            if (isV2ai && !v2aiHasColorOverride) {
-                // Keep the gradient drawable from the XML — but still
-                // apply the white tint to icon + text since the gradient
-                // background is colourful.
-                val tints = android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE)
-                for (i in 0 until pill.childCount) {
-                    when (val child = pill.getChildAt(i)) {
-                        is android.widget.ImageView -> child.imageTintList = tints
-                        is android.widget.TextView  -> child.setTextColor(android.graphics.Color.WHITE)
-                    }
-                }
-                return@forEach
-            }
-            val pillBg = if (isV2ai) parseHexSafely(v2ai.buttonBgColor       ?: bgHex,      bgColor)        else bgColor
-            val pillTx = if (isV2ai) parseHexSafely(v2ai.buttonTextColor     ?: textHex,    textColor)      else textColor
-            val pillFB = if (isV2ai) parseHexSafely(v2ai.buttonFocusBgColor  ?: focusBgHex, focusBgColor)   else focusBgColor
-            val pillFT = if (isV2ai) parseHexSafely(v2ai.buttonFocusTextColor?: focusFgHex, focusTextColor) else focusTextColor
+        listOf(binding.topbarBtnVpn, binding.topbarBtnSpeed).forEach { pill ->
+            val pillBg = bgColor
+            val pillTx = textColor
+            val pillFB = focusBgColor
+            val pillFT = focusTextColor
             // Replace the pill's background with a state selector
             // honouring the admin-chosen resting + focused colors.
             val resting = android.graphics.drawable.GradientDrawable().apply {
@@ -1392,87 +1361,6 @@ class MainActivity : AppCompatActivity() {
                     is android.widget.ImageView -> child.imageTintList = tints
                     is android.widget.TextView  -> child.setTextColor(tints)
                 }
-            }
-        }
-        // v2.8.49 — Admin-configurable V2 AI pill size.  Height
-        // applied unconditionally (default 64 dp from the XML, but
-        // can be tweaked).  Width applied only when explicitly set
-        // (>0) — leaves `wrap_content` otherwise so the pill still
-        // hugs its text.  When the admin uploads an image (below)
-        // and ALSO sets a width, the image gets the full big canvas.
-        val v2aiPill = binding.topbarBtnV2ai
-        try {
-            val densityScale = resources.displayMetrics.density
-            v2aiPill.updateLayoutParams<android.view.ViewGroup.LayoutParams> {
-                height = (v2ai.buttonHeightDp.coerceAtLeast(32) * densityScale).toInt()
-                width = if (v2ai.buttonWidthDp > 0) {
-                    (v2ai.buttonWidthDp * densityScale).toInt()
-                } else {
-                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-                }
-            }
-            v2aiPill.requestLayout()
-        } catch (t: Throwable) {
-            android.util.Log.e("LayoutEditor", "V2 AI pill resize failed", t)
-        }
-
-        // v2.8.40 — V2 AI pill image override.  When the admin
-        // uploads an image, we make the ENTIRE pill that image
-        // (not just swap the icon inside).  Steps:
-        //   1. Hide the label TextView + the existing inner icon
-        //   2. Stretch the icon ImageView to fill the whole pill
-        //   3. Replace the pill's background with a transparent
-        //      rounded outline so there's no double-frame (image +
-        //      pill behind it)
-        //   4. Load the admin image with no tint
-        //   5. Add a smooth scale-up animation on focus so hovering
-        //      the image "pops out" exactly like the user described
-        val v2aiIconUrl = v2ai.buttonImageUrl
-        val pill = v2aiPill
-        if (!v2aiIconUrl.isNullOrBlank()) {
-            // Drop the pill background entirely — the image IS the pill now.
-            pill.background = null
-            pill.setPadding(0, 0, 0, 0)
-            // Hide label + reveal icon at full pill size.
-            var iconView: android.widget.ImageView? = null
-            for (i in 0 until pill.childCount) {
-                when (val child = pill.getChildAt(i)) {
-                    is android.widget.TextView  -> child.visibility = View.GONE
-                    is android.widget.ImageView -> {
-                        child.imageTintList = null
-                        child.scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
-                        // v2.8.50 — Bilinear filtering for sharp scaling
-                        // at any pill size.  Default is true on most
-                        // platforms but make it explicit so the bigger
-                        // 2048×1024 source image always looks crisp.
-                        // v2.9.3 — `isFilterBitmap` lives on the
-                        // BitmapDrawable, not ImageView directly, so
-                        // unwrap via the bitmap drawable cast.
-                        (child.drawable as? android.graphics.drawable.BitmapDrawable)
-                            ?.isFilterBitmap = true
-                        val lp = child.layoutParams
-                        lp.width  = android.view.ViewGroup.LayoutParams.MATCH_PARENT
-                        lp.height = android.view.ViewGroup.LayoutParams.MATCH_PARENT
-                        child.layoutParams = lp
-                        // Drop the inner margin / padding so the
-                        // image fills the pill end-to-end.
-                        child.setPadding(0, 0, 0, 0)
-                        (lp as? android.view.ViewGroup.MarginLayoutParams)
-                            ?.setMargins(0, 0, 0, 0)
-                        iconView = child
-                    }
-                }
-            }
-            iconView?.let { tv.onnow.launcher.ImageLoader.load(it, v2aiIconUrl) }
-            // Smooth "pop out" focus animation — scale + elevation.
-            val popZ = (12f * resources.displayMetrics.density)
-            pill.setOnFocusChangeListener { v, hasFocus ->
-                v.animate()
-                    .scaleX(if (hasFocus) 1.14f else 1f)
-                    .scaleY(if (hasFocus) 1.14f else 1f)
-                    .translationZ(if (hasFocus) popZ else 0f)
-                    .setDuration(180)
-                    .start()
             }
         }
     }
@@ -1864,11 +1752,8 @@ class MainActivity : AppCompatActivity() {
         binding.topbarBtnSpeed.setOnClickListener {
             launchSpeedTestApp()
         }
-        // v2.8.23 — V2 AI push-and-hold voice assistant.
-        binding.topbarBtnV2ai.setOnClickListener {
-            startActivity(android.content.Intent(this,
-                tv.onnow.launcher.v2ai.VoiceAssistantActivity::class.java))
-        }
+        // v2.13.0 — V2 AI pill removed from the top bar; the
+        // assistant now lives inside the Vesper app itself.
         // v2.10.45 — BOOST pill (RAM cleaner with animated UX).
         binding.topbarBtnBoost.setOnClickListener {
             performBoost()

@@ -1199,6 +1199,34 @@ async def v2ai_process(
             "transcript": transcript or "",
         }
 
+    # 2a/2b) Shared fast-path + GPT pipeline.
+    return await _v2ai_handle_transcript(transcript, device_id)
+
+
+@app.post("/api/launcher/v2ai/process-text")
+async def v2ai_process_text(payload: dict = Body(...)) -> dict:
+    """v2.13.0 — Text variant of /process, used by Vesper's in-app
+    V2 AI page.  Speech recognition in the WebView already yields
+    text, so the Whisper round-trip is skipped.  Same intent JSON
+    contract as the audio endpoint."""
+    transcript = (payload.get("text") or "").strip()
+    device_id = (payload.get("device_id") or "").strip() or None
+    if len(transcript) < 2:
+        return {
+            "intent": "reject",
+            "reject_reason": "I didn't catch that.",
+            "speech_reply": "I didn't catch that, please try again.",
+            "transcript": transcript,
+        }
+    log.info("v2ai_process_text: '%s' (device=%s)", transcript[:80], (device_id or "?")[:24])
+    return await _v2ai_handle_transcript(transcript, device_id)
+
+
+async def _v2ai_handle_transcript(transcript: str, device_id: Optional[str]) -> dict:
+    """Shared fast-path + GPT intent pipeline for the audio and text
+    entry points."""
+    import time as _time
+
     # 2a) FAST PATH — regex matcher for the 80% common cases.
     # Avoids the 8-15 s GPT round-trip when the user is clearly
     # saying "play X" / "open X" / "watch X".  This is the
@@ -1228,6 +1256,19 @@ async def v2ai_process(
                         "rating": tm.get("rating"),
                         "overview": tm.get("overview") or "",
                     }]
+            else:
+                # v2.13.0 — bare "recommend me something" with no
+                # titles/query from the fast path: fall back to TMDB
+                # trending so the card rail is never empty.
+                fast["recommendations"] = await _tmdb_trending("all")
+        # v2.13.0 — the fast-path trending stub returns an empty
+        # recommendations list ("let the endpoint do the TMDB call")
+        # but the fill below only ran on the GPT branch — so fast
+        # trending always rendered "No matches found".  Fill it here.
+        if fast.get("intent") == "trending" and not (fast.get("recommendations") or []):
+            fast["recommendations"] = await _tmdb_trending(
+                (fast.get("trending_kind") or "all").lower()
+            )
         fast["transcript"] = transcript
         _v2ai_remember(device_id or "", transcript, fast)
         return fast

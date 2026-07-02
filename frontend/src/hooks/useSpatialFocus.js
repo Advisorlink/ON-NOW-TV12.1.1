@@ -671,43 +671,19 @@ export default function useSpatialFocus() {
 
             // Edge-of-page fallbacks
             if (dir === 'left') {
-                /* v2.7.15 — strict rule per user spec: Left at the
-                 * left edge of a rail goes to the side-nav ONLY
-                 * from the Continue Watching (first) shelf-page.
-                 * From any other shelf (Networks, For You, addon
-                 * catalogues, Upcoming Movies, etc.) Left STOPS —
-                 * the focus stays on the leftmost tile.  Prevents
-                 * the "I went into Popular Movies and now my focus
-                 * is in the menu" surprise the user reported. */
+                /* v2.13.0 — Left at the LEFT EDGE of ANY shelf opens
+                 * the side-nav instantly.  (v2.7.15 restricted this
+                 * to the first shelf only; operator now wants the
+                 * menu reachable from every shelf: "when you get to
+                 * the end of the shelf on the left-hand side,
+                 * pushing left one more time will open up the menu
+                 * instantly — on every single shelf.") */
                 const navItems = document.querySelectorAll(
                     `${NAV_RAIL.split(',').map((s) => s.trim() + ' [data-focusable="true"]').join(', ')}`
                 );
                 const inNav = active.closest(NAV_RAIL);
                 if (!inNav && navItems.length > 0) {
-                    const curPage = active.closest(ROW_PAGE);
-                    if (curPage) {
-                        // Only allow nav escape from the FIRST shelf
-                        // page (Continue Watching).  Detect by DOM
-                        // order: no preceding shelf-page sibling.
-                        let prev = curPage.previousElementSibling;
-                        let isFirstShelf = true;
-                        while (prev) {
-                            if (prev.matches(ROW_PAGE)) {
-                                isFirstShelf = false;
-                                break;
-                            }
-                            prev = prev.previousElementSibling;
-                        }
-                        if (isFirstShelf) {
-                            focusEl(navItems[0], 'left');
-                        }
-                        // Else: do nothing — focus stays put.
-                    } else {
-                        // No shelf-page ancestor (e.g. Library /
-                        // Settings page) — preserve legacy escape
-                        // behaviour so non-home pages still work.
-                        focusEl(navItems[0], 'left');
-                    }
+                    focusEl(navItems[0], 'left');
                 }
             } else if (dir === 'up') {
                 const vs = verticalScroller(active) || document.scrollingElement;

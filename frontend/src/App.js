@@ -9,6 +9,7 @@ import Search from '@/pages/Search';
 import Network from '@/pages/Network';
 import Resolve from '@/pages/Resolve';
 import V2AIResolve from '@/pages/V2AIResolve';
+import V2AI from '@/pages/V2AI';
 import Settings from '@/pages/Settings';
 import Library from '@/pages/Library';
 import ProfileSelect from '@/pages/ProfileSelect';
@@ -842,6 +843,7 @@ function App() {
                                 <Route path="/networks/:slug" element={<RequireProfile><Network /></RequireProfile>} />
                                 <Route path="/resolve/:type/:id" element={<RequireProfile><Resolve /></RequireProfile>} />
                                 <Route path="/v2ai-play" element={<RequireProfile><V2AIResolve /></RequireProfile>} />
+                                <Route path="/v2ai" element={<RequireProfile><V2AI /></RequireProfile>} />
                                 <Route path="/library" element={<RequireProfile><Library /></RequireProfile>} />
                                 {/* v2.8.90 — Free-to-Air EPG (will move to a
                                     standalone APK; for now lives at /fta inside

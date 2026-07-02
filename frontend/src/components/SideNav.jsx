@@ -7,6 +7,7 @@ import {
     Tv,
     Film,
     Zap,
+    Sparkles,
     Users,
     UserCircle2,
 } from 'lucide-react';
@@ -337,6 +338,42 @@ export default function SideNav() {
                         >
                             {autoplay ? 'ON' : 'OFF'}
                         </span>
+                    </span>
+                </button>
+
+                {/* V2AI — voice assistant, now living INSIDE Vesper
+                    (moved out of the launcher).  Sits directly under
+                    the Autoplay lightning bolt per user spec.  Being
+                    in-app means "Play The Matrix" plays straight away
+                    with no profile-screen interruption. */}
+                <button
+                    data-testid="nav-v2ai"
+                    data-focusable="true"
+                    data-focus-style="nav"
+                    tabIndex={0}
+                    onClick={() => handleNavClick('/v2ai')}
+                    className={`relative flex items-center gap-4 h-11 px-2 rounded-lg text-left ${
+                        activePath === '/v2ai'
+                            ? 'text-vesper-text'
+                            : 'text-vesper-text2'
+                    }`}
+                >
+                    <span className="flex items-center justify-center w-9 h-9 shrink-0">
+                        <Sparkles
+                            size={20}
+                            strokeWidth={1.7}
+                            style={{
+                                color: activePath === '/v2ai'
+                                    ? 'var(--vesper-blue)'
+                                    : 'currentColor',
+                            }}
+                        />
+                    </span>
+                    <span
+                        className="font-sans text-[15px] font-medium overflow-hidden whitespace-nowrap transition-opacity duration-300"
+                        style={{ opacity: isExpanded ? 1 : 0 }}
+                    >
+                        V2AI
                     </span>
                 </button>
             </div>

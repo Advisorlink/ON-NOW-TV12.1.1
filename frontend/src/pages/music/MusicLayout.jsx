@@ -12,7 +12,6 @@ import {
     Compass,
     Radio,
     Library,
-    Mic2,
     Mic,
     User,
     Settings as SettingsIcon,
@@ -29,7 +28,6 @@ import './karaoke-design-gallery.css';
 const NAV_ITEMS = [
     { to: '/music',          label: 'Home',       icon: HomeIcon, end: true,  id: 'home' },
     { to: '/music/search',   label: 'Search',     icon: Search,                 id: 'search' },
-    { to: '/music/karaoke',  label: 'Karaoke',    icon: Mic2,                   id: 'karaoke' },
     { to: '/music/radio',    label: 'Radio',      icon: Radio,                  id: 'radio' },
     { to: '/music/radio/au', label: 'Australia',  icon: Compass,                id: 'australia' },
     { to: '/music/podcasts', label: 'Podcasts',   icon: Mic,                    id: 'podcasts' },
@@ -48,21 +46,10 @@ function readStoredTheme() {
 
 function TunesNav({ theme, onThemeChange }) {
     const [expanded, setExpanded] = useState(false);
-    const dwellTimer = useRef(null);
     const location = useLocation();
     const navigate = useNavigate();
 
-    const clearDwell = () => {
-        if (dwellTimer.current) {
-            clearTimeout(dwellTimer.current);
-            dwellTimer.current = null;
-        }
-    };
-
-    useEffect(() => () => clearDwell(), []);
-
     const handleNavClick = (path) => {
-        clearDwell();
         setExpanded(false);
         if (document.activeElement?.blur) document.activeElement.blur();
         navigate(path);
@@ -76,26 +63,18 @@ function TunesNav({ theme, onThemeChange }) {
             data-expanded={expanded}
             onFocus={(e) => {
                 if (!e.target.matches('[data-focusable="true"]')) return;
-                clearDwell();
-                dwellTimer.current = setTimeout(() => {
-                    setExpanded(true);
-                    dwellTimer.current = null;
-                }, 300);
+                // v2.13.0 — Instant expand, matching Vesper's rail.
+                // Operator: "menu instantly out like the Vesper one,
+                // not sliding out".  Dwell timer removed.
+                setExpanded(true);
             }}
             onBlur={(e) => {
                 if (!e.currentTarget.contains(e.relatedTarget)) {
-                    clearDwell();
                     setExpanded(false);
                 }
             }}
-            onMouseEnter={() => {
-                clearDwell();
-                dwellTimer.current = setTimeout(() => setExpanded(true), 220);
-            }}
-            onMouseLeave={() => {
-                clearDwell();
-                setExpanded(false);
-            }}
+            onMouseEnter={() => setExpanded(true)}
+            onMouseLeave={() => setExpanded(false)}
         >
             {/* Brand — music-note emblem + ON NOW TV wordmark on expand.
                 v2.8.68 — Was "V2" (Vesper-style) — replaced with a
