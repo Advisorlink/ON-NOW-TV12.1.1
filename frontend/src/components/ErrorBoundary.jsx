@@ -80,13 +80,20 @@ export default class ErrorBoundary extends React.Component {
     }
 
     handleRejection(e) {
+        const r = e?.reason;
+        const msg = String(r?.message || r || '').toLowerCase();
+        /* The YouTube IFrame API internally probes the Permissions
+         * API, which rejects with "Permissions check failed" in
+         * sandboxed/preview contexts — pure third-party noise. */
+        if (msg.includes('permissions check failed')) {
+            e.preventDefault?.();
+            return;
+        }
         // eslint-disable-next-line no-console
-        console.error('[ErrorBoundary] unhandled rejection:', e?.reason);
+        console.error('[ErrorBoundary] unhandled rejection:', r);
         /* Don't escalate every rejection — only "looks like the boot
          * path is broken" ones.  Network/abort errors are common and
          * shouldn't replace the UI. */
-        const r = e?.reason;
-        const msg = String(r?.message || r || '').toLowerCase();
         if (
             msg.includes('quotaexceeded') ||
             msg.includes('chunkloaderror') ||

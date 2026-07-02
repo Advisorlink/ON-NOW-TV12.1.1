@@ -7437,3 +7437,42 @@ voice plays must use the same stream requirements as normal Autoplay.
 - Fallback timeout resets to standby after 12 s ✅
 - NOTE: MediaRecorder mic path NOT testable in the container (no audio
   device) — code mirrors PartyVoiceDock; spot-check on a real box.
+
+---
+
+## Session: 2026-07-02 (part 9) — New AI wallpaper, play→Detail, Music UX audit
+### (Regression sweep iteration_66.json: ALL PASS)
+
+1. **New purple AI wallpaper** (user-attached) installed at
+   `launcher-backend/data/v2ai/background.png` + ts bumped in store.json —
+   propagates to BOTH launcher + Vesper V2AI page via shared config.
+2. **V2AI "more AI" restyle**: purple AI orb + gradient eyebrow, violet
+   glow heading, purple waveform gradient (#7C5CFF→#A78BFF→#FF7AB6),
+   glassy status pill with state dot, gradient hold badge, glow behind
+   waveform. SideNav V2AI icon = gradient rounded badge.
+3. **Play intent → DETAILS page** (user: autoplay resolve was slower than
+   manual play): V2AIResolve navigates /resolve/{type}/{id} with NO
+   autoplay param; Detail v2aiSrc gating removed (dead code).
+4. **V2AI card D-pad fixed**: result focus effect used a selector LIST
+   (document order → ask-again won); now priority-ordered → card-0 first.
+   Right/Left across cards, Up=ask-again, Enter=Detail page. Verified.
+5. **Music (Tunes) UX audit fixes** (screenshots of every page):
+   - Search: icon absolutely positioned inside input (z-index 1),
+     input padding-left 58px.
+   - `isRealArt()` in lib/music-api.js: rejects Deezer grey placeholders
+     (empty-md5 d41d8cd98f00b204e9800998ecf8427e + /images/x// URLs).
+     Applied: MusicSearch artist cards (gradient initial fallback
+     `.tunes-avatar-fallback`), MusicHome artistPic + hero bestBg.
+   - Search artists: pictures-first sort, max 8 (single row).
+   - LikeButton + AddToPlaylistButton: tabIndex -1 (out of D-pad flow;
+     search-only components; TV users like via full-player heart).
+   - Radio: `.tunes-chips`/`.tunes-chip` CSS restored (was missing after
+     rollback — chips rendered as squashed text). Pills + gradient active.
+   - Home hero title: 2-line -webkit-line-clamp.
+   - Library empty state: heart centered (tailwind preflight svg
+     display:block → inline-block).
+   - ErrorBoundary: swallow third-party "Permissions check failed"
+     unhandled rejection (YouTube IFrame API probe noise in preview).
+6. Verified working already: home shelves D-pad + row pin, album page +
+   playback (mini player → full player prev/toggle/next/close), podcasts
+   + podcast detail, Australia radio, artist sticky header, instant nav.
