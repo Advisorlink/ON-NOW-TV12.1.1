@@ -7216,3 +7216,24 @@ scrubbing slow, skip-next replaying same episode.
 - Native files: kotlinc 2.0.21 syntax checks passed (kotlinc installed
   at /tmp/kotlinc/bin/kotlinc).
 - REQUIRES APK rebuild (Tunes + Launcher) for on-device verification.
+
+---
+
+## Session: 2026-07-02 (part 3) — Login redesign (Live TV style)
+
+### Vesper + Music logins redesigned to match the Live TV login ✅
+- `LoginScreen.jsx` fully rebuilt as a split layout mirroring
+  `onnowtv-livetv/res/layout/activity_login.xml`: LEFT brand pitch
+  (accent chip, big black-weight headline, sub copy, 3 accent-dot
+  feature bullets) · RIGHT glass auth card ("STEP 01", themed inputs,
+  SIGN IN, "Contact ON NOW TV Support" footer) · bottom-left mono
+  brand line · themed photo backdrop with scrims/grain.
+- Runtime themes (same bundle serves all APKs): Vesper = movie-wall
+  cinema art + cyan #5DC8FF; Music = neon stage/headphones art +
+  electric pink #FF2D7F (pink focus rings + pink button); Kids = kid
+  copy on Vesper art.
+- AI-generated backgrounds at `/frontend/public/login/*.webp`
+  (~50KB each, resolved via Host.publicAsset so file:// APKs work).
+- Preserved: all testids, D-pad spatial focus, show/hide password,
+  error UI, music→/music vs vesper→/profiles post-login routing.
+- Verified via Playwright: both variants render, e2e login works.
