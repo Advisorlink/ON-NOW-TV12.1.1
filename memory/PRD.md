@@ -7516,3 +7516,52 @@ hold-OK, (2) result cards had no visible focus/couldn't navigate,
 
 NOTE: fixes 1 (Kotlin) + 3 (bundle) reach boxes with the next Vesper
 APK CI build.
+
+## Session 2026-07-02 — V2AI live transcript, theme integration, upcoming intent, Tunes 404 (iteration_67, all PASS)
+
+User's 6-item feedback batch (continue-watching item explicitly dropped by user):
+1. **Tunes Artist/Album 404 (P0) — FIXED server-side**: root cause = user's
+   TV box runs a STALE bundled APK (WebView loads file:///android_asset/web,
+   old JS sends "artist-123"/"album-123" prefixed ids). Backend
+   `music_api.py` now strips those prefixes in /api/music/artist/{id} and
+   /api/music/album/{id} → old APKs stop 404ing instantly (API calls hit the
+   live backend). UI polish only reaches the box after a Vesper APK CI
+   rebuild (build-apk.yml bundles frontend/build). Artist page verified
+   rendering (Eminem hero + Popular + Discography) in current build.
+2. **V2AI theme colors (P1) — DONE**: V2AI.jsx now uses
+   --vesper-blue/--vesper-blue-bright/--vesper-blue-rgb CSS vars everywhere
+   (waveform canvas reads computed vars; orb, wordmark, glow, hold button,
+   status pill, focus rings, qa-play). Electric=blue, Gold=#F5C24D verified.
+   Wallpaper image itself stays admin-driven (by design).
+3. **Live transcription (P1) — DONE (Google-box style)**: MediaRecorder
+   timeslice 900ms; each chunk posts accumulated audio to new
+   POST /api/v2ai/transcribe-partial (server.py proxy →
+   launcher-backend /api/launcher/v2ai/transcribe-partial → Whisper,
+   text-only, no intent). Partial text renders live in the big-hint slot
+   while recording + during Thinking. Busy-flag throttling + seq guard.
+4. **Upcoming release dates (P1) — DONE**: new "upcoming" intent.
+   _RELEASE_PATTERNS fast-path regexes (run BEFORE WH-guard) +
+   V2AI_SYSTEM_PROMPT instructs GPT to emit intent=upcoming with title.
+   _v2ai_resolve_upcoming() + _tmdb_release_info() resolve LIVE TMDB dates
+   (movie release_date, series next_episode_to_air / status Ended handling,
+   picks most-popular of top-5 hits so "Avatar 3"→"Avatar: Fire and Ash").
+   Returns qa-shaped response (poster + Play) so even stale APKs render it.
+   Verified: Avatar 3=Dec 17 2025, Dune Part 3=Dec 16 2026 (~6 months away),
+   Stranger Things=ended, Mandalorian & Grogu=May 20 2026.
+5. **Dim background on results (P2)**: already implemented
+   (rgba(0,0,0,0.70) scrim) — verified present; reaches box with APK rebuild.
+6. Continue-watching intent: SKIPPED per user ("don't even worry about this").
+
+Regression suite: play/trending/person_info intents intact; backend+frontend
+100% pass (test_reports/iteration_67.json; pytest at
+backend/tests/test_iter67_v2ai_upcoming.py).
+
+IMPORTANT FOR USER: items 2/3/5 (frontend) + Tunes UI polish require a new
+Vesper APK CI build to appear on the TV box; item 1 & 4 (backend) are live
+immediately once the production backend/launcher-backend are redeployed.
+
+### Remaining backlog (unchanged)
+- (P1) Backup-with-code parity for CollectionsStore+FavouritesStore JSON via /api/backup/save|restore
+- (P1) Phase 3 Native AudioTrack receiver for Karaoke (PERFORMANCE_MODE_LOW_LATENCY)
+- (P2) Phone EPG Reminders; email/SMS notification on new Launcher device registration
+- (P3) Launcher "Device Status" hidden line (silent-updates ON/OFF); Kids app cartoon login background
