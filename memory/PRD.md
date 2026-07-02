@@ -7565,3 +7565,43 @@ immediately once the production backend/launcher-backend are redeployed.
 - (P1) Phase 3 Native AudioTrack receiver for Karaoke (PERFORMANCE_MODE_LOW_LATENCY)
 - (P2) Phone EPG Reminders; email/SMS notification on new Launcher device registration
 - (P3) Launcher "Device Status" hidden line (silent-updates ON/OFF); Kids app cartoon login background
+
+## Session 2026-07-02 (part 2) — Profile theming, For You shelf, stream-swap & TV-show picker (iteration_68, all PASS)
+
+User reported 4 issues; all fixed and verified at 100%:
+1. **Profile-setup theme not applying app-wide — FIXED (root cause)**:
+   profiles.js writes the active-profile id to the account-SUFFIXED key
+   (`onnowtv-active-profile-v1:USERNAME`) but profileScope.js read only the
+   unsuffixed key → every scoped read (theme, viewing style, continue
+   watching, library) silently resolved to ':global' whenever signed in.
+   Fix: profileScope.activeProfileId() now mirrors the account-suffix logic
+   (reads `vesper-auth-account-v1`), setActiveProfile/clearActiveProfile also
+   write/remove the unsuffixed key, and readScopedString does a one-shot
+   ':global' data promotion so nobody loses CW/library. Verified: gold theme
+   (#F5C24D) applies to Home, sidenav, V2AI; emerald profile switches to
+   #3DE082; per-profile isolation works.
+2. **"Similar to what you love" (For You) shelf — FIXED** by the same
+   scoping fix. Verified: renders 30 tiles for a profile with picks
+   (Fight Club + GoT → House of the Dragon, Witcher…), absent for a
+   profile without picks.
+3. **Movie stream swap "buffers forever" — FIXED**: host.js
+   playInternalRichV2 payload now FILTERS OUT torrent/magnet entries
+   (no debrid http url). libvlc-all 3.6.0 has no bittorrent demuxer and
+   ExoPlayer can't ingest magnets — picking one could never play.
+   Picker now lists only genuinely playable http(s) streams
+   (direct + Premiumize-cached); currentStreamIdx recomputed by URL match.
+4. **TV-show in-player stream picker — FIXED**: SeriesEpisodes.playStream
+   had a stale-closure bug — on FIRST play of an episode it read
+   `episodeStreams` state before re-render → EMPTY streamsList → native
+   "Swap Stream" pill hidden on shows. playStream now takes a
+   `streamsOverride` param (fresh fetch + cached paths pass it).
+   Detail.jsx series-autoplay/party path passes its resolved pool too.
+   Native ExoPlayerActivity picker (`hasStreams = size > 1`) is
+   type-independent, so shows get the same picker as movies.
+
+⚠️ ALL FOUR fixes are frontend/native-payload — they reach the TV box only
+after a Vesper APK CI rebuild (frontend is bundled at file:///android_asset/web).
+No backend changes this round.
+
+Note (low priority, from testing agent): readScopedString ':global'
+promotion doesn't dispatch 'vesper:profile-change'; harmless in practice.
