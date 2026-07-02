@@ -167,6 +167,36 @@ class MainActivity : AppCompatActivity() {
         // v2.10.31 — request code for the WebView file-chooser
         // intent used by the custom-avatar upload flow.
         private const val REQ_FILE_CHOOSER = 9202
+        // v2.13.3 — request code for the deferred RECORD_AUDIO
+        // runtime prompt (fired on first WebView mic request).
+        private const val REQ_WEB_MIC = 9203
+    }
+
+    /* v2.13.3 — WebView mic request parked while the system
+     * RECORD_AUDIO dialog is up; resolved in
+     * onRequestPermissionsResult. */
+    private var pendingWebMicRequest: android.webkit.PermissionRequest? = null
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != REQ_WEB_MIC) return
+        val req = pendingWebMicRequest ?: return
+        pendingWebMicRequest = null
+        try {
+            if (grantResults.isNotEmpty() &&
+                grantResults[0] == PackageManager.PERMISSION_GRANTED
+            ) {
+                req.grant(arrayOf(android.webkit.PermissionRequest.RESOURCE_AUDIO_CAPTURE))
+            } else {
+                req.deny()
+            }
+        } catch (_: Throwable) {
+            // The WebView request may have expired — nothing to do.
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -183,22 +213,10 @@ class MainActivity : AppCompatActivity() {
         // ExoPlayer / WebView <video> actually plays through.
         volumeControlStream = android.media.AudioManager.STREAM_MUSIC
 
-        // v2.13.2 — V2 AI in-app voice capture uses getUserMedia in
-        // the WebView, which silently fails unless the APP holds the
-        // RECORD_AUDIO runtime permission (the onPermissionRequest
-        // grant below is not enough on Android 6+).  Ask once at
-        // boot; fleet boxes can also pre-grant via
-        // `pm grant tv.vesper.app android.permission.RECORD_AUDIO`.
-        if (android.os.Build.VERSION.SDK_INT >= 23 &&
-            checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) !=
-                android.content.pm.PackageManager.PERMISSION_GRANTED
-        ) {
-            try {
-                requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 71)
-            } catch (_: Throwable) {
-                // Some AOSP TV builds have no permission UI — ignore.
-            }
-        }
+        // v2.13.3 — The boot-time RECORD_AUDIO prompt is GONE.  The
+        // mic permission is now requested lazily, the FIRST time the
+        // web app actually asks for the microphone (V2AI button) —
+        // see onPermissionRequest + onRequestPermissionsResult below.
 
         // v2.7.82 SECURITY — FLAG_SECURE blocks the OS from screen-
         // shotting the activity (including from the recents
@@ -422,22 +440,45 @@ class MainActivity : AppCompatActivity() {
 
             webViewClient = VesperWebViewClient()
             // v2.7.55 — Custom WebChromeClient that grants the WebView
-            // microphone access (needed for the Watch Together voice
-            // reactions feature).  RECORD_AUDIO is already declared
-            // in the manifest, so this only forwards the WebView's
-            // request to the Android system mic.
+            // microphone access (needed for Watch Together voice
+            // reactions + V2AI voice capture).
+            //
+            // v2.13.3 — Deferred mic permission.  The RECORD_AUDIO
+            // runtime prompt now fires the FIRST time the page asks
+            // for the mic (i.e. when the user clicks the V2AI button)
+            // instead of at app boot.  The WebView's PermissionRequest
+            // is parked in `pendingWebMicRequest` while the system
+            // dialog is up and resolved in onRequestPermissionsResult.
             webChromeClient = object : WebChromeClient() {
                 override fun onPermissionRequest(request: android.webkit.PermissionRequest?) {
                     if (request == null) return
-                    val wanted = request.resources
-                    val allowed = wanted.filter {
+                    val wantsAudio = request.resources.any {
                         it == android.webkit.PermissionRequest.RESOURCE_AUDIO_CAPTURE
-                    }.toTypedArray()
-                    if (allowed.isNotEmpty()) {
-                        request.grant(allowed)
-                    } else {
-                        request.deny()
                     }
+                    if (!wantsAudio) {
+                        request.deny()
+                        return
+                    }
+                    if (android.os.Build.VERSION.SDK_INT >= 23 &&
+                        checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) !=
+                            PackageManager.PERMISSION_GRANTED
+                    ) {
+                        pendingWebMicRequest = request
+                        try {
+                            requestPermissions(
+                                arrayOf(android.Manifest.permission.RECORD_AUDIO),
+                                REQ_WEB_MIC,
+                            )
+                        } catch (_: Throwable) {
+                            // Some AOSP TV builds have no permission UI.
+                            pendingWebMicRequest = null
+                            request.deny()
+                        }
+                        return
+                    }
+                    request.grant(
+                        arrayOf(android.webkit.PermissionRequest.RESOURCE_AUDIO_CAPTURE),
+                    )
                 }
 
                 /* v2.11.0 — Swallow popup attempts from inside the

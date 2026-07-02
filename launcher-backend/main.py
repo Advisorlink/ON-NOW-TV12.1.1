@@ -3792,13 +3792,27 @@ def home_update_info(
     # when caller provides comparison hints.
     has_update = True
 
-    # Refinement 1 — build_id mismatch is the authoritative signal.
+    # v2.12.13 — Combine BOTH signals with OR.  Previously a build_id
+    # match alone suppressed the pill; if a box recorded a build_id
+    # for an install that never actually landed (user cancelled the
+    # system dialog, root install died), the versionCode mismatch
+    # could never re-fire the pill.  Now either signal fires it.
+    build_mismatch = (
+        current_build_id is not None
+        and pinned_build_id is not None
+        and current_build_id != pinned_build_id
+    )
+    vc_older = (
+        current_version_code is not None
+        and pinned_vc is not None
+        and int(pinned_vc) > int(current_version_code)
+    )
     if current_build_id is not None and pinned_build_id is not None:
-        has_update = (current_build_id != pinned_build_id)
-    # Refinement 2 — fall back to version_code compare when build_id
-    # isn't provided (older launcher builds).
+        has_update = build_mismatch or vc_older
+    # Fall back to version_code compare when build_id isn't provided
+    # (older launcher builds).
     elif current_version_code is not None and pinned_vc is not None:
-        has_update = int(pinned_vc) > int(current_version_code)
+        has_update = vc_older
     return {
         "has_update":    has_update,
         "apk_url":       apk_url,

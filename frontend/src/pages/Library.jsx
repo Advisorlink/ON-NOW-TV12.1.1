@@ -8,7 +8,6 @@ import {
     Sparkles,
     Maximize2,
     X,
-    CalendarDays,
     Users,
     MoreHorizontal,
     ChevronDown,
@@ -26,7 +25,6 @@ import {
     listNotifyList,
     removeFromNotifyList,
 } from '@/lib/library';
-import LibraryCalendar from '@/components/LibraryCalendar';
 import { Vesper } from '@/lib/api';
 
 /**
@@ -50,7 +48,6 @@ export default function Library() {
     const [actors, setActors] = useState(listActors());
     const [notifyItems, setNotifyItems] = useState(listNotifyList());
     const [expanded, setExpanded] = useState(false);
-    const [calendarOpen, setCalendarOpen] = useState(false);
     /* Per-section expand toggles — "click the three dots to extend
      * the section past 2 rows".  Default = collapsed so the page
      * stays scannable; user clicks to reveal the full grid. */
@@ -138,33 +135,6 @@ export default function Library() {
                 collapsible={tv.length > 6}
                 expanded={tvExpanded}
                 onToggle={() => setTvExpanded((v) => !v)}
-                action={
-                    tv.length > 0 ? (
-                        <button
-                            data-testid="open-library-calendar"
-                            data-focusable="true"
-                            data-focus-style="quiet"
-                            tabIndex={0}
-                            onClick={() => setCalendarOpen(true)}
-                            aria-label="Open release calendar"
-                            className="flex items-center gap-2 rounded-full vesper-mono"
-                            style={{
-                                height: 36,
-                                padding: '0 16px',
-                                background: 'rgba(var(--vesper-blue-rgb), 0.14)',
-                                color: 'var(--vesper-blue-bright)',
-                                border: '1px solid rgba(var(--vesper-blue-rgb), 0.45)',
-                                fontSize: 11,
-                                letterSpacing: '0.22em',
-                                textTransform: 'uppercase',
-                                fontWeight: 600,
-                            }}
-                        >
-                            <CalendarDays size={13} strokeWidth={2.2} />
-                            Calendar
-                        </button>
-                    ) : null
-                }
             >
                 {tv.length === 0 ? (
                     <TvEmptyState />
@@ -227,13 +197,6 @@ export default function Library() {
                             number: w.episode?.number,
                         })
                     }
-                />
-            )}
-
-            {calendarOpen && (
-                <LibraryCalendar
-                    tvFavourites={tv}
-                    onClose={() => setCalendarOpen(false)}
                 />
             )}
 

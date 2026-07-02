@@ -7677,3 +7677,53 @@ full stream lists via WebView direct probes.
 
 ⚠️ ALL of these fixes (JS + Kotlin) reach the box only via a Vesper APK CI
 rebuild.
+
+---
+
+## Session (Jul 2, 2026) — Seamless Launcher Updates + Vesper UX (4 user requests)
+
+### 1. Launcher seamless single-click update (P0) — DONE
+Root causes found & fixed:
+- `AppsDrawerActivity.onHomeUpdatePillClicked`: redundant confirm AlertDialog
+  REMOVED — pill click now goes straight to download+install. Added
+  `homeUpdateInFlight` guard (no double-fire).
+- `ApkInstaller.downloadAndInstall` now reports which path ran via new
+  `onInstallMode` callback (`Mode.SILENT` / `ROOT` / `INTENT`). UI is now
+  truthful: root/DO installs say "launcher will restart itself — no action
+  needed" instead of the misleading "Opening the system installer…" (which
+  made users think it failed and click install AGAIN → double-prompt bug).
+- `MainActivity` (launcher): `stashPendingInstallBuildId` +
+  `writeInstalledBuildId` now use synchronous `.commit()` — apply()'s async
+  flush could be lost when the self-update force-stops the process,
+  resurrecting the UPDATE pill after restart.
+- Tile installs: `tileInstallInFlight` guard; root/DO side-app installs keep
+  the progress dialog up until ACTION_PACKAGE_ADDED/REPLACED broadcast
+  confirms commit (dialog auto-dismisses + "X updated ✓" toast; 90s failsafe).
+- `launcher-backend/main.py` `/api/launcher/home-update/info`: has_update is
+  now `build_id mismatch OR version_code older` (was elif priority) — a
+  wrongly-recorded build_id after a failed/cancelled install can no longer
+  hide a genuinely-needed update. All 12 build_id pytest tests still pass.
+- Kotlin parse-verified via kotlinc 1.9.23 (only expected classpath noise).
+  ⚠️ Reaches boxes only via launcher APK CI rebuild.
+
+### 2. V2AI mic permission on first click (P1) — DONE
+- Vesper `MainActivity.kt`: boot-time RECORD_AUDIO requestPermissions block
+  REMOVED. `onPermissionRequest` (WebChromeClient) now parks the WebView mic
+  request in `pendingWebMicRequest`, fires the runtime prompt (REQ_WEB_MIC =
+  9203), and resolves grant/deny in new `onRequestPermissionsResult` override.
+  Prompt appears only when V2AI (or Watch Together voice) first uses the mic.
+
+### 3. Calendar → standalone rail icon, full page (P1) — DONE
+- New `/calendar` route + `pages/CalendarPage.jsx` (wraps LibraryCalendar,
+  BACK/Esc → Home). `SideNav.jsx`: new `nav-calendar` item after My Library.
+- `Library.jsx`: Calendar button + overlay + state fully removed.
+- Verified via screenshot: rail shows Calendar; /calendar renders full page.
+
+### 4. V2AI icon theme color (P2) — DONE
+- `SideNav.jsx`: hardcoded purple gradient/glow replaced with
+  var(--vesper-blue)/--vesper-blue-bright)/--vesper-blue-rgb. Verified.
+
+### ⚠️ Agent note
+Parallel search_replace calls to the SAME file raced and corrupted launcher
+MainActivity.kt (duplicated tail, one edit clobbered). Fixed by truncating the
+duplicate + re-applying sequentially. NEVER batch multiple edits to one file.

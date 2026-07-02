@@ -604,6 +604,18 @@ class MainActivity : AppCompatActivity() {
     private var pendingApkAfterUninstall: java.io.File? = null
     private var pendingTileLabelAfterUninstall: String? = null
 
+    /* v2.12.13 — Seamless-install state.
+     *   tileInstallInFlight     : blocks re-entrant tile installs
+     *     (double-click on the tile mid-download used to queue a
+     *     second install of the same APK).
+     *   awaitingSilentInstallPkg/Label : set while a root / device-
+     *     owner install runs detached in the background; the package
+     *     broadcast receiver dismisses the progress dialog + toasts
+     *     success the moment PackageManager commits the install. */
+    private var tileInstallInFlight = false
+    private var awaitingSilentInstallPkg: String? = null
+    private var awaitingSilentInstallLabel: String? = null
+
     /* v2.10.75 — ActivityResultLauncher for the uninstall hand-off.
      * Registered at onCreate (must be registered before STARTED).
      * The system uninstall confirmation comes back to us as an
@@ -620,6 +632,7 @@ class MainActivity : AppCompatActivity() {
         val lbl  = pendingTileLabelAfterUninstall.orEmpty()
         pendingApkAfterUninstall = null
         pendingTileLabelAfterUninstall = null
+        tileInstallInFlight = false
         if (apk != null && apk.exists()) {
             installProgressDialog?.setTitle("Installing $lbl")
             installProgressDialog?.setMessage("Opening the system installer…")
@@ -834,6 +847,14 @@ class MainActivity : AppCompatActivity() {
      * dialog can gate the call.
      */
     private fun proceedWithTileInstall(item: DockItem, installed: Boolean) {
+        if (tileInstallInFlight) {
+            Toast.makeText(
+                this,
+                "An install is already in progress — hang tight…",
+                Toast.LENGTH_SHORT,
+            ).show()
+            return
+        }
         val apkUrl = item.apkUrl?.trim().orEmpty()
         val verb = if (installed) "Updating" else "Installing"
 
@@ -853,7 +874,10 @@ class MainActivity : AppCompatActivity() {
             "$verb ${item.label}",
             "Downloading the latest build from the server…",
         )
+        tileInstallInFlight = true
 
+        // v2.12.13 — Which install path ApkInstaller actually took.
+        var installMode: tv.onnow.launcher.install.ApkInstaller.Mode? = null
         lifecycleScope.launch {
             val err = tv.onnow.launcher.install.ApkInstaller.downloadAndInstall(
                 this@MainActivity,
@@ -862,6 +886,7 @@ class MainActivity : AppCompatActivity() {
                 onProgress = { pct ->
                     runOnUiThread { installProgressDialog?.setProgress(pct) }
                 },
+                onInstallMode = { mode -> installMode = mode },
                 onConflict = { conflictPkg, apkFile ->
                     // v2.10.75 — Auto-uninstall + auto-resume install.
                     // Stash the downloaded APK so the result launcher
@@ -896,6 +921,7 @@ class MainActivity : AppCompatActivity() {
                         installProgressDialog = null
                         pendingApkAfterUninstall = null
                         pendingTileLabelAfterUninstall = null
+                        tileInstallInFlight = false
                     }
                 },
             )
@@ -907,26 +933,73 @@ class MainActivity : AppCompatActivity() {
                 ).show()
                 installProgressDialog?.dismiss()
                 installProgressDialog = null
+                tileInstallInFlight = false
                 return@launch
             }
-            // No conflict path — download finished cleanly,
-            // ApkInstaller has fired the system install intent.
-            // Update dialog to "Opening installer…" and give it
-            // a moment to render before we dismiss.
-            if (pendingApkAfterUninstall == null) {
-                runOnUiThread {
+            if (pendingApkAfterUninstall != null) return@launch
+            // v2.12.13 — Truthful post-download UI per install path.
+            val pkg = item.apkPackageId?.trim().orEmpty()
+            val isSeamless = installMode == tv.onnow.launcher.install.ApkInstaller.Mode.SILENT ||
+                installMode == tv.onnow.launcher.install.ApkInstaller.Mode.ROOT
+            when {
+                isSeamless && pkg == packageName -> runOnUiThread {
+                    // Launcher self-update via a dock tile — the
+                    // process restarts itself; keep the dialog up
+                    // until then so the user knows to just wait.
                     installProgressDialog?.setTitle("Installing ${item.label}")
-                    installProgressDialog?.setMessage("Opening the system installer…")
+                    installProgressDialog?.setMessage(
+                        "Almost done — the launcher will restart itself " +
+                            "in a few seconds.  No action needed.",
+                    )
                     installProgressDialog?.setProgress(100)
                 }
-                handler.postDelayed({
-                    installProgressDialog?.dismiss()
-                    installProgressDialog = null
-                }, 1200L)
+                isSeamless -> {
+                    // Side-app root / device-owner install: runs
+                    // detached with ZERO user interaction.  Keep the
+                    // dialog up until ACTION_PACKAGE_ADDED/REPLACED
+                    // confirms the commit (the package broadcast
+                    // receiver dismisses it), with a 90 s failsafe.
+                    awaitingSilentInstallPkg = pkg.takeIf { it.isNotEmpty() }
+                    awaitingSilentInstallLabel = item.label
+                    runOnUiThread {
+                        installProgressDialog?.setTitle("Installing ${item.label}")
+                        installProgressDialog?.setMessage(
+                            "Finishing up automatically — no action needed…",
+                        )
+                        installProgressDialog?.setProgress(100)
+                    }
+                    handler.postDelayed({
+                        if (awaitingSilentInstallPkg != null) {
+                            awaitingSilentInstallPkg = null
+                            awaitingSilentInstallLabel = null
+                            installProgressDialog?.dismiss()
+                            installProgressDialog = null
+                            tileInstallInFlight = false
+                            if (::dockAdapter.isInitialized) {
+                                dockAdapter.notifyDataSetChanged()
+                            }
+                        }
+                    }, 90_000L)
+                }
+                else -> {
+                    // Legacy intent path — Android's own installer UI
+                    // takes over; that confirm screen is required by
+                    // the OS and can't be skipped without root/DO.
+                    runOnUiThread {
+                        installProgressDialog?.setTitle("Installing ${item.label}")
+                        installProgressDialog?.setMessage("Confirm the install on the next screen.")
+                        installProgressDialog?.setProgress(100)
+                    }
+                    handler.postDelayed({
+                        installProgressDialog?.dismiss()
+                        installProgressDialog = null
+                        tileInstallInFlight = false
+                    }, 1200L)
+                }
             }
-            // After Android's install dialog completes, onResume()
-            // re-binds the dock — the pill self-hides because
-            // PackageManager will now report the matching version.
+            // After the install commits, the package broadcast
+            // receiver promotes the pending build_id and re-binds the
+            // dock — the pill self-hides.
         }
     }
 
@@ -2251,13 +2324,17 @@ class MainActivity : AppCompatActivity() {
      *      false-fire on the FIRST poll after the launcher upgrade.
      */
 
-    /** Record that we're about to install this build_id for [pkg]. */
+    /** Record that we're about to install this build_id for [pkg].
+     *  v2.12.13 — commit() (synchronous), NOT apply(): the launcher
+     *  self-update force-stops this very process seconds later and an
+     *  un-flushed async write would be lost — leaving stale build_id
+     *  state that re-fires the UPDATE pill after the restart. */
     private fun stashPendingInstallBuildId(pkg: String?, buildId: String?) {
         if (pkg.isNullOrBlank() || buildId.isNullOrBlank()) return
         getBuildIdsPrefs(this)
             .edit()
             .putString("pending_install_build_id_$pkg", buildId)
-            .apply()
+            .commit()
     }
 
     /** Walk every dock tile; promote any pending build_id whose
@@ -2360,6 +2437,21 @@ class MainActivity : AppCompatActivity() {
                     if (::dockAdapter.isInitialized) {
                         dockAdapter.notifyDataSetChanged()
                     }
+                    // v2.12.13 — Still resolve an awaited seamless
+                    // install (tiles pinned without a build_id).
+                    if (pkg == awaitingSilentInstallPkg) {
+                        val lbl = awaitingSilentInstallLabel ?: pkg
+                        awaitingSilentInstallPkg = null
+                        awaitingSilentInstallLabel = null
+                        installProgressDialog?.dismiss()
+                        installProgressDialog = null
+                        tileInstallInFlight = false
+                        Toast.makeText(
+                            this@MainActivity,
+                            "$lbl updated ✓",
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }
                     return
                 }
                 // Promote — authoritative.  The broadcast fires AFTER
@@ -2370,6 +2462,24 @@ class MainActivity : AppCompatActivity() {
                     .apply()
                 if (::dockAdapter.isInitialized) {
                     dockAdapter.notifyDataSetChanged()
+                }
+                // v2.12.13 — Seamless install UX: this broadcast IS the
+                // "install finished" signal for detached root / device-
+                // owner installs.  Dismiss the progress dialog and
+                // toast success so the user gets clean closure with
+                // zero extra prompts.
+                if (pkg == awaitingSilentInstallPkg) {
+                    val lbl = awaitingSilentInstallLabel ?: pkg
+                    awaitingSilentInstallPkg = null
+                    awaitingSilentInstallLabel = null
+                    installProgressDialog?.dismiss()
+                    installProgressDialog = null
+                    tileInstallInFlight = false
+                    Toast.makeText(
+                        this@MainActivity,
+                        "$lbl updated ✓",
+                        Toast.LENGTH_SHORT,
+                    ).show()
                 }
             }
         }
@@ -2428,10 +2538,15 @@ class MainActivity : AppCompatActivity() {
          *  the pending → installed promotion in onResume. */
         fun writeInstalledBuildId(ctx: Context, pkg: String, buildId: String) {
             if (pkg.isBlank() || buildId.isBlank()) return
+            // v2.12.13 — commit() (synchronous), NOT apply().  The
+            // launcher self-update path force-stops the process right
+            // after this write; apply()'s async disk flush could be
+            // lost, resurrecting the HOME UPDATE pill after restart
+            // ("install it again" loop).
             getBuildIdsPrefs(ctx)
                 .edit()
                 .putString("installed_build_id_$pkg", buildId)
-                .apply()
+                .commit()
         }
     }
 }

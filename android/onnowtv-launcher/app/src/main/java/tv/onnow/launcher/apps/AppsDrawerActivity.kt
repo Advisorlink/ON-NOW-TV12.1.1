@@ -434,7 +434,13 @@ class AppsDrawerActivity : AppCompatActivity() {
             }
         }
 
+    /* v2.12.13 — In-flight guard.  Blocks double-clicks on the pill
+     * while a download/install is running so the user can't queue a
+     * second install of the same build. */
+    private var homeUpdateInFlight = false
+
     private fun onHomeUpdatePillClicked() {
+        if (homeUpdateInFlight) return
         val info = homeUpdateInfo ?: run {
             android.widget.Toast.makeText(
                 this, "No home update info available yet — try again in a moment.",
@@ -442,23 +448,14 @@ class AppsDrawerActivity : AppCompatActivity() {
             ).show()
             return
         }
-        val ver = info.optString("version_name", "(unknown)")
-        val sizeMb = (info.optLong("size", 0L) / (1024.0 * 1024.0))
-        val msg = buildString {
-            append("Install launcher update $ver?\n\n")
-            append("• Size: ${"%.1f".format(sizeMb)} MB\n")
-            append("• Installs in-place — your registration, dock and settings are preserved.\n")
-            append("• The launcher will briefly close to complete installation.")
-        }
-        android.app.AlertDialog.Builder(this)
-            .setTitle("Home Update")
-            .setMessage(msg)
-            .setPositiveButton("Install") { _, _ -> downloadAndInstallHomeUpdate(info) }
-            .setNegativeButton("Cancel", null)
-            .show()
+        // v2.12.13 — Seamless single-click update: the confirm dialog
+        // was a redundant prompt (the pill click IS the user intent).
+        // Go straight to download + install.
+        downloadAndInstallHomeUpdate(info)
     }
 
     private fun downloadAndInstallHomeUpdate(info: JSONObject) {
+        if (homeUpdateInFlight) return
         if (!ApkInstaller.canInstallNow(this)) {
             android.widget.Toast.makeText(
                 this,
@@ -480,6 +477,9 @@ class AppsDrawerActivity : AppCompatActivity() {
         val pinnedVer = info.optString("version_name", "").trim()
         val titleVer = if (pinnedVer.isNotEmpty()) "v$pinnedVer" else "launcher"
 
+        homeUpdateInFlight = true
+        homeUpdateLabel?.text = "UPDATING…"
+
         // v2.10.81 — Centred blue InstallProgressDialog, matching the
         // per-tile install UX (v2.10.75).  Stays up through download
         // and gracefully hands off to the system installer.  Replaces
@@ -489,6 +489,9 @@ class AppsDrawerActivity : AppCompatActivity() {
             "Updating $titleVer",
             "Downloading the latest launcher build from the server…",
         )
+        // v2.12.13 — Which install path ApkInstaller actually took.
+        // Set on the main thread BEFORE downloadAndInstall returns.
+        var installMode: ApkInstaller.Mode? = null
         lifecycleScope.launch {
             val err = ApkInstaller.downloadAndInstall(
                 this@AppsDrawerActivity,
@@ -497,10 +500,13 @@ class AppsDrawerActivity : AppCompatActivity() {
                 onProgress = { pct ->
                     runOnUiThread { dialog.setProgress(pct) }
                 },
+                onInstallMode = { mode -> installMode = mode },
             )
             if (err != null) {
                 runOnUiThread {
                     dialog.dismiss()
+                    homeUpdateInFlight = false
+                    refreshHomeUpdatePill()
                     android.widget.Toast.makeText(
                         this@AppsDrawerActivity,
                         "Home update failed: $err",
@@ -512,21 +518,52 @@ class AppsDrawerActivity : AppCompatActivity() {
             // v2.10.81 — Save the freshly-installed build_id so the
             // next /api/launcher/home-update/info poll reports
             // has_update=false until the operator re-uploads.
+            // (writeInstalledBuildId commits SYNCHRONOUSLY as of
+            // v2.12.13 so the root path's force-stop can't lose it.)
             if (pinnedBuildId.isNotEmpty()) {
                 MainActivity.writeInstalledBuildId(
                     this@AppsDrawerActivity, packageName, pinnedBuildId,
                 )
             }
-            // Hand off to the system installer UI.
             runOnUiThread {
+                // Update committed — hide the pill immediately so the
+                // user can't re-trigger the same install.
+                homeUpdatePill?.visibility = View.GONE
                 dialog.setTitle("Installing $titleVer")
-                dialog.setMessage("Opening the system installer…")
                 dialog.setProgress(100)
+                when (installMode) {
+                    ApkInstaller.Mode.SILENT, ApkInstaller.Mode.ROOT -> {
+                        // v2.12.13 — SEAMLESS path (device-owner or
+                        // root).  NOTHING more is asked of the user:
+                        // the install runs in the background and the
+                        // launcher restarts itself with the new build.
+                        // Keep the dialog up until the process dies —
+                        // with a 90 s failsafe in case the detached
+                        // install failed and we're still alive.
+                        dialog.setMessage(
+                            "Almost done — the launcher will restart itself " +
+                                "in a few seconds.  No action needed.",
+                        )
+                        android.os.Handler(mainLooper).postDelayed({
+                            if (!isFinishing && !isDestroyed) {
+                                dialog.dismiss()
+                                homeUpdateInFlight = false
+                                refreshHomeUpdatePill()
+                            }
+                        }, 90_000L)
+                    }
+                    else -> {
+                        // Legacy intent path (no root, not device
+                        // owner) — Android REQUIRES its own system
+                        // confirm screen here, we can't skip it.
+                        dialog.setMessage("Confirm the install on the next screen.")
+                        android.os.Handler(mainLooper).postDelayed({
+                            dialog.dismiss()
+                            homeUpdateInFlight = false
+                        }, 1200L)
+                    }
+                }
             }
-            android.os.Handler(mainLooper).postDelayed({ dialog.dismiss() }, 1200L)
-            // On success, ApkInstaller has fired the system install
-            // prompt — the user will see the standard Android update
-            // dialog.  No further action needed from this activity.
         }
     }
 

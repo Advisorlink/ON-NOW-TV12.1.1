@@ -10,6 +10,7 @@ import {
     Sparkles,
     Users,
     UserCircle2,
+    CalendarDays,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getAutoplay1080p, setAutoplay1080p } from '@/lib/prefs';
@@ -28,6 +29,9 @@ const NAV = [
     { id: 'tv', label: 'TV Shows', icon: Tv, path: '/?filter=series' },
     { id: 'movies', label: 'Movies', icon: Film, path: '/?filter=movie' },
     { id: 'library', label: 'My Library', icon: Library, path: '/library' },
+    // v2.13.4 — Calendar promoted out of the Library page to its own
+    // rail entry (full-page release calendar at /calendar).
+    { id: 'calendar', label: 'Calendar', icon: CalendarDays, path: '/calendar' },
     { id: 'watch-together', label: 'Watch Together', icon: Users, path: '/watch-together' },
     // v2.6.78: removed the user-facing "Sources" entry — addon
     // configuration is now an internal-only flow.  Power-users can
@@ -390,11 +394,14 @@ export default function SideNav() {
                                 width: 26,
                                 height: 26,
                                 borderRadius: 8,
+                                // v2.13.4 — Icon follows the active
+                                // Vesper theme accent instead of the
+                                // old hardcoded purple gradient.
                                 background:
-                                    'linear-gradient(135deg, #7C5CFF 0%, #A78BFF 55%, #FF7AB6 100%)',
+                                    'linear-gradient(135deg, var(--vesper-blue) 0%, var(--vesper-blue-bright) 100%)',
                                 boxShadow: activePath === '/v2ai'
-                                    ? '0 0 14px rgba(124,92,255,0.85)'
-                                    : '0 0 8px rgba(124,92,255,0.45)',
+                                    ? '0 0 14px rgba(var(--vesper-blue-rgb), 0.85)'
+                                    : '0 0 8px rgba(var(--vesper-blue-rgb), 0.45)',
                             }}
                         >
                             <Sparkles size={15} strokeWidth={2.2} color="#FFFFFF" />

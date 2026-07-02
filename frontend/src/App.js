@@ -12,6 +12,7 @@ import V2AIResolve from '@/pages/V2AIResolve';
 import V2AI from '@/pages/V2AI';
 import Settings from '@/pages/Settings';
 import Library from '@/pages/Library';
+import CalendarPage from '@/pages/CalendarPage';
 import ProfileSelect from '@/pages/ProfileSelect';
 import ProfileEdit from '@/pages/ProfileEdit';
 import ProfileLoad from '@/pages/ProfileLoad';
@@ -845,6 +846,7 @@ function App() {
                                 <Route path="/v2ai-play" element={<RequireProfile><V2AIResolve /></RequireProfile>} />
                                 <Route path="/v2ai" element={<RequireProfile><V2AI /></RequireProfile>} />
                                 <Route path="/library" element={<RequireProfile><Library /></RequireProfile>} />
+                                <Route path="/calendar" element={<RequireProfile><CalendarPage /></RequireProfile>} />
                                 {/* v2.8.90 — Free-to-Air EPG (will move to a
                                     standalone APK; for now lives at /fta inside
                                     the existing Vesper React app). */}

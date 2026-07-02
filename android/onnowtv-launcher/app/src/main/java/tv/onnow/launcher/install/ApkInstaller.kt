@@ -36,6 +36,12 @@ import java.util.concurrent.TimeUnit
  */
 object ApkInstaller {
 
+    /** v2.12.13 — Which install path was actually taken.  SILENT and
+     *  ROOT require ZERO user interaction; INTENT surfaces the system
+     *  install dialog.  Callers use this to show truthful progress UI
+     *  ("restarting automatically…" vs "confirm on the next screen"). */
+    enum class Mode { SILENT, ROOT, INTENT }
+
     private const val TAG = "ApkInstaller"
     private val http = tv.onnow.launcher.net.ResilientHttp.client.newBuilder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -65,6 +71,7 @@ object ApkInstaller {
         suggestedName: String? = null,
         onProgress: ((Int) -> Unit)? = null,
         onConflict: ((conflictPkg: String, apkFile: File) -> Unit)? = null,
+        onInstallMode: ((Mode) -> Unit)? = null,
     ): String? = withContext(Dispatchers.IO) {
         try {
             val target = File(ctx.cacheDir, "downloads").apply { mkdirs() }
@@ -175,6 +182,7 @@ object ApkInstaller {
                 )
                 if (ok) {
                     Log.i(TAG, "root install launched for $apkPkg (isUpdate=$isUpdate, relaunch=$relaunch, forceClean=$isUpdate)")
+                    withContext(Dispatchers.Main) { onInstallMode?.invoke(Mode.ROOT) }
                     return@withContext null
                 }
                 Log.w(TAG, "root install launch failed; falling back to intent flow")
@@ -189,6 +197,7 @@ object ApkInstaller {
                     // launch the uninstall ourselves — the caller
                     // will orchestrate everything.
                     withContext(Dispatchers.Main) {
+                        onInstallMode?.invoke(Mode.INTENT)
                         onConflict(conflict, out)
                     }
                     return@withContext null
@@ -201,9 +210,11 @@ object ApkInstaller {
                         android.widget.Toast.LENGTH_LONG,
                     ).show()
                 }
+                withContext(Dispatchers.Main) { onInstallMode?.invoke(Mode.INTENT) }
                 launchUninstallPrompt(ctx, conflict)
                 return@withContext null   // not an error, just deferred
             }
+            withContext(Dispatchers.Main) { onInstallMode?.invoke(Mode.INTENT) }
             launchInstallPrompt(ctx, out)
             null
         } catch (e: IOException) {
