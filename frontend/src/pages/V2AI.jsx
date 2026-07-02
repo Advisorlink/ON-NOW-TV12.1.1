@@ -82,6 +82,11 @@ function VoiceWaveformCanvas({ listening, analyserRef }) {
         const ctx = canvas.getContext('2d');
         let raf = 0;
         const buf = new Uint8Array(1024);
+        // Waveform follows the active Vesper theme (user request:
+        // theme colours must apply to V2 AI, not hardcoded purple).
+        const cs = getComputedStyle(document.documentElement);
+        const accent = (cs.getPropertyValue('--vesper-blue') || '').trim() || '#7C5CFF';
+        const bright = (cs.getPropertyValue('--vesper-blue-bright') || '').trim() || '#A78BFF';
 
         const draw = (now) => {
             raf = requestAnimationFrame(draw);
@@ -120,9 +125,9 @@ function VoiceWaveformCanvas({ listening, analyserRef }) {
             const idlePhase = ((now % 2400) / 2400) * Math.PI * 2;
 
             const grad = ctx.createLinearGradient(0, 0, w, 0);
-            grad.addColorStop(0, '#7C5CFF');
-            grad.addColorStop(0.5, '#A78BFF');
-            grad.addColorStop(1, '#FF7AB6');
+            grad.addColorStop(0, accent);
+            grad.addColorStop(0.5, bright);
+            grad.addColorStop(1, accent);
             ctx.fillStyle = grad;
 
             const barW = w / (BARS * 1.5);
@@ -168,6 +173,11 @@ export default function V2AI() {
     const [heading, setHeading] = useState('Hold OK and ask anything about movies, TV, or apps.');
     // result: null | {kind:'recs'|'qa'|'person', parsed}
     const [result, setResult] = useState(null);
+    // Live transcript — words appear on screen WHILE you speak
+    // (Google-Assistant style), refreshed every ~1 s from Whisper.
+    const [liveText, setLiveText] = useState('');
+    const liveTextRef = useRef('');
+    liveTextRef.current = liveText;
     // Launcher-portal V2 AI config (wallpaper, heading, badge).
     const [cfg, setCfg] = useState(null);
 
@@ -186,6 +196,9 @@ export default function V2AI() {
     // recording for the full 10 s cap.
     const keyUpPendingRef = useRef(false);
     const standbyHintRef = useRef('Hold OK and ask anything about movies, TV, or apps.');
+    const partialBusyRef = useRef(false);
+    const partialSeqRef = useRef(0);
+    const lastShownSeqRef = useRef(0);
 
     const cleanupRecorder = () => {
         try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch { /* */ }
@@ -228,6 +241,7 @@ export default function V2AI() {
     /* ─────────── intent dispatch (mirrors the launcher) ─────────── */
     const showStandby = useCallback(() => {
         setResult(null);
+        setLiveText('');
         setHeading(standbyHintRef.current);
         setStatus('Ready');
     }, []);
@@ -237,6 +251,7 @@ export default function V2AI() {
         const reply = parsed?.speech_reply || '';
         const transcript = parsed?.transcript || '';
         setPhase('idle');
+        setLiveText('');
         if (transcript) setStatus(transcript);
         if (intent === 'play_movie' || intent === 'play_series') {
             const title = (parsed.title || '').trim();
@@ -299,7 +314,7 @@ export default function V2AI() {
     const submitAudio = useCallback(async (blob, ext) => {
         setPhase('thinking');
         setStatus('Thinking…');
-        setHeading('Processing your request…');
+        setHeading(liveTextRef.current ? `“${liveTextRef.current}”` : 'Processing your request…');
         try {
             const fd = new FormData();
             fd.append('file', blob, `v2ai.${ext}`);
@@ -327,6 +342,35 @@ export default function V2AI() {
                 ? 'Mic permission needed — allow the microphone for ON NOW TV V2.'
                 : 'Microphone unavailable on this device.',
         );
+    }, []);
+
+    /* Live transcript: every ~1 s while recording, send the audio
+       accumulated SO FAR to Whisper and paint the partial text on
+       screen — same feel as the Google box's live captions.  The
+       busy flag gives natural throttling (next partial fires on the
+       first data chunk after the previous request lands). */
+    const transcribePartial = useCallback(async () => {
+        if (partialBusyRef.current || !recorderRef.current) return;
+        if (!chunksRef.current.length) return;
+        const rec = recorderRef.current;
+        const blob = new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' });
+        if (blob.size < 2000) return;
+        partialBusyRef.current = true;
+        const seq = ++partialSeqRef.current;
+        try {
+            const fd = new FormData();
+            fd.append('file', blob, `v2ai-partial.${mimeToExt(rec.mimeType)}`);
+            const r = await fetch(`${API}/v2ai/transcribe-partial`, { method: 'POST', body: fd });
+            if (r.ok) {
+                const j = await r.json();
+                const text = (j.text || '').trim();
+                if (text && seq > lastShownSeqRef.current && phaseRef.current === 'recording') {
+                    lastShownSeqRef.current = seq;
+                    setLiveText(text);
+                }
+            }
+        } catch { /* partials are best-effort */ }
+        finally { partialBusyRef.current = false; }
     }, []);
 
     const startRecording = useCallback(async () => {
@@ -357,8 +401,12 @@ export default function V2AI() {
                              : new MediaRecorder(stream);
             recorderRef.current = rec;
             chunksRef.current = [];
+            setLiveText('');
+            lastShownSeqRef.current = 0;
+            partialSeqRef.current = 0;
             rec.ondataavailable = (e) => {
                 if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
+                if (recorderRef.current === rec && rec.state === 'recording') transcribePartial();
             };
             rec.onstop = async () => {
                 const elapsed = Date.now() - startedAtRef.current;
@@ -372,7 +420,7 @@ export default function V2AI() {
                 }
                 await submitAudio(blob, mimeToExt(rec.mimeType));
             };
-            rec.start();
+            rec.start(900); // 900 ms timeslice → chunks feed the live transcript
             startedAtRef.current = Date.now();
             setPhase('recording');
             setStatus('Listening…');
@@ -387,7 +435,7 @@ export default function V2AI() {
             micUnavailable(err);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [submitAudio, micUnavailable]);
+    }, [submitAudio, micUnavailable, transcribePartial]);
 
     const stopRecording = () => {
         if (!recorderRef.current) return;
@@ -475,7 +523,7 @@ export default function V2AI() {
             className="w-screen h-[100dvh] relative overflow-hidden"
             style={{
                 background:
-                    'radial-gradient(ellipse at 50% 30%, #0e2548 0%, #050912 62%, #02030A 100%)',
+                    'radial-gradient(ellipse at 50% 30%, var(--vesper-bg-2, #0e2548) 0%, var(--vesper-bg-1, #050912) 62%, var(--vesper-bg-0, #02030A) 100%)',
                 color: '#F4F7FB',
             }}
         >
@@ -533,8 +581,8 @@ export default function V2AI() {
                             fontWeight: 800,
                             color: '#fff',
                             background:
-                                'radial-gradient(circle at 32% 28%, #B18CFF 0%, #7C5CFF 45%, #4A2FBF 100%)',
-                            boxShadow: '0 0 18px rgba(124,92,255,0.75)',
+                                'radial-gradient(circle at 32% 28%, var(--vesper-blue-bright) 0%, var(--vesper-blue) 45%, rgba(var(--vesper-blue-rgb), 0.55) 100%)',
+                            boxShadow: '0 0 18px rgba(var(--vesper-blue-rgb), 0.75)',
                         }}
                     >
                         AI
@@ -546,7 +594,7 @@ export default function V2AI() {
                             letterSpacing: '0.30em',
                             textTransform: 'uppercase',
                             background:
-                                'linear-gradient(90deg, #B18CFF 0%, #7C9CFF 55%, #FF7AB6 100%)',
+                                'linear-gradient(90deg, var(--vesper-blue-bright) 0%, var(--vesper-blue) 55%, var(--vesper-blue-bright) 100%)',
                             WebkitBackgroundClip: 'text',
                             WebkitTextFillColor: 'transparent',
                         }}
@@ -564,11 +612,11 @@ export default function V2AI() {
                             letterSpacing: '-0.02em',
                             textAlign: 'center',
                             textShadow:
-                                '0 2px 12px rgba(6,2,22,0.85), 0 0 42px rgba(124,92,255,0.45)',
+                                '0 2px 12px rgba(6,2,22,0.85), 0 0 42px rgba(var(--vesper-blue-rgb), 0.45)',
                             maxWidth: 900,
                         }}
                     >
-                        {heading}
+                        {phase !== 'idle' && liveText ? `“${liveText}”` : heading}
                     </div>
                     <div style={{ height: 24 }} />
                     <div style={{ position: 'relative' }}>
@@ -578,7 +626,7 @@ export default function V2AI() {
                                 position: 'absolute',
                                 inset: '-46px -80px',
                                 background:
-                                    'radial-gradient(ellipse at center, rgba(124,92,255,0.28) 0%, rgba(124,92,255,0.10) 45%, transparent 72%)',
+                                    'radial-gradient(ellipse at center, rgba(var(--vesper-blue-rgb), 0.28) 0%, rgba(var(--vesper-blue-rgb), 0.10) 45%, transparent 72%)',
                                 pointerEvents: 'none',
                             }}
                         />
@@ -611,8 +659,8 @@ export default function V2AI() {
                                     color: '#FFFFFF',
                                     background: holdImageUrl
                                         ? 'transparent'
-                                        : 'linear-gradient(135deg, #7C5CFF 0%, #A78BFF 55%, #FF7AB6 100%)',
-                                    boxShadow: '0 0 34px rgba(124,92,255,0.55)',
+                                        : 'linear-gradient(135deg, var(--vesper-blue) 0%, var(--vesper-blue-bright) 100%)',
+                                    boxShadow: '0 0 34px rgba(var(--vesper-blue-rgb), 0.55)',
                                     padding: 0,
                                     overflow: 'hidden',
                                 }}
@@ -638,8 +686,8 @@ export default function V2AI() {
                             padding: '10px 26px',
                             borderRadius: 999,
                             background: 'rgba(10,6,30,0.55)',
-                            border: '1px solid rgba(124,92,255,0.40)',
-                            boxShadow: '0 0 24px rgba(124,92,255,0.22)',
+                            border: '1px solid rgba(var(--vesper-blue-rgb), 0.40)',
+                            boxShadow: '0 0 24px rgba(var(--vesper-blue-rgb), 0.22)',
                             backdropFilter: 'blur(14px)',
                             WebkitBackdropFilter: 'blur(14px)',
                         }}
@@ -651,10 +699,8 @@ export default function V2AI() {
                                 height: 8,
                                 borderRadius: '50%',
                                 flex: '0 0 auto',
-                                background: phase === 'recording' ? '#FF7AB6' : '#7C5CFF',
-                                boxShadow: phase === 'recording'
-                                    ? '0 0 10px rgba(255,122,182,0.9)'
-                                    : '0 0 10px rgba(124,92,255,0.9)',
+                                background: phase === 'recording' ? 'var(--vesper-blue-bright)' : 'var(--vesper-blue)',
+                                boxShadow: '0 0 10px rgba(var(--vesper-blue-rgb), 0.9)',
                             }}
                         />
                         {status}
@@ -727,8 +773,8 @@ export default function V2AI() {
                 .v2ai-card { transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease; outline: none; }
                 .v2ai-card[data-focused="true"],
                 .v2ai-card:focus {
-                    border-color: #A78BFF !important;
-                    box-shadow: 0 0 0 3px rgba(124,92,255,0.9), 0 0 36px rgba(124,92,255,0.5);
+                    border-color: var(--vesper-blue-bright) !important;
+                    box-shadow: 0 0 0 3px rgba(var(--vesper-blue-rgb),0.9), 0 0 36px rgba(var(--vesper-blue-rgb),0.5);
                     transform: scale(1.045);
                     z-index: 2;
                 }
@@ -738,7 +784,7 @@ export default function V2AI() {
                 [data-testid="v2ai-ask-again"]:focus,
                 [data-testid="v2ai-qa-play"][data-focused="true"],
                 [data-testid="v2ai-qa-play"]:focus {
-                    box-shadow: 0 0 0 3px rgba(124,92,255,0.9), 0 0 24px rgba(124,92,255,0.45);
+                    box-shadow: 0 0 0 3px rgba(var(--vesper-blue-rgb),0.9), 0 0 24px rgba(var(--vesper-blue-rgb),0.45);
                     color: #fff;
                 }
             `}</style>
@@ -918,7 +964,7 @@ function QaCard({ parsed, onPlay }) {
                         onClick={() => onPlay(subject, subjType)}
                         style={{
                             marginTop: 18,
-                            background: '#2BB6FF',
+                            background: 'var(--vesper-blue)',
                             color: '#04060B',
                             fontWeight: 700,
                             fontSize: 15,

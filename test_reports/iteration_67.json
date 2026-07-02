@@ -1,0 +1,27 @@
+{
+  "summary": "Iteration 67 verified all 5 fixes: (1) Music artist/album prefix strip — /api/music/artist/13 and /artist/artist-13 both 200 with Eminem; /api/music/album/302127 and /album/album-302127 both 200. (2) V2AI theme CSS vars — with default 'electric' theme --vesper-blue=#00B8FF; switching to Gilded Gold via Settings sets data-theme=gold with --vesper-blue=#F5C24D (waveform, Ready pill, mic icon all inherit accent). (3) transcribe-partial — POST /api/v2ai/transcribe-partial with 3KB random bytes returns 200 {text:''} gracefully. (4) Upcoming intent (TMDB): 'avatar 3' -> intent=qa with 'Avatar: Fire and Ash' + 'December 17, 2025' + subject_poster_url; 'dune part 3' -> 'December 16, 2026' + '6 months away'; 'stranger things next season' -> intent=qa with 'ended/final'; 'mandalorian and grogu' -> real 2026 date. (5) Scrim: results view has rgba(0,0,0,0.7) 1920x1080 div overlay; 20 v2ai-rec-card-* rendered; focus on card-0; v2ai-ask-again present; QA card v2ai-qa-card + v2ai-qa-play render for Dune Part 3 query. Regressions: 'play the matrix' -> intent=play_movie title=The Matrix; 'whats trending' -> intent=trending with recs; 'who directed pulp fiction' -> qa mentioning Tarantino. Music artist page /music/artist/13 renders Eminem hero, Popular tracks, Discography.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter67_v2ai_upcoming.py",
+    "/app/test_reports/pytest/iter67.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Console still emits benign React warning 'Invalid DOM property fetchpriority. Did you mean fetchPriority?' (carried over from iter 65/66). Likely on an <img> tag with fetchpriority attribute.",
+    "V2AI results page emits a CORS/ERR_FAILED on plexio.stream and a 502 on one background metadata call — non-blocking for D-pad + navigation flow, same as iter 66 observation.",
+    "Theme change via ThemeProvider only fires on 'vesper:profile-change' + cross-tab 'storage' events, NOT on same-tab localStorage writes. Direct localStorage seeding does not update the theme without either a Settings-UI click (which calls setThemeId) or a full page reload with the scoped key already set BEFORE mount. Same-tab writes are a rare code path (test-only) so this is low priority."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter67_v2ai_upcoming.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Vesper login testuser/testpass123. Profile seed via localStorage: onnowtv-profiles-v1:testuser + onnowtv-active-profile-v1(:testuser) = 'p-test-1'; vesper-onboarding-seen-v1 = timestamp. /profiles then focus [data-testid=profile-p-test-1] + Enter. Post-activation use SPA nav via [data-testid=nav-v2ai] or pushState+PopStateEvent for deep links.",
+  "seed_data_creation": "Profile 'p-test-1' seeded in localStorage per task spec.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 5 fixes verified. Backend pytest suite at /app/backend/tests/test_iter67_v2ai_upcoming.py — 12 tests, all pass. Key backend endpoints validated: (a) GET /api/music/artist/{id|artist-id} returns {cached, data:{name:'Eminem',...}} — response is wrapped in {cached,data} shape (not flat). (b) GET /api/music/album/{id|album-id} returns 200. (c) POST /api/v2ai/process-text with 'when does X come out' queries hits TMDB fast-path (real dates: Avatar 3 = Dec 17 2025, Dune Part 3 = Dec 16 2026 (~6 months away), Mandalorian and Grogu = 2026, Stranger Things = ended/final). (d) POST /api/v2ai/transcribe-partial multipart 'file' field with random bytes returns 200 {text:''}. Frontend V2AI: --vesper-blue applied on V2AI (default electric = #00B8FF). Switching to Gilded Gold via Settings changes --vesper-blue to #F5C24D and data-theme='gold' — verified with screenshot; ThemeProvider only responds to same-tab changes via its own setThemeId hook, NOT same-tab localStorage writes (needs 'vesper:profile-change' event or reload). Results view scrim: single div with backgroundColor rgba(0,0,0,0.7) covering 1920x1080 renders above wallpaper behind cards. Query 'whats trending' -> 20 v2ai-rec-card-* + v2ai-ask-again, focus lands on card-0. Query 'when does dune part 3 come out' -> v2ai-qa-card with poster + text 'Dune: Part Three comes out on December 16, 2026 — about 6 months away.' + v2ai-qa-play button.",
+  "rca of the issue": "No blocking issues. Non-blocking observations carried from iter66: benign fetchpriority React warning, plexio.stream CORS error, occasional 502 from cloudflare/proxy (retry works). Theme-switching via direct localStorage writes is not reactive without either a profile-change event dispatch or full page reload (design choice, low priority)."
+}

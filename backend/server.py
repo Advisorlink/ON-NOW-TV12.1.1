@@ -4168,6 +4168,20 @@ async def v2ai_process_text_proxy(payload: dict = Body(...)):
     return Response(content=r.content, status_code=r.status_code, media_type="application/json")
 
 
+@app.post("/api/v2ai/transcribe-partial")
+async def v2ai_transcribe_partial_proxy(file: UploadFile = File(...)):
+    """v2.13.3 — Live-transcript proxy: forwards the in-progress
+    recording to the launcher backend's Whisper endpoint so V2 AI
+    can show words on screen while the user is still speaking."""
+    raw = await file.read()
+    async with _httpx_launcher.AsyncClient(timeout=30.0) as client:
+        r = await client.post(
+            f"{_LAUNCHER_BACKEND}/api/launcher/v2ai/transcribe-partial",
+            files={"file": (file.filename or "partial.webm", raw, file.content_type or "application/octet-stream")},
+        )
+    return Response(content=r.content, status_code=r.status_code, media_type="application/json")
+
+
 @app.get("/api/v2ai/config")
 async def v2ai_config_proxy():
     """v2.13.1 — Serves the launcher portal's V2 AI customisation

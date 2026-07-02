@@ -757,7 +757,7 @@ For those: intent="reject", reject_reason="V2 AI only helps with movies, TV, and
 
 ✅ Reply with STRICT JSON (no markdown, no comments) matching this schema:
 {
-  "intent":        "play_movie" | "play_series" | "recommend" | "search" | "trending" | "open_app" | "qa" | "person_info" | "reject",
+  "intent":        "play_movie" | "play_series" | "recommend" | "search" | "trending" | "open_app" | "qa" | "person_info" | "upcoming" | "reject",
   "title":         string | null,         // for play_movie / play_series — proper title-case
   "query":         string | null,         // for recommend / search
   "mood":          string | null,         // for recommend ("funny", "scary", "feel-good", "tonight", …)
@@ -793,6 +793,7 @@ Rules with examples:
 - "Who's the main actor in Inception?" → person_info, person_name="Leonardo DiCaprio".
 - "Who directed Pulp Fiction?" → person_info, person_name="Quentin Tarantino".
 - "Tell me about Stranger Things" → qa with overview, answer_subject="Stranger Things", answer_subject_type="series".
+- "When does Avatar 3 come out?" / "When is the next season of Euphoria?" / "What's the release date of Dune 3?" → upcoming, title=<the movie/show name WITHOUT "season N of" or "the next season of">.  Leave answer null — the backend fetches the authoritative release date live from TMDB (your training data is stale for upcoming titles, NEVER answer these yourself).
 - "Why is my Wi-Fi slow?" / "Remote not working" / "Box keeps freezing" → reject.
 
 For "qa": 1-4 sentences max.  Factual, confident, friendly — never refuse a celebrity / film question just because it's "personal info"; entertainment fact-files are public knowledge.  Always set answer_subject + answer_subject_type so the UI can fetch the poster or actor photo.
@@ -1011,8 +1012,194 @@ async def _tmdb_lookup(
     return best
 
 
+async def _tmdb_release_info(title: str) -> Optional[dict]:
+    """v2.13.3 — Authoritative release-date lookup for the V2 AI
+    "upcoming" intent.  Searches movie + tv, picks the most popular
+    hit, and (for series) also pulls the detail endpoint so we can
+    answer "when's the NEXT season" via `next_episode_to_air`."""
+    if not TMDB_BEARER_TOKEN or not title.strip():
+        return None
+    import httpx
+    headers = {
+        "Authorization": f"Bearer {TMDB_BEARER_TOKEN}",
+        "accept": "application/json",
+    }
+    best: Optional[dict] = None
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            for endpoint, ret_kind, date_key in (
+                ("movie", "movie", "release_date"),
+                ("tv", "series", "first_air_date"),
+            ):
+                resp = await client.get(
+                    f"{TMDB_BASE}/search/{endpoint}",
+                    params={"query": title, "include_adult": "false"},
+                    headers=headers,
+                )
+                if resp.status_code != 200:
+                    continue
+                results = (resp.json() or {}).get("results") or []
+                if not results:
+                    continue
+                # Sequels are often listed under their real name
+                # ("Avatar 3" → "Avatar: Fire and Ash") which ranks
+                # below the original in raw search order — pick the
+                # most POPULAR of the top hits, not results[0].
+                top = max(results[:5], key=lambda r: float(r.get("popularity") or 0))
+                pop = float(top.get("popularity") or 0)
+                if best and pop <= float(best.get("_pop") or 0):
+                    continue
+                info = {
+                    "title":        top.get("title") or top.get("name") or title,
+                    "type":         ret_kind,
+                    "date":         (top.get(date_key) or "").strip() or None,
+                    "poster_url":   f"{TMDB_IMG}{top['poster_path']}" if top.get("poster_path") else None,
+                    "backdrop_url": f"https://image.tmdb.org/t/p/w780{top['backdrop_path']}" if top.get("backdrop_path") else None,
+                    "rating":       round(float(top.get("vote_average") or 0), 1),
+                    "overview":     (top.get("overview") or "").strip(),
+                    "status":       None,
+                    "next_air_date": None,
+                    "next_season":  None,
+                    "next_episode": None,
+                    "last_air_date": None,
+                    "_pop":         pop,
+                }
+                # Detail fetch: series always (next_episode_to_air),
+                # movies only when the search result had no date.
+                if ret_kind == "series" or not info["date"]:
+                    try:
+                        d = await client.get(
+                            f"{TMDB_BASE}/{endpoint}/{top['id']}", headers=headers,
+                        )
+                        if d.status_code == 200:
+                            dj = d.json() or {}
+                            info["status"] = (dj.get("status") or "").strip() or None
+                            if not info["date"]:
+                                info["date"] = (dj.get(date_key) or "").strip() or None
+                            if ret_kind == "series":
+                                info["last_air_date"] = (dj.get("last_air_date") or "").strip() or None
+                                nxt = dj.get("next_episode_to_air") or {}
+                                if nxt.get("air_date"):
+                                    info["next_air_date"] = nxt["air_date"]
+                                    info["next_season"]  = nxt.get("season_number")
+                                    info["next_episode"] = nxt.get("episode_number")
+                    except Exception:  # noqa: BLE001
+                        pass
+                best = info
+    except Exception:  # noqa: BLE001
+        log.exception("TMDB release lookup failed for %r", title)
+        return None
+    if best:
+        best.pop("_pop", None)
+    return best
+
+
+def _pretty_date(date_str: str) -> Optional[str]:
+    from datetime import date as _date
+    try:
+        d = _date.fromisoformat(date_str)
+    except (ValueError, TypeError):
+        return None
+    return f"{d.strftime('%B')} {d.day}, {d.year}"
+
+
+def _relative_phrase(date_str: str) -> str:
+    """' — about 3 months away' style suffix for future dates."""
+    from datetime import date as _date
+    try:
+        d = _date.fromisoformat(date_str)
+    except (ValueError, TypeError):
+        return ""
+    days = (d - _date.today()).days
+    if days <= 0:
+        return ""
+    if days >= 60:
+        return f" — about {round(days / 30)} months away"
+    if days >= 14:
+        return f" — about {days // 7} weeks away"
+    if days == 1:
+        return " — that's tomorrow"
+    return f" — only {days} days away"
+
+
+async def _v2ai_resolve_upcoming(parsed: dict) -> dict:
+    """Turn an `upcoming` intent into a qa-shaped answer with the
+    REAL release date from TMDB (GPT's training data is stale for
+    unreleased titles).  qa shape means every client — including old
+    bundled APK builds — renders it with poster + play button."""
+    from datetime import date as _date
+    title = (parsed.get("title") or parsed.get("answer_subject") or "").strip()
+    # "season 3 of X" / "the next season of X" → search for X itself.
+    title = re.sub(r"^(?:the\s+)?(?:next\s+season|season\s+\d+)\s+of\s+", "", title, flags=re.I).strip()
+    out = {
+        "intent": "qa",
+        "question": parsed.get("question") or parsed.get("transcript"),
+        "answer": None,
+        "answer_subject": title or None,
+        "answer_subject_type": None,
+        "speech_reply": "",
+    }
+    fallback = (parsed.get("answer") or "").strip()
+    info = await _tmdb_release_info(title) if title else None
+    if not info:
+        out["answer"] = fallback or (
+            f"I couldn't find a release date for {title or 'that title'} — "
+            "it may not be announced yet."
+        )
+        out["speech_reply"] = out["answer"]
+        return out
+
+    name = info["title"]
+    is_series = info["type"] == "series"
+    out["answer_subject"] = name
+    out["answer_subject_type"] = info["type"]
+    out["subject_poster_url"] = info.get("poster_url")
+    out["subject_backdrop_url"] = info.get("backdrop_url")
+    out["subject_rating"] = info.get("rating") or None
+    if info.get("date"):
+        out["subject_year"] = info["date"][:4]
+
+    today = _date.today()
+    answer = None
+    if is_series and info.get("next_air_date"):
+        pretty = _pretty_date(info["next_air_date"])
+        if pretty:
+            ep = ""
+            if info.get("next_season") and info.get("next_episode"):
+                ep = f" (Season {info['next_season']}, Episode {info['next_episode']})"
+            answer = f"The next episode of {name}{ep} airs on {pretty}{_relative_phrase(info['next_air_date'])}."
+    if answer is None and is_series and (info.get("status") or "").lower() in ("ended", "canceled", "cancelled"):
+        last = _pretty_date(info.get("last_air_date") or "")
+        answer = (
+            f"{name} has ended — its final episode aired on {last}, so no new "
+            f"episodes are scheduled." if last else f"{name} has ended — no new episodes are scheduled."
+        )
+    if answer is None and info.get("date"):
+        pretty = _pretty_date(info["date"])
+        if pretty:
+            try:
+                is_future = _date.fromisoformat(info["date"]) > today
+            except ValueError:
+                is_future = False
+            if is_future:
+                verb = "premieres" if is_series else "comes out"
+                answer = f"{name} {verb} on {pretty}{_relative_phrase(info['date'])}."
+            else:
+                verb = "premiered" if is_series else "was released"
+                answer = f"{name} {verb} on {pretty}, so it's already out."
+                if is_series and not info.get("next_air_date"):
+                    answer += " No new episodes are currently scheduled."
+    if answer is None:
+        answer = fallback or (
+            f"{name} doesn't have an official release date yet — nothing has been announced."
+        )
+    out["answer"] = answer
+    out["speech_reply"] = answer
+    return out
+
+
 async def _enrich_recommendations(items: list) -> list:
-    """Replace each `{title, year, type, why}` entry with a richer
+    """Enrich each entry into a
     `{title, year, type, why, poster_url, rating, overview}` dict.
     Fan-out concurrent TMDB lookups, skip silently on any failure
     so a slow TMDB never blocks V2 AI's main response."""
@@ -1203,6 +1390,24 @@ async def v2ai_process(
     return await _v2ai_handle_transcript(transcript, device_id)
 
 
+@app.post("/api/launcher/v2ai/transcribe-partial")
+async def v2ai_transcribe_partial(file: UploadFile = File(...)) -> dict:
+    """v2.13.3 — Live transcription while the user is STILL talking.
+    Vesper's V2 AI page posts its accumulated recording every ~1 s;
+    we return just the Whisper text (no intent parsing, no history)
+    so the words appear on screen as they're spoken."""
+    raw = await file.read()
+    if not raw or len(raw) < 800:
+        return {"text": ""}
+    if len(raw) > 25 * 1024 * 1024:
+        raise HTTPException(413, "audio file too large (25 MB max)")
+    try:
+        text = await _v2ai_transcribe(raw, filename=file.filename or "partial.webm")
+    except HTTPException:
+        return {"text": ""}
+    return {"text": (text or "").strip()}
+
+
 @app.post("/api/launcher/v2ai/process-text")
 async def v2ai_process_text(payload: dict = Body(...)) -> dict:
     """v2.13.0 — Text variant of /process, used by Vesper's in-app
@@ -1269,6 +1474,9 @@ async def _v2ai_handle_transcript(transcript: str, device_id: Optional[str]) -> 
             fast["recommendations"] = await _tmdb_trending(
                 (fast.get("trending_kind") or "all").lower()
             )
+        # v2.13.3 — Release-date fast-path → resolve live via TMDB.
+        if fast.get("intent") == "upcoming":
+            fast = await _v2ai_resolve_upcoming(fast)
         fast["transcript"] = transcript
         _v2ai_remember(device_id or "", transcript, fast)
         return fast
@@ -1292,6 +1500,11 @@ async def _v2ai_handle_transcript(transcript: str, device_id: Optional[str]) -> 
     if parsed.get("intent") == "trending":
         kind = (parsed.get("trending_kind") or "all").lower()
         parsed["recommendations"] = await _tmdb_trending(kind)
+
+    # v2.13.3 — GPT classified a release-date question → resolve the
+    # real date live from TMDB (never trust the model's stale data).
+    if parsed.get("intent") == "upcoming":
+        parsed = await _v2ai_resolve_upcoming(parsed)
 
     # For QA — fetch the answer_subject's poster + backdrop so the
     # launcher can render a beautiful answer overlay with hero art.
@@ -1367,6 +1580,17 @@ _TRAIL_FILLER_RX  = r"\b(?:please|thanks|now|for\s+me|on\s+the\s+tv|on\s+tv|app|
 # TMDB directly — saves ~5-8 s on the common "what's popular" query.
 _TRENDING_RX      = r"(?:trending|trendy|popular|hot|top\s*\d*|number\s+one|what's\s+hot|what's\s+new|what\s+is\s+everyone\s+watching|whats\s+everyone\s+watching)"
 
+# v2.13.3 — Release-date fast-path.  "when does X come out", "when is
+# X coming out / being released", "X release date", "when will X be
+# released / premiere / air / drop".  Runs BEFORE the WH-question
+# guard so these never fall through to GPT (whose training data is
+# stale for upcoming titles).
+_RELEASE_PATTERNS = [
+    r"^when\s+(?:does|do|is|will|did)\s+(?P<title>.+?)\s+(?:come\s+out|coming\s+out|being\s+released|be\s+released|be\s+out|get\s+released|release[ds]?|releasing|premiere[ds]?|premiering|air(?:s|ing)?|drop(?:s|ping)?|start(?:s|ing)?|hit\s+(?:theaters|theatres|streaming|cinemas))\s*$",
+    r"^(?:what(?:'s|\s+is)\s+the\s+)?release\s+date\s+(?:of|for)\s+(?P<title>.+?)\s*$",
+    r"^(?P<title>.+?)(?:'s)?\s+release\s+date\s*$",
+]
+
 
 def _v2ai_fast_intent(transcript: str) -> Optional[dict]:
     raw = transcript.strip()
@@ -1383,6 +1607,22 @@ def _v2ai_fast_intent(transcript: str) -> Optional[dict]:
     t = re.sub(r"\s+", " ", t).strip()
     if not t:
         return None
+
+    # v2.13.3 — Release-date questions FIRST (they start with "when"
+    # so they'd otherwise be swallowed by the WH-question guard).
+    for rx in _RELEASE_PATTERNS:
+        m = re.match(rx, t)
+        if m:
+            title = m.group("title").strip(" ,.;:!?")
+            title = re.sub(_TRAIL_FILLER_RX, "", title).strip(" ,.")
+            title = re.sub(r"^(?:the\s+)?(?:movie|film|show|series)\s+", "", title).strip()
+            if title and len(title) <= 80:
+                return {
+                    "intent": "upcoming",
+                    "title": title.title(),
+                    "speech_reply": "Let me check.",
+                }
+            break
 
     # v2.8.29 — WH-question detection.  ANY "what", "who", "when",
     # "where", "why", "how" prefix → skip the fast path so GPT can

@@ -374,6 +374,7 @@ async def music_search(q: str = Query(..., min_length=1, max_length=120)):
 @music_api.get("/album/{album_id}")
 async def music_album(album_id: str):
     """Album detail + full track list (with preview URLs)."""
+    album_id = album_id.removeprefix("album-")
     cache_key = f"music:album:{album_id}"
     cached = await cache.get(cache_key)
     if cached:
@@ -410,6 +411,9 @@ async def music_album(album_id: str):
 @music_api.get("/artist/{artist_id}")
 async def music_artist(artist_id: str):
     """Artist detail + top tracks + albums."""
+    # Old bundled APK builds send hero-slide ids like "artist-123" —
+    # strip the prefix server-side so stale clients never 404.
+    artist_id = artist_id.removeprefix("artist-")
     cache_key = f"music:artist:{artist_id}"
     cached = await cache.get(cache_key)
     if cached:
