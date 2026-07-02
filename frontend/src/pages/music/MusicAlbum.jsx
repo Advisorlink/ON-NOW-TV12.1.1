@@ -28,7 +28,10 @@ function albumCover(a) {
 }
 
 export default function MusicAlbum() {
-    const { id } = useParams();
+    const { id: rawId } = useParams();
+    // v2.12.9 — Defensive: strip "album-" prefixed ids (hero slides
+    // carried them) so the API gets the bare Deezer id.
+    const id = String(rawId || '').replace(/^album-/, '');
     const navigate = useNavigate();
     const [data, setData] = useState(null);
     const [err, setErr] = useState(null);

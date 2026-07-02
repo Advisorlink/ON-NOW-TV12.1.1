@@ -2,7 +2,12 @@ package tv.onnow.launcher.install
 
 import android.content.Context
 import android.util.Log
+import java.io.BufferedWriter
 import java.io.File
+import java.io.OutputStreamWriter
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * v2.10.93 — Root-mode APK installer.
@@ -55,20 +60,91 @@ object RootApkInstaller {
 
     @Volatile private var cachedHasRoot: Boolean? = null
 
-    /** Cheap one-time probe: tries `su -c id` and checks for uid=0. */
-    fun isRootAvailable(): Boolean {
-        cachedHasRoot?.let { return it }
-        return try {
-            val p = ProcessBuilder("su", "-c", "id").redirectErrorStream(true).start()
-            val out = p.inputStream.bufferedReader().use { it.readText() }
-            p.waitFor()
-            val hasRoot = out.contains("uid=0")
-            cachedHasRoot = hasRoot
-            hasRoot
-        } catch (t: Throwable) {
-            cachedHasRoot = false
-            false
+    // v2.12.9 — ONE long-lived root shell for the whole launcher
+    // process.  Previously every install spawned a FRESH `su`
+    // process, so superuser managers set to "ask every time" threw
+    // a grant prompt at the user on EVERY update click.  With a
+    // persistent shell the prompt appears at most once per launcher
+    // boot; every subsequent install rides the same pipe.  (Same
+    // pattern as support/RootInputDispatcher.)
+    @Volatile private var shellProcess: Process? = null
+    @Volatile private var shellWriter: BufferedWriter? = null
+    private val shellLock = Any()
+    private val shellIsRoot = AtomicBoolean(false)
+
+    /** Open (or reuse) the persistent root shell.  Returns true when
+     *  a live `su` shell running as uid=0 is available. */
+    private fun ensureShell(): Boolean {
+        synchronized(shellLock) {
+            if (shellWriter != null && shellProcess?.isAlive == true) return shellIsRoot.get()
+            shellProcess = null
+            shellWriter = null
+            shellIsRoot.set(false)
+            return try {
+                val p = ProcessBuilder("su").redirectErrorStream(true).start()
+                val w = BufferedWriter(OutputStreamWriter(p.outputStream))
+                val ready = CountDownLatch(1)
+                Thread {
+                    try {
+                        p.inputStream.bufferedReader().forEachLine { line ->
+                            if (line.contains("uid=0")) shellIsRoot.set(true)
+                            if (line.contains("onnow_root_ready")) ready.countDown()
+                            Log.v(TAG, "shell: $line")
+                        }
+                    } catch (_: Throwable) { /* pipe closed */ }
+                }.apply { isDaemon = true }.start()
+                w.write("id; echo onnow_root_ready\n")
+                w.flush()
+                // Generous wait — the superuser manager may be showing
+                // its grant dialog right now (first use after boot).
+                ready.await(25, TimeUnit.SECONDS)
+                if (shellIsRoot.get() && p.isAlive) {
+                    shellProcess = p
+                    shellWriter = w
+                    Log.i(TAG, "persistent root shell opened")
+                    true
+                } else {
+                    try { p.destroy() } catch (_: Throwable) {}
+                    false
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "failed to open persistent su shell", t)
+                false
+            }
         }
+    }
+
+    /** Write one command line into the persistent root shell,
+     *  reopening it once if the pipe has died. */
+    private fun shellExec(line: String): Boolean {
+        synchronized(shellLock) {
+            repeat(2) { attempt ->
+                if (ensureShell()) {
+                    try {
+                        shellWriter!!.write(line)
+                        shellWriter!!.write("\n")
+                        shellWriter!!.flush()
+                        return true
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "shell write failed (attempt ${attempt + 1})", t)
+                        try { shellProcess?.destroy() } catch (_: Throwable) {}
+                        shellProcess = null
+                        shellWriter = null
+                        shellIsRoot.set(false)
+                    }
+                }
+            }
+            return false
+        }
+    }
+
+    /** Root probe backed by the persistent shell — triggers at most
+     *  ONE superuser prompt per launcher process. */
+    fun isRootAvailable(): Boolean {
+        cachedHasRoot?.let { if (it) return true }
+        val hasRoot = ensureShell()
+        cachedHasRoot = hasRoot
+        return hasRoot
     }
 
     /**
@@ -214,19 +290,14 @@ object RootApkInstaller {
         val rootCmd = "nohup setsid sh -c '$script' </dev/null >/dev/null 2>&1 &"
 
         return try {
+            // v2.12.9 — Ride the persistent root shell instead of
+            // spawning a fresh `su` per install, so the superuser
+            // manager doesn't prompt on every update click.  The
+            // `nohup setsid … &` payload still fully detaches, so
+            // the install survives the launcher being SIGKILLed
+            // mid-update.
             Log.i(TAG, "launching detached root install for $packageName")
-            val p = ProcessBuilder("su").redirectErrorStream(true).start()
-            p.outputStream.bufferedWriter().use { w ->
-                w.write(rootCmd)
-                w.newLine()
-                w.write("exit\n")
-                w.flush()
-            }
-            // Wait briefly for the `nohup … &` to detach, then return.
-            // Don't waitFor() the whole process — pm install can take
-            // 5-30s and the system will SIGKILL us before then.
-            try { p.waitFor() } catch (_: InterruptedException) {}
-            true
+            shellExec(rootCmd)
         } catch (t: Throwable) {
             Log.e(TAG, "root install failed to launch", t)
             false

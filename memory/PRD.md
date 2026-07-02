@@ -7169,3 +7169,50 @@ scrubbing slow, skip-next replaying same episode.
   on-device verification: (1) Vesper tile update → 3-button dialog;
   other tiles → no dialog; (2) Tunes track resolve via newpipe source
   (googlevideo URL in HTML5 audio), not youtube-iframe.
+
+---
+
+## Session: 2026-07-02 (part 2) — V2 Music fixes + Launcher su-prompt fix
+
+### 1. Music login must not route to Vesper profiles (user bug) ✅
+- `LoginScreen.jsx`: after login in music context → `navigate('/music')`,
+  never `/profiles`.  New `isMusicApp()` in `lib/profiles.js` (hash
+  `#/music` or path `/music`).
+- Music login branding: eyebrow "ON NOW · V2 MUSIC", sub "Sign in to
+  your account to start listening." (no Vesper wording).
+- Verified via Playwright: login at /music stays at /music.
+
+### 2. Artist / genre 404s (user bug) ✅
+- ROOT CAUSES: (a) home hero "More Info" navigated with PREFIXED slide
+  ids (`album-123` / `artist-45`) → API 404; (b) GenreTile linked to
+  `/music/genre/:id` but NO route/page existed → blank page.
+- FIXES: strip prefixes in MusicHome hero nav; defensive prefix strip
+  in MusicArtist/MusicAlbum useParams; NEW `MusicGenre.jsx` page +
+  `genre/:id` route in App.js (round artist tiles, reuses tunes-tile
+  CSS); GenreTile passes genre name via Link state.
+- Verified: artist page, genre page (20 artists), hero More Info all OK.
+
+### 3. Superuser prompt on every update (user bug) ✅
+- `RootApkInstaller.kt`: replaced per-install `su` spawns with ONE
+  persistent root shell (pattern copied from RootInputDispatcher).
+  `isRootAvailable()` + `install()` both ride the same pipe → at most
+  one grant prompt per launcher boot.  Detached `nohup setsid …`
+  payload unchanged.  kotlinc syntax check: 0 errors.
+
+### 4. Music keeps playing after HOME/BACK exit (user bug) ✅
+- Tunes `MainActivity.kt`: `onStop()` → JS pause (`__musicEngine`
+  pause + audio + yt.pauseVideo + all DOM audio/video), then
+  `webView.onPause()` + `pauseTimers()`.  `onStart()` resumes WebView
+  but does NOT auto-resume playback.  kotlinc: 0 errors.
+
+### 5. "ON NOW V2 🎶" splash for Music (user request) ✅
+- `BootSplash.jsx`: music context renders wordmark "ON NOW V2 🎶" and
+  tagline "Welcome to ON NOW V2 Music" — same design/animation as the
+  Vesper (V2) and Kids (K2) splashes.  Verified via Playwright.
+
+### Testing
+- All frontend flows Playwright-verified on localhost:3000 (external
+  preview edge was stuck on "resting" page; in-pod curl/browser fine).
+- Native files: kotlinc 2.0.21 syntax checks passed (kotlinc installed
+  at /tmp/kotlinc/bin/kotlinc).
+- REQUIRES APK rebuild (Tunes + Launcher) for on-device verification.

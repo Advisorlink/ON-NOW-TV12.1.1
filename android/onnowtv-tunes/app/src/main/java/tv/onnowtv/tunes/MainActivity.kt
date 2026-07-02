@@ -137,5 +137,38 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // v2.12.9 — Kill the audio when the app leaves the foreground
+    // (HOME button, or the final BACK that finishes the activity).
+    // Without this the WebView keeps playing music behind the
+    // launcher's home screen.
+    override fun onStop() {
+        super.onStop()
+        if (::webView.isInitialized) {
+            webView.evaluateJavascript(
+                "(function(){try{" +
+                    "var e=window.__musicEngine;" +
+                    "if(e){try{e.pause()}catch(x){}" +
+                    "try{e.audio&&e.audio.pause()}catch(x){}" +
+                    "try{e.yt&&e.yt.pauseVideo&&e.yt.pauseVideo()}catch(x){}}" +
+                    "var m=document.querySelectorAll('audio,video');" +
+                    "for(var i=0;i<m.length;i++){try{m[i].pause()}catch(x){}}" +
+                    "}catch(x){}})();",
+                null,
+            )
+            webView.onPause()
+            webView.pauseTimers()
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (::webView.isInitialized) {
+            // Resume the WebView itself but do NOT auto-resume
+            // playback — the user presses play again if they want it.
+            webView.resumeTimers()
+            webView.onResume()
+        }
+    }
+
     private lateinit var webView: WebView
 }

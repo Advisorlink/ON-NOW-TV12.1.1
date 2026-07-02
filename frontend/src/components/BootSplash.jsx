@@ -20,12 +20,17 @@
  *     at 2200ms hard so a broken signal never costs real time.
  */
 import React, { useEffect, useState } from 'react';
-import { isKidsApp } from '@/lib/profiles';
+import { isKidsApp, isMusicApp } from '@/lib/profiles';
 
 export default function BootSplash({ minDurationMs = 1800, hardCapMs = 2200 }) {
     const kids = isKidsApp();
+    // v2.12.9 — Music splash: same design, wordmark reads
+    // "ON NOW V2 🎶" and the tagline welcomes to V2 Music.
+    const music = !kids && isMusicApp();
     const accentMark = kids ? 'K2' : 'V2';
-    const tagline    = kids ? 'Welcome to ON\u00A0NOW\u00A0Kids' : 'Welcome to ON\u00A0NOW\u00A0V2';
+    const tagline    = kids ? 'Welcome to ON\u00A0NOW\u00A0Kids'
+        : music ? 'Welcome to ON\u00A0NOW\u00A0V2\u00A0Music'
+        : 'Welcome to ON\u00A0NOW\u00A0V2';
     // Sunshine-yellow accent for Kids, the existing cyan for V2.
     const accentColor       = kids ? '#FFD24A' : 'var(--vesper-blue-bright, #5DC8FF)';
     const accentGlow24      = kids ? 'rgba(255,210,74,0.55)' : 'rgba(93,200,255,0.55)';
@@ -106,6 +111,18 @@ export default function BootSplash({ minDurationMs = 1800, hardCapMs = 2200 }) {
                 >
                     {accentMark}
                 </span>
+                {music && (
+                    <span
+                        aria-hidden="true"
+                        style={{
+                            fontSize: '0.62em',
+                            textShadow: 'none',
+                            transform: 'translateY(-0.08em)',
+                        }}
+                    >
+                        {'\u{1F3B6}'}
+                    </span>
+                )}
             </div>
 
             {/* Animated underline — a clean horizontal sweep, no

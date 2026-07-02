@@ -27,13 +27,18 @@ function fmtDur(secs) {
 }
 
 export default function MusicArtist() {
-    const { id } = useParams();
+    const { id: rawId } = useParams();
+    // v2.12.9 — Defensive: some callers (hero slides, old saved
+    // library entries) carry an "artist-" prefixed id.  The API
+    // wants the bare numeric Deezer id.
+    const id = String(rawId || '').replace(/^artist-/, '');
     const [data, setData] = useState(null);
     const [err, setErr] = useState(null);
     const { controls } = useMusicPlayer();
 
     useEffect(() => {
         setData(null);
+        setErr(null);
         musicAPI.artist(id).then((r) => setData(r.data || r)).catch((e) => setErr(e.message || 'failed'));
     }, [id]);
 

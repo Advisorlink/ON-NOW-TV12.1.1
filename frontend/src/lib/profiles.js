@@ -290,6 +290,22 @@ export function isKidsApp() {
     return window.__vesperBootProfileKids === true;
 }
 
+/**
+ * v2.12.9 — True when running inside the ON NOW V2 Music context:
+ * either the standalone Tunes APK (boots the SPA at `#/music`) or a
+ * browser sitting on a `/music` route.  Used for music-specific
+ * login branding, post-login routing (never bounce to Vesper's
+ * /profiles picker) and the "ON NOW V2 🎶" boot splash.
+ */
+export function isMusicApp() {
+    if (typeof window === 'undefined') return false;
+    try {
+        if (window.location.hash.startsWith('#/music')) return true;
+        if (window.location.pathname.startsWith('/music')) return true;
+    } catch { /* ignore */ }
+    return false;
+}
+
 /** True if this profile requires a PIN before it can be made active. */
 export function profileHasPin(p) {
     return !!(p && p.pin && p.pin.length === 4);

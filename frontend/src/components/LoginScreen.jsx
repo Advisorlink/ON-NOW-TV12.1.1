@@ -16,6 +16,7 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2, Lock, User, LogIn, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { useAuth } from '@/contexts/AuthContext';
+import { isMusicApp } from '@/lib/profiles';
 
 export default function LoginScreen() {
     useSpatialFocus();
@@ -51,9 +52,16 @@ export default function LoginScreen() {
         try {
             await login(u, p);
             // AuthContext flips to "authenticated" → LoginGate unmounts.
-            // We also navigate to /profiles explicitly so the URL is
-            // clean instead of whatever deep link the user landed on.
-            navigate('/profiles', { replace: true });
+            // v2.12.9 — Music context (the standalone Tunes APK boots
+            // at #/music) goes STRAIGHT into the music app after login.
+            // It must never bounce to Vesper's /profiles picker.
+            if (isMusicApp()) {
+                navigate('/music', { replace: true });
+            } else {
+                // We also navigate to /profiles explicitly so the URL is
+                // clean instead of whatever deep link the user landed on.
+                navigate('/profiles', { replace: true });
+            }
         } catch (ex) {
             setErr(ex.message || 'Login failed');
         } finally {
@@ -355,11 +363,19 @@ function Header() {
         if (window.__vesperHostPackage === 'tv.onnowtv.kids') return true;
         return false;
     })();
-    const eyebrow = isKidsContext ? 'ON NOW · KIDS' : 'ON NOW TV · V2';
+    // v2.12.9 — Music-context branding.  The Tunes APK sign-in is
+    // just a plain account login that drops the user straight into
+    // the music app — no Vesper wording, no profiles.
+    const isMusicContext = !isKidsContext && isMusicApp();
+    const eyebrow = isKidsContext ? 'ON NOW · KIDS'
+        : isMusicContext ? 'ON NOW · V2 MUSIC'
+        : 'ON NOW TV · V2';
     const heading = isKidsContext ? 'Welcome, little one' : 'Welcome back';
     const sub = isKidsContext
         ? 'Sign in to start watching shows just for you.'
-        : 'Sign in to your account to access movies, TV shows and your library.';
+        : isMusicContext
+            ? 'Sign in to your account to start listening.'
+            : 'Sign in to your account to access movies, TV shows and your library.';
 
     return (
         <div style={{ animation: 'vesperLoginFade 540ms ease both' }}>

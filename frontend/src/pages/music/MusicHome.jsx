@@ -184,8 +184,11 @@ function MusicHero({ slides }) {
                                     data-focus-style="pill"
                                     tabIndex={0}
                                     onClick={() => {
-                                        if (slide.kind === 'album') navigate(`/music/album/${slide.id}`);
-                                        else if (slide.kind === 'artist') navigate(`/music/artist/${slide.id}`);
+                                        // v2.12.9 — Hero slide ids are PREFIXED ("album-123",
+                                        // "artist-45") — strip before routing, otherwise the
+                                        // detail page fetches /api/music/album/album-123 → 404.
+                                        if (slide.kind === 'album') navigate(`/music/album/${String(slide.id).replace(/^album-/, '')}`);
+                                        else if (slide.kind === 'artist') navigate(`/music/artist/${String(slide.id).replace(/^artist-/, '')}`);
                                     }}
                                     onKeyDown={handleKey}
                                     data-testid={`tunes-hero-info-${slide.id}`}
@@ -394,6 +397,7 @@ function GenreTile({ genre }) {
     return (
         <Link
             to={`/music/genre/${genre.id}`}
+            state={{ name: genre.name }}
             className="tunes-genre-tile"
             data-testid={`tunes-genre-${genre.id}`}
             data-focusable="true"

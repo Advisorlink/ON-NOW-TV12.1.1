@@ -58,6 +58,7 @@ import MusicHome from '@/pages/music/MusicHome';
 import MusicSearch from '@/pages/music/MusicSearch';
 import MusicAlbum from '@/pages/music/MusicAlbum';
 import MusicArtist from '@/pages/music/MusicArtist';
+import MusicGenre from '@/pages/music/MusicGenre';
 import RadioBrowse from '@/pages/music/RadioBrowse';
 import PodcastBrowse from '@/pages/music/PodcastBrowse';
 import PodcastDetail from '@/pages/music/PodcastDetail';
@@ -879,6 +880,7 @@ function App() {
                                     <Route path="karaoke/designs"              element={<KaraokeDesignGallery />} />
                                     <Route path="album/:id"  element={<MusicAlbum />} />
                                     <Route path="artist/:id" element={<MusicArtist />} />
+                                    <Route path="genre/:id"  element={<MusicGenre />} />
                                     <Route path="podcast/:feedUrl" element={<PodcastDetail />} />
                                 </Route>
                                 {/* v2.8.74 — Mobile guest join page (outside
