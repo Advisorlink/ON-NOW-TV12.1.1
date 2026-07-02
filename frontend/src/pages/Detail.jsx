@@ -1408,7 +1408,7 @@ export default function Detail() {
                     cwId: videoId,
                     season: Number(partySeason),
                     episode: Number(partyEpisode),
-                });
+                }, pool);
             } catch (_e) {
                 seriesPartyFiredRef.current = false;
                 autoplayFiredRef.current = false;
@@ -1418,7 +1418,7 @@ export default function Detail() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [partyCode, autoplayRequested, episodeAutoplayRequested, type, partySeason, partyEpisode, id, meta]);
 
-    const playStream = async (stream, episodeOverride = null) => {
+    const playStream = async (stream, episodeOverride = null, streamsOverride = null) => {
         const mode = streamMode(stream);
         /* v2.7.20 — Persist which stream the user is currently
          * playing so the picker can mark it as "CURRENT" on
@@ -1661,8 +1661,17 @@ export default function Detail() {
                     // EasyNews++ 1080p → Torrentio 1080p → …) so the
                     // player's buffer-stall auto-advance walks the
                     // list in priority order.
-                    streamsList: orderedStreams,
-                    currentStreamIdx: orderedStreams.findIndex((s) => s === stream),
+                    // v2.13.4 — For series deep-link/party autoplay the
+                    // component-level `streams` state is EMPTY (episode
+                    // streams are fetched locally), so use the override
+                    // list the caller just resolved.
+                    streamsList: (streamsOverride && streamsOverride.length)
+                        ? orderStreams(streamsOverride)
+                        : orderedStreams,
+                    currentStreamIdx: ((streamsOverride && streamsOverride.length)
+                        ? orderStreams(streamsOverride)
+                        : orderedStreams
+                    ).findIndex((s) => s === stream),
                 })
             ) {
                 if (partyCode) partyBreadcrumb('playStream:native-launched', {});

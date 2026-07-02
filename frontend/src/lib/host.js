@@ -53,12 +53,13 @@ const Host = (() => {
         partyWsUrl,
         partyAvatarEmoji,  // single emoji char ('🦁') used for reactions
         partyDisplayName,  // 'Mum', 'Test', etc.
-        // v2.7.25 — Alternate streams + current index for the
-        // in-player stream picker overlay.  Pressing MENU/INFO
-        // inside the player shows the list; OK swaps without
-        // leaving the player.
+        // v2.7.25 — Alternate streams for the in-player stream
+        // picker overlay.  Pressing MENU/INFO inside the player
+        // shows the list; OK swaps without leaving the player.
+        // v2.13.4 — the current index is recomputed here by URL
+        // match after filtering out unplayable torrent entries.
         streamsList,
-        currentStreamIdx,
+        currentStreamIdx, // eslint-disable-line no-unused-vars
     } = {}) => {
         if (!url) return false;
         // Internal libVLC player (native, every codec, in-app).
@@ -99,54 +100,30 @@ const Host = (() => {
         // + alternate-streams payload for the in-player picker).
         if (isAndroid && typeof a.playInternalRichV2 === 'function') {
             try {
-                /* v2.10.99 — Convert torrent streams (infoHash, no
-                 * `url`) into magnet: URIs INLINE before posting to
-                 * the native bridge.  Critical bug fix: previously
-                 * we serialised `url: s.url || ''` for every entry,
-                 * which left torrent streams with an empty `url`.
-                 * The native ExoPlayerActivity drops every empty-
-                 * URL entry on parse — so for any TV episode whose
-                 * sources are 100% Torrentio (the common case — e.g.
-                 * "Spider-Noir S1E4" the operator reported), the
-                 * resulting streamList ends up EMPTY, which hides
-                 * the Choose Links pill (`hasStreams = list.size > 1`).
-                 *
-                 * Build the magnet here so the picker shows EVERY
-                 * stream regardless of mode, and so when the user
-                 * picks a torrent the native VLC fallback gets a
-                 * playable magnet: URL.
-                 */
-                const toMagnet = (s) => {
-                    if (!s || !s.infoHash) return '';
-                    const name = s.name || s.title || title || 'video';
-                    const trackers = Array.isArray(s.sources)
-                        ? s.sources
-                            .filter((t) => typeof t === 'string' && t.startsWith('tracker:'))
-                            .map((t) => `&tr=${encodeURIComponent(t.slice('tracker:'.length))}`)
-                            .join('')
-                        : '';
-                    return `magnet:?xt=urn:btih:${s.infoHash}&dn=${encodeURIComponent(name)}${trackers}`;
-                };
-                const streamsJson = Array.isArray(streamsList) && streamsList.length > 0
-                    ? JSON.stringify(streamsList.map((s) => ({
-                        label: ((s.title || s.name || '(untitled)') + '').slice(0, 200),
-                        url: s.url || toMagnet(s) || '',
-                        infoHash: s.infoHash || null,
-                        // v2.7.33 — propagate the English flag the
-                        // backend stamped on each stream, so the
-                        // native in-player picker can render a
-                        // 🇬🇧 ENGLISH chip.
-                        isEnglish: !!s._is_english,
-                        // v2.7.48 — propagate the addon source tag
-                        // (TORRENTIO / MEDIAFUSION / COMET / PLEXIO /
-                        // …) + quality label + Premiumize-cached flag
-                        // so the native picker can show the same
-                        // chips the React picker does.
-                        addonSource: s._addon_source || '',
-                        quality: s._quality_label || '',
-                        pmCached: !!s._pm_cached,
-                    })))
-                    : '';
+                /* v2.13.4 — The picker must ONLY list streams that can
+                 * actually play.  Torrent entries (magnet:/infoHash —
+                 * i.e. NOT debrid-cached) can never play on the box:
+                 * libvlc-all 3.6.0 ships no bittorrent demuxer and
+                 * ExoPlayer can't ingest magnets either, so picking
+                 * one just buffered forever (the "swap stream does
+                 * nothing" bug).  Keep http(s) URLs only (direct +
+                 * Premiumize-cached torrents) and recompute the
+                 * current index against the filtered list by URL. */
+                const rows = Array.isArray(streamsList)
+                    ? streamsList
+                        .map((s) => ({
+                            label: ((s.title || s.name || '(untitled)') + '').slice(0, 200),
+                            url: s.url || '',
+                            infoHash: s.infoHash || null,
+                            isEnglish: !!s._is_english,
+                            addonSource: s._addon_source || '',
+                            quality: s._quality_label || '',
+                            pmCached: !!s._pm_cached,
+                        }))
+                        .filter((e) => /^https?:\/\//i.test(e.url))
+                    : [];
+                const streamsJson = rows.length > 0 ? JSON.stringify(rows) : '';
+                const curIdx = rows.findIndex((e) => e.url === url);
                 a.playInternalRichV2(
                     url,
                     title || '',
@@ -162,7 +139,7 @@ const Host = (() => {
                     typeof startAtMs === 'number' ? Math.floor(startAtMs) : 0,
                     cwId || '',
                     streamsJson,
-                    typeof currentStreamIdx === 'number' ? currentStreamIdx : -1
+                    curIdx
                 );
                 return true;
             } catch {

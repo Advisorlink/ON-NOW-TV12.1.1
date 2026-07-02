@@ -244,6 +244,9 @@ export function getActiveProfileId() {
 export function setActiveProfile(id) {
     try {
         localStorage.setItem(keyActive(), id);
+        // v2.13.4 — also write the unsuffixed key so profileScope.js
+        // and pre-auth-hydration reads resolve the profile instantly.
+        localStorage.setItem(BASE_ACTIVE, id);
     } catch {
         /* ignore */
     }
@@ -254,6 +257,7 @@ export function setActiveProfile(id) {
 export function clearActiveProfile() {
     try {
         localStorage.removeItem(keyActive());
+        localStorage.removeItem(BASE_ACTIVE);
     } catch {
         /* ignore */
     }

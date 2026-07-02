@@ -300,7 +300,7 @@ export default function SeriesEpisodes({
                     cached.streams.find((s) => streamMode(s) === 'direct') ||
                     cached.streams[0];
                 if (cand) {
-                    playStream(cand, ep);
+                    playStream(cand, ep, cached.streams);
                     return;
                 }
                 // No playable stream at all — fall back to opening
@@ -336,7 +336,7 @@ export default function SeriesEpisodes({
                     streamsArr.find((s) => streamMode(s) === 'direct') ||
                     streamsArr[0];
                 if (cand) {
-                    playStream(cand, ep);
+                    playStream(cand, ep, streamsArr);
                 } else {
                     setLaunchingEp(null);
                     if (launchTimerRef.current) {
@@ -364,7 +364,7 @@ export default function SeriesEpisodes({
         }
     };
 
-    const playStream = async (stream, ep) => {
+    const playStream = async (stream, ep, streamsOverride = null) => {
         const mode = streamMode(stream);
         if (mode === 'direct' || mode === 'torrent') {
             // Resolve the playable URL — direct streams carry a
@@ -420,7 +420,15 @@ export default function SeriesEpisodes({
             // just movies.  The picker lets the viewer swap streams
             // without leaving the player (essential when a stream
             // buffers or breaks mid-watch).
-            const epStreams = (episodeStreams[ep.id]?.streams) || [];
+            // v2.13.4 — `streamsOverride` carries the freshly-fetched
+            // episode list.  On the FIRST play of an episode the
+            // `episodeStreams` state hasn't re-rendered yet (stale
+            // closure), which used to serialise an EMPTY picker
+            // payload — no "Swap Stream" on TV shows until replay.
+            const epStreams =
+                (streamsOverride && streamsOverride.length
+                    ? streamsOverride
+                    : episodeStreams[ep.id]?.streams) || [];
             const ordered = orderStreams(epStreams);
             const currentIdx = ordered.findIndex((s) => s === stream);
             if (

@@ -14,14 +14,35 @@
  */
 
 const ACTIVE_KEY = 'onnowtv-active-profile-v1';
+const AUTH_ACCOUNT_KEY = 'vesper-auth-account-v1';
+
+/* v2.13.4 — profiles.js suffixes the active-profile key with the
+ * signed-in account (`onnowtv-active-profile-v1:USERNAME`).  This
+ * module used to read ONLY the unsuffixed key, so whenever a user
+ * was signed in every scoped read resolved to ':global' — per-profile
+ * themes, viewing-style picks and continue-watching were silently
+ * shared/lost.  Mirror the same suffix logic here (kept inline so
+ * the module stays import-free). */
+function accountSuffix() {
+    try {
+        const raw = localStorage.getItem(AUTH_ACCOUNT_KEY);
+        if (!raw) return '';
+        const u = (JSON.parse(raw) || {}).username || '';
+        return u ? ':' + String(u).replace(/[^A-Za-z0-9_-]+/g, '_') : '';
+    } catch {
+        return '';
+    }
+}
 
 export function activeProfileId() {
     try {
-        return (
-            (typeof localStorage !== 'undefined' &&
-                localStorage.getItem(ACTIVE_KEY)) ||
-            'global'
-        );
+        if (typeof localStorage === 'undefined') return 'global';
+        const suffix = accountSuffix();
+        if (suffix) {
+            const v = localStorage.getItem(ACTIVE_KEY + suffix);
+            if (v) return v;
+        }
+        return localStorage.getItem(ACTIVE_KEY) || 'global';
     } catch {
         return 'global';
     }
@@ -61,6 +82,21 @@ export function readScopedString(baseKey) {
                 localStorage.removeItem(baseKey);
             } catch { /* ignore */ }
             return legacy;
+        }
+        // v2.13.4 promotion: before the account-suffix fix above, all
+        // scoped data landed under ':global' even with a profile
+        // active.  Claim it once for the first real profile that
+        // reads the key so nobody loses continue-watching/library.
+        const globalKey = `${baseKey}:global`;
+        if (scopedKey !== globalKey) {
+            const g = localStorage.getItem(globalKey);
+            if (g !== null) {
+                try {
+                    localStorage.setItem(scopedKey, g);
+                    localStorage.removeItem(globalKey);
+                } catch { /* ignore */ }
+                return g;
+            }
         }
         return null;
     } catch {
