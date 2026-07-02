@@ -209,6 +209,16 @@ function TunesNav({ theme, onThemeChange }) {
 export default function MusicLayout() {
     useSpatialFocus();
 
+    const rootRef = useRef(null);
+    const { pathname } = useLocation();
+    // Route change → always open the new page from the very top.
+    // .tunes-root is the app's canonical scroll container and React
+    // Router preserves its scrollTop across navigations, which made
+    // Artist/Album pages open "halfway down the screen".
+    useEffect(() => {
+        if (rootRef.current) rootRef.current.scrollTop = 0;
+    }, [pathname]);
+
     const [theme, setTheme] = useState(() => readStoredTheme());
     const changeTheme = (next) => {
         if (next !== 'pink' && next !== 'electric-blue') return;
@@ -236,6 +246,7 @@ export default function MusicLayout() {
 
     return (
         <div
+            ref={rootRef}
             className="tunes-root"
             data-theme={theme}
             data-testid="music-layout"

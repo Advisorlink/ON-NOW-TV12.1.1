@@ -42,6 +42,17 @@ export default function MusicArtist() {
         musicAPI.artist(id).then((r) => setData(r.data || r)).catch((e) => setErr(e.message || 'failed'));
     }, [id]);
 
+    // Prime D-pad focus on the Play button once the page renders so
+    // the user lands "right at the top" of the artist page.
+    useEffect(() => {
+        if (!data) return;
+        const btn = document.querySelector('[data-testid="tunes-artist-play"]');
+        if (btn) {
+            btn.focus({ preventScroll: true });
+            btn.setAttribute('data-focused', 'true');
+        }
+    }, [data]);
+
     if (err) return <div className="tunes-empty">Couldn&apos;t load artist — {err}</div>;
     if (!data) return <div className="tunes-empty">Loading…</div>;
 

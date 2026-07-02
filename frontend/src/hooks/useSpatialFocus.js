@@ -561,6 +561,14 @@ export default function useSpatialFocus() {
 
             const vs = verticalScroller(el) || document.scrollingElement;
             if (!vs) return;
+            // Nav-rail isolation: focus moving inside the side-nav
+            // must NEVER scroll a container outside the rail.  When
+            // the rail fits the viewport, verticalScroller() walks
+            // past it and resolves to the page scroller (.tunes-root)
+            // — the row-pin below was then dragging the main content
+            // up/down while the user just moved along the rail.
+            const navRoot = el.closest(NAV_RAIL);
+            if (navRoot && !navRoot.contains(vs)) return;
             // Opt-out: containers marked with `data-no-row-snap` skip
             // the vertical row-pin scroll entirely.  Used by the
             // Detail page (Cast row, Recommendations row) where the
@@ -703,6 +711,10 @@ export default function useSpatialFocus() {
                 }
             } else if (dir === 'up') {
                 const vs = verticalScroller(active) || document.scrollingElement;
+                // Nav-rail isolation — Up at the top of the side-nav
+                // must not reset the page scroller behind it.
+                const navRoot = active.closest(NAV_RAIL);
+                if (navRoot && vs && !navRoot.contains(vs)) return;
                 if (vs && vs.scrollTop > 0) {
                     vs.scrollTo({ top: 0, behavior: 'auto' });
                 }
@@ -711,6 +723,10 @@ export default function useSpatialFocus() {
                 // retry on the following frame.
                 const vs = verticalScroller(active) || document.scrollingElement;
                 if (!vs) return;
+                // Nav-rail isolation — Down at the bottom of the
+                // side-nav must not drag the page scroller down.
+                const navRootDown = active.closest(NAV_RAIL);
+                if (navRootDown && !navRootDown.contains(vs)) return;
                 const before = vs.scrollTop;
                 const chunk = Math.max(
                     260,

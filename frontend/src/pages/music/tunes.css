@@ -2561,14 +2561,29 @@
 
 .tunes-artist-hero {
     display: grid;
-    grid-template-columns: clamp(140px, 14vw, 200px) 1fr;
+    grid-template-columns: clamp(110px, 10vw, 150px) 1fr;
     gap: clamp(20px, 2.5vw, 36px);
     align-items: center;
-    margin-bottom: clamp(20px, 2.5vh, 36px);
+    margin-bottom: clamp(16px, 2vh, 28px);
+    /* Sticky header — the artist identity stays pinned to the top
+       of the scrollport while Popular / Discography scroll
+       underneath it.  Background is solid at the top and melts to
+       transparent along the last few px so rows slide under with a
+       soft fade instead of a hard clip line. */
+    position: sticky;
+    top: 0;
+    z-index: 12;
+    padding: clamp(14px, 1.8vh, 22px) 0 clamp(16px, 2vh, 24px);
+    background: linear-gradient(
+        180deg,
+        var(--vesper-bg-0) 0%,
+        var(--vesper-bg-0) 84%,
+        transparent 100%
+    );
 }
 .tunes-artist-hero__photo {
-    width: clamp(140px, 14vw, 200px);
-    height: clamp(140px, 14vw, 200px);
+    width: clamp(110px, 10vw, 150px);
+    height: clamp(110px, 10vw, 150px);
     object-fit: cover;
     border-radius: 50%;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.55);
@@ -2678,6 +2693,8 @@
 .tunes-artist-albums {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 16px;
+}
 
 /* =============================================================
  * v2.8.78 — Silent Spotlight (karaoke challenge)
@@ -2758,8 +2775,6 @@
     }
 }
 
-    gap: 16px;
-}
 .tunes-artist-albumcard {
     display: block;
     background: transparent;

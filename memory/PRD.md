@@ -7312,3 +7312,42 @@ Full step-by-step in android/onnowtv-launcher/LAUNCHER_UPDATE_GUIDE.md.
 - XML validated. API usage matches current PackageInstaller docs.
 - ⚠️ NOT on-device tested (no Android box/SDK in env). Needs operator to
   rebuild APK, provision a box as device owner, and confirm silent update.
+
+---
+
+## Session: 2026-07-02 (part 6) — Tunes UI rollback restoration (P0)
+
+### User report (post-rollback regressions in the Music app)
+1. Moving up/down the side rail scrolled the MAIN content on the right.
+2. Artist pages opened "halfway down the screen".
+3. Artist header was meant to be STICKY (pinned top, content scrolls under).
+
+### Root causes found
+- `tunes.css` was CORRUPTED by the rollback: a karaoke Silent-Spotlight
+  block was spliced INSIDE the `.tunes-artist-albums` rule (unclosed
+  brace at ~L2680, orphaned `gap:16px;}` at ~L2761) — the browser
+  dropped ~80 lines of rules (album grid gap + spotlight styles).
+- `useSpatialFocus.js`: `verticalScroller()` for nav items resolves to
+  `.tunes-root` (the page scroller) whenever the rail fits the
+  viewport → row-pin scroll + edge-of-nav Up/Down fallbacks dragged
+  the main content while focus moved inside the rail.
+- React Router preserves `.tunes-root` scrollTop across navigations →
+  artist/album pages opened at the previous page's scroll offset.
+
+### Fixes (NewPipe/media pipeline untouched)
+- `tunes.css`: repaired the splice; `.tunes-artist-hero` now
+  `position: sticky; top: 0; z-index: 12` with solid→transparent
+  bottom-fade bg; photo compacted to clamp(110px,10vw,150px) so pinned
+  focus rows clear the header.
+- `useSpatialFocus.js`: nav-rail scroll isolation — when focus is
+  inside NAV_RAIL and the resolved scroller is OUTSIDE the rail, skip
+  row-pin AND the up/down edge fallbacks (3 guards, additive only).
+- `MusicLayout.jsx`: rootRef + scrollTop=0 on every pathname change.
+- `MusicArtist.jsx`: primes D-pad focus on the Play button once data
+  loads (focus({preventScroll:true}) + data-focused attr).
+
+### Testing (screenshot tool, testuser/testpass123)
+- Artist /music/artist/13: opens scrollTop=0, focus=tunes-artist-play ✅
+- 14x Down: content scrolls (row-pin OK), hero top=0 position:sticky ✅
+- 20x Up/Down in nav rail across BOTH edges: content scrollTop frozen
+  at 1220 the whole time; rail expand + focus walk works ✅
