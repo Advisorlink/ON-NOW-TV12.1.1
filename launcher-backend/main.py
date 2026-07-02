@@ -1417,12 +1417,22 @@ def _v2ai_fast_intent(transcript: str) -> Optional[dict]:
 
     # "recommend …" / "what should i watch …"
     if re.search(_RECOMMEND_RX, t):
-        mood_match = re.search(r"(?:something|anything)\s+(\w+(?:\s+\w+)?)", t)
-        mood = mood_match.group(1).strip() if mood_match else None
+        # v2.13.2 — QUALIFIED asks ("recommend some good WESTERN
+        # movies", "suggest something scary") must fall through to
+        # GPT for genre/mood-aware picks — the fast stub previously
+        # swallowed the qualifier and the trending fill served
+        # unrelated titles.  Only truly generic asks stay fast.
+        leftover = re.sub(_RECOMMEND_RX, " ", t)
+        leftover = re.sub(
+            r"\b(?:me|us|some|any|thing|something|anything|a|an|the|few|good|great|really|very|nice|cool|new|movies?|films?|shows?|series|tv|to|watch|see|for|us|tonight|now|today|please|can|you)\b",
+            " ", leftover)
+        leftover = re.sub(r"[^a-z0-9]+", " ", leftover).strip()
+        if leftover:
+            return None
         return {
             "intent": "recommend",
-            "mood": mood,
-            "speech_reply": f"Here are some {mood} picks." if mood else "Here are a few picks for you.",
+            "mood": None,
+            "speech_reply": "Here are a few picks for you.",
         }
 
     # "open <app>" — capture trailing text as app name.

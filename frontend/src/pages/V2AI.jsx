@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { API } from '@/lib/api';
-import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 
 /**
@@ -220,9 +219,7 @@ export default function V2AI() {
         return () => { cancelled = true; };
     }, []);
 
-    const bgUrl = cfg?.background_image_url
-        ? `${API}/v2ai/asset?path=${encodeURIComponent(cfg.background_image_url)}`
-        : null;
+    const bgUrl = '/v2ai-bg.png';
     const holdVisible = cfg ? cfg.hold_button_visible !== false : true;
     const holdImageUrl = cfg?.hold_button_image_url
         ? `${API}/v2ai/asset?path=${encodeURIComponent(cfg.hold_button_image_url)}`
@@ -317,37 +314,25 @@ export default function V2AI() {
         }
     }, [handleParsed]);
 
-    /* ─────────── voice capture ─────────── */
-    const voiceSearchFallback = useCallback(async () => {
-        try {
-            setPhase('recording');
-            setStatus('Listening…');
-            setHeading('Speaking…');
-            // Race against a hard timeout — the browser Web Speech
-            // fallback can hang forever when no mic exists (its
-            // `onend` fires without resolving), which left the page
-            // stuck on "Listening…".
-            const text = await Promise.race([
-                Host.voiceSearch(),
-                new Promise((_, rej) =>
-                    setTimeout(() => rej(new Error('timeout')), 12_000)),
-            ]);
-            await submitText(text);
-        } catch (e) {
-            setPhase('idle');
-            setHeading(standbyHintRef.current);
-            setStatus(
-                e && e.message === 'unsupported'
-                    ? 'Microphone unavailable on this device.'
-                    : "I didn't catch that — hold OK and try again.",
-            );
-        }
-    }, [submitText]);
+    /* ─────────── voice capture ───────────
+       v2.13.2 — mic capture ONLY.  The old Host.voiceSearch()
+       fallback opened Android's Google speech dialog on the box —
+       user explicitly does not want that.  On failure we show a
+       clear status instead. */
+    const micUnavailable = useCallback((err) => {
+        setPhase('idle');
+        setHeading(standbyHintRef.current);
+        setStatus(
+            err && err.name === 'NotAllowedError'
+                ? 'Mic permission needed — allow the microphone for ON NOW TV V2.'
+                : 'Microphone unavailable on this device.',
+        );
+    }, []);
 
     const startRecording = useCallback(async () => {
         if (recorderRef.current || phaseRef.current !== 'idle') return;
         if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-            voiceSearchFallback();
+            micUnavailable(null);
             return;
         }
         try {
@@ -399,16 +384,10 @@ export default function V2AI() {
             }
         } catch (err) {
             cleanupRecorder();
-            if (err && err.name === 'NotAllowedError') {
-                setPhase('idle');
-                setStatus('Mic permission denied');
-                setHeading('Enable microphone in Settings to use V2 AI.');
-            } else {
-                voiceSearchFallback();
-            }
+            micUnavailable(err);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [submitAudio, voiceSearchFallback]);
+    }, [submitAudio, micUnavailable]);
 
     const stopRecording = () => {
         if (!recorderRef.current) return;
@@ -741,6 +720,28 @@ export default function V2AI() {
                     </div>
                 </div>
             )}
+
+            {/* D-pad focus visuals — the spatial engine mirrors
+                focus onto data-focused; make it unmistakable on TV. */}
+            <style>{`
+                .v2ai-card { transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease; outline: none; }
+                .v2ai-card[data-focused="true"],
+                .v2ai-card:focus {
+                    border-color: #A78BFF !important;
+                    box-shadow: 0 0 0 3px rgba(124,92,255,0.9), 0 0 36px rgba(124,92,255,0.5);
+                    transform: scale(1.045);
+                    z-index: 2;
+                }
+                [data-testid="v2ai-ask-again"],
+                [data-testid="v2ai-qa-play"] { outline: none; transition: box-shadow 160ms ease, color 160ms ease; }
+                [data-testid="v2ai-ask-again"][data-focused="true"],
+                [data-testid="v2ai-ask-again"]:focus,
+                [data-testid="v2ai-qa-play"][data-focused="true"],
+                [data-testid="v2ai-qa-play"]:focus {
+                    box-shadow: 0 0 0 3px rgba(124,92,255,0.9), 0 0 24px rgba(124,92,255,0.45);
+                    color: #fff;
+                }
+            `}</style>
         </div>
     );
 }

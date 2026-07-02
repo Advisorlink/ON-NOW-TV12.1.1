@@ -7476,3 +7476,43 @@ voice plays must use the same stream requirements as normal Autoplay.
 6. Verified working already: home shelves D-pad + row pin, album page +
    playback (mini player → full player prev/toggle/next/close), podcasts
    + podcast detail, Australia radio, artist sticky header, instant nav.
+
+---
+
+## Session: 2026-07-02 (part 10) — Box-reported V2AI fixes (all verified)
+
+User reports from REAL TV box: (1) Google voice dialog popped up on
+hold-OK, (2) result cards had no visible focus/couldn't navigate,
+(3) new wallpaper not showing on boxes.
+
+### Root causes + fixes
+1. **Google dialog**: Vesper's WebView grants mic via onPermissionRequest
+   but the APP never requested the RECORD_AUDIO runtime permission →
+   getUserMedia failed on the box → V2AI fell back to Host.voiceSearch
+   (native SpeechRecognizer = Google dialog).
+   - `vesper-tv MainActivity.kt` onCreate: runtime RECORD_AUDIO request
+     (try/catch, sdk≥23). Kotlin set-diff verified: zero new errors.
+   - `V2AI.jsx`: Google-recognizer fallback REMOVED entirely; mic
+     failure → clear status ('Mic permission needed…' /
+     'Microphone unavailable…'). Host import dropped.
+   - Fleet note: pre-grant silently via
+     `pm grant tv.vesper.app android.permission.RECORD_AUDIO`.
+2. **No focus highlight on result cards**: cards had no focus CSS.
+   Added `<style>` in V2AI.jsx: `.v2ai-card[data-focused]/:focus` →
+   purple ring (3px #7C5CFF@.9) + glow + scale(1.045); same for
+   ask-again/qa-play. Verified visually (ring on card, D-pad walk OK).
+3. **Wallpaper on boxes**: page depended on /api/v2ai/config+asset —
+   production backend/launcher-backend not updated → old/no image.
+   New wallpaper now BUNDLED at `frontend/public/v2ai-bg.png` and used
+   directly (ships inside the APK; zero backend dependency). Config
+   still drives heading + hold-badge. Preview launcher-backend data
+   also has the new PNG (production portal upload still recommended
+   for the launcher's native screen).
+4. **Bonus quality fix**: fast-path recommend stub swallowed qualifiers
+   ("western") → trending shown. Now qualified asks fall through to
+   GPT: "recommend some good western movies" → True Grit, Unforgiven,
+   Django Unchained… (verified); generic asks keep the fast trending
+   fill (20 recs).
+
+NOTE: fixes 1 (Kotlin) + 3 (bundle) reach boxes with the next Vesper
+APK CI build.

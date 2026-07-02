@@ -183,6 +183,23 @@ class MainActivity : AppCompatActivity() {
         // ExoPlayer / WebView <video> actually plays through.
         volumeControlStream = android.media.AudioManager.STREAM_MUSIC
 
+        // v2.13.2 — V2 AI in-app voice capture uses getUserMedia in
+        // the WebView, which silently fails unless the APP holds the
+        // RECORD_AUDIO runtime permission (the onPermissionRequest
+        // grant below is not enough on Android 6+).  Ask once at
+        // boot; fleet boxes can also pre-grant via
+        // `pm grant tv.vesper.app android.permission.RECORD_AUDIO`.
+        if (android.os.Build.VERSION.SDK_INT >= 23 &&
+            checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) !=
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            try {
+                requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 71)
+            } catch (_: Throwable) {
+                // Some AOSP TV builds have no permission UI — ignore.
+            }
+        }
+
         // v2.7.82 SECURITY — FLAG_SECURE blocks the OS from screen-
         // shotting the activity (including from the recents
         // task-switcher, screen-recording APIs, and Chromecast
