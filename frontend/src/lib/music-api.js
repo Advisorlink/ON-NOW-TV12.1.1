@@ -10,6 +10,16 @@ async function jget(path) {
     return r.json();
 }
 
+/* Deezer serves a light-grey person silhouette when an artist/album
+ * has no artwork (URL has an empty md5 segment, e.g. /images/artist//
+ * 250x250-...jpg).  Treat those as "no picture" so the UI can render
+ * a themed fallback instead of a white blob on the dark theme. */
+export function isRealArt(url) {
+    if (!url) return false;
+    if (url.includes('d41d8cd98f00b204e9800998ecf8427e')) return false;
+    return !/\/images\/\w+\/\//.test(url);
+}
+
 export const musicAPI = {
     home: () => jget('/home'),
     search: (q) => jget(`/search?q=${encodeURIComponent(q)}`),

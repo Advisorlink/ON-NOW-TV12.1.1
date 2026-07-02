@@ -56,7 +56,7 @@ export default function MusicLibrary() {
                     border: '1px solid var(--tunes-glass-border)',
                     marginTop: 40,
                 }}>
-                    <Heart size={48} color="var(--tunes-accent)" style={{ marginBottom: 18 }} />
+                    <Heart size={48} color="var(--tunes-accent)" style={{ display: 'inline-block', marginBottom: 18 }} />
                     <h2 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 8px' }}>No saved music yet</h2>
                     <p style={{ color: 'var(--tunes-text-dim)', maxWidth: 540, margin: '0 auto' }}>
                         Tap the heart on any artist, song, album, or station to start your library — or create a playlist by tapping the "+" icon on a track.

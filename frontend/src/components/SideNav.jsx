@@ -384,15 +384,21 @@ export default function SideNav() {
                     }`}
                 >
                     <span className="flex items-center justify-center w-9 h-9 shrink-0">
-                        <Sparkles
-                            size={20}
-                            strokeWidth={1.7}
+                        <span
+                            className="flex items-center justify-center"
                             style={{
-                                color: activePath === '/v2ai'
-                                    ? 'var(--vesper-blue)'
-                                    : 'currentColor',
+                                width: 26,
+                                height: 26,
+                                borderRadius: 8,
+                                background:
+                                    'linear-gradient(135deg, #7C5CFF 0%, #A78BFF 55%, #FF7AB6 100%)',
+                                boxShadow: activePath === '/v2ai'
+                                    ? '0 0 14px rgba(124,92,255,0.85)'
+                                    : '0 0 8px rgba(124,92,255,0.45)',
                             }}
-                        />
+                        >
+                            <Sparkles size={15} strokeWidth={2.2} color="#FFFFFF" />
+                        </span>
                     </span>
                     <span
                         className="font-sans text-[15px] font-medium overflow-hidden whitespace-nowrap transition-opacity duration-300"

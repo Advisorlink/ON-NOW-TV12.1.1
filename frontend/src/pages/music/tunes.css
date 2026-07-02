@@ -504,6 +504,12 @@
     margin: 0;
     color: var(--vesper-text);
     text-shadow: 0 4px 32px rgba(0, 0, 0, 0.5);
+    /* Long titles (karaoke releases etc.) must never blow the hero
+       past the viewport — clamp to two lines. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 .tunes-hero__title em {
@@ -1935,13 +1941,24 @@
 
 /* Search input */
 .tunes-search-wrap {
+    position: relative;
     padding: 12px var(--tunes-pad-right) 12px var(--tunes-pad-x);
+}
+
+.tunes-search-icon {
+    position: absolute;
+    left: calc(var(--tunes-pad-x) + 20px);
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--vesper-text-3);
+    pointer-events: none;
+    z-index: 1;
 }
 
 .tunes-search-input {
     width: 100%;
     height: 56px;
-    padding: 0 22px;
+    padding: 0 22px 0 58px;
     border-radius: 12px;
     background: var(--vesper-bg-2);
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1963,6 +1980,40 @@
     padding: 60px var(--tunes-pad-x);
     color: var(--vesper-text-2);
     font-size: 16px;
+}
+
+/* Genre / tag chips (Radio + Podcasts browse pages) */
+.tunes-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 6px var(--tunes-pad-right) 20px var(--tunes-pad-x);
+}
+
+.tunes-chip {
+    padding: 8px 18px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    color: var(--vesper-text-2);
+    font-family: 'Geist', system-ui, sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.tunes-chip:hover {
+    background: rgba(255, 255, 255, 0.10);
+    color: var(--vesper-text);
+}
+
+.tunes-chip--active {
+    background: linear-gradient(135deg, var(--tunes-accent), var(--tunes-accent-2));
+    border-color: transparent;
+    color: #fff;
+    font-weight: 700;
 }
 
 .tunes-skel {
@@ -2022,6 +2073,18 @@
 }
 
 .tunes-card__art--round { border-radius: 50%; }
+
+/* Themed fallback for artists with no real photo (Deezer returns a
+   light-grey placeholder that clashes with the dark theme). */
+.tunes-avatar-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(34px, 3vw, 52px);
+    font-weight: 800;
+    color: rgba(255, 255, 255, 0.88);
+    background: linear-gradient(135deg, rgba(255, 45, 127, 0.35), rgba(20, 3, 40, 0.92));
+}
 
 .tunes-card__body { padding: 0; }
 

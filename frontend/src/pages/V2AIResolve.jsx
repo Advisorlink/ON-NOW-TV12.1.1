@@ -57,7 +57,7 @@ export default function V2AIResolve() {
                 const tmdbType = (pick.type === 'tv' || pick.type === 'series') ? 'tv' : 'movie';
                 const tmdbId   = pick.tmdb_id || pick.id;
                 navigate(
-                    `/resolve/${tmdbType}/${tmdbId}?autoplay=1&src=v2ai`,
+                    `/resolve/${tmdbType}/${tmdbId}`,
                     { replace: true },
                 );
             } catch {

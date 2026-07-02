@@ -19,7 +19,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
     Play, Plus, Info, Sun, Moon, Flame, Zap, Heart, Headphones,
 } from 'lucide-react';
-import { musicAPI } from '../../lib/music-api';
+import { musicAPI, isRealArt } from '../../lib/music-api';
 import { useMusicPlayer } from '../../hooks/useMusicPlayer';
 
 /* -- Image helpers --------------------------------------------
@@ -35,9 +35,10 @@ function smallerDeezerUrl(url) {
 const albumCover = (a) => smallerDeezerUrl(
     a?.cover_big || a?.cover_medium || a?.cover || a?.cover_xl || ''
 );
-const artistPic = (a) => smallerDeezerUrl(
-    a?.picture_big || a?.picture_medium || a?.picture || a?.picture_xl || ''
-);
+const artistPic = (a) => {
+    const raw = a?.picture_big || a?.picture_medium || a?.picture || a?.picture_xl || '';
+    return isRealArt(raw) ? smallerDeezerUrl(raw) : '';
+};
 /* Hero uses XL because the image is rendered at full viewport
  * width — XL is still only one image so the decode cost is
  * amortised across the hero's 10 s rotation window. */
@@ -422,7 +423,7 @@ function buildHeroSlides(home) {
     const bestBg = (artist, fallback) => {
         if (artist) {
             const pic = artist.picture_xl || artistsById[artist.id]?.picture_xl;
-            if (pic) return pic;
+            if (pic && isRealArt(pic)) return pic;
         }
         return fallback;
     };

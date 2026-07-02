@@ -121,8 +121,8 @@ function VoiceWaveformCanvas({ listening, analyserRef }) {
             const idlePhase = ((now % 2400) / 2400) * Math.PI * 2;
 
             const grad = ctx.createLinearGradient(0, 0, w, 0);
-            grad.addColorStop(0, '#5DC8FF');
-            grad.addColorStop(0.5, '#2BB6FF');
+            grad.addColorStop(0, '#7C5CFF');
+            grad.addColorStop(0.5, '#A78BFF');
             grad.addColorStop(1, '#FF7AB6');
             ctx.fillStyle = grad;
 
@@ -466,7 +466,10 @@ export default function V2AI() {
     useEffect(() => {
         if (!result) return;
         const t = setTimeout(() => {
-            const first = document.querySelector('[data-testid="v2ai-rec-card-0"], [data-testid="v2ai-qa-play"], [data-testid="v2ai-ask-again"]');
+            const first =
+                document.querySelector('[data-testid="v2ai-rec-card-0"]') ||
+                document.querySelector('[data-testid="v2ai-qa-play"]') ||
+                document.querySelector('[data-testid="v2ai-ask-again"]');
             if (first) {
                 first.focus({ preventScroll: true });
                 first.setAttribute('data-focused', 'true');
@@ -529,16 +532,49 @@ export default function V2AI() {
                     className="relative h-full flex flex-col items-center justify-center"
                     style={{ padding: '36px 48px' }}
                 >
-                    <div
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                    }}
+                >
+                    <span
+                        aria-hidden="true"
+                        data-keep-anim="true"
+                        className="v2ai-orb"
+                        style={{
+                            width: 22,
+                            height: 22,
+                            borderRadius: '50%',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 9,
+                            fontWeight: 800,
+                            color: '#fff',
+                            background:
+                                'radial-gradient(circle at 32% 28%, #B18CFF 0%, #7C5CFF 45%, #4A2FBF 100%)',
+                            boxShadow: '0 0 18px rgba(124,92,255,0.75)',
+                        }}
+                    >
+                        AI
+                    </span>
+                    <span
                         style={{
                             fontFamily: 'monospace',
                             fontSize: 12,
                             letterSpacing: '0.30em',
-                            color: '#5DC8FF',
+                            textTransform: 'uppercase',
+                            background:
+                                'linear-gradient(90deg, #B18CFF 0%, #7C9CFF 55%, #FF7AB6 100%)',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
                         }}
                     >
                         ON NOW TV V2 · V2 AI
-                    </div>
+                    </span>
+                </div>
                     <div style={{ height: 10 }} />
                     <div
                         data-testid="v2ai-big-hint"
@@ -548,14 +584,27 @@ export default function V2AI() {
                             color: '#F4F7FB',
                             letterSpacing: '-0.02em',
                             textAlign: 'center',
-                            textShadow: '0 2px 12px rgba(0,8,20,0.75)',
+                            textShadow:
+                                '0 2px 12px rgba(6,2,22,0.85), 0 0 42px rgba(124,92,255,0.45)',
                             maxWidth: 900,
                         }}
                     >
                         {heading}
                     </div>
                     <div style={{ height: 24 }} />
-                    <VoiceWaveformCanvas listening={phase === 'recording'} analyserRef={analyserRef} />
+                    <div style={{ position: 'relative' }}>
+                        <div
+                            aria-hidden="true"
+                            style={{
+                                position: 'absolute',
+                                inset: '-46px -80px',
+                                background:
+                                    'radial-gradient(ellipse at center, rgba(124,92,255,0.28) 0%, rgba(124,92,255,0.10) 45%, transparent 72%)',
+                                pointerEvents: 'none',
+                            }}
+                        />
+                        <VoiceWaveformCanvas listening={phase === 'recording'} analyserRef={analyserRef} />
+                    </div>
                     <div style={{ height: 16 }} />
                     {holdVisible ? (
                         <>
@@ -580,8 +629,11 @@ export default function V2AI() {
                                     justifyContent: 'center',
                                     fontWeight: 700,
                                     fontSize: 16,
-                                    color: '#04060B',
-                                    background: holdImageUrl ? 'transparent' : '#2BB6FF',
+                                    color: '#FFFFFF',
+                                    background: holdImageUrl
+                                        ? 'transparent'
+                                        : 'linear-gradient(135deg, #7C5CFF 0%, #A78BFF 55%, #FF7AB6 100%)',
+                                    boxShadow: '0 0 34px rgba(124,92,255,0.55)',
                                     padding: 0,
                                     overflow: 'hidden',
                                 }}
@@ -596,14 +648,36 @@ export default function V2AI() {
                     <div
                         data-testid="v2ai-status"
                         style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 10,
                             fontSize: 14,
                             letterSpacing: '0.16em',
-                            color: '#8EA0B7',
+                            color: '#C9CFE3',
                             textAlign: 'center',
-                            textShadow: '0 1px 8px rgba(0,8,20,0.75)',
                             maxWidth: 760,
+                            padding: '10px 26px',
+                            borderRadius: 999,
+                            background: 'rgba(10,6,30,0.55)',
+                            border: '1px solid rgba(124,92,255,0.40)',
+                            boxShadow: '0 0 24px rgba(124,92,255,0.22)',
+                            backdropFilter: 'blur(14px)',
+                            WebkitBackdropFilter: 'blur(14px)',
                         }}
                     >
+                        <span
+                            aria-hidden="true"
+                            style={{
+                                width: 8,
+                                height: 8,
+                                borderRadius: '50%',
+                                flex: '0 0 auto',
+                                background: phase === 'recording' ? '#FF7AB6' : '#7C5CFF',
+                                boxShadow: phase === 'recording'
+                                    ? '0 0 10px rgba(255,122,182,0.9)'
+                                    : '0 0 10px rgba(124,92,255,0.9)',
+                            }}
+                        />
                         {status}
                     </div>
                 </div>

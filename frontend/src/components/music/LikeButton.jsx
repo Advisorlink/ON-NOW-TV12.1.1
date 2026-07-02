@@ -45,9 +45,7 @@ export function LikeButton({
             aria-label={liked ? 'Remove from library' : 'Add to library'}
             title={liked ? 'Remove from library' : 'Add to library'}
             data-testid={`like-${kind}-${item?.id}`}
-            data-focusable="true"
-            data-focus-style="pill"
-            tabIndex={0}
+            tabIndex={-1}
             style={{
                 display: 'inline-flex',
                 alignItems: 'center',

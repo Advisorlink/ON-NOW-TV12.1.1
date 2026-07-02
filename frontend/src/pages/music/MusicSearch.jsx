@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Search as SearchIcon, Radio as RadioIcon, Mic } from 'lucide-react';
-import { musicAPI } from '../../lib/music-api';
+import { musicAPI, isRealArt } from '../../lib/music-api';
 import { useMusicPlayer } from '../../hooks/useMusicPlayer';
 import { LikeButton } from '../../components/music/LikeButton';
 import { AddToPlaylistButton } from '../../components/music/AddToPlaylistButton';
@@ -69,7 +69,10 @@ export default function MusicSearch() {
                         <section className="tunes-section" data-testid="tunes-results-artists">
                             <h2 className="tunes-section__title">Artists</h2>
                             <div className="tunes-grid">
-                                {results.artists.slice(0, 10).map((ar) => (
+                                {[...results.artists]
+                                    .sort((a, b) => (isRealArt(b.picture) ? 1 : 0) - (isRealArt(a.picture) ? 1 : 0))
+                                    .slice(0, 8)
+                                    .map((ar) => (
                                     <div key={ar.id} style={{ position: 'relative' }}>
                                         <Link
                                             to={`/music/artist/${ar.id}`}
@@ -80,7 +83,13 @@ export default function MusicSearch() {
                                             data-testid={`search-artist-${ar.id}`}
                                             style={{ textAlign: 'center' }}
                                         >
-                                            <img src={ar.picture || ''} alt="" className="tunes-card__art tunes-card__art--round" loading="lazy" />
+                                            {isRealArt(ar.picture) ? (
+                                                <img src={ar.picture} alt="" className="tunes-card__art tunes-card__art--round" loading="lazy" />
+                                            ) : (
+                                                <div className="tunes-card__art tunes-card__art--round tunes-avatar-fallback">
+                                                    {(ar.name || '?')[0]}
+                                                </div>
+                                            )}
                                             <div className="tunes-card__body" style={{ textAlign: 'center' }}>
                                                 <p className="tunes-card__title">{ar.name}</p>
                                                 <p className="tunes-card__subtitle">Artist</p>

@@ -59,9 +59,7 @@ export function AddToPlaylistButton({ track, label = false }) {
                 aria-label="Add to playlist"
                 title="Add to playlist"
                 data-testid={`add-to-playlist-${track?.id}`}
-                data-focusable="true"
-                data-focus-style="pill"
-                tabIndex={0}
+                tabIndex={-1}
                 style={{
                     display: 'inline-flex', alignItems: 'center', gap: label ? 8 : 0,
                     padding: label ? '8px 14px' : 8,
