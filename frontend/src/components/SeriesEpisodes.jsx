@@ -12,8 +12,9 @@ import {
 import { Vesper } from '@/lib/api';
 import { API } from '@/lib/api';
 import Host from '@/lib/host';
-import { qualityBadge, qualityTags, toneColors, is1080p } from '@/lib/streamMeta';
-import { orderStreams } from '@/lib/streamOrder';
+import { qualityBadge, qualityTags, toneColors } from '@/lib/streamMeta';
+import { orderStreams, pickAutoplayCandidate } from '@/lib/streamOrder';
+import StreamPickerModal from '@/components/StreamPickerModal';
 import { getAutoplay1080p } from '@/lib/prefs';
 import * as cw from '@/lib/continueWatching';
 
@@ -180,6 +181,8 @@ export default function SeriesEpisodes({
      *   • Cleared on error or by a hard timeout safety net so it
      *     never hangs around if `playStream` never returns. */
     const [launchingEp, setLaunchingEp] = useState(null);
+    // Episode whose movie-style stream picker modal is open.
+    const [pickerEp, setPickerEp] = useState(null);
     const launchTimerRef = useRef(null);
     useEffect(() => () => {
         if (launchTimerRef.current) {
@@ -245,16 +248,19 @@ export default function SeriesEpisodes({
     // 2nd row was the bug we just removed.  See `data-testid=
     // "season-picker"` style block below for the layout change.
 
-    const pickAutoplayCandidate = (streamsArr) => {
+    /* v2.13.6 — Autoplay uses the SAME tiered cascade as movies
+       (shared /lib/streamOrder.js: EasyNews++ 1080p → Torrentio
+       debrid ≤3 GB → EP-STREM/Plexio → any English 1080p).  The
+       fallback walks the ORDERED list and only ever picks something
+       PLAYABLE — never a WatchHub "external" web link, which is what
+       used to silently open nothing and made TV autoplay look dead. */
+    const pickBestPlayable = (streamsArr) => {
         if (!Array.isArray(streamsArr) || streamsArr.length === 0) return null;
-        // User spec: any stream that even mentions "1080" anywhere
-        // in the title/name/description counts as 1080p autoplay.
-        // Prefer direct-mode streams, then fall back to any 1080.
+        const ordered = orderStreams(streamsArr);
         return (
-            streamsArr.find(
-                (s) => streamMode(s) === 'direct' && is1080p(s)
-            ) ||
-            streamsArr.find((s) => is1080p(s)) ||
+            pickAutoplayCandidate(streamsArr) ||
+            ordered.find((s) => streamMode(s) === 'direct') ||
+            ordered.find((s) => streamMode(s) === 'torrent') ||
             null
         );
     };
@@ -292,13 +298,7 @@ export default function SeriesEpisodes({
         const cached = episodeStreams[ep.id];
         if (cached) {
             if (autoplay) {
-                // Pick the best candidate; broaden to first direct
-                // → first stream when no 1080p exists so the user
-                // still lands in the player.
-                const cand =
-                    pickAutoplayCandidate(cached.streams) ||
-                    cached.streams.find((s) => streamMode(s) === 'direct') ||
-                    cached.streams[0];
+                const cand = pickBestPlayable(cached.streams);
                 if (cand) {
                     playStream(cand, ep, cached.streams);
                     return;
@@ -311,6 +311,11 @@ export default function SeriesEpisodes({
                     launchTimerRef.current = null;
                 }
                 setOpenEpisodeId(ep.id);
+            } else if (cached.streams.length > 0) {
+                // Manual mode → the SAME cinematic stream picker the
+                // movie Detail page uses (icons, chips, full scroll).
+                setOpenEpisodeId(null);
+                setPickerEp(ep);
             }
             return;
         }
@@ -331,10 +336,7 @@ export default function SeriesEpisodes({
             // the player when no 1080p exists.  Only if NO
             // stream at all do we open the drawer as a fallback.
             if (autoplay) {
-                const cand =
-                    pickAutoplayCandidate(streamsArr) ||
-                    streamsArr.find((s) => streamMode(s) === 'direct') ||
-                    streamsArr[0];
+                const cand = pickBestPlayable(streamsArr);
                 if (cand) {
                     playStream(cand, ep, streamsArr);
                 } else {
@@ -345,6 +347,11 @@ export default function SeriesEpisodes({
                     }
                     setOpenEpisodeId(ep.id);
                 }
+            } else if (streamsArr.length > 0) {
+                // Manual mode → close the "Searching…" drawer and
+                // open the movie-style stream picker modal.
+                setOpenEpisodeId(null);
+                setPickerEp(ep);
             }
         } catch {
             setEpisodeStreams((s) => ({
@@ -514,6 +521,24 @@ export default function SeriesEpisodes({
                 native player takes over (this React tree gets
                 covered by the player Activity) or after the 12 s
                 safety net timeout. */}
+            {pickerEp && (
+                <StreamPickerModal
+                    streams={orderStreams(episodeStreams[pickerEp.id]?.streams || [])}
+                    currentIdx={-1}
+                    onPick={(s) => {
+                        const eps = episodeStreams[pickerEp.id]?.streams || [];
+                        setPickerEp(null);
+                        playStream(s, pickerEp, eps);
+                    }}
+                    onClose={() => setPickerEp(null)}
+                    meta={{
+                        name: `${meta?.name || meta?.title || ''} — S${pickerEp.season}E${pickerEp.episode}${pickerEp.name ? ` · ${pickerEp.name}` : ''}`,
+                        poster: meta?.poster,
+                        background: meta?.background,
+                        description: pickerEp.overview || meta?.description,
+                    }}
+                />
+            )}
             {launchingEp && (
                 <div
                     data-testid="series-autoplay-loader"
@@ -1072,10 +1097,19 @@ function EpisodeCard({
                     ) : (
                         <ul
                             className="flex flex-col"
-                            style={{ gap: 12 }}
+                            style={{
+                                gap: 12,
+                                // v2.13.6 — show EVERY stream (was capped
+                                // at 30 with "+N more not shown"); the
+                                // list scrolls and D-pad focus pulls each
+                                // row into view.
+                                maxHeight: '60vh',
+                                overflowY: 'auto',
+                                paddingRight: 6,
+                            }}
                             data-stream-list="true"
                         >
-                            {data.streams.slice(0, 30).map((s, i) => {
+                            {data.streams.map((s, i) => {
                                 const mode = streamMode(s);
                                 const ModeIcon =
                                     mode === 'direct'
@@ -1129,7 +1163,7 @@ function EpisodeCard({
                                             data-focusable="true"
                                             data-focus-style="pill"
                                             tabIndex={0}
-                                            onClick={() => playStream(s, ep)}
+                                            onClick={() => playStream(s, ep, data.streams)}
                                             className="flex-1 text-left flex items-start gap-4"
                                             style={{
                                                 padding: '16px 20px',
@@ -1331,21 +1365,6 @@ function EpisodeCard({
                                     </li>
                                 );
                             })}
-                            {data.streams.length > 30 && (
-                                <li
-                                    className="vesper-mono"
-                                    style={{
-                                        fontSize: 11,
-                                        color: 'var(--vesper-text-3)',
-                                        letterSpacing: '0.18em',
-                                        textTransform: 'uppercase',
-                                        marginTop: 8,
-                                    }}
-                                >
-                                    + {data.streams.length - 30} more streams
-                                    not shown
-                                </li>
-                            )}
                         </ul>
                     )}
                 </div>

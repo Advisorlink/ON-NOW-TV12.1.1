@@ -15,6 +15,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -1662,13 +1664,24 @@ private fun StreamPickerSheet(
                     fontSize = 14.sp,
                 )
             } else {
-                streams.forEachIndexed { i, s ->
-                    StreamRow(
-                        stream = s,
-                        focusRequester = if (i == 0) firstFocus else null,
-                        onClick = { onPick(s.idx) },
-                    )
-                    Spacer(Modifier.height(8.dp))
+                // v2.13.6 — FULL list is scrollable.  Previously the
+                // rows were stacked in a plain Column, so anything
+                // below the viewport was unreachable ("you can't even
+                // scroll on the player").  D-pad focus automatically
+                // pulls each focused row into view.
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 430.dp)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    streams.forEachIndexed { i, s ->
+                        StreamRow(
+                            stream = s,
+                            focusRequester = if (i == 0) firstFocus else null,
+                            onClick = { onPick(s.idx) },
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
                 }
             }
             Spacer(Modifier.height(20.dp))

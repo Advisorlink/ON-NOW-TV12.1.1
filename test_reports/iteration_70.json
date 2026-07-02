@@ -1,0 +1,20 @@
+{
+  "summary": "Verified series autoplay + manual mode + drawer scroll fixes end-to-end. All P0 flows PASS: (1) AUTOPLAY ON on tt0903747 S1E1 → [data-testid=series-autoplay-loader] scrim painted IMMEDIATELY on click; scrim cleared at ~12s; drawer [data-testid=episode-streams-1-1] opened at ~14s with 4 fallback rows; window.open call log = [] (no Netflix/external tab opened — the previous P0 regression). (2) Drawer ul[data-stream-list=true] computedStyle = {maxHeight:'648px', overflowY:'auto', liCount:4} → scrollable full list confirmed. Drawer body text contains NO '+N more streams not shown' text (30-cap removed). (3) MANUAL MODE (autoplay flag='0') → clicking episode-1-1 opened [data-testid=stream-picker-modal] after ~9s; title exactly 'Breaking Bad — S1E1 · Pilot'; 4 rows (Row count = 4); [data-testid=stream-picker-synopsis] present; '4 FOUND' counter shown; document.activeElement = 'modal-stream-0' (first row focused); Escape closed the modal. (4) MOVIE REGRESSION /title/movie/tt0133093 loaded Matrix detail page. (5) GENERAL REGRESSION: Home rendered (body length 6147); /music/artist/13 rendered Eminem artist page (19,010,843 fans, Popular tracks, Discography). Torrentio/EasyNews/Plexio Cloudflare-blocked in preview (expected per main agent note — environmental), only WatchHub 4 rows resolve. No PAGEERR emitted. Christmas chip on /movies not re-verified in this iteration (verified last iteration 69, out of primary scope) — /movies rendered blank without a click through the sidenav.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "SeriesEpisodes.jsx now correctly delegates to shared pickAutoplayCandidate from lib/streamOrder.js and its ordered fallback filters to direct/torrent only — no risk of window.open on an 'external' WatchHub link. Verified at runtime with 4 WatchHub external streams in the response — 0 window.open calls fired.",
+    "Detail.jsx autoplayCandidate now imports pickCascadeCandidate from streamOrder — single source of truth confirmed (line 26 + line 915).",
+    "Drawer ul now uses maxHeight:60vh + overflowY:auto with data-stream-list='true'; the previous 30-cap slice + '+N more' text is fully removed."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only run)", "frontend": "100%"},
+  "test_credentials": "testuser / testpass123; profile id p-test-1 seeded via localStorage onnowtv-profiles-v1:testuser + vesper-onboarding-seen-v1; autoplay flag onnowtv-autoplay-1080p:p-test-1 = '1' or '0'.",
+  "seed_data_creation": "Single ephemeral profile 'Test' (id p-test-1) seeded per-run via localStorage; no server-side data written.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "IMPORTANT: /profiles requires an authenticated session — seeding localStorage BEFORE login sends the profile picker to the login page. Sequence: (1) navigate to /login, fill username+password, submit; (2) THEN set onnowtv-profiles-v1:testuser + vesper-onboarding-seen-v1 + optional autoplay flag; (3) page.goto('/profiles'); (4) focus [data-testid=profile-p-test-1] + Enter; (5) SPA-navigate via history.pushState + PopStateEvent('popstate') — hard page.goto('/title/...') bounces back to /profiles. Stream fetches take 10-15s to resolve; Torrentio/EasyNews/Plexio are Cloudflare-CORS-blocked from this pod so only WatchHub externals resolve. Native PlayerOverlay.kt scroll change is not browser-testable — out of scope. The autoplay-ON fallback path (no playable stream → drawer) took ~14s in this run.",
+  "rca of the issue": "N/A — main agent's fixes verified end-to-end. Prior regression (TV shows stopped autoplaying / window.open opening Netflix) was caused by a local pickAutoplayCandidate in SeriesEpisodes.jsx that could return an unplayable 'external' link; replacing it with the shared cascade + direct/torrent-only fallback resolves it. Confirmed: 4 external WatchHub links present → cand === null → drawer opens as fallback (no window.open)."
+}

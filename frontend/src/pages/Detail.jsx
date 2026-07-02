@@ -23,7 +23,7 @@ import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { API, Vesper } from '@/lib/api';
 import { qualityBadge, qualityTags, toneColors, is1080p, is4K } from '@/lib/streamMeta';
-import { orderStreams, isEasyNews, isTorrentio, isEpStrem } from '@/lib/streamOrder';
+import { orderStreams, pickAutoplayCandidate as pickCascadeCandidate, isEasyNews, isTorrentio, isEpStrem } from '@/lib/streamOrder';
 import { getAutoplay1080p } from '@/lib/prefs';
 import { isKidsActive, getActiveProfile, isRatingAllowed, getKidsConfig } from '@/lib/profiles';
 import { avatarEmojiById } from '@/lib/avatars';
@@ -908,36 +908,11 @@ export default function Detail() {
 
     const autoplayCandidate = useMemo(() => {
         if (type !== 'movie') return null;
-        if (!streams || streams.length === 0) return null;
-        const non4k = streams.filter((s) => !is4K(s));
-        const SIZE_CAP_GB = 3.0;
-        const strict = (s) => s._english_strict === true;
-        const english = (s) => s._is_english !== false;
-        const direct = (s) => streamMode(s) === 'direct';
-        const underCap = (s) =>
-            typeof s._size_gb !== 'number' || s._size_gb <= SIZE_CAP_GB;
-
-        return (
-            // Tier 1 — EasyNews++ 1080p English-strict, direct
-            non4k.find((s) => isEasyNews(s) && is1080p(s) && direct(s) && strict(s)) ||
-            non4k.find((s) => isEasyNews(s) && is1080p(s) && direct(s) && english(s)) ||
-            non4k.find((s) => isEasyNews(s) && is1080p(s) && english(s)) ||
-            // Tier 2 — EasyNews++ ANY 1080p (last resort within EN++)
-            non4k.find((s) => isEasyNews(s) && is1080p(s)) ||
-            // Tier 3 — Torrentio under 3 GB, English, 1080p direct
-            non4k.find((s) => isTorrentio(s) && direct(s) && is1080p(s) && strict(s) && underCap(s)) ||
-            non4k.find((s) => isTorrentio(s) && is1080p(s) && strict(s) && underCap(s)) ||
-            non4k.find((s) => isTorrentio(s) && is1080p(s) && english(s) && underCap(s)) ||
-            // Tier 4 — EP-STREM / Plexio direct, English
-            non4k.find((s) => isEpStrem(s) && direct(s) && english(s)) ||
-            non4k.find((s) => isEpStrem(s) && english(s)) ||
-            // Tier 5 — any addon, strict English, 1080p, under cap
-            non4k.find((s) => direct(s) && is1080p(s) && strict(s) && underCap(s)) ||
-            non4k.find((s) => is1080p(s) && strict(s) && underCap(s)) ||
-            // Tier 6 — any English 1080p under cap (multi-lang ok)
-            non4k.find((s) => is1080p(s) && english(s) && underCap(s)) ||
-            null
-        );
+        // v2.13.6 — delegate to the SHARED cascade in
+        // /lib/streamOrder.js (single source of truth for movies AND
+        // TV episodes: EasyNews++ 1080p → Torrentio ≤3 GB → EP-STREM
+        // → any English 1080p).
+        return pickCascadeCandidate(streams);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [streams, type]);
 
