@@ -7389,3 +7389,51 @@ Full step-by-step in android/onnowtv-launcher/LAUNCHER_UPDATE_GUIDE.md.
 
 NOTE: Launcher APK + Vesper APK need CI rebuild + fleet update for the
 native-side change to reach boxes (React changes ship with the web bundle).
+
+---
+
+## Session: 2026-07-02 (part 8) — V2AI launcher-parity rebuild (all self-tested)
+
+User: in-Vesper V2AI page must look EXACTLY like the launcher's AI screen
+(same wallpaper behind it, same moving voice animation, same positions);
+rail button: CLICK opens page, PUSH-AND-HOLD starts listening instantly;
+voice plays must use the same stream requirements as normal Autoplay.
+
+### Implemented
+1. **`V2AI.jsx` rewritten for pixel parity with VoiceAssistantActivity**:
+   - Reads the launcher portal config live via new `GET /api/v2ai/config`
+     (server.py proxy → launcher-backend /api/launcher/config, asset URLs
+     rewritten) + `GET /api/v2ai/asset?path=` binary proxy → the SAME
+     admin wallpaper (/assets/v2ai/background.png) renders behind the
+     page; heading text + hold-badge visibility also come from config.
+   - Exact 48-bar VoiceWaveform port (canvas): levels scroll left @55 ms,
+     bar height 10%+amp*85%, cyan→blue→pink gradient, idle shimmer
+     2.4 s sine — live amplitude from WebAudio AnalyserNode while
+     recording ("moving animation when you're talking").
+   - Activity-level hold-OK (window keydown/keyup) — hold anywhere, not
+     a button; launcher texts: Ready/Listening…/Speaking…/Thinking…/
+     "Hold OK longer to speak"; result mode = #B3000000 scrim + hint +
+     transcript + centered card rail.
+   - `?listen=1` starts listening on mount.
+2. **SideNav rail**: nav-v2ai CLICK → /v2ai; HOLD ≥450 ms → /v2ai?listen=1
+   (keydown timer, preventDefault to suppress double-activation);
+   pending-keyup guard stops ghost recordings when OK is released
+   before getUserMedia finishes.
+3. **Play-link parity**: V2AIResolve appends `&src=v2ai` (survives the
+   /resolve hop). Detail.jsx: when src=v2ai, autoplay uses ONLY the
+   curated `autoplayCandidate` cascade (EasyNews++ 1080p → Torrentio
+   ≤3GB EN → EP-STREM → EN 1080p) — junk any-direct/first-stream
+   fallback disabled for voice plays; no candidate → user lands on the
+   stream picker CTA. Tile-click autoplay behaviour unchanged.
+4. **Fix**: Host.voiceSearch browser fallback hangs forever without a
+   mic (onend without reject) → V2AI wraps it in a 12 s Promise.race.
+
+### Testing (screenshot tool)
+- Standby shows launcher wallpaper + "Hold OK and speak into your
+  remote" + bars waveform + hidden badge (config-driven) ✅
+- Rail hold-Enter 700 ms → /v2ai?listen=1, status Listening… ✅
+- "play the matrix" → /title/movie/tt0133093?autoplay=1&src=v2ai ✅
+- Trending → 20 cards over dim scrim, ask-again works ✅
+- Fallback timeout resets to standby after 12 s ✅
+- NOTE: MediaRecorder mic path NOT testable in the container (no audio
+  device) — code mirrors PartyVoiceDock; spot-check on a real box.

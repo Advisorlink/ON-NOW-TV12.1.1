@@ -85,6 +85,14 @@ export default function Detail() {
         () => new URLSearchParams(location.search).get('autoplay') === '1',
         [location.search]
     );
+    // v2.13.1 — ?src=v2ai marks the voice-assistant play flow.  It
+    // must use the SAME curated stream cascade as normal Autoplay
+    // (autoplayCandidate only) — never the any-direct/first-stream
+    // junk fallback, which was handing V2AI plays poor links.
+    const v2aiSrc = useMemo(
+        () => new URLSearchParams(location.search).get('src') === 'v2ai',
+        [location.search]
+    );
     // Watch Together: when ?party=CODE is in the URL we are a party
     // member.  We force the JS Player path (instead of the native
     // libVLC Activity) so the Player can pipe play/pause/seek
@@ -1300,9 +1308,14 @@ export default function Detail() {
         // `autoplayCandidate`; if none, but autoplay was explicitly
         // requested, fall back to ANY direct stream → first stream
         // so the user still lands in the player.
+        // v2.13.1 — EXCEPT for the V2AI voice flow (`src=v2ai`):
+        // voice plays must match normal Autoplay quality exactly, so
+        // with no curated candidate we stay on Detail and let the
+        // focus pulse land on the stream picker CTA instead of
+        // firing a junk link.
         const chosen =
             autoplayCandidate ||
-            (autoplayRequested
+            (autoplayRequested && !v2aiSrc
                 ? (streams.find((s) => streamMode(s) === 'direct') || streams[0])
                 : null);
         if (!chosen) return;
@@ -1310,7 +1323,7 @@ export default function Detail() {
         setAutoplayFired(true);
         window.setTimeout(() => playStream(chosen), 0);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [streams, streamLoading, autoplayRequested, type, autoplayCandidate, partyCode, ratingBlocked]);
+    }, [streams, streamLoading, autoplayRequested, v2aiSrc, type, autoplayCandidate, partyCode, ratingBlocked]);
 
     /* ---------- PARTY AUTOPLAY for TV SERIES ----------
      * When the host picks a TV show in Watch Together and selects a

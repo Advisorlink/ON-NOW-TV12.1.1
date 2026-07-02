@@ -4168,6 +4168,40 @@ async def v2ai_process_text_proxy(payload: dict = Body(...)):
     return Response(content=r.content, status_code=r.status_code, media_type="application/json")
 
 
+@app.get("/api/v2ai/config")
+async def v2ai_config_proxy():
+    """v2.13.1 — Serves the launcher portal's V2 AI customisation
+    (heading text, wallpaper, hold-badge visibility) to the in-app
+    Vesper V2AI page so both screens always look identical.  Asset
+    URLs are rewritten to relative paths — the frontend loads them
+    through /api/v2ai/asset below."""
+    from urllib.parse import urlparse
+    async with _httpx_launcher.AsyncClient(timeout=15.0) as client:
+        r = await client.get(f"{_LAUNCHER_BACKEND}/api/launcher/config")
+        r.raise_for_status()
+        cfg = (r.json() or {}).get("v2ai") or {}
+    for key in ("background_image_url", "hold_button_image_url", "button_image_url"):
+        val = cfg.get(key)
+        if val:
+            p = urlparse(val)
+            cfg[key] = p.path + (f"?{p.query}" if p.query else "")
+    return cfg
+
+
+@app.get("/api/v2ai/asset")
+async def v2ai_asset_proxy(path: str):
+    if not path.split("?")[0].startswith("/assets/"):
+        raise HTTPException(status_code=400, detail="invalid asset path")
+    async with _httpx_launcher.AsyncClient(timeout=30.0) as client:
+        r = await client.get(f"{_LAUNCHER_BACKEND}{path}")
+    return Response(
+        content=r.content,
+        status_code=r.status_code,
+        media_type=r.headers.get("content-type", "application/octet-stream"),
+        headers={"Cache-Control": "public, max-age=300"},
+    )
+
+
 def _rewrite_admin_html(body: bytes) -> bytes:
     """Rewrite absolute paths in the admin index so static assets resolve
     through the proxy namespace."""

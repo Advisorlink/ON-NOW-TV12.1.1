@@ -1,29 +1,35 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Loader2, Sparkles } from 'lucide-react';
 import { API } from '@/lib/api';
 import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 
 /**
- * /v2ai — the V2 AI voice assistant, now living INSIDE Vesper.
+ * /v2ai — the V2 AI voice assistant, living INSIDE Vesper.
  *
- * v2.13.0 — Ported from the launcher's native VoiceAssistantActivity
- * per user spec: "remove the AI from the launcher... just put it
- * inside the app".  Because the page runs inside Vesper (already
- * past the profile gate), "Play The Matrix" navigates straight to
- * /v2ai-play → /resolve → autoplay with NO app relaunch and NO
- * profile-screen interruption.
+ * v2.13.1 — Pixel-parity rebuild.  The page now replicates the
+ * launcher's native VoiceAssistantActivity exactly:
+ *   • Same admin wallpaper behind it (fetched live from the launcher
+ *     backend config, so the portal's V2 AI tab drives BOTH screens)
+ *   • Same 48-bar scrolling waveform (levels shift left @55 ms, bar
+ *     height 10%+amp*85%, cyan→blue→pink gradient) driven by a REAL
+ *     WebAudio analyser while you talk — plus the same idle shimmer
+ *     (2.4 s sine sweep) when quiet
+ *   • Same standby column: eyebrow → heading → waveform → (optional
+ *     HOLD OK badge, admin-toggled) → status line
+ *   • Same texts: Ready / Listening… / Speaking… / Thinking…
+ *   • Hold OK ANYWHERE on the page to talk (activity-level key
+ *     handling, not tied to a button) — release to submit
+ *   • ?listen=1 → starts listening immediately (rail push-and-hold)
  *
- * Flow: hold OK on the mic badge → MediaRecorder captures audio →
- * POST /api/v2ai/process (proxied to the launcher backend's
- * Whisper + intent parser) → dispatch the intent in-app.  When mic
- * capture isn't available, falls back to Host.voiceSearch() (native
- * SpeechRecognizer / Web Speech API) + the /process-text endpoint.
+ * Play flow: play intents navigate /v2ai-play → /resolve →
+ * /title?autoplay=1&src=v2ai which uses the SAME curated stream
+ * cascade as normal Autoplay (no junk-stream fallback).
  */
 
 const MAX_RECORD_MS = 10_000;
 const MIN_RECORD_MS = 400;
+const BARS = 48;
 
 function pickRecorderMime() {
     if (typeof MediaRecorder === 'undefined') return null;
@@ -58,6 +64,100 @@ function deviceId() {
 
 const OK_KEYS = ['Enter', ' ', 'Spacebar'];
 
+/* ─────────── waveform — exact port of VoiceWaveform BARS ─────────── */
+
+function VoiceWaveformCanvas({ listening, analyserRef }) {
+    const canvasRef = useRef(null);
+    const levelsRef = useRef(new Float32Array(BARS));
+    const lastSampleRef = useRef(0);
+    const listeningRef = useRef(listening);
+    listeningRef.current = listening;
+
+    useEffect(() => {
+        if (!listening) levelsRef.current.fill(0);
+    }, [listening]);
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return undefined;
+        const ctx = canvas.getContext('2d');
+        let raf = 0;
+        const buf = new Uint8Array(1024);
+
+        const draw = (now) => {
+            raf = requestAnimationFrame(draw);
+            const dpr = window.devicePixelRatio || 1;
+            const w = canvas.clientWidth;
+            const h = canvas.clientHeight;
+            if (!w || !h) return;
+            if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+                canvas.width = w * dpr;
+                canvas.height = h * dpr;
+            }
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, w, h);
+
+            // Sample the mic every 55 ms (launcher polls maxAmplitude
+            // at the same interval) and scroll the buffer left.
+            if (listeningRef.current && now - lastSampleRef.current >= 55) {
+                lastSampleRef.current = now;
+                let norm = 0;
+                const analyser = analyserRef.current;
+                if (analyser) {
+                    analyser.getByteTimeDomainData(buf);
+                    let peak = 0;
+                    for (let i = 0; i < buf.length; i++) {
+                        const d = Math.abs(buf[i] - 128);
+                        if (d > peak) peak = d;
+                    }
+                    norm = peak / 128;
+                }
+                const levels = levelsRef.current;
+                for (let i = 0; i < BARS - 1; i++) levels[i] = levels[i + 1];
+                levels[BARS - 1] = Math.min(norm * 1.6, 1);
+            }
+
+            // idlePhase loops 0→2π every 2.4 s — same as the launcher.
+            const idlePhase = ((now % 2400) / 2400) * Math.PI * 2;
+
+            const grad = ctx.createLinearGradient(0, 0, w, 0);
+            grad.addColorStop(0, '#5DC8FF');
+            grad.addColorStop(0.5, '#2BB6FF');
+            grad.addColorStop(1, '#FF7AB6');
+            ctx.fillStyle = grad;
+
+            const barW = w / (BARS * 1.5);
+            const gap = barW * 0.5;
+            const levels = levelsRef.current;
+            for (let i = 0; i < BARS; i++) {
+                const amp = listeningRef.current
+                    ? levels[i]
+                    : 0.10 + 0.05 * Math.sin(idlePhase + (i / BARS) * Math.PI * 2);
+                const bh = Math.min(h * (0.10 + amp * 0.85), h);
+                const left = i * (barW + gap);
+                const top = (h - bh) / 2;
+                const r = barW / 2;
+                ctx.beginPath();
+                if (ctx.roundRect) ctx.roundRect(left, top, barW, bh, r);
+                else ctx.rect(left, top, barW, bh);
+                ctx.fill();
+            }
+        };
+        raf = requestAnimationFrame(draw);
+        return () => cancelAnimationFrame(raf);
+    }, [analyserRef]);
+
+    return (
+        <canvas
+            ref={canvasRef}
+            data-testid="v2ai-waveform"
+            data-keep-anim="true"
+            aria-hidden="true"
+            style={{ width: 'min(640px, 78vw)', height: 120, display: 'block' }}
+        />
+    );
+}
+
 export default function V2AI() {
     useSpatialFocus();
     const navigate = useNavigate();
@@ -66,38 +166,89 @@ export default function V2AI() {
     // phase: idle | recording | thinking
     const [phase, setPhase] = useState('idle');
     const [status, setStatus] = useState('Ready');
+    const [heading, setHeading] = useState('Hold OK and ask anything about movies, TV, or apps.');
     // result: null | {kind:'recs'|'qa'|'person', parsed}
     const [result, setResult] = useState(null);
+    // Launcher-portal V2 AI config (wallpaper, heading, badge).
+    const [cfg, setCfg] = useState(null);
 
-    const holdBtnRef = useRef(null);
     const recorderRef = useRef(null);
     const streamRef = useRef(null);
     const chunksRef = useRef([]);
     const startedAtRef = useRef(0);
     const maxTimerRef = useRef(null);
+    const audioCtxRef = useRef(null);
+    const analyserRef = useRef(null);
     const phaseRef = useRef('idle');
     phaseRef.current = phase;
+    // Rail push-and-hold edge case: the OK keyup can land BEFORE the
+    // recorder finishes starting (navigation + getUserMedia latency).
+    // Remember it and auto-stop shortly after start instead of ghost-
+    // recording for the full 10 s cap.
+    const keyUpPendingRef = useRef(false);
+    const standbyHintRef = useRef('Hold OK and ask anything about movies, TV, or apps.');
 
     const cleanupRecorder = () => {
         try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch { /* */ }
         streamRef.current = null;
         recorderRef.current = null;
+        analyserRef.current = null;
+        try { audioCtxRef.current?.close(); } catch { /* */ }
+        audioCtxRef.current = null;
         if (maxTimerRef.current) { clearTimeout(maxTimerRef.current); maxTimerRef.current = null; }
     };
     useEffect(() => () => cleanupRecorder(), []);
 
+    /* ─────────── launcher config (wallpaper + heading + badge) ─────────── */
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            try {
+                const r = await fetch(`${API}/v2ai/config`);
+                if (!r.ok) return;
+                const c = await r.json();
+                if (cancelled || !c) return;
+                setCfg(c);
+                const ht = (c.heading_text || '').trim();
+                if (ht) {
+                    standbyHintRef.current = ht;
+                    setHeading((prev) =>
+                        prev === 'Hold OK and ask anything about movies, TV, or apps.' ? ht : prev);
+                }
+            } catch { /* keep defaults */ }
+        })();
+        return () => { cancelled = true; };
+    }, []);
+
+    const bgUrl = cfg?.background_image_url
+        ? `${API}/v2ai/asset?path=${encodeURIComponent(cfg.background_image_url)}`
+        : null;
+    const holdVisible = cfg ? cfg.hold_button_visible !== false : true;
+    const holdImageUrl = cfg?.hold_button_image_url
+        ? `${API}/v2ai/asset?path=${encodeURIComponent(cfg.hold_button_image_url)}`
+        : null;
+
     /* ─────────── intent dispatch (mirrors the launcher) ─────────── */
+    const showStandby = useCallback(() => {
+        setResult(null);
+        setHeading(standbyHintRef.current);
+        setStatus('Ready');
+    }, []);
+
     const handleParsed = useCallback((parsed) => {
         const intent = parsed?.intent || 'reject';
         const reply = parsed?.speech_reply || '';
+        const transcript = parsed?.transcript || '';
         setPhase('idle');
+        if (transcript) setStatus(transcript);
         if (intent === 'play_movie' || intent === 'play_series') {
             const title = (parsed.title || '').trim();
             if (!title) {
-                setStatus("I didn't catch the title.  Hold OK and try again.");
+                setHeading('Sorry');
+                setStatus("I didn't catch the title — hold OK and try again.");
                 return;
             }
-            setStatus(reply || `Loading ${title}…`);
+            setHeading(reply || `Loading ${title}…`);
             navigate(
                 `/v2ai-play?title=${encodeURIComponent(title)}` +
                 `&type=${intent === 'play_series' ? 'series' : 'movie'}`,
@@ -107,16 +258,24 @@ export default function V2AI() {
             if (nm.includes('music') || nm.includes('tunes')) navigate('/music');
             else if (nm.includes('search')) navigate('/search');
             else if (nm.includes('setting')) navigate('/settings');
-            else setStatus('I can play movies and shows right here — other apps open from the launcher home.');
+            else {
+                setHeading('Sorry');
+                setStatus('I can play movies and shows right here — other apps open from the launcher home.');
+            }
         } else if (intent === 'recommend' || intent === 'search' || intent === 'trending') {
             const items = parsed.recommendations || [];
-            if (!items.length) { setStatus('No matches found.'); return; }
+            if (!items.length) {
+                setHeading('Sorry');
+                setStatus('No matches found.');
+                return;
+            }
             setResult({ kind: 'recs', parsed });
         } else if (intent === 'qa') {
             setResult({ kind: 'qa', parsed });
         } else if (intent === 'person_info') {
             setResult({ kind: 'person', parsed });
         } else {
+            setHeading('Sorry');
             setStatus(parsed?.reject_reason || 'I only help with movies, TV, and apps.');
         }
     }, [navigate]);
@@ -124,6 +283,7 @@ export default function V2AI() {
     const submitText = useCallback(async (text) => {
         setPhase('thinking');
         setStatus('Thinking…');
+        setHeading('Processing your request…');
         try {
             const r = await fetch(`${API}/v2ai/process-text`, {
                 method: 'POST',
@@ -134,6 +294,7 @@ export default function V2AI() {
             handleParsed(await r.json());
         } catch {
             setPhase('idle');
+            setHeading(standbyHintRef.current);
             setStatus("Couldn't reach V2 AI — check Wi-Fi and try again.");
         }
     }, [handleParsed]);
@@ -141,6 +302,7 @@ export default function V2AI() {
     const submitAudio = useCallback(async (blob, ext) => {
         setPhase('thinking');
         setStatus('Thinking…');
+        setHeading('Processing your request…');
         try {
             const fd = new FormData();
             fd.append('file', blob, `v2ai.${ext}`);
@@ -150,6 +312,7 @@ export default function V2AI() {
             handleParsed(await r.json());
         } catch {
             setPhase('idle');
+            setHeading(standbyHintRef.current);
             setStatus("Couldn't reach V2 AI — check Wi-Fi and try again.");
         }
     }, [handleParsed]);
@@ -159,10 +322,20 @@ export default function V2AI() {
         try {
             setPhase('recording');
             setStatus('Listening…');
-            const text = await Host.voiceSearch();
+            setHeading('Speaking…');
+            // Race against a hard timeout — the browser Web Speech
+            // fallback can hang forever when no mic exists (its
+            // `onend` fires without resolving), which left the page
+            // stuck on "Listening…".
+            const text = await Promise.race([
+                Host.voiceSearch(),
+                new Promise((_, rej) =>
+                    setTimeout(() => rej(new Error('timeout')), 12_000)),
+            ]);
             await submitText(text);
         } catch (e) {
             setPhase('idle');
+            setHeading(standbyHintRef.current);
             setStatus(
                 e && e.message === 'unsupported'
                     ? 'Microphone unavailable on this device.'
@@ -182,6 +355,18 @@ export default function V2AI() {
                 audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
             });
             streamRef.current = stream;
+            // WebAudio analyser drives the live waveform — the "moving
+            // animation when you're talking to it".
+            try {
+                const AC = window.AudioContext || window.webkitAudioContext;
+                const actx = new AC();
+                const src = actx.createMediaStreamSource(stream);
+                const analyser = actx.createAnalyser();
+                analyser.fftSize = 1024;
+                src.connect(analyser);
+                audioCtxRef.current = actx;
+                analyserRef.current = analyser;
+            } catch { /* waveform falls back to idle shimmer */ }
             const mime = pickRecorderMime();
             const rec = mime ? new MediaRecorder(stream, { mimeType: mime })
                              : new MediaRecorder(stream);
@@ -196,7 +381,8 @@ export default function V2AI() {
                 cleanupRecorder();
                 if (elapsed < MIN_RECORD_MS || blob.size < 800) {
                     setPhase('idle');
-                    setStatus('Too short — hold OK while you speak.');
+                    setHeading(standbyHintRef.current);
+                    setStatus('Hold OK longer to speak');
                     return;
                 }
                 await submitAudio(blob, mimeToExt(rec.mimeType));
@@ -204,13 +390,19 @@ export default function V2AI() {
             rec.start();
             startedAtRef.current = Date.now();
             setPhase('recording');
-            setStatus('Listening… release OK when done.');
+            setStatus('Listening…');
+            setHeading('Speaking…');
             maxTimerRef.current = setTimeout(() => stopRecording(), MAX_RECORD_MS);
+            if (keyUpPendingRef.current) {
+                keyUpPendingRef.current = false;
+                setTimeout(() => stopRecording(), 900);
+            }
         } catch (err) {
             cleanupRecorder();
             if (err && err.name === 'NotAllowedError') {
                 setPhase('idle');
-                setStatus('Microphone permission blocked.');
+                setStatus('Mic permission denied');
+                setHeading('Enable microphone in Settings to use V2 AI.');
             } else {
                 voiceSearchFallback();
             }
@@ -224,27 +416,40 @@ export default function V2AI() {
         try { recorderRef.current.stop(); } catch { /* */ }
     };
 
-    /* ─────────── hold-OK interactions ─────────── */
-    const onHoldKeyDown = (e) => {
-        if (!OK_KEYS.includes(e.key)) return;
-        e.preventDefault();
-        if (e.repeat) return;
-        startRecording();
-    };
-    const onHoldKeyUp = (e) => {
-        if (!OK_KEYS.includes(e.key)) return;
-        e.preventDefault();
-        stopRecording();
-    };
+    /* ─────────── activity-level hold-OK — anywhere on the page ─────────── */
+    useEffect(() => {
+        const down = (e) => {
+            if (!OK_KEYS.includes(e.key)) return;
+            // Don't hijack OK when the user is activating a result
+            // card / ask-again button.
+            if (result) return;
+            e.preventDefault();
+            if (e.repeat) return;
+            keyUpPendingRef.current = false;
+            startRecording();
+        };
+        const up = (e) => {
+            if (!OK_KEYS.includes(e.key)) return;
+            if (result) return;
+            e.preventDefault();
+            if (!recorderRef.current) { keyUpPendingRef.current = true; return; }
+            stopRecording();
+        };
+        window.addEventListener('keydown', down, true);
+        window.addEventListener('keyup', up, true);
+        return () => {
+            window.removeEventListener('keydown', down, true);
+            window.removeEventListener('keyup', up, true);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [result, startRecording]);
 
-    /* ─────────── boot: focus + optional ?q= deep-link ─────────── */
+    /* ─────────── boot: ?listen=1 (rail hold) / ?q= deep-link ─────────── */
     useEffect(() => {
         const q = (params.get('q') || '').trim();
         if (q) { submitText(q); return; }
-        const btn = holdBtnRef.current;
-        if (btn) {
-            btn.focus({ preventScroll: true });
-            btn.setAttribute('data-focused', 'true');
+        if (params.get('listen') === '1' && phaseRef.current === 'idle') {
+            startRecording();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [params]);
@@ -253,24 +458,15 @@ export default function V2AI() {
     useEffect(() => {
         if (!result) return undefined;
         window.history.pushState({ v2aiResults: true }, '');
-        const onPop = () => setResult(null);
+        const onPop = () => showStandby();
         window.addEventListener('popstate', onPop);
         return () => window.removeEventListener('popstate', onPop);
-    }, [result]);
-    // Re-prime focus on the hold button whenever we return to standby.
-    useEffect(() => {
-        if (result) return;
-        const btn = holdBtnRef.current;
-        if (btn) {
-            btn.focus({ preventScroll: true });
-            btn.setAttribute('data-focused', 'true');
-        }
-    }, [result]);
+    }, [result, showStandby]);
     // Focus the first result card when results appear.
     useEffect(() => {
         if (!result) return;
         const t = setTimeout(() => {
-            const first = document.querySelector('[data-testid="v2ai-rec-card-0"], [data-testid="v2ai-ask-again"]');
+            const first = document.querySelector('[data-testid="v2ai-rec-card-0"], [data-testid="v2ai-qa-play"], [data-testid="v2ai-ask-again"]');
             if (first) {
                 first.focus({ preventScroll: true });
                 first.setAttribute('data-focused', 'true');
@@ -281,7 +477,7 @@ export default function V2AI() {
 
     const askAgain = () => {
         if (window.history.state?.v2aiResults) window.history.back();
-        else setResult(null);
+        else showStandby();
     };
 
     const playTitle = (title, type) => {
@@ -294,177 +490,183 @@ export default function V2AI() {
     return (
         <div
             data-testid="v2ai-page"
-            className="w-screen min-h-[100dvh] flex flex-col"
+            className="w-screen h-[100dvh] relative overflow-hidden"
             style={{
                 background:
                     'radial-gradient(ellipse at 50% 30%, #0e2548 0%, #050912 62%, #02030A 100%)',
-                color: 'var(--vesper-text, #F4F7FB)',
-                padding: 'clamp(28px, 4vh, 52px) clamp(32px, 4vw, 64px)',
+                color: '#F4F7FB',
             }}
         >
+            {/* Admin wallpaper — same image the launcher shows,
+                rendered VIBRANT with no scrim (launcher v2.8.27). */}
+            {bgUrl ? (
+                <img
+                    src={bgUrl}
+                    alt=""
+                    aria-hidden="true"
+                    data-testid="v2ai-wallpaper"
+                    style={{
+                        position: 'absolute',
+                        inset: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                    }}
+                />
+            ) : null}
+            {/* Stage-dimmer scrim — launcher shows #B3000000 over the
+                wallpaper whenever results are on screen. */}
+            {result ? (
+                <div
+                    aria-hidden="true"
+                    style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.70)' }}
+                />
+            ) : null}
+
             {!result ? (
-                /* ───────────────── STANDBY ───────────────── */
-                <div className="flex-1 flex flex-col items-center justify-center" style={{ gap: 22 }}>
+                /* ───────────── STANDBY — launcher-exact column ───────────── */
+                <div
+                    className="relative h-full flex flex-col items-center justify-center"
+                    style={{ padding: '36px 48px' }}
+                >
                     <div
-                        className="vesper-mono"
                         style={{
+                            fontFamily: 'monospace',
                             fontSize: 12,
                             letterSpacing: '0.30em',
-                            color: 'var(--vesper-blue-bright, #5DC8FF)',
-                            textTransform: 'uppercase',
+                            color: '#5DC8FF',
                         }}
                     >
                         ON NOW TV V2 · V2 AI
                     </div>
+                    <div style={{ height: 10 }} />
                     <div
                         data-testid="v2ai-big-hint"
                         style={{
-                            fontSize: 'clamp(24px, 2.6vw, 34px)',
-                            fontWeight: 800,
+                            fontSize: 30,
+                            fontWeight: 700,
+                            color: '#F4F7FB',
                             letterSpacing: '-0.02em',
                             textAlign: 'center',
-                            maxWidth: 820,
-                            lineHeight: 1.2,
+                            textShadow: '0 2px 12px rgba(0,8,20,0.75)',
+                            maxWidth: 900,
                         }}
                     >
-                        Hold OK and ask anything about movies or TV.
+                        {heading}
                     </div>
-
-                    {/* Waveform */}
-                    <div
-                        aria-hidden="true"
-                        data-keep-anim="true"
-                        style={{ display: 'flex', alignItems: 'center', gap: 5, height: 84 }}
-                    >
-                        {Array.from({ length: 26 }).map((_, i) => (
-                            <span
-                                key={i}
-                                className={phase === 'recording' ? 'v2ai-bar v2ai-bar--live' : 'v2ai-bar'}
-                                style={{ animationDelay: `${(i % 7) * 90}ms` }}
-                            />
-                        ))}
-                    </div>
-
-                    {/* Hold-OK badge */}
-                    <button
-                        ref={holdBtnRef}
-                        type="button"
-                        data-testid="v2ai-hold-btn"
-                        data-focusable="true"
-                        data-focus-style="pill"
-                        data-no-row-snap="true"
-                        tabIndex={0}
-                        onKeyDown={onHoldKeyDown}
-                        onKeyUp={onHoldKeyUp}
-                        onMouseDown={() => startRecording()}
-                        onMouseUp={() => stopRecording()}
-                        onMouseLeave={() => stopRecording()}
-                        onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
-                        onTouchEnd={(e) => { e.preventDefault(); stopRecording(); }}
-                        style={{
-                            width: 148,
-                            height: 148,
-                            borderRadius: '50%',
-                            border: 'none',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 6,
-                            fontWeight: 800,
-                            fontSize: 16,
-                            letterSpacing: '0.08em',
-                            color: '#04060B',
-                            background: phase === 'recording'
-                                ? 'linear-gradient(135deg, #FF5CA8 0%, #C24DFF 100%)'
-                                : 'linear-gradient(135deg, #5DC8FF 0%, #2BB6FF 55%, #7C6BFF 100%)',
-                            boxShadow: phase === 'recording'
-                                ? '0 0 44px rgba(255,92,168,0.55)'
-                                : '0 0 34px rgba(43,182,255,0.40)',
-                            transform: phase === 'recording' ? 'scale(1.06)' : 'scale(1)',
-                            transition: 'transform 160ms ease, box-shadow 160ms ease',
-                        }}
-                    >
-                        {phase === 'thinking'
-                            ? <Loader2 className="vesper-spin" size={30} />
-                            : <Sparkles size={30} strokeWidth={2} />}
-                        {phase === 'thinking' ? 'THINKING' : phase === 'recording' ? 'LISTENING' : 'HOLD OK'}
-                    </button>
-
+                    <div style={{ height: 24 }} />
+                    <VoiceWaveformCanvas listening={phase === 'recording'} analyserRef={analyserRef} />
+                    <div style={{ height: 16 }} />
+                    {holdVisible ? (
+                        <>
+                            <button
+                                type="button"
+                                data-testid="v2ai-hold-btn"
+                                data-focusable="true"
+                                tabIndex={0}
+                                onMouseDown={() => startRecording()}
+                                onMouseUp={() => stopRecording()}
+                                onMouseLeave={() => stopRecording()}
+                                onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
+                                onTouchEnd={(e) => { e.preventDefault(); stopRecording(); }}
+                                style={{
+                                    width: 140,
+                                    height: 140,
+                                    borderRadius: '50%',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontWeight: 700,
+                                    fontSize: 16,
+                                    color: '#04060B',
+                                    background: holdImageUrl ? 'transparent' : '#2BB6FF',
+                                    padding: 0,
+                                    overflow: 'hidden',
+                                }}
+                            >
+                                {holdImageUrl
+                                    ? <img src={holdImageUrl} alt="Hold OK to talk" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                    : 'HOLD OK'}
+                            </button>
+                            <div style={{ height: 16 }} />
+                        </>
+                    ) : null}
                     <div
                         data-testid="v2ai-status"
                         style={{
                             fontSize: 14,
-                            letterSpacing: '0.14em',
-                            color: 'var(--vesper-text-2, #8EA0B7)',
+                            letterSpacing: '0.16em',
+                            color: '#8EA0B7',
                             textAlign: 'center',
-                            maxWidth: 700,
+                            textShadow: '0 1px 8px rgba(0,8,20,0.75)',
+                            maxWidth: 760,
                         }}
                     >
                         {status}
                     </div>
                 </div>
             ) : (
-                /* ───────────────── RESULTS ───────────────── */
-                <div className="flex-1 flex flex-col" style={{ minHeight: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 10 }}>
+                /* ───────────── RESULTS — launcher-exact layout ───────────── */
+                <div
+                    className="relative h-full flex flex-col"
+                    style={{ padding: '36px 48px', minHeight: 0 }}
+                >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 18, paddingLeft: 8, paddingBottom: 14 }}>
                         <button
                             type="button"
                             data-testid="v2ai-ask-again"
                             data-focusable="true"
-                            data-focus-style="pill"
                             tabIndex={0}
                             onClick={askAgain}
-                            className="vesper-btn"
-                            style={{ padding: '8px 18px', fontSize: 13 }}
+                            style={{
+                                fontSize: 13,
+                                letterSpacing: '0.16em',
+                                color: '#8EA0B7',
+                                background: 'transparent',
+                                border: '1px solid rgba(142,160,183,0.35)',
+                                borderRadius: 999,
+                                padding: '6px 16px',
+                                cursor: 'pointer',
+                            }}
                         >
-                            ← Ask again
+                            ← ASK AGAIN
                         </button>
-                        <span
-                            className="vesper-mono"
-                            style={{ fontSize: 12, letterSpacing: '0.18em', color: 'var(--vesper-text-3, #62748C)' }}
-                        >
+                        <span style={{ fontSize: 13, letterSpacing: '0.16em', color: '#8EA0B7' }}>
                             PRESS BACK TO ASK AGAIN
                         </span>
                     </div>
                     {result.parsed?.transcript ? (
                         <div
                             data-testid="v2ai-transcript"
-                            style={{ fontSize: 'clamp(18px, 1.8vw, 24px)', fontWeight: 700, marginBottom: 18 }}
+                            style={{
+                                fontSize: 22,
+                                fontWeight: 700,
+                                letterSpacing: '-0.01em',
+                                padding: '0 8px 18px',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                            }}
                         >
                             “{result.parsed.transcript}”
                         </div>
                     ) : null}
 
-                    {result.kind === 'recs' && (
-                        <RecRail items={result.parsed.recommendations || []} onPlay={playTitle} />
-                    )}
-                    {result.kind === 'qa' && (
-                        <QaCard parsed={result.parsed} onPlay={playTitle} />
-                    )}
-                    {result.kind === 'person' && (
-                        <PersonCard parsed={result.parsed} onPlay={playTitle} />
-                    )}
+                    <div className="flex-1 flex" style={{ minHeight: 0, alignItems: 'center' }}>
+                        {result.kind === 'recs' && (
+                            <RecRail items={result.parsed.recommendations || []} onPlay={playTitle} />
+                        )}
+                        {result.kind === 'qa' && (
+                            <QaCard parsed={result.parsed} onPlay={playTitle} />
+                        )}
+                        {result.kind === 'person' && (
+                            <PersonCard parsed={result.parsed} onPlay={playTitle} />
+                        )}
+                    </div>
                 </div>
             )}
-
-            <style>{`
-                .v2ai-bar {
-                    width: 5px;
-                    height: 12px;
-                    border-radius: 999px;
-                    background: rgba(93,200,255,0.35);
-                }
-                .v2ai-bar--live {
-                    background: linear-gradient(180deg, #5DC8FF, #7C6BFF);
-                    animation: v2ai-bar-bounce 640ms ease-in-out infinite alternate;
-                }
-                @keyframes v2ai-bar-bounce {
-                    from { transform: scaleY(0.6); }
-                    to   { transform: scaleY(5.4); }
-                }
-            `}</style>
         </div>
     );
 }
@@ -486,9 +688,10 @@ function RecRail({ items, onPlay }) {
                 display: 'flex',
                 gap: 16,
                 overflowX: 'auto',
-                padding: '10px 4px 24px',
-                alignItems: 'flex-start',
-                flex: 1,
+                padding: '10px 4px 18px',
+                alignItems: 'center',
+                width: '100%',
+                justifyContent: items.length <= 4 ? 'center' : 'flex-start',
             }}
         >
             {items.map((item, i) => (
@@ -507,7 +710,7 @@ function RecRail({ items, onPlay }) {
                         textAlign: 'left',
                         borderRadius: 18,
                         border: '2px solid rgba(67,88,127,0.20)',
-                        background: 'rgba(14,24,52,0.70)',
+                        background: 'rgba(14,24,52,0.85)',
                         padding: 12,
                         color: 'inherit',
                         cursor: 'pointer',
@@ -536,7 +739,7 @@ function RecRail({ items, onPlay }) {
                         {item.title}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ flex: 1, fontSize: 11, letterSpacing: '0.06em', color: 'var(--vesper-text-2, #8EA0B7)' }}>
+                        <span style={{ flex: 1, fontSize: 11, letterSpacing: '0.06em', color: '#8EA0B7' }}>
                             {metaLine(item)}
                         </span>
                         {item.rating && Number(item.rating) > 0 ? (
@@ -560,7 +763,7 @@ function RecRail({ items, onPlay }) {
                                 marginTop: 8,
                                 fontSize: 12,
                                 lineHeight: 1.45,
-                                color: 'var(--vesper-text-2, #8EA0B7)',
+                                color: '#8EA0B7',
                                 display: '-webkit-box',
                                 WebkitLineClamp: 3,
                                 WebkitBoxOrient: 'vertical',
@@ -588,11 +791,12 @@ function QaCard({ parsed, onPlay }) {
                 display: 'flex',
                 gap: 28,
                 alignItems: 'flex-start',
-                background: 'rgba(14,24,52,0.70)',
+                background: 'rgba(14,24,52,0.85)',
                 border: '2px solid rgba(67,88,127,0.20)',
                 borderRadius: 22,
                 padding: 'clamp(20px, 2.5vw, 34px)',
                 maxWidth: 1100,
+                margin: '0 auto',
             }}
         >
             {parsed.subject_poster_url ? (
@@ -607,7 +811,7 @@ function QaCard({ parsed, onPlay }) {
                     <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>
                         {subject}
                         {parsed.subject_year ? (
-                            <span style={{ marginLeft: 10, fontWeight: 500, color: 'var(--vesper-text-2, #8EA0B7)', fontSize: 15 }}>
+                            <span style={{ marginLeft: 10, fontWeight: 500, color: '#8EA0B7', fontSize: 15 }}>
                                 {parsed.subject_year}
                             </span>
                         ) : null}
@@ -635,11 +839,19 @@ function QaCard({ parsed, onPlay }) {
                         type="button"
                         data-testid="v2ai-qa-play"
                         data-focusable="true"
-                        data-focus-style="pill"
                         tabIndex={0}
                         onClick={() => onPlay(subject, subjType)}
-                        className="vesper-btn"
-                        style={{ marginTop: 18 }}
+                        style={{
+                            marginTop: 18,
+                            background: '#2BB6FF',
+                            color: '#04060B',
+                            fontWeight: 700,
+                            fontSize: 15,
+                            border: 'none',
+                            borderRadius: 999,
+                            padding: '10px 24px',
+                            cursor: 'pointer',
+                        }}
                     >
                         ▶ Play {subject}
                     </button>
@@ -652,8 +864,8 @@ function QaCard({ parsed, onPlay }) {
 function PersonCard({ parsed, onPlay }) {
     const known = parsed.known_for || [];
     return (
-        <div data-testid="v2ai-person-card" style={{ minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', marginBottom: 18 }}>
+        <div data-testid="v2ai-person-card" style={{ minHeight: 0, display: 'flex', flexDirection: 'column', width: '100%' }}>
+            <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', marginBottom: 18, padding: '0 8px' }}>
                 {parsed.person_profile_url ? (
                     <img
                         src={parsed.person_profile_url}
@@ -669,7 +881,7 @@ function PersonCard({ parsed, onPlay }) {
                         style={{
                             fontSize: 14,
                             lineHeight: 1.55,
-                            color: 'var(--vesper-text-2, #8EA0B7)',
+                            color: '#8EA0B7',
                             maxWidth: 900,
                             display: '-webkit-box',
                             WebkitLineClamp: 4,

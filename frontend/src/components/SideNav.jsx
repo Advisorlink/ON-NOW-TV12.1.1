@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     Home as HomeIcon,
     Search,
@@ -38,6 +38,11 @@ const NAV = [
 
 export default function SideNav() {
     const [expanded, setExpanded] = useState(false);
+    // v2.13.1 — push-and-hold timer for the V2AI rail button.
+    const v2aiHoldTimer = useRef(null);
+    useEffect(() => () => {
+        if (v2aiHoldTimer.current) clearTimeout(v2aiHoldTimer.current);
+    }, []);
     // When the user clicks a nav item we briefly force the rail
     // to collapsed regardless of focus state.  Without this the
     // SideNav lingers expanded on slow TV boxes for the 80–300 ms
@@ -343,14 +348,34 @@ export default function SideNav() {
 
                 {/* V2AI — voice assistant, now living INSIDE Vesper
                     (moved out of the launcher).  Sits directly under
-                    the Autoplay lightning bolt per user spec.  Being
-                    in-app means "Play The Matrix" plays straight away
-                    with no profile-screen interruption. */}
+                    the Autoplay lightning bolt per user spec.
+                    v2.13.1 — CLICK opens the assistant page;
+                    PUSH-AND-HOLD (≥450 ms) jumps straight into
+                    listening mode so the user can immediately say
+                    "play movie …" without an extra step. */}
                 <button
                     data-testid="nav-v2ai"
                     data-focusable="true"
                     data-focus-style="nav"
                     tabIndex={0}
+                    onKeyDown={(e) => {
+                        if (e.key !== 'Enter' && e.key !== ' ') return;
+                        e.preventDefault();
+                        if (e.repeat || v2aiHoldTimer.current) return;
+                        v2aiHoldTimer.current = setTimeout(() => {
+                            v2aiHoldTimer.current = null;
+                            handleNavClick('/v2ai?listen=1');
+                        }, 450);
+                    }}
+                    onKeyUp={(e) => {
+                        if (e.key !== 'Enter' && e.key !== ' ') return;
+                        e.preventDefault();
+                        if (v2aiHoldTimer.current) {
+                            clearTimeout(v2aiHoldTimer.current);
+                            v2aiHoldTimer.current = null;
+                            handleNavClick('/v2ai');
+                        }
+                    }}
                     onClick={() => handleNavClick('/v2ai')}
                     className={`relative flex items-center gap-4 h-11 px-2 rounded-lg text-left ${
                         activePath === '/v2ai'
