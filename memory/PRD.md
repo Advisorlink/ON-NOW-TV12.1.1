@@ -7605,3 +7605,38 @@ No backend changes this round.
 
 Note (low priority, from testing agent): readScopedString ':global'
 promotion doesn't dispatch 'vesper:profile-change'; harmless in practice.
+
+## Session 2026-07-02 (part 3) — Backup completeness + summaries, Christmas category (iteration_69, all PASS)
+
+(A) **Profile backup now truly covers everything and SHOWS it (P0)**:
+- Root cause: ESSENTIAL key lists in lib/profileBackup.js named non-existent
+  keys (`vesper-cw-`, `vesper-library-`) so CW/library/theme were droppable
+  and the restore preview always counted ZERO. Fixed to the real families:
+  onnowtv-continue-watching-v1*, onnowtv-watched-v1*, vesper-library*,
+  onnowtv-theme*, onnowtv-viewing-style-v1*, live favourites/reminders,
+  music library/playlists, kids config.
+- New summarizeBackupPayload(): profile NAMES + CW/library/live-fav/reminder
+  counts. Shown after save (ProfileBackup page testid profile-backup-summary,
+  Settings testid backup-saved-summary) and before restore (ProfileLoad
+  ConfirmStep stats + profile-load-summary-names, Settings
+  backup-restore-summary).
+- applyBackupPayload → normalizeAccountKeys(): remaps account-suffixed core
+  keys (profiles/active/kids-config) onto the CURRENT signed-in account +
+  unsuffixed fallback, so restores from another account or old build still
+  surface profiles. Restore then reloads to /profiles (existing behavior).
+- Round-trip verified E2E: save (2 profiles Alice/Bob, 3 CW, 2 library) →
+  wipe → restore preview showed names+counts → apply → all data + gold theme
+  back, CW row rendered on Home.
+- Also fixed stale-closure onClick in ProfileLoad CodeStep on-screen keys.
+
+(B) **Christmas category**:
+- Backend: SYNTHETIC_KEYWORDS['-3'] = TMDB keyword 207317 (christmas), with
+  KEYWORD_EXTRA genre intersection Family|Comedy|Romance|Animation so the
+  list isn't Harry Potter noise. /api/tmdb/by-genres/movie?genre_ids=-3.
+- Profile setup: ProfileEdit synthetic genre list now includes
+  { id: -3, name: 'Christmas' } (movie + TV pickers).
+- Movies tab: 'Christmas' chip pinned after All in TabGridView; fetches the
+  TMDB list (100 tiles, routePath /resolve/movie/<tmdb_id>).
+
+⚠️ Frontend changes reach the TV box only after a Vesper APK CI rebuild.
+Backend changes (Christmas endpoint) are live on redeploy.

@@ -267,7 +267,7 @@ function CodeStep({ code, setCode, onNext, err }) {
                         tabIndex={0}
                         disabled={code.length >= 6}
                         onClick={() => {
-                            if (code.length < 6) setCode((code + k).toUpperCase());
+                            setCode((prev) => (prev.length < 6 ? (prev + k).toUpperCase() : prev));
                         }}
                         style={{
                             height: 44, borderRadius: 8,
@@ -290,7 +290,7 @@ function CodeStep({ code, setCode, onNext, err }) {
                     data-testid="profile-load-backspace"
                     data-focusable="true"
                     tabIndex={0}
-                    onClick={() => setCode(code.slice(0, -1))}
+                    onClick={() => setCode((prev) => prev.slice(0, -1))}
                     disabled={code.length === 0}
                     style={{
                         height: 44, padding: '0 18px', borderRadius: 999,
