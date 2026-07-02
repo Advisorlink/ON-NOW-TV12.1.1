@@ -7640,3 +7640,40 @@ promotion doesn't dispatch 'vesper:profile-change'; harmless in practice.
 
 ⚠️ Frontend changes reach the TV box only after a Vesper APK CI rebuild.
 Backend changes (Christmas endpoint) are live on redeploy.
+
+## Session 2026-07-02 (part 4) — TV autoplay P0 fix, movie-style episode picker, full-scroll lists (iteration_70, all PASS)
+
+User reported: TV shows stopped autoplaying; episode stream chooser must match
+movie design; lists capped at 30 ("+67 more not shown"); native in-player swap
+sheet can't scroll.
+
+1. **TV autoplay P0 — ROOT CAUSE**: SeriesEpisodes.jsx had a LOCAL crude
+   pickAutoplayCandidate (direct-1080p → any-1080p) SHADOWING the shared movie
+   cascade in lib/streamOrder.js, and its fallback `streamsArr[0]` could pick a
+   WatchHub 'external' web link → window.open(Netflix) → nothing plays on TV.
+   FIX: new pickBestPlayable() uses the SHARED cascade (EasyNews++ 1080p →
+   Torrentio ≤3GB → EP-STREM → any English 1080p) + ordered fallback that only
+   ever picks playable direct/torrent, NEVER external; no playable → opens
+   diagnostics drawer. Verified: 0 window.open calls, drawer fallback works.
+2. **Movie autoplay unified**: Detail.jsx autoplayCandidate memo now delegates
+   to the same shared cascade (identical behavior, single source of truth).
+3. **Episode chooser = movie design**: manual mode (autoplay OFF) now opens
+   the SAME StreamPickerModal as movies (poster, 'Show — S1E1 · Name',
+   synopsis, addon/quality/ENG chips, N FOUND, scrollable, first row focused,
+   OK to play / BACK to close). Drawer remains as zero-streams diagnostics
+   fallback; drawer rows pass full stream list to native picker payload.
+4. **Full lists**: drawer 30-cap + '+N more streams not shown' REMOVED —
+   ul[data-stream-list] maxHeight 60vh + overflowY auto shows every stream.
+5. **Native in-player sheet scroll (Kotlin)**: PlayerOverlay.kt
+   StreamPickerSheet rows now inside Column(heightIn(max=430.dp)
+   .verticalScroll(...)) — D-pad focus pulls rows into view; every source
+   reachable. switchStream already preserves playback position (verified in
+   code — resumes at same spot). Compose BOM 2024.05.00 supports this.
+   NOT browser-testable; needs on-device verification after APK build.
+
+Env note: Torrentio/EasyNews/Plexio are Cloudflare-blocked from this pod (403)
+— preview only resolves WatchHub externals; real boxes (residential IP) get
+full stream lists via WebView direct probes.
+
+⚠️ ALL of these fixes (JS + Kotlin) reach the box only via a Vesper APK CI
+rebuild.
