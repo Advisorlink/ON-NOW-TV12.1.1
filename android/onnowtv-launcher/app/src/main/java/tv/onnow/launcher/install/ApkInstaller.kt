@@ -136,6 +136,26 @@ object ApkInstaller {
             } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
                 false
             }
+
+            // v2.12.12 — PREFERRED PATH: if the launcher has been
+            // provisioned as the box's DEVICE OWNER, install SILENTLY
+            // via PackageInstaller — no root, no superuser prompt, no
+            // "unknown sources" dialog, no confirmation screen.  The
+            // customer sees nothing.  Covers fresh installs, side-app
+            // updates AND the launcher self-update (in-place, keeps
+            // data; InstallResultReceiver relaunches it).  Falls
+            // through to the root path (then the intent path) on any
+            // failure — e.g. a side app whose signature drifted, which
+            // PackageInstaller refuses just like `pm`.
+            if (SilentInstaller.isDeviceOwner(ctx)) {
+                val relaunch = (apkPkg == ctx.packageName)
+                if (SilentInstaller.install(ctx, out, apkPkg, relaunch)) {
+                    Log.i(TAG, "silent device-owner install committed for $apkPkg (relaunch=$relaunch)")
+                    return@withContext null
+                }
+                Log.w(TAG, "device-owner silent install failed for $apkPkg; falling back to root/intent")
+            }
+
             val rootNeeded =
                 (conflict != null) ||
                 (apkPkg == ctx.packageName) ||

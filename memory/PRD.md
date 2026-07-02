@@ -7273,3 +7273,42 @@ fleet provisioning (Magisk grant, Device Owner path).
 
 ### ⚠️ NOT on-device tested (no Android box in env). Needs operator to
 rebuild launcher APK via CI and verify an update on a real box.
+
+---
+
+## Session: 2026-07-02 (part 5) — Device Owner silent install (Option B) WIRED UP
+
+### Goal: zero-prompt fleet updates (no root prompt, no scary Magisk text)
+Device-owner boxes now install/update APKs SILENTLY via PackageInstaller.
+
+### New files
+- `admin/OnNowDeviceAdminReceiver.kt` — DeviceAdminReceiver (policy-free,
+  just unlocks device-owner privilege).
+- `res/xml/device_admin.xml` — empty device-admin descriptor.
+- `install/SilentInstaller.kt` — PackageInstaller session install;
+  isDeviceOwner() gate; setRequireUserAction(USER_ACTION_NOT_REQUIRED)
+  on API 31+; MODE_FULL_INSTALL; keeps data on self-update.
+- `install/InstallResultReceiver.kt` — manifest-declared; on
+  STATUS_SUCCESS relaunches launcher (self-update); STATUS_PENDING_USER_ACTION
+  fallback fires the confirm intent.
+
+### Manifest
+- Added UPDATE_PACKAGES_WITHOUT_USER_ACTION permission.
+- Registered <receiver> OnNowDeviceAdminReceiver (BIND_DEVICE_ADMIN +
+  DEVICE_ADMIN_ENABLED) and InstallResultReceiver.
+
+### Wiring (ApkInstaller.downloadAndInstall)
+Priority order now: (1) if isDeviceOwner → SilentInstaller (zero prompt);
+(2) else root (in-place self-update / uninstall+install side-apps);
+(3) else intent flow. Falls through on any failure.
+
+### Provisioning command (per box, one-time, no accounts on device)
+`adb shell dpm set-device-owner tv.onnow.launcher/.admin.OnNowDeviceAdminReceiver`
+Full step-by-step in android/onnowtv-launcher/LAUNCHER_UPDATE_GUIDE.md.
+
+### Testing
+- kotlinc syntax check: 0 syntax errors (remaining are Android-SDK
+  classpath cascades incl. pre-existing return@withContext lines 77-78).
+- XML validated. API usage matches current PackageInstaller docs.
+- ⚠️ NOT on-device tested (no Android box/SDK in env). Needs operator to
+  rebuild APK, provision a box as device owner, and confirm silent update.

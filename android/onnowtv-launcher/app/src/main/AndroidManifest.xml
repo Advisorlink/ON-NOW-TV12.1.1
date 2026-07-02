@@ -25,6 +25,12 @@
 
     <!-- Sideload APKs published from the admin backend. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- v2.12.12 — Lets a DEVICE-OWNER launcher install/update APKs
+         SILENTLY via PackageInstaller on Android 12+ (API 31) with
+         setRequireUserAction(USER_ACTION_NOT_REQUIRED).  Normal
+         permission; ignored on older boxes (where device-owner
+         installs are already silent). -->
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
     <!-- v2.8.5 — REQUEST_DELETE_PACKAGES is REQUIRED on Android 11+
          (API 30) before ACTION_UNINSTALL_PACKAGE / ACTION_DELETE
          intents will resolve to the system uninstaller.  Without
@@ -209,6 +215,31 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_provider_paths" />
         </provider>
+
+        <!-- v2.12.12 — Device-owner admin component.  Provisioned once
+             per box via `adb shell dpm set-device-owner
+             tv.onnow.launcher/.admin.OnNowDeviceAdminReceiver`.  Being
+             device owner unlocks SILENT APK installs (no root prompt,
+             no confirmation dialog).  See admin/OnNowDeviceAdminReceiver. -->
+        <receiver
+            android:name=".admin.OnNowDeviceAdminReceiver"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- v2.12.12 — Delivers the async result of a silent
+             PackageInstaller session (see SilentInstaller).  Declared
+             (not context-registered) so it still fires after a
+             self-update replaces the process. -->
+        <receiver
+            android:name=".install.InstallResultReceiver"
+            android:exported="false" />
 
     </application>
 

@@ -52,16 +52,103 @@ When you first sideload the launcher on a client box, open the update
 once so Magisk shows the prompt, tap **Grant**, and confirm the toggle
 stays on. From then on updates are silent.
 
-## Future: fully silent, zero-prompt updates (Option B)
-For a large fleet, the professional end-state is to remove root from
-the equation entirely, one-time per box at setup:
+## ✅ NEW: Fully silent, zero-prompt updates (Device Owner) — WIRED UP
 
-- **Device Owner:** `adb shell dpm set-device-owner
-  tv.onnow.launcher/.YourAdminReceiver` on a freshly-provisioned box.
-  Then the launcher can install/update APKs **silently** with no root
-  and no prompt (uses PackageInstaller under device-owner privilege).
-- **or Privileged system app:** place the launcher in
-  `/system/priv-app/` with `android.permission.INSTALL_PACKAGES`.
+The launcher is now **Device-Owner capable**. Once a box is set as
+Device Owner (one-time at setup), **every install and update happens
+completely silently**:
 
-Both need one setup command per box (which you already touch when you
-sideload). Ask the agent to wire this up when you're ready.
+- ❌ NO superuser / root prompt (it never calls `su` in this mode)
+- ❌ NO "install from unknown sources" warning
+- ❌ NO system "Do you want to install?" confirmation
+- ❌ NO scary "if you don't know what this does, don't do it" text
+  (that text belongs to Magisk's root prompt — device owner skips
+  root entirely, so it never appears)
+- ✅ The customer sees **nothing** — the new launcher just appears.
+
+### How it works internally
+When the launcher is Device Owner, the update flow uses Android's
+`PackageInstaller` with `USER_ACTION_NOT_REQUIRED`. The OS trusts a
+device-owner app to install packages without asking. Self-updates are
+in-place (data/profiles kept) and the launcher relaunches itself into
+the new version automatically.
+
+---
+
+## 📋 EXACTLY what to do per box (one-time setup)
+
+Do this ONCE on each box, at setup, BEFORE handing it to the client.
+Takes ~2 minutes.
+
+### Step 1 — Start from a clean box
+Device Owner can only be set when the box has **no accounts** on it.
+- Brand-new box: fine as-is.
+- Box already in use: **Settings → Device Preferences → Reset →
+  Factory reset**, then during setup **SKIP signing into any Google
+  account** (choose "Skip"/"Set up later"). Do not add any account.
+
+### Step 2 — Turn on ADB (developer mode) on the box
+1. **Settings → Device Preferences → About**.
+2. Scroll to **Build** and click it **7 times** ("You are now a
+   developer").
+3. Go back to **Settings → Device Preferences → Developer options**.
+4. Turn ON **USB debugging** (and **Network debugging / ADB over
+   Wi-Fi** if the box has no USB, e.g. many TV sticks).
+
+### Step 3 — Connect your computer to the box with ADB
+On your computer (with the Android platform-tools / `adb` installed):
+
+- **Over USB:** plug the box into your computer, then:
+  ```
+  adb devices
+  ```
+  (accept the "Allow USB debugging?" prompt on the TV).
+
+- **Over Wi-Fi:** find the box IP in Developer options (or
+  Settings → Network), then:
+  ```
+  adb connect 192.168.1.XX:5555
+  ```
+  (replace with the box's IP).
+
+### Step 4 — Install the launcher (if not already on the box)
+```
+adb install ON-NOW-LAUNCHER.apk
+```
+
+### Step 5 — Make the launcher the Device Owner  ← the magic command
+```
+adb shell dpm set-device-owner tv.onnow.launcher/.admin.OnNowDeviceAdminReceiver
+```
+You should see: **"Success: Device owner set to package tv.onnow.launcher"**.
+
+That's it. From now on, every launcher update (and every app update)
+on that box installs **silently** — no prompts of any kind.
+
+### Step 6 — Finish setup and hand it over
+Set ON NOW as the default Home if the box asks, then give it to your
+client. Future updates: they click "Update", it installs, done. No
+prompts, no confusion.
+
+---
+
+## Troubleshooting Step 5
+
+| Message | Meaning / fix |
+|---|---|
+| `Success: Device owner set…` | 🎉 Done. |
+| `Not allowed to set the device owner because there are already several users on the device` | An account/user exists → factory reset and skip account setup (Step 1). |
+| `Neither user … nor current process has android.permission.MANAGE_DEVICE_ADMINS` | Run the exact command from Step 5 (it's `adb shell dpm …`, run from your computer). |
+| `Unknown admin: ComponentInfo{…}` | The launcher APK isn't installed yet, or you typed the receiver name wrong. Re-run Step 4, then Step 5 exactly. |
+| `java.lang.SecurityException … device owner cannot be set` on Sony/TCL/Hisense retail TVs | Some retail-firmware TVs block this. Use the root/Magisk path below on those boxes instead. |
+
+---
+
+## If a box CAN'T be a Device Owner (retail TVs / already-in-field)
+
+The launcher still self-updates fine on rooted boxes via the in-place
+root path (see top of this doc). To silence the root prompt there:
+
+**Magisk** → **Superuser** → **ON NOW TV V2** → set to **Grant** and
+make sure it's **not** on a timeout. One toggle, done once per box.
+

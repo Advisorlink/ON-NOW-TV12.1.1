@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  v2.12.12 — Device-admin policy descriptor for
+  OnNowDeviceAdminReceiver.  Intentionally declares NO restrictive
+  policies: the receiver exists only to let the launcher be set as
+  Device Owner (which unlocks silent PackageInstaller installs).  An
+  empty <uses-policies> block is valid and required for the device
+  admin binding to resolve.
+-->
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies>
+    </uses-policies>
+</device-admin>
