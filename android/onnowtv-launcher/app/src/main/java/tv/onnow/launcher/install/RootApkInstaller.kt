@@ -36,19 +36,29 @@ import java.util.concurrent.atomic.AtomicBoolean
  *
  * Since the boxes are rooted, we can sidestep all of this:
  *
- *   1.  Try `pm install -r -d <apk>` (replace, allow downgrade) —
- *       handles case (b) and the common case where the signature
- *       matches.
- *   2.  If that fails, `pm uninstall <pkg>` then `pm install
- *       <apk>` — handles (a) by wiping the old package, signature
- *       and all, before laying down the new one.
- *   3.  After the install, `am start -n <pkg>/<MainActivity>` to
- *       wake the launcher back up (Android usually does this for
- *       us since we're the default home, but explicit is safer).
+ *   • SELF-UPDATE (the launcher updating itself, v2.12.11):
+ *       IN-PLACE `pm install -r <apk>` — NO uninstall.  Keeps all
+ *       data/profiles, the package is never absent (box can't drop to
+ *       the stock launcher), and because signatures always match
+ *       (stable committed keystore) + versionCode always increases
+ *       (CI = 1 + run number), `-r` is always accepted.  Then
+ *       `am force-stop` + relaunch so the NEW code loads (the on-disk
+ *       APK updates instantly but the live process keeps the old code
+ *       until restarted — that was the "still shows old version" bug).
+ *       As the HOME app, even if this shell dies at force-stop the OS
+ *       auto-relaunches HOME → the update self-heals.
  *
- * The whole sequence is launched via `nohup … &` in a root shell,
- * so when `pm install` SIGKILLs the running launcher mid-update
- * (case c) the install itself keeps going as a detached init child.
+ *   • SIDE-APP update (Vesper / Tunes / …):
+ *       `pm uninstall` then `pm install` (they aren't the running
+ *       process, so uninstalling is safe and clears any signature
+ *       drift from a manually side-loaded build).
+ *
+ *   • Fresh install: `pm install -r -d` with an uninstall+install
+ *       fallback.
+ *
+ * The whole sequence is launched via `nohup setsid … &` in a root
+ * shell, so when a force-stop / uninstall SIGKILLs the launcher the
+ * install itself keeps going as a detached init child.
  *
  * Falls back gracefully on non-rooted boxes — `isRootAvailable()`
  * is a quick probe that the home-update flow uses to pick between
@@ -246,13 +256,42 @@ object RootApkInstaller {
             append("cp \"$apkPath\" \"$tmpApkPath\" && chmod 644 \"$tmpApkPath\" && ")
             append("test -s \"$tmpApkPath\" && ")
             append("(")
-            if (forceCleanInstall) {
-                // v2.12.2 — Update path.  Nuke the old package first so
-                // Android CANNOT no-op the install (see kdoc above for
-                // why `pm install -r -d` alone isn't enough).  We
-                // ignore the uninstall exit code because on some
-                // firmwares `pm uninstall` returns non-zero even on
-                // success (e.g. when the package has no data dir).
+            if (relaunch) {
+                // v2.12.11 — SELF-UPDATE (the launcher updating ITSELF).
+                // NEVER uninstall here — uninstalling the launcher kills
+                // this very shell mid-update AND drops the box to the
+                // stock Android launcher (the operator's "lose
+                // everything" bug).  Instead do an IN-PLACE
+                // `pm install -r`:
+                //   • keeps ALL app data / profiles (no data loss)
+                //   • the launcher package is NEVER absent, so the box
+                //     can't fall back to the stock home
+                //   • signatures always match (stable committed
+                //     keystore) and versionCode always increases (CI =
+                //     1 + run number) → `-r` is guaranteed accepted,
+                //     never a silent no-op.
+                // After the on-disk APK is swapped, force-stop the OLD
+                // still-running process (that's why the operator kept
+                // seeing the old version — the on-disk APK updated but
+                // the live process kept the old code) and relaunch so
+                // the NEW code loads.  Because we're the HOME app, even
+                // if this detached shell is itself killed at force-stop,
+                // Android auto-relaunches HOME and cold-starts the new
+                // APK — so the update self-heals no matter what.
+                append("sleep 1 ; ")
+                append("pm install -r \"$tmpApkPath\" ; ")
+                append("sleep 1 ; ")
+                append("am force-stop \"$packageName\" ; ")
+                append("sleep 1 ; ")
+                append(relaunchCmd)
+            } else if (forceCleanInstall) {
+                // v2.12.2 — SIDE-APP update path (Vesper / Tunes / …).
+                // These aren't the running process, so uninstalling
+                // them is safe.  Nuke the old package first so Android
+                // CANNOT no-op the install when a side app carries its
+                // own (possibly drifted) keystore.  We ignore the
+                // uninstall exit code because on some firmwares
+                // `pm uninstall` returns non-zero even on success.
                 append("pm uninstall \"$packageName\" ; ")
                 // v2.12.7 — 1-second breather so PackageManager
                 // fully commits the uninstall before we try to
@@ -269,8 +308,6 @@ object RootApkInstaller {
                 append("pm install -r -d \"$tmpApkPath\"")
                 append(" || (pm uninstall \"$packageName\" && sleep 1 && pm install \"$tmpApkPath\")")
             }
-            // Re-launch the launcher (or no-op for side-app updates).
-            append(" ; $relaunchCmd")
             // Close the inner group.
             append(")")
             // Clean up BOTH the tmp copy AND the original cache

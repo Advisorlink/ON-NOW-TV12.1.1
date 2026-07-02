@@ -7237,3 +7237,39 @@ scrubbing slow, skip-next replaying same episode.
 - Preserved: all testids, D-pad spatial focus, show/hide password,
   error UI, music→/music vs vesper→/profiles post-login routing.
 - Verified via Playwright: both variants render, e2e login works.
+
+---
+
+## Session: 2026-07-02 (part 4) — Launcher self-update rewrite (in-place)
+
+### ROOT CAUSE of the operator's update failures
+Launcher is the HOME app and was self-updating via uninstall+reinstall:
+- "old launcher still shows" = pm install swapped APK on disk but the
+  old PROCESS kept running (never restarted).
+- "drops to stock launcher / loses everything" = `pm uninstall
+  tv.onnow.launcher` kills the launcher + the root shell doing the
+  reinstall → reinstall never runs → stock home, data gone.
+
+### FIX (RootApkInstaller.kt, v2.12.11)
+Self-update path (relaunch==true) now does IN-PLACE update, NO uninstall:
+`cp→tmp ; pm install -r ; force-stop ; relaunch`.
+- Keeps all data/profiles; package never absent → can't fall to stock
+  launcher; force-stop+relaunch loads new code (fixes "old version").
+- HOME auto-relaunch makes it self-heal even if the shell dies.
+- Verified safe: stable committed keystore (v1+v2+v3) → no sig
+  mismatch; CI versionCode = 1+run_number → `-r` always accepted.
+- Side-app updates (relaunch==false) keep uninstall+reinstall (they
+  aren't the running process, safe). Fresh installs unchanged.
+- kotlinc syntax check: 0 errors; rendered shell validated with `sh -n`.
+
+### Superuser prompt
+Persistent shell → ≤1 prompt per launcher boot. To reach ZERO: operator
+grants the launcher permanently in Magisk (documented). Future Option B
+(Device Owner / priv-app) = silent installs, no root, no prompt.
+
+### New doc
+`android/onnowtv-launcher/LAUNCHER_UPDATE_GUIDE.md` — how it works +
+fleet provisioning (Magisk grant, Device Owner path).
+
+### ⚠️ NOT on-device tested (no Android box in env). Needs operator to
+rebuild launcher APK via CI and verify an update on a real box.
