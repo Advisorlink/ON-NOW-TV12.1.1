@@ -830,6 +830,7 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                 const synthetic = [
                     { id: -1, name: 'True Stories' },
                     { id: -2, name: 'Biography' },
+                    { id: -3, name: 'Christmas' },
                 ];
                 setMovieGenres([...(m?.data || []), ...synthetic]);
                 setTvGenres([...(t?.data || []), ...synthetic]);

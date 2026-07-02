@@ -23,6 +23,8 @@
  *   • Misc app settings                     `vesper-*`, `onnowtv-*`
  */
 
+import { accountSuffix } from '@/lib/profileScope';
+
 const PREFIXES = [
     'onnowtv-',
     'vesper-',
@@ -69,26 +71,35 @@ const MAX_PER_KEY_BYTES = 128 * 1024; // 128 KB
    stores the payload gzipped so the actual wire size is way smaller. */
 const TARGET_TOTAL_BYTES = 4 * 1024 * 1024; // 4 MB raw → ~500 KB gzipped
 
-/* Keys we MUST keep — never drop these even if we're over budget. */
+/* Keys we MUST keep — never drop these even if we're over budget.
+   v2.13.5 — This list previously named keys that DON'T EXIST
+   (`vesper-cw-`, `vesper-library-`, `vesper-theme-`…), so Continue
+   Watching / library / theme were treated as droppable cache and the
+   restore preview always counted ZERO of them.  These are the REAL
+   key families (all profile-scoped variants match by prefix). */
 const ESSENTIAL_KEYS = new Set([
-    'onnowtv-profiles-v1',
-    'onnowtv-active-profile-v1',
     'onnowtv-provider-v1',     // saved Xtream credentials
     // v2.10.24 — User-uploaded avatar blobs (PNG / JPEG / animated
     // GIF) live here.  Bypass the 128 KB per-key cap so a 512×512
     // animated GIF (typically 200–800 KB) survives a backup-and-
     // restore round-trip onto a new device.
     'onnowtv-custom-avatars-v1',
+    'onnowtv-music-library-v1',
+    'onnowtv-music-playlists-v1',
 ]);
 const ESSENTIAL_PREFIXES = [
+    'onnowtv-profiles-v1',            // profiles (+ :account variants)
+    'onnowtv-active-profile-v1',
+    'onnowtv-kids-config-v1',
+    'onnowtv-continue-watching-v1',   // Continue Watching, every profile scope
+    'onnowtv-watched-v1',             // watched flags, every profile scope
+    'vesper-library',                 // favourites + watch-later, every scope
+    'onnowtv-theme',                  // per-profile theme choice
+    'onnowtv-viewing-style-v1',       // profile-setup taste picks
+    'onnowtv-live-favorites-v1',      // Live TV favourites
+    'onnowtv-live-reminders-v1',      // EPG reminders
     'onnowtv-pref:',
-    'vesper-library-',
-    'vesper-fav-',
-    'vesper-cw-',           // Continue Watching state
-    'onnowtv-live-fav-',    // Live TV favourites
-    'onnowtv-live-rem-',    // EPG reminders
     'vesper-pref-',
-    'vesper-theme-',
 ];
 
 /** Best-effort byte count for a string (UTF-8). */
@@ -200,7 +211,86 @@ export function applyBackupPayload(payload) {
             skipped += 1;
         }
     }
+    normalizeAccountKeys(payload);
     return { written, skipped };
+}
+
+/* Account-scoped core keys (profiles.js suffixes these with the
+   signed-in username).  A backup made under account A must still
+   surface its profiles when restored on a box signed into account B
+   — remap whichever variant carries data onto BOTH the current
+   account's suffixed key and the unsuffixed fallback. */
+const ACCOUNT_SCOPED_BASES = [
+    'onnowtv-profiles-v1',
+    'onnowtv-active-profile-v1',
+    'onnowtv-kids-config-v1',
+];
+
+function normalizeAccountKeys(payload) {
+    const suffix = accountSuffix();
+    for (const base of ACCOUNT_SCOPED_BASES) {
+        let val = payload[`${base}${suffix}`] ?? payload[base];
+        if (val == null) {
+            const alt = Object.keys(payload).find((k) => k.startsWith(`${base}:`));
+            if (alt) val = payload[alt];
+        }
+        if (val == null) continue;
+        const str = typeof val === 'string' ? val : JSON.stringify(val);
+        try {
+            localStorage.setItem(base, str);
+            if (suffix) localStorage.setItem(`${base}${suffix}`, str);
+        } catch { /* ignore */ }
+    }
+}
+
+/** Human-readable summary of what a backup payload contains, shown
+ *  after saving and before restoring so the user can see exactly
+ *  what's inside (profiles by name, Continue Watching entries,
+ *  library items, Live TV favourites, reminders). */
+export function summarizeBackupPayload(payload) {
+    const profiles = new Map();
+    let cwCount = 0;
+    let libraryCount = 0;
+    let liveFavourites = 0;
+    let reminders = 0;
+    let keyCount = 0;
+    for (const [key, raw] of Object.entries(payload || {})) {
+        if (typeof raw !== 'string') continue;
+        keyCount += 1;
+        try {
+            if (key.startsWith('onnowtv-profiles-v1')) {
+                for (const p of JSON.parse(raw) || []) {
+                    if (p && p.id && !profiles.has(p.id)) {
+                        profiles.set(p.id, p.name || 'Profile');
+                    }
+                }
+            } else if (key.startsWith('onnowtv-continue-watching-v1')) {
+                const v = JSON.parse(raw);
+                if (Array.isArray(v)) cwCount += v.length;
+            } else if (key.startsWith('vesper-library')) {
+                const v = JSON.parse(raw) || {};
+                const favs = v.favorites || {};
+                const wl = v.watchLater || [];
+                libraryCount += Array.isArray(favs) ? favs.length : Object.keys(favs).length;
+                libraryCount += Array.isArray(wl) ? wl.length : Object.keys(wl).length;
+            } else if (key.startsWith('onnowtv-live-favorites-v1')) {
+                const v = JSON.parse(raw);
+                liveFavourites += Array.isArray(v) ? v.length : Object.keys(v || {}).length;
+            } else if (key.startsWith('onnowtv-live-reminders-v1')) {
+                const v = JSON.parse(raw);
+                reminders += Array.isArray(v) ? v.length : Object.keys(v || {}).length;
+            }
+        } catch { /* unparseable — still backed up, just not counted */ }
+    }
+    return {
+        profileCount: profiles.size,
+        profileNames: Array.from(profiles.values()),
+        cwCount,
+        libraryCount,
+        liveFavourites,
+        reminders,
+        keyCount,
+    };
 }
 
 /** Friendly byte size formatter. */

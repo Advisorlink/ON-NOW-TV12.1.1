@@ -23,7 +23,7 @@ import {
     KeyRound, ShieldCheck, Check,
 } from 'lucide-react';
 import PinGate from '@/components/PinGate';
-import { applyBackupPayload } from '@/lib/profileBackup';
+import { applyBackupPayload, summarizeBackupPayload } from '@/lib/profileBackup';
 import { clearActiveProfile } from '@/lib/profiles';
 
 export default function ProfileLoad() {
@@ -350,19 +350,9 @@ function CodeStep({ code, setCode, onNext, err }) {
 /* ---------------- CONFIRM STEP ---------------- */
 
 function ConfirmStep({ preview, onConfirm, onCancel }) {
-    const payload = preview?.payload || {};
-    // Quick stats so the user knows what they're about to overwrite.
-    let profileCount = 0;
-    let libraryCount = 0;
-    let cwCount = 0;
-    try {
-        const profiles = JSON.parse(payload['onnowtv-profiles-v1'] || '[]');
-        profileCount = Array.isArray(profiles) ? profiles.length : 0;
-    } catch { /* ignore */ }
-    for (const k of Object.keys(payload)) {
-        if (k.startsWith('vesper-library-')) libraryCount += 1;
-        if (k.startsWith('vesper-cw-')) cwCount += 1;
-    }
+    // Real contents of the snapshot — profile NAMES + item counts —
+    // so the user sees exactly what they're about to load.
+    const s = summarizeBackupPayload(preview?.payload || {});
     return (
         <>
             <div
@@ -403,13 +393,31 @@ function ConfirmStep({ preview, onConfirm, onCancel }) {
                 style={{
                     display: 'grid', gap: 10,
                     gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                    width: '100%', maxWidth: 460, marginBottom: 28,
+                    width: '100%', maxWidth: 460, marginBottom: 14,
                 }}
             >
-                <Stat label="Profiles" value={profileCount} />
-                <Stat label="Libraries" value={libraryCount} />
-                <Stat label="Continue watching" value={cwCount} />
+                <Stat label="Profiles" value={s.profileCount} />
+                <Stat label="Library items" value={s.libraryCount} />
+                <Stat label="Continue watching" value={s.cwCount} />
             </div>
+            {s.profileNames.length > 0 && (
+                <div
+                    data-testid="profile-load-summary-names"
+                    style={{
+                        fontSize: 13, color: '#C7CFDB', textAlign: 'center',
+                        marginBottom: 24, maxWidth: 460, lineHeight: 1.6,
+                    }}
+                >
+                    Loading profiles:{' '}
+                    <strong style={{ color: '#FFFFFF' }}>{s.profileNames.join(', ')}</strong>
+                    {(s.liveFavourites > 0 || s.reminders > 0) && (
+                        <div style={{ fontSize: 12, color: '#9DA5B5', marginTop: 2 }}>
+                            plus {s.liveFavourites} Live TV favourite{s.liveFavourites === 1 ? '' : 's'}
+                            {s.reminders > 0 && <> and {s.reminders} reminder{s.reminders === 1 ? '' : 's'}</>}
+                        </div>
+                    )}
+                </div>
+            )}
             <div style={{ display: 'flex', gap: 12 }}>
                 <button
                     data-testid="profile-load-cancel"

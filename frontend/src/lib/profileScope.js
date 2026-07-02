@@ -23,7 +23,7 @@ const AUTH_ACCOUNT_KEY = 'vesper-auth-account-v1';
  * themes, viewing-style picks and continue-watching were silently
  * shared/lost.  Mirror the same suffix logic here (kept inline so
  * the module stays import-free). */
-function accountSuffix() {
+export function accountSuffix() {
     try {
         const raw = localStorage.getItem(AUTH_ACCOUNT_KEY);
         if (!raw) return '';

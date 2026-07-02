@@ -13,11 +13,7 @@ import { useTheme } from '@/themes/ThemeProvider';
 import { getAutoplay1080p, setAutoplay1080p } from '@/lib/prefs';
 import { clearActiveProfile } from '@/lib/profiles';
 import { useAuth } from '@/contexts/AuthContext';
-import {
-    collectBackupPayload,
-    applyBackupPayload,
-    fmtBytes,
-} from '@/lib/profileBackup';
+import { collectBackupPayload, applyBackupPayload, summarizeBackupPayload, fmtBytes } from '@/lib/profileBackup';
 import { replayOnboarding } from '@/components/Onboarding';
 import {
     NUDGE_FEATURES,
@@ -555,7 +551,7 @@ function BackupPanel() {
                 throw new Error(j.detail || `Save failed (HTTP ${res.status}).`);
             }
             const j = await res.json();
-            setResult(j);
+            setResult({ ...j, summary: summarizeBackupPayload(payload) });
             setMode('save-result');
         } catch (e) {
             setErr(e.message || 'Could not save backup.');
@@ -880,6 +876,7 @@ function SaveResult({ result, onDone }) {
                  }}>
                 {result.code}
             </div>
+            {result.summary && <BackupSummary summary={result.summary} testid="backup-saved-summary" />}
             <div style={{ marginTop: 18, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <BigBtn testid="backup-copy-code" tone="ghost" icon={copied ? Check : Copy}
                         label={copied ? 'Copied' : 'Copy code'} onClick={onCopy} />
@@ -949,6 +946,7 @@ function CodeStep({ code, setCode, onNext, onCancel, err }) {
 
 function RestoreConfirm({ preview, onConfirm, onCancel }) {
     const created = preview?.created_at?.slice(0, 10) || '–';
+    const summary = summarizeBackupPayload(preview?.payload || {});
     return (
         <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
@@ -956,12 +954,13 @@ function RestoreConfirm({ preview, onConfirm, onCancel }) {
                 <div style={{ fontSize: 17, fontWeight: 700 }}>Backup found</div>
             </div>
             <div style={{ fontSize: 13, color: 'var(--vesper-text-2, #9DA5B5)',
-                            marginBottom: 20, maxWidth: 640 }}>
+                            marginBottom: 14, maxWidth: 640 }}>
                 Created on <strong style={{ color: '#FFFFFF' }}>{created}</strong>.
                 Restoring will overwrite this device's current profiles,
                 Continue Watching, libraries, themes, everything.  The app
                 will reload once the restore is applied.
             </div>
+            <BackupSummary summary={summary} testid="backup-restore-summary" />
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <BigBtn testid="backup-restore-cancel-2" tone="ghost" icon={ArrowLeft}
                         label="Cancel" onClick={onCancel} />
@@ -972,6 +971,40 @@ function RestoreConfirm({ preview, onConfirm, onCancel }) {
                             color: 'var(--vesper-text-2, #9DA5B5)' }}>
                 Backup size: {fmtBytes(preview.size_bytes || 0)}
             </div>
+        </div>
+    );
+}
+
+function BackupSummary({ summary: s, testid }) {
+    return (
+        <div
+            data-testid={testid}
+            style={{
+                margin: '0 0 16px',
+                padding: '12px 16px',
+                borderRadius: 12,
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.10)',
+                fontSize: 13, lineHeight: 1.6,
+                color: 'var(--vesper-text-2, #9DA5B5)',
+                maxWidth: 480,
+            }}
+        >
+            <div style={{ fontWeight: 700, color: '#FFFFFF', marginBottom: 4 }}>
+                What&rsquo;s inside
+            </div>
+            <div>
+                {s.profileCount} profile{s.profileCount === 1 ? '' : 's'}
+                {s.profileNames.length > 0 && <> ({s.profileNames.join(', ')})</>}
+            </div>
+            <div>{s.cwCount} Continue Watching item{s.cwCount === 1 ? '' : 's'}</div>
+            <div>{s.libraryCount} library item{s.libraryCount === 1 ? '' : 's'}</div>
+            {(s.liveFavourites > 0 || s.reminders > 0) && (
+                <div>
+                    {s.liveFavourites} Live TV favourite{s.liveFavourites === 1 ? '' : 's'}
+                    {s.reminders > 0 && <> · {s.reminders} reminder{s.reminders === 1 ? '' : 's'}</>}
+                </div>
+            )}
         </div>
     );
 }

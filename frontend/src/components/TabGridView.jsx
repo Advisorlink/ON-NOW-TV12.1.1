@@ -61,6 +61,42 @@ export default function TabGridView({ type }) {
         } catch (e) { /* ignore */ }
     }, [genre, stateKey]);
 
+    // "Christmas" is a synthetic genre — no Stremio addon advertises
+    // it, so it's fed by the backend's TMDB keyword discover
+    // (/tmdb/by-genres with sentinel id -3 → keyword 207317).
+    const isXmas = type === 'movie' && genre === 'Christmas';
+    const [xmasItems, setXmasItems] = React.useState([]);
+    const [xmasLoading, setXmasLoading] = React.useState(false);
+    React.useEffect(() => {
+        if (!isXmas || xmasItems.length > 0) return undefined;
+        let cancel = false;
+        setXmasLoading(true);
+        (async () => {
+            try {
+                const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+                const r = await fetch(`${API}/tmdb/by-genres/movie?genre_ids=-3&limit=100`);
+                const j = await r.json();
+                if (cancel) return;
+                setXmasItems((j?.data || []).map((it) => ({
+                    id: `xmas-${it.tmdb_id}`,
+                    type: it.type,
+                    title: it.title,
+                    poster: it.poster,
+                    background: it.backdrop,
+                    genres: ['Christmas'],
+                    year: it.year,
+                    sub: [it.year, it.rating ? `★ ${it.rating}` : null]
+                        .filter(Boolean)
+                        .join(' · '),
+                    routePath: `/resolve/${it.type === 'series' ? 'tv' : 'movie'}/${it.tmdb_id}`,
+                })));
+            } catch { /* leave empty — grid shows the no-results panel */ }
+            finally { if (!cancel) setXmasLoading(false); }
+        })();
+        return () => { cancel = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isXmas]);
+
     // When a genre is selected, fire a deep-page fetch that pulls
     // EVERY title in that genre from every addon that advertises
     // it (per Stremio's `extra.genre` filter).  While the deep
@@ -74,7 +110,7 @@ export default function TabGridView({ type }) {
         totalLoaded: genreTotalLoaded,
         hasMore: genreHasMore,
         loadMore: genreLoadMore,
-    } = useTabGenreCatalog(addons, type, genre, allItems);
+    } = useTabGenreCatalog(addons, type, isXmas ? '' : genre, allItems);
 
     // v2.1 — IntersectionObserver sentinel.  When the sentinel
     // (rendered ~6 rows from the bottom of the grid) enters the
@@ -101,12 +137,13 @@ export default function TabGridView({ type }) {
     //   speed per user spec).
     // - A genre selected → every title in that genre, deep-paged.
     const items = React.useMemo(() => {
+        if (isXmas) return xmasItems;
         if (!genre) return allItems.slice(0, 100);
         return genreItems;
-    }, [allItems, genre, genreItems]);
+    }, [allItems, genre, genreItems, isXmas, xmasItems]);
 
-    const showLoading = genre ? genreLoading : loading;
-    const showProgress = genre ? genreProgress : progress;
+    const showLoading = isXmas ? xmasLoading : genre ? genreLoading : loading;
+    const showProgress = isXmas ? 0 : genre ? genreProgress : progress;
 
     // Save the click target so we can re-focus it when the user
     // returns from Detail.  Stored as the title's IMDb id; the
@@ -228,9 +265,9 @@ export default function TabGridView({ type }) {
                 </div>
             </header>
 
-            {genreList.length > 0 && (
+            {(genreList.length > 0 || type === 'movie') && (
                 <GenreChips
-                    genres={genreList}
+                    genres={type === 'movie' ? ['Christmas', ...genreList] : genreList}
                     selected={genre}
                     onSelect={(g) => setGenre(g)}
                 />

@@ -3538,6 +3538,7 @@ async def tmdb_by_genres(
     `with_genres`.  Currently:
       • -1 → "based on true story" (keyword 9672)
       • -2 → "biography"           (keyword 5565)
+      • -3 → "christmas"           (keyword 207317)
     """
     if media not in ("movie", "tv"):
         raise HTTPException(400, "media must be 'movie' or 'tv'")
@@ -3549,7 +3550,7 @@ async def tmdb_by_genres(
     for g in raw_ids:
         if g.lstrip("-").isdigit():
             (neg_ids if g.startswith("-") else pos_ids).append(g)
-    SYNTHETIC_KEYWORDS = {"-1": "9672", "-2": "5565"}
+    SYNTHETIC_KEYWORDS = {"-1": "9672", "-2": "5565", "-3": "207317"}
     if not pos_ids and not neg_ids:
         return {"cached": False, "data": []}
     # Cache key includes both buckets, sorted, so different
@@ -3573,17 +3574,23 @@ async def tmdb_by_genres(
             },
         )
 
-    async def _pull_keyword(keyword_id: str, page: int):
-        return await _tmdb_get(
-            f"/discover/{media}",
-            {
-                "with_keywords": keyword_id,
-                "sort_by": "popularity.desc",
-                "include_adult": "false",
-                "vote_count.gte": "200",
-                "page": str(page),
-            },
-        )
+    async def _pull_keyword(keyword_id: str, page: int, extra: Optional[dict] = None):
+        params = {
+            "with_keywords": keyword_id,
+            "sort_by": "popularity.desc",
+            "include_adult": "false",
+            "vote_count.gte": "200",
+            "page": str(page),
+        }
+        if extra:
+            params.update(extra)
+        return await _tmdb_get(f"/discover/{media}", params)
+
+    # Christmas (-3): the bare 'christmas' keyword is noisy — TMDB
+    # tags anything with a christmas SCENE (all 8 Harry Potters…).
+    # Intersecting with Family/Comedy/Romance/Animation genres keeps
+    # the list looking like an actual Christmas category.
+    KEYWORD_EXTRA = {"-3": {"with_genres": "10751|35|10749|16"}}
 
     pages_per_genre = max(1, math.ceil(limit / 20))
     tasks = []
@@ -3595,7 +3602,7 @@ async def tmdb_by_genres(
         if not kw:
             continue
         for p in range(1, pages_per_genre + 1):
-            tasks.append(_pull_keyword(kw, p))
+            tasks.append(_pull_keyword(kw, p, KEYWORD_EXTRA.get(nid)))
     pages = await asyncio.gather(*tasks, return_exceptions=True)
     for resp in pages:
         if isinstance(resp, Exception) or not resp:

@@ -29,7 +29,7 @@ import {
     Check, Copy, ShieldCheck,
 } from 'lucide-react';
 import PinGate from '@/components/PinGate';
-import { collectBackupPayload } from '@/lib/profileBackup';
+import { collectBackupPayload, summarizeBackupPayload } from '@/lib/profileBackup';
 
 export default function ProfileBackup() {
     const navigate = useNavigate();
@@ -58,7 +58,7 @@ export default function ProfileBackup() {
                 throw new Error(j.detail || `Save failed (HTTP ${res.status}).`);
             }
             const j = await res.json();
-            setResult(j);
+            setResult({ ...j, summary: summarizeBackupPayload(payload) });
             setStep('done');
         } catch (e) {
             setErr(e.message || 'Could not save backup.');
@@ -195,6 +195,39 @@ export default function ProfileBackup() {
                     >
                         {result.code}
                     </div>
+                    {result.summary && (
+                        <div
+                            data-testid="profile-backup-summary"
+                            style={{
+                                margin: '0 0 12px',
+                                padding: '12px 18px',
+                                borderRadius: 12,
+                                background: 'rgba(255,255,255,0.04)',
+                                border: '1px solid rgba(255,255,255,0.10)',
+                                fontSize: 13, lineHeight: 1.6,
+                                color: 'var(--vesper-text-2, #9DA5B5)',
+                                textAlign: 'left', maxWidth: 460,
+                            }}
+                        >
+                            <div style={{ fontWeight: 700, color: 'var(--vesper-text-1, #E6EAF0)', marginBottom: 4 }}>
+                                What&rsquo;s inside this backup
+                            </div>
+                            <div>
+                                {result.summary.profileCount} profile{result.summary.profileCount === 1 ? '' : 's'}
+                                {result.summary.profileNames.length > 0 && (
+                                    <> ({result.summary.profileNames.join(', ')})</>
+                                )}
+                            </div>
+                            <div>{result.summary.cwCount} Continue Watching item{result.summary.cwCount === 1 ? '' : 's'}</div>
+                            <div>{result.summary.libraryCount} library item{result.summary.libraryCount === 1 ? '' : 's'}</div>
+                            {(result.summary.liveFavourites > 0 || result.summary.reminders > 0) && (
+                                <div>
+                                    {result.summary.liveFavourites} Live TV favourite{result.summary.liveFavourites === 1 ? '' : 's'}
+                                    {result.summary.reminders > 0 && <> · {result.summary.reminders} reminder{result.summary.reminders === 1 ? '' : 's'}</>}
+                                </div>
+                            )}
+                        </div>
+                    )}
                     {result.expires_at && (
                         <p style={{ ...blurbStyle, fontSize: 12, opacity: 0.7, marginBottom: 12 }}>
                             Expires {new Date(result.expires_at).toLocaleString()}
