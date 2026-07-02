@@ -7351,3 +7351,41 @@ Full step-by-step in android/onnowtv-launcher/LAUNCHER_UPDATE_GUIDE.md.
 - 14x Down: content scrolls (row-pin OK), hero top=0 position:sticky ✅
 - 20x Up/Down in nav rail across BOTH edges: content scrollTop frozen
   at 1220 the whole time; rail expand + focus walk works ✅
+
+---
+
+## Session: 2026-07-02 (part 7) — 5-feature batch (all tested, 100% pass, iteration_65.json)
+
+1. **Karaoke button removed from Tunes side menu** (button only, per user —
+   routes/pages/player-karaoke features kept for a future standalone app).
+   `MusicLayout.jsx` NAV_ITEMS.
+2. **Tunes menu instant expand** — 300ms dwell timer + `width 280ms` slide
+   removed; matches Vesper's instant rail. `MusicLayout.jsx` + `tunes.css` L127.
+3. **Pink Music splash** — `BootSplash.jsx` music branch: hot-pink accent
+   (#FF5CA8) + pink-tinted radial backdrop. Verified visually.
+4. **Vesper: Left at left edge of ANY shelf opens the menu** — removed the
+   v2.7.15 first-shelf-only restriction in `useSpatialFocus.js` applyMove.
+5. **V2AI moved from Launcher into Vesper**:
+   - Launcher (Kotlin): V2AI pill removed from top bar (`activity_main.xml`,
+     `MainActivity.kt` — applyTopBarBranding simplified, click listener gone).
+     VoiceAssistantActivity.kt kept on disk but unreachable. Verified with
+     kotlinc set-diff: ZERO new errors vs HEAD (SDK-less noise identical).
+   - Vesper: new `nav-v2ai` button DIRECTLY UNDER Autoplay (`SideNav.jsx`)
+     → `/v2ai` page (`frontend/src/pages/V2AI.jsx`, RequireProfile-wrapped):
+     hold-OK mic (MediaRecorder → /api/v2ai/process; falls back to
+     Host.voiceSearch → /process-text), waveform, poster-card rail, QA card,
+     person card, BACK/ask-again returns to standby, `?q=` text deep-link
+     (SPA navigation only — full page loads hit the boot profile gate).
+   - Backend (`server.py` ~L4140): POST `/api/v2ai/process` (audio) +
+     `/api/v2ai/process-text` proxies to launcher-backend
+     (`LAUNCHER_BACKEND_URL` env override, default localhost:8002).
+   - launcher-backend (`main.py`): refactored to `_v2ai_handle_transcript()`
+     shared by audio + new `/api/launcher/v2ai/process-text`; fixed
+     pre-existing bug where fast-path TRENDING returned an empty stub
+     ("No matches found") — now TMDB-filled (20 recs); bare "recommend"
+     falls back to trending.
+   - E2E verified: "play the matrix" → /title/movie/tt0133093?autoplay=1
+     with NO profile-screen interruption (the original pain point).
+
+NOTE: Launcher APK + Vesper APK need CI rebuild + fleet update for the
+native-side change to reach boxes (React changes ship with the web bundle).
