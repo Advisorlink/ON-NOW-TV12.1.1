@@ -283,7 +283,7 @@ class MainActivity : AppCompatActivity() {
             }
             // Bounce back to Vesper with the Kids deep-link.  Same
             // intent shape the Kids dock tile uses.
-            val vesperPkg = "tv.onnowtv.app"
+            val vesperPkg = AppPackages.VESPER
             val launchIntent = packageManager
                 .getLaunchIntentForPackage(vesperPkg)
                 ?.apply {
@@ -479,7 +479,7 @@ class MainActivity : AppCompatActivity() {
         //     Falls back to opening Kids in a browser if the APK is
         //     not installed locally.
         if (item.key == "kids") {
-            val kidsPkg = "tv.onnowtv.kids"
+            val kidsPkg = AppPackages.KIDS
             val launchIntent = packageManager.getLaunchIntentForPackage(kidsPkg)
             if (launchIntent != null) {
                 startActivity(launchIntent)
@@ -697,13 +697,28 @@ class MainActivity : AppCompatActivity() {
         // returns without touching the install pipeline; the user
         // completes the backup + comes back to the launcher and
         // re-taps the tile to actually run the update.
-        if (installed) {
+        //
+        // v2.12.9 — VESPER-ONLY.  Only Vesper carries user profiles,
+        // so the backup prompt fires exclusively when the tile being
+        // UPDATED is Vesper.  Fresh installs (not installed yet) and
+        // every other app (Tunes, Kids, Sports, …) go straight to
+        // the install pipeline with no backup dialog.
+        if (installed && isVesperTile(item)) {
             showPreUpdateBackupDialog(item)
             return
         }
 
-        proceedWithTileInstall(item, installed = false)
+        proceedWithTileInstall(item, installed)
     }
+
+    /**
+     * v2.12.9 — True when this dock tile points at the Vesper app,
+     * matched on either the pinned APK package id or the tile's
+     * launch target package.
+     */
+    private fun isVesperTile(item: DockItem): Boolean =
+        item.apkPackageId == AppPackages.VESPER ||
+            item.targetPackage == AppPackages.VESPER
 
     /**
      * v2.12.2 — Pre-update dialog with three actions:
@@ -789,7 +804,7 @@ class MainActivity : AppCompatActivity() {
         // installed" toast to fire even on boxes where Vesper was
         // clearly running.  Same fix already applied in the v2 AI
         // deep-link path in `VoiceAssistantActivity.kt`.
-        val vesperPkg = "tv.onnowtv.app"
+        val vesperPkg = AppPackages.VESPER
         val launch = packageManager.getLaunchIntentForPackage(vesperPkg)
         if (launch == null) {
             Toast.makeText(

@@ -100,10 +100,13 @@ dependencies {
     // <audio> element can stream.
     //
     // Coordinates: JitPack publishes the whole-repo artifact at
-    // `com.github.TeamNewPipe:NewPipeExtractor:<gitTag>`.  Tag names
-    // are prefixed with `v` (JitPack is case-sensitive about both
-    // group and tag).  0.24.8 is the latest 0.24.x patch.
-    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.24.8")
+    // `com.github.teamnewpipe:NewPipeExtractor:<gitTag>`.
+    // v2.12.9 — Bumped 0.24.8 → 0.26.3.  YouTube's 2026 integrity
+    // checks broke every 0.24.x extraction (HTML instead of JSON,
+    // 403s) which silently pushed ALL Tunes playback onto the
+    // YouTube IFrame fallback.  0.26.3 is the same version the
+    // Vesper trailer extractor runs successfully in production.
+    implementation("com.github.teamnewpipe:NewPipeExtractor:v0.26.3")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
 
@@ -113,5 +116,5 @@ dependencies {
     // (Rhino, NanoJson) call `URLEncoder.encode(String, Charset)`
     // which lives under `java.nio` desugaring rules.  Must be paired
     // with `isCoreLibraryDesugaringEnabled = true` in `compileOptions`.
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.0.4")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.4")
 }

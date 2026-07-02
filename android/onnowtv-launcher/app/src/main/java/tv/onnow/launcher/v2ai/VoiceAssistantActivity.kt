@@ -762,7 +762,7 @@ class VoiceAssistantActivity : AppCompatActivity() {
         // installed" reject card.
         val encoded = java.net.URLEncoder.encode(title, "UTF-8")
         val typeArg = if (isSeries) "series" else "movie"
-        val launch  = packageManager.getLaunchIntentForPackage("tv.onnowtv.app")
+        val launch  = packageManager.getLaunchIntentForPackage(tv.onnow.launcher.AppPackages.VESPER)
             ?.apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 putExtra(

@@ -42,10 +42,17 @@ class OkHttpDownloader private constructor(
         val reqBuilder = okhttp3.Request.Builder()
             .method(method, body)
             .url(url)
-            .addHeader("User-Agent", USER_AGENT)
 
         headers.forEach { (name, values) ->
             values.forEach { v -> reqBuilder.addHeader(name, v) }
+        }
+        // v2.12.9 — Only inject our fallback UA when NewPipe did NOT
+        // set one itself.  The previous unconditional addHeader()
+        // produced requests with TWO User-Agent headers whenever
+        // NewPipe supplied its own client UA — YouTube's InnerTube
+        // endpoints reject those, which broke on-device extraction.
+        if (headers["User-Agent"].isNullOrEmpty()) {
+            reqBuilder.header("User-Agent", USER_AGENT)
         }
         // Inject cookies only if the upstream request didn't already
         // include one (NewPipe sets its own visitor cookies in some

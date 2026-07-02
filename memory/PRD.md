@@ -7128,3 +7128,44 @@ scrubbing slow, skip-next replaying same episode.
 - Cold deep-links (/library, /search) force the profile picker —
   pre-existing bootstrap behaviour.
 - Cosmetic console warning: `fetchpriority` casing on an <img>.
+
+---
+
+## Session: 2026-07-02 — Vesper-only backup prompt + Tunes NewPipe fix
+
+### 1. Launcher: Backup prompt is now VESPER-ONLY (user request)
+- `onTileInstallRequested` (MainActivity.kt): the 3-button
+  Backup/Install/Cancel dialog now fires ONLY when (a) the package is
+  already installed (= update) AND (b) the tile is Vesper
+  (`isVesperTile()`: apkPackageId OR targetPackage == tv.onnowtv.app).
+- Fresh installs and all other apps (Tunes, Kids, Sports, …) go
+  straight to the install pipeline — no backup dialog.
+- NEW `AppPackages.kt` (launcher): centralized constants VESPER
+  (tv.onnowtv.app), KIDS (tv.onnowtv.kids), TUNES (tv.onnowtv.tunes).
+  Replaced all hardcoded package strings in MainActivity.kt (kids
+  bounce, kids tile route, launchVesperBackupPage) and
+  VoiceAssistantActivity.kt (v2ai deep-link). Closes the recurring
+  "Kotlin namespace vs applicationId" bug class.
+
+### 2. Tunes: NewPipe never used → always fell to YouTube IFrame (user bug)
+- ROOT CAUSE: Tunes bundled NewPipeExtractor v0.24.8 — broken by
+  YouTube's 2026 integrity checks (HTML-instead-of-JSON / 403 on every
+  extraction) → every resolve failed → resolver silently fell through
+  to the yt-search → youtube-iframe path.  Vesper trailers (working)
+  run v0.26.3.
+- FIX (app/build.gradle.kts): com.github.teamnewpipe:NewPipeExtractor
+  v0.24.8 → v0.26.3; desugar_jdk_libs_nio 2.0.4 → 2.1.4 (mirrors the
+  proven vesper-tv config).
+- FIX (OkHttpDownloader.kt): previous code unconditionally added our
+  fallback User-Agent BEFORE copying NewPipe's headers → duplicate UA
+  headers on InnerTube calls. Now fallback UA is set only when NewPipe
+  didn't supply one (same behaviour as vesper's NpeDownloader).
+
+### Testing
+- kotlinc 2.0.21 syntax check on all edited .kt files: 0 syntax errors
+  (remaining log entries are classpath-resolution cascades identical to
+  untouched code).
+- REQUIRES user's GitHub Actions APK rebuild (Launcher + Tunes) and
+  on-device verification: (1) Vesper tile update → 3-button dialog;
+  other tiles → no dialog; (2) Tunes track resolve via newpipe source
+  (googlevideo URL in HTML5 audio), not youtube-iframe.
