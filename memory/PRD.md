@@ -7895,3 +7895,55 @@ Minor pre-existing warning: fetchpriority→fetchPriority DOM prop (unrelated).
 iteration_74.json — 6/6 PASS: 0 requests during rapid scroll across 8 cards;
 exactly 1 backend request + 4 addon probes after 1.5s dwell; picker 32ms;
 abort-on-leave produces 0 console errors; movie regression clean.
+
+---
+
+## Session (Jun 2026 fork) — v2.13.11 STREAM-START SPEED deep dive (user: "30s to start playing — #1 priority")
+
+### Root causes (full failure chain)
+1. Device-fetched addon streams (Torrentio is Cloudflare-blocked from the
+   backend, so on real boxes its streams arrive via the browser/bridge probe
+   in api.js) got NO tags — `_size_gb`/`_english_strict`/`_pm_cached` were
+   backend-only. The cascade ranked BLIND: autoplay picked the FIRST
+   torrentio 1080p in `sort=qualitysize` order = the LARGEST file (8-28GB
+   remuxes) and often an UNCACHED "[PM download]" debrid link that triggers a
+   Premiumize cloud download (30s-minutes) before any video byte flows.
+2. `_detect_pm_cached` (backend) marked "[PM download]" links as cached.
+3. Movie autoplay effect waited for the FULL probe settle (slowest addon =
+   8-12s) before launching; episodes already early-launched on partials.
+4. Episode click landing mid-dwell-prefetch awaited the FULL prefetch settle.
+5. Stall watchdog burned 10s per dead stream before auto-advancing.
+
+### Fixes
+- NEW `/app/frontend/src/lib/streamTags.js` — client-side port of the backend
+  tagger (`tagStreams()`): _is_english/_english_strict/_size_gb/
+  _addon_source/_quality_label/_pm_cached/_pm_uncached + foreign-language
+  drop. Applied in api.js getStreams to every browser-probe result.
+- `server.py` — `_detect_pm_uncached()` (regex "download" on stream `name`,
+  torrent-family only) + fixed `_detect_pm_cached`; `_tag_addon_quality_premium`
+  now emits `_pm_uncached` on every stream.
+- `streamOrder.js` — `isUncachedDownload()` export; scoreStream adds
+  `dl*1000` (uncached = absolute bottom of every list); pickAutoplayCandidate
+  pool filters `!isUncachedDownload` (NEVER autoplay a cloud-download link).
+- `Detail.jsx` — autoplay effect EARLY-LAUNCHES the instant
+  pickAutoplayCandidate finds a candidate in partial results (no full-settle
+  wait); party pools prefer non-download; picker modal + inline stream list
+  now consume `orderedStreams` (was raw `streams` — testing-agent-found bug);
+  lastStreamIdx indexes the ordered list.
+- `SeriesEpisodes.jsx` — `partialsRef` records progressive partials; episode
+  click mid-prefetch races a 120ms poller vs the prefetch promise and
+  launches on the first playable partial.
+- `streamMeta.js` nardMetaLine — "☁️ Not cached · slow start" chip for
+  uncached rows (picker warning).
+- `ExoPlayerActivity.kt` — BUFFER_STALL_TIMEOUT_MS 10s → 8s. NEEDS APK BUILD.
+
+### Testing
+- 13/13 node unit tests (tagging, size parse, cascade order, autoplay pick).
+- Backend: 6/6 pytest (`tests/test_pm_cached_tags.py`, added by test agent).
+- iteration_75.json: movie autoplay early-launch picks cached 2.4GB and
+  excludes uncached (route-mock e2e PASS); found picker raw-`streams` bug →
+  fixed → self-verified via Playwright: modal + inline list rank cached
+  first, uncached last with chip. Home smoke 21 shelves, no new errors.
+- Episode mid-prefetch poller not e2e-exercised (episode grid render gap in
+  Playwright); symmetric to verified movie path. Real-device validation
+  needed after APK build.

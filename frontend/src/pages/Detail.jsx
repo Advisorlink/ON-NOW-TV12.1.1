@@ -1420,7 +1420,7 @@ export default function Detail() {
          * playing so the picker can mark it as "CURRENT" on
          * return. */
         try {
-            const idx = streams.findIndex((s) => s === stream);
+            const idx = orderedStreams.findIndex((s) => s === stream);
             if (idx >= 0) {
                 sessionStorage.setItem(lastStreamKey, String(idx));
                 setLastStreamIdx(idx);
@@ -2454,7 +2454,7 @@ export default function Detail() {
                                     style={{ gap: 14 }}
                                     data-testid="stream-list"
                                 >
-                                    {streams.slice(0, 60).map((s, i) => {
+                                    {orderedStreams.slice(0, 60).map((s, i) => {
                                         const mode = streamMode(s);
                                         const ModeIcon =
                                             mode === 'direct'
@@ -2977,7 +2977,7 @@ export default function Detail() {
                 D-pad walks the list, OK plays, BACK closes. */}
             {showStreamPicker && (
                 <StreamPickerModal
-                    streams={streams}
+                    streams={orderedStreams}
                     currentIdx={lastStreamIdx}
                     onPick={handleStreamPick}
                     onClose={closeStreamPicker}
