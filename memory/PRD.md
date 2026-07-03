@@ -7775,3 +7775,45 @@ focusable already has focus OR a bookmark is pending (no more yank-to-top).
 iteration_71.json — 6/6 frontend flows PASS (portal centering at cx=960/cy=540,
 trap holds under 8×Up+6×Left, restore lands exact tile in <1s, Library/Calendar
 back-to-previous verified). Native changes parse-verified only.
+
+---
+
+## Session (Jul 2, 2026 - part 3) — Autoplay pill, in-player pick fix, size chips, backup UX
+
+### 1. Autoplay ON/OFF pill on series detail (DONE, tested)
+`Detail.jsx` new `AutoplayPill` rendered LEFT of the Trailer pill inside the
+SeriesEpisodes `leadingPill` slot; toggles profile-scoped autoplay pref via
+`setAutoplay1080p` (kids profiles still force ON via isKidsActive()).
+
+### 2. In-player picked link not loading (P0, native) — ROOT CAUSE + fix
+`ExoPlayerActivity.kt`: the v2.10.80 buffer-stall watchdog gave EVERY stream
+(incl. explicit user picks) 10s to READY then silently auto-advanced to the
+NEXT list entry — a slow-but-working pick appeared "not loaded" while another
+stream played. Now: `switchStream(idx, userInitiated=true)` — user picks get
+25s (`USER_PICK_STALL_TIMEOUT_MS`), NEVER auto-advance, show "taking too long
+— pick another" instead; auto cascade (initial load/watchdog) unchanged.
+Stale error banner cleared on switch. ⚠️ Needs APK build + on-device check.
+
+### 3. File size in in-player picker (DONE, native — needs APK)
+`host.js` payload rows now include `size` (via streamMeta.sizeLabel) + `seeds`
+(_seeders). `ExoPlayerActivity` StreamEntry/parse + both StreamOption mappings
+carry sizeChip/seeds. `PlayerOverlay.kt` StreamOption + StreamRow render gold
+size chip + green "N SEEDS" chip. VLC picker already showed size from label.
+
+### 4. Backup save confirmation (DONE, tested)
+`ProfileBackup.jsx` done panel: "Your profiles have been saved" + green
+[profile-backup-safe-note] "You're now safe to reinstall the app." + code.
+
+### 5. Backup load confirmation + return to profiles (DONE, tested)
+ROOT CAUSE: `ProfileLoad.applyAndReload` used `window.location.href='/profiles'`
+which under the APK's HashRouter (file://) navigated to file:///profiles →
+blank; user never returned to the picker. Now hash-aware (file:// or
+appassets.androidplatform.net → `#/profiles` + reload; web → href). Success
+panel [profile-load-success]: "Your profiles have been loaded" → lands on
+/profiles after 1.6s.
+
+### Testing
+iteration_72.json — 5/5 web checks PASS (pill placement/toggle/persistence,
+autoplay-off picker vs autoplay-on no-picker, save copy, load success +
+redirect to /profiles, picker centering regression). Kotlin parse-verified.
+NOTE for testing agents: episode tiles + profile tiles need focus+Enter, not click.
