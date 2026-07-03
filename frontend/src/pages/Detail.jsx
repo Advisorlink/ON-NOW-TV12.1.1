@@ -1428,26 +1428,14 @@ export default function Detail() {
                 resumeRequested && existing?.positionMs
                     ? existing.positionMs
                     : 0;
-            // Native libVLC Activity — handles every codec Stremio does.
-            // Fetch a default English subtitle URL up front so the
-            // native player can attach it on launch.
-            let subtitleUrl = '';
-            try {
-                const r = await fetch(
-                    `${API}/subtitles/${type}/${encodeURIComponent(playId)}`,
-                    { cache: 'no-store' }
-                );
-                if (r.ok) {
-                    const data = await r.json();
-                    const list = Array.isArray(data?.subtitles)
-                        ? data.subtitles
-                        : [];
-                    const eng = list.find((s) => /^en/i.test(s.lang || ''));
-                    if (eng?.url) subtitleUrl = eng.url;
-                }
-            } catch {
-                /* swallow — player still works without subs */
-            }
+            // v2.13.9 — NO subtitle pre-fetch.  The old blocking
+            // `${API}/subtitles/…` await here was UNCAPPED — the
+            // backend queries external subtitle providers which can
+            // take 20-30 s cold — and it ran before EVERY launch.
+            // That was the main reason streams took "30-40 seconds"
+            // to start.  Subtitles now load ON DEMAND inside the
+            // native player ("Find subtitles" in the subtitle picker).
+            const subtitleUrl = '';
             // Track / refresh the Continue Watching entry up front so
             // the show appears on Home even before the native player
             // reports any progress.

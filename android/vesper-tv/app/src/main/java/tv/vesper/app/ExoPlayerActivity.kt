@@ -326,6 +326,15 @@ class ExoPlayerActivity : ComponentActivity() {
     private val errorMessageFlow = MutableStateFlow<String?>(null)
     private val audioTracksFlow = MutableStateFlow<List<TrackOption>>(emptyList())
     private val subtitleTracksFlow = MutableStateFlow<List<TrackOption>>(emptyList())
+
+    /* v2.13.9 — LAZY SUBTITLES.  Launches no longer carry a subtitle
+     * URL (the web layer's blocking pre-fetch added 20-30 s before
+     * playback).  Instead the subtitle picker offers a "Find
+     * subtitles" row; picking it downloads the English sub from the
+     * backend and attaches it in-place at the current position. */
+    private val LAZY_SUBS_ID = "__find_subs__"
+    private var lazySubsFetched = false
+    private var lazySubsLoading = false
     private val streamsFlow = MutableStateFlow<List<StreamOption>>(emptyList())
 
     // v2.10.40 — PlayerInfo is now a reactive StateFlow so updates
@@ -1636,11 +1645,112 @@ class ExoPlayerActivity : ComponentActivity() {
             }
         }
         audioTracksFlow.value = audio
+        // v2.13.9 — Lazy-subtitles row.  Launches carry no sub URL any
+        // more; offer an on-demand fetch until it has been used.
+        if (!lazySubsFetched && canFetchLazySubs()) {
+            text.add(
+                TrackOption(
+                    id = LAZY_SUBS_ID,
+                    label = if (lazySubsLoading) "Finding subtitles…"
+                            else "Find subtitles (English)",
+                    selected = false,
+                )
+            )
+        }
         subtitleTracksFlow.value = text
+    }
+
+    private fun canFetchLazySubs(): Boolean {
+        val cw = intent.getStringExtra(VlcPlayerActivity.EXTRA_CW_ID)?.trim().orEmpty()
+        return cw.isNotBlank() && readBackendBase().isNotBlank()
+    }
+
+    /** v2.13.9 — Download the English subtitle from the backend and
+     *  attach it to the CURRENT media item at the current position.
+     *  Runs only when the user picks "Find subtitles" in the picker —
+     *  playback start is never blocked on subtitle lookups again. */
+    private fun fetchAndAttachLazySubs() {
+        if (lazySubsFetched || lazySubsLoading) return
+        val cw = intent.getStringExtra(VlcPlayerActivity.EXTRA_CW_ID)?.trim().orEmpty()
+        val backendBase = readBackendBase()
+        if (cw.isBlank() || backendBase.isBlank()) return
+        val typeSlug = if (cw.contains(":")) "series" else "movie"
+        lazySubsLoading = true
+        refreshTrackLists(player.currentTracks)
+        lifecycleScope.launch {
+            val subUrl = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    val enc = java.net.URLEncoder.encode(cw, "UTF-8")
+                    val arr = httpGetJson("$backendBase/api/subtitles/$typeSlug/$enc")
+                        ?.optJSONArray("subtitles")
+                    var found = ""
+                    if (arr != null) {
+                        for (i in 0 until arr.length()) {
+                            val o = arr.optJSONObject(i) ?: continue
+                            if (o.optString("lang", "").startsWith("en", ignoreCase = true)) {
+                                found = o.optString("url", "")
+                                if (found.isNotBlank()) break
+                            }
+                        }
+                    }
+                    found
+                } catch (e: Exception) {
+                    Log.w(TAG, "lazy subs fetch failed", e)
+                    ""
+                }
+            }
+            lazySubsLoading = false
+            if (subUrl.isBlank()) {
+                lazySubsFetched = true   // don't offer again
+                refreshTrackLists(player.currentTracks)
+                errorMessageFlow.value = "No English subtitles found for this title."
+                return@launch
+            }
+            try {
+                val pos = player.currentPosition.coerceAtLeast(0L)
+                val current = player.currentMediaItem ?: return@launch
+                val subCfg = MediaItem.SubtitleConfiguration
+                    .Builder(android.net.Uri.parse(subUrl))
+                    .setMimeType(guessSubMime(subUrl))
+                    .setLanguage("en")
+                    .setLabel("English (downloaded)")
+                    .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+                    .build()
+                val newItem = current.buildUpon()
+                    .setSubtitleConfigurations(listOf(subCfg))
+                    .build()
+                lazySubsFetched = true
+                player.setMediaItem(newItem, pos)
+                player.prepare()
+                player.playWhenReady = true
+                player.trackSelectionParameters = player.trackSelectionParameters
+                    .buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                    .setPreferredTextLanguage("en")
+                    .build()
+            } catch (e: Exception) {
+                Log.e(TAG, "lazy subs attach failed", e)
+                errorMessageFlow.value = "Could not attach subtitles."
+            }
+        }
+    }
+
+    private fun guessSubMime(u: String): String = when {
+        u.contains(".vtt", ignoreCase = true) ->
+            androidx.media3.common.MimeTypes.TEXT_VTT
+        u.contains(".ass", ignoreCase = true) ||
+            u.contains(".ssa", ignoreCase = true) ->
+            androidx.media3.common.MimeTypes.TEXT_SSA
+        else -> androidx.media3.common.MimeTypes.APPLICATION_SUBRIP
     }
 
     /** Pick a track from the picker.  Pass "off" for subtitles to disable. */
     private fun selectTrack(trackType: Int, id: String) {
+        // v2.13.9 — "Find subtitles" pseudo-row → lazy fetch+attach.
+        if (trackType == C.TRACK_TYPE_TEXT && id == LAZY_SUBS_ID) {
+            fetchAndAttachLazySubs()
+            return
+        }
         try {
             if (id == "off" && trackType == C.TRACK_TYPE_TEXT) {
                 player.trackSelectionParameters = player.trackSelectionParameters

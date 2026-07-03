@@ -230,96 +230,123 @@ export const Vesper = {
      * Per-addon timeout dropped from 20 s → 8 s for the same reason.
      */
     getStreams: async (type, itemId, onPartial) => {
-        // 1. Try backend aggregator (cached, parallel)
-        let backendStreams = [];
+        /* v2.13.9 — FULLY PARALLEL + PROGRESSIVE (Stremio-style).
+         * The old flow SERIALIZED: backend aggregate (≤5 s+) THEN
+         * browser-direct probes (≤8 s) and the callers only rendered
+         * when everything settled — the user stared at nothing for up
+         * to ~15-20 s.  Now the backend call and EVERY per-addon
+         * browser probe fire at the same instant, and
+         * `onPartial(streams)` is invoked with the accumulated list as
+         * EACH source lands — the first links appear as fast as the
+         * fastest addon, exactly like Stremio.  Backend entries win
+         * over a browser probe for the same addon (they carry richer
+         * tags: _is_english / _quality_label / _pm_cached). */
+        const byAddon = new Map();      // addonId -> streams[]
+        const backendOwned = new Set(); // addon ids answered by backend
+        const assemble = () => {
+            const out = [];
+            for (const arr of byAddon.values()) out.push(...arr);
+            return out;
+        };
+        const emit = () => {
+            if (typeof onPartial !== 'function') return;
+            try { onPartial(assemble()); } catch (_e) { /* ignore */ }
+        };
+
+        const backendP = (async () => {
+            try {
+                const r = await api.get(`/streams/${type}/${itemId}`);
+                const bs = r.data?.streams || [];
+                const grouped = new Map();
+                for (const s of bs) {
+                    const k = s._addon_id || '__backend__';
+                    if (!grouped.has(k)) grouped.set(k, []);
+                    grouped.get(k).push(s);
+                }
+                let added = false;
+                for (const [k, arr] of grouped) {
+                    backendOwned.add(k);
+                    byAddon.set(k, arr);
+                    added = true;
+                }
+                if (added) emit();
+            } catch (_e) {
+                // backend down — the direct probes are already running
+            }
+        })();
+
+        // Browser-direct probe per addon — fired IN PARALLEL with the
+        // backend call above (catches Cloudflare-walled addons).
+        let results = [];
         try {
-            const r = await api.get(`/streams/${type}/${itemId}`);
-            backendStreams = r.data?.streams || [];
-        } catch (_e) {
-            // ignore — fall to browser path
-        }
-
-        // Surface backend results immediately so the UI doesn't wait
-        // on the (potentially slow) browser-direct probes.
-        if (typeof onPartial === 'function' && backendStreams.length > 0) {
-            try { onPartial(backendStreams); } catch (_e) { /* ignore */ }
-        }
-
-        // 2. Browser-direct probe per addon (catches Cloudflare-walled ones).
-        const addons = await Vesper.listAddons();
-        const seenAddonIds = new Set(
-            backendStreams.map((s) => s._addon_id).filter(Boolean)
-        );
-
-        const results = await Promise.all(
-            addons.map(async (a) => {
-                let streamResource = null;
-                for (const r of a.resources || []) {
-                    if (typeof r === 'string' && r === 'stream') {
-                        streamResource = { name: 'stream' };
-                        break;
+            const addons = await Vesper.listAddons();
+            results = await Promise.all(
+                addons.map(async (a) => {
+                    let streamResource = null;
+                    for (const r of a.resources || []) {
+                        if (typeof r === 'string' && r === 'stream') {
+                            streamResource = { name: 'stream' };
+                            break;
+                        }
+                        if (typeof r === 'object' && r?.name === 'stream') {
+                            streamResource = r;
+                            break;
+                        }
                     }
-                    if (typeof r === 'object' && r?.name === 'stream') {
-                        streamResource = r;
-                        break;
+                    if (!streamResource) {
+                        return { addon: a, count: 0, skipped: 'no stream resource' };
                     }
-                }
-                if (!streamResource) {
-                    return { addon: a, count: 0, skipped: 'no stream resource' };
-                }
 
-                // Backend already returned streams from this addon; trust it.
-                if (seenAddonIds.has(a.id)) {
-                    const fromBackend = backendStreams.filter(
-                        (s) => s._addon_id === a.id
-                    );
-                    return { addon: a, count: fromBackend.length, streams: fromBackend };
-                }
+                    // Honour resource-level idPrefixes (Torrentio scopes here).
+                    const prefixes =
+                        (Array.isArray(streamResource.idPrefixes) &&
+                            streamResource.idPrefixes) ||
+                        a.id_prefixes ||
+                        [];
+                    if (
+                        prefixes.length &&
+                        !prefixes.some((p) => itemId.startsWith(p))
+                    ) {
+                        return { addon: a, count: 0, skipped: 'id prefix mismatch' };
+                    }
 
-                // Honour resource-level idPrefixes (Torrentio scopes here).
-                const prefixes =
-                    (Array.isArray(streamResource.idPrefixes) &&
-                        streamResource.idPrefixes) ||
-                    a.id_prefixes ||
-                    [];
-                if (
-                    prefixes.length &&
-                    !prefixes.some((p) => itemId.startsWith(p))
-                ) {
-                    return { addon: a, count: 0, skipped: 'id prefix mismatch' };
-                }
-
-                const url = `${trimSlash(a.url)}/stream/${type}/${itemId}.json`;
-                try {
-                    // v2.7.30 — 8 s cap (was 20 s) so a single slow
-                    // addon can't stall stream-list rendering.
-                    const data = await fetchJsonDirect(url, { timeout: 8000 });
-                    const streams = Array.isArray(data?.streams)
-                        ? data.streams
-                        : [];
-                    return {
-                        addon: a,
-                        count: streams.length,
-                        streams: streams.map((s) => ({
+                    const url = `${trimSlash(a.url)}/stream/${type}/${itemId}.json`;
+                    try {
+                        // 8 s cap so a single slow addon can't stall
+                        // the FINAL settle (partials already painted).
+                        const data = await fetchJsonDirect(url, { timeout: 8000 });
+                        const streams = (Array.isArray(data?.streams)
+                            ? data.streams
+                            : []
+                        ).map((s) => ({
                             ...s,
                             _addon_id: a.id,
                             _addon_name: a.name || a.id,
-                        })),
-                    };
-                } catch (e) {
-                    return {
-                        addon: a,
-                        count: 0,
-                        error: e?.status
-                            ? `HTTP ${e.status}`
-                            : e?.message || 'fetch failed',
-                    };
-                }
-            })
-        );
+                        }));
+                        // Progressive merge — skip if the backend
+                        // already answered for this addon.
+                        if (streams.length > 0 && !backendOwned.has(a.id)) {
+                            byAddon.set(a.id, streams);
+                            emit();
+                        }
+                        return { addon: a, count: streams.length, streams };
+                    } catch (e) {
+                        return {
+                            addon: a,
+                            count: 0,
+                            error: e?.status
+                                ? `HTTP ${e.status}`
+                                : e?.message || 'fetch failed',
+                        };
+                    }
+                })
+            );
+        } catch (_e) {
+            // listAddons failed — backend results (if any) still count
+        }
 
-        const direct = results.flatMap((r) => r.streams || []);
-        return { streams: direct, diagnostics: results };
+        await backendP;
+        return { streams: assemble(), diagnostics: results };
     },
 };
 

@@ -38,6 +38,7 @@ import {
     nardMetaLine,
 } from '@/lib/streamMeta';
 import * as img from '@/lib/img';
+import { Loader2 } from 'lucide-react';
 
 // Inline streamMode helper — matches Detail.jsx's definition.
 const streamMode = (s) => {
@@ -64,14 +65,34 @@ export default function StreamPickerModal({
     onClose,
     accent = 'var(--vesper-blue-bright)',
     meta,
+    loading = false,
 }) {
     const listRef = useRef(null);
+    const cardRef = useRef(null);
 
     // Auto-focus the first stream as soon as the modal mounts.  We
     // use a microtask + rAF so the DOM nodes are mounted before we
     // try to set focus.
+    //
+    // v2.13.9 — streams now arrive PROGRESSIVELY while the modal is
+    // open, so this effect re-fires on every batch: never yank focus
+    // if the user is already browsing rows.  While the list is still
+    // empty, focus the card itself so BACK/Escape is always caught
+    // inside the trap.
     useEffect(() => {
         const tick = () => {
+            const root = document.querySelector(
+                '[data-testid="stream-picker-modal"]'
+            );
+            const ae = document.activeElement;
+            if (
+                root &&
+                ae &&
+                root.contains(ae) &&
+                ae.matches?.('[data-focusable="true"]')
+            ) {
+                return; // user is already navigating the list
+            }
             // Sweep any stale focus elsewhere on the page.
             document
                 .querySelectorAll('[data-focused="true"]')
@@ -86,6 +107,9 @@ export default function StreamPickerModal({
             if (first) {
                 first.setAttribute('data-focused', 'true');
                 try { first.focus({ preventScroll: false }); }
+                catch { /* ignore */ }
+            } else if (cardRef.current) {
+                try { cardRef.current.focus({ preventScroll: true }); }
                 catch { /* ignore */ }
             }
         };
@@ -165,6 +189,8 @@ export default function StreamPickerModal({
 
             {/* Main card */}
             <div
+                ref={cardRef}
+                tabIndex={-1}
                 style={{
                     position: 'relative',
                     width: 'min(760px, 92vw)',
@@ -173,6 +199,7 @@ export default function StreamPickerModal({
                     flexDirection: 'column',
                     padding: '32px 32px 24px',
                     borderRadius: 24,
+                    outline: 'none',
                     background:
                         'linear-gradient(160deg, rgba(15,22,38,0.92) 0%, rgba(6,8,15,0.94) 100%)',
                     border: '1px solid rgba(93,200,255,0.28)',
@@ -255,7 +282,8 @@ export default function StreamPickerModal({
                         </div>
                     </div>
                     <div
-                        className="vesper-mono shrink-0"
+                        data-testid="stream-picker-count"
+                        className="vesper-mono shrink-0 flex items-center gap-2"
                         style={{
                             fontSize: 11,
                             color: 'var(--vesper-text-3)',
@@ -264,7 +292,18 @@ export default function StreamPickerModal({
                             paddingTop: 6,
                         }}
                     >
-                        {streams.length} found
+                        {loading && (
+                            <Loader2
+                                className="vesper-spin"
+                                size={13}
+                                style={{ color: 'var(--vesper-blue-bright)' }}
+                            />
+                        )}
+                        {loading
+                            ? streams.length > 0
+                                ? `${streams.length} found · searching…`
+                                : 'searching…'
+                            : `${streams.length} found`}
                     </div>
                 </div>
 
@@ -280,6 +319,44 @@ export default function StreamPickerModal({
                         marginRight: -6,
                     }}
                 >
+                    {streams.length === 0 && (
+                        <div
+                            data-testid="stream-picker-empty-state"
+                            style={{
+                                padding: '44px 0',
+                                textAlign: 'center',
+                                color: 'var(--vesper-text-2)',
+                            }}
+                        >
+                            {loading ? (
+                                <>
+                                    <Loader2
+                                        className="vesper-spin"
+                                        size={34}
+                                        style={{
+                                            color: 'var(--vesper-blue-bright)',
+                                            marginBottom: 14,
+                                        }}
+                                    />
+                                    <div
+                                        className="vesper-mono"
+                                        style={{
+                                            fontSize: 12,
+                                            letterSpacing: '0.22em',
+                                            textTransform: 'uppercase',
+                                        }}
+                                    >
+                                        Finding streams…
+                                    </div>
+                                </>
+                            ) : (
+                                <div style={{ fontSize: 14 }}>
+                                    No streams found — press BACK and try
+                                    another episode.
+                                </div>
+                            )}
+                        </div>
+                    )}
                     <ul className="space-y-3">
                         {streams.map((s, i) => {
                             const mode = streamMode(s);

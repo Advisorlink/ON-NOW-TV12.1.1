@@ -1,0 +1,25 @@
+{
+  "summary": "Verified v2.13.9 INSTANT-picker + progressive stream aggregation on Vesper (frontend-only). All acceptance criteria met. (1) INSTANT PICKER — with autoplay OFF seeded (onnowtv-autoplay-1080p:p-test-1='0'), SPA-navigated to /title/series/tt0903747, expanded season-1, focused episode-1-1 + Enter: [data-testid=stream-picker-modal] appeared in **45.2 ms** from Enter (target <1500ms — 33x faster). While probes ran, [data-testid=stream-picker-count] showed '4 found · searching…' (backend results already merged, non-backend probes still in flight). Final settle: 12 rows across 4 addon sources, count='4 found'. (2) PROGRESSIVE FOCUS NOT STOLEN — ArrowDown moved focus to modal-stream-1; after waiting 2.5s for later probe batches, activeElement was STILL modal-stream-1 (focus_stayed=True). Escape closed modal and left URL on /title/series/tt0903747 (no back-navigation). (3) EMPTY-LIST FOCUS TRAP — opened episode-1-2, modal appeared with [data-testid=stream-picker-empty-state] visible and 0 rows; Escape closed the modal cleanly and app stayed on /title/series/tt0903747 (card catches BACK via tabIndex=-1). (4) AUTOPLAY ON REGRESSION — flipped LS to '1', re-opened episode-1-1: NO picker modal was created (autoplay_on_no_picker=True), confirming the autoplay path branches away from the picker as designed (launching UI not observed textually in this pod because Cloudflare-blocked playback fails silently — that behavior is expected and non-web-testable per problem statement). (5) MOVIE REGRESSION — /title/movie/tt1375666 (Inception) loaded, inline 'Finding streams…' state resolved to 'Swap stream(6)' CTA. Enter on CTA opened stream-picker-modal in **56.3 ms** with 6 WatchHub streams, modal centered at (960, 540) matching viewport center. (6) BACKEND SMOKE — in-page fetch to /api/streams/series/tt0903747:1:1 → 200 with streams array length 4. Console errors observed are ALL third-party CORS blocks (torrentio.strem.fun, plexio.stream) — expected in preview pod, addressed by parallel probe aggregation gracefully falling back to backend results. No JS errors from lib/api.js getStreams progressive merge. One pre-existing React warning ('Invalid DOM property fetchpriority → fetchPriority') persists but is unrelated to this iteration.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "getStreams progressive merge works correctly: backend fetch returns first (populates modal within ~150ms of open), per-addon probes race in parallel and onPartial emits accumulated arrays — verified via row_snapshots=[(145ms, 12 rows)] indicating one merge event after initial open.",
+    "StreamPickerModal focus effect no longer yanks activeElement when list length changes: confirmed by ArrowDown→row1, waited 2.5s (during which count text changed from 'searching…' to final), focus still on row 1.",
+    "Card tabIndex=-1 back-catch works even when list is empty (no modal-stream-* rows); Escape while empty successfully closes without back-navigating away from detail page.",
+    "Minor React warning (Invalid DOM property 'fetchpriority' should be 'fetchPriority') — non-blocking, exists on all pages, unrelated to this iteration but worth cleaning up in <img> attributes."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only run) — 1 smoke check passed", "frontend": "100% (6/6 acceptance criteria)"},
+  "test_credentials": "testuser / testpass123; seeded LS profile p-test-1 + onnowtv-autoplay-1080p:p-test-1.",
+  "seed_data_creation": "Ephemeral localStorage only (profile p-test-1, onboarding seen, autoplay pref).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Series picker instant-open perf: 45ms (Enter → DOM). Movie picker: 56ms (after inline 'Finding streams…' resolves — movie page pre-fetches streams inline so CTA is disabled until at least one arrives; series page fires prefetchEpisode ON click, so the modal opens with backend-returned entries already available). Third-party addons (torrentio, plexio) are Cloudflare/CORS-blocked in preview pod; WatchHub via backend works and returns 4 (series) / 6 (movie) streams. Same login/nav pattern as iter71-72: form Enter + LS seed + goto /profiles + focus tile Enter + history.pushState + PopStateEvent.",
+  "rca of the issue": "N/A — original 20s delay bug is FULLY RESOLVED. Picker DOM insertion timing measured at 45ms (series) / 56ms (movie), well under the 1500ms acceptance target; the previous serialized backend-then-probes flow has been correctly refactored to fire in parallel with progressive onPartial updates."
+}

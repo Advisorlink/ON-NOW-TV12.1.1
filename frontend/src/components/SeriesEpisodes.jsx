@@ -10,7 +10,6 @@ import {
     Star,
 } from 'lucide-react';
 import { Vesper } from '@/lib/api';
-import { API } from '@/lib/api';
 import Host from '@/lib/host';
 import { qualityBadge, qualityTags, toneColors } from '@/lib/streamMeta';
 import { orderStreams, pickAutoplayCandidate } from '@/lib/streamOrder';
@@ -191,64 +190,48 @@ export default function SeriesEpisodes({
         }
     }, []);
 
-    /* v2.13.7 — SPEED: episode streams + subtitles are PREFETCHED the
-     * moment an episode card gains D-pad focus (plus the first /
-     * highlighted episode of an open season), so by the time the user
-     * presses OK the stream list is usually already in hand — TV
-     * shows now start as fast as movies (whose Detail page prefetches
-     * streams on page load). */
+    /* v2.13.9 — SPEED: episode streams are PREFETCHED the moment an
+     * episode card gains D-pad focus (plus the first / highlighted
+     * episode of an open season) and the results stream in
+     * PROGRESSIVELY via onPartial, so the picker fills live.
+     * Subtitle pre-fetch is GONE — subs now load on demand inside the
+     * native player ("Find subtitles" in the subtitle picker). */
     const prefetchesRef = useRef({});
-    const subPrefetchesRef = useRef({});
-
-    const prefetchSubtitle = (ep) => {
-        if (!ep?.id) return Promise.resolve('');
-        if (!subPrefetchesRef.current[ep.id]) {
-            subPrefetchesRef.current[ep.id] = (async () => {
-                try {
-                    const r = await fetch(
-                        `${API}/subtitles/series/${encodeURIComponent(ep.id)}`,
-                        { cache: 'no-store' }
-                    );
-                    if (r.ok) {
-                        const data = await r.json();
-                        const list = Array.isArray(data?.subtitles)
-                            ? data.subtitles
-                            : [];
-                        const eng = list.find((s) => /^en/i.test(s.lang || ''));
-                        return eng?.url || '';
-                    }
-                } catch { /* ignore */ }
-                return '';
-            })();
-        }
-        return subPrefetchesRef.current[ep.id];
-    };
+    const [pendingEps, setPendingEps] = useState({});
 
     const prefetchEpisode = (ep) => {
         if (!ep?.id) return null;
         if (episodeStreams[ep.id] || prefetchesRef.current[ep.id]) {
             return prefetchesRef.current[ep.id] || null;
         }
-        prefetchSubtitle(ep);
         prefetchesRef.current[ep.id] = (async () => {
+            setPendingEps((s) => ({ ...s, [ep.id]: true }));
             try {
-                const res = await Vesper.getStreams('series', ep.id);
+                const res = await Vesper.getStreams('series', ep.id, (partial) => {
+                    // v2.13.9 — progressive: rows pour into the open
+                    // picker as each addon answers (Stremio-style).
+                    setEpisodeStreams((s) => ({
+                        ...s,
+                        [ep.id]: {
+                            streams: partial,
+                            diagnostics: s[ep.id]?.diagnostics || [],
+                        },
+                    }));
+                });
                 const streamsArr = res?.streams || [];
-                setEpisodeStreams((s) =>
-                    s[ep.id]
-                        ? s
-                        : {
-                              ...s,
-                              [ep.id]: {
-                                  streams: streamsArr,
-                                  diagnostics: res?.diagnostics || [],
-                              },
-                          }
-                );
+                setEpisodeStreams((s) => ({
+                    ...s,
+                    [ep.id]: {
+                        streams: streamsArr,
+                        diagnostics: res?.diagnostics || [],
+                    },
+                }));
                 return streamsArr;
             } catch {
                 delete prefetchesRef.current[ep.id];
                 return null;
+            } finally {
+                setPendingEps((s) => ({ ...s, [ep.id]: false }));
             }
         })();
         return prefetchesRef.current[ep.id];
@@ -372,8 +355,17 @@ export default function SeriesEpisodes({
         // FALLBACK if no playable stream can be auto-picked
         // (otherwise the user would be stranded with nothing).
         if (!autoplay) {
-            setOpenEpisodeId(ep.id);
+            // v2.13.9 — Stremio-style: the picker opens the INSTANT
+            // the episode is clicked; stream rows pour in live as
+            // each addon answers (progressive onPartial updates via
+            // prefetchEpisode).  No more waiting ~20 s for every
+            // addon to settle before the links even appear.
+            setOpenEpisodeId(null);
+            setPickerEp(ep);
+            prefetchEpisode(ep);
+            return;
         }
+        // ── Autoplay ON below this point ──
         // Reuse cached streams if we already fetched this episode.
         const cached = episodeStreams[ep.id];
         // v2.13.7 — A focus-triggered prefetch may be mid-flight.
@@ -383,22 +375,17 @@ export default function SeriesEpisodes({
             try {
                 const pre = await prefetchesRef.current[ep.id];
                 if (Array.isArray(pre)) {
-                    if (autoplay) {
-                        const cand = pickBestPlayable(pre);
-                        if (cand) {
-                            playStream(cand, ep, pre);
-                            return;
-                        }
-                        setLaunchingEp(null);
-                        if (launchTimerRef.current) {
-                            clearTimeout(launchTimerRef.current);
-                            launchTimerRef.current = null;
-                        }
-                        setOpenEpisodeId(ep.id);
-                    } else if (pre.length > 0) {
-                        setOpenEpisodeId(null);
-                        setPickerEp(ep);
+                    const cand = pickBestPlayable(pre);
+                    if (cand) {
+                        playStream(cand, ep, pre);
+                        return;
                     }
+                    setLaunchingEp(null);
+                    if (launchTimerRef.current) {
+                        clearTimeout(launchTimerRef.current);
+                        launchTimerRef.current = null;
+                    }
+                    setOpenEpisodeId(ep.id);
                     return;
                 }
             } finally {
@@ -406,26 +393,19 @@ export default function SeriesEpisodes({
             }
         }
         if (cached) {
-            if (autoplay) {
-                const cand = pickBestPlayable(cached.streams);
-                if (cand) {
-                    playStream(cand, ep, cached.streams);
-                    return;
-                }
-                // No playable stream at all — fall back to opening
-                // the drawer so the user can see the diagnostics.
-                setLaunchingEp(null);
-                if (launchTimerRef.current) {
-                    clearTimeout(launchTimerRef.current);
-                    launchTimerRef.current = null;
-                }
-                setOpenEpisodeId(ep.id);
-            } else if (cached.streams.length > 0) {
-                // Manual mode → the SAME cinematic stream picker the
-                // movie Detail page uses (icons, chips, full scroll).
-                setOpenEpisodeId(null);
-                setPickerEp(ep);
+            const cand = pickBestPlayable(cached.streams);
+            if (cand) {
+                playStream(cand, ep, cached.streams);
+                return;
             }
+            // No playable stream at all — fall back to opening
+            // the drawer so the user can see the diagnostics.
+            setLaunchingEp(null);
+            if (launchTimerRef.current) {
+                clearTimeout(launchTimerRef.current);
+                launchTimerRef.current = null;
+            }
+            setOpenEpisodeId(ep.id);
             return;
         }
         setLoadingEpisodeId(ep.id);
@@ -437,7 +417,7 @@ export default function SeriesEpisodes({
             // TV shows took so much longer than movies to start.
             let launchedEarly = false;
             const res = await Vesper.getStreams('series', ep.id, (partial) => {
-                if (!autoplay || launchedEarly) return;
+                if (launchedEarly) return;
                 const cand = pickBestPlayable(partial);
                 if (cand) {
                     launchedEarly = true;
@@ -457,11 +437,7 @@ export default function SeriesEpisodes({
             // direct → first stream" so the user still lands in
             // the player when no 1080p exists.  Only if NO
             // stream at all do we open the drawer as a fallback.
-            if (autoplay) {
-                if (launchedEarly) {
-                    // Player already launched off the partial batch —
-                    // the full list is cached above for the picker.
-                } else {
+            if (!launchedEarly) {
                 const cand = pickBestPlayable(streamsArr);
                 if (cand) {
                     playStream(cand, ep, streamsArr);
@@ -473,26 +449,18 @@ export default function SeriesEpisodes({
                     }
                     setOpenEpisodeId(ep.id);
                 }
-                }
-            } else if (streamsArr.length > 0) {
-                // Manual mode → close the "Searching…" drawer and
-                // open the movie-style stream picker modal.
-                setOpenEpisodeId(null);
-                setPickerEp(ep);
             }
         } catch {
             setEpisodeStreams((s) => ({
                 ...s,
                 [ep.id]: { streams: [], diagnostics: [] },
             }));
-            if (autoplay) {
-                setLaunchingEp(null);
-                if (launchTimerRef.current) {
-                    clearTimeout(launchTimerRef.current);
-                    launchTimerRef.current = null;
-                }
-                setOpenEpisodeId(ep.id);
+            setLaunchingEp(null);
+            if (launchTimerRef.current) {
+                clearTimeout(launchTimerRef.current);
+                launchTimerRef.current = null;
             }
+            setOpenEpisodeId(ep.id);
         } finally {
             setLoadingEpisodeId(null);
         }
@@ -510,22 +478,11 @@ export default function SeriesEpisodes({
                     : buildMagnet(stream, `${meta?.name || ''} S${ep.season}E${ep.episode}`);
             if (!playUrl) return;
             const title = `${meta?.name || ''} · S${ep.season}E${ep.episode} · ${ep.name || ''}`;
-            // v2.13.7 — Subtitle lookup is prefetched on focus/click
-            // and CAPPED at 1.8 s so it can never hold up playback
-            // (it used to be a blocking sequential fetch that added
-            // seconds before the player even opened).
-            let subtitleUrl = '';
-            try {
-                subtitleUrl =
-                    (await Promise.race([
-                        prefetchSubtitle(ep),
-                        new Promise((resolve) =>
-                            setTimeout(() => resolve(''), 1800)
-                        ),
-                    ])) || '';
-            } catch {
-                /* ignore */
-            }
+            // v2.13.9 — NO subtitle lookup at launch (user: "just have
+            // the subtitles only download once you click the subtitle
+            // button").  The native player offers "Find subtitles"
+            // on demand in the subtitle picker.
+            const subtitleUrl = '';
             const cwId = `${meta?.id || ''}:s${ep.season}e${ep.episode}`;
             const existing = cw.getEntries().find((e) => e.id === cwId);
             cw.upsert({
@@ -649,6 +606,7 @@ export default function SeriesEpisodes({
             {pickerEp && (
                 <StreamPickerModal
                     streams={orderStreams(episodeStreams[pickerEp.id]?.streams || [])}
+                    loading={!!pendingEps[pickerEp.id]}
                     currentIdx={-1}
                     onPick={(s) => {
                         const eps = episodeStreams[pickerEp.id]?.streams || [];
