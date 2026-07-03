@@ -322,6 +322,23 @@ const Host = (() => {
         }
     };
 
+    /** v2.13.12 — Pre-warm the native (Coil) image cache so the
+     * player's loading screen shows artwork INSTANTLY instead of
+     * racing the video buffer for bandwidth.  No-op in browser. */
+    const prefetchImages = (urls) => {
+        if (!isAndroid || !a || typeof a.prefetchImages !== 'function') return false;
+        try {
+            const clean = (urls || []).filter(
+                (u) => typeof u === 'string' && /^https?:\/\//.test(u)
+            );
+            if (clean.length === 0) return false;
+            a.prefetchImages(JSON.stringify(clean.slice(0, 8)));
+            return true;
+        } catch {
+            return false;
+        }
+    };
+
     return {
         isAndroid,
         isOnNowTV,
@@ -331,6 +348,7 @@ const Host = (() => {
         voiceSearch,
         isVoiceSearchAvailable,
         publicAsset,
+        prefetchImages,
         // v2.7.39 — player backend toggle (A/B test).
         getPlayerBackend,
         setPlayerBackend,

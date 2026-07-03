@@ -1182,6 +1182,38 @@ class WebAppInterface(private val activity: Activity) {
         }
     }
 
+    /**
+     * v2.13.12 — Pre-warm the native (Coil) image cache while the
+     * user is still browsing the detail page.  The player's loading
+     * screen renders its backdrop/poster via Coil AsyncImage; without
+     * this pre-warm the image download races ExoPlayer's video
+     * buffering for bandwidth and shows up late (or never).  Coil's
+     * singleton ImageLoader shares its memory + disk cache across
+     * activities, so anything enqueued here is an instant cache hit
+     * inside ExoPlayerActivity / VlcPlayerActivity.
+     *
+     * @param urlsJson JSON array of absolute http(s) image URLs.
+     */
+    @JavascriptInterface
+    fun prefetchImages(urlsJson: String) {
+        try {
+            val arr = org.json.JSONArray(urlsJson)
+            val appCtx = activity.applicationContext
+            val loader = coil.Coil.imageLoader(appCtx)
+            val max = if (arr.length() < 8) arr.length() else 8
+            for (i in 0 until max) {
+                val u = arr.optString(i, "")
+                if (u.isBlank() || !u.startsWith("http")) continue
+                val req = coil.request.ImageRequest.Builder(appCtx)
+                    .data(u)
+                    .build()
+                loader.enqueue(req)
+            }
+        } catch (t: Throwable) {
+            android.util.Log.w("VesperPrefetch", "prefetchImages failed", t)
+        }
+    }
+
     private fun escapeJsString(s: String): String =
         s.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
 }

@@ -191,8 +191,21 @@ const buildExtraPath = (extra) => {
 // Vesper API client
 // ---------------------------------------------------------------------------
 
+// v2.13.12 — module-level memo: does the installed addon list contain
+// an EasyNews addon?  Set by EVERY listAddons response so the
+// EasyNews-first hold in getStreams can be skipped instantly (no
+// per-request round-trip wait) when EasyNews isn't installed.
+const isEasyNewsAddon = (a) =>
+    /easy[\s_-]?news/i.test(`${a?.id || ''} ${a?.name || ''}`);
+let knownHasEasyNews = null; // null = not yet known
+
 export const Vesper = {
-    listAddons: (opts = {}) => api.get('/addons', opts).then((r) => r.data),
+    listAddons: (opts = {}) => api.get('/addons', opts).then((r) => {
+        try {
+            knownHasEasyNews = Array.isArray(r.data) && r.data.some(isEasyNewsAddon);
+        } catch (_e) { /* ignore */ }
+        return r.data;
+    }),
     suggestedAddons: () => api.get('/addons/suggested').then((r) => r.data),
 
     /**
@@ -304,6 +317,21 @@ export const Vesper = {
         const signal = opts.signal;
         const byAddon = new Map();      // addonId -> streams[]
         const backendOwned = new Set(); // addon ids answered by backend
+        // v2.13.12 — EasyNews++-first support.  Callers hold a lower-
+        // priority early-launch while an EasyNews probe is still in
+        // flight (capped at ~3 s on their side).  `addonsKnown` guards
+        // the tiny window before the addon list resolves.
+        let addonsKnown = false;
+        let easyNewsInFlight = 0;
+        const probeMeta = () => ({
+            // Unknown addon list: fall back to the module memo — a
+            // previous listAddons already told us whether EasyNews is
+            // installed at all.  `knownHasEasyNews === false` means
+            // "definitely not installed" → never hold.
+            easyNewsPending: addonsKnown
+                ? easyNewsInFlight > 0
+                : knownHasEasyNews !== false,
+        });
         const assemble = () => {
             const out = [];
             for (const arr of byAddon.values()) out.push(...arr);
@@ -312,7 +340,7 @@ export const Vesper = {
         const emit = () => {
             if (typeof onPartial !== 'function') return;
             if (signal?.aborted) return;
-            try { onPartial(assemble()); } catch (_e) { /* ignore */ }
+            try { onPartial(assemble(), probeMeta()); } catch (_e) { /* ignore */ }
         };
 
         const backendP = (async () => {
@@ -342,8 +370,10 @@ export const Vesper = {
         let results = [];
         try {
             const addons = await Vesper.listAddons({ signal });
-            results = await Promise.all(
-                addons.map(async (a) => {
+            const probes = addons.map(async (a) => {
+                const isEN = isEasyNewsAddon(a);
+                if (isEN) easyNewsInFlight += 1;
+                try {
                     let streamResource = null;
                     for (const r of a.resources || []) {
                         if (typeof r === 'string' && r === 'stream') {
@@ -405,10 +435,22 @@ export const Vesper = {
                                 : e?.message || 'fetch failed',
                         };
                     }
-                })
-            );
+                } finally {
+                    if (isEN) {
+                        easyNewsInFlight -= 1;
+                        // Re-emit so held callers see easyNewsPending
+                        // flip false even when the probe added nothing.
+                        emit();
+                    }
+                }
+            });
+            addonsKnown = true;
+            emit();
+            results = await Promise.all(probes);
         } catch (_e) {
             // listAddons failed — backend results (if any) still count
+            addonsKnown = true;
+            emit();
         }
 
         await backendP;

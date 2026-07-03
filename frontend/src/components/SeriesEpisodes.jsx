@@ -12,7 +12,7 @@ import {
 import { Vesper } from '@/lib/api';
 import Host from '@/lib/host';
 import { qualityBadge, qualityTags, toneColors } from '@/lib/streamMeta';
-import { orderStreams, pickAutoplayCandidate } from '@/lib/streamOrder';
+import { orderStreams, pickAutoplayCandidate, isEasyNews } from '@/lib/streamOrder';
 import StreamPickerModal from '@/components/StreamPickerModal';
 import { getAutoplay1080p } from '@/lib/prefs';
 import * as cw from '@/lib/continueWatching';
@@ -200,6 +200,9 @@ export default function SeriesEpisodes({
     // v2.13.11 — live partial results per episode so a click landing
     // mid-prefetch can launch EARLY instead of awaiting full settle.
     const partialsRef = useRef({});
+    // v2.13.12 — per-episode probe meta ({easyNewsPending}) so the
+    // early-launch paths can hold for EasyNews++ (max 3 s).
+    const partialsMetaRef = useRef({});
     const [pendingEps, setPendingEps] = useState({});
 
     /* v2.13.10 — SCROLL-LAG FIX.  Prefetch used to fire the full
@@ -241,9 +244,10 @@ export default function SeriesEpisodes({
                 const res = await Vesper.getStreams(
                     'series',
                     ep.id,
-                    (partial) => {
+                    (partial, probeMeta) => {
                         if (!mountedRef.current) return;
                         partialsRef.current[ep.id] = partial;
+                        if (probeMeta) partialsMetaRef.current[ep.id] = probeMeta;
                         // v2.13.9 — progressive: rows pour into the
                         // open picker as each addon answers.
                         setEpisodeStreams((s) => ({
@@ -257,6 +261,7 @@ export default function SeriesEpisodes({
                     { signal: ctrl.signal }
                 );
                 const streamsArr = res?.streams || [];
+                partialsMetaRef.current[ep.id] = { easyNewsPending: false };
                 if (mountedRef.current) {
                     setEpisodeStreams((s) => ({
                         ...s,
@@ -440,11 +445,26 @@ export default function SeriesEpisodes({
                 // fire the moment a playable candidate exists instead
                 // of awaiting the slowest addon probe (up to 8 s).
                 let settled = false;
+                const clickT0 = Date.now();
                 const poller = (async () => {
                     while (!settled && mountedRef.current) {
                         const partial = partialsRef.current[ep.id];
-                        if (Array.isArray(partial) && pickBestPlayable(partial)) {
-                            return partial;
+                        if (Array.isArray(partial)) {
+                            const cand = pickBestPlayable(partial);
+                            if (cand) {
+                                // v2.13.12 — EasyNews++-first: hold a
+                                // lower-priority candidate while the
+                                // EasyNews probe is in flight (≤3 s).
+                                const m = partialsMetaRef.current[ep.id];
+                                if (
+                                    isEasyNews(cand) ||
+                                    !m ||
+                                    m.easyNewsPending !== true ||
+                                    Date.now() - clickT0 > 3000
+                                ) {
+                                    return partial;
+                                }
+                            }
                         }
                         await new Promise((r) => setTimeout(r, 120));
                     }
@@ -497,14 +517,40 @@ export default function SeriesEpisodes({
             // addon probes (up to 8 s each) like before — that's why
             // TV shows took so much longer than movies to start.
             let launchedEarly = false;
-            const res = await Vesper.getStreams('series', ep.id, (partial) => {
+            // v2.13.12 — EasyNews++-first hold (max 3 s): remember the
+            // best non-EasyNews candidate; fire it when the hold
+            // expires or the EasyNews probe settles empty.
+            let heldPartial = null;
+            let holdTimer = null;
+            const clickT0 = Date.now();
+            const fireHeld = () => {
+                holdTimer = null;
+                if (launchedEarly || !heldPartial) return;
+                const cand = pickBestPlayable(heldPartial);
+                if (!cand) return;
+                launchedEarly = true;
+                playStream(cand, ep, heldPartial);
+            };
+            const res = await Vesper.getStreams('series', ep.id, (partial, probeMeta) => {
                 if (launchedEarly) return;
                 const cand = pickBestPlayable(partial);
-                if (cand) {
-                    launchedEarly = true;
-                    playStream(cand, ep, partial);
+                if (!cand) return;
+                const enPending = probeMeta?.easyNewsPending === true;
+                if (!isEasyNews(cand) && enPending && Date.now() - clickT0 < 3000) {
+                    heldPartial = partial;
+                    if (!holdTimer) {
+                        holdTimer = setTimeout(
+                            fireHeld,
+                            Math.max(150, 3050 - (Date.now() - clickT0))
+                        );
+                    }
+                    return;
                 }
+                launchedEarly = true;
+                if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+                playStream(cand, ep, partial);
             });
+            if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
             const streamsArr = res?.streams || [];
             setEpisodeStreams((s) => ({
                 ...s,
@@ -608,17 +654,24 @@ export default function SeriesEpisodes({
                     type: 'series',
                     subtitleUrl,
                     // v2.7.28 — full cover-art fallback chain.
+                    // v2.13.12 — metahub fallback by series IMDB id so
+                    // the loading screen ALWAYS has art (episodes used
+                    // to fall back to '' = blank screen).
                     poster:
                         meta?.poster ||
                         meta?.posterUrl ||
                         meta?.background ||
                         meta?.backdrop ||
-                        '',
+                        (String(meta?.id || '').startsWith('tt')
+                            ? `https://images.metahub.space/poster/medium/${String(meta.id).split(':')[0]}/img`
+                            : ''),
                     backdrop:
                         meta?.background ||
                         meta?.backdrop ||
                         meta?.poster ||
-                        '',
+                        (String(meta?.id || '').startsWith('tt')
+                            ? `https://images.metahub.space/background/medium/${String(meta.id).split(':')[0]}/img`
+                            : ''),
                     synopsis:
                         ep.overview ||
                         meta?.description ||

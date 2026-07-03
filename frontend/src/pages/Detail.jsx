@@ -141,6 +141,11 @@ export default function Detail() {
     const [diagnostics, setDiagnostics] = useState([]);
     const [loading, setLoading] = useState(true);
     const [streamLoading, setStreamLoading] = useState(true);
+    // v2.13.12 — EasyNews++-first hold: true while an EasyNews probe
+    // is still in flight; early-launch of a lower-priority candidate
+    // is held until it settles or the 3 s cap expires.
+    const [easyNewsPending, setEasyNewsPending] = useState(true);
+    const [enHoldExpired, setEnHoldExpired] = useState(false);
     const [err, setErr] = useState(null);
     const [copied, setCopied] = useState(null);
 
@@ -506,14 +511,23 @@ export default function Detail() {
         }
         let cancel = false;
         const ctrl = new AbortController();
+        // v2.13.12 — cap the EasyNews++ hold at 3 s from fetch start.
+        setEasyNewsPending(true);
+        setEnHoldExpired(false);
+        const enHoldTimer = window.setTimeout(() => {
+            if (!cancel) setEnHoldExpired(true);
+        }, 3000);
         (async () => {
             setStreamLoading(true);
             if (partyCode) partyBreadcrumb('streams:fetch-start', { type, id });
             try {
                 // v2.7.30 — render streams the SECOND backend cache hits,
                 // then top-up with browser-direct results when ready.
-                const onPartial = (partial) => {
+                const onPartial = (partial, probeMeta) => {
                     if (cancel) return;
+                    if (probeMeta) {
+                        setEasyNewsPending(probeMeta.easyNewsPending === true);
+                    }
                     if (Array.isArray(partial) && partial.length > 0) {
                         setStreams(partial);
                         if (partyCode) {
@@ -553,11 +567,15 @@ export default function Detail() {
                     if (partyCode) partyBreadcrumb('streams:fetch-error', { err: String(e).slice(0, 200) });
                 }
             } finally {
-                if (!cancel) setStreamLoading(false);
+                if (!cancel) {
+                    setStreamLoading(false);
+                    setEasyNewsPending(false);
+                }
             }
         })();
         return () => {
             cancel = true;
+            window.clearTimeout(enHoldTimer);
             // v2.13.10 — abort in-flight stream probes the moment the
             // user leaves the page ("everything stops completely").
             try { ctrl.abort(); } catch { /* ignore */ }
@@ -890,6 +908,27 @@ export default function Detail() {
             clearInterval(i);
         };
     }, []);
+
+    // v2.13.12 — Pre-warm the NATIVE (Coil) image cache with this
+    // title's artwork while the user is still browsing.  The player's
+    // loading screen re-downloads the backdrop/poster at the exact
+    // moment ExoPlayer is buffering video — they fight for bandwidth
+    // and the art shows late or never.  Prefetching here means the
+    // loading screen renders its art INSTANTLY from disk cache.
+    useEffect(() => {
+        if (!meta) return;
+        const imdb = id && id.startsWith('tt') ? id : '';
+        Host.prefetchImages([
+            meta.poster,
+            meta.background,
+            meta.backdrop,
+            tmdbInfo?.poster_url,
+            tmdbInfo?.backdrop_url,
+            imdb ? `https://images.metahub.space/poster/medium/${imdb}/img` : '',
+            imdb ? `https://images.metahub.space/background/medium/${imdb}/img` : '',
+        ].filter(Boolean));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [meta, tmdbInfo, id]);
 
     // Pick the best 1080p candidate from the resolved streams list.
     // We prefer direct mode + explicit 1080p label, but will fall back
@@ -1267,6 +1306,11 @@ export default function Detail() {
         // results, fire it — same fast path TV episodes already use.
         if (streamLoading) {
             if (!autoplayCandidate) return;
+            // v2.13.12 — EasyNews++-first: if EasyNews is still
+            // searching and the current best isn't EasyNews, hold
+            // (max 3 s) — the moment an EasyNews link lands the
+            // cascade re-picks it and we launch instantly.
+            if (!isEasyNews(autoplayCandidate) && easyNewsPending && !enHoldExpired) return;
             autoplayFiredRef.current = true;
             setAutoplayFired(true);
             window.setTimeout(() => playStream(autoplayCandidate), 0);
@@ -1306,7 +1350,7 @@ export default function Detail() {
         setAutoplayFired(true);
         window.setTimeout(() => playStream(chosen), 0);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [streams, streamLoading, autoplayRequested, type, autoplayCandidate, partyCode, ratingBlocked]);
+    }, [streams, streamLoading, autoplayRequested, type, autoplayCandidate, partyCode, ratingBlocked, easyNewsPending, enHoldExpired]);
 
     /* ---------- PARTY AUTOPLAY for TV SERIES ----------
      * When the host picks a TV show in Watch Together and selects a
