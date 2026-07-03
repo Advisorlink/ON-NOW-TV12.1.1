@@ -4983,3 +4983,20 @@ async def _start_instant_bundle() -> None:
     native Android launcher will own the Live TV experience going
     forward."""
     return
+
+
+@app.on_event("startup")
+async def _start_music_home_warmer() -> None:
+    """v2.13.13 — Keep the Tunes home payload permanently warm.  The
+    /api/music/home aggregate hits Deezer charts cold in ~3-8 s; with
+    a 1 h TTL the FIRST user after every expiry stared at skeletons.
+    Re-warm every 50 min so the cache never lapses."""
+    async def _loop():
+        while True:
+            try:
+                from music_api import music_home
+                await music_home()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Music home warmer failed: %s", exc)
+            await asyncio.sleep(50 * 60)
+    asyncio.create_task(_loop())

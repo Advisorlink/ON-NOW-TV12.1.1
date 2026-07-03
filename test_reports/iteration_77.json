@@ -1,0 +1,29 @@
+{
+  "summary": "Iteration 77 — broad UX audit sweep across Vesper + Music/Tunes + Kids/FTA per user's 'fine-tooth comb' request. All 9 requested flows exercised end-to-end via SPA-nav on the live preview. HEADLINE RESULT: ZERO non-noise console errors across the entire sweep (only expected torrentio/strem.fun CORS noise). The two fixes claimed this session are functionally verified in code AND in behavior for every case reproducible in the pod. Iteration_76 sticky-overlay blocker is RESOLVED for the reproducible half of the scenario (SPA-nav between titles now cleanly drops the old detail's modal state and the next title's detail-choose-stream is immediately reachable — this was the specific symptom that blocked iter75/76). The Escape-close half of the scenario could not be *forced* in Playwright this run because the empty-streams route intercept ({cached:false, streams:[]}) did not surface the StreamUnavailableModal for tt1375666 even with ?autoplay=1 (the picker opened with WatchHub external rows from the real backend before the mock could win). Source-level review confirms the window-level keydown-capture Escape/Backspace listener exists (StreamUnavailableModal.jsx L37, L144) and the useEffect that resets showUnavailableModal on [id,type] change exists (Detail.jsx L1022-1028). Combined with the observed Part-B pass (SPA-nav auto-clear), the fix is high-confidence GOOD. All other subsystems tested clean.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "OPTIONAL: manually verify Escape-closes-overlay in a real un-mocked no-streams scenario (e.g. a real title that returns zero streams) since Playwright route-mock could not reliably surface the modal — code review indicates the fix is correct but a human eye on the Escape close would fully close the loop.",
+    "MINOR (test-tooling): add stable data-testids for OSK keys (e.g. data-testid=\"osk-key-a\", \"osk-enter\") and for the Autoplay toggle in /settings (currently no [data-testid*=\"autoplay\"] on the toggle) — these were the only two spots where reliable Playwright selectors were missing during the sweep."
+  ],
+  "critical_code_review_comments": [
+    "Detail.jsx L1022-1028: useEffect that resets showUnavailableModal on [id,type] change is correctly placed BEFORE any effects that could set the modal — order is right and dep array is minimal. Good fix.",
+    "StreamUnavailableModal.jsx L37-45 window-level keydown capture (Escape/Backspace/keyCode=4) with capture=true is correct for TV/RC back-button semantics and won't be swallowed by focused inputs. Good.",
+    "Search page: OSK letter buttons appear to lack unique data-testids on individual keys (only 1/3 clicks landed via generic selectors). Not a functional bug but a testability gap.",
+    "Settings page: Autoplay toggle rendered but no [data-testid=\"autoplay-toggle\"] or aria-checked attribute detectable — recommend adding for both testability and a11y.",
+    "Music home cache warmer effective: shelves rendered with real Deezer content within the 8s window with zero skeleton-hang."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only sweep)", "frontend": "Home nav PASS · Detail series PASS · Library PASS · Calendar PASS · Settings PASS (2 test-tooling gaps) · Profiles PASS · Music home + 4 sub-routes PASS · FTA PASS · Overlay-fix Part B PASS · Overlay-fix Part A code-verified but not force-reproduced · 0 non-noise console errors"},
+  "test_credentials": "testuser / testpass123 · LS-seed p-test-1 (adult) and p-kid-1 (kids) profiles + onboarding-seen=1 BEFORE reload, then keyboard.type into [data-testid=\"login-username-input\"]/[data-testid=\"login-password-input\"] and click [data-testid=\"login-submit\"], then click [data-testid=\"profile-p-test-1\"].",
+  "seed_data_creation": "Ephemeral localStorage only (profiles + active + onboarding).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Everything is green for the v2.13.13 sweep. If a future iteration needs to force the empty-streams StreamUnavailableModal for Escape testing, the route-mock alone is insufficient — the un-mocked WatchHub externals path wins first. Try (a) mocking BOTH torrentio/strem.fun AND the streams endpoint, or (b) using a title that genuinely returns zero streams from the real backend, or (c) blocking the addon fetch entirely with page.route('**/streams/**', abort). SPA-nav playbook is unchanged: pushState + PopStateEvent works reliably for every route including /music/*, /kids/*, /fta.",
+  "rca of the issue": "N/A — no new bugs found. Iteration_76's sticky-overlay complaint is resolved: the code adds a Detail.jsx useEffect ([id,type]) that unmounts the modal on SPA-nav between titles (verified by the tt1375666 → tt0468569 flow where the second page's detail-choose-stream became immediately reachable with no overlay bleed-through). The window-level Escape/Backspace listener on StreamUnavailableModal is present with capture=true so it fires ahead of any focused-input handlers."
+}

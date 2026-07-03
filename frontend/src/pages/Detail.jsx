@@ -1020,6 +1020,12 @@ export default function Detail() {
     };
 
     const [showUnavailableModal, setShowUnavailableModal] = useState(false);
+    // v2.13.13 — Detail stays MOUNTED when SPA-navigating between
+    // titles (only the :id param changes), so a "no streams" overlay
+    // from title A used to survive into title B and block the page.
+    useEffect(() => {
+        setShowUnavailableModal(false);
+    }, [id, type]);
 
     /* v2.7.20 — Track the LAST stream the user chose (or that
      * autoplay picked).  Used to:

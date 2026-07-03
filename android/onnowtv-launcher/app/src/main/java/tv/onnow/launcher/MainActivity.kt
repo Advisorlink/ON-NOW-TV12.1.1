@@ -313,6 +313,10 @@ class MainActivity : AppCompatActivity() {
         // both at edges (no escape) and mid-list (no leaks).
         val lm = LinearLayoutManager(this, RecyclerView.HORIZONTAL, false)
         binding.dock.layoutManager = lm
+        // v2.13.13 — kill item change animations: config refreshes
+        // rebind tiles, and a mid-animation rebind can detach the
+        // focused view → Android reassigns focus to the top bar.
+        binding.dock.itemAnimator = null
         dockAdapter = DockAdapter(
             items = dockItems,
             onSelect = { item -> onTileSelected(item) },
@@ -1895,59 +1899,105 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * v2.8.22 — Manual LEFT/RIGHT focus advancement inside the dock.
-     * Replaces the v2.8.21 LayoutManager override which broke
-     * mid-list horizontal nav, AND the v2.8.20 dispatch trap which
-     * leaked on the 4-5th rapid press.
+     * v2.13.13 — Race-proof LEFT/RIGHT focus advancement in the dock.
      *
-     * Strategy: while focus is in the dock, we OWN the LEFT/RIGHT
-     * keys end-to-end.  Compute the target adapter position,
-     * scrollToPosition if needed (cheaper + more predictable than
-     * smoothScrollToPosition for ~12 items), then requestFocus on
-     * the resulting itemView on the next layout pass.  No path
-     * through Android's geometry focus search → no leaks possible.
-     * UP / DOWN arrows fall through to default behaviour, so UP
-     * still climbs to the top-bar VPN pill.
+     * The v2.8.22 handler owned LEFT/RIGHT while focus was in the
+     * dock, but had a hole: on fast scrolling the target tile is not
+     * laid out yet, so it did `scrollToPosition + post{requestFocus}`.
+     * Between those two, the currently-focused tile could be recycled
+     * → focus momentarily belonged to NOTHING → Android reassigned it
+     * to the first focusable view — the TOP BAR.  The user saw focus
+     * randomly jump up while zipping left/right.
+     *
+     * Fixes:
+     *  • `dockPendingTarget` — while a scroll+focus is in flight the
+     *    dock still OWNS the arrow keys (even if focus transiently
+     *    escaped), and rapid presses chain off the pending target so
+     *    every press advances exactly one tile.
+     *  • Retry loop (up to 6 frames) that keeps re-claiming focus for
+     *    the target tile after the scroll settles — any transient
+     *    escape to the top bar is pulled straight back.
+     *  • DOWN is swallowed in the dock (nothing lives below it).
+     *  • UP is the ONLY way out (falls through to nextFocusUpId → VPN
+     *    pill), exactly as the product spec demands.
      */
+    private var dockPendingTarget: Int = -1
+
     override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
         if (event.action == android.view.KeyEvent.ACTION_DOWN && ::binding.isInitialized) {
-            val focused = currentFocus
             val dock = binding.dock
+            val focused = currentFocus
             val itemView = focused?.let { dock.findContainingItemView(it) }
-            if (itemView != null) {
-                val pos = dock.getChildAdapterPosition(itemView)
-                val count = dock.adapter?.itemCount ?: 0
-                val target = when (event.keyCode) {
-                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                        if (pos in 0 until count - 1) pos + 1 else null
-                    }
+            val inDock = itemView != null || focused === dock || dockPendingTarget >= 0
+            if (inDock) {
+                when (event.keyCode) {
+                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT,
                     android.view.KeyEvent.KEYCODE_DPAD_LEFT -> {
-                        if (pos > 0) pos - 1 else null
-                    }
-                    else -> Int.MIN_VALUE  // not a horizontal key — fall through
-                }
-                if (target == null) {
-                    // Edge — swallow so focus can't escape sideways.
-                    return true
-                }
-                if (target != Int.MIN_VALUE) {
-                    val lm = dock.layoutManager as? LinearLayoutManager
-                    val nextView = lm?.findViewByPosition(target)
-                    if (nextView != null) {
-                        nextView.requestFocus()
-                    } else {
-                        dock.scrollToPosition(target)
-                        dock.post {
-                            (dock.layoutManager as? LinearLayoutManager)
-                                ?.findViewByPosition(target)
-                                ?.requestFocus()
+                        val count = dock.adapter?.itemCount ?: 0
+                        if (count <= 0) return true
+                        val basePos = when {
+                            dockPendingTarget >= 0 -> dockPendingTarget
+                            itemView != null -> dock.getChildAdapterPosition(itemView)
+                            else -> 0
                         }
+                        if (basePos == RecyclerView.NO_POSITION) return true
+                        val delta =
+                            if (event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) 1 else -1
+                        val target = (basePos + delta).coerceIn(0, count - 1)
+                        // Edge tile — swallow so focus can't escape sideways.
+                        if (target == basePos) return true
+                        focusDockPosition(target)
+                        return true
                     }
-                    return true
+                    android.view.KeyEvent.KEYCODE_DPAD_DOWN -> {
+                        // Nothing below the dock — swallow so focus
+                        // can't wrap or escape.
+                        return true
+                    }
+                    android.view.KeyEvent.KEYCODE_DPAD_UP -> {
+                        // Deliberate exit — cancel any in-flight dock
+                        // move and let default behaviour climb to the
+                        // top bar (nextFocusUpId → VPN pill).
+                        dockPendingTarget = -1
+                    }
                 }
             }
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    /** Move dock focus to `target`, scrolling first when off-screen. */
+    private fun focusDockPosition(target: Int) {
+        val dock = binding.dock
+        dockPendingTarget = target
+        val lm = dock.layoutManager as? LinearLayoutManager
+        val nextView = lm?.findViewByPosition(target)
+        if (nextView != null) {
+            // Ensure fully on-screen even when already laid out.
+            dock.scrollToPosition(target)
+            nextView.requestFocus()
+            dockPendingTarget = -1
+        } else {
+            dock.scrollToPosition(target)
+            retryFocusDock(target, 0)
+        }
+    }
+
+    /** Keep re-claiming focus for `target` until its view exists. */
+    private fun retryFocusDock(target: Int, attempt: Int) {
+        val dock = binding.dock
+        dock.post {
+            if (dockPendingTarget != target) return@post // superseded
+            val v = (dock.layoutManager as? LinearLayoutManager)?.findViewByPosition(target)
+            if (v != null) {
+                v.requestFocus()
+                dockPendingTarget = -1
+            } else if (attempt < 6) {
+                retryFocusDock(target, attempt + 1)
+            } else {
+                dockPendingTarget = -1
+            }
+        }
     }
 
     /** Toggle the green/red status dot on the VPN pill. */

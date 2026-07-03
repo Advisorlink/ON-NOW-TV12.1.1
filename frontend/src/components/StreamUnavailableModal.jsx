@@ -27,6 +27,23 @@ export default function StreamUnavailableModal({ id, meta, onClose }) {
     const primaryBtnRef = useRef(null);
     const backBtnRef = useRef(null);
     const [focusIdx, setFocusIdx] = useState(0);
+    // v2.13.13 — WINDOW-level dismiss.  The container onKeyDown only
+    // fires while focus sits inside the modal; if focus was lost
+    // (SPA nav, focus restore race) Escape/Back did nothing and the
+    // overlay felt "stuck".  Capture-phase window listener means Back
+    // ALWAYS closes it.
+    useEffect(() => {
+        const onKey = (e) => {
+            if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) {
+                e.preventDefault();
+                e.stopPropagation();
+                onClose?.();
+            }
+        };
+        window.addEventListener('keydown', onKey, true);
+        return () => window.removeEventListener('keydown', onKey, true);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     // v2.7.53 — Long-press launch guard.  When the user opens this
     // modal via a 600 ms press-and-hold on a card, the OK key is
     // STILL DOWN when the modal mounts.  The auto-focus below would
@@ -125,6 +142,8 @@ export default function StreamUnavailableModal({ id, meta, onClose }) {
                     e.preventDefault();
                     setFocusIdx(1);
                 } else if (e.key === 'Escape' || e.key === 'Backspace') {
+                    // Window-level capture listener above also handles
+                    // this; kept for completeness when focus is inside.
                     e.preventDefault();
                     onClose?.();
                 }
