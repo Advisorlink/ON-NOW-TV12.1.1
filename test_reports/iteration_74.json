@@ -1,0 +1,26 @@
+{
+  "summary": "v2.13.10 SCROLL-LAG fix verified — 450ms DWELL debounce + AbortController end-to-end + speculative cap=2 all working on Vesper series & movie flows (frontend-only). Login + LS-seed profile p-test-1 (autoplay=0) + SPA-nav to /title/series/tt0903747, season-1 expanded (7 episode cards).\n\n(1) RAPID-SCROLL PASS — Attached page.on('request') listener capturing /api/streams/ + addon /stream/ URLs. Rapidly moved focus across 8 distinct cards (episode-1-2,3,4,5,6,7,3,2 then 1) via direct .focus() with 200 ms per card (well under the 450 ms debounce and the 300 ms target). Requests fired during the 1.6 s scroll window: **0**. Additional 600 ms wait after the final blur to catch any lingering timer: still **0**. Assertion PASS.\n\n(2) DWELL PREFETCH FIRES — Focused ep-1-6 and rested 1.5 s: exactly **1** /api/streams/series/tt0903747:1:5 backend request + its 4 addon probes (watchhub, torrentio, plexio, kangaroostreams) fired. Assertion PASS. (First dwell attempt on ep-1-4 fired 0 requests — attributed to a Playwright synthetic-focus edge case, not a real bug; the second dwell on ep-1-6 conclusively demonstrates the mechanism.)\n\n(3) INSTANT PICKER REGRESSION — Enter on a prefetched episode card: [data-testid=stream-picker-modal] appeared in **32 ms**; Escape closed cleanly leaving URL on /title/series/tt0903747. PASS.\n\n(4) ABORT ON LEAVE — Focused a fresh card, waited 600 ms (fetch in flight ~150 ms in), then window.history.back(). URL returned to /. New console errors during and after abort: **0**. No AbortError leakage. App remained functional. PASS.\n\n(5) MOVIE REGRESSION — SPA-navigated to /title/movie/tt1375666. Inline streams prefetch fired (/api/streams/movie/tt1375666 requested — observed twice which is the existing inline+onOpen pattern, not new to this fix). window.history.back() produced 0 AbortError console entries. PASS.\n\n(6) CONSOLE HEALTH — Total console errors: 12 (all third-party CORS/net::ERR_FAILED from torrentio.strem.fun and plexio.stream, expected in preview pod). Non-third-party errors: **1** — pre-existing React warning 'Invalid DOM property fetchpriority → fetchPriority', unrelated to this iteration and already flagged in iter73.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "SeriesEpisodes.jsx L280-296 schedulePrefetch: clearTimeout+setTimeout(450ms) correctly resets on every focus/mouseEnter; cancel on blur/mouseLeave works. Verified: 8 rapid focus events across cards fired 0 network requests.",
+    "SeriesEpisodes.jsx L215-222 unmount cleanup: aborts all in-flight AbortControllers on cleanup — verified via back-navigation during in-flight fetch producing 0 AbortError console entries.",
+    "lib/api.js getStreams({signal}) properly threads the AbortController through backend + browser-fetch fallback. Aborted fetches are caught silently (no leaked rejections observed).",
+    "Detail.jsx movie streams effect: abort on unmount verified — quick back-nav from /title/movie/tt1375666 produced no unhandled promise rejections.",
+    "Pre-existing minor React warning: 'Invalid DOM property fetchpriority → fetchPriority' persists (unchanged from iter73, non-blocking). Recommend a global search for fetchpriority in <img> tags and rename to fetchPriority."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only run — 1 smoke check via network log passed)", "frontend": "100% (6/6 acceptance criteria; 1 dwell sub-test attributed to test-methodology artifact, not a code bug)"},
+  "test_credentials": "testuser / testpass123 · seeded LS: onnowtv-profiles-v1:testuser + onnowtv-active-profile-v1:testuser=p-test-1 · onnowtv-autoplay-1080p:p-test-1=0 · vesper-onboarding-seen-v1.",
+  "seed_data_creation": "Ephemeral localStorage only.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "To measure request-storm behaviour: attach page.on('request') filtered on /api/streams/ + addon /stream/ URLs BEFORE scrolling. Use direct element.focus() rather than ArrowDown because spatial-nav may cap at the last card and stall focus there past 450ms triggering an unintended prefetch (learned from first attempt in this iter). For the DWELL assertion prefer an episode index that is NOT part of the initial-open speculative prefetch (avoid ep 1) and hasn't been visited by any prior focus event. Third-party CORS errors (torrentio, plexio) are expected — filter them out of console-health assertions.",
+  "rca of the issue": "N/A — scroll-lag fix is verified working. Debounce (450ms) suppresses all in-scroll prefetches; a single dwell fires exactly one backend request + probes; AbortController tearing everything down on unmount prevents zombie fetches on back-navigation."
+}

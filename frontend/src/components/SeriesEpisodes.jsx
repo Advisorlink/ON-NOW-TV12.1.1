@@ -199,42 +199,100 @@ export default function SeriesEpisodes({
     const prefetchesRef = useRef({});
     const [pendingEps, setPendingEps] = useState({});
 
-    const prefetchEpisode = (ep) => {
+    /* v2.13.10 — SCROLL-LAG FIX.  Prefetch used to fire the full
+     * stream search the INSTANT a card gained focus, so D-pad
+     * scrolling across a season fired one search per card — a storm
+     * of backend + addon requests that made the whole page lag.
+     * Now: (a) a 450 ms DWELL debounce — scrolling across 20 cards
+     * fires ZERO fetches, resting on one fires exactly one;
+     * (b) speculative prefetches are capped at 2 in flight;
+     * (c) EVERYTHING aborts the moment the component unmounts. */
+    const prefetchTimerRef = useRef(null);
+    const mountedRef = useRef(true);
+    const speculativeInFlightRef = useRef(0);
+    const abortersRef = useRef(new Set());
+
+    useEffect(() => () => {
+        mountedRef.current = false;
+        if (prefetchTimerRef.current) clearTimeout(prefetchTimerRef.current);
+        abortersRef.current.forEach((c) => {
+            try { c.abort(); } catch { /* ignore */ }
+        });
+        abortersRef.current.clear();
+    }, []);
+
+    const prefetchEpisode = (ep, { speculative = false } = {}) => {
         if (!ep?.id) return null;
         if (episodeStreams[ep.id] || prefetchesRef.current[ep.id]) {
             return prefetchesRef.current[ep.id] || null;
         }
+        if (speculative && speculativeInFlightRef.current >= 2) return null;
+        const ctrl = new AbortController();
+        abortersRef.current.add(ctrl);
+        if (speculative) speculativeInFlightRef.current += 1;
         prefetchesRef.current[ep.id] = (async () => {
-            setPendingEps((s) => ({ ...s, [ep.id]: true }));
+            if (mountedRef.current) {
+                setPendingEps((s) => ({ ...s, [ep.id]: true }));
+            }
             try {
-                const res = await Vesper.getStreams('series', ep.id, (partial) => {
-                    // v2.13.9 — progressive: rows pour into the open
-                    // picker as each addon answers (Stremio-style).
+                const res = await Vesper.getStreams(
+                    'series',
+                    ep.id,
+                    (partial) => {
+                        if (!mountedRef.current) return;
+                        // v2.13.9 — progressive: rows pour into the
+                        // open picker as each addon answers.
+                        setEpisodeStreams((s) => ({
+                            ...s,
+                            [ep.id]: {
+                                streams: partial,
+                                diagnostics: s[ep.id]?.diagnostics || [],
+                            },
+                        }));
+                    },
+                    { signal: ctrl.signal }
+                );
+                const streamsArr = res?.streams || [];
+                if (mountedRef.current) {
                     setEpisodeStreams((s) => ({
                         ...s,
                         [ep.id]: {
-                            streams: partial,
-                            diagnostics: s[ep.id]?.diagnostics || [],
+                            streams: streamsArr,
+                            diagnostics: res?.diagnostics || [],
                         },
                     }));
-                });
-                const streamsArr = res?.streams || [];
-                setEpisodeStreams((s) => ({
-                    ...s,
-                    [ep.id]: {
-                        streams: streamsArr,
-                        diagnostics: res?.diagnostics || [],
-                    },
-                }));
+                }
                 return streamsArr;
             } catch {
                 delete prefetchesRef.current[ep.id];
                 return null;
             } finally {
-                setPendingEps((s) => ({ ...s, [ep.id]: false }));
+                abortersRef.current.delete(ctrl);
+                if (speculative) speculativeInFlightRef.current -= 1;
+                if (mountedRef.current) {
+                    setPendingEps((s) => ({ ...s, [ep.id]: false }));
+                }
             }
         })();
         return prefetchesRef.current[ep.id];
+    };
+
+    const schedulePrefetch = (ep) => {
+        if (prefetchTimerRef.current) clearTimeout(prefetchTimerRef.current);
+        if (!ep?.id || episodeStreams[ep.id] || prefetchesRef.current[ep.id]) {
+            return;
+        }
+        prefetchTimerRef.current = setTimeout(() => {
+            prefetchTimerRef.current = null;
+            prefetchEpisode(ep, { speculative: true });
+        }, 450);
+    };
+
+    const cancelScheduledPrefetch = () => {
+        if (prefetchTimerRef.current) {
+            clearTimeout(prefetchTimerRef.current);
+            prefetchTimerRef.current = null;
+        }
     };
 
     // Prefetch the most likely next click the moment a season's
@@ -250,7 +308,7 @@ export default function SeriesEpisodes({
                       e.episode === highlightEpisode.episode
               )
             : null;
-        prefetchEpisode(hl || eps[0]);
+        prefetchEpisode(hl || eps[0], { speculative: true });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [episodesShown, activeSeason, seasons]);
 
@@ -816,7 +874,8 @@ export default function SeriesEpisodes({
                             ep={ep}
                             open={open}
                             onClick={() => handleEpisodeClick(ep)}
-                            onPrefetch={() => prefetchEpisode(ep)}
+                            onPrefetch={() => schedulePrefetch(ep)}
+                            onPrefetchCancel={cancelScheduledPrefetch}
                             data={data}
                             isLoading={isLoading}
                             parentId={parentId}
@@ -840,6 +899,7 @@ function EpisodeCard({
     open,
     onClick,
     onPrefetch,
+    onPrefetchCancel,
     data,
     isLoading,
     playStream,
@@ -901,10 +961,12 @@ function EpisodeCard({
                 data-focus-style="quiet"
                 tabIndex={0}
                 onClick={onClick}
-                // v2.13.7 — D-pad landing on an episode kicks off the
-                // stream + subtitle prefetch so OK plays instantly.
+                // v2.13.10 — DWELL prefetch: only fires after resting
+                // on the card for 450 ms (scrolling past fires nothing).
                 onFocus={onPrefetch}
+                onBlur={onPrefetchCancel}
                 onMouseEnter={onPrefetch}
+                onMouseLeave={onPrefetchCancel}
                 className="w-full text-left flex items-stretch gap-5"
                 style={{
                     padding: 'clamp(12px, 0.9vw, 18px)',

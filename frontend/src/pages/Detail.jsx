@@ -505,6 +505,7 @@ export default function Detail() {
             return;
         }
         let cancel = false;
+        const ctrl = new AbortController();
         (async () => {
             setStreamLoading(true);
             if (partyCode) partyBreadcrumb('streams:fetch-start', { type, id });
@@ -520,7 +521,7 @@ export default function Detail() {
                         }
                     }
                 };
-                const s = await Vesper.getStreams(type, id, onPartial);
+                const s = await Vesper.getStreams(type, id, onPartial, { signal: ctrl.signal });
                 if (!cancel) {
                     setStreams(s?.streams || []);
                     setDiagnostics(s?.diagnostics || []);
@@ -557,6 +558,9 @@ export default function Detail() {
         })();
         return () => {
             cancel = true;
+            // v2.13.10 — abort in-flight stream probes the moment the
+            // user leaves the page ("everything stops completely").
+            try { ctrl.abort(); } catch { /* ignore */ }
         };
     }, [type, id, partyCode, isPartyGuest, isPartyHost]);
 

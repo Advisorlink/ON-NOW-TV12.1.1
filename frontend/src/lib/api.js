@@ -60,36 +60,87 @@ export function normaliseManifestUrl(raw) {
     };
 }
 
-async function fetchJsonDirect(url, { timeout = 15000 } = {}) {
+/* v2.13.10 — NON-BLOCKING native bridge fetch.
+ * The legacy `window.OnNowTV.fetchUrl(url, timeout)` bridge call is
+ * SYNCHRONOUS: a @JavascriptInterface call only returns when the
+ * Kotlin method returns, which means the WebView's JS thread was
+ * BLOCKED for the entire HTTP round-trip (up to 8 s per addon probe).
+ * With several probes in flight this froze all scrolling/UI on the
+ * box.  New APKs expose `fetchUrlAsync(url, timeout, requestId)`
+ * which returns instantly and posts the result back through
+ * `window.__onnowFetchDone(requestId, resultJson)`. */
+let bridgeFetchSeq = 0;
+const bridgeFetchPending = new Map();
+if (typeof window !== 'undefined') {
+    window.__onnowFetchDone = (id, raw) => {
+        const entry = bridgeFetchPending.get(id);
+        if (!entry) return;
+        bridgeFetchPending.delete(id);
+        clearTimeout(entry.timer);
+        entry.resolve(raw);
+    };
+}
+
+function bridgeFetchAsync(url, timeout) {
+    return new Promise((resolve, reject) => {
+        const id = `bf${++bridgeFetchSeq}`;
+        const timer = setTimeout(() => {
+            bridgeFetchPending.delete(id);
+            reject(new Error('bridge fetch timeout'));
+        }, timeout + 5000);
+        bridgeFetchPending.set(id, { resolve, timer });
+        try {
+            window.OnNowTV.fetchUrlAsync(url, timeout, id);
+        } catch (e) {
+            bridgeFetchPending.delete(id);
+            clearTimeout(timer);
+            reject(e);
+        }
+    });
+}
+
+function parseBridgePayload(raw, url) {
+    const parsed = JSON.parse(raw);
+    if (!parsed.ok) {
+        const err = new Error(
+            parsed.error || `HTTP ${parsed.status} from ${url}`
+        );
+        err.status = parsed.status;
+        throw err;
+    }
+    try {
+        return JSON.parse(parsed.body || '{}');
+    } catch {
+        const err = new Error(`Non-JSON response from ${url}`);
+        err.body = (parsed.body || '').slice(0, 200);
+        throw err;
+    }
+}
+
+async function fetchJsonDirect(url, { timeout = 15000, signal } = {}) {
     // Prefer the native Android HTTP bridge when running inside the
     // sideloaded APK.  This is critical for stream addons like
     // Torrentio that reject calls from datacentre IPs — the HK1
     // box's residential IP succeeds where the backend proxy gets a
-    // Cloudflare wall.  The bridge runs on a background binder
-    // thread so it doesn't block the JS event loop visibly.
-    if (typeof window !== 'undefined' && window.OnNowTV?.fetchUrl) {
+    // Cloudflare wall.
+    if (typeof window !== 'undefined' && window.OnNowTV?.fetchUrlAsync) {
+        // v2.13.10 — non-blocking bridge (JS thread never freezes).
+        try {
+            const raw = await bridgeFetchAsync(url, timeout);
+            return parseBridgePayload(raw, url);
+        } catch (e) {
+            if (e?.status === undefined) {
+                // bridge failure — try browser fallback below
+            } else {
+                throw e;
+            }
+        }
+    } else if (typeof window !== 'undefined' && window.OnNowTV?.fetchUrl) {
+        // Legacy SYNCHRONOUS bridge (older APKs only — blocks JS).
         try {
             const raw = window.OnNowTV.fetchUrl(url, timeout);
-            const parsed = JSON.parse(raw);
-            if (!parsed.ok) {
-                const err = new Error(
-                    parsed.error || `HTTP ${parsed.status} from ${url}`
-                );
-                err.status = parsed.status;
-                throw err;
-            }
-            try {
-                return JSON.parse(parsed.body || '{}');
-            } catch {
-                const err = new Error(
-                    `Non-JSON response from ${url}`
-                );
-                err.body = (parsed.body || '').slice(0, 200);
-                throw err;
-            }
+            return parseBridgePayload(raw, url);
         } catch (e) {
-            // If the bridge throws a *bridge* error (not an HTTP one)
-            // fall through to the standard browser fetch path.
             if (e?.status === undefined) {
                 // bridge failure — try browser fallback
             } else {
@@ -100,6 +151,13 @@ async function fetchJsonDirect(url, { timeout = 15000 } = {}) {
 
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), timeout);
+    // v2.13.10 — honour an external abort signal ("stop everything
+    // the moment the user backs out").
+    const onOuterAbort = () => { try { ctl.abort(); } catch { /* */ } };
+    if (signal) {
+        if (signal.aborted) onOuterAbort();
+        else signal.addEventListener('abort', onOuterAbort, { once: true });
+    }
     try {
         const res = await fetch(url, {
             mode: 'cors',
@@ -116,6 +174,7 @@ async function fetchJsonDirect(url, { timeout = 15000 } = {}) {
         return await res.json();
     } finally {
         clearTimeout(t);
+        if (signal) signal.removeEventListener('abort', onOuterAbort);
     }
 }
 
@@ -229,7 +288,7 @@ export const Vesper = {
      * at a spinner while a slow addon (e.g. cold Torrentio) finishes.
      * Per-addon timeout dropped from 20 s → 8 s for the same reason.
      */
-    getStreams: async (type, itemId, onPartial) => {
+    getStreams: async (type, itemId, onPartial, opts = {}) => {
         /* v2.13.9 — FULLY PARALLEL + PROGRESSIVE (Stremio-style).
          * The old flow SERIALIZED: backend aggregate (≤5 s+) THEN
          * browser-direct probes (≤8 s) and the callers only rendered
@@ -241,6 +300,7 @@ export const Vesper = {
          * fastest addon, exactly like Stremio.  Backend entries win
          * over a browser probe for the same addon (they carry richer
          * tags: _is_english / _quality_label / _pm_cached). */
+        const signal = opts.signal;
         const byAddon = new Map();      // addonId -> streams[]
         const backendOwned = new Set(); // addon ids answered by backend
         const assemble = () => {
@@ -250,12 +310,13 @@ export const Vesper = {
         };
         const emit = () => {
             if (typeof onPartial !== 'function') return;
+            if (signal?.aborted) return;
             try { onPartial(assemble()); } catch (_e) { /* ignore */ }
         };
 
         const backendP = (async () => {
             try {
-                const r = await api.get(`/streams/${type}/${itemId}`);
+                const r = await api.get(`/streams/${type}/${itemId}`, { signal });
                 const bs = r.data?.streams || [];
                 const grouped = new Map();
                 for (const s of bs) {
@@ -279,7 +340,7 @@ export const Vesper = {
         // backend call above (catches Cloudflare-walled addons).
         let results = [];
         try {
-            const addons = await Vesper.listAddons();
+            const addons = await Vesper.listAddons({ signal });
             results = await Promise.all(
                 addons.map(async (a) => {
                     let streamResource = null;
@@ -314,7 +375,7 @@ export const Vesper = {
                     try {
                         // 8 s cap so a single slow addon can't stall
                         // the FINAL settle (partials already painted).
-                        const data = await fetchJsonDirect(url, { timeout: 8000 });
+                        const data = await fetchJsonDirect(url, { timeout: 8000, signal });
                         const streams = (Array.isArray(data?.streams)
                             ? data.streams
                             : []

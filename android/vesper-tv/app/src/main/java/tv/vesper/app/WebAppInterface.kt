@@ -648,6 +648,32 @@ class WebAppInterface(private val activity: Activity) {
     }
 
     /**
+     * v2.13.10 — NON-BLOCKING variant of [fetchUrl].  The synchronous
+     * call above blocks the WebView's JS thread for the whole HTTP
+     * round-trip (a @JavascriptInterface call only returns to JS when
+     * the Kotlin method returns) — with several stream-addon probes
+     * in flight this froze scrolling for seconds at a time.  This
+     * variant returns IMMEDIATELY and posts the result back through
+     * `window.__onnowFetchDone(requestId, resultJson)`.
+     */
+    @JavascriptInterface
+    fun fetchUrlAsync(url: String, timeoutMs: Int, requestId: String) {
+        Thread {
+            val result = fetchUrl(url, timeoutMs)
+            try {
+                val main = activity as? MainActivity ?: return@Thread
+                val webView = main.webViewOrNull() ?: return@Thread
+                val js = "window.__onnowFetchDone && window.__onnowFetchDone(" +
+                    org.json.JSONObject.quote(requestId) + "," +
+                    org.json.JSONObject.quote(result) + ")"
+                webView.post { webView.evaluateJavascript(js, null) }
+            } catch (_: Throwable) {
+                /* WebView gone — silent. */
+            }
+        }.apply { isDaemon = true }.start()
+    }
+
+    /**
      * In-player Live Guide bridge.
      *
      * Persists the current Live TV channel list (and the EPG that
