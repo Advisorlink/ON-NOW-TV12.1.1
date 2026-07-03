@@ -21,6 +21,7 @@ import { getEntries as listContinueWatching, hydrateMissingArt as hydrateCwArt }
 import { Vesper } from '@/lib/api';
 import { getViewingStyle } from '@/lib/viewingStyle';
 import useIsMobile from '@/lib/useIsMobile';
+import { paceDpad } from '@/lib/dpadPacer';
 
 export default function Home() {
     useSpatialFocus();
@@ -229,7 +230,6 @@ export default function Home() {
             if (!homeRoot) return;
             const active = document.activeElement;
             if (!active || !homeRoot.contains(active)) return;
-
             // Bail when focus is inside the SideNav.  The SideNav
             // is its OWN navigation universe — Up/Down should walk
             // its menu items (handled by the global spatial focus
@@ -238,6 +238,18 @@ export default function Home() {
             // (clicks an item or presses Right) the menu collapses
             // and this row-walker takes over again.
             if (active.closest('[data-testid="side-nav"]')) return;
+
+            // v2.13.14 — frame-aware repeat pacing (shared pacer with
+            // the spatial engine).  Held-key repeats are dropped, not
+            // queued, while the previous move's frame is still
+            // painting — kills the event backlog that made slow boxes
+            // feel "stuck then runaway".  Dropped repeats still
+            // preventDefault so the browser can't native-scroll.
+            if (!paceDpad(e)) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
 
             // Build the ordered list of "rows" in DOM order.  Hero
             // is row 0 when it has any focusable; every shelf

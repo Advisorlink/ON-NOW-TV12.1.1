@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { paceDpad } from '@/lib/dpadPacer';
 
 /**
  * Spatial D-pad focus manager for TV.
@@ -8,10 +9,11 @@ import { useEffect } from 'react';
  * element marked with `data-focusable="true"`.
  *
  * Designed for buttery-smooth Android TV navigation:
- *   - Every keydown is processed SYNCHRONOUSLY (no rAF queue, no
- *     throttle).  The OS already auto-repeats at ~30 Hz which is
- *     the rate we want to honour 1:1 — anything slower feels
- *     "chunky".
+ *   - Discrete keydowns are processed SYNCHRONOUSLY (no rAF queue).
+ *   - Held-key repeats are frame-paced via lib/dpadPacer: at most
+ *     one move per painted frame, excess repeats DROPPED so slow
+ *     boxes never build an event backlog (the "stuck then runaway"
+ *     cursor feel).  Fast devices pace at ~14 moves/s.
  *   - Candidate set is scoped before geometry tests so populated
  *     For-You pages (~600 tiles) don't thrash layout per press.
  *   - Focusables list is cached and only rebuilt on DOM mutations.
@@ -862,9 +864,12 @@ export default function useSpatialFocus() {
 
             if (dir) {
                 e.preventDefault();
-                // Synchronous move.  Every press — discrete or
-                // repeat — produces exactly one move call.  No
-                // queue, no throttle, no dropped inputs.
+                // v2.13.14 — frame-aware repeat pacing.  Discrete
+                // presses stay synchronous + instant; held-key
+                // repeats are dropped (not queued) until the last
+                // move's frame painted.  Kills the event backlog
+                // that made slow boxes feel "stuck then runaway".
+                if (!paceDpad(e)) return;
                 applyMove(dir);
                 return;
             }

@@ -8028,3 +8028,35 @@ Music home/radio/podcasts/search, FTA, Kids PIN setup renders. LiveTV
   subtree later.
 - Manual on-device check: Escape-close of the no-streams overlay (code
   verified; pod couldn't force-surface the modal reliably).
+
+---
+
+## Session (Jun 2026 fork, part 4) — v2.13.14 D-pad movement speed on slow boxes
+
+### User ask
+"My box is slower — movement gets a little stuck. Make Vesper's
+left/right/up/down as close to RecyclerView-fast as possible."
+
+### Root cause
+OS auto-repeats arrow keys at ~30 Hz; every repeat ran a FULL synchronous
+move (focus() + data-focused sweep + :has recalc + getBoundingClientRect +
+scroll). A slow box can't paint 30 fps of that → keydown events BACKLOG →
+cursor feels stuck, then keeps moving after key release ("runaway").
+CSS was already optimized (low-end class, zero-blur rings, instant snap,
+content-visibility) — the gap was event pacing.
+
+### Fix
+- NEW `/app/frontend/src/lib/dpadPacer.js` — shared frame-aware pacer:
+  discrete presses ALWAYS instant; held-key repeats processed at most once
+  per PAINTED frame and ≥70 ms apart; excess repeats DROPPED (never
+  queued) → release stops instantly; self-adapts to device speed.
+- Wired into: useSpatialFocus keydown (all app surfaces), Home.jsx
+  row-walker (capture-phase Up/Down), FreeToAir EPG grid + channel rail.
+
+### Testing (Playwright on real Home)
+- Discrete Down×3 and Right×4: each press moved exactly one step.
+- Synthetic burst of 12 repeat=true keydowns in one tick: moved ≤1 step.
+- Note: Playwright force-click on profile tile is flaky in pod; use
+  JS .click() via evaluate (documented for future test scripts).
+
+NEEDS VESPER APK REBUILD (web assets) to reach the box.

@@ -30,6 +30,7 @@ import Hls from 'hls.js';
 import { LayoutGrid, Star, RotateCw, ChevronDown } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useBackHandler from '@/hooks/useBackHandler';
+import { paceDpad } from '@/lib/dpadPacer';
 import './fta.css';
 
 const API = (process.env.REACT_APP_BACKEND_URL || '').replace(/\/$/, '');
@@ -443,6 +444,12 @@ export default function FreeToAir() {
             if (!ae || !ae.classList || !ae.classList.contains('fta-cell')) return;
             if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown' &&
                 e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+            // v2.13.14 — drop backlogged held-key repeats (shared pacer).
+            if (!paceDpad(e)) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
 
             const row = ae.closest('.fta-row');
             if (!row) return;
@@ -798,6 +805,7 @@ function IconRail({ focus, forceExpanded, tab, favPulse, sideMenuOpen, onChangeF
                 e.preventDefault();
                 e.stopPropagation();
                 if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+                if (!paceDpad(e)) return; // drop backlogged repeats
                 const next = e.key === 'ArrowDown' ? Math.min(items.length - 1, idx + 1)
                                                    : Math.max(0, idx - 1);
                 onChangeFocus(items[next].id);
