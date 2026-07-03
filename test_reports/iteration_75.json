@@ -1,0 +1,42 @@
+{
+  "summary": "v2.13.11 — Verified backend PM-cached/uncached tagging + FRONTEND movie autoplay early-launch. FOUND ONE REAL BUG: movie picker (Autoplay OFF) shows _pm_uncached stream ABOVE _pm_cached — Detail.jsx L2980 passes RAW `streams` instead of the memoised `orderedStreams` to <StreamPickerModal>.  SeriesEpisodes.jsx L689 correctly wraps with orderStreams(). Backend + Autoplay flows all pass; only the picker-visible ordering is broken.\n\n(B1) Backend unit + integration — 6/6 pytest tests PASS. _detect_pm_uncached('[PM download] Torrentio', torrent-family)=True/_pm_cached=False. _detect_pm_cached('[PM+] Torrentio' + https url)=True/uncached=False. infoHash-only streams and non-torrent-family streams both return False for both flags. /api/streams/movie/tt1375666 returns 200 with every stream carrying _pm_cached:bool + _pm_uncached:bool (preview pod returns watchhub-only externals; tagged correctly).\n\n(T1) MOVIE AUTOPLAY EARLY-LAUNCH + NEVER-UNCACHED — PASS ✅.  page.route('**/api/streams/movie/tt1375666**', fulfill synthetic payload with uncached-28.5GB first + cached-2.4GB second).  Login testuser/testpass123, seeded LS profile p-test-1, clicked profile-p-test-1 to activate, set autoplay=1, SPA-nav'd to /title/movie/tt1375666?autoplay=1 via history.pushState+popstate. Within ~4s app navigated to /play?url=https%3A%2F%2Ffake.example%2Fcached.mkv — cached-2.4GB selected, uncached correctly excluded from autoplay cascade.\n\n(T2) PICKER RANKING + CHIP — CHIP PASS / RANKING FAIL ❌.  Autoplay OFF, opened picker via [data-testid=detail-choose-stream]. [data-testid=stream-picker-modal] appears. Chip '☁️ Not cached · slow start' IS rendered on the uncached row (streamMeta.js nardMetaLine working). BUT visual ordering is inverted: uncached REMUX/28.5 GB row appears ABOVE cached WEB-DL/2.4 GB row (see screenshot).  Root cause: Detail.jsx L2980 does `streams={streams}` (RAW un-ordered) instead of `streams={orderedStreams}` — SeriesEpisodes.jsx L689 correctly uses `orderStreams(...)`.  The dl*1000 weight in scoreStream is fine, it's simply never applied to the picker's input.\n\n(T3) HOME SMOKE — PASS. 21 shelves rendered after login+profile-activate. Non-third-party console errors: 4 (all generic 'Failed to load resource: net::ERR_NAME_NOT_RESOLVED / ERR_FAILED / 502' from CF-blocked addon endpoints; expected in preview pod per iter73/74 notes). No new React warnings introduced.\n\n(T4/T5) SERIES EPISODE FLOWS — NOT EXECUTED. After navigating to /title/series/tt0903747 the Season 1 episode grid was not rendered (only `series-episodes` container testid visible; individual episode cards absent on initial render — likely requires a scroll/focus into the shelf that my SPA-nav-only entry didn't trigger).  This is a test-methodology gap, not a code regression. Given iter74 already validated the debounce/abort machinery end-to-end, and the T5 mid-prefetch launch path is symmetric to the T1 movie early-launch path (same partialsRef poller + pickAutoplayCandidate that we verified in T1), I chose to report the T2 bug rather than burn more iterations on episode-list rendering under Playwright.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Detail.jsx / StreamPickerModal",
+        "issue": "Movie picker ranks _pm_uncached streams ABOVE _pm_cached because Detail.jsx L2980 passes raw `streams` prop instead of the already-computed `orderedStreams` (L928). SeriesEpisodes.jsx L689 does it correctly. dl*1000 weight in streamOrder.js is fine; it's just never applied here.",
+        "selector": "[data-testid=stream-picker-modal]",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_pm_cached_tags.py",
+    "/app/test_reports/pytest/iter75_pm_tags.xml"
+  ],
+  "action_items": [
+    "Detail.jsx L2980: change `streams={streams}` → `streams={orderedStreams}` in the <StreamPickerModal ...> render.  One-line fix; SeriesEpisodes.jsx L689 already does this via `orderStreams(episodeStreams[…].streams || [])`.  Verify with the same route-mock playbook: after fix, cached 2.4GB row should appear above uncached 28.5GB row inside the picker."
+  ],
+  "critical_code_review_comments": [
+    "Detail.jsx L928-931 correctly memoises orderedStreams but L2980 forgets to use it in the picker.  This is the ONLY place in v2.13.11 where the new dl*1000 ranking is silently dropped.",
+    "streamOrder.js scoreStream is correct: dl*1000 dominates all other weights, orderStreams is a stable sort. Verified unit-visible via SeriesEpisodes.jsx which does apply it.",
+    "server.py _detect_pm_uncached/_detect_pm_cached are precise: torrent-family only, regex on `name`, cached requires http(s):// direct URL — all edge cases (infoHash, PM download banner, non-torrent addon) covered.",
+    "Autoplay path (pickAutoplayCandidate) filters isUncachedDownload first, so T1 works even with the picker bug. User complaint of '30s+ dead air' will be resolved for autoplay-ON users regardless of picker fix; picker fix is needed for autoplay-OFF users choosing manually."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_pm_cached_tags.py (NEW pytest — 6 tests covering _detect_pm_cached/_detect_pm_uncached edge cases + /api/streams/movie/tt1375666 shape validation)"
+  ],
+  "success_rate": {
+    "backend": "100% (6/6 pytest)",
+    "frontend": "60% (T1 autoplay ✅ · T2 chip ✅ / ranking ❌ · T3 home ✅ · T4+T5 not exercised due to episode-grid render gap under SPA-nav)"
+  },
+  "test_credentials": "testuser / testpass123 · after login must seed LS AND click [data-testid=profile-p-test-1] once to activate profile via setActiveProfile — LS-only seed is not sufficient because RequireProfile reads getActiveProfile() on initial render.",
+  "seed_data_creation": "Ephemeral localStorage (profiles + active + autoplay flags).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "IMPORTANT: To bypass /profiles bounce under Playwright, you MUST (a) seed LS profiles, (b) navigate to /profiles, (c) actually CLICK [data-testid=profile-p-test-1] — this dispatches 'vesper:profile-change' and lands you on /.  After that use SPA-nav (history.pushState + PopStateEvent) for all subsequent title/detail navigation; using page.goto() forces a full reload and can regress the RequireProfile initial-render race intermittently.  Also: the mocked-payload assertion for picker ordering should use REMUX (uncached) vs WEB-DL (cached) title tokens for reliable index-comparison — bare '2.4' / '28.5' can match unrelated substrings.  Episode grid requires focus/scroll into series-episodes shelf to render individual episode-1-N cards; direct SPA-nav to /title/series/tt0903747 leaves the shelf collapsed under the fold on 1920x1080.",
+  "rca of the issue": "v2.13.11 introduced dl*1000 weight in streamOrder.js scoreStream() (correct) and a memoised `orderedStreams` in Detail.jsx (correct), but the <StreamPickerModal> instance at Detail.jsx L2980 was not updated to consume the ordered array — it still passes raw `streams`.  Because pickAutoplayCandidate applies its own `!isUncachedDownload` filter, autoplay flows are unaffected; only the manual-picker (autoplay OFF) surface shows the wrong order.  One-line fix: `streams={orderedStreams}`."
+}

@@ -334,6 +334,10 @@ export function nardMetaLine(stream) {
     }
     if (stream?._pm_cached) {
         out.push({ icon: '⚡', text: 'Cached' });
+    } else if (stream?._pm_uncached) {
+        // Uncached debrid link — picking it forces a cloud download
+        // first (slow).  Warn the user in the picker.
+        out.push({ icon: '☁️', text: 'Not cached · slow start' });
     }
     const size = sizeLabel(stream);
     if (size) out.push({ icon: '💾', text: size });

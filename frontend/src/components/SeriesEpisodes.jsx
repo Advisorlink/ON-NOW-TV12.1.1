@@ -197,6 +197,9 @@ export default function SeriesEpisodes({
      * Subtitle pre-fetch is GONE — subs now load on demand inside the
      * native player ("Find subtitles" in the subtitle picker). */
     const prefetchesRef = useRef({});
+    // v2.13.11 — live partial results per episode so a click landing
+    // mid-prefetch can launch EARLY instead of awaiting full settle.
+    const partialsRef = useRef({});
     const [pendingEps, setPendingEps] = useState({});
 
     /* v2.13.10 — SCROLL-LAG FIX.  Prefetch used to fire the full
@@ -240,6 +243,7 @@ export default function SeriesEpisodes({
                     ep.id,
                     (partial) => {
                         if (!mountedRef.current) return;
+                        partialsRef.current[ep.id] = partial;
                         // v2.13.9 — progressive: rows pour into the
                         // open picker as each addon answers.
                         setEpisodeStreams((s) => ({
@@ -431,7 +435,26 @@ export default function SeriesEpisodes({
         if (!cached && prefetchesRef.current[ep.id]) {
             setLoadingEpisodeId(ep.id);
             try {
-                const pre = await prefetchesRef.current[ep.id];
+                // v2.13.11 — EARLY LAUNCH while the dwell-prefetch is
+                // still in flight: poll its progressive partials and
+                // fire the moment a playable candidate exists instead
+                // of awaiting the slowest addon probe (up to 8 s).
+                let settled = false;
+                const poller = (async () => {
+                    while (!settled && mountedRef.current) {
+                        const partial = partialsRef.current[ep.id];
+                        if (Array.isArray(partial) && pickBestPlayable(partial)) {
+                            return partial;
+                        }
+                        await new Promise((r) => setTimeout(r, 120));
+                    }
+                    return null;
+                })();
+                const pre = await Promise.race([
+                    prefetchesRef.current[ep.id],
+                    poller,
+                ]);
+                settled = true;
                 if (Array.isArray(pre)) {
                     const cand = pickBestPlayable(pre);
                     if (cand) {

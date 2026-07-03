@@ -549,16 +549,33 @@ def _detect_quality(s: Dict[str, Any]) -> str:
     return ""
 
 
+_TORRENT_FAMILY = ("TORRENTIO", "MEDIAFUSION", "AIO", "JACKETT", "ORION")
+
+
+def _detect_pm_uncached(s: Dict[str, Any]) -> bool:
+    """v2.13.11 — Debrid "download" links (Torrentio's "[PM download]")
+    are NOT cached on the provider: hitting them starts a cloud
+    transfer that takes 30 s-to-minutes before playback.  The addon
+    banner lives in `name`, never in the release title, so this check
+    is precise."""
+    if _detect_addon_source(s) not in _TORRENT_FAMILY:
+        return False
+    return bool(re.search(r"download", str(s.get("name") or ""), re.IGNORECASE))
+
+
 def _detect_pm_cached(s: Dict[str, Any]) -> bool:
     """Heuristic for Premiumize/Real-Debrid cached streams.
 
     Torrent addons return either:
       • direct https:// URL → debrid-cached → plays instantly.
+      • "[XX download]" banner → uncached, cloud transfer first.
       • magnet: URI or infoHash field → raw torrent → buffer hell.
     We only mark `_pm_cached:true` for the torrent-addon family.
     """
     src = _detect_addon_source(s)
-    if src not in ("TORRENTIO", "MEDIAFUSION", "AIO", "JACKETT", "ORION"):
+    if src not in _TORRENT_FAMILY:
+        return False
+    if _detect_pm_uncached(s):
         return False
     if s.get("infoHash"):
         return False
@@ -570,6 +587,7 @@ def _tag_addon_quality_premium(s: Dict[str, Any]) -> None:
     s["_addon_source"]  = _detect_addon_source(s)
     s["_quality_label"] = _detect_quality(s)
     s["_pm_cached"]     = _detect_pm_cached(s)
+    s["_pm_uncached"]   = _detect_pm_uncached(s)
 
 
 # ---------------------------------------------------------------------------

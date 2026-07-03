@@ -389,7 +389,10 @@ class ExoPlayerActivity : ComponentActivity() {
     // stream.
     private var bufferStallJob: Job? = null
     private var firstReadyReachedForCurrentStream: Boolean = false
-    private val BUFFER_STALL_TIMEOUT_MS = 10_000L
+    // v2.13.11 — 10s → 8s: with the cascade now guaranteed to rank
+    // cached/small links first, a stream that hasn't produced a
+    // frame in 8s is almost certainly dead — advance sooner.
+    private val BUFFER_STALL_TIMEOUT_MS = 8_000L
     // v2.13.8 — Explicit user picks get a LONGER stall window: a deep
     // resume-position seek into a fresh HTTP stream (MKV cues at the
     // tail, slow debrid CDNs) can easily take >10 s to first frame.

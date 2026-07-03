@@ -46,6 +46,12 @@ const streamMode = (s) => {
     return 'unknown';
 };
 
+/** True for debrid links that are NOT cached on the provider —
+ * playing one triggers a cloud download that takes 30 s-to-minutes
+ * before a single byte of video flows.  Always rank these LAST and
+ * never autoplay them. */
+export const isUncachedDownload = (s) => s?._pm_uncached === true;
+
 /** Score one stream — lower is higher priority. */
 function scoreStream(s) {
     const dir    = streamMode(s) === 'direct' ? 0 : 1;
@@ -54,6 +60,9 @@ function scoreStream(s) {
     const four   = is4K(s) ? 1 : 0;
     const ten    = is1080p(s) ? 0 : 1;
     const sized  = typeof s?._size_gb !== 'number' || s._size_gb <= SIZE_CAP_GB ? 0 : 1;
+    // v2.13.11 — uncached debrid "download" links go to the very
+    // bottom of every list (×1000 dominates all other weights).
+    const dl     = isUncachedDownload(s) ? 1 : 0;
     // Addon source dominates: 0 = EasyNews++, 1 = Torrentio, 2 = EP-STREM/Plexio,
     // 3 = anything else.  ×100 weight so source ranking can't be swamped by
     // a 1080p hit on an inferior addon.
@@ -62,7 +71,7 @@ function scoreStream(s) {
         isTorrentio(s)  ? 1 :
         isEpStrem(s)    ? 2 :
         3;
-    return src * 100 + ten * 20 + four * 50 + dir * 4 + strict * 2 + eng + sized * 10;
+    return dl * 1000 + src * 100 + ten * 20 + four * 50 + dir * 4 + strict * 2 + eng + sized * 10;
 }
 
 /**
@@ -90,7 +99,9 @@ export function orderStreams(streams) {
  */
 export function pickAutoplayCandidate(streams) {
     if (!Array.isArray(streams) || streams.length === 0) return null;
-    const non4k    = streams.filter((s) => !is4K(s));
+    // v2.13.11 — NEVER autoplay an uncached debrid "download" link
+    // (cloud transfer before playback = 30 s+ dead air).
+    const non4k    = streams.filter((s) => !is4K(s) && !isUncachedDownload(s));
     const strict   = (s) => s?._english_strict === true;
     const english  = (s) => s?._is_english !== false;
     const direct   = (s) => streamMode(s) === 'direct';

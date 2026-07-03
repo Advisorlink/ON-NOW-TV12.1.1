@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { tagStreams } from '@/lib/streamTags';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -376,14 +377,18 @@ export const Vesper = {
                         // 8 s cap so a single slow addon can't stall
                         // the FINAL settle (partials already painted).
                         const data = await fetchJsonDirect(url, { timeout: 8000, signal });
-                        const streams = (Array.isArray(data?.streams)
+                        // v2.13.11 — apply the SAME tags the backend
+                        // applies (_size_gb / _english_strict /
+                        // _pm_cached / _pm_uncached / ...) so cascade
+                        // ranking works on device-fetched streams too.
+                        const streams = tagStreams((Array.isArray(data?.streams)
                             ? data.streams
                             : []
                         ).map((s) => ({
                             ...s,
                             _addon_id: a.id,
                             _addon_name: a.name || a.id,
-                        }));
+                        })));
                         // Progressive merge — skip if the backend
                         // already answered for this addon.
                         if (streams.length > 0 && !backendOwned.has(a.id)) {

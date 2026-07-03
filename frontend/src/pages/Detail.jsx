@@ -24,7 +24,7 @@ import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { API, Vesper } from '@/lib/api';
 import { qualityBadge, qualityTags, toneColors, is1080p, is4K } from '@/lib/streamMeta';
-import { orderStreams, pickAutoplayCandidate as pickCascadeCandidate, isEasyNews, isTorrentio, isEpStrem } from '@/lib/streamOrder';
+import { orderStreams, pickAutoplayCandidate as pickCascadeCandidate, isEasyNews, isTorrentio, isEpStrem, isUncachedDownload } from '@/lib/streamOrder';
 import { getAutoplay1080p, setAutoplay1080p } from '@/lib/prefs';
 import { isKidsActive, getActiveProfile, isRatingAllowed, getKidsConfig } from '@/lib/profiles';
 import { avatarEmojiById } from '@/lib/avatars';
@@ -1105,15 +1105,19 @@ export default function Detail() {
             return;
         }
         const pool = non4k;
+        // v2.13.11 — prefer instantly-playable links; only fall back
+        // to uncached debrid downloads when nothing else exists.
+        const instant = pool.filter((s) => !isUncachedDownload(s));
+        const pickPool = instant.length > 0 ? instant : pool;
         // Pick the best stream: prefer 1080p direct → any 1080p →
         // first direct → first torrent → first anything.  Pool is
         // already guaranteed 4K-free.
         const pick =
-            pool.find((s) => streamMode(s) === 'direct' && is1080p(s)) ||
-            pool.find((s) => is1080p(s)) ||
-            pool.find((s) => streamMode(s) === 'direct') ||
-            pool.find((s) => streamMode(s) === 'torrent') ||
-            pool[0];
+            pickPool.find((s) => streamMode(s) === 'direct' && is1080p(s)) ||
+            pickPool.find((s) => is1080p(s)) ||
+            pickPool.find((s) => streamMode(s) === 'direct') ||
+            pickPool.find((s) => streamMode(s) === 'torrent') ||
+            pickPool[0];
         if (!pick) return;
         partyBreadcrumb('party-autoplay:fire', { partyCode, mode: streamMode(pick), name: pick.name });
         autoplayFiredRef.current = true;
@@ -1153,12 +1157,14 @@ export default function Detail() {
                 return;
             }
             const pool = non4k;
+            const instant = pool.filter((s) => !isUncachedDownload(s));
+            const pickPool = instant.length > 0 ? instant : pool;
             const pick =
-                pool.find((s) => streamMode(s) === 'direct' && is1080p(s)) ||
-                pool.find((s) => is1080p(s)) ||
-                pool.find((s) => streamMode(s) === 'direct') ||
-                pool.find((s) => streamMode(s) === 'torrent') ||
-                pool[0];
+                pickPool.find((s) => streamMode(s) === 'direct' && is1080p(s)) ||
+                pickPool.find((s) => is1080p(s)) ||
+                pickPool.find((s) => streamMode(s) === 'direct') ||
+                pickPool.find((s) => streamMode(s) === 'torrent') ||
+                pickPool[0];
             if (!pick) return;
             partyBreadcrumb('party-autoplay:watchdog-fire', { partyCode });
             autoplayFiredRef.current = true;
@@ -1249,13 +1255,23 @@ export default function Detail() {
         if (autoplayFiredRef.current) return;
         if (!autoplayRequested) return;
         if (type === 'series') return; // series uses per-episode flow
-        if (streamLoading) return;
         if (partyCode) return; // handled by the dedicated party useEffect above
         // v2.10.77 — Kids rating gate: if the title is blocked by
         // the parent's configured max rating, do NOT auto-fire the
         // player.  The Detail UI shows a "Not allowed in Kids mode"
         // overlay instead.
         if (ratingBlocked) return;
+        // v2.13.11 — EARLY LAUNCH.  Don't hold autoplay hostage to the
+        // FULL stream-probe settle (slowest addon = up to 8 s).  The
+        // instant the cascade finds a proper candidate in the partial
+        // results, fire it — same fast path TV episodes already use.
+        if (streamLoading) {
+            if (!autoplayCandidate) return;
+            autoplayFiredRef.current = true;
+            setAutoplayFired(true);
+            window.setTimeout(() => playStream(autoplayCandidate), 0);
+            return;
+        }
         /* If streams finished loading and there's literally nothing
          * playable, surface the cinematic "Coming Soon" modal so the
          * user can add the title to their notify list — same as the
