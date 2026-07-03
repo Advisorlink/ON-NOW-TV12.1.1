@@ -7817,3 +7817,47 @@ iteration_72.json — 5/5 web checks PASS (pill placement/toggle/persistence,
 autoplay-off picker vs autoplay-on no-picker, save copy, load success +
 redirect to /profiles, picker centering regression). Kotlin parse-verified.
 NOTE for testing agents: episode tiles + profile tiles need focus+Enter, not click.
+
+---
+
+## Session (Jul 2, 2026 - part 4) — v2.13.9 SPEED overhaul (30-40s start, 20s picker)
+
+### Root causes found
+1. 30-40s stream start: UNCAPPED blocking `${API}/subtitles/...` await before
+   EVERY launch in Detail.jsx (backend queries external subtitle providers,
+   20-30s cold). Series playStream had a 1.8s cap, movies had NONE. Bonus
+   finding: ExoPlayerActivity never even used EXTRA_SUB_URL — the fetch was
+   pure wasted time on the default player.
+2. 20s until links appear (autoplay OFF): api.js getStreams SERIALIZED
+   backend aggregate (≤5s) THEN browser probes (≤8s), and SeriesEpisodes only
+   opened the picker after EVERYTHING settled.
+
+### Fixes (all shipped)
+- `lib/api.js getStreams` REWRITTEN: backend call + every per-addon browser
+  probe fire in PARALLEL; `onPartial(accumulated)` emitted as EACH source
+  lands; backend entries override probe entries per addon id. Final return
+  shape unchanged ({streams, diagnostics}).
+- `SeriesEpisodes.jsx`: autoplay-off click → picker opens INSTANTLY
+  (setPickerEp + prefetchEpisode with progressive setEpisodeStreams);
+  pendingEps map drives modal `loading`. Autoplay-on path unchanged (early
+  partial launch). Subtitle prefetch REMOVED (subtitleUrl='').
+- `Detail.jsx`: blocking subtitle fetch REMOVED (subtitleUrl='').
+- `StreamPickerModal.jsx`: `loading` prop; header count shows "searching…"
+  + spinner; [stream-picker-empty-state] (spinner "Finding streams…" /
+  "No streams found"); focus effect no longer yanks focus on progressive
+  updates; card tabIndex=-1 catches Escape when list is empty.
+- `ExoPlayerActivity.kt` (native, needs APK): LAZY SUBTITLES — subtitle
+  picker shows "Find subtitles (English)" pseudo-row (LAZY_SUBS_ID) when
+  cwId+backendBase available; picking fetches `/api/subtitles/{type}/{cwId}`
+  via httpGetJson, attaches SubtitleConfiguration (buildUpon, srt/vtt/ssa
+  mime guess) at current position, auto-selects en. This actually ADDS
+  working subs to Exo (launch subs never worked there).
+  VLC keeps EXTRA_SUB_URL but the web now always sends '' → VLC has no subs
+  (VLC only used for magnet handoffs). kotlinc parse-verified.
+
+### Testing
+iteration_73.json — 6/6 PASS. Series picker Enter→modal DOM = **45ms**
+(was ~20s); movie picker 56ms; backend merge lands rows ~150ms; progressive
+batches don't steal focus; empty-list Escape stays on detail page; autoplay
+ON bypasses picker; backend smoke 200.
+Minor pre-existing warning: fetchpriority→fetchPriority DOM prop (unrelated).
