@@ -1258,6 +1258,7 @@ class WebAppInterface(private val activity: Activity) {
                             streamPrewarmClient.newCall(
                                 okhttp3.Request.Builder()
                                     .url(u)
+                                    .header("User-Agent", "Vesper-ExoPlayer/2.7.43")
                                     .header("Range", "bytes=0-65535")
                                     .build(),
                             ).execute().use { r ->

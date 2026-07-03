@@ -8094,3 +8094,30 @@ EasyNews hold on the web side.)
 kotlinc 2.0.21 syntax-pass on both .kt files; webpack compiles; Detail
 page smoke-verified (choose-stream renders, no TDZ). Native scout/
 prewarm CANNOT be tested in pod — needs on-device validation.
+
+---
+
+## Session (Jun 2026 fork, part 6) — v2.13.16 HOTFIX: nothing played after v2.13.15
+
+### What broke (user: "stuck on Loading your program, nothing plays")
+The v2.13.15 pre-flight scout PREEMPTED playback: its bare ranged GETs
+(no User-Agent) get 403'd by Cloudflare-fronted debrid hosts → every
+candidate marked "dead" → maybeInstantAdvance KILLED the working stream
+~1 s in → cascaded through the best 4 picks → nextPlayableIndexAfter
+returned null (all "dead") → watchdog had no target → infinite loading.
+
+### Fix (ExoPlayerActivity.kt v2.13.16)
+- Scout is now ADVISORY ONLY: never probes/judges the CURRENT stream,
+  never preempts, maybeInstantAdvance deleted.
+- nextAdvanceIndexAfter: prefer not-known-dead candidates but ALWAYS
+  fall back to plain idx+1 — guaranteed forward progress (pre-v2.13.15
+  semantics restored).
+- Scout + WebAppInterface prewarm requests now send the player's
+  User-Agent (Vesper-ExoPlayer/2.7.43) so verdicts/warm-ups work
+  against Cloudflare.
+- Kept: prewarm-while-browsing, bufferForPlayback 2000 ms, 8 s watchdog.
+kotlinc-verified both files. NEEDS VESPER APK REBUILD IMMEDIATELY.
+
+### Lesson recorded
+Never let a heuristic health-probe preempt or exclude streams
+authoritatively — probe results ≠ what ExoPlayer's real request sees.

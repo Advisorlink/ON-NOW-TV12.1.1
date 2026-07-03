@@ -398,21 +398,26 @@ class ExoPlayerActivity : ComponentActivity() {
     // tail, slow debrid CDNs) can easily take >10 s to first frame.
     private val USER_PICK_STALL_TIMEOUT_MS = 25_000L
 
-    // ─── v2.13.15 — PRE-FLIGHT SCOUT ────────────────────────────────
-    // The old flow discovered a dead link the SLOW way: wait the full
-    // 8 s watchdog, advance blindly to the next entry, pay a fresh
-    // 2-4 s debrid resolve, hope IT works…  A single dead first pick
-    // cost ~15-20 s to first frame.  The scout fires tiny ranged GETs
-    // at the first few candidates IN PARALLEL the moment playback
-    // starts:
-    //   • current stream confirmed dead → advance INSTANTLY (~1-3 s
-    //     instead of 8) — never for explicit user picks.
-    //   • watchdog / advance SKIP known-dead entries entirely.
-    //   • side effect: the debrid resolve chain of the fallback
-    //     candidates is server-side warmed, so an advance starts fast.
+    // ─── v2.13.16 — PRE-FLIGHT SCOUT (advisory only) ───────────────
+    // v2.13.15's scout PREEMPTED the current stream when its tiny
+    // ranged GET failed.  Cloudflare-fronted debrid hosts 403 those
+    // bare probes (or reject them for other reasons ExoPlayer's real
+    // request wouldn't hit) → every candidate got marked "dead", the
+    // scout killed a perfectly-working stream ~1 s in, cascaded
+    // through the best picks, and playback dead-ended on "Loading
+    // your program…" forever.
+    //
+    // The scout is now ADVISORY ONLY:
+    //   • It NEVER touches the currently-loading stream.
+    //   • Its verdicts only shape the ORDER the watchdog advances in
+    //     (prefer not-known-dead), and can never produce "no next" —
+    //     when every remaining entry looks dead we still fall back to
+    //     plain idx+1, exactly like pre-v2.13.15.
+    //   • Requests carry the same User-Agent as the real player so
+    //     verdicts are accurate, and the side effect (server-side
+    //     debrid resolve warm-up for fallbacks) is preserved.
     private val streamAlive = java.util.concurrent.ConcurrentHashMap<Int, Boolean>()
     private var preflightJob: Job? = null
-    private var autoAdvanceAllowed: Boolean = true
 
     private fun launchPreflightScout() {
         preflightJob?.cancel()
@@ -421,13 +426,13 @@ class ExoPlayerActivity : ComponentActivity() {
         val end = minOf(start + 4, altStreams.size)
         if (end - start <= 1) return
         val scout = okhttp3.OkHttpClient.Builder()
-            .connectTimeout(3, java.util.concurrent.TimeUnit.SECONDS)
-            .readTimeout(3, java.util.concurrent.TimeUnit.SECONDS)
+            .connectTimeout(4, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(4, java.util.concurrent.TimeUnit.SECONDS)
             .followRedirects(true)
             .followSslRedirects(true)
             .build()
         preflightJob = lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            for (i in start until end) {
+            for (i in (start + 1) until end) { // NEVER probe-judge the current stream
                 val u = altStreams[i].url
                 if (!u.startsWith("http")) continue
                 launch {
@@ -435,39 +440,29 @@ class ExoPlayerActivity : ComponentActivity() {
                         scout.newCall(
                             okhttp3.Request.Builder()
                                 .url(u)
+                                .header("User-Agent", "Vesper-ExoPlayer/2.7.43")
                                 .header("Range", "bytes=0-2047")
                                 .build(),
                         ).execute().use { r -> r.isSuccessful || r.code == 416 }
                     }.getOrDefault(false)
                     streamAlive[i] = ok
-                    Log.i(TAG, "Pre-flight: stream $i alive=$ok")
-                    if (!ok) maybeInstantAdvance(i)
+                    Log.i(TAG, "Pre-flight (advisory): stream $i alive=$ok")
                 }
             }
         }
     }
 
-    /** Current stream confirmed dead by the scout → skip the watchdog
-     *  wait and advance right now (auto-cascade only, never user picks). */
-    private fun maybeInstantAdvance(deadIdx: Int) {
-        lifecycleScope.launch {
-            if (deadIdx != currentStreamIdx) return@launch
-            if (firstReadyReachedForCurrentStream) return@launch
-            if (!autoAdvanceAllowed) return@launch
-            val next = nextPlayableIndexAfter(currentStreamIdx) ?: return@launch
-            Log.w(TAG, "Pre-flight: stream $currentStreamIdx confirmed dead — instant advance to $next")
-            switchStream(next, userInitiated = false)
-        }
-    }
-
-    /** Next candidate after `idx`, skipping entries the scout has
-     *  already confirmed dead. */
-    private fun nextPlayableIndexAfter(idx: Int): Int? {
+    /** Watchdog advance target: prefer the next entry the scout has
+     *  NOT ruled out, but NEVER dead-end — when everything remaining
+     *  looks dead, fall back to plain idx+1 (scout verdicts can be
+     *  wrong; guaranteed forward progress like pre-v2.13.15). */
+    private fun nextAdvanceIndexAfter(idx: Int): Int? {
         for (i in (idx + 1) until altStreams.size) {
             if (streamAlive[i] == false) continue
-            if (altStreams[i].url.startsWith("http")) return i
+            if (altStreams[i].url.isNotBlank()) return i
         }
-        return null
+        val plainNext = idx + 1
+        return if (plainNext in altStreams.indices) plainNext else null
     }
 
     private fun armBufferStallWatchdog(
@@ -476,14 +471,13 @@ class ExoPlayerActivity : ComponentActivity() {
     ) {
         bufferStallJob?.cancel()
         firstReadyReachedForCurrentStream = false
-        autoAdvanceAllowed = autoAdvance
         bufferStallJob = lifecycleScope.launch {
             delay(timeoutMs)
             if (!isActive) return@launch
             if (firstReadyReachedForCurrentStream) return@launch
-            // Still not READY — try the next candidate the pre-flight
-            // scout hasn't ruled out.
-            val nextIdx = nextPlayableIndexAfter(currentStreamIdx)
+            // Still not READY — advance, preferring candidates the
+            // pre-flight scout hasn't ruled out.
+            val nextIdx = nextAdvanceIndexAfter(currentStreamIdx)
             if (autoAdvance && nextIdx != null) {
                 Log.w(
                     TAG,
