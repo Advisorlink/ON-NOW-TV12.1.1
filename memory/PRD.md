@@ -7947,3 +7947,45 @@ abort-on-leave produces 0 console errors; movie regression clean.
 - Episode mid-prefetch poller not e2e-exercised (episode grid render gap in
   Playwright); symmetric to verified movie path. Real-device validation
   needed after APK build.
+
+---
+
+## Session (Jun 2026 fork, part 2) — v2.13.12 EasyNews++-first + instant loading art
+
+### User asks
+1. "What if the cached link has no seeders?" → Explained: [PM+] cached
+   links stream from Premiumize CDN — seeders irrelevant. Only uncached
+   downloads need the swarm, and v2.13.11 already bans those from autoplay.
+2. "Play the EasyNews++ ones FIRST, but fast."
+3. "It needs to load the image on the screen [player loading art] — crap."
+
+### Fixes
+- `api.js` — getStreams now passes `probeMeta = {easyNewsPending}` as the
+  2nd arg to onPartial; probes wrapped in try/finally so EasyNews probe
+  completion re-emits even when empty; module-level `knownHasEasyNews` memo
+  set by every listAddons response (skips the hold instantly when EasyNews
+  isn't installed — first no-EasyNews test went 3.1s → 0.1s after memo).
+- `Detail.jsx` — movie autoplay early-launch holds a non-EasyNews candidate
+  while easyNewsPending (3s cap via enHoldTimer); NEW effect calls
+  Host.prefetchImages(poster/backdrop/tmdb/metahub URLs) on meta load.
+- `SeriesEpisodes.jsx` — same EasyNews hold in BOTH episode early-launch
+  paths (fresh-fetch onPartial holdTimer + mid-prefetch poller with
+  partialsMetaRef); playStream art now falls back to metahub by series
+  IMDB id (episodes used to pass '' = blank loading screen).
+- `host.js` — Host.prefetchImages(urls) wrapper (no-op in browser).
+- `WebAppInterface.kt` — NEW @JavascriptInterface prefetchImages(urlsJson):
+  enqueues URLs into Coil's singleton ImageLoader (shared memory+disk cache
+  across activities) so the player's LoadingScreen art is an instant cache
+  hit instead of racing ExoPlayer's buffering for bandwidth. NEEDS APK.
+  kotlinc 2.0.21 syntax-verified (installed at /tmp/kotlinc).
+
+### Testing
+- Self-test (Playwright route mocks): EasyNews answers late with a link →
+  WINS at 1.6s over instant torrentio; EasyNews empty → torrentio cached at
+  1.6s (no wasted hold); no EasyNews installed → 0.1-0.2s launch.
+- iteration_76.json regression: 5/5 PASS — scroll-lag debounce intact,
+  episode picker opens clean, ZERO console errors from the api.js
+  restructure, home 10 shelves.
+- Backlog note (pod-only, pre-existing): "Coming Soon/Notify" overlay can
+  stick between SPA detail navigations when a title has 0 streams; Escape
+  should unmount it. Orthogonal to this session's changes.
