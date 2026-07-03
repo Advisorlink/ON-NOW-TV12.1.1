@@ -252,7 +252,7 @@ function TrailerCard({ item, onOpen, onLongPress }) {
                     alt={item.title}
                     loading="lazy"
                     decoding="async"
-                    fetchpriority="low"
+                    fetchPriority="low"
                     className="absolute inset-0 w-full h-full object-cover"
                     style={{
                         opacity: 0.92,

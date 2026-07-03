@@ -7861,3 +7861,37 @@ iteration_73.json — 6/6 PASS. Series picker Enter→modal DOM = **45ms**
 batches don't steal focus; empty-list Escape stays on detail page; autoplay
 ON bypasses picker; backend smoke 200.
 Minor pre-existing warning: fetchpriority→fetchPriority DOM prop (unrelated).
+
+---
+
+## Session (Jul 2, 2026 - part 5) — v2.13.10 scroll-lag fix + stop-everything
+
+### Root causes
+1. Scrolling episode cards was laggy: v2.13.7's prefetch fired a FULL stream
+   search per focused card (request storm) AND on the box every addon probe
+   went through the SYNCHRONOUS `window.OnNowTV.fetchUrl` bridge — a
+   @JavascriptInterface call blocks the WebView JS thread for the whole HTTP
+   round-trip (up to 8s per probe) → UI froze.
+2. Nothing stopped when leaving a page: in-flight searches kept running.
+
+### Fixes
+- `SeriesEpisodes.jsx`: 450ms DWELL debounce (schedulePrefetch/
+  cancelScheduledPrefetch on focus/blur/mouseenter/mouseleave); speculative
+  prefetch cap = 2 in flight; abortersRef aborts ALL in-flight searches +
+  clears timer on unmount; mountedRef guards late setState.
+- `lib/api.js`: NEW non-blocking bridge protocol — `fetchUrlAsync(url,
+  timeout, requestId)` + `window.__onnowFetchDone(id, raw)` promise map
+  (bridgeFetchAsync/parseBridgePayload); legacy sync fetchUrl kept as
+  fallback for old APKs; browser fetch honours external AbortSignal.
+  `getStreams(type, id, onPartial, {signal})` threads signal through
+  backend axios call, listAddons and every probe; emit gated on abort.
+- `WebAppInterface.kt`: new @JavascriptInterface `fetchUrlAsync` — runs
+  fetchUrl on a daemon Thread, posts result back via
+  webViewOrNull().evaluateJavascript. kotlinc parse-verified. NEEDS APK.
+- `Detail.jsx`: movie streams effect aborts on unmount.
+- `UpcomingMoviesShelf.jsx`: fetchpriority → fetchPriority (React warning).
+
+### Testing
+iteration_74.json — 6/6 PASS: 0 requests during rapid scroll across 8 cards;
+exactly 1 backend request + 4 addon probes after 1.5s dwell; picker 32ms;
+abort-on-leave produces 0 console errors; movie regression clean.
