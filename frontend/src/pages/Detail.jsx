@@ -11,6 +11,7 @@ import {
     Check,
     Film,
     Home,
+    Zap,
 } from 'lucide-react';
 import FullscreenButton from '@/components/FullscreenButton';
 import SeriesEpisodes from '@/components/SeriesEpisodes';
@@ -24,7 +25,7 @@ import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { API, Vesper } from '@/lib/api';
 import { qualityBadge, qualityTags, toneColors, is1080p, is4K } from '@/lib/streamMeta';
 import { orderStreams, pickAutoplayCandidate as pickCascadeCandidate, isEasyNews, isTorrentio, isEpStrem } from '@/lib/streamOrder';
-import { getAutoplay1080p } from '@/lib/prefs';
+import { getAutoplay1080p, setAutoplay1080p } from '@/lib/prefs';
 import { isKidsActive, getActiveProfile, isRatingAllowed, getKidsConfig } from '@/lib/profiles';
 import { avatarEmojiById } from '@/lib/avatars';
 import * as cw from '@/lib/continueWatching';
@@ -2267,11 +2268,28 @@ export default function Detail() {
                             highlightEpisode={focusEpisode ? Number(focusEpisode) : undefined}
                             onEpisodesShownChange={setSeriesEpisodesShown}
                             leadingPill={
-                                <TrailerPill
-                                    onClick={openTrailer}
-                                    loading={trailerLoading}
-                                    compact
-                                />
+                                <>
+                                    {/* v2.13.8 — quick Autoplay ON/OFF
+                                        toggle, placed LEFT of the
+                                        Trailer pill per user request
+                                        ("we need to be able to turn
+                                        the autoplay on and off"). */}
+                                    <AutoplayPill
+                                        enabled={autoplayEnabled}
+                                        onToggle={() => {
+                                            const next = !getAutoplay1080p();
+                                            setAutoplay1080p(next);
+                                            setAutoplayEnabledState(
+                                                isKidsActive() || next
+                                            );
+                                        }}
+                                    />
+                                    <TrailerPill
+                                        onClick={openTrailer}
+                                        loading={trailerLoading}
+                                        compact
+                                    />
+                                </>
                             }
                         />
                     ) : autoplayEnabled && autoplayCandidate ? (
@@ -2963,6 +2981,38 @@ export default function Detail() {
 }
 
 /* ─────────────────────── TrailerPill ─────────────────────── */
+function AutoplayPill({ enabled, onToggle }) {
+    return (
+        <button
+            data-testid="detail-autoplay-toggle"
+            data-focusable="true"
+            data-focus-style="pill"
+            tabIndex={0}
+            onClick={onToggle}
+            aria-label={`Autoplay ${enabled ? 'on' : 'off'} — press to toggle`}
+            className="flex items-center gap-2 rounded-full font-sans font-semibold"
+            style={{
+                height: 'clamp(36px, 3vw, 44px)',
+                paddingLeft: 'clamp(16px, 1.4vw, 22px)',
+                paddingRight: 'clamp(16px, 1.4vw, 22px)',
+                fontSize: 'clamp(13px, 0.95vw, 15px)',
+                background: enabled
+                    ? 'rgba(122,235,138,0.16)'
+                    : 'rgba(255,255,255,0.08)',
+                color: enabled ? '#7AEB8A' : 'var(--vesper-text-2)',
+                border: enabled
+                    ? '1px solid rgba(122,235,138,0.36)'
+                    : '1px solid rgba(255,255,255,0.16)',
+                letterSpacing: '0.02em',
+                whiteSpace: 'nowrap',
+            }}
+        >
+            <Zap size={14} fill={enabled ? 'currentColor' : 'none'} />
+            Autoplay {enabled ? 'ON' : 'OFF'}
+        </button>
+    );
+}
+
 function TrailerPill({ onClick, loading, primary, compact }) {
     return (
         <button

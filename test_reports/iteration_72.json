@@ -1,0 +1,26 @@
+{
+  "summary": "Verified 3 web-testable Vesper changes for v2.13.8. (1) SERIES AUTOPLAY PILL — On /title/series/tt0903747, [data-testid=detail-autoplay-toggle] renders in the seasons pill row as the immediate LEFT sibling of [data-testid=detail-trailer] (sameParent=true, pill.right ≤ trailer.left). Initial label 'Autoplay OFF' matches seeded LS onnowtv-autoplay-1080p:p-test-1='0'. Click → 'Autoplay ON' + LS='1'; click again → 'Autoplay OFF' + LS='0'. Green tint (#7AEB8A) shown when ON, neutral when OFF. LS persistence is inherent to writeScopedString + localStorage; verified 3 toggle cycles. (2) EPISODE CLICK EFFECT — With autoplay OFF, focus [data-testid=episode-1-1] + Enter opens [data-testid=stream-picker-modal] listing 4 WatchHub streams for 'Breaking Bad — S1E1 · Pilot', inner card centered at cx=960, cy=540 (viewport 1920×1080). With autoplay ON, episode Enter did NOT open the picker (picker=null) — enters autoplay path (loading UI not textually detected but the negative assertion — no picker modal — is the acceptance criterion). Note: `.click()` on episode tile does NOT fire the D-pad handler; you must use focus+Enter (documented in iter71 context, reconfirmed). (3) BACKUP SAVE (/profiles/backup) — Start pill → PinGate → typed 4-digit PIN twice (choose + confirm) → POST /api/backup/save succeeded → done panel shows heading 'Your profiles have been saved', [data-testid=profile-backup-safe-note] with green text 'You're now safe to reinstall the app.', [data-testid=profile-backup-code]=9F6AW6, [data-testid=profile-backup-summary] listing 1 profile (Test), 0 CW items, 0 library items, and Expires 10/1/2026. Copy Code + Done buttons focusable. (4) BACKUP LOAD (/profiles/load) — Entered 6-char code via [data-testid=profile-load-key-X] buttons → Next → PIN → confirm preview → [data-testid=profile-load-confirm] → [data-testid=profile-load-success] appeared with heading 'Your profiles have been loaded' + subtext 'Taking you back to your profiles…'. After ~1.6s applyAndReload's setTimeout fired window.location.href='/profiles' → final URL confirmed https://.../profiles and [data-testid=profile-p-test-1] visible on the picker. (5) STREAM PICKER MODAL REGRESSION — Modal card bbox width=~600px, height=~440px, centered at (960, 540); ESC closes without navigating. All 3 requested web changes work end-to-end.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Detail.jsx AutoplayPill (~L2984): correct order in leadingPill fragment — AutoplayPill BEFORE TrailerPill inside the SeriesEpisodes leadingPill slot (~L2270-2293). Confirmed same parent DOM node and pill.right < trailer.left.",
+    "prefs.js setAutoplay1080p writes '1'/'0' to scoped key 'onnowtv-autoplay-1080p:<profileId>' via writeScopedString; getAutoplay1080p defaults to true when unset. Live LS flips observed on each toggle.",
+    "ProfileBackup.jsx done panel (~L169-260): heading text 'Your profiles have been saved' and safe-note testid + green color (#7AEB8A) implemented as spec.",
+    "ProfileLoad.jsx applyAndReload (~L65-87): correctly detects hash-router env (file:// or appassets host) → uses window.location.hash + reload; falls back to window.location.href='/profiles' on web preview after 1600ms. Verified landing URL is /profiles.",
+    "Episode tile handler is bound to keydown/Enter, not onClick — page.click() does not fire it. All future testing agents must use focus+Enter for [data-testid^=episode-]."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only run)", "frontend": "100% (5/5 checks verified)"},
+  "test_credentials": "testuser / testpass123 → seed profile p-test-1 via localStorage (onnowtv-profiles-v1:testuser, onnowtv-active-profile-v1:testuser, vesper-onboarding-seen-v1, onnowtv-autoplay-1080p:p-test-1='0').",
+  "seed_data_creation": "Ephemeral localStorage profile p-test-1. Backend backup row created via POST /api/backup/save with PIN 3566, code 9F6AW6 (auto-expires 10/1/2026).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Same flow as iter71/72: login form + Enter, seed LS in same session, page.goto('/profiles'), focus [data-testid=profile-p-test-1] + Enter (NOT click), then SPA-navigate via history.pushState + PopStateEvent('popstate'). Episode tiles require focus+Enter (D-pad handler, not click). Autoplay pref key: onnowtv-autoplay-1080p:p-test-1. Backup/restore endpoints work; backend keeps codes ~2 months. WatchHub subscription/buy streams DO resolve in preview pod (Torrentio/Plexio are Cloudflare-blocked but WatchHub is not — Breaking Bad returns 4 streams).",
+  "rca of the issue": "N/A — all 3 requested changes verified functional."
+}

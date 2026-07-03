@@ -19,7 +19,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    ArrowLeft, Download, Loader2, AlertTriangle,
+    ArrowLeft, Download, AlertTriangle,
     KeyRound, ShieldCheck, Check,
 } from 'lucide-react';
 import PinGate from '@/components/PinGate';
@@ -67,8 +67,23 @@ export default function ProfileLoad() {
         setStep('applying');
         applyBackupPayload(preview.payload);
         try { clearActiveProfile(); } catch { /* ignore */ }
-        // Hard reload so every page re-reads the new localStorage.
-        setTimeout(() => { window.location.href = '/profiles'; }, 600);
+        // v2.13.8 — HashRouter-safe redirect.  The APK loads the app
+        // from file:// (HashRouter) where the old
+        // `window.location.href = '/profiles'` navigated the WebView
+        // to file:///profiles → blank screen, so the user never got
+        // back to the profile picker after a restore.  Hard reload so
+        // every page re-reads the new localStorage.
+        setTimeout(() => {
+            const isHashRouted =
+                window.location.protocol === 'file:' ||
+                window.location.hostname === 'appassets.androidplatform.net';
+            if (isHashRouted) {
+                window.location.hash = '#/profiles';
+                window.location.reload();
+            } else {
+                window.location.href = '/profiles';
+            }
+        }, 1600);
     };
 
     return (
@@ -144,13 +159,13 @@ export default function ProfileLoad() {
                 )}
 
                 {step === 'applying' && (
-                    <div style={{ textAlign: 'center' }}>
-                        <Loader2 size={42} className="vesper-spin" style={{ color: '#5DC8FF', marginBottom: 18 }} />
-                        <div className="vesper-display" style={{ fontSize: 26, fontWeight: 600, marginBottom: 6 }}>
-                            Restoring your profile…
+                    <div data-testid="profile-load-success" style={{ textAlign: 'center' }}>
+                        <ShieldCheck size={46} style={{ color: '#7AEB8A', marginBottom: 18 }} />
+                        <div className="vesper-display" style={{ fontSize: 28, fontWeight: 600, marginBottom: 6, color: '#7AEB8A' }}>
+                            Your profiles have been loaded
                         </div>
                         <div style={{ fontSize: 14, color: '#9DA5B5' }}>
-                            One moment. The app will reopen automatically.
+                            Taking you back to your profiles&hellip;
                         </div>
                     </div>
                 )}

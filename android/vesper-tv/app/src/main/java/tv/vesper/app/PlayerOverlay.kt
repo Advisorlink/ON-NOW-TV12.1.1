@@ -124,6 +124,9 @@ data class StreamOption(
     val quality: String = "",
     val pmCached: Boolean = false,
     val isEnglish: Boolean = false,
+    // v2.13.8 — file size ("1.4 GB") + seeder count chips.
+    val sizeChip: String = "",
+    val seeds: Int = 0,
 )
 
 /**
@@ -1798,6 +1801,8 @@ private fun StreamRow(
         // Chip row — only render when at least one chip is non-empty.
         val hasAnyChip = stream.addonSource.isNotBlank() ||
                          stream.quality.isNotBlank() ||
+                         stream.sizeChip.isNotBlank() ||
+                         stream.seeds > 0 ||
                          stream.pmCached ||
                          stream.isEnglish
         if (hasAnyChip) {
@@ -1817,6 +1822,24 @@ private fun StreamRow(
                         bg = Color(0x1AFFFFFF),
                         border = Color(0x33FFFFFF),
                         fg = TextPrim,
+                    )
+                }
+                // v2.13.8 — file size + seeders ("needs to show the
+                // file size and everything").
+                if (stream.sizeChip.isNotBlank()) {
+                    Chip(
+                        text = stream.sizeChip,
+                        bg = Color(0x24FFD24A),
+                        border = Color(0x59FFD24A),
+                        fg = Color(0xFFFFD24A),
+                    )
+                }
+                if (stream.seeds > 0) {
+                    Chip(
+                        text = "${stream.seeds} SEEDS",
+                        bg = Color(0x297AEB8A),
+                        border = Color(0x597AEB8A),
+                        fg = Color(0xFF7AEB8A),
                     )
                 }
                 if (stream.pmCached) {

@@ -362,6 +362,10 @@ class ExoPlayerActivity : ComponentActivity() {
         val quality: String,
         val pmCached: Boolean,
         val isEnglish: Boolean,
+        // v2.13.8 — file size ("1.4 GB") + seeder count parsed on the
+        // web side; rendered as chips in the in-player picker.
+        val sizeChip: String = "",
+        val seeds: Int = 0,
     )
     private var altStreams: List<StreamEntry> = emptyList()
     private var currentStreamIdx: Int = -1
@@ -377,29 +381,42 @@ class ExoPlayerActivity : ComponentActivity() {
     private var bufferStallJob: Job? = null
     private var firstReadyReachedForCurrentStream: Boolean = false
     private val BUFFER_STALL_TIMEOUT_MS = 10_000L
+    // v2.13.8 — Explicit user picks get a LONGER stall window: a deep
+    // resume-position seek into a fresh HTTP stream (MKV cues at the
+    // tail, slow debrid CDNs) can easily take >10 s to first frame.
+    private val USER_PICK_STALL_TIMEOUT_MS = 25_000L
 
-    private fun armBufferStallWatchdog() {
+    private fun armBufferStallWatchdog(
+        timeoutMs: Long = BUFFER_STALL_TIMEOUT_MS,
+        autoAdvance: Boolean = true,
+    ) {
         bufferStallJob?.cancel()
         firstReadyReachedForCurrentStream = false
         bufferStallJob = lifecycleScope.launch {
-            delay(BUFFER_STALL_TIMEOUT_MS)
+            delay(timeoutMs)
             if (!isActive) return@launch
             if (firstReadyReachedForCurrentStream) return@launch
             // Still not READY — try the next stream if one exists.
             val nextIdx = currentStreamIdx + 1
-            if (nextIdx in altStreams.indices) {
+            if (autoAdvance && nextIdx in altStreams.indices) {
                 Log.w(
                     TAG,
-                    "Buffer-stall watchdog: stream $currentStreamIdx never reached READY in ${BUFFER_STALL_TIMEOUT_MS}ms — auto-advancing to $nextIdx",
+                    "Buffer-stall watchdog: stream $currentStreamIdx never reached READY in ${timeoutMs}ms — auto-advancing to $nextIdx",
                 )
-                switchStream(nextIdx)
+                switchStream(nextIdx, userInitiated = false)
             } else {
                 Log.w(
                     TAG,
-                    "Buffer-stall watchdog: stream $currentStreamIdx stalled and no fallback available.",
+                    "Buffer-stall watchdog: stream $currentStreamIdx stalled (autoAdvance=$autoAdvance).",
                 )
-                errorMessageFlow.value =
+                errorMessageFlow.value = if (autoAdvance) {
                     "Stream isn't loading — open the stream picker to try another."
+                } else {
+                    // v2.13.8 — the user EXPLICITLY picked this stream;
+                    // never silently play a different one.  Tell them
+                    // and let them re-pick.
+                    "That stream is taking too long to start — press OK and pick another."
+                }
             }
         }
     }
@@ -604,6 +621,8 @@ class ExoPlayerActivity : ComponentActivity() {
                         quality    = o.optString("quality", ""),
                         pmCached   = o.optBoolean("pmCached", false),
                         isEnglish  = o.optBoolean("isEnglish", false),
+                        sizeChip   = o.optString("size", ""),
+                        seeds      = o.optInt("seeds", 0),
                     ))
                 }
                 altStreams = parsed
@@ -616,6 +635,8 @@ class ExoPlayerActivity : ComponentActivity() {
                         quality     = s.quality,
                         pmCached    = s.pmCached,
                         isEnglish   = s.isEnglish,
+                        sizeChip    = s.sizeChip,
+                        seeds       = s.seeds,
                     )
                 }
             } catch (e: Exception) {
@@ -1648,7 +1669,7 @@ class ExoPlayerActivity : ComponentActivity() {
     }
 
     /** Switch to one of the alternate streams parsed at startup. */
-    private fun switchStream(idx: Int) {
+    private fun switchStream(idx: Int, userInitiated: Boolean = true) {
         if (idx !in altStreams.indices) return
         val entry = altStreams[idx]
         val resumePos = player.currentPosition.coerceAtLeast(0L)
@@ -1699,9 +1720,14 @@ class ExoPlayerActivity : ComponentActivity() {
                 quality     = s.quality,
                 pmCached    = s.pmCached,
                 isEnglish   = s.isEnglish,
+                sizeChip    = s.sizeChip,
+                seeds       = s.seeds,
             )
         }
         try {
+            // v2.13.8 — clear any stale "stream isn't loading" banner
+            // the moment a new pick starts loading.
+            errorMessageFlow.value = null
             val item = MediaItem.Builder()
                 .setUri(entry.url)
                 .setMediaId(entry.url)
@@ -1709,10 +1735,20 @@ class ExoPlayerActivity : ComponentActivity() {
             player.setMediaItem(item, resumePos)
             player.prepare()
             player.playWhenReady = true
-            // v2.10.80 — Re-arm the buffer-stall watchdog for the
-            // newly-selected stream so the cascade walks forward
-            // again if this one also fails to start.
-            if (altStreams.size > 1) {
+            // v2.13.8 — USER PICKS ARE SACRED.  The old watchdog gave
+            // EVERY stream (including explicit user picks) 10 s to
+            // reach READY, then silently auto-advanced to the NEXT
+            // list entry — so a slow-but-working pick appeared to
+            // "not load the link I chose" while a different stream
+            // started playing.  Explicit picks now get 25 s and NEVER
+            // auto-advance; only the automatic cascade (initial load /
+            // watchdog fallback) keeps walking forward.
+            if (userInitiated) {
+                armBufferStallWatchdog(
+                    timeoutMs = USER_PICK_STALL_TIMEOUT_MS,
+                    autoAdvance = false,
+                )
+            } else if (altStreams.size > 1) {
                 armBufferStallWatchdog()
             }
         } catch (e: Exception) {

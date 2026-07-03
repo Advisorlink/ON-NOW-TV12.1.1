@@ -172,8 +172,19 @@ export default function ProfileBackup() {
                         <ShieldCheck size={32} style={{ color: '#5DC8FF' }} />
                     </div>
                     <h1 className="vesper-display" style={titleStyle}>
-                        Backup saved
+                        Your profiles have been saved
                     </h1>
+                    <p
+                        data-testid="profile-backup-safe-note"
+                        style={{
+                            ...blurbStyle,
+                            color: '#7AEB8A',
+                            fontWeight: 600,
+                            marginBottom: 2,
+                        }}
+                    >
+                        You&rsquo;re now safe to reinstall the app.
+                    </p>
                     <p style={blurbStyle}>
                         Write the code below somewhere safe.  You&rsquo;ll
                         need it together with the PIN you just chose to

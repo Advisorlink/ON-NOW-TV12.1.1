@@ -11,6 +11,8 @@
  *     (so the caller can fall back to the in-page <video>).
  */
 
+import { sizeLabel } from '@/lib/streamMeta';
+
 const Host = (() => {
     const a = typeof window !== 'undefined' ? window.OnNowTV : null;
     const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
@@ -119,6 +121,14 @@ const Host = (() => {
                             addonSource: s._addon_source || '',
                             quality: s._quality_label || '',
                             pmCached: !!s._pm_cached,
+                            // v2.13.8 — file size + seeders for the
+                            // native in-player picker chips ("needs to
+                            // show the file size and everything").
+                            size: sizeLabel(s) || '',
+                            seeds: (() => {
+                                const n = s._seeders ?? s.seeders;
+                                return typeof n === 'number' && n > 0 ? n : 0;
+                            })(),
                         }))
                         .filter((e) => /^https?:\/\//i.test(e.url))
                     : [];
