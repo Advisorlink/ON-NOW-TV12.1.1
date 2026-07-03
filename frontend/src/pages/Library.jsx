@@ -91,7 +91,11 @@ export default function Library() {
                     return;
                 }
                 e.preventDefault();
-                navigate('/');
+                // v2.13.7 — BACK pops to the PREVIOUS screen (search,
+                // detail page, wherever the user came from) instead
+                // of always dumping them on Home.
+                if (window.history.length > 1) navigate(-1);
+                else navigate('/');
             }
         };
         window.addEventListener('keydown', onKey);
@@ -123,7 +127,7 @@ export default function Library() {
             }}
         >
             <Header
-                onBack={() => navigate('/')}
+                onBack={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))}
                 notifyCount={notifyItems.length}
                 onNotifyOpen={() => setNotifyPopoverOpen(true)}
             />

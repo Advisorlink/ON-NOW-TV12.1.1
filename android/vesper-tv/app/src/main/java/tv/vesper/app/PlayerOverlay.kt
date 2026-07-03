@@ -15,6 +15,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -1358,6 +1361,7 @@ private fun TrackPickerSheet(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TrackRow(
     label: String,
@@ -1366,6 +1370,10 @@ private fun TrackRow(
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
+    // v2.13.7 — explicit bring-into-view on focus (same fix as
+    // StreamRow) so long audio/subtitle lists scroll with the D-pad.
+    val bringer = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
     val bg = when {
         focused  -> Color(0x335DC8FF)
         selected -> Color(0x1A5DC8FF)
@@ -1374,6 +1382,7 @@ private fun TrackRow(
     val border = if (focused) CyanPrimary else if (selected) Color(0x665DC8FF) else Color(0x22FFFFFF)
     var mod: Modifier = Modifier
         .fillMaxWidth()
+        .bringIntoViewRequester(bringer)
         .clip(RoundedCornerShape(10.dp))
         .background(bg)
         .border(if (focused) 2.dp else 1.dp, border, RoundedCornerShape(10.dp))
@@ -1381,7 +1390,14 @@ private fun TrackRow(
         mod = mod.focusRequester(focusRequester)
     }
     mod = mod
-        .onFocusChanged { focused = it.isFocused }
+        .onFocusChanged {
+            focused = it.isFocused
+            if (it.isFocused) {
+                scope.launch {
+                    try { bringer.bringIntoView() } catch (_: Exception) {}
+                }
+            }
+        }
         .focusable()
         .onKeyEvent { ev ->
             if (ev.type == KeyEventType.KeyDown
@@ -1700,6 +1716,7 @@ private fun StreamPickerSheet(
 // ─────────────────────────────────────────────────────────────────────────────
 // Stream picker row — title + addon-source chip + cached chip + ENG chip
 // ─────────────────────────────────────────────────────────────────────────────
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun StreamRow(
     stream: StreamOption,
@@ -1707,6 +1724,14 @@ private fun StreamRow(
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
+    // v2.13.7 — EXPLICIT bring-into-view on focus.  Some Android TV
+    // WebView/Compose combos don't auto-scroll the parent
+    // verticalScroll column when D-pad focus moves to a clipped row,
+    // which is why the user could "only scroll through a few" — rows
+    // below the fold took focus invisibly.  Now every focus change
+    // scrolls the row into the visible viewport.
+    val bringer = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
     val bg = when {
         focused         -> Color(0x335DC8FF)
         stream.selected -> Color(0x1A5DC8FF)
@@ -1718,6 +1743,7 @@ private fun StreamRow(
         else Color(0x22FFFFFF)
     var mod: Modifier = Modifier
         .fillMaxWidth()
+        .bringIntoViewRequester(bringer)
         .clip(RoundedCornerShape(10.dp))
         .background(bg)
         .border(if (focused) 2.dp else 1.dp, border, RoundedCornerShape(10.dp))
@@ -1725,7 +1751,14 @@ private fun StreamRow(
         mod = mod.focusRequester(focusRequester)
     }
     mod = mod
-        .onFocusChanged { focused = it.isFocused }
+        .onFocusChanged {
+            focused = it.isFocused
+            if (it.isFocused) {
+                scope.launch {
+                    try { bringer.bringIntoView() } catch (_: Exception) {}
+                }
+            }
+        }
         .focusable()
         .onKeyEvent { ev ->
             if (ev.type == KeyEventType.KeyDown

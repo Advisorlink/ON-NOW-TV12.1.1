@@ -116,6 +116,7 @@ export default function StreamUnavailableModal({ id, meta, onClose }) {
     return createPortal(
         <div
             data-testid="stream-unavailable-modal"
+            data-focus-trap="true"
             onKeyDown={(e) => {
                 if (e.key === 'ArrowLeft') {
                     e.preventDefault();

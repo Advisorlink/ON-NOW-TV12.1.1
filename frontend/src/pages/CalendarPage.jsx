@@ -23,7 +23,12 @@ export default function CalendarPage() {
 
     return (
         <div data-testid="calendar-page">
-            <LibraryCalendar tvFavourites={tv} onClose={() => navigate('/')} />
+            <LibraryCalendar
+                tvFavourites={tv}
+                onClose={() =>
+                    window.history.length > 1 ? navigate(-1) : navigate('/')
+                }
+            />
         </div>
     );
 }

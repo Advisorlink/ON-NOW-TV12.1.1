@@ -45,7 +45,13 @@ import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 
 const STORAGE_PREFIX = 'vesper:focus:';
-const RESTORE_WINDOW_MS = 2200;
+/* v2.13.7 — 2.2 s was too short for the HK1-class boxes: the home
+ * feed regularly takes 3-6 s to re-render after BACK from a Detail
+ * page, so the restore window expired and Home's own initial-focus
+ * effect yanked the user to the top of the grid (the exact bug the
+ * user re-reported).  10 s covers slow boxes; the loop stops the
+ * instant the tile materialises. */
+const RESTORE_WINDOW_MS = 10000;
 const RESTORE_TICK_MS = 80;
 
 /* ─────────────────────────  Internal helpers  ─────────────────── */
@@ -164,7 +170,11 @@ export function installFocusBookmarkListener() {
         if (!tile) return;
         const testId = tile.getAttribute('data-testid');
         if (!testId) return;
-        const path = window.location.pathname || '/';
+        /* v2.13.7 — key includes the query string so the bookmark for
+         * the Movies filter view (`/?filter=movie`) can't collide
+         * with plain Home (`/`) — they render different grids. */
+        const path =
+            (window.location.pathname || '/') + (window.location.search || '');
         const snapshot = {
             testId,
             scroll: captureScrollChain(tile),
@@ -181,6 +191,18 @@ export function installFocusBookmarkListener() {
 
 /* ─────────────────────  Per-page restoration hook  ────────────── */
 
+/** True when a focus bookmark is waiting to be restored for [path]
+ *  (defaults to the current pathname).  Home.jsx uses this to keep
+ *  its own initial-focus effect from fighting the restore. */
+export function hasPendingFocusBookmark(path) {
+    const current =
+        (window.location.pathname || '/') + (window.location.search || '');
+    const snap = safeReadJson(storageKey(path || current));
+    if (!snap || !snap.testId) return false;
+    if (snap.ts && Date.now() - snap.ts > 60 * 60 * 1000) return false;
+    return true;
+}
+
 /**
  * @param {{ ready?: boolean }} opts
  *
@@ -191,20 +213,21 @@ export function installFocusBookmarkListener() {
  *   to find the tile once it materialises.
  */
 export default function useFocusRestore({ ready = true } = {}) {
-    const { pathname } = useLocation();
+    const { pathname, search } = useLocation();
+    const routeKey = `${pathname}${search || ''}`;
     const restoredRef = useRef(false);
     const deadlineRef = useRef(0);
 
     useEffect(() => {
         restoredRef.current = false;
         deadlineRef.current = 0;
-    }, [pathname]);
+    }, [routeKey]);
 
     useEffect(() => {
         if (!ready) return undefined;
         if (restoredRef.current) return undefined;
 
-        const key = storageKey(pathname);
+        const key = storageKey(routeKey);
         const snap = safeReadJson(key);
         if (!snap || !snap.testId) return undefined;
 
@@ -263,7 +286,7 @@ export default function useFocusRestore({ ready = true } = {}) {
             stopped = true;
             if (raf) clearTimeout(raf);
         };
-    }, [pathname, ready]);
+    }, [routeKey, ready]);
 }
 
 /* ─────────────  Public escape hatch — manual bookmark write  ─── *
@@ -279,7 +302,8 @@ export function bookmarkCurrentFocus() {
         if (!el || !el.getAttribute) return;
         const testId = el.getAttribute('data-testid');
         if (!testId) return;
-        const path = window.location.pathname || '/';
+        const path =
+            (window.location.pathname || '/') + (window.location.search || '');
         safeWriteJson(storageKey(path), {
             testId,
             scroll: captureScrollChain(el),

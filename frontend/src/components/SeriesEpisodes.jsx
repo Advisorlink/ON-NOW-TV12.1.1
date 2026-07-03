@@ -191,6 +191,86 @@ export default function SeriesEpisodes({
         }
     }, []);
 
+    /* v2.13.7 — SPEED: episode streams + subtitles are PREFETCHED the
+     * moment an episode card gains D-pad focus (plus the first /
+     * highlighted episode of an open season), so by the time the user
+     * presses OK the stream list is usually already in hand — TV
+     * shows now start as fast as movies (whose Detail page prefetches
+     * streams on page load). */
+    const prefetchesRef = useRef({});
+    const subPrefetchesRef = useRef({});
+
+    const prefetchSubtitle = (ep) => {
+        if (!ep?.id) return Promise.resolve('');
+        if (!subPrefetchesRef.current[ep.id]) {
+            subPrefetchesRef.current[ep.id] = (async () => {
+                try {
+                    const r = await fetch(
+                        `${API}/subtitles/series/${encodeURIComponent(ep.id)}`,
+                        { cache: 'no-store' }
+                    );
+                    if (r.ok) {
+                        const data = await r.json();
+                        const list = Array.isArray(data?.subtitles)
+                            ? data.subtitles
+                            : [];
+                        const eng = list.find((s) => /^en/i.test(s.lang || ''));
+                        return eng?.url || '';
+                    }
+                } catch { /* ignore */ }
+                return '';
+            })();
+        }
+        return subPrefetchesRef.current[ep.id];
+    };
+
+    const prefetchEpisode = (ep) => {
+        if (!ep?.id) return null;
+        if (episodeStreams[ep.id] || prefetchesRef.current[ep.id]) {
+            return prefetchesRef.current[ep.id] || null;
+        }
+        prefetchSubtitle(ep);
+        prefetchesRef.current[ep.id] = (async () => {
+            try {
+                const res = await Vesper.getStreams('series', ep.id);
+                const streamsArr = res?.streams || [];
+                setEpisodeStreams((s) =>
+                    s[ep.id]
+                        ? s
+                        : {
+                              ...s,
+                              [ep.id]: {
+                                  streams: streamsArr,
+                                  diagnostics: res?.diagnostics || [],
+                              },
+                          }
+                );
+                return streamsArr;
+            } catch {
+                delete prefetchesRef.current[ep.id];
+                return null;
+            }
+        })();
+        return prefetchesRef.current[ep.id];
+    };
+
+    // Prefetch the most likely next click the moment a season's
+    // episode list opens.
+    useEffect(() => {
+        if (!episodesShown) return;
+        const eps = currentSeason?.eps || [];
+        if (eps.length === 0) return;
+        const hl = highlightEpisode
+            ? eps.find(
+                  (e) =>
+                      e.season === highlightEpisode.season &&
+                      e.episode === highlightEpisode.episode
+              )
+            : null;
+        prefetchEpisode(hl || eps[0]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [episodesShown, activeSeason, seasons]);
+
     // Episode-stream-list-scoped D-pad override.  When focus is
     // inside ANY expanded episode's stream list, ArrowUp/Down walks
     // sibling streams in DOM order so the user never accidentally
@@ -296,6 +376,35 @@ export default function SeriesEpisodes({
         }
         // Reuse cached streams if we already fetched this episode.
         const cached = episodeStreams[ep.id];
+        // v2.13.7 — A focus-triggered prefetch may be mid-flight.
+        // Await IT instead of firing a duplicate full fetch.
+        if (!cached && prefetchesRef.current[ep.id]) {
+            setLoadingEpisodeId(ep.id);
+            try {
+                const pre = await prefetchesRef.current[ep.id];
+                if (Array.isArray(pre)) {
+                    if (autoplay) {
+                        const cand = pickBestPlayable(pre);
+                        if (cand) {
+                            playStream(cand, ep, pre);
+                            return;
+                        }
+                        setLaunchingEp(null);
+                        if (launchTimerRef.current) {
+                            clearTimeout(launchTimerRef.current);
+                            launchTimerRef.current = null;
+                        }
+                        setOpenEpisodeId(ep.id);
+                    } else if (pre.length > 0) {
+                        setOpenEpisodeId(null);
+                        setPickerEp(ep);
+                    }
+                    return;
+                }
+            } finally {
+                setLoadingEpisodeId(null);
+            }
+        }
         if (cached) {
             if (autoplay) {
                 const cand = pickBestPlayable(cached.streams);
@@ -321,7 +430,20 @@ export default function SeriesEpisodes({
         }
         setLoadingEpisodeId(ep.id);
         try {
-            const res = await Vesper.getStreams('series', ep.id);
+            // v2.13.7 — PARTIAL results fire playback EARLY.  The
+            // backend aggregator usually answers in <300 ms; don't
+            // hold the launch hostage to the slow browser-direct
+            // addon probes (up to 8 s each) like before — that's why
+            // TV shows took so much longer than movies to start.
+            let launchedEarly = false;
+            const res = await Vesper.getStreams('series', ep.id, (partial) => {
+                if (!autoplay || launchedEarly) return;
+                const cand = pickBestPlayable(partial);
+                if (cand) {
+                    launchedEarly = true;
+                    playStream(cand, ep, partial);
+                }
+            });
             const streamsArr = res?.streams || [];
             setEpisodeStreams((s) => ({
                 ...s,
@@ -336,6 +458,10 @@ export default function SeriesEpisodes({
             // the player when no 1080p exists.  Only if NO
             // stream at all do we open the drawer as a fallback.
             if (autoplay) {
+                if (launchedEarly) {
+                    // Player already launched off the partial batch —
+                    // the full list is cached above for the picker.
+                } else {
                 const cand = pickBestPlayable(streamsArr);
                 if (cand) {
                     playStream(cand, ep, streamsArr);
@@ -346,6 +472,7 @@ export default function SeriesEpisodes({
                         launchTimerRef.current = null;
                     }
                     setOpenEpisodeId(ep.id);
+                }
                 }
             } else if (streamsArr.length > 0) {
                 // Manual mode → close the "Searching…" drawer and
@@ -383,21 +510,19 @@ export default function SeriesEpisodes({
                     : buildMagnet(stream, `${meta?.name || ''} S${ep.season}E${ep.episode}`);
             if (!playUrl) return;
             const title = `${meta?.name || ''} · S${ep.season}E${ep.episode} · ${ep.name || ''}`;
-            // Pre-fetch English subtitle for this exact episode
+            // v2.13.7 — Subtitle lookup is prefetched on focus/click
+            // and CAPPED at 1.8 s so it can never hold up playback
+            // (it used to be a blocking sequential fetch that added
+            // seconds before the player even opened).
             let subtitleUrl = '';
             try {
-                const r = await fetch(
-                    `${API}/subtitles/series/${encodeURIComponent(ep.id)}`,
-                    { cache: 'no-store' }
-                );
-                if (r.ok) {
-                    const data = await r.json();
-                    const list = Array.isArray(data?.subtitles)
-                        ? data.subtitles
-                        : [];
-                    const eng = list.find((s) => /^en/i.test(s.lang || ''));
-                    if (eng?.url) subtitleUrl = eng.url;
-                }
+                subtitleUrl =
+                    (await Promise.race([
+                        prefetchSubtitle(ep),
+                        new Promise((resolve) =>
+                            setTimeout(() => resolve(''), 1800)
+                        ),
+                    ])) || '';
             } catch {
                 /* ignore */
             }
@@ -733,6 +858,7 @@ export default function SeriesEpisodes({
                             ep={ep}
                             open={open}
                             onClick={() => handleEpisodeClick(ep)}
+                            onPrefetch={() => prefetchEpisode(ep)}
                             data={data}
                             isLoading={isLoading}
                             parentId={parentId}
@@ -755,6 +881,7 @@ function EpisodeCard({
     ep,
     open,
     onClick,
+    onPrefetch,
     data,
     isLoading,
     playStream,
@@ -816,6 +943,10 @@ function EpisodeCard({
                 data-focus-style="quiet"
                 tabIndex={0}
                 onClick={onClick}
+                // v2.13.7 — D-pad landing on an episode kicks off the
+                // stream + subtitle prefetch so OK plays instantly.
+                onFocus={onPrefetch}
+                onMouseEnter={onPrefetch}
                 className="w-full text-left flex items-stretch gap-5"
                 style={{
                     padding: 'clamp(12px, 0.9vw, 18px)',

@@ -59,7 +59,21 @@ export default function useSpatialFocus() {
 
         const focusables = () => {
             if (cachedFocusables) return cachedFocusables;
-            const all = document.querySelectorAll('[data-focusable="true"]');
+            /* v2.13.7 — MODAL FOCUS TRAP.  When a popup marked with
+             * data-focus-trap="true" is open (stream pickers, error
+             * modals, …), the candidate set is restricted to
+             * focusables INSIDE the topmost visible trap, so D-pad
+             * arrows can never wander onto the page behind it. */
+            let root = document;
+            const traps = document.querySelectorAll('[data-focus-trap="true"]');
+            for (let i = traps.length - 1; i >= 0; i--) {
+                const tr = traps[i].getBoundingClientRect();
+                if (tr.width > 0 && tr.height > 0) {
+                    root = traps[i];
+                    break;
+                }
+            }
+            const all = root.querySelectorAll('[data-focusable="true"]');
             const arr = [];
             for (let i = 0; i < all.length; i++) {
                 const el = all[i];
@@ -670,6 +684,10 @@ export default function useSpatialFocus() {
             }
 
             // Edge-of-page fallbacks
+            // v2.13.7 — Inside a focus-trapped popup the edges are
+            // hard walls: never jump to the side-nav or scroll the
+            // page behind the modal.
+            const activeTrap = active.closest('[data-focus-trap="true"]');
             if (dir === 'left') {
                 /* v2.13.0 — Left at the LEFT EDGE of ANY shelf opens
                  * the side-nav instantly.  (v2.7.15 restricted this
@@ -678,6 +696,7 @@ export default function useSpatialFocus() {
                  * the end of the shelf on the left-hand side,
                  * pushing left one more time will open up the menu
                  * instantly — on every single shelf.") */
+                if (activeTrap) return;
                 const navItems = document.querySelectorAll(
                     `${NAV_RAIL.split(',').map((s) => s.trim() + ' [data-focusable="true"]').join(', ')}`
                 );
@@ -687,6 +706,7 @@ export default function useSpatialFocus() {
                 }
             } else if (dir === 'up') {
                 const vs = verticalScroller(active) || document.scrollingElement;
+                if (activeTrap && vs && !activeTrap.contains(vs)) return;
                 // Nav-rail isolation — Up at the top of the side-nav
                 // must not reset the page scroller behind it.
                 const navRoot = active.closest(NAV_RAIL);
@@ -699,6 +719,7 @@ export default function useSpatialFocus() {
                 // retry on the following frame.
                 const vs = verticalScroller(active) || document.scrollingElement;
                 if (!vs) return;
+                if (activeTrap && !activeTrap.contains(vs)) return;
                 // Nav-rail isolation — Down at the bottom of the
                 // side-nav must not drag the page scroller down.
                 const navRootDown = active.closest(NAV_RAIL);

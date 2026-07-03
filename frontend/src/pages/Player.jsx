@@ -1779,6 +1779,7 @@ export default function Player() {
             {pickerOpen && (
                 <div
                     data-testid="subtitle-picker"
+                    data-focus-trap="true"
                     className="absolute inset-0 z-40 flex items-center justify-end"
                     style={{
                         background:
@@ -2095,6 +2096,7 @@ export default function Player() {
             {streamsPickerOpen && streamsList.length === 0 && (
                 <div
                     data-testid="player-stream-picker"
+                    data-focus-trap="true"
                     className="fixed inset-0 z-50 flex items-center justify-center"
                     style={{
                         background: 'rgba(0,0,0,0.75)',

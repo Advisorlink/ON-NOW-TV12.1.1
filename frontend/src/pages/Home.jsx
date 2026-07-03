@@ -11,6 +11,7 @@ import UpcomingMoviesShelf from '@/components/UpcomingMoviesShelf';
 import TabGridView from '@/components/TabGridView';
 import FullscreenButton from '@/components/FullscreenButton';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
+import { hasPendingFocusBookmark } from '@/hooks/useFocusRestore';
 import useHomeBackHandler from '@/hooks/useHomeBackHandler';
 import { useAddons } from '@/hooks/useAddons';
 import { useLiveShelves } from '@/hooks/useLiveShelves';
@@ -147,6 +148,21 @@ export default function Home() {
         let cancelled = false;
         const trySetFocus = () => {
             if (cancelled) return false;
+            /* v2.13.7 — Never fight the cross-page focus restore.
+             * 1. If something focusable already HAS focus (restored
+             *    tile or user already navigating), leave it alone.
+             * 2. If a focus bookmark is pending for this path (user
+             *    just came BACK from a Detail page), stand down and
+             *    let GlobalFocusRestore land focus on the exact tile
+             *    they left from.  Worst case (tile never appears)
+             *    the first D-pad press still starts from tile #1. */
+            const ae = document.activeElement;
+            if (ae && ae.matches && ae.matches('[data-focusable="true"]')) {
+                return true;
+            }
+            if (hasPendingFocusBookmark()) {
+                return false;
+            }
             const target =
                 document.querySelector(
                     `[data-testid="tab-grid-list-${filter}"]`

@@ -27,6 +27,7 @@
  */
 
 import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
     qualityBadge,
     qualityTags,
@@ -96,6 +97,10 @@ export default function StreamPickerModal({
     const handleKey = (e) => {
         if (e.key === 'Escape' || e.key === 'Backspace') {
             e.preventDefault();
+            // Don't let page-level BACK handlers behind the modal
+            // also fire (they'd navigate away instead of just
+            // closing the popup).
+            e.stopPropagation();
             onClose?.();
         }
     };
@@ -107,9 +112,17 @@ export default function StreamPickerModal({
         (meta?.poster && img.poster(meta.poster)) ||
         '';
 
-    return (
+    /* v2.13.7 — Rendered through a PORTAL to document.body.  When the
+     * modal was mounted inline (inside Detail / SeriesEpisodes), any
+     * ancestor with a transform / backdrop-filter became the
+     * containing block for `position: fixed`, shoving the card BELOW
+     * the visible 1920×1080 viewport (user: "it puts it below the
+     * screen").  From <body> the card is always dead-centre.
+     * data-focus-trap keeps D-pad focus INSIDE the popup. */
+    return createPortal(
         <div
             data-testid="stream-picker-modal"
+            data-focus-trap="true"
             onKeyDown={handleKey}
             style={{
                 position: 'fixed',
@@ -506,6 +519,7 @@ export default function StreamPickerModal({
                     OK to play &nbsp;·&nbsp; BACK to close
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }
