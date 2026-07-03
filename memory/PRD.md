@@ -8121,3 +8121,34 @@ kotlinc-verified both files. NEEDS VESPER APK REBUILD IMMEDIATELY.
 ### Lesson recorded
 Never let a heuristic health-probe preempt or exclude streams
 authoritatively — probe results ≠ what ExoPlayer's real request sees.
+
+---
+
+## Session (Jun 2026 fork, part 7) — v2.13.16 verification + v2.13.17 hardening
+
+### Verified root cause end-to-end (this fork)
+- Reproduced Cloudflare 403 from pod: torrentio.strem.fun 403s ALL
+  requests from datacenter IPs (even manifest.json, even with player
+  UA "Vesper-ExoPlayer/2.7.43" or browser UA). Probe 403 ≠ dead stream.
+- Confirmed v2.13.16 advisory-scout fix was committed 20 min before the
+  last session ended (98d00769) → the USER'S BOX NEVER GOT THE FIX.
+  User's box still runs v2.13.15 → the "loading your program" loop.
+- Kids app ExoPlayerActivity has NO scout code — Vesper only.
+
+### v2.13.17 hardening (this session)
+- ExoPlayerActivity.kt scout verdict: HTTP 403 now counts as ALIVE
+  (Cloudflare bot-checks 403 bare probes that the real playback request
+  sails through). Only network failure / other hard HTTP codes mark a
+  candidate dead — and even then it's advisory-only.
+
+### Build verification (ARM64 pod, no full gradle possible)
+- Installed JDK 17 + Android SDK 34; AAPT2 x86_64 can't run on ARM pod.
+- Type-checked ALL Vesper Kotlin with kotlinc 1.9.23 against real
+  media3/androidx classpath + generated R stub: ZERO errors in
+  ExoPlayerActivity.kt / WebAppInterface.kt (the changed files).
+  (37 stub-environment errors in untouched files: library R classes,
+  NewPipeExtractor jar not cached, coroutines metadata — all compile
+  fine in CI.)
+
+### SHIP IT: user must "Save to GitHub" → CI builds APK (versionCode
+### auto-bumped) → box auto-updates → test playback on device.

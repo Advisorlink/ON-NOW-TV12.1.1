@@ -443,7 +443,12 @@ class ExoPlayerActivity : ComponentActivity() {
                                 .header("User-Agent", "Vesper-ExoPlayer/2.7.43")
                                 .header("Range", "bytes=0-2047")
                                 .build(),
-                        ).execute().use { r -> r.isSuccessful || r.code == 416 }
+                        // v2.13.17 — 403 counts as ALIVE: Cloudflare
+                        // bot-checks 403 bare probes that ExoPlayer's
+                        // real request sails through.  Only a network
+                        // failure or hard 4xx/5xx (minus 403/416)
+                        // marks a candidate dead.
+                        ).execute().use { r -> r.isSuccessful || r.code == 416 || r.code == 403 }
                     }.getOrDefault(false)
                     streamAlive[i] = ok
                     Log.i(TAG, "Pre-flight (advisory): stream $i alive=$ok")

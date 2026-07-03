@@ -84,6 +84,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
@@ -416,6 +417,17 @@ private enum class SheetKind { None, Audio, Subs, Stream, Info }
 @Composable
 private fun LoadingScreen(info: PlayerInfo, error: String?, logoUrl: String = "") {
     Box(modifier = Modifier.fillMaxSize().background(NavyBg)) {
+        // v2.13.16 — build stamp so we can verify ON THE BOX which APK
+        // is actually installed when debugging playback issues.
+        Text(
+            text = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+            color = Color.White.copy(alpha = 0.35f),
+            fontSize = 12.sp,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp)
+                .zIndex(4f),
+        )
         if (info.backdrop.isNotBlank()) {
             AsyncImage(
                 model = info.backdrop,
