@@ -339,6 +339,22 @@ const Host = (() => {
         }
     };
 
+    /** v2.13.15 — Pre-warm stream resolve chains (debrid redirects,
+     * DNS) while the user is still deciding.  No-op in browser. */
+    const prewarmStreams = (urls) => {
+        if (!isAndroid || !a || typeof a.prewarmStreams !== 'function') return false;
+        try {
+            const clean = (urls || []).filter(
+                (u) => typeof u === 'string' && /^https?:\/\//.test(u)
+            );
+            if (clean.length === 0) return false;
+            a.prewarmStreams(JSON.stringify(clean.slice(0, 2)));
+            return true;
+        } catch {
+            return false;
+        }
+    };
+
     return {
         isAndroid,
         isOnNowTV,
@@ -349,6 +365,7 @@ const Host = (() => {
         isVoiceSearchAvailable,
         publicAsset,
         prefetchImages,
+        prewarmStreams,
         // v2.7.39 — player backend toggle (A/B test).
         getPlayerBackend,
         setPlayerBackend,

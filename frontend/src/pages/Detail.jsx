@@ -930,6 +930,12 @@ export default function Detail() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [meta, tmdbInfo, id]);
 
+    // v2.13.15 — Pre-warm the top stream candidates' resolve chains
+    // (Torrentio→debrid redirect, DNS) via the native bridge while
+    // the user is still on this page.  By the time they press Play
+    // the 1-4 s server-side resolve is already done — the player's
+    // first request goes straight to the CDN.
+
     // Pick the best 1080p candidate from the resolved streams list.
     // We prefer direct mode + explicit 1080p label, but will fall back
     // to anything that even mentions "1080" — UNLESS it's 4K-labelled
@@ -968,6 +974,20 @@ export default function Detail() {
         () => orderStreams(streams),
         [streams]
     );
+
+    // v2.13.15 — pre-warm the top candidates (see comment above the
+    // autoplayCandidate memo).  Lives BELOW both memos to avoid TDZ.
+    useEffect(() => {
+        const urls = [];
+        if (autoplayCandidate?.url) urls.push(autoplayCandidate.url);
+        if (!streamLoading) {
+            const top = orderedStreams?.[0]?.url;
+            if (top && !urls.includes(top)) urls.push(top);
+        }
+        const clean = urls.filter((u) => /^https?:\/\//.test(u));
+        if (clean.length) Host.prewarmStreams(clean.slice(0, 2));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [autoplayCandidate, streamLoading, orderedStreams]);
 
     // PARTY-MODE fallback: when the user is in a Watch Together
     // session we MUST start *something* — getting stuck on the

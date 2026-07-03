@@ -8060,3 +8060,37 @@ content-visibility) — the gap was event pacing.
   JS .click() via evaluate (documented for future test scripts).
 
 NEEDS VESPER APK REBUILD (web assets) to reach the box.
+
+---
+
+## Session (Jun 2026 fork, part 5) — v2.13.15 "click autoplay → 20 s" deep fix
+
+### User report
+Autoplay click → ~20 s to first frame (worse). "If we're clicking
+autoplay the stream's already there — it shouldn't take 20 s."
+
+### Where the 20 s went (diagnosis)
+First pick stalls (dead/slow debrid or EasyNews link) → blind 8 s
+buffer-stall watchdog → advance to NEXT entry → fresh 1-4 s debrid
+resolve → 2-3 s buffer. One dead first pick ≈ 13-20 s. (+ up to 3 s
+EasyNews hold on the web side.)
+
+### Fixes (mostly NATIVE — needs Vesper APK rebuild)
+1. PRE-FLIGHT SCOUT (`ExoPlayerActivity.kt`): at playback start, tiny
+   parallel `Range: bytes=0-2047` GETs (3 s cap) on the first 4
+   candidates. Current pick confirmed dead → INSTANT advance (~1-3 s,
+   never for explicit user picks — autoAdvanceAllowed flag). Watchdog
+   + all advances now SKIP known-dead entries (nextPlayableIndexAfter).
+   HTTP 416 counted alive. Side effect: fallback resolve chains warmed.
+2. STREAM PREWARM while browsing (`WebAppInterface.prewarmStreams` +
+   host.js wrapper): 8 KB ranged GET warms the debrid resolve chain of
+   the TOP candidate the moment the cascade picks it — Detail.jsx
+   effect (autoplayCandidate + settled top-1, below the memos to avoid
+   TDZ — was a bug, fixed) and SeriesEpisodes dwell-prefetch success.
+   2-min per-URL dedupe, max 2 URLs, LRU 24 in native.
+3. bufferForPlaybackMs 3000 → 2000 (first frame ~1 s sooner).
+
+### Testing
+kotlinc 2.0.21 syntax-pass on both .kt files; webpack compiles; Detail
+page smoke-verified (choose-stream renders, no TDZ). Native scout/
+prewarm CANNOT be tested in pod — needs on-device validation.

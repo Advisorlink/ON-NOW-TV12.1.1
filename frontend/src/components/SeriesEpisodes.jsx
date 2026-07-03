@@ -262,6 +262,13 @@ export default function SeriesEpisodes({
                 );
                 const streamsArr = res?.streams || [];
                 partialsMetaRef.current[ep.id] = { easyNewsPending: false };
+                // v2.13.15 — dwell-prefetch complete: pre-warm the top
+                // candidate's resolve chain so the eventual click is
+                // "already there" (debrid resolve done server-side).
+                const warmCand = pickBestPlayable(streamsArr);
+                if (warmCand?.url && /^https?:\/\//.test(warmCand.url)) {
+                    Host.prewarmStreams([warmCand.url]);
+                }
                 if (mountedRef.current) {
                     setEpisodeStreams((s) => ({
                         ...s,
