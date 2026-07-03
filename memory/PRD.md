@@ -7727,3 +7727,51 @@ Root causes found & fixed:
 Parallel search_replace calls to the SAME file raced and corrupted launcher
 MainActivity.kt (duplicated tail, one edit clobbered). Fixed by truncating the
 duplicate + re-applying sequentially. NEVER batch multiple edits to one file.
+
+---
+
+## Session (Jul 2, 2026 - part 2) — 6 TV UX bugs (speed, pickers, focus, back)
+
+### 1. TV shows slow to start (P0) — DONE, tested
+`SeriesEpisodes.jsx`: (a) episode streams + subtitles PREFETCH on episode-card
+focus/mouseenter + first/highlighted episode of an open season
+(`prefetchEpisode`/`prefetchSubtitle` promise caches); (b) `handleEpisodeClick`
+awaits in-flight prefetch instead of re-fetching; (c) autoplay fires EARLY off
+`Vesper.getStreams` onPartial (backend answers <300ms; no longer waits up to 8s
+for browser-direct addon probes); (d) subtitle lookup capped at 1.8s
+(Promise.race) instead of a blocking sequential fetch. TV ≈ movie start speed.
+
+### 2. In-player Choose Stream can't scroll all (P0, native) — hardened
+`PlayerOverlay.kt` StreamRow + TrackRow: explicit `BringIntoViewRequester` +
+`bringIntoView()` on focus (@OptIn ExperimentalFoundationApi) so the
+verticalScroll column always follows D-pad focus. kotlinc parse-verified.
+⚠️ NEEDS on-device APK verification (previous v2.13.6 fix may not have shipped).
+
+### 3. Instant in-player stream switch — verified already optimal
+Exo `switchStream` = setMediaItem(resumePos)+prepare+play, 3s start buffer
+(same as detail-page start). VLC pickStream shows "Switching stream…" scrim.
+No code change needed; magnet→VLC handoff inherently slower.
+
+### 4. Stream picker below screen + focus traps (P0) — DONE, tested
+`StreamPickerModal.jsx` now renders via `createPortal(document.body)` (ancestor
+transform/backdrop-filter made position:fixed anchor wrong → card below the
+1080p viewport). Root has `data-focus-trap="true"`; Escape stopPropagation.
+`useSpatialFocus.js`: NEW generic trap — focusables() scoped to topmost visible
+`[data-focus-trap="true"]`; applyMove edge fallbacks (left→nav, up/down page
+scroll) blocked inside traps. Trap attr also on StreamUnavailableModal,
+Player.jsx subtitle-picker + player-stream-picker.
+
+### 5. BACK = previous screen (P1) — DONE, tested
+Library.jsx Escape + Header back → navigate(-1) (fallback '/');
+CalendarPage onClose → navigate(-1). Detail/native rely on webView.goBack().
+
+### 6. Focus restore to origin tile (P1) — DONE, tested
+`useFocusRestore.js`: RESTORE_WINDOW_MS 2200→10000; bookmark keys now include
+query string (pathname+search) so /?filter=movie ≠ /; new export
+`hasPendingFocusBookmark()`. `Home.jsx` trySetFocus bails when something
+focusable already has focus OR a bookmark is pending (no more yank-to-top).
+
+### Testing
+iteration_71.json — 6/6 frontend flows PASS (portal centering at cx=960/cy=540,
+trap holds under 8×Up+6×Left, restore lands exact tile in <1s, Library/Calendar
+back-to-previous verified). Native changes parse-verified only.
