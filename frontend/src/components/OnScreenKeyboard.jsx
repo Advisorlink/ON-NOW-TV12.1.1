@@ -91,6 +91,7 @@ export default function OnScreenKeyboard({
                         {row.map((k) => (
                             <button
                                 key={k}
+                                data-testid={`osk-key-${k}`}
                                 data-focusable="true"
                                 data-focus-style="key"
                                 tabIndex={0}
@@ -112,6 +113,7 @@ export default function OnScreenKeyboard({
                 ))}
                 <div className="flex justify-center gap-2 mt-1">
                     <button
+                        data-testid="osk-key-space"
                         data-focusable="true"
                         data-focus-style="key"
                         tabIndex={0}
@@ -131,6 +133,7 @@ export default function OnScreenKeyboard({
                         Space
                     </button>
                     <button
+                        data-testid="osk-key-del"
                         data-focusable="true"
                         data-focus-style="key"
                         tabIndex={0}
@@ -148,6 +151,7 @@ export default function OnScreenKeyboard({
                         <Delete size={18} strokeWidth={1.6} /> Del
                     </button>
                     <button
+                        data-testid="osk-key-clear"
                         data-focusable="true"
                         data-focus-style="key"
                         tabIndex={0}

@@ -7989,3 +7989,42 @@ abort-on-leave produces 0 console errors; movie regression clean.
 - Backlog note (pod-only, pre-existing): "Coming Soon/Notify" overlay can
   stick between SPA detail navigations when a title has 0 streams; Escape
   should unmount it. Orthogonal to this session's changes.
+
+---
+
+## Session (Jun 2026 fork, part 3) — v2.13.13 "fine-tooth comb" UX audit (user: audit every app like 1000 testers; Launcher L/R must not jump to top bar)
+
+### Launcher (native) — top-bar focus-jump FIXED
+`MainActivity.kt` dispatchKeyEvent rewritten race-proof: `dockPendingTarget`
+keeps the dock owning LEFT/RIGHT even while a scroll+focus is in flight
+(the old post{requestFocus} race let the focused tile be recycled →
+Android reassigned focus to the TOP BAR mid-scroll — the exact reported
+glitch). Retry loop (6 frames) re-claims focus after scroll settles; DOWN
+swallowed in dock; UP remains the ONLY exit (→ VPN pill). itemAnimator=null
+kills rebind-animation focus loss. kotlinc-verified. NEEDS LAUNCHER APK.
+
+### Vesper web fixes
+- StreamUnavailableModal: window-level capture Escape/Backspace listener
+  (dismiss works even when focus was lost) + Detail.jsx resets
+  showUnavailableModal on [id,type] — sticky-overlay-between-titles bug
+  (iteration_76 blocker) RESOLVED (verified iteration_77).
+- OnScreenKeyboard: per-key data-testids (osk-key-{k}/space/del/clear).
+- tunes.css hero dot transition:all → specific properties.
+
+### Backend
+- `_start_music_home_warmer` startup task: re-warms /api/music/home every
+  50 min (cold Deezer aggregate took 3-8 s; first user after TTL expiry
+  stared at skeletons).
+
+### Audit results (iteration_77 — 9 flows, all apps)
+ZERO non-noise console errors. PASS: Home spatial nav, Search+OSK, Detail
+series, Library, Calendar, Settings (theme apply + toggles), Profiles CRUD,
+Music home/radio/podcasts/search, FTA, Kids PIN setup renders. LiveTV
+'Coming Soon' is INTENTIONAL. Images all lazy+async; backend caches sane.
+
+### Deferred / backlog notes
+- No route-level code splitting (71 eager imports — one big bundle; boot
+  cost on cheap boxes). Risky mid-audit; consider lazy-loading /music
+  subtree later.
+- Manual on-device check: Escape-close of the no-streams overlay (code
+  verified; pod couldn't force-surface the modal reliably).
