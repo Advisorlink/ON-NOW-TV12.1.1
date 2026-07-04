@@ -398,76 +398,45 @@ class ExoPlayerActivity : ComponentActivity() {
     // tail, slow debrid CDNs) can easily take >10 s to first frame.
     private val USER_PICK_STALL_TIMEOUT_MS = 25_000L
 
-    // ─── v2.13.16 — PRE-FLIGHT SCOUT (advisory only) ───────────────
-    // v2.13.15's scout PREEMPTED the current stream when its tiny
-    // ranged GET failed.  Cloudflare-fronted debrid hosts 403 those
-    // bare probes (or reject them for other reasons ExoPlayer's real
-    // request wouldn't hit) → every candidate got marked "dead", the
-    // scout killed a perfectly-working stream ~1 s in, cascaded
-    // through the best picks, and playback dead-ended on "Loading
-    // your program…" forever.
+    // ─── v2.13.18 — SCOUT + STREAM-PREWARM REMOVED ─────────────────
+    // v2.13.15 fired up to 6 extra ranged GETs (2 prewarm + 4 scout)
+    // at the stream hosts right as ExoPlayer made its real request.
+    // Torrentio rate-limits /resolve per IP (HTTP 429 + a 1-2 minute
+    // penalty window), so the burst reliably killed the very stream
+    // it was meant to speed up — and every watchdog hop re-tripped
+    // the limit (movies: 30-40 s to first frame; episodes: never
+    // started).  Stremio sends exactly ONE request per play — now we
+    // do too.
     //
-    // The scout is now ADVISORY ONLY:
-    //   • It NEVER touches the currently-loading stream.
-    //   • Its verdicts only shape the ORDER the watchdog advances in
-    //     (prefer not-known-dead), and can never produce "no next" —
-    //     when every remaining entry looks dead we still fall back to
-    //     plain idx+1, exactly like pre-v2.13.15.
-    //   • Requests carry the same User-Agent as the real player so
-    //     verdicts are accurate, and the side effect (server-side
-    //     debrid resolve warm-up for fallbacks) is preserved.
-    private val streamAlive = java.util.concurrent.ConcurrentHashMap<Int, Boolean>()
-    private var preflightJob: Job? = null
+    // Dead links are handled by instant error-advance (see
+    // onPlayerError) plus the 8 s silent-stall watchdog, with a
+    // backoff between hops so a rate-limited host gets air.
+    private var errorAdvanceCount = 0
+    private var errorAdvanceJob: Job? = null
+    private var autoAdvanceMode = true
 
-    private fun launchPreflightScout() {
-        preflightJob?.cancel()
-        streamAlive.clear()
-        val start = if (currentStreamIdx >= 0) currentStreamIdx else 0
-        val end = minOf(start + 4, altStreams.size)
-        if (end - start <= 1) return
-        val scout = okhttp3.OkHttpClient.Builder()
-            .connectTimeout(4, java.util.concurrent.TimeUnit.SECONDS)
-            .readTimeout(4, java.util.concurrent.TimeUnit.SECONDS)
-            .followRedirects(true)
-            .followSslRedirects(true)
-            .build()
-        preflightJob = lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            for (i in (start + 1) until end) { // NEVER probe-judge the current stream
-                val u = altStreams[i].url
-                if (!u.startsWith("http")) continue
-                launch {
-                    val ok = runCatching {
-                        scout.newCall(
-                            okhttp3.Request.Builder()
-                                .url(u)
-                                .header("User-Agent", "Vesper-ExoPlayer/2.7.43")
-                                .header("Range", "bytes=0-2047")
-                                .build(),
-                        // v2.13.17 — 403 counts as ALIVE: Cloudflare
-                        // bot-checks 403 bare probes that ExoPlayer's
-                        // real request sails through.  Only a network
-                        // failure or hard 4xx/5xx (minus 403/416)
-                        // marks a candidate dead.
-                        ).execute().use { r -> r.isSuccessful || r.code == 416 || r.code == 403 }
-                    }.getOrDefault(false)
-                    streamAlive[i] = ok
-                    Log.i(TAG, "Pre-flight (advisory): stream $i alive=$ok")
-                }
-            }
-        }
+    private fun nextAdvanceIndexAfter(idx: Int): Int? {
+        val next = idx + 1
+        return if (next in altStreams.indices) next else null
     }
 
-    /** Watchdog advance target: prefer the next entry the scout has
-     *  NOT ruled out, but NEVER dead-end — when everything remaining
-     *  looks dead, fall back to plain idx+1 (scout verdicts can be
-     *  wrong; guaranteed forward progress like pre-v2.13.15). */
-    private fun nextAdvanceIndexAfter(idx: Int): Int? {
-        for (i in (idx + 1) until altStreams.size) {
-            if (streamAlive[i] == false) continue
-            if (altStreams[i].url.isNotBlank()) return i
+    /** Hop to the next stream the moment the current one throws a
+     *  player error before its first READY — no 8 s watchdog wait.
+     *  First hop is near-instant; later hops back off 2.5 s so a
+     *  rate-limited host (Torrentio /resolve 429) isn't hammered. */
+    private fun scheduleErrorAdvance() {
+        if (!autoAdvanceMode) return
+        if (firstReadyReachedForCurrentStream) return
+        if (errorAdvanceJob?.isActive == true) return
+        val next = nextAdvanceIndexAfter(currentStreamIdx) ?: return
+        val delayMs = if (errorAdvanceCount == 0) 250L else 2_500L
+        errorAdvanceCount += 1
+        errorAdvanceJob = lifecycleScope.launch {
+            delay(delayMs)
+            if (firstReadyReachedForCurrentStream) return@launch
+            Log.w(TAG, "Error-advance: stream $currentStreamIdx errored — advancing to $next")
+            switchStream(next, userInitiated = false)
         }
-        val plainNext = idx + 1
-        return if (plainNext in altStreams.indices) plainNext else null
     }
 
     private fun armBufferStallWatchdog(
@@ -476,6 +445,7 @@ class ExoPlayerActivity : ComponentActivity() {
     ) {
         bufferStallJob?.cancel()
         firstReadyReachedForCurrentStream = false
+        autoAdvanceMode = autoAdvance
         bufferStallJob = lifecycleScope.launch {
             delay(timeoutMs)
             if (!isActive) return@launch
@@ -863,6 +833,11 @@ class ExoPlayerActivity : ComponentActivity() {
                         startActivity(fallback)
                     } catch (_: Throwable) { /* */ }
                     finish()
+                } else if (altStreams.size > 1) {
+                    // v2.13.18 — non-fatal (network/HTTP) error before
+                    // the first frame: hop to the next candidate right
+                    // away instead of waiting out the 8 s watchdog.
+                    scheduleErrorAdvance()
                 }
             }
             override fun onPlaybackStateChanged(state: Int) {
@@ -876,6 +851,8 @@ class ExoPlayerActivity : ComponentActivity() {
                     // user to a different stream.
                     firstReadyReachedForCurrentStream = true
                     cancelBufferStallWatchdog()
+                    errorAdvanceJob?.cancel()
+                    errorAdvanceCount = 0
                     // v2.10.40 — The next episode is buffered and
                     // playing.  Drop the swap-loading overlay so the
                     // user sees the new frame and dock.
@@ -928,9 +905,6 @@ class ExoPlayerActivity : ComponentActivity() {
         // streams list.  Only useful when altStreams.size > 1.
         if (altStreams.size > 1) {
             armBufferStallWatchdog()
-            // v2.13.15 — parallel alive-check of the first candidates:
-            // dead current pick → instant advance instead of an 8s wait.
-            launchPreflightScout()
         }
 
         // ─── UI: PlayerView (raw video surface, no native controls) + Compose overlay ───
@@ -1917,6 +1891,7 @@ class ExoPlayerActivity : ComponentActivity() {
             // v2.13.8 — clear any stale "stream isn't loading" banner
             // the moment a new pick starts loading.
             errorMessageFlow.value = null
+            if (userInitiated) errorAdvanceCount = 0
             val item = MediaItem.Builder()
                 .setUri(entry.url)
                 .setMediaId(entry.url)

@@ -31,6 +31,20 @@ export function is1080p(stream) {
 }
 
 /**
+ * v2.13.18 — AV1-encoded release?  Most Android TV boxes have no AV1
+ * hardware decoder: ExoPlayer throws DECODER_INIT_FAILED, we fall
+ * back to LibVLC software decode which stutters or takes 20-30 s to
+ * first frame.  The autoplay picker skips these and the cascade
+ * ranks them last (like 4K).
+ */
+export function isAV1(stream) {
+    const haystack = `${stream?.title || ''} ${stream?.name || ''} ${
+        stream?.description || ''
+    }`;
+    return /\bav1\b/i.test(haystack);
+}
+
+/**
  * "Is this a 4K / 2160p stream?" — used by the autoplay picker
  * (party AND solo) to SKIP 4K streams unconditionally on the HK1
  * Android box, which can't actually decode 2160p HEVC in real time

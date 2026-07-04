@@ -52,7 +52,11 @@ HTTP_TIMEOUT = 15.0
 # too long to show").  Most healthy addons respond in 1–3 s; the 8 s
 # ceiling was just making us wait for the slowest dead addon.  5 s is
 # still plenty for normal latency + still catches the fast addons.
-STREAM_FETCH_TIMEOUT = 5.0
+# v2.13.18 — Back to 8 s: cold Torrentio series lookups regularly
+# take 5-7 s, and the 5 s cap was dropping ALL Torrentio streams for
+# fresh titles (frontend renders progressively now, so a slower
+# aggregate no longer blocks the UI).
+STREAM_FETCH_TIMEOUT = 8.0
 
 # Curated default addons – Cinemeta is the IMDB-id metadata backbone of the
 # Stremio ecosystem and is offered here as the suggested first install.
@@ -871,7 +875,11 @@ async def streams_aggregate(type_: str, item_id: str):
     # v2.7.33 — drop foreign-language streams + tag English ones.
     out = _filter_and_tag_english(out)
 
-    await cache.set(cache_key, out, CACHE_TTL_STREAM)
+    # v2.13.18 — never cache an aggregate with NO playable stream
+    # (url/infoHash).  A single slow/failed Torrentio fetch used to
+    # poison the cache for 5 minutes with a rent/buy-only list.
+    if any(s.get("url") or s.get("infoHash") for s in out):
+        await cache.set(cache_key, out, CACHE_TTL_STREAM)
     return {"cached": False, "streams": out}
 
 

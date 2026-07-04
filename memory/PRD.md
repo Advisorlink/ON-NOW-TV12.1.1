@@ -8152,3 +8152,49 @@ authoritatively — probe results ≠ what ExoPlayer's real request sees.
 
 ### SHIP IT: user must "Save to GitHub" → CI builds APK (versionCode
 ### auto-bumped) → box auto-updates → test playback on device.
+
+---
+
+## Session (Jul 2026 fork, part 8) — v2.13.18: THE RATE-LIMIT DEATH SPIRAL
+
+### User report
+Movies take 30-40 s to start (Stremio: ~10 s); TV shows never start.
+"Broke a couple of updates ago after I said deep dive."
+
+### Root cause (proven)
+Torrentio rate-limits /resolve per IP (HTTP 429 + 1-2 min penalty).
+At play time the app fired up to 7 near-simultaneous stream-host
+requests: 2 native prewarms (v2.13.15 WebAppInterface.prewarmStreams)
++ 4 preflight-scout probes + ExoPlayer's real request — then every
+8 s watchdog hop fired more. The burst tripped the limit and killed
+the real request; each hop re-tripped it. Movies crawled out of the
+window in 30-40 s; series (longer candidate walks) never did.
+Secondary: autoplay picked AV1 encodes (Dune P2 top pick) → no HW
+decoder on TV boxes → DECODER_INIT_FAILED → VLC software-decode dance.
+Also: backend 5 s per-addon timeout dropped ALL Torrentio streams on
+cold series lookups AND cached the empty result for 5 min.
+
+### Fixes (v2.13.18) — Stremio parity: ONE request per play
+- ExoPlayerActivity.kt: preflight scout DELETED (streamAlive/
+  preflightJob/launchPreflightScout gone). nextAdvanceIndexAfter =
+  plain idx+1. NEW scheduleErrorAdvance(): non-fatal player error
+  before first READY (cascade mode only) hops to next stream in
+  250 ms (first) / 2.5 s backoff (later) instead of the 8 s watchdog.
+  errorAdvance state reset on READY + user picks.
+- WebAppInterface.kt: prewarmStreams + plumbing DELETED.
+- host.js / Detail.jsx / SeriesEpisodes.jsx: all prewarm callers gone.
+- streamMeta.js: new isAV1(); streamOrder.js: AV1 excluded from
+  autoplay candidates + demoted (+50) in cascade scoring.
+- server.py: STREAM_FETCH_TIMEOUT 5→8 s; aggregates with ZERO
+  playable streams are no longer cached (cache-poison fix).
+
+### Verification
+- kotlinc type-check vs real media3 classpath: 0 errors in changed
+  files (same 37 stub-env artifacts in untouched files as baseline).
+- node sim on live onnowhub.com payloads: movie pick now x264
+  PM-cached 1080p (was AV1); series pick EasyNews 1080p (CDN verified
+  206 + 7.6 MB/s + 5-way concurrency OK from pod).
+- webpack compiled successfully; backend curl OK.
+
+### SHIP: "Save to GitHub" → CI builds APK AND deploy-backend.yml must
+### run so onnowhub.com gets the timeout/cache fixes. Test on box.

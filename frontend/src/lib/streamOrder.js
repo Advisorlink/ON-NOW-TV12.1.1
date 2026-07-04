@@ -22,7 +22,7 @@
  * every title (movies + episodes), and so the 10-second buffer
  * watchdog walks streams in this priority order when one stalls.
  */
-import { is1080p, is4K } from '@/lib/streamMeta';
+import { is1080p, is4K, isAV1 } from '@/lib/streamMeta';
 
 const SIZE_CAP_GB = 3.0;
 
@@ -58,6 +58,10 @@ function scoreStream(s) {
     const eng    = s?._is_english !== false ? 0 : 1;
     const strict = s?._english_strict === true ? 0 : 1;
     const four   = is4K(s) ? 1 : 0;
+    // v2.13.18 — AV1 demoted like 4K: no hardware decoder on most
+    // TV boxes → ExoPlayer decoder-init failure → VLC software-decode
+    // fallback that takes 20-30 s to first frame.
+    const av1    = isAV1(s) ? 1 : 0;
     const ten    = is1080p(s) ? 0 : 1;
     const sized  = typeof s?._size_gb !== 'number' || s._size_gb <= SIZE_CAP_GB ? 0 : 1;
     // v2.13.11 — uncached debrid "download" links go to the very
@@ -71,7 +75,7 @@ function scoreStream(s) {
         isTorrentio(s)  ? 1 :
         isEpStrem(s)    ? 2 :
         3;
-    return dl * 1000 + src * 100 + ten * 20 + four * 50 + dir * 4 + strict * 2 + eng + sized * 10;
+    return dl * 1000 + src * 100 + ten * 20 + four * 50 + av1 * 50 + dir * 4 + strict * 2 + eng + sized * 10;
 }
 
 /**
@@ -101,7 +105,8 @@ export function pickAutoplayCandidate(streams) {
     if (!Array.isArray(streams) || streams.length === 0) return null;
     // v2.13.11 — NEVER autoplay an uncached debrid "download" link
     // (cloud transfer before playback = 30 s+ dead air).
-    const non4k    = streams.filter((s) => !is4K(s) && !isUncachedDownload(s));
+    // v2.13.18 — nor an AV1 encode (no hardware decoder on the box).
+    const non4k    = streams.filter((s) => !is4K(s) && !isAV1(s) && !isUncachedDownload(s));
     const strict   = (s) => s?._english_strict === true;
     const english  = (s) => s?._is_english !== false;
     const direct   = (s) => streamMode(s) === 'direct';

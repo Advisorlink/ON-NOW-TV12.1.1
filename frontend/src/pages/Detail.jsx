@@ -975,19 +975,9 @@ export default function Detail() {
         [streams]
     );
 
-    // v2.13.15 — pre-warm the top candidates (see comment above the
-    // autoplayCandidate memo).  Lives BELOW both memos to avoid TDZ.
-    useEffect(() => {
-        const urls = [];
-        if (autoplayCandidate?.url) urls.push(autoplayCandidate.url);
-        if (!streamLoading) {
-            const top = orderedStreams?.[0]?.url;
-            if (top && !urls.includes(top)) urls.push(top);
-        }
-        const clean = urls.filter((u) => /^https?:\/\//.test(u));
-        if (clean.length) Host.prewarmStreams(clean.slice(0, 2));
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [autoplayCandidate, streamLoading, orderedStreams]);
+    // v2.13.18 — stream prewarming removed: the extra ranged GETs
+    // tripped Torrentio's per-IP /resolve rate limit and killed the
+    // real playback request that followed.  One request per play.
 
     // PARTY-MODE fallback: when the user is in a Watch Together
     // session we MUST start *something* — getting stuck on the

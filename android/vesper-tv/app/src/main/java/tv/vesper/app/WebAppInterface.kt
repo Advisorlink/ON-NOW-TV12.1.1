@@ -21,17 +21,6 @@ import android.widget.Toast
  */
 class WebAppInterface(private val activity: Activity) {
 
-    // v2.13.15 — stream prewarm plumbing (see prewarmStreams below).
-    private val prewarmedStreamUrls = LinkedHashMap<String, Long>()
-    private val streamPrewarmClient by lazy {
-        okhttp3.OkHttpClient.Builder()
-            .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-            .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-            .followRedirects(true)
-            .followSslRedirects(true)
-            .build()
-    }
-
     /**
      * Return the SharedPreferences-backed progress map as JSON so
      * the web app can populate its Continue Watching shelf with
@@ -1226,58 +1215,13 @@ class WebAppInterface(private val activity: Activity) {
     }
 
     /**
-     * v2.13.15 — Pre-warm STREAM resolve chains while the user is
-     * still browsing.  Debrid links (Torrentio→Premiumize) pay a
-     * 1-4 s server-side resolve on first hit; warming it here means
-     * the player's real request resolves near-instantly — "click
-     * play, it's already there".  Reads only the first few KB then
-     * closes.  Deduped for 2 min per URL so React re-renders can't
-     * hammer the hosts.
-     *
-     * @param urlsJson JSON array (max 2 used) of absolute http(s)
-     *                 stream URLs.
+     * v2.13.18 — Stream prewarming REMOVED.  The ranged GETs this
+     * fired at Torrentio /resolve links tripped Torrentio's per-IP
+     * rate limit (HTTP 429 + a penalty window), which then killed
+     * the REAL playback request that followed.  One request per
+     * play, like Stremio.  (Coil image prefetching above is kept —
+     * it hits image CDNs, not stream hosts.)
      */
-    @JavascriptInterface
-    fun prewarmStreams(urlsJson: String) {
-        try {
-            val arr = org.json.JSONArray(urlsJson)
-            val now = System.currentTimeMillis()
-            for (i in 0 until minOf(arr.length(), 2)) {
-                val u = arr.optString(i, "")
-                if (u.isBlank() || !u.startsWith("http")) continue
-                synchronized(prewarmedStreamUrls) {
-                    val last = prewarmedStreamUrls[u]
-                    if (last != null && now - last < 120_000L) return@synchronized
-                    prewarmedStreamUrls[u] = now
-                    if (prewarmedStreamUrls.size > 24) {
-                        val eldest = prewarmedStreamUrls.keys.firstOrNull()
-                        if (eldest != null) prewarmedStreamUrls.remove(eldest)
-                    }
-                    Thread {
-                        try {
-                            streamPrewarmClient.newCall(
-                                okhttp3.Request.Builder()
-                                    .url(u)
-                                    .header("User-Agent", "Vesper-ExoPlayer/2.7.43")
-                                    .header("Range", "bytes=0-65535")
-                                    .build(),
-                            ).execute().use { r ->
-                                // Pull a few KB so the whole redirect/
-                                // resolve chain actually executes, then
-                                // close — never the full file.
-                                r.body?.source()?.request(8192L)
-                            }
-                            android.util.Log.i("VesperPrewarm", "stream warmed: ${u.take(80)}")
-                        } catch (t: Throwable) {
-                            android.util.Log.w("VesperPrewarm", "stream prewarm failed: ${t.message}")
-                        }
-                    }.start()
-                }
-            }
-        } catch (t: Throwable) {
-            android.util.Log.w("VesperPrewarm", "prewarmStreams parse failed", t)
-        }
-    }
 
     private fun escapeJsString(s: String): String =
         s.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
