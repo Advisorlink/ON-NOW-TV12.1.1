@@ -92,14 +92,30 @@ export function orderStreams(streams) {
 
 /**
  * Pick the best autoplay candidate for a single movie / episode.
- * Tiered cascade matching the v2.10.80 user-defined priority:
- *   T1  EasyNews++  1080p English-strict direct
- *   T2  EasyNews++  any  1080p
- *   T3  Torrentio   1080p direct, English-strict, ≤ 3 GB
- *   T4  EP-STREM / Plexio direct, English
- *   T5  any addon  1080p strict English ≤ 3 GB
- *   T6  any        1080p English ≤ 3 GB
- *   T7  null  (picker stays open)
+ *
+ * v2.13.20 — User spec: "as soon as there's an EasyNews++ link that's
+ * around the 2 GB mark, that's it — just play it, no more thinking."
+ * The previous cascade let EasyNews++ win with NO size check (T1-T4),
+ * so a 15 GB EasyNews++ remux or a 500 MB potato encode could beat
+ * a healthy 2 GB one.  New top tier explicitly targets the sweet-spot
+ * size band (1.0-3.0 GB, ideal ~2 GB) so autoplay lands on the copy
+ * that plays instantly on debrid.
+ *
+ * Cascade:
+ *   T0  EasyNews++ SWEET-SPOT  (1.0-3.0 GB, direct)      ← target ~2 GB
+ *   T1  EasyNews++ 1080p direct English-strict
+ *   T2  EasyNews++ 1080p direct English
+ *   T3  EasyNews++ 1080p English
+ *   T4  EasyNews++ 1080p (any)
+ *   T5  Torrentio  1080p direct English-strict ≤ 3 GB
+ *   T6  Torrentio  1080p English-strict ≤ 3 GB
+ *   T7  Torrentio  1080p English ≤ 3 GB
+ *   T8  EP-STREM / Plexio direct English
+ *   T9  EP-STREM / Plexio English
+ *   T10 any 1080p direct English-strict ≤ 3 GB
+ *   T11 any 1080p English-strict ≤ 3 GB
+ *   T12 any 1080p English ≤ 3 GB
+ *   T13 null  (picker stays open)
  */
 export function pickAutoplayCandidate(streams) {
     if (!Array.isArray(streams) || streams.length === 0) return null;
@@ -111,8 +127,20 @@ export function pickAutoplayCandidate(streams) {
     const english  = (s) => s?._is_english !== false;
     const direct   = (s) => streamMode(s) === 'direct';
     const underCap = (s) => typeof s?._size_gb !== 'number' || s._size_gb <= SIZE_CAP_GB;
+    // v2.13.20 — Sweet-spot size band for "instant-start" streams.
+    // 1.0-3.0 GB covers 1080p TV episodes (~1.5-2.5 GB) and
+    // compressed 1080p movies (~2-3 GB).  Streams outside this band
+    // are typically either potato encodes (< 800 MB, low bitrate) or
+    // remuxes / raw scene releases (> 4 GB, long debrid unlock).
+    const idealSize = (s) =>
+        typeof s?._size_gb === 'number' && s._size_gb >= 1.0 && s._size_gb <= 3.0;
 
     return (
+        // T0 — EasyNews++ in the sweet-spot size band.  User spec:
+        // "just play the 2 GB one and start streaming."  This tier
+        // ignores English-strict / direct-only filters because
+        // EasyNews++ is essentially always direct + English anyway.
+        non4k.find((s) => isEasyNews(s) && is1080p(s) && idealSize(s)) ||
         non4k.find((s) => isEasyNews(s) && is1080p(s) && direct(s) && strict(s)) ||
         non4k.find((s) => isEasyNews(s) && is1080p(s) && direct(s) && english(s)) ||
         non4k.find((s) => isEasyNews(s) && is1080p(s) && english(s)) ||
