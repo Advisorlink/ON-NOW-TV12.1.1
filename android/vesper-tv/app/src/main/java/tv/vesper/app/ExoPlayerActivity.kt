@@ -389,10 +389,11 @@ class ExoPlayerActivity : ComponentActivity() {
     // stream.
     private var bufferStallJob: Job? = null
     private var firstReadyReachedForCurrentStream: Boolean = false
-    // v2.13.11 — 10s → 8s: with the cascade now guaranteed to rank
-    // cached/small links first, a stream that hasn't produced a
-    // frame in 8s is almost certainly dead — advance sooner.
-    private val BUFFER_STALL_TIMEOUT_MS = 8_000L
+    // v2.13.19 — 8s → 10s: revert v2.13.11.  The 8-second window was
+    // firing on the exact same debrid URLs Kids (10 s) plays without
+    // issue.  Two extra seconds of head-room lets a slow CDN handshake
+    // / TCP slow-start actually deliver the first buffered frame.
+    private val BUFFER_STALL_TIMEOUT_MS = 10_000L
     // v2.13.8 — Explicit user picks get a LONGER stall window: a deep
     // resume-position seek into a fresh HTTP stream (MKV cues at the
     // tail, slow debrid CDNs) can easily take >10 s to first frame.
@@ -717,12 +718,19 @@ class ExoPlayerActivity : ComponentActivity() {
         // user reported seeks "take ages to start playing".  Drop
         // to 3 s so the new position resumes ~3x faster on a
         // healthy CDN.  Initial start drops 6→3s too.
+        // v2.13.19 — Reverted v2.13.15's aggressive buffer trim.
+        // Dropping bufferForPlaybackMs to 2 s and rebuffer to 3 s
+        // caused ExoPlayer to abandon slow-start debrid URLs before
+        // they'd served enough bytes to reach STATE_READY — the exact
+        // same URLs that Kids (with 6 s / 10 s) plays instantly.
+        // Match Kids exactly so a slow CDN handshake / TCP slow-start
+        // gets the head-room it needs before we call the stream dead.
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
                 50_000,    // minBufferMs — keep refilling toward 50 s
                 120_000,   // maxBufferMs — long soak room
-                2_000,     // bufferForPlaybackMs — v2.13.15: 3s → 2s, first frame ~1s sooner
-                3_000,     // bufferForPlaybackAfterRebufferMs (was 10 000)
+                6_000,     // bufferForPlaybackMs — match Kids (was 2_000)
+                10_000,    // bufferForPlaybackAfterRebufferMs — match Kids (was 3_000)
             )
             .setPrioritizeTimeOverSizeThresholds(true)
             .setTargetBufferBytes(C.LENGTH_UNSET)
@@ -834,10 +842,16 @@ class ExoPlayerActivity : ComponentActivity() {
                     } catch (_: Throwable) { /* */ }
                     finish()
                 } else if (altStreams.size > 1) {
-                    // v2.13.18 — non-fatal (network/HTTP) error before
-                    // the first frame: hop to the next candidate right
-                    // away instead of waiting out the 8 s watchdog.
-                    scheduleErrorAdvance()
+                    // v2.13.19 — Removed instant error-advance.
+                    // v2.13.18's 250 ms hop on the FIRST non-fatal
+                    // error caused Vesper to abandon debrid URLs on
+                    // a single transient blip (5xx, socket reset,
+                    // slow-start) — the exact same URLs Kids (which
+                    // has no error-advance) plays without issue.
+                    // Let the 10 s buffer-stall watchdog handle it
+                    // instead: it only hops if the stream genuinely
+                    // never produced a frame in 10 s.
+                    Log.w(TAG, "Non-fatal error: waiting for watchdog (${error.errorCodeName})")
                 }
             }
             override fun onPlaybackStateChanged(state: Int) {
