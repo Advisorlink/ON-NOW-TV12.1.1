@@ -5,8 +5,7 @@
  * Order (lowest score = highest priority):
  *   1. EasyNews++  (Usenet direct, usually instant first-frame)
  *   2. Torrentio   (debrid-cached when available)
- *   3. EP-STREM / Plexio (premium direct)
- *   4. Everything else
+ *   3. Everything else
  *
  * Within each addon source we further prefer:
  *   - 1080p > others (4K demoted; oversized for the user's bandwidth)
@@ -21,6 +20,9 @@
  * Critical so the in-player Stream Picker shows the SAME cascade on
  * every title (movies + episodes), and so the 10-second buffer
  * watchdog walks streams in this priority order when one stalls.
+ *
+ * v2.13.23 — Removed EP-STREM / Plexio tier.  User no longer has the
+ * addon installed and asked for it to be stripped from the cascade.
  */
 import { is1080p, is4K, isAV1 } from '@/lib/streamMeta';
 
@@ -33,11 +35,6 @@ export const isEasyNews = (s) =>
 
 export const isTorrentio = (s) =>
     /torrentio/i.test(`${s?._addon_id || ''} ${s?._addon_name || ''}`);
-
-export const isEpStrem = (s) =>
-    /plexio|ep[\s-]?strem/i.test(
-        `${s?._addon_id || ''} ${s?._addon_name || ''} ${s?.name || ''}`
-    );
 
 const streamMode = (s) => {
     if (s?.url) return 'direct';
@@ -67,14 +64,13 @@ function scoreStream(s) {
     // v2.13.11 — uncached debrid "download" links go to the very
     // bottom of every list (×1000 dominates all other weights).
     const dl     = isUncachedDownload(s) ? 1 : 0;
-    // Addon source dominates: 0 = EasyNews++, 1 = Torrentio, 2 = EP-STREM/Plexio,
-    // 3 = anything else.  ×100 weight so source ranking can't be swamped by
-    // a 1080p hit on an inferior addon.
+    // Addon source dominates: 0 = EasyNews++, 1 = Torrentio,
+    // 2 = anything else.  ×100 weight so source ranking can't be
+    // swamped by a 1080p hit on an inferior addon.
     const src =
         isEasyNews(s)   ? 0 :
         isTorrentio(s)  ? 1 :
-        isEpStrem(s)    ? 2 :
-        3;
+        2;
     return dl * 1000 + src * 100 + ten * 20 + four * 50 + av1 * 50 + dir * 4 + strict * 2 + eng + sized * 10;
 }
 
@@ -97,18 +93,20 @@ export function orderStreams(streams) {
  * there is one, otherwise Torrentio, but always around 2 GB."  The
  * cascade is now SIZE-ANCHORED: every tier is restricted to the
  * sweet-spot band (1.0-3.0 GB, ideal ~2 GB), and the source order
- * (EasyNews++ → Torrentio → EP-STREM → any) is only the tie-breaker
- * WITHIN that band.  If no source has a link in the band, autoplay
+ * (EasyNews++ → Torrentio → any) is only the tie-breaker WITHIN
+ * that band.  If no source has a link in the band, autoplay
  * silently defers to the manual picker — we no longer fire a 15 GB
  * remux or a 500 MB potato encode just because the top-tier addon
  * happens to have one.
  *
+ * v2.13.23 — Removed EP-STREM / Plexio tier (user no longer has the
+ * addon installed).
+ *
  * Cascade (every tier size-clamped to 1.0-3.0 GB):
  *   T1  EasyNews++ 1080p
  *   T2  Torrentio  1080p, English, NOT uncached
- *   T3  EP-STREM   1080p, English
- *   T4  any addon  1080p, English
- *   T5  null  (picker stays open)
+ *   T3  any addon  1080p, English
+ *   T4  null  (picker stays open)
  *
  * Uncached debrid links, 4K, and AV1 encodes are excluded up-front
  * — they either need a slow cloud unlock, exceed the box's decoder,
@@ -133,7 +131,6 @@ export function pickAutoplayCandidate(streams) {
     return (
         candidates.find((s) => inBand(s) && isEasyNews(s) && is1080p(s)) ||
         candidates.find((s) => inBand(s) && isTorrentio(s) && is1080p(s) && english(s)) ||
-        candidates.find((s) => inBand(s) && isEpStrem(s)  && is1080p(s) && english(s)) ||
         candidates.find((s) => inBand(s) && is1080p(s) && english(s)) ||
         null
     );
