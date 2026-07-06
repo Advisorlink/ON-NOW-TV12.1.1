@@ -110,12 +110,23 @@ const Host = (() => {
                  * one just buffered forever (the "swap stream does
                  * nothing" bug).  Keep http(s) URLs only (direct +
                  * Premiumize-cached torrents) and recompute the
-                 * current index against the filtered list by URL. */
+                 * current index against the filtered list by URL.
+                 *
+                 * v2.13.22 — Fall back to `externalUrl` when `url` is
+                 * empty.  Some Stremio addons (EasyNews++ variants
+                 * in particular) return the playable HTTPS URL in
+                 * `externalUrl` instead of `url` — the old serialiser
+                 * ignored those entries so they never showed up in the
+                 * native in-player swap picker even though the Detail
+                 * page picker (which reads the raw stream list) DID
+                 * show them.  Match parity: any addon-provided HTTPS
+                 * URL is now included regardless of which field it
+                 * lives in. */
                 const rows = Array.isArray(streamsList)
                     ? streamsList
                         .map((s) => ({
                             label: ((s.title || s.name || '(untitled)') + '').slice(0, 200),
-                            url: s.url || '',
+                            url: s.url || s.externalUrl || '',
                             infoHash: s.infoHash || null,
                             isEnglish: !!s._is_english,
                             addonSource: s._addon_source || '',
