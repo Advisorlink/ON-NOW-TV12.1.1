@@ -443,6 +443,61 @@ def _is_english_stream(s: Dict[str, Any]) -> bool:
     return False
 
 
+# ─────────────────────────────────────────────────────────────────
+# 4K detection & strip (v2.13.22)
+#
+# User spec: "just take 4K out of it directly so it doesn't even try
+# and search 4K at all — it shouldn't even be in the thing at all."
+# Rather than filter 4K at each client (frontend picker, native swap
+# picker, autoplay cascade), we strip 4K here — the SINGLE place
+# every client eventually reads from.  Zero addon reconfiguration
+# needed on the user's end.
+#
+# Detection mirrors /app/frontend/src/lib/streamMeta.js `is4K` so
+# both layers agree on what "4K" means:
+#   • Explicit tokens — 2160p, 4K, 4kbluray, 4kuhd, 4kweb, 4kdvd, UHD
+#   • HDR family — HDR10, HDR10+, HDR, DV, DoVi, Dolby Vision, IMAX Enhanced
+#   • Size ≥ 25 GB (always 4K)
+#   • Size ≥  6 GB without a 1080p tag (4K territory)
+#
+# Anything that matches is dropped from the aggregate response.
+# ─────────────────────────────────────────────────────────────────
+_RE_4K_HARD = re.compile(
+    r"\b(2160p?i?|4kbluray|4kuhd|4kweb|4kdvd|4k)\b", re.IGNORECASE
+)
+_RE_UHD = re.compile(r"\buhd\b", re.IGNORECASE)
+_RE_HDR_FAMILY = re.compile(
+    r"\b(hdr10\+?|hdr|dolby[\s_.\-]?vision|dovi|dv|imax[\s_.\-]?enhanced)\b",
+    re.IGNORECASE,
+)
+_RE_1080_TAG = re.compile(r"\b1080p?\b", re.IGNORECASE)
+
+
+def _is_4k_stream(s: Dict[str, Any]) -> bool:
+    """Python port of the strengthened frontend `is4K` detector."""
+    txt = _stream_haystack(s)
+    if not txt:
+        return False
+    if _RE_4K_HARD.search(txt):
+        return True
+    if _RE_UHD.search(txt):
+        return True
+    if _RE_HDR_FAMILY.search(txt):
+        return True
+    size_gb = _parse_size_gb(s)
+    if size_gb is not None:
+        if size_gb >= 25:
+            return True
+        if size_gb >= 6 and not _RE_1080_TAG.search(txt):
+            return True
+    return False
+
+
+def _strip_4k(streams: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Drop 4K / HDR / DV streams from the aggregate.  Idempotent."""
+    return [s for s in streams if isinstance(s, dict) and not _is_4k_stream(s)]
+
+
 def _filter_and_tag_english(streams: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Drop foreign-language streams and tag the rest with
     `_is_english: True` (broad — used to render a flag chip) AND
@@ -826,7 +881,10 @@ async def streams_aggregate(type_: str, item_id: str):
     if cached:
         # v2.7.33 — apply English filter even to cached payloads so
         # the rollout doesn't have to wait for cache expiry.
-        return {"cached": True, "streams": _filter_and_tag_english(cached)}
+        # v2.13.22 — same for the 4K strip: any cache entry captured
+        # before the 4K-strip landed still needs to be sanitised
+        # before it hits any client.
+        return {"cached": True, "streams": _strip_4k(_filter_and_tag_english(cached))}
 
     addons = await db.addons.find(
         {"user_id": DEFAULT_USER, "active": True}, {"_id": 0}
@@ -874,6 +932,11 @@ async def streams_aggregate(type_: str, item_id: str):
 
     # v2.7.33 — drop foreign-language streams + tag English ones.
     out = _filter_and_tag_english(out)
+    # v2.13.22 — strip 4K / HDR / DV entirely.  User spec: TV box
+    # can't real-time decode 2160p HEVC, so no client should ever see
+    # these as an option.  Applied AFTER the English filter so we
+    # don't waste cycles tagging streams we're about to drop.
+    out = _strip_4k(out)
 
     # v2.13.18 — never cache an aggregate with NO playable stream
     # (url/infoHash).  A single slow/failed Torrentio fetch used to
