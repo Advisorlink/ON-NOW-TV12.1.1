@@ -1352,19 +1352,20 @@ export default function Detail() {
         // streams picker, which is exactly the "I see streams"
         // gripe the user reported.
         if (!getAutoplay1080p() && !autoplayRequested) return;
-        // Pick the best candidate.  Prefer the curated 1080p
-        // `autoplayCandidate`; if none, but autoplay was explicitly
-        // requested, fall back to ANY direct stream → first stream
-        // so the user still lands in the player.
-        const chosen =
-            autoplayCandidate ||
-            (autoplayRequested
-                ? (streams.find((s) => streamMode(s) === 'direct') || streams[0])
-                : null);
-        if (!chosen) return;
+        // v2.13.22 — SWEET-SPOT ONLY.  User spec: "just play the
+        // ~2 GB EasyNews++ (or Torrentio) — never fire a 4K or an
+        // untagged monster as a fallback."  The old fallback chain
+        // (`streams.find(direct) || streams[0]`) skipped the 4K /
+        // uncached / size filters entirely, which is exactly what
+        // was landing autoplay on random 4K streams even after the
+        // cascade picker did its job.  Match TV series behaviour:
+        // if `pickAutoplayCandidate` returned null, the streams list
+        // stays visible on the Detail page (that's our picker) —
+        // don't fire ANYTHING.
+        if (!autoplayCandidate) return;
         autoplayFiredRef.current = true;
         setAutoplayFired(true);
-        window.setTimeout(() => playStream(chosen), 0);
+        window.setTimeout(() => playStream(autoplayCandidate), 0);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [streams, streamLoading, autoplayRequested, type, autoplayCandidate, partyCode, ratingBlocked, easyNewsPending, enHoldExpired]);
 
@@ -1424,13 +1425,16 @@ export default function Detail() {
                     }
                     return;
                 }
-                // STRICTLY filter out 4K — same hard rule as the
-                // movie-party picker.  If every stream is 4K, bail
-                // gracefully (broadcast stream_error and reset
-                // firing flags so the user can try a different
-                // episode without a buffering meltdown).
-                const non4k = list.filter((s) => !is4K(s));
-                if (non4k.length === 0) {
+                // v2.13.22 — Use the shared sweet-spot picker rather
+                // than a hand-rolled 1080p-first fallback.  The old
+                // fallback chain (`direct → torrent → pool[0]`) had
+                // no size / 4K / uncached filter and could land on a
+                // 4 GB 4K remux or an uncached debrid link that
+                // stalls the player.  If the shared picker returns
+                // null, bail with the same "no playable stream" flow
+                // as the empty-list case above.
+                const pick = pickCascadeCandidate(list);
+                if (!pick) {
                     seriesPartyFiredRef.current = false;
                     autoplayFiredRef.current = false;
                     setAutoplayFired(false);
@@ -1440,31 +1444,18 @@ export default function Detail() {
                             try {
                                 ws.send(JSON.stringify({
                                     type: 'stream_error',
-                                    reason: 'only_4k_available_for_episode',
+                                    reason: 'no_safe_stream_for_episode',
                                 }));
                             } catch { /* ignore */ }
                         }
                     }
                     return;
                 }
-                const pool = non4k;
-                const pick =
-                    pool.find((s) => streamMode(s) === 'direct' && is1080p(s)) ||
-                    pool.find((s) => is1080p(s)) ||
-                    pool.find((s) => streamMode(s) === 'direct') ||
-                    pool.find((s) => streamMode(s) === 'torrent') ||
-                    pool[0];
-                if (!pick) {
-                    seriesPartyFiredRef.current = false;
-                    autoplayFiredRef.current = false;
-                    setAutoplayFired(false);
-                    return;
-                }
                 await playStream(pick, {
                     cwId: videoId,
                     season: Number(partySeason),
                     episode: Number(partyEpisode),
-                }, pool);
+                }, list);
             } catch (_e) {
                 seriesPartyFiredRef.current = false;
                 autoplayFiredRef.current = false;
