@@ -89,20 +89,17 @@ export function orderStreams(streams) {
 /**
  * Pick the best autoplay candidate for a single movie / episode.
  *
- * v2.13.21 — User spec: "just play the ~2 GB one — EasyNews++ if
- * there is one, otherwise Torrentio, but always around 2 GB."  The
- * cascade is now SIZE-ANCHORED: every tier is restricted to the
- * sweet-spot band (1.0-3.0 GB, ideal ~2 GB), and the source order
- * (EasyNews++ → Torrentio → any) is only the tie-breaker WITHIN
- * that band.  If no source has a link in the band, autoplay
- * silently defers to the manual picker — we no longer fire a 15 GB
- * remux or a 500 MB potato encode just because the top-tier addon
- * happens to have one.
+ * v2.13.24 — User spec update: sweet spot is 2-4 GB (was 1-3), and
+ * within that band prefer the LOWEST-size link.  Smaller files hit
+ * first frame sooner on debrid because there's less container to
+ * seek past.  Source order (EasyNews++ → Torrentio → any) still
+ * dominates — size is only the tiebreaker WITHIN a source tier.
  *
  * v2.13.23 — Removed EP-STREM / Plexio tier (user no longer has the
  * addon installed).
  *
- * Cascade (every tier size-clamped to 1.0-3.0 GB):
+ * Cascade (each tier size-clamped to 2.0-4.0 GB, tie-broken by
+ * SMALLEST size first):
  *   T1  EasyNews++ 1080p
  *   T2  Torrentio  1080p, English, NOT uncached
  *   T3  any addon  1080p, English
@@ -118,20 +115,23 @@ export function pickAutoplayCandidate(streams) {
     // (cloud transfer before playback = 30 s+ dead air).
     // v2.13.18 — nor an AV1 encode (no hardware decoder on the box).
     const candidates = streams.filter((s) => !is4K(s) && !isAV1(s) && !isUncachedDownload(s));
-    const english  = (s) => s?._is_english !== false;
-    // v2.13.21 — Sweet-spot size band: 1.0-3.0 GB.  Covers 1080p TV
-    // episodes (~1.5-2.5 GB) and compressed 1080p movies (~2-3 GB).
-    // Streams with no `_size_gb` tag are EXCLUDED here (unlike prior
-    // versions where "size unknown" counted as OK) so autoplay never
-    // fires an untagged monster on us.
+    const english = (s) => s?._is_english !== false;
+    // v2.13.24 — Sweet spot 2.0-4.0 GB.  Streams with no `_size_gb`
+    // tag are excluded so autoplay never fires an untagged monster.
     const inBand = (s) =>
-        typeof s?._size_gb === 'number' && s._size_gb >= 1.0 && s._size_gb <= 3.0;
+        typeof s?._size_gb === 'number' && s._size_gb >= 2.0 && s._size_gb <= 4.0;
+    // Sort candidates by size ascending so a 2.1 GB copy always beats
+    // a 3.9 GB copy of the same title within any given source tier.
+    const bySmallest = [...candidates].sort((a, b) => {
+        const ga = typeof a?._size_gb === 'number' ? a._size_gb : Number.MAX_VALUE;
+        const gb = typeof b?._size_gb === 'number' ? b._size_gb : Number.MAX_VALUE;
+        return ga - gb;
+    });
 
-    // Every tier restricted to the sweet-spot band.
     return (
-        candidates.find((s) => inBand(s) && isEasyNews(s) && is1080p(s)) ||
-        candidates.find((s) => inBand(s) && isTorrentio(s) && is1080p(s) && english(s)) ||
-        candidates.find((s) => inBand(s) && is1080p(s) && english(s)) ||
+        bySmallest.find((s) => inBand(s) && isEasyNews(s) && is1080p(s)) ||
+        bySmallest.find((s) => inBand(s) && isTorrentio(s) && is1080p(s) && english(s)) ||
+        bySmallest.find((s) => inBand(s) && is1080p(s) && english(s)) ||
         null
     );
 }
