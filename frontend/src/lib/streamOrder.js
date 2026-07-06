@@ -93,66 +93,48 @@ export function orderStreams(streams) {
 /**
  * Pick the best autoplay candidate for a single movie / episode.
  *
- * v2.13.20 — User spec: "as soon as there's an EasyNews++ link that's
- * around the 2 GB mark, that's it — just play it, no more thinking."
- * The previous cascade let EasyNews++ win with NO size check (T1-T4),
- * so a 15 GB EasyNews++ remux or a 500 MB potato encode could beat
- * a healthy 2 GB one.  New top tier explicitly targets the sweet-spot
- * size band (1.0-3.0 GB, ideal ~2 GB) so autoplay lands on the copy
- * that plays instantly on debrid.
+ * v2.13.21 — User spec: "just play the ~2 GB one — EasyNews++ if
+ * there is one, otherwise Torrentio, but always around 2 GB."  The
+ * cascade is now SIZE-ANCHORED: every tier is restricted to the
+ * sweet-spot band (1.0-3.0 GB, ideal ~2 GB), and the source order
+ * (EasyNews++ → Torrentio → EP-STREM → any) is only the tie-breaker
+ * WITHIN that band.  If no source has a link in the band, autoplay
+ * silently defers to the manual picker — we no longer fire a 15 GB
+ * remux or a 500 MB potato encode just because the top-tier addon
+ * happens to have one.
  *
- * Cascade:
- *   T0  EasyNews++ SWEET-SPOT  (1.0-3.0 GB, direct)      ← target ~2 GB
- *   T1  EasyNews++ 1080p direct English-strict
- *   T2  EasyNews++ 1080p direct English
- *   T3  EasyNews++ 1080p English
- *   T4  EasyNews++ 1080p (any)
- *   T5  Torrentio  1080p direct English-strict ≤ 3 GB
- *   T6  Torrentio  1080p English-strict ≤ 3 GB
- *   T7  Torrentio  1080p English ≤ 3 GB
- *   T8  EP-STREM / Plexio direct English
- *   T9  EP-STREM / Plexio English
- *   T10 any 1080p direct English-strict ≤ 3 GB
- *   T11 any 1080p English-strict ≤ 3 GB
- *   T12 any 1080p English ≤ 3 GB
- *   T13 null  (picker stays open)
+ * Cascade (every tier size-clamped to 1.0-3.0 GB):
+ *   T1  EasyNews++ 1080p
+ *   T2  Torrentio  1080p, English, NOT uncached
+ *   T3  EP-STREM   1080p, English
+ *   T4  any addon  1080p, English
+ *   T5  null  (picker stays open)
+ *
+ * Uncached debrid links, 4K, and AV1 encodes are excluded up-front
+ * — they either need a slow cloud unlock, exceed the box's decoder,
+ * or blow past the sweet-spot size band anyway.
  */
 export function pickAutoplayCandidate(streams) {
     if (!Array.isArray(streams) || streams.length === 0) return null;
     // v2.13.11 — NEVER autoplay an uncached debrid "download" link
     // (cloud transfer before playback = 30 s+ dead air).
     // v2.13.18 — nor an AV1 encode (no hardware decoder on the box).
-    const non4k    = streams.filter((s) => !is4K(s) && !isAV1(s) && !isUncachedDownload(s));
-    const strict   = (s) => s?._english_strict === true;
+    const candidates = streams.filter((s) => !is4K(s) && !isAV1(s) && !isUncachedDownload(s));
     const english  = (s) => s?._is_english !== false;
-    const direct   = (s) => streamMode(s) === 'direct';
-    const underCap = (s) => typeof s?._size_gb !== 'number' || s._size_gb <= SIZE_CAP_GB;
-    // v2.13.20 — Sweet-spot size band for "instant-start" streams.
-    // 1.0-3.0 GB covers 1080p TV episodes (~1.5-2.5 GB) and
-    // compressed 1080p movies (~2-3 GB).  Streams outside this band
-    // are typically either potato encodes (< 800 MB, low bitrate) or
-    // remuxes / raw scene releases (> 4 GB, long debrid unlock).
-    const idealSize = (s) =>
+    // v2.13.21 — Sweet-spot size band: 1.0-3.0 GB.  Covers 1080p TV
+    // episodes (~1.5-2.5 GB) and compressed 1080p movies (~2-3 GB).
+    // Streams with no `_size_gb` tag are EXCLUDED here (unlike prior
+    // versions where "size unknown" counted as OK) so autoplay never
+    // fires an untagged monster on us.
+    const inBand = (s) =>
         typeof s?._size_gb === 'number' && s._size_gb >= 1.0 && s._size_gb <= 3.0;
 
+    // Every tier restricted to the sweet-spot band.
     return (
-        // T0 — EasyNews++ in the sweet-spot size band.  User spec:
-        // "just play the 2 GB one and start streaming."  This tier
-        // ignores English-strict / direct-only filters because
-        // EasyNews++ is essentially always direct + English anyway.
-        non4k.find((s) => isEasyNews(s) && is1080p(s) && idealSize(s)) ||
-        non4k.find((s) => isEasyNews(s) && is1080p(s) && direct(s) && strict(s)) ||
-        non4k.find((s) => isEasyNews(s) && is1080p(s) && direct(s) && english(s)) ||
-        non4k.find((s) => isEasyNews(s) && is1080p(s) && english(s)) ||
-        non4k.find((s) => isEasyNews(s) && is1080p(s)) ||
-        non4k.find((s) => isTorrentio(s) && direct(s) && is1080p(s) && strict(s) && underCap(s)) ||
-        non4k.find((s) => isTorrentio(s) && is1080p(s) && strict(s) && underCap(s)) ||
-        non4k.find((s) => isTorrentio(s) && is1080p(s) && english(s) && underCap(s)) ||
-        non4k.find((s) => isEpStrem(s) && direct(s) && english(s)) ||
-        non4k.find((s) => isEpStrem(s) && english(s)) ||
-        non4k.find((s) => direct(s) && is1080p(s) && strict(s) && underCap(s)) ||
-        non4k.find((s) => is1080p(s) && strict(s) && underCap(s)) ||
-        non4k.find((s) => is1080p(s) && english(s) && underCap(s)) ||
+        candidates.find((s) => inBand(s) && isEasyNews(s) && is1080p(s)) ||
+        candidates.find((s) => inBand(s) && isTorrentio(s) && is1080p(s) && english(s)) ||
+        candidates.find((s) => inBand(s) && isEpStrem(s)  && is1080p(s) && english(s)) ||
+        candidates.find((s) => inBand(s) && is1080p(s) && english(s)) ||
         null
     );
 }
