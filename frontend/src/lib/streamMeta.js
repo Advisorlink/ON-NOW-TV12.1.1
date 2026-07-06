@@ -50,50 +50,57 @@ export function isAV1(stream) {
  * Android box, which can't actually decode 2160p HEVC in real time
  * → buffers + drops frames.
  *
- * v2.7.07 — toned down from v2.7.04's over-aggressive heuristic.
- * The user reported normal autoplay buffering because HDR-tagged
- * 1080p streams (which DO exist — every Plex 1080p HDR Blu-ray
- * remux qualifies) were being mis-classified as 4K, so autoplay
- * fell back to worse streams.  Revised contract:
- *
- *   • EXPLICIT 1080p token in the title → ALWAYS treat as 1080p,
- *     even if HDR/DV/HEVC also present.  This is the key fix.
- *   • Explicit 4K markers (4K, 2160p, UHD, "Ultra HD") → 4K.
- *   • HDR / Dolby Vision WITHOUT a 1080p marker → 4K (a real
- *     "Movie · WEB-DL HDR" without resolution is almost always
- *     a 4K release on Stremio addons).
- *   • File size ≥ 25 GB → 4K (1080p remuxes top out around
- *     20 GB; only 4K hits this).
- *   • High-bitrate HEVC (≥ 10 Mbps) with no 1080p marker → 4K.
+ * v2.13.22 — Stricter: user reported TV episode autoplay picking a
+ * 4K stream despite the earlier logic.  On TV shows EasyNews++ /
+ * Torrentio releases often dual-label ("2160p WEB-DL 1080p AC3" is
+ * a real filename pattern) which slipped past the "1080p present →
+ * treat as 1080p" escape hatch.  We now:
+ *   • Treat ANY explicit 4K marker (2160, 4K, UHD) as 4K regardless
+ *     of a co-present "1080" token.  1080p-labelled 4K remuxes are
+ *     rare enough that shipping them to the picker (not autoplay)
+ *     is the safer default.
+ *   • Also treat HDR / DV / Dolby-Vision tags as 4K (was already
+ *     the case when 1080 was absent — now unconditional too).
+ *   • Size ≥ 6 GB → 4K (1080p x264 tops out ~7 GB; anything larger
+ *     is almost always a 4K release even without an explicit tag).
  */
 export function is4K(stream) {
     const haystack = `${stream?.title || ''} ${stream?.name || ''} ${
         stream?.description || ''
     }`;
     /* Hard explicit 4K markers — always 4K, regardless of other
-       tokens.  Note we do NOT include "Ultra HD" → it sometimes
-       appears on 1080p Plex titles as a quality descriptor. */
+       tokens (including a co-present "1080" tag).  Covers the
+       common "2160p WEB-DL 1080p AAC" dual-label case. */
     if (/\b(2160p?i?|4kbluray|4kuhd|4kweb|4kdvd)\b/i.test(haystack)) return true;
     if (/\b4k\b/i.test(haystack)) return true;
-    if (/\buhd\b/i.test(haystack) && !/\b1080p?\b/i.test(haystack)) return true;
-    /* Explicit 1080p marker → always 1080p, even with HDR/DV. */
-    const has1080 = /\b1080p?\b/i.test(haystack);
-    if (has1080) return false;
-    /* No 1080 marker — now check the secondary signals. */
-    if (/\b(hdr10\+?|dolby[\s_.\-]?vision|\bdv\b|imax[\s_.\-]?enhanced)\b/i.test(haystack)) return true;
-    /* Stand-alone "HDR" (not HDR10/HDR10+) is a weaker signal —
-       still trip if present without 1080p. */
+    if (/\buhd\b/i.test(haystack)) return true;
+    /* HDR family — HDR10, HDR10+, DV, DoVi, IMAX Enhanced.  Same
+       rationale as above: 1080p HDR is rare; 4K HDR is dominant.
+       If the user really wants a 1080p HDR remux, they can pick it
+       from the manual stream picker. */
+    if (/\b(hdr10\+?|dolby[\s_.\-]?vision|dovi|imax[\s_.\-]?enhanced)\b/i.test(haystack)) return true;
     if (/\bhdr\b/i.test(haystack)) return true;
+    if (/\bdv\b/i.test(haystack)) return true;
     /* High-bitrate HEVC → 4K. */
     const bitrate = stream?.bitrate || stream?.bitrate_kbps || 0;
     const isHEVC = /\b(hevc|x265|h\.?265)\b/i.test(haystack);
     if (isHEVC && Number(bitrate) >= 10_000) return true;
-    /* Size hint: 25 GB+ is 4K territory (bumped from 20 GB in
-       v2.7.04 since 1080p remuxes can legitimately hit 22 GB). */
+    /* Size hint — TWO tiers:
+       (a) ≥ 25 GB → definitely 4K (was the old threshold).
+       (b) ≥  6 GB → very likely 4K (new v2.13.22).  1080p x264 web
+           episodes cap around 5 GB; 1080p movies around 7 GB.  Anything
+           past 6 GB with no explicit 1080p marker is 4K territory.  */
+    const sizeGb = typeof stream?._size_gb === 'number' ? stream._size_gb : null;
+    if (sizeGb !== null && sizeGb >= 25) return true;
+    const has1080Tag = /\b1080p?\b/i.test(haystack);
+    if (sizeGb !== null && sizeGb >= 6 && !has1080Tag) return true;
+    /* Explicit size in title (e.g. "12.4 GB") — check the same
+       threshold on the parsed title when _size_gb isn't populated. */
     const sizeMatch = haystack.match(/(\d+(?:\.\d+)?)\s*GB\b/i);
     if (sizeMatch) {
         const gb = parseFloat(sizeMatch[1]);
         if (gb >= 25) return true;
+        if (gb >= 6 && !has1080Tag) return true;
     }
     return false;
 }
