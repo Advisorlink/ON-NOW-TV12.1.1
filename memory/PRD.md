@@ -8198,3 +8198,37 @@ cold series lookups AND cached the empty result for 5 min.
 
 ### SHIP: "Save to GitHub" → CI builds APK AND deploy-backend.yml must
 ### run so onnowhub.com gets the timeout/cache fixes. Test on box.
+
+---
+
+## 2026-06 — TRUE full revert of autoplay pipeline to July 4 (`def1de7d`)
+
+User reported autoplay STILL wrong after the previous session's claimed
+revert. Investigation: `git diff def1de7d HEAD` showed the revert NEVER
+landed — HEAD still contained all v2.13.2x picker logic (2-4 GB sweet-spot
+cascade, strict is4K, backend `_strip_4k`).
+
+### What was restored byte-for-byte to def1de7d (verified: working-tree
+### diff vs def1de7d is EMPTY for all 5 files)
+- frontend/src/lib/streamOrder.js  (EP-STREM tier + T1-T7 cascade back)
+- frontend/src/lib/streamMeta.js   (lenient is4K: 1080p tag → not 4K)
+- frontend/src/pages/Detail.jsx    (autoplay fallback chain restored)
+- frontend/src/components/SeriesEpisodes.jsx (pickBestPlayable fallback restored)
+- backend/server.py                (_is_4k_stream/_strip_4k REMOVED —
+  backend no longer strips 4K/HDR/DV; it didn't exist on July 4 and was
+  deleting good EasyNews++ links before the picker saw them)
+
+### Intentionally KEPT (not picker logic)
+- frontend/src/lib/host.js — `s.url || s.externalUrl` so EasyNews++ links
+  appear in the native in-player swap picker (user-requested fix).
+- android/vesper-tv ExoPlayerActivity.kt — buffer stabilization matching
+  the working Kids app.
+
+### Verification
+- python ast parse server.py OK; backend restart + /api/ 200;
+  /api/streams/movie/tt0111161 returns streams, no errors.
+- yarn build: compiled successfully.
+- USER must Save to GitHub → CI APK build + deploy-backend.yml (backend
+  change matters: onnowhub.com must drop the 4K strip too) → test on box.
+
+### DO NOT touch stream picking logic again unless user explicitly asks.

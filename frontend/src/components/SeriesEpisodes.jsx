@@ -384,21 +384,15 @@ export default function SeriesEpisodes({
        fallback walks the ORDERED list and only ever picks something
        PLAYABLE — never a WatchHub "external" web link, which is what
        used to silently open nothing and made TV autoplay look dead. */
-    /* v2.13.20 — Autoplay fallback is now MUCH stricter.  User spec:
-       "there's too many links there for it to choose from — just play
-       the EasyNews++ 2 GB one and start streaming."  Old fallback
-       chain walked the ORDERED list and grabbed the first direct or
-       torrent stream, which meant a Torrentio uncached debrid link
-       could win when the cascade cando returned null — those links
-       stall the player 30+ s while Real-Debrid does its cloud unlock.
-       New behaviour: return ONLY what `pickAutoplayCandidate` returns.
-       When it returns null (no confident pick), the outer autoplay
-       flow silently opens the picker instead of firing a bad guess.
-       Also drop the `orderStreams` warm-up call — not needed once
-       we no longer walk the list ourselves. */
     const pickBestPlayable = (streamsArr) => {
         if (!Array.isArray(streamsArr) || streamsArr.length === 0) return null;
-        return pickAutoplayCandidate(streamsArr);
+        const ordered = orderStreams(streamsArr);
+        return (
+            pickAutoplayCandidate(streamsArr) ||
+            ordered.find((s) => streamMode(s) === 'direct') ||
+            ordered.find((s) => streamMode(s) === 'torrent') ||
+            null
+        );
     };
 
     const handleEpisodeClick = async (ep) => {

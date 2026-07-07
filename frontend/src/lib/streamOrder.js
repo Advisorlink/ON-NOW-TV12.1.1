@@ -5,7 +5,8 @@
  * Order (lowest score = highest priority):
  *   1. EasyNews++  (Usenet direct, usually instant first-frame)
  *   2. Torrentio   (debrid-cached when available)
- *   3. Everything else
+ *   3. EP-STREM / Plexio (premium direct)
+ *   4. Everything else
  *
  * Within each addon source we further prefer:
  *   - 1080p > others (4K demoted; oversized for the user's bandwidth)
@@ -20,9 +21,6 @@
  * Critical so the in-player Stream Picker shows the SAME cascade on
  * every title (movies + episodes), and so the 10-second buffer
  * watchdog walks streams in this priority order when one stalls.
- *
- * v2.13.23 — Removed EP-STREM / Plexio tier.  User no longer has the
- * addon installed and asked for it to be stripped from the cascade.
  */
 import { is1080p, is4K, isAV1 } from '@/lib/streamMeta';
 
@@ -35,6 +33,11 @@ export const isEasyNews = (s) =>
 
 export const isTorrentio = (s) =>
     /torrentio/i.test(`${s?._addon_id || ''} ${s?._addon_name || ''}`);
+
+export const isEpStrem = (s) =>
+    /plexio|ep[\s-]?strem/i.test(
+        `${s?._addon_id || ''} ${s?._addon_name || ''} ${s?.name || ''}`
+    );
 
 const streamMode = (s) => {
     if (s?.url) return 'direct';
@@ -64,13 +67,14 @@ function scoreStream(s) {
     // v2.13.11 — uncached debrid "download" links go to the very
     // bottom of every list (×1000 dominates all other weights).
     const dl     = isUncachedDownload(s) ? 1 : 0;
-    // Addon source dominates: 0 = EasyNews++, 1 = Torrentio,
-    // 2 = anything else.  ×100 weight so source ranking can't be
-    // swamped by a 1080p hit on an inferior addon.
+    // Addon source dominates: 0 = EasyNews++, 1 = Torrentio, 2 = EP-STREM/Plexio,
+    // 3 = anything else.  ×100 weight so source ranking can't be swamped by
+    // a 1080p hit on an inferior addon.
     const src =
         isEasyNews(s)   ? 0 :
         isTorrentio(s)  ? 1 :
-        2;
+        isEpStrem(s)    ? 2 :
+        3;
     return dl * 1000 + src * 100 + ten * 20 + four * 50 + av1 * 50 + dir * 4 + strict * 2 + eng + sized * 10;
 }
 
@@ -88,50 +92,39 @@ export function orderStreams(streams) {
 
 /**
  * Pick the best autoplay candidate for a single movie / episode.
- *
- * v2.13.24 — User spec update: sweet spot is 2-4 GB (was 1-3), and
- * within that band prefer the LOWEST-size link.  Smaller files hit
- * first frame sooner on debrid because there's less container to
- * seek past.  Source order (EasyNews++ → Torrentio → any) still
- * dominates — size is only the tiebreaker WITHIN a source tier.
- *
- * v2.13.23 — Removed EP-STREM / Plexio tier (user no longer has the
- * addon installed).
- *
- * Cascade (each tier size-clamped to 2.0-4.0 GB, tie-broken by
- * SMALLEST size first):
- *   T1  EasyNews++ 1080p
- *   T2  Torrentio  1080p, English, NOT uncached
- *   T3  any addon  1080p, English
- *   T4  null  (picker stays open)
- *
- * Uncached debrid links, 4K, and AV1 encodes are excluded up-front
- * — they either need a slow cloud unlock, exceed the box's decoder,
- * or blow past the sweet-spot size band anyway.
+ * Tiered cascade matching the v2.10.80 user-defined priority:
+ *   T1  EasyNews++  1080p English-strict direct
+ *   T2  EasyNews++  any  1080p
+ *   T3  Torrentio   1080p direct, English-strict, ≤ 3 GB
+ *   T4  EP-STREM / Plexio direct, English
+ *   T5  any addon  1080p strict English ≤ 3 GB
+ *   T6  any        1080p English ≤ 3 GB
+ *   T7  null  (picker stays open)
  */
 export function pickAutoplayCandidate(streams) {
     if (!Array.isArray(streams) || streams.length === 0) return null;
     // v2.13.11 — NEVER autoplay an uncached debrid "download" link
     // (cloud transfer before playback = 30 s+ dead air).
     // v2.13.18 — nor an AV1 encode (no hardware decoder on the box).
-    const candidates = streams.filter((s) => !is4K(s) && !isAV1(s) && !isUncachedDownload(s));
-    const english = (s) => s?._is_english !== false;
-    // v2.13.24 — Sweet spot 2.0-4.0 GB.  Streams with no `_size_gb`
-    // tag are excluded so autoplay never fires an untagged monster.
-    const inBand = (s) =>
-        typeof s?._size_gb === 'number' && s._size_gb >= 2.0 && s._size_gb <= 4.0;
-    // Sort candidates by size ascending so a 2.1 GB copy always beats
-    // a 3.9 GB copy of the same title within any given source tier.
-    const bySmallest = [...candidates].sort((a, b) => {
-        const ga = typeof a?._size_gb === 'number' ? a._size_gb : Number.MAX_VALUE;
-        const gb = typeof b?._size_gb === 'number' ? b._size_gb : Number.MAX_VALUE;
-        return ga - gb;
-    });
+    const non4k    = streams.filter((s) => !is4K(s) && !isAV1(s) && !isUncachedDownload(s));
+    const strict   = (s) => s?._english_strict === true;
+    const english  = (s) => s?._is_english !== false;
+    const direct   = (s) => streamMode(s) === 'direct';
+    const underCap = (s) => typeof s?._size_gb !== 'number' || s._size_gb <= SIZE_CAP_GB;
 
     return (
-        bySmallest.find((s) => inBand(s) && isEasyNews(s) && is1080p(s)) ||
-        bySmallest.find((s) => inBand(s) && isTorrentio(s) && is1080p(s) && english(s)) ||
-        bySmallest.find((s) => inBand(s) && is1080p(s) && english(s)) ||
+        non4k.find((s) => isEasyNews(s) && is1080p(s) && direct(s) && strict(s)) ||
+        non4k.find((s) => isEasyNews(s) && is1080p(s) && direct(s) && english(s)) ||
+        non4k.find((s) => isEasyNews(s) && is1080p(s) && english(s)) ||
+        non4k.find((s) => isEasyNews(s) && is1080p(s)) ||
+        non4k.find((s) => isTorrentio(s) && direct(s) && is1080p(s) && strict(s) && underCap(s)) ||
+        non4k.find((s) => isTorrentio(s) && is1080p(s) && strict(s) && underCap(s)) ||
+        non4k.find((s) => isTorrentio(s) && is1080p(s) && english(s) && underCap(s)) ||
+        non4k.find((s) => isEpStrem(s) && direct(s) && english(s)) ||
+        non4k.find((s) => isEpStrem(s) && english(s)) ||
+        non4k.find((s) => direct(s) && is1080p(s) && strict(s) && underCap(s)) ||
+        non4k.find((s) => is1080p(s) && strict(s) && underCap(s)) ||
+        non4k.find((s) => is1080p(s) && english(s) && underCap(s)) ||
         null
     );
 }

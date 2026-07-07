@@ -443,84 +443,6 @@ def _is_english_stream(s: Dict[str, Any]) -> bool:
     return False
 
 
-# ─────────────────────────────────────────────────────────────────
-# 4K detection & strip (v2.13.22 / hardened v2.13.24)
-#
-# User spec: "just take 4K out of it directly so it doesn't even try
-# and search 4K at all — it shouldn't even be in the thing at all."
-# Rather than filter 4K at each client (frontend picker, native swap
-# picker, autoplay cascade), we strip 4K here — the SINGLE place
-# every client eventually reads from.  Zero addon reconfiguration
-# needed on the user's end.
-#
-# Detection mirrors /app/frontend/src/lib/streamMeta.js `is4K` so
-# both layers agree on what "4K" means.  v2.13.24 broadens the net
-# after the user reported 4K still leaking through on TV episodes:
-#   • Explicit tokens — 2160[p|i], 4K, 4k(bluray|uhd|web|dvd|remux),
-#     UHD, HEVC-2160p variants
-#   • HDR family — HDR, HDR10, HDR10+, HDR10P, DV, DoVi, Dolby
-#     Vision, IMAX Enhanced
-#   • Size ≥ 25 GB (always 4K)
-#   • Size ≥  5 GB without a 1080p tag (4K territory; was 6 GB — lowered
-#     to catch smaller HEVC 4K encodes that were slipping through)
-#   • Stream URL contains "2160" / "4k" / "uhd" (some addons only tag
-#     resolution in the filename embedded in the URL, not in title)
-#
-# Anything that matches is dropped from the aggregate response.
-# ─────────────────────────────────────────────────────────────────
-_RE_4K_HARD = re.compile(
-    r"\b("
-    r"2160p?i?|"                            # 2160, 2160p, 2160i
-    r"4k(bluray|uhd|web|dvd|remux|hdr)?|"   # 4K, 4KBluRay, 4KUHD, etc.
-    r"uhd"                                  # UHD (standalone token)
-    r")\b",
-    re.IGNORECASE,
-)
-_RE_HDR_FAMILY = re.compile(
-    r"\b("
-    r"hdr10\+?|hdr10p|hdr|"                 # HDR family
-    r"dolby[\s_.\-]?vision|dovi|dv|"        # DV/DoVi
-    r"imax[\s_.\-]?enhanced"                # IMAX Enhanced
-    r")\b",
-    re.IGNORECASE,
-)
-_RE_1080_TAG = re.compile(r"\b1080p?\b", re.IGNORECASE)
-# v2.13.24 — some URLs bake the resolution into a filename path
-# segment (e.g. `.../Movie.2024.2160p.WEB-DL.mkv`).  Sniff those too.
-_RE_URL_4K_HINT = re.compile(
-    r"[\W_](2160[pi]?|4k|uhd)[\W_]",
-    re.IGNORECASE,
-)
-
-
-def _is_4k_stream(s: Dict[str, Any]) -> bool:
-    """Python port of the strengthened frontend `is4K` detector."""
-    txt = _stream_haystack(s)
-    url = s.get("url", "") or s.get("externalUrl", "") or ""
-    combined = f"{txt} {url}"
-    if not combined.strip():
-        return False
-    if _RE_4K_HARD.search(combined):
-        return True
-    if _RE_HDR_FAMILY.search(combined):
-        return True
-    # URL-embedded hint (some addons only tag resolution in the URL).
-    if _RE_URL_4K_HINT.search(url):
-        return True
-    size_gb = _parse_size_gb(s)
-    if size_gb is not None:
-        if size_gb >= 25:
-            return True
-        if size_gb >= 5 and not _RE_1080_TAG.search(txt):
-            return True
-    return False
-
-
-def _strip_4k(streams: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Drop 4K / HDR / DV streams from the aggregate.  Idempotent."""
-    return [s for s in streams if isinstance(s, dict) and not _is_4k_stream(s)]
-
-
 def _filter_and_tag_english(streams: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Drop foreign-language streams and tag the rest with
     `_is_english: True` (broad — used to render a flag chip) AND
@@ -904,10 +826,7 @@ async def streams_aggregate(type_: str, item_id: str):
     if cached:
         # v2.7.33 — apply English filter even to cached payloads so
         # the rollout doesn't have to wait for cache expiry.
-        # v2.13.22 — same for the 4K strip: any cache entry captured
-        # before the 4K-strip landed still needs to be sanitised
-        # before it hits any client.
-        return {"cached": True, "streams": _strip_4k(_filter_and_tag_english(cached))}
+        return {"cached": True, "streams": _filter_and_tag_english(cached)}
 
     addons = await db.addons.find(
         {"user_id": DEFAULT_USER, "active": True}, {"_id": 0}
@@ -955,11 +874,6 @@ async def streams_aggregate(type_: str, item_id: str):
 
     # v2.7.33 — drop foreign-language streams + tag English ones.
     out = _filter_and_tag_english(out)
-    # v2.13.22 — strip 4K / HDR / DV entirely.  User spec: TV box
-    # can't real-time decode 2160p HEVC, so no client should ever see
-    # these as an option.  Applied AFTER the English filter so we
-    # don't waste cycles tagging streams we're about to drop.
-    out = _strip_4k(out)
 
     # v2.13.18 — never cache an aggregate with NO playable stream
     # (url/infoHash).  A single slow/failed Torrentio fetch used to
