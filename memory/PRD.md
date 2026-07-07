@@ -8288,3 +8288,28 @@ got 25 s and never auto-advance, but autoplay streams got only 10 s
 - yarn build compiled (pre-existing warnings only, none in changed
   files). Kotlin edit = numeric literal + comments (no kotlinc in pod).
 - USER: Save to GitHub → CI APK build → install → test movie autoplay.
+
+---
+
+## 2026-06 — Post-"working perfectly" polish (user confirmed autoplay fix!)
+
+User confirmed on TV box: "working perfectly... everything's playing
+fast" after first-link autoplay + 30 s watchdog. Then requested:
+
+1. **Logo back on loading screen** — ExoPlayerActivity.kt:
+   kickoffLogoFetch() restored to onCreate (v2.10.35 position);
+   removed the v2.13.19 deferred call at STATE_READY. Deferral was
+   chasing the wrong culprit (real one = 10 s watchdog).
+2. **EasyNews++ > 5 GB stripped** — server.py new
+   `_drop_oversized_easynews()` applied at BOTH aggregate paths
+   (cached + fresh). Only EASYNEWS-source streams dropped; unknown
+   size kept; other addons untouched. Unit-tested: PASS.
+3. **EasyNews++ top of picker / autoplay plays Easy++ first** —
+   already true: orderStreams src-weight ranks EASYNEWS 0th; Detail
+   picker renders orderedStreams; autoplay = ordered[0]. Node sim
+   verified EasyNews++ 1080p sorts above Torrentio 1080p. No change
+   needed.
+
+Verified: python syntax OK, backend restarted 200, unit test + node
+sim PASS, Kotlin braces balanced (paren delta = pre-existing baseline).
+USER: Save to GitHub → CI APK + backend deploy → verify logo + sizes.

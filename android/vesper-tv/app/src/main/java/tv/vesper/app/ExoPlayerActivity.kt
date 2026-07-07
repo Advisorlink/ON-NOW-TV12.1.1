@@ -564,16 +564,14 @@ class ExoPlayerActivity : ComponentActivity() {
         // instead of staying stuck on "S1 · E5".
         publishPlayerInfo()
 
-        // v2.13.19 — kickoffLogoFetch DELAYED from onCreate to
-        // AFTER STATE_READY.  Vesper was the only app firing an
-        // /api/tmdb/logo/... GET at the exact moment ExoPlayer was
-        // opening its stream socket — Kids doesn't do this and Kids
-        // plays.  On slower TV boxes the extra concurrent HTTP
-        // handshake / DNS resolution can starve ExoPlayer's own
-        // initial buffer.  The logo is a nicety (renders above the
-        // title in the dock) and can appear a second or two later
-        // without any UX impact.  See onPlaybackStateChanged for
-        // where it now fires.
+        // v2.10.35 (RESTORED) — Kick off the TMDB title-logo fetch as
+        // soon as we know the cwId so the logo shows on the LOADING
+        // SCREEN, not just after the first frame.  The v2.13.19
+        // deferral suspected this GET of starving ExoPlayer's initial
+        // buffer, but the real stall culprit was the 10 s autoplay
+        // watchdog (now 30 s).  User asked for the logo back once
+        // playback was confirmed perfect.  Runs off-thread; non-fatal.
+        kickoffLogoFetch()
 
         // v2.7.74 — Live TV awareness.  When EXTRA_TYPE == "live" we
         // wire a LiveGuideManager so the user can slide in the
@@ -876,14 +874,6 @@ class ExoPlayerActivity : ComponentActivity() {
                     // user sees the new frame and dock.
                     if (isSwappingEpisodeFlow.value) {
                         isSwappingEpisodeFlow.value = false
-                    }
-                    // v2.13.19 — Deferred logo fetch: only after
-                    // playback is confirmed healthy do we make the
-                    // extra TMDB HTTP call.  Prevents socket / DNS
-                    // contention with ExoPlayer's initial buffer
-                    // load on slow TV boxes.
-                    if (logoUrlFlow.value.isBlank()) {
-                        kickoffLogoFetch()
                     }
                 }
             }
