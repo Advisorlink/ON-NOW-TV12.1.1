@@ -8331,3 +8331,17 @@ the lightest copy.
   watchhub]; yarn build compiled.
 - Applies everywhere orderStreams is used: Detail picker, episodes
   picker, native in-player swap list, autoplay first-link.
+
+---
+
+## 2026-06 — EasyNews++ size BANDS per content type
+
+User spec: EasyNews++ minimum sizes so smallest-first autoplay never
+grabs tiny junk encodes.
+- Movies:   1 GB – 5 GB
+- Episodes: 500 MB – 5 GB
+- server.py: `_drop_oversized_easynews` → `_size_band_easynews(streams,
+  type_)` applied at both aggregate paths (cached + fresh). EASYNEWS
+  source only; unknown size kept; other addons untouched.
+- Unit-tested PASS (movie band, series band, torrentio small kept);
+  backend restarted 200.

@@ -443,14 +443,19 @@ def _is_english_stream(s: Dict[str, Any]) -> bool:
     return False
 
 
-def _drop_oversized_easynews(streams: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """USER SPEC — EasyNews++ links over 5 GB never reach any client
-    (no "big high numbers" in the stream picker).  Size unknown → keep."""
+def _size_band_easynews(streams: List[Dict[str, Any]], type_: str) -> List[Dict[str, Any]]:
+    """USER SPEC — EasyNews++ links must sit inside a size band before
+    they reach any client:
+      • movies:   1 GB  – 5 GB
+      • episodes: 500 MB – 5 GB
+    Keeps tiny junk encodes away from smallest-first autoplay and big
+    "high numbers" out of the picker.  Size unknown → keep."""
+    min_gb = 1.0 if type_ == "movie" else 500.0 / 1024.0
     out = []
     for s in streams:
         if isinstance(s, dict) and s.get("_addon_source") == "EASYNEWS":
             gb = s.get("_size_gb")
-            if isinstance(gb, (int, float)) and gb > 5.0:
+            if isinstance(gb, (int, float)) and (gb > 5.0 or gb < min_gb):
                 continue
         out.append(s)
     return out
@@ -839,7 +844,7 @@ async def streams_aggregate(type_: str, item_id: str):
     if cached:
         # v2.7.33 — apply English filter even to cached payloads so
         # the rollout doesn't have to wait for cache expiry.
-        return {"cached": True, "streams": _drop_oversized_easynews(_filter_and_tag_english(cached))}
+        return {"cached": True, "streams": _size_band_easynews(_filter_and_tag_english(cached), type_)}
 
     addons = await db.addons.find(
         {"user_id": DEFAULT_USER, "active": True}, {"_id": 0}
@@ -887,8 +892,8 @@ async def streams_aggregate(type_: str, item_id: str):
 
     # v2.7.33 — drop foreign-language streams + tag English ones.
     out = _filter_and_tag_english(out)
-    # USER SPEC — EasyNews++ links over 5 GB never reach any client.
-    out = _drop_oversized_easynews(out)
+    # USER SPEC — EasyNews++ size band (movies 1-5 GB, episodes 0.5-5 GB).
+    out = _size_band_easynews(out, type_)
 
     # v2.13.18 — never cache an aggregate with NO playable stream
     # (url/infoHash).  A single slow/failed Torrentio fetch used to
