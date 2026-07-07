@@ -81,13 +81,27 @@ function scoreStream(s) {
 /**
  * Returns a NEW array with the streams sorted in cascade priority.
  * Input is returned as-is when null / empty / not an array.
+ *
+ * USER SPEC — the EasyNews++ block leads the list sorted by file
+ * size ASCENDING (400 MB → 1 GB → … → 5 GB) so autoplay, which
+ * plays the FIRST link, always grabs the lightest EasyNews++ copy.
+ * Unknown-size EasyNews links sort after sized ones, tie-broken by
+ * quality score.  Everything else keeps the score-based cascade.
  */
 export function orderStreams(streams) {
     if (!Array.isArray(streams) || streams.length === 0) return streams;
-    return [...streams]
-        .map((s, i) => ({ s, i, key: scoreStream(s) }))
-        .sort((a, b) => a.key - b.key || a.i - b.i)
-        .map((x) => x.s);
+    const easy = [];
+    const rest = [];
+    streams.forEach((s, i) =>
+        (isEasyNews(s) ? easy : rest).push({ s, i, key: scoreStream(s) })
+    );
+    easy.sort((a, b) => {
+        const ga = typeof a.s?._size_gb === 'number' ? a.s._size_gb : Number.MAX_VALUE;
+        const gb = typeof b.s?._size_gb === 'number' ? b.s._size_gb : Number.MAX_VALUE;
+        return ga - gb || a.key - b.key || a.i - b.i;
+    });
+    rest.sort((a, b) => a.key - b.key || a.i - b.i);
+    return [...easy, ...rest].map((x) => x.s);
 }
 
 /**

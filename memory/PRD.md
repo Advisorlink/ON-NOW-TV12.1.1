@@ -8313,3 +8313,21 @@ fast" after first-link autoplay + 30 s watchdog. Then requested:
 Verified: python syntax OK, backend restarted 200, unit test + node
 sim PASS, Kotlin braces balanced (paren delta = pre-existing baseline).
 USER: Save to GitHub → CI APK + backend deploy → verify logo + sizes.
+
+---
+
+## 2026-06 — EasyNews++ block sorted smallest-file-first
+
+User spec: EasyNews++ section starts with the LOWEST size on top
+(400 MB → 1 GB → … → 5 GB) so autoplay (= first link) always plays
+the lightest copy.
+
+- streamOrder.js `orderStreams`: EasyNews++ streams partitioned to
+  the FRONT of the list, sorted by `_size_gb` ASC (unknown size →
+  after sized ones, tie-break by quality score).  Non-EasyNews keeps
+  the score cascade.  Guarantees Easy++ block always tops the picker.
+- Backend `_parse_size_gb` confirmed MB-aware (400 MB → 0.39).
+- Node sim PASS: [e/400MB, e/1.2GB, e/4.8GB, e/unknown, torrentio,
+  watchhub]; yarn build compiled.
+- Applies everywhere orderStreams is used: Detail picker, episodes
+  picker, native in-player swap list, autoplay first-link.
