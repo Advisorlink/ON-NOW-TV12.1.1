@@ -92,38 +92,40 @@ export function orderStreams(streams) {
 
 /**
  * Pick the best autoplay candidate for a single movie / episode.
- * Tiered cascade matching the v2.10.80 user-defined priority:
- *   T1  EasyNews++  1080p English-strict direct
- *   T2  EasyNews++  any  1080p
- *   T3  Torrentio   1080p direct, English-strict, ≤ 3 GB
- *   T4  EP-STREM / Plexio direct, English
- *   T5  any addon  1080p strict English ≤ 3 GB
- *   T6  any        1080p English ≤ 3 GB
- *   T7  null  (picker stays open)
+ *
+ * RESTORED to the v2.7.37 / 11-Jun-2026 rollback-day tiers (the
+ * state the user signed off as "selecting everything properly",
+ * BEFORE any EasyNews++ special-casing existed):
+ *   1. EP-STREM / Plexio direct link (premium addon)
+ *   2. Torrentio ≤ 3 GB, strict English, 1080p (direct preferred)
+ *   3. Any addon, strict English, 1080p, ≤ 3 GB
+ *   4. Any English 1080p ≤ 3 GB (last resort)
+ *   5. null → user sees the picker
  */
 export function pickAutoplayCandidate(streams) {
     if (!Array.isArray(streams) || streams.length === 0) return null;
-    // v2.13.11 — NEVER autoplay an uncached debrid "download" link
-    // (cloud transfer before playback = 30 s+ dead air).
-    // v2.13.18 — nor an AV1 encode (no hardware decoder on the box).
-    const non4k    = streams.filter((s) => !is4K(s) && !isAV1(s) && !isUncachedDownload(s));
-    const strict   = (s) => s?._english_strict === true;
-    const english  = (s) => s?._is_english !== false;
-    const direct   = (s) => streamMode(s) === 'direct';
-    const underCap = (s) => typeof s?._size_gb !== 'number' || s._size_gb <= SIZE_CAP_GB;
+    const non4k   = streams.filter((s) => !is4K(s));
+    const strict  = (s) => s?._english_strict === true;
+    const english = (s) => s?._is_english !== false;
+    const direct  = (s) => streamMode(s) === 'direct';
+    // Size guard — null size = unknown; we ALLOW unknowns through
+    // (rare for Torrentio, common for direct CDN addons that don't
+    // expose filesize).
+    const underCap = (s) =>
+        typeof s?._size_gb !== 'number' || s._size_gb <= SIZE_CAP_GB;
 
     return (
-        non4k.find((s) => isEasyNews(s) && is1080p(s) && direct(s) && strict(s)) ||
-        non4k.find((s) => isEasyNews(s) && is1080p(s) && direct(s) && english(s)) ||
-        non4k.find((s) => isEasyNews(s) && is1080p(s) && english(s)) ||
-        non4k.find((s) => isEasyNews(s) && is1080p(s)) ||
+        // Tier 1 — EP-STREM (Plexio) direct, English
+        non4k.find((s) => isEpStrem(s) && direct(s) && english(s)) ||
+        non4k.find((s) => isEpStrem(s) && english(s)) ||
+        // Tier 2 — Torrentio under 3 GB, strict English, 1080p direct
         non4k.find((s) => isTorrentio(s) && direct(s) && is1080p(s) && strict(s) && underCap(s)) ||
         non4k.find((s) => isTorrentio(s) && is1080p(s) && strict(s) && underCap(s)) ||
         non4k.find((s) => isTorrentio(s) && is1080p(s) && english(s) && underCap(s)) ||
-        non4k.find((s) => isEpStrem(s) && direct(s) && english(s)) ||
-        non4k.find((s) => isEpStrem(s) && english(s)) ||
+        // Tier 3 — any addon, strict English, 1080p, under cap
         non4k.find((s) => direct(s) && is1080p(s) && strict(s) && underCap(s)) ||
         non4k.find((s) => is1080p(s) && strict(s) && underCap(s)) ||
+        // Tier 4 — any English 1080p under cap (multi-lang ok)
         non4k.find((s) => is1080p(s) && english(s) && underCap(s)) ||
         null
     );

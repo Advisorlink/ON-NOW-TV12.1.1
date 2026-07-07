@@ -11,8 +11,8 @@ import {
 } from 'lucide-react';
 import { Vesper } from '@/lib/api';
 import Host from '@/lib/host';
-import { qualityBadge, qualityTags, toneColors } from '@/lib/streamMeta';
-import { orderStreams, pickAutoplayCandidate, isEasyNews } from '@/lib/streamOrder';
+import { qualityBadge, qualityTags, toneColors, is1080p } from '@/lib/streamMeta';
+import { orderStreams, isEasyNews } from '@/lib/streamOrder';
 import StreamPickerModal from '@/components/StreamPickerModal';
 import { getAutoplay1080p } from '@/lib/prefs';
 import * as cw from '@/lib/continueWatching';
@@ -378,19 +378,18 @@ export default function SeriesEpisodes({
     // 2nd row was the bug we just removed.  See `data-testid=
     // "season-picker"` style block below for the layout change.
 
-    /* v2.13.6 — Autoplay uses the SAME tiered cascade as movies
-       (shared /lib/streamOrder.js: EasyNews++ 1080p → Torrentio
-       debrid ≤3 GB → EP-STREM/Plexio → any English 1080p).  The
-       fallback walks the ORDERED list and only ever picks something
-       PLAYABLE — never a WatchHub "external" web link, which is what
-       used to silently open nothing and made TV autoplay look dead. */
+    /* RESTORED to the 11-Jun-2026 rollback-day episode picker.
+       User spec: any stream that even mentions "1080" anywhere in
+       the title/name/description counts as 1080p autoplay.  Prefer
+       direct-mode streams, then fall back to any 1080; null drops
+       the autoplay overlay and reveals the manual picker. */
     const pickBestPlayable = (streamsArr) => {
         if (!Array.isArray(streamsArr) || streamsArr.length === 0) return null;
-        const ordered = orderStreams(streamsArr);
         return (
-            pickAutoplayCandidate(streamsArr) ||
-            ordered.find((s) => streamMode(s) === 'direct') ||
-            ordered.find((s) => streamMode(s) === 'torrent') ||
+            streamsArr.find(
+                (s) => streamMode(s) === 'direct' && is1080p(s)
+            ) ||
+            streamsArr.find((s) => is1080p(s)) ||
             null
         );
     };

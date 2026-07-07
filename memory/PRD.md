@@ -8232,3 +8232,33 @@ cascade, strict is4K, backend `_strip_4k`).
   change matters: onnowhub.com must drop the 4K strip too) → test on box.
 
 ### DO NOT touch stream picking logic again unless user explicitly asks.
+
+---
+
+## 2026-06 (later same session) — Autoplay picking restored to the
+## 11-Jun-2026 ROLLBACK-DAY logic (pre-EasyNews++), per user request
+
+User: "go back to the last time we rolled back and just use the
+autoplay from then." Last rollback = 11 Jun 2026 (v2.10.46, restored
+to 4 Jun state, user confirmed working). EasyNews++ picker handling
+didn't exist until ~Jun 27, so rollback-day autoplay had NO EasyNews
+special-casing.
+
+### Changes (surgical port — July-4 file structure otherwise kept)
+- streamOrder.js `pickAutoplayCandidate` → exact v2.7.37/Jun-11 tiers:
+  T1 EP-STREM direct English → T2 Torrentio ≤3GB strict-Eng 1080p →
+  T3 any addon strict-Eng 1080p ≤3GB → T4 any Eng 1080p ≤3GB → null.
+  No EasyNews tiers, no AV1/uncached exclusion, unknown size allowed.
+- SeriesEpisodes.jsx `pickBestPlayable` → Jun-11 episode picker:
+  first direct 1080p → any 1080p → null (picker opens).
+  Removed now-unused pickAutoplayCandidate import; added is1080p.
+- `orderStreams` (display/cascade order for native player) and
+  `is4K`/`streamMeta` untouched — verified is4K identical Jun 11 vs now.
+- Backend stays at July-4 state (no 4K strip; reverted earlier today).
+
+### Verification
+- node sim on mocked streams: EP-STREM tier-1 wins; Torrentio ≤3GB
+  strict 1080p beats EasyNews (correct Jun-11 semantics — EasyNews only
+  qualifies at "any addon" tier); only-4K → null; unknown size allowed.
+- yarn build compiled (only pre-existing warnings); login page loads.
+- USER: Save to GitHub → CI APK + backend deploy → test on TV box.
