@@ -8356,3 +8356,39 @@ User realized 500 MB–1 GB EasyNews++ files are 720p "HD" only.
   (first link) = lightest 1080p EasyNews++ copy.
 - Node sim PASS: [1080p 1.4GB, 1080p 3.5GB, 720p 600MB, 720p 900MB,
   torrentio]; build compiled.
+
+---
+
+## 2026-06 — V2AI "Microphone unavailable" FIXED (native mic bridge)
+
+Root cause: WebView getUserMedia is not wired to the audio HAL on
+many AOSP TV boxes, so V2AI's web capture reported "Microphone
+unavailable on this device" even after RECORD_AUDIO was granted —
+while Watch Together's NATIVE MediaRecorder worked fine on the same
+box.
+
+### Fix
+- WebAppInterface.kt: new bridge — v2aiStartMic / v2aiStopMic /
+  v2aiCancelMic. Records with the exact PartyVoiceManager profile
+  (MPEG_4/AAC, 24 kHz, 48 kbps mono). Audio returns to JS as base64
+  via window.__v2aiNativeAudio(b64,'m4a'); failures via
+  window.__v2aiNativeMicError('permission'|'tooshort'|'unavailable').
+  Missing permission → fires runtime prompt (request code 9204).
+- V2AI.jsx: automatic fallback — if getUserMedia/MediaRecorder is
+  missing OR web capture throws, startNativeRecording() drives the
+  bridge. Hold-OK/release flow preserved; base64 → Blob →
+  /api/v2ai/process. Live partial transcripts skipped in native mode
+  (final Whisper pass unchanged). New refs: nativeRecRef.
+- Gotcha fixed during work: an earlier edit corrupted the file tail
+  (duplicate JSX) and dropped the stopRecording native branch —
+  re-applied and verified.
+
+### Verification (Playwright, real browser, mocked OnNowTV bridge +
+### mediaDevices disabled)
+- login testuser/testpass123 → profile → /v2ai (in-app pushState;
+  profile gate re-arms on full reloads — use popstate navigation)
+- keydown → v2aiStartMic called, "Listening…" shown ✅
+- keyup → v2aiStopMic called, audio callback processed, tiny clip
+  correctly shows "Hold OK longer to speak" ✅ — NO "unavailable"
+- yarn build compiled; Kotlin braces balanced.
+- REAL audio capture needs the box: Save to GitHub → CI APK → test.

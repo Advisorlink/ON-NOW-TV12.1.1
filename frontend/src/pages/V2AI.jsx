@@ -199,6 +199,9 @@ export default function V2AI() {
     const partialBusyRef = useRef(false);
     const partialSeqRef = useRef(0);
     const lastShownSeqRef = useRef(0);
+    // Native Android mic fallback active (WebView getUserMedia not
+    // wired on this box — see startNativeRecording below).
+    const nativeRecRef = useRef(false);
 
     const cleanupRecorder = () => {
         try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch { /* */ }
@@ -344,6 +347,80 @@ export default function V2AI() {
         );
     }, []);
 
+    /* ─────────── native mic bridge fallback (Android TV) ───────────
+       Many TV boxes never wire WebView getUserMedia to the audio HAL,
+       so web capture reports "unavailable" even with the permission
+       granted.  The Android shell exposes the SAME native recorder
+       Watch Together voice uses; audio arrives back as base64 m4a.
+       Live partial transcripts are skipped in this mode — the final
+       Whisper pass still runs on the full clip. */
+    const stopNativeRecording = useCallback(() => {
+        if (!nativeRecRef.current) return;
+        nativeRecRef.current = false;
+        try { window.OnNowTV?.v2aiStopMic?.(); } catch { /* */ }
+    }, []);
+
+    const startNativeRecording = useCallback(() => {
+        const bridge = window.OnNowTV;
+        if (!bridge || typeof bridge.v2aiStartMic !== 'function') return false;
+        try { bridge.v2aiStartMic(); } catch { return false; }
+        nativeRecRef.current = true;
+        setLiveText('');
+        startedAtRef.current = Date.now();
+        setPhase('recording');
+        setStatus('Listening…');
+        setHeading('Speaking…');
+        maxTimerRef.current = setTimeout(() => stopNativeRecording(), MAX_RECORD_MS);
+        if (keyUpPendingRef.current) {
+            keyUpPendingRef.current = false;
+            setTimeout(() => stopNativeRecording(), 900);
+        }
+        return true;
+    }, [stopNativeRecording]);
+
+    useEffect(() => {
+        window.__v2aiNativeAudio = (b64, ext) => {
+            if (maxTimerRef.current) { clearTimeout(maxTimerRef.current); maxTimerRef.current = null; }
+            nativeRecRef.current = false;
+            const elapsed = Date.now() - startedAtRef.current;
+            let blob = null;
+            try {
+                const bin = atob(b64 || '');
+                const bytes = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+                blob = new Blob([bytes], { type: 'audio/mp4' });
+            } catch { blob = null; }
+            if (!blob || elapsed < MIN_RECORD_MS || blob.size < 800) {
+                setPhase('idle');
+                setHeading(standbyHintRef.current);
+                setStatus('Hold OK longer to speak');
+                return;
+            }
+            submitAudio(blob, ext || 'm4a');
+        };
+        window.__v2aiNativeMicError = (kind) => {
+            if (maxTimerRef.current) { clearTimeout(maxTimerRef.current); maxTimerRef.current = null; }
+            nativeRecRef.current = false;
+            setPhase('idle');
+            setHeading(standbyHintRef.current);
+            setStatus(
+                kind === 'permission'
+                    ? 'Mic permission needed — allow the microphone, then hold OK again.'
+                    : kind === 'tooshort'
+                        ? 'Hold OK longer to speak'
+                        : 'Microphone unavailable on this device.',
+            );
+        };
+        return () => {
+            delete window.__v2aiNativeAudio;
+            delete window.__v2aiNativeMicError;
+            if (nativeRecRef.current) {
+                nativeRecRef.current = false;
+                try { window.OnNowTV?.v2aiCancelMic?.(); } catch { /* */ }
+            }
+        };
+    }, [submitAudio]);
+
     /* Live transcript: every ~1 s while recording, send the audio
        accumulated SO FAR to Whisper and paint the partial text on
        screen — same feel as the Google box's live captions.  The
@@ -376,6 +453,7 @@ export default function V2AI() {
     const startRecording = useCallback(async () => {
         if (recorderRef.current || phaseRef.current !== 'idle') return;
         if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+            if (startNativeRecording()) return;
             micUnavailable(null);
             return;
         }
@@ -432,12 +510,21 @@ export default function V2AI() {
             }
         } catch (err) {
             cleanupRecorder();
+            // Web capture failed at runtime (NotFoundError /
+            // NotReadableError on TV boxes) — try the native bridge
+            // before declaring the mic unavailable.
+            if (startNativeRecording()) return;
             micUnavailable(err);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [submitAudio, micUnavailable, transcribePartial]);
+    }, [submitAudio, micUnavailable, transcribePartial, startNativeRecording]);
 
     const stopRecording = () => {
+        if (nativeRecRef.current) {
+            if (maxTimerRef.current) { clearTimeout(maxTimerRef.current); maxTimerRef.current = null; }
+            stopNativeRecording();
+            return;
+        }
         if (!recorderRef.current) return;
         try { recorderRef.current.requestData?.(); } catch { /* */ }
         try { recorderRef.current.stop(); } catch { /* */ }
@@ -459,7 +546,7 @@ export default function V2AI() {
             if (!OK_KEYS.includes(e.key)) return;
             if (result) return;
             e.preventDefault();
-            if (!recorderRef.current) { keyUpPendingRef.current = true; return; }
+            if (!recorderRef.current && !nativeRecRef.current) { keyUpPendingRef.current = true; return; }
             stopRecording();
         };
         window.addEventListener('keydown', down, true);

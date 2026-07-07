@@ -1223,6 +1223,104 @@ class WebAppInterface(private val activity: Activity) {
      * it hits image CDNs, not stream hosts.)
      */
 
+    /* ─────────── V2AI native mic fallback ───────────
+     * Many AOSP TV boxes never wire the WebView's getUserMedia to
+     * the audio HAL, so web capture reports "unavailable" even after
+     * the RECORD_AUDIO permission is granted.  This bridge records
+     * with the SAME native MediaRecorder profile Watch Together
+     * voice already uses successfully on these boxes.  Flow:
+     *   JS  OnNowTV.v2aiStartMic()  → recording starts
+     *   JS  OnNowTV.v2aiStopMic()   → window.__v2aiNativeAudio(b64,'m4a')
+     *   any failure                 → window.__v2aiNativeMicError(kind)
+     */
+    private var v2aiRecorder: android.media.MediaRecorder? = null
+    private var v2aiFile: java.io.File? = null
+
+    private fun v2aiNotify(js: String) {
+        val mainAct = activity as? MainActivity ?: return
+        mainAct.runOnUiThread { mainAct.webViewOrNull()?.evaluateJavascript(js, null) }
+    }
+
+    private fun v2aiCleanup() {
+        try { v2aiRecorder?.stop() } catch (_: Exception) {}
+        try { v2aiRecorder?.release() } catch (_: Exception) {}
+        v2aiRecorder = null
+        try { v2aiFile?.delete() } catch (_: Exception) {}
+        v2aiFile = null
+    }
+
+    @JavascriptInterface
+    fun v2aiStartMic() {
+        val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+            activity, android.Manifest.permission.RECORD_AUDIO
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (!granted) {
+            activity.runOnUiThread {
+                try {
+                    if (android.os.Build.VERSION.SDK_INT >= 23) {
+                        activity.requestPermissions(
+                            arrayOf(android.Manifest.permission.RECORD_AUDIO), 9204
+                        )
+                    }
+                } catch (_: Throwable) { /* some TV builds have no permission UI */ }
+            }
+            v2aiNotify("window.__v2aiNativeMicError && window.__v2aiNativeMicError('permission')")
+            return
+        }
+        try {
+            v2aiCleanup()
+            val outFile = java.io.File.createTempFile("v2ai-", ".m4a", activity.cacheDir)
+            val rec = if (android.os.Build.VERSION.SDK_INT >= 31) {
+                android.media.MediaRecorder(activity)
+            } else {
+                @Suppress("DEPRECATION") android.media.MediaRecorder()
+            }
+            rec.setAudioSource(android.media.MediaRecorder.AudioSource.MIC)
+            rec.setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4)
+            rec.setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC)
+            // Same voice profile Watch Together uses — Whisper is
+            // trained on 16 kHz+ audio; 24 kHz / 48 kbps mono AAC.
+            rec.setAudioSamplingRate(24000)
+            rec.setAudioChannels(1)
+            rec.setAudioEncodingBitRate(48_000)
+            rec.setOutputFile(outFile.absolutePath)
+            rec.prepare()
+            rec.start()
+            v2aiRecorder = rec
+            v2aiFile = outFile
+        } catch (e: Exception) {
+            android.util.Log.w("V2AIMic", "native mic start failed", e)
+            v2aiCleanup()
+            val kind = if ((e.message ?: "").contains("permission", true)) "permission" else "unavailable"
+            v2aiNotify("window.__v2aiNativeMicError && window.__v2aiNativeMicError('$kind')")
+        }
+    }
+
+    @JavascriptInterface
+    fun v2aiStopMic() {
+        val rec = v2aiRecorder ?: return
+        val file = v2aiFile
+        v2aiRecorder = null
+        v2aiFile = null
+        Thread {
+            try { rec.stop() } catch (_: Exception) {}
+            try { rec.release() } catch (_: Exception) {}
+            val bytes = try { file?.readBytes() } catch (_: Exception) { null }
+            try { file?.delete() } catch (_: Exception) {}
+            if (bytes == null || bytes.size < 800) {
+                v2aiNotify("window.__v2aiNativeMicError && window.__v2aiNativeMicError('tooshort')")
+            } else {
+                val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                v2aiNotify("window.__v2aiNativeAudio && window.__v2aiNativeAudio('$b64','m4a')")
+            }
+        }.start()
+    }
+
+    @JavascriptInterface
+    fun v2aiCancelMic() {
+        v2aiCleanup()
+    }
+
     private fun escapeJsString(s: String): String =
         s.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
 }
