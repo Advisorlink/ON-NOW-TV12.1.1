@@ -8262,3 +8262,29 @@ special-casing.
   qualifies at "any addon" tier); only-4K → null; unknown size allowed.
 - yarn build compiled (only pre-existing warnings); login page loads.
 - USER: Save to GitHub → CI APK + backend deploy → test on TV box.
+
+---
+
+## 2026-06 — Movie autoplay = FIRST link in list + 30 s patience
+
+User: movies play fine when clicking a link manually, but AUTOPLAY
+doesn't play. Root cause found in ExoPlayerActivity.kt: manual picks
+got 25 s and never auto-advance, but autoplay streams got only 10 s
+(BUFFER_STALL_TIMEOUT_MS) before silently hopping to another link —
+"giving up too soon", exactly as user suspected.
+
+### Changes
+- Detail.jsx `autoplayCandidate` (movies): now simply
+  `orderStreams(streams)[0]` — literally the first link shown in the
+  list, no tier searching. Removed unused imports
+  (pickAutoplayCandidate/isTorrentio/isEpStrem) + stale cascade comment.
+- ExoPlayerActivity.kt `BUFFER_STALL_TIMEOUT_MS` 10_000 → 30_000 —
+  autoplay now waits a full 30 s for first frame before walking to
+  the next link (user spec: "wait at least 20-30 seconds").
+- Episodes (SeriesEpisodes pickBestPlayable) untouched — user said
+  those are fine; 30 s watchdog benefits them too (native side).
+
+### Verification
+- yarn build compiled (pre-existing warnings only, none in changed
+  files). Kotlin edit = numeric literal + comments (no kotlinc in pod).
+- USER: Save to GitHub → CI APK build → install → test movie autoplay.

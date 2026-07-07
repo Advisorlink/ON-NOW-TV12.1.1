@@ -389,11 +389,12 @@ class ExoPlayerActivity : ComponentActivity() {
     // stream.
     private var bufferStallJob: Job? = null
     private var firstReadyReachedForCurrentStream: Boolean = false
-    // v2.13.19 — 8s → 10s: revert v2.13.11.  The 8-second window was
-    // firing on the exact same debrid URLs Kids (10 s) plays without
-    // issue.  Two extra seconds of head-room lets a slow CDN handshake
-    // / TCP slow-start actually deliver the first buffered frame.
-    private val BUFFER_STALL_TIMEOUT_MS = 10_000L
+    // USER SPEC — "it's giving up too quickly … wait at least 20-30
+    // seconds before playing a different link."  10 s was hopping away
+    // from slow-but-working links that a manual pick (25 s window)
+    // played fine, which made autoplay look dead while manual clicks
+    // worked.  Autoplay now gets a full 30 s to first frame.
+    private val BUFFER_STALL_TIMEOUT_MS = 30_000L
     // v2.13.8 — Explicit user picks get a LONGER stall window: a deep
     // resume-position seek into a fresh HTTP stream (MKV cues at the
     // tail, slow debrid CDNs) can easily take >10 s to first frame.
@@ -926,7 +927,7 @@ class ExoPlayerActivity : ComponentActivity() {
         player.playWhenReady = true
         // v2.10.80 — Arm the buffer-stall watchdog so a stream URL
         // that never produces a first frame gets auto-replaced after
-        // 10 s with the next candidate from the cascade-ordered
+        // 30 s with the next candidate from the cascade-ordered
         // streams list.  Only useful when altStreams.size > 1.
         if (altStreams.size > 1) {
             armBufferStallWatchdog()

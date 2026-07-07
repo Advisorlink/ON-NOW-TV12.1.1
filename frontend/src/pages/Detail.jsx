@@ -24,7 +24,7 @@ import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { API, Vesper } from '@/lib/api';
 import { qualityBadge, qualityTags, toneColors, is1080p, is4K } from '@/lib/streamMeta';
-import { orderStreams, pickAutoplayCandidate as pickCascadeCandidate, isEasyNews, isTorrentio, isEpStrem, isUncachedDownload } from '@/lib/streamOrder';
+import { orderStreams, isEasyNews, isUncachedDownload } from '@/lib/streamOrder';
 import { getAutoplay1080p, setAutoplay1080p } from '@/lib/prefs';
 import { isKidsActive, getActiveProfile, isRatingAllowed, getKidsConfig } from '@/lib/profiles';
 import { avatarEmojiById } from '@/lib/avatars';
@@ -937,32 +937,18 @@ export default function Detail() {
     // first request goes straight to the CDN.
 
     // Pick the best 1080p candidate from the resolved streams list.
-    // We prefer direct mode + explicit 1080p label, but will fall back
-    // to anything that even mentions "1080" — UNLESS it's 4K-labelled
-    // (some Plex titles tag both "1080" and "4K" in the same string;
-    // we'd rather wait than misfire into a too-large stream).
-    //
-    // v2.10.80 — User-requested cascade priority:
-    //   1. EasyNews++ 1080p (first one) — Usenet streams are usually
-    //      cached + direct, lowest latency to first frame.
-    //   2. EasyNews++ any 1080p variant.
-    //   3. Torrentio 1080p (≤ 3 GB, English) — debrid-cached so plays
-    //      instantly when available.
-    //   4. EP-STREM / Plexio direct (premium addon).
-    //   5. Any English 1080p direct.
-    //   6. null → picker.
-    // v2.10.96 — Source-of-truth moved to `/lib/streamOrder.js` so
-    // movies (Detail.jsx) and TV episodes (SeriesEpisodes.jsx) share
-    // the same cascade priority.  The helpers `isEasyNews`,
-    // `isTorrentio`, `isEpStrem` are imported above for reuse.
+    // USER SPEC — movie autoplay simply plays the FIRST link in the
+    // (cascade-ordered) stream list.  No tier searching.
 
     const autoplayCandidate = useMemo(() => {
         if (type !== 'movie') return null;
-        // v2.13.6 — delegate to the SHARED cascade in
-        // /lib/streamOrder.js (single source of truth for movies AND
-        // TV episodes: EasyNews++ 1080p → Torrentio ≤3 GB → EP-STREM
-        // → any English 1080p).
-        return pickCascadeCandidate(streams);
+        // USER SPEC — "just literally play the first link that's
+        // there in the list, don't even worry about searching for
+        // anything else."  The list the user sees is the cascade-
+        // ordered one, so autoplay fires its top entry.  If it stalls,
+        // the native 30 s buffer watchdog walks to the next link.
+        const ordered = orderStreams(streams);
+        return (Array.isArray(ordered) && ordered[0]) || null;
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [streams, type]);
 
