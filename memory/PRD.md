@@ -8392,3 +8392,16 @@ box.
   correctly shows "Hold OK longer to speak" ✅ — NO "unavailable"
 - yarn build compiled; Kotlin braces balanced.
 - REAL audio capture needs the box: Save to GitHub → CI APK → test.
+
+---
+
+## 2026-06 — Smallest-FHD-first extended to NON-EasyNews streams
+
+User spec: same rule when no Easy++ exists — play the lowest-size
+1080p link (e.g. smallest Torrentio cached 1080p).
+- orderStreams: rest-of-list now sorted FHD(1080p, not 4K, not AV1)
+  first by size ASC; safety sinks always last: uncached debrid
+  "download" links + AV1 encodes. Easy++ block still leads.
+- Node sim PASS both cases (no-Easy++ → smallest cached Torrentio
+  FHD first; with Easy++ → Easy block leads then same rule).
+- Build compiled. Frontend-only → new APK needed.

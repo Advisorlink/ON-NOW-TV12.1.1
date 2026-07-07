@@ -82,11 +82,15 @@ function scoreStream(s) {
  * Returns a NEW array with the streams sorted in cascade priority.
  * Input is returned as-is when null / empty / not an array.
  *
- * USER SPEC — the EasyNews++ block leads the list with the LOWEST-
- * size FHD (1080p) link first.  Sub-1080p "HD" copies (the 500 MB –
- * 1 GB ones are all 720p) sort AFTER every FHD link.  Within each
- * group: file size ASCENDING, unknown size last, tie-broken by
- * quality score.  Everything else keeps the score-based cascade.
+ * USER SPEC — smallest-FHD-first, EasyNews++ block leading:
+ *   • EasyNews++ links first: 1080p (FHD) sorted by size ASC, then
+ *     sub-1080p "HD" copies.
+ *   • Everything else follows the SAME rule — lowest-size 1080p
+ *     first (e.g. smallest Torrentio cached 1080p when there's no
+ *     Easy++) — with two safety sinks that always drop to the
+ *     bottom: uncached debrid "download" links (30 s+ cloud
+ *     transfer) and AV1 encodes (no hardware decoder on the box).
+ *   • Unknown size sorts after sized links; quality score breaks ties.
  */
 export function orderStreams(streams) {
     if (!Array.isArray(streams) || streams.length === 0) return streams;
@@ -95,15 +99,21 @@ export function orderStreams(streams) {
     streams.forEach((s, i) =>
         (isEasyNews(s) ? easy : rest).push({ s, i, key: scoreStream(s) })
     );
-    easy.sort((a, b) => {
-        const fa = is1080p(a.s) ? 0 : 1;
-        const fb = is1080p(b.s) ? 0 : 1;
+    const bySmallestFhd = (a, b) => {
+        const fa = is1080p(a.s) && !is4K(a.s) && !isAV1(a.s) ? 0 : 1;
+        const fb = is1080p(b.s) && !is4K(b.s) && !isAV1(b.s) ? 0 : 1;
         if (fa !== fb) return fa - fb;
         const ga = typeof a.s?._size_gb === 'number' ? a.s._size_gb : Number.MAX_VALUE;
         const gb = typeof b.s?._size_gb === 'number' ? b.s._size_gb : Number.MAX_VALUE;
         return ga - gb || a.key - b.key || a.i - b.i;
+    };
+    easy.sort(bySmallestFhd);
+    rest.sort((a, b) => {
+        const da = isUncachedDownload(a.s) ? 1 : 0;
+        const db = isUncachedDownload(b.s) ? 1 : 0;
+        if (da !== db) return da - db;
+        return bySmallestFhd(a, b);
     });
-    rest.sort((a, b) => a.key - b.key || a.i - b.i);
     return [...easy, ...rest].map((x) => x.s);
 }
 
