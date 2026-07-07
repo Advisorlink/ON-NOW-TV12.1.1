@@ -8345,3 +8345,14 @@ grabs tiny junk encodes.
   source only; unknown size kept; other addons untouched.
 - Unit-tested PASS (movie band, series band, torrentio small kept);
   backend restarted 200.
+
+---
+
+## 2026-06 — EasyNews++ lowest-size FHD first
+
+User realized 500 MB–1 GB EasyNews++ files are 720p "HD" only.
+- orderStreams: within the EasyNews++ block, FHD (is1080p) links now
+  sort BEFORE sub-1080p ones; each group size-ascending. Autoplay
+  (first link) = lightest 1080p EasyNews++ copy.
+- Node sim PASS: [1080p 1.4GB, 1080p 3.5GB, 720p 600MB, 720p 900MB,
+  torrentio]; build compiled.
