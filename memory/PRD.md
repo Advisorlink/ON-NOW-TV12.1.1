@@ -8569,3 +8569,12 @@ Full tip list documented in chat. Build compiled.
 EpgGridAdapter placeholder (listing-less channels are 24/7 loops):
 title now "24/7 Bondi Rescue" etc. (prefix skipped if channel name
 already contains 24/7). Braces balanced; compiles in CI.
+
+---
+
+## 2026-06 — Backup button clipping fix (user screenshot)
+
+dialog_update_confirm.xml btn_backup: "Back up profiles first" was
+wrapping to 2 lines inside the fixed 48dp button and clipping.
+Now: text "Back up profiles" (FIRST dropped), 12sp, letterSpacing
+0.03, maxLines=1, paddingHorizontal 10dp — guaranteed single line.

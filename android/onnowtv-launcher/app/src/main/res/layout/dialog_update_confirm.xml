@@ -76,16 +76,18 @@
             android:layout_weight="1"
             android:background="@drawable/bg_update_dialog_btn_primary"
             android:textColor="#FF04060B"
-            android:textSize="13sp"
-            android:letterSpacing="0.04"
-            android:paddingHorizontal="14dp"
+            android:textSize="12sp"
+            android:letterSpacing="0.03"
+            android:paddingHorizontal="10dp"
             android:gravity="center"
+            android:maxLines="1"
+            android:ellipsize="none"
             android:fontFamily="sans-serif-medium"
             android:textStyle="bold"
             android:textAllCaps="true"
             android:focusable="true"
             android:focusableInTouchMode="false"
-            android:text="Back up profiles first" />
+            android:text="Back up profiles" />
 
         <Button
             android:id="@+id/update_dialog_btn_install"
