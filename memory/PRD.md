@@ -8561,3 +8561,11 @@ User caught wrong instructions in the feature tips:
 - Other 3 tips (Follow actors / For You viewing style / Watch
   Together) verified correct. Onboarding tour copy already correct.
 Full tip list documented in chat. Build compiled.
+
+---
+
+## 2026-06 — FTA placeholder rows labelled "24/7 <channel name>"
+
+EpgGridAdapter placeholder (listing-less channels are 24/7 loops):
+title now "24/7 Bondi Rescue" etc. (prefix skipped if channel name
+already contains 24/7). Braces balanced; compiles in CI.

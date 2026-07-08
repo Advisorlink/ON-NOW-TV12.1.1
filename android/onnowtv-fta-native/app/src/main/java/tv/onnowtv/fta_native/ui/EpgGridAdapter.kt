@@ -254,9 +254,18 @@ class EpgGridAdapter(
             // the user can stop on the row AND keep moving down, and
             // OK still tunes the channel.
             val isPlaceholderRow = programmes.isEmpty()
+            // USER SPEC — listing-less channels are the 24/7 loop
+            // channels (Bondi Rescue, Below Deck, …), so label the
+            // placeholder "24/7 <channel name>" instead of a generic
+            // "No programme info".  Skip the prefix if the channel
+            // name already carries one.
+            val channelTitle = channel.name.trim()
+            val placeholderTitle =
+                if (channelTitle.contains("24/7")) channelTitle
+                else "24/7 $channelTitle"
             val renderList = if (isPlaceholderRow) listOf(
                 FtaProgramme(
-                    title = "No programme info",
+                    title = placeholderTitle,
                     description = null,
                     startMs = gridStartMs,
                     stopMs = gridStartMs + windowHours * 3_600_000L,
