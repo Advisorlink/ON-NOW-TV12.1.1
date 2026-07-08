@@ -8487,3 +8487,33 @@ path) both land focus back on the exact clicked poster tile
 3. Onboarding kids slide ('11 · Kids Only') REMOVED: slide object,
    SceneKids component (172 lines), scene mount, ShieldCheck import.
    Settings renumbered 12→11. Tour now 14 steps. Verified live.
+
+---
+
+## 2026-06 — Launcher HOME UPDATE pill on home screen · backup btn
+## padding · FTA rail logo · FTA empty-row focus (all native)
+
+1. Launcher home screen: new "HOME UPDATE · vX" pill under the
+   top-bar clock (activity_main.xml `home_update_pill`, new
+   drawable bg_home_update_pill.xml — gradient + white ring on
+   focus). MainActivity: refreshHomeUpdatePill() polled every 30 s
+   via clockTick; click mirrors AppsDrawerActivity's exact flow
+   (fetch /api/launcher/home-update/info → ApkInstaller.
+   downloadAndInstall → InstallProgressDialog → writeInstalledBuildId
+   → SILENT/ROOT self-restart or legacy confirm). Store pill flow
+   untouched (deliberate duplication for zero regression risk).
+2. dialog_update_confirm.xml "Back up profiles first" button:
+   letterSpacing 0.08→0.04 + paddingHorizontal 14dp + gravity
+   center so text no longer touches the edges.
+3. FTA-native side rail: brand mark ("ON NOW / FTA" + underline)
+   pinned to the TOP of the left rail like Vesper's side rail.
+   side_nav RecyclerView wrapped in a LinearLayout (id kept).
+4. FTA-native EPG empty rows: channels with no listings now render
+   ONE full-width focusable "No programme info" placeholder cell —
+   the user can stop on the row AND keep D-pad-ing down through it
+   (previously the live-line jump swallowed the key and stranded
+   focus). LIVE/NEXT pills suppressed on placeholders; OK still
+   tunes the channel.
+- Verified: brace balance 0 on both Kotlin files, all 4 XMLs parse.
+  NATIVE — compile happens in CI; user must build + install both
+  Launcher and FTA APKs to verify on the box.

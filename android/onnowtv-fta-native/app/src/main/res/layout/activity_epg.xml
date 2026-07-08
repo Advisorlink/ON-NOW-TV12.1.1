@@ -465,16 +465,65 @@
     </LinearLayout>
 
     <!-- ───────── LEFT SIDE NAV (overlay so banner + grid stay full width) ───────── -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/side_nav"
+    <LinearLayout
         android:layout_width="@dimen/fta_side_rail_w"
         android:layout_height="match_parent"
         android:background="#0A0E1A"
-        android:paddingTop="28dp"
-        android:paddingBottom="28dp"
-        android:descendantFocusability="afterDescendants"
-        android:focusable="false"
-        android:overScrollMode="never" />
+        android:orientation="vertical">
+
+        <!-- USER SPEC — brand mark pinned to the top of the rail,
+             mirroring the Vesper side rail's logo in the top-left
+             corner. -->
+        <LinearLayout
+            android:id="@+id/side_nav_logo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center_horizontal"
+            android:paddingTop="20dp"
+            android:paddingBottom="12dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/brand"
+                android:textColor="@color/fta_blue"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:fontFamily="sans-serif-black"
+                android:letterSpacing="0.04"
+                android:shadowColor="#665DC8FF"
+                android:shadowDx="0" android:shadowDy="0" android:shadowRadius="12" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/brand_suffix"
+                android:textColor="@color/fta_fg"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.16" />
+
+            <View
+                android:layout_width="34dp"
+                android:layout_height="2dp"
+                android:layout_marginTop="10dp"
+                android:alpha="0.45"
+                android:background="@color/fta_blue" />
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/side_nav"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:paddingTop="10dp"
+            android:paddingBottom="28dp"
+            android:descendantFocusability="afterDescendants"
+            android:focusable="false"
+            android:overScrollMode="never" />
+    </LinearLayout>
 
     <!-- ───────── CATEGORIES SLIDE-OUT (overlay) ───────── -->
     <LinearLayout

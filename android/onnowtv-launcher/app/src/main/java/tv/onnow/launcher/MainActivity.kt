@@ -90,10 +90,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /* Ticking clock for the top bar — updates every 30s. */
+    /* Ticking clock for the top bar — updates every 30s.  Also
+     * re-polls the HOME UPDATE pill on the same cadence (cheap
+     * store.json-backed endpoint). */
     private val clockTick = object : Runnable {
         override fun run() {
             paintClock()
+            refreshHomeUpdatePill()
             handler.postDelayed(this, 30_000)
         }
     }
@@ -131,6 +134,7 @@ class MainActivity : AppCompatActivity() {
         bindTopBar()
         bindTopBarActions()
         bindDock()
+        bindHomeUpdatePill()
 
         // v2.10.84 — Authoritative install-complete signal via system
         // broadcasts.  onResume can fire BEFORE Android's package DB
@@ -2563,6 +2567,156 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         binding.dock.post {
             binding.dock.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
+        }
+    }
+
+    /* ─────────  USER SPEC — HOME UPDATE pill on the home screen  ────────
+     * Mirrors the App Store pill (AppsDrawerActivity): same
+     * /api/launcher/home-update/info check, same ApkInstaller
+     * download + install pipeline, same build_id pinning.  Sits
+     * under the top-bar clock; D-pad focus shows a white ring. */
+    private var homeUpdateInfoHome: org.json.JSONObject? = null
+    private var homeUpdateInFlightHome = false
+
+    private fun bindHomeUpdatePill() {
+        binding.homeUpdatePill.setOnClickListener { onHomeUpdatePillClicked() }
+    }
+
+    private fun refreshHomeUpdatePill() {
+        if (!::binding.isInitialized) return
+        lifecycleScope.launch {
+            val info = fetchHomeUpdateInfoHome()
+            homeUpdateInfoHome = info
+            if (homeUpdateInFlightHome) return@launch
+            val show = info != null && info.optBoolean("has_update", false)
+            binding.homeUpdatePill.visibility = if (show) View.VISIBLE else View.GONE
+            if (show) {
+                val ver = info?.optString("version_name").orEmpty()
+                binding.homeUpdatePill.text =
+                    if (ver.isNotEmpty()) "HOME UPDATE · $ver" else "HOME UPDATE"
+            }
+        }
+    }
+
+    private suspend fun fetchHomeUpdateInfoHome(): org.json.JSONObject? =
+        withContext(Dispatchers.IO) {
+            try {
+                val cur = packageManager.getPackageInfo(packageName, 0)
+                val vc = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+                    cur.longVersionCode else @Suppress("DEPRECATION") cur.versionCode.toLong()
+                val cachedBuildId = readInstalledBuildId(this@MainActivity, packageName)
+                val buildQs = if (cachedBuildId.isNotEmpty())
+                    "&current_build_id=$cachedBuildId" else ""
+                val url = repo.baseUrlPublic().trimEnd('/') +
+                    "/api/launcher/home-update/info?current_version_code=$vc$buildQs"
+                val req = okhttp3.Request.Builder().url(url).get().build()
+                tv.onnow.launcher.net.ResilientHttp.client.newCall(req).execute().use { r ->
+                    val body = r.body?.string() ?: return@withContext null
+                    org.json.JSONObject(body)
+                }
+            } catch (_: Throwable) {
+                null
+            }
+        }
+
+    private fun onHomeUpdatePillClicked() {
+        if (homeUpdateInFlightHome) return
+        val info = homeUpdateInfoHome ?: run {
+            Toast.makeText(
+                this, "No home update info available yet — try again in a moment.",
+                Toast.LENGTH_SHORT,
+            ).show()
+            return
+        }
+        downloadAndInstallHomeUpdateFromHome(info)
+    }
+
+    private fun downloadAndInstallHomeUpdateFromHome(info: org.json.JSONObject) {
+        if (homeUpdateInFlightHome) return
+        if (!tv.onnow.launcher.install.ApkInstaller.canInstallNow(this)) {
+            Toast.makeText(
+                this,
+                "Grant 'Install unknown apps' to ON NOW TV V2 in the Settings page that just opened.",
+                Toast.LENGTH_LONG,
+            ).show()
+            tv.onnow.launcher.install.ApkInstaller.requestInstallPermission(this)
+            return
+        }
+        val apkUrl = info.optString("apk_url")
+        if (apkUrl.isEmpty()) {
+            Toast.makeText(
+                this, "No download URL — please re-upload in the admin.",
+                Toast.LENGTH_LONG,
+            ).show()
+            return
+        }
+        val pinnedBuildId = info.optString("build_id").orEmpty()
+        val pinnedVer = info.optString("version_name", "").trim()
+        val titleVer = if (pinnedVer.isNotEmpty()) "v$pinnedVer" else "launcher"
+
+        homeUpdateInFlightHome = true
+        binding.homeUpdatePill.text = "UPDATING…"
+
+        val dialog = tv.onnow.launcher.install.InstallProgressDialog.show(
+            this,
+            "Updating $titleVer",
+            "Downloading the latest launcher build from the server…",
+        )
+        var installMode: tv.onnow.launcher.install.ApkInstaller.Mode? = null
+        lifecycleScope.launch {
+            val err = tv.onnow.launcher.install.ApkInstaller.downloadAndInstall(
+                this@MainActivity,
+                apkUrl,
+                suggestedName = "home-update.apk",
+                onProgress = { pct ->
+                    runOnUiThread { dialog.setProgress(pct) }
+                },
+                onInstallMode = { mode -> installMode = mode },
+            )
+            if (err != null) {
+                runOnUiThread {
+                    dialog.dismiss()
+                    homeUpdateInFlightHome = false
+                    refreshHomeUpdatePill()
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Home update failed: $err",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+                return@launch
+            }
+            if (pinnedBuildId.isNotEmpty()) {
+                writeInstalledBuildId(this@MainActivity, packageName, pinnedBuildId)
+            }
+            runOnUiThread {
+                binding.homeUpdatePill.visibility = View.GONE
+                dialog.setTitle("Installing $titleVer")
+                dialog.setProgress(100)
+                when (installMode) {
+                    tv.onnow.launcher.install.ApkInstaller.Mode.SILENT,
+                    tv.onnow.launcher.install.ApkInstaller.Mode.ROOT -> {
+                        dialog.setMessage(
+                            "Almost done — the launcher will restart itself " +
+                                "in a few seconds.  No action needed.",
+                        )
+                        Handler(mainLooper).postDelayed({
+                            if (!isFinishing && !isDestroyed) {
+                                dialog.dismiss()
+                                homeUpdateInFlightHome = false
+                                refreshHomeUpdatePill()
+                            }
+                        }, 90_000L)
+                    }
+                    else -> {
+                        dialog.setMessage("Confirm the install on the next screen.")
+                        Handler(mainLooper).postDelayed({
+                            dialog.dismiss()
+                            homeUpdateInFlightHome = false
+                        }, 1200L)
+                    }
+                }
+            }
         }
     }
 

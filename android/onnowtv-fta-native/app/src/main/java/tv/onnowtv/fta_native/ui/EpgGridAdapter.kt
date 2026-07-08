@@ -245,7 +245,25 @@ class EpgGridAdapter(
             // attached but set to GONE so the next bind can grab
             // them without an inflate.
             var poolIndex = 0
-            for (p in programmes) {
+            // USER SPEC — a channel with NO listings used to render a
+            // completely black, unfocusable row: D-pad DOWN could
+            // neither stop on it nor pass through it (the live-line
+            // jump found no cell and swallowed the key), stranding
+            // the user above it.  Render ONE full-width placeholder
+            // cell instead — it takes focus like any other cell, so
+            // the user can stop on the row AND keep moving down, and
+            // OK still tunes the channel.
+            val isPlaceholderRow = programmes.isEmpty()
+            val renderList = if (isPlaceholderRow) listOf(
+                FtaProgramme(
+                    title = "No programme info",
+                    description = null,
+                    startMs = gridStartMs,
+                    stopMs = gridStartMs + windowHours * 3_600_000L,
+                    channelId = channel.id,
+                )
+            ) else programmes
+            for (p in renderList) {
                 // The submit-time pre-filter already trimmed to the
                 // window, but defensive guards stay cheap.
                 if (p.stopMs <= gridStartMs) continue
@@ -268,8 +286,9 @@ class EpgGridAdapter(
                 titleV.text = p.title.ifBlank { "—" }
                 timeV.text = formatStartLabel(p.startMs)
                 val isLive = p.startMs <= nowMs && p.stopMs > nowMs
-                liveV.visibility = if (isLive) View.VISIBLE else View.GONE
-                nextV.visibility = if (!isLive && p.startMs > nowMs && p.startMs - nowMs < 90 * 60_000L)
+                liveV.visibility = if (isLive && !isPlaceholderRow) View.VISIBLE else View.GONE
+                nextV.visibility = if (!isPlaceholderRow && !isLive &&
+                    p.startMs > nowMs && p.startMs - nowMs < 90 * 60_000L)
                     View.VISIBLE else View.GONE
 
                 val leftMs = (p.startMs - gridStartMs).coerceAtLeast(0L)

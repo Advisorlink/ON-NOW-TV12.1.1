@@ -63,6 +63,36 @@
         app:layout_constraintEnd_toEndOf="parent"
         tools:text="connecting…" />
 
+    <!-- USER SPEC — HOME UPDATE pill on the home screen, mirroring
+         the App Store pill.  Sits under the top-bar clock; focusable
+         so the D-pad can reach it (bright white ring on focus);
+         click runs the exact same download + install pipeline as
+         the App Store.  Hidden unless the backend reports
+         has_update=true. -->
+    <TextView
+        android:id="@+id/home_update_pill"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="42dp"
+        android:paddingHorizontal="20dp"
+        android:paddingVertical="10dp"
+        android:background="@drawable/bg_home_update_pill"
+        android:textColor="#FFFFFF"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.10"
+        android:fontFamily="sans-serif-medium"
+        android:focusable="true"
+        android:focusableInTouchMode="false"
+        android:clickable="true"
+        android:visibility="gone"
+        android:elevation="20dp"
+        app:layout_constraintTop_toBottomOf="@id/debug_status"
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:text="HOME UPDATE · 2.13"
+        tools:visibility="visible" />
+
     <!-- v2.8.19 — Top bar redesigned: glass card with focusable
          VPN + Speed Test pill buttons (left), polished logo
          centred, animated clock on the right.  Pressing UP from
