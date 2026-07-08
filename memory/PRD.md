@@ -8425,3 +8425,23 @@ master kill-switch for both.
 - Verified live (Playwright, /title/series/tt11198330): pill OFF →
   only autoplay-tv=0 written, master untouched; pill ON → tv=1 +
   master=1. PASS.
+
+---
+
+## 2026-06 — Tunes debug box removed · player BUF badge removed ·
+## Settings "Viewing preference" entry
+
+1. Tunes debug panel GONE: removed <ResolverDebug/> from
+   MusicLayout.jsx and deleted components/music/ResolverDebug.jsx.
+2. Native player top-right "BUF Xs · ExoPlayer" badge (TopStatusBadge
+   in PlayerOverlay.kt) removed completely — usage + composable.
+   Braces balanced, 0 refs. Rebuffer spinner (top-left) retained.
+3. Settings → new "Viewing preference" section (Heart icon, testids:
+   viewing-preference-row / settings-viewing-preference) →
+   /profiles/edit/<activeId>?step=viewing-style.
+   ProfileEdit now: (a) honours ?step=viewing-style deep-link,
+   (b) pre-loads existing profile's viewing style into the draft
+   (no more clobber on edit), (c) pre-loads stored autoplay pref for
+   existing profiles (edit pass no longer silently resets it).
+- Verified live: Settings row → lands on viewing-style stage with
+  seeded picks showing ("2 picks"). Build + Kotlin sanity clean.

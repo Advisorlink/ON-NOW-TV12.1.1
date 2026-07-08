@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, Check, ShieldCheck,
     Cloud, Download, Upload, Copy, Loader2, KeyRound, AlertTriangle,
-    Sparkles, Lightbulb, LogOut,
+    Sparkles, Lightbulb, LogOut, Heart,
 } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useBackHandler from '@/hooks/useBackHandler';
@@ -11,7 +11,7 @@ import FullscreenButton from '@/components/FullscreenButton';
 import { THEMES } from '@/themes/themes';
 import { useTheme } from '@/themes/ThemeProvider';
 import { getAutoplay1080p, setAutoplay1080p } from '@/lib/prefs';
-import { clearActiveProfile } from '@/lib/profiles';
+import { clearActiveProfile, getActiveProfile } from '@/lib/profiles';
 import { useAuth } from '@/contexts/AuthContext';
 import { collectBackupPayload, applyBackupPayload, summarizeBackupPayload, fmtBytes } from '@/lib/profileBackup';
 import { replayOnboarding } from '@/components/Onboarding';
@@ -342,6 +342,65 @@ export default function Settings() {
                 also displayed as a glowing badge top-left of the
                 player so the user knows which one is running. */}
             <PlayerBackendRow />
+            </div>
+
+            {/* ---- VIEWING PREFERENCE ---- */}
+            <div data-testid="shelf-page" data-settings-section="viewing-preference">
+            <SectionHeader
+                eyebrow="Settings · Personalise"
+                title="Viewing preference"
+                icon={Heart}
+            />
+            <div
+                data-testid="viewing-preference-row"
+                className="vesper-glass rounded-2xl flex items-center gap-4"
+                style={{ padding: '18px 22px', marginBottom: 18 }}
+            >
+                <div
+                    className="flex items-center justify-center shrink-0"
+                    style={{
+                        width: 44, height: 44, borderRadius: '50%',
+                        background:
+                            'linear-gradient(135deg, rgba(93,200,255,0.28) 0%, rgba(93,200,255,0.06) 100%)',
+                        border: '1px solid rgba(93,200,255,0.45)',
+                    }}
+                >
+                    <Heart size={20} style={{ color: 'var(--vesper-blue-bright)' }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--vesper-text)' }}>
+                        Choose what you love watching
+                    </div>
+                    <div style={{ fontSize: 13, color: 'var(--vesper-text-2)', marginTop: 2 }}>
+                        Re-pick your favourite movie &amp; TV genres — your For You rail refreshes with new picks.
+                    </div>
+                </div>
+                <button
+                    data-testid="settings-viewing-preference"
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
+                    onClick={() => {
+                        const p = getActiveProfile();
+                        if (p) navigate(`/profiles/edit/${p.id}?step=viewing-style`);
+                    }}
+                    className="flex items-center gap-2 rounded-full font-sans shrink-0"
+                    style={{
+                        padding: '10px 22px',
+                        background:
+                            'linear-gradient(135deg, var(--vesper-blue) 0%, #4FB8F0 100%)',
+                        color: '#06080F',
+                        border: 'none',
+                        fontSize: 14,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        boxShadow: '0 6px 18px rgba(93,200,255,0.35)',
+                    }}
+                >
+                    <Heart size={15} />
+                    Choose
+                </button>
+            </div>
             </div>
 
             {/* ---- WELCOME TOUR ---- */}

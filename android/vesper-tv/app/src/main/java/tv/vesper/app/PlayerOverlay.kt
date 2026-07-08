@@ -288,15 +288,8 @@ fun PlayerOverlay(
             )
         }
 
-        // ── Top status pill (BUF · ExoPlayer) ──────────────────────
-        if (!showFullLoader) {
-            TopStatusBadge(
-                bufferAheadSec = (bufAhead / 1000L).toInt(),
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 28.dp, end = 36.dp),
-            )
-        }
+        // ── Top status pill removed (USER SPEC) — the "BUF · ExoPlayer"
+        // badge that used to sit top-right is gone completely.
 
         // ── Bottom control dock (auto-hide) ────────────────────────
         // v2.7.73 — In party mode the bottom dock is entirely
@@ -609,27 +602,6 @@ private fun RebufferSpinner(modifier: Modifier = Modifier) {
             text = "Buffering",
             color = TextSub,
             fontSize = 13.sp,
-            fontFamily = FontFamily.Monospace,
-            letterSpacing = 1.2.sp,
-        )
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Top status badge (BUF · ExoPlayer)
-// ─────────────────────────────────────────────────────────────────────────────
-@Composable
-private fun TopStatusBadge(bufferAheadSec: Int, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .background(Color(0xCC020610), RoundedCornerShape(6.dp))
-            .border(1.dp, Color(0x4D5DC8FF), RoundedCornerShape(6.dp))
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    ) {
-        Text(
-            text = "BUF ${bufferAheadSec}s  ·  ExoPlayer",
-            color = CyanPrimary,
-            fontSize = 12.sp,
             fontFamily = FontFamily.Monospace,
             letterSpacing = 1.2.sp,
         )

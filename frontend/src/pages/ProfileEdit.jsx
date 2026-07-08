@@ -45,7 +45,19 @@ export default function ProfileEdit() {
     // Wizard step.  New profiles run name → avatar → theme → pin;
     // editing an existing profile lands on the avatar step (name
     // already known) and a Back/Next still walks the full chain.
-    const [step, setStep] = useState(existing ? 'avatar' : 'name');
+    // Settings → "Viewing preference" deep-links straight to the
+    // viewing-style step via ?step=viewing-style.
+    const [step, setStep] = useState(() => {
+        if (existing) {
+            try {
+                if (new URLSearchParams(window.location.search).get('step') === 'viewing-style') {
+                    return 'viewing-style';
+                }
+            } catch { /* ignore */ }
+            return 'avatar';
+        }
+        return 'name';
+    });
     // Pending avatar pick — when the user clicks an avatar tile,
     // we DON'T immediately apply it.  Instead we pop a "Save this
     // as your icon?" Yes/No confirm.  Eliminates accidental
@@ -53,15 +65,41 @@ export default function ProfileEdit() {
     const [pendingAvatar, setPendingAvatar] = useState(null);
     // Viewing-style draft — genre tmdb ids and chosen items.  Step
     // 4 of the wizard lets the user fill these in, but they can
-    // also just press Skip and we persist an empty draft.
-    const [viewingStyle, setViewingStyle] = useState({
-        movieGenres: [],
-        tvGenres: [],
-        items: [],
+    // also just press Skip and we persist an empty draft.  For an
+    // EXISTING profile we pre-load the stored picks so re-entering
+    // the wizard (e.g. from Settings) never wipes them.
+    const [viewingStyle, setViewingStyle] = useState(() => {
+        if (existing) {
+            try {
+                const raw = localStorage.getItem(`onnowtv-viewing-style-v1:${existing.id}`);
+                if (raw) {
+                    const p = JSON.parse(raw);
+                    return {
+                        movieGenres: Array.isArray(p.movieGenres) ? p.movieGenres : [],
+                        tvGenres: Array.isArray(p.tvGenres) ? p.tvGenres : [],
+                        items: Array.isArray(p.items) ? p.items : [],
+                    };
+                }
+            } catch { /* ignore */ }
+        }
+        return {
+            movieGenres: [],
+            tvGenres: [],
+            items: [],
+        };
     });
-    // Autoplay 1080p toggle chosen during step 5.  Default off; if
-    // the user taps Yes on the Autoplay prompt it flips to true.
-    const [autoplayChoice, setAutoplayChoice] = useState(false);
+    // Autoplay 1080p toggle chosen during step 5.  Default off for
+    // new profiles; existing profiles pre-load their stored pref so
+    // an edit pass never silently clobbers it.
+    const [autoplayChoice, setAutoplayChoice] = useState(() => {
+        if (existing) {
+            try {
+                const v = localStorage.getItem(`onnowtv-autoplay-1080p:${existing.id}`);
+                return v === null ? true : v === '1';
+            } catch { return true; }
+        }
+        return false;
+    });
     // Autoplay yes/skip modal (step 5).
     const [autoplayPromptOpen, setAutoplayPromptOpen] = useState(false);
     // "Would you like to add a password to this account?" Yes/Skip
