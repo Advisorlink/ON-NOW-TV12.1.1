@@ -8578,3 +8578,15 @@ dialog_update_confirm.xml btn_backup: "Back up profiles first" was
 wrapping to 2 lines inside the fixed 48dp button and clipping.
 Now: text "Back up profiles" (FIRST dropped), 12sp, letterSpacing
 0.03, maxLines=1, paddingHorizontal 10dp — guaranteed single line.
+
+---
+
+## 2026-06 — FTA topbar removed, City moved to side rail
+
+- activity_epg.xml: topbar (brand + tabs + category chip + city chip
+  + clock) set visibility=GONE (kept in tree so findViewById + tab
+  code stay valid). No focus logic referenced topbar views.
+- Side rail: new "City" item (ic_location.xml map pin, nav_city
+  string) → showCityPicker(), since the chip was the only entry
+  point. Rail order: Categories · Favourites · City · Refresh.
+- XML parse + brace balance verified; compiles in CI.

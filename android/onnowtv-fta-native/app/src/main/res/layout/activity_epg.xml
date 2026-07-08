@@ -30,7 +30,10 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- TOPBAR -->
+        <!-- TOPBAR — USER SPEC: removed from view (brand + tab chips
+             duplicated the side rail; favourites live there now).
+             Kept in the tree (GONE) so all findViewById references
+             and the tab-building code stay valid. -->
         <LinearLayout
             android:id="@+id/topbar"
             android:layout_width="match_parent"
@@ -39,6 +42,7 @@
             android:gravity="center_vertical"
             android:paddingStart="22dp"
             android:paddingEnd="22dp"
+            android:visibility="gone"
             android:background="#080C18">
 
             <TextView

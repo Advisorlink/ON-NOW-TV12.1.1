@@ -7,5 +7,6 @@
     <string name="tab_favs">Favourites</string>
     <string name="nav_cats">Categories</string>
     <string name="nav_favs">Favourites</string>
+    <string name="nav_city">City</string>
     <string name="nav_refresh">Refresh</string>
 </resources>

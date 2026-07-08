@@ -198,6 +198,7 @@ class EpgActivity : AppCompatActivity() {
         val items = listOf(
             FtaSideNavItem("cats",    getString(R.string.nav_cats),    R.drawable.ic_grid),
             FtaSideNavItem("favs",    getString(R.string.nav_favs),    R.drawable.ic_star),
+            FtaSideNavItem("city",    getString(R.string.nav_city),    R.drawable.ic_location),
             FtaSideNavItem("refresh", getString(R.string.nav_refresh), R.drawable.ic_refresh),
         )
         sideNav.layoutManager = LinearLayoutManager(this)
@@ -205,6 +206,9 @@ class EpgActivity : AppCompatActivity() {
             when (picked.id) {
                 "cats" -> toggleCategoriesPanel()
                 "favs" -> setTab(if (currentTab == "favs") "live" else "favs")
+                // USER SPEC — topbar hidden; the city picker moved to
+                // the side rail so region switching stays reachable.
+                "city" -> showCityPicker()
                 "refresh" -> {
                     Toast.makeText(this, "Refreshing EPG…", Toast.LENGTH_SHORT).show()
                     load()
