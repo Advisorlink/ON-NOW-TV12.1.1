@@ -14,7 +14,7 @@ import Host from '@/lib/host';
 import { qualityBadge, qualityTags, toneColors, is1080p } from '@/lib/streamMeta';
 import { orderStreams, isEasyNews } from '@/lib/streamOrder';
 import StreamPickerModal from '@/components/StreamPickerModal';
-import { getAutoplay1080p } from '@/lib/prefs';
+import { getAutoplay1080p, getAutoplayTV } from '@/lib/prefs';
 import * as cw from '@/lib/continueWatching';
 
 /**
@@ -395,7 +395,9 @@ export default function SeriesEpisodes({
     };
 
     const handleEpisodeClick = async (ep) => {
-        const autoplay = getAutoplay1080p();
+        // USER SPEC — episodes autoplay only when BOTH the master
+        // rail switch AND the TV-shows toggle are on.
+        const autoplay = getAutoplay1080p() && getAutoplayTV();
         if (openEpisodeId === ep.id && !autoplay) {
             setOpenEpisodeId(null);
             return;

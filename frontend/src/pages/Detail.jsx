@@ -25,7 +25,7 @@ import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { API, Vesper } from '@/lib/api';
 import { qualityBadge, qualityTags, toneColors, is1080p, is4K } from '@/lib/streamMeta';
 import { orderStreams, isEasyNews, isUncachedDownload } from '@/lib/streamOrder';
-import { getAutoplay1080p, setAutoplay1080p } from '@/lib/prefs';
+import { getAutoplay1080p, setAutoplay1080p, getAutoplayTV, setAutoplayTV } from '@/lib/prefs';
 import { isKidsActive, getActiveProfile, isRatingAllowed, getKidsConfig } from '@/lib/profiles';
 import { avatarEmojiById } from '@/lib/avatars';
 import * as cw from '@/lib/continueWatching';
@@ -895,9 +895,19 @@ export default function Detail() {
     const [autoplayEnabled, setAutoplayEnabledState] = useState(
         isKidsActive() || getAutoplay1080p()
     );
+    // TV-shows-only autoplay (USER SPEC): master rail switch AND the
+    // per-show toggle.  Kept separate so the series-page pill never
+    // touches movie autoplay.
+    const [tvAutoplayEnabled, setTvAutoplayEnabledState] = useState(
+        isKidsActive() || (getAutoplay1080p() && getAutoplayTV())
+    );
     useEffect(() => {
-        const onStorage = () =>
+        const onStorage = () => {
             setAutoplayEnabledState(isKidsActive() || getAutoplay1080p());
+            setTvAutoplayEnabledState(
+                isKidsActive() || (getAutoplay1080p() && getAutoplayTV())
+            );
+        };
         window.addEventListener('storage', onStorage);
         // Also poll once per second — the side-nav toggle writes to
         // localStorage in the SAME window which doesn't fire `storage`
@@ -2329,12 +2339,24 @@ export default function Detail() {
                                         ("we need to be able to turn
                                         the autoplay on and off"). */}
                                     <AutoplayPill
-                                        enabled={autoplayEnabled}
+                                        enabled={tvAutoplayEnabled}
                                         onToggle={() => {
-                                            const next = !getAutoplay1080p();
-                                            setAutoplay1080p(next);
+                                            // USER SPEC — this pill only
+                                            // controls TV-show autoplay.
+                                            // Movies keep their own
+                                            // (master-driven) autoplay.
+                                            const next = !(getAutoplay1080p() && getAutoplayTV());
+                                            setAutoplayTV(next);
+                                            // Turning the show pill ON
+                                            // re-arms the master too so
+                                            // ON always means ON.
+                                            if (next) setAutoplay1080p(true);
                                             setAutoplayEnabledState(
-                                                isKidsActive() || next
+                                                isKidsActive() || getAutoplay1080p()
+                                            );
+                                            setTvAutoplayEnabledState(
+                                                isKidsActive() ||
+                                                (getAutoplay1080p() && getAutoplayTV())
                                             );
                                         }}
                                     />

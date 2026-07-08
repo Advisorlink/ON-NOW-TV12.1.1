@@ -8405,3 +8405,23 @@ User spec: same rule when no Easy++ exists — play the lowest-size
 - Node sim PASS both cases (no-Easy++ → smallest cached Torrentio
   FHD first; with Easy++ → Easy block leads then same rule).
 - Build compiled. Frontend-only → new APK needed.
+
+---
+
+## 2026-06 — Autoplay toggle scoping (TV-only vs master)
+
+User spec: turning autoplay off inside a TV show must NOT kill movie
+autoplay. Movies always autoplay (master permitting); rail toggle =
+master kill-switch for both.
+
+- prefs.js: new profile-scoped pref `onnowtv-autoplay-tv`
+  (getAutoplayTV/setAutoplayTV, default ON).
+- Series-page AutoplayPill (Detail.jsx) now flips ONLY the TV pref;
+  turning it ON also re-arms the master (ON must mean ON). Shows
+  effective state = master && tv.
+- SeriesEpisodes.handleEpisodeClick: episode autoplay requires
+  master && tv.
+- Movies: unchanged — master only (rail toggle in SideNav).
+- Verified live (Playwright, /title/series/tt11198330): pill OFF →
+  only autoplay-tv=0 written, master untouched; pill ON → tv=1 +
+  master=1. PASS.

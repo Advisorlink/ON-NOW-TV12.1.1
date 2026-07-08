@@ -13,6 +13,7 @@
 import { readScopedString, writeScopedString } from '@/lib/profileScope';
 
 const KEY_AUTOPLAY_1080P = 'onnowtv-autoplay-1080p';
+const KEY_AUTOPLAY_TV    = 'onnowtv-autoplay-tv';
 
 export function getAutoplay1080p() {
     try {
@@ -27,6 +28,29 @@ export function getAutoplay1080p() {
 export function setAutoplay1080p(enabled) {
     try {
         writeScopedString(KEY_AUTOPLAY_1080P, enabled ? '1' : '0');
+    } catch {
+        /* ignore */
+    }
+}
+
+/**
+ * TV-shows-ONLY autoplay toggle (USER SPEC): turning autoplay off on
+ * a TV show page must NOT kill movie autoplay.  Movies follow the
+ * master rail switch alone; episodes require master AND this flag.
+ */
+export function getAutoplayTV() {
+    try {
+        const v = readScopedString(KEY_AUTOPLAY_TV);
+        if (v === null || v === undefined) return true; // default ON
+        return v === '1';
+    } catch {
+        return true;
+    }
+}
+
+export function setAutoplayTV(enabled) {
+    try {
+        writeScopedString(KEY_AUTOPLAY_TV, enabled ? '1' : '0');
     } catch {
         /* ignore */
     }
