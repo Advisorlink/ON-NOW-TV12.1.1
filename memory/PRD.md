@@ -8445,3 +8445,27 @@ master kill-switch for both.
    existing profiles (edit pass no longer silently resets it).
 - Verified live: Settings row → lands on viewing-style stage with
   seeded picks showing ("2 picks"). Build + Kotlin sanity clean.
+
+---
+
+## 2026-06 — BACK-from-Detail focus restore FIXED (root cause)
+
+User report: Back from a movie/show Detail page dumped focus at
+home's top-left instead of the clicked poster.
+
+Root cause (reproduced in browser): `navigate()` runs
+history.pushState SYNCHRONOUSLY inside the tile activation, and the
+spatial-focus engine's window-capture keydown fires before the
+document-capture bookmark listener — so `window.location` had
+ALREADY flipped to `/title/...` when the bookmark was written. The
+poster bookmark was filed under the DETAIL path; Home's `/` key kept
+a stale login-input bookmark; Back restored nothing.
+
+Fix (useFocusRestore.js): module-level `_routeForBookmarks` updated
+only by GlobalFocusRestore's post-commit useEffect (React updates it
+AFTER navigation), used by onActivate + bookmarkCurrentFocus instead
+of window.location.
+
+Verified live (Playwright): mouse click AND keyboard-Enter (D-pad
+path) both land focus back on the exact clicked poster tile
+(scrolled into view, focus ring visible). PASS both.

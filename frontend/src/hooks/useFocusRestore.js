@@ -153,6 +153,21 @@ const applyScrollChain = (snapshot) => {
 
 let _installed = false;
 
+/* v2.13.30 — THE BACK-FOCUS BUG: `navigate()` runs history.pushState
+ * SYNCHRONOUSLY inside the tile's activation handler, and the spatial
+ * focus engine's window-capture keydown fires before our document-
+ * capture listener.  Result: by the time onActivate read
+ * `window.location`, the URL was ALREADY the Detail page, so the
+ * poster bookmark was filed under `/title/...` instead of `/` — and
+ * BACK restored nothing.  Fix: track the route via React
+ * (GlobalFocusRestore's useEffect), which only updates AFTER the
+ * navigation commit — during the activation event it still holds the
+ * page the user was actually on. */
+let _routeForBookmarks =
+    typeof window !== 'undefined'
+        ? (window.location.pathname || '/') + (window.location.search || '')
+        : '/';
+
 export function installFocusBookmarkListener() {
     if (_installed) return;
     if (typeof document === 'undefined') return;
@@ -173,8 +188,7 @@ export function installFocusBookmarkListener() {
         /* v2.13.7 — key includes the query string so the bookmark for
          * the Movies filter view (`/?filter=movie`) can't collide
          * with plain Home (`/`) — they render different grids. */
-        const path =
-            (window.location.pathname || '/') + (window.location.search || '');
+        const path = _routeForBookmarks;
         const snapshot = {
             testId,
             scroll: captureScrollChain(tile),
@@ -328,6 +342,12 @@ export function bookmarkCurrentFocus() {
  * per-page calls on Home / Network / Library / Person / Search.
  */
 export function GlobalFocusRestore() {
+    const { pathname, search } = useLocation();
+    /* Post-commit route tracker for the bookmark listener — see
+     * _routeForBookmarks above. */
+    useEffect(() => {
+        _routeForBookmarks = `${pathname}${search || ''}`;
+    }, [pathname, search]);
     useFocusRestore({ ready: true });
     return null;
 }
