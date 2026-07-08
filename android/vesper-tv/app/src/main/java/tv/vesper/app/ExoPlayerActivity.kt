@@ -188,6 +188,8 @@ class ExoPlayerActivity : ComponentActivity() {
     )
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // Volume keys FIRST — before party/guide logic can touch them.
+        if (handleGlobalVolumeKey(this, event)) return true
         val inParty = partyVoice != null
         // v2.7.68 — Party mode key dispatcher rebuilt from scratch.
         //

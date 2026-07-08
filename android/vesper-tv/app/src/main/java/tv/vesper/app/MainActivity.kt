@@ -685,6 +685,13 @@ class MainActivity : AppCompatActivity() {
         webView.loadUrl(finalBootUrl)
     }
 
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // USER SPEC — volume keys behave like a real remote everywhere,
+        // even when the WebView holds key focus.
+        if (handleGlobalVolumeKey(this, event)) return true
+        return super.dispatchKeyEvent(event)
+    }
+
     override fun onResume() {
         super.onResume()
         applyImmersiveMode()

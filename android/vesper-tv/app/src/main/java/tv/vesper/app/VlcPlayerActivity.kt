@@ -62,6 +62,12 @@ import java.util.concurrent.TimeUnit
  */
 class VlcPlayerActivity : AppCompatActivity() {
 
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // USER SPEC — volume keys behave like a real remote everywhere.
+        if (handleGlobalVolumeKey(this, event)) return true
+        return super.dispatchKeyEvent(event)
+    }
+
     private lateinit var libVlc: LibVLC
     private lateinit var mediaPlayer: MediaPlayer
     private lateinit var videoLayout: VLCVideoLayout

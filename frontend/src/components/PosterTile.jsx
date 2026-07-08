@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as img from '@/lib/img';
+import { API } from '@/lib/api';
 import useLongPress from '@/hooks/useLongPress';
 
 /**
@@ -35,9 +36,7 @@ export default function PosterTile({ item, onSelect, initialFocus = false }) {
         }
     };
 
-    const onLongPress = () => {
-        const id = item.imdbId || item.id;
-        if (!id || !id.toString().startsWith('tt')) return;
+    const fireAddToList = (id) => {
         window.dispatchEvent(
             new CustomEvent('vesper:request-add-to-list', {
                 detail: {
@@ -54,6 +53,28 @@ export default function PosterTile({ item, onSelect, initialFocus = false }) {
                 },
             })
         );
+    };
+
+    const onLongPress = () => {
+        const id = item.imdbId || item.id;
+        if (id && id.toString().startsWith('tt')) {
+            fireAddToList(id);
+            return;
+        }
+        // USER SPEC — "Similar to what you love" (For You) tiles come
+        // from TMDB and carry no imdb id, so hold-OK used to silently
+        // do nothing.  Resolve tmdb→imdb on the fly (same endpoint
+        // the /resolve route uses) so these covers add to Library
+        // exactly like every other tile.
+        const m = /^\/resolve\/(tv|movie)\/(\d+)/.exec(item.routePath || '');
+        if (!m) return;
+        fetch(`${API}/tmdb/imdb/${m[1]}/${m[2]}`, { cache: 'force-cache' })
+            .then((r) => r.json())
+            .then((data) => {
+                const tt = data?.imdb_id;
+                if (tt && tt.toString().startsWith('tt')) fireAddToList(tt);
+            })
+            .catch(() => { /* offline — hold just does nothing */ });
     };
 
     const press = useLongPress(onLongPress, onTap);

@@ -185,7 +185,7 @@ const STEPS = [
         eyebrow: '11 · Settings',
         title: 'Tune it your way',
         body:
-            'Themes, autoplay, kids ratings, backup and restore: everything lives in Settings. Backup your profile to a code, restore on any new device in seconds.',
+            'Themes, autoplay, backup and restore: everything lives in Settings. Backup your profile to a code, restore on any new device in seconds.',
     },
     {
         id: 'wrap',
@@ -1573,8 +1573,8 @@ function SceneSettings() {
                 <SettingRow label="Auto play">
                     <Toggle on />
                 </SettingRow>
-                {/* Kids PIN */}
-                <SettingRow label="Kids PIN">
+                {/* Backup code */}
+                <SettingRow label="Backup code">
                     <span
                         className="vesper-mono"
                         style={{

@@ -8517,3 +8517,33 @@ path) both land focus back on the exact clicked poster tile
 - Verified: brace balance 0 on both Kotlin files, all 4 XMLs parse.
   NATIVE — compile happens in CI; user must build + install both
   Launcher and FTA APKs to verify on the box.
+
+---
+
+## 2026-06 — Kids tour copy purge · For You hold-OK · volume keys ·
+## per-profile tips
+
+1. Onboarding: remaining kids references removed — settings slide
+   body ("kids ratings" dropped) + SceneSettings "Kids PIN" mock row
+   → "Backup code". (The Kids Only slide itself was already removed
+   last round — user's box still had the old APK.)
+2. PosterTile hold-OK: "Similar to what you love" (For You) tiles
+   carry tmdb-only ids; long-press now resolves tmdb→imdb via
+   GET /api/tmdb/imdb/{tv|movie}/{id} and fires the same
+   vesper:request-add-to-list event. VERIFIED live: hold Enter on a
+   For You cover → "Watch later?" modal (Toy Story 5). NOTE for
+   testing: the tip toast can steal focus — disable tips
+   (vesper-engagement-v1 masterEnabled=false) when automating.
+3. Volume keys (native Vesper): new VolumeKeys.kt
+   handleGlobalVolumeKey() consumed at TOP of dispatchKeyEvent in
+   ExoPlayerActivity + MainActivity + VlcPlayerActivity —
+   adjustStreamVolume(STREAM_MUSIC, RAISE/LOWER, FLAG_SHOW_UI) on
+   every ACTION_DOWN incl. auto-repeat → works on every stream/screen.
+4. Tips per profile (engagement.js): progress (installedAt,
+   usedFeatures, snoozed, muted, lastNudgeAt) now stored under
+   vesper-engagement-v1:<profileId>; masterEnabled/perFeatureEnabled
+   stay GLOBAL. 3-day grace REMOVED — a newly started profile sees
+   its first tip in its first session, unless tips are off in
+   Settings. resetEngagement wipes only the profile's progress.
+   VERIFIED live: fresh profile → "A QUICK TIP · Save shows for
+   later" toast; masterEnabled=false → no toast.

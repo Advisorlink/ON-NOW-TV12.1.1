@@ -1,27 +1,25 @@
 /**
  * Feature engagement / nudge tracker.
  *
- * Watches which key product features a user has tried.  After 3 days
- * since install, if a feature is still unused, surface a small toast
- * suggesting they try it.  Subsequent nudges space out by ≥ 7 days.
- * One nudge max per app session.
+ * Watches which key product features a user has tried and surfaces a
+ * small "tip" toast suggesting unused ones.  One nudge max per app
+ * session; subsequent nudges space out by ≥ 7 days.
  *
- * Storage shape (single `vesper-engagement-v1` key, app-wide — NOT
- * per-profile, because tips help the user learn the app overall):
+ * USER SPEC — tips are PER-PROFILE: every newly started profile gets
+ * the full tip cycle again (each viewer learns the app themselves),
+ * while the on/off switches in Settings stay GLOBAL so "turned off in
+ * settings" silences tips for every profile at once.
  *
- *   {
- *     installedAt:        ISO  // first launch on this device
- *     usedFeatures:       { [key]: ISO  }       // when first used
- *     snoozedUntil:       { [key]: ISO  }       // "Not now" cooldown
- *     mutedForever:       [ key, ... ]          // "Don't show again"
- *     lastNudgeAt:        ISO  // last time ANY nudge was shown
- *     masterEnabled:      bool // master toggle (Settings)
- *     perFeatureEnabled:  { [key]: bool }       // per-feature toggles
- *   }
+ * Storage:
+ *   `vesper-engagement-v1`               (GLOBAL)  → masterEnabled,
+ *                                                    perFeatureEnabled
+ *   `vesper-engagement-v1:<profileId>`   (SCOPED)  → installedAt,
+ *                usedFeatures, snoozedUntil, mutedForever, lastNudgeAt
  *
  * All timestamps are ISO strings so the JSON survives roundtripping
  * untouched (vs Date.now() ms which is fine but less debuggable).
  */
+import { scoped } from '@/lib/profileScope';
 
 const KEY = 'vesper-engagement-v1';
 
@@ -93,30 +91,53 @@ function nowIso() {
     return new Date().toISOString();
 }
 
+function readJsonRaw(k) {
+    try {
+        const raw = localStorage.getItem(k);
+        return raw ? JSON.parse(raw) : null;
+    } catch {
+        return null;
+    }
+}
+
 function readState() {
-    let raw = null;
-    try {
-        raw = localStorage.getItem(KEY);
-    } catch {
-        return defaultState();
+    const globalPart = readJsonRaw(KEY) || {};
+    let progress = readJsonRaw(scoped(KEY));
+    if (!progress) {
+        /* First time THIS PROFILE is seen — seed a fresh tip cycle so
+           a newly started profile gets the tips again. */
+        progress = {
+            installedAt: nowIso(),
+            usedFeatures: {},
+            snoozedUntil: {},
+            mutedForever: [],
+            lastNudgeAt: null,
+        };
+        try {
+            localStorage.setItem(scoped(KEY), JSON.stringify(progress));
+        } catch { /* ignore */ }
     }
-    if (!raw) {
-        const seeded = defaultState();
-        seeded.installedAt = nowIso();
-        try { localStorage.setItem(KEY, JSON.stringify(seeded)); } catch { /* ignore */ }
-        return seeded;
-    }
-    try {
-        const parsed = JSON.parse(raw);
-        return { ...defaultState(), ...parsed };
-    } catch {
-        return defaultState();
-    }
+    return {
+        ...defaultState(),
+        masterEnabled: globalPart.masterEnabled !== false,
+        perFeatureEnabled: globalPart.perFeatureEnabled || {},
+        ...progress,
+    };
 }
 
 function writeState(state) {
     try {
-        localStorage.setItem(KEY, JSON.stringify(state));
+        localStorage.setItem(KEY, JSON.stringify({
+            masterEnabled: state.masterEnabled !== false,
+            perFeatureEnabled: state.perFeatureEnabled || {},
+        }));
+        localStorage.setItem(scoped(KEY), JSON.stringify({
+            installedAt: state.installedAt,
+            usedFeatures: state.usedFeatures || {},
+            snoozedUntil: state.snoozedUntil || {},
+            mutedForever: state.mutedForever || [],
+            lastNudgeAt: state.lastNudgeAt || null,
+        }));
     } catch {
         /* localStorage full / blocked — silently no-op */
     }
@@ -158,14 +179,10 @@ export function markFeatureUsed(key) {
 export function pickNextNudge() {
     const state = readState();
     if (!state.masterEnabled) return null;
-    if (!state.installedAt) return null;   // first read in this session
 
-    const installedMs = Date.parse(state.installedAt);
-    const ageDays = (Date.now() - installedMs) / (1000 * 60 * 60 * 24);
-
-    /* 3-day initial grace period — give the user time to settle in
-       before any nudge fires. */
-    if (ageDays < 3) return null;
+    /* USER SPEC — no multi-day grace period any more: a freshly
+       started profile should see its first tip right away (one per
+       session).  The 7-day spacing below still stops any spam. */
 
     /* 7-day spacing between subsequent nudges so they never feel
        spammy. */
@@ -244,12 +261,14 @@ export function setFeatureEnabled(key, enabled) {
 }
 
 export function resetEngagement() {
-    /* Wipes the nudge state — useful for Settings → "Reset tips".
-       Keeps installedAt so the 3-day grace period still applies. */
+    /* Wipes THIS profile's tip progress — Settings → "Reset tips".
+       The global on/off toggles are preserved. */
     const state = readState();
     writeState({
         ...defaultState(),
-        installedAt: state.installedAt || nowIso(),
+        masterEnabled: state.masterEnabled,
+        perFeatureEnabled: state.perFeatureEnabled,
+        installedAt: nowIso(),
     });
 }
 
