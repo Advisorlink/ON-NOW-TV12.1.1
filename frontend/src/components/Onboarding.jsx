@@ -37,7 +37,6 @@ import {
     ChevronLeft,
     Check,
     Heart,
-    ShieldCheck,
     KeyRound,
 } from 'lucide-react';
 import Host from '@/lib/host';
@@ -179,21 +178,11 @@ const STEPS = [
             "Each viewer gets their own profile with their own avatar, saves and theme. Set one up for every member of the family in under a minute.",
     },
     {
-        id: 'kids',
-        glow: 'enter',
-        scene: 'kids',
-        icon: ShieldCheck,
-        eyebrow: '11 · Kids Only',
-        title: 'A safe room for the wee ones',
-        body:
-            'Switch a profile to Kids Mode and the whole app changes: bright cinematic shelves, curated kid-safe titles, a chunky colourful UI, and a 4-digit PIN so they can\'t wander out. Pick the maximum movie rating (G, PG, PG-13) and TV level, and we filter everything to match.',
-    },
-    {
         id: 'settings',
         glow: 'left',
         scene: 'settings',
         icon: SettingsIcon,
-        eyebrow: '12 · Settings',
+        eyebrow: '11 · Settings',
         title: 'Tune it your way',
         body:
             'Themes, autoplay, kids ratings, backup and restore: everything lives in Settings. Backup your profile to a code, restore on any new device in seconds.',
@@ -660,7 +649,6 @@ function SceneSwitcher({ step }) {
             {scene === 'search' && <SceneSearch />}
             {scene === 'watchtogether' && <SceneWatchTogether />}
             {scene === 'profiles' && <SceneProfiles />}
-            {scene === 'kids' && <SceneKids />}
             {scene === 'settings' && <SceneSettings />}
 
             {/* Mini D-pad indicator on feature scenes so the user
@@ -892,13 +880,15 @@ function SceneNoMouse() {
                         }}
                     />
                     {/* Cyan glow ring centred on the OK / D-pad cluster.
-                        The PNG is 938 × 2222 — the OK button sits at
-                        approximately (0.50, 0.48) in normalized coords
-                        for this particular remote. */}
+                        The user's remote PNG is 372 × 1390 — the OK
+                        button sits at approximately (0.50, 0.30) in
+                        normalized coords (the photo has its own baked-
+                        in blue/green D-pad glow; this pulse ring just
+                        adds motion on top). */}
                     <div
                         style={{
                             position: 'absolute',
-                            top: '48%',
+                            top: '30%',
                             left: '50%',
                             width: 70,
                             height: 70,
@@ -918,8 +908,8 @@ function SceneNoMouse() {
                         className="vesper-mono"
                         style={{
                             position: 'absolute',
-                            top: '40%',
-                            right: '-100px',
+                            top: '30%',
+                            left: '128%',
                             transform: 'translateY(-50%)',
                             fontSize: 10,
                             letterSpacing: '0.3em',
@@ -932,45 +922,15 @@ function SceneNoMouse() {
                         ← OK · this<br/>is all you need
                     </div>
 
-                    {/* Air-mouse strike — small subtle ✕ over the
-                        gyro / mouse-mode button at the top of the
-                        remote (around 0.50, 0.07 for this model). */}
-                    <div
-                        style={{
-                            position: 'absolute',
-                            top: '6%',
-                            left: '50%',
-                            width: 46,
-                            height: 46,
-                            marginLeft: -23,
-                            pointerEvents: 'none',
-                        }}
-                    >
-                        <svg width="46" height="46" viewBox="0 0 46 46">
-                            <line
-                                x1="9" y1="9" x2="37" y2="37"
-                                stroke="#ff5d5d"
-                                strokeWidth="3.4"
-                                strokeLinecap="round"
-                                style={{ filter: 'drop-shadow(0 0 6px rgba(255,93,93,0.55))' }}
-                            />
-                            <line
-                                x1="37" y1="9" x2="9" y2="37"
-                                stroke="#ff5d5d"
-                                strokeWidth="3.4"
-                                strokeLinecap="round"
-                                style={{ filter: 'drop-shadow(0 0 6px rgba(255,93,93,0.55))' }}
-                            />
-                        </svg>
-                    </div>
-
-                    {/* Air-mouse callout label */}
+                    {/* Air-mouse callout label — the red ✕ strike is
+                        baked into the user's remote photo (top-left
+                        button, ~14% down), so only the label remains. */}
                     <div
                         className="vesper-mono"
                         style={{
                             position: 'absolute',
-                            top: '4%',
-                            left: '-140px',
+                            top: '12%',
+                            right: '128%',
                             fontSize: 10,
                             letterSpacing: '0.28em',
                             color: 'rgba(255,107,107,0.95)',
@@ -1579,178 +1539,6 @@ function SceneProfiles() {
                         )}
                     </div>
                 ))}
-            </div>
-        </ScenePanel>
-    );
-}
-
-/* === SceneKids — bright, chunky, kid-safe shelf with PIN lock === */
-function SceneKids() {
-    const kidTiles = [
-        { t: 'Bluey',        sub: 'Family · G',  g: 'linear-gradient(135deg, #ffb84d 0%, #e85d04 100%)' },
-        { t: 'Paw Patrol',   sub: 'Animated · G', g: 'linear-gradient(135deg, #2ec4ff 0%, #0e6ba8 100%)' },
-        { t: 'Mario Bros',   sub: 'Movie · PG',  g: 'linear-gradient(135deg, #ff5d8f 0%, #c2185b 100%)' },
-    ];
-    return (
-        <ScenePanel eyebrow="Kids Only">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%' }}>
-                {/* Header strip: KID-SAFE shield + PIN lock indicator */}
-                <div className="flex items-center justify-between">
-                    <div
-                        className="flex items-center gap-2"
-                        style={{
-                            padding: '7px 12px 7px 8px',
-                            borderRadius: 999,
-                            background: 'rgba(62, 224, 122, 0.16)',
-                            border: '1px solid rgba(62, 224, 122, 0.55)',
-                            boxShadow: '0 0 14px rgba(62, 224, 122, 0.25)',
-                        }}
-                    >
-                        <ShieldCheck size={14} style={{ color: '#3ee07a' }} />
-                        <span
-                            className="vesper-mono"
-                            style={{
-                                fontSize: 10, letterSpacing: '0.24em',
-                                textTransform: 'uppercase', color: '#3ee07a',
-                                fontWeight: 700,
-                            }}
-                        >
-                            Kid-Safe
-                        </span>
-                    </div>
-                    <div
-                        className="flex items-center gap-2"
-                        style={{
-                            padding: '6px 12px',
-                            borderRadius: 999,
-                            background: 'rgba(255,255,255,0.06)',
-                            border: '1px solid rgba(255,255,255,0.12)',
-                        }}
-                    >
-                        <KeyRound size={12} style={{ color: 'rgba(255,255,255,0.7)' }} />
-                        <span
-                            className="vesper-mono"
-                            style={{
-                                fontSize: 10, letterSpacing: '0.32em',
-                                color: 'rgba(255,255,255,0.85)', fontWeight: 700,
-                            }}
-                        >
-                            · · · ·
-                        </span>
-                    </div>
-                </div>
-
-                {/* Rating pills */}
-                <div className="flex items-center gap-2 flex-wrap">
-                    {[
-                        { label: 'G',     active: true  },
-                        { label: 'PG',    active: true  },
-                        { label: 'PG-13', active: false },
-                        { label: 'TV-Y',  active: true  },
-                        { label: 'TV-G',  active: true  },
-                    ].map((r) => (
-                        <div
-                            key={r.label}
-                            className="vesper-mono"
-                            style={{
-                                padding: '5px 11px',
-                                borderRadius: 999,
-                                fontSize: 9, letterSpacing: '0.18em',
-                                textTransform: 'uppercase', fontWeight: 700,
-                                background: r.active
-                                    ? 'rgba(62, 224, 122, 0.18)'
-                                    : 'rgba(255,255,255,0.04)',
-                                border: r.active
-                                    ? '1px solid rgba(62, 224, 122, 0.5)'
-                                    : '1px solid rgba(255,255,255,0.08)',
-                                color: r.active ? '#3ee07a' : 'rgba(255,255,255,0.35)',
-                                opacity: r.active ? 1 : 0.6,
-                            }}
-                        >
-                            {r.label}
-                        </div>
-                    ))}
-                </div>
-
-                {/* Chunky bright tiles */}
-                <div
-                    style={{
-                        display: 'flex', gap: 12,
-                        paddingTop: 6, paddingBottom: 6,
-                    }}
-                >
-                    {kidTiles.map((t, idx) => (
-                        <div
-                            key={t.t}
-                            style={{
-                                position: 'relative',
-                                flex: 1, minWidth: 0,
-                                aspectRatio: '3 / 4',
-                                borderRadius: 18,
-                                background: t.g,
-                                border: idx === 1
-                                    ? '3px solid #fff'
-                                    : '2px solid rgba(255,255,255,0.18)',
-                                boxShadow: idx === 1
-                                    ? '0 16px 36px rgba(255,255,255,0.18), 0 0 0 5px rgba(255,255,255,0.18)'
-                                    : '0 10px 22px rgba(0,0,0,0.45)',
-                                transform: idx === 1 ? 'scale(1.05)' : 'scale(1)',
-                                transition: 'transform 280ms ease',
-                                display: 'flex', flexDirection: 'column',
-                                justifyContent: 'flex-end',
-                                padding: 12,
-                                overflow: 'hidden',
-                            }}
-                        >
-                            {/* Sticker shine */}
-                            <div
-                                style={{
-                                    position: 'absolute', inset: 0,
-                                    background:
-                                        'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, transparent 30%)',
-                                }}
-                            />
-                            <div
-                                className="font-sans"
-                                style={{
-                                    position: 'relative',
-                                    fontSize: 14, fontWeight: 800,
-                                    color: '#fff',
-                                    textShadow: '0 2px 8px rgba(0,0,0,0.6)',
-                                    lineHeight: 1.1,
-                                }}
-                            >
-                                {t.t}
-                            </div>
-                            <div
-                                className="vesper-mono"
-                                style={{
-                                    position: 'relative',
-                                    fontSize: 9, letterSpacing: '0.18em',
-                                    color: 'rgba(255,255,255,0.9)',
-                                    marginTop: 3, fontWeight: 700,
-                                    textTransform: 'uppercase',
-                                }}
-                            >
-                                {t.sub}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
-                {/* Footer caption */}
-                <div
-                    className="vesper-mono"
-                    style={{
-                        marginTop: 'auto',
-                        fontSize: 10, letterSpacing: '0.24em',
-                        textTransform: 'uppercase',
-                        color: 'rgba(255,255,255,0.55)',
-                        fontWeight: 700,
-                    }}
-                >
-                    PIN-locked · Curated · Bright UI
-                </div>
             </div>
         </ScenePanel>
     );

@@ -41,10 +41,7 @@ export default function NetworkPosterTile({ item }) {
                 setTimeout(() => setError(false), 2200);
                 return;
             }
-            navigate(
-                `/title/${item.type}/${imdbId}` +
-                (item.type === 'movie' ? '?autoplay=1' : '')
-            );
+            navigate(`/title/${item.type}/${imdbId}`);
         } catch {
             setError(true);
             setTimeout(() => setError(false), 2200);

@@ -8469,3 +8469,21 @@ of window.location.
 Verified live (Playwright): mouse click AND keyboard-Enter (D-pad
 path) both land focus back on the exact clicked poster tile
 (scrolled into view, focus ring visible). PASS both.
+
+---
+
+## 2026-06 — Onboarding remote photo swap · Networks → Detail fix ·
+## Kids slide removed
+
+1. Onboarding remote: replaced /frontend/public/onboarding/remote.png
+   with user's new remote photo (372×1390, baked-in D-pad glow + red
+   X on air-mouse btn). SceneNoMouse: OK pulse ring + label moved
+   48%→30% (new OK position), removed code-drawn red X SVG (baked
+   into photo), labels repositioned (left:128% / right:128%) to
+   clear the narrower remote. Verified via screenshot — clean.
+2. NetworkPosterTile: removed `?autoplay=1` for movies — network
+   tiles now open the Detail page like everywhere else (no more
+   straight-to-stream-loading).
+3. Onboarding kids slide ('11 · Kids Only') REMOVED: slide object,
+   SceneKids component (172 lines), scene mount, ShieldCheck import.
+   Settings renumbered 12→11. Tour now 14 steps. Verified live.
