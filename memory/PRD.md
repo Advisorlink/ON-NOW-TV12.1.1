@@ -8547,3 +8547,17 @@ path) both land focus back on the exact clicked poster tile
    Settings. resetEngagement wipes only the profile's progress.
    VERIFIED live: fresh profile → "A QUICK TIP · Save shows for
    later" toast; masterEnabled=false → no toast.
+
+---
+
+## 2026-06 — Tip copy corrected (hold-OK gesture)
+
+User caught wrong instructions in the feature tips:
+- "Save shows for later" tip: was "Tap a show and pick Add to My
+  List" → now "Push and hold OK on any cover — it lands in your
+  Library…"
+- "Watch tonight?" tip: now explains the gesture — "Push and hold OK
+  on tonight's pick and choose Watch Later…"
+- Other 3 tips (Follow actors / For You viewing style / Watch
+  Together) verified correct. Onboarding tour copy already correct.
+Full tip list documented in chat. Build compiled.
