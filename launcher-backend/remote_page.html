@@ -10,6 +10,14 @@
 <link rel="manifest" href="remote.webmanifest">
 <link rel="icon" type="image/png" href="remote-icon-192.png">
 <link rel="apple-touch-icon" href="remote-icon-192.png">
+<!-- iOS launch splash: without these, iPhone shows a blank white flash
+     when the PWA opens from the home screen.  The 512px icon on the
+     dark #0b0f16 background matches the ON NOW V2 boot splash on the
+     TV, so the phone launches straight into the same visual identity.
+     Two link tags cover portrait phone + tablet; iOS Safari picks the
+     best fit automatically. -->
+<link rel="apple-touch-startup-image" href="remote-icon-512.png" media="(orientation: portrait)">
+<link rel="apple-touch-startup-image" href="remote-icon-512.png">
 <title>ON NOW Remote</title>
 <style>
   :root{
@@ -174,12 +182,28 @@
   @keyframes spin{to{transform:rotate(360deg)}}
 
   /* toast */
-  .fs-gate{position:fixed;inset:0;z-index:120;display:none;flex-direction:column;align-items:center;justify-content:center;gap:26px;
-    background:radial-gradient(120% 90% at 50% 0%, #121a26 0%, var(--bg) 55%, #070a10 100%);cursor:pointer}
+  /* Full-screen gate — matches the on-TV BootSplash typography so the
+     phone opens straight into the same visual identity.  Radial
+     backdrop from BootSplash.jsx; wordmark uses the same font-weight
+     800 / -0.045em letter-spacing and clamp() sizing so it scales on
+     every phone from iPhone SE to Pixel 8 Pro.  The V2 accent inherits
+     the cyan glow used on the TV. */
+  .fs-gate{position:fixed;inset:0;z-index:120;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+    background:radial-gradient(ellipse at 50% 35%, #0e2548 0%, #050912 65%, #02030A 100%);cursor:pointer;
+    -webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
   .fs-gate.show{display:flex}
-  .fs-tap{font-size:12px;letter-spacing:.3em;font-weight:700;text-transform:uppercase;color:var(--txt-dim);
+  .fs-gate::before{content:"";position:absolute;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(0deg, rgba(255,255,255,.012) 0 1px, transparent 1px 3px)}
+  .fs-mark{display:flex;align-items:baseline;gap:clamp(10px,2vw,18px);color:#fff;
+    font-weight:800;font-size:clamp(52px,14vw,84px);letter-spacing:-0.045em;line-height:1;
+    text-shadow:0 8px 60px rgba(93,200,255,.28);animation:fsRise 700ms cubic-bezier(.16,1,.3,1) both}
+  .fs-mark b{font-weight:800;color:#5DC8FF;text-shadow:0 0 24px rgba(93,200,255,.55),0 0 60px rgba(93,200,255,.25)}
+  .fs-tag{font-size:12px;letter-spacing:.36em;font-weight:600;text-transform:uppercase;
+    color:rgba(255,255,255,.55);margin-top:2px;animation:fsRise 900ms cubic-bezier(.16,1,.3,1) both}
+  .fs-tap{margin-top:28px;font-size:12px;letter-spacing:.3em;font-weight:700;text-transform:uppercase;color:var(--txt-dim);
     animation:fsPulse 1.6s ease-in-out infinite}
   @keyframes fsPulse{0%,100%{opacity:.4}50%{opacity:1}}
+  @keyframes fsRise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
   .a2hs{position:fixed;left:14px;right:14px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);z-index:70;
     display:flex;align-items:center;gap:11px;padding:12px 14px;border-radius:16px;
     background:#141b27;border:1px solid var(--edge);box-shadow:0 12px 34px rgba(0,0,0,.55);
@@ -200,8 +224,9 @@
 <body>
 
 <div class="fs-gate" id="fsGate" data-testid="fullscreen-gate">
-  <div class="pair-word">ON&nbsp;NOW <b>V2</b></div>
-  <div class="fs-tap">Tap to open remote</div>
+  <div class="fs-mark"><span>ON&nbsp;NOW</span><b>V2</b></div>
+  <div class="fs-tag">Phone Remote</div>
+  <div class="fs-tap">Tap anywhere to open</div>
 </div>
 
 <!-- ── PAIRING ── -->
@@ -403,12 +428,33 @@
     if (standalone || !fsFn) return;
     var gate = $("fsGate");
     gate.classList.add("show");
-    gate.addEventListener("pointerdown", function(){
+    // v2.13.22 — Use `click` (not `pointerdown`) for the gate tap.
+    // `click` is a GUARANTEED transient user activation on every
+    // browser (Chrome, Safari, Firefox, WebView) and reliably
+    // unlocks requestFullscreen.  `pointerdown` alone did not
+    // count as a valid gesture on iOS Safari and older Chrome,
+    // which is why the user had to tap the underlying page a
+    // second time to actually go fullscreen.  Order matters: call
+    // fsFn() FIRST inside the click handler (synchronously),
+    // THEN hide the gate — some browsers invalidate the gesture
+    // if the invoker element is removed from the DOM before the
+    // API call.
+    var goneFs = false;
+    function gateTap(){
+      if (goneFs) return;
+      goneFs = true;
       goFs();
       gate.classList.remove("show");
-    }, { once: true });
-    // Re-enter fullscreen on any later tap if the user swiped out.
-    document.addEventListener("pointerdown", goFs, true);
+    }
+    gate.addEventListener("click", gateTap);
+    // Fallback for Android WebView contexts where `click` sometimes
+    // doesn't fire without a preceding pointer sequence — mirror the
+    // handler on `pointerup` too.  Both feed the same `goneFs` guard
+    // so we never fire twice.
+    gate.addEventListener("pointerup", gateTap);
+    // Re-enter fullscreen on any later interaction if the user swiped
+    // out (Android's swipe-down-for-notifications drops fullscreen).
+    document.addEventListener("click", goFs, true);
   })();
 
   // "Add to Home Screen" nudge (once).  Android Chrome fires
@@ -579,9 +625,32 @@
   }
 
   var reconnectDelay = 400, wsGaveUp = false, localFailTimer = null;
+  var reconnectTimer = null;   // v2.13.22 — dedupes queued reconnects
   function connectWS(){
-    try { if (ws) ws.close(); } catch(e){}
-    ws = new WebSocket(wsUrl());
+    // v2.13.22 — Cascade fix.  Previously `ws.onclose = ws.onerror = fn`
+    // meant EVERY drop scheduled TWO reconnect attempts (one from each
+    // event).  And a new connectWS() call would `ws.close()` the prior
+    // WS without detaching its handlers, so the old socket's onclose
+    // would fire and queue YET ANOTHER reconnect.  Result: on the LAN
+    // (fast connect), the pill flashed "Connected" for ~1 s, then a
+    // cascade of duplicate reconnects tore the socket down again and
+    // again — exactly the "Reconnecting → Connected → Reconnecting"
+    // loop the operator reported.
+    //
+    // Fix: (1) null out the OLD socket's listeners before closing so
+    // its close event is silent; (2) local `closed` flag inside the
+    // handler so the same close+error pair only reconnects once;
+    // (3) single `reconnectTimer` so competing schedules can't stack.
+    if (ws){
+      try { ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null; } catch(e){}
+      try { ws.close(); } catch(e){}
+    }
+    if (reconnectTimer){
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    var thisWs = new WebSocket(wsUrl());
+    ws = thisWs;
     if (IS_LOCAL && !localFailTimer){
       localFailTimer = setTimeout(function(){
         if (!wsOk){
@@ -590,13 +659,15 @@
         }
       }, 5000);
     }
-    ws.onopen = function(){
+    thisWs.onopen = function(){
+      if (ws !== thisWs) return; // superseded — ignore
       wsOk = true; httpFallback = false; reconnectDelay = 400;
       if (localFailTimer){ clearTimeout(localFailTimer); localFailTimer = null; }
       setConn(true);
       sendPing();
     };
-    ws.onmessage = function(ev){
+    thisWs.onmessage = function(ev){
+      if (ws !== thisWs) return;
       var msg; try { msg = JSON.parse(ev.data); } catch(e){ return; }
       if (msg.type === "pong"){
         if (msg.t) latencyMs = Math.max(1, Math.round(performance.now() - msg.t));
@@ -605,15 +676,25 @@
       }
       if (msg.type === "state") applyState(msg);
     };
-    ws.onclose = ws.onerror = function(){
+    var closed = false;
+    function onDrop(){
+      if (closed) return;   // dedupe onclose+onerror pair
+      closed = true;
+      if (ws !== thisWs) return;   // a newer socket has taken over
       if (!wsOk && IS_LOCAL) return; // local fail timer handles the bounce
       wsOk = false; setConn(false);
       reconnectDelay = Math.min(reconnectDelay * 1.6, 5000);
       if (!IS_LOCAL && reconnectDelay >= 5000 && !httpFallback){
         httpFallback = true; startPolling(); setConn(true);
       }
-      setTimeout(connectWS, reconnectDelay);
-    };
+      if (reconnectTimer) return;   // already queued
+      reconnectTimer = setTimeout(function(){
+        reconnectTimer = null;
+        connectWS();
+      }, reconnectDelay);
+    }
+    thisWs.onclose = onDrop;
+    thisWs.onerror = onDrop;
   }
 
   function sendPing(){

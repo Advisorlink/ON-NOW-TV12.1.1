@@ -1,4 +1,28 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.13.22 — Phone Remote: reconnect cascade fix, single-tap fullscreen, PWA branded splash (Feb 2026).**
+>
+> Operator report:  "The remote says 'Reconnecting' when you scan it.  It opens up and it says 'Reconnecting.'  It says 'Connected' for one second, and then it disappears again, so I can't control anything.  Um, and when it's downloaded onto the home screen, the open screen where it says 'Tap to open' or the loading screen doesn't have the right logo on it.  Um, and when it says 'Tap to open the remote' that tap should open it up full screen — right now it's making me tap it twice to make it open up full screen."
+>
+> **Three separate root causes, three surgical fixes in `launcher-backend/remote_page.html`:**
+>
+> **1. Reconnect cascade → "Connected → Reconnecting" loop (P0 blocker).**
+> The old code did `ws.onclose = ws.onerror = fn`, binding the SAME reconnect function to BOTH events.  On every drop, `onerror` fired FIRST and queued `setTimeout(connectWS, delay)`; then `onclose` fired second and queued ANOTHER `setTimeout(connectWS, delay)`.  Each subsequent `connectWS()` call then did `ws.close()` on the previous WS *without detaching its handlers*, so the old socket's `onclose` fired yet again, queuing a third reconnect.  Result: the connect–close–reconnect storm the operator saw, with "Connected" flashing for ~1 s between cascades.
+> Fixed by (a) nulling `ws.onopen/onmessage/onclose/onerror` before `close()`ing the old socket, (b) a local `closed` flag inside the handler so the `onclose+onerror` pair only fires one reconnect, and (c) a single `reconnectTimer` guard so competing schedules can't stack.  The `if (ws !== thisWs) return` sentinels also silence any late events from a superseded socket.  Result: exactly ONE reconnect attempt per drop, growing exponentially from 400 ms up to 5 s.
+>
+> **2. PWA splash + fs-gate wrong logo (P1 visual).**
+> Two problems: (i) on iPhone the PWA launch had a blank white flash because no `apple-touch-startup-image` tags were declared, and (ii) the "Tap to open" gate used the same styled text but at pair-screen sizing — didn't match the TV's boot splash.
+> Fixed by (i) adding two `<link rel="apple-touch-startup-image" href="remote-icon-512.png">` tags (portrait + fallback) so iOS Safari uses the branded 512-px ON NOW V2 icon on the dark `#0b0f16` background as the launch image, mirroring the TV's `BootSplash.jsx`; and (ii) rebuilding the fs-gate CSS to use the *exact* boot-splash typography — `font-weight:800`, `letter-spacing:-0.045em`, `clamp(52px, 14vw, 84px)` sizing, cyan V2 accent with matching glow (`0 0 24px rgba(93,200,255,.55)`), radial-ellipse backdrop `radial-gradient(ellipse at 50% 35%, #0e2548 0%, #050912 65%, #02030A 100%)`, `fsRise` entrance animation.  Added a "Phone Remote" tagline (uppercased, letter-spaced 0.36em) that visually matches the on-TV wordmark treatment.
+>
+> **3. Two-tap fullscreen (P1 UX).**
+> `gate.addEventListener("pointerdown", …)` doesn't reliably count as a "transient user activation" on iOS Safari and older Android Chrome — the fullscreen request silently fails, then the gate hides and the user has to tap a second (button, dock, anywhere) time before the browser accepts the `document.pointerdown` fallback handler.
+> Fixed by switching the gate to `click` (guaranteed user gesture on every browser) with a `pointerup` mirror as an Android WebView safety net.  Both feed a shared `goneFs` boolean so we never fire twice.  Order also matters: `goFs()` is called FIRST (synchronously) then `.classList.remove("show")` — some browsers invalidate the gesture if the invoker element is removed from the DOM before the fullscreen API call resolves.  Fallback `document.addEventListener("click", goFs, true)` re-enters fullscreen if the user swipes down for Android notifications.
+>
+> **Verified:**  `curl localhost:8002/remote` confirms hot-reload picked up every edit (all `v2.13.22`, `fs-mark`, `apple-touch-startup-image`, `onDrop`, `reconnectTimer` markers present).  Preview pod ingress routes `/remote` to the frontend SPA (no launcher-backend passthrough), so end-to-end visual verification runs on the operator's real VPS after deploy.
+>
+> **User action required:**  Deploy to VPS (git pull + docker compose restart the `launcher-backend` container).  The apk on the box itself does NOT need to change — the remote HTML is fetched from the cloud on every session.  On the phone: (a) rescan the QR — connection should stay solid; (b) if a home-screen shortcut was previously installed, remove and re-add it so the new manifest/splash tags register.
+>
+
+
 > **🟢 v2.13.21 — Vesper: silent-movie fix by reverting the v2.13.20 PCM-only audio-sink (stay-in-ExoPlayer, per operator) (Feb 2026).**
 >
 > Operator report:  "It's just the one program that I clicked through the actual remote on the phone is not having any sound, no matter what.  I even restarted the box.  Different rips of the same title, all silent.  The audio-track button is greyed out."  Follow-up:  "I don't want it to hand it off to libVLC player.  It has to all be done in ExoPlayer.  It all has to play exactly the same way, otherwise it starts looking confusing for the client.  And right now, at least it was playing before, it was just too loud."
