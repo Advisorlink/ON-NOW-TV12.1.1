@@ -41,8 +41,12 @@ export const NUDGE_FEATURES = [
     {
         key: 'my_list',
         name: 'My List',
-        title: 'Save shows for later',
-        body: 'Push and hold OK on any cover — it lands in your Library so you can find it again with one click.',
+        // v2.12.14 — User spec: first tip after onboarding should
+        // lead with the exact action, not a benefit-phrase.  The
+        // operator's own words: "Push and hold on any cover to add
+        // to your library".
+        title: 'Push and hold on any cover to add it to your Library',
+        body: 'Long-press OK on any poster — it lands in your Library so you can find it again with one click.',
         actionLabel: 'Browse',
         actionPath: '/',
         iconName: 'bookmark',

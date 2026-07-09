@@ -207,6 +207,13 @@ export function hasSeenOnboarding() {
 }
 export function markOnboardingSeen() {
     try { localStorage.setItem(STORAGE_KEY, String(Date.now())); } catch { /* ignore */ }
+    /* v2.12.14 — Broadcast so FeatureNudge (and any other post-
+       onboarding UI) can fire the moment the user lands on Home
+       from the last slide, instead of racing a fixed timer that
+       might pop a tip WHILE the onboarding modal is still open. */
+    try {
+        window.dispatchEvent(new CustomEvent('vesper:onboarding-complete'));
+    } catch { /* CustomEvent unsupported — no-op */ }
 }
 export function replayOnboarding() {
     try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }

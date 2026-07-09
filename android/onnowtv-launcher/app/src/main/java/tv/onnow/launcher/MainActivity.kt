@@ -36,6 +36,15 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 /**
+ * v2.12.14 — Build marker.  Bumped so CI produces a fresh APK with a
+ * strictly higher `versionCode` (derived from `GITHUB_RUN_NUMBER` in
+ * `.github/workflows/build-launcher.yml`), giving the operator a
+ * concrete update to sanity-check the new update-button flow end to
+ * end on his physical TV box.  No behavioural change in this file.
+ */
+private const val LAUNCHER_BUILD_MARKER: String = "v2.12.14"
+
+/**
  * Home screen of the launcher — v0.5 stripped-down rebuild.
  *
  * The screen is now intentionally minimal:

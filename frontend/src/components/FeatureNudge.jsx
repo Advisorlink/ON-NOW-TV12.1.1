@@ -18,6 +18,7 @@ import {
     snoozeNudge,
     muteNudgeForever,
 } from '../lib/engagement';
+import { hasSeenOnboarding } from './Onboarding';
 import useIsMobile from '../lib/useIsMobile';
 
 /* Module-level flag so we render AT MOST one nudge per app session
@@ -47,15 +48,42 @@ export default function FeatureNudge() {
     useEffect(() => {
         if (!onHome) return;
         if (SESSION_SHOWN) return;
-        const timer = setTimeout(() => {
+        // v2.12.14 — Never fire the first tip while the onboarding
+        // slides are still on screen.  The user's spec: tips must
+        // appear AFTER onboarding, once they've actually entered the
+        // app.  We branch:
+        //   • Onboarding already done → keep the existing 6-second
+        //     idle delay so the tip doesn't slap the user in the face
+        //     on Home mount.
+        //   • Onboarding still open   → don't run any timer; wait for
+        //     the `vesper:onboarding-complete` event, then fire after
+        //     a short 1.5-second delay so the closing animation
+        //     doesn't collide with the toast entrance.
+        const alreadyDone = hasSeenOnboarding();
+
+        const fire = () => {
+            if (SESSION_SHOWN) return;
             const next = pickNextNudge();
             if (!next) return;
             SESSION_SHOWN = true;
             markNudgeShown(next.key);
             setNudge(next);
             setIsPreview(false);
-        }, 6000);
-        return () => clearTimeout(timer);
+        };
+
+        if (alreadyDone) {
+            const t = setTimeout(fire, 6000);
+            return () => clearTimeout(t);
+        }
+        let postDelay;
+        const onComplete = () => {
+            postDelay = setTimeout(fire, 1500);
+        };
+        window.addEventListener('vesper:onboarding-complete', onComplete);
+        return () => {
+            window.removeEventListener('vesper:onboarding-complete', onComplete);
+            if (postDelay) clearTimeout(postDelay);
+        };
     }, [onHome]);
 
     /* Preview path — fired by Settings → Tips → "Preview".  Bypasses

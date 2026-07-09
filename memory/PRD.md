@@ -1,4 +1,26 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.12.14 — Vesper: first tip waits for onboarding, and leads with "push and hold"; Launcher rebuild marker (Feb 2026).**
+>
+> Operator report: "The tips-and-tricks popup should appear once the user has finished the onboarding slides and is inside the actual app.  The FIRST tip shouldn't say 'Click and add to playlist' — it should say 'Push and hold on any cover to add to your library' or something like that.  Also please bump the launcher so I can test the new update button."
+>
+> **What was done — Vesper (frontend):**
+> 1. `src/lib/engagement.js` — reworded the `my_list` (first) nudge:
+>    - **Title:** was `"Save shows for later"` → now `"Push and hold on any cover to add it to your Library"` (matches the operator's own phrasing verbatim).
+>    - **Body:**  was `"Push and hold OK on any cover — it lands in your Library so you can find it again with one click."` → now `"Long-press OK on any poster — it lands in your Library so you can find it again with one click."` (avoids duplicating the action verb now that it lives in the title).
+> 2. `src/components/Onboarding.jsx` — `markOnboardingSeen()` now also dispatches a `vesper:onboarding-complete` window event when the user finishes the last slide.
+> 3. `src/components/FeatureNudge.jsx` — no longer starts its idle timer while onboarding is still on-screen.  Branch:
+>    - Onboarding already done → keep the pre-existing 6-second idle delay on Home.
+>    - Onboarding still open   → hold, listen for `vesper:onboarding-complete`, then fire the first tip 1.5s after the modal closes (long enough for the exit animation to finish so the toast entrance doesn't collide).
+>    - Result: **fresh profile → onboarding slides → land on Home → 1.5s later, the "Push and hold on any cover…" tip appears in the bottom-right.**  Exactly what the operator asked for.
+>
+> **What was done — Launcher (Android):**
+> 1. Added a top-level `private const val LAUNCHER_BUILD_MARKER: String = "v2.12.14"` in `MainActivity.kt`.  Purely a marker — no behavioural change — but it lands under `android/onnowtv-launcher/**` which is exactly the path filter of `.github/workflows/build-launcher.yml`, so CI will rebuild the Launcher on this push.  `versionCode` is auto-derived from `GITHUB_RUN_NUMBER` (line 79 of the workflow), so the new APK is guaranteed to have a strictly higher `versionCode` than whatever the operator currently has installed — giving the operator's new update-button flow a concrete "update available" state to exercise end-to-end on his physical TV box.
+>
+> **Verified:**  Frontend lints clean (no ESLint issues on `FeatureNudge.jsx`), preview smoke-screenshot renders the login screen without console errors.  Kotlin file syntactically clean — bare-`kotlinc` reports only classpath-cascade "unresolved reference" cascades (identical to the pre-existing baseline; no new grammar errors around the insertion).  Actual full Kotlin type-check runs in CI once the operator saves to GitHub.
+>
+> **User action required:**  Save to GitHub → CI rebuilds Vesper webapp + Launcher APK → let the launcher pull the update.  On a fresh install (or after clearing the Vesper onboarding flag) the first-tip should appear ~1.5s after finishing the slide deck.
+>
+>
 > **🟢 v2.12.9 — Wipe grandfathered auto-approved devices, force manual approval fleet-wide (Feb 2026).**
 >
 > Operator report: "All those old boxes I told you to auto-approve — I want them gone.  Every device (old or new) must show the Register screen when they install the app, and I have to approve it from the admin panel."
