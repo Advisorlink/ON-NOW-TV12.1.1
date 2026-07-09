@@ -8912,3 +8912,25 @@ build; QR + keyboard detection require the new launcher build.
   TV · V2" on the pair/connecting screens.
 - LocalRemoteServer: redirects /remote-icon-*.png + /remote.webmanifest
   to the cloud copies for LAN-mode phones (launcher recompiled OK).
+
+---
+
+## 2026-06 — Branding corrected to boot-splash wordmark + iOS answer
+- User clarified the logo = Vesper BootSplash typographic wordmark
+  (bold white "ON NOW" + glowing cyan #5DC8FF "V2"), NOT the generated
+  square icon. Remote now renders it as pure text: .brand-word in the
+  top bar (flex 3-col layout, no overlap) and big .pair-word +
+  "PHONE REMOTE" eyebrow on the pair/connecting screens.
+- Home-screen icons regenerated with PIL in the same typographic style
+  (radial navy bg, stacked ON/NOW white + glowing V2 cyan,
+  LiberationSans-Bold). remote_logo.png route/file removed.
+- iPhone: no install-prompt API on iOS. Solution shipped: A2HS hint
+  banner (one-time, dismissible) — iOS Safari shows "tap Share → Add
+  to Home Screen"; Android Chrome hooks beforeinstallprompt with a
+  real Install button. apple-mobile-web-app-capable meta means iOS
+  home-screen launches are standalone full-screen. In-tab
+  requestFullscreen doesn't exist on iPhone Safari — home-screen
+  route is the only true fullscreen there.
+- Bug fixed during this: a2hs banner HTML div had gone missing →
+  null addEventListener killed the whole page script (no code boxes,
+  no auto-connect). Restored + verified end-to-end.
