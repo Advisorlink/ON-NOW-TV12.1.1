@@ -145,7 +145,7 @@ object RootInputDispatcher {
                     val (sw, sh) = screenSize(ctx)
                     val x = (msg.optDouble("x") * sw).toInt().coerceIn(0, sw - 1)
                     val y = (msg.optDouble("y") * sh).toInt().coerceIn(0, sh - 1)
-                    writeShellLine("cmd input tap $x $y")
+                    writeShellLine("input tap $x $y")
                 }
                 "swipe" -> {
                     val (sw, sh) = screenSize(ctx)
@@ -154,12 +154,12 @@ object RootInputDispatcher {
                     val x2 = (msg.optDouble("x2") * sw).toInt().coerceIn(0, sw - 1)
                     val y2 = (msg.optDouble("y2") * sh).toInt().coerceIn(0, sh - 1)
                     val ms = msg.optInt("ms", 250)
-                    writeShellLine("cmd input swipe $x1 $y1 $x2 $y2 $ms")
+                    writeShellLine("input swipe $x1 $y1 $x2 $y2 $ms")
                 }
                 "key" -> {
                     val keyName = msg.optString("key")
                     val mapped = KEY_ALIAS[keyName] ?: keyName
-                    writeShellLine("cmd input keyevent KEYCODE_$mapped")
+                    writeShellLine("input keyevent KEYCODE_$mapped")
                 }
                 "longpress" -> {
                     // Push-and-hold on the phone → long-press keyevent
@@ -168,7 +168,7 @@ object RootInputDispatcher {
                     // `input` command on all boxes we target.
                     val keyName = msg.optString("key")
                     val mapped = KEY_ALIAS[keyName] ?: keyName
-                    writeShellLine("cmd input keyevent --longpress KEYCODE_$mapped")
+                    writeShellLine("input keyevent --longpress KEYCODE_$mapped")
                 }
                 "text" -> {
                     val raw = msg.optString("chars")
@@ -177,7 +177,7 @@ object RootInputDispatcher {
                         .replace("\\", "\\\\")
                         .replace("\"", "\\\"")
                         .replace(" ", "%s")
-                    writeShellLine("cmd input text \"$escaped\"")
+                    writeShellLine("input text \"$escaped\"")
                 }
                 "mouse_move" -> {
                     // v2.13.22 — Trackpad support.  Two dispatch paths:
@@ -233,7 +233,7 @@ object RootInputDispatcher {
                     // true pointer clicks).  Falls back to
                     // `cmd input tap` when no HID mouse is present.
                     if (!injectMouseButton(true) || !injectMouseButton(false)) {
-                        writeShellLine("cmd input tap $cursorX $cursorY")
+                        writeShellLine("input tap $cursorX $cursorY")
                     }
                 }
                 "mouse_longpress" -> {
@@ -243,7 +243,7 @@ object RootInputDispatcher {
                         try { Thread.sleep(700) } catch (_: Throwable) {}
                         injectMouseButton(false)
                     } else {
-                        writeShellLine("cmd input swipe $cursorX $cursorY $cursorX $cursorY 700")
+                        writeShellLine("input swipe $cursorX $cursorY $cursorX $cursorY 700")
                     }
                 }
                 else -> Log.w(TAG, "unknown action: $action")
@@ -302,51 +302,74 @@ object RootInputDispatcher {
         return m.widthPixels to m.heightPixels
     }
 
-    // ─── HID mouse injection (v2.13.22) ────────────────────────────
+    // ─── HID mouse injection (v2.14.0) ─────────────────────────────
     /**
-     * Auto-discover the first `/dev/input/eventN` node that emits
-     * `EV_REL` (a mouse-like pointer device — physical air-mouse
-     * dongle, USB mouse, virtual pointer, etc.).  Runs `getevent -pl`
-     * once via the persistent root shell, caches the path on
-     * `mouseDevice`, and returns it.  A negative result is also
-     * cached (`mouseDeviceProbed = true`, `mouseDevice = null`) so we
-     * don't re-probe on every trackpad frame — but a re-probe is
-     * triggered whenever a `mouse_*` action arrives after the
-     * fallback path was used, in case the user hot-plugs the dongle.
+     * Auto-discover the `/dev/input/eventN` node of a relative-motion
+     * pointer device (physical air-mouse dongle, USB mouse, etc.) by
+     * reading the kernel's static `/proc/bus/input/devices` table.
+     *
+     * WHY NOT `getevent -pl`: that command prints device info and then
+     * BLOCKS forever polling for events, so `readText()` never sees
+     * EOF and the discovery thread hangs — the trackpad silently never
+     * finds a device.  `cat /proc/bus/input/devices` returns instantly
+     * with EOF and lists every device's capabilities.
+     *
+     * Format (blank-line separated blocks):
+     *   N: Name="USB Mouse"
+     *   H: Handlers=mouse0 event4
+     *   B: EV=17
+     *   B: REL=103          ← non-zero REL bitmask = pointer device
+     *
+     * We pick the first block that has a non-zero `B: REL=` line and an
+     * `eventN` handler.  Result cached; a negative result is cached too
+     * so we don't re-probe every trackpad frame.
      */
     private fun discoverMouseDevice(): String? {
         if (mouseDevice != null) return mouseDevice
         if (mouseDeviceProbed) return null
-        val p = shellProcess ?: return null
         try {
-            // Use a fresh sub-shell so `getevent -pl` doesn't
-            // pollute our persistent stdout drain thread.
-            val probe = ProcessBuilder("su", "-c", "getevent -pl 2>&1")
+            val probe = ProcessBuilder("su", "-c", "cat /proc/bus/input/devices")
                 .redirectErrorStream(true).start()
             val out = probe.inputStream.bufferedReader().readText()
             probe.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)
-            var currentDev: String? = null
-            for (line in out.lineSequence()) {
-                val trimmed = line.trim()
-                // "add device N: /dev/input/eventN"
-                val addIdx = trimmed.indexOf("/dev/input/event")
-                if (trimmed.startsWith("add device") && addIdx > 0) {
-                    currentDev = trimmed.substring(addIdx).trim()
-                    continue
-                }
-                // `getevent -pl` prints capabilities like
-                //     REL (0002): REL_X REL_Y REL_WHEEL
-                // A REL section = pointer device.
-                if (currentDev != null && trimmed.startsWith("REL (")) {
-                    mouseDevice = currentDev
-                    Log.i(TAG, "HID mouse device discovered: $currentDev")
-                    mouseDeviceProbed = true
-                    return currentDev
+
+            var eventNode: String? = null
+            var hasRel = false
+            var chosen: String? = null
+            fun flush() {
+                if (chosen == null && hasRel && eventNode != null) chosen = eventNode
+                eventNode = null
+                hasRel = false
+            }
+            for (raw in out.lineSequence()) {
+                val line = raw.trim()
+                if (line.isEmpty()) { flush(); continue }
+                when {
+                    line.startsWith("H: Handlers=") -> {
+                        // e.g. "H: Handlers=mouse0 event4"
+                        Regex("event\\d+").find(line)?.let { m ->
+                            eventNode = "/dev/input/${m.value}"
+                        }
+                    }
+                    line.startsWith("B: REL=") -> {
+                        val v = line.substringAfter("B: REL=").trim()
+                        // Non-zero hex bitmask means the device emits
+                        // relative-motion (REL_X/REL_Y) events.
+                        if (v.isNotEmpty() && v.any { it != '0' }) hasRel = true
+                    }
                 }
             }
-            Log.i(TAG, "no HID mouse device found; trackpad → cmd input fallback")
+            flush()  // last block (file may not end with a blank line)
+
+            if (chosen != null) {
+                mouseDevice = chosen
+                Log.i(TAG, "HID mouse device discovered: $chosen")
+                mouseDeviceProbed = true
+                return chosen
+            }
+            Log.i(TAG, "no HID mouse device found; trackpad → input tap fallback")
         } catch (t: Throwable) {
-            Log.w(TAG, "getevent probe failed", t)
+            Log.w(TAG, "mouse device probe failed", t)
         }
         mouseDeviceProbed = true
         return null

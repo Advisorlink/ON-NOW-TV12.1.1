@@ -1,4 +1,18 @@
 # ON NOW TV V2 — PRD
+> **🔴→🟢 v2.14.0 — Phone Remote CRITICAL FIX: `cmd input` broke ALL control on Android 9 + trackpad discovery hang (Jun 2026).**
+>
+> Operator report: "It says it's connected but it's not letting me control the box at all. Back button, home button — nothing. The trackpad just has a blue dot on the trackpad, I can't see it on the screen."
+>
+> **Root cause #1 — buttons/D-pad/tap dead:** v2.13.22b switched every dispatch from `input …` to `cmd input …` as a "lag fix". But `cmd input` does NOT exist on Android 9 (the `input` shell subcommand was only registered with `cmd` in Android 11/12+). On the HK1 (Android 9) box every command failed silently (shell stdout is drained/discarded), so the remote showed "connected" but nothing landed. **Fix:** reverted all six dispatch paths back to `input tap/swipe/keyevent/text` (works on every Android version; the persistent `su` shell already removes the repeated-Magisk-prompt overhead, so latency is fine).
+>
+> **Root cause #2 — trackpad "blue dot but no cursor":** `discoverMouseDevice()` ran `getevent -pl` and called `readText()` (blocks until EOF). But `getevent -pl` prints device info then BLOCKS FOREVER polling events — EOF never arrives, so the read hung and the mouse node was never found → trackpad silently did nothing. **Fix:** replaced with `cat /proc/bus/input/devices` (a static kernel table that returns instantly with EOF); parse each block for a non-zero `B: REL=` line + an `eventN` handler to locate the air-mouse's `/dev/input/eventN`.
+>
+> **Files touched:** `android/onnowtv-launcher/.../support/RootInputDispatcher.kt` only.
+>
+> **Testing:** Native Android + hardware-dependent (rooted Android 9 HK1 box + air-mouse dongle) — CANNOT be auto-tested in the build container (no gradle/kotlinc). Verified: phone-remote UI actions/keys all map to dispatcher handlers. **User must CI-build + sideload the launcher APK and verify on the box.**
+>
+
+
 > **🟢 v2.13.22c — Phone Remote: trackpad now drives the actual HK1 air-mouse cursor via HID `sendevent` (Feb 2026).**
 >
 > Follow-up: "But I've only got a HK1 box.  That's Android 9.  I use a Bluetooth remote with a dongle plugged in the side, and it has a mouse cursor I can control like an air mouse.  I just need the trackpad to control the air mouse."
