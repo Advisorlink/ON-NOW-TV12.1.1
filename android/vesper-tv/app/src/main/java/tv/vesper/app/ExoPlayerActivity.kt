@@ -168,16 +168,24 @@ class ExoPlayerActivity : ComponentActivity() {
     private var lastNpBroadcastAt = 0L
     private val remoteCmdReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(ctx: android.content.Context?, intent: Intent?) {
-            if (intent?.getStringExtra("cmd") != "seek") return
-            val pos = intent.getLongExtra("position_ms", -1L)
-            if (pos < 0L) return
-            runOnUiThread {
-                try {
-                    if (::player.isInitialized) {
-                        player.seekTo(pos)
-                        lastNpBroadcastAt = 0L
+            when (intent?.getStringExtra("cmd")) {
+                "seek" -> {
+                    val pos = intent.getLongExtra("position_ms", -1L)
+                    if (pos < 0L) return
+                    runOnUiThread {
+                        try {
+                            if (::player.isInitialized) {
+                                player.seekTo(pos)
+                                lastNpBroadcastAt = 0L
+                            }
+                        } catch (_: Exception) {}
                     }
-                } catch (_: Exception) {}
+                }
+                "next_episode" -> {
+                    runOnUiThread {
+                        try { jumpToPrimedNextEpisode() } catch (_: Exception) {}
+                    }
+                }
             }
         }
     }
@@ -199,6 +207,7 @@ class ExoPlayerActivity : ComponentActivity() {
                 putExtra("position_ms", posMs)
                 putExtra("duration_ms", durMs)
                 putExtra("playing", if (::player.isInitialized) player.isPlaying else false)
+                putExtra("has_next", hasNextEpisodeFlow.value)
             })
         } catch (_: Exception) {}
     }

@@ -59,7 +59,7 @@ ALLOWED_KEYS = {
     "MEDIA_FAST_FORWARD", "MEDIA_REWIND", "MEDIA_NEXT", "MEDIA_PREVIOUS",
     "MEDIA_STOP",
 }
-ALLOWED_ACTIONS = {"key", "text", "longpress", "seek"}
+ALLOWED_ACTIONS = {"key", "text", "longpress", "seek", "next_episode"}
 
 
 @dataclass
@@ -207,6 +207,8 @@ def _validate_input(body: dict) -> dict:
         except (TypeError, ValueError):
             raise HTTPException(400, "bad_position")
         return {"action": "seek", "position_ms": pos}
+    if action == "next_episode":
+        return {"action": "next_episode"}
     chars = str(body.get("chars", ""))[:500]
     if not chars:
         raise HTTPException(400, "empty_text")
@@ -225,6 +227,7 @@ def _sanitize_now_playing(np: dict) -> dict:
         "position_ms": int(np.get("position_ms", 0) or 0),
         "duration_ms": int(np.get("duration_ms", 0) or 0),
         "playing": bool(np.get("playing", True)),
+        "has_next": bool(np.get("has_next", False)),
     }
 
 

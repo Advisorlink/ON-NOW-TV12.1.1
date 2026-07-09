@@ -121,6 +121,7 @@ class RemoteControlService : Service() {
                 put("position_ms", intent.getLongExtra("position_ms", 0L))
                 put("duration_ms", intent.getLongExtra("duration_ms", 0L))
                 put("playing", intent.getBooleanExtra("playing", true))
+                put("has_next", intent.getBooleanExtra("has_next", false))
             }
             pushState(includeNowPlaying = true, includeKeyboard = false)
         }
@@ -229,6 +230,15 @@ class RemoteControlService : Service() {
                     } catch (t: Throwable) {
                         Log.w(TAG, "seek broadcast failed", t)
                     }
+                }
+            }
+            "next_episode" -> {
+                try {
+                    sendBroadcast(Intent(ACTION_PLAYER_CMD).apply {
+                        putExtra("cmd", "next_episode")
+                    })
+                } catch (t: Throwable) {
+                    Log.w(TAG, "next-episode broadcast failed", t)
                 }
             }
             else -> RootInputDispatcher.handle(this, payload)

@@ -8868,3 +8868,32 @@ reconnects, no PIN entry ever.
 - VlcPlayerActivity: no NOW_PLAYING/seek bridge yet (ExoPlayer only).
 - Kids/Tunes/FTA apps don't push now-playing.
 - Real-device end-to-end (user must flash new launcher+vesper builds).
+
+---
+
+## 2026-06 — Remote polish round 2 (user feedback from real device)
+
+Bug root-caused: prod (onnowhub.com/launcher) serves backend under a
+PATH PREFIX; page used location.origin → API calls hit wrong URL →
+infinite "Waiting". FIXED: CLOUD_ORIGIN = origin + pathname-derived
+BASE_PATH. Also prod VPS was serving NEW html but running OLD python
+process (page read from disk per request) → user must rebuild/restart
+container after pull. Dockerfile FIXED (was only copying main.py +
+admin; now ships phone_remote.py, support_session.py, apk_meta.py,
+remote_page.html). DEPLOY.md nginx block got WS upgrade headers.
+autoConnect screen retitled ("Connecting to your TV — no code needed").
+
+New features (tested: backend relay test, playwright UI, both APKs
+compile):
+- Now-playing card: + synopsis (2-line clamp) + "Next Episode" pill
+  (shows when has_next; sends action "next_episode" → CMD broadcast →
+  Vesper jumpToPrimedNextEpisode()). has_next fed from Vesper
+  hasNextEpisodeFlow via NOW_PLAYING broadcast.
+- Search button on phone → sends SEARCH key AND auto-opens the phone
+  keyboard sheet after 700ms (works for any app; dumpsys detector
+  keeps state in sync afterwards).
+
+REMINDER FOR USER DEPLOYMENT: (1) Save to GitHub, (2) VPS: pull +
+rebuild/restart launcher-backend container, (3) install BOTH new APKs
+on the box — now-playing/seek/next-episode REQUIRE the new Vesper
+build; QR + keyboard detection require the new launcher build.
