@@ -187,9 +187,22 @@ class ExoPlayerActivity : ComponentActivity() {
         KeyEvent.KEYCODE_DPAD_RIGHT to String(Character.toChars(0x1F62D)),   // 😭
     )
 
+    // v2.13.20 — Software volume fallback for fixed-volume HDMI
+    // boxes (AudioManager.isVolumeFixed == true).  Scales the
+    // decoded-PCM output of ExoPlayer itself in 15 steps.
+    private var softVolumeStepIdx = 15
+    private fun softVolumeStep(raise: Boolean): Int {
+        softVolumeStepIdx = (softVolumeStepIdx + if (raise) 1 else -1).coerceIn(0, 15)
+        val pct = softVolumeStepIdx * 100 / 15
+        try {
+            if (this::player.isInitialized) player.volume = softVolumeStepIdx / 15f
+        } catch (_: Throwable) { /* never crash playback */ }
+        return pct
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         // Volume keys FIRST — before party/guide logic can touch them.
-        if (handleGlobalVolumeKey(this, event)) return true
+        if (handleGlobalVolumeKey(this, event, ::softVolumeStep)) return true
         val inParty = partyVoice != null
         // v2.7.68 — Party mode key dispatcher rebuilt from scratch.
         //
@@ -766,7 +779,36 @@ class ExoPlayerActivity : ComponentActivity() {
             )
         val mediaSourceFactory =
             DefaultMediaSourceFactory(this).setDataSourceFactory(httpFactory)
-        player = ExoPlayer.Builder(this)
+        // v2.13.20 — FORCE PCM AUDIO OUTPUT (root fix for the
+        // "volume is either OFF or FULL BLAST" bug on HK1-class
+        // AMLogic boxes).  Media3's default audio sink reads the
+        // HDMI EDID and, when the display chain advertises Dolby,
+        // BITSTREAMS AC3/E-AC3 straight through the HDMI cable.
+        // Android CANNOT attenuate a compressed bitstream — the
+        // system volume slider moves but only mute (0) actually
+        // changes anything, which is exactly the reported symptom
+        // (movie rips are almost always AC3/E-AC3/DTS).  Building
+        // the sink WITHOUT a context pins it to
+        // DEFAULT_AUDIO_CAPABILITIES (PCM only, no passthrough) so
+        // Dolby tracks are DECODED on-device and the resulting PCM
+        // responds to every one of the 15 STREAM_MUSIC volume
+        // steps.  If the box genuinely lacks a Dolby/DTS decoder
+        // the existing DECODER_INIT_FAILED → VLC fallback catches
+        // it (VLC software-decodes to PCM anyway).
+        val renderersFactory = object : androidx.media3.exoplayer.DefaultRenderersFactory(this) {
+            override fun buildAudioSink(
+                context: android.content.Context,
+                enableFloatOutput: Boolean,
+                enableAudioTrackPlaybackParams: Boolean,
+            ): androidx.media3.exoplayer.audio.AudioSink {
+                @Suppress("DEPRECATION")
+                return androidx.media3.exoplayer.audio.DefaultAudioSink.Builder()
+                    .setEnableFloatOutput(enableFloatOutput)
+                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                    .build()
+            }
+        }.setEnableDecoderFallback(true)
+        player = ExoPlayer.Builder(this, renderersFactory)
             .setBandwidthMeter(bandwidth)
             .setLoadControl(loadControl)
             .setMediaSourceFactory(mediaSourceFactory)

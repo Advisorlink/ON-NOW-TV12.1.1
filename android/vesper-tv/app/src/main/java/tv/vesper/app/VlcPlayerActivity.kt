@@ -62,9 +62,22 @@ import java.util.concurrent.TimeUnit
  */
 class VlcPlayerActivity : AppCompatActivity() {
 
+    // v2.13.20 — Software volume fallback for fixed-volume HDMI
+    // boxes.  libVLC always decodes to PCM, so its 0-100 software
+    // volume works everywhere.
+    private var softVolumeStepIdx = 15
+    private fun softVolumeStep(raise: Boolean): Int {
+        softVolumeStepIdx = (softVolumeStepIdx + if (raise) 1 else -1).coerceIn(0, 15)
+        val pct = softVolumeStepIdx * 100 / 15
+        try {
+            if (this::mediaPlayer.isInitialized) mediaPlayer.setVolume(pct)
+        } catch (_: Throwable) { /* never crash playback */ }
+        return pct
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         // USER SPEC — volume keys behave like a real remote everywhere.
-        if (handleGlobalVolumeKey(this, event)) return true
+        if (handleGlobalVolumeKey(this, event, ::softVolumeStep)) return true
         return super.dispatchKeyEvent(event)
     }
 

@@ -8653,3 +8653,31 @@ Now: text "Back up profiles" (FIRST dropped), 12sp, letterSpacing
   string) → showCityPicker(), since the chip was the only entry
   point. Rail order: Categories · Favourites · City · Refresh.
 - XML parse + brace balance verified; compiles in CI.
+
+---
+
+## 2026-06 — Vesper volume "off or full blast" ROOT FIX (HK1 boxes)
+
+ROOT CAUSE: media3 DefaultAudioSink.Builder(context) reads HDMI EDID;
+AMLogic boxes (HK1) advertise Dolby → ExoPlayer BITSTREAMS AC3/E-AC3
+passthrough. Android cannot attenuate compressed bitstream → system
+volume only mutes at 0, full otherwise. Movie rips are nearly always
+AC3/E-AC3/DTS → "every movie" symptom.
+
+FIX (vesper-tv v2.13.20):
+- ExoPlayerActivity: custom DefaultRenderersFactory overriding
+  buildAudioSink → DefaultAudioSink.Builder() with NO context =
+  DEFAULT_AUDIO_CAPABILITIES (PCM only, passthrough disabled). Dolby
+  decoded on-device → PCM responds to all 15 volume steps. Missing
+  decoder → existing DECODER_INIT_FAILED → VLC fallback (software
+  PCM decode).
+- VolumeKeys.kt: softAdjust fallback — if AudioManager.isVolumeFixed
+  (fixed-volume HDMI), scale the player's own PCM volume in 15 steps
+  + "Volume NN%" toast. Wired in ExoPlayerActivity (player.volume)
+  and VlcPlayerActivity (mediaPlayer.setVolume 0-100).
+- Verified: kotlinc syntax check + stub-compile of exact media3 1.4.1
+  buildAudioSink override signature (fetched from GitHub 1.4.1 tag).
+- NATIVE AUDIO CANNOT BE TESTED IN CONTAINER — user must install CI
+  APK on HK1 and test volume steps mid-movie.
+- Kids app ExoPlayerActivity has the SAME latent passthrough bug —
+  not yet patched (offered as follow-up).
