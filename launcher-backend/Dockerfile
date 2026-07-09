@@ -12,7 +12,7 @@ COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source.
-COPY main.py /app/main.py
+COPY main.py phone_remote.py support_session.py apk_meta.py remote_page.html /app/
 COPY admin /app/admin
 
 # Storage volume — mount /data from the host so the JSON store +

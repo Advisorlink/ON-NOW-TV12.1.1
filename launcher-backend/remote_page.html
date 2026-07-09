@@ -166,8 +166,8 @@
 <!-- ── PAIRING ── -->
 <div class="pair" id="pairScreen" data-testid="pair-screen">
   <div class="pair-logo">ON NOW TV</div>
-  <h1>Enter the code<br>on your TV</h1>
-  <p>Open the Remote on your TV box and type the 6-digit code shown on screen.</p>
+  <h1 id="pairTitle">Enter the code<br>on your TV</h1>
+  <p id="pairSub">Open the Remote on your TV box and type the 6-digit code shown on screen.</p>
   <div class="code-boxes" id="codeBoxes" data-testid="code-boxes"></div>
   <input class="code-hidden" id="codeInput" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" data-testid="code-input">
   <div class="pair-err" id="pairErr" data-testid="pair-error"></div>
@@ -303,7 +303,10 @@
   "use strict";
   var qs = new URLSearchParams(location.search);
   var IS_LOCAL = qs.get("local") === "1" && location.protocol === "http:";
-  var CLOUD_ORIGIN = qs.get("cloud") ? decodeURIComponent(qs.get("cloud")) : location.origin;
+  // The backend may be mounted under a path prefix (e.g. onnowhub.com/launcher),
+  // so derive the API base from where THIS page was served, never bare origin.
+  var BASE_PATH = location.pathname.replace(/\/remote\/?$/, "");
+  var CLOUD_ORIGIN = qs.get("cloud") ? decodeURIComponent(qs.get("cloud")) : (location.origin + BASE_PATH);
   var LS_KEY = "onnow_remote_v2";
   var LOCAL_TRY_KEY = "onnow_remote_local_try";
 
@@ -354,7 +357,10 @@
 
   function showPair(msg){
     pairScreen.classList.remove("hidden"); remoteApp.style.display = "none";
+    $("pairTitle").innerHTML = "Enter the code<br>on your TV";
+    $("pairSub").textContent = "Open the Remote on your TV box and type the 6-digit code shown on screen.";
     $("codeBoxes").style.display = "";
+    pairErr.style.color = "";
     pairErr.textContent = msg || "";
     pairSpin.style.display = "none"; pairBtn.style.display = "";
     setTimeout(function(){ codeInput.focus(); }, 250);
@@ -411,10 +417,12 @@
   function autoConnect(aSid, aCode, attempt){
     attempt = attempt || 0;
     pairScreen.classList.remove("hidden"); remoteApp.style.display = "none";
+    $("pairTitle").textContent = "Connecting to your TV";
+    $("pairSub").textContent = "This remote connects automatically — no code needed.";
     $("codeBoxes").style.display = "none"; pairBtn.style.display = "none";
     pairSpin.style.display = "block";
-    pairErr.style.color = "";
-    pairErr.textContent = attempt === 0 ? "Connecting to your TV\u2026"
+    pairErr.style.color = attempt === 0 ? "" : "var(--txt-dim)";
+    pairErr.textContent = attempt === 0 ? ""
       : "Waiting for your TV box\u2026 make sure it's powered on.";
     pairRequest({ session_id: aSid, code: aCode }).then(function(r){
       if (r.status === 403) throw new Error("stale");
