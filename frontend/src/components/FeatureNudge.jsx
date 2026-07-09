@@ -8,7 +8,7 @@
  * (so it doesn't pop the moment the user opens the app).
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Bookmark, UserRound, Clock, Sparkles, UsersRound, X } from 'lucide-react';
 import {
@@ -40,6 +40,15 @@ export default function FeatureNudge() {
     const isMobile = useIsMobile();
     const [nudge, setNudge] = useState(null);
     const [isPreview, setIsPreview] = useState(false);
+    /* v2.12.15 — Refs for D-pad focus management:
+       • tryBtnRef       — primary "Try it" button, gets focus on mount
+       • prevFocusRef    — whatever tile was focused BEFORE the nudge
+                           opened, so we can hand focus back cleanly
+                           when the user dismisses it (otherwise the
+                           spatial-focus engine has no last-known
+                           element and jumps somewhere random). */
+    const tryBtnRef = useRef(null);
+    const prevFocusRef = useRef(null);
 
     /* Only consider showing on the Home route — feels weird to pop a
        nudge while the user is mid-search or mid-playback. */
@@ -103,21 +112,106 @@ export default function FeatureNudge() {
         return () => window.removeEventListener('vesper:nudge-preview', handler);
     }, []);
 
+    /* v2.12.15 — Whenever the nudge becomes visible, hand D-pad focus
+       to the primary "Try it" button so the remote can act on it
+       without the user having to blindly guess where the highlight
+       jumped to.  Also wires a global BACK/ESCAPE handler that
+       dismisses the toast (same behaviour as tapping "Maybe later")
+       so a single BACK press on the remote always closes the tip.
+       Runs whenever `nudge` transitions from null → object. */
+    useEffect(() => {
+        if (!nudge) return undefined;
+        // Remember whatever tile was focused BEFORE we hijack focus,
+        // so we can hand it back when the toast closes.
+        const ae = document.activeElement;
+        if (
+            ae &&
+            ae !== document.body &&
+            typeof ae.focus === 'function' &&
+            /* Don't try to restore focus to our own about-to-mount
+               buttons or to a stale button we're replacing. */
+            !(ae.closest && ae.closest('[data-testid="feature-nudge"]'))
+        ) {
+            prevFocusRef.current = ae;
+        }
+        // Focus the primary CTA on the next frame so the ref is
+        // attached and any entrance animation has committed the
+        // element to layout (WebView on cheap boxes sometimes drops
+        // a same-tick focus() on freshly-mounted nodes).
+        const raf = requestAnimationFrame(() => {
+            const btn = tryBtnRef.current;
+            if (!btn) return;
+            try {
+                btn.focus({ preventScroll: true });
+                // Mirror the data-focused ring for Android WebView
+                // where :focus-visible is unreliable — matches the
+                // pattern used across the spatial focus engine.
+                btn.setAttribute('data-focused', 'true');
+            } catch { /* ignore */ }
+        });
+        // BACK / ESCAPE = dismiss the tip (same as "Maybe later").
+        // Capture-phase + stopPropagation so the app-wide back
+        // handlers (Home has one that routes to profile picker)
+        // don't fire underneath us.
+        const onKey = (e) => {
+            const k = e.key;
+            if (k === 'Escape' || k === 'Backspace' || k === 'GoBack' || k === 'BrowserBack') {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!isPreview) snoozeNudge(nudge.key);
+                setNudge(null);
+                // Inline restore — closures don't have access to
+                // restorePrevFocus() defined below this effect.
+                const prev = prevFocusRef.current;
+                prevFocusRef.current = null;
+                if (prev && prev.isConnected) {
+                    try { prev.focus({ preventScroll: true }); } catch { /* ignore */ }
+                }
+            }
+        };
+        window.addEventListener('keydown', onKey, true);
+        return () => {
+            cancelAnimationFrame(raf);
+            window.removeEventListener('keydown', onKey, true);
+        };
+    }, [nudge, isPreview]);
+
     if (!nudge) return null;
 
     const Icon = ICONS[nudge.iconName] || Sparkles;
 
+    /* v2.12.15 — Restore focus to whatever tile was highlighted
+       before the nudge popped, so the D-pad user isn't stranded on
+       a detached button after dismissing.  No-op on mobile / touch. */
+    const restorePrevFocus = () => {
+        const prev = prevFocusRef.current;
+        prevFocusRef.current = null;
+        if (!prev) return;
+        try {
+            // Only restore if the element is still on-screen and
+            // still focusable — pages that navigated away shouldn't
+            // reach back and grab focus.
+            if (prev.isConnected && typeof prev.focus === 'function') {
+                prev.focus({ preventScroll: true });
+            }
+        } catch { /* ignore */ }
+    };
+
     const handleTry = () => {
+        // Don't restore prev-focus: we're navigating away.
+        prevFocusRef.current = null;
         setNudge(null);
         navigate(nudge.actionPath);
     };
     const handleLater = () => {
         if (!isPreview) snoozeNudge(nudge.key);
         setNudge(null);
+        restorePrevFocus();
     };
     const handleMute = () => {
         if (!isPreview) muteNudgeForever(nudge.key);
         setNudge(null);
+        restorePrevFocus();
     };
 
     /* Layout differs slightly per platform:
@@ -263,6 +357,7 @@ export default function FeatureNudge() {
                     <button
                         data-testid="feature-nudge-try"
                         data-focusable="true"
+                        ref={tryBtnRef}
                         onClick={handleTry}
                         style={{
                             background: 'var(--vesper-blue)',

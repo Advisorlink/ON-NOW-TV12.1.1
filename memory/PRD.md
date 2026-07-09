@@ -1,4 +1,25 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.12.15 — Vesper: tip toast auto-focuses for D-pad + Back dismisses (Feb 2026).**
+>
+> Operator report: "When the tip does pop up it needs to make sure the remote's focus is inside that box so we can close it or do what we need to — the whole thing's controlled by the remote, remember?"
+>
+> **What was done:**
+> `src/components/FeatureNudge.jsx` — three linked D-pad fixes:
+> 1. **Auto-focus on mount.**  A new `useEffect(nudge, isPreview)` runs whenever the toast becomes visible.  On the next animation frame it grabs the primary CTA button (`ref={tryBtnRef}` on the "Browse / Try it" button) and calls `.focus({ preventScroll: true })` + `setAttribute('data-focused', 'true')` — the WebView-safe pattern already used by the spatial focus engine.  Result: the moment the tip appears, the D-pad ring is already on the primary action.
+> 2. **Prev-focus memory + restore.**  Before hijacking focus, the effect snapshots `document.activeElement` into `prevFocusRef` (guarded against re-entrancy from nudge-internal elements).  On dismiss (Escape, "Maybe later", or X close), the previously-focused tile is re-focused so the operator's remote returns to exactly where it was — no stranded highlight after the toast closes.  "Try it" navigations skip restore (the user is deliberately leaving the current view).
+> 3. **BACK / ESCAPE / GoBack / BrowserBack ⇒ dismiss.**  Global capture-phase `keydown` listener wired only while the toast is open; matches any of the four back-key variants Android WebView / kiosk builds emit.  Uses `stopPropagation()` so app-wide back handlers (Home's routes-to-profile-picker) don't fire underneath.  Behaves like "Maybe later" — snoozes the tip for 7 days (unless it's the Settings→Preview firing, in which case it's a no-op on the schedule).
+>
+> **Verified end-to-end via Playwright:**  After login + profile pick, a preview-fire of `my_list` produced:
+>   - `feature-nudge` in DOM
+>   - `document.activeElement` = `feature-nudge-try` (with `data-focused="true"`)
+>   - Toast text: **"Push and hold on any cover to add it to your Library"** followed by the correct body
+>   - Press `Escape` → toast removed → focus returned to the previously-focused tile (`profile-p-test-1`)
+>
+> ESLint clean on `FeatureNudge.jsx`.  No changes needed outside this one component.
+>
+> **User action required:**  Save to GitHub → next Vesper build.  The tip on your TV will land with the ring already inside the box — one press of OK follows the tip, one press of BACK dismisses it.
+>
+>
 > **🟢 v2.12.14 — Vesper: first tip waits for onboarding, and leads with "push and hold"; Launcher rebuild marker (Feb 2026).**
 >
 > Operator report: "The tips-and-tricks popup should appear once the user has finished the onboarding slides and is inside the actual app.  The FIRST tip shouldn't say 'Click and add to playlist' — it should say 'Push and hold on any cover to add to your library' or something like that.  Also please bump the launcher so I can test the new update button."
