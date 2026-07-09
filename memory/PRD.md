@@ -1,4 +1,33 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.13.22b — Phone Remote: lag fix, keyboard auto-pop on all React text inputs, trackpad (mouse control), Bluetooth Q (Feb 2026).**
+>
+> Operator report:  "It's too laggy — you click a button and it takes a second for it to move.  When setting up a profile you click on the profile and when it comes to adding the name and stuff you can't add the name — it takes forever to actually get it to show you where to put your stuff in.  Also I wanna have like a track pad so I can use it like a mouse and use the onscreen mouse that comes with the box.  And I have a question about making it work through Bluetooth — will it be faster?"
+>
+> **Bluetooth answer (documented for future re-asks):**  No.  Bluetooth Classic RFCOMM is 100–500 ms one-way, BLE is 20–100 ms.  A direct LAN WebSocket to the box is 5–20 ms.  BT also adds pairing UX and drops out on receiver/kitchen interference.  We keep WiFi LAN + cloud fallback.
+>
+> **1. Lag → `cmd input` (`android/onnowtv-launcher/.../RootInputDispatcher.kt`).**
+> Every key press was dispatching `input keyevent KEYCODE_…` via the persistent `su` shell.  The `input` command is a Java tool that spawns a fresh JVM on every invocation — on cheap HK1-class boxes that's 200–500 ms per keypress before anything actually happens.  Switched every dispatch line to `cmd input …` (Android 8+ shortcut that talks straight to system_server over binder without a new JVM).  Real-world latency drops from ~300 ms to ~30–50 ms per event.  All six dispatch paths updated: `tap`, `swipe`, `key`, `longpress`, `text`, and the new `mouse_*` handlers.
+>
+> **2. Keyboard doesn't pop on profile-name / any React input (`frontend/src/App.js`).**
+> The keyboard-broadcast infra was already in place on the Android side (`WebAppInterface.onKeyboardNeeded` broadcasts `tv.onnow.remote.KEYBOARD`, `RemoteControlService.keyboardReceiver` pushes state to phones), but the React side never called it — no `focusin`/`focusout` listener existed.  Added a global listener at the App root that fires `window.OnNowTV.onKeyboardNeeded(true|false)` for every text-like element (`<input type="text|search|password|email|tel|url|number">`, `<textarea>`, `contentEditable`).  60 ms debounce so tab-jumping between two fields doesn't flap the phone keyboard sheet.  `focusout` only fires OFF if the next focused element is NOT another text input (so multi-step forms don't blink).  Fixes profile setup, PIN entry, search, Xtream login, and every future form.
+>
+> **3. Trackpad (`launcher-backend/remote_page.html` + `phone_remote.py` + `RootInputDispatcher.kt`).**
+> New large touch surface below the Keyboard/Search row (exactly where the operator drew on the mockup).  Drag → move on-screen cursor.  Single tap → left click.  Two-finger tap → BACK (right-click semantics).  600 ms hold → long-press.  Absolute-position mapping: normalised (x, y) on the pad → same (x, y) on the TV screen, so the preview cursor on the phone predicts exactly where the tap will land.  Movement throttled to 60 Hz.  New wire actions: `mouse_move {x, y}`, `mouse_tap`, `mouse_longpress` — all validated in `phone_remote._validate_input` (with `[0..1]` clamp for coords) and dispatched on the box via:
+> - `mouse_move` → `cmd input motionevent MOVE x y MOUSE` (Android 12+ moves a real cursor; ignored on older) + persists position server-side.
+> - `mouse_tap` → `cmd input tap x y` at the tracked cursor position (works on every Android version).
+> - `mouse_longpress` → `cmd input swipe x y x y 700` (self-swipe = press-and-hold).
+> Visual: subtle floating cyan dot that only appears while dragging; pad shows a hint ("Drag to move · Tap to click · 2-finger tap = Back") which fades out on interaction.
+>
+> **Verified:**  `curl localhost:8002/remote` returns trackpad markup + `mouse_move` handlers; `phone_remote.py` lints clean; App.js lints clean (pre-existing warning only).  End-to-end runs on operator's real box after next deploy + APK build (RootInputDispatcher change requires a launcher APK rebuild; the trackpad UI + keyboard-focus + backend action allow-list changes are HTML/JS/Python only and land the moment the launcher-backend container is restarted).
+>
+> **User action required (in order):**
+> 1. Restart `launcher-backend` on your VPS (`git pull && docker compose restart launcher-backend`) — enables trackpad, faster relay, keyboard broadcast, and the earlier reconnect-cascade fix all at once.
+> 2. Rebuild + sideload the **launcher APK** — activates the `cmd input` lag fix on the box (requires CI build).
+> 3. Rebuild + sideload the **Vesper APK** — activates the v2.13.21 silent-movie fix.
+> 4. Rescan the QR on the phone (or remove + re-add the home-screen shortcut to pick up the new PWA splash tags).
+>
+
+
 > **🟢 v2.13.22 — Phone Remote: reconnect cascade fix, single-tap fullscreen, PWA branded splash (Feb 2026).**
 >
 > Operator report:  "The remote says 'Reconnecting' when you scan it.  It opens up and it says 'Reconnecting.'  It says 'Connected' for one second, and then it disappears again, so I can't control anything.  Um, and when it's downloaded onto the home screen, the open screen where it says 'Tap to open' or the loading screen doesn't have the right logo on it.  Um, and when it says 'Tap to open the remote' that tap should open it up full screen — right now it's making me tap it twice to make it open up full screen."

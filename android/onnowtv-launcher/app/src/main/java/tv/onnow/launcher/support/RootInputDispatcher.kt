@@ -132,7 +132,7 @@ object RootInputDispatcher {
                     val (sw, sh) = screenSize(ctx)
                     val x = (msg.optDouble("x") * sw).toInt().coerceIn(0, sw - 1)
                     val y = (msg.optDouble("y") * sh).toInt().coerceIn(0, sh - 1)
-                    writeShellLine("input tap $x $y")
+                    writeShellLine("cmd input tap $x $y")
                 }
                 "swipe" -> {
                     val (sw, sh) = screenSize(ctx)
@@ -141,12 +141,12 @@ object RootInputDispatcher {
                     val x2 = (msg.optDouble("x2") * sw).toInt().coerceIn(0, sw - 1)
                     val y2 = (msg.optDouble("y2") * sh).toInt().coerceIn(0, sh - 1)
                     val ms = msg.optInt("ms", 250)
-                    writeShellLine("input swipe $x1 $y1 $x2 $y2 $ms")
+                    writeShellLine("cmd input swipe $x1 $y1 $x2 $y2 $ms")
                 }
                 "key" -> {
                     val keyName = msg.optString("key")
                     val mapped = KEY_ALIAS[keyName] ?: keyName
-                    writeShellLine("input keyevent KEYCODE_$mapped")
+                    writeShellLine("cmd input keyevent KEYCODE_$mapped")
                 }
                 "longpress" -> {
                     // Push-and-hold on the phone → long-press keyevent
@@ -155,7 +155,7 @@ object RootInputDispatcher {
                     // `input` command on all boxes we target.
                     val keyName = msg.optString("key")
                     val mapped = KEY_ALIAS[keyName] ?: keyName
-                    writeShellLine("input keyevent --longpress KEYCODE_$mapped")
+                    writeShellLine("cmd input keyevent --longpress KEYCODE_$mapped")
                 }
                 "text" -> {
                     val raw = msg.optString("chars")
@@ -164,7 +164,34 @@ object RootInputDispatcher {
                         .replace("\\", "\\\\")
                         .replace("\"", "\\\"")
                         .replace(" ", "%s")
-                    writeShellLine("input text \"$escaped\"")
+                    writeShellLine("cmd input text \"$escaped\"")
+                }
+                "mouse_move" -> {
+                    // v2.13.22 — Trackpad support.  Absolute-position
+                    // pointer move.  {x, y} are normalised [0..1].
+                    // On Android 12+ boxes `cmd input motionevent` can
+                    // move a real MOUSE cursor; on older Android we
+                    // just remember the position server-side and let
+                    // the eventual `mouse_tap` land there via
+                    // `input tap`.  Either way the phone renders a
+                    // preview cursor so the user has feedback.
+                    val (sw, sh) = screenSize(ctx)
+                    val x = (msg.optDouble("x") * sw).toInt().coerceIn(0, sw - 1)
+                    val y = (msg.optDouble("y") * sh).toInt().coerceIn(0, sh - 1)
+                    cursorX = x
+                    cursorY = y
+                    writeShellLine("cmd input motionevent MOVE $x $y MOUSE 2>/dev/null")
+                }
+                "mouse_tap" -> {
+                    // Left-click at the current tracked cursor pos.
+                    // `input tap` works on every Android version we
+                    // target and is honoured by every focused view.
+                    writeShellLine("cmd input tap $cursorX $cursorY")
+                }
+                "mouse_longpress" -> {
+                    // 700 ms "press and hold" at the cursor — used
+                    // for context menus / drag-select behaviours.
+                    writeShellLine("cmd input swipe $cursorX $cursorY $cursorX $cursorY 700")
                 }
                 else -> Log.w(TAG, "unknown action: $action")
             }
@@ -172,6 +199,13 @@ object RootInputDispatcher {
             Log.w(TAG, "input dispatch failed for action=$action", t)
         }
     }
+
+    // v2.13.22 — Cursor position tracker for phone trackpad taps.
+    // Persists across events so `mouse_tap` lands at wherever the
+    // user last moved the pointer.  Initialised to screen centre in
+    // ensureShell() so a tap-without-move still lands somewhere sane.
+    @Volatile private var cursorX: Int = 0
+    @Volatile private var cursorY: Int = 0
 
     /** Close the persistent shell.  Call from Activity.onDestroy. */
     fun shutdown() {

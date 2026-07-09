@@ -136,6 +136,30 @@
   .util-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .util-row .nbtn{height:52px;border-radius:16px;gap:9px;font-size:13.5px;font-weight:600;color:var(--txt-dim)}
   .util-row .nbtn svg{width:19px;height:19px;stroke:var(--txt-dim)}
+  /* v2.13.22 — Trackpad.  A large touch surface that maps phone
+     touches to absolute screen coordinates on the box.  Renders a
+     subtle floating dot so the user sees exactly where their tap
+     will land.  Sized to fill the remaining vertical space below
+     the util-row on any modern phone (the parent is the remote
+     column which is already `min-height:100dvh` in App shell). */
+  .trackpad{margin-top:14px;position:relative;flex:1 1 auto;min-height:220px;
+    border-radius:22px;background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+    border:1px solid rgba(255,255,255,0.06);
+    box-shadow:inset 0 2px 10px rgba(0,0,0,0.35);
+    touch-action:none;user-select:none;-webkit-user-select:none;
+    -webkit-tap-highlight-color:transparent;overflow:hidden}
+  .trackpad.active{background:linear-gradient(180deg, rgba(93,200,255,0.06), rgba(93,200,255,0.02));
+    border-color:rgba(93,200,255,0.22)}
+  .tp-cursor{position:absolute;left:50%;top:50%;width:22px;height:22px;
+    margin-left:-11px;margin-top:-11px;border-radius:50%;
+    background:radial-gradient(circle, rgba(93,200,255,0.95) 0%, rgba(93,200,255,0.55) 55%, rgba(93,200,255,0) 100%);
+    pointer-events:none;opacity:0;transition:opacity 220ms ease;
+    box-shadow:0 0 14px rgba(93,200,255,0.55)}
+  .trackpad.active .tp-cursor{opacity:1}
+  .tp-hint{position:absolute;left:0;right:0;bottom:14px;text-align:center;
+    font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;
+    color:var(--txt-dim);opacity:.6;pointer-events:none;transition:opacity 220ms ease}
+  .trackpad.active .tp-hint{opacity:0}
 
   /* ── keyboard sheet ── */
   .kb-sheet{position:fixed;left:0;right:0;bottom:0;z-index:60;transform:translateY(110%);transition:transform .22s ease;
@@ -351,6 +375,15 @@
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
       <span>Search</span>
     </button>
+  </div>
+
+  <!-- v2.13.22 — Trackpad: drag to move the on-screen cursor,
+       tap to click.  Two-finger tap = BACK.  Uses absolute
+       position mapping so the phone-side rendered cursor
+       matches whatever the TV cursor will do. -->
+  <div class="trackpad" id="trackpad" data-testid="trackpad" aria-label="Trackpad">
+    <div class="tp-cursor" id="tpCursor" aria-hidden="true"></div>
+    <div class="tp-hint" id="tpHint">Drag to move · Tap to click · 2-finger tap = Back</div>
   </div>
 </div>
 
@@ -793,6 +826,98 @@
   $("searchBtn").addEventListener("pointerup", function(){
     setTimeout(function(){ openKb(true); }, 700);
   });
+
+  // v2.13.22 — Trackpad: drag to move the on-screen cursor, tap to
+  // click.  Uses absolute-position mapping (finger → percentage of
+  // pad → percentage of TV screen) so the phone cursor exactly
+  // predicts where the tap will land.  Movement events are throttled
+  // to 60 Hz so we don't flood the box's shell.  Two-finger tap is
+  // repurposed as BACK for right-click semantics.  Long-press (600
+  // ms without a move > 8 px) fires `mouse_longpress` for context
+  // menus.
+  (function trackpadSetup(){
+    var pad = $("trackpad"); if (!pad) return;
+    var cursor = $("tpCursor");
+    var active = false, lastSent = 0, downAt = 0, downX = 0, downY = 0, moved = false;
+    var longTimer = null, twoFingerAt = 0;
+    function paint(nx, ny){
+      // nx, ny normalised [0..1] within the pad → position the
+      // preview dot at the same fractional coordinates within the
+      // pad element (rendered in CSS via left/top with pixel offset).
+      var r = pad.getBoundingClientRect();
+      cursor.style.left = (nx * r.width) + "px";
+      cursor.style.top  = (ny * r.height) + "px";
+      cursor.style.marginLeft = "-11px";
+      cursor.style.marginTop  = "-11px";
+    }
+    function pointsFromEvent(e){
+      var r = pad.getBoundingClientRect();
+      var t = (e.touches && e.touches[0]) ? e.touches[0] : e;
+      var nx = Math.min(1, Math.max(0, (t.clientX - r.left) / r.width));
+      var ny = Math.min(1, Math.max(0, (t.clientY - r.top)  / r.height));
+      return { nx: nx, ny: ny };
+    }
+    pad.addEventListener("pointerdown", function(e){
+      // Two-finger tap on touch devices: iOS/Android surface a
+      // second `touchstart` while the first pointer is still active.
+      if (e.pointerType === "touch" && e.isPrimary === false){
+        twoFingerAt = performance.now();
+        return;
+      }
+      active = true; moved = false;
+      downAt = performance.now();
+      var p = pointsFromEvent(e);
+      downX = p.nx; downY = p.ny;
+      pad.classList.add("active");
+      paint(p.nx, p.ny);
+      // Immediately move the box cursor to where the finger touched
+      // (so the TV cursor snaps to that point on touchdown).
+      send({ action: "mouse_move", x: p.nx, y: p.ny });
+      lastSent = performance.now();
+      // Arm a long-press timer (600 ms with < 8 px movement).
+      if (longTimer) clearTimeout(longTimer);
+      longTimer = setTimeout(function(){
+        if (active && !moved){
+          haptic(30);
+          send({ action: "mouse_longpress" });
+          moved = true; // suppress the click on release
+        }
+      }, 600);
+      try { pad.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    pad.addEventListener("pointermove", function(e){
+      if (!active) return;
+      var p = pointsFromEvent(e);
+      var dx = Math.abs(p.nx - downX), dy = Math.abs(p.ny - downY);
+      if (dx * pad.clientWidth > 8 || dy * pad.clientHeight > 8) moved = true;
+      paint(p.nx, p.ny);
+      var now = performance.now();
+      if (now - lastSent >= 16){   // ~60 Hz
+        send({ action: "mouse_move", x: p.nx, y: p.ny });
+        lastSent = now;
+      }
+    });
+    function endDrag(e){
+      if (!active) return;
+      active = false;
+      pad.classList.remove("active");
+      if (longTimer){ clearTimeout(longTimer); longTimer = null; }
+      var quick = (performance.now() - downAt) < 260;
+      if (quick && !moved){
+        // Two-finger tap → BACK; single-finger tap → left click.
+        var wasTwoFinger = (performance.now() - twoFingerAt) < 400;
+        if (wasTwoFinger){
+          haptic(20); send({ action: "key", key: "BACK" });
+        } else {
+          haptic(10); send({ action: "mouse_tap" });
+        }
+      }
+      try { pad.releasePointerCapture(e.pointerId); } catch (err) {}
+    }
+    pad.addEventListener("pointerup",     endDrag);
+    pad.addEventListener("pointercancel", endDrag);
+    pad.addEventListener("pointerleave",  endDrag);
+  })();
 
   // ───────── keyboard sheet ─────────
   var kbSheet = $("kbSheet"), kbInput = $("kbInput"), kbLast = "";

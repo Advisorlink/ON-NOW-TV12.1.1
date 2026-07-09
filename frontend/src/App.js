@@ -814,6 +814,57 @@ function App() {
             installFocusBookmarkListener();
         } catch { /* hook lookup failed — non-fatal */ }
     }, []);
+
+    // v2.13.22 — Phone-remote keyboard bridge.  Every focusin on a
+    // text-like control (input, textarea, contenteditable) tells the
+    // native shell that a keyboard is needed; the shell broadcasts
+    // this to any paired phone-remote so its soft keyboard sheet
+    // pops open automatically.  Without this the operator's clients
+    // had to manually tap the Keyboard button on their phone every
+    // time they hit a name/PIN/search field (the box's on-screen
+    // dumpsys-IME poll is unreliable on cheap Android TV firmware
+    // where D-pad focus never actually raises the soft keyboard).
+    React.useEffect(() => {
+        const bridge = () => (typeof window !== 'undefined' ? window.OnNowTV : null);
+        const call = (needed) => {
+            const b = bridge();
+            if (b && typeof b.onKeyboardNeeded === 'function') {
+                try { b.onKeyboardNeeded(!!needed); } catch { /* ignore */ }
+            }
+        };
+        const isTextInput = (el) => {
+            if (!el || el.nodeType !== 1) return false;
+            const tag = el.tagName;
+            if (tag === 'TEXTAREA') return true;
+            if (tag === 'INPUT') {
+                const t = (el.getAttribute('type') || 'text').toLowerCase();
+                return ['text','search','password','email','tel','url','number'].includes(t);
+            }
+            return el.isContentEditable === true;
+        };
+        let debounce = null;
+        const push = (needed) => {
+            if (debounce) clearTimeout(debounce);
+            // Small debounce so jumping between two inputs doesn't
+            // send OFF→ON in a way that closes and reopens the phone
+            // keyboard sheet.
+            debounce = setTimeout(() => call(needed), 60);
+        };
+        const onFocusIn = (e) => { if (isTextInput(e.target)) push(true); };
+        const onFocusOut = (e) => {
+            // Only report OFF if the new focus target is NOT another
+            // text input (relatedTarget covers the tab-jump case).
+            const next = e.relatedTarget || document.activeElement;
+            if (!isTextInput(next)) push(false);
+        };
+        document.addEventListener('focusin', onFocusIn);
+        document.addEventListener('focusout', onFocusOut);
+        return () => {
+            document.removeEventListener('focusin', onFocusIn);
+            document.removeEventListener('focusout', onFocusOut);
+            if (debounce) clearTimeout(debounce);
+        };
+    }, []);
     return (
         <div className="App">
             <ErrorBoundary>

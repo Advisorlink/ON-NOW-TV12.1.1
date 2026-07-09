@@ -59,7 +59,11 @@ ALLOWED_KEYS = {
     "MEDIA_FAST_FORWARD", "MEDIA_REWIND", "MEDIA_NEXT", "MEDIA_PREVIOUS",
     "MEDIA_STOP",
 }
-ALLOWED_ACTIONS = {"key", "text", "longpress", "seek", "next_episode"}
+ALLOWED_ACTIONS = {
+    "key", "text", "longpress", "seek", "next_episode",
+    # v2.13.22 — Phone trackpad ("on-screen mouse control").
+    "mouse_move", "mouse_tap", "mouse_longpress",
+}
 
 
 @dataclass
@@ -209,6 +213,18 @@ def _validate_input(body: dict) -> dict:
         return {"action": "seek", "position_ms": pos}
     if action == "next_episode":
         return {"action": "next_episode"}
+    if action == "mouse_move":
+        # v2.13.22 — Trackpad absolute position, normalised [0..1].
+        try:
+            x = float(body.get("x", 0.5))
+            y = float(body.get("y", 0.5))
+        except (TypeError, ValueError):
+            raise HTTPException(400, "bad_mouse_coord")
+        x = min(max(x, 0.0), 1.0)
+        y = min(max(y, 0.0), 1.0)
+        return {"action": "mouse_move", "x": x, "y": y}
+    if action in ("mouse_tap", "mouse_longpress"):
+        return {"action": action}
     chars = str(body.get("chars", ""))[:500]
     if not chars:
         raise HTTPException(400, "empty_text")
