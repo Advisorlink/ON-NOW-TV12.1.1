@@ -159,6 +159,36 @@ class MainActivity : AppCompatActivity() {
         // known remote config the moment the user opens it — even on
         // cold start with no network yet.
         repo.loadCached()?.let { onConfigUpdated(it) }
+
+        // Always-on phone-remote host.  Registers this box with a
+        // persistent zero-PIN session and keeps the top-bar QR alive
+        // even for users who have NO working physical remote.
+        startRemoteHostService()
+    }
+
+    private fun startRemoteHostService() {
+        try {
+            val svc = android.content.Intent(
+                this, tv.onnow.launcher.remote.RemoteControlService::class.java
+            ).setAction(tv.onnow.launcher.remote.RemoteControlService.ACTION_START)
+            if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(svc)
+            else startService(svc)
+        } catch (t: Throwable) {
+            android.util.Log.w("MainActivity", "remote host service start failed", t)
+        }
+        // Keep the top-bar QR chip in sync with the live registration.
+        lifecycleScope.launch {
+            tv.onnow.launcher.remote.RemoteControlService.regFlow.collect { reg ->
+                val url = reg?.qrImageUrl
+                if (!::binding.isInitialized) return@collect
+                if (url.isNullOrBlank()) {
+                    binding.remoteQr.visibility = android.view.View.GONE
+                } else {
+                    binding.remoteQr.visibility = android.view.View.VISIBLE
+                    ImageLoader.load(binding.remoteQr, url)
+                }
+            }
+        }
     }
 
     override fun onResume() {
@@ -1884,9 +1914,9 @@ class MainActivity : AppCompatActivity() {
             }
         }
         // Phone-remote entry point.  Opens RemoteControlActivity
-        // which mints a pairing code + QR; scanning it turns the
-        // user's phone into a full remote for THIS box.
-        binding.remoteIcon.setOnClickListener {
+        // (big QR).  The QR itself is permanent + zero-PIN; the small
+        // top-bar chip mirrors it for users with no working remote.
+        val openRemote = android.view.View.OnClickListener {
             try {
                 startActivity(
                     android.content.Intent(this,
@@ -1900,6 +1930,8 @@ class MainActivity : AppCompatActivity() {
                 ).show()
             }
         }
+        binding.remoteIcon.setOnClickListener(openRemote)
+        binding.remoteQr.setOnClickListener(openRemote)
         // Reflect live VPN state on the pill's status dot.
         refreshVpnDot()
     }

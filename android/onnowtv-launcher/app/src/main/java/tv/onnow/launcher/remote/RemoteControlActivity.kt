@@ -1,13 +1,10 @@
 package tv.onnow.launcher.remote
 
-import android.content.Context
 import android.content.Intent
-import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -18,53 +15,57 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONObject
 import tv.onnow.launcher.ImageLoader
-import tv.onnow.launcher.data.LauncherRepository
-import tv.onnow.launcher.net.ResilientHttp
 
 /**
- * Phone-remote pairing screen.
+ * Big-QR screen for the phone remote (zero-PIN flow).
  *
- *   1. POST /api/remote/host/register → {session_id, code, qr_image_url}
- *   2. Show the QR + the 6-digit code big on the TV.
- *   3. Start RemoteControlService (foreground) so phone inputs are
- *      dispatched even after this screen is dismissed.
- *   4. Poll /api/remote/state until the phone pairs, flip the UI to
- *      "Connected", then auto-close (service keeps running).
+ * The QR is PERSISTENT and box-specific — it encodes an auto-connect
+ * URL with this box's device id + secret token, so scanning it opens
+ * the full-screen web remote already connected.  No code entry.  The
+ * 6-digit short code is shown small as a manual fallback (e.g. phone
+ * camera won't scan).
  *
- * BACK before pairing tears the session down; after pairing it just
- * closes the screen and the phone keeps controlling the box.
+ * The always-on RemoteControlService does the hosting; this screen
+ * just renders whatever registration it last published via [RemoteControlService.regFlow].
  */
 class RemoteControlActivity : ComponentActivity() {
-
-    companion object { private const val TAG = "RemoteControl" }
-
-    private lateinit var repo: LauncherRepository
-    private var sessionId: String? = null
-    private var sessionCode: String? = null
-    @Volatile private var paired = false
-    @Volatile private var pollerActive = true
-    private var pollerThread: Thread? = null
 
     private lateinit var qrView: ImageView
     private lateinit var codeView: TextView
     private lateinit var statusView: TextView
-    private lateinit var titleView: TextView
-    private lateinit var subtitleView: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        repo = LauncherRepository(applicationContext)
         setContentView(buildUi())
-        mintSession()
+        ensureService()
+        observeRegistration()
+    }
+
+    private fun ensureService() {
+        try {
+            val svc = Intent(this, RemoteControlService::class.java)
+                .setAction(RemoteControlService.ACTION_START)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(svc)
+            else startService(svc)
+        } catch (_: Throwable) {}
+    }
+
+    private fun observeRegistration() {
+        lifecycleScope.launch {
+            RemoteControlService.regFlow.collect { reg ->
+                if (reg == null) {
+                    statusView.text = "Connecting to the remote service…"
+                    return@collect
+                }
+                reg.qrImageUrl?.let { ImageLoader.load(qrView, it) }
+                codeView.text = reg.shortCode?.let { formatCode(it) } ?: ""
+                statusView.text = "Ready — scan with your phone camera"
+                setStatusOk(true)
+            }
+        }
     }
 
     private fun buildUi(): View {
@@ -88,7 +89,7 @@ class RemoteControlActivity : ComponentActivity() {
                 setColor(0xFFFFFFFF.toInt())
             }
             setPadding(dp(16), dp(16), dp(16), dp(16))
-            layoutParams = LinearLayout.LayoutParams(dp(240), dp(240)).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(260), dp(260)).apply {
                 marginEnd = dp(48)
             }
         }
@@ -113,7 +114,7 @@ class RemoteControlActivity : ComponentActivity() {
             letterSpacing = 0.30f
             setTypeface(typeface, Typeface.BOLD)
         })
-        titleView = TextView(this).apply {
+        col.addView(TextView(this).apply {
             text = "Scan to turn your phone\ninto the remote"
             textSize = 30f
             setTextColor(0xFFEAF2FF.toInt())
@@ -122,38 +123,46 @@ class RemoteControlActivity : ComponentActivity() {
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply { topMargin = dp(12) }
-        }
-        col.addView(titleView)
-        subtitleView = TextView(this).apply {
-            text = "Point your phone camera at the QR code, then enter this code:"
+        })
+        col.addView(TextView(this).apply {
+            text = "It connects instantly — no code needed. Save the page to " +
+                "your phone's home screen for one-tap access anytime."
             textSize = 14f
             setTextColor(0x99EAF2FF.toInt())
-            layoutParams = LinearLayout.LayoutParams(dp(360),
+            layoutParams = LinearLayout.LayoutParams(dp(380),
                 ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(16) }
-        }
-        col.addView(subtitleView)
-        codeView = TextView(this).apply {
-            text = "— — —  — — —"
-            textSize = 64f
-            setTextColor(0xFF5DC8FF.toInt())
-            setTypeface(Typeface.MONOSPACE, Typeface.BOLD)
-            letterSpacing = 0.12f
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = dp(18); bottomMargin = dp(18) }
-        }
-        col.addView(codeView)
+        })
         statusView = TextView(this).apply {
-            text = "Waiting for your phone…"
+            text = "Connecting to the remote service…"
             textSize = 14f
             setTextColor(0xFFFFAE5D.toInt())
             setTypeface(typeface, Typeface.BOLD)
             setPadding(dp(18), dp(11), dp(18), dp(11))
             background = pill(0x14FFAE5D, 0x33FFAE5D)
             layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(20) }
         }
         col.addView(statusView)
+        col.addView(TextView(this).apply {
+            text = "Can't scan? Open the remote page on your phone and enter:"
+            textSize = 12f
+            setTextColor(0x66EAF2FF.toInt())
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(24) }
+        })
+        codeView = TextView(this).apply {
+            text = ""
+            textSize = 34f
+            setTextColor(0xFF5DC8FF.toInt())
+            setTypeface(Typeface.MONOSPACE, Typeface.BOLD)
+            letterSpacing = 0.12f
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(6) }
+        }
+        col.addView(codeView)
         col.addView(TextView(this).apply {
             text = "Press BACK to close this screen."
             textSize = 11f
@@ -161,11 +170,17 @@ class RemoteControlActivity : ComponentActivity() {
             letterSpacing = 0.14f
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = dp(28) }
+            ).apply { topMargin = dp(24) }
         })
         row.addView(col)
         root.addView(row)
         return root
+    }
+
+    private fun setStatusOk(ok: Boolean) {
+        statusView.setTextColor(if (ok) 0xFF5DFFAB.toInt() else 0xFFFFAE5D.toInt())
+        statusView.background =
+            if (ok) pill(0x145DFFAB, 0x335DFFAB) else pill(0x14FFAE5D, 0x33FFAE5D)
     }
 
     private fun pill(bg: Int, stroke: Int): GradientDrawable = GradientDrawable().apply {
@@ -174,109 +189,8 @@ class RemoteControlActivity : ComponentActivity() {
         setStroke(dp(1), stroke)
     }
 
-    private fun mintSession() {
-        lifecycleScope.launch {
-            val resp = withContext(Dispatchers.IO) {
-                try {
-                    val body = JSONObject().apply { put("device_id", deviceId()) }
-                        .toString().toRequestBody("application/json".toMediaTypeOrNull())
-                    val url = repo.baseUrlPublic().trimEnd('/') + "/api/remote/host/register"
-                    val req = Request.Builder().url(url).post(body).build()
-                    ResilientHttp.client.newCall(req).execute().use { r ->
-                        if (!r.isSuccessful) null else JSONObject(r.body?.string().orEmpty())
-                    }
-                } catch (t: Throwable) {
-                    Log.w(TAG, "remote/host/register failed", t); null
-                }
-            }
-            if (resp == null) {
-                codeView.text = "ERROR"
-                setStatus("Couldn't reach the remote service — check your internet.", warn = true)
-                return@launch
-            }
-            sessionId = resp.optString("session_id")
-            sessionCode = resp.optString("code")
-            codeView.text = formatCode(sessionCode!!)
-            val qrUrl = resp.optString("qr_image_url")
-            if (qrUrl.isNotBlank()) ImageLoader.load(qrView, qrUrl)
-            startService()
-            startPairingPoller()
-        }
-    }
-
-    private fun startService() {
-        val sid = sessionId ?: return
-        val svc = Intent(this, RemoteControlService::class.java).apply {
-            action = RemoteControlService.ACTION_START
-            putExtra(RemoteControlService.EX_SESSION_ID, sid)
-            putExtra(RemoteControlService.EX_BASE_URL, repo.baseUrlPublic().trimEnd('/'))
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(svc)
-        else startService(svc)
-    }
-
-    private fun startPairingPoller() {
-        val sid = sessionId ?: return
-        val code = sessionCode ?: return
-        val base = repo.baseUrlPublic().trimEnd('/')
-        pollerThread = Thread {
-            while (pollerActive && !paired) {
-                try {
-                    val url = "$base/api/remote/state/$sid?code=$code"
-                    val req = Request.Builder().url(url).get().build()
-                    val body = ResilientHttp.client.newCall(req).execute()
-                        .use { it.body?.string().orEmpty() }
-                    if (body.isNotEmpty() && JSONObject(body).optBoolean("paired", false)) {
-                        paired = true
-                        runOnUiThread { onPhonePaired() }
-                        return@Thread
-                    }
-                    Thread.sleep(1200)
-                } catch (t: Throwable) {
-                    if (!pollerActive) return@Thread
-                    try { Thread.sleep(1200) } catch (_: InterruptedException) { return@Thread }
-                }
-            }
-        }.also { it.isDaemon = true; it.start() }
-    }
-
-    private fun onPhonePaired() {
-        setStatus("Phone connected — you're all set!", warn = false)
-        subtitleView.text = "Your phone is now the remote. You can close this screen; " +
-            "the connection stays active until you disconnect from your phone."
-        codeView.setTextColor(0x665DC8FF.toInt())
-        titleView.text = "Connected!"
-        qrView.postDelayed({ if (!isFinishing) finish() }, 1800)
-    }
-
-    private fun setStatus(text: String, warn: Boolean) {
-        statusView.text = text
-        statusView.setTextColor(if (warn) 0xFFFFAE5D.toInt() else 0xFF5DFFAB.toInt())
-        statusView.background =
-            if (warn) pill(0x14FFAE5D, 0x33FFAE5D) else pill(0x145DFFAB, 0x335DFFAB)
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        pollerActive = false
-        pollerThread?.interrupt()
-        pollerThread = null
-        // If the user backed out BEFORE pairing, stop the service so
-        // the dangling session is torn down immediately (it POSTs
-        // /host/cancel).  If already paired, LEAVE it running so the
-        // phone keeps controlling the box.
-        if (!paired) {
-            try {
-                stopService(Intent(this, RemoteControlService::class.java))
-            } catch (_: Throwable) {}
-        }
-    }
-
     private fun formatCode(c: String): String =
         if (c.length == 6) "${c.substring(0, 3)}  ${c.substring(3)}" else c
-
-    private fun deviceId(): String =
-        tv.onnow.launcher.onboarding.OnboardingActivity.deviceId(this)
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 }

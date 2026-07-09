@@ -93,6 +93,9 @@ dependencies {
     // Networking for the future admin-driven config / APK manifest.
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
+    // Embedded LAN server for the zero-latency phone remote path.
+    implementation("org.nanohttpd:nanohttpd-websocket:2.3.1")
+
     // JSON parsing for the future backend integration.
     implementation("org.json:json:20240303")
 

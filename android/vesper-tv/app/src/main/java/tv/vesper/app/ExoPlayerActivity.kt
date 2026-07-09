@@ -68,6 +68,10 @@ import kotlinx.coroutines.withContext
  * Intent contract — same as VlcPlayerActivity so the bridge is one
  * line of code in WebAppInterface.  Reads all the LibVLC EXTRA_* keys.
  */
+// Phone-remote bridge broadcast actions (shared with the ON NOW launcher).
+private const val REMOTE_NOW_PLAYING_ACTION = "tv.onnow.remote.NOW_PLAYING"
+private const val REMOTE_CMD_ACTION = "tv.onnow.remote.CMD"
+
 @UnstableApi
 class ExoPlayerActivity : ComponentActivity() {
 
@@ -156,6 +160,48 @@ class ExoPlayerActivity : ComponentActivity() {
     // onKeyEvent — once the dock auto-hides, there's no focused
     // child to catch anything.
     private val userActivityFlow = MutableStateFlow(System.currentTimeMillis())
+
+    // ── Phone-remote bridge ──────────────────────────────────────
+    // The launcher's RemoteControlService listens for NOW_PLAYING
+    // broadcasts (poster/progress for the phone's remote card) and
+    // sends CMD broadcasts back (seek from the phone's drag bar).
+    private var lastNpBroadcastAt = 0L
+    private val remoteCmdReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(ctx: android.content.Context?, intent: Intent?) {
+            if (intent?.getStringExtra("cmd") != "seek") return
+            val pos = intent.getLongExtra("position_ms", -1L)
+            if (pos < 0L) return
+            runOnUiThread {
+                try {
+                    if (::player.isInitialized) {
+                        player.seekTo(pos)
+                        lastNpBroadcastAt = 0L
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+    }
+    private var remoteCmdReceiverRegistered = false
+
+    private fun maybeBroadcastNowPlaying(posMs: Long, durMs: Long) {
+        val now = System.currentTimeMillis()
+        if (now - lastNpBroadcastAt < 2_000L) return
+        lastNpBroadcastAt = now
+        try {
+            sendBroadcast(Intent(REMOTE_NOW_PLAYING_ACTION).apply {
+                putExtra("title", streamTitle)
+                putExtra("synopsis", synopsis)
+                putExtra("poster", poster)
+                putExtra("backdrop", backdrop.ifBlank { poster })
+                putExtra("year", year)
+                putExtra("runtime", runtime)
+                putExtra("rating", rating)
+                putExtra("position_ms", posMs)
+                putExtra("duration_ms", durMs)
+                putExtra("playing", if (::player.isInitialized) player.isPlaying else false)
+            })
+        } catch (_: Exception) {}
+    }
 
     private fun pingUserActivity() {
         userActivityFlow.value = System.currentTimeMillis()
@@ -552,6 +598,18 @@ class ExoPlayerActivity : ComponentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         hideSystemUi()
 
+        // Phone-remote seek commands (drag on the phone's progress bar).
+        try {
+            val filter = android.content.IntentFilter(REMOTE_CMD_ACTION)
+            if (Build.VERSION.SDK_INT >= 33) {
+                registerReceiver(
+                    remoteCmdReceiver, filter, android.content.Context.RECEIVER_EXPORTED)
+            } else {
+                registerReceiver(remoteCmdReceiver, filter)
+            }
+            remoteCmdReceiverRegistered = true
+        } catch (_: Exception) {}
+
         // ─── Read intent extras (same keys as VlcPlayerActivity) ───
         streamUrl   = intent.getStringExtra(VlcPlayerActivity.EXTRA_URL) ?: ""
         streamTitle = intent.getStringExtra(VlcPlayerActivity.EXTRA_TITLE) ?: ""
@@ -923,6 +981,8 @@ class ExoPlayerActivity : ComponentActivity() {
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 isPlayingFlow.value = isPlaying
+                // Refresh the phone remote's play/pause icon promptly.
+                lastNpBroadcastAt = 0L
             }
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
                 refreshTrackLists(tracks)
@@ -1114,6 +1174,7 @@ class ExoPlayerActivity : ComponentActivity() {
                     bufferAheadMsFlow.value =
                         (player.bufferedPosition - player.currentPosition)
                             .coerceAtLeast(0L)
+                    maybeBroadcastNowPlaying(pos, dur)
                     // v2.8.125 — Persist the live position so the
                     // Continue Watching shelf can resume from where
                     // the user actually is, not from whatever stale
@@ -1644,6 +1705,13 @@ class ExoPlayerActivity : ComponentActivity() {
     override fun onResume()  { super.onResume();  hideSystemUi(); try { player.play() } catch (_: Exception) {} }
     override fun onDestroy() {
         super.onDestroy()
+        if (remoteCmdReceiverRegistered) {
+            try { unregisterReceiver(remoteCmdReceiver) } catch (_: Exception) {}
+            remoteCmdReceiverRegistered = false
+        }
+        try {
+            sendBroadcast(Intent(REMOTE_NOW_PLAYING_ACTION).putExtra("cleared", true))
+        } catch (_: Exception) {}
         try { pollJob?.cancel() } catch (_: Exception) {}
         try { pollScope.cancel() } catch (_: Exception) {}
         try { partyVoice?.release() } catch (_: Exception) {}

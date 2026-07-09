@@ -1,439 +1,726 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<meta name="theme-color" content="#06080F" />
-<meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<title>ON NOW TV · Remote</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f16">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<title>ON NOW Remote</title>
 <style>
   :root{
-    --bg:#06080F; --bg2:#0B1020; --ink:#EAF2FF; --muted:#7E8AA6;
-    --cyan:#5DC8FF; --cyan-dim:#1B4459; --line:rgba(255,255,255,.08);
-    --card:rgba(255,255,255,.045); --card-br:rgba(255,255,255,.09);
-    --press:rgba(93,200,255,.22);
+    --bg:#0b0f16; --bg2:#0e141d;
+    --card:#131a25; --card-hi:#1a2331; --card-lo:#0a0e15;
+    --edge:rgba(255,255,255,.055);
+    --txt:#e8eef7; --txt-dim:#8c98aa; --txt-faint:#5a6577;
+    --accent:#38c8e8; --accent-soft:rgba(56,200,232,.16);
+    --green:#34d399; --red:#ff5b5b;
+    --shadow-out:6px 6px 14px rgba(0,0,0,.55), -4px -4px 10px rgba(255,255,255,.035);
+    --shadow-in:inset 4px 4px 10px rgba(0,0,0,.55), inset -3px -3px 8px rgba(255,255,255,.04);
   }
-  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;}
-  html,body{margin:0;height:100%;}
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overscroll-behavior:none}
   body{
-    background:radial-gradient(120% 90% at 50% -10%,#101a33 0%,var(--bg) 55%);
-    color:var(--ink);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-    overflow:hidden;position:fixed;inset:0;
-    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    background:radial-gradient(120% 90% at 50% 0%, #121a26 0%, var(--bg) 55%, #070a10 100%);
+    color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+    user-select:none;-webkit-user-select:none;touch-action:manipulation;
+    display:flex;flex-direction:column;align-items:center;
+    min-height:100dvh;
   }
-  #app{height:100%;display:flex;flex-direction:column;}
-  .hidden{display:none!important;}
-  .fade{animation:fade .35s ease both;}
-  @keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+  .app{width:100%;max-width:430px;padding:calc(env(safe-area-inset-top,0px) + 14px) 20px calc(env(safe-area-inset-bottom,0px) + 18px);
+    display:flex;flex-direction:column;gap:16px;flex:1}
 
-  /* ── Pair screen ── */
-  #pair{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;gap:22px;}
-  .brand{display:flex;align-items:center;gap:10px;letter-spacing:.34em;font-size:11px;font-weight:800;color:var(--cyan);text-transform:uppercase;}
-  .brand .dot{width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:0 0 14px var(--cyan);}
-  #pair h1{font-size:26px;font-weight:800;margin:6px 0 0;text-align:center;line-height:1.2;}
-  #pair p{color:var(--muted);font-size:14px;margin:0;text-align:center;max-width:300px;}
-  .codebox{display:flex;gap:10px;margin-top:4px;}
-  .codebox input{
-    width:44px;height:58px;border-radius:14px;border:1.5px solid var(--card-br);
-    background:var(--card);color:var(--ink);font-size:26px;font-weight:700;text-align:center;
-    outline:none;transition:border-color .18s,box-shadow .18s,background .18s;
+  /* ── buttons (neumorphic) ── */
+  .nbtn{
+    background:linear-gradient(145deg,var(--card-hi),var(--card-lo));
+    border:1px solid var(--edge);border-radius:20px;
+    box-shadow:var(--shadow-out);
+    color:var(--txt);display:flex;align-items:center;justify-content:center;
+    cursor:pointer;transition:transform .08s ease, box-shadow .08s ease, background .08s ease;
+    position:relative;
   }
-  .codebox input:focus{border-color:var(--cyan);box-shadow:0 0 0 4px rgba(93,200,255,.16);background:rgba(93,200,255,.08);}
-  .btn{
-    appearance:none;border:none;border-radius:999px;padding:16px 30px;font-size:16px;font-weight:700;
-    background:var(--cyan);color:#04121b;transition:transform .12s,opacity .18s,box-shadow .18s;
-    box-shadow:0 10px 30px rgba(93,200,255,.28);cursor:pointer;
-  }
-  .btn:active{transform:scale(.96);}
-  .btn[disabled]{opacity:.4;box-shadow:none;}
-  .err{color:#ff6b7d;font-size:13px;min-height:16px;font-weight:600;}
+  .nbtn:active,.nbtn.pressed{box-shadow:var(--shadow-in);transform:scale(.965)}
+  .nbtn svg{width:22px;height:22px;stroke:var(--txt);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+  .nbtn span{pointer-events:none}
 
-  /* ── Remote screen ── */
-  #remote{flex:1;display:flex;flex-direction:column;min-height:0;}
-  .topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 6px;}
-  .pill{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:700;color:var(--muted);
-    background:var(--card);border:1px solid var(--line);padding:7px 12px;border-radius:999px;letter-spacing:.02em;}
-  .pill .live{width:7px;height:7px;border-radius:50%;background:#39d98a;box-shadow:0 0 10px #39d98a;}
-  .iconbtn{width:38px;height:38px;border-radius:12px;border:1px solid var(--line);background:var(--card);
-    color:var(--ink);display:flex;align-items:center;justify-content:center;transition:transform .12s,background .15s;}
-  .iconbtn:active{transform:scale(.9);background:var(--press);}
+  /* ── top bar ── */
+  .topbar{display:flex;align-items:center;justify-content:space-between}
+  .conn-pill{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;
+    background:linear-gradient(145deg,var(--card-hi),var(--card-lo));border:1px solid var(--edge);
+    box-shadow:var(--shadow-out);font-size:12.5px;font-weight:600;letter-spacing:.02em;color:var(--txt-dim)}
+  .conn-dot{width:8px;height:8px;border-radius:50%;background:var(--txt-faint);transition:background .3s}
+  .conn-pill.on{color:var(--txt)} .conn-pill.on .conn-dot{background:var(--green);box-shadow:0 0 8px var(--green)}
+  .conn-mode{color:var(--txt-faint);font-weight:500}
+  .pwr-btn{width:46px;height:46px;border-radius:50%}
+  .pwr-btn svg{stroke:var(--red)}
 
-  .scroll{flex:1;min-height:0;overflow-y:auto;padding:6px 18px 20px;display:flex;flex-direction:column;gap:18px;
-    -webkit-overflow-scrolling:touch;}
+  /* ── control cluster ── */
+  .cluster{display:grid;grid-template-columns:56px 1fr 56px;gap:14px;align-items:center}
+  .side-rocker{display:flex;flex-direction:column;border-radius:28px;overflow:hidden;
+    background:linear-gradient(145deg,var(--card-hi),var(--card-lo));border:1px solid var(--edge);box-shadow:var(--shadow-out)}
+  .side-rocker button{background:none;border:none;color:var(--txt);height:64px;display:flex;align-items:center;justify-content:center;
+    font-size:13px;font-weight:700;letter-spacing:.04em;cursor:pointer;transition:background .08s}
+  .side-rocker button:active{background:rgba(255,255,255,.06)}
+  .side-rocker .rk-div{height:1px;background:var(--edge);margin:0 12px}
+  .rk-label{font-size:10px;color:var(--txt-faint);text-align:center;margin-top:7px;letter-spacing:.12em;font-weight:600}
 
-  /* Now playing */
-  #nowplaying{border-radius:20px;overflow:hidden;position:relative;border:1px solid var(--card-br);
-    background:var(--card);min-height:96px;}
-  #np-bg{position:absolute;inset:0;background-size:cover;background-position:center;filter:blur(18px) saturate(1.2);opacity:.5;transform:scale(1.15);}
-  #np-shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(6,8,15,.92),rgba(6,8,15,.55));}
-  .np-inner{position:relative;display:flex;gap:14px;padding:14px;}
-  #np-poster{width:64px;height:96px;border-radius:10px;object-fit:cover;background:#0d1424;flex:none;box-shadow:0 6px 18px rgba(0,0,0,.4);}
-  .np-meta{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;}
-  #np-title{font-size:17px;font-weight:800;line-height:1.2;}
-  #np-sub{font-size:12px;color:var(--cyan);font-weight:600;letter-spacing:.02em;}
-  #np-synopsis{font-size:12px;color:var(--muted);line-height:1.45;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
-  .progress{height:4px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden;margin-top:2px;}
-  .progress > i{display:block;height:100%;background:var(--cyan);border-radius:4px;transition:width .5s linear;}
+  /* d-pad */
+  .dpad-wrap{display:flex;flex-direction:column;align-items:center;gap:14px}
+  .dpad{position:relative;width:min(238px,62vw);aspect-ratio:1;border-radius:50%;
+    background:linear-gradient(145deg,var(--card-hi),var(--card-lo));border:1px solid var(--edge);
+    box-shadow:var(--shadow-out)}
+  .dpad .dir{position:absolute;width:33%;height:33%;display:flex;align-items:center;justify-content:center;
+    background:none;border:none;cursor:pointer;color:var(--txt-dim);border-radius:14px;transition:color .08s}
+  .dpad .dir svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+  .dpad .dir:active,.dpad .dir.pressed{color:var(--accent)}
+  .dir.up{top:2%;left:33.5%} .dir.down{bottom:2%;left:33.5%} .dir.left{left:2%;top:33.5%} .dir.right{right:2%;top:33.5%}
+  .dpad-ok{position:absolute;inset:29%;border-radius:50%;
+    background:linear-gradient(145deg,#1d2735,#0c1119);border:1px solid rgba(255,255,255,.08);
+    box-shadow:var(--shadow-out), inset 0 0 0 1px rgba(255,255,255,.03);
+    color:var(--txt);font-size:16px;font-weight:800;letter-spacing:.14em;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;transition:transform .08s, box-shadow .08s}
+  .dpad-ok:active,.dpad-ok.pressed{box-shadow:var(--shadow-in);transform:scale(.96);color:var(--accent)}
 
-  /* D-pad */
-  .dpad-wrap{display:flex;justify-content:center;padding:8px 0 4px;}
-  .dpad{position:relative;width:min(74vw,290px);aspect-ratio:1;border-radius:50%;
-    background:radial-gradient(closest-side,#0e1730,#0a0f1f);border:1px solid var(--card-br);
-    box-shadow:inset 0 2px 20px rgba(0,0,0,.55),0 20px 50px rgba(0,0,0,.4);}
-  .dbtn{position:absolute;display:flex;align-items:center;justify-content:center;color:var(--ink);
-    background:transparent;border:none;transition:background .12s,transform .1s;}
-  .dbtn:active{background:var(--press);}
-  .dbtn.up,.dbtn.down{left:22%;right:22%;height:33%;}
-  .dbtn.up{top:0;border-radius:0 0 0 0;align-items:flex-start;padding-top:18px;}
-  .dbtn.down{bottom:0;align-items:flex-end;padding-bottom:18px;}
-  .dbtn.left,.dbtn.right{top:22%;bottom:22%;width:33%;}
-  .dbtn.left{left:0;justify-content:flex-start;padding-left:18px;}
-  .dbtn.right{right:0;justify-content:flex-end;padding-right:18px;}
-  .ok{position:absolute;left:29%;top:29%;width:42%;height:42%;border-radius:50%;
-    background:linear-gradient(145deg,#5DC8FF,#2b9fe0);color:#04121b;font-weight:800;font-size:19px;border:none;
-    box-shadow:0 8px 22px rgba(93,200,255,.4),inset 0 -3px 8px rgba(0,0,0,.2);transition:transform .1s,box-shadow .1s;}
-  .ok:active{transform:scale(.93);box-shadow:0 4px 14px rgba(93,200,255,.5);}
-  .ok.holding{transform:scale(.9);box-shadow:0 0 0 6px rgba(93,200,255,.28),0 4px 14px rgba(93,200,255,.5);}
-  .dbtn svg,.ok svg{pointer-events:none;}
+  .under-row{display:flex;align-items:center;justify-content:center;gap:22px}
+  .round-sm{width:52px;height:52px;border-radius:50%}
+  .mic-btn{width:60px;height:60px;border-radius:50%}
+  .mic-btn svg{stroke:var(--accent);filter:drop-shadow(0 0 6px rgba(56,200,232,.5))}
 
-  .row{display:flex;gap:12px;}
-  .keybtn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
-    padding:14px 6px;border-radius:16px;border:1px solid var(--line);background:var(--card);color:var(--ink);
-    font-size:11px;font-weight:600;transition:transform .1s,background .15s;letter-spacing:.02em;}
-  .keybtn:active{transform:scale(.94);background:var(--press);}
-  .keybtn .lbl{color:var(--muted);}
-  .vol .keybtn{padding:16px 6px;}
+  /* ── now playing ── */
+  .np-card{border-radius:22px;padding:14px;display:none;flex-direction:column;gap:10px;
+    background:linear-gradient(145deg,var(--card-hi),var(--card-lo));border:1px solid var(--edge);box-shadow:var(--shadow-out)}
+  .np-card.show{display:flex}
+  .np-top{display:flex;gap:12px;align-items:center}
+  .np-poster{width:52px;height:74px;border-radius:10px;object-fit:cover;background:#0a0e15;flex-shrink:0;box-shadow:0 4px 12px rgba(0,0,0,.5)}
+  .np-info{min-width:0;flex:1}
+  .np-title{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .np-meta{font-size:11.5px;color:var(--txt-dim);margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .np-meta .np-badge{border:1px solid var(--edge);border-radius:5px;padding:1px 5px;font-size:10px;color:var(--txt-dim)}
+  .np-seek{display:flex;align-items:center;gap:10px}
+  .np-time{font-size:11px;color:var(--txt-dim);font-variant-numeric:tabular-nums;min-width:44px}
+  .np-time.right{text-align:right}
+  .seek-track{flex:1;height:26px;display:flex;align-items:center;cursor:pointer;touch-action:none}
+  .seek-rail{position:relative;width:100%;height:5px;border-radius:99px;background:rgba(255,255,255,.09);box-shadow:var(--shadow-in)}
+  .seek-fill{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:linear-gradient(90deg,#2ea8c8,var(--accent));width:0%}
+  .seek-thumb{position:absolute;top:50%;width:15px;height:15px;border-radius:50%;background:#fff;
+    transform:translate(-50%,-50%);box-shadow:0 1px 6px rgba(0,0,0,.6);left:0%}
 
-  .section-label{font-size:10.5px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin:2px 2px -6px;}
+  /* ── media rows ── */
+  .media-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+  .media-row .nbtn{height:54px;border-radius:16px}
+  .util-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .util-row .nbtn{height:52px;border-radius:16px;gap:9px;font-size:13.5px;font-weight:600;color:var(--txt-dim)}
+  .util-row .nbtn svg{width:19px;height:19px;stroke:var(--txt-dim)}
 
-  /* Keyboard sheet */
-  #kbsheet{position:fixed;inset:0;background:rgba(4,6,12,.72);backdrop-filter:blur(6px);display:flex;
-    align-items:flex-end;z-index:50;}
-  .kb-card{width:100%;background:var(--bg2);border-radius:22px 22px 0 0;border-top:1px solid var(--card-br);
-    padding:18px 18px calc(18px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;
-    animation:slideup .28s ease both;}
-  @keyframes slideup{from{transform:translateY(100%);}to{transform:none;}}
-  .kb-row{display:flex;gap:10px;align-items:center;}
-  #kbinput{flex:1;height:52px;border-radius:14px;border:1.5px solid var(--card-br);background:var(--card);
-    color:var(--ink);font-size:16px;padding:0 16px;outline:none;}
-  #kbinput:focus{border-color:var(--cyan);}
-  .toast{position:fixed;left:50%;top:18px;transform:translateX(-50%);background:rgba(11,16,32,.95);
-    border:1px solid var(--card-br);color:var(--ink);padding:10px 18px;border-radius:999px;font-size:13px;font-weight:600;
-    z-index:80;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;}
-  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  /* ── keyboard sheet ── */
+  .kb-sheet{position:fixed;left:0;right:0;bottom:0;z-index:60;transform:translateY(110%);transition:transform .22s ease;
+    background:linear-gradient(180deg,#141b27,#0d1219);border-top:1px solid var(--edge);border-radius:22px 22px 0 0;
+    padding:16px 18px calc(env(safe-area-inset-bottom,0px) + 16px);box-shadow:0 -12px 40px rgba(0,0,0,.6)}
+  .kb-sheet.open{transform:translateY(0)}
+  .kb-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .kb-title{font-size:13px;font-weight:700;color:var(--txt-dim);display:flex;align-items:center;gap:8px}
+  .kb-title .kb-live{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);display:none}
+  .kb-title.live .kb-live{display:block}
+  .kb-close{background:none;border:none;color:var(--txt-faint);font-size:13px;font-weight:600;cursor:pointer;padding:6px 10px}
+  .kb-row{display:flex;gap:10px}
+  .kb-input{flex:1;background:var(--card-lo);border:1px solid var(--edge);border-radius:14px;box-shadow:var(--shadow-in);
+    color:var(--txt);font-size:16px;padding:13px 14px;outline:none}
+  .kb-input:focus{border-color:rgba(56,200,232,.4)}
+  .kb-send{width:52px;border-radius:14px}
+  .kb-send svg{stroke:var(--accent)}
+  .kb-hint{font-size:10.5px;color:var(--txt-faint);margin-top:9px}
+
+  /* ── pairing screen ── */
+  .pair{position:fixed;inset:0;z-index:80;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:22px;padding:32px;background:radial-gradient(120% 90% at 50% 0%, #121a26 0%, var(--bg) 55%, #070a10 100%)}
+  .pair.hidden{display:none}
+  .pair-logo{font-size:12px;font-weight:800;letter-spacing:.34em;color:var(--accent)}
+  .pair h1{font-size:24px;font-weight:800;text-align:center;line-height:1.25}
+  .pair p{font-size:13.5px;color:var(--txt-dim);text-align:center;max-width:280px;line-height:1.5}
+  .code-boxes{display:flex;gap:9px}
+  .code-box{width:44px;height:56px;border-radius:14px;background:var(--card-lo);border:1px solid var(--edge);
+    box-shadow:var(--shadow-in);display:flex;align-items:center;justify-content:center;
+    font-size:24px;font-weight:800;color:var(--txt);font-variant-numeric:tabular-nums}
+  .code-box.active{border-color:rgba(56,200,232,.55)}
+  .code-hidden{position:absolute;opacity:0;pointer-events:none;height:0}
+  .pair-btn{height:52px;padding:0 44px;border-radius:999px;font-size:15px;font-weight:700;color:var(--bg);
+    background:linear-gradient(145deg,#4ad4f2,#26aac9);border:none;box-shadow:0 8px 24px rgba(56,200,232,.28);cursor:pointer}
+  .pair-btn:disabled{opacity:.35;box-shadow:none}
+  .pair-err{color:var(--red);font-size:12.5px;font-weight:600;min-height:16px}
+  .pair-spin{width:22px;height:22px;border:3px solid rgba(255,255,255,.12);border-top-color:var(--accent);border-radius:50%;
+    animation:spin .8s linear infinite;display:none}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* toast */
+  .toast{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 84px);left:50%;transform:translate(-50%,16px);z-index:90;
+    background:#1a2331;border:1px solid var(--edge);color:var(--txt);font-size:13px;font-weight:600;
+    padding:11px 18px;border-radius:999px;box-shadow:0 10px 30px rgba(0,0,0,.5);opacity:0;pointer-events:none;
+    transition:opacity .2s, transform .2s;white-space:nowrap}
+  .toast.show{opacity:1;transform:translate(-50%,0)}
 </style>
 </head>
 <body>
-<div id="app">
 
-  <!-- PAIR -->
-  <section id="pair" class="fade">
-    <div class="brand"><span class="dot"></span> ON NOW TV · REMOTE</div>
-    <h1>Turn your phone<br/>into the remote</h1>
-    <p>Enter the 6-digit code shown on your TV to connect to this box.</p>
-    <div class="codebox" id="codebox">
-      <input inputmode="numeric" maxlength="1" data-i="0"/>
-      <input inputmode="numeric" maxlength="1" data-i="1"/>
-      <input inputmode="numeric" maxlength="1" data-i="2"/>
-      <input inputmode="numeric" maxlength="1" data-i="3"/>
-      <input inputmode="numeric" maxlength="1" data-i="4"/>
-      <input inputmode="numeric" maxlength="1" data-i="5"/>
-    </div>
-    <div class="err" id="pairErr"></div>
-    <button class="btn" id="connectBtn" disabled>Connect</button>
-  </section>
-
-  <!-- REMOTE -->
-  <section id="remote" class="hidden">
-    <div class="topbar">
-      <div class="pill"><span class="live"></span> <span id="connLabel">Connected</span></div>
-      <button class="iconbtn" id="powerBtn" aria-label="power" data-key="POWER">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v9"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/></svg>
-      </button>
-    </div>
-
-    <div class="scroll">
-      <div id="nowplaying" class="hidden">
-        <div id="np-bg"></div><div id="np-shade"></div>
-        <div class="np-inner">
-          <img id="np-poster" alt=""/>
-          <div class="np-meta">
-            <div id="np-title"></div>
-            <div id="np-sub"></div>
-            <div id="np-synopsis"></div>
-            <div class="progress"><i id="np-bar" style="width:0%"></i></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="dpad-wrap">
-        <div class="dpad">
-          <button class="dbtn up" data-key="DPAD_UP" aria-label="up">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
-          </button>
-          <button class="dbtn down" data-key="DPAD_DOWN" aria-label="down">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-          </button>
-          <button class="dbtn left" data-key="DPAD_LEFT" aria-label="left">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-          </button>
-          <button class="dbtn right" data-key="DPAD_RIGHT" aria-label="right">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-          </button>
-          <button class="ok" id="okBtn">OK</button>
-        </div>
-      </div>
-
-      <div class="row">
-        <button class="keybtn" data-key="BACK">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 5 5v0a5 5 0 0 1-5 5H9"/></svg>
-          <span>Back</span>
-        </button>
-        <button class="keybtn" data-key="HOME">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
-          <span>Home</span>
-        </button>
-        <button class="keybtn" data-key="MENU">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-          <span>Menu</span>
-        </button>
-      </div>
-
-      <div class="row vol">
-        <button class="keybtn" data-key="VOL_DOWN">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4z"/><path d="M17 9l4 4M21 9l-4 4"/></svg>
-          <span class="lbl">Volume</span><span>Down</span>
-        </button>
-        <button class="keybtn" data-key="MEDIA_REWIND">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 19L2 12l9-7z"/><path d="M22 19l-9-7 9-7z"/></svg>
-          <span>Rewind</span>
-        </button>
-        <button class="keybtn" id="ppBtn" data-key="MEDIA_PLAY_PAUSE">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
-          <span>Play/Pause</span>
-        </button>
-        <button class="keybtn" data-key="MEDIA_FAST_FORWARD">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 19l9-7-9-7z"/><path d="M2 19l9-7-9-7z"/></svg>
-          <span>Forward</span>
-        </button>
-        <button class="keybtn" data-key="VOL_UP">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>
-          <span class="lbl">Volume</span><span>Up</span>
-        </button>
-      </div>
-
-      <div class="row">
-        <button class="keybtn" id="kbBtn" style="flex:2">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h12"/></svg>
-          <span>Keyboard</span>
-        </button>
-        <button class="keybtn" id="searchBtn">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
-          <span>Search</span>
-        </button>
-      </div>
-    </div>
-  </section>
+<!-- ── PAIRING ── -->
+<div class="pair" id="pairScreen" data-testid="pair-screen">
+  <div class="pair-logo">ON NOW TV</div>
+  <h1>Enter the code<br>on your TV</h1>
+  <p>Open the Remote on your TV box and type the 6-digit code shown on screen.</p>
+  <div class="code-boxes" id="codeBoxes" data-testid="code-boxes"></div>
+  <input class="code-hidden" id="codeInput" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" data-testid="code-input">
+  <div class="pair-err" id="pairErr" data-testid="pair-error"></div>
+  <button class="pair-btn" id="pairBtn" disabled data-testid="pair-connect-button">Connect</button>
+  <div class="pair-spin" id="pairSpin"></div>
 </div>
 
-<!-- Keyboard sheet -->
-<div id="kbsheet" class="hidden">
-  <div class="kb-card">
-    <div class="section-label">Type on your TV</div>
-    <div class="kb-row">
-      <input id="kbinput" type="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="Type here…"/>
+<!-- ── REMOTE ── -->
+<div class="app" id="remoteApp" style="display:none" data-testid="remote-app">
+
+  <div class="topbar">
+    <div class="conn-pill" id="connPill" data-testid="connection-pill">
+      <div class="conn-dot"></div>
+      <span id="connText">Connecting…</span>
+      <span class="conn-mode" id="connMode"></span>
     </div>
-    <div class="kb-row">
-      <button class="keybtn" id="kbBack" style="flex:1"><span>Delete</span></button>
-      <button class="keybtn" id="kbEnter" style="flex:1"><span>Enter</span></button>
-      <button class="btn" id="kbDone" style="flex:1.4">Done</button>
+    <button class="nbtn pwr-btn" data-key="POWER" data-testid="power-button" aria-label="Power">
+      <svg viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+    </button>
+  </div>
+
+  <div class="cluster">
+    <div>
+      <div class="side-rocker" data-testid="volume-rocker">
+        <button data-key="VOL_UP" data-repeat="1" data-testid="volume-up-button">V+</button>
+        <div class="rk-div"></div>
+        <button data-key="VOL_DOWN" data-repeat="1" data-testid="volume-down-button">V−</button>
+      </div>
+      <div class="rk-label">VOL</div>
     </div>
+
+    <div class="dpad-wrap">
+      <div class="dpad" data-testid="dpad">
+        <button class="dir up"    data-key="DPAD_UP"    data-repeat="1" data-testid="dpad-up"><svg viewBox="0 0 24 24"><polyline points="6 14 12 8 18 14"/></svg></button>
+        <button class="dir down"  data-key="DPAD_DOWN"  data-repeat="1" data-testid="dpad-down"><svg viewBox="0 0 24 24"><polyline points="6 10 12 16 18 10"/></svg></button>
+        <button class="dir left"  data-key="DPAD_LEFT"  data-repeat="1" data-testid="dpad-left"><svg viewBox="0 0 24 24"><polyline points="14 6 8 12 14 18"/></svg></button>
+        <button class="dir right" data-key="DPAD_RIGHT" data-repeat="1" data-testid="dpad-right"><svg viewBox="0 0 24 24"><polyline points="10 6 16 12 10 18"/></svg></button>
+        <button class="dpad-ok" data-key="OK" data-long="1" data-testid="dpad-ok">OK</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="side-rocker" data-testid="page-rocker">
+        <button data-key="PAGE_UP" data-repeat="1" data-testid="page-up-button">P+</button>
+        <div class="rk-div"></div>
+        <button data-key="PAGE_DOWN" data-repeat="1" data-testid="page-down-button">P−</button>
+      </div>
+      <div class="rk-label">PG</div>
+    </div>
+  </div>
+
+  <div class="under-row">
+    <button class="nbtn round-sm" data-key="HOME" data-testid="home-button" aria-label="Home">
+      <svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
+    </button>
+    <button class="nbtn mic-btn" id="micBtn" data-testid="mic-button" aria-label="Voice">
+      <svg viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+    </button>
+    <button class="nbtn round-sm" data-key="BACK" data-testid="back-button" aria-label="Back">
+      <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>
+    </button>
+  </div>
+
+  <div class="np-card" id="npCard" data-testid="now-playing-card">
+    <div class="np-top">
+      <img class="np-poster" id="npPoster" alt="" data-testid="now-playing-poster">
+      <div class="np-info">
+        <div class="np-title" id="npTitle" data-testid="now-playing-title"></div>
+        <div class="np-meta" id="npMeta"></div>
+      </div>
+    </div>
+    <div class="np-seek">
+      <div class="np-time" id="npPos" data-testid="now-playing-position">0:00</div>
+      <div class="seek-track" id="seekTrack" data-testid="seek-track">
+        <div class="seek-rail">
+          <div class="seek-fill" id="seekFill"></div>
+          <div class="seek-thumb" id="seekThumb"></div>
+        </div>
+      </div>
+      <div class="np-time right" id="npDur">0:00</div>
+    </div>
+  </div>
+
+  <div class="media-row" data-testid="media-row">
+    <button class="nbtn" data-key="MUTE" data-testid="mute-button" aria-label="Mute">
+      <svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" stroke="none"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+    </button>
+    <button class="nbtn" data-key="MEDIA_REWIND" data-repeat="1" data-testid="rewind-button" aria-label="Rewind">
+      <svg viewBox="0 0 24 24"><polygon points="11 19 2 12 11 5 11 19" fill="currentColor" stroke="none"/><polygon points="22 19 13 12 22 5 22 19" fill="currentColor" stroke="none"/></svg>
+    </button>
+    <button class="nbtn" data-key="MEDIA_PLAY_PAUSE" id="playBtn" data-testid="play-pause-button" aria-label="Play or pause">
+      <svg viewBox="0 0 24 24" id="playIcon"><polygon points="6 4 20 12 6 20 6 4" fill="currentColor" stroke="none"/></svg>
+    </button>
+    <button class="nbtn" data-key="MEDIA_FAST_FORWARD" data-repeat="1" data-testid="forward-button" aria-label="Fast forward">
+      <svg viewBox="0 0 24 24"><polygon points="13 19 22 12 13 5 13 19" fill="currentColor" stroke="none"/><polygon points="2 19 11 12 2 5 2 19" fill="currentColor" stroke="none"/></svg>
+    </button>
+    <button class="nbtn" data-key="MENU" data-testid="menu-button" aria-label="Menu">
+      <svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+    </button>
+  </div>
+
+  <div class="util-row">
+    <button class="nbtn" id="kbBtn" data-testid="keyboard-button">
+      <svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="10" x2="6" y2="10"/><line x1="10" y1="10" x2="10" y2="10"/><line x1="14" y1="10" x2="14" y2="10"/><line x1="18" y1="10" x2="18" y2="10"/><line x1="7" y1="14" x2="17" y2="14"/></svg>
+      <span>Keyboard</span>
+    </button>
+    <button class="nbtn" data-key="SEARCH" data-testid="search-button">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+      <span>Search</span>
+    </button>
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<!-- ── KEYBOARD SHEET ── -->
+<div class="kb-sheet" id="kbSheet" data-testid="keyboard-sheet">
+  <div class="kb-head">
+    <div class="kb-title" id="kbTitle"><div class="kb-live"></div><span id="kbTitleText">Type on TV</span></div>
+    <button class="kb-close" id="kbClose" data-testid="keyboard-close-button">Done</button>
+  </div>
+  <div class="kb-row">
+    <input class="kb-input" id="kbInput" placeholder="Type here — it appears on the TV" autocomplete="off" autocorrect="off" autocapitalize="off" data-testid="keyboard-input">
+    <button class="nbtn kb-send" id="kbSend" data-testid="keyboard-send-button" aria-label="Enter">
+      <svg viewBox="0 0 24 24"><polyline points="9 10 4 15 9 20"/><path d="M20 4v7a4 4 0 0 1-4 4H4"/></svg>
+    </button>
+  </div>
+  <div class="kb-hint">Text is typed live on the TV. ⏎ sends Enter. Backspace deletes on the TV too.</div>
+</div>
+
+<div class="toast" id="toast" data-testid="toast"></div>
 
 <script>
 (function(){
   "use strict";
-  // API base = current path minus trailing /remote, + /api/remote
-  var ROOT = location.pathname.replace(/\/remote\/?$/,"");
-  var API = location.origin + ROOT + "/api/remote";
-  var params = new URLSearchParams(location.search);
-  var SID = params.get("s") || "";
-  var CODE = "";
-  var statePoll = null;
+  var qs = new URLSearchParams(location.search);
+  var IS_LOCAL = qs.get("local") === "1" && location.protocol === "http:";
+  var CLOUD_ORIGIN = qs.get("cloud") ? decodeURIComponent(qs.get("cloud")) : location.origin;
+  var LS_KEY = "onnow_remote_v2";
+  var LOCAL_TRY_KEY = "onnow_remote_local_try";
 
-  var $ = function(id){return document.getElementById(id);};
+  var sid = qs.get("s") || "";
+  var code = qs.get("c") || "";
+  var ws = null, wsOk = false, httpFallback = false, pollTimer = null;
+  var lastPingAt = 0, latencyMs = null;
+  var state = { now_playing: null, keyboard: false };
+  var seekDragging = false;
+  var localTick = null;
+
+  var $ = function(id){ return document.getElementById(id); };
+  var pairScreen = $("pairScreen"), remoteApp = $("remoteApp");
+
+  function saved(){ try { return JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch(e){ return null; } }
+  function save(obj){ try { localStorage.setItem(LS_KEY, JSON.stringify(obj)); } catch(e){} }
+  function haptic(ms){ try { if (navigator.vibrate) navigator.vibrate(ms || 12); } catch(e){} }
+
+  var toastTimer = null;
   function toast(msg){
-    var t=$("toast"); t.textContent=msg; t.classList.add("show");
-    clearTimeout(t._t); t._t=setTimeout(function(){t.classList.remove("show");},1400);
+    var t = $("toast"); t.textContent = msg; t.classList.add("show");
+    clearTimeout(toastTimer); toastTimer = setTimeout(function(){ t.classList.remove("show"); }, 2200);
   }
-  function haptic(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms||12);}catch(e){} }
 
-  // ── Code entry ──
-  var inputs = Array.prototype.slice.call(document.querySelectorAll("#codebox input"));
-  inputs.forEach(function(inp,idx){
-    inp.addEventListener("input",function(){
-      inp.value = inp.value.replace(/[^0-9]/g,"").slice(0,1);
-      if(inp.value && idx<5) inputs[idx+1].focus();
-      refreshConnect();
+  // ───────── pairing UI ─────────
+  var codeInput = $("codeInput"), pairBtn = $("pairBtn"), pairErr = $("pairErr"), pairSpin = $("pairSpin");
+  var boxes = [];
+  (function buildBoxes(){
+    var wrap = $("codeBoxes");
+    for (var i = 0; i < 6; i++){
+      var b = document.createElement("div");
+      b.className = "code-box"; wrap.appendChild(b); boxes.push(b);
+    }
+    wrap.addEventListener("click", function(){ codeInput.focus(); });
+  })();
+  function renderCode(){
+    var v = codeInput.value.replace(/\D/g,"").slice(0,6);
+    codeInput.value = v;
+    for (var i = 0; i < 6; i++){
+      boxes[i].textContent = v[i] || "";
+      boxes[i].classList.toggle("active", i === v.length);
+    }
+    pairBtn.disabled = v.length !== 6;
+    if (v.length === 6) doPair(v);
+  }
+  codeInput.addEventListener("input", renderCode);
+  pairBtn.addEventListener("click", function(){ doPair(codeInput.value); });
+
+  function showPair(msg){
+    pairScreen.classList.remove("hidden"); remoteApp.style.display = "none";
+    $("codeBoxes").style.display = "";
+    pairErr.textContent = msg || "";
+    pairSpin.style.display = "none"; pairBtn.style.display = "";
+    setTimeout(function(){ codeInput.focus(); }, 250);
+  }
+  function showRemote(){
+    pairScreen.classList.add("hidden"); remoteApp.style.display = "flex";
+  }
+
+  var pairing = false;
+  function pairRequest(bodyObj){
+    return fetch(CLOUD_ORIGIN + "/api/remote/pair", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyObj)
     });
-    inp.addEventListener("keydown",function(e){
-      if(e.key==="Backspace" && !inp.value && idx>0) inputs[idx-1].focus();
+  }
+  function handlePaired(resp, typedCode){
+    sid = resp.session_id;
+    code = resp.code || typedCode; // canonical long-lived token when available
+    save({ sid: sid, code: code, cloud: CLOUD_ORIGIN, ts: Date.now() });
+    state.now_playing = resp.now_playing || null;
+    state.keyboard = !!resp.keyboard;
+    // Same WiFi + box local server up → jump to the direct local page.
+    var recentlyFailed = false;
+    try { recentlyFailed = (Date.now() - (parseInt(sessionStorage.getItem(LOCAL_TRY_KEY) || "0", 10))) < 20000; } catch(e){}
+    if (!IS_LOCAL && resp.same_network && resp.local_ip && resp.local_port && !recentlyFailed){
+      try { sessionStorage.setItem(LOCAL_TRY_KEY, String(Date.now())); } catch(e){}
+      location.href = "http://" + resp.local_ip + ":" + resp.local_port +
+        "/remote?local=1&s=" + encodeURIComponent(sid) + "&c=" + encodeURIComponent(code) +
+        "&cloud=" + encodeURIComponent(CLOUD_ORIGIN);
+      return;
+    }
+    startRemote();
+  }
+  function doPair(c){
+    if (pairing) return;
+    pairing = true;
+    pairErr.textContent = ""; pairBtn.style.display = "none"; pairSpin.style.display = "block";
+    pairRequest({ code: c }).then(function(r){
+      if (!r.ok) throw new Error(r.status === 403 || r.status === 404 ? "That code didn't match — check the TV screen." : "Couldn't connect. Try again.");
+      return r.json();
+    }).then(function(resp){
+      pairing = false;
+      handlePaired(resp, c);
+    }).catch(function(err){
+      pairing = false;
+      showPair(err.message || "Couldn't connect. Try again.");
+      codeInput.value = ""; renderCode();
     });
-  });
-  function currentCode(){ return inputs.map(function(i){return i.value;}).join(""); }
-  function refreshConnect(){ $("connectBtn").disabled = currentCode().length!==6 || !SID; }
+  }
 
-  if(!SID){ $("pairErr").textContent="Invalid link — rescan the QR on your TV."; }
-
-  $("connectBtn").addEventListener("click", doPair);
-  async function doPair(){
-    var code = currentCode();
-    $("connectBtn").disabled=true; $("pairErr").textContent="";
-    try{
-      var r = await fetch(API+"/pair",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({session_id:SID,code:code})});
-      if(!r.ok){
-        var d = await r.json().catch(function(){return{};});
-        $("pairErr").textContent = d.detail==="bad_code" ? "Wrong code — check your TV."
-          : d.detail==="session_not_found" ? "Session expired — rescan the QR." : "Couldn't connect. Try again.";
-        $("connectBtn").disabled=false; return;
+  // QR / saved-shortcut auto-connect: no code entry at all.  If the
+  // box is offline (or the backend restarted) we quietly retry until
+  // it re-registers — the session id is device-stable.
+  function autoConnect(aSid, aCode, attempt){
+    attempt = attempt || 0;
+    pairScreen.classList.remove("hidden"); remoteApp.style.display = "none";
+    $("codeBoxes").style.display = "none"; pairBtn.style.display = "none";
+    pairSpin.style.display = "block";
+    pairErr.style.color = "";
+    pairErr.textContent = attempt === 0 ? "Connecting to your TV\u2026"
+      : "Waiting for your TV box\u2026 make sure it's powered on.";
+    pairRequest({ session_id: aSid, code: aCode }).then(function(r){
+      if (r.status === 403) throw new Error("stale");
+      if (!r.ok) throw new Error("retry");
+      return r.json();
+    }).then(function(resp){
+      handlePaired(resp, aCode);
+    }).catch(function(err){
+      if (err && err.message === "stale"){
+        // Token rotated on the box — fall back to manual code entry.
+        $("codeBoxes").style.display = ""; 
+        showPair("This remote link is out of date — enter the code shown on the TV.");
+        return;
       }
-      CODE = code;
-      enterRemote();
-    }catch(e){
-      $("pairErr").textContent="Network error. Try again.";
-      $("connectBtn").disabled=false;
+      setTimeout(function(){ autoConnect(aSid, aCode, attempt + 1); }, 4000);
+    });
+  }
+
+  // ───────── transport ─────────
+  function wsUrl(){
+    if (IS_LOCAL) return "ws://" + location.host + "/ws?code=" + encodeURIComponent(code);
+    var proto = CLOUD_ORIGIN.indexOf("https") === 0 ? "wss" : "ws";
+    return proto + "://" + CLOUD_ORIGIN.replace(/^https?:\/\//, "") +
+      "/api/remote/ws/phone/" + sid + "?code=" + encodeURIComponent(code);
+  }
+
+  var reconnectDelay = 400, wsGaveUp = false, localFailTimer = null;
+  function connectWS(){
+    try { if (ws) ws.close(); } catch(e){}
+    ws = new WebSocket(wsUrl());
+    if (IS_LOCAL && !localFailTimer){
+      localFailTimer = setTimeout(function(){
+        if (!wsOk){
+          // Box unreachable on LAN → bounce back to cloud mode.
+          location.href = CLOUD_ORIGIN + "/remote";
+        }
+      }, 5000);
+    }
+    ws.onopen = function(){
+      wsOk = true; httpFallback = false; reconnectDelay = 400;
+      if (localFailTimer){ clearTimeout(localFailTimer); localFailTimer = null; }
+      setConn(true);
+      sendPing();
+    };
+    ws.onmessage = function(ev){
+      var msg; try { msg = JSON.parse(ev.data); } catch(e){ return; }
+      if (msg.type === "pong"){
+        if (msg.t) latencyMs = Math.max(1, Math.round(performance.now() - msg.t));
+        setConn(true);
+        return;
+      }
+      if (msg.type === "state") applyState(msg);
+    };
+    ws.onclose = ws.onerror = function(){
+      if (!wsOk && IS_LOCAL) return; // local fail timer handles the bounce
+      wsOk = false; setConn(false);
+      reconnectDelay = Math.min(reconnectDelay * 1.6, 5000);
+      if (!IS_LOCAL && reconnectDelay >= 5000 && !httpFallback){
+        httpFallback = true; startPolling(); setConn(true);
+      }
+      setTimeout(connectWS, reconnectDelay);
+    };
+  }
+
+  function sendPing(){
+    if (wsOk && ws && ws.readyState === 1){
+      try { ws.send(JSON.stringify({ action: "ping", t: performance.now() })); } catch(e){}
     }
   }
+  setInterval(sendPing, 8000);
 
-  function enterRemote(){
-    $("pair").classList.add("hidden");
-    var rem=$("remote"); rem.classList.remove("hidden"); rem.classList.add("fade");
-    requestFullscreenSoon();
-    startStatePoll();
-    haptic(20);
+  function send(payload){
+    if (wsOk && ws && ws.readyState === 1){
+      try { ws.send(JSON.stringify(payload)); return; } catch(e){ wsOk = false; }
+    }
+    // HTTP fallback (cloud only)
+    payload.code = code;
+    fetch(CLOUD_ORIGIN + "/api/remote/input/" + sid, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }).catch(function(){});
   }
 
-  function requestFullscreenSoon(){
-    try{
-      var el=document.documentElement;
-      var fn=el.requestFullscreen||el.webkitRequestFullscreen;
-      if(fn) fn.call(el).catch(function(){});
-    }catch(e){}
+  function startPolling(){
+    clearInterval(pollTimer);
+    pollTimer = setInterval(function(){
+      if (wsOk) { clearInterval(pollTimer); return; }
+      fetch(CLOUD_ORIGIN + "/api/remote/state/" + sid + "?code=" + encodeURIComponent(code))
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(s){ if (s) applyState(s); })
+        .catch(function(){});
+    }, 2500);
   }
 
-  // ── Input send ──
-  async function sendKey(key, longpress){
-    haptic(12);
-    try{
-      await fetch(API+"/input/"+SID,{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({code:CODE, action:longpress?"longpress":"key", key:key})});
-    }catch(e){ toast("Lost connection"); }
-  }
-  async function sendText(chars){
-    if(!chars) return;
-    try{
-      await fetch(API+"/input/"+SID,{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({code:CODE, action:"text", chars:chars})});
-    }catch(e){ toast("Lost connection"); }
+  function setConn(on){
+    var pill = $("connPill");
+    pill.classList.toggle("on", !!on);
+    $("connText").textContent = on ? "Connected" : "Reconnecting…";
+    var mode = "";
+    if (on){
+      if (IS_LOCAL) mode = latencyMs != null ? "· WiFi " + latencyMs + "ms" : "· WiFi direct";
+      else if (httpFallback) mode = "· basic";
+      else mode = latencyMs != null ? "· " + latencyMs + "ms" : "";
+    }
+    $("connMode").textContent = mode;
   }
 
-  // Bind all [data-key] buttons.
+  // ───────── buttons: instant press + hold-repeat ─────────
+  var REPEAT_DELAY = 340, REPEAT_EVERY = 120, LONG_MS = 550;
   document.querySelectorAll("[data-key]").forEach(function(btn){
-    btn.addEventListener("click", function(){ sendKey(btn.getAttribute("data-key")); });
-  });
+    var key = btn.getAttribute("data-key");
+    var canRepeat = btn.getAttribute("data-repeat") === "1";
+    var canLong = btn.getAttribute("data-long") === "1";
+    var repTimer = null, repInt = null, longTimer = null, longFired = false;
 
-  // OK button — supports press AND long-press (push-and-hold).
-  var okBtn=$("okBtn"), holdTimer=null, didHold=false;
-  function okStart(e){
-    e.preventDefault(); didHold=false; okBtn.classList.add("holding");
-    holdTimer=setTimeout(function(){ didHold=true; sendKey("DPAD_CENTER",true); haptic(30); },550);
-  }
-  function okEnd(e){
-    e.preventDefault(); okBtn.classList.remove("holding");
-    if(holdTimer){ clearTimeout(holdTimer); holdTimer=null; }
-    if(!didHold) sendKey("DPAD_CENTER",false);
-    didHold=false;
-  }
-  okBtn.addEventListener("touchstart", okStart, {passive:false});
-  okBtn.addEventListener("touchend", okEnd, {passive:false});
-  okBtn.addEventListener("touchcancel", function(){ okBtn.classList.remove("holding"); if(holdTimer){clearTimeout(holdTimer);holdTimer=null;} });
-  okBtn.addEventListener("mousedown", okStart);
-  okBtn.addEventListener("mouseup", okEnd);
-
-  $("searchBtn").addEventListener("click", function(){ sendKey("SEARCH"); openKb(); });
-
-  // ── Keyboard sheet ──
-  var kb=$("kbsheet"), kbin=$("kbinput"), lastVal="";
-  function openKb(){ kb.classList.remove("hidden"); kbin.value=""; lastVal=""; setTimeout(function(){kbin.focus();},80); }
-  function closeKb(){ kb.classList.add("hidden"); kbin.blur(); }
-  $("kbBtn").addEventListener("click", openKb);
-  $("kbDone").addEventListener("click", closeKb);
-  kb.addEventListener("click", function(e){ if(e.target===kb) closeKb(); });
-  // Send characters as they are typed (diff against last value).
-  kbin.addEventListener("input", function(){
-    var v=kbin.value;
-    if(v.length>lastVal.length && v.indexOf(lastVal)===0){
-      sendText(v.slice(lastVal.length));
-    } else if(v.length<lastVal.length){
-      var dels=lastVal.length-v.length;
-      for(var i=0;i<dels;i++) sendKey("DEL");
-    } else if(v!==lastVal){
-      // replaced — delete old, type new (rare)
-      for(var j=0;j<lastVal.length;j++) sendKey("DEL");
-      sendText(v);
+    function down(e){
+      e.preventDefault();
+      btn.classList.add("pressed");
+      haptic(10);
+      longFired = false;
+      if (canLong){
+        longTimer = setTimeout(function(){
+          longFired = true; haptic(30);
+          send({ action: "longpress", key: key });
+        }, LONG_MS);
+      } else {
+        send({ action: "key", key: key });
+      }
+      if (canRepeat){
+        repTimer = setTimeout(function(){
+          repInt = setInterval(function(){ send({ action: "key", key: key }); haptic(6); }, REPEAT_EVERY);
+        }, REPEAT_DELAY);
+      }
     }
-    lastVal=v;
-  });
-  $("kbBack").addEventListener("click", function(){ sendKey("DEL"); if(kbin.value){kbin.value=kbin.value.slice(0,-1);lastVal=kbin.value;} });
-  $("kbEnter").addEventListener("click", function(){ sendKey("ENTER"); kbin.value="";lastVal=""; });
-
-  // ── Now-playing poll ──
-  function fmtTime(ms){ if(!ms)return""; var s=Math.floor(ms/1000);var m=Math.floor(s/60);var h=Math.floor(m/60);
-    m=m%60; return h>0? h+"h "+m+"m" : m+"m"; }
-  function renderNP(np){
-    var box=$("nowplaying");
-    if(!np || !np.title){ box.classList.add("hidden"); return; }
-    box.classList.remove("hidden");
-    $("np-title").textContent=np.title;
-    var sub=[]; if(np.year)sub.push(np.year); if(np.rating)sub.push(np.rating); if(np.runtime)sub.push(np.runtime);
-    $("np-sub").textContent=sub.join("  ·  ");
-    $("np-synopsis").textContent=np.synopsis||"";
-    var poster=$("np-poster");
-    if(np.poster){ poster.src=np.poster; poster.style.display=""; } else poster.style.display="none";
-    $("np-bg").style.backgroundImage = np.backdrop? "url('"+np.backdrop+"')" : (np.poster?"url('"+np.poster+"')":"");
-    var pct = (np.duration_ms>0)? Math.min(100,(np.position_ms/np.duration_ms)*100):0;
-    $("np-bar").style.width = pct+"%";
-    var pp=$("ppBtn"); pp.querySelector("span").textContent = np.playing? "Pause":"Play";
-  }
-  async function pollState(){
-    try{
-      var r=await fetch(API+"/state/"+SID+"?code="+encodeURIComponent(CODE));
-      if(r.status===404){ toast("Session ended"); stopStatePoll(); backToPair(); return; }
-      if(!r.ok) return;
-      var d=await r.json();
-      renderNP(d.now_playing);
-    }catch(e){}
-  }
-  function startStatePoll(){ pollState(); statePoll=setInterval(pollState, 2500); }
-  function stopStatePoll(){ if(statePoll){clearInterval(statePoll);statePoll=null;} }
-  function backToPair(){
-    $("remote").classList.add("hidden"); $("pair").classList.remove("hidden");
-    $("connectBtn").disabled=false; inputs.forEach(function(i){i.value="";});
-  }
-
-  document.addEventListener("visibilitychange", function(){
-    if(document.hidden) stopStatePoll();
-    else if(CODE) startStatePoll();
+    function up(){
+      btn.classList.remove("pressed");
+      clearTimeout(repTimer); clearInterval(repInt); repTimer = repInt = null;
+      if (canLong){
+        clearTimeout(longTimer);
+        if (!longFired) send({ action: "key", key: key });
+      }
+    }
+    btn.addEventListener("pointerdown", down);
+    btn.addEventListener("pointerup", up);
+    btn.addEventListener("pointercancel", up);
+    btn.addEventListener("pointerleave", function(){ if (repInt || repTimer || longTimer) up(); });
+    btn.addEventListener("contextmenu", function(e){ e.preventDefault(); });
   });
 
-  inputs[0] && inputs[0].focus();
+  $("micBtn").addEventListener("click", function(){ haptic(10); toast("Voice control is coming soon"); });
+
+  // ───────── keyboard sheet ─────────
+  var kbSheet = $("kbSheet"), kbInput = $("kbInput"), kbLast = "";
+  var kbAutoOpened = false;
+  function openKb(auto){
+    kbSheet.classList.add("open");
+    $("kbTitle").classList.toggle("live", !!state.keyboard);
+    $("kbTitleText").textContent = state.keyboard ? "TV is asking for text" : "Type on TV";
+    kbInput.value = ""; kbLast = "";
+    setTimeout(function(){ kbInput.focus(); }, 220);
+    if (auto) haptic(20);
+  }
+  function closeKb(){ kbSheet.classList.remove("open"); kbInput.blur(); }
+  $("kbBtn").addEventListener("click", function(){ haptic(10); openKb(false); });
+  $("kbClose").addEventListener("click", closeKb);
+  kbInput.addEventListener("input", function(){
+    var v = kbInput.value;
+    if (v.length > kbLast.length && v.slice(0, kbLast.length) === kbLast){
+      send({ action: "text", chars: v.slice(kbLast.length) });
+    } else if (v.length < kbLast.length && kbLast.slice(0, v.length) === v){
+      var dels = kbLast.length - v.length;
+      for (var i = 0; i < dels; i++) send({ action: "key", key: "DEL" });
+    } else if (v !== kbLast){
+      // replaced text (autocorrect etc.) — wipe and retype
+      for (var j = 0; j < kbLast.length; j++) send({ action: "key", key: "DEL" });
+      if (v) send({ action: "text", chars: v });
+    }
+    kbLast = v;
+  });
+  kbInput.addEventListener("keydown", function(e){
+    if (e.key === "Enter"){ e.preventDefault(); send({ action: "key", key: "ENTER" }); haptic(15); }
+  });
+  $("kbSend").addEventListener("click", function(){ send({ action: "key", key: "ENTER" }); haptic(15); });
+
+  // ───────── now playing + seek ─────────
+  function fmt(ms){
+    if (!ms || ms < 0) ms = 0;
+    var s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
+    var p = function(n){ return (n < 10 ? "0" : "") + n; };
+    return h > 0 ? h + ":" + p(m) + ":" + p(ss) : m + ":" + p(ss);
+  }
+  var npLocalPos = 0, npUpdatedAt = 0;
+  function applyState(msg){
+    if ("keyboard" in msg){
+      var was = state.keyboard;
+      state.keyboard = !!msg.keyboard;
+      if (state.keyboard && !was){
+        if (!kbSheet.classList.contains("open")){ openKb(true); kbAutoOpened = true; }
+        else { $("kbTitle").classList.add("live"); $("kbTitleText").textContent = "TV is asking for text"; }
+      } else if (!state.keyboard && was){
+        $("kbTitle").classList.remove("live"); $("kbTitleText").textContent = "Type on TV";
+        if (kbAutoOpened){ closeKb(); kbAutoOpened = false; }
+      }
+    }
+    if ("now_playing" in msg){
+      state.now_playing = msg.now_playing || null;
+      if (state.now_playing){
+        npLocalPos = state.now_playing.position_ms || 0;
+        npUpdatedAt = Date.now();
+      }
+      renderNP();
+    }
+  }
+  function renderNP(){
+    var card = $("npCard"), np = state.now_playing;
+    if (!np || !np.title){ card.classList.remove("show"); stopTick(); return; }
+    card.classList.add("show");
+    $("npTitle").textContent = np.title;
+    var meta = [];
+    if (np.year) meta.push("<span>" + np.year + "</span>");
+    if (np.rating) meta.push('<span class="np-badge">' + np.rating + "</span>");
+    if (np.runtime) meta.push("<span>" + np.runtime + "</span>");
+    $("npMeta").innerHTML = meta.join("");
+    var img = $("npPoster");
+    if (np.poster && img.getAttribute("src") !== np.poster) img.setAttribute("src", np.poster);
+    img.style.display = np.poster ? "" : "none";
+    var icon = $("playIcon");
+    icon.innerHTML = np.playing
+      ? '<line x1="9" y1="5" x2="9" y2="19" stroke-width="3.4"/><line x1="15" y1="5" x2="15" y2="19" stroke-width="3.4"/>'
+      : '<polygon points="6 4 20 12 6 20 6 4" fill="currentColor" stroke="none"/>';
+    startTick();
+    renderSeek();
+  }
+  function startTick(){
+    if (localTick) return;
+    localTick = setInterval(function(){ if (!seekDragging) renderSeek(); }, 1000);
+  }
+  function stopTick(){ clearInterval(localTick); localTick = null; }
+  function currentPos(){
+    var np = state.now_playing;
+    if (!np) return 0;
+    var pos = npLocalPos;
+    if (np.playing) pos += Date.now() - npUpdatedAt;
+    return Math.min(pos, np.duration_ms || pos);
+  }
+  function renderSeek(fracOverride){
+    var np = state.now_playing;
+    if (!np) return;
+    var dur = np.duration_ms || 0;
+    var frac = fracOverride != null ? fracOverride : (dur > 0 ? currentPos() / dur : 0);
+    frac = Math.max(0, Math.min(1, frac));
+    $("seekFill").style.width = (frac * 100) + "%";
+    $("seekThumb").style.left = (frac * 100) + "%";
+    $("npPos").textContent = fmt(fracOverride != null ? frac * dur : currentPos());
+    $("npDur").textContent = fmt(dur);
+  }
+  (function seekSetup(){
+    var track = $("seekTrack");
+    function fracFromEvent(e){
+      var r = track.getBoundingClientRect();
+      return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+    }
+    track.addEventListener("pointerdown", function(e){
+      var np = state.now_playing;
+      if (!np || !np.duration_ms) return;
+      seekDragging = true;
+      track.setPointerCapture(e.pointerId);
+      renderSeek(fracFromEvent(e));
+    });
+    track.addEventListener("pointermove", function(e){
+      if (seekDragging) renderSeek(fracFromEvent(e));
+    });
+    function finish(e){
+      if (!seekDragging) return;
+      seekDragging = false;
+      var np = state.now_playing;
+      if (!np || !np.duration_ms) return;
+      var target = Math.round(fracFromEvent(e) * np.duration_ms);
+      npLocalPos = target; npUpdatedAt = Date.now();
+      haptic(15);
+      send({ action: "seek", position_ms: target });
+    }
+    track.addEventListener("pointerup", finish);
+    track.addEventListener("pointercancel", function(){ seekDragging = false; renderSeek(); });
+  })();
+
+  // ───────── boot ─────────
+  function startRemote(){
+    showRemote();
+    renderNP();
+    connectWS();
+    if (!IS_LOCAL) startPolling(); // harmless; stops itself once WS is up
+  }
+
+  (function boot(){
+    if (IS_LOCAL && sid && code){
+      try { sessionStorage.removeItem(LOCAL_TRY_KEY); } catch(e){}
+      save({ sid: sid, code: code, cloud: CLOUD_ORIGIN, ts: Date.now() });
+      startRemote();
+      return;
+    }
+    if (sid && code){ autoConnect(sid, code, 0); return; }
+    var s = saved();
+    if (s && s.sid && s.code){ autoConnect(s.sid, s.code, 0); return; }
+    showPair("");
+  })();
 })();
 </script>
 </body>

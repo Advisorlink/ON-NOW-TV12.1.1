@@ -8779,3 +8779,92 @@ that errors on signature/cert mismatch → `adb uninstall
 tv.onnow.launcher` then `adb install onnowtv-launcher-debug.apk`.
 After the FIXED build is installed once, all future in-app HOME
 UPDATEs use the robust chain and just work.
+
+---
+
+## 2026-06 — Phone Remote v3: permanent QR, zero-PIN, near-zero latency (DONE, tested)
+
+User feedback driving this: v1 remote was "too slow to use", design had
+to match an uploaded neumorphic reference, keyboard must auto-appear
+when the TV needs text (e.g. Vesper search), seek/scrub required, and
+CRITICALLY: users with NO working physical remote must be able to pair
+→ permanent QR on the launcher home top bar, SAME saved URL always
+reconnects, no PIN entry ever.
+
+### Architecture (3 transports, fastest wins)
+1. LAN direct: launcher runs LocalRemoteServer (NanoHTTPD/NanoWSD,
+   ports 8765-8768) on the box. Serves cached remote_page.html over
+   http + same-origin ws:// → ~5-20ms per press. Cloud pair response
+   returns box local_ip/port + same_network (public-IP match between
+   box register and phone pair); page then self-redirects to the
+   box-served page (avoids https→ws:// mixed-content block).
+2. Cloud WS relay: /api/remote/ws/phone/{sid} ↔ /api/remote/ws/host/{sid}
+   (phone_remote.py). Inputs forwarded instantly; state (now_playing +
+   keyboard) streamed back. Latency shown live in the Connected pill.
+3. HTTP fallback: v1 queue + long-poll, only used when WS down.
+
+### Zero-PIN persistent pairing
+- Box mints a persistent token (SharedPreferences "remote_prefs" /
+  "remote_token") and registers {device_id, token} → sid = "dev"+device_id
+  (stable), code = token, 6-digit short_code minted as manual fallback
+  (pair accepts token OR short_code; pair returns canonical token).
+- Per-box QR PNG (remote_qr/{sid}.png) encodes
+  {REMOTE_WEB_URL}/remote?s={sid}&c={token} → scanning auto-connects.
+- RemoteControlService is now ALWAYS-ON: started from MainActivity
+  onCreate; re-registers before every cloud-WS reconnect (survives
+  backend restarts, in-memory session store). No /host/cancel on stop.
+- Phone page: localStorage creds; bare/saved URL auto-reconnects; box
+  offline → "Waiting for your TV box…" retry loop (4s), NOT code entry;
+  403 (token rotated) → falls back to code entry.
+- Top bar: new remoteQr ImageView (46dp white chip, bg_qr_chip.xml)
+  beside remoteIcon, fed by RemoteControlService.regFlow; click opens
+  RemoteControlActivity (rewritten: static big QR + short code, no
+  session minting).
+
+### Extra features shipped
+- Keyboard auto-detect: RootQueryShell (separate persistent root shell
+  w/ captured output) polls `dumpsys input_method` (mInputShown/
+  mIsInputViewShown) every 1.2s while a phone is connected → phone
+  auto-opens keyboard sheet; live incremental typing (text/DEL diff),
+  Enter key. Auto-closes when TV keyboard hides.
+- Seek/scrub: draggable progress bar on now-playing card → action
+  "seek" {position_ms} → launcher broadcasts tv.onnow.remote.CMD
+  (cmd=seek) → Vesper ExoPlayerActivity runtime receiver seeks.
+- Now-playing card: Vesper broadcasts tv.onnow.remote.NOW_PLAYING every
+  2s from position poll loop (title/poster/backdrop/year/rating/runtime/
+  pos/dur/playing; "cleared" on destroy) → service forwards to phone.
+- UI: full neumorphic redesign of remote_page.html per user reference
+  (dark, circular D-pad+OK, V±/PG± rockers, home/mic/back, media row,
+  keyboard+search, hold-to-repeat D-pad, long-press OK, haptics).
+  Mic button = visual only ("coming soon" toast).
+
+### Files
+- launcher-backend/phone_remote.py (persistent sessions, WS relay,
+  pair-by-code/token, seek/keyboard state, host/local endpoint)
+- launcher-backend/remote_page.html (complete rewrite)
+- launcher/remote/RemoteControlService.kt (rewritten, always-on host)
+- launcher/remote/LocalRemoteServer.kt, RootQueryShell.kt (new)
+- launcher/remote/RemoteControlActivity.kt (rewritten static-QR screen)
+- launcher/MainActivity.kt (+startRemoteHostService, QR chip binding)
+- launcher res/layout/activity_main.xml (+remoteQr), drawable/bg_qr_chip.xml
+- launcher app/build.gradle.kts (+org.nanohttpd:nanohttpd-websocket:2.3.1)
+- vesper ExoPlayerActivity.kt (NOW_PLAYING broadcast + CMD seek receiver)
+
+### Testing done
+- Backend: /tmp/test_remote_ws.py — 11 checks ALL PASS (register, pair
+  by code/token/short-code idempotency, WS relay key/seek/ping, state
+  push, bad-key/bad-code rejection, HTTP fallback queue, QR png 200).
+- Phone UI: playwright screenshots — pair screen, full remote (matches
+  reference), QR auto-connect (no code), saved-URL reconnect, offline
+  waiting state.
+- Kotlin: launcher + vesper :app:compileDebugKotlin PASS locally.
+  NOTE aarch64 build env: installed ARM64 aapt2 at
+  /android-sdk/arm-tools/aapt2 + android.aapt2FromMavenOverride in
+  ~/.gradle/gradle.properties (Commit451 android-arm-build-tools).
+  vesper-tv/local.properties created (sdk.dir=/android-sdk).
+
+### NOT yet done / next
+- Voice (mic button) — visual only.
+- VlcPlayerActivity: no NOW_PLAYING/seek bridge yet (ExoPlayer only).
+- Kids/Tunes/FTA apps don't push now-playing.
+- Real-device end-to-end (user must flash new launcher+vesper builds).

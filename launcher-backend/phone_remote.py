@@ -1,32 +1,31 @@
 """
-Phone Remote — turn a phone into a full remote for ONE specific ON NOW
-TV box.
+Phone Remote v2 — turn a phone into a full remote for ONE specific
+ON NOW TV box, with near-zero latency.
 
 Flow
 ====
-1. The user clicks the "Remote" icon on the launcher dock.  The box
-   calls `POST /api/remote/host/register` and gets back a fresh
-   session_id + 6-digit code + a QR image URL.  The box shows the QR
-   (which encodes the phone web-remote URL with the session id) and
-   the 6-digit code big on the TV.
+1. The launcher shows a STATIC QR (same URL for every box —
+   `{REMOTE_WEB_URL}/remote`) plus a per-session 6-digit code.  The
+   phone user can therefore save the web remote to their home screen;
+   only the code changes per box/session.
 
-2. The user scans the QR with their phone.  It opens the web remote
-   app (`/#/remote?s=<session_id>`), which asks for the 6-digit code.
-   Entering the correct code calls `POST /api/remote/pair` and unlocks
-   the full-screen remote.  Re-pair is required every session (short
-   TTL), so a stolen QR photo is useless minutes later.
+2. The phone opens the web remote and enters the 6-digit code.
+   `POST /api/remote/pair {code}` resolves the box session and returns
+   the box's LAN ip/port (if its embedded server is up) plus a
+   `same_network` hint (public-IP match).  When both are true the page
+   redirects itself to `http://<box-lan-ip>:<port>/remote?...` — the
+   box serves the same page over plain http and the phone talks to it
+   over a SAME-ORIGIN WebSocket → ~5-20 ms per press.
 
-3. Every button press on the phone posts to
-   `POST /api/remote/input/{session_id}` (guarded by the code).  The
-   box long-polls `GET /api/remote/host/poll/{session_id}` and injects
-   each queued action as a system-wide `input keyevent` / `input text`
-   via the existing RootInputDispatcher — so it drives the launcher,
-   Vesper, and every side-loaded app on THAT box only.
+3. Cloud fallback: the phone keeps a WebSocket to
+   `/api/remote/ws/phone/{sid}` and the box keeps one to
+   `/api/remote/ws/host/{sid}`.  Inputs are relayed instantly between
+   the two sockets.  If either socket is down we fall back to the v1
+   HTTP queue + long-poll.
 
-4. The active player (Vesper etc.) can push a "now playing" card
-   (`POST /api/remote/host/state/{session_id}`) that the phone renders
-   with poster + synopsis + progress; the phone polls it via
-   `GET /api/remote/state/{session_id}`.
+4. The box pushes state (now-playing card + "keyboard needed" flag)
+   over its WebSocket (or `POST /host/state/{sid}`); the phone renders
+   it live (poster, progress w/ draggable seek, auto keyboard sheet).
 
 Everything is in-memory + single process, mirroring support_session.py.
 """
@@ -38,17 +37,16 @@ import secrets
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 
 # 5 minutes to scan + enter the code before the box must mint a new one.
 PAIRING_TTL_SECONDS = 5 * 60
-# Once paired, reaped after 30 min of no input + no poll.
-IDLE_TTL_SECONDS = 30 * 60
+# Once paired, reaped after 12h of no input + no host contact (a box
+# left on all day keeps its phone remote alive).
+IDLE_TTL_SECONDS = 12 * 60 * 60
 MAX_SESSIONS = 64
-# Keep at most this many un-consumed inputs (drop oldest) so a phone
-# that machine-guns the D-pad while the box is offline can't blow up.
 MAX_PENDING_INPUTS = 200
 
 # Allowed key names — mirrors RootInputDispatcher.KEY_ALIAS on Android.
@@ -61,7 +59,7 @@ ALLOWED_KEYS = {
     "MEDIA_FAST_FORWARD", "MEDIA_REWIND", "MEDIA_NEXT", "MEDIA_PREVIOUS",
     "MEDIA_STOP",
 }
-ALLOWED_ACTIONS = {"key", "text", "longpress"}
+ALLOWED_ACTIONS = {"key", "text", "longpress", "seek"}
 
 
 @dataclass
@@ -69,6 +67,11 @@ class RemoteSession:
     session_id: str
     code: str
     device_id: Optional[str]
+    # Persistent device sessions (QR-on-launcher flow): code is the
+    # box's long-lived secret token; short_code is a 6-digit alias for
+    # manual entry.  Never pairing-TTL'd.
+    short_code: Optional[str] = None
+    persistent: bool = False
     created_at: float = field(default_factory=time.time)
     paired_at: Optional[float] = None
     last_input_at: Optional[float] = None
@@ -77,9 +80,17 @@ class RemoteSession:
     input_seq: int = 0
     now_playing: dict | None = None
     now_playing_at: Optional[float] = None
+    keyboard: bool = False
+    local_ip: Optional[str] = None
+    local_port: Optional[int] = None
+    host_public_ip: Optional[str] = None
+    host_ws: Any = None
+    phone_ws: set = field(default_factory=set)
 
     def is_expired(self, now: Optional[float] = None) -> bool:
         now = now if now is not None else time.time()
+        if self.host_ws is not None or self.phone_ws:
+            return False
         if self.paired_at is None:
             return (now - self.created_at) > PAIRING_TTL_SECONDS
         last = self.last_input_at or self.last_host_poll_at or self.paired_at
@@ -95,6 +106,10 @@ class RemoteSession:
             "age_seconds": int(now - self.created_at),
             "pending": len(self.pending_inputs),
             "now_playing": bool(self.now_playing),
+            "keyboard": self.keyboard,
+            "local_ip": self.local_ip,
+            "host_ws": self.host_ws is not None,
+            "phone_ws": len(self.phone_ws),
         }
 
 
@@ -118,6 +133,13 @@ def _generate_code() -> str:
     return f"{secrets.randbelow(900_000) + 100_000:06d}"
 
 
+def _client_ip(request: Request) -> str:
+    fwd = request.headers.get("x-forwarded-for", "")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.client.host if request.client else ""
+
+
 async def _reap_expired() -> None:
     async with _lock:
         now = time.time()
@@ -125,6 +147,8 @@ async def _reap_expired() -> None:
         for s in dead:
             _sessions.pop(s.session_id, None)
             _code_to_session.pop(s.code, None)
+            if s.short_code:
+                _code_to_session.pop(s.short_code, None)
             _input_events.pop(s.session_id, None)
 
 
@@ -155,18 +179,176 @@ def _require(sid: str) -> RemoteSession:
     return sess
 
 
+def _code_ok(sess: RemoteSession, code: str) -> bool:
+    c = (code or "").strip()
+    if secrets.compare_digest(sess.code, c):
+        return True
+    return bool(sess.short_code) and secrets.compare_digest(sess.short_code, c)
+
+
 def _check_code(sess: RemoteSession, code: str) -> None:
-    if not secrets.compare_digest(sess.code, (code or "").strip()):
+    if not _code_ok(sess, code):
         raise HTTPException(403, "bad_code")
+
+
+def _validate_input(body: dict) -> dict:
+    """Validate a raw phone input and return the canonical payload."""
+    action = (body.get("action") or "").lower()
+    if action not in ALLOWED_ACTIONS:
+        raise HTTPException(400, "bad_action")
+    if action in ("key", "longpress"):
+        key = (body.get("key") or "").upper()
+        if key not in ALLOWED_KEYS:
+            raise HTTPException(400, "bad_key")
+        return {"action": action, "key": key}
+    if action == "seek":
+        try:
+            pos = max(0, int(body.get("position_ms", 0)))
+        except (TypeError, ValueError):
+            raise HTTPException(400, "bad_position")
+        return {"action": "seek", "position_ms": pos}
+    chars = str(body.get("chars", ""))[:500]
+    if not chars:
+        raise HTTPException(400, "empty_text")
+    return {"action": "text", "chars": chars}
+
+
+def _sanitize_now_playing(np: dict) -> dict:
+    return {
+        "title": str(np.get("title", ""))[:200],
+        "synopsis": str(np.get("synopsis", ""))[:1200],
+        "poster": str(np.get("poster", ""))[:1000],
+        "backdrop": str(np.get("backdrop", ""))[:1000],
+        "year": str(np.get("year", ""))[:16],
+        "runtime": str(np.get("runtime", ""))[:24],
+        "rating": str(np.get("rating", ""))[:16],
+        "position_ms": int(np.get("position_ms", 0) or 0),
+        "duration_ms": int(np.get("duration_ms", 0) or 0),
+        "playing": bool(np.get("playing", True)),
+    }
+
+
+def _state_message(sess: RemoteSession) -> dict:
+    return {
+        "type": "state",
+        "now_playing": sess.now_playing,
+        "keyboard": sess.keyboard,
+        "paired": sess.paired_at is not None,
+    }
+
+
+async def _push_phone_state(sess: RemoteSession) -> None:
+    dead = []
+    for ws in list(sess.phone_ws):
+        try:
+            await ws.send_json(_state_message(sess))
+        except Exception:
+            dead.append(ws)
+    for ws in dead:
+        sess.phone_ws.discard(ws)
+
+
+async def _deliver_input(sess: RemoteSession, payload: dict) -> None:
+    """Send an input to the box: instantly over its WebSocket when
+    connected, else via the v1 queue + long-poll wakeup."""
+    sess.last_input_at = time.time()
+    ws = sess.host_ws
+    if ws is not None:
+        try:
+            await ws.send_json({"type": "input", "payload": payload})
+            return
+        except Exception:
+            sess.host_ws = None
+    sess.input_seq += 1
+    sess.pending_inputs.append({"seq": sess.input_seq, "payload": payload})
+    if len(sess.pending_inputs) > MAX_PENDING_INPUTS:
+        sess.pending_inputs = sess.pending_inputs[-MAX_PENDING_INPUTS:]
+    ev = _input_events.get(sess.session_id)
+    if ev is not None:
+        ev.set()
+
+
+def _apply_host_state(sess: RemoteSession, body: dict) -> None:
+    if "now_playing" in body:
+        np = body.get("now_playing")
+        sess.now_playing = None if np in (None, {}, "") else _sanitize_now_playing(np)
+        sess.now_playing_at = time.time()
+    if "keyboard" in body:
+        sess.keyboard = bool(body.get("keyboard"))
 
 
 # ─────────────────────────  Box (host) side  ──────────────────────
 
 @router.post("/host/register")
-async def host_register(payload: dict = None):
-    """Box mints a new remote session + code + QR."""
+async def host_register(request: Request, payload: dict = None):
+    """Box mints/refreshes its remote session.
+
+    Persistent flow (QR always on the launcher): the box sends its
+    stable device_id + a long-lived secret token.  The session id is
+    derived from the device id, so scanning the box's QR (or opening a
+    saved home-screen shortcut) auto-connects with NO code entry.  A
+    6-digit short_code is still minted as a manual-entry fallback.
+    """
     await _reap_expired()
-    device_id = (payload or {}).get("device_id")
+    body = payload or {}
+    device_id = body.get("device_id")
+    token = str(body.get("token") or "").strip()
+
+    if token and device_id:
+        import re as _re
+        sid = "dev" + _re.sub(r"[^A-Za-z0-9_-]", "", str(device_id))[:48]
+        async with _lock:
+            sess = _sessions.get(sid)
+            if sess is None:
+                short = None
+                for _ in range(8):
+                    cand = _generate_code()
+                    if cand not in _code_to_session:
+                        short = cand
+                        break
+                sess = RemoteSession(
+                    session_id=sid, code=token, device_id=device_id,
+                    short_code=short, persistent=True,
+                )
+                sess.paired_at = time.time()
+                _sessions[sid] = sess
+                if short:
+                    _code_to_session[short] = sid
+            else:
+                if sess.code != token:
+                    sess.code = token
+                sess.persistent = True
+                if sess.paired_at is None:
+                    sess.paired_at = time.time()
+            sess.host_public_ip = _client_ip(request)
+            sess.last_host_poll_at = time.time()
+            lip = str(body.get("local_ip") or "").strip()
+            if lip:
+                sess.local_ip = lip[:64]
+                try:
+                    sess.local_port = int(body.get("local_port") or 0) or None
+                except (TypeError, ValueError):
+                    sess.local_port = None
+
+        qr_target = f"{_remote_web_url}/remote?s={sid}&c={token}"
+        qr_image_url = None
+        if _qr_writer is not None and _qr_dir is not None:
+            try:
+                _qr_writer(_qr_dir / f"{sid}.png", qr_target)
+                qr_image_url = f"{_public_base_url}/assets/remote_qr/{sid}.png"
+            except Exception:
+                qr_image_url = None
+        return {
+            "session_id": sid,
+            "code": token,
+            "short_code": sess.short_code,
+            "persistent": True,
+            "ttl_seconds": 0,
+            "qr_target": qr_target,
+            "qr_image_url": qr_image_url,
+        }
+
+    # ── Legacy one-shot flow (6-digit code, static QR) ──
     async with _lock:
         if len(_sessions) >= MAX_SESSIONS:
             raise HTTPException(503, "too_many_sessions")
@@ -178,17 +360,25 @@ async def host_register(payload: dict = None):
             raise HTTPException(503, "code_space_exhausted")
         sid = uuid.uuid4().hex
         sess = RemoteSession(session_id=sid, code=code, device_id=device_id)
+        sess.host_public_ip = _client_ip(request)
+        lip = str(body.get("local_ip") or "").strip()
+        if lip:
+            sess.local_ip = lip[:64]
+            try:
+                sess.local_port = int(body.get("local_port") or 0) or None
+            except (TypeError, ValueError):
+                sess.local_port = None
         _sessions[sid] = sess
         _code_to_session[code] = sid
 
-    # QR encodes the phone web-remote URL with the session id.  The
-    # 6-digit code is shown separately on the TV and typed on the phone.
-    qr_target = f"{_remote_web_url}/remote?s={sid}"
+    qr_target = f"{_remote_web_url}/remote"
     qr_image_url = None
     if _qr_writer is not None and _qr_dir is not None:
         try:
-            _qr_writer(_qr_dir / f"{sid}.png", qr_target)
-            qr_image_url = f"{_public_base_url}/assets/remote_qr/{sid}.png"
+            static_png = _qr_dir / "remote-static.png"
+            if not static_png.exists():
+                _qr_writer(static_png, qr_target)
+            qr_image_url = f"{_public_base_url}/assets/remote_qr/remote-static.png"
         except Exception:
             qr_image_url = None
     return {
@@ -200,6 +390,21 @@ async def host_register(payload: dict = None):
     }
 
 
+@router.post("/host/local/{session_id}")
+async def host_local(session_id: str, payload: dict = None):
+    """Box reports its LAN ip + embedded server port once the local
+    web-remote server is actually listening."""
+    sess = _require(session_id)
+    body = payload or {}
+    lip = str(body.get("local_ip") or "").strip()
+    sess.local_ip = lip[:64] or None
+    try:
+        sess.local_port = int(body.get("local_port") or 0) or None
+    except (TypeError, ValueError):
+        sess.local_port = None
+    return {"ok": True}
+
+
 @router.post("/host/cancel")
 async def host_cancel(payload: dict = None):
     sid = (payload or {}).get("session_id")
@@ -209,14 +414,15 @@ async def host_cancel(payload: dict = None):
         sess = _sessions.pop(sid, None)
         if sess:
             _code_to_session.pop(sess.code, None)
+            if sess.short_code:
+                _code_to_session.pop(sess.short_code, None)
             _input_events.pop(sid, None)
     return {"ok": True}
 
 
 @router.get("/host/poll/{session_id}")
 async def host_poll(session_id: str, since: int = 0, wait: float = 25.0):
-    """Box long-polls for queued phone inputs.  Returns as soon as
-    there's a newer input than `since`, or after `wait` seconds."""
+    """v1 fallback: box long-polls for queued phone inputs."""
     sess = _require(session_id)
     sess.last_host_poll_at = time.time()
     wait = max(0.1, min(wait, 25.0))
@@ -250,87 +456,93 @@ async def host_poll(session_id: str, since: int = 0, wait: float = 25.0):
 
 @router.post("/host/state/{session_id}")
 async def host_state(session_id: str, payload: dict = None):
-    """The active player pushes a now-playing card (or clears it)."""
+    """The box pushes a now-playing card and/or a keyboard flag."""
     sess = _require(session_id)
-    body = payload or {}
-    np = body.get("now_playing")
-    if np in (None, {}, ""):
-        sess.now_playing = None
-    else:
-        sess.now_playing = {
-            "title": str(np.get("title", ""))[:200],
-            "synopsis": str(np.get("synopsis", ""))[:1200],
-            "poster": str(np.get("poster", ""))[:1000],
-            "backdrop": str(np.get("backdrop", ""))[:1000],
-            "year": str(np.get("year", ""))[:16],
-            "runtime": str(np.get("runtime", ""))[:24],
-            "rating": str(np.get("rating", ""))[:16],
-            "position_ms": int(np.get("position_ms", 0) or 0),
-            "duration_ms": int(np.get("duration_ms", 0) or 0),
-            "playing": bool(np.get("playing", True)),
-        }
-    sess.now_playing_at = time.time()
+    _apply_host_state(sess, payload or {})
+    await _push_phone_state(sess)
     return {"ok": True}
+
+
+@router.websocket("/ws/host/{session_id}")
+async def ws_host(ws: WebSocket, session_id: str):
+    """Persistent box↔cloud socket.  Inputs from the phone are pushed
+    down instantly; the box pushes state (now-playing/keyboard) up."""
+    sess = _sessions.get(session_id)
+    if sess is None:
+        await ws.close(code=4404)
+        return
+    await ws.accept()
+    sess.host_ws = ws
+    sess.last_host_poll_at = time.time()
+    try:
+        while True:
+            msg = await ws.receive_json()
+            t = (msg.get("type") or "").lower()
+            if t == "state":
+                _apply_host_state(sess, msg)
+                await _push_phone_state(sess)
+            elif t == "ping":
+                sess.last_host_poll_at = time.time()
+                await ws.send_json({"type": "pong"})
+    except (WebSocketDisconnect, Exception):
+        pass
+    finally:
+        if sess.host_ws is ws:
+            sess.host_ws = None
 
 
 # ─────────────────────────  Phone (controller) side  ─────────────
 
 @router.post("/pair")
-async def pair(payload: dict = None):
-    """Phone submits {session_id, code}.  Unlocks the remote."""
+async def pair(request: Request, payload: dict = None):
+    """Phone submits {code} (session_id optional).  Unlocks the remote
+    and returns the box's LAN address + same-network hint so the page
+    can switch to a direct local connection."""
     await _reap_expired()
     body = payload or {}
-    sid = (body.get("session_id") or "").strip()
     code = (body.get("code") or "").strip()
+    sid = (body.get("session_id") or "").strip()
+    if not sid:
+        sid = _code_to_session.get(code, "")
     sess = _require(sid)
     _check_code(sess, code)
     if sess.paired_at is None:
         sess.paired_at = time.time()
+    phone_ip = _client_ip(request)
+    same_network = bool(
+        phone_ip and sess.host_public_ip and phone_ip == sess.host_public_ip
+    )
     return {
         "ok": True,
         "session_id": sid,
+        # Canonical code — for short-code manual pairs this hands the
+        # phone the long-lived token so LAN-direct auth works too.
+        "code": sess.code,
         "device_id": sess.device_id,
         "now_playing": sess.now_playing,
+        "keyboard": sess.keyboard,
+        "local_ip": sess.local_ip,
+        "local_port": sess.local_port,
+        "same_network": same_network,
     }
 
 
 @router.post("/input/{session_id}")
 async def send_input(session_id: str, payload: dict = None):
-    """Phone posts a single input.  Guarded by the pairing code."""
+    """HTTP fallback: phone posts a single input."""
     sess = _require(session_id)
     body = payload or {}
     _check_code(sess, body.get("code"))
     if sess.paired_at is None:
         raise HTTPException(409, "not_paired")
-    action = (body.get("action") or "").lower()
-    if action not in ALLOWED_ACTIONS:
-        raise HTTPException(400, "bad_action")
-    entry_payload: dict
-    if action in ("key", "longpress"):
-        key = (body.get("key") or "").upper()
-        if key not in ALLOWED_KEYS:
-            raise HTTPException(400, "bad_key")
-        entry_payload = {"action": action, "key": key}
-    else:  # text
-        chars = str(body.get("chars", ""))[:500]
-        if not chars:
-            raise HTTPException(400, "empty_text")
-        entry_payload = {"action": "text", "chars": chars}
-
-    sess.input_seq += 1
-    sess.last_input_at = time.time()
-    sess.pending_inputs.append({"seq": sess.input_seq, "payload": entry_payload})
-    if len(sess.pending_inputs) > MAX_PENDING_INPUTS:
-        sess.pending_inputs = sess.pending_inputs[-MAX_PENDING_INPUTS:]
-    ev = _input_events.get(session_id)
-    if ev is not None:
-        ev.set()
+    entry = _validate_input(body)
+    await _deliver_input(sess, entry)
     return {"ok": True, "seq": sess.input_seq}
 
 
 @router.get("/state/{session_id}")
 async def get_state(session_id: str, code: str = "", since: float = 0.0):
-    """Phone polls session liveness + the now-playing card."""
+    """HTTP fallback: phone polls session liveness + state."""
     sess = _require(session_id)
     _check_code(sess, code)
     return {
@@ -338,7 +550,48 @@ async def get_state(session_id: str, code: str = "", since: float = 0.0):
         "device_id": sess.device_id,
         "now_playing": sess.now_playing,
         "now_playing_at": sess.now_playing_at,
+        "keyboard": sess.keyboard,
+        "host_online": sess.host_ws is not None
+        or (
+            sess.last_host_poll_at is not None
+            and (time.time() - sess.last_host_poll_at) < 40
+        ),
     }
+
+
+@router.websocket("/ws/phone/{session_id}")
+async def ws_phone(ws: WebSocket, session_id: str):
+    """Persistent phone↔cloud socket.  Each message is an input that
+    gets relayed to the box instantly; state updates stream back."""
+    sess = _sessions.get(session_id)
+    code = ws.query_params.get("code", "")
+    if sess is None or not _code_ok(sess, code):
+        await ws.close(code=4403)
+        return
+    await ws.accept()
+    if sess.paired_at is None:
+        sess.paired_at = time.time()
+    sess.phone_ws.add(ws)
+    try:
+        await ws.send_json(_state_message(sess))
+    except Exception:
+        pass
+    try:
+        while True:
+            msg = await ws.receive_json()
+            t = (msg.get("action") or "").lower()
+            if t == "ping":
+                await ws.send_json({"type": "pong", "t": msg.get("t")})
+                continue
+            try:
+                entry = _validate_input(msg)
+            except HTTPException:
+                continue
+            await _deliver_input(sess, entry)
+    except (WebSocketDisconnect, Exception):
+        pass
+    finally:
+        sess.phone_ws.discard(ws)
 
 
 def register_admin(router_dep) -> None:
