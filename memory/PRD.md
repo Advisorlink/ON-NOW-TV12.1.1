@@ -1,4 +1,24 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.12.9 — Wipe grandfathered auto-approved devices, force manual approval fleet-wide (Feb 2026).**
+>
+> Operator report: "All those old boxes I told you to auto-approve — I want them gone.  Every device (old or new) must show the Register screen when they install the app, and I have to approve it from the admin panel."
+>
+> **What was done:**
+> 1. Backed up `launcher-backend/data/store.json` → `store.backup-before-wipe-20260709T021406Z.json` (all 570 original devices preserved for rollback).
+> 2. Deleted every device record whose `status == "active"` (555 grandfathered boxes).  Kept the 14 `blocked` boxes so previously-blocked clients can't sneak back in as fresh registrations, plus 1 pre-existing `pending` box.
+> 3. Bumped `generation` so device polls detect the config change immediately.
+> 4. Verified end-to-end:
+>    - Previously-active box → `/api/launcher/activation` returns `unregistered` → Launcher's `OnboardingActivity.decidePhase()` (already coded per v2.10.72) routes it into `PHASE_REGISTER` (manual name-entry screen).
+>    - Blocked box → still returns `blocked` (unchanged).
+>    - Fresh `/api/launcher/register` call → device lands as `pending` because `AUTO_APPROVE_DEVICES=0` (defaulted since v2.10.95).  Admin must manually approve it from `/api/admin/registered-devices/{id}/status` before the box can use the launcher.
+>
+> **No code changes** — the Launcher + backend logic was already correct for this flow (v2.10.72 fresh-install register screen + v2.10.95 `AUTO_APPROVE_DEVICES=0`).  This was pure data-layer housekeeping.
+>
+> **User action required:**  None on the backend.  Clients will each hit the Register screen the next time their box boots (or is power-cycled).  Watch the admin panel for `pending` registrations and approve as they arrive.
+>
+> **Rollback:**  Copy `store.backup-before-wipe-20260709T021406Z.json` → `store.json` and `sudo supervisorctl restart launcher-backend`.
+
+
 > **🟢 v2.12.8 — "Back up profiles first" now finds Vesper (Feb 2026).**
 >
 > Operator report: after the v2.12.2 update dialog shipped, tapping "Back up profiles first" always showed the "Vesper isn't installed" toast — even though Vesper was clearly running on the box.
