@@ -57,6 +57,7 @@ class RemoteControlService : Service() {
 
         const val ACTION_NOW_PLAYING = "tv.onnow.remote.NOW_PLAYING"
         const val ACTION_PLAYER_CMD  = "tv.onnow.remote.CMD"
+        const val ACTION_KEYBOARD    = "tv.onnow.remote.KEYBOARD"
 
         private val LOCAL_PORTS = intArrayOf(8765, 8766, 8767, 8768)
 
@@ -103,8 +104,26 @@ class RemoteControlService : Service() {
     @Volatile private var subsystemsStarted = false
 
     @Volatile private var curKeyboard = false
+    @Volatile private var dumpsysKb = false
+    @Volatile private var jsKb = false
     @Volatile private var curNowPlaying: JSONObject? = null
     @Volatile private var nowPlayingReceiverRegistered = false
+
+    /** Combine app-reported (JS bridge) + dumpsys IME detection. */
+    private fun updateKeyboard() {
+        val combined = dumpsysKb || jsKb
+        if (combined != curKeyboard) {
+            curKeyboard = combined
+            pushState(includeNowPlaying = false, includeKeyboard = true)
+        }
+    }
+
+    private val keyboardReceiver = object : BroadcastReceiver() {
+        override fun onReceive(ctx: Context?, intent: Intent?) {
+            jsKb = intent?.getBooleanExtra("needed", false) == true
+            updateKeyboard()
+        }
+    }
 
     private val nowPlayingReceiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context?, intent: Intent?) {
@@ -489,15 +508,16 @@ class RemoteControlService : Service() {
     private fun registerNowPlayingReceiver() {
         if (nowPlayingReceiverRegistered) return
         try {
-            val filter = IntentFilter(ACTION_NOW_PLAYING)
             if (Build.VERSION.SDK_INT >= 33) {
-                registerReceiver(nowPlayingReceiver, filter, Context.RECEIVER_EXPORTED)
+                registerReceiver(nowPlayingReceiver, IntentFilter(ACTION_NOW_PLAYING), Context.RECEIVER_EXPORTED)
+                registerReceiver(keyboardReceiver, IntentFilter(ACTION_KEYBOARD), Context.RECEIVER_EXPORTED)
             } else {
-                registerReceiver(nowPlayingReceiver, filter)
+                registerReceiver(nowPlayingReceiver, IntentFilter(ACTION_NOW_PLAYING))
+                registerReceiver(keyboardReceiver, IntentFilter(ACTION_KEYBOARD))
             }
             nowPlayingReceiverRegistered = true
         } catch (t: Throwable) {
-            Log.w(TAG, "now-playing receiver registration failed", t)
+            Log.w(TAG, "remote receivers registration failed", t)
         }
     }
 
@@ -518,6 +538,7 @@ class RemoteControlService : Service() {
         curNowPlaying = null
         if (nowPlayingReceiverRegistered) {
             try { unregisterReceiver(nowPlayingReceiver) } catch (_: Throwable) {}
+            try { unregisterReceiver(keyboardReceiver) } catch (_: Throwable) {}
             nowPlayingReceiverRegistered = false
         }
         try { RootInputDispatcher.shutdown() } catch (_: Throwable) {}

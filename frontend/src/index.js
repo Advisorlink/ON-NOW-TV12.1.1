@@ -17,6 +17,37 @@ import "@/index.css";
 import "@/lib/host"; // sets html.vesper-host-android / html.vesper-low-end
 import App from "@/App";
 
+// ── Phone-remote keyboard bridge ─────────────────────────────────
+// When any text field gains focus (search bar etc.) tell the native
+// shell so the paired phone remote can pop its keyboard instantly.
+// No-op in plain browsers where the OnNowTV bridge doesn't exist.
+(function keyboardBridge() {
+    function notify(needed) {
+        try {
+            if (window.OnNowTV && typeof window.OnNowTV.onKeyboardNeeded === "function") {
+                window.OnNowTV.onKeyboardNeeded(!!needed);
+            }
+        } catch (e) { /* bridge unavailable */ }
+    }
+    function isTextTarget(el) {
+        if (!el || !el.tagName) return false;
+        const tag = el.tagName.toUpperCase();
+        if (tag === "TEXTAREA") return true;
+        if (el.isContentEditable) return true;
+        if (tag === "INPUT") {
+            const t = (el.getAttribute("type") || "text").toLowerCase();
+            return !["button", "checkbox", "radio", "range", "submit", "reset", "file", "color"].includes(t);
+        }
+        return false;
+    }
+    document.addEventListener("focusin", (e) => { if (isTextTarget(e.target)) notify(true); }, true);
+    document.addEventListener("focusout", (e) => {
+        if (!isTextTarget(e.target)) return;
+        // Small delay: focus may be moving between two text fields.
+        setTimeout(() => { if (!isTextTarget(document.activeElement)) notify(false); }, 120);
+    }, true);
+})();
+
 // On older Android WebViews (Chrome 52-ish) a runtime error inside
 // React.render is silently swallowed and shows up at the file://
 // boundary as a CORS-masked "Script error." with no stack trace.

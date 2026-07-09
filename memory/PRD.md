@@ -8934,3 +8934,29 @@ build; QR + keyboard detection require the new launcher build.
 - Bug fixed during this: a2hs banner HTML div had gone missing →
   null addEventListener killed the whole page script (no code boxes,
   no auto-connect). Restored + verified end-to-end.
+
+---
+
+## 2026-06 — Round 3 fixes from real-device feedback (DONE, tested)
+1. SOUND MYSTERY solved: phone MUTE button sends KEYCODE_VOLUME_MUTE =
+   SYSTEM-WIDE mute toggle that persists after apps close. User tapped
+   it and thought seeking killed audio. Recovery: tap mute again / V+.
+   Added phone toast on MUTE: "TV mute toggled — tap again if sound is
+   off".
+2. Full screen on entry: browsers can't fullscreen without a gesture →
+   branded one-tap gate ("ON NOW V2 / TAP TO OPEN REMOTE") covers the
+   page on load while connection happens underneath; single tap →
+   fullscreen + live remote. Skipped when standalone (installed PWA is
+   already fullscreen, zero taps) or no fullscreen API (iOS → A2HS
+   hint). Verified via playwright: fullscreenElement true after tap.
+3. Bulletproof keyboard detection (JS bridge path): frontend index.js
+   listens focusin/focusout on text fields → window.OnNowTV
+   .onKeyboardNeeded(bool) → new @JavascriptInterface in Vesper
+   WebAppInterface broadcasts tv.onnow.remote.KEYBOARD → launcher
+   RemoteControlService keyboardReceiver merges jsKb || dumpsysKb →
+   pushes keyboard state to phone. Works even when D-pad focus never
+   raises the IME (dumpsys blind spot). Both APKs compile clean.
+4. User's "no logo / still asks for PIN" = stale deployment: their box
+   runs the turn-1 launcher APK (pre zero-PIN) and VPS backend predates
+   the typographic branding. They must rebuild/install BOTH APKs +
+   redeploy backend from latest.

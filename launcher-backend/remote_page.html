@@ -174,6 +174,12 @@
   @keyframes spin{to{transform:rotate(360deg)}}
 
   /* toast */
+  .fs-gate{position:fixed;inset:0;z-index:120;display:none;flex-direction:column;align-items:center;justify-content:center;gap:26px;
+    background:radial-gradient(120% 90% at 50% 0%, #121a26 0%, var(--bg) 55%, #070a10 100%);cursor:pointer}
+  .fs-gate.show{display:flex}
+  .fs-tap{font-size:12px;letter-spacing:.3em;font-weight:700;text-transform:uppercase;color:var(--txt-dim);
+    animation:fsPulse 1.6s ease-in-out infinite}
+  @keyframes fsPulse{0%,100%{opacity:.4}50%{opacity:1}}
   .a2hs{position:fixed;left:14px;right:14px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);z-index:70;
     display:flex;align-items:center;gap:11px;padding:12px 14px;border-radius:16px;
     background:#141b27;border:1px solid var(--edge);box-shadow:0 12px 34px rgba(0,0,0,.55);
@@ -192,6 +198,11 @@
 </style>
 </head>
 <body>
+
+<div class="fs-gate" id="fsGate" data-testid="fullscreen-gate">
+  <div class="pair-word">ON&nbsp;NOW <b>V2</b></div>
+  <div class="fs-tap">Tap to open remote</div>
+</div>
 
 <!-- ── PAIRING ── -->
 <div class="pair" id="pairScreen" data-testid="pair-screen">
@@ -365,9 +376,13 @@
   var $ = function(id){ return document.getElementById(id); };
   var pairScreen = $("pairScreen"), remoteApp = $("remoteApp");
 
-  // Force true full-screen at the first touch (browsers block it
-  // before a gesture).  Installed/standalone launches (saved to home
-  // screen via the PWA manifest) are already full-screen — skip.
+  // Full screen as early as the platform allows.  Browsers refuse
+  // requestFullscreen without a user gesture, so a branded one-tap
+  // gate covers the page on load — the connection is already being
+  // made underneath, so that single tap lands straight in the live
+  // remote, full screen.  Installed/standalone launches (home-screen
+  // icon) are already full-screen and skip the gate entirely; iOS
+  // Safari has no fullscreen API at all (the A2HS hint handles it).
   (function fullscreenSetup(){
     var standalone = false;
     try {
@@ -376,17 +391,23 @@
          matchMedia("(display-mode: fullscreen)").matches)) ||
         window.navigator.standalone === true;
     } catch(e){}
-    if (standalone) return;
+    var el = document.documentElement;
+    var fsFn = el.requestFullscreen || el.webkitRequestFullscreen;
     function goFs(){
-      if (document.fullscreenElement) return;
-      var el = document.documentElement;
-      var fn = el.requestFullscreen || el.webkitRequestFullscreen;
-      if (!fn) return;
+      if (document.fullscreenElement || !fsFn) return;
       try {
-        var p = fn.call(el, { navigationUI: "hide" });
+        var p = fsFn.call(el, { navigationUI: "hide" });
         if (p && p.catch) p.catch(function(){});
       } catch(e){}
     }
+    if (standalone || !fsFn) return;
+    var gate = $("fsGate");
+    gate.classList.add("show");
+    gate.addEventListener("pointerdown", function(){
+      goFs();
+      gate.classList.remove("show");
+    }, { once: true });
+    // Re-enter fullscreen on any later tap if the user swiped out.
     document.addEventListener("pointerdown", goFs, true);
   })();
 
@@ -658,6 +679,7 @@
         }, LONG_MS);
       } else {
         send({ action: "key", key: key });
+        if (key === "MUTE") toast("TV mute toggled \u2014 tap again if sound is off");
       }
       if (canRepeat){
         repTimer = setTimeout(function(){

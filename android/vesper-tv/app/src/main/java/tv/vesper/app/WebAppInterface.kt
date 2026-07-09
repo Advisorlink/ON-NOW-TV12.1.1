@@ -22,6 +22,22 @@ import android.widget.Toast
 class WebAppInterface(private val activity: Activity) {
 
     /**
+     * Phone-remote keyboard bridge.  The web app reports whenever a
+     * text field gains/loses focus; we broadcast it so the launcher's
+     * RemoteControlService can pop the phone's keyboard sheet
+     * instantly (far more reliable than dumpsys IME polling on boxes
+     * where D-pad focus never raises the soft keyboard).
+     */
+    @JavascriptInterface
+    fun onKeyboardNeeded(needed: Boolean) {
+        try {
+            activity.sendBroadcast(
+                Intent("tv.onnow.remote.KEYBOARD").putExtra("needed", needed)
+            )
+        } catch (_: Exception) {}
+    }
+
+    /**
      * Return the SharedPreferences-backed progress map as JSON so
      * the web app can populate its Continue Watching shelf with
      * accurate positions.  Shape:
