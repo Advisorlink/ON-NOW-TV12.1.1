@@ -1,24 +1,25 @@
 # ON NOW TV V2 — PRD
-> **🟢 v2.13.21 — Vesper: silent-movie fix (no-decodable-audio → LibVLC hand-off) (Feb 2026).**
+> **🟢 v2.13.21 — Vesper: silent-movie fix by reverting the v2.13.20 PCM-only audio-sink (stay-in-ExoPlayer, per operator) (Feb 2026).**
 >
-> Operator report: "It's just the one program that I clicked through the actual remote on the phone is not having any sound, no matter what.  I even restarted the box.  Different rips of the same title, all silent.  The audio-track button is greyed out."
+> Operator report:  "It's just the one program that I clicked through the actual remote on the phone is not having any sound, no matter what.  I even restarted the box.  Different rips of the same title, all silent.  The audio-track button is greyed out."  Follow-up:  "I don't want it to hand it off to libVLC player.  It has to all be done in ExoPlayer.  It all has to play exactly the same way, otherwise it starts looking confusing for the client.  And right now, at least it was playing before, it was just too loud."
 >
-> **Root cause:**  v2.13.20's HDMI-passthrough fix built the ExoPlayer `DefaultAudioSink` **without a context**, pinning it to `DEFAULT_AUDIO_CAPABILITIES` (PCM stereo only, no bitstream passthrough).  Stock Android has software decoders for AAC / AC-3 / E-AC-3 but NOT for DTS / DTS-HD MA / TrueHD / Atmos.  When a movie's ONLY audio tracks are DTS or TrueHD (very common on high-quality rips), Media3 marks every audio track as `!isTrackSupported` and plays the video silently.  ExoPlayer does **not** fire `onPlayerError` for this — it treats "video-only" as a valid state — so the pre-existing `ERROR_CODE_DECODER_INIT_FAILED → VlcPlayerActivity` fallback never triggered.  The audio-track picker greyed out because `refreshTrackLists()` filters out unsupported tracks at line 1815, leaving `audioTracksFlow` empty.
+> **Root cause:**  v2.13.20's HDMI-passthrough fix built the ExoPlayer `DefaultAudioSink` **without a context**, pinning it to `DEFAULT_AUDIO_CAPABILITIES` (PCM stereo only, no bitstream passthrough).  Stock Android has software decoders for AAC / AC-3 / E-AC-3 but NOT for DTS / DTS-HD MA / TrueHD / Atmos.  Any file whose ONLY audio tracks are DTS/TrueHD/Atmos had every audio track marked `!isTrackSupported` — Media3 played the video silently, and because it doesn't fire `onPlayerError` for "no supported audio" the DECODER_INIT_FAILED → VLC fallback never triggered.  The audio picker greyed out at `refreshTrackLists()`.
 >
-> **What was done:**
+> **What was done (per operator's explicit direction — no libVLC hand-off):**
 > `android/vesper-tv/app/src/main/java/tv/vesper/app/ExoPlayerActivity.kt`:
-> 1. New `@Volatile private var audioFallbackTriggered: Boolean = false` field (one-shot guard).
-> 2. New `maybeHandOffForUnsupportedAudio(tracks)` method — counts audio groups vs. supported audio tracks in the current `Tracks` object.  If the media has ≥1 audio group and **zero** supported audio tracks, launches `VlcPlayerActivity` with the same intent + current position and finishes the ExoPlayer activity.  libVLC bundles native FFmpeg (see `build.gradle.kts:159` — `libvlc-all:3.6.0`), so DTS / TrueHD / Atmos all decode fine.
-> 3. Hooked into the existing `Player.Listener.onTracksChanged` — a single new line calls the helper before `refreshTrackLists(tracks)`.
-> 4. Skips during next-episode in-activity swaps (same 8-second window as `onPlayerError`) and skips when `trailerAudioUrl` is set (YouTube trailer merged sources legitimately have a video-only primary URL).
-> 5. Logs `"No decodable audio tracks (codecs=...) — handing to LibVLC"` for post-hoc diagnostics.
+> 1. **Reverted the v2.13.20 audio-sink override.**  The custom `renderersFactory` that overrode `buildAudioSink()` and forced `DefaultAudioSink.Builder()` (no context) is gone.  Restored to the stock `androidx.media3.exoplayer.DefaultRenderersFactory(this).setEnableDecoderFallback(true)`.  Media3 now reads the real HDMI EDID and bitstreams every codec the receiver advertises — DTS / TrueHD / Atmos play natively via the AVR / TV's own decoder.
+> 2. The `softVolumeStep` mechanism (from v2.13.20) is retained — it still attenuates the ExoPlayer PCM path on VOL_UP/VOL_DOWN key presses for PCM-decoded tracks (AAC etc.).  For bitstreamed tracks, the AVR/TV owns volume, which is standard behaviour on every home-theatre setup.
+> 3. Trade-off (explicitly acknowledged by operator): on cheap HK1-class boxes whose STREAM_MUSIC slider was fixed for bitstream, the previously-silent movies now play, but the system slider may not attenuate them.  Operator's own words: *"at least it was playing before, it was just too loud."*  Client-side UX consistency (every stream in ExoPlayer, same controls, same overlay, same D-pad flow) beats codec-dependent player switching.
 >
-> **User-visible effect:**  The one silent title (and any future DTS/TrueHD/Atmos-only rip) now plays with sound.  ~300 ms flash of the ExoPlayer loading screen before it hands off — cosmetic, non-blocking.  Every other title continues to play in ExoPlayer as before (AAC / AC-3 / E-AC-3 all decode to PCM and respect the volume slider — the HK1 "off / full blast" fix from v2.13.20 remains intact).
+> **What was reverted from my first attempt in this session:**  The initial fix in this session (a `maybeHandOffForUnsupportedAudio` method that detected zero-supported-audio-tracks in `onTracksChanged` and handed off to `VlcPlayerActivity`) was rejected by the operator on UX grounds.  All added code (`audioFallbackTriggered` flag, helper method, and the extra `onTracksChanged` call) has been backed out — the file is smaller and cleaner than before the session started, minus the v2.13.20 sink override.
 >
-> **Verified:**  Syntactic review of the patch (variable references, imports, existing symbols).  Actual compile runs in CI on push.  Operator will confirm end-to-end on his physical HK1 box.
+> **User-visible effect:**  The previously-silent title (and any future DTS/TrueHD/Atmos-only rip) now plays with sound in ExoPlayer.  No player switching — the operator's clients see the same overlay, dock, subtitles UI, and remote controls as every other stream.
 >
-> **User action required:**  Save to GitHub → next Vesper build (CI auto-bumps `versionCode`).  Sideload / silent-update, replay the previously-silent title — audio should now play.
+> **Verified:**  Syntactic review; `grep` confirms all rolled-back symbols are gone.  Actual JVM compile runs in CI on push (this pod has no JDK/SDK).
 >
+> **User action required:**  Save to GitHub → next Vesper build (CI auto-bumps `versionCode`) → sideload / silent-update → replay the previously-silent title.  Audio should now play.
+>
+
 
 > **🟢 v2.12.15 — Vesper: tip toast auto-focuses for D-pad + Back dismisses (Feb 2026).**
 >
