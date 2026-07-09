@@ -8739,3 +8739,43 @@ ready (host/state + phone poll) but nothing pushes it yet. Wiring
 Vesper's Player to POST its current title/synopsis/progress to
 /api/remote/host/state/{sid} is a follow-up (Vesper needs the active
 session id — e.g. via a launcher broadcast or shared prefs).
+
+---
+
+## 2026-06 — Launcher "won't update past 1.126" ROOT CAUSE + fix
+
+Version 0.1.N is CI-driven (versionCode/Name = 1 + GITHUB_RUN_NUMBER,
+build-launcher.yml). Update chain: push→CI builds APK→published to
+GitHub `launcher-latest` release→OPERATOR must UPLOAD it in admin
+"Home Update" panel (no workflow auto-uploads)→box HOME UPDATE pill.
+
+Symptom: pill shows 0.1.127, clicking it fails/reverts to 1.126.
+
+Verified via a REAL Gradle build in-container (installed Android SDK
++ Gradle on / (88G), worked around aarch64/x86 aapt2 with qemu +
+amd64 libc + aapt2FromMavenOverride wrapper): compileDebugKotlin +
+processDebugResources BOTH PASS. So the Phone-Remote/volume changes
+did NOT break CI. Committed debug keystore (SHA-256 DB:4C:81…,
+committed 2026-05-27, unchanged) → CI signing is stable.
+
+ROOT CAUSE: RootApkInstaller self-update path (relaunch=true, v2.12.11)
+ran ONLY `pm install -r` with NO fallback, assuming "-r always
+accepted." If `-r` fails (signature drift from an old sideload, or a
+firmware that silently no-ops without -d) the box stays on the old
+version and the UI still says "restarting…".
+
+FIX (v2.13.0, RootApkInstaller.kt self-update branch): fallback chain
+`pm install -r` → `pm install -r -d` → `pm uninstall && pm install`
+(last resort safe: APK staged in /data/local/tmp survives uninstall,
+detached setsid root shell survives launcher SIGKILL). deviceId
+derives from ANDROID_ID (stable per signing key) so identity survives
+reinstall on the stable key.
+
+CRITICAL CAVEAT: the updater doing the install is the CURRENTLY-
+INSTALLED build. 1.126 has the OLD -r-only code, so hopping 1.126→
+fixed build via the in-app button may still fail. ONE-TIME manual
+escape required: `adb install -r -d onnowtv-launcher-debug.apk`; if
+that errors on signature/cert mismatch → `adb uninstall
+tv.onnow.launcher` then `adb install onnowtv-launcher-debug.apk`.
+After the FIXED build is installed once, all future in-app HOME
+UPDATEs use the robust chain and just work.

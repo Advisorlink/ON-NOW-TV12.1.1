@@ -257,29 +257,41 @@ object RootApkInstaller {
             append("test -s \"$tmpApkPath\" && ")
             append("(")
             if (relaunch) {
-                // v2.12.11 — SELF-UPDATE (the launcher updating ITSELF).
-                // NEVER uninstall here — uninstalling the launcher kills
-                // this very shell mid-update AND drops the box to the
-                // stock Android launcher (the operator's "lose
-                // everything" bug).  Instead do an IN-PLACE
-                // `pm install -r`:
-                //   • keeps ALL app data / profiles (no data loss)
-                //   • the launcher package is NEVER absent, so the box
-                //     can't fall back to the stock home
-                //   • signatures always match (stable committed
-                //     keystore) and versionCode always increases (CI =
-                //     1 + run number) → `-r` is guaranteed accepted,
-                //     never a silent no-op.
-                // After the on-disk APK is swapped, force-stop the OLD
-                // still-running process (that's why the operator kept
-                // seeing the old version — the on-disk APK updated but
-                // the live process kept the old code) and relaunch so
-                // the NEW code loads.  Because we're the HOME app, even
-                // if this detached shell is itself killed at force-stop,
-                // Android auto-relaunches HOME and cold-starts the new
-                // APK — so the update self-heals no matter what.
+                // v2.13.0 — SELF-UPDATE (the launcher updating ITSELF),
+                // now with a ROBUST FALLBACK CHAIN.
+                //
+                // The old v2.12.11 path did ONLY `pm install -r` on the
+                // assumption that "signatures always match + versionCode
+                // always increases → -r is guaranteed accepted."  That
+                // assumption breaks in the field:
+                //   • the installed build may have been sideloaded with
+                //     a DIFFERENT key before the stable keystore existed
+                //     → `-r` fails INSTALL_FAILED_UPDATE_INCOMPATIBLE;
+                //   • some HK1 firmwares silently no-op `-r` unless `-d`
+                //     is passed.
+                // When `-r` failed there was NO fallback, so the box
+                // just stayed on the old version and the UI still said
+                // "restarting…" (the reported "won't update past 1.126"
+                // bug).
+                //
+                // New chain (each step only runs if the previous FAILED):
+                //   1. pm install -r        — in-place, keeps data (best)
+                //   2. pm install -r -d     — allow same/replace edge
+                //   3. pm uninstall + pm install — last resort for
+                //      signature drift.  SAFE here because the APK was
+                //      already staged to /data/local/tmp (survives the
+                //      uninstall) and this shell is a detached root
+                //      setsid child (survives the launcher being
+                //      SIGKILLed).  Box shows stock home for ~1-2s then
+                //      the new launcher installs + relaunches.
+                // Then force-stop the OLD live process + relaunch so the
+                // NEW code actually loads.
                 append("sleep 1 ; ")
-                append("pm install -r \"$tmpApkPath\" ; ")
+                append(
+                    "(pm install -r \"$tmpApkPath\" || " +
+                        "pm install -r -d \"$tmpApkPath\" || " +
+                        "(pm uninstall \"$packageName\" ; sleep 1 ; pm install \"$tmpApkPath\")) ; ",
+                )
                 append("sleep 1 ; ")
                 append("am force-stop \"$packageName\" ; ")
                 append("sleep 1 ; ")
