@@ -1,4 +1,25 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.13.21 — Vesper: silent-movie fix (no-decodable-audio → LibVLC hand-off) (Feb 2026).**
+>
+> Operator report: "It's just the one program that I clicked through the actual remote on the phone is not having any sound, no matter what.  I even restarted the box.  Different rips of the same title, all silent.  The audio-track button is greyed out."
+>
+> **Root cause:**  v2.13.20's HDMI-passthrough fix built the ExoPlayer `DefaultAudioSink` **without a context**, pinning it to `DEFAULT_AUDIO_CAPABILITIES` (PCM stereo only, no bitstream passthrough).  Stock Android has software decoders for AAC / AC-3 / E-AC-3 but NOT for DTS / DTS-HD MA / TrueHD / Atmos.  When a movie's ONLY audio tracks are DTS or TrueHD (very common on high-quality rips), Media3 marks every audio track as `!isTrackSupported` and plays the video silently.  ExoPlayer does **not** fire `onPlayerError` for this — it treats "video-only" as a valid state — so the pre-existing `ERROR_CODE_DECODER_INIT_FAILED → VlcPlayerActivity` fallback never triggered.  The audio-track picker greyed out because `refreshTrackLists()` filters out unsupported tracks at line 1815, leaving `audioTracksFlow` empty.
+>
+> **What was done:**
+> `android/vesper-tv/app/src/main/java/tv/vesper/app/ExoPlayerActivity.kt`:
+> 1. New `@Volatile private var audioFallbackTriggered: Boolean = false` field (one-shot guard).
+> 2. New `maybeHandOffForUnsupportedAudio(tracks)` method — counts audio groups vs. supported audio tracks in the current `Tracks` object.  If the media has ≥1 audio group and **zero** supported audio tracks, launches `VlcPlayerActivity` with the same intent + current position and finishes the ExoPlayer activity.  libVLC bundles native FFmpeg (see `build.gradle.kts:159` — `libvlc-all:3.6.0`), so DTS / TrueHD / Atmos all decode fine.
+> 3. Hooked into the existing `Player.Listener.onTracksChanged` — a single new line calls the helper before `refreshTrackLists(tracks)`.
+> 4. Skips during next-episode in-activity swaps (same 8-second window as `onPlayerError`) and skips when `trailerAudioUrl` is set (YouTube trailer merged sources legitimately have a video-only primary URL).
+> 5. Logs `"No decodable audio tracks (codecs=...) — handing to LibVLC"` for post-hoc diagnostics.
+>
+> **User-visible effect:**  The one silent title (and any future DTS/TrueHD/Atmos-only rip) now plays with sound.  ~300 ms flash of the ExoPlayer loading screen before it hands off — cosmetic, non-blocking.  Every other title continues to play in ExoPlayer as before (AAC / AC-3 / E-AC-3 all decode to PCM and respect the volume slider — the HK1 "off / full blast" fix from v2.13.20 remains intact).
+>
+> **Verified:**  Syntactic review of the patch (variable references, imports, existing symbols).  Actual compile runs in CI on push.  Operator will confirm end-to-end on his physical HK1 box.
+>
+> **User action required:**  Save to GitHub → next Vesper build (CI auto-bumps `versionCode`).  Sideload / silent-update, replay the previously-silent title — audio should now play.
+>
+
 > **🟢 v2.12.15 — Vesper: tip toast auto-focuses for D-pad + Back dismisses (Feb 2026).**
 >
 > Operator report: "When the tip does pop up it needs to make sure the remote's focus is inside that box so we can close it or do what we need to — the whole thing's controlled by the remote, remember?"

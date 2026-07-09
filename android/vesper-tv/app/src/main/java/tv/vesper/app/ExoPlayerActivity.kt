@@ -149,6 +149,21 @@ class ExoPlayerActivity : ComponentActivity() {
     // instead of falling back to LibVLC (user explicitly demanded
     // the player always stay in ExoPlayer).
     @Volatile private var lastInActivitySwapAt: Long = 0L
+
+    // v2.13.21 — One-shot guard for the "no decodable audio track"
+    // fallback.  When a file's ONLY audio streams are DTS / TrueHD /
+    // Atmos, stock Android has no software decoder and Media3
+    // silently drops every audio track (the audio picker greys out
+    // and the movie plays silent — the exact symptom the user
+    // reported).  ExoPlayer never fires onPlayerError for this case
+    // because it treats "video-only" as a valid playback, so the
+    // existing DECODER_INIT_FAILED → VLC route never triggers.  We
+    // detect the condition in onTracksChanged and hand the same
+    // Intent to VlcPlayerActivity (libVLC bundles FFmpeg, plays
+    // every codec Stremio supports).  The flag prevents a re-entry
+    // if Media3 emits a second Tracks event on the way out.
+    @Volatile private var audioFallbackTriggered: Boolean = false
+
     // v2.7.74 — Live TV awareness.  Driven by EXTRA_TYPE = "live".
     private var isLive: Boolean = false
     private var liveStreamId: String = ""
@@ -994,6 +1009,7 @@ class ExoPlayerActivity : ComponentActivity() {
                 lastNpBroadcastAt = 0L
             }
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                maybeHandOffForUnsupportedAudio(tracks)
                 refreshTrackLists(tracks)
             }
         })
@@ -1806,6 +1822,77 @@ class ExoPlayerActivity : ComponentActivity() {
     }
 
     // ─── Track + stream picker helpers ─────────────────────────────
+    /**
+     * v2.13.21 — If the media has audio streams but ExoPlayer can
+     * decode none of them (typically DTS / TrueHD / DTS-HD MA /
+     * Atmos-only movie rips on stock-Android boxes), hand playback
+     * over to VlcPlayerActivity.  libVLC bundles native FFmpeg and
+     * decodes every codec Stremio supports.
+     *
+     * This is called from `onTracksChanged` (the moment Media3 knows
+     * the file's tracks) and guarded by `audioFallbackTriggered` so
+     * it fires exactly once per activity instance.  Next-episode
+     * in-activity swaps are skipped — the user explicitly demanded
+     * "always stay in ExoPlayer" for those (see the note on
+     * `lastInActivitySwapAt`).
+     */
+    private fun maybeHandOffForUnsupportedAudio(
+        tracks: androidx.media3.common.Tracks,
+    ) {
+        if (audioFallbackTriggered) return
+        // Skip during next-episode swaps — same policy as onPlayerError.
+        val sinceSwap = System.currentTimeMillis() - lastInActivitySwapAt
+        if (lastInActivitySwapAt > 0L && sinceSwap < 8_000L) return
+        // Skip trailers / merged sources — trailers have a video-only
+        // primary URL plus a separate audio URL, so a "no audio in
+        // primary" reading is expected and NOT a decode failure.
+        if (trailerAudioUrl.isNotBlank()) return
+
+        var hasAudioGroup = false
+        var hasSupportedAudio = false
+        val unsupportedCodecs = mutableListOf<String>()
+        for (group in tracks.groups) {
+            if (group.type != C.TRACK_TYPE_AUDIO) continue
+            hasAudioGroup = true
+            for (i in 0 until group.length) {
+                if (group.isTrackSupported(i)) {
+                    hasSupportedAudio = true
+                } else {
+                    val fmt = group.getTrackFormat(i)
+                    val codec = (fmt.sampleMimeType ?: fmt.codecs ?: "?")
+                        .substringAfterLast('/')
+                    if (codec.isNotBlank() && codec !in unsupportedCodecs) {
+                        unsupportedCodecs.add(codec)
+                    }
+                }
+            }
+        }
+        if (!hasAudioGroup || hasSupportedAudio) return
+
+        // Every audio track was rejected by Media3.  Fall back to VLC.
+        audioFallbackTriggered = true
+        val codecList = unsupportedCodecs.joinToString(",").ifBlank { "unknown" }
+        Log.w(TAG, "No decodable audio tracks (codecs=$codecList) — handing to LibVLC")
+        try {
+            val fallback = Intent(this@ExoPlayerActivity, VlcPlayerActivity::class.java)
+            fallback.putExtras(intent)
+            // Resume from the exact position ExoPlayer had reached
+            // (usually the first frame — but future-proof if the
+            // event ever fires mid-playback).
+            val pos = try {
+                if (::player.isInitialized) player.currentPosition.coerceAtLeast(0L) else 0L
+            } catch (_: Throwable) { 0L }
+            if (pos > 0L) {
+                fallback.putExtra(VlcPlayerActivity.EXTRA_START_AT_MS, pos)
+            }
+            startActivity(fallback)
+        } catch (t: Throwable) {
+            Log.w(TAG, "audio-fallback launch failed", t)
+        }
+        try { if (::player.isInitialized) player.stop() } catch (_: Throwable) {}
+        finish()
+    }
+
     /** Refresh audio/subtitle picker option lists from current Tracks. */
     private fun refreshTrackLists(tracks: androidx.media3.common.Tracks) {
         val audio = mutableListOf<TrackOption>()
