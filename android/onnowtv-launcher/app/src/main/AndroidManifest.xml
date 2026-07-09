@@ -21,6 +21,7 @@
          REQUIRED on Android 14+. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Sideload APKs published from the admin backend. -->
@@ -172,6 +173,24 @@
             android:name=".support.SupportForegroundService"
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
+
+        <!-- Phone-remote pairing screen.  Shows a QR + 6-digit code;
+             scanning turns a phone into a full remote for THIS box. -->
+        <activity
+            android:name=".remote.RemoteControlActivity"
+            android:exported="false"
+            android:configChanges="orientation|keyboardHidden|screenSize|locale|fontScale|uiMode"
+            android:theme="@style/Theme.OnNowLauncher.NoActionBar"
+            android:screenOrientation="landscape" />
+
+        <!-- Foreground service that long-polls the backend for phone
+             inputs and dispatches them system-wide via root shell.
+             foregroundServiceType="dataSync" — it only makes network
+             calls, no media projection. -->
+        <service
+            android:name=".remote.RemoteControlService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <!-- v2.10.53 — Public APKM / split-APK installer.  Any other
              app on the box (Vesper, Live TV, Music, Kids…) fires the

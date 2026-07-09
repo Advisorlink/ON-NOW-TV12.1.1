@@ -8681,3 +8681,61 @@ FIX (vesper-tv v2.13.20):
   APK on HK1 and test volume steps mid-movie.
 - Kids app ExoPlayerActivity has the SAME latent passthrough bug —
   not yet patched (offered as follow-up).
+
+---
+
+## 2026-06 — Phone Remote (turn phone into a remote for ONE box)
+
+NEW FEATURE. Remote icon added to launcher top bar (beside support
+headset). Tapping opens RemoteControlActivity → shows QR + 6-digit
+code. Scanning opens a full-screen web remote that controls THIS box
+only (session-scoped, re-pair every session per user choice).
+
+Backend (launcher-backend):
+- phone_remote.py — in-memory session store mirroring
+  support_session.py. Endpoints under /api/remote:
+    host/register (mint code+QR), host/cancel, host/poll (box
+    long-polls inputs), host/state (player pushes now-playing),
+    pair (phone submits code), input/{sid} (phone sends action,
+    code-guarded), state/{sid} (phone polls now-playing), sessions
+    (admin).
+- Allowed keys incl DPAD, OK, BACK, HOME, MENU, VOL, SEARCH, media
+  keys. Actions: key, longpress, text.
+- QR PNG generated via existing _generate_qr_png → /assets/remote_qr.
+- GET /remote serves self-contained remote_page.html.
+- Config: REMOTE_WEB_URL env (defaults to PUBLIC_BASE_URL) — QR
+  encodes {REMOTE_WEB_URL}/remote?s=<sid>. In prod PUBLIC_BASE_URL
+  MUST be the externally reachable base (e.g. onnowhub.com/launcher)
+  so the phone can reach both the page and /api/remote.
+
+Frontend: remote_page.html — dark #06080F + cyan #5DC8FF glass UI
+matching app aesthetic. Pair screen (6 code boxes) → full-screen
+remote: now-playing card (poster/synopsis/progress), circular D-pad
+with press + PUSH-AND-HOLD OK, Back/Home/Menu, Vol±, media
+rewind/play-pause/forward, Keyboard sheet (types onto TV char-by-
+char + delete/enter), Search. Haptics + requestFullscreen.
+
+Android (onnowtv-launcher, v2.13.0):
+- ic_remote.xml drawable + remoteIcon in activity_main.xml.
+- RemoteControlActivity: register → QR+code UI → starts service →
+  polls /state until phone pairs → "Connected" → auto-close.
+- RemoteControlService: foreground (dataSync) service, long-polls
+  /api/remote/host/poll and injects each input system-wide via the
+  shared RootInputDispatcher root shell (same mechanism as support).
+  Persists after activity closes so the phone keeps controlling.
+- RootInputDispatcher: added SEARCH + media keys + "longpress"
+  action (input keyevent --longpress KEYCODE_X).
+- Manifest: activity + service registered; FOREGROUND_SERVICE_DATA_SYNC
+  permission added.
+
+TESTED: backend full flow via curl (register/pair/wrong-code/input/
+poll/state/now-playing/QR 200). Frontend both screens via screenshot.
+Kotlin syntax-checked via kotlinc; XML validated. NATIVE input
+injection + QR scan CANNOT be tested in container — user must build
+APK (Save to GitHub → CI) and test on the HK1 (rooted).
+
+KNOWN GAP (P1 follow-up): the now-playing movie card is plumbing-
+ready (host/state + phone poll) but nothing pushes it yet. Wiring
+Vesper's Player to POST its current title/synopsis/progress to
+/api/remote/host/state/{sid} is a follow-up (Vesper needs the active
+session id — e.g. via a launcher broadcast or shared prefs).

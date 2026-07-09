@@ -53,6 +53,15 @@ object RootInputDispatcher {
         "POWER" to "POWER",
         "DEL" to "DEL",
         "ENTER" to "ENTER",
+        "SEARCH" to "SEARCH",
+        "MEDIA_PLAY_PAUSE" to "MEDIA_PLAY_PAUSE",
+        "MEDIA_PLAY" to "MEDIA_PLAY",
+        "MEDIA_PAUSE" to "MEDIA_PAUSE",
+        "MEDIA_STOP" to "MEDIA_STOP",
+        "MEDIA_FAST_FORWARD" to "MEDIA_FAST_FORWARD",
+        "MEDIA_REWIND" to "MEDIA_REWIND",
+        "MEDIA_NEXT" to "MEDIA_NEXT",
+        "MEDIA_PREVIOUS" to "MEDIA_PREVIOUS",
     )
 
     @Volatile private var shellProcess: Process? = null
@@ -134,6 +143,15 @@ object RootInputDispatcher {
                     val keyName = msg.optString("key")
                     val mapped = KEY_ALIAS[keyName] ?: keyName
                     writeShellLine("input keyevent KEYCODE_$mapped")
+                }
+                "longpress" -> {
+                    // Push-and-hold on the phone → long-press keyevent
+                    // on the box (e.g. long-press OK to add to Library
+                    // in Vesper).  `--longpress` is honoured by the
+                    // `input` command on all boxes we target.
+                    val keyName = msg.optString("key")
+                    val mapped = KEY_ALIAS[keyName] ?: keyName
+                    writeShellLine("input keyevent --longpress KEYCODE_$mapped")
                 }
                 "text" -> {
                     val raw = msg.optString("chars")

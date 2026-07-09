@@ -36,13 +36,13 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 /**
- * v2.12.14 — Build marker.  Bumped so CI produces a fresh APK with a
- * strictly higher `versionCode` (derived from `GITHUB_RUN_NUMBER` in
- * `.github/workflows/build-launcher.yml`), giving the operator a
- * concrete update to sanity-check the new update-button flow end to
- * end on his physical TV box.  No behavioural change in this file.
+ * v2.13.0 — Phone Remote.  New remote icon in the top bar (beside the
+ * support headset) opens RemoteControlActivity, which shows a QR +
+ * 6-digit code.  Scanning with a phone opens a full-screen web remote
+ * that drives THIS box only (D-pad, OK/long-press, volume, keyboard,
+ * media controls) via the backend + root-shell input dispatch.
  */
-private const val LAUNCHER_BUILD_MARKER: String = "v2.12.14"
+private const val LAUNCHER_BUILD_MARKER: String = "v2.13.0"
 
 /**
  * Home screen of the launcher — v0.5 stripped-down rebuild.
@@ -1879,6 +1879,23 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(
                     this,
                     "Could not start support session: ${t.message}",
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
+        // Phone-remote entry point.  Opens RemoteControlActivity
+        // which mints a pairing code + QR; scanning it turns the
+        // user's phone into a full remote for THIS box.
+        binding.remoteIcon.setOnClickListener {
+            try {
+                startActivity(
+                    android.content.Intent(this,
+                        tv.onnow.launcher.remote.RemoteControlActivity::class.java)
+                )
+            } catch (t: Throwable) {
+                Toast.makeText(
+                    this,
+                    "Could not open phone remote: ${t.message}",
                     Toast.LENGTH_LONG,
                 ).show()
             }

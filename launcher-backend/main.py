@@ -603,6 +603,44 @@ app.include_router(support_router)
 
 
 # ─────────────────────────────────────────────────────────────────
+#  Phone Remote — turn a phone into a full remote for ONE box.
+# ─────────────────────────────────────────────────────────────────
+import phone_remote  # noqa: E402
+
+# Where the phone web-remote app lives (the QR points here).  Falls
+# back to PUBLIC_BASE_URL for single-host deployments.
+REMOTE_WEB_URL = os.environ.get("REMOTE_WEB_URL", PUBLIC_BASE_URL).rstrip("/")
+(DATA_DIR / "remote_qr").mkdir(parents=True, exist_ok=True)
+app.mount(
+    "/assets/remote_qr",
+    StaticFiles(directory=str(DATA_DIR / "remote_qr")),
+    name="remote-qr",
+)
+phone_remote.configure(
+    public_base_url=PUBLIC_BASE_URL,
+    remote_web_url=REMOTE_WEB_URL,
+    qr_writer=lambda out_path, payload: _generate_qr_png(out_path, payload),
+    qr_dir=DATA_DIR / "remote_qr",
+)
+phone_remote.register_admin(Depends(require_admin))
+app.include_router(phone_remote.router)
+
+_REMOTE_PAGE_PATH = Path(__file__).parent / "remote_page.html"
+
+
+@app.get("/remote")
+def phone_remote_page():
+    """Self-contained full-screen phone-remote web app.  The launcher
+    QR points here; the page drives /api/remote/* on the same origin."""
+    from fastapi.responses import HTMLResponse
+    try:
+        html = _REMOTE_PAGE_PATH.read_text(encoding="utf-8")
+    except Exception:
+        raise HTTPException(404, "remote_page_missing")
+    return HTMLResponse(content=html)
+
+
+# ─────────────────────────────────────────────────────────────────
 #  Public launcher endpoints (read-only, no auth)
 # ─────────────────────────────────────────────────────────────────
 def _abs(path: Optional[str]) -> Optional[str]:
