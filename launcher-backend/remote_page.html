@@ -383,7 +383,7 @@
        matches whatever the TV cursor will do. -->
   <div class="trackpad" id="trackpad" data-testid="trackpad" aria-label="Trackpad">
     <div class="tp-cursor" id="tpCursor" aria-hidden="true"></div>
-    <div class="tp-hint" id="tpHint">Drag to move · Tap to click · 2-finger tap = Back</div>
+    <div class="tp-hint" id="tpHint">Drag to move the mouse · Tap to click · 2-finger tap = Back</div>
   </div>
 </div>
 
@@ -827,73 +827,68 @@
     setTimeout(function(){ openKb(true); }, 700);
   });
 
-  // v2.13.22 — Trackpad: drag to move the on-screen cursor, tap to
-  // click.  Uses absolute-position mapping (finger → percentage of
-  // pad → percentage of TV screen) so the phone cursor exactly
-  // predicts where the tap will land.  Movement events are throttled
-  // to 60 Hz so we don't flood the box's shell.  Two-finger tap is
-  // repurposed as BACK for right-click semantics.  Long-press (600
-  // ms without a move > 8 px) fires `mouse_longpress` for context
-  // menus.
+  // v2.13.22 — Trackpad: drag moves the box's on-screen mouse
+  // cursor (the air-mouse cursor emitted by any HID pointer device
+  // — physical dongle, USB mouse, virtual pointer).  We send
+  // RELATIVE deltas (dx, dy) so the box can inject them straight
+  // into the HID mouse node via `sendevent EV_REL` — the box's
+  // input reader adds them to whatever cursor position the real
+  // air-mouse remote is at, so the physical cursor visible on the
+  // TV just moves.  Single tap = left click; two-finger tap = BACK;
+  // 600 ms hold = long-press.  Sensitivity multiplier so a short
+  // finger movement covers plenty of TV screen area.
   (function trackpadSetup(){
     var pad = $("trackpad"); if (!pad) return;
     var cursor = $("tpCursor");
-    var active = false, lastSent = 0, downAt = 0, downX = 0, downY = 0, moved = false;
+    var SENS = 2.4;                 // TV pixels per pad pixel
+    var active = false, lastSent = 0, downAt = 0, downX = 0, downY = 0, lastX = 0, lastY = 0, moved = false;
     var longTimer = null, twoFingerAt = 0;
-    function paint(nx, ny){
-      // nx, ny normalised [0..1] within the pad → position the
-      // preview dot at the same fractional coordinates within the
-      // pad element (rendered in CSS via left/top with pixel offset).
-      var r = pad.getBoundingClientRect();
-      cursor.style.left = (nx * r.width) + "px";
-      cursor.style.top  = (ny * r.height) + "px";
+    function paint(px, py){
+      // px, py are pad-local pixels; keep the preview dot pinned
+      // to the finger for visual feedback.
+      cursor.style.left = px + "px";
+      cursor.style.top  = py + "px";
       cursor.style.marginLeft = "-11px";
       cursor.style.marginTop  = "-11px";
     }
-    function pointsFromEvent(e){
+    function padLocal(e){
       var r = pad.getBoundingClientRect();
       var t = (e.touches && e.touches[0]) ? e.touches[0] : e;
-      var nx = Math.min(1, Math.max(0, (t.clientX - r.left) / r.width));
-      var ny = Math.min(1, Math.max(0, (t.clientY - r.top)  / r.height));
-      return { nx: nx, ny: ny };
+      return { x: t.clientX - r.left, y: t.clientY - r.top };
     }
     pad.addEventListener("pointerdown", function(e){
-      // Two-finger tap on touch devices: iOS/Android surface a
-      // second `touchstart` while the first pointer is still active.
       if (e.pointerType === "touch" && e.isPrimary === false){
         twoFingerAt = performance.now();
         return;
       }
       active = true; moved = false;
       downAt = performance.now();
-      var p = pointsFromEvent(e);
-      downX = p.nx; downY = p.ny;
+      var p = padLocal(e);
+      downX = p.x; downY = p.y; lastX = p.x; lastY = p.y;
       pad.classList.add("active");
-      paint(p.nx, p.ny);
-      // Immediately move the box cursor to where the finger touched
-      // (so the TV cursor snaps to that point on touchdown).
-      send({ action: "mouse_move", x: p.nx, y: p.ny });
-      lastSent = performance.now();
-      // Arm a long-press timer (600 ms with < 8 px movement).
+      paint(p.x, p.y);
       if (longTimer) clearTimeout(longTimer);
       longTimer = setTimeout(function(){
         if (active && !moved){
           haptic(30);
           send({ action: "mouse_longpress" });
-          moved = true; // suppress the click on release
+          moved = true;
         }
       }, 600);
       try { pad.setPointerCapture(e.pointerId); } catch (err) {}
     });
     pad.addEventListener("pointermove", function(e){
       if (!active) return;
-      var p = pointsFromEvent(e);
-      var dx = Math.abs(p.nx - downX), dy = Math.abs(p.ny - downY);
-      if (dx * pad.clientWidth > 8 || dy * pad.clientHeight > 8) moved = true;
-      paint(p.nx, p.ny);
+      var p = padLocal(e);
+      var pdx = p.x - lastX, pdy = p.y - lastY;
+      if (Math.abs(p.x - downX) > 8 || Math.abs(p.y - downY) > 8) moved = true;
+      paint(p.x, p.y);
+      lastX = p.x; lastY = p.y;
       var now = performance.now();
-      if (now - lastSent >= 16){   // ~60 Hz
-        send({ action: "mouse_move", x: p.nx, y: p.ny });
+      if (now - lastSent >= 16 && (pdx || pdy)){   // ~60 Hz
+        var dx = Math.round(pdx * SENS);
+        var dy = Math.round(pdy * SENS);
+        if (dx || dy) send({ action: "mouse_move", dx: dx, dy: dy });
         lastSent = now;
       }
     });
@@ -904,7 +899,6 @@
       if (longTimer){ clearTimeout(longTimer); longTimer = null; }
       var quick = (performance.now() - downAt) < 260;
       if (quick && !moved){
-        // Two-finger tap → BACK; single-finger tap → left click.
         var wasTwoFinger = (performance.now() - twoFingerAt) < 400;
         if (wasTwoFinger){
           haptic(20); send({ action: "key", key: "BACK" });

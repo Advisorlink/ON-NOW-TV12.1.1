@@ -214,7 +214,23 @@ def _validate_input(body: dict) -> dict:
     if action == "next_episode":
         return {"action": "next_episode"}
     if action == "mouse_move":
-        # v2.13.22 — Trackpad absolute position, normalised [0..1].
+        # v2.13.22 — Trackpad payload has two shapes:
+        #   • {dx, dy}         — relative motion (preferred, HID-mouse
+        #                         injection path)
+        #   • {x, y} in [0..1] — absolute normalised (legacy /
+        #                         fallback for the cmd-input path)
+        # Accept either; validator preserves whichever the phone sent
+        # so the box can pick the best dispatch path.
+        if "dx" in body or "dy" in body:
+            try:
+                dx = int(body.get("dx", 0))
+                dy = int(body.get("dy", 0))
+            except (TypeError, ValueError):
+                raise HTTPException(400, "bad_mouse_delta")
+            # Clamp so a runaway JS bug can't fire a 10 000-pixel jump.
+            dx = min(max(dx, -400), 400)
+            dy = min(max(dy, -400), 400)
+            return {"action": "mouse_move", "dx": dx, "dy": dy}
         try:
             x = float(body.get("x", 0.5))
             y = float(body.get("y", 0.5))

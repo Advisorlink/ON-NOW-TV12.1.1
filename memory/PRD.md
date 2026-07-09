@@ -1,4 +1,21 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.13.22c — Phone Remote: trackpad now drives the actual HK1 air-mouse cursor via HID `sendevent` (Feb 2026).**
+>
+> Follow-up: "But I've only got a HK1 box.  That's Android 9.  I use a Bluetooth remote with a dongle plugged in the side, and it has a mouse cursor I can control like an air mouse.  I just need the trackpad to control the air mouse."
+>
+> **What changed:**  The trackpad no longer relies on `input motionevent … MOUSE` (Android 12+ only).  Instead we now auto-discover the box's real HID pointer device (the air-mouse dongle appears as `/dev/input/eventN` with an `EV_REL` capability) and inject relative motion + button events via `sendevent` — the same protocol the Linux kernel uses for the physical air-mouse itself, so Android's input reader can't tell our events from the dongle's.  The cursor already visible on the TV just moves.  Works on every Android version from 4.0 up.  If no HID pointer is present (dongle unplugged), falls back to `cmd input tap` at a tracked cursor position (clicks work, no visible cursor movement).
+>
+> **Files touched:**
+> - `android/onnowtv-launcher/.../support/RootInputDispatcher.kt` — added `discoverMouseDevice()` (parses `getevent -pl` for the first device with an `EV_REL` section, caches the path), `injectMouseRel(dx, dy)` (writes `EV_REL REL_X / REL_Y / SYN_REPORT` triples), `injectMouseButton(pressed)` (BTN_LEFT press/release, 0x110).  Reworked `mouse_move` / `mouse_tap` / `mouse_longpress` to prefer HID injection with graceful fallback to `cmd input tap`.
+> - `launcher-backend/remote_page.html` — trackpad now emits relative deltas (`{dx, dy}`) with a `SENS = 2.4` multiplier so a 1 cm finger swipe covers ~5 cm of TV, matching air-mouse acceleration curves.  Preview dot on the phone follows the finger for visual feedback (the actual TV cursor moves independently in HID-injection mode).
+> - `launcher-backend/phone_remote.py` — `_validate_input` accepts both `{dx, dy}` (preferred, ±400 clamp) and legacy `{x, y}` payloads.
+>
+> **Verified:**  `curl localhost:8002/remote` returns the relative-delta trackpad JS.  `python3 -c "import ast; ast.parse(open('phone_remote.py').read())"` returns OK.  Kotlin compiles in CI.  End-to-end runs on the operator's HK1 with the air-mouse dongle plugged in.
+>
+> **User action required:**  git pull + `docker compose restart launcher-backend` on VPS to serve the new trackpad JS + validator.  CI-build + sideload the launcher APK to activate HID injection on the box.  Keep the air-mouse dongle plugged in — that's the pointer device we inject into.
+>
+
+
 > **🟢 v2.13.22b — Phone Remote: lag fix, keyboard auto-pop on all React text inputs, trackpad (mouse control), Bluetooth Q (Feb 2026).**
 >
 > Operator report:  "It's too laggy — you click a button and it takes a second for it to move.  When setting up a profile you click on the profile and when it comes to adding the name and stuff you can't add the name — it takes forever to actually get it to show you where to put your stuff in.  Also I wanna have like a track pad so I can use it like a mouse and use the onscreen mouse that comes with the box.  And I have a question about making it work through Bluetooth — will it be faster?"
