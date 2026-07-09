@@ -7,6 +7,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="remote.webmanifest">
+<link rel="icon" type="image/png" href="remote-icon-192.png">
+<link rel="apple-touch-icon" href="remote-icon-192.png">
 <title>ON NOW Remote</title>
 <style>
   :root{
@@ -46,7 +49,9 @@
   .nbtn span{pointer-events:none}
 
   /* ── top bar ── */
-  .topbar{display:flex;align-items:center;justify-content:space-between}
+  .topbar{display:flex;align-items:center;justify-content:space-between;position:relative}
+  .brand-logo{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:36px;height:36px;border-radius:9px;box-shadow:0 4px 12px rgba(0,0,0,.45);pointer-events:none}
   .conn-pill{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;
     background:linear-gradient(145deg,var(--card-hi),var(--card-lo));border:1px solid var(--edge);
     box-shadow:var(--shadow-out);font-size:12.5px;font-weight:600;letter-spacing:.02em;color:var(--txt-dim)}
@@ -143,7 +148,9 @@
   .pair{position:fixed;inset:0;z-index:80;display:flex;flex-direction:column;align-items:center;justify-content:center;
     gap:22px;padding:32px;background:radial-gradient(120% 90% at 50% 0%, #121a26 0%, var(--bg) 55%, #070a10 100%)}
   .pair.hidden{display:none}
-  .pair-logo{font-size:12px;font-weight:800;letter-spacing:.34em;color:var(--accent)}
+  .pair-logo{display:flex;flex-direction:column;align-items:center;gap:14px;
+    font-size:12px;font-weight:800;letter-spacing:.34em;color:var(--accent)}
+  .pair-logo img{width:72px;height:72px;border-radius:18px;box-shadow:0 10px 30px rgba(0,0,0,.5)}
   .pair h1{font-size:24px;font-weight:800;text-align:center;line-height:1.25}
   .pair p{font-size:13.5px;color:var(--txt-dim);text-align:center;max-width:280px;line-height:1.5}
   .code-boxes{display:flex;gap:9px}
@@ -172,7 +179,7 @@
 
 <!-- ── PAIRING ── -->
 <div class="pair" id="pairScreen" data-testid="pair-screen">
-  <div class="pair-logo">ON NOW TV</div>
+  <div class="pair-logo"><img src="remote-icon-192.png" alt="ON NOW V2"><span>ON NOW TV · V2</span></div>
   <h1 id="pairTitle">Enter the code<br>on your TV</h1>
   <p id="pairSub">Open the Remote on your TV box and type the 6-digit code shown on screen.</p>
   <div class="code-boxes" id="codeBoxes" data-testid="code-boxes"></div>
@@ -191,6 +198,7 @@
       <span id="connText">Connecting…</span>
       <span class="conn-mode" id="connMode"></span>
     </div>
+    <img class="brand-logo" src="remote-icon-192.png" alt="ON NOW V2" data-testid="brand-logo">
     <button class="nbtn pwr-btn" data-key="POWER" data-testid="power-button" aria-label="Power">
       <svg viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
     </button>
@@ -332,6 +340,31 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var pairScreen = $("pairScreen"), remoteApp = $("remoteApp");
+
+  // Force true full-screen at the first touch (browsers block it
+  // before a gesture).  Installed/standalone launches (saved to home
+  // screen via the PWA manifest) are already full-screen — skip.
+  (function fullscreenSetup(){
+    var standalone = false;
+    try {
+      standalone = (window.matchMedia &&
+        (matchMedia("(display-mode: standalone)").matches ||
+         matchMedia("(display-mode: fullscreen)").matches)) ||
+        window.navigator.standalone === true;
+    } catch(e){}
+    if (standalone) return;
+    function goFs(){
+      if (document.fullscreenElement) return;
+      var el = document.documentElement;
+      var fn = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (!fn) return;
+      try {
+        var p = fn.call(el, { navigationUI: "hide" });
+        if (p && p.catch) p.catch(function(){});
+      } catch(e){}
+    }
+    document.addEventListener("pointerdown", goFs, true);
+  })();
 
   function saved(){ try { return JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch(e){ return null; } }
   function save(obj){ try { localStorage.setItem(LS_KEY, JSON.stringify(obj)); } catch(e){} }

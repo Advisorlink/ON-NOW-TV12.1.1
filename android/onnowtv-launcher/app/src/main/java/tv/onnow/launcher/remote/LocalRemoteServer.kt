@@ -52,6 +52,12 @@ class LocalRemoteServer(
                 }
             }
             "/ping" -> newFixedLengthResponse(Response.Status.OK, "text/plain", "ok")
+            // Branding/manifest assets referenced relatively by the
+            // page — bounce LAN-mode phones to the cloud copies.
+            "/remote-icon-192.png", "/remote-icon-512.png", "/remote.webmanifest" ->
+                newFixedLengthResponse(
+                    Response.Status.REDIRECT, "text/plain", ""
+                ).apply { addHeader("Location", "$cloudBaseUrl${session.uri}") }
             else -> newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "not_found")
         }
     }

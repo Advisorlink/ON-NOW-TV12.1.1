@@ -8897,3 +8897,18 @@ REMINDER FOR USER DEPLOYMENT: (1) Save to GitHub, (2) VPS: pull +
 rebuild/restart launcher-backend container, (3) install BOTH new APKs
 on the box — now-playing/seek/next-episode REQUIRE the new Vesper
 build; QR + keyboard detection require the new launcher build.
+
+---
+
+## 2026-06 — Remote branding + true full-screen (DONE, tested)
+- PWA manifest at /remote.webmanifest (relative start_url/scope/icons →
+  path-prefix safe): saved-to-home-screen remote launches display:fullscreen
+  with the ON NOW V2 icon.
+- Generated ON NOW V2 logo → remote_icon_192/512.png in launcher-backend
+  (served at /remote-icon-*.png, added to Dockerfile COPY).
+- Browser sessions: requestFullscreen on first tap (skipped when running
+  standalone/installed).
+- Logo placement: top-bar center chip on the remote; big logo + "ON NOW
+  TV · V2" on the pair/connecting screens.
+- LocalRemoteServer: redirects /remote-icon-*.png + /remote.webmanifest
+  to the cloud copies for LAN-mode phones (launcher recompiled OK).

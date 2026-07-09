@@ -640,6 +640,46 @@ def phone_remote_page():
     return HTMLResponse(content=html)
 
 
+@app.get("/remote.webmanifest")
+def phone_remote_manifest():
+    """PWA manifest — saved-to-home-screen remotes launch true
+    full-screen with the ON NOW V2 icon.  All URLs are RELATIVE so the
+    manifest works no matter what path prefix the backend runs under."""
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        {
+            "name": "ON NOW Remote",
+            "short_name": "ON NOW",
+            "description": "Use your phone as the remote for your ON NOW TV box.",
+            "display": "fullscreen",
+            "orientation": "portrait",
+            "background_color": "#0b0f16",
+            "theme_color": "#0b0f16",
+            "start_url": "remote",
+            "scope": ".",
+            "icons": [
+                {"src": "remote-icon-192.png", "sizes": "192x192",
+                 "type": "image/png", "purpose": "any maskable"},
+                {"src": "remote-icon-512.png", "sizes": "512x512",
+                 "type": "image/png", "purpose": "any maskable"},
+            ],
+        },
+        media_type="application/manifest+json",
+    )
+
+
+@app.get("/remote-icon-192.png")
+def phone_remote_icon_192():
+    from fastapi.responses import FileResponse
+    return FileResponse(Path(__file__).parent / "remote_icon_192.png", media_type="image/png")
+
+
+@app.get("/remote-icon-512.png")
+def phone_remote_icon_512():
+    from fastapi.responses import FileResponse
+    return FileResponse(Path(__file__).parent / "remote_icon_512.png", media_type="image/png")
+
+
 # ─────────────────────────────────────────────────────────────────
 #  Public launcher endpoints (read-only, no auth)
 # ─────────────────────────────────────────────────────────────────
