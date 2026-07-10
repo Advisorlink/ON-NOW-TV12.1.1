@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sport-icon chip background used inside the horizontal filter
+     row shown above the channel list when "What's On Live" is
+     active.  Resting glass card, coral outline on focus, filled
+     coral when activated. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#332E1116" />
+            <corners android:radius="12dp" />
+            <stroke android:width="2dp" android:color="#FFB08A" />
+        </shape>
+    </item>
+    <item android:state_activated="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#552E1116" />
+            <corners android:radius="12dp" />
+            <stroke android:width="2dp" android:color="#FF6A38" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#141C2A" />
+            <corners android:radius="12dp" />
+            <stroke android:width="1dp" android:color="#22FF6A38" />
+        </shape>
+    </item>
+</selector>

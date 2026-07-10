@@ -13,6 +13,7 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -112,6 +113,23 @@ class EpgActivity : AppCompatActivity() {
     private lateinit var guideToday: TextView
     private lateinit var guideChannelHeader: TextView
 
+    // v2.14.16 — "WHAT'S ON LIVE" hub refs.  See wireViews().
+    private lateinit var whatsOnPill: LinearLayout
+    private lateinit var whatsOnPillDot: View
+    private lateinit var whatsOnPillCount: TextView
+    private lateinit var whatsOnSportRow: RecyclerView
+    private lateinit var whatsOnAdapter: tv.onnowtv.livetv.ui.WhatsOnSportAdapter
+    /** Currently-selected sport bucket inside the "What's On Live"
+     *  hub.  `null` → the pinned "ALL" chip is active. */
+    private var whatsOnActiveSport: String? = null
+    /** Live sport-bucket rows powering the sport-icon filter row.
+     *  Recomputed inside `applyCategory("__whatson__")` and again
+     *  from the 30-second clock ticker so counts stay honest. */
+    private var whatsOnRows: List<tv.onnowtv.livetv.ui.WhatsOnSportAdapter.Row> = emptyList()
+    /** Cached classification results for the LIVE bucket → channels
+     *  mapping.  Rebuilt each time the hub is refreshed. */
+    private var whatsOnChannelsByBucket: Map<String, List<Channel>> = emptyMap()
+
     // Search overlay refs
     private lateinit var searchOverlay: View
     private lateinit var searchOverlayInput: EditText
@@ -191,11 +209,13 @@ class EpgActivity : AppCompatActivity() {
         wireViews()
         buildCategories()
         setupAdapters()
+        setupWhatsOnHub()
         applyCategory()
         wireHeroIcons()
         wireRail()
         wireSearch()
         startClock()
+        startWhatsOnPulse()
 
         // Background refresh: if MainActivity took the fast disk-
         // cache path, ask for a fresh bundle now and persist it so
@@ -318,6 +338,12 @@ class EpgActivity : AppCompatActivity() {
         searchOverlayEmpty   = findViewById(R.id.search_overlay_empty)
         searchOverlayCount   = findViewById(R.id.search_overlay_count)
         searchOverlayClose   = findViewById(R.id.search_overlay_close)
+
+        // v2.14.16 — "WHAT'S ON LIVE" hub views.
+        whatsOnPill      = findViewById(R.id.whatson_pill)
+        whatsOnPillDot   = findViewById(R.id.whatson_pill_dot)
+        whatsOnPillCount = findViewById(R.id.whatson_pill_count)
+        whatsOnSportRow  = findViewById(R.id.whatson_sport_row)
     }
 
     private fun buildCategories() {
@@ -450,9 +476,14 @@ class EpgActivity : AppCompatActivity() {
         // Each vertical list is its own container — D-pad UP/DOWN
         // must stay inside the list at its boundaries.  LEFT/RIGHT
         // is still allowed to cross to the next column (default
-        // focus traversal handles that).
+        // focus traversal handles that).  channelsList allows UP
+        // to escape UPward when the WhatsOn sport chip row is
+        // visible, so the user can hop from row 0 to the chips.
         containVerticalKeyNav(categoriesList)
-        containVerticalKeyNav(channelsList)
+        containVerticalKeyNav(channelsList, allowUpEscapeWhen = {
+            ::whatsOnSportRow.isInitialized &&
+                whatsOnSportRow.visibility == View.VISIBLE
+        })
         containVerticalKeyNav(guideList)
     }
 
@@ -466,7 +497,10 @@ class EpgActivity : AppCompatActivity() {
      * LEFT and RIGHT are deliberately untouched so the user can
      * still hop categories ⇆ channels ⇆ guide horizontally.
      */
-    private fun containVerticalKeyNav(list: RecyclerView) {
+    private fun containVerticalKeyNav(
+        list: RecyclerView,
+        allowUpEscapeWhen: (() -> Boolean)? = null,
+    ) {
         list.setOnKeyListener { _, keyCode, event ->
             if (event.action != android.view.KeyEvent.ACTION_DOWN) return@setOnKeyListener false
             val focused = list.focusedChild ?: return@setOnKeyListener false
@@ -474,7 +508,14 @@ class EpgActivity : AppCompatActivity() {
             if (pos == RecyclerView.NO_POSITION) return@setOnKeyListener false
             val itemCount = list.adapter?.itemCount ?: 0
             when (keyCode) {
-                android.view.KeyEvent.KEYCODE_DPAD_UP   -> pos == 0
+                android.view.KeyEvent.KEYCODE_DPAD_UP -> {
+                    if (pos == 0) {
+                        // Let UP escape upward when the caller
+                        // opts in (e.g. hop from channel row 0 up
+                        // into the WhatsOn sport chip row).
+                        if (allowUpEscapeWhen?.invoke() == true) false else true
+                    } else false
+                }
                 android.view.KeyEvent.KEYCODE_DPAD_DOWN -> pos >= itemCount - 1
                 else -> false
             }
@@ -704,6 +745,20 @@ class EpgActivity : AppCompatActivity() {
 
     private fun applyCategory() {
         val sel = currentCategoryId
+        // v2.14.16 — "WHAT'S ON LIVE" hub takes priority.  Show the
+        // sport-icon filter row above the channel list and populate
+        // channels from the sport classifier, not the raw bundle.
+        if (sel == "__whatson__") {
+            applyWhatsOnCategory()
+            return
+        } else {
+            // Hide the sport filter row whenever we're NOT in the
+            // hub so it doesn't leak into other categories.
+            if (::whatsOnSportRow.isInitialized) {
+                whatsOnSportRow.visibility = View.GONE
+            }
+            if (::whatsOnPill.isInitialized) whatsOnPill.isActivated = false
+        }
         // For the Reminders virtual category we expand into a row
         // per reminded programme (NOT one per channel).  Each row
         // shows the programme title in the "NOW" slot and the
@@ -758,6 +813,157 @@ class EpgActivity : AppCompatActivity() {
             loadGuideForChannel(first)
         }
     }
+
+    /* ═══════════ v2.14.16 — WHAT'S ON LIVE HUB ═══════════ */
+
+    /** Wire the premium pill + sport-chip row.  Called once from
+     *  onCreate after `setupAdapters` so the RecyclerView + shared
+     *  focus behaviour is already in place. */
+    private fun setupWhatsOnHub() {
+        whatsOnAdapter = tv.onnowtv.livetv.ui.WhatsOnSportAdapter { key ->
+            whatsOnActiveSport = if (key == "__all__") null else key
+            whatsOnAdapter.submit(whatsOnRows, whatsOnActiveSport)
+            paintWhatsOnChannels()
+            channelsList.post {
+                channelsList.scrollToPosition(0)
+                channelsList.findViewHolderForAdapterPosition(0)
+                    ?.itemView?.requestFocus()
+            }
+        }
+        whatsOnSportRow.layoutManager = LinearLayoutManager(
+            this, LinearLayoutManager.HORIZONTAL, false,
+        )
+        whatsOnSportRow.adapter = whatsOnAdapter
+        whatsOnSportRow.itemAnimator = null
+
+        // Initial count — silently populates the "0" pill before
+        // the user has focussed anything.  Full recompute happens
+        // inside [applyWhatsOnCategory] when the hub is opened.
+        recomputeWhatsOnRows()
+        whatsOnPillCount.text = whatsOnRows.sumOf { it.count }.toString()
+
+        whatsOnPill.setOnClickListener {
+            currentCategoryId = "__whatson__"
+            whatsOnActiveSport = null
+            applyCategory()
+            channelsList.post {
+                channelsList.findViewHolderForAdapterPosition(0)
+                    ?.itemView?.requestFocus()
+            }
+        }
+    }
+
+    /** Infinite pulse on the LIVE dot — fades between 100% and 45%
+     *  alpha with a 1 200 ms period.  Attached to the dot's own
+     *  ViewPropertyAnimator so it survives config changes. */
+    private fun startWhatsOnPulse() {
+        val dot = whatsOnPillDot
+        val step = object : Runnable {
+            var fadeOut = true
+            override fun run() {
+                val target = if (fadeOut) 0.45f else 1f
+                dot.animate().alpha(target).setDuration(600L).start()
+                fadeOut = !fadeOut
+                dot.postDelayed(this, 600L)
+            }
+        }
+        dot.post(step)
+    }
+
+    /** Populate the hub view: build the sport-bucket rows, submit
+     *  them into the horizontal chip row, and paint the channel
+     *  list from whichever bucket is active. */
+    private fun applyWhatsOnCategory() {
+        recomputeWhatsOnRows()
+        whatsOnSportRow.visibility = View.VISIBLE
+        whatsOnPill.isActivated = true
+        categoryAdapter.setSelected("__whatson__")
+        currentReminderProgrammes = emptyMap()
+
+        whatsOnAdapter.submit(whatsOnRows, whatsOnActiveSport)
+        paintWhatsOnChannels()
+
+        val totalLive = whatsOnRows.sumOf { it.count }
+        whatsOnPillCount.text = totalLive.toString()
+    }
+
+    /** Filter + submit the channel list for the currently-selected
+     *  sport bucket (or "ALL" when [whatsOnActiveSport] is null). */
+    private fun paintWhatsOnChannels() {
+        val visible: List<Channel> = if (whatsOnActiveSport == null) {
+            // Union across all buckets, de-duped, preserving the
+            // insertion order of the first bucket that saw each id.
+            val seen = LinkedHashSet<String>()
+            val merged = mutableListOf<Channel>()
+            for ((_, list) in whatsOnChannelsByBucket) {
+                for (ch in list) {
+                    if (seen.add(ch.id)) merged.add(ch)
+                }
+            }
+            merged
+        } else {
+            whatsOnChannelsByBucket[whatsOnActiveSport] ?: emptyList()
+        }
+        currentChannelList = visible
+        channelAdapter.submit(visible)
+        channelCountChip.text = "${"%,d".format(visible.size)} LIVE"
+
+        val first = visible.firstOrNull()
+        if (first != null) {
+            focusedChannel = first
+            updateHero(first)
+            loadGuideForChannel(first)
+        } else {
+            focusedChannel = null
+            guideAdapter.submit(emptyList())
+        }
+    }
+
+    /** Scan the bundle for channels whose NOW programme classifies
+     *  into a sport bucket.  Rebuilds both the chip rows and the
+     *  bucket→channels map.  Cheap enough to run every 30 s from
+     *  the clock ticker (~5k EPG hits, contains-only matches). */
+    private fun recomputeWhatsOnRows() {
+        val now = System.currentTimeMillis()
+        val byBucket = LinkedHashMap<String, MutableList<Channel>>()
+
+        for (ch in bundle.channels) {
+            val sid = ch.epgChannelId ?: continue
+            val progs = epgCache[sid] ?: continue
+            val current = progs.firstOrNull { it.isLiveAt(now) } ?: continue
+            val bucket = tv.onnowtv.livetv.data.LiveSportsClassifier
+                .classify(current.title, ch.name) ?: continue
+            byBucket.getOrPut(bucket) { mutableListOf() }.add(ch)
+        }
+
+        whatsOnChannelsByBucket = byBucket
+
+        // Build rows in the classifier's display order so the row
+        // always reads Football → F1 → … even if buckets appear /
+        // vanish between refreshes.
+        val rows = mutableListOf<tv.onnowtv.livetv.ui.WhatsOnSportAdapter.Row>()
+        rows.add(
+            tv.onnowtv.livetv.ui.WhatsOnSportAdapter.Row(
+                id = null,
+                label = "All Sport",
+                count = byBucket.values.sumOf { it.size },
+            ),
+        )
+        for (id in tv.onnowtv.livetv.data.LiveSportsClassifier.DISPLAY_ORDER) {
+            val list = byBucket[id] ?: continue
+            if (list.isEmpty()) continue
+            rows.add(
+                tv.onnowtv.livetv.ui.WhatsOnSportAdapter.Row(
+                    id = id,
+                    label = tv.onnowtv.livetv.data.LiveSportsClassifier.labelOf(id),
+                    count = list.size,
+                ),
+            )
+        }
+        whatsOnRows = rows
+    }
+
+
 
     private fun liveProgrammeOf(ch: Channel): Programme? {
         // When the Reminders virtual category is showing, the
@@ -1127,6 +1333,7 @@ class EpgActivity : AppCompatActivity() {
             "__all__", null -> bundle.channels
             "__favourites__" -> bundle.channels.filter { favouriteSet.contains(it.id) }
             "__recents__" -> emptyList()
+            "__whatson__" -> currentChannelList  // filtered sport list
             "__reminders__" -> {
                 // Player should zap through reminder-channels, not
                 // synthetic rows.
@@ -1179,6 +1386,24 @@ class EpgActivity : AppCompatActivity() {
                 guideToday.text = "COMING UP NEXT"
                 guideClock.text = "TODAY · ${dateFmt.format(Date()).uppercase(Locale.UK)} · $nowStr"
                 focusedChannel?.let { updateHero(it) }
+                // v2.14.16 — Keep the "WHAT'S ON LIVE" pill count
+                // + sport chip row honest as programmes turn over.
+                if (::whatsOnPillCount.isInitialized) {
+                    recomputeWhatsOnRows()
+                    whatsOnPillCount.text = whatsOnRows.sumOf { it.count }.toString()
+                    if (currentCategoryId == "__whatson__") {
+                        whatsOnAdapter.submit(whatsOnRows, whatsOnActiveSport)
+                        // If the previously-selected sport just
+                        // emptied out, silently fall back to ALL
+                        // so the middle column doesn't go blank.
+                        if (whatsOnActiveSport != null &&
+                            whatsOnChannelsByBucket[whatsOnActiveSport].isNullOrEmpty()
+                        ) {
+                            whatsOnActiveSport = null
+                        }
+                        paintWhatsOnChannels()
+                    }
+                }
                 clockHandler.postDelayed(this, 30_000L)
             }
         }

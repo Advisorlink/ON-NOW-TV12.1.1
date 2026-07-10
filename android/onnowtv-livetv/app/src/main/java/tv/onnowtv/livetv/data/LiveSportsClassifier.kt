@@ -68,6 +68,54 @@ object LiveSportsClassifier {
         MMA_BOXING, CYCLING, ATHLETICS, WWE, OTHER_SPORT,
     )
 
+    /** Short 2–3 char monogram painted inside the sport chip's
+     *  coloured disc.  Kept intentionally readable at 12sp on a
+     *  1080p TV screen (no glyph fonts required). */
+    fun shortOf(id: String): String = when (id) {
+        SOCCER       -> "FB"
+        F1           -> "F1"
+        MOTORSPORT   -> "MS"
+        GOLF         -> "GO"
+        CRICKET      -> "CR"
+        TENNIS       -> "TN"
+        RUGBY_UNION  -> "RU"
+        RUGBY_LEAGUE -> "RL"
+        AFL          -> "AFL"
+        NFL          -> "NFL"
+        NBA          -> "BB"
+        NHL          -> "IH"
+        MLB          -> "MLB"
+        MMA_BOXING   -> "MMA"
+        CYCLING      -> "CY"
+        ATHLETICS    -> "AT"
+        WWE          -> "WWE"
+        else         -> "•"
+    }
+
+    /** Accent hex colour used for the sport chip's disc + focus
+     *  glow.  Kept dark-friendly (single accent per bucket) so the
+     *  row reads as a cohesive palette. */
+    fun colorOf(id: String): Int = when (id) {
+        SOCCER       -> 0xFF3EB44A.toInt()  // pitch green
+        F1           -> 0xFFE10600.toInt()  // Ferrari red
+        MOTORSPORT   -> 0xFFFF6A00.toInt()  // paddock orange
+        GOLF         -> 0xFF7FC57F.toInt()  // fairway
+        CRICKET      -> 0xFFCC1F1F.toInt()  // ball red
+        TENNIS       -> 0xFFDCFF3F.toInt()  // tennis-ball yellow
+        RUGBY_UNION  -> 0xFF1F3E7A.toInt()  // Six Nations navy
+        RUGBY_LEAGUE -> 0xFF6E37FF.toInt()  // NRL purple
+        AFL          -> 0xFFE30E2E.toInt()  // AFL red
+        NFL          -> 0xFF875A2B.toInt()  // pigskin
+        NBA          -> 0xFFF57C1F.toInt()  // basketball orange
+        NHL          -> 0xFF6FDCFF.toInt()  // ice
+        MLB          -> 0xFF1257A6.toInt()  // stadium blue
+        MMA_BOXING   -> 0xFFB80020.toInt()  // glove crimson
+        CYCLING      -> 0xFFFFCB05.toInt()  // maillot jaune
+        ATHLETICS    -> 0xFFFF3B7A.toInt()  // track magenta
+        WWE          -> 0xFFC8A027.toInt()  // WWE gold
+        else         -> 0xFF8FA1BF.toInt()  // slate
+    }
+
     // Priority-ordered rules.  Evaluated top-to-bottom; first hit
     // wins.  More specific patterns MUST come before broader ones.
     private data class Rule(val bucket: String, val needles: List<String>)

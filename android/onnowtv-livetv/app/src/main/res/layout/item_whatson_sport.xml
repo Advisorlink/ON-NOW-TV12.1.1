@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One sport chip inside the horizontal "What's On Live" filter
+     row.  Coloured monogram disc + sport label + live count.  The
+     whole chip is focusable so the user can D-pad across the row. -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="52dp"
+    android:layout_marginEnd="10dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingStart="10dp"
+    android:paddingEnd="14dp"
+    android:background="@drawable/whatson_sport_chip_bg"
+    android:focusable="true"
+    android:clickable="true">
+
+    <!-- Coloured disc + monogram.  Disc tint is set at bind-time. -->
+    <FrameLayout
+        android:layout_width="32dp"
+        android:layout_height="32dp">
+        <ImageView
+            android:id="@+id/whatson_sport_disc"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:src="@drawable/whatson_sport_disc"
+            android:contentDescription="@null" />
+        <TextView
+            android:id="@+id/whatson_sport_monogram"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:fontFamily="sans-serif-black"
+            android:textStyle="bold"
+            android:textColor="#0A0F1A"
+            android:textSize="11sp"
+            android:letterSpacing="-0.02"
+            android:text="" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginStart="10dp">
+
+        <TextView
+            android:id="@+id/whatson_sport_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-medium"
+            android:textStyle="bold"
+            android:textColor="@color/livetv_fg_bright"
+            android:textSize="12sp"
+            android:letterSpacing="0.04"
+            android:singleLine="true"
+            android:text="" />
+
+        <TextView
+            android:id="@+id/whatson_sport_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="1dp"
+            android:fontFamily="monospace"
+            android:textStyle="bold"
+            android:textColor="@color/livetv_fg_dim"
+            android:textSize="10sp"
+            android:letterSpacing="0.20"
+            android:singleLine="true"
+            android:text="" />
+    </LinearLayout>
+</LinearLayout>
