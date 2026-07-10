@@ -74,6 +74,40 @@ object RootInputDispatcher {
         "MEDIA_PREVIOUS" to "MEDIA_PREVIOUS",
     )
 
+    // v2.14.4 — LINUX KERNEL KEY CODES (from
+    // include/uapi/linux/input-event-codes.h) for the raw-evdev fast
+    // path.  `input keyevent` spawns `app_process` (a JVM) inside our
+    // persistent shell — ~200-500 ms on the HK1 box.  Writing an
+    // `EV_KEY` frame straight into the device's `/dev/input/eventN`
+    // node is ONE syscall — same 1:1 responsiveness the trackpad has.
+    //
+    // Only DPAD keys, OK, and media keys are in the table — those are
+    // the rapidly-pressed ones the operator asked to speed up.  Any
+    // key NOT here falls through to the classic `input keyevent`
+    // path (BACK / HOME / POWER / SEARCH / etc.), which is fine
+    // because those are pressed at most once every few seconds and
+    // the shell latency is unnoticeable there.
+    private val KEY_TO_LINUX: Map<String, Int> = mapOf(
+        "DPAD_UP" to 103,
+        "DPAD_DOWN" to 108,
+        "DPAD_LEFT" to 105,
+        "DPAD_RIGHT" to 106,
+        "DPAD_CENTER" to 28,   // KEY_ENTER (accepted by Android as OK)
+        "VOLUME_UP" to 115,
+        "VOLUME_DOWN" to 114,
+        "VOLUME_MUTE" to 113,
+        "PAGE_UP" to 104,
+        "PAGE_DOWN" to 109,
+        "MEDIA_PLAY_PAUSE" to 164,
+        "MEDIA_PLAY" to 200,
+        "MEDIA_PAUSE" to 201,
+        "MEDIA_STOP" to 166,
+        "MEDIA_REWIND" to 168,
+        "MEDIA_FAST_FORWARD" to 208,
+        "MEDIA_NEXT" to 163,
+        "MEDIA_PREVIOUS" to 165,
+    )
+
     @Volatile private var shellProcess: Process? = null
     @Volatile private var shellWriter: BufferedWriter? = null
     private val shellLock = Any()
@@ -170,7 +204,14 @@ object RootInputDispatcher {
                 }
                 "key" -> {
                     val mapped = KEY_ALIAS[msg.optString("key")] ?: msg.optString("key")
-                    writeShellLine(inputCmd("keyevent KEYCODE_$mapped"))
+                    // v2.14.4 — Try the raw-evdev fast path first for
+                    // rapidly-pressed keys (DPAD, OK, media, volume,
+                    // page).  Falls back to the classic `input
+                    // keyevent` shell binary if the pipe / device is
+                    // unavailable — same reliable path as before.
+                    if (!injectKeyFast(ctx, mapped)) {
+                        writeShellLine(inputCmd("keyevent KEYCODE_$mapped"))
+                    }
                 }
                 "longpress" -> {
                     val mapped = KEY_ALIAS[msg.optString("key")] ?: msg.optString("key")
@@ -222,6 +263,20 @@ object RootInputDispatcher {
                     } else {
                         writeShellLine(inputCmd("swipe $cursorX $cursorY $cursorX $cursorY 700"))
                     }
+                }
+                "mouse_scroll" -> {
+                    // v2.14.4 — Two-finger scroll on the phone
+                    // trackpad → mouse-wheel injection.  Feeds
+                    // `EV_REL REL_WHEEL` (+ REL_HWHEEL) frames into
+                    // the same evdev pipe the trackpad uses.  Android
+                    // treats these as mouse-wheel scrolls, which any
+                    // scrollable view (RecyclerView, WebView, list,
+                    // grid, ScrollView) responds to instantly.
+                    //   dy > 0 → scroll DOWN (content moves UP)
+                    //   dy < 0 → scroll UP
+                    val dy = msg.optInt("dy", 0)
+                    val dx = msg.optInt("dx", 0)
+                    if (dx != 0 || dy != 0) injectMouseScroll(ctx, dx, dy)
                 }
                 else -> Log.w(TAG, "unknown action: $action")
             }
@@ -444,5 +499,189 @@ object RootInputDispatcher {
         if (pipeWrite(dev, arrayOf(intArrayOf(1, 272, v), intArrayOf(0, 0, 0)))) return true
         writeShellLine("sendevent $dev 1 272 $v;sendevent $dev 0 0 0")
         return true
+    }
+
+    /**
+     * v2.14.4 — Mouse-wheel scroll frame.
+     *   EV_REL(2) REL_WHEEL(8) dy · EV_REL(2) REL_HWHEEL(6) dx · EV_SYN
+     * Feeds the same HID mouse node as motion, so from the InputReader's
+     * point of view this is identical to spinning the wheel on a real
+     * mouse.  Any scrollable view responds instantly.
+     */
+    private fun injectMouseScroll(ctx: Context, dx: Int, dy: Int): Boolean {
+        probeMouse(ctx)
+        val dev = mouseDevice ?: return false
+        // Android's REL_WHEEL positive = scroll UP; but the operator's
+        // mental model matches touchscreen semantics ("finger moves down
+        // → content moves down → scroll UP").  We keep the phone-side
+        // JS sign convention: dy > 0 = scroll DOWN.  Kernel wants the
+        // opposite sign for REL_WHEEL, so flip here.
+        val wheel = -dy
+        val hwheel = dx
+        val frames = mutableListOf<IntArray>()
+        if (wheel != 0) frames += intArrayOf(2, 8, wheel)
+        if (hwheel != 0) frames += intArrayOf(2, 6, hwheel)
+        frames += intArrayOf(0, 0, 0)
+        if (pipeWrite(dev, frames.toTypedArray())) return true
+        val parts = mutableListOf<String>()
+        if (wheel != 0) parts += "sendevent $dev 2 8 $wheel"
+        if (hwheel != 0) parts += "sendevent $dev 2 6 $hwheel"
+        parts += "sendevent $dev 0 0 0"
+        writeShellLine(parts.joinToString(";"))
+        return true
+    }
+
+    // ─── Fast key path via evdev ───────────────────────────────────
+
+    // Second persistent pipe — for keyboard-capable devices.  Usually
+    // the air-mouse dongle is one composite device (both REL and KEY
+    // in its bit-masks), in which case this points to the SAME
+    // /dev/input/eventN as the mouse pipe (but we hold a distinct
+    // `cat > …` writer to keep the two streams from interleaving).
+    @Volatile private var keyDevice: String? = null
+    @Volatile private var keyProbed = false
+    private val keyProbeLock = Any()
+    @Volatile private var keyPipeProc: Process? = null
+    @Volatile private var keyPipeOs: java.io.OutputStream? = null
+    private val keyPipeLock = Any()
+
+    /** Parse /proc/bus/input/devices for a device that supports key
+     *  events.  Preference order:
+     *    1. Something that carries the DPAD keycodes (KEY bit for
+     *       KEY_UP=103, KEY_DOWN=108, KEY_LEFT=105, KEY_RIGHT=106).
+     *    2. Any device with EV_KEY (bit 1 of `B: EV=`) set — some
+     *       dongles publish arrows via `input.h`'s "gamepad" range
+     *       and we still want the fast path there.
+     */
+    private fun findKeyNode(dump: String): String? {
+        var relaxedFallback: String? = null
+        for (block in dump.split(Regex("\\n[ \\t]*\\n"))) {
+            var event: String? = null
+            var hasEvKey = false
+            var hasDpadBits = false
+            for (raw in block.lineSequence()) {
+                val line = raw.trim()
+                if (line.startsWith("H:")) {
+                    val m = Regex("event\\d+").find(line)
+                    if (m != null) event = m.value
+                } else if (line.startsWith("B: EV=")) {
+                    val hex = line.substringAfter("B: EV=").trim().split(Regex("\\s+")).lastOrNull()
+                    val mask = hex?.toLongOrNull(16) ?: 0L
+                    if (mask and 0x2L == 0x2L) hasEvKey = true
+                } else if (line.startsWith("B: KEY=")) {
+                    hasDpadBits = keyBitmaskContainsDpad(line.substringAfter("B: KEY=").trim())
+                }
+            }
+            if (event != null && hasEvKey) {
+                val node = "/dev/input/$event"
+                if (hasDpadBits) return node             // best match
+                if (relaxedFallback == null) relaxedFallback = node
+            }
+        }
+        return relaxedFallback
+    }
+
+    /** Returns true when the space-separated hex bitmask ('KEY=' line)
+     *  has any of KEY_UP(103) / KEY_DOWN(108) / KEY_LEFT(105) /
+     *  KEY_RIGHT(106) / KEY_ENTER(28) set.  The KEY line prints words
+     *  from HIGHEST word to lowest, so we index from the RIGHT — bit N
+     *  lives in word `N / 32` counting from the right, bit `N % 32`. */
+    private fun keyBitmaskContainsDpad(mask: String): Boolean {
+        val words = mask.split(Regex("\\s+")).filter { it.isNotEmpty() }
+        if (words.isEmpty()) return false
+        // words[0] is the HIGHEST-order word; word covering bit N is at
+        // index words.size - 1 - (N / 32).
+        fun bitSet(bit: Int): Boolean {
+            val wordFromRight = bit / 32
+            val idx = words.size - 1 - wordFromRight
+            if (idx < 0) return false
+            val w = words[idx].toLongOrNull(16) ?: return false
+            return (w shr (bit % 32)) and 1L == 1L
+        }
+        return bitSet(103) || bitSet(108) || bitSet(105) || bitSet(106) || bitSet(28)
+    }
+
+    private fun probeKeyDevice(ctx: Context) {
+        if (keyProbed) return
+        synchronized(keyProbeLock) {
+            if (keyProbed) return
+            try {
+                keyDevice = findKeyNode(readProcInputDevices(ctx))
+            } catch (t: Throwable) {
+                Log.w(TAG, "key probe failed", t)
+            }
+            Log.i(TAG, "HID key probe done: $keyDevice")
+            keyProbed = true
+        }
+    }
+
+    private fun ensureKeyPipe(dev: String): java.io.OutputStream? {
+        synchronized(keyPipeLock) {
+            val cur = keyPipeOs
+            if (cur != null && keyPipeProc?.isAlive == true) return cur
+            try { keyPipeOs?.close() } catch (_: Throwable) {}
+            try { keyPipeProc?.destroy() } catch (_: Throwable) {}
+            keyPipeOs = null
+            keyPipeProc = null
+            return try {
+                val p = ProcessBuilder("su").redirectErrorStream(true).start()
+                val os = p.outputStream
+                os.write("exec cat > $dev\n".toByteArray())
+                os.flush()
+                Thread.sleep(60)
+                if (!p.isAlive) {
+                    try { p.destroy() } catch (_: Throwable) {}
+                    Log.w(TAG, "key pipe su/cat died at open")
+                    null
+                } else {
+                    keyPipeProc = p
+                    keyPipeOs = os
+                    Log.i(TAG, "key pipe open → $dev (ev_size=$EV_SIZE)")
+                    os
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "key pipe open failed", t)
+                null
+            }
+        }
+    }
+
+    /**
+     * Fast-path key injection: raw `EV_KEY` press + release through
+     * the persistent evdev pipe.  Returns true only if the write
+     * actually landed on the wire; callers use the boolean to decide
+     * whether to fall back to `input keyevent`.
+     */
+    private fun injectKeyFast(ctx: Context, androidKey: String): Boolean {
+        val linux = KEY_TO_LINUX[androidKey] ?: return false
+        probeKeyDevice(ctx)
+        val dev = keyDevice ?: return false
+        val os = ensureKeyPipe(dev) ?: return false
+        return try {
+            //   EV_KEY(1) code 1  → press
+            //   EV_SYN(0) 0    0  → syn
+            //   EV_KEY(1) code 0  → release
+            //   EV_SYN(0) 0    0  → syn
+            val frame = evFrame(arrayOf(
+                intArrayOf(1, linux, 1),
+                intArrayOf(0, 0, 0),
+                intArrayOf(1, linux, 0),
+                intArrayOf(0, 0, 0),
+            ))
+            synchronized(keyPipeLock) {
+                os.write(frame)
+                os.flush()
+            }
+            true
+        } catch (t: Throwable) {
+            Log.w(TAG, "key pipe write failed — falling back to input keyevent", t)
+            synchronized(keyPipeLock) {
+                try { keyPipeOs?.close() } catch (_: Throwable) {}
+                try { keyPipeProc?.destroy() } catch (_: Throwable) {}
+                keyPipeOs = null
+                keyPipeProc = null
+            }
+            false
+        }
     }
 }

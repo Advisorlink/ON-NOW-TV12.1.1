@@ -63,6 +63,8 @@ ALLOWED_ACTIONS = {
     "key", "text", "longpress", "seek", "next_episode",
     # v2.13.22 — Phone trackpad ("on-screen mouse control").
     "mouse_move", "mouse_tap", "mouse_longpress",
+    # v2.14.4 — Two-finger scroll on the trackpad = mouse wheel.
+    "mouse_scroll",
 }
 
 
@@ -241,6 +243,19 @@ def _validate_input(body: dict) -> dict:
         return {"action": "mouse_move", "x": x, "y": y}
     if action in ("mouse_tap", "mouse_longpress"):
         return {"action": action}
+    if action == "mouse_scroll":
+        # v2.14.4 — Two-finger scroll payload: {dx, dy} in scroll
+        # STEPS (not pixels).  Positive dy = scroll down.  Clamp to a
+        # sane range so a runaway JS bug can't flood the box with
+        # 10 000-step scrolls.
+        try:
+            dx = int(body.get("dx", 0))
+            dy = int(body.get("dy", 0))
+        except (TypeError, ValueError):
+            raise HTTPException(400, "bad_scroll_delta")
+        dx = min(max(dx, -50), 50)
+        dy = min(max(dy, -50), 50)
+        return {"action": "mouse_scroll", "dx": dx, "dy": dy}
     chars = str(body.get("chars", ""))[:500]
     if not chars:
         raise HTTPException(400, "empty_text")
@@ -310,6 +325,21 @@ async def _deliver_input(sess: RemoteSession, payload: dict) -> None:
         if last.get("action") == "mouse_move" and "dx" in last:
             last["dx"] = max(-2000, min(2000, last["dx"] + payload["dx"]))
             last["dy"] = max(-2000, min(2000, last["dy"] + payload["dy"]))
+            ev = _input_events.get(sess.session_id)
+            if ev is not None:
+                ev.set()
+            return
+    # v2.14.4 — Same coalescing pattern for two-finger scroll frames.
+    # A fast flick generates dozens of scroll events; replaying every
+    # one from the queue would multiply the intended scroll distance.
+    if (
+        payload.get("action") == "mouse_scroll"
+        and sess.pending_inputs
+    ):
+        last = sess.pending_inputs[-1]["payload"]
+        if last.get("action") == "mouse_scroll":
+            last["dx"] = max(-200, min(200, last.get("dx", 0) + payload.get("dx", 0)))
+            last["dy"] = max(-200, min(200, last.get("dy", 0) + payload.get("dy", 0)))
             ev = _input_events.get(sess.session_id)
             if ev is not None:
                 ev.set()

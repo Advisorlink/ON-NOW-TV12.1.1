@@ -1,4 +1,29 @@
 # ON NOW TV V2 — PRD
+> **🔴→🟢 v2.14.4 — Two-finger scroll on phone trackpad + D-pad navigation as fast as the trackpad (Feb 2026).**
+>
+> Operator report: "The trackpad is now super fast, works instantly. Can we make the navigation (D-pad) just as fast? And add two-finger scroll on the trackpad = page-up/down on the TV so both thumbs stay busy in landscape."
+>
+> **Fix A — Fast D-pad via raw evdev (`RootInputDispatcher.kt`):** The old path `input keyevent KEYCODE_DPAD_UP` spawns `app_process` (a full JVM) inside the persistent shell — ~200-500 ms on HK1 per press. Now:
+>   - Added `KEY_TO_LINUX` table (Android keycode → Linux kernel keycode: KEY_UP=103, KEY_DOWN=108, KEY_LEFT=105, KEY_RIGHT=106, KEY_ENTER=28, media/volume/page keys).
+>   - New `probeKeyDevice()` reads `/proc/bus/input/devices` for any device with `EV_KEY` bit set — preferring one whose `B: KEY=` bitmask has the DPAD bits (arrow keys), falling back to any `EV_KEY`-capable node.
+>   - Second persistent `su + cat > /dev/input/eventN` pipe kept open across the whole session (mirrors the mouse pipe pattern).
+>   - `injectKeyFast()`: writes raw `EV_KEY down / EV_SYN / EV_KEY up / EV_SYN` frames as a single 4-event binary blob. One write syscall per press — same 1:1 responsiveness as the trackpad.
+>   - Handler tries fast path first, falls back to `input keyevent` on pipe failure or unknown key (BACK/HOME/POWER/SEARCH stay on the reliable shell path since they're rarely rapid-pressed).
+>
+> **Fix B — Two-finger scroll (JS + Python + Kotlin):**
+>   - **Phone JS (`remote_page.html`):** Refactored trackpad IIFE to track ALL active pointers. First finger down = cursor mode (unchanged). Second finger down = enter scroll mode; cancel any pending cursor delta. In scroll mode, midpoint Y-delta accumulates and is sent as `mouse_scroll {dx, dy}` every 20 ms, `SCROLL_PX_PER_STEP=22` (finger px per notch). Preserved "2-finger tap = BACK" when neither finger moved.
+>   - **Backend (`phone_remote.py`):** Added `mouse_scroll` to `ALLOWED_ACTIONS`; validator clamps `dx,dy ∈ [-50, 50]`; same coalescing pattern as `mouse_move` (consecutive queued scroll frames merged into one).
+>   - **Android (`RootInputDispatcher.kt`):** New `mouse_scroll` handler injects `EV_REL REL_WHEEL <-dy>` + `EV_REL REL_HWHEEL <dx>` + `EV_SYN` through the same mouse evdev pipe. Sign-flipped so the phone-side convention (positive dy = scroll down) matches touchscreen intuition; kernel expects the opposite sign for REL_WHEEL.
+>
+> **Testing:**
+>   - Backend: unit-tested coalescing — 30 scroll frames → 1 payload dy=30; scroll doesn't coalesce across an intervening key press; existing mouse_move coalescing intact.
+>   - Phone JS: Playwright synthetic pointer test — 2-finger 200 px vertical drag → 9 `mouse_scroll` events with total dy≈9 steps (200/22 ≈ 9); 1-finger drag → 10 `mouse_move`, ZERO scroll events. Sign convention verified.
+>   - Kotlin: braces/parens balanced. `injectKeyFast`, `injectMouseScroll`, `findKeyNode`, `probeKeyDevice`, `KEY_TO_LINUX` all present.
+>   - **CI verification pending:** No Kotlin toolchain locally — operator must CI-build + sideload to confirm D-pad speed + scroll on the actual HK1 hardware.
+>
+> **Files touched:** `RootInputDispatcher.kt` (KEY_TO_LINUX + key pipe + scroll inject), `phone_remote.py` (validator + coalesce), `remote_page.html` (trackpad JS refactor + hint text).
+>
+
 > **🔴→🟢 v2.14.3 — Phone Remote: landscape 2-column layout, keyboard sheet lifts above OS keyboard, PWA "Install app" restored (Feb 2026).**
 >
 > Operator report: "Mouse is quicker now, good. But — when I rotate the phone sideways I want the keypad + controls on the LEFT and the mouse on the RIGHT (two thumbs). When the text box comes up, it needs to sit ABOVE the OS keyboard so I can see what I'm typing. And it isn't letting me install the remote as an app anymore — just 'add to home', not actually installing."

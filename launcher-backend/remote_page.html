@@ -443,7 +443,7 @@
        matches whatever the TV cursor will do. -->
   <div class="trackpad" id="trackpad" data-testid="trackpad" aria-label="Trackpad">
     <div class="tp-cursor" id="tpCursor" aria-hidden="true"></div>
-    <div class="tp-hint" id="tpHint">Drag to move the mouse · Tap to click · 2-finger tap = Back</div>
+    <div class="tp-hint" id="tpHint">Drag = cursor · Tap = click · 2-finger drag = scroll · 2-finger tap = Back</div>
   </div>
 </div>
 
@@ -973,22 +973,27 @@
   // input reader adds them to whatever cursor position the real
   // air-mouse remote is at, so the physical cursor visible on the
   // TV just moves.  Single tap = left click; two-finger tap = BACK;
-  // 600 ms hold = long-press.  Sensitivity multiplier so a short
-  // finger movement covers plenty of TV screen area.
+  // two-finger DRAG = mouse-wheel scroll (v2.14.4); 600 ms hold =
+  // long-press.  Sensitivity multiplier so a short finger movement
+  // covers plenty of TV screen area.
   (function trackpadSetup(){
     var pad = $("trackpad"); if (!pad) return;
     var cursor = $("tpCursor");
-    var SENS = 2.4;                 // TV pixels per pad pixel
-    var active = false, lastSent = 0, downAt = 0, downX = 0, downY = 0, lastX = 0, lastY = 0, moved = false;
-    var longTimer = null, twoFingerAt = 0;
-    // v2.14.1 — deltas ACCUMULATE between throttled sends and the
-    // cadence is 20 ms (~50 Hz): the box now sinks frames through a
-    // binary evdev pipe (one syscall per frame), so it comfortably
-    // keeps up and the TV cursor tracks the finger ~1:1.
-    var accX = 0, accY = 0, SEND_EVERY = 20;
+    var SENS = 2.4;                 // TV pixels per pad pixel (cursor)
+    var SCROLL_PX_PER_STEP = 22;    // finger px per scroll notch (2-finger)
+    // Track EVERY active pointer so we can spot the moment a second
+    // finger touches down / lifts up.
+    var pointers = {};   // id -> { x, y }
+    function nP(){ return Object.keys(pointers).length; }
+    var active = false;             // single-finger cursor mode active
+    var scrollMode = false;         // two-finger scroll mode active
+    var lastSent = 0, downAt = 0, downX = 0, downY = 0, lastX = 0, lastY = 0, moved = false;
+    var longTimer = null, twoFingerDownAt = 0, twoFingerMoved = false;
+    var accX = 0, accY = 0, SEND_EVERY = 20;      // cursor throttle
+    var scrollAccY = 0, scrollLastSent = 0;       // scroll throttle
+    var scrollAnchorY = 0;                        // midpoint Y when scroll mode began
+    var scrollLastMidY = 0;                       // midpoint Y at last frame
     function paint(px, py){
-      // px, py are pad-local pixels; keep the preview dot pinned
-      // to the finger for visual feedback.
       cursor.style.left = px + "px";
       cursor.style.top  = py + "px";
       cursor.style.marginLeft = "-11px";
@@ -996,74 +1001,159 @@
     }
     function padLocal(e){
       var r = pad.getBoundingClientRect();
-      var t = (e.touches && e.touches[0]) ? e.touches[0] : e;
-      return { x: t.clientX - r.left, y: t.clientY - r.top };
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    }
+    function midY(){
+      var s = 0, n = 0;
+      for (var k in pointers) if (pointers.hasOwnProperty(k)) { s += pointers[k].y; n++; }
+      return n ? (s / n) : 0;
+    }
+    function cancelCursorMode(){
+      // Called when a second finger arrives — swallow any pending
+      // single-finger delta so the cursor doesn't jerk before we
+      // switch into scroll mode.
+      accX = 0; accY = 0;
+      active = false;
+      pad.classList.remove("active");
+      if (longTimer){ clearTimeout(longTimer); longTimer = null; }
+    }
+    function enterScrollMode(){
+      scrollMode = true;
+      twoFingerDownAt = performance.now();
+      twoFingerMoved = false;
+      scrollAccY = 0; scrollLastSent = 0;
+      scrollAnchorY = midY();
+      scrollLastMidY = scrollAnchorY;
+    }
+    function exitScrollMode(){
+      if (!scrollMode) return;
+      // Fire a final scroll flush so no sub-notch travel is lost.
+      var rem = Math.round(scrollAccY);
+      if (rem){ send({ action: "mouse_scroll", dx: 0, dy: rem }); scrollAccY -= rem; }
+      // If BOTH fingers came off within ~260ms AND neither moved
+      // more than a fingernail's width, treat it as a "two-finger
+      // tap" and fire BACK (unchanged behaviour from v2.13.22).
+      var quick = (performance.now() - twoFingerDownAt) < 260;
+      if (quick && !twoFingerMoved){
+        haptic(20); send({ action: "key", key: "BACK" });
+      }
+      scrollMode = false;
     }
     pad.addEventListener("pointerdown", function(e){
-      if (e.pointerType === "touch" && e.isPrimary === false){
-        twoFingerAt = performance.now();
-        return;
-      }
-      active = true; moved = false;
-      accX = 0; accY = 0;
-      downAt = performance.now();
       var p = padLocal(e);
-      downX = p.x; downY = p.y; lastX = p.x; lastY = p.y;
-      pad.classList.add("active");
-      paint(p.x, p.y);
-      if (longTimer) clearTimeout(longTimer);
-      longTimer = setTimeout(function(){
-        if (active && !moved){
-          haptic(30);
-          send({ action: "mouse_longpress" });
-          moved = true;
-        }
-      }, 600);
-      try { pad.setPointerCapture(e.pointerId); } catch (err) {}
+      pointers[e.pointerId] = p;
+      if (nP() === 1){
+        // ── First finger: start cursor drag.
+        active = true; moved = false;
+        accX = 0; accY = 0;
+        downAt = performance.now();
+        downX = p.x; downY = p.y; lastX = p.x; lastY = p.y;
+        pad.classList.add("active");
+        paint(p.x, p.y);
+        if (longTimer) clearTimeout(longTimer);
+        longTimer = setTimeout(function(){
+          if (active && !moved && !scrollMode){
+            haptic(30);
+            send({ action: "mouse_longpress" });
+            moved = true;
+          }
+        }, 600);
+        try { pad.setPointerCapture(e.pointerId); } catch (err) {}
+      } else if (nP() === 2 && !scrollMode){
+        // ── Second finger: switch cursor → scroll.
+        cancelCursorMode();
+        enterScrollMode();
+        try { pad.setPointerCapture(e.pointerId); } catch (err) {}
+      }
     });
     pad.addEventListener("pointermove", function(e){
-      if (!active) return;
+      if (!pointers[e.pointerId]) return;
       var p = padLocal(e);
+      pointers[e.pointerId] = p;
+
+      if (scrollMode && nP() >= 2){
+        // ── Two-finger scroll: use the midpoint's Y delta.  Positive
+        //     dy (finger moves down) → scroll DOWN on the TV
+        //     (content moves up, revealing what's below — matches
+        //     touchscreen intuition).
+        var mY = midY();
+        var dY = mY - scrollLastMidY;
+        scrollLastMidY = mY;
+        if (Math.abs(mY - scrollAnchorY) > 6) twoFingerMoved = true;
+        scrollAccY += dY / SCROLL_PX_PER_STEP;
+        var now = performance.now();
+        if (now - scrollLastSent >= SEND_EVERY){
+          var steps = Math.round(scrollAccY);
+          if (steps){
+            send({ action: "mouse_scroll", dx: 0, dy: steps });
+            scrollAccY -= steps;
+            scrollLastSent = now;
+          }
+        }
+        return;
+      }
+
+      if (!active) return;
+      // ── Single-finger cursor drag (unchanged behaviour).
       var pdx = p.x - lastX, pdy = p.y - lastY;
       if (Math.abs(p.x - downX) > 8 || Math.abs(p.y - downY) > 8) moved = true;
       paint(p.x, p.y);
       lastX = p.x; lastY = p.y;
       accX += pdx * SENS; accY += pdy * SENS;
-      var now = performance.now();
-      if (now - lastSent >= SEND_EVERY){
+      var now2 = performance.now();
+      if (now2 - lastSent >= SEND_EVERY){
         var dx = Math.round(accX);
         var dy = Math.round(accY);
         if (dx || dy){
           send({ action: "mouse_move", dx: dx, dy: dy });
           accX -= dx; accY -= dy;
-          lastSent = now;
+          lastSent = now2;
         }
       }
     });
-    function endDrag(e){
-      if (!active) return;
+    function onPointerEnd(e){
+      var hadPtr = !!pointers[e.pointerId];
+      if (hadPtr) delete pointers[e.pointerId];
+
+      if (scrollMode){
+        // Exit scroll mode as soon as we drop back below 2 fingers.
+        if (nP() < 2){
+          exitScrollMode();
+          // If ONE finger is still down we DON'T resume cursor mode
+          // for it (would jerk sideways as user lifts one finger);
+          // wait until the remaining finger lifts too.  Set active
+          // false so the pointermove handler ignores it.
+          active = false;
+          pad.classList.remove("active");
+          if (longTimer){ clearTimeout(longTimer); longTimer = null; }
+        }
+        if (nP() === 0){ accX = 0; accY = 0; }
+        try { pad.releasePointerCapture(e.pointerId); } catch (err) {}
+        return;
+      }
+
+      if (!active) {
+        if (nP() === 0){ pad.classList.remove("active"); }
+        try { pad.releasePointerCapture(e.pointerId); } catch (err) {}
+        return;
+      }
+
+      // ── Regular single-finger drag end.
       active = false;
       pad.classList.remove("active");
       if (longTimer){ clearTimeout(longTimer); longTimer = null; }
-      // Flush any residual sub-threshold motion so the cursor lands
-      // exactly where the finger stopped.
       var rdx = Math.round(accX), rdy = Math.round(accY);
       if (rdx || rdy) send({ action: "mouse_move", dx: rdx, dy: rdy });
       accX = 0; accY = 0;
       var quick = (performance.now() - downAt) < 260;
       if (quick && !moved){
-        var wasTwoFinger = (performance.now() - twoFingerAt) < 400;
-        if (wasTwoFinger){
-          haptic(20); send({ action: "key", key: "BACK" });
-        } else {
-          haptic(10); send({ action: "mouse_tap" });
-        }
+        haptic(10); send({ action: "mouse_tap" });
       }
       try { pad.releasePointerCapture(e.pointerId); } catch (err) {}
     }
-    pad.addEventListener("pointerup",     endDrag);
-    pad.addEventListener("pointercancel", endDrag);
-    pad.addEventListener("pointerleave",  endDrag);
+    pad.addEventListener("pointerup",     onPointerEnd);
+    pad.addEventListener("pointercancel", onPointerEnd);
+    pad.addEventListener("pointerleave",  onPointerEnd);
   })();
 
   // ───────── keyboard sheet ─────────
