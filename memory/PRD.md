@@ -9414,3 +9414,33 @@ Verified: all 8 XMLs parse clean, brace balance 230/230, paren delta
 identical to HEAD, all R.id/drawable refs resolve, no other Kotlin file
 touches these IDs. No kotlinc in container — final compile happens in
 CI on GitHub push.
+
+---
+
+## 2026-06 — "What's On Live" hub empty — ROOT CAUSE FOUND & FIXED (v2.14.20)
+User: "now it's not showing any live sports at all… just the live stuff,
+but not 300 of them."
+ROOT CAUSE (verified against the REAL provider feed): downloaded the full
+148 MB xmltv.php from njala.ddns.me:8443 (2,741 channels / 416,486
+programmes) — it contains **ZERO `<live/>` tags**. v2.14.19's strict
+XMLTV-tag-only gate (`if (!current.live) continue`) could therefore never
+match anything → hub permanently empty.
+DISCOVERY: this provider marks live programmes by appending a Unicode
+superscript token **"ᴸᶦᵛᵉ"** (U+1D38 U+1DA6 U+1D5B U+1D49) to the title
+(17,176 occurrences in the feed), plus some titles use the plain word
+"Live" ("Live NASCAR", "Live Tennis: ATP…").
+FIX:
+- `LiveSportsClassifier.hasLiveWord(title)`: true if title contains the
+  superscript "ᴸᶦᵛᵉ" token OR the standalone word "live" (punctuation
+  folded to spaces so "Live:"/"(Live)" hit but "Liverpool"/"Alive"/
+  "Clive" don't). Non-sport "live" titles (Live at the Apollo) are still
+  excluded because the sport classifier gate must also pass.
+- `EpgActivity.recomputeWhatsOnRows()` gate is now:
+  `if (!current.live && !hasLiveWord(title)) continue` +
+  `if (isNonLive(title)) continue` (suppresses "MLB Highlights ᴸᶦᵛᵉ").
+  XMLTV `<live/>` support retained for providers that ship it.
+VALIDATED by simulating the exact gate+classifier logic in Python against
+the live feed: 46 channels across 8 buckets airing right now (Wimbledon
+SFs, Scottish Open golf, England v India cricket, Goodwood F1, World Cup
+Matchday) — vs 0 before and vs 300+ with keyword-only. Kotlin brace/paren
+balance verified vs HEAD. Compile happens in CI.

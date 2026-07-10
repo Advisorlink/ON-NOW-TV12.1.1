@@ -274,6 +274,35 @@ object LiveSportsClassifier {
         " special ",
     )
 
+    /** The provider appends this Unicode superscript "ᴸᶦᵛᵉ" token
+     *  (U+1D38 U+1DA6 U+1D5B U+1D49) to live programme titles —
+     *  17k+ occurrences across the full xmltv.php feed.  This is
+     *  the authoritative live marker for this provider. */
+    private const val SUPERSCRIPT_LIVE = "\u1D38\u1DA6\u1D5B\u1D49"
+
+    /**
+     * v2.14.20 — The provider's XMLTV ships ZERO `<live/>` tags
+     * (verified against the full 416k-programme feed).  Live events
+     * are marked either by the superscript "ᴸᶦᵛᵉ" token appended to
+     * the title, or by the standalone word "Live" ("Live Tennis:
+     * ATP…", "Live NASCAR").  For the word check, punctuation is
+     * folded to spaces first so "Live:" and "(Live)" hit while
+     * "Liverpool" / "Alive" / "Clive" cannot.  Non-sport "live"
+     * titles ("Live at the Apollo") are still excluded by the
+     * sport classifier gate.
+     */
+    fun hasLiveWord(title: String): Boolean {
+        if (title.contains(SUPERSCRIPT_LIVE)) return true
+        if (title.length < 4) return false
+        val sb = StringBuilder(title.length + 2)
+        sb.append(' ')
+        for (c in title) {
+            sb.append(if (c.isLetterOrDigit()) c.lowercaseChar() else ' ')
+        }
+        sb.append(' ')
+        return sb.contains(" live ")
+    }
+
     /**
      * True when the programme title suggests it is NOT actually
      * airing live right now — replay, highlights, review, etc.

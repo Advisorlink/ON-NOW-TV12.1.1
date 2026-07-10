@@ -1022,10 +1022,22 @@ class EpgActivity : AppCompatActivity() {
             val sid = ch.epgChannelId ?: continue
             val progs = epgCache[sid] ?: continue
             val current = progs.firstOrNull { it.isLiveAt(now) } ?: continue
-            // STRICT: XMLTV `<live/>` tag is authoritative.  Without
-            // it the programme is not counted, no matter how much
-            // its title looks like a sports match.
-            if (!current.live) continue
+            // v2.14.20 — The strict XMLTV `<live/>`-only gate made
+            // the hub PERMANENTLY EMPTY: this provider's feed
+            // carries zero <live/> tags (verified across the full
+            // 416k-programme xmltv.php download).  Gate is now:
+            // explicit XMLTV tag (kept for providers that do ship
+            // it) OR the standalone word "Live" in the title —
+            // which is how THIS provider marks live events
+            // ("Live Tennis: ATP…", "Live NASCAR").  Keyword-only
+            // sports matches with no live marker stay excluded, so
+            // the hub doesn't balloon back to 300+ channels.
+            if (!current.live &&
+                !tv.onnowtv.livetv.data.LiveSportsClassifier.hasLiveWord(current.title)
+            ) continue
+            // Suppress replays/highlights that still say "live"
+            // somewhere in the title.
+            if (tv.onnowtv.livetv.data.LiveSportsClassifier.isNonLive(current.title)) continue
             // Now assign a bucket by title first, falling back to
             // channel name for cases like "Ireland vs Italy" on
             // Sky Sports Rugby where the title itself doesn't
