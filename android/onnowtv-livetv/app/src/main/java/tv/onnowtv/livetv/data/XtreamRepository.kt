@@ -145,6 +145,7 @@ object XtreamRepository {
                             description = p.optString("description").takeIf { it.isNotBlank() },
                             startMs = p.optLong("start", 0L) * 1000L,
                             stopMs = p.optLong("stop", 0L) * 1000L,
+                            live = p.optBoolean("live", false),
                         )
                     )
                 }

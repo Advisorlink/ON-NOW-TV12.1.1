@@ -36,6 +36,15 @@ data class Programme(
     val description: String?,
     val startMs: Long,
     val stopMs: Long,
+    /** True when the source XMLTV `<programme>` block contained a
+     *  `<live/>` (or `<live>1</live>` / `<live>true</live>`) child
+     *  element.  This is the AUTHORITATIVE signal the "What's On
+     *  Live" hub uses to decide whether a programme actually is
+     *  airing live right now — keyword matches alone caught
+     *  replays and highlights packages.  Defaults to `false` so
+     *  older callers that don't pass a value get the safe
+     *  behaviour of "not live". */
+    val live: Boolean = false,
 ) {
     val durationMin: Int get() = ((stopMs - startMs) / 60_000L).toInt().coerceAtLeast(1)
     fun isLiveAt(nowMs: Long): Boolean = startMs <= nowMs && stopMs > nowMs

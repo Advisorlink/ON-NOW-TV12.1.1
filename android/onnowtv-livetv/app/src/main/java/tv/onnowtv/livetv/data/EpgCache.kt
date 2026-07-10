@@ -57,7 +57,7 @@ object EpgCache {
      * format or the directory layout changes.
      *   v3 = per-channel JSONL.gz under `epg-channels-v3/`
      */
-    private const val CURRENT_SCHEMA_VERSION = 3
+    private const val CURRENT_SCHEMA_VERSION = 4
 
     /** v2.9.12 — Cache is permanent.  Kept as a sentinel constant
      *  so any caller that previously branched on `ageMs() < FRESH_MS`
@@ -168,6 +168,7 @@ object EpgCache {
                             description = p.optString("d").takeIf { it.isNotBlank() },
                             startMs = p.optLong("s", 0L) * 1000L,
                             stopMs = p.optLong("e", 0L) * 1000L,
+                            live = p.optInt("l", 0) == 1,
                         ),
                     )
                 }
@@ -195,6 +196,7 @@ object EpgCache {
                     if (!p.description.isNullOrBlank()) o.put("d", p.description)
                     o.put("s", p.startMs / 1000L)
                     o.put("e", p.stopMs / 1000L)
+                    if (p.live) o.put("l", 1)
                     w.write(o.toString())
                     w.write("\n")
                 }
@@ -292,6 +294,7 @@ object EpgCache {
                             if (!p.description.isNullOrBlank()) o.put("d", p.description)
                             o.put("s", p.startMs / 1000L)
                             o.put("e", p.stopMs / 1000L)
+                            if (p.live) o.put("l", 1)
                             w.write(o.toString())
                             w.write("\n")
                         }

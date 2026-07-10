@@ -1,4 +1,21 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.14.19 — WhatsOn hub: strict XMLTV `<live/>` gate, end-to-end (Feb 2026).**
+>
+> User was seeing 310 channels in the hub — the keyword-only classifier was catching every current programme whose title contained a sport word, including replays and highlights. User was clear: **only** programmes carrying the XMLTV `<live/>` tag should qualify.
+>
+> Full-stack plumbing added:
+> 1. **`Programme` model** — new `live: Boolean = false` field (defaults to false so every existing constructor keeps working).
+> 2. **`XmlTvFetcher`** — during `<programme>` parse, detects the `<live/>` child element (empty tag = live; `<live>0</live>` / `<live>false</live>` / `<live>no</live>` = explicit not-live). Passes into every `Programme` streamed to disk.
+> 3. **`EpgCache`** — persists `"l": 1` in the per-channel gz JSON when `live == true`, reads it back on `loadChannel`. Schema version bumped `3 → 4` so existing disk caches invalidate on next boot and get regenerated with live-flag data.
+> 4. **Backend (`instant_bundle.py`)** — XMLTV parser now sets `programme["live"] = True/False` based on the `<live/>` child element (same body-text rules as the client). Ships in the `/instant-bundle` payload.
+> 5. **Client bundle reader (`XtreamRepository`)** — reads `p.optBoolean("live", false)` from both the bulk bundle and the per-channel `/epg` endpoint.
+> 6. **Hub gate (`EpgActivity.recomputeWhatsOnRows`)** — new authoritative filter: `if (!current.live) continue`. With the strict live gate in place we can safely restore the channel-name fallback in `classify()` (a live programme on "Sky Sports Rugby" whose title is "Ireland vs Italy" still classifies as rugby).
+>
+> Result: the hub is now driven by broadcaster metadata, not word-matching. Only programmes whose XMLTV block carries `<live/>` count.  Existing helper functions from v2.14.17 (`classifyTitle`, `isNonLive`) are kept for defensive use elsewhere but are no longer on the hot path.
+>
+> **Files touched:** `Models.kt` (+`live` field), `XmlTvFetcher.kt` (parse `<live>`), `EpgCache.kt` (persist/read `"l"`, schema bump to 4), `XtreamRepository.kt` (2 read sites), `EpgActivity.kt` (strict recompute gate), `backend/instant_bundle.py` (XMLTV parser emits `live`).
+>
+
 > **🟢 v2.14.18 — WhatsOn hub: eager EPG prefetch + LOADING indicator (Feb 2026).**
 >
 > User reported the hub started at ~6 live channels and slowly crept toward the true ~60 as they scrolled the middle column — because `epgCache` was only populated per-channel by the lazy `onBound` disk read triggered by RecyclerView recycler visibility.

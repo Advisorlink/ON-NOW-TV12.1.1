@@ -186,9 +186,11 @@ object XmlTvFetcher {
         var curStopTs = 0L
         var curTitle: String? = null
         var curDesc: String? = null
+        var curLive = false
         var currentTag: String? = null
         val titleBuf = StringBuilder()
         val descBuf = StringBuilder()
+        val liveBuf = StringBuilder()
 
         var event = parser.eventType
         while (event != XmlPullParser.END_DOCUMENT) {
@@ -218,6 +220,7 @@ object XmlTvFetcher {
                                     ?.toLongOrNull() ?: 0L
                                 curTitle = null
                                 curDesc = null
+                                curLive = false
                             } else {
                                 inProgramme = false
                             }
@@ -230,6 +233,18 @@ object XmlTvFetcher {
                             currentTag = "desc"
                             descBuf.setLength(0)
                         }
+                        // v2.14.19 — Detect the XMLTV `<live/>` tag.
+                        // The presence of the element alone counts as
+                        // "live" regardless of body text, which is
+                        // how the XMLTV spec defines it.  We also
+                        // treat body content "0" / "false" / "no"
+                        // as an explicit NOT live for the very rare
+                        // providers that ship `<live>0</live>`.
+                        "live" -> if (inProgramme) {
+                            currentTag = "live"
+                            liveBuf.setLength(0)
+                            curLive = true
+                        }
                     }
                 }
                 XmlPullParser.TEXT -> {
@@ -239,6 +254,7 @@ object XmlTvFetcher {
                         when (currentTag) {
                             "title" -> titleBuf.append(parser.text)
                             "desc" -> descBuf.append(parser.text)
+                            "live" -> liveBuf.append(parser.text)
                         }
                     }
                 }
@@ -286,6 +302,18 @@ object XmlTvFetcher {
                                 currentTag = null
                             }
                         }
+                        "live" -> {
+                            if (inProgramme) {
+                                // Empty <live/> or any body text
+                                // other than "0"/"false"/"no" keeps
+                                // curLive == true (set on START_TAG).
+                                val body = liveBuf.toString().trim().lowercase()
+                                if (body == "0" || body == "false" || body == "no") {
+                                    curLive = false
+                                }
+                                currentTag = null
+                            }
+                        }
                         "programme" -> {
                             if (inProgramme && curChannel != null && curStartTs > 0L) {
                                 // v2.10.15 — Stream directly to disk
@@ -297,6 +325,7 @@ object XmlTvFetcher {
                                         description = curDesc,
                                         startMs = curStartTs * 1000L,
                                         stopMs = curStopTs * 1000L,
+                                        live = curLive,
                                     ),
                                 )
                                 channelsWritten.add(curChannel!!)
@@ -312,6 +341,7 @@ object XmlTvFetcher {
                             curChannel = null
                             curTitle = null
                             curDesc = null
+                            curLive = false
                             currentTag = null
                         }
                     }

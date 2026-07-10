@@ -478,12 +478,23 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
                 title_el = el.find("title")
                 desc_el  = el.find("desc")
                 cat_el   = el.find("category")
+                live_el  = el.find("live")
+                # XMLTV `<live/>` is authoritative for the WhatsOn
+                # hub — many providers ship it as an empty element,
+                # some as `<live>1</live>` / `<live>true</live>`.
+                # The rare `<live>0</live>` is treated as explicit
+                # NOT live.
+                is_live = False
+                if live_el is not None:
+                    body = (live_el.text or "").strip().lower()
+                    is_live = body not in ("0", "false", "no")
                 programme = {
                     "title":           (title_el.text or "").strip() if title_el is not None else "",
                     "desc":            (desc_el.text or "").strip() if desc_el is not None else "",
                     "category":        (cat_el.text or "").strip() if cat_el is not None else "",
                     "startTimestamp":  start_ts,
                     "stopTimestamp":   stop_ts,
+                    "live":            is_live,
                 }
                 epg_by_channel.setdefault(ch, []).append(programme)
                 el.clear()

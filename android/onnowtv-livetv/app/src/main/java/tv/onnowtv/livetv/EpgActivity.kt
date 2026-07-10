@@ -1008,9 +1008,12 @@ class EpgActivity : AppCompatActivity() {
      *  bucket→channels map.  Cheap enough to run every 30 s from
      *  the clock ticker (~5k EPG hits, contains-only matches).
      *
-     *  v2.14.17 — Uses `classifyTitle()` (no channel-name fallback)
-     *  and rejects titles flagged by `isNonLive()` so replays,
-     *  highlights packages and previews don't pretend to be live. */
+     *  v2.14.19 — STRICT XMLTV `<live/>` gate.  A programme MUST
+     *  carry the XMLTV live tag to be considered — keyword-only
+     *  matching caught replays / highlights / previews and the
+     *  hub blew up to 300+ channels.  Now we trust the provider's
+     *  authoritative signal and only classify programmes that
+     *  actually said "I am live". */
     private fun recomputeWhatsOnRows() {
         val now = System.currentTimeMillis()
         val byBucket = LinkedHashMap<String, MutableList<Channel>>()
@@ -1019,15 +1022,17 @@ class EpgActivity : AppCompatActivity() {
             val sid = ch.epgChannelId ?: continue
             val progs = epgCache[sid] ?: continue
             val current = progs.firstOrNull { it.isLiveAt(now) } ?: continue
-            // Skip obvious rebroadcasts / highlights / documentaries.
-            if (tv.onnowtv.livetv.data.LiveSportsClassifier
-                    .isNonLive(current.title)
-            ) continue
-            // TITLE-ONLY match — no channel-name fallback so "Sky
-            // Sports Rugby" airing a studio wrap doesn't fake a
-            // live rugby match.
+            // STRICT: XMLTV `<live/>` tag is authoritative.  Without
+            // it the programme is not counted, no matter how much
+            // its title looks like a sports match.
+            if (!current.live) continue
+            // Now assign a bucket by title first, falling back to
+            // channel name for cases like "Ireland vs Italy" on
+            // Sky Sports Rugby where the title itself doesn't
+            // mention rugby.  Channel-name fallback is safe once
+            // the live gate above has cleared.
             val bucket = tv.onnowtv.livetv.data.LiveSportsClassifier
-                .classifyTitle(current.title) ?: continue
+                .classify(current.title, ch.name) ?: continue
             byBucket.getOrPut(bucket) { mutableListOf() }.add(ch)
         }
 
