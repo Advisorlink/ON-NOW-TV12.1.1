@@ -1,4 +1,23 @@
 # ON NOW TV V2 — PRD
+> **🔴→🟢 v2.14.11 — Xtream mapping silently lost on edit-row Save — fixed (Feb 2026).**
+>
+> Operator report: "I type the Xtream username and password in the launcher backend, click Save, then go into the row again — they're gone. The app doesn't get them either."
+>
+> **Root cause:** the edit-row `save()` handler in `admin/static/app.js` was missing `xtream_username` and `xtream_password` from the PATCH payload (an earlier edit had claimed success but silently didn't apply). Also the field getter (`root.querySelector(...).value`) crashed with `TypeError: Cannot read properties of null` when any expected `data-v-field` was missing — killing the whole save silently. From the operator's view: click Save → no toast, no persistence, fields "reset" on next open.
+>
+> **Fix:** `save()` now sends xtream fields in PATCH; getter returns `''` instead of crashing when a field is absent. CREATE flow was already correct — this only affected edit-row Save.
+>
+> **Tested end-to-end via curl proxy:** create with initial mapping → PATCH edit → LIST confirms new values persist. Version stamp bumped to `v2.14.11`.
+>
+> **Files touched:** `launcher-backend/admin/static/app.js`, version markers in `main.py` + `remote_page.html`.
+>
+
+> **🔴→🟢 v2.14.10 — Trackpad restored + duplicated file tail removed (Feb 2026).**
+> Duplicated file tail in `remote_page.html` had a stray `</script>` mid-file, killing all JS after it (mouse dead, buttons slow). Fixed by deleting the tail and removing the `pointerleave` listener on the trackpad which was killing drags in-flight on Android.
+
+> **🔴→🟢 v2.14.9 — Live version stamp + auto-refresh diagnostic (Feb 2026).**
+> Added `/remote-version` endpoint + tiny stamp bottom-right of the phone remote + 60-second polling loop that hard-reloads on version mismatch — so stale caches can't ever trap the operator again.
+
 > **🔴→🟢 v2.14.8 — Landscape "flips back to portrait" + "Install button does nothing" — both caching bugs fixed (Feb 2026).**
 >
 > Operator report: "It worked for a second and then when I clicked download, nothing happened. Landscape worked once, then when I rotated back and forth it went back to how it was."

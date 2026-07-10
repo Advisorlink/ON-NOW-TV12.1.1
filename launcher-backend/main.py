@@ -721,7 +721,7 @@ def phone_remote_manifest():
 #
 # Bump `REMOTE_PAGE_VERSION` in lock-step with the `v2.14.X` marker
 # hard-coded at the top of `remote_page.html` so the two agree.
-REMOTE_PAGE_VERSION = "v2.14.10"
+REMOTE_PAGE_VERSION = "v2.14.11"
 
 
 @app.get("/remote-version")

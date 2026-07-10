@@ -2704,14 +2704,28 @@ const Vesper = {
     async save(id) {
         const root = document.querySelector(`.vesper-row[data-id="${id}"]`);
         if (!root) return;
-        const get = (f) => root.querySelector(`[data-v-field="${f}"]`).value;
+        // v2.14.11 — Defensive getter: returns '' when the field isn't
+        // present in the current edit row (the row template evolves
+        // between versions and a rogue `null.value` here previously
+        // silently killed the entire save, leaving the operator with
+        // fields that appeared to "reset themselves" on next open).
+        const get = (f) => {
+            const el = root.querySelector(`[data-v-field="${f}"]`);
+            return el ? el.value : '';
+        };
         const payload = {
-            username:   get('username').trim(),
-            password:   get('password'),
-            label:      get('label').trim(),
-            notes:      get('notes').trim(),
-            status:     get('status'),
-            expires_at: get('expires_at') ? `${get('expires_at')}T23:59:59` : null,
+            username:        get('username').trim(),
+            password:        get('password'),
+            label:           get('label').trim(),
+            notes:           get('notes').trim(),
+            status:          get('status'),
+            expires_at:      get('expires_at') ? `${get('expires_at')}T23:59:59` : null,
+            // v2.14.11 — Persist the IPTV credential mapping.  Missing
+            // from the previous save() payload → operator saved a row
+            // and the xtream fields silently reverted to their prior
+            // value (or empty if freshly created).
+            xtream_username: get('xtream_username').trim(),
+            xtream_password: get('xtream_password'),
         };
         if (!payload.username || !payload.password) {
             toast('Username and password are required', true);
