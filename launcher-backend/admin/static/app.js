@@ -2568,6 +2568,9 @@ const Vesper = {
         const st = this.statusLabel(r);
         const expVal = r.expires_at ? r.expires_at.slice(0, 10) : '';
         const safeNotes = (r.notes || '').replace(/"/g, '&quot;');
+        // v2.14.5 — Xtream mapping (may be blank if operator hasn't set it).
+        const xu = (r.xtream_username || '').replace(/"/g, '&quot;');
+        const xp = (r.xtream_password || '').replace(/"/g, '&quot;');
         if (isEditing) {
             return `
 <li class="vesper-row editing" data-id="${r.id}">
@@ -2595,12 +2598,24 @@ const Vesper = {
             <option value="disabled" ${ (r.status||'active')==='disabled' ? 'selected' : '' }>Suspended</option>
         </select>
     </div>
+    <div class="v-cell" style="grid-column: 1 / -1;">
+        <span class="v-eyebrow">Xtream Codes (IPTV) — mapped to this Vesper login</span>
+        <div style="display:flex;gap:8px;">
+            <input data-v-field="xtream_username" type="text" value="${xu}" placeholder="Xtream username">
+            <input data-v-field="xtream_password" type="text" value="${xp}" placeholder="Xtream password">
+        </div>
+    </div>
     <div class="v-actions">
         <button data-v-save="${r.id}" class="primary">Save</button>
         <button data-v-cancel="${r.id}">Cancel</button>
     </div>
 </li>`;
         }
+        // v2.14.5 — Show a compact "IPTV: set / not set" pill in the
+        // read-only row so the operator can spot missing mappings.
+        const iptvPill = xu
+            ? `<span class="v-status" title="Xtream user: ${xu}"><span class="dot" style="background:var(--accent,#5DC8FF)"></span>IPTV: ${xu}</span>`
+            : `<span class="v-status" title="No IPTV creds mapped"><span class="dot" style="background:var(--txt-faint,#5a6577)"></span>IPTV: —</span>`;
         return `
 <li class="vesper-row" data-id="${r.id}">
     <div class="v-cell">
@@ -2622,6 +2637,7 @@ const Vesper = {
     <div class="v-cell">
         <span class="v-eyebrow">Status</span>
         <span class="v-status ${st.cls}"><span class="dot"></span>${st.label}</span>
+        ${iptvPill}
     </div>
     <div class="v-actions">
         <button data-v-edit="${r.id}">Edit</button>
@@ -2717,11 +2733,13 @@ if (_vForm) {
         e.preventDefault();
         const status = $('#vesperFormStatus');
         const payload = {
-            username:   $('#vesperUsername').value.trim(),
-            password:   $('#vesperPassword').value,
-            label:      $('#vesperLabel').value.trim(),
-            notes:      $('#vesperNotes').value.trim(),
-            expires_at: $('#vesperExpires').value ? `${$('#vesperExpires').value}T23:59:59` : null,
+            username:        $('#vesperUsername').value.trim(),
+            password:        $('#vesperPassword').value,
+            label:           $('#vesperLabel').value.trim(),
+            notes:           $('#vesperNotes').value.trim(),
+            expires_at:      $('#vesperExpires').value ? `${$('#vesperExpires').value}T23:59:59` : null,
+            xtream_username: $('#vesperXtreamUsername').value.trim(),
+            xtream_password: $('#vesperXtreamPassword').value,
         };
         if (!payload.username || !payload.password) {
             status.textContent = 'Username and password are required';
@@ -2739,6 +2757,8 @@ if (_vForm) {
             $('#vesperLabel').value = '';
             $('#vesperNotes').value = '';
             $('#vesperExpires').value = '';
+            $('#vesperXtreamUsername').value = '';
+            $('#vesperXtreamPassword').value = '';
             await Vesper.load();
             setTimeout(() => { status.textContent = ''; status.className = 'vesper-form-status'; }, 3000);
         } catch (e) {
@@ -2833,6 +2853,10 @@ if (_restoreBtn) _restoreBtn.addEventListener('click', async () => {
     } catch (e) {
         status.textContent = e.message || 'Restore failed';
         status.className = 'backup-status err';
+        _restoreBtn.disabled = false;
+    }
+});
+err';
         _restoreBtn.disabled = false;
     }
 });

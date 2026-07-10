@@ -2,31 +2,46 @@ package tv.onnowtv.livetv
 
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.text.InputType
 import android.view.View
 import android.widget.EditText
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import tv.onnowtv.livetv.data.AuthStore
+import tv.onnowtv.livetv.data.XtreamRepository
+import java.net.HttpURLConnection
+import java.net.URL
 
 /**
- * First-launch Xtream sign-in (v2.9.14 — back to pure pass-through).
+ * First-launch sign-in.
  *
- * The screen is purely a credentials capture step — NO network
- * round-trip happens here.  Creds go to [AuthStore] and we jump
- * straight to [MainActivity], the familiar "channels found" loader.
+ * v2.14.5 — Two-stage authentication:
+ *   1. Attempt a Vesper login (`/api/auth/login`) using the entered
+ *      credentials.  If the account has an Xtream Codes mapping
+ *      (`xtream_username` + `xtream_password` set by the operator on
+ *      the launcher-backend admin), the backend returns those in the
+ *      response `iptv` block — we save the MAPPED creds to
+ *      [AuthStore], NOT what the user typed.  The client sees only
+ *      their memorable Vesper login (e.g. "Damo26") but the Live TV
+ *      app authenticates against the provider with the real creds.
+ *   2. Any failure (Vesper 401 / no mapping / network down) falls
+ *      through to the legacy pass-through: whatever the user typed
+ *      is treated directly as their Xtream username + password.
+ *      Preserves backwards compatibility with the previous flow —
+ *      customers whose operator hasn't set up the mapping (or who
+ *      are on a self-provisioned build) still work exactly as before.
  *
- * The actual credential check happens IMPLICITLY at the loader
- * step: MainActivity attempts to fetch the channel bundle directly
- * from the provider with the saved creds.  If the provider rejects
- * them (HTTP 404, or `user_info.auth == 0`), MainActivity wipes
- * the creds and bounces back here with a "Wrong username or
- * password" error.  This is the same flow that was working
- * before — no upfront verify, no over-strict rejection.
- *
- * The caller (typically MainActivity) can re-launch us with the
- * `EXTRA_AUTH_ERROR` intent extra set to surface a previous
- * failure (e.g. "Wrong username or password.").
+ * The provider auth check itself happens later in MainActivity
+ * (bundle fetch).  If the provider rejects whatever creds we saved,
+ * MainActivity bounces the user back here with an "auth error" —
+ * unchanged since v2.9.14.
  */
 class LoginActivity : AppCompatActivity() {
 
@@ -36,6 +51,7 @@ class LoginActivity : AppCompatActivity() {
     private lateinit var loginBtnLabel: TextView
     private lateinit var statusText: TextView
     private lateinit var showPassToggle: TextView
+    @Volatile private var busy = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,9 +68,6 @@ class LoginActivity : AppCompatActivity() {
         showPassToggle.setOnClickListener { togglePasswordVisibility() }
         usernameField.requestFocus()
 
-        // Surface a previously-failed attempt forwarded to us by
-        // MainActivity (after the loader detected the provider
-        // rejected the saved credentials).
         intent?.getStringExtra(EXTRA_AUTH_ERROR)?.takeIf { it.isNotBlank() }?.let { msg ->
             statusText.text = msg
             statusText.visibility = View.VISIBLE
@@ -74,10 +87,13 @@ class LoginActivity : AppCompatActivity() {
     }
 
     /**
-     * No verification — save and jump.  The bundle fetcher
-     * in MainActivity is the real auth gate.
+     * v2.14.5 — Save AFTER attempting to swap the entered
+     * memorable-name creds for real Xtream provider creds via the
+     * Vesper backend mapping.  Falls back to pass-through save on
+     * any error so the app never bricks itself waiting on network.
      */
     private fun proceed() {
+        if (busy) return
         val u = usernameField.text.toString().trim()
         val p = passwordField.text.toString().trim()
         if (u.isBlank() || p.isBlank()) {
@@ -85,13 +101,64 @@ class LoginActivity : AppCompatActivity() {
             statusText.visibility = View.VISIBLE
             return
         }
-        AuthStore.saveCredentials(this, u, p)
-        startActivity(
-            Intent(this, MainActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
-        )
-        overridePendingTransition(0, 0)
-        finish()
+        busy = true
+        statusText.text = "Signing in\u2026"
+        statusText.visibility = View.VISIBLE
+        loginBtn.isEnabled = false
+        val ctx = this
+        CoroutineScope(Dispatchers.Main).launch {
+            val mapped = withContext(Dispatchers.IO) { resolveXtreamMapping(u, p) }
+            // If the backend returned a mapping, use those creds;
+            // otherwise use exactly what the user typed (legacy path).
+            val (saveUser, savePass) = mapped ?: (u to p)
+            AuthStore.saveCredentials(ctx, saveUser, savePass)
+            startActivity(
+                Intent(ctx, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+            )
+            overridePendingTransition(0, 0)
+            finish()
+        }
+    }
+
+    /**
+     * POST /api/auth/login on the Vesper backend.  Returns the
+     * (xtream_username, xtream_password) pair when the account has
+     * a mapping; null on any failure (network down, 401, no
+     * mapping, malformed response).  Never throws — always returns
+     * quickly so the login UI stays responsive on flaky networks.
+     */
+    private fun resolveXtreamMapping(username: String, password: String): Pair<String, String>? {
+        val base = XtreamRepository.BACKEND_BASE.trimEnd('/')
+        val url = URL("$base/api/auth/login")
+        val body = JSONObject().apply {
+            put("username", username)
+            put("password", password)
+            put("client_id", "livetv")
+        }.toString()
+        var conn: HttpURLConnection? = null
+        return try {
+            conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 5000
+                readTimeout = 5000
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+                outputStream.use { it.write(body.toByteArray()) }
+            }
+            val code = conn.responseCode
+            if (code != 200) return null
+            val text = conn.inputStream.bufferedReader().use { it.readText() }
+            val root = JSONObject(text)
+            val iptv = root.optJSONObject("iptv") ?: return null
+            val xu = iptv.optString("xtream_username", "").trim()
+            val xp = iptv.optString("xtream_password", "").trim()
+            if (xu.isEmpty() || xp.isEmpty()) null else (xu to xp)
+        } catch (_: Throwable) {
+            null
+        } finally {
+            try { conn?.disconnect() } catch (_: Throwable) {}
+        }
     }
 
     companion object {

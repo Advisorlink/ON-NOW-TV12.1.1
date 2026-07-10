@@ -84,15 +84,33 @@ def _create_access_token(account_id: str, username: str) -> str:
 
 
 def _account_to_public(row: Dict[str, Any]) -> Dict[str, Any]:
-    """Public shape — never includes the raw password."""
+    """Public shape — never includes the raw password.
+
+    `xtream_username` IS included (it's just a label — the memorable
+    Vesper login already tells you who this is).  `xtream_password`
+    is NEVER in the public shape; admin endpoints re-attach it
+    explicitly so the operator can see + edit it.
+    """
     return {
-        "id":         row.get("id") or str(row.get("_id", "")),
-        "username":   row.get("username", ""),
-        "label":      row.get("label") or row.get("username", ""),
-        "status":     row.get("status", "active"),
-        "expires_at": row.get("expires_at"),
-        "created_at": row.get("created_at"),
-        "notes":      row.get("notes", ""),
+        "id":              row.get("id") or str(row.get("_id", "")),
+        "username":        row.get("username", ""),
+        "label":           row.get("label") or row.get("username", ""),
+        "status":          row.get("status", "active"),
+        "expires_at":      row.get("expires_at"),
+        "created_at":      row.get("created_at"),
+        "notes":           row.get("notes", ""),
+        "xtream_username": row.get("xtream_username", ""),
+    }
+
+
+def _admin_account_shape(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Admin shape — includes the plaintext Vesper password AND the
+    plaintext Xtream password.  Used ONLY on admin-scoped endpoints
+    where the operator needs to see + edit both."""
+    return {
+        **_account_to_public(row),
+        "password":        row.get("password", ""),
+        "xtream_password": row.get("xtream_password", ""),
     }
 
 
@@ -139,21 +157,30 @@ class LoginRequest(BaseModel):
 
 
 class AccountCreate(BaseModel):
-    username:   str = Field(min_length=1, max_length=128)
-    password:   str = Field(min_length=1, max_length=256)
-    label:      Optional[str] = None
-    expires_at: Optional[str] = None  # ISO 8601
-    status:     Optional[str] = Field(default="active")
-    notes:      Optional[str] = ""
+    username:        str = Field(min_length=1, max_length=128)
+    password:        str = Field(min_length=1, max_length=256)
+    label:           Optional[str] = None
+    expires_at:      Optional[str] = None  # ISO 8601
+    status:          Optional[str] = Field(default="active")
+    notes:           Optional[str] = ""
+    # v2.14.5 — IPTV credential mapping.  The operator can attach a
+    # real Xtream Codes username + password to this Vesper account.
+    # When the client signs into the Live TV app with their memorable
+    # Vesper login, the app silently swaps in these creds so the
+    # client never sees / needs to remember the provider details.
+    xtream_username: Optional[str] = ""
+    xtream_password: Optional[str] = ""
 
 
 class AccountUpdate(BaseModel):
-    username:   Optional[str] = None
-    password:   Optional[str] = None
-    label:      Optional[str] = None
-    expires_at: Optional[str] = None
-    status:     Optional[str] = None
-    notes:      Optional[str] = None
+    username:        Optional[str] = None
+    password:        Optional[str] = None
+    label:           Optional[str] = None
+    expires_at:      Optional[str] = None
+    status:          Optional[str] = None
+    notes:           Optional[str] = None
+    xtream_username: Optional[str] = None
+    xtream_password: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -320,11 +347,20 @@ def build_auth_router(db_provider) -> APIRouter:
 
         await _record_attempt(db, identifier, success=True)
         token = _create_access_token(row["id"], row["username"])
+        # v2.14.5 — Include the Xtream Codes credential mapping (if
+        # any) so the Live TV app can silently swap in the provider
+        # creds after a memorable-name Vesper login.  Fields are
+        # empty strings when no mapping is set, so the app can
+        # unconditionally read them.
         return {
             "access_token": token,
             "token_type":   "bearer",
             "expires_in":   ACCESS_TTL_DAYS * 24 * 3600,
             "account":      _account_to_public(row),
+            "iptv": {
+                "xtream_username": row.get("xtream_username", "") or "",
+                "xtream_password": row.get("xtream_password", "") or "",
+            },
         }
 
     @router.get("/auth/me")
@@ -353,10 +389,7 @@ def build_auth_router(db_provider) -> APIRouter:
         rows.sort(key=lambda r: r.get("created_at") or r.get("username") or "")
         # Admin sees the password too.
         return {
-            "accounts": [
-                {**_account_to_public(r), "password": r.get("password", "")}
-                for r in rows
-            ],
+            "accounts": [_admin_account_shape(r) for r in rows],
             "count": len(rows),
         }
 
@@ -373,18 +406,20 @@ def build_auth_router(db_provider) -> APIRouter:
         if existing:
             raise HTTPException(409, f"Username '{username}' already exists")
         doc = {
-            "id":         f"va_{uuid.uuid4().hex[:16]}",
-            "username":   username,
-            "password":   req.password,
-            "label":      (req.label or username).strip(),
-            "status":     (req.status or "active").strip().lower(),
-            "expires_at": req.expires_at,
-            "notes":      (req.notes or "").strip(),
-            "created_at": _now().isoformat(),
+            "id":              f"va_{uuid.uuid4().hex[:16]}",
+            "username":        username,
+            "password":        req.password,
+            "label":           (req.label or username).strip(),
+            "status":          (req.status or "active").strip().lower(),
+            "expires_at":      req.expires_at,
+            "notes":           (req.notes or "").strip(),
+            "created_at":      _now().isoformat(),
+            "xtream_username": (req.xtream_username or "").strip(),
+            "xtream_password": (req.xtream_password or "").strip(),
         }
         await db.vesper_accounts.insert_one(doc)
         doc.pop("_id", None)
-        return {"ok": True, "account": {**_account_to_public(doc), "password": doc["password"]}}
+        return {"ok": True, "account": _admin_account_shape(doc)}
 
     @router.patch(
         "/admin/accounts/{account_id}",
@@ -408,7 +443,7 @@ def build_auth_router(db_provider) -> APIRouter:
         if res.matched_count == 0:
             raise HTTPException(404, "Account not found")
         row = await db.vesper_accounts.find_one({"id": account_id}, {"_id": 0})
-        return {"ok": True, "account": {**_account_to_public(row), "password": row.get("password", "")}}
+        return {"ok": True, "account": _admin_account_shape(row)}
 
     @router.delete(
         "/admin/accounts/{account_id}",

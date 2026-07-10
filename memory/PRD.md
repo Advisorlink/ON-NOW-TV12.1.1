@@ -1,4 +1,37 @@
 # ON NOW TV V2 — PRD
+> **🔴→🟢 v2.14.5 — Vesper account ⇄ Xtream Codes credential mapping (Feb 2026).**
+>
+> Operator ask: "When I set up a Vesper login (e.g. `Damo26`), I need to also enter that client's Xtream Codes IPTV creds on the launcher-backend admin. Then when Damo26 types `Damo26` into the Live TV app, in the background the app swaps in his real Xtream credentials. Global DNS — one provider host for everyone."
+>
+> **How it works end-to-end:**
+>   1. Operator opens the launcher-backend admin `→ Vesper Logins` tab. When creating or editing a Vesper account, there are now two extra fields: **Xtream Codes username** + **Xtream Codes password** (both optional).
+>   2. Client sees the Live TV login and types their memorable Vesper creds (`Damo26` / their chosen password).
+>   3. Live TV `LoginActivity` calls `/api/auth/login` on the main backend. If the response's new `iptv` block has non-empty `xtream_username` + `xtream_password`, those (NOT what the user typed) are what get saved to `AuthStore`.
+>   4. If Vesper login fails (network down, bad creds, no mapping) → the app **falls back** to saving exactly what the user typed, so legacy self-provisioned setups keep working unchanged.
+>   5. The provider auth check still happens at bundle-fetch time in `MainActivity`; if creds are wrong the loader bounces back to `LoginActivity` — same flow as before.
+>
+> **Implementation:**
+>   - **`backend/auth_router.py`:**
+>       - `AccountCreate` / `AccountUpdate` accept optional `xtream_username` + `xtream_password`.
+>       - `admin_create` / `admin_update` persist both fields in Mongo `vesper_accounts`.
+>       - New `_admin_account_shape()` includes both plaintext fields (like the existing plaintext password); `_account_to_public()` includes `xtream_username` (safe label) but NEVER `xtream_password`.
+>       - `POST /api/auth/login` returns a new `iptv: { xtream_username, xtream_password }` block (empty strings when no mapping) — the account-holder is the only person who can see their own mapping.
+>   - **`launcher-backend/main.py`:** proxy allow-list for `POST /api/admin/vesper-accounts` and `PATCH /api/admin/vesper-accounts/{id}` extended with the two new fields.
+>   - **`launcher-backend/admin/index.html` + `static/app.js`:** create form gets two labelled inputs; edit row exposes them in-place; read-only row surfaces a compact `IPTV: <username>` / `IPTV: —` pill so the operator can spot un-mapped accounts at a glance.
+>   - **`android/onnowtv-livetv/.../LoginActivity.kt`:** async two-stage sign-in — try Vesper first, use returned mapping if present, else pass-through. 5-second connect + read timeouts so a flaky network can't wedge the login screen.
+>
+> **Tested in-container (curl end-to-end):**
+>   - Create a Vesper account with mapping → login → response `iptv` block returns the mapped creds. ✅
+>   - PATCH the mapping later → next login returns the updated creds. ✅
+>   - Legacy account (no mapping) → login returns `iptv: {xtream_username: "", xtream_password: ""}`, `LoginActivity` falls through to pass-through save. ✅
+>   - Launcher-backend proxy → main backend → login: full chain works. ✅
+>   - Admin HTML source confirmed to contain the new inputs + labels; `app.js` references the new field IDs in create/save/reset flows. ✅
+>
+> **Files touched:** `backend/auth_router.py`, `launcher-backend/main.py`, `launcher-backend/admin/index.html`, `launcher-backend/admin/static/app.js`, `android/onnowtv-livetv/.../LoginActivity.kt`.
+>
+> **CI-build pending:** Kotlin toolchain unavailable in-container. Operator must CI-build the Live TV APK, sideload, and verify: (1) admin panel shows the new Xtream fields; (2) after mapping is set, typing the Vesper login into Live TV lands the user in the channel list without them ever seeing the provider creds.
+>
+
 > **🔴→🟢 v2.14.4 — Two-finger scroll on phone trackpad + D-pad navigation as fast as the trackpad (Feb 2026).**
 >
 > Operator report: "The trackpad is now super fast, works instantly. Can we make the navigation (D-pad) just as fast? And add two-finger scroll on the trackpad = page-up/down on the TV so both thumbs stay busy in landscape."

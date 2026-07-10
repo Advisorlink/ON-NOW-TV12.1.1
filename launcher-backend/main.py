@@ -2460,9 +2460,14 @@ async def vesper_list_accounts() -> JSONResponse:
 async def vesper_create_account(payload: dict = Body(...)) -> JSONResponse:
     # Only forward the fields the main backend cares about so we
     # don't accidentally leak admin-only metadata.
+    # v2.14.5 — xtream_username / xtream_password added: operator's
+    # per-client IPTV credential mapping.
     safe = {
         k: payload.get(k)
-        for k in ("username", "password", "label", "expires_at", "status", "notes")
+        for k in (
+            "username", "password", "label", "expires_at", "status", "notes",
+            "xtream_username", "xtream_password",
+        )
         if payload.get(k) is not None
     }
     return await _vesper_proxy("POST", "/api/admin/accounts", safe)
@@ -2473,7 +2478,10 @@ async def vesper_create_account(payload: dict = Body(...)) -> JSONResponse:
 async def vesper_update_account(account_id: str, payload: dict = Body(...)) -> JSONResponse:
     safe = {
         k: payload.get(k)
-        for k in ("username", "password", "label", "expires_at", "status", "notes")
+        for k in (
+            "username", "password", "label", "expires_at", "status", "notes",
+            "xtream_username", "xtream_password",
+        )
         if k in payload
     }
     return await _vesper_proxy("PATCH", f"/api/admin/accounts/{account_id}", safe)

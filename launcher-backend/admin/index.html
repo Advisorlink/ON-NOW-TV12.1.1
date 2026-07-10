@@ -820,6 +820,21 @@
                     <input id="vesperNotes" type="text" placeholder="e.g. Paid via PayPal, renewed Mar 2026">
                 </label>
             </div>
+            <!-- v2.14.5 — Xtream Codes IPTV credential mapping.  When
+                 the client signs into the Live TV app with their
+                 Vesper login (e.g. "Damo26"), the app silently swaps
+                 in the real provider creds below.  Client never sees
+                 the raw provider account. -->
+            <div class="vesper-form-row">
+                <label>
+                    <span class="vesper-label">Xtream Codes username <em>(optional)</em></span>
+                    <input id="vesperXtreamUsername" type="text" placeholder="e.g. abc123provider" autocomplete="off" autocapitalize="none" autocorrect="off">
+                </label>
+                <label>
+                    <span class="vesper-label">Xtream Codes password <em>(optional)</em></span>
+                    <input id="vesperXtreamPassword" type="text" placeholder="e.g. real provider password" autocomplete="off">
+                </label>
+            </div>
             <div class="vesper-form-actions">
                 <button type="submit" class="primary">Add client</button>
                 <span id="vesperFormStatus" class="vesper-form-status"></span>
