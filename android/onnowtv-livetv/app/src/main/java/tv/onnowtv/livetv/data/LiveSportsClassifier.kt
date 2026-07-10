@@ -76,48 +76,24 @@ object LiveSportsClassifier {
      *  colour filter can tint them with [colorOf] at bind time. */
     @DrawableRes
     fun iconOf(id: String): Int = when (id) {
-        SOCCER       -> R.drawable.ic_sport_football
-        F1           -> R.drawable.ic_sport_f1
-        MOTORSPORT   -> R.drawable.ic_sport_motorsport
-        GOLF         -> R.drawable.ic_sport_golf
-        CRICKET      -> R.drawable.ic_sport_cricket
-        TENNIS       -> R.drawable.ic_sport_tennis
-        RUGBY_UNION  -> R.drawable.ic_sport_rugby
-        RUGBY_LEAGUE -> R.drawable.ic_sport_rugby_league
-        AFL          -> R.drawable.ic_sport_afl
-        NFL          -> R.drawable.ic_sport_nfl
-        NBA          -> R.drawable.ic_sport_basketball
-        NHL          -> R.drawable.ic_sport_hockey
-        MLB          -> R.drawable.ic_sport_baseball
-        MMA_BOXING   -> R.drawable.ic_sport_boxing
-        CYCLING      -> R.drawable.ic_sport_cycling
-        ATHLETICS    -> R.drawable.ic_sport_athletics
-        WWE          -> R.drawable.ic_sport_wwe
-        else         -> R.drawable.ic_sport_trophy
-    }
-
-    /** Short 2–3 char monogram painted inside the sport chip's
-     *  coloured disc.  Kept intentionally readable at 12sp on a
-     *  1080p TV screen (no glyph fonts required). */
-    fun shortOf(id: String): String = when (id) {
-        SOCCER       -> "FB"
-        F1           -> "F1"
-        MOTORSPORT   -> "MS"
-        GOLF         -> "GO"
-        CRICKET      -> "CR"
-        TENNIS       -> "TN"
-        RUGBY_UNION  -> "RU"
-        RUGBY_LEAGUE -> "RL"
-        AFL          -> "AFL"
-        NFL          -> "NFL"
-        NBA          -> "BB"
-        NHL          -> "IH"
-        MLB          -> "MLB"
-        MMA_BOXING   -> "MMA"
-        CYCLING      -> "CY"
-        ATHLETICS    -> "AT"
-        WWE          -> "WWE"
-        else         -> "•"
+        SOCCER       -> R.drawable.img_sport_football
+        F1           -> R.drawable.img_sport_f1
+        MOTORSPORT   -> R.drawable.img_sport_motorsport
+        GOLF         -> R.drawable.img_sport_golf
+        CRICKET      -> R.drawable.img_sport_cricket
+        TENNIS       -> R.drawable.img_sport_tennis
+        RUGBY_UNION  -> R.drawable.img_sport_rugby
+        RUGBY_LEAGUE -> R.drawable.img_sport_rugby_league
+        AFL          -> R.drawable.img_sport_afl
+        NFL          -> R.drawable.img_sport_nfl
+        NBA          -> R.drawable.img_sport_basketball
+        NHL          -> R.drawable.img_sport_hockey
+        MLB          -> R.drawable.img_sport_baseball
+        MMA_BOXING   -> R.drawable.img_sport_boxing
+        CYCLING      -> R.drawable.img_sport_cycling
+        ATHLETICS    -> R.drawable.img_sport_athletics
+        WWE          -> R.drawable.img_sport_wwe
+        else         -> R.drawable.img_sport_trophy
     }
 
     /** Accent hex colour used for the sport chip's disc + focus

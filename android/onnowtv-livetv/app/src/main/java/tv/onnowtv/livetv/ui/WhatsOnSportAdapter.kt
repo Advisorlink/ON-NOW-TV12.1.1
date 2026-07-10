@@ -67,22 +67,17 @@ class WhatsOnSportAdapter(
             label.text = row.label.uppercase(java.util.Locale.UK)
             count.text = "LIVE · ${row.count}"
 
+            // Full-colour 3D sport images — never tint the icon
+            // itself, only wash the backing disc with the bucket
+            // colour at ~30% alpha so the image stays vivid.
+            icon.clearColorFilter()
             if (row.id == null) {
-                // "ALL" pill — neutral coral disc with the trophy
-                // glyph so it visually anchors the row.
-                disc.setColorFilter(0xFFFF6A38.toInt(), PorterDuff.Mode.SRC_IN)
-                icon.setImageResource(R.drawable.ic_sport_trophy)
-                icon.clearColorFilter()
+                disc.setColorFilter(0x4DFF6A38, PorterDuff.Mode.SRC_IN)
+                icon.setImageResource(R.drawable.img_sport_trophy)
             } else {
-                disc.setColorFilter(
-                    LiveSportsClassifier.colorOf(row.id),
-                    PorterDuff.Mode.SRC_IN,
-                )
+                val c = LiveSportsClassifier.colorOf(row.id)
+                disc.setColorFilter((c and 0x00FFFFFF) or 0x4D000000, PorterDuff.Mode.SRC_IN)
                 icon.setImageResource(LiveSportsClassifier.iconOf(row.id))
-                // Force the glyph to solid white so it always
-                // reads clearly on top of the coloured disc,
-                // regardless of the drawable's intrinsic tint.
-                icon.setColorFilter(0xFFFFFFFF.toInt(), PorterDuff.Mode.SRC_IN)
             }
 
             val selected = row.id == activeKey

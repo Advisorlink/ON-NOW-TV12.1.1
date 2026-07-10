@@ -1,4 +1,13 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.14.20 — WhatsOn hub: real photographic 3D sport icons (June 2026).**
+>
+> User verdict on the v2.14.17 hand-drawn vector glyphs: "absolutely horrible… you can't even tell what they are." Replaced all 18 with AI-generated glossy 3D photographic sport images (Gemini image gen → rembg u2net cutout → alpha-trim → 128×128 optimized PNG, ~460 KB total under `res/drawable-nodpi/img_sport_*.png`): golden trophy (ALL), soccer ball, red F1 car, orange racing helmet, golf ball on tee, cricket bat+ball, tennis ball, white/navy rugby-union ball, purple NRL ball, red Sherrin AFL ball, brown NFL pigskin, basketball, crossed hockey sticks+puck, baseball, red boxing glove, yellow road bike, magenta track spikes, gold championship belt.
+>
+> Binding change in `WhatsOnSportAdapter`: the icon is **never** colour-filtered anymore (would destroy the full-colour photos); instead the backing disc gets the bucket colour at 30% alpha (`0x4D` alpha mask) so each chip keeps its per-sport accent as a soft halo behind the vivid image. Icon bumped 20dp→28dp, disc 34dp→36dp in `item_whatson_sport.xml`. Deleted all 18 obsolete `ic_sport_*.xml` vectors and the now-unused `shortOf()` monogram mapper. NB: Gemini bakes fake checkerboards into "transparent" PNGs — all cutouts were run through rembg to produce genuine alpha (verified 20–74% transparent pixels per icon).
+>
+> **Files touched:** `LiveSportsClassifier.kt` (`iconOf` → `img_sport_*`, removed `shortOf`), `WhatsOnSportAdapter.kt` (no icon tint, 30%-alpha disc), `item_whatson_sport.xml` (28dp icon), +18 `res/drawable-nodpi/img_sport_*.png`, −18 `res/drawable/ic_sport_*.xml`.
+>
+
 > **🟢 v2.14.19 — WhatsOn hub: strict XMLTV `<live/>` gate, end-to-end (Feb 2026).**
 >
 > User was seeing 310 channels in the hub — the keyword-only classifier was catching every current programme whose title contained a sport word, including replays and highlights. User was clear: **only** programmes carrying the XMLTV `<live/>` tag should qualify.
