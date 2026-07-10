@@ -558,6 +558,7 @@
                             android:text="WHAT'S ON LIVE" />
 
                         <TextView
+                            android:id="@+id/whatson_pill_sublabel"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:fontFamily="monospace"

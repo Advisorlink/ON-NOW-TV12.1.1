@@ -23,6 +23,8 @@ import androidx.media3.ui.PlayerView
 import coil.load
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -117,8 +119,16 @@ class EpgActivity : AppCompatActivity() {
     private lateinit var whatsOnPill: LinearLayout
     private lateinit var whatsOnPillDot: View
     private lateinit var whatsOnPillCount: TextView
+    private lateinit var whatsOnPillSublabel: TextView
     private lateinit var whatsOnSportRow: RecyclerView
     private lateinit var whatsOnAdapter: tv.onnowtv.livetv.ui.WhatsOnSportAdapter
+    /** True from the start of the boot-time disk-EPG prefetch until
+     *  every channel has been loaded into `epgCache`.  Drives the
+     *  "SCANNING GUIDE…" sub-label under the WhatsOn pill. */
+    private var whatsOnPrefetchInFlight: Boolean = false
+    /** Marks that the boot-time prefetch has already been kicked
+     *  off (or completed) so we don't fire it twice. */
+    private var whatsOnPrefetchStarted: Boolean = false
     /** Currently-selected sport bucket inside the "What's On Live"
      *  hub.  `null` → the pinned "ALL" chip is active. */
     private var whatsOnActiveSport: String? = null
@@ -340,10 +350,11 @@ class EpgActivity : AppCompatActivity() {
         searchOverlayClose   = findViewById(R.id.search_overlay_close)
 
         // v2.14.16 — "WHAT'S ON LIVE" hub views.
-        whatsOnPill      = findViewById(R.id.whatson_pill)
-        whatsOnPillDot   = findViewById(R.id.whatson_pill_dot)
-        whatsOnPillCount = findViewById(R.id.whatson_pill_count)
-        whatsOnSportRow  = findViewById(R.id.whatson_sport_row)
+        whatsOnPill         = findViewById(R.id.whatson_pill)
+        whatsOnPillDot      = findViewById(R.id.whatson_pill_dot)
+        whatsOnPillCount    = findViewById(R.id.whatson_pill_count)
+        whatsOnPillSublabel = findViewById(R.id.whatson_pill_sublabel)
+        whatsOnSportRow     = findViewById(R.id.whatson_sport_row)
     }
 
     private fun buildCategories() {
@@ -849,6 +860,79 @@ class EpgActivity : AppCompatActivity() {
             channelsList.post {
                 channelsList.findViewHolderForAdapterPosition(0)
                     ?.itemView?.requestFocus()
+            }
+        }
+
+        // v2.14.18 — Kick off eager disk-EPG prefetch so the WhatsOn
+        // count doesn't trickle in as the user scrolls the middle
+        // column.  Runs in parallel batches on Dispatchers.IO and
+        // refreshes the pill/chip row after each batch.
+        kickOffWhatsOnPrefetch()
+    }
+
+    /** Eager, boot-time disk-EPG prefetch feeding the WhatsOn hub.
+     *
+     *  Without this the hub was only counting channels whose EPG
+     *  had already been lazy-loaded by scrolling the middle column
+     *  — so it started at ~6 and crept toward 60 as the user
+     *  scrolled.  Now every channel that isn't already in
+     *  `epgCache` gets its per-channel gz opened from disk in
+     *  parallel batches of 40, and the WhatsOn hub is refreshed
+     *  after each batch so the count grows visibly rather than
+     *  waiting for one big finish. */
+    private fun kickOffWhatsOnPrefetch() {
+        if (whatsOnPrefetchStarted) return
+        whatsOnPrefetchStarted = true
+
+        val toLoad: List<String> = bundle.channels
+            .mapNotNull { it.epgChannelId?.takeIf { s -> s.isNotBlank() } }
+            .filter { epgCache[it].isNullOrEmpty() }
+            .distinct()
+
+        if (toLoad.isEmpty()) {
+            // Bundle already had every channel's EPG — nothing to
+            // load.  Make sure the sublabel is in its resting state.
+            whatsOnPillSublabel.text = "SPORTS · RIGHT NOW"
+            return
+        }
+
+        whatsOnPrefetchInFlight = true
+        whatsOnPillSublabel.text = "SCANNING GUIDE…"
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            toLoad.chunked(40).forEach { batch ->
+                val jobs = batch.map { sid ->
+                    async(Dispatchers.IO) {
+                        val list = try {
+                            tv.onnowtv.livetv.data.EpgCache
+                                .loadChannel(applicationContext, sid)
+                        } catch (_: Throwable) {
+                            null
+                        }
+                        if (!list.isNullOrEmpty()) {
+                            epgCache[sid] = list
+                        } else {
+                            epgKnownEmpty.add(sid)
+                        }
+                    }
+                }
+                jobs.awaitAll()
+                // Progressive UI update after each batch so the
+                // pill count + chip row grow visibly.
+                withContext(Dispatchers.Main) {
+                    recomputeWhatsOnRows()
+                    val n = whatsOnRows.sumOf { it.count }
+                    whatsOnPillCount.text = n.toString()
+                    whatsOnPillSublabel.text = "SCANNING GUIDE · $n LIVE"
+                    if (currentCategoryId == "__whatson__") {
+                        whatsOnAdapter.submit(whatsOnRows, whatsOnActiveSport)
+                        paintWhatsOnChannels()
+                    }
+                }
+            }
+            withContext(Dispatchers.Main) {
+                whatsOnPrefetchInFlight = false
+                whatsOnPillSublabel.text = "SPORTS · RIGHT NOW"
             }
         }
     }

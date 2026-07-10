@@ -1,4 +1,17 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.14.18 — WhatsOn hub: eager EPG prefetch + LOADING indicator (Feb 2026).**
+>
+> User reported the hub started at ~6 live channels and slowly crept toward the true ~60 as they scrolled the middle column — because `epgCache` was only populated per-channel by the lazy `onBound` disk read triggered by RecyclerView recycler visibility.
+>
+> Fix: new `kickOffWhatsOnPrefetch()` that fires on hub setup, batches every uncached channel's `epgChannelId` into groups of 40, opens each per-channel gz from `EpgCache.loadChannel()` in parallel via `async`/`awaitAll` on `Dispatchers.IO`, and after each batch hops back to `Dispatchers.Main` to call `recomputeWhatsOnRows()` + refresh the pill count + chip row. Result on the HK1: the count grows visibly rather than trickling in on scroll — a full 500-channel scan settles inside ~1 second on warm disk.
+>
+> UX addition: the pill's sub-label now flips from `SPORTS · RIGHT NOW` → `SCANNING GUIDE · N LIVE` while the prefetch is in flight (updating per batch), then reverts to the resting label once every channel has been visited. Sub-label got its own `whatson_pill_sublabel` id in `activity_epg.xml`.
+>
+> Also imported `kotlinx.coroutines.async` + `awaitAll` in EpgActivity for the parallel batch pattern.
+>
+> **Files touched:** `EpgActivity.kt` (+`whatsOnPillSublabel`, +`whatsOnPrefetchInFlight`/`whatsOnPrefetchStarted`, +`kickOffWhatsOnPrefetch`, coroutine imports), `activity_epg.xml` (added id to the sub-label TextView).
+>
+
 > **🟢 v2.14.17 — WhatsOn hub: real sport-glyph icons + non-live filter (Feb 2026).**
 >
 > Two user-driven refinements to the freshly-shipped hub:
