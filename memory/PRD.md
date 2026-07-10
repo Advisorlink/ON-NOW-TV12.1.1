@@ -1,4 +1,11 @@
 # ON NOW TV V2 — PRD
+> **🔴→🟢 v2.14.15 — "What's On Live" categorization engine (Phase 1 of 2) (Feb 2026).**
+>
+> New `LiveSportsClassifier.kt` — 18-bucket priority-ordered keyword classifier for the "What's On Live" hub. Buckets: Soccer, F1, Motorsport, Golf, Cricket, Tennis, Rugby Union, Rugby League/NRL, AFL, NFL, NBA, NHL, MLB, MMA/Boxing, Cycling, Athletics, WWE/AEW, OTHER_SPORT catch-all. Rules ordered by specificity so "Formula E" doesn't hit F1 and generic "football" only lands in Soccer if nothing else matched. Zero regex — pool-cheap `String.contains` safe on slow HK1 boxes across a full-day EPG (~5k titles). Sports-channel-name fallback catches shows on Sky/ESPN/beIN/DAZN/etc. that didn't title-match. Phase 2 (next iteration): distinctive pill UI, sport-icon chip row, PlayerActivity mode switching.
+>
+> **Files touched:** `android/onnowtv-livetv/.../data/LiveSportsClassifier.kt` (new).
+>
+
 > **🔴→🟢 v2.14.14 — GitHub sync configurable from admin UI (no SSH needed) + version stamp v2.14.14 (Feb 2026).**
 >
 > Operator's screenshot showed the Sync button erroring with "LAUNCHER_GITHUB_REPO env var is not set" — my previous fix required editing the VPS's `.env`, which the operator can't reach.
