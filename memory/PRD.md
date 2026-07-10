@@ -1,4 +1,32 @@
 # ON NOW TV V2 — PRD
+> **🔴→🟢 v2.14.8 — Landscape "flips back to portrait" + "Install button does nothing" — both caching bugs fixed (Feb 2026).**
+>
+> Operator report: "It worked for a second and then when I clicked download, nothing happened. Landscape worked once, then when I rotated back and forth it went back to how it was."
+>
+> **Root cause of BOTH symptoms: browser (+ Cloudflare) caching an old copy of `/remote`.** Chrome cached the HTML indefinitely because we sent zero cache headers. Rotating the phone triggered a soft reload → sometimes the browser fetched fresh (new layout appeared), sometimes it re-used the cached copy (old layout re-appeared). Same reason `deferred.prompt()` fired once and then silently no-op'd on the second click — the JS state was stale.
+>
+> **Fixes (`launcher-backend/main.py` + `remote_page.html`):**
+>   - `GET /remote` now returns `Cache-Control: no-store, no-cache, must-revalidate, max-age=0`, `Pragma: no-cache`, `Expires: 0`, `Vary: *`.  Every scan of the QR pulls a fresh HTML — Chrome AND Cloudflare in front of `onnowhub.com` both bypass their caches.  Every future push visibly reaches the phone within seconds.
+>   - `a2hsAction` click handler rewritten with proper `beforeinstallprompt` lifecycle:
+>       • First click → `deferred.prompt()` + await `userChoice`.  If dismissed, keep the bar visible with a fallback message ("Chrome didn't install.  Open ⋮ → Install app").  If accepted, `appinstalled` event settles the bar.
+>       • Deferred token exhausted / never arrived → surface concrete instructions instead of silently doing nothing (this was the operator's "click did nothing" bug).
+>
+> **Tested in-container:**
+>   - `curl -D - /remote` → all 4 cache-control headers present. ✅
+>   - HTML now contains 3 `userChoice` references (proper await), the new "Install app" fallback text, and the `v2.14.8` marker. ✅
+>   - No JS parse errors in the embedded `<script>` block. ✅
+>
+> **What the operator will now see after next auto-deploy:**
+>   - Rotate to landscape → **stays** in the two-column layout on every rotation (no more flipping back to portrait after a second).
+>   - Click "Install" → either installs successfully OR gets a clear "open ⋮ → Install app" instruction instead of silent no-op.
+>   - Any future UI push reaches the phone within seconds of the GitHub Actions deploy completing.
+>
+> **Files touched:** `launcher-backend/main.py` (cache headers on `/remote`), `launcher-backend/remote_page.html` (install-prompt lifecycle).
+>
+
+> **🔴→🟢 v2.14.7 — Landscape 2-column layout was broken by inline `display:flex` — fixed (Feb 2026).**
+> Fixed `remoteApp.style.display = "flex"` in `showRemote()` overriding the media-query's `display: grid`; changed to `display = ""` so the stylesheet's landscape rule applies naturally. Also widened the trigger from `max-height: 560px` to `max-height: 900px` (+ aspect-ratio fallback) so every phone/tablet triggers reliably.
+
 > **🔴→🟢 v2.14.6 — One-click "Sync latest from GitHub" for the launcher Home Update (Feb 2026).**
 >
 > Operator report: "I pushed to GitHub but I didn't get a new launcher to download. It's not working." Root cause was the **manual gap** between the GitHub Release the CI produces and the `home-update.apk` file the launcher-backend actually serves — the operator had to download the APK from Releases and re-upload it via the admin drop zone.

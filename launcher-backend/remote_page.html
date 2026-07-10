@@ -642,8 +642,46 @@
     }
     $("a2hsClose").addEventListener("click", settle);
     act.addEventListener("click", function(){
-      if (deferred){ try { deferred.prompt(); } catch(e){} deferred = null; }
-      settle();
+      // v2.14.8 — Robust install click.  Chrome only lets us call
+      // `deferred.prompt()` ONCE per install session; a second click
+      // on the same deferred token silently does nothing (which is
+      // exactly what the operator reported: "clicked install and
+      // nothing happened").  Now:
+      //   • If the deferred prompt is still valid, call it and wait
+      //     for the userChoice promise before settling — this way
+      //     if the user dismisses the dialog we DON'T mark the
+      //     install as answered, so the bar stays available.
+      //   • If deferred is null (already fired, or Chrome never
+      //     fired beforeinstallprompt in the first place), show a
+      //     concrete instruction ("open the ⋮ menu → Install app")
+      //     rather than silently doing nothing.
+      if (deferred){
+        var d = deferred; deferred = null;
+        try {
+          d.prompt();
+          if (d.userChoice && d.userChoice.then){
+            d.userChoice.then(function(choice){
+              if (choice && choice.outcome === "accepted"){
+                settle();
+              } else {
+                // Dismissed — offer a manual fallback next tap.
+                txt.textContent = "Chrome didn't install.  Open ⋮ menu → \u201cInstall app\u201d (Android) or Share → \u201cAdd to Home Screen\u201d (iPhone).";
+                act.textContent = "OK";
+              }
+            }).catch(function(){ settle(); });
+          } else {
+            settle();
+          }
+        } catch(e){ settle(); }
+      } else {
+        // Deferred token expired / never arrived — this is Chrome's
+        // "second click" no-op case.  Give the user a concrete path
+        // to the install instead of leaving them stuck.
+        txt.textContent = "Open Chrome's ⋮ menu at the top-right, then tap \u201cInstall app\u201d to add this remote to your home screen.";
+        act.textContent = "OK";
+        // The next click on OK will settle the bar.
+        act.onclick = settle;
+      }
     });
     window.addEventListener("appinstalled", settle);
     function show(message, actionLabel){

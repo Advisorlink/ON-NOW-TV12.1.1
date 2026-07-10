@@ -631,13 +631,32 @@ _REMOTE_PAGE_PATH = Path(__file__).parent / "remote_page.html"
 @app.get("/remote")
 def phone_remote_page():
     """Self-contained full-screen phone-remote web app.  The launcher
-    QR points here; the page drives /api/remote/* on the same origin."""
+    QR points here; the page drives /api/remote/* on the same origin.
+
+    v2.14.8 — Explicit `Cache-Control: no-store` so the phone gets a
+    FRESH copy of the page on every load.  Without this, Chrome
+    cached the HTML indefinitely — operators pushing UI fixes (new
+    landscape layout, PWA install manifest, etc.) saw stale pages on
+    their existing phone sessions until the browser cache expired
+    (typically hours or days).  With `no-store`, every scan of the
+    QR pulls the latest.  We also send `Vary: *` so intermediary
+    caches (Cloudflare in front of onnowhub.com) don't serve a
+    stale copy either.
+    """
     from fastapi.responses import HTMLResponse
     try:
         html = _REMOTE_PAGE_PATH.read_text(encoding="utf-8")
     except Exception:
         raise HTTPException(404, "remote_page_missing")
-    return HTMLResponse(content=html)
+    return HTMLResponse(
+        content=html,
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma":        "no-cache",
+            "Expires":       "0",
+            "Vary":          "*",
+        },
+    )
 
 
 @app.get("/remote.webmanifest")
