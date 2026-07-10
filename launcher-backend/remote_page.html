@@ -162,7 +162,7 @@
   .trackpad.active .tp-hint{opacity:0}
 
   /* ── landscape layout (phone rotated sideways) ───────────────────
-     v2.14.3 — When the phone is held sideways, split the UI into
+     v2.14.7 — When the phone is held sideways, split the UI into
      TWO thumb-reachable columns:
        LEFT  = topbar + d-pad + volume/page rockers + home/mic/back +
                media row + keyboard/search row (all controls).
@@ -170,10 +170,17 @@
                right thumb has maximum surface area.
      Right thumb drives the cursor, left thumb drives everything
      else — no reaching across the phone.
-     Uses `max-height: 500px` so it fires on phones (~360-400 px
-     tall in landscape) but not on rotated tablets (where the
-     portrait design still fits comfortably).                     */
-  @media (orientation: landscape) and (max-height: 560px){
+
+     Trigger uses TWO conditions in an "or" list so we catch every
+     phone/tablet reliably:
+       • `orientation: landscape` + `max-height: 900px`  → every
+         phone, most tablets in landscape.
+       • aspect ratio at least 4:3 wide  → catches the odd Android
+         flagship where Chrome reports height > 900 px because it
+         includes the URL bar in the layout viewport.  Once the URL
+         bar hides on scroll we're already well inside.               */
+  @media (orientation: landscape) and (max-height: 900px),
+         (min-aspect-ratio: 4/3) and (max-height: 900px){
     .app{
       max-width:100%;
       padding:calc(env(safe-area-inset-top,0px) + 8px) 14px
@@ -701,7 +708,13 @@
     setTimeout(function(){ codeInput.focus(); }, 250);
   }
   function showRemote(){
-    pairScreen.classList.add("hidden"); remoteApp.style.display = "flex";
+    // v2.14.7 — Clear the inline `display` (empty string) instead of
+    // forcing `flex`.  The stylesheet already sets `.app { display:
+    // flex }` for portrait AND `.app { display: grid }` inside the
+    // `orientation: landscape` media query — an inline `flex` value
+    // would win over the media-query `grid`, preventing the two-
+    // column landscape layout from ever activating.
+    pairScreen.classList.add("hidden"); remoteApp.style.display = "";
   }
 
   var pairing = false;
