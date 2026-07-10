@@ -152,3 +152,57 @@ root path (see top of this doc). To silence the root prompt there:
 **Magisk** → **Superuser** → **ON NOW TV V2** → set to **Grant** and
 make sure it's **not** on a timeout. One toggle, done once per box.
 
+---
+
+## v2.14.0 — Bulletproof update flow + diagnostic log
+
+The root install path (`RootApkInstaller.kt`) now **verifies** every
+update by re-reading the on-device `versionCode` from `dumpsys package`
+before declaring success. Every attempt is written to a single log file
+on the box:
+
+```
+/data/local/tmp/onnow_install.log
+```
+
+### If a customer ever says "the update didn't install"
+
+Pull the log — it's self-contained. Over ADB:
+
+```
+adb pull /data/local/tmp/onnow_install.log
+```
+
+The log records, for every install attempt:
+
+- `before_vc=[<N>]` — versionCode BEFORE we tried to install.
+- `attempt1: …` — output of `pm install -r -d` (in-place upgrade).
+- `after_attempt1_vc=[<N or N+1>]` — vc after the 15 s verification poll.
+- If unchanged → `attempt2: …` runs `pm uninstall -k` (KEEPS data) +
+  `pm install -r`, then re-verifies.
+- If **still** unchanged → `attempt3: …` runs full `pm uninstall` +
+  `pm install` (signature-mismatch recovery — wipes data as last resort).
+- `relaunch: …` — the `am start` that boots the new code.
+- The last 50 lines of PackageManager / PackageInstaller warnings from
+  logcat, so you can see *why* an attempt failed on that specific box.
+
+### Why this is safe
+
+- The staged APK lives in `/data/local/tmp/<pid>_<ts>.apk`, which is
+  **not** in the launcher's own data dir → survives `pm uninstall` of
+  the launcher itself.
+- The whole flow runs inside `nohup setsid sh -c '…' &` from a
+  persistent root shell → surviving `SIGKILL` of the launcher process
+  during the swap.
+- `pm uninstall -k` preserves `/data/data/tv.onnow.launcher/` so
+  profiles / Vesper login / Tunes library remain intact across the
+  update. Only the last-resort attempt 3 (signature mismatch) wipes
+  data — accepted trade-off vs. a bricked update in the field.
+
+### Rule of thumb
+
+If you're pushing 1.1.35 → 1.1.36 and the box "won't update", **that
+is now impossible if any of the three attempts can install the APK
+at all.** Pull the log — attempt 3 will tell you exactly what
+Package­Manager rejected.
+

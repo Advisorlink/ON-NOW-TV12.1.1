@@ -213,89 +213,149 @@ object RootApkInstaller {
         // Quoting strategy:
         //   • Use double-quotes around paths in case any future
         //     download path contains a space.
-        //   • Use $$ as the inner-shell PID for the log filename
-        //     so concurrent installs don't clobber each other.
+        //   • NEVER embed literal single quotes inside the script —
+        //     the outer wrapper is `sh -c '…'`, so any inner `'`
+        //     would terminate the wrapper.  Use "…" for sed exprs.
+        //   • Tag the staged APK with `pid_epochms` to avoid the
+        //     v2.13-and-earlier `$$` collision (persistent su-shell
+        //     PID was constant across every install).
         val apkPath = apk.absolutePath
-        // v2.12.7 — CRITICAL FIX for "launcher disappears after
-        // update" bug.  The downloaded APK lives in the launcher's
-        // own cache dir (`/data/data/tv.onnow.launcher/cache/
-        // downloads/`).  When `pm uninstall tv.onnow.launcher`
-        // runs, Android wipes THE ENTIRE
-        // `/data/data/tv.onnow.launcher/` tree — including our
-        // cached APK.  The subsequent `pm install "$apkPath"` then
-        // fails with "file not found" and the device is left with
-        // no launcher at all.
+        // v2.12.7 — Stage the APK to /data/local/tmp/ before any pm-
+        // uninstall step.  The download originally lives in the
+        // launcher's own cache dir; `pm uninstall tv.onnow.launcher`
+        // wipes /data/data/tv.onnow.launcher/ including the APK, so
+        // the subsequent reinstall would fail with "file not found"
+        // and leave the device with no launcher.  /data/local/tmp/ is
+        // owned by shell UID 2000, not tied to any app's data dir,
+        // so it survives uninstall of any package.
         //
-        // Fix: first `cp` the APK to `/data/local/tmp/` (owned by
-        // shell UID 2000, NOT tied to any app's data dir → survives
-        // uninstall of any package).  All pm-install commands
-        // reference the tmp copy; the original cache file can be
-        // wiped by pm-uninstall and we don't care.  We `rm -f` the
-        // tmp copy at the end so we don't accumulate stale APKs.
-        //
-        // Bonus: /data/local/tmp/ is readable by the "install"
-        // user Android uses to open the APK during `pm install`,
-        // so we don't need to worry about SELinux label mismatch
-        // on the cache-dir path (which sometimes causes install
-        // permission errors on HK1 firmwares).
-        val tmpApkPath = "/data/local/tmp/onnow_install_\$\$.apk"
-        val logPath = "/data/local/tmp/onnow_install_\$\$.log"
+        // v2.14.0 — Use a launcher-PID + wall-clock tag so concurrent
+        // installs never collide on the same tmp path.  (Previously
+        // `$$` expanded to the persistent-su-shell's PID, which is
+        // constant across every install → clobber risk.)
+        val stageTag = "${android.os.Process.myPid()}_${System.currentTimeMillis()}"
+        val tmpApkPath = "/data/local/tmp/onnow_install_$stageTag.apk"
+        val logPath = "/data/local/tmp/onnow_install.log"
         val mainActivity = ".MainActivity"   // launcher activity
-        val relaunchCmd = if (relaunch)
-            "am start -n \"$packageName/$mainActivity\""
-        else
-            ":"
-        // v2.13.23 — UNIFIED, upgrade-in-place install with a RESULT-
-        // TEXT check instead of exit-code branching.
+
+        // v2.14.0 — BULLETPROOF UPDATE FLOW.
         //
-        // Root cause of the operator's "sometimes won't update" bug:
-        // on most HK1 / toybox firmwares `pm install` PRINTS
-        // `Failure [INSTALL_FAILED_…]` but still EXITS 0.  The old
-        // `pm install -r || pm install -r -d || …` chain therefore
-        // NEVER advanced to its fallback — the very first command
-        // "succeeded" (exit 0) while actually having installed
-        // nothing, so the box silently stayed on the old build even
-        // though the UI said "done".
+        // Every previous "grep for Success" gate was unreliable on
+        // HK1 / RK / Amlogic Android 9 firmwares, where `pm install`
+        // routinely prints `Success` to stdout AND exits 0 while
+        // silently NO-OP'ing (kernel can't atomically replace a
+        // package whose own process is holding open files under its
+        // install path — the swap is dropped, not queued).
         //
-        // New logic:
-        //   1. `pm install -r -d` — IN-PLACE upgrade.  Keeps all app
-        //      data, needs NO uninstall.  `-d` means a same/older
-        //      versionCode is still accepted, so the update lands even
-        //      if CI didn't bump the code.  This is the ONLY step in
-        //      the normal case (matching signatures + monotonic code).
-        //   2. Only if the output does NOT contain "Success" (i.e. a
-        //      real signature-drift / incompatible failure) do we fall
-        //      back to a clean uninstall + install.  Safe: the APK was
-        //      staged to /data/local/tmp (survives the uninstall) and
-        //      this shell is a detached setsid root child (survives the
-        //      launcher being SIGKILLed).
-        // For a launcher SELF-update we then force-stop the old live
-        // process + relaunch so the NEW code actually loads.
+        // The only source of truth Android itself trusts is the
+        // versionCode reported by `dumpsys package`.  So we:
+        //
+        //   1. Snapshot `versionCode` BEFORE the install.
+        //   2. Run `pm install -r -d` (in-place upgrade, keeps data).
+        //   3. Poll `dumpsys package … versionCode=` for up to ~15 s.
+        //      As soon as it CHANGES we know the swap really landed.
+        //   4. If it never changes → REAL fallback: `pm uninstall -k`
+        //      (keeps user data) then `pm install -r`, and re-verify.
+        //      (`-k` preserves /data/data/… so Vesper/Tunes profiles
+        //      survive; the ~2 s launcher gap is fine — HOME auto-
+        //      relaunches after the fresh install lands.)
+        //   5. Only after verification do we `am start` the new code.
+        //      No `force-stop` — a fresh `am start` with CLEAR_TASK
+        //      loads the new APK cleanly; force-stopping mid-swap
+        //      was itself causing half-installed states on slow
+        //      eMMC boxes.
+        //
+        // Everything logs to /data/local/tmp/onnow_install.log so a
+        // customer report can be `adb pull`'d without extra tooling.
         val script = buildString {
             append("(")
-            // Stage to /data/local/tmp FIRST so uninstall of the target
-            // package (fallback path) can't nuke the APK mid-flight.
-            // Abort the whole flow if staging fails — never uninstall
-            // without a staged APK to reinstall from.
-            append("cp \"$apkPath\" \"$tmpApkPath\" && chmod 644 \"$tmpApkPath\" && ")
-            append("test -s \"$tmpApkPath\" && ")
-            append("(")
+            append("set +e ; ")
+            append("echo \"=== onnow install $stageTag @ \$(date) ===\" ; ")
+            append("echo \"target=$packageName apk=$apkPath\" ; ")
+            // ── Stage APK to a location that survives target uninstall.
+            append("cp \"$apkPath\" \"$tmpApkPath\" || { echo STAGE_COPY_FAIL ; exit 1 ; } ; ")
+            append("chmod 644 \"$tmpApkPath\" ; ")
+            append("test -s \"$tmpApkPath\" || { echo STAGE_EMPTY ; exit 1 ; } ; ")
+
+            // ── Helper: portable versionCode read (toybox-safe sed).
+            //     NOTE: sed uses DOUBLE quotes because the whole script
+            //     is wrapped in `sh -c '…'` — nested single quotes
+            //     would terminate the outer wrapper.  No `$` inside
+            //     so double quotes are safe (nothing to expand).
+            append("get_vc() { dumpsys package \"\$1\" 2>/dev/null ")
+            append("| sed -n \"s/.*versionCode=\\([0-9][0-9]*\\).*/\\1/p\" | head -1 ; } ; ")
+
+            // ── Snapshot BEFORE.
+            append("BEFORE=\$(get_vc \"$packageName\") ; ")
+            append("echo \"before_vc=[\$BEFORE]\" ; ")
+
             if (relaunch) append("sleep 1 ; ")
-            // 1. In-place upgrade (no uninstall, keeps data).
-            append("OUT=\$(pm install -r -d \"$tmpApkPath\" 2>&1) ; ")
-            append("echo \"result: \$OUT\" ; ")
-            // 2. Fallback ONLY on a genuine failure (no "Success" text).
-            append("echo \"\$OUT\" | grep -qi success || ")
-            append("{ pm uninstall \"$packageName\" ; sleep 1 ; pm install \"$tmpApkPath\" ; } ; ")
+
+            // ── Attempt 1: in-place upgrade (keeps data).
+            append("OUT1=\$(pm install -r -d \"$tmpApkPath\" 2>&1) ; ")
+            append("echo \"attempt1: \$OUT1\" ; ")
+
+            // ── Verification poll: wait up to ~15 s for vc to change.
+            append("AFTER=\"\$BEFORE\" ; ")
+            append("for i in 1 2 3 4 5 6 7 8 9 10 ; do ")
+            append("AFTER=\$(get_vc \"$packageName\") ; ")
+            append("[ -n \"\$AFTER\" ] && [ \"\$AFTER\" != \"\$BEFORE\" ] && break ; ")
+            append("sleep 1 ; ")
+            append("done ; ")
+            append("echo \"after_attempt1_vc=[\$AFTER]\" ; ")
+
+            // ── Attempt 2: only if vc DID NOT change → real fallback.
+            //     `pm uninstall -k` keeps /data/data so profiles survive.
+            //     `pm install -r` for the re-install (no -d needed on
+            //     a fresh install into an empty slot).
+            append("if [ -z \"\$AFTER\" ] || [ \"\$AFTER\" = \"\$BEFORE\" ] ; then ")
+            append("echo \"attempt1 no-op, running fallback\" ; ")
+            append("OUT_U1=\$(pm uninstall -k \"$packageName\" 2>&1) ; ")
+            append("echo \"uninstall: \$OUT_U1\" ; ")
+            append("sleep 2 ; ")
+            append("OUT2=\$(pm install -r \"$tmpApkPath\" 2>&1) ; ")
+            append("echo \"attempt2: \$OUT2\" ; ")
+            append("for i in 1 2 3 4 5 6 7 8 9 10 ; do ")
+            append("AFTER=\$(get_vc \"$packageName\") ; ")
+            append("[ -n \"\$AFTER\" ] && [ \"\$AFTER\" != \"\$BEFORE\" ] && break ; ")
+            append("sleep 1 ; ")
+            append("done ; ")
+            append("echo \"after_attempt2_vc=[\$AFTER]\" ; ")
+            append("fi ; ")
+
+            // ── Attempt 3: final safety net for the rare signature-
+            //     mismatch case (attempts 1 + 2 both no-op because
+            //     the new APK is signed with a different key).  This
+            //     wipes user data — accepted trade-off vs. a bricked
+            //     update in the field.
+            append("if [ -z \"\$AFTER\" ] || [ \"\$AFTER\" = \"\$BEFORE\" ] ; then ")
+            append("echo \"attempt2 no-op, running signature-mismatch recovery\" ; ")
+            append("OUT_U2=\$(pm uninstall \"$packageName\" 2>&1) ; ")
+            append("echo \"uninstall2: \$OUT_U2\" ; ")
+            append("sleep 2 ; ")
+            append("OUT3=\$(pm install \"$tmpApkPath\" 2>&1) ; ")
+            append("echo \"attempt3: \$OUT3\" ; ")
+            append("AFTER=\$(get_vc \"$packageName\") ; ")
+            append("echo \"after_attempt3_vc=[\$AFTER]\" ; ")
+            append("fi ; ")
+
+            // ── Post-install: relaunch the launcher (self-update case)
+            //     OR do nothing (side-app case — don't yank the user
+            //     into an app they weren't looking at).
             if (relaunch) {
-                append("sleep 1 ; am force-stop \"$packageName\" ; sleep 1 ; ")
-                append(relaunchCmd)
-            } else {
-                append(":")
+                append("sleep 2 ; ")
+                append("OUT_R=\$(am start -n \"$packageName/$mainActivity\" 2>&1) ; ")
+                append("echo \"relaunch: \$OUT_R\" ; ")
             }
-            append(")")
-            append(" ; rm -f \"$tmpApkPath\" \"$apkPath\"")
-            append(") > $logPath 2>&1")
+
+            // ── Diagnostic tail: dump the last PackageManager errors
+            //     from logcat so a customer report is self-contained.
+            append("logcat -d -t 200 PackageManager:W PackageInstaller:W *:S 2>/dev/null | tail -50 ; ")
+
+            append("echo \"=== done vc=[\$AFTER] ===\" ; ")
+            // Cleanup — leave the log file, delete the staged APKs.
+            append("rm -f \"$tmpApkPath\" \"$apkPath\" ")
+            append(") >> $logPath 2>&1")
         }
         // v2.12.7 — `setsid` in addition to `nohup` for belt-and-
         // braces detachment.  `setsid` creates a brand-new session

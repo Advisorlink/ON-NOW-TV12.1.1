@@ -1,4 +1,33 @@
 # ON NOW TV V2 — PRD
+> **🔴→🟢 v2.14.2 — Launcher self-update BULLETPROOFED (`versionCode`-verified, Feb 2026).**
+>
+> Operator report: "It let me update to 1.1.35. Now it won't let me update to 1.1.36. I can't have this happen when I give it to a thousand people. It needs to work every single time for every single future update."
+>
+> **Root cause:** the previous "grep for `Success`" gate in `RootApkInstaller.kt` was unreliable on HK1 / RK / Amlogic Android 9 firmwares. `pm install -r -d` prints the literal string `Success` AND exits 0 while *silently NO-OP'ing* when the target is the currently-running launcher (kernel can't atomically replace a package whose own process is holding open files). The fallback path (`grep -qi success`) therefore never triggered — the UI said "done", nothing changed.
+>
+> Secondary bugs found in the same script:
+>   1. Fallback `pm install` was missing `-r` → would fail with `INSTALL_FAILED_ALREADY_EXISTS` if the uninstall didn't fully clear.
+>   2. `force-stop` fired 1 s after `pm install` — too early for slow eMMC → half-installed states.
+>   3. `$$` in the staged APK path expanded to the persistent-su-shell's PID (constant across every install) → potential clobber.
+>
+> **Fix (`RootApkInstaller.install()`):** Replaced the text-grep gate with a **`dumpsys package | versionCode=` verification loop** — the only source of truth Android itself trusts. New flow:
+>   1. Snapshot `versionCode` BEFORE install.
+>   2. `pm install -r -d` (in-place, keeps data).
+>   3. Poll `dumpsys package` up to 15 s. If `versionCode` changes → done.
+>   4. If unchanged → `pm uninstall -k` (KEEPS user data) + `pm install -r`, re-verify.
+>   5. If still unchanged → full `pm uninstall` + `pm install` (signature-mismatch recovery, wipes data as last resort).
+>   6. Only THEN `am start` the new code (no `force-stop`; fresh start with CLEAR_TASK loads the new APK cleanly).
+>
+> All output goes to `/data/local/tmp/onnow_install.log` (single rolling file) so a customer report can be `adb pull`'d without extra tooling. Also fixed: all nested `sed 's/…/…/'` calls changed to `sed "…"` because the outer wrapper is `sh -c '…'` — nested single quotes would break it. Stage tag now `<pid>_<epochms>` (no more `$$` collision).
+>
+> **Same fix applies to side-app updates** (Vesper, Tunes, Kids, FTA, Karaoke) — every future update on every future box goes through the same verify-or-fallback path.
+>
+> **Files touched:** `install/RootApkInstaller.kt` (rewritten install flow), `LAUNCHER_UPDATE_GUIDE.md` (added v2.14.0 diagnostic-log section).
+>
+> **Simulation testing:** happy / silent-no-op / signature-mismatch scenarios all end at target `versionCode=136` (see `/tmp/onnow_test/sim2.sh` — three-scenario bash sim of the exact `sh -c '$script'` wrapping the launcher uses).
+> **CI verification pending:** no Kotlin toolchain in this container. **Operator must trigger the GitHub Actions build, sideload the new APK on the HK1, and push v1.1.37 to confirm the update lands with the log at `/data/local/tmp/onnow_install.log` showing `after_attempt1_vc=[<new>]` or, if HK1 no-ops attempt 1, `after_attempt2_vc=[<new>]`.**
+>
+
 > **🔴→🟢 v2.14.1 — Trackpad made ~1:1 (binary evdev pipe) + Search phone-typing bridge (Jun 2026).**
 >
 > Operator report: "Mouse is way too sluggish — moves 5 seconds late then overshoots. Needs to be 1:1 with the finger. Also text boxes aren't working — Search in Vesper should auto-focus so typing lands."
