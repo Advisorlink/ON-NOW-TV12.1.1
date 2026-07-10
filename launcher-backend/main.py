@@ -642,29 +642,94 @@ def phone_remote_page():
 
 @app.get("/remote.webmanifest")
 def phone_remote_manifest():
-    """PWA manifest — saved-to-home-screen remotes launch true
-    full-screen with the ON NOW V2 icon.  All URLs are RELATIVE so the
-    manifest works no matter what path prefix the backend runs under."""
+    """PWA manifest — saved-to-home-screen remotes launch as a REAL
+    installed WebAPK (its own icon in the drawer, its own task in the
+    recents view), not just a browser shortcut.  All URLs are RELATIVE
+    so the manifest works no matter what path prefix the backend runs
+    under.
+
+    v2.14.3 — Three fixes to restore Chrome's "Install app" affordance
+    (was regressing to "Add to Home screen", i.e. a browser bookmark):
+      1. `display: "standalone"` (broader installability than
+         `"fullscreen"`; Chrome prefers standalone for the WebAPK
+         install prompt).  `display_override` requests fullscreen
+         where the OS supports it.
+      2. `orientation: "any"` so the phone can rotate into landscape
+         (dpad-left / trackpad-right layout).  A locked orientation
+         also nudges some Chrome versions to downgrade to a shortcut.
+      3. Explicit `id` for stable PWA identity across manifest edits.
+    """
     from fastapi.responses import JSONResponse
     return JSONResponse(
         {
+            # `id` is resolved relative to the manifest URL, so keep
+            # it relative — that way the PWA identity stays stable
+            # whether the backend is served at `/` or under a path
+            # prefix like `/launcher/`.  Matches `start_url` exactly.
+            "id": "remote",
             "name": "ON NOW Remote",
             "short_name": "ON NOW",
             "description": "Use your phone as the remote for your ON NOW TV box.",
-            "display": "fullscreen",
-            "orientation": "portrait",
+            "display": "standalone",
+            "display_override": ["fullscreen", "standalone", "minimal-ui"],
+            "orientation": "any",
             "background_color": "#0b0f16",
             "theme_color": "#0b0f16",
             "start_url": "remote",
-            "scope": ".",
+            "scope": "./",
             "icons": [
                 {"src": "remote-icon-192.png", "sizes": "192x192",
-                 "type": "image/png", "purpose": "any maskable"},
+                 "type": "image/png", "purpose": "any"},
+                {"src": "remote-icon-192.png", "sizes": "192x192",
+                 "type": "image/png", "purpose": "maskable"},
                 {"src": "remote-icon-512.png", "sizes": "512x512",
-                 "type": "image/png", "purpose": "any maskable"},
+                 "type": "image/png", "purpose": "any"},
+                {"src": "remote-icon-512.png", "sizes": "512x512",
+                 "type": "image/png", "purpose": "maskable"},
             ],
         },
         media_type="application/manifest+json",
+    )
+
+
+@app.get("/remote-sw.js")
+def phone_remote_service_worker():
+    """v2.14.3 — Minimal service worker for the phone remote.
+
+    Chrome's "Install app" affordance (WebAPK, standalone launcher,
+    own icon in the drawer) requires the page to register a service
+    worker with a `fetch` handler.  Without one, Android Chrome
+    silently downgrades the install to "Add to Home screen"
+    (a browser bookmark that opens in a Chrome tab, no standalone
+    frame, no own icon).  That is the exact regression the operator
+    reported ("it just lets me add it to home but not install it").
+
+    We deliberately do NOT cache anything — the remote is a live UI
+    that must always be fresh.  The fetch handler is a pass-through
+    to the network; its mere presence is enough to satisfy Chrome's
+    installability heuristic and enable the WebAPK flow.
+    """
+    js = (
+        "// ON NOW Remote — installability SW (v2.14.3).\n"
+        "// Intentionally a network pass-through: no caching, so the\n"
+        "// remote UI is always fresh; the sole purpose of this worker\n"
+        "// is to make the page installable as a WebAPK on Android.\n"
+        "self.addEventListener('install', function(e){ self.skipWaiting(); });\n"
+        "self.addEventListener('activate', function(e){ e.waitUntil(self.clients.claim()); });\n"
+        "self.addEventListener('fetch', function(e){\n"
+        "  // Pass-through to the network.  Falls back to an empty\n"
+        "  // response only if the network fetch itself throws (offline)\n"
+        "  // — the app will surface its own reconnect UI in that case.\n"
+        "  e.respondWith(fetch(e.request).catch(function(){\n"
+        "    return new Response('', { status: 504, statusText: 'offline' });\n"
+        "  }));\n"
+        "});\n"
+    )
+    from fastapi.responses import Response
+    return Response(
+        content=js,
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-store"},
     )
 
 

@@ -161,6 +161,66 @@
     color:var(--txt-dim);opacity:.6;pointer-events:none;transition:opacity 220ms ease}
   .trackpad.active .tp-hint{opacity:0}
 
+  /* ── landscape layout (phone rotated sideways) ───────────────────
+     v2.14.3 — When the phone is held sideways, split the UI into
+     TWO thumb-reachable columns:
+       LEFT  = topbar + d-pad + volume/page rockers + home/mic/back +
+               media row + keyboard/search row (all controls).
+       RIGHT = the trackpad, filling the entire right half so the
+               right thumb has maximum surface area.
+     Right thumb drives the cursor, left thumb drives everything
+     else — no reaching across the phone.
+     Uses `max-height: 500px` so it fires on phones (~360-400 px
+     tall in landscape) but not on rotated tablets (where the
+     portrait design still fits comfortably).                     */
+  @media (orientation: landscape) and (max-height: 560px){
+    .app{
+      max-width:100%;
+      padding:calc(env(safe-area-inset-top,0px) + 8px) 14px
+              calc(env(safe-area-inset-bottom,0px) + 8px);
+      display:grid;
+      grid-template-columns:minmax(240px, 46%) 1fr;
+      grid-auto-rows:auto;
+      gap:8px 14px;
+      align-content:start;
+      min-height:100dvh;
+    }
+    /* topbar spans BOTH columns across the top */
+    .topbar{grid-column:1 / -1}
+    /* every other control lives in the LEFT column */
+    .cluster,.under-row,.np-card,.media-row,.util-row{grid-column:1}
+    /* trackpad occupies the ENTIRE right column, from below the
+       topbar all the way to the bottom of the screen */
+    .trackpad{
+      grid-column:2; grid-row:2 / span 20;
+      margin-top:0; min-height:0; height:100%;
+    }
+    /* Compact everything in the left column so all controls fit
+       without vertical scrolling on a ~360-400px tall phone. */
+    .cluster{grid-template-columns:40px 1fr 40px; gap:8px}
+    .side-rocker button{height:44px; font-size:12px}
+    .rk-label{margin-top:4px}
+    .dpad{width:min(150px, 24vw)}
+    .dpad .dir svg{width:20px;height:20px}
+    .dpad-ok{font-size:13px;letter-spacing:.1em}
+    .under-row{gap:14px}
+    .under-row .round-sm{width:42px;height:42px}
+    .under-row .mic-btn{width:50px;height:50px}
+    .media-row .nbtn{height:42px;border-radius:12px}
+    .media-row .nbtn svg{width:18px;height:18px}
+    .util-row .nbtn{height:40px;border-radius:12px;font-size:12.5px}
+    .util-row .nbtn svg{width:16px;height:16px}
+    .np-card{padding:10px;gap:6px}
+    .np-poster{width:38px;height:54px}
+    .np-title{font-size:13px}
+    .np-meta,.np-syn{font-size:10.5px}
+    /* Keyboard sheet: narrower + left-aligned so it doesn't cover
+       the trackpad in landscape.  Feels like a compact side sheet
+       rather than a full-width bottom sheet. */
+    .kb-sheet{max-width:520px;left:50%;transform:translate(-50%, 110%)}
+    .kb-sheet.open{transform:translate(-50%, 0)}
+  }
+
   /* ── keyboard sheet ── */
   .kb-sheet{position:fixed;left:0;right:0;bottom:0;z-index:60;transform:translateY(110%);transition:transform .22s ease;
     background:linear-gradient(180deg,#141b27,#0d1219);border-top:1px solid var(--edge);border-radius:22px 22px 0 0;
@@ -414,6 +474,45 @@
 <script>
 (function(){
   "use strict";
+  // v2.14.3 — Register the installability service worker.  Chrome
+  // only offers "Install app" (WebAPK, standalone frame, own icon)
+  // when the page has an active SW with a fetch handler; without it
+  // Chrome silently downgrades to "Add to Home screen" (browser
+  // bookmark).  The SW itself is a network pass-through (no caching)
+  // — it exists purely to unlock the WebAPK route.  Only register
+  // when served over https or on localhost (browsers refuse SWs on
+  // plain http otherwise).
+  if ('serviceWorker' in navigator &&
+      (location.protocol === 'https:' ||
+       location.hostname === 'localhost' ||
+       location.hostname === '127.0.0.1')) {
+    try {
+      var swPath = (location.pathname.replace(/\/remote\/?$/, '')) + '/remote-sw.js';
+      navigator.serviceWorker.register(swPath, { scope: './' })
+        .catch(function(err){ console.warn('SW register failed', err); });
+    } catch(e){ /* ignore */ }
+  }
+
+  // v2.14.3 — Keep the keyboard sheet ABOVE the on-screen keyboard.
+  // Without this, `.kb-sheet` is pinned to the layout viewport bottom
+  // and disappears behind the OS keyboard when the user taps the
+  // input — you can't see what you're typing.  visualViewport gives
+  // us the ACTUAL visible bottom edge; we lift the sheet by that
+  // gap so the text field always sits just above the keyboard.
+  if (window.visualViewport) {
+    var _liftKbSheet = function(){
+      var sheet = document.getElementById('kbSheet');
+      if (!sheet) return;
+      var vv = window.visualViewport;
+      var lift = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
+      sheet.style.bottom = lift + 'px';
+    };
+    window.visualViewport.addEventListener('resize', _liftKbSheet);
+    window.visualViewport.addEventListener('scroll', _liftKbSheet);
+    // Run once at boot so the sheet starts at bottom:0 explicitly.
+    _liftKbSheet();
+  }
+
   var qs = new URLSearchParams(location.search);
   var IS_LOCAL = qs.get("local") === "1" && location.protocol === "http:";
   // The backend may be mounted under a path prefix (e.g. onnowhub.com/launcher),

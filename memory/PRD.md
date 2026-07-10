@@ -1,4 +1,25 @@
 # ON NOW TV V2 — PRD
+> **🔴→🟢 v2.14.3 — Phone Remote: landscape 2-column layout, keyboard sheet lifts above OS keyboard, PWA "Install app" restored (Feb 2026).**
+>
+> Operator report: "Mouse is quicker now, good. But — when I rotate the phone sideways I want the keypad + controls on the LEFT and the mouse on the RIGHT (two thumbs). When the text box comes up, it needs to sit ABOVE the OS keyboard so I can see what I'm typing. And it isn't letting me install the remote as an app anymore — just 'add to home', not actually installing."
+>
+> **Fix #1 — Landscape 2-column layout (`remote_page.html` CSS):** Added a `@media (orientation: landscape) and (max-height: 560px)` block that turns `.app` into a CSS grid: topbar spans both columns; LEFT column stacks all controls (vol/dpad/page rockers → home/mic/back → media row → keyboard/search); trackpad occupies the ENTIRE right column (grid-row: 2 / span 20). D-pad + buttons shrink so everything fits without vertical scroll. Verified in-browser at 896×414: `grid-template-columns: 399px / 455px`, trackpad in column 2 — right-thumb / left-thumb layout works exactly as described.
+>
+> **Fix #2 — Keyboard sheet floats above OS keyboard (`remote_page.html` JS):** Added a `visualViewport.resize`/`scroll` listener that measures `innerHeight − (visualViewport.height + offsetTop)` and sets `.kb-sheet { bottom: <that>px }`. Verified: simulated OS keyboard eating 340 px shrinks `visualViewport.height`; kb-sheet's `style.bottom` jumps from `0px` → `340px`, sheet bottom edge lands exactly at the top of the simulated keyboard (`sheetBottom === kbTop`). Text input fully visible.
+>
+> **Fix #3 — Chrome "Install app" restored (was regressing to "Add to Home"):**
+>   - **Root cause:** the launcher-backend served the manifest but **no service worker**. Chrome silently downgrades PWA install → browser-bookmark ("Add to home screen") when there's no SW with a fetch handler. Manifest was also `display: "fullscreen"` + `orientation: "portrait"` — both nudge Chrome away from the WebAPK install prompt.
+>   - **Fixes (`launcher-backend/main.py`):**
+>     - New route `GET /remote-sw.js` — a network-pass-through service worker (no caching; its sole purpose is to unlock the WebAPK route).
+>     - Manifest tuned: `display: "standalone"` + `display_override: ["fullscreen","standalone","minimal-ui"]` (progressive fullscreen); `orientation: "any"` (unblocks landscape); explicit `id: "remote"` for stable PWA identity; `scope: "./"`; separate `purpose: "any"` and `purpose: "maskable"` icon entries (Chrome install-audit prefers separate entries over `"any maskable"`).
+>     - Remote page auto-registers the SW at `/remote-sw.js` on load (guarded on https/localhost).
+>   - Curl-verified: manifest returns `id=remote display=standalone orientation=any`, `/remote-sw.js` returns HTTP 200 `application/javascript` with `install`/`activate`/`fetch` handlers.
+>
+> **Files touched:** `launcher-backend/main.py` (manifest + new SW route), `launcher-backend/remote_page.html` (landscape CSS block, SW register, visualViewport lift).
+>
+> **Testing:** all three fixes verified in-container (Playwright landscape screenshot, JS unit assertion on kb-sheet lift, curl on manifest + SW routes). No changes to the backend WebSocket / trackpad path.
+>
+
 > **🔴→🟢 v2.14.2 — Launcher self-update BULLETPROOFED (`versionCode`-verified, Feb 2026).**
 >
 > Operator report: "It let me update to 1.1.35. Now it won't let me update to 1.1.36. I can't have this happen when I give it to a thousand people. It needs to work every single time for every single future update."
