@@ -1,4 +1,21 @@
 # ON NOW TV V2 — PRD
+> **🔴→🟢 v2.14.12 — Phone remote landscape overhaul + long-press OK + auto-fullscreen (Feb 2026).**
+>
+> Operator asks (all three fixed):
+>   1. "The top bar is showing when I've installed it — should be full-screen." → Auto-`requestFullscreen()` on the FIRST button press (a user gesture is required). Chrome's Custom-Tabs URL bar disappears as soon as the operator taps any button.
+>   2. "In landscape the trackpad overflows the screen, and the D-pad is too small — make it bigger, take away the power button." →
+>       - Power button removed from the topbar entirely.
+>       - D-pad dynamically sized: `min(260px, calc(100dvh - 210px), 38vw)` — starts ~200px on short-height flagships, up to 260px on taller ones. Was 150px; now 30-70% bigger.
+>       - Trackpad taken OUT of grid entirely: `position: fixed` in the right half, top=46px (below topbar), right=12px, bottom=8px, `width: calc(52vw − 24px)`. Cannot overflow the viewport ever.
+>       - Left column becomes a flex column with `overflow-y: auto`, guaranteeing every control (rockers, dpad, home/mic/back, media, keyboard/search) is reachable even on very short viewports.
+>       - Now-playing card hidden in landscape to buy vertical space.
+>   3. "Push-and-hold OK to favourite isn't working." → Removed the aggressive `pointerleave` listener on ALL `data-key` buttons (Android Chrome fires it on ~1 px drift, cancelling the 550 ms long-timer). `pointerup` + `pointercancel` alone reliably end the press. `data-long="1"` on the OK button was already correctly wired to `send({action:"longpress", key:"OK"})` which maps server-side to `KEYCODE_DPAD_CENTER --longpress`.
+>
+> **Tested in-container (Playwright at 896×414):** D-pad = 204 px (2× former), trackpad fits inside viewport, media + util rows both visible, power button removed, `data-long="1"` present on OK. Version stamp confirms `v2.14.12` bottom-right.
+>
+> **Files touched:** `launcher-backend/remote_page.html` (landscape CSS rewrite + button handler + power removal), version bump in `main.py`.
+>
+
 > **🔴→🟢 v2.14.11 — Xtream mapping silently lost on edit-row Save — fixed (Feb 2026).**
 >
 > Operator report: "I type the Xtream username and password in the launcher backend, click Save, then go into the row again — they're gone. The app doesn't get them either."

@@ -162,68 +162,72 @@
   .trackpad.active .tp-hint{opacity:0}
 
   /* ── landscape layout (phone rotated sideways) ───────────────────
-     v2.14.7 — When the phone is held sideways, split the UI into
-     TWO thumb-reachable columns:
-       LEFT  = topbar + d-pad + volume/page rockers + home/mic/back +
-               media row + keyboard/search row (all controls).
-       RIGHT = the trackpad, filling the entire right half so the
-               right thumb has maximum surface area.
-     Right thumb drives the cursor, left thumb drives everything
-     else — no reaching across the phone.
-
-     Trigger uses TWO conditions in an "or" list so we catch every
-     phone/tablet reliably:
-       • `orientation: landscape` + `max-height: 900px`  → every
-         phone, most tablets in landscape.
-       • aspect ratio at least 4:3 wide  → catches the odd Android
-         flagship where Chrome reports height > 900 px because it
-         includes the URL bar in the layout viewport.  Once the URL
-         bar hides on scroll we're already well inside.               */
+     v2.14.12 — Rebuilt for MAXIMUM D-pad size + trackpad that fits
+     inside the screen.  LEFT column stacks:
+       • topbar (spans both cols at top)
+       • cluster row with a MUCH BIGGER d-pad flanked by compact
+         vertical rockers (VOL, PG)
+       • home/mic/back row
+       • media buttons row
+       • keyboard/search row
+     RIGHT column = the trackpad, hard-capped at 100vh so it never
+     overflows the screen and always fits inside the viewport.
+     Right thumb operates trackpad, left thumb operates everything
+     else.                                                          */
   @media (orientation: landscape) and (max-height: 900px),
          (min-aspect-ratio: 4/3) and (max-height: 900px){
+    html,body{overflow:hidden;height:100vh;height:100dvh;position:fixed;inset:0}
     .app{
       max-width:100%;
-      padding:calc(env(safe-area-inset-top,0px) + 8px) 14px
-              calc(env(safe-area-inset-bottom,0px) + 8px);
-      display:grid;
-      grid-template-columns:minmax(240px, 46%) 1fr;
-      grid-auto-rows:auto;
-      gap:8px 14px;
-      align-content:start;
-      min-height:100dvh;
+      padding:calc(env(safe-area-inset-top,0px) + 6px) 12px
+              calc(env(safe-area-inset-bottom,0px) + 6px);
+      display:flex; flex-direction:column;
+      gap:6px;
+      width:48%; max-width:48%;
+      height:100vh; height:100dvh;
+      overflow-y:auto;
+      overflow-x:hidden;
     }
-    /* topbar spans BOTH columns across the top */
-    .topbar{grid-column:1 / -1}
-    /* every other control lives in the LEFT column */
-    .cluster,.under-row,.np-card,.media-row,.util-row{grid-column:1}
-    /* trackpad occupies the ENTIRE right column, from below the
-       topbar all the way to the bottom of the screen */
+    .topbar{position:fixed;top:calc(env(safe-area-inset-top,0px) + 6px);left:12px;right:12px;margin:0}
+    /* left column: control stack (flex column) */
+    .cluster,.under-row,.np-card,.media-row,.util-row{width:100%}
+    /* Add top-offset so the fixed topbar doesn't cover the first control */
+    .cluster{margin-top:44px}
+    /* right column: trackpad — take it OUT of the grid entirely and
+       fix-position it to the right half so it can NEVER overflow.
+       Bounded by the viewport top/right/bottom, hard-capped. */
     .trackpad{
-      grid-column:2; grid-row:2 / span 20;
-      margin-top:0; min-height:0; height:100%;
+      position:fixed !important;
+      top:calc(env(safe-area-inset-top,0px) + 46px);
+      right:12px;
+      bottom:calc(env(safe-area-inset-bottom,0px) + 8px);
+      width:calc(52vw - 24px);
+      height:auto; max-height:none;
+      margin-top:0; grid-column:auto; grid-row:auto;
     }
-    /* Compact everything in the left column so all controls fit
-       without vertical scrolling on a ~360-400px tall phone. */
-    .cluster{grid-template-columns:40px 1fr 40px; gap:8px}
-    .side-rocker button{height:44px; font-size:12px}
-    .rk-label{margin-top:4px}
-    .dpad{width:min(150px, 24vw)}
-    .dpad .dir svg{width:20px;height:20px}
-    .dpad-ok{font-size:13px;letter-spacing:.1em}
-    .under-row{gap:14px}
-    .under-row .round-sm{width:42px;height:42px}
-    .under-row .mic-btn{width:50px;height:50px}
-    .media-row .nbtn{height:42px;border-radius:12px}
+    /* Much larger d-pad — max the available space between the
+       rockers.  Rockers stay compact so the d-pad dominates. */
+    .cluster{grid-template-columns:44px 1fr 44px; gap:10px; align-items:center}
+    .side-rocker button{height:52px; font-size:12px}
+    .rk-label{margin-top:2px; font-size:9px}
+    .dpad{width:min(260px, calc(100dvh - 210px), 38vw); max-width:100%}
+    .dpad .dir svg{width:26px;height:26px}
+    .dpad-ok{font-size:16px;letter-spacing:.15em;font-weight:600}
+    /* under-row + media rows sit under the d-pad */
+    .under-row{gap:14px; margin-top:2px}
+    .under-row .round-sm{width:44px;height:44px}
+    .under-row .mic-btn{width:52px;height:52px}
+    .media-row{gap:6px}
+    .media-row .nbtn{height:40px;border-radius:12px}
     .media-row .nbtn svg{width:18px;height:18px}
-    .util-row .nbtn{height:40px;border-radius:12px;font-size:12.5px}
+    .util-row{gap:6px}
+    .util-row .nbtn{height:38px;border-radius:12px;font-size:12px}
     .util-row .nbtn svg{width:16px;height:16px}
-    .np-card{padding:10px;gap:6px}
-    .np-poster{width:38px;height:54px}
-    .np-title{font-size:13px}
-    .np-meta,.np-syn{font-size:10.5px}
-    /* Keyboard sheet: narrower + left-aligned so it doesn't cover
-       the trackpad in landscape.  Feels like a compact side sheet
-       rather than a full-width bottom sheet. */
+    /* Hide the now-playing card in landscape to keep the layout
+       clean & fit everything on one screen without scroll. */
+    .np-card{display:none}
+    /* Keyboard sheet centered + narrow so it doesn't overlap the
+       trackpad on the right half. */
     .kb-sheet{max-width:520px;left:50%;transform:translate(-50%, 110%)}
     .kb-sheet.open{transform:translate(-50%, 0)}
   }
@@ -343,9 +347,8 @@
       <span class="conn-mode" id="connMode"></span>
     </div>
     <div class="brand-word" data-testid="brand-logo">ON&nbsp;NOW <b>V2</b></div>
-    <button class="nbtn pwr-btn" data-key="POWER" data-testid="power-button" aria-label="Power">
-      <svg viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
-    </button>
+    <!-- v2.14.12 — Power button removed at operator request. If
+         needed later, re-add the .pwr-btn markup here. -->
   </div>
 
   <div class="cluster">
@@ -489,10 +492,10 @@
           version than the one embedded in this page, we force a hard
           reload with cache-bust, bypassing SW + Cloudflare + browser
           cache all at once.                                          -->
-<div id="verStamp" style="position:fixed;right:8px;bottom:8px;font:11px/1 ui-monospace,monospace;color:rgba(255,255,255,.28);pointer-events:none;z-index:200;letter-spacing:.05em;" data-testid="version-stamp">v2.14.11</div>
+<div id="verStamp" style="position:fixed;right:8px;bottom:8px;font:11px/1 ui-monospace,monospace;color:rgba(255,255,255,.28);pointer-events:none;z-index:200;letter-spacing:.05em;" data-testid="version-stamp">v2.14.12</div>
 <script>
 (function(){
-  var PAGE_VER = "v2.14.11";
+  var PAGE_VER = "v2.14.12";
   // Ask the server what version IT is currently serving.  If the
   // server says a NEWER version, we're stuck on a cached copy —
   // reload hard with a cache-busting query param.
@@ -1018,6 +1021,21 @@
       btn.classList.add("pressed");
       haptic(10);
       longFired = false;
+      // v2.14.12 — Auto-enter fullscreen on the FIRST button press
+      // ever, so Chrome's Custom-Tabs URL bar (visible when the
+      // remote is opened via the launcher's QR code, since that URL
+      // is http://<LAN-IP> — a different origin from the installed
+      // PWA scope) disappears immediately.  requestFullscreen()
+      // requires a user gesture; the first data-key press IS the
+      // gesture.  Ignored on subsequent calls when already
+      // fullscreen or when the API is unsupported.
+      try {
+        if (!document.fullscreenElement && !document.webkitFullscreenElement){
+          var root = document.documentElement;
+          var fs = root.requestFullscreen || root.webkitRequestFullscreen;
+          if (fs) fs.call(root).catch(function(){});
+        }
+      } catch(_){}
       if (canLong){
         longTimer = setTimeout(function(){
           longFired = true; haptic(30);
@@ -1044,7 +1062,11 @@
     btn.addEventListener("pointerdown", down);
     btn.addEventListener("pointerup", up);
     btn.addEventListener("pointercancel", up);
-    btn.addEventListener("pointerleave", function(){ if (repInt || repTimer || longTimer) up(); });
+    // v2.14.12 — Removed pointerleave here.  Android Chrome fires
+    // pointerleave as soon as the finger drifts a pixel or two,
+    // which was cancelling the long-press timer on the OK button
+    // (the 550 ms hold-to-favourite that the operator asked for).
+    // pointerup + pointercancel cover the real release cases.
     btn.addEventListener("contextmenu", function(e){ e.preventDefault(); });
   });
 
