@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Formula 1 car — low-slung side profile with front wing, cockpit,
+     and rear wing.  Two large exposed wheels sit under a thin body. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M2,13 L2,11 L4.5,11 L7,8.5 L14,8.5 L15.5,10.5 L20,10.5 L22,11.5 L22,13.5 L20,14 L18.8,14 A2.8,2.8 0 0,0 13.2,14 L10.8,14 A2.8,2.8 0 0,0 5.2,14 L3.5,14 L2,13 Z M12,7 L16,7 L16,8 L12,8 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M8,14 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M16,14 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0 Z" />
+</vector>

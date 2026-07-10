@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Rugby Union — pointed oval ball rotated 30°, with a horizontal
+     lace stitching detail across the middle.  Distinct from NFL by
+     the rounded end caps and the classic union-style lace. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M4.2,4.2 C7.4,1 15.1,1 19.8,4.2 C23,7.4 23,15.1 19.8,19.8 C16.6,23 8.9,23 4.2,19.8 C1,16.6 1,8.9 4.2,4.2 Z M6,6 C3.5,9 3.5,15 6,18 C9,20.5 15,20.5 18,18 C20.5,15 20.5,9 18,6 C15,3.5 9,3.5 6,6 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M9,11.5 L15,11.5 L15,12.5 L9,12.5 Z M10,10 L10.4,10 L10.4,14 L10,14 Z M11.5,10 L11.9,10 L11.9,14 L11.5,14 Z M13,10 L13.4,10 L13.4,14 L13,14 Z" />
+</vector>

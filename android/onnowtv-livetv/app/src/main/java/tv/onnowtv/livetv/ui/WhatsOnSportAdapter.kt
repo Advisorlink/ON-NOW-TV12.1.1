@@ -2,7 +2,6 @@ package tv.onnowtv.livetv.ui
 
 import android.graphics.PorterDuff
 import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -12,12 +11,12 @@ import tv.onnowtv.livetv.R
 import tv.onnowtv.livetv.data.LiveSportsClassifier
 
 /**
- * v2.14.16 — Horizontal chip row shown above the channel list
+ * v2.14.17 — Horizontal chip row shown above the channel list
  * whenever the "WHAT'S ON LIVE" hub is active.  Each chip is a
- * sport bucket (Golf, F1, …) with a coloured monogram disc, the
- * sport label, and a "LIVE · N" pill.  Selecting a chip filters
- * the channel list to just that sport.  An "ALL" chip is always
- * pinned at the start.
+ * sport bucket (Golf, F1, …) with a coloured disc + white sport
+ * glyph, the sport label, and a "LIVE · N" pill.  Selecting a
+ * chip filters the channel list to just that sport.  An "ALL"
+ * chip is always pinned at the start.
  *
  * Focus behaviour: pill uses the standard focus/activated states
  * of `whatson_sport_chip_bg.xml`, so D-pad LEFT/RIGHT paints a
@@ -60,7 +59,7 @@ class WhatsOnSportAdapter(
 
     inner class VH(private val root: LinearLayout) : RecyclerView.ViewHolder(root) {
         private val disc: ImageView = root.findViewById(R.id.whatson_sport_disc)
-        private val monogram: TextView = root.findViewById(R.id.whatson_sport_monogram)
+        private val icon: ImageView = root.findViewById(R.id.whatson_sport_icon)
         private val label: TextView = root.findViewById(R.id.whatson_sport_label)
         private val count: TextView = root.findViewById(R.id.whatson_sport_count)
 
@@ -69,17 +68,21 @@ class WhatsOnSportAdapter(
             count.text = "LIVE · ${row.count}"
 
             if (row.id == null) {
-                // "ALL" pill — neutral coral so it visually anchors
-                // the row without stealing attention from real
-                // buckets.  Monogram = infinity-ish "∞".
-                monogram.text = "ALL"
+                // "ALL" pill — neutral coral disc with the trophy
+                // glyph so it visually anchors the row.
                 disc.setColorFilter(0xFFFF6A38.toInt(), PorterDuff.Mode.SRC_IN)
+                icon.setImageResource(R.drawable.ic_sport_trophy)
+                icon.clearColorFilter()
             } else {
-                monogram.text = LiveSportsClassifier.shortOf(row.id)
                 disc.setColorFilter(
                     LiveSportsClassifier.colorOf(row.id),
                     PorterDuff.Mode.SRC_IN,
                 )
+                icon.setImageResource(LiveSportsClassifier.iconOf(row.id))
+                // Force the glyph to solid white so it always
+                // reads clearly on top of the coloured disc,
+                // regardless of the drawable's intrinsic tint.
+                icon.setColorFilter(0xFFFFFFFF.toInt(), PorterDuff.Mode.SRC_IN)
             }
 
             val selected = row.id == activeKey

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Championship belt — wide horizontal strap with a large central
+     medallion plate and two smaller side plates.  Reads as "title
+     fight / pro wrestling" at a glance. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M2,9 L22,9 L22,15 L2,15 Z M4,10 L4,14 L20,14 L20,10 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,12 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0 Z M12,12 m-2.4,0 a2.4,2.4 0 1,0 4.8,0 a2.4,2.4 0 1,0 -4.8,0 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M5,12 m-1.6,0 a1.6,1.6 0 1,0 3.2,0 a1.6,1.6 0 1,0 -3.2,0 Z M19,12 m-1.6,0 a1.6,1.6 0 1,0 3.2,0 a1.6,1.6 0 1,0 -3.2,0 Z" />
+</vector>

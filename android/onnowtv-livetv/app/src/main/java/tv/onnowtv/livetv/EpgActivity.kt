@@ -922,7 +922,11 @@ class EpgActivity : AppCompatActivity() {
     /** Scan the bundle for channels whose NOW programme classifies
      *  into a sport bucket.  Rebuilds both the chip rows and the
      *  bucket→channels map.  Cheap enough to run every 30 s from
-     *  the clock ticker (~5k EPG hits, contains-only matches). */
+     *  the clock ticker (~5k EPG hits, contains-only matches).
+     *
+     *  v2.14.17 — Uses `classifyTitle()` (no channel-name fallback)
+     *  and rejects titles flagged by `isNonLive()` so replays,
+     *  highlights packages and previews don't pretend to be live. */
     private fun recomputeWhatsOnRows() {
         val now = System.currentTimeMillis()
         val byBucket = LinkedHashMap<String, MutableList<Channel>>()
@@ -931,8 +935,15 @@ class EpgActivity : AppCompatActivity() {
             val sid = ch.epgChannelId ?: continue
             val progs = epgCache[sid] ?: continue
             val current = progs.firstOrNull { it.isLiveAt(now) } ?: continue
+            // Skip obvious rebroadcasts / highlights / documentaries.
+            if (tv.onnowtv.livetv.data.LiveSportsClassifier
+                    .isNonLive(current.title)
+            ) continue
+            // TITLE-ONLY match — no channel-name fallback so "Sky
+            // Sports Rugby" airing a studio wrap doesn't fake a
+            // live rugby match.
             val bucket = tv.onnowtv.livetv.data.LiveSportsClassifier
-                .classify(current.title, ch.name) ?: continue
+                .classifyTitle(current.title) ?: continue
             byBucket.getOrPut(bucket) { mutableListOf() }.add(ch)
         }
 

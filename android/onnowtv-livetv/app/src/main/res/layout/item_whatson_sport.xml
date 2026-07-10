@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- One sport chip inside the horizontal "What's On Live" filter
-     row.  Coloured monogram disc + sport label + live count.  The
-     whole chip is focusable so the user can D-pad across the row. -->
+     row.  Coloured disc + real sport-glyph vector + sport label +
+     LIVE count.  The whole chip is focusable so the user can
+     D-pad across the row.  Icon is tinted programmatically via
+     ImageView.setColorFilter() so the disc + icon share a colour
+     family per bucket. -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="wrap_content"
@@ -15,27 +18,23 @@
     android:focusable="true"
     android:clickable="true">
 
-    <!-- Coloured disc + monogram.  Disc tint is set at bind-time. -->
+    <!-- Coloured disc + white sport glyph.  Disc tint set at
+         bind-time from LiveSportsClassifier.colorOf(). -->
     <FrameLayout
-        android:layout_width="32dp"
-        android:layout_height="32dp">
+        android:layout_width="34dp"
+        android:layout_height="34dp">
         <ImageView
             android:id="@+id/whatson_sport_disc"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:src="@drawable/whatson_sport_disc"
             android:contentDescription="@null" />
-        <TextView
-            android:id="@+id/whatson_sport_monogram"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:gravity="center"
-            android:fontFamily="sans-serif-black"
-            android:textStyle="bold"
-            android:textColor="#0A0F1A"
-            android:textSize="11sp"
-            android:letterSpacing="-0.02"
-            android:text="" />
+        <ImageView
+            android:id="@+id/whatson_sport_icon"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_gravity="center"
+            android:contentDescription="@null" />
     </FrameLayout>
 
     <LinearLayout

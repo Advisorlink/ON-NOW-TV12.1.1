@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Running figure — mid-stride silhouette with head, torso, back
+     leg extended, front leg raised, and both arms swinging.  The
+     universal "athletics" pictogram. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M14,4 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M8.5,10 L13,7.5 L15.5,7.5 L17.5,10.5 L20,11.5 L20,13 L17,12 L15,10 L13.5,12 L15,13.5 L15,20 L13,20 L13,15 L11,13 L9,15.5 L7,18 L5.5,17 L8,14 L10,11 Z" />
+</vector>

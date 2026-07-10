@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- AFL — Sherrin-style oval ball with a single seam running the
+     long axis.  Rounder end caps than rugby but same footprint. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M3.5,3.5 C7.5,0.5 14.5,0.5 20.5,3.5 C23.5,7.5 23.5,16.5 20.5,20.5 C16.5,23.5 9.5,23.5 3.5,20.5 C0.5,16.5 0.5,7.5 3.5,3.5 Z M5.5,5.5 C3,9 3,15 5.5,18.5 C9,21 15,21 18.5,18.5 C21,15 21,9 18.5,5.5 C15,3 9,3 5.5,5.5 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M4,11.5 L20,11.5 L20,12.5 L4,12.5 Z" />
+</vector>

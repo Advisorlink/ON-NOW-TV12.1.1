@@ -1,5 +1,8 @@
 package tv.onnowtv.livetv.data
 
+import androidx.annotation.DrawableRes
+import tv.onnowtv.livetv.R
+
 /**
  * v2.14.15 — Keyword-based classifier for the "What's On Live" hub.
  *
@@ -67,6 +70,31 @@ object LiveSportsClassifier {
         RUGBY_UNION, RUGBY_LEAGUE, AFL, NFL, NBA, NHL, MLB,
         MMA_BOXING, CYCLING, ATHLETICS, WWE, OTHER_SPORT,
     )
+
+    /** Vector-drawable resource painted inside the sport chip's
+     *  coloured disc.  Icons are white-filled so [ImageView]'s
+     *  colour filter can tint them with [colorOf] at bind time. */
+    @DrawableRes
+    fun iconOf(id: String): Int = when (id) {
+        SOCCER       -> R.drawable.ic_sport_football
+        F1           -> R.drawable.ic_sport_f1
+        MOTORSPORT   -> R.drawable.ic_sport_motorsport
+        GOLF         -> R.drawable.ic_sport_golf
+        CRICKET      -> R.drawable.ic_sport_cricket
+        TENNIS       -> R.drawable.ic_sport_tennis
+        RUGBY_UNION  -> R.drawable.ic_sport_rugby
+        RUGBY_LEAGUE -> R.drawable.ic_sport_rugby_league
+        AFL          -> R.drawable.ic_sport_afl
+        NFL          -> R.drawable.ic_sport_nfl
+        NBA          -> R.drawable.ic_sport_basketball
+        NHL          -> R.drawable.ic_sport_hockey
+        MLB          -> R.drawable.ic_sport_baseball
+        MMA_BOXING   -> R.drawable.ic_sport_boxing
+        CYCLING      -> R.drawable.ic_sport_cycling
+        ATHLETICS    -> R.drawable.ic_sport_athletics
+        WWE          -> R.drawable.ic_sport_wwe
+        else         -> R.drawable.ic_sport_trophy
+    }
 
     /** Short 2–3 char monogram painted inside the sport chip's
      *  coloured disc.  Kept intentionally readable at 12sp on a
@@ -232,5 +260,50 @@ object LiveSportsClassifier {
             ch.contains("fox sports") || ch.contains("nbc sports") ||
             ch.contains("eurosport")
         return if (isSportsChannel) OTHER_SPORT else null
+    }
+
+    /**
+     * v2.14.17 — TITLE-ONLY variant used by the "What's On Live"
+     * hub.  Skips the channel-name fallback so a rugby channel
+     * running a talk show / studio wrap doesn't fake a live match.
+     * Returns `null` unless the title itself matches a sport rule.
+     */
+    fun classifyTitle(title: String): String? {
+        val hay = " " + title.lowercase() + " "
+        for (r in RULES) {
+            for (n in r.needles) {
+                if (hay.contains(n)) return r.bucket
+            }
+        }
+        return null
+    }
+
+    /**
+     * v2.14.17 — Substrings that mark a programme as a re-broadcast,
+     * highlights package, review, preview, or documentary rather
+     * than a live event.  The "What's On Live" hub uses this to
+     * suppress items like "European Rugby Final — Extended
+     * Highlights" that the classifier would otherwise pin to
+     * Rugby Union.  Kept case-insensitive & surrounded-by-spaces
+     * to avoid false matches ("clive" ≠ "live"). */
+    private val NON_LIVE_MARKERS = listOf(
+        " highlights", "highlights ", "extended highlights",
+        "match highlights", "goals & highlights", "goals and highlights",
+        " replay ", " replay:", "replayed", " rerun", " re-run",
+        " encore ", "encore:", " review ", "review:", " recap ",
+        "recap:", "post-match", "post match", " reaction ",
+        "reaction:", "build-up", "build up", " preview ", "preview:",
+        "best of ", "top 10", "top ten", " classic ", "classic:",
+        "throwback", "greatest", "documentary", "the story of",
+        " special ",
+    )
+
+    /**
+     * True when the programme title suggests it is NOT actually
+     * airing live right now — replay, highlights, review, etc.
+     * Called by the hub before adding a channel to a sport bucket. */
+    fun isNonLive(title: String): Boolean {
+        val hay = " " + title.lowercase() + " "
+        return NON_LIVE_MARKERS.any { hay.contains(it) }
     }
 }
