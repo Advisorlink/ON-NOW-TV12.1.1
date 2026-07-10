@@ -721,7 +721,49 @@ def phone_remote_manifest():
 #
 # Bump `REMOTE_PAGE_VERSION` in lock-step with the `v2.14.X` marker
 # hard-coded at the top of `remote_page.html` so the two agree.
-REMOTE_PAGE_VERSION = "v2.14.12"
+REMOTE_PAGE_VERSION = "v2.14.14"
+
+
+@app.get(
+    "/api/admin/github-sync-config",
+    dependencies=[Depends(require_admin)],
+)
+def github_sync_config_get() -> dict:
+    """Return the current GitHub sync settings for the admin UI.
+    Token is masked; the operator can overwrite but never read back."""
+    store = _load_store()
+    gs = store.get("github_sync") or {}
+    tok = str(gs.get("token") or "")
+    return {
+        "repo":        gs.get("repo",  "") or os.environ.get("LAUNCHER_GITHUB_REPO", ""),
+        "tag":         gs.get("tag",   "") or os.environ.get("LAUNCHER_GITHUB_TAG",  "launcher-latest"),
+        "asset":       gs.get("asset", "") or os.environ.get("LAUNCHER_GITHUB_ASSET", "onnowtv-launcher-debug.apk"),
+        "has_token":   bool(tok or os.environ.get("LAUNCHER_GITHUB_TOKEN")),
+        "token_hint":  ("*" * 8 + tok[-4:]) if len(tok) >= 4 else "",
+    }
+
+
+@app.post(
+    "/api/admin/github-sync-config",
+    dependencies=[Depends(require_admin)],
+)
+def github_sync_config_set(payload: dict = Body(...)) -> dict:
+    """Persist GitHub sync settings.  Called by the admin form so the
+    operator can configure the sync without SSH access to the VPS."""
+    store = _load_store()
+    gs    = dict(store.get("github_sync") or {})
+    if "repo"  in payload: gs["repo"]  = str(payload.get("repo")  or "").strip()
+    if "tag"   in payload: gs["tag"]   = str(payload.get("tag")   or "").strip()
+    if "asset" in payload: gs["asset"] = str(payload.get("asset") or "").strip()
+    # Token only overwritten when a non-empty new value is supplied
+    # — the UI sends empty string to mean "leave unchanged".
+    if "token" in payload:
+        new_tok = str(payload.get("token") or "").strip()
+        if new_tok:
+            gs["token"] = new_tok
+    store["github_sync"] = gs
+    _save_store(store)
+    return {"ok": True}
 
 
 @app.get("/remote-version")
@@ -3996,13 +4038,24 @@ async def sync_home_update_from_github() -> dict:
     token = os.environ.get("LAUNCHER_GITHUB_TOKEN", "").strip()
     tag   = os.environ.get("LAUNCHER_GITHUB_TAG",   "launcher-latest").strip()
     asset = os.environ.get("LAUNCHER_GITHUB_ASSET", "onnowtv-launcher-debug.apk").strip()
+    # v2.14.14 — Fall back to store.json values (set via the admin UI's
+    # "GitHub sync settings" form) so the operator doesn't need SSH
+    # access to configure the sync.  Env vars still win if set.
+    store = _load_store()
+    gs    = store.get("github_sync") or {}
+    if not repo  and gs.get("repo"):  repo  = str(gs["repo"]).strip()
+    if not token and gs.get("token"): token = str(gs["token"]).strip()
+    if gs.get("tag"):   tag   = str(gs["tag"]).strip()
+    if gs.get("asset"): asset = str(gs["asset"]).strip()
 
     if not repo or "/" not in repo:
         raise HTTPException(
             400,
-            "LAUNCHER_GITHUB_REPO env var is not set. Set it on the "
-            "launcher-backend to your repository as 'owner/name' "
-            "(e.g. 'Damo26/onnowtv-v2'), then retry.",
+            "GitHub repo is not configured. Open the admin → App Store → "
+            "'GitHub sync settings' and enter your repo as 'owner/name' "
+            "(e.g. Damo26/onnowtv-v2) + a personal access token if the "
+            "repo is private (github.com/settings/tokens → 'repo' scope). "
+            "Then retry the Sync button.",
         )
 
     headers = {

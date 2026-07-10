@@ -1,4 +1,19 @@
 # ON NOW TV V2 — PRD
+> **🔴→🟢 v2.14.14 — GitHub sync configurable from admin UI (no SSH needed) + version stamp v2.14.14 (Feb 2026).**
+>
+> Operator's screenshot showed the Sync button erroring with "LAUNCHER_GITHUB_REPO env var is not set" — my previous fix required editing the VPS's `.env`, which the operator can't reach.
+>
+> **Fix:**
+>   - New `GET/POST /api/admin/github-sync-config` endpoints storing `repo`/`token`/`tag`/`asset` in `store.json`.
+>   - Token GET is masked (returns last 4 chars + `has_token` bool); POST only overwrites when a non-empty new token is supplied.
+>   - Sync endpoint reads env vars first, falls back to store.json — either works.
+>   - Admin UI: collapsible **"GitHub sync settings"** panel in App Store → Home Update with Repo / Token / Tag / Asset inputs + Save button.
+>
+> **Tested via curl:** empty→save→re-read shows masked token→Sync reaches GitHub (fake test token = 401 "Bad credentials" as expected — the whole chain works, the token is what fails).
+>
+> **Files touched:** `launcher-backend/main.py`, `launcher-backend/admin/index.html`, `launcher-backend/admin/static/app.js`.
+>
+
 > **🔴→🟢 v2.14.13 — Launcher self-update is now TRULY in-place: no uninstall step at all (Feb 2026).**
 >
 > Operator report: "I don't want to have to uninstall it and reinstall it. Just change the number and make it update like any other app."

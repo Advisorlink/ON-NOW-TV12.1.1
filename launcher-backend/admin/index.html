@@ -491,6 +491,35 @@
             </div>
             <div id="homeUpdateSyncStatus" style="margin-top:10px;font-size:12.5px;color:#5DC8FF;min-height:18px;" aria-live="polite"></div>
 
+            <!-- v2.14.14 — GitHub sync settings (stored in store.json,
+                 no SSH needed).  Collapsed by default; expands when
+                 the operator needs to (re)configure. -->
+            <details style="margin-top:14px;border-top:1px solid rgba(255,255,255,.06);padding-top:10px;">
+                <summary style="cursor:pointer;color:#9DA8B8;font-size:12px;letter-spacing:.08em;text-transform:uppercase;">GitHub sync settings</summary>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin-top:10px;font-size:13px;">
+                    <label style="display:flex;flex-direction:column;gap:4px;">
+                        <span style="font-size:11px;color:#8f97a5;">Repo (owner/name)</span>
+                        <input id="ghSyncRepo" type="text" placeholder="Damo26/onnowtv-v2" autocomplete="off" style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--txt);">
+                    </label>
+                    <label style="display:flex;flex-direction:column;gap:4px;">
+                        <span style="font-size:11px;color:#8f97a5;">Personal access token (needed only for private repos)</span>
+                        <input id="ghSyncToken" type="password" placeholder="Leave blank to keep existing" autocomplete="off" style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--txt);">
+                    </label>
+                    <label style="display:flex;flex-direction:column;gap:4px;">
+                        <span style="font-size:11px;color:#8f97a5;">Release tag</span>
+                        <input id="ghSyncTag" type="text" placeholder="launcher-latest" autocomplete="off" style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--txt);">
+                    </label>
+                    <label style="display:flex;flex-direction:column;gap:4px;">
+                        <span style="font-size:11px;color:#8f97a5;">Asset filename</span>
+                        <input id="ghSyncAsset" type="text" placeholder="onnowtv-launcher-debug.apk" autocomplete="off" style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--txt);">
+                    </label>
+                </div>
+                <div style="display:flex;justify-content:flex-end;margin-top:10px;gap:8px;">
+                    <span id="ghSyncSaveStatus" style="font-size:12px;color:#4ade80;align-self:center;"></span>
+                    <button id="ghSyncSave" type="button" class="apk-drop-link">Save settings</button>
+                </div>
+            </details>
+
             <!-- Drag-drop zone — mirrors the App Store apkDropZone style -->
             <div id="homeUpdateDropZone" class="apk-drop" style="margin-top:14px;">
                 <input type="file" id="homeUpdateDropFile" accept=".apk,application/vnd.android.package-archive" hidden>

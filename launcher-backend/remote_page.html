@@ -162,7 +162,7 @@
   .trackpad.active .tp-hint{opacity:0}
 
   /* ── landscape layout (phone rotated sideways) ───────────────────
-     v2.14.12 — Rebuilt for MAXIMUM D-pad size + trackpad that fits
+     v2.14.14 — Rebuilt for MAXIMUM D-pad size + trackpad that fits
      inside the screen.  LEFT column stacks:
        • topbar (spans both cols at top)
        • cluster row with a MUCH BIGGER d-pad flanked by compact
@@ -347,7 +347,7 @@
       <span class="conn-mode" id="connMode"></span>
     </div>
     <div class="brand-word" data-testid="brand-logo">ON&nbsp;NOW <b>V2</b></div>
-    <!-- v2.14.12 — Power button removed at operator request. If
+    <!-- v2.14.14 — Power button removed at operator request. If
          needed later, re-add the .pwr-btn markup here. -->
   </div>
 
@@ -492,10 +492,10 @@
           version than the one embedded in this page, we force a hard
           reload with cache-bust, bypassing SW + Cloudflare + browser
           cache all at once.                                          -->
-<div id="verStamp" style="position:fixed;right:8px;bottom:8px;font:11px/1 ui-monospace,monospace;color:rgba(255,255,255,.28);pointer-events:none;z-index:200;letter-spacing:.05em;" data-testid="version-stamp">v2.14.12</div>
+<div id="verStamp" style="position:fixed;right:8px;bottom:8px;font:11px/1 ui-monospace,monospace;color:rgba(255,255,255,.28);pointer-events:none;z-index:200;letter-spacing:.05em;" data-testid="version-stamp">v2.14.14</div>
 <script>
 (function(){
-  var PAGE_VER = "v2.14.12";
+  var PAGE_VER = "v2.14.14";
   // Ask the server what version IT is currently serving.  If the
   // server says a NEWER version, we're stuck on a cached copy —
   // reload hard with a cache-busting query param.
@@ -1021,7 +1021,7 @@
       btn.classList.add("pressed");
       haptic(10);
       longFired = false;
-      // v2.14.12 — Auto-enter fullscreen on the FIRST button press
+      // v2.14.14 — Auto-enter fullscreen on the FIRST button press
       // ever, so Chrome's Custom-Tabs URL bar (visible when the
       // remote is opened via the launcher's QR code, since that URL
       // is http://<LAN-IP> — a different origin from the installed
@@ -1062,7 +1062,7 @@
     btn.addEventListener("pointerdown", down);
     btn.addEventListener("pointerup", up);
     btn.addEventListener("pointercancel", up);
-    // v2.14.12 — Removed pointerleave here.  Android Chrome fires
+    // v2.14.14 — Removed pointerleave here.  Android Chrome fires
     // pointerleave as soon as the finger drifts a pixel or two,
     // which was cancelling the long-press timer on the OK button
     // (the 550 ms hold-to-favourite that the operator asked for).

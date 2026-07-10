@@ -1550,6 +1550,50 @@ let _activeStoreId = null;
         });
     }
 
+    // v2.14.14 — GitHub sync settings form (no SSH required to
+    // configure the repo/token that the "Sync latest" button uses).
+    (async function initGhSyncForm(){
+        const repoIn  = document.getElementById('ghSyncRepo');
+        const tokIn   = document.getElementById('ghSyncToken');
+        const tagIn   = document.getElementById('ghSyncTag');
+        const assetIn = document.getElementById('ghSyncAsset');
+        const saveBtn = document.getElementById('ghSyncSave');
+        const status  = document.getElementById('ghSyncSaveStatus');
+        if (!saveBtn) return;
+        try {
+            const cfg = await api('/api/admin/github-sync-config');
+            if (repoIn)  repoIn.value  = cfg.repo  || '';
+            if (tagIn)   tagIn.value   = cfg.tag   || '';
+            if (assetIn) assetIn.value = cfg.asset || '';
+            if (tokIn && cfg.has_token) tokIn.placeholder = 'Existing: ' + (cfg.token_hint || '****');
+        } catch (e) { /* first-run: no config yet */ }
+        saveBtn.addEventListener('click', async () => {
+            saveBtn.disabled = true;
+            status.style.color = '#5DC8FF';
+            status.textContent = 'Saving…';
+            try {
+                await api('/api/admin/github-sync-config', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        repo:  repoIn  ? repoIn.value.trim()  : '',
+                        token: tokIn   ? tokIn.value.trim()   : '',
+                        tag:   tagIn   ? tagIn.value.trim()   : '',
+                        asset: assetIn ? assetIn.value.trim() : '',
+                    }),
+                });
+                status.style.color = '#4ade80';
+                status.textContent = 'Saved. You can now click "Sync latest from GitHub".';
+                if (tokIn) tokIn.value = '';
+            } catch (e) {
+                status.style.color = '#fca5a5';
+                status.textContent = 'Save failed: ' + (e.message || e);
+            } finally {
+                saveBtn.disabled = false;
+            }
+        });
+    })();
+
+
     ['dragenter', 'dragover'].forEach((ev) =>
         zone.addEventListener(ev, (e) => {
             e.preventDefault();
