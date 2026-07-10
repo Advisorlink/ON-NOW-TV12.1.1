@@ -68,15 +68,15 @@ class WhatsOnSportAdapter(
             count.text = "LIVE · ${row.count}"
 
             // Full-colour 3D sport images — never tint the icon
-            // itself, only wash the backing disc with the bucket
-            // colour at ~30% alpha so the image stays vivid.
+            // itself.  All discs share the same solid deep-blue
+            // backdrop so the vivid 3D images pop against a
+            // consistent chip colour across the whole row.
             icon.clearColorFilter()
+            // Deep navy blue, fully opaque.
+            disc.setColorFilter(0xFF0B2447.toInt(), PorterDuff.Mode.SRC_IN)
             if (row.id == null) {
-                disc.setColorFilter(0x4DFF6A38, PorterDuff.Mode.SRC_IN)
                 icon.setImageResource(R.drawable.img_sport_trophy)
             } else {
-                val c = LiveSportsClassifier.colorOf(row.id)
-                disc.setColorFilter((c and 0x00FFFFFF) or 0x4D000000, PorterDuff.Mode.SRC_IN)
                 icon.setImageResource(LiveSportsClassifier.iconOf(row.id))
             }
 
