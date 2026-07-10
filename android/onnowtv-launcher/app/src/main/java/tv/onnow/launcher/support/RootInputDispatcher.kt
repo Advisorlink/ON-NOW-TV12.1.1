@@ -84,6 +84,23 @@ object RootInputDispatcher {
     @Volatile private var probed = false
     private val probeLock = Any()
 
+    // v2.14.1 — Persistent BINARY pipe into the mouse node.  The
+    // sendevent path spawned THREE processes per motion frame
+    // (~100 spawns/sec while dragging) which a slow HK1 executes far
+    // slower than the phone produces them — the queue backed up for
+    // seconds, then kept replaying stale deltas after the finger
+    // stopped (the operator's "5 seconds late, then overshoots" lag).
+    // Instead we hold one root `cat > /dev/input/eventN` child and
+    // write raw struct input_event frames to its stdin: ONE write
+    // syscall per frame, effectively 1:1 with the finger.
+    @Volatile private var mousePipeProc: Process? = null
+    @Volatile private var mousePipeOs: java.io.OutputStream? = null
+    private val pipeLock = Any()
+    // struct input_event size follows the bitness of the WRITER
+    // process (`cat`, a system binary = the device's primary ABI):
+    // 64-bit → 8+8+2+2+4 = 24 bytes; 32-bit → 4+4+2+2+4 = 16 bytes.
+    private val EV_SIZE = if (Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()) 24 else 16
+
     @Volatile private var cursorX: Int = -1
     @Volatile private var cursorY: Int = -1
 
@@ -222,6 +239,7 @@ object RootInputDispatcher {
 
     /** Close the persistent shell.  Call from Activity.onDestroy. */
     fun shutdown() {
+        closeMousePipe()
         synchronized(shellLock) {
             try { shellWriter?.write("exit\n"); shellWriter?.flush() } catch (_: Throwable) {}
             try { shellWriter?.close() } catch (_: Throwable) {}
@@ -327,15 +345,93 @@ object RootInputDispatcher {
         return null
     }
 
+    // ─── Binary evdev pipe (fast path) ─────────────────────────────
+
+    /** Serialize input_event structs (little-endian ARM). */
+    private fun evFrame(events: Array<IntArray>): ByteArray {
+        val buf = java.nio.ByteBuffer.allocate(EV_SIZE * events.size)
+            .order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        for (e in events) {
+            if (EV_SIZE == 24) { buf.putLong(0L); buf.putLong(0L) }
+            else { buf.putInt(0); buf.putInt(0) }
+            buf.putShort(e[0].toShort())   // type
+            buf.putShort(e[1].toShort())   // code
+            buf.putInt(e[2])               // value (signed)
+        }
+        return buf.array()
+    }
+
+    /** Open the persistent root `cat > node` pipe (idempotent). */
+    private fun ensureMousePipe(dev: String): java.io.OutputStream? {
+        synchronized(pipeLock) {
+            val cur = mousePipeOs
+            if (cur != null && mousePipeProc?.isAlive == true) return cur
+            closeMousePipeLocked()
+            return try {
+                val p = ProcessBuilder("su").redirectErrorStream(true).start()
+                val os = p.outputStream
+                os.write("exec cat > $dev\n".toByteArray())
+                os.flush()
+                Thread.sleep(60)
+                if (!p.isAlive) {
+                    try { p.destroy() } catch (_: Throwable) {}
+                    Log.w(TAG, "mouse pipe su/cat died at open")
+                    null
+                } else {
+                    mousePipeProc = p
+                    mousePipeOs = os
+                    Log.i(TAG, "mouse pipe open → $dev (ev_size=$EV_SIZE)")
+                    os
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "mouse pipe open failed", t)
+                null
+            }
+        }
+    }
+
+    private fun closeMousePipeLocked() {
+        try { mousePipeOs?.close() } catch (_: Throwable) {}
+        try { mousePipeProc?.destroy() } catch (_: Throwable) {}
+        mousePipeOs = null
+        mousePipeProc = null
+    }
+
+    private fun closeMousePipe() {
+        synchronized(pipeLock) { closeMousePipeLocked() }
+    }
+
+    /** Write one frame through the pipe.  Returns false so the caller
+     *  can fall back to `sendevent` when the pipe is unavailable. */
+    private fun pipeWrite(dev: String, events: Array<IntArray>): Boolean {
+        val os = ensureMousePipe(dev) ?: return false
+        return try {
+            synchronized(pipeLock) {
+                os.write(evFrame(events))
+                os.flush()
+            }
+            true
+        } catch (t: Throwable) {
+            Log.w(TAG, "mouse pipe write failed — falling back to sendevent", t)
+            closeMousePipe()
+            false
+        }
+    }
+
     /**
      * Relative mouse-motion frame into the HID mouse node:
      *   EV_REL(2) REL_X(0) dx · EV_REL(2) REL_Y(1) dy · EV_SYN(0) 0 0
-     * SIGNED decimals — toybox `sendevent` parses negatives natively.
+     * Fast path: raw binary write through the persistent root pipe.
+     * Fallback: `sendevent` with SIGNED decimals (toybox parses
+     * negatives natively).
      */
     private fun injectMouseRel(ctx: Context, dx: Int, dy: Int): Boolean {
         if (dx == 0 && dy == 0) return true
         probeMouse(ctx)
         val dev = mouseDevice ?: return false
+        if (pipeWrite(dev, arrayOf(
+                intArrayOf(2, 0, dx), intArrayOf(2, 1, dy), intArrayOf(0, 0, 0),
+            ))) return true
         writeShellLine("sendevent $dev 2 0 $dx;sendevent $dev 2 1 $dy;sendevent $dev 0 0 0")
         return true
     }
@@ -345,6 +441,7 @@ object RootInputDispatcher {
         probeMouse(ctx)
         val dev = mouseDevice ?: return false
         val v = if (pressed) 1 else 0
+        if (pipeWrite(dev, arrayOf(intArrayOf(1, 272, v), intArrayOf(0, 0, 0)))) return true
         writeShellLine("sendevent $dev 1 272 $v;sendevent $dev 0 0 0")
         return true
     }

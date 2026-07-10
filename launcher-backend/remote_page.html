@@ -882,11 +882,11 @@
     var SENS = 2.4;                 // TV pixels per pad pixel
     var active = false, lastSent = 0, downAt = 0, downX = 0, downY = 0, lastX = 0, lastY = 0, moved = false;
     var longTimer = null, twoFingerAt = 0;
-    // v2.13.23 — deltas ACCUMULATE between throttled sends (they were
-    // silently dropped before, so the TV cursor moved far less than
-    // the finger).  30 ms cadence keeps a slow HK1-class box ahead of
-    // the sendevent stream instead of queueing behind it.
-    var accX = 0, accY = 0, SEND_EVERY = 30;
+    // v2.14.1 — deltas ACCUMULATE between throttled sends and the
+    // cadence is 20 ms (~50 Hz): the box now sinks frames through a
+    // binary evdev pipe (one syscall per frame), so it comfortably
+    // keeps up and the TV cursor tracks the finger ~1:1.
+    var accX = 0, accY = 0, SEND_EVERY = 20;
     function paint(px, py){
       // px, py are pad-local pixels; keep the preview dot pinned
       // to the finger for visual feedback.
@@ -946,6 +946,11 @@
       active = false;
       pad.classList.remove("active");
       if (longTimer){ clearTimeout(longTimer); longTimer = null; }
+      // Flush any residual sub-threshold motion so the cursor lands
+      // exactly where the finger stopped.
+      var rdx = Math.round(accX), rdy = Math.round(accY);
+      if (rdx || rdy) send({ action: "mouse_move", dx: rdx, dy: rdy });
+      accX = 0; accY = 0;
       var quick = (performance.now() - downAt) < 260;
       if (quick && !moved){
         var wasTwoFinger = (performance.now() - twoFingerAt) < 400;

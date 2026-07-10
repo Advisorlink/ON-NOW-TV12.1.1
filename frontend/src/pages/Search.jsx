@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Loader2, Search as SearchIcon, Mic, MicOff, ArrowRight } from 'lucide-react';
 import SideNav from '@/components/SideNav';
 import KidsSideNav from '@/components/KidsSideNav';
@@ -37,6 +37,77 @@ export default function Search() {
     const [voiceError, setVoiceError] = useState('');
     const inputRef = useRef(null);
     const voiceAvailable = Host.isVoiceSearchAvailable();
+
+    // Live refs so the phone-remote keydown bridge below never acts
+    // on stale state.
+    const qRef = useRef(q);
+    qRef.current = q;
+
+    // v2.14.1 — Phone-remote bridge, part 1: this page has NO real
+    // <input> (typing goes through TVKeyboard), so the global
+    // focusin keyboard detector never fires here.  Tell the native
+    // shell directly that text entry is wanted while the search hero
+    // is on screen — a paired phone remote pops its keyboard sheet
+    // the moment the user lands on Search.
+    const heroVisible = (!searched) || (!kids && results.length === 0);
+    useEffect(() => {
+        try { window.OnNowTV?.onKeyboardNeeded?.(!!heroVisible); } catch { /* no shell */ }
+    }, [heroVisible]);
+    useEffect(() => () => {
+        try { window.OnNowTV?.onKeyboardNeeded?.(false); } catch { /* no shell */ }
+    }, []);
+
+    // v2.14.1 — Phone-remote bridge, part 2: characters typed on the
+    // phone arrive as synthesized Android key events (`input text` /
+    // KEYCODE_DEL / KEYCODE_ENTER) which surface as DOM keydowns with
+    // no editable target.  Route them straight into the query so
+    // remote typing works with zero on-screen focus dance.
+    const doSearchRef = useRef(null);
+    useEffect(() => {
+        const isEditable = (el) =>
+            !!el && el.nodeType === 1 &&
+            (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable === true);
+        let lastRemoteCharAt = 0;
+        // While this page holds typed text, Backspace means "delete a
+        // character" — useBackHandler consults this guard before
+        // treating it as BACK.
+        window.__vesperTypingGuard = () => (qRef.current || '').length > 0;
+        const onKeyDown = (e) => {
+            if (isEditable(e.target)) return;             // a real input owns it
+            if (e.ctrlKey || e.altKey || e.metaKey) return;
+            if (e.key === 'Backspace') {
+                if ((qRef.current || '').length === 0) return; // empty → BACK
+                e.preventDefault();
+                e.stopPropagation();
+                lastRemoteCharAt = Date.now();
+                setQ((v) => v.slice(0, -1));
+                return;
+            }
+            if (e.key === 'Enter') {
+                // Only hijack Enter as "run the search" right after
+                // remote typing — a plain D-pad OK on a tile/key keeps
+                // its normal click behaviour.
+                if (Date.now() - lastRemoteCharAt < 6000 &&
+                    qRef.current.trim().length >= 2) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    doSearchRef.current?.();
+                }
+                return;
+            }
+            if (e.key.length === 1) {
+                e.preventDefault();
+                e.stopPropagation();
+                lastRemoteCharAt = Date.now();
+                setQ((v) => (v + e.key).slice(0, 80));
+            }
+        };
+        document.addEventListener('keydown', onKeyDown, true);
+        return () => {
+            document.removeEventListener('keydown', onKeyDown, true);
+            if (window.__vesperTypingGuard) delete window.__vesperTypingGuard;
+        };
+    }, []);
 
     const searchable = addons.flatMap((a) =>
         (a.catalogs || [])
@@ -153,7 +224,7 @@ export default function Search() {
     };
 
     const doSearch = async (raw) => {
-        const query = (raw ?? q).trim();
+        const query = (raw ?? qRef.current).trim();
         if (query.length < 2) return;
         setBusy(true);
         setSearched(true);
@@ -181,6 +252,7 @@ export default function Search() {
         setResults(out);
         setBusy(false);
     };
+    doSearchRef.current = doSearch;
 
     const onInputKeyDown = (e) => {
         if (e.key === 'Enter') {

@@ -295,6 +295,25 @@ async def _deliver_input(sess: RemoteSession, payload: dict) -> None:
         except Exception:
             sess.host_ws = None
     sess.input_seq += 1
+    # v2.14.1 — Coalesce queued trackpad deltas.  When the box socket
+    # is down, motion frames pile up in pending_inputs and the long-
+    # poll later replays EVERY stale delta — the cursor "catches up"
+    # seconds after the finger stopped and overshoots.  Summing
+    # consecutive relative moves into one entry keeps the queue tiny
+    # and the replayed motion equal to the NET finger travel.
+    if (
+        payload.get("action") == "mouse_move"
+        and "dx" in payload
+        and sess.pending_inputs
+    ):
+        last = sess.pending_inputs[-1]["payload"]
+        if last.get("action") == "mouse_move" and "dx" in last:
+            last["dx"] = max(-2000, min(2000, last["dx"] + payload["dx"]))
+            last["dy"] = max(-2000, min(2000, last["dy"] + payload["dy"]))
+            ev = _input_events.get(sess.session_id)
+            if ev is not None:
+                ev.set()
+            return
     sess.pending_inputs.append({"seq": sess.input_seq, "payload": payload})
     if len(sess.pending_inputs) > MAX_PENDING_INPUTS:
         sess.pending_inputs = sess.pending_inputs[-MAX_PENDING_INPUTS:]

@@ -1,5 +1,19 @@
 # ON NOW TV V2 — PRD
-> **🔴→🟢 v2.14.0 — Phone Remote CRITICAL FIX + reliable launcher self-update (Jun 2026). LANDED IN CODE (previous note was documented but never actually applied — code still had `cmd input` + hanging `getevent`).**
+> **🔴→🟢 v2.14.1 — Trackpad made ~1:1 (binary evdev pipe) + Search phone-typing bridge (Jun 2026).**
+>
+> Operator report: "Mouse is way too sluggish — moves 5 seconds late then overshoots. Needs to be 1:1 with the finger. Also text boxes aren't working — Search in Vesper should auto-focus so typing lands."
+>
+> **Mouse lag/overshoot root cause:** every motion frame spawned THREE `sendevent` processes (~100 spawns/sec) which the HK1 executes slower than the phone produces → queue backlog (the 5 s delay) that kept replaying stale deltas after the finger stopped (the overshoot). **Fixes:**
+> 1. `RootInputDispatcher` now holds ONE root `cat > /dev/input/eventN` child and writes raw binary `struct input_event` frames (24-byte on 64-bit ABI firmware, 16-byte on 32-bit) — one syscall per frame; `sendevent` kept only as fallback if the pipe dies.
+> 2. `phone_remote.py::_deliver_input` coalesces consecutive QUEUED `mouse_move` deltas into one net delta (verified: 30-frame burst → 1 entry, keys preserved) so the long-poll path can never replay stale motion.
+> 3. `remote_page.html`: 20 ms cadence + residual-delta flush on finger-up.
+>
+> **Search typing root cause:** Vesper's Search page has NO real `<input>` (display div + TVKeyboard) so the global focusin keyboard bridge never fired and remote-typed chars landed nowhere. **Fixes (`Search.jsx`):**
+> 1. Signals `window.OnNowTV.onKeyboardNeeded(true)` while the search hero is visible → paired phone auto-opens its keyboard sheet on entering Search.
+> 2. Document-level keydown bridge: printable chars append to the query, Backspace deletes (via a `window.__vesperTypingGuard` consulted by `useBackHandler` — Backspace deletes while text exists, acts as BACK once empty), Enter within 6 s of remote typing runs the search.
+> **Browser-verified end-to-end:** typed "batmanx" with nothing focused → query shows it; Backspace → "batman" (stayed on page); Enter → search ran.
+>
+> **v2.14.0 (same session) — Phone Remote CRITICAL FIX + reliable launcher self-update:**
 >
 > Operator report: "Connected but can't control anything — back/home do nothing. Trackpad just shows a blue dot on the phone, nothing on the TV. And it won't let me install it as an app anymore. Also STILL sometimes won't let me update the launcher."
 >

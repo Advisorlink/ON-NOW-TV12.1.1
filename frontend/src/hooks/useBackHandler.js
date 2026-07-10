@@ -36,6 +36,19 @@ export default function useBackHandler(onBack) {
             if (e.key === 'Backspace' && (tag === 'INPUT' || tag === 'TEXTAREA')) {
                 return;
             }
+            // v2.14.1 — Pages without a real <input> (Search) register
+            // a typing guard while remote-typed text is present:
+            // Backspace then DELETES a character instead of navigating
+            // back.  Once the query is empty it falls through here and
+            // BACK behaves normally.  Escape is never guarded.
+            if (e.key === 'Backspace') {
+                try {
+                    if (typeof window.__vesperTypingGuard === 'function' &&
+                        window.__vesperTypingGuard()) {
+                        return;
+                    }
+                } catch { /* guard never blocks BACK on error */ }
+            }
             e.preventDefault();
             e.stopPropagation();
             if (typeof onBack === 'function') {
