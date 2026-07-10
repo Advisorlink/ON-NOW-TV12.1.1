@@ -478,6 +478,49 @@
 
 <div class="toast" id="toast" data-testid="toast"></div>
 
+<!-- v2.14.9 — Visible version stamp.  Tiny, dim, bottom-right corner.
+     Two purposes:
+       1. Instant proof that the phone loaded the LATEST HTML.  If the
+          stamp says "v2.14.9" you're on the new code; if it says
+          nothing or an old number, the VPS is still serving stale.
+       2. Auto-refresh guard: if the SW is intercepting and serving a
+          stale page, this script waits 3 s then calls a version
+          endpoint on the backend; if the endpoint reports a NEWER
+          version than the one embedded in this page, we force a hard
+          reload with cache-bust, bypassing SW + Cloudflare + browser
+          cache all at once.                                          -->
+<div id="verStamp" style="position:fixed;right:8px;bottom:8px;font:11px/1 ui-monospace,monospace;color:rgba(255,255,255,.28);pointer-events:none;z-index:200;letter-spacing:.05em;" data-testid="version-stamp">v2.14.9</div>
+<script>
+(function(){
+  var PAGE_VER = "v2.14.9";
+  // Ask the server what version IT is currently serving.  If the
+  // server says a NEWER version, we're stuck on a cached copy —
+  // reload hard with a cache-busting query param.
+  function checkVersion(){
+    fetch("remote-version?_=" + Date.now(), { cache: "no-store" })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(j){
+        if (!j || !j.version) return;
+        var stamp = document.getElementById("verStamp");
+        if (j.version !== PAGE_VER){
+          // Server has moved on — force a fresh copy right now.
+          if (stamp) stamp.textContent = "reloading…";
+          setTimeout(function(){
+            location.replace(location.pathname + "?v=" + encodeURIComponent(j.version));
+          }, 300);
+        } else if (stamp) {
+          stamp.textContent = PAGE_VER + "\u2003ok";
+        }
+      })
+      .catch(function(){ /* ignore — offline is fine */ });
+  }
+  setTimeout(checkVersion, 3000);
+  // Recheck every 60 s so a fresh push reaches the phone even if it
+  // sits open in the background.
+  setInterval(checkVersion, 60000);
+})();
+</script>
+
 <script>
 (function(){
   "use strict";

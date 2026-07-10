@@ -711,6 +711,34 @@ def phone_remote_manifest():
     )
 
 
+
+# v2.14.9 — Live version marker.  The phone remote page fetches this
+# every 60 s; when it sees a NEWER version than the one embedded in
+# its HTML, it force-reloads with a cache-bust query — this is the
+# operator's "how do I know if the VPS is running my latest code?"
+# diagnostic and also an auto-refresh guard against stale cached
+# pages served by Cloudflare or the browser cache.
+#
+# Bump `REMOTE_PAGE_VERSION` in lock-step with the `v2.14.X` marker
+# hard-coded at the top of `remote_page.html` so the two agree.
+REMOTE_PAGE_VERSION = "v2.14.9"
+
+
+@app.get("/remote-version")
+def phone_remote_version() -> dict:
+    """Cheap heartbeat endpoint that returns the current
+    launcher-backend build's remote-page version + the file mtime.
+    Consumed by the version stamp + auto-refresh script embedded in
+    /remote."""
+    import os
+    try:
+        mtime = int(os.path.getmtime(_REMOTE_PAGE_PATH))
+    except Exception:
+        mtime = 0
+    return {"version": REMOTE_PAGE_VERSION, "mtime": mtime}
+
+
+
 @app.get("/remote-sw.js")
 def phone_remote_service_worker():
     """v2.14.3 — Minimal service worker for the phone remote.
