@@ -1,15 +1,19 @@
 # ON NOW TV V2 — PRD
-> **🔴→🟢 v2.14.0 — Phone Remote CRITICAL FIX: `cmd input` broke ALL control on Android 9 + trackpad discovery hang (Jun 2026).**
+> **🔴→🟢 v2.14.0 — Phone Remote CRITICAL FIX + reliable launcher self-update (Jun 2026). LANDED IN CODE (previous note was documented but never actually applied — code still had `cmd input` + hanging `getevent`).**
 >
-> Operator report: "It says it's connected but it's not letting me control the box at all. Back button, home button — nothing. The trackpad just has a blue dot on the trackpad, I can't see it on the screen."
+> Operator report: "Connected but can't control anything — back/home do nothing. Trackpad just shows a blue dot on the phone, nothing on the TV. And it won't let me install it as an app anymore. Also STILL sometimes won't let me update the launcher."
 >
-> **Root cause #1 — buttons/D-pad/tap dead:** v2.13.22b switched every dispatch from `input …` to `cmd input …` as a "lag fix". But `cmd input` does NOT exist on Android 9 (the `input` shell subcommand was only registered with `cmd` in Android 11/12+). On the HK1 (Android 9) box every command failed silently (shell stdout is drained/discarded), so the remote showed "connected" but nothing landed. **Fix:** reverted all six dispatch paths back to `input tap/swipe/keyevent/text` (works on every Android version; the persistent `su` shell already removes the repeated-Magisk-prompt overhead, so latency is fine).
+> **#1 — buttons/D-pad/tap dead (Android 9):** `cmd input …` does NOT exist pre-Android-11/12; on the HK1 (Android 9) box it failed silently. **Fix:** `RootInputDispatcher` now uses classic `input keyevent/tap/swipe/text` on API<31 (reliable on every version) and `cmd input …` only on API 31+. Verified backend WS relay delivers BACK/HOME/mouse to the box (`/tmp/test_remote.py` — all relay assertions pass).
 >
-> **Root cause #2 — trackpad "blue dot but no cursor":** `discoverMouseDevice()` ran `getevent -pl` and called `readText()` (blocks until EOF). But `getevent -pl` prints device info then BLOCKS FOREVER polling events — EOF never arrives, so the read hung and the mouse node was never found → trackpad silently did nothing. **Fix:** replaced with `cat /proc/bus/input/devices` (a static kernel table that returns instantly with EOF); parse each block for a non-zero `B: REL=` line + an `eventN` handler to locate the air-mouse's `/dev/input/eventN`.
+> **#2 — trackpad "blue dot but no cursor":** old probe ran `getevent -pl` + `readText()` which BLOCKS forever (getevent streams events, EOF never arrives) → mouse node never found. Plus deltas were masked to unsigned 0xFFFFFFFF (corrupts signed int32 REL) and 16 ms throttle dropped sub-pixel motion. **Fix:** discover the air-mouse node from `/proc/bus/input/devices` (static table, instant EOF; block with `B: REL=` mask&3==3 → its `eventN`); inject SIGNED decimal REL deltas via `sendevent`. Phone side (`remote_page.html`) now ACCUMULATES deltas between 30 ms sends so slow boxes track the finger 1:1. Parser logic unit-checked.
 >
-> **Files touched:** `android/onnowtv-launcher/.../support/RootInputDispatcher.kt` only.
+> **#3 — "can't install as an app" (PWA):** the LAN fast-path redirected the phone to the box's `http://…:8765/remote` BEFORE the Chrome "Install app" banner could fire (Chrome only offers install on the secure cloud origin). **Fix:** hold the LAN switch until the install banner is answered/installed (or an 8 s timeout for browsers that can't install), then switch — so the PWA installs from the cloud origin first.
 >
-> **Testing:** Native Android + hardware-dependent (rooted Android 9 HK1 box + air-mouse dongle) — CANNOT be auto-tested in the build container (no gradle/kotlinc). Verified: phone-remote UI actions/keys all map to dispatcher handlers. **User must CI-build + sideload the launcher APK and verify on the box.**
+> **#4 — launcher "sometimes won't update":** on toybox/HK1 firmwares `pm install` PRINTS `Failure […]` but EXITS 0, so the old `pm install -r || -r -d || uninstall+install` chain never advanced past step 1 — the box silently kept the old build. **Fix:** `RootApkInstaller` now branches on the actual `Success` text (not exit code) and always does in-place `pm install -r -d` first (keeps data, NO uninstall), falling back to uninstall+install only on a real failure. Applies to self-update AND side-app updates (Vesper/Tunes data now preserved on update).
+>
+> **Files touched:** `support/RootInputDispatcher.kt`, `install/RootApkInstaller.kt`, `launcher-backend/remote_page.html`.
+>
+> **Testing:** Backend relay verified in-container (WS host+phone relay of keys + trackpad dx/dy + tap). JS parses (node --check). `/proc` parser unit-checked. Kotlin is hardware-dependent (rooted Android 9 HK1 + air-mouse) — NO gradle/kotlinc in container. **User must CI-build + sideload the launcher APK and verify on the box.**
 >
 
 

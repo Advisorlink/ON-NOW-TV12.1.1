@@ -1,41 +1,47 @@
 package tv.onnow.launcher.support
 
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import org.json.JSONObject
 import java.io.BufferedWriter
+import java.io.File
 import java.io.OutputStreamWriter
 
 /**
- * v2.10.89 — Persistent-shell remote-input dispatcher.
+ * v2.14.0 — Persistent-shell remote-input dispatcher.
  *
- * Why this exists
- * ---------------
- * The previous implementation called `Runtime.exec("su", "-c", cmd)`
- * for EVERY input event.  On Magisk/SuperSU boxes that meant a fresh
- * superuser permission prompt could flash up for each key press, and
- * the dispatched process could exit before the `input` command had
- * actually landed.  The operator's screen showed "connected" but the
- * customer's TV wasn't responding to the D-pad.
+ * One long-lived `su` shell is opened at session start (single Magisk
+ * prompt); every input is a line written to its stdin.
  *
- * New design: open ONE long-lived `su` shell at the start of the
- * support session.  Inputs are written to its stdin as plain shell
- * lines.  The customer sees the Magisk prompt exactly once (if at
- * all), and every subsequent command lands instantly via the same
- * pipe.  When the session ends (Activity.onDestroy) the shell is
- * closed cleanly.
+ * Key dispatch (the "nothing works on the HK1 box" fix)
+ * -----------------------------------------------------
+ * A previous "lag fix" switched every dispatch to `cmd input …`.  But
+ * the `input` subcommand was only registered with `cmd` in Android
+ * 11/12 — on Android 9 (the operator's HK1 box) `cmd input …` fails
+ * silently (shell stdout is drained/discarded), so the remote showed
+ * "connected" while NOTHING landed.
  *
- * Supported actions
- * -----------------
- *  • tap   {x:0..1, y:0..1}         — normalised to screen size
- *  • swipe {x1,y1,x2,y2,ms}         — normalised
- *  • key   {key:"DPAD_UP"|"BACK"|…} — Android keycode names
- *  • text  {chars:"foo bar"}        — types into focused field
+ *   • API 31+  → `cmd input …`  (~30 ms, no JVM spawn)
+ *   • API <31  → classic `input …` binary — works on every Android
+ *                version.  Slightly slower (spawns app_process) but
+ *                RELIABLE, which beats a dead remote.
  *
- * Failures are silent (logged to logcat).
+ * Trackpad (`mouse_*`)
+ * --------------------
+ * The air-mouse dongle enumerates a relative-pointer input node.  We
+ * discover it from `/proc/bus/input/devices` (a static kernel table
+ * that reads instantly with EOF — the old `getevent -pl` probe BLOCKED
+ * forever polling events, so the mouse node was never found and the
+ * trackpad's on-phone dot moved while the TV cursor didn't).  We then
+ * inject relative `REL_X`/`REL_Y` frames with `sendevent` using SIGNED
+ * decimals (the previous unsigned-0xFFFFFFFF masking corrupted the
+ * deltas — `event.value` is a signed int32, so left/up = negative).
  */
 object RootInputDispatcher {
     private const val TAG = "RootInput"
+
+    private val CMD_INPUT_OK = Build.VERSION.SDK_INT >= 31
 
     private val KEY_ALIAS = mapOf(
         "DPAD_UP" to "DPAD_UP",
@@ -72,38 +78,24 @@ object RootInputDispatcher {
     @Volatile private var shellWriter: BufferedWriter? = null
     private val shellLock = Any()
 
-    // v2.13.22 — Mouse HID device auto-discovery for the phone
-    // trackpad on Android 7-11 (HK1-class boxes).  Populated the
-    // first time a `mouse_*` action arrives.  Any device that
-    // enumerates an `EV_REL` capability in `getevent -pl` is a
-    // pointer device (physical air-mouse dongle, USB mouse, etc.).
-    // We inject `sendevent` REL_X/REL_Y/SYN_REPORT triples into
-    // that node — Android's input reader adds them to whatever the
-    // real air-mouse is emitting, so a cursor already visible on
-    // screen just moves.  `null` = we tried and found nothing (the
-    // fallback `cmd input tap` path handles clicks positionally).
+    // Discovered relative-pointer node (air-mouse dongle) for the
+    // trackpad.  Probed once from /proc/bus/input/devices, cached.
     @Volatile private var mouseDevice: String? = null
-    @Volatile private var mouseDeviceProbed: Boolean = false
+    @Volatile private var probed = false
+    private val probeLock = Any()
 
-    /** Open a persistent root shell.  Idempotent — calling again
-     *  when one is already running is a no-op.  Returns true if a
-     *  usable shell is available afterwards. */
+    @Volatile private var cursorX: Int = -1
+    @Volatile private var cursorY: Int = -1
+
+    /** Open a persistent root shell.  Idempotent. */
     fun ensureShell(): Boolean {
         synchronized(shellLock) {
             if (shellWriter != null && shellProcess?.isAlive == true) return true
-            // Try `su` first (rooted box → 1 Magisk prompt, then
-            // unlimited commands).  Fallback to plain `sh` for
-            // firmwares that grant shell-as-system to apps anyway.
             val cmds = arrayOf(arrayOf("su"), arrayOf("sh"))
             for (cmd in cmds) {
                 try {
-                    val p = ProcessBuilder(*cmd)
-                        .redirectErrorStream(true)
-                        .start()
+                    val p = ProcessBuilder(*cmd).redirectErrorStream(true).start()
                     val w = BufferedWriter(OutputStreamWriter(p.outputStream))
-                    // Drain stdout in the background so a chatty
-                    // `input` (or a `su` welcome banner) doesn't
-                    // block the pipe.
                     Thread {
                         try {
                             p.inputStream.bufferedReader().use { r ->
@@ -112,9 +104,8 @@ object RootInputDispatcher {
                                     Log.v(TAG, "shell: $line")
                                 }
                             }
-                        } catch (_: Throwable) { /* */ }
+                        } catch (_: Throwable) { /* pipe closed */ }
                     }.also { it.isDaemon = true }.start()
-                    // Sanity-check the shell is alive.
                     w.write("echo onnow_shell_ready\n")
                     w.flush()
                     if (!p.isAlive) {
@@ -133,6 +124,10 @@ object RootInputDispatcher {
         }
     }
 
+    /** `cmd input …` on 31+, classic `input …` binary below. */
+    private fun inputCmd(args: String): String =
+        if (CMD_INPUT_OK) "cmd input $args" else "input $args"
+
     fun handle(ctx: Context, msg: JSONObject) {
         val action = msg.optString("action").lowercase()
         if (!ensureShell()) {
@@ -145,7 +140,7 @@ object RootInputDispatcher {
                     val (sw, sh) = screenSize(ctx)
                     val x = (msg.optDouble("x") * sw).toInt().coerceIn(0, sw - 1)
                     val y = (msg.optDouble("y") * sh).toInt().coerceIn(0, sh - 1)
-                    writeShellLine("input tap $x $y")
+                    writeShellLine(inputCmd("tap $x $y"))
                 }
                 "swipe" -> {
                     val (sw, sh) = screenSize(ctx)
@@ -154,21 +149,15 @@ object RootInputDispatcher {
                     val x2 = (msg.optDouble("x2") * sw).toInt().coerceIn(0, sw - 1)
                     val y2 = (msg.optDouble("y2") * sh).toInt().coerceIn(0, sh - 1)
                     val ms = msg.optInt("ms", 250)
-                    writeShellLine("input swipe $x1 $y1 $x2 $y2 $ms")
+                    writeShellLine(inputCmd("swipe $x1 $y1 $x2 $y2 $ms"))
                 }
                 "key" -> {
-                    val keyName = msg.optString("key")
-                    val mapped = KEY_ALIAS[keyName] ?: keyName
-                    writeShellLine("input keyevent KEYCODE_$mapped")
+                    val mapped = KEY_ALIAS[msg.optString("key")] ?: msg.optString("key")
+                    writeShellLine(inputCmd("keyevent KEYCODE_$mapped"))
                 }
                 "longpress" -> {
-                    // Push-and-hold on the phone → long-press keyevent
-                    // on the box (e.g. long-press OK to add to Library
-                    // in Vesper).  `--longpress` is honoured by the
-                    // `input` command on all boxes we target.
-                    val keyName = msg.optString("key")
-                    val mapped = KEY_ALIAS[keyName] ?: keyName
-                    writeShellLine("input keyevent --longpress KEYCODE_$mapped")
+                    val mapped = KEY_ALIAS[msg.optString("key")] ?: msg.optString("key")
+                    writeShellLine(inputCmd("keyevent --longpress KEYCODE_$mapped"))
                 }
                 "text" -> {
                     val raw = msg.optString("chars")
@@ -177,73 +166,44 @@ object RootInputDispatcher {
                         .replace("\\", "\\\\")
                         .replace("\"", "\\\"")
                         .replace(" ", "%s")
-                    writeShellLine("input text \"$escaped\"")
+                    writeShellLine(inputCmd("text \"$escaped\""))
                 }
                 "mouse_move" -> {
-                    // v2.13.22 — Trackpad support.  Two dispatch paths:
-                    //   (a) If a real HID mouse is on the box (physical
-                    //       air-mouse dongle, USB mouse, etc.) we
-                    //       inject relative REL_X / REL_Y events into
-                    //       its /dev/input/eventN node via sendevent.
-                    //       Android's input reader adds them to the
-                    //       existing on-screen cursor position, so the
-                    //       air-mouse cursor already visible on screen
-                    //       just moves — pixel-for-pixel indistinguish-
-                    //       able from the physical remote.  Works on
-                    //       every Android version.
-                    //   (b) Fallback (no mouse device present):
-                    //       remember the absolute position server-side
-                    //       so an eventual `mouse_tap` lands there via
-                    //       `cmd input tap`.  Also attempts an Android
-                    //       12+ `input motionevent MOVE … MOUSE`
-                    //       (harmless on older Android — the shell
-                    //       just prints an error we drop to /dev/null).
                     val (sw, sh) = screenSize(ctx)
+                    initCursor(sw, sh)
                     val relDx = msg.optInt("dx", Int.MIN_VALUE)
                     val relDy = msg.optInt("dy", Int.MIN_VALUE)
                     if (relDx != Int.MIN_VALUE || relDy != Int.MIN_VALUE) {
-                        // Relative-motion payload (preferred for
-                        // real-mouse injection — no smoothing loss).
                         val dx = if (relDx == Int.MIN_VALUE) 0 else relDx
                         val dy = if (relDy == Int.MIN_VALUE) 0 else relDy
                         cursorX = (cursorX + dx).coerceIn(0, sw - 1)
                         cursorY = (cursorY + dy).coerceIn(0, sh - 1)
-                        injectMouseRel(dx, dy)
+                        injectMouseRel(ctx, dx, dy)
                     } else {
-                        // Absolute {x, y} normalised in [0..1].
                         val ax = (msg.optDouble("x") * sw).toInt().coerceIn(0, sw - 1)
                         val ay = (msg.optDouble("y") * sh).toInt().coerceIn(0, sh - 1)
                         val dx = ax - cursorX
                         val dy = ay - cursorY
                         cursorX = ax
                         cursorY = ay
-                        // Try relative injection into the real mouse
-                        // node first (so the visible cursor moves) —
-                        // if no device, `injectMouseRel` no-ops and
-                        // the position is still tracked for a later
-                        // `mouse_tap`.
-                        injectMouseRel(dx, dy)
+                        injectMouseRel(ctx, dx, dy)
                     }
                 }
                 "mouse_tap" -> {
-                    // Left-click at the current tracked cursor pos.
-                    // Prefer HID button injection into the real mouse
-                    // node (so it lands as MOUSE_LEFT, respected by
-                    // every app including ones that only listen for
-                    // true pointer clicks).  Falls back to
-                    // `cmd input tap` when no HID mouse is present.
-                    if (!injectMouseButton(true) || !injectMouseButton(false)) {
-                        writeShellLine("input tap $cursorX $cursorY")
+                    val (sw, sh) = screenSize(ctx)
+                    initCursor(sw, sh)
+                    if (!injectMouseButton(ctx, true) || !injectMouseButton(ctx, false)) {
+                        writeShellLine(inputCmd("tap $cursorX $cursorY"))
                     }
                 }
                 "mouse_longpress" -> {
-                    // 700 ms "press and hold" at the cursor — used
-                    // for context menus / drag-select behaviours.
-                    if (injectMouseButton(true)) {
-                        try { Thread.sleep(700) } catch (_: Throwable) {}
-                        injectMouseButton(false)
+                    val (sw, sh) = screenSize(ctx)
+                    initCursor(sw, sh)
+                    if (injectMouseButton(ctx, true)) {
+                        writeShellLine("sleep 0.7")
+                        injectMouseButton(ctx, false)
                     } else {
-                        writeShellLine("input swipe $cursorX $cursorY $cursorX $cursorY 700")
+                        writeShellLine(inputCmd("swipe $cursorX $cursorY $cursorX $cursorY 700"))
                     }
                 }
                 else -> Log.w(TAG, "unknown action: $action")
@@ -253,12 +213,12 @@ object RootInputDispatcher {
         }
     }
 
-    // v2.13.22 — Cursor position tracker for phone trackpad taps.
-    // Persists across events so `mouse_tap` lands at wherever the
-    // user last moved the pointer.  Initialised to screen centre in
-    // ensureShell() so a tap-without-move still lands somewhere sane.
-    @Volatile private var cursorX: Int = 0
-    @Volatile private var cursorY: Int = 0
+    private fun initCursor(sw: Int, sh: Int) {
+        if (cursorX < 0 || cursorY < 0) {
+            cursorX = sw / 2
+            cursorY = sh / 2
+        }
+    }
 
     /** Close the persistent shell.  Call from Activity.onDestroy. */
     fun shutdown() {
@@ -271,15 +231,12 @@ object RootInputDispatcher {
         }
     }
 
-    /** Write one shell command line + flush.  If the pipe is broken
-     *  (e.g. su daemon died) reopen and retry once. */
+    /** Write one shell command line + flush; reopen once on a broken pipe. */
     private fun writeShellLine(line: String) {
         synchronized(shellLock) {
             val w = shellWriter ?: return
             try {
-                w.write(line)
-                w.write("\n")
-                w.flush()
+                w.write(line); w.write("\n"); w.flush()
                 return
             } catch (t: Throwable) {
                 Log.w(TAG, "shell write failed, reopening: $line", t)
@@ -288,9 +245,7 @@ object RootInputDispatcher {
             }
             if (!ensureShell()) return
             try {
-                shellWriter?.write(line)
-                shellWriter?.write("\n")
-                shellWriter?.flush()
+                shellWriter?.write(line); shellWriter?.write("\n"); shellWriter?.flush()
             } catch (t: Throwable) {
                 Log.w(TAG, "shell write FAILED after reopen: $line", t)
             }
@@ -302,112 +257,93 @@ object RootInputDispatcher {
         return m.widthPixels to m.heightPixels
     }
 
-    // ─── HID mouse injection (v2.14.0) ─────────────────────────────
-    /**
-     * Auto-discover the `/dev/input/eventN` node of a relative-motion
-     * pointer device (physical air-mouse dongle, USB mouse, etc.) by
-     * reading the kernel's static `/proc/bus/input/devices` table.
-     *
-     * WHY NOT `getevent -pl`: that command prints device info and then
-     * BLOCKS forever polling for events, so `readText()` never sees
-     * EOF and the discovery thread hangs — the trackpad silently never
-     * finds a device.  `cat /proc/bus/input/devices` returns instantly
-     * with EOF and lists every device's capabilities.
-     *
-     * Format (blank-line separated blocks):
-     *   N: Name="USB Mouse"
-     *   H: Handlers=mouse0 event4
-     *   B: EV=17
-     *   B: REL=103          ← non-zero REL bitmask = pointer device
-     *
-     * We pick the first block that has a non-zero `B: REL=` line and an
-     * `eventN` handler.  Result cached; a negative result is cached too
-     * so we don't re-probe every trackpad frame.
-     */
-    private fun discoverMouseDevice(): String? {
-        if (mouseDevice != null) return mouseDevice
-        if (mouseDeviceProbed) return null
-        try {
-            val probe = ProcessBuilder("su", "-c", "cat /proc/bus/input/devices")
-                .redirectErrorStream(true).start()
-            val out = probe.inputStream.bufferedReader().readText()
-            probe.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)
+    // ─── HID mouse discovery via /proc/bus/input/devices ───────────
 
-            var eventNode: String? = null
-            var hasRel = false
-            var chosen: String? = null
-            fun flush() {
-                if (chosen == null && hasRel && eventNode != null) chosen = eventNode
-                eventNode = null
-                hasRel = false
+    private fun readProcInputDevices(ctx: Context): String {
+        // Usually world-readable — read directly, no root prompt.
+        try {
+            val f = File("/proc/bus/input/devices")
+            if (f.canRead()) {
+                val t = f.readText()
+                if (t.contains("event")) return t
             }
-            for (raw in out.lineSequence()) {
-                val line = raw.trim()
-                if (line.isEmpty()) { flush(); continue }
-                when {
-                    line.startsWith("H: Handlers=") -> {
-                        // e.g. "H: Handlers=mouse0 event4"
-                        Regex("event\\d+").find(line)?.let { m ->
-                            eventNode = "/dev/input/${m.value}"
-                        }
-                    }
-                    line.startsWith("B: REL=") -> {
-                        val v = line.substringAfter("B: REL=").trim()
-                        // Non-zero hex bitmask means the device emits
-                        // relative-motion (REL_X/REL_Y) events.
-                        if (v.isNotEmpty() && v.any { it != '0' }) hasRel = true
-                    }
+        } catch (_: Throwable) { /* fall through to shell */ }
+        return try {
+            val out = File(ctx.filesDir, "input_devices.txt")
+            out.delete()
+            writeShellLine("cat /proc/bus/input/devices > '${out.absolutePath}' 2>&1;chmod 644 '${out.absolutePath}'")
+            var text = ""
+            for (i in 0 until 12) {
+                Thread.sleep(200)
+                if (out.exists()) {
+                    text = out.readText()
+                    if (text.contains("event")) break
                 }
             }
-            flush()  // last block (file may not end with a blank line)
-
-            if (chosen != null) {
-                mouseDevice = chosen
-                Log.i(TAG, "HID mouse device discovered: $chosen")
-                mouseDeviceProbed = true
-                return chosen
-            }
-            Log.i(TAG, "no HID mouse device found; trackpad → input tap fallback")
+            text
         } catch (t: Throwable) {
-            Log.w(TAG, "mouse device probe failed", t)
+            Log.w(TAG, "proc input devices read failed", t)
+            ""
         }
-        mouseDeviceProbed = true
+    }
+
+    private fun probeMouse(ctx: Context) {
+        if (probed) return
+        synchronized(probeLock) {
+            if (probed) return
+            try {
+                mouseDevice = findRelativePointerNode(readProcInputDevices(ctx))
+            } catch (t: Throwable) {
+                Log.w(TAG, "mouse probe failed", t)
+            }
+            Log.i(TAG, "HID mouse probe done: $mouseDevice")
+            probed = true
+        }
+    }
+
+    /**
+     * Parse `/proc/bus/input/devices` blocks (separated by blank
+     * lines).  A relative-pointer device declares a non-zero `B: REL=`
+     * bitmask with REL_X(bit0)+REL_Y(bit1) set (mask & 3 == 3).  The
+     * `H: Handlers=` line names its `eventN` node.
+     */
+    private fun findRelativePointerNode(dump: String): String? {
+        for (block in dump.split(Regex("\\n[ \\t]*\\n"))) {
+            var event: String? = null
+            var isPointer = false
+            for (raw in block.lineSequence()) {
+                val line = raw.trim()
+                if (line.startsWith("H:")) {
+                    val m = Regex("event\\d+").find(line)
+                    if (m != null) event = m.value
+                } else if (line.startsWith("B: REL=")) {
+                    val hex = line.substringAfter("B: REL=").trim().split(Regex("\\s+")).lastOrNull()
+                    val mask = hex?.toLongOrNull(16) ?: 0L
+                    if (mask and 0x3L == 0x3L) isPointer = true
+                }
+            }
+            if (isPointer && event != null) return "/dev/input/$event"
+        }
         return null
     }
 
     /**
-     * Push a relative mouse-motion frame into the discovered HID
-     * mouse node.  Returns true if the write reached the shell.
-     * Silent no-op (and returns false) if no mouse device was found.
-     *
-     * Event structure (kernel input protocol):
-     *   EV_REL(2) REL_X(0)  dx
-     *   EV_REL(2) REL_Y(1)  dy
-     *   EV_SYN(0) SYN_REPORT(0) 0
-     * `sendevent` treats negative values as unsigned 32-bit ints, so
-     * we mask into 0xFFFFFFFF before dispatch.
+     * Relative mouse-motion frame into the HID mouse node:
+     *   EV_REL(2) REL_X(0) dx · EV_REL(2) REL_Y(1) dy · EV_SYN(0) 0 0
+     * SIGNED decimals — toybox `sendevent` parses negatives natively.
      */
-    private fun injectMouseRel(dx: Int, dy: Int): Boolean {
+    private fun injectMouseRel(ctx: Context, dx: Int, dy: Int): Boolean {
         if (dx == 0 && dy == 0) return true
-        val dev = discoverMouseDevice() ?: return false
-        val ux = (dx.toLong() and 0xFFFFFFFFL)
-        val uy = (dy.toLong() and 0xFFFFFFFFL)
-        // Batch as a single shell line so the three events land
-        // together (no partial frame reaches the input reader).
-        writeShellLine(
-            "sendevent $dev 2 0 $ux;sendevent $dev 2 1 $uy;sendevent $dev 0 0 0"
-        )
+        probeMouse(ctx)
+        val dev = mouseDevice ?: return false
+        writeShellLine("sendevent $dev 2 0 $dx;sendevent $dev 2 1 $dy;sendevent $dev 0 0 0")
         return true
     }
 
-    /**
-     * Press or release BTN_LEFT on the HID mouse.  Returns true if a
-     * mouse device was available.  BTN_LEFT (0x110 = 272) is the
-     * canonical left-click code; sync-report after each press so the
-     * input reader emits a matching MotionEvent.
-     */
-    private fun injectMouseButton(pressed: Boolean): Boolean {
-        val dev = discoverMouseDevice() ?: return false
+    /** Press/release BTN_LEFT (272) on the HID mouse node. */
+    private fun injectMouseButton(ctx: Context, pressed: Boolean): Boolean {
+        probeMouse(ctx)
+        val dev = mouseDevice ?: return false
         val v = if (pressed) 1 else 0
         writeShellLine("sendevent $dev 1 272 $v;sendevent $dev 0 0 0")
         return true

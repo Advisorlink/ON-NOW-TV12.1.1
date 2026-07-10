@@ -245,87 +245,55 @@ object RootApkInstaller {
             "am start -n \"$packageName/$mainActivity\""
         else
             ":"
+        // v2.13.23 — UNIFIED, upgrade-in-place install with a RESULT-
+        // TEXT check instead of exit-code branching.
+        //
+        // Root cause of the operator's "sometimes won't update" bug:
+        // on most HK1 / toybox firmwares `pm install` PRINTS
+        // `Failure [INSTALL_FAILED_…]` but still EXITS 0.  The old
+        // `pm install -r || pm install -r -d || …` chain therefore
+        // NEVER advanced to its fallback — the very first command
+        // "succeeded" (exit 0) while actually having installed
+        // nothing, so the box silently stayed on the old build even
+        // though the UI said "done".
+        //
+        // New logic:
+        //   1. `pm install -r -d` — IN-PLACE upgrade.  Keeps all app
+        //      data, needs NO uninstall.  `-d` means a same/older
+        //      versionCode is still accepted, so the update lands even
+        //      if CI didn't bump the code.  This is the ONLY step in
+        //      the normal case (matching signatures + monotonic code).
+        //   2. Only if the output does NOT contain "Success" (i.e. a
+        //      real signature-drift / incompatible failure) do we fall
+        //      back to a clean uninstall + install.  Safe: the APK was
+        //      staged to /data/local/tmp (survives the uninstall) and
+        //      this shell is a detached setsid root child (survives the
+        //      launcher being SIGKILLed).
+        // For a launcher SELF-update we then force-stop the old live
+        // process + relaunch so the NEW code actually loads.
         val script = buildString {
             append("(")
-            // v2.12.7 — Stage the APK to /data/local/tmp/ FIRST so
-            // uninstall of the target package can't nuke it.  If
-            // the copy fails (disk full, permission denied), ABORT
-            // the whole flow BEFORE `pm uninstall` runs — otherwise
-            // we'd end up with an uninstalled launcher and no APK
-            // to reinstall from.
+            // Stage to /data/local/tmp FIRST so uninstall of the target
+            // package (fallback path) can't nuke the APK mid-flight.
+            // Abort the whole flow if staging fails — never uninstall
+            // without a staged APK to reinstall from.
             append("cp \"$apkPath\" \"$tmpApkPath\" && chmod 644 \"$tmpApkPath\" && ")
             append("test -s \"$tmpApkPath\" && ")
             append("(")
+            if (relaunch) append("sleep 1 ; ")
+            // 1. In-place upgrade (no uninstall, keeps data).
+            append("OUT=\$(pm install -r -d \"$tmpApkPath\" 2>&1) ; ")
+            append("echo \"result: \$OUT\" ; ")
+            // 2. Fallback ONLY on a genuine failure (no "Success" text).
+            append("echo \"\$OUT\" | grep -qi success || ")
+            append("{ pm uninstall \"$packageName\" ; sleep 1 ; pm install \"$tmpApkPath\" ; } ; ")
             if (relaunch) {
-                // v2.13.0 — SELF-UPDATE (the launcher updating ITSELF),
-                // now with a ROBUST FALLBACK CHAIN.
-                //
-                // The old v2.12.11 path did ONLY `pm install -r` on the
-                // assumption that "signatures always match + versionCode
-                // always increases → -r is guaranteed accepted."  That
-                // assumption breaks in the field:
-                //   • the installed build may have been sideloaded with
-                //     a DIFFERENT key before the stable keystore existed
-                //     → `-r` fails INSTALL_FAILED_UPDATE_INCOMPATIBLE;
-                //   • some HK1 firmwares silently no-op `-r` unless `-d`
-                //     is passed.
-                // When `-r` failed there was NO fallback, so the box
-                // just stayed on the old version and the UI still said
-                // "restarting…" (the reported "won't update past 1.126"
-                // bug).
-                //
-                // New chain (each step only runs if the previous FAILED):
-                //   1. pm install -r        — in-place, keeps data (best)
-                //   2. pm install -r -d     — allow same/replace edge
-                //   3. pm uninstall + pm install — last resort for
-                //      signature drift.  SAFE here because the APK was
-                //      already staged to /data/local/tmp (survives the
-                //      uninstall) and this shell is a detached root
-                //      setsid child (survives the launcher being
-                //      SIGKILLed).  Box shows stock home for ~1-2s then
-                //      the new launcher installs + relaunches.
-                // Then force-stop the OLD live process + relaunch so the
-                // NEW code actually loads.
-                append("sleep 1 ; ")
-                append(
-                    "(pm install -r \"$tmpApkPath\" || " +
-                        "pm install -r -d \"$tmpApkPath\" || " +
-                        "(pm uninstall \"$packageName\" ; sleep 1 ; pm install \"$tmpApkPath\")) ; ",
-                )
-                append("sleep 1 ; ")
-                append("am force-stop \"$packageName\" ; ")
-                append("sleep 1 ; ")
+                append("sleep 1 ; am force-stop \"$packageName\" ; sleep 1 ; ")
                 append(relaunchCmd)
-            } else if (forceCleanInstall) {
-                // v2.12.2 — SIDE-APP update path (Vesper / Tunes / …).
-                // These aren't the running process, so uninstalling
-                // them is safe.  Nuke the old package first so Android
-                // CANNOT no-op the install when a side app carries its
-                // own (possibly drifted) keystore.  We ignore the
-                // uninstall exit code because on some firmwares
-                // `pm uninstall` returns non-zero even on success.
-                append("pm uninstall \"$packageName\" ; ")
-                // v2.12.7 — 1-second breather so PackageManager
-                // fully commits the uninstall before we try to
-                // install.  Without this, some HK1 firmwares race
-                // the two operations and the install returns
-                // INSTALL_FAILED_ALREADY_EXISTS.
-                append("sleep 1 ; ")
-                append("pm install \"$tmpApkPath\"")
             } else {
-                // Fresh install path.  Try -r -d first for cases where
-                // the caller was wrong about the "not installed" state
-                // (race with another install), then fall back to a
-                // clean uninstall+install if that fails.
-                append("pm install -r -d \"$tmpApkPath\"")
-                append(" || (pm uninstall \"$packageName\" && sleep 1 && pm install \"$tmpApkPath\")")
+                append(":")
             }
-            // Close the inner group.
             append(")")
-            // Clean up BOTH the tmp copy AND the original cache
-            // file (if the original still exists — for non-launcher
-            // updates the cache-dir survives, and for launcher
-            // updates it was already nuked by pm-uninstall).
             append(" ; rm -f \"$tmpApkPath\" \"$apkPath\"")
             append(") > $logPath 2>&1")
         }

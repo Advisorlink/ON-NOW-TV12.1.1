@@ -423,6 +423,22 @@
   var LS_KEY = "onnow_remote_v2";
   var LOCAL_TRY_KEY = "onnow_remote_local_try";
 
+  var A2HS_KEY = "onnow_a2hs_hint";
+  function isStandalone(){
+    try {
+      return (window.matchMedia &&
+        (matchMedia("(display-mode: standalone)").matches ||
+         matchMedia("(display-mode: fullscreen)").matches)) ||
+        window.navigator.standalone === true;
+    } catch(e){ return false; }
+  }
+  function a2hsSettled(){
+    try { return !!localStorage.getItem(A2HS_KEY); } catch(e){ return true; }
+  }
+  // Set when the LAN fast-path redirect is deferred so the user can
+  // still install the PWA from the secure cloud origin (v2.13.23).
+  var pendingLocalUrl = null;
+
   var sid = qs.get("s") || "";
   var code = qs.get("c") || "";
   var ws = null, wsOk = false, httpFallback = false, pollTimer = null;
@@ -503,20 +519,29 @@
         window.navigator.standalone === true;
     } catch(e){}
     if (standalone) return;
-    try { if (localStorage.getItem("onnow_a2hs_hint")) return; } catch(e){}
+    if (a2hsSettled()) return;
     var isIos = /iPhone|iPad|iPod/.test(navigator.userAgent);
-    var deferred = null;
+    var deferred = null, offered = false;
     var bar = $("a2hsBar"), txt = $("a2hsText"), act = $("a2hsAction");
-    function dismiss(){
+    function settle(){
+      // Marks the install question answered and releases the held
+      // LAN fast-path switch (v2.13.23).
       bar.classList.remove("show");
-      try { localStorage.setItem("onnow_a2hs_hint", "1"); } catch(e){}
+      try { localStorage.setItem(A2HS_KEY, "1"); } catch(e){}
+      if (pendingLocalUrl && !isStandalone()){
+        var u = pendingLocalUrl; pendingLocalUrl = null;
+        try { sessionStorage.setItem(LOCAL_TRY_KEY, String(Date.now())); } catch(e){}
+        setTimeout(function(){ location.href = u; }, 600);
+      }
     }
-    $("a2hsClose").addEventListener("click", dismiss);
+    $("a2hsClose").addEventListener("click", settle);
     act.addEventListener("click", function(){
       if (deferred){ try { deferred.prompt(); } catch(e){} deferred = null; }
-      dismiss();
+      settle();
     });
+    window.addEventListener("appinstalled", settle);
     function show(message, actionLabel){
+      offered = true;
       txt.textContent = message;
       act.style.display = actionLabel ? "" : "none";
       if (actionLabel) act.textContent = actionLabel;
@@ -527,6 +552,9 @@
       show("Add this remote to your home screen — it opens full screen like an app.", "Install");
     });
     if (isIos) show("For full screen on iPhone: tap Share, then \u201cAdd to Home Screen\u201d.", null);
+    // Browser can't install (no prompt, not iOS) → don't keep the
+    // remote parked on the cloud path forever.
+    setTimeout(function(){ if (!offered) settle(); }, 8000);
   })();
 
   function saved(){ try { return JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch(e){ return null; } }
@@ -594,11 +622,22 @@
     var recentlyFailed = false;
     try { recentlyFailed = (Date.now() - (parseInt(sessionStorage.getItem(LOCAL_TRY_KEY) || "0", 10))) < 20000; } catch(e){}
     if (!IS_LOCAL && resp.same_network && resp.local_ip && resp.local_port && !recentlyFailed){
-      try { sessionStorage.setItem(LOCAL_TRY_KEY, String(Date.now())); } catch(e){}
-      location.href = "http://" + resp.local_ip + ":" + resp.local_port +
+      var localUrl = "http://" + resp.local_ip + ":" + resp.local_port +
         "/remote?local=1&s=" + encodeURIComponent(sid) + "&c=" + encodeURIComponent(code) +
         "&cloud=" + encodeURIComponent(CLOUD_ORIGIN);
-      return;
+      // v2.13.23 — Chrome only offers "Install app" on the secure
+      // cloud origin.  Jumping straight to the box's http:// LAN page
+      // made installing impossible.  Hold the LAN switch until the
+      // remote is installed (standalone) or the install hint has been
+      // answered — the remote works fine over the cloud meanwhile,
+      // and the switch fires the moment the banner is settled.
+      if (!isStandalone() && !a2hsSettled()){
+        pendingLocalUrl = localUrl;
+      } else {
+        try { sessionStorage.setItem(LOCAL_TRY_KEY, String(Date.now())); } catch(e){}
+        location.href = localUrl;
+        return;
+      }
     }
     startRemote();
   }
@@ -843,6 +882,11 @@
     var SENS = 2.4;                 // TV pixels per pad pixel
     var active = false, lastSent = 0, downAt = 0, downX = 0, downY = 0, lastX = 0, lastY = 0, moved = false;
     var longTimer = null, twoFingerAt = 0;
+    // v2.13.23 — deltas ACCUMULATE between throttled sends (they were
+    // silently dropped before, so the TV cursor moved far less than
+    // the finger).  30 ms cadence keeps a slow HK1-class box ahead of
+    // the sendevent stream instead of queueing behind it.
+    var accX = 0, accY = 0, SEND_EVERY = 30;
     function paint(px, py){
       // px, py are pad-local pixels; keep the preview dot pinned
       // to the finger for visual feedback.
@@ -862,6 +906,7 @@
         return;
       }
       active = true; moved = false;
+      accX = 0; accY = 0;
       downAt = performance.now();
       var p = padLocal(e);
       downX = p.x; downY = p.y; lastX = p.x; lastY = p.y;
@@ -884,12 +929,16 @@
       if (Math.abs(p.x - downX) > 8 || Math.abs(p.y - downY) > 8) moved = true;
       paint(p.x, p.y);
       lastX = p.x; lastY = p.y;
+      accX += pdx * SENS; accY += pdy * SENS;
       var now = performance.now();
-      if (now - lastSent >= 16 && (pdx || pdy)){   // ~60 Hz
-        var dx = Math.round(pdx * SENS);
-        var dy = Math.round(pdy * SENS);
-        if (dx || dy) send({ action: "mouse_move", dx: dx, dy: dy });
-        lastSent = now;
+      if (now - lastSent >= SEND_EVERY){
+        var dx = Math.round(accX);
+        var dy = Math.round(accY);
+        if (dx || dy){
+          send({ action: "mouse_move", dx: dx, dy: dy });
+          accX -= dx; accY -= dy;
+          lastSent = now;
+        }
       }
     });
     function endDrag(e){
