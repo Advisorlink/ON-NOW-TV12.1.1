@@ -24,6 +24,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import androidx.media3.ui.PlayerView
 import coil.load
+import coil.transform.RoundedCornersTransformation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import okhttp3.ConnectionPool
@@ -135,9 +136,14 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var infoNextTitle: TextView
     private lateinit var infoNextDescription: TextView
     private lateinit var infoNextTime: TextView
+    // v2.11 — reference-banner views
+    private lateinit var infoChannelName: TextView
+    private lateinit var infoNextThumb: ImageView
+    private lateinit var infoElapsed: TextView
+    private lateinit var infoDuration: TextView
     private lateinit var btnChUp: ImageButton
     private lateinit var btnChDown: ImageButton
-    private lateinit var btnSwap: ImageButton
+    private lateinit var btnSwap: View
     private lateinit var btnFavorite: ImageButton
     private lateinit var btnPlayPauseLabel: TextView
     private val clockHandler = Handler(Looper.getMainLooper())
@@ -241,6 +247,10 @@ class PlayerActivity : AppCompatActivity() {
         infoNextTitle     = findViewById(R.id.player_info_next_title)
         infoNextDescription = findViewById(R.id.player_info_next_description)
         infoNextTime      = findViewById(R.id.player_info_next_time)
+        infoChannelName   = findViewById(R.id.player_info_channel_name)
+        infoNextThumb     = findViewById(R.id.player_info_next_thumb)
+        infoElapsed       = findViewById(R.id.player_info_elapsed)
+        infoDuration      = findViewById(R.id.player_info_duration)
         btnChUp           = findViewById(R.id.btn_player_chup)
         btnChDown         = findViewById(R.id.btn_player_chdown)
         btnSwap           = findViewById(R.id.btn_player_swap)
@@ -326,6 +336,14 @@ class PlayerActivity : AppCompatActivity() {
             LivePreviewSession.setChannel(this, channel)
         }
         renderInfoCard(channel)
+        // v2.11 — CRITICAL: this path previously never warmed the
+        // per-channel EPG, so the banner's synopsis / times stayed
+        // blank whenever playback started from the preview window.
+        // Pre-paint the overlay and lazy-fetch EPG right away so
+        // the banner is fully populated the first time it opens.
+        populateOverlay(channel)
+        updateFavoriteIcon()
+        ensureEpgFor(channel)
         // Surface stays clean — no transient "Tuning…" because the
         // user already saw the stream in the preview.
     }
@@ -885,6 +903,10 @@ class PlayerActivity : AppCompatActivity() {
         // existing OK / INFO key paths.
         populateOverlay(currentChannel)
         updateFavoriteIcon()
+        // v2.11 — safety net: if EPG for this channel still isn't in
+        // memory (e.g. fetch raced or failed earlier), retry now so
+        // the synopsis fills in a beat after the banner opens.
+        currentChannel?.let { ensureEpgFor(it) }
         startClockTicker()
         if (playerOverlay.visibility != View.VISIBLE) {
             playerOverlay.alpha = 0f
@@ -997,12 +1019,14 @@ class PlayerActivity : AppCompatActivity() {
 
     /* ─────────────────── v2.10 overlay rendering ─────────────────── */
 
-    /** Paint the bottom NOW/NEXT info panel from the current
-     *  channel + EPG data. */
+    /** v2.11 — Paint the reference-design banner from the current
+     *  channel + EPG data:
+     *  [LCN badge] [logo] [title / channel • times / synopsis]
+     *  [UP NEXT card] then [elapsed][progress][duration]. */
     private fun populateOverlay(ch: Channel?) {
         if (ch == null) return
         if (::infoLcnView.isInitialized) {
-            infoLcnView.text = ch.lcn?.padStart(3, '0') ?: "—"
+            infoLcnView.text = ch.lcn ?: "•"
         }
         if (::infoLogoView.isInitialized) {
             if (!ch.logoUrl.isNullOrBlank()) {
@@ -1016,30 +1040,35 @@ class PlayerActivity : AppCompatActivity() {
             val nowTitle = now?.title?.takeIf { it.isNotBlank() }
             infoProgrammeView.text = nowTitle ?: ch.name
         }
-        // v2.10.2 — Programme model has no separate sub-title /
-        // episode field; in the reference image "Rock the Night" is
-        // an Xtream-side episode caption we don't get back.  Hide
-        // the segment line entirely until/unless EPG starts giving
-        // us that data, rather than misleadingly putting the
-        // channel name there.
-        if (::infoSegment.isInitialized) {
-            infoSegment.visibility = View.GONE
+        // Meta line: "Channel Name  •  8:00 PM – 10:00 PM"
+        if (::infoChannelName.isInitialized) {
+            infoChannelName.text = ch.name
+        }
+        if (::infoTimeRange.isInitialized) {
+            infoTimeRange.text = if (now != null) {
+                "  •  ${timeRangeFmt.format(Date(now.startMs))} – ${timeRangeFmt.format(Date(now.stopMs))}"
+            } else ""
+            infoTimeRange.visibility = if (now != null) View.VISIBLE else View.GONE
         }
         if (::infoDescriptionView.isInitialized) {
             val desc = now?.description?.takeIf { it.isNotBlank() }.orEmpty()
             infoDescriptionView.text = desc
             infoDescriptionView.visibility = if (desc.isBlank()) View.GONE else View.VISIBLE
         }
-        if (::infoTimeRange.isInitialized) {
-            infoTimeRange.text = if (now != null) {
-                "${timeRangeFmt.format(Date(now.startMs))} – ${timeRangeFmt.format(Date(now.stopMs))}"
-            } else ""
-            infoTimeRange.visibility = if (now != null) View.VISIBLE else View.GONE
-        }
+        // Progress bar + elapsed/duration captions
         if (::infoProgressView.isInitialized) {
             val pct = if (now != null) progressPct(now) else 0f
             infoProgressView.progress = (pct * infoProgressView.max).toInt()
         }
+        if (::infoElapsed.isInitialized) {
+            infoElapsed.text = if (now != null) {
+                fmtSpan((System.currentTimeMillis() - now.startMs).coerceAtLeast(0L))
+            } else ""
+        }
+        if (::infoDuration.isInitialized) {
+            infoDuration.text = if (now != null) fmtSpan(now.stopMs - now.startMs) else ""
+        }
+        // UP NEXT card
         if (::infoNextTitle.isInitialized) {
             infoNextTitle.text = next?.title?.takeIf { it.isNotBlank() } ?: "—"
         }
@@ -1049,9 +1078,32 @@ class PlayerActivity : AppCompatActivity() {
             infoNextDescription.visibility = if (nextDesc.isBlank()) View.GONE else View.VISIBLE
         }
         if (::infoNextTime.isInitialized) {
-            infoNextTime.text = if (next != null) {
-                "${timeRangeFmt.format(Date(next.startMs))} – ${timeRangeFmt.format(Date(next.stopMs))}"
-            } else ""
+            infoNextTime.text = next?.let { timeRangeFmt.format(Date(it.startMs)) } ?: ""
+        }
+        if (::infoNextThumb.isInitialized) {
+            if (!ch.logoUrl.isNullOrBlank()) {
+                infoNextThumb.visibility = View.VISIBLE
+                infoNextThumb.load(ch.logoUrl) {
+                    crossfade(true)
+                    transformations(RoundedCornersTransformation(14f))
+                }
+            } else {
+                infoNextThumb.visibility = View.GONE
+            }
+        }
+    }
+
+    /** "47:20" / "1:31:05" style span formatting for the progress
+     *  captions — m:ss under an hour, h:mm:ss above. */
+    private fun fmtSpan(ms: Long): String {
+        val totalSec = ms / 1000L
+        val h = totalSec / 3600
+        val m = (totalSec % 3600) / 60
+        val s = totalSec % 60
+        return if (h > 0) {
+            String.format(Locale.UK, "%d:%02d:%02d", h, m, s)
+        } else {
+            String.format(Locale.UK, "%d:%02d", m, s)
         }
     }
 

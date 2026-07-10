@@ -1,14 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v2.10.1 Bottom overlay backdrop.
-     Reference image is essentially OPAQUE dark — the video must NOT
-     bleed through the description / labels.  We keep the top 8 % as
-     a faint transparent → dark fade so the edge isn't a hard knife
-     cut, then it's solid #050A10 for the rest. -->
+<!-- v2.11 Bottom banner backdrop — the reference lets the movie show
+     faintly behind the banner, so we use a transparent → near-black
+     vertical fade.  Text stays readable because the lower 2/3 is
+     ~95% opaque. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <gradient
         android:angle="90"
-        android:startColor="#80050A10"
-        android:centerColor="#FA050A10"
-        android:endColor="#FF050A10" />
+        android:startColor="#26070A0D"
+        android:centerColor="#E6070A0D"
+        android:endColor="#F5070A0D" />
 </shape>

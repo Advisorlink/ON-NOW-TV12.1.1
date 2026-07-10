@@ -9382,3 +9382,35 @@ build; QR + keyboard detection require the new launcher build.
    runs the turn-1 launcher APK (pre zero-PIN) and VPS backend predates
    the typographic branding. They must rebuild/install BOTH APKs +
    redeploy backend from latest.
+
+---
+
+## 2026-06 — Live TV player banner rebuilt to reference image (v2.11)
+User supplied reference screenshot (Retro Vault / "Classic Cinema" banner).
+Rebuilt `activity_player.xml` bottom overlay to match exactly:
+- [LCN badge] [channel logo] [big programme title / "Channel • start–end"
+  meta line / 2-line synopsis] [UP NEXT teal card: chip + underline,
+  next title, 1-line desc, start time, rounded channel-logo thumb]
+- Row 2: elapsed ("47:20") + teal progress bar + duration + SWAP BACK
+  pill (renamed from SWAP, icon+text, teal focus ring) + play/pause
+  teal circle + CC circle. Old 8-button bar removed; rewind/ffwd/CH±/
+  favourite buttons now hidden 0dp legacy views (D-pad + CH keys still
+  zap channels). Accent colour switched cyan→teal #3BE8C8 (progress
+  bar, clock date, tune pill, focus states).
+New drawables: player_lcn_badge_bg, player_upnext_card_bg,
+player_pill_button_bg, player_circle_teal_bg, player_circle_neutral_bg;
+updated player_progress_bar (teal) + player_overlay_scrim_bg
+(translucent fade so video shows behind banner like the reference).
+ROOT-CAUSE FIX for "synopsis not showing every time":
+`attachSharedPlayer()` (preview→fullscreen path, the most common way
+playback starts) never called `ensureEpgFor()` so per-channel EPG was
+never lazy-loaded → blank description/times. Now calls populateOverlay
++ ensureEpgFor there, plus a safety-net ensureEpgFor in
+showControlsBar() every time the banner opens.
+Kotlin: populateOverlay() rewritten (channel name, "• start–end" meta,
+elapsed/duration via new fmtSpan(), UP NEXT start time, rounded thumb
+via coil RoundedCornersTransformation), btnSwap ImageButton→View.
+Verified: all 8 XMLs parse clean, brace balance 230/230, paren delta
+identical to HEAD, all R.id/drawable refs resolve, no other Kotlin file
+touches these IDs. No kotlinc in container — final compile happens in
+CI on GitHub push.

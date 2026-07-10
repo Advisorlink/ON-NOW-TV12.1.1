@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.11 SWAP BACK pill — dark pill, teal ring when D-pad focused. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="24dp" />
+            <solid android:color="#FF333B43" />
+            <stroke android:width="2dp" android:color="#3BE8C8" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="24dp" />
+            <solid android:color="#FF333B43" />
+            <stroke android:width="2dp" android:color="#3BE8C8" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="24dp" />
+            <solid android:color="#E62A3038" />
+        </shape>
+    </item>
+</selector>

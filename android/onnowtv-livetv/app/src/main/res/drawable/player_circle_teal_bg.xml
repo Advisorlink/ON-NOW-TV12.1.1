@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v2.11 Play/Pause circle — permanent teal ring like the reference;
+     fills faintly + thickens when D-pad focused. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="oval">
+            <solid android:color="#403BE8C8" />
+            <stroke android:width="3dp" android:color="#3BE8C8" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="oval">
+            <solid android:color="#403BE8C8" />
+            <stroke android:width="3dp" android:color="#3BE8C8" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#66101418" />
+            <stroke android:width="2dp" android:color="#3BE8C8" />
+        </shape>
+    </item>
+</selector>
