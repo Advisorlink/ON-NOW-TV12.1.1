@@ -2892,7 +2892,3 @@ if (_restoreBtn) _restoreBtn.addEventListener('click', async () => {
         _restoreBtn.disabled = false;
     }
 });
-err';
-        _restoreBtn.disabled = false;
-    }
-});
