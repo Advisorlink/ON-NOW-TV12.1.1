@@ -289,7 +289,25 @@ object RootApkInstaller {
             append("BEFORE=\$(get_vc \"$packageName\") ; ")
             append("echo \"before_vc=[\$BEFORE]\" ; ")
 
-            if (relaunch) append("sleep 1 ; ")
+            // v2.14.13 — Release file handles BEFORE the install.  On
+            // HK1 / Amlogic Android 9, `pm install -r -d` silently
+            // NO-OPs when the target package's process is holding
+            // open files under its install path.  Force-stopping the
+            // package releases those handles instantly, so `pm
+            // install -r -d` lands on the FIRST try — no visible
+            // uninstall, no data flicker.  Our own script survives
+            // because it runs in a detached (`nohup setsid`) root
+            // shell that is not tied to the app process.
+            //
+            // Only self-updates need this (relaunch=true) — side-app
+            // updates typically aren't running in the foreground and
+            // don't hold contested handles.
+            if (relaunch) {
+                append("echo \"pre-install force-stop\" ; ")
+                append("OUT_FS=\$(am force-stop \"$packageName\" 2>&1) ; ")
+                append("echo \"force-stop: \$OUT_FS\" ; ")
+                append("sleep 1 ; ")
+            }
 
             // ── Attempt 1: in-place upgrade (keeps data).
             append("OUT1=\$(pm install -r -d \"$tmpApkPath\" 2>&1) ; ")

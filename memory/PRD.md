@@ -1,4 +1,25 @@
 # ON NOW TV V2 — PRD
+> **🔴→🟢 v2.14.13 — Launcher self-update is now TRULY in-place: no uninstall step at all (Feb 2026).**
+>
+> Operator report: "I don't want to have to uninstall it and reinstall it. Just change the number and make it update like any other app."
+>
+> **Root cause of the fallback being triggered:** the v2.14.2 3-tier flow *did* land on attempt 1 (`pm install -r -d`) on modern boxes, but on HK1 Android 9, `pm install -r -d` silently NO-OPs when the target package (the running launcher) is holding open file handles on its install path.  The versionCode verification loop then correctly detected the no-op and moved to attempt 2 (`pm uninstall -k` + `pm install -r`) — which preserves user data but has a visible ~2 s gap the operator (correctly) perceives as a full reinstall.
+>
+> **Fix (`RootApkInstaller.kt`):** run `am force-stop $packageName` *before* attempt 1 on self-updates (`relaunch=true`).  Force-stopping the launcher instantly releases every file handle it was holding on `/data/data/tv.onnow.launcher/`.  The subsequent `pm install -r -d` then lands cleanly on attempt 1 — Android performs a true in-place APK swap, keeps `/data/data/`, and our detached (`nohup setsid`) root shell survives to `am start` the new launcher after verification.  The fallback tiers (attempts 2 & 3) remain untouched as safety nets but should now essentially never fire on HK1.  Side-app updates (`relaunch=false`) do NOT force-stop — they're not in the foreground and don't hold contested handles.
+>
+> **Files touched:** `android/onnowtv-launcher/app/src/main/java/tv/onnow/launcher/install/RootApkInstaller.kt`.  Kotlin brace/paren balance verified; no single-quote leaks into the outer `sh -c '…'` wrapper.
+>
+> **CI build required:** the operator must CI-build the launcher APK and use the App Store → Home Update → **Sync latest from GitHub** button (v2.14.6) to pin it.  From that build onwards, every future launcher self-update lands as a silent in-place upgrade — versionCode bumps, "Update available" pill appears, one tap, done, zero data loss, zero visible reinstall.
+>
+> **How to verify after CI-build + sideload once:** on the box, run `adb pull /data/local/tmp/onnow_install.log` after the first self-update — the log should show:
+>   - `pre-install force-stop`
+>   - `force-stop: ...` (no error)
+>   - `attempt1: Success`
+>   - `after_attempt1_vc=[<NEW_VC>]` (different from BEFORE)
+>   - `done vc=[<NEW_VC>]`
+> No `attempt1 no-op, running fallback` line = clean in-place upgrade.
+>
+
 > **🔴→🟢 v2.14.12 — Phone remote landscape overhaul + long-press OK + auto-fullscreen (Feb 2026).**
 >
 > Operator asks (all three fixed):
