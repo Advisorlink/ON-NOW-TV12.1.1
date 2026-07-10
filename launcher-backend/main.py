@@ -3907,6 +3907,175 @@ def home_update_clear() -> dict:
     return {"ok": True}
 
 
+# ═════════════════════════════════════════════════════════════════════
+#  v2.14.6 — Sync latest launcher APK from a GitHub Release.
+#
+#  Before this endpoint existed, the operator had to:
+#     1. Wait for the CI workflow to finish and publish the APK to
+#        the `launcher-latest` GitHub Release.
+#     2. Manually download the APK to their laptop.
+#     3. Manually drag it into the admin's Home Update drop zone.
+#
+#  This endpoint collapses steps 2 + 3 into a single button click on
+#  the admin UI — the launcher-backend itself fetches the newest
+#  APK asset from the Release and pins it as Home Update, reusing
+#  the exact same on-disk layout + store.json shape as the manual
+#  upload path.
+#
+#  Configuration (both env vars):
+#     LAUNCHER_GITHUB_REPO  — "owner/name" (required)
+#     LAUNCHER_GITHUB_TOKEN — personal-access-token with `repo`
+#                             scope (required only for private
+#                             repos; unset for public).
+#     LAUNCHER_GITHUB_TAG   — release tag to pull (default:
+#                             "launcher-latest").
+#     LAUNCHER_GITHUB_ASSET — asset filename inside the release
+#                             (default: "onnowtv-launcher-debug.apk").
+# ═════════════════════════════════════════════════════════════════════
+
+@app.post(
+    "/api/admin/home-update/sync-from-github",
+    dependencies=[Depends(require_admin)],
+)
+async def sync_home_update_from_github() -> dict:
+    """One-click sync of the pinned Home Update from a GitHub Release.
+
+    Called by the "Sync latest from GitHub" button in the App Store
+    → Home Update admin panel.  Returns the same shape as the manual
+    `upload_home_update` endpoint so the frontend can render both
+    responses through one code path.
+    """
+    repo  = os.environ.get("LAUNCHER_GITHUB_REPO", "").strip()
+    token = os.environ.get("LAUNCHER_GITHUB_TOKEN", "").strip()
+    tag   = os.environ.get("LAUNCHER_GITHUB_TAG",   "launcher-latest").strip()
+    asset = os.environ.get("LAUNCHER_GITHUB_ASSET", "onnowtv-launcher-debug.apk").strip()
+
+    if not repo or "/" not in repo:
+        raise HTTPException(
+            400,
+            "LAUNCHER_GITHUB_REPO env var is not set. Set it on the "
+            "launcher-backend to your repository as 'owner/name' "
+            "(e.g. 'Damo26/onnowtv-v2'), then retry.",
+        )
+
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "onnowtv-launcher-backend",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    release_url = f"https://api.github.com/repos/{repo}/releases/tags/{tag}"
+
+    import httpx  # already imported elsewhere; safe if re-imported
+    async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+        # 1. Look up the release + its asset list.
+        r = await client.get(release_url, headers=headers)
+        if r.status_code == 404:
+            raise HTTPException(
+                404,
+                f"GitHub release '{tag}' not found under repo '{repo}'. "
+                f"Either the CI hasn't published yet, or "
+                f"LAUNCHER_GITHUB_REPO is wrong, or the repo is "
+                f"private and LAUNCHER_GITHUB_TOKEN is missing.",
+            )
+        if r.status_code != 200:
+            raise HTTPException(
+                502,
+                f"GitHub returned HTTP {r.status_code} fetching "
+                f"release info: {r.text[:200]}",
+            )
+        rel = r.json()
+        assets = rel.get("assets", []) or []
+        target_asset = next(
+            (a for a in assets if (a.get("name") or "") == asset),
+            None,
+        )
+        if target_asset is None:
+            available = ", ".join(a.get("name", "?") for a in assets) or "(none)"
+            raise HTTPException(
+                404,
+                f"Asset '{asset}' not found in release '{tag}'. "
+                f"Available: {available}. Check LAUNCHER_GITHUB_ASSET "
+                f"and the CI workflow's upload step.",
+            )
+        asset_url = target_asset.get("url")   # api.github.com/…/assets/{id}
+        published_at = rel.get("published_at") or rel.get("created_at")
+        release_name = rel.get("name") or rel.get("tag_name") or tag
+
+        # 2. Download the binary.  For asset download the GitHub API
+        # requires Accept: application/octet-stream on the asset URL.
+        dl_headers = dict(headers, **{"Accept": "application/octet-stream"})
+        target = _home_update_path()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        h = hashlib.sha256()
+        size = 0
+        async with client.stream("GET", asset_url, headers=dl_headers) as resp:
+            if resp.status_code != 200:
+                body_head = await resp.aread()
+                raise HTTPException(
+                    502,
+                    f"GitHub asset download failed ({resp.status_code}): "
+                    f"{body_head[:200].decode('utf-8', 'replace')}",
+                )
+            async with aiofiles.open(target, "wb") as f:
+                async for chunk in resp.aiter_bytes(1024 * 1024):
+                    h.update(chunk)
+                    size += len(chunk)
+                    await f.write(chunk)
+
+    if size < 1024 * 100:
+        # Sanity — a real APK is >>100 KB.  Anything smaller almost
+        # certainly means we downloaded an error page.
+        target.unlink(missing_ok=True)
+        raise HTTPException(
+            502,
+            f"Downloaded file is only {size} bytes — probably not an "
+            f"APK.  Aborted the sync and cleaned up.",
+        )
+
+    # 3. Extract metadata (same as manual upload).
+    pkg_id: Optional[str] = None
+    version_name: Optional[str] = None
+    version_code: Optional[int] = None
+    try:
+        from apk_meta import inspect_apk
+        meta = await asyncio.to_thread(
+            inspect_apk, target, DATA_DIR / "apk_icons",
+            "home_update_icon",
+        )
+        pkg_id = meta.get("package_id")
+        version_name = meta.get("version_name")
+        version_code = meta.get("version_code")
+    except Exception as e:
+        print(f"[home-update sync] metadata extraction failed: {e}")
+
+    # 4. Persist to store.json — identical shape to manual upload so
+    #    the /api/launcher/home-update/info route + admin status card
+    #    work unchanged.
+    store = _load_store()
+    store["home_update"] = {
+        "filename":       HOME_UPDATE_FILENAME,
+        "size":           size,
+        "sha256":         h.hexdigest(),
+        "package_id":     pkg_id,
+        "version_name":   version_name,
+        "version_code":   version_code,
+        # Fresh build_id triggers the pill regardless of versionCode.
+        "build_id":       uuid.uuid4().hex,
+        "uploaded_at":    now_ts(),
+        # Extra provenance fields (harmless to older clients).
+        "source":         "github-release",
+        "source_repo":    repo,
+        "source_tag":     tag,
+        "source_release": release_name,
+        "source_published_at": published_at,
+    }
+    _save_store(store)
+    return {"ok": True, "home_update": store["home_update"]}
+
+
 @app.get("/api/launcher/home-update/info")
 def home_update_info(
     current_version_code: Optional[int] = None,

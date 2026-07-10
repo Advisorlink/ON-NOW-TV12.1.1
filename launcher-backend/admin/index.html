@@ -484,8 +484,12 @@
                     <div style="font-size:11px;letter-spacing:0.16em;color:#5DC8FF;text-transform:uppercase;margin-bottom:6px;">Currently pinned</div>
                     <div id="homeUpdatePinned" style="font-family:ui-monospace,monospace;font-size:13px;color:var(--text-primary);">No home update uploaded yet.</div>
                 </div>
+                <button id="homeUpdateSyncGithub" type="button" class="apk-drop-link" title="Fetch the newest onnowtv-launcher-debug.apk from your GitHub Release (LAUNCHER_GITHUB_REPO env var) and pin it as Home Update in one click." style="border-color:#5DC8FF;color:#5DC8FF;">
+                    Sync latest from GitHub
+                </button>
                 <button id="homeUpdateClear" type="button" class="apk-drop-link" hidden>Remove pin</button>
             </div>
+            <div id="homeUpdateSyncStatus" style="margin-top:10px;font-size:12.5px;color:#5DC8FF;min-height:18px;" aria-live="polite"></div>
 
             <!-- Drag-drop zone — mirrors the App Store apkDropZone style -->
             <div id="homeUpdateDropZone" class="apk-drop" style="margin-top:14px;">

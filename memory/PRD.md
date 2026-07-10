@@ -1,4 +1,32 @@
 # ON NOW TV V2 — PRD
+> **🔴→🟢 v2.14.6 — One-click "Sync latest from GitHub" for the launcher Home Update (Feb 2026).**
+>
+> Operator report: "I pushed to GitHub but I didn't get a new launcher to download. It's not working." Root cause was the **manual gap** between the GitHub Release the CI produces and the `home-update.apk` file the launcher-backend actually serves — the operator had to download the APK from Releases and re-upload it via the admin drop zone.
+>
+> **Fix (`launcher-backend/main.py` + admin UI):**
+>   - New endpoint `POST /api/admin/home-update/sync-from-github` — calls GitHub API for the release at tag `LAUNCHER_GITHUB_TAG` (default: `launcher-latest`), finds the asset `LAUNCHER_GITHUB_ASSET` (default: `onnowtv-launcher-debug.apk`), streams it to disk, extracts metadata, and writes to `store.json` with a fresh `build_id` — identical shape to the manual upload path so every downstream consumer works unchanged. Also records `source=github-release`, `source_repo`, `source_tag`, `source_release`, `source_published_at` for audit.
+>   - New "**Sync latest from GitHub**" button in the App Store → Home Update admin panel next to the drop zone; status line surfaces the result inline (green = version + repo synced; red = clear error).
+>   - Sanity-guards: rejects files under 100 KB (protects against downloading an error HTML page as the APK); explicit HTTP-status handling for private repos (missing token), missing tag, missing asset — each error message tells the operator exactly which env var to fix.
+>   - Configuration (env vars on the VPS launcher-backend):
+>       - `LAUNCHER_GITHUB_REPO`  — `"owner/name"` (required).
+>       - `LAUNCHER_GITHUB_TOKEN` — PAT with `repo` scope (required only for private repos).
+>       - `LAUNCHER_GITHUB_TAG`   — release tag (default `"launcher-latest"`, matches build-launcher.yml).
+>       - `LAUNCHER_GITHUB_ASSET` — asset filename (default `"onnowtv-launcher-debug.apk"`).
+>
+> **Tested end-to-end in-container:**
+>   - Unset env → HTTP 400 with an actionable message pointing at `LAUNCHER_GITHUB_REPO`.
+>   - Bogus repo → HTTP 404 with three-way diagnosis (CI not run yet, wrong repo, or private+missing token).
+>   - Real repo with no `launcher-latest` release → same 404 path.
+>   - Admin HTML source contains the new button + status line; `app.js` binds the click handler to the new endpoint.
+>
+> **The operator's manual gap is now:**
+>   1. Push code (Emergent → "Save to Github" button).
+>   2. Wait for the `Build ON NOW TV V2 Launcher APK` GitHub Action to finish (~4 min).
+>   3. Open launcher-backend admin → App Store → **Sync latest from GitHub** — DONE. All TV boxes light up the "Home Update" pill within ~30 s.
+>
+> **Files touched:** `launcher-backend/main.py` (new sync endpoint), `launcher-backend/admin/index.html` + `static/app.js` (Sync button + status line).
+>
+
 > **🔴→🟢 v2.14.5 — Vesper account ⇄ Xtream Codes credential mapping (Feb 2026).**
 >
 > Operator ask: "When I set up a Vesper login (e.g. `Damo26`), I need to also enter that client's Xtream Codes IPTV creds on the launcher-backend admin. Then when Damo26 types `Damo26` into the Live TV app, in the background the app swaps in his real Xtream credentials. Global DNS — one provider host for everyone."

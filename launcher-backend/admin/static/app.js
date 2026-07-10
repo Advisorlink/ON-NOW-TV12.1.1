@@ -1514,6 +1514,42 @@ let _activeStoreId = null;
         e.stopPropagation();
         input.click();
     });
+    // v2.14.6 — "Sync latest from GitHub" one-click button.  Pulls
+    // the newest onnowtv-launcher-debug.apk from the configured
+    // Release and pins it, so the operator no longer has to
+    // download + re-upload after every CI build.
+    const syncBtn    = $('#homeUpdateSyncGithub');
+    const syncStatus = $('#homeUpdateSyncStatus');
+    if (syncBtn) {
+        syncBtn.addEventListener('click', async () => {
+            if (syncBtn.disabled) return;
+            syncBtn.disabled = true;
+            const originalLabel = syncBtn.textContent;
+            syncBtn.textContent = 'Syncing…';
+            syncStatus.style.color = '#5DC8FF';
+            syncStatus.textContent = 'Fetching latest release from GitHub — this may take up to a minute…';
+            try {
+                const r = await api('/api/admin/home-update/sync-from-github', {
+                    method: 'POST',
+                });
+                const m = r.home_update || {};
+                syncStatus.style.color = '#4ade80';
+                syncStatus.textContent =
+                    'Synced ' + (m.version_name || '(unknown version)') +
+                    ' (vcode ' + (m.version_code ?? '?') + ') from ' +
+                    (m.source_repo || 'GitHub') + ' @ ' + (m.source_tag || 'launcher-latest') +
+                    '. Every TV box will pick this up within ~30 s.';
+                await refreshStatus();
+            } catch (e) {
+                syncStatus.style.color = '#fca5a5';
+                syncStatus.textContent = 'Sync failed: ' + (e.message || e);
+            } finally {
+                syncBtn.disabled = false;
+                syncBtn.textContent = originalLabel;
+            }
+        });
+    }
+
     ['dragenter', 'dragover'].forEach((ev) =>
         zone.addEventListener(ev, (e) => {
             e.preventDefault();
