@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import coil.load
 import tv.onnowtv.livetv.R
@@ -40,6 +41,26 @@ class ChannelPillAdapter(
         items.clear()
         items.addAll(list)
         notifyDataSetChanged()
+    }
+
+    /** v2.16.2 — Diff-based update used by BACKGROUND refreshes
+     *  (WhatsOn hub prefetch + 30-s ticker).  Rows that survive the
+     *  update are not rebound at all, so D-pad focus and scroll
+     *  position are never disturbed while new live channels stream
+     *  into the list. */
+    fun submitDiffed(list: List<Channel>) {
+        val old = items.toList()
+        val diff = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
+            override fun getOldListSize() = old.size
+            override fun getNewListSize() = list.size
+            override fun areItemsTheSame(oldPos: Int, newPos: Int) =
+                old[oldPos].id == list[newPos].id
+            override fun areContentsTheSame(oldPos: Int, newPos: Int) =
+                old[oldPos].id == list[newPos].id
+        })
+        items.clear()
+        items.addAll(list)
+        diff.dispatchUpdatesTo(this)
     }
 
     /** Re-render visible rows without changing the dataset.  Used

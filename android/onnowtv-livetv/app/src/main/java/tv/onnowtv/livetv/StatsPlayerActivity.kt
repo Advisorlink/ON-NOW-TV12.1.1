@@ -84,11 +84,14 @@ class StatsPlayerActivity : AppCompatActivity() {
             "nhl" to 0xFF6FD6FF.toInt(),
             "mlb" to 0xFF7FE0A8.toInt(),
             "mma" to 0xFFFF5D73.toInt(),
+            "cricket" to 0xFFF2C14E.toInt(),
+            "tennis" to 0xFFD7E44A.toInt(),
         )
     }
 
     private lateinit var playerView: PlayerView
     private lateinit var videoCard: FrameLayout
+    private lateinit var fieldBackdrop: tv.onnowtv.livetv.ui.SportFieldView
     private lateinit var bufferLoader: tv.onnowtv.livetv.ui.OrbitalLoaderView
     private lateinit var channelChip: TextView
     private lateinit var leagueEyebrow: TextView
@@ -149,6 +152,7 @@ class StatsPlayerActivity : AppCompatActivity() {
 
         playerView = findViewById(R.id.stats_player_view)
         videoCard = findViewById(R.id.stats_video_card)
+        fieldBackdrop = findViewById(R.id.stats_field_backdrop)
         bufferLoader = findViewById(R.id.stats_buffer_loader)
         channelChip = findViewById(R.id.stats_channel_chip)
         leagueEyebrow = findViewById(R.id.stats_league_eyebrow)
@@ -185,6 +189,9 @@ class StatsPlayerActivity : AppCompatActivity() {
         leagueEyebrow.text = programmeTitle.uppercase(Locale.UK)
         clockPill.setTextColor(accent)
         paintSportTag()
+        // v2.16.2 — Sport-specific field/court schematic behind the
+        // scoreboard (baseball diamond, tennis court, cricket oval…).
+        fieldBackdrop.setSport(sport, accent)
 
         videoCard.setOnClickListener { goFullscreen() }
         videoCard.requestFocus()
@@ -435,14 +442,14 @@ class StatsPlayerActivity : AppCompatActivity() {
         return sb
     }
 
-    /** AFL goals.behinds notation — "6.3 · 15.13". */
+    /** AFL goals.behinds / cricket overs notation — "6.3 · 15.13". */
     private fun renderScoreDetail(h: String, a: String) {
         if (h.isBlank() && a.isBlank()) {
             scoreDetail.visibility = View.GONE
             return
         }
         scoreDetail.visibility = View.VISIBLE
-        scoreDetail.text = "$h · $a"
+        scoreDetail.text = listOf(h, a).filter { it.isNotBlank() }.joinToString(" · ")
     }
 
     /** "WWLDW" → coloured spans (W green, L red, D grey). */

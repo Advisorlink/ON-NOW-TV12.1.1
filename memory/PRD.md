@@ -9486,3 +9486,83 @@ the live feed: 46 channels across 8 buckets airing right now (Wimbledon
 SFs, Scottish Open golf, England v India cricket, Goodwood F1, World Cup
 Matchday) — vs 0 before and vs 300+ with keyword-only. Kotlin brace/paren
 balance verified vs HEAD. Compile happens in CI.
+
+## 2026-06 — v2.16.2 "Build it all at once" batch (Cricket/Tennis + auto-open hub + flawless nav + sport field visuals)
+User approved building all four items in one go, with emphasis: "navigation
+must be fully flawless even while live sports are still loading".
+
+### 1. Backend — Cricket + Tennis ESPN mappings (backend/livestats.py)
+- SPORTS map: `cricket` → ESPN numeric Cricinfo trophy ids (8039 World Cup,
+  19430 WTC/Tests, 8048 IPL, 8044 Big Bash, 8052 County D1);
+  `tennis` → atp + wta.
+- Tennis scoreboard events are TOURNAMENTS: `_tennis_flatten()` explodes
+  groupings[].competitions[] into per-match pseudo-events (name "A vs B",
+  status copied up) so _state/_resolve/_competitors work unchanged.
+  `_board_tennis()`: player flags as logos, sets-won as big score, per-set
+  S1..S5 periods from linescores, round + grouping in league line, ESPN
+  notes ("(9) Noskova leads … 6-2") as status long, court+city venue.
+  Tournament-name fallback matcher (prefers singles) because EPG titles
+  rarely name players.
+- `_board_cricket()`: ESPN cricket summary has NO boxscore — board built
+  from scoreboard linescores (runs/wickets/overs per innings). Innings
+  scores "161/5 & 200/3", current-innings overs as scoreDetail, I1/I2
+  periods, bars = Total Runs / Run Rate / Wickets Lost, status.summary
+  ("RCB won by 5 wkts") as status. Fixed double-# team colour (cricket
+  colours already ship with '#') and phantom innings (mirror linescores
+  filtered by isBatting/runs>0).
+- _STOP grew: cricket/tennis/atp/wta/odi/t20/ipl/test/innings/singles/doubles.
+- VERIFIED live with curl: Wimbledon Women's Final (live, matched by player
+  AND by tournament fallback) + IPL Final 2026 (includeFinished). All 12
+  sports regression-swept — no crashes.
+
+### 2. Auto-open "What's On Live" hub on boot (EpgActivity)
+- buildCategories() default currentCategoryId is now "__whatson__" (was
+  "__all__") → applyCategory() at boot expands the hub: sport chip row
+  visible, middle column = live sports, focus still parked on the pill.
+  Library deep-links still override.
+
+### 3. FLAWLESS NAV while hub loads — root cause & fix (EpgActivity + adapters)
+ROOT CAUSE of "thrown around / can't scroll" during loading: prefetch ran
+~350 batches (chunked(40)); EVERY batch did the full 14k-channel classifier
+scan ON THE MAIN THREAD + notifyDataSetChanged() on BOTH the chip row and
+channel list → dropped D-pad events + destroyed the focused ViewHolder.
+FIX:
+- epgCache → ConcurrentHashMap (IO writers raced the old HashMap; nullable
+  key lookups guarded in liveProgrammeOf/upcomingProgrammeOf).
+- recomputeWhatsOnRows() split: pure computeWhatsOnRows() (any thread) +
+  thin main-thread wrapper.
+- kickOffWhatsOnPrefetch(): chunked(150); classifier scan runs on the IO
+  coroutine; UI pushes throttled to ≥1.2 s apart; final flush always runs.
+- WhatsOnSportAdapter.submit() is now DiffUtil-based (active-chip state in
+  contents check) — unchanged chips never rebound.
+- ChannelPillAdapter.submitDiffed() (DiffUtil, id-stable) used by the new
+  paintWhatsOnChannelsIncremental(): background refreshes never touch
+  focus/scroll, hero only seeded when nothing focused yet.
+- 30-s clock tick recompute moved to Dispatchers.Default + diffs; skipped
+  entirely while prefetch is in flight.
+- containHorizontalKeyNav(whatsOnSportRow): D-pad RIGHT blocked past last
+  chip (LEFT at 0 still escapes to sidebar).
+- Fixed pill count doubling bug (sumOf over rows incl. the "All" row).
+- Count chip shows "SCANNING…" while hub is empty during prefetch.
+- statsSports += cricket, tennis (Live Stats offer sheet).
+
+### 4. Sport-specific field visuals (Match Centre)
+- NEW ui/SportFieldView.kt: Canvas schematics drawn in sport accent at low
+  alpha behind the scoreboard — soccer pitch, tennis court (net/service
+  boxes), baseball diamond (bases/mound/foul lines), cricket oval (30-yd
+  dashed circle + pitch strip + creases), NBA court (keys/3pt arcs), NHL
+  rink, NFL gridiron w/ endzones, AFL oval (centre square/50m arcs), rugby
+  field (try zones/22s/dashed 10s), MMA octagon, stylised F1 circuit.
+- activity_stats_player.xml: SportFieldView layered as first child of the
+  scoreboard FrameLayout. StatsPlayerActivity wires setSport(sport, accent);
+  ACCENTS += cricket #F2C14E, tennis #D7E44A. renderScoreDetail no longer
+  leaves a trailing "·" when one side is blank.
+- stats_preview.html mirrors everything (fieldSvg() per sport, new accents)
+  — SCREENSHOT-VERIFIED with real data: live Wimbledon final w/ tennis
+  court, IPL final w/ cricket oval, MLB Nationals-Yankees w/ diamond.
+
+### Caveats / notes
+- Repaired a duplicated garbage tail (~27 lines) that appeared at EOF of
+  EpgActivity.kt during editing — brace balance re-verified vs HEAD (0,0,0).
+- No kotlinc in pod: Kotlin verified via brace/paren balance + structure
+  scripts; XML via minidom. Compile happens in CI as usual.

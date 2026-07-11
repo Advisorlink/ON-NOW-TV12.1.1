@@ -145,6 +145,14 @@
                 android:layout_height="0dp"
                 android:layout_weight="1">
 
+                <!-- v2.16.2 — Faded sport-specific field schematic
+                     (baseball diamond / tennis court / cricket oval /
+                     soccer pitch …) painted behind the scoreboard. -->
+                <tv.onnowtv.livetv.ui.SportFieldView
+                    android:id="@+id/stats_field_backdrop"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+
                 <!-- Live scoreboard content -->
                 <LinearLayout
                     android:id="@+id/stats_score_group"

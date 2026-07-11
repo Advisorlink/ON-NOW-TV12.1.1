@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import tv.onnowtv.livetv.R
 import tv.onnowtv.livetv.data.LiveSportsClassifier
@@ -36,11 +37,29 @@ class WhatsOnSportAdapter(
 
     init { setHasStableIds(true) }
 
+    /** v2.16.2 — DIFF-based submit.  The old notifyDataSetChanged()
+     *  rebuilt every chip on each background refresh, which killed
+     *  D-pad focus mid-scroll while the boot prefetch was running.
+     *  Now unchanged chips are left untouched, new sports slide in
+     *  with granular inserts, and only chips whose count/selection
+     *  changed are rebound in place (itemAnimator is null, so an
+     *  in-place rebind keeps focus). */
     fun submit(rows: List<Row>, activeKey: String?) {
+        val old = items.toList()
+        val oldActive = this.activeKey
+        this.activeKey = activeKey
+        val diff = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
+            override fun getOldListSize() = old.size
+            override fun getNewListSize() = rows.size
+            override fun areItemsTheSame(oldPos: Int, newPos: Int) =
+                old[oldPos].id == rows[newPos].id
+            override fun areContentsTheSame(oldPos: Int, newPos: Int) =
+                old[oldPos] == rows[newPos] &&
+                    (old[oldPos].id == oldActive) == (rows[newPos].id == activeKey)
+        })
         items.clear()
         items.addAll(rows)
-        this.activeKey = activeKey
-        notifyDataSetChanged()
+        diff.dispatchUpdatesTo(this)
     }
 
     override fun getItemId(position: Int): Long =

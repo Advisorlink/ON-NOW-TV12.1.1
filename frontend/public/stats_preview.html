@@ -137,6 +137,12 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.05;
 .empty{color:var(--faint);font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.06em;
   text-align:center;padding:34px 20px}
 .race-name{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:46px;text-align:center;line-height:1.05}
+
+/* sport-specific field schematic behind the scoreboard */
+.field-wrap{position:absolute;inset:26px 20px 34px;display:flex;align-items:center;justify-content:center;
+  opacity:.20;pointer-events:none;color:var(--accent);z-index:0}
+.field-wrap svg{width:92%;height:92%}
+.score-card>*:not(.field-wrap){position:relative;z-index:1}
 </style>
 </head>
 <body>
@@ -148,6 +154,7 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.05;
   </div>
 
   <div class="card score-card">
+    <div class="field-wrap" id="fieldWrap"></div>
     <div class="sc-top">
       <span class="eyebrow" id="eyebrow">—</span>
       <span class="sport-tag" id="sportTag">SPORT</span>
@@ -173,7 +180,33 @@ const qs = new URLSearchParams(location.search);
 const SPORT = qs.get('sport') || 'afl';
 const TITLE = qs.get('title') || '';
 const ACCENTS = {soccer:'#3DDC84', afl:'#FF5A3C', nrl:'#8B6BFF', rugby:'#4D9FFF',
-                 f1:'#FF2B4E', nfl:'#C98BFF', nba:'#FF9F45', nhl:'#6FD6FF', mlb:'#7FE0A8', mma:'#FF5D73'};
+                 f1:'#FF2B4E', nfl:'#C98BFF', nba:'#FF9F45', nhl:'#6FD6FF', mlb:'#7FE0A8', mma:'#FF5D73',
+                 cricket:'#F2C14E', tennis:'#D7E44A'};
+
+/* Sport-specific field/court schematic — mirrors SportFieldView.kt */
+function fieldSvg(sport){
+  const S = 'stroke="currentColor" fill="none"';
+  const soft = 'stroke-opacity=".55" stroke-width="1.4"';
+  const main = 'stroke-width="2"';
+  const dash = 'stroke-opacity=".5" stroke-width="1.4" stroke-dasharray="6 6"';
+  const F = 'fill="currentColor" fill-opacity=".06" stroke="none"';
+  const VB = 'viewBox="0 0 400 240"';
+  switch(sport){
+    case 'soccer': return `<svg ${VB}><rect x="20" y="20" width="360" height="200" rx="8" ${F}/><rect x="20" y="20" width="360" height="200" rx="8" ${S} ${main}/><line x1="200" y1="20" x2="200" y2="220" ${S} ${soft}/><circle cx="200" cy="120" r="34" ${S} ${soft}/><circle cx="200" cy="120" r="3" fill="currentColor"/><rect x="20" y="68" width="58" height="104" ${S} ${soft}/><rect x="322" y="68" width="58" height="104" ${S} ${soft}/><rect x="20" y="94" width="22" height="52" ${S} ${soft}/><rect x="358" y="94" width="22" height="52" ${S} ${soft}/><circle cx="62" cy="120" r="2.5" fill="currentColor"/><circle cx="338" cy="120" r="2.5" fill="currentColor"/></svg>`;
+    case 'tennis': return `<svg ${VB}><rect x="30" y="30" width="340" height="180" ${F}/><rect x="30" y="30" width="340" height="180" ${S} ${main}/><line x1="30" y1="56" x2="370" y2="56" ${S} ${soft}/><line x1="30" y1="184" x2="370" y2="184" ${S} ${soft}/><line x1="200" y1="24" x2="200" y2="216" ${S} stroke-width="3"/><line x1="118" y1="56" x2="118" y2="184" ${S} ${soft}/><line x1="282" y1="56" x2="282" y2="184" ${S} ${soft}/><line x1="118" y1="120" x2="282" y2="120" ${S} ${soft}/></svg>`;
+    case 'mlb': return `<svg ${VB}><path d="M200 225 L300 155 L200 85 L100 155 Z" ${F}/><path d="M200 225 L300 155 L200 85 L100 155 Z" ${S} ${main}/><path d="M70 90 A150 150 0 0 1 330 90" ${S} ${soft}/><line x1="200" y1="225" x2="360" y2="55" ${S} ${dash}/><line x1="200" y1="225" x2="40" y2="55" ${S} ${dash}/><circle cx="200" cy="155" r="9" ${S} ${soft}/><rect x="294" y="149" width="12" height="12" transform="rotate(45 300 155)" ${S} ${main}/><rect x="194" y="79" width="12" height="12" transform="rotate(45 200 85)" ${S} ${main}/><rect x="94" y="149" width="12" height="12" transform="rotate(45 100 155)" ${S} ${main}/><rect x="194" y="219" width="12" height="12" transform="rotate(45 200 225)" ${S} ${main}/></svg>`;
+    case 'cricket': return `<svg ${VB}><ellipse cx="200" cy="120" rx="180" ry="100" ${F}/><ellipse cx="200" cy="120" rx="180" ry="100" ${S} ${main}/><ellipse cx="200" cy="120" rx="122" ry="66" ${S} ${dash}/><rect x="186" y="70" width="28" height="100" ${S} ${soft}/><line x1="166" y1="84" x2="234" y2="84" ${S} ${soft}/><line x1="166" y1="156" x2="234" y2="156" ${S} ${soft}/><line x1="193" y1="70" x2="207" y2="70" ${S} ${main}/><line x1="193" y1="170" x2="207" y2="170" ${S} ${main}/></svg>`;
+    case 'nba': return `<svg ${VB}><rect x="20" y="26" width="360" height="188" rx="6" ${F}/><rect x="20" y="26" width="360" height="188" rx="6" ${S} ${main}/><line x1="200" y1="26" x2="200" y2="214" ${S} ${soft}/><circle cx="200" cy="120" r="30" ${S} ${soft}/><rect x="20" y="88" width="68" height="64" ${S} ${soft}/><rect x="312" y="88" width="68" height="64" ${S} ${soft}/><circle cx="88" cy="120" r="19" ${S} ${dash}/><circle cx="312" cy="120" r="19" ${S} ${dash}/><path d="M36 34 A96 96 0 0 1 36 206" ${S} ${main}/><path d="M364 34 A96 96 0 0 0 364 206" ${S} ${main}/></svg>`;
+    case 'nhl': return `<svg ${VB}><rect x="20" y="26" width="360" height="188" rx="52" ${F}/><rect x="20" y="26" width="360" height="188" rx="52" ${S} ${main}/><line x1="200" y1="26" x2="200" y2="214" ${S} ${main}/><line x1="138" y1="26" x2="138" y2="214" ${S} ${soft}/><line x1="262" y1="26" x2="262" y2="214" ${S} ${soft}/><circle cx="200" cy="120" r="27" ${S} ${soft}/><circle cx="90" cy="76" r="20" ${S} ${dash}/><circle cx="90" cy="164" r="20" ${S} ${dash}/><circle cx="310" cy="76" r="20" ${S} ${dash}/><circle cx="310" cy="164" r="20" ${S} ${dash}/></svg>`;
+    case 'nfl': return `<svg ${VB}><rect x="20" y="30" width="360" height="180" ${F}/><rect x="20" y="30" width="360" height="180" ${S} ${main}/><rect x="20" y="30" width="36" height="180" fill="currentColor" fill-opacity=".13" stroke="none"/><rect x="344" y="30" width="36" height="180" fill="currentColor" fill-opacity=".13" stroke="none"/><line x1="56" y1="30" x2="56" y2="210" ${S} ${main}/><line x1="344" y1="30" x2="344" y2="210" ${S} ${main}/>${[1,2,3,4,5,6,7,8,9].map(i=>`<line x1="${56+i*28.8}" y1="30" x2="${56+i*28.8}" y2="210" ${S} ${i===5?main:soft}/>`).join('')}</svg>`;
+    case 'afl': return `<svg ${VB}><ellipse cx="200" cy="120" rx="180" ry="98" ${F}/><ellipse cx="200" cy="120" rx="180" ry="98" ${S} ${main}/><rect x="166" y="86" width="68" height="68" ${S} ${soft}/><circle cx="200" cy="120" r="4" ${S} ${soft}/><path d="M92 62 A78 78 0 0 0 92 178" ${S} ${dash}/><path d="M308 62 A78 78 0 0 1 308 178" ${S} ${dash}/><rect x="20" y="102" width="20" height="36" ${S} ${soft}/><rect x="360" y="102" width="20" height="36" ${S} ${soft}/></svg>`;
+    case 'rugby': case 'nrl': return `<svg ${VB}><rect x="20" y="30" width="360" height="180" ${F}/><rect x="20" y="30" width="360" height="180" ${S} ${main}/><rect x="20" y="30" width="32" height="180" fill="currentColor" fill-opacity=".13" stroke="none"/><rect x="348" y="30" width="32" height="180" fill="currentColor" fill-opacity=".13" stroke="none"/><line x1="52" y1="30" x2="52" y2="210" ${S} ${main}/><line x1="348" y1="30" x2="348" y2="210" ${S} ${main}/><line x1="200" y1="30" x2="200" y2="210" ${S} ${main}/><line x1="126" y1="30" x2="126" y2="210" ${S} ${soft}/><line x1="274" y1="30" x2="274" y2="210" ${S} ${soft}/><line x1="167" y1="30" x2="167" y2="210" ${S} ${dash}/><line x1="233" y1="30" x2="233" y2="210" ${S} ${dash}/></svg>`;
+    case 'mma': { const oct=r=>Array.from({length:8},(_,i)=>{const a=(i*45-22.5)*Math.PI/180;return `${200+r*Math.cos(a)},${120+r*Math.sin(a)*0.92}`;}).join(' ');
+      return `<svg ${VB}><polygon points="${oct(105)}" ${F}/><polygon points="${oct(105)}" ${S} ${main}/><polygon points="${oct(90)}" ${S} ${soft}/><circle cx="200" cy="120" r="24" ${S} ${dash}/></svg>`; }
+    case 'f1': case 'motorsport': return `<svg ${VB}><path d="M90 210 L290 210 Q360 210 360 150 Q360 90 290 92 L210 110 Q180 60 140 62 Q60 66 62 130 Q64 180 90 210 Z" ${S} stroke-width="10" stroke-opacity=".25" stroke-linejoin="round"/><path d="M90 210 L290 210 Q360 210 360 150 Q360 90 290 92 L210 110 Q180 60 140 62 Q60 66 62 130 Q64 180 90 210 Z" ${S} ${dash}/><line x1="180" y1="202" x2="180" y2="218" ${S} ${main}/><line x1="188" y1="202" x2="188" y2="218" ${S} ${main}/><line x1="196" y1="202" x2="196" y2="218" ${S} ${main}/></svg>`;
+    default: return '';
+  }
+}
 
 function vivid(hex, fallback){
   if(!hex) return fallback;
@@ -201,6 +234,7 @@ async function main(){
   root.setProperty('--home', hc); root.setProperty('--away', ac);
 
   document.getElementById('chChip').textContent = (qs.get('ch')||'FOX SPORTS 503').toUpperCase();
+  document.getElementById('fieldWrap').innerHTML = fieldSvg(SPORT);
   document.getElementById('eyebrow').textContent = d.league || TITLE;
   document.getElementById('sportTag').textContent = d.sportLabel || SPORT;
   document.getElementById('livePill').style.display = st.live!==false ? 'flex' : 'flex';
@@ -222,7 +256,7 @@ async function main(){
       </div>
       <div class="mid">
         <div class="big-score"><span style="color:${hc}">${home.score??'0'}</span><span class="dash">–</span><span style="color:${ac}">${away.score??'0'}</span></div>
-        ${home.scoreDetail?`<div class="score-detail">${home.scoreDetail} · ${away.scoreDetail||''}</div>`:''}
+        ${(home.scoreDetail||away.scoreDetail)?`<div class="score-detail">${[home.scoreDetail,away.scoreDetail].filter(Boolean).join(' · ')}</div>`:''}
         <span class="clock-pill">${st.clock || st.short || ''}</span>
         <div class="status-long">${st.long||''}</div>
       </div>

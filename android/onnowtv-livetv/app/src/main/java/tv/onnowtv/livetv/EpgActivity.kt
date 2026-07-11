@@ -156,7 +156,10 @@ class EpgActivity : AppCompatActivity() {
     private var currentCategoryId: String? = null
     private var focusedChannel: Channel? = null
     private var allCategoriesWithCounts: List<Category> = emptyList()
-    private val epgCache = mutableMapOf<String, List<Programme>>()
+    /** v2.16.2 — ConcurrentHashMap: the WhatsOn prefetch writes from
+     *  many IO threads while the main thread reads/iterates — the
+     *  old HashMap raced and could corrupt or CME mid-scan. */
+    private val epgCache = java.util.concurrent.ConcurrentHashMap<String, List<Programme>>()
     /** Channels whose lazy-fetch returned no EPG.  We remember
      *  these so the channel pill stops showing "Loading guide…"
      *  forever — it'll just show the channel name. */
@@ -372,12 +375,11 @@ class EpgActivity : AppCompatActivity() {
             }.toDouble() / cs.size
             cat.id to ratio
         }
-        // Default category is ALWAYS "All channels" on boot — the
-        // user wants a populated middle column the moment the EPG
-        // opens, never the empty Favourites stub.  The previous
-        // EPG-coverage heuristic is kept off until favourites /
-        // recents have real backing storage.
-        currentCategoryId = "__all__"
+        // Default category on boot is the "WHAT'S ON LIVE" hub —
+        // the user asked the app to open STRAIGHT into the live-
+        // sports view with the sport chip row already expanded
+        // (v2.16.2).  Deep links below still override this.
+        currentCategoryId = "__whatson__"
 
         // Deep-link override: LibraryActivity passes the saved
         // Collection's category id here so opening a tile lands the
@@ -832,12 +834,13 @@ class EpgActivity : AppCompatActivity() {
         )
         whatsOnSportRow.adapter = whatsOnAdapter
         whatsOnSportRow.itemAnimator = null
+        containHorizontalKeyNav(whatsOnSportRow)
 
         // Initial count — silently populates the "0" pill before
         // the user has focussed anything.  Full recompute happens
         // inside [applyWhatsOnCategory] when the hub is opened.
         recomputeWhatsOnRows()
-        whatsOnPillCount.text = whatsOnRows.sumOf { it.count }.toString()
+        whatsOnPillCount.text = (whatsOnRows.firstOrNull()?.count ?: 0).toString()
 
         whatsOnPill.setOnClickListener {
             currentCategoryId = "__whatson__"
@@ -861,11 +864,10 @@ class EpgActivity : AppCompatActivity() {
      *  Without this the hub was only counting channels whose EPG
      *  had already been lazy-loaded by scrolling the middle column
      *  — so it started at ~6 and crept toward 60 as the user
-     *  scrolled.  Now every channel that isn't already in
-     *  `epgCache` gets its per-channel gz opened from disk in
-     *  parallel batches of 40, and the WhatsOn hub is refreshed
-     *  after each batch so the count grows visibly rather than
-     *  waiting for one big finish. */
+     *  scrolled.  Every channel that isn't already in `epgCache`
+     *  gets its per-channel gz opened from disk in parallel
+     *  batches, and the WhatsOn hub is refreshed with throttled,
+     *  focus-preserving diffs while the scan runs. */
     private fun kickOffWhatsOnPrefetch() {
         if (whatsOnPrefetchStarted) return
         whatsOnPrefetchStarted = true
@@ -885,8 +887,18 @@ class EpgActivity : AppCompatActivity() {
         whatsOnPrefetchInFlight = true
         whatsOnPillSublabel.text = "SCANNING GUIDE…"
 
+        // v2.16.2 — FLAWLESS-NAV loading.  The old loop ran the
+        // full classifier scan + notifyDataSetChanged() on the MAIN
+        // thread after every 40-channel batch (~350 batches!) which
+        // dropped D-pad events and threw focus around until the
+        // scan finished.  Now: bigger batches, the scan runs OFF
+        // the main thread, UI pushes are throttled to one per
+        // 1.2 s, and both adapters apply minimal diffs that never
+        // disturb focus or scroll position.
         lifecycleScope.launch(Dispatchers.IO) {
-            toLoad.chunked(40).forEach { batch ->
+            var lastUiPush = 0L
+            val chunks = toLoad.chunked(150)
+            chunks.forEachIndexed { idx, batch ->
                 val jobs = batch.map { sid ->
                     async(Dispatchers.IO) {
                         val list = try {
@@ -903,22 +915,31 @@ class EpgActivity : AppCompatActivity() {
                     }
                 }
                 jobs.awaitAll()
-                // Progressive UI update after each batch so the
-                // pill count + chip row grow visibly.
+                val isLast = idx == chunks.lastIndex
+                val nowMs = System.currentTimeMillis()
+                if (!isLast && nowMs - lastUiPush < 1_200L) return@forEachIndexed
+                lastUiPush = nowMs
+                // Heavy classifier scan on the IO thread — main
+                // thread only receives the finished result.
+                val (rows, byBucket) = computeWhatsOnRows()
                 withContext(Dispatchers.Main) {
-                    recomputeWhatsOnRows()
-                    val n = whatsOnRows.sumOf { it.count }
+                    whatsOnRows = rows
+                    whatsOnChannelsByBucket = byBucket
+                    val n = rows.firstOrNull()?.count ?: 0
                     whatsOnPillCount.text = n.toString()
                     whatsOnPillSublabel.text = "SCANNING GUIDE · $n LIVE"
                     if (currentCategoryId == "__whatson__") {
                         whatsOnAdapter.submit(whatsOnRows, whatsOnActiveSport)
-                        paintWhatsOnChannels()
+                        paintWhatsOnChannelsIncremental()
                     }
                 }
             }
             withContext(Dispatchers.Main) {
                 whatsOnPrefetchInFlight = false
                 whatsOnPillSublabel.text = "SPORTS · RIGHT NOW"
+                if (currentCategoryId == "__whatson__") {
+                    paintWhatsOnChannelsIncremental()
+                }
             }
         }
     }
@@ -953,16 +974,13 @@ class EpgActivity : AppCompatActivity() {
         whatsOnAdapter.submit(whatsOnRows, whatsOnActiveSport)
         paintWhatsOnChannels()
 
-        val totalLive = whatsOnRows.sumOf { it.count }
-        whatsOnPillCount.text = totalLive.toString()
+        whatsOnPillCount.text = (whatsOnRows.firstOrNull()?.count ?: 0).toString()
     }
 
-    /** Filter + submit the channel list for the currently-selected
-     *  sport bucket (or "ALL" when [whatsOnActiveSport] is null). */
-    private fun paintWhatsOnChannels() {
-        val visible: List<Channel> = if (whatsOnActiveSport == null) {
-            // Union across all buckets, de-duped, preserving the
-            // insertion order of the first bucket that saw each id.
+    /** The channel list for the currently-selected sport bucket
+     *  (or the de-duped union across all buckets for "ALL"). */
+    private fun whatsOnVisibleChannels(): List<Channel> =
+        if (whatsOnActiveSport == null) {
             val seen = LinkedHashSet<String>()
             val merged = mutableListOf<Channel>()
             for ((_, list) in whatsOnChannelsByBucket) {
@@ -974,9 +992,16 @@ class EpgActivity : AppCompatActivity() {
         } else {
             whatsOnChannelsByBucket[whatsOnActiveSport] ?: emptyList()
         }
+
+    /** Filter + submit the channel list for the currently-selected
+     *  sport bucket (or "ALL" when [whatsOnActiveSport] is null).
+     *  FULL repaint — used on explicit user actions (opening the
+     *  hub, picking a chip). */
+    private fun paintWhatsOnChannels() {
+        val visible = whatsOnVisibleChannels()
         currentChannelList = visible
         channelAdapter.submit(visible)
-        channelCountChip.text = "${"%,d".format(visible.size)} LIVE"
+        paintWhatsOnCountChip(visible.size)
 
         val first = visible.firstOrNull()
         if (first != null) {
@@ -986,6 +1011,31 @@ class EpgActivity : AppCompatActivity() {
         } else {
             focusedChannel = null
             guideAdapter.submit(emptyList())
+        }
+    }
+
+    /** v2.16.2 — BACKGROUND repaint used while the boot prefetch /
+     *  30-s ticker streams new data in.  Applies a minimal diff so
+     *  the user's focus + scroll position are never disturbed, and
+     *  only seeds the hero when nothing was showing yet. */
+    private fun paintWhatsOnChannelsIncremental() {
+        val visible = whatsOnVisibleChannels()
+        currentChannelList = visible
+        channelAdapter.submitDiffed(visible)
+        paintWhatsOnCountChip(visible.size)
+
+        if (focusedChannel == null && visible.isNotEmpty()) {
+            val first = visible.first()
+            focusedChannel = first
+            updateHero(first)
+            loadGuideForChannel(first)
+        }
+    }
+
+    private fun paintWhatsOnCountChip(count: Int) {
+        channelCountChip.text = when {
+            count == 0 && whatsOnPrefetchInFlight -> "SCANNING…"
+            else -> "${"%,d".format(count)} LIVE"
         }
     }
 
@@ -1001,6 +1051,17 @@ class EpgActivity : AppCompatActivity() {
      *  authoritative signal and only classify programmes that
      *  actually said "I am live". */
     private fun recomputeWhatsOnRows() {
+        val (rows, byBucket) = computeWhatsOnRows()
+        whatsOnRows = rows
+        whatsOnChannelsByBucket = byBucket
+    }
+
+    /** Pure scan — SAFE TO CALL FROM ANY THREAD (bundle.channels is
+     *  immutable, epgCache is a ConcurrentHashMap).  Returns the
+     *  chip rows + bucket→channels map without touching fields so
+     *  background refreshes can compute off-main and hand the
+     *  finished result to the UI thread. */
+    private fun computeWhatsOnRows(): Pair<List<tv.onnowtv.livetv.ui.WhatsOnSportAdapter.Row>, Map<String, List<Channel>>> {
         val now = System.currentTimeMillis()
         val byBucket = LinkedHashMap<String, MutableList<Channel>>()
 
@@ -1034,8 +1095,6 @@ class EpgActivity : AppCompatActivity() {
             byBucket.getOrPut(bucket) { mutableListOf() }.add(ch)
         }
 
-        whatsOnChannelsByBucket = byBucket
-
         // Build rows in the classifier's display order so the row
         // always reads Football → F1 → … even if buckets appear /
         // vanish between refreshes.
@@ -1058,7 +1117,7 @@ class EpgActivity : AppCompatActivity() {
                 ),
             )
         }
-        whatsOnRows = rows
+        return rows to byBucket
     }
 
 
@@ -1077,7 +1136,8 @@ class EpgActivity : AppCompatActivity() {
                 stopMs = reminder.stopMs,
             )
         }
-        val list = epgCache[ch.epgChannelId] ?: return null
+        val sid = ch.epgChannelId ?: return null
+        val list = epgCache[sid] ?: return null
         val n = System.currentTimeMillis()
         return list.firstOrNull { it.isLiveAt(n) }
     }
@@ -1153,7 +1213,8 @@ class EpgActivity : AppCompatActivity() {
     }
 
     private fun upcomingProgrammeOf(ch: Channel, now: Programme): Programme? {
-        val list = epgCache[ch.epgChannelId] ?: return null
+        val sid = ch.epgChannelId ?: return null
+        val list = epgCache[sid] ?: return null
         return list.firstOrNull { it.startMs > now.startMs }
     }
 
@@ -1365,6 +1426,7 @@ class EpgActivity : AppCompatActivity() {
      *  stay in sync with `SPORTS` in `backend/livestats.py`. */
     private val statsSports = setOf(
         "soccer", "afl", "nba", "nhl", "mlb", "rugby", "nrl", "nfl", "f1", "mma",
+        "cricket", "tennis",
     )
 
     /**
@@ -1549,22 +1611,33 @@ class EpgActivity : AppCompatActivity() {
                 guideToday.text = "COMING UP NEXT"
                 guideClock.text = "TODAY · ${dateFmt.format(Date()).uppercase(Locale.UK)} · $nowStr"
                 focusedChannel?.let { updateHero(it) }
-                // v2.14.16 — Keep the "WHAT'S ON LIVE" pill count
-                // + sport chip row honest as programmes turn over.
-                if (::whatsOnPillCount.isInitialized) {
-                    recomputeWhatsOnRows()
-                    whatsOnPillCount.text = whatsOnRows.sumOf { it.count }.toString()
-                    if (currentCategoryId == "__whatson__") {
-                        whatsOnAdapter.submit(whatsOnRows, whatsOnActiveSport)
-                        // If the previously-selected sport just
-                        // emptied out, silently fall back to ALL
-                        // so the middle column doesn't go blank.
-                        if (whatsOnActiveSport != null &&
-                            whatsOnChannelsByBucket[whatsOnActiveSport].isNullOrEmpty()
-                        ) {
-                            whatsOnActiveSport = null
+                // v2.16.2 — Keep the "WHAT'S ON LIVE" pill count +
+                // chip row honest as programmes turn over.  The
+                // classifier scan now runs OFF the main thread and
+                // the result lands as a focus-preserving diff, so
+                // the 30-s tick can never stutter D-pad navigation.
+                // Skipped while the boot prefetch is running — that
+                // path already refreshes the hub as batches land.
+                if (::whatsOnPillCount.isInitialized && !whatsOnPrefetchInFlight) {
+                    lifecycleScope.launch(Dispatchers.Default) {
+                        val (rows, byBucket) = computeWhatsOnRows()
+                        withContext(Dispatchers.Main) {
+                            whatsOnRows = rows
+                            whatsOnChannelsByBucket = byBucket
+                            whatsOnPillCount.text = (rows.firstOrNull()?.count ?: 0).toString()
+                            if (currentCategoryId == "__whatson__") {
+                                // If the previously-selected sport just
+                                // emptied out, silently fall back to ALL
+                                // so the middle column doesn't go blank.
+                                if (whatsOnActiveSport != null &&
+                                    byBucket[whatsOnActiveSport].isNullOrEmpty()
+                                ) {
+                                    whatsOnActiveSport = null
+                                }
+                                whatsOnAdapter.submit(whatsOnRows, whatsOnActiveSport)
+                                paintWhatsOnChannelsIncremental()
+                            }
                         }
-                        paintWhatsOnChannels()
                     }
                 }
                 clockHandler.postDelayed(this, 30_000L)

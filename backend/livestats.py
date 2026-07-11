@@ -58,6 +58,17 @@ SPORTS: Dict[str, Dict[str, Any]] = {
                "leagues": [("racing", "f1")]},
     "mma":    {"label": "MMA", "kind": "mma",
                "leagues": [("mma", "ufc")]},
+    # v2.16.1 — Cricket: ESPN uses numeric Cricinfo trophy ids.
+    # World Cup / World Test Championship / IPL / Big Bash / County.
+    "cricket": {"label": "Cricket", "kind": "cricket",
+                "leagues": [("cricket", "8039"), ("cricket", "19430"),
+                            ("cricket", "8048"), ("cricket", "8044"),
+                            ("cricket", "8052")]},
+    # v2.16.1 — Tennis: scoreboard events are TOURNAMENTS whose
+    # groupings[].competitions[] hold the individual matches — they
+    # get flattened into pseudo-events before resolution.
+    "tennis": {"label": "Tennis", "kind": "tennis",
+               "leagues": [("tennis", "atp"), ("tennis", "wta")]},
 }
 
 SUPERSCRIPT_LIVE = "\u1d38\u1da6\u1d5b\u1d49"
@@ -297,7 +308,7 @@ def _team_side(c: dict, kind: str) -> Dict[str, Any]:
         "abbr": t.get("abbreviation") or "",
         "logo": logo,
         "score": c.get("score"),
-        "color": f"#{color}" if color else "",
+        "color": f"#{color.lstrip('#')}" if color else "",
         "form": form,
     }
     if kind == "afl":
@@ -635,6 +646,203 @@ def _live_or_candidates(events: List[dict], include_finished: bool) -> List[dict
     return post or events
 
 
+# ── tennis: tournament events → per-match pseudo-events ─────────────
+
+def _tennis_flatten(events: List[dict]) -> List[dict]:
+    """Each ESPN tennis event is a TOURNAMENT; the real matches live
+    in groupings[].competitions[].  Flatten to pseudo-events shaped
+    like a normal scoreboard event so _state/_resolve/_competitors
+    keep working unchanged."""
+    out: List[dict] = []
+    for tour in events:
+        tname = tour.get("name") or ""
+        for g in tour.get("groupings") or []:
+            gname = (g.get("grouping") or {}).get("displayName") or ""
+            for m in g.get("competitions") or []:
+                names = []
+                for c in m.get("competitors") or []:
+                    ath = c.get("athlete") or {}
+                    n = ath.get("displayName") or ath.get("shortName") or ""
+                    if n:
+                        names.append(n)
+                out.append({
+                    "id": m.get("id"),
+                    "name": " vs ".join(names) if len(names) == 2 else (tname or "Match"),
+                    "shortName": " v ".join(names) if len(names) == 2 else tname,
+                    "status": m.get("status") or {},
+                    "competitions": [m],
+                    "_tournament": tname,
+                    "_grouping": gname,
+                })
+    return out
+
+
+def _tennis_side(c: dict) -> Dict[str, Any]:
+    ath = c.get("athlete") or {}
+    ls = c.get("linescores") or []
+    sets_won = sum(1 for s in ls if s.get("winner"))
+    return {
+        "name": ath.get("displayName") or "",
+        "abbr": ath.get("shortName") or "",
+        "logo": (ath.get("flag") or {}).get("href") or "",
+        "score": sets_won,
+        "color": "",
+        "form": "",
+        "rank": (c.get("curatedRank") or {}).get("current"),
+    }
+
+
+def _board_tennis(sport: str, ev: dict) -> Dict[str, Any]:
+    m = (ev.get("competitions") or [{}])[0]
+    home_c, away_c = _competitors(ev)
+    home = _tennis_side(home_c)
+    away = _tennis_side(away_c)
+
+    hls = home_c.get("linescores") or []
+    als = away_c.get("linescores") or []
+    periods: List[Dict[str, str]] = []
+    for i in range(min(max(len(hls), len(als)), 5)):
+        hv = hls[i].get("value") if i < len(hls) else None
+        av = als[i].get("value") if i < len(als) else None
+        periods.append(_period_row(f"S{i + 1}", _int_s(_num(hv)), _int_s(_num(av))))
+
+    st = m.get("status") or ev.get("status") or {}
+    t = st.get("type") or {}
+    live = t.get("state") == "in"
+    note = ""
+    for n in m.get("notes") or []:
+        note = str(n.get("text") or "")
+        if note:
+            break
+
+    ven = m.get("venue") or {}
+    court = ven.get("court") or ""
+    venue = " · ".join(x for x in [court, ven.get("fullName") or ""] if x)
+
+    league = " · ".join(x for x in [ev.get("_tournament") or "",
+                                    ev.get("_grouping") or ""] if x)
+    rnd = (m.get("round") or {}).get("displayName") or ""
+    if rnd:
+        league = f"{league} · {rnd}" if league else rnd
+
+    return _shape(
+        sport,
+        fixtureId=ev.get("id"),
+        league=league,
+        venue=venue,
+        status={
+            "short": t.get("shortDetail") or "",
+            "long": note or t.get("detail") or t.get("description") or "",
+            "clock": (t.get("detail") or "") if live else "",
+            "live": live,
+        },
+        home=home,
+        away=away,
+        periods=periods,
+        stats=[],
+        events=[],
+    )
+
+
+# ── cricket: innings scores parsed from scoreboard linescores ───────
+
+def _cricket_innings(c: dict) -> List[Dict[str, Any]]:
+    out = []
+    for ls in c.get("linescores") or []:
+        runs = _num(ls.get("runs"))
+        overs = _num(ls.get("overs"))
+        if runs is None:
+            continue
+        # A side's linescores mirror EVERY match period — only its
+        # own batting innings count (isBatting, or runs on board).
+        if runs <= 0 and not bool(ls.get("isBatting")):
+            continue
+        wickets = _num(ls.get("wickets")) or 0
+        out.append({
+            "runs": int(runs),
+            "wickets": int(wickets),
+            "overs": overs or 0.0,
+            "current": bool(ls.get("isCurrent")),
+        })
+    return out
+
+
+def _cricket_score_str(innings: List[Dict[str, Any]]) -> str:
+    parts = []
+    for inn in innings:
+        if inn["wickets"] >= 10:
+            parts.append(str(inn["runs"]))
+        else:
+            parts.append(f"{inn['runs']}/{inn['wickets']}")
+    return " & ".join(parts) if parts else "0"
+
+
+def _board_cricket(sport: str, ev: dict) -> Dict[str, Any]:
+    comp = (ev.get("competitions") or [{}])[0]
+    home_c, away_c = _competitors(ev)
+    home = _team_side(home_c, "cricket")
+    away = _team_side(away_c, "cricket")
+
+    h_inn = _cricket_innings(home_c)
+    a_inn = _cricket_innings(away_c)
+    home["score"] = _cricket_score_str(h_inn)
+    away["score"] = _cricket_score_str(a_inn)
+    cur_h = next((i for i in h_inn if i["current"]), None)
+    cur_a = next((i for i in a_inn if i["current"]), None)
+    if cur_h:
+        home["scoreDetail"] = f"{cur_h['overs']:g} OV"
+    if cur_a:
+        away["scoreDetail"] = f"{cur_a['overs']:g} OV"
+
+    periods: List[Dict[str, str]] = []
+    for i in range(max(len(h_inn), len(a_inn))):
+        hv = _cricket_score_str([h_inn[i]]) if i < len(h_inn) else None
+        av = _cricket_score_str([a_inn[i]]) if i < len(a_inn) else None
+        periods.append(_period_row(f"I{i + 1}", hv, av))
+
+    h_runs = sum(i["runs"] for i in h_inn)
+    a_runs = sum(i["runs"] for i in a_inn)
+    h_ov = sum(i["overs"] for i in h_inn)
+    a_ov = sum(i["overs"] for i in a_inn)
+    bars: List[Dict[str, Any]] = []
+    b = _bar("runs", "Total Runs", h_runs, a_runs)
+    if b:
+        bars.append(b)
+    if h_ov > 0 and a_ov > 0:
+        b = _bar("runrate", "Run Rate", round(h_runs / h_ov, 2), round(a_runs / a_ov, 2))
+        if b:
+            bars.append(b)
+    h_wk = sum(i["wickets"] for i in h_inn)
+    a_wk = sum(i["wickets"] for i in a_inn)
+    b = _bar("wickets", "Wickets Lost", h_wk, a_wk)
+    if b:
+        bars.append(b)
+
+    st = comp.get("status") or ev.get("status") or {}
+    t = st.get("type") or {}
+    live = t.get("state") == "in"
+    summary = str(st.get("summary") or "")
+
+    return _shape(
+        sport,
+        fixtureId=ev.get("id"),
+        league=(ev.get("season") or {}).get("displayName")
+               or ev.get("description") or "",
+        venue=((comp.get("venue") or {}).get("fullName") or ""),
+        status={
+            "short": t.get("shortDetail") or "",
+            "long": summary or t.get("detail") or "",
+            "clock": summary if live else "",
+            "live": live,
+        },
+        home=home,
+        away=away,
+        periods=periods,
+        stats=bars,
+        events=[],
+    )
+
+
 @router.get("/board")
 async def board(
     sport: str = Query(..., description="Sport bucket id from the WhatsOn hub"),
@@ -656,6 +864,8 @@ async def board(
         events = await _scoreboard(sport_path, league, dates)
         if events:
             fetch_failed = False
+        if kind == "tennis":
+            events = _tennis_flatten(events)
         for ev in _live_or_candidates(events, includeFinished):
             candidates.append((ev, sport_path, league))
 
@@ -667,6 +877,17 @@ async def board(
                       message=f"No live {label} match in the data feed right now")
 
     ev, how = _resolve(title, [c[0] for c in candidates], kind)
+    if ev is None and kind == "tennis":
+        # Tennis EPG titles rarely name players ("Live Tennis:
+        # Wimbledon — Centre Court").  Fall back to tournament-name
+        # matching, preferring singles matches.
+        tn, tt = _norm(title), _tokens(title)
+        tour_hits = [c[0] for c in candidates
+                     if _match_score(tt, tn, [c[0].get("_tournament") or ""]) > 0]
+        if tour_hits:
+            singles = [e for e in tour_hits
+                       if "singles" in (e.get("_grouping") or "").lower()]
+            ev, how = (singles or tour_hits)[0], "tournament"
     if ev is None:
         return _shape(sport, found=False, reason="no_match", liveCount=len(candidates),
                       message=f"{len(candidates)} live {label} matches in the feed — "
@@ -675,6 +896,10 @@ async def board(
 
     if kind == "racing":
         payload = await _board_racing(sport, ev)
+    elif kind == "tennis":
+        payload = _board_tennis(sport, ev)
+    elif kind == "cricket":
+        payload = _board_cricket(sport, ev)
     else:
         payload = await _board_team_sport(sport, kind, sport_path, league, ev)
     payload["matched"] = how
