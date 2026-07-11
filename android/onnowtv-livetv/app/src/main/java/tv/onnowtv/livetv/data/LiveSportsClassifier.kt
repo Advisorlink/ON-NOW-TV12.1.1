@@ -291,6 +291,17 @@ object LiveSportsClassifier {
         "best of ", "top 10", "top ten", " classic ", "classic:",
         "throwback", "greatest", "documentary", "the story of",
         " special ",
+        // v2.16.3 — Archive / non-match content that the provider
+        // still tags with the "ᴸᶦᵛᵉ" superscript because the CHANNEL
+        // is broadcasting now (e.g. "2006 Major League Baseball
+        // Draft").  These titles must NOT be treated as live games
+        // — otherwise the stats board falsely attaches today's PIT
+        // @MIL scoreboard to a 2006 rebroadcast.
+        " draft ", "draft:", " draft.", "hall of fame",
+        "retrospective", " retro ", "retro:", "top plays",
+        "top moments", "all-time", " archive ", "archives:",
+        " vintage ", "history of", " retro-", "flashback",
+        "iconic moments", "greatest moments", "the making of",
     )
 
     /** The provider appends this Unicode superscript "ᴸᶦᵛᵉ" token

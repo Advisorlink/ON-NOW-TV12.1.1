@@ -209,8 +209,13 @@ def _resolve(title: str, events: List[dict], kind: str) -> Tuple[Optional[dict],
     if kind == "racing" and events:
         return (best, "matched") if best is not None and best_score > 0 \
             else (events[0], "only_live")
-    if len(events) == 1:
-        return events[0], "only_live"
+    # v2.16.3 — Removed the "single live game fallback" for team
+    # sports.  It was falsely attributing the current PIT@MIL live
+    # stats to unrelated shows like "2006 Major League Baseball
+    # Draft" that only shared the word "baseball" with the sport
+    # bucket.  Team-sport titles MUST genuinely name at least one
+    # competitor.  Tennis and racing keep their own dedicated
+    # fallbacks below in board().
     return None, "no_match"
 
 
