@@ -1346,6 +1346,10 @@ class EpgActivity : AppCompatActivity() {
             r?.let { bundle.channels.firstOrNull { it.id == r.channelId } } ?: return
         } else ch
 
+        // v2.15.0 — WhatsOn hub: live sport programmes offer a
+        // "Live Stats" split-screen mode before playing.
+        if (currentCategoryId == "__whatson__" && maybeOfferLiveStats(effective)) return
+
         val alreadyPreviewing = LivePreviewSession.currentChannel?.id == effective.id
         if (!alreadyPreviewing) {
             // First tap on a new channel — start preview.
@@ -1355,6 +1359,67 @@ class EpgActivity : AppCompatActivity() {
         // Second tap (same channel still in preview) — go full-screen,
         // re-using the very same ExoPlayer instance.
         openFullscreen(effective)
+    }
+
+    /** Sport buckets the Live Stats Match Centre can serve — must
+     *  stay in sync with `SPORTS` in `backend/livestats.py`. */
+    private val statsSports = setOf(
+        "soccer", "afl", "nba", "nhl", "mlb", "rugby", "nrl", "nfl", "f1", "mma",
+    )
+
+    /**
+     * v2.15.0 — When the WhatsOn hub is active and [ch]'s current
+     * programme is a live sport we can pull stats for, offer the
+     * choice of the split-screen Match Centre or plain fullscreen.
+     * Returns `true` when the dialog was shown (caller must stop).
+     */
+    private fun maybeOfferLiveStats(ch: Channel): Boolean {
+        val prog = liveProgrammeOf(ch) ?: return false
+        if (!prog.live &&
+            !tv.onnowtv.livetv.data.LiveSportsClassifier.hasLiveWord(prog.title)
+        ) return false
+        val bucket = tv.onnowtv.livetv.data.LiveSportsClassifier
+            .classify(prog.title, ch.name) ?: return false
+        if (bucket !in statsSports) return false
+        val cleanTitle = prog.title.replace("\u1D38\u1DA6\u1D5B\u1D49", "").trim()
+        tv.onnowtv.livetv.ui.ActionSheetDialog(this)
+            .title(cleanTitle)
+            .subtitle(
+                "This match is live · " +
+                    tv.onnowtv.livetv.data.LiveSportsClassifier.labelOf(bucket),
+            )
+            .item("Watch with Live Stats", icon = "▦") {
+                openLiveStats(ch, cleanTitle, bucket)
+            }
+            .item("Watch Fullscreen", icon = "▶") {
+                startPreview(ch)
+                openFullscreen(ch)
+            }
+            .show()
+        return true
+    }
+
+    /** Launch the split-screen Live Stats Match Centre for [ch]. */
+    private fun openLiveStats(ch: Channel, programmeTitle: String, sport: String) {
+        if (LivePreviewSession.currentChannel?.id != ch.id) {
+            LivePreviewSession.setChannel(this, ch)
+        }
+        LivePreviewSession.detachWithoutRelease(previewPlayerView)
+        // Queue mirrors the visible WhatsOn list so a later hop to
+        // fullscreen zaps within the live-sports neighbourhood.
+        PlaybackQueue.setQueue(
+            currentChannelList.ifEmpty { bundle.channels },
+            ch.id,
+        )
+        startActivity(
+            Intent(this, StatsPlayerActivity::class.java).apply {
+                putExtra(StatsPlayerActivity.EXTRA_CHANNEL_ID, ch.id)
+                putExtra(StatsPlayerActivity.EXTRA_URL, ch.streamUrl)
+                putExtra(StatsPlayerActivity.EXTRA_CHANNEL_NAME, ch.name)
+                putExtra(StatsPlayerActivity.EXTRA_PROGRAMME_TITLE, programmeTitle)
+                putExtra(StatsPlayerActivity.EXTRA_SPORT, sport)
+            },
+        )
     }
 
     /** Swap the in-hero preview to [ch] (no full-screen). */

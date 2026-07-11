@@ -4784,6 +4784,11 @@ app.include_router(fta_router)
 from sportsdb import router as sportsdb_router  # noqa: E402
 app.include_router(sportsdb_router)
 
+# v2.15.0 — Live Sports Match Centre (API-Sports proxy for the
+# Live TV app's split-screen stats mode).
+from livestats import router as livestats_router  # noqa: E402
+app.include_router(livestats_router)
+
 from backup import router as backup_router  # noqa: E402
 app.include_router(backup_router)
 

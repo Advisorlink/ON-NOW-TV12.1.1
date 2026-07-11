@@ -67,6 +67,15 @@
             android:launchMode="singleTask"
             android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
 
+        <!-- v2.15.0 — Live Sports Match Centre: split-screen video +
+             live stats mode launched from the WhatsOn hub. -->
+        <activity
+            android:name=".StatsPlayerActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale|smallestScreenSize|screenLayout|uiMode"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
+
         <activity
             android:name=".LibraryActivity"
             android:exported="false"
