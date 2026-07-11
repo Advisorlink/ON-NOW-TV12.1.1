@@ -171,9 +171,28 @@ object LiveSportsClassifier {
         Rule(NHL, listOf(
             " nhl ", "ice hockey", "hockey night", "stanley cup",
         )),
+        // v2.16.2 — MLB expanded to every franchise + common
+        // phrasings, so EPG titles like "Brewers @ Pirates" or
+        // "Pirates vs Brewers" surface a Baseball chip in the hub.
+        // Ambiguous team names (Cardinals/Giants → NFL, Rangers →
+        // Rangers FC / NY Rangers) are intentionally omitted; they
+        // get picked up by " mlb ", "baseball", or ballpark tags.
         Rule(MLB, listOf(
-            " mlb ", "baseball", "world series baseball", "yankees",
-            "red sox", "dodgers vs",
+            " mlb ", " mlb:", "baseball", "world series",
+            "mlb network", "mlb tonight", "mlb live", "mlb game",
+            // Unambiguous franchises (unique nicknames only).
+            // "athletics" omitted here because it collides with the
+            // Athletics/track bucket — matched via "oakland athletics" instead.
+            "yankees", "red sox", "dodgers", "mets", "brewers",
+            "pirates", "phillies", "orioles", "blue jays", "astros",
+            "oakland athletics", "mariners", "twins", "guardians", "tigers",
+            "royals", "white sox", "braves", "marlins", "nationals",
+            "padres", "rockies", "diamondbacks", "reds", "cubs",
+            // Common ballpark names (unambiguous)
+            "fenway", "wrigley", "yankee stadium", "dodger stadium",
+            "citi field", "camden yards", "coors field",
+            // Broadcast tags
+            "sunday night baseball", "little league world series",
         )),
         Rule(TENNIS, listOf(
             "tennis", "wimbledon", "us open tennis", "australian open",
