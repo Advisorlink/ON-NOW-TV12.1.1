@@ -69,6 +69,15 @@ SPORTS: Dict[str, Dict[str, Any]] = {
     # get flattened into pseudo-events before resolution.
     "tennis": {"label": "Tennis", "kind": "tennis",
                "leagues": [("tennis", "atp"), ("tennis", "wta")]},
+    # v2.16.3 — Golf: leaderboard-style events across PGA / LPGA /
+    # DP World / Champions / LIV tours.  Payload uses the same
+    # leaderboard[] shape as racing so the Android renderer needs
+    # no new adapters, plus a golf-specific "course" venue string
+    # and current-round header.
+    "golf": {"label": "Golf", "kind": "golf",
+             "leagues": [("golf", "pga"), ("golf", "lpga"),
+                         ("golf", "eur"), ("golf", "champions-tour"),
+                         ("golf", "liv")]},
 }
 
 SUPERSCRIPT_LIVE = "\u1d38\u1da6\u1d5b\u1d49"
@@ -193,7 +202,7 @@ def _resolve(title: str, events: List[dict], kind: str) -> Tuple[Optional[dict],
     tn, tt = _norm(title), _tokens(title)
     best, best_score, best_sides = None, 0.0, 0
     for ev in events:
-        if kind in ("racing", "mma"):
+        if kind in ("racing", "mma", "golf"):
             s = _match_score(tt, tn, [ev.get("name") or "", ev.get("shortName") or ""])
             sides = 1 if s > 0 else 0
         else:
@@ -206,7 +215,10 @@ def _resolve(title: str, events: List[dict], kind: str) -> Tuple[Optional[dict],
             best, best_score, best_sides = ev, s, sides
     if best is not None and (best_sides >= 2 or best_score >= 3):
         return best, "matched"
-    if kind == "racing" and events:
+    if kind in ("racing", "golf") and events:
+        # Single-event scoreboards: EPG titles like "Live Golf: PGA
+        # Tour" rarely name the specific tournament, so fall back to
+        # the first live event (or the best partial match).
         return (best, "matched") if best is not None and best_score > 0 \
             else (events[0], "only_live")
     # v2.16.3 — Removed the "single live game fallback" for team
@@ -848,6 +860,82 @@ def _board_cricket(sport: str, ev: dict) -> Dict[str, Any]:
     )
 
 
+# ── golf: tournament leaderboard (PGA / LPGA / Euro / LIV) ──────────
+
+def _flag_country_abbr(flag_href: str) -> str:
+    """Extract 3-letter country code from an ESPN athlete flag URL:
+    `.../countries/500/usa.png` → `USA`."""
+    if not flag_href:
+        return ""
+    m = re.search(r"/countries/\d+/([a-z]{2,4})\.", flag_href)
+    return (m.group(1) if m else "").upper()
+
+
+def _board_golf(sport: str, ev: dict) -> Dict[str, Any]:
+    comp = (ev.get("competitions") or [{}])[0]
+    comps = comp.get("competitors") or []
+
+    # Sort by declared order (ESPN pre-sorts by leaderboard position).
+    sorted_players = sorted(comps, key=lambda c: c.get("order") or 9999)
+
+    leaderboard: List[Dict[str, Any]] = []
+    for c in sorted_players[:15]:
+        ath = c.get("athlete") or {}
+        flag_href = (ath.get("flag") or {}).get("href") or ""
+        # score is to-par like "-10" or "E"; fall back to sum
+        raw_score = c.get("score")
+        if raw_score in (None, ""):
+            detail = "E"
+        elif isinstance(raw_score, (int, float)):
+            v = int(raw_score) if float(raw_score) == int(raw_score) else raw_score
+            detail = "E" if v == 0 else (f"+{v}" if v > 0 else str(v))
+        else:
+            detail = str(raw_score)
+        leaderboard.append({
+            "pos": c.get("order"),
+            "name": ath.get("displayName") or ath.get("shortName") or "",
+            "team": _flag_country_abbr(flag_href),
+            "detail": detail,
+            "flag": flag_href,
+        })
+
+    st = comp.get("status") or ev.get("status") or {}
+    t = st.get("type") or {}
+    live = t.get("state") == "in"
+    # ESPN's shortDetail is authoritative for round info ("Round 3
+    # — In Progress").  Don't recompute from linescores (partial
+    # rounds get counted as complete and yield an off-by-one).
+    round_label = t.get("shortDetail") or t.get("description") or ""
+
+    ven = comp.get("venue") or {}
+    course = ven.get("fullName") or ""
+    city = (ven.get("address") or {}).get("city") or ""
+    country = (ven.get("address") or {}).get("country") or ""
+    venue = " · ".join(x for x in [course, ", ".join(y for y in [city, country] if y)] if x)
+
+    return _shape(
+        sport,
+        fixtureId=ev.get("id"),
+        league=ev.get("name") or "",
+        venue=venue,
+        status={
+            "short": t.get("shortDetail") or round_label,
+            "long": t.get("detail") or t.get("description") or "",
+            "clock": round_label,
+            "live": live,
+        },
+        home={"name": ev.get("name") or "", "abbr": "", "logo": "",
+              "score": None, "color": "", "form": ""},
+        away={"name": "", "abbr": "", "logo": "",
+              "score": None, "color": "", "form": ""},
+        periods=[],
+        stats=[],
+        events=[],
+        leaderboard=leaderboard,
+        sessions=[],
+    )
+
+
 @router.get("/board")
 async def board(
     sport: str = Query(..., description="Sport bucket id from the WhatsOn hub"),
@@ -905,6 +993,8 @@ async def board(
         payload = _board_tennis(sport, ev)
     elif kind == "cricket":
         payload = _board_cricket(sport, ev)
+    elif kind == "golf":
+        payload = _board_golf(sport, ev)
     else:
         payload = await _board_team_sport(sport, kind, sport_path, league, ev)
     payload["matched"] = how

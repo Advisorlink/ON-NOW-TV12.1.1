@@ -86,6 +86,7 @@ class StatsPlayerActivity : AppCompatActivity() {
             "mma" to 0xFFFF5D73.toInt(),
             "cricket" to 0xFFF2C14E.toInt(),
             "tennis" to 0xFFD7E44A.toInt(),
+            "golf" to 0xFF7FC57F.toInt(),
         )
     }
 

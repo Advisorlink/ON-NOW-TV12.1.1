@@ -1,4 +1,25 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.16.3 — Baseball classifier fix, "only_live" false-attribution fix, Golf added (Jul 2026).**
+>
+> Three targeted fixes/additions after user testing:
+> 1. **Baseball not showing up in the hub** — root-caused to `LiveSportsClassifier.MLB` only having 5 keywords (`" mlb "`, `baseball`, `world series baseball`, `yankees`, `red sox`, `dodgers vs`). Titles like `"Milwaukee Brewers @ Pittsburgh Pirates"` slipped past. **Expanded MLB rule** to all 30 franchises via unambiguous nicknames (Brewers, Pirates, Astros, Guardians, Marlins, Cubs, Padres, etc.), ballpark tags (Fenway, Wrigley, Yankee Stadium, Camden Yards, Coors Field), and broadcast tags (`Sunday Night Baseball`, `MLB Network`). Excluded: Cardinals/Giants (NFL clash), Rangers (Rangers FC / NY Rangers clash), bare "Athletics" (track & field clash — Oakland's team matched via `oakland athletics`).
+> 2. **False-attribution bug on rebroadcasts** — Symptom: clicking "2006 Major League Baseball Draft" showed today's PIT@MIL live stats. Cause: `livestats._resolve()` had `if len(events) == 1: return events[0], "only_live"` — when only one MLB game was live in the ESPN feed and the fuzzy matcher scored zero, the backend fell through and gave that game's stats anyway. **Removed the generic team-sport `only_live` fallback**; racing and golf keep dedicated fallbacks because their EPG titles legitimately omit specific event names, tennis has its tournament-name fallback in `board()`. Also **expanded `NON_LIVE_MARKERS`** with `draft`, `hall of fame`, `retrospective`, `retro`, `top plays`, `top moments`, `all-time`, `archive`, `vintage`, `history of`, `flashback`, `iconic/greatest moments`, `the making of` so archive content never even hits the stats endpoint.
+> 3. **Golf added end-to-end** — new sport bucket `golf` in `livestats.py` covering PGA, LPGA, DP World, PGA Champions Tour, LIV. New `_board_golf()` builds a leaderboard payload (top 15 players by ESPN order, `detail` = to-par like "-10"/"+3"/"E", `flag` = country flag URL, `team` = ISO abbr parsed from flag URL). Round label uses ESPN's authoritative `shortDetail` ("Round 3 - In Progress"). Course + city + country in `venue`. New `SportFieldView.drawGolfGreen()` renders a stylised putting green with dashed concentric rings, flag pin (pole + triangular flag in accent colour), cup, and a fairway curve. `StatsPlayerActivity.ACCENTS` gains `golf → 0xFF7FC57F` (fairway green). Frontend `LiveSportsClassifier.GOLF` bucket + display order + icon + colour already existed from an earlier pass.
+>
+> **Testing (curl e2e via preview URL, 2026-07-11):**
+> - `sport=mlb&title=2006 Major League Baseball Draft` → `found:false, reason:no_match` ✅ (was previously wrongly returning PIT@MIL)
+> - `sport=mlb&title=MLB Baseball: Brewers vs Pirates` → matched PIT vs MIL cleanly ✅
+> - `sport=tennis&title=Live Tennis: Wimbledon Centre Court` → matched Muchova vs Noskova via tournament fallback ✅
+> - `sport=golf&title=Live Golf: PGA Tour` → Genesis Scottish Open, 15-row leaderboard (Keefer -10, McIlroy T4 -9…), Round 3 - In Progress ✅
+> - `sport=golf&title=Amundi Evian Championship` → LPGA event matched, Haeran Ryu -19 leading ✅
+> - Kotlin brace/paren balance OK on all 3 touched files. CI build + on-box verification pending.
+>
+> **Files touched:**
+> - `backend/livestats.py` — SPORTS +golf bucket, `_resolve()` team-sport `only_live` removed (racing/golf kept), `_flag_country_abbr()`, `_board_golf()`, board dispatcher +golf branch
+> - `android/onnowtv-livetv/.../data/LiveSportsClassifier.kt` — MLB rule expanded (30 franchises), `NON_LIVE_MARKERS` +12 archive terms
+> - `android/onnowtv-livetv/.../ui/SportFieldView.kt` — +golf case, +`drawGolfGreen()`
+> - `android/onnowtv-livetv/.../StatsPlayerActivity.kt` — ACCENTS +golf
+>
 > **🟢 v2.16.0 — Live Stats migrated to ESPN (free, keyless) + broadcast redesign (Jul 2026).**
 >
 > API-Sports account was suspended → full backend rewrite of `backend/livestats.py` onto ESPN's undocumented `site.api.espn.com` API (no key, no quota):

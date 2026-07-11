@@ -79,6 +79,7 @@ class SportFieldView @JvmOverloads constructor(
             "rugby", "nrl" -> drawRugby(canvas, r)
             "mma" -> drawOctagon(canvas, r)
             "f1", "motorsport" -> drawCircuit(canvas, r)
+            "golf" -> drawGolfGreen(canvas, r)
         }
     }
 
@@ -335,5 +336,49 @@ class SportFieldView @JvmOverloads constructor(
         for (i in 0 until 3) {
             c.drawLine(sx + i * dp(5f), r.bottom - dp(6f), sx + i * dp(5f), r.bottom + dp(6f), line)
         }
+    }
+
+    /* stylised putting green with flag pin — the classic golf motif */
+    private fun drawGolfGreen(c: Canvas, r: RectF) {
+        val cx = r.centerX()
+        val cy = r.centerY()
+        // Outer green blob (soft rounded rectangle to imply the green outline)
+        val greenW = r.width() * 0.72f
+        val greenH = r.height() * 0.68f
+        val green = RectF(cx - greenW / 2, cy - greenH / 2, cx + greenW / 2, cy + greenH / 2)
+        c.drawOval(green, fill)
+        c.drawOval(green, line)
+        // Inner concentric hole outlines (dashed ripple around the pin)
+        val ring1 = RectF(cx - greenW * 0.30f, cy - greenH * 0.30f,
+                          cx + greenW * 0.30f, cy + greenH * 0.30f)
+        c.drawOval(ring1, dashed)
+        val ring2 = RectF(cx - greenW * 0.14f, cy - greenH * 0.14f,
+                          cx + greenW * 0.14f, cy + greenH * 0.14f)
+        c.drawOval(ring2, soft)
+        // Flag pole
+        val poleTop = cy - r.height() * 0.34f
+        c.drawLine(cx, poleTop, cx, cy, line)
+        // Cup at base of pole
+        c.drawCircle(cx, cy, dp(3.2f), line)
+        // Triangular flag pointing right
+        val flag = Path().apply {
+            moveTo(cx, poleTop)
+            lineTo(cx + r.width() * 0.11f, poleTop + r.height() * 0.05f)
+            lineTo(cx, poleTop + r.height() * 0.10f)
+            close()
+        }
+        val flagFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = withAlpha(accent, 0x55)
+        }
+        c.drawPath(flag, flagFill)
+        c.drawPath(flag, line)
+        // Fairway curve suggestion below the green
+        val fw = Path().apply {
+            moveTo(r.left + r.width() * 0.10f, r.bottom - r.height() * 0.05f)
+            quadTo(cx, r.bottom + r.height() * 0.10f,
+                   r.right - r.width() * 0.10f, r.bottom - r.height() * 0.05f)
+        }
+        c.drawPath(fw, soft)
     }
 }
