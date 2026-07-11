@@ -524,6 +524,25 @@ class EpgActivity : AppCompatActivity() {
         }
     }
 
+    /** Same idea for the HORIZONTAL WhatsOn sport chip row: block
+     *  D-pad RIGHT past the last chip so a fast horizontal scroll
+     *  can't throw focus into an unrelated column.  LEFT at chip 0
+     *  stays free so the user can hop back to the sidebar. */
+    private fun containHorizontalKeyNav(list: RecyclerView) {
+        list.setOnKeyListener { _, keyCode, event ->
+            if (event.action != android.view.KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+            val focused = list.focusedChild ?: return@setOnKeyListener false
+            val pos = list.getChildAdapterPosition(focused)
+            if (pos == RecyclerView.NO_POSITION) return@setOnKeyListener false
+            val itemCount = list.adapter?.itemCount ?: 0
+            when (keyCode) {
+                android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> pos >= itemCount - 1
+                else -> false
+            }
+        }
+    }
+
+
     /**
      * Add a reminder to persistent storage so it survives a
      * process restart and the watcher can pop a banner when the
