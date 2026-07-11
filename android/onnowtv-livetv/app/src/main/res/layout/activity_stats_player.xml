@@ -113,6 +113,19 @@
                     android:singleLine="true" />
 
                 <TextView
+                    android:id="@+id/stats_sport_tag"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:paddingHorizontal="10dp"
+                    android:paddingVertical="4dp"
+                    android:textColor="#5DC8FF"
+                    android:textSize="10sp"
+                    android:fontFamily="monospace"
+                    android:letterSpacing="0.1"
+                    android:visibility="gone" />
+
+                <TextView
                     android:id="@+id/stats_live_pill"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -174,7 +187,18 @@
                                 android:textSize="15sp"
                                 android:fontFamily="sans-serif-medium" />
 
+                            <TextView
+                                android:id="@+id/stats_home_form"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:textSize="10sp"
+                                android:fontFamily="monospace"
+                                android:letterSpacing="0.3"
+                                android:visibility="gone" />
+
                             <View
+                                android:id="@+id/stats_home_underline"
                                 android:layout_width="26dp"
                                 android:layout_height="3dp"
                                 android:layout_marginTop="6dp"
@@ -197,6 +221,17 @@
                                 android:textSize="48sp"
                                 android:fontFamily="sans-serif-black"
                                 android:letterSpacing="-0.02" />
+
+                            <TextView
+                                android:id="@+id/stats_score_detail"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:textColor="#8A9AC0"
+                                android:textSize="12sp"
+                                android:fontFamily="monospace"
+                                android:letterSpacing="0.1"
+                                android:visibility="gone" />
 
                             <TextView
                                 android:id="@+id/stats_clock_pill"
@@ -238,7 +273,18 @@
                                 android:textSize="15sp"
                                 android:fontFamily="sans-serif-medium" />
 
+                            <TextView
+                                android:id="@+id/stats_away_form"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:textSize="10sp"
+                                android:fontFamily="monospace"
+                                android:letterSpacing="0.3"
+                                android:visibility="gone" />
+
                             <View
+                                android:id="@+id/stats_away_underline"
                                 android:layout_width="26dp"
                                 android:layout_height="3dp"
                                 android:layout_marginTop="6dp"
@@ -368,6 +414,7 @@
             android:padding="16dp">
 
             <TextView
+                android:id="@+id/stats_stats_title"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="MATCH STATS"

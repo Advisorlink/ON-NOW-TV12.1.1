@@ -1,29 +1,25 @@
 """
-Live Sports Match Centre — API-Sports proxy (api-football.com direct key).
+Live Sports Match Centre — ESPN proxy (site.api.espn.com, free & keyless).
 
-One key covers every api-sports.io product.  Free plan = 100 req/day
-PER SPORT, so this router is built around aggressive shared caching:
+Replaces the suspended API-Sports integration.  ESPN's undocumented
+site API needs NO key and has no practical rate limit, so polling is
+fast (30 s) and the boards are far richer:
 
-  • live-game lists are cached 120 s and shared by every box/user
-  • football statistics are cached 240 s per fixture
-  • the client is told how fast to poll via `nextRefreshSecs`, which
-    stretches automatically as the daily quota drains (read from the
-    `x-ratelimit-requests-remaining` response header).
+  • scoreboard  → live game list, scores, linescores, team colours
+  • summary     → deep boxscore (AFL disposals, NRL run metres,
+                  soccer possession/shots), scoring timelines
+  • racing      → F1 running order with driver flags
 
-Free-plan reality check (verified 2026-07-11):
-  ✅ football (v3 live=all), baseball, basketball, hockey, rugby, nfl
-  ❌ afl + formula-1 → current season is plan-locked ("try 2022-2024");
-     those sports return found=false / reason=plan_locked until the
-     account is upgraded — the client renders a friendly notice.
+Payload stays normalized exactly like the old router so the Android
+`StatsPlayerActivity` renderer keeps working, with new extras:
+`home/away.color|abbr|form|scoreDetail`, `leaderboard[].flag`.
 """
 
 from __future__ import annotations
 
 import logging
-import os
 import re
 import time
-from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
@@ -33,33 +29,35 @@ logger = logging.getLogger("vesper.livestats")
 
 router = APIRouter(prefix="/api/livestats")
 
-APISPORTS_KEY = os.environ.get("APISPORTS_KEY", "")
+ESPN = "https://site.api.espn.com/apis/site/v2/sports"
 
-LIST_TTL = 120       # seconds — shared live-game list per sport
-STATS_TTL = 240      # seconds — football statistics / f1 rankings
+LIST_TTL = 60        # seconds — shared scoreboard per league
+SUMMARY_TTL = 30     # seconds — per-event deep boxscore
 
 # Bucket IDs match LiveSportsClassifier on the Android side.
-SPORTS: Dict[str, Dict[str, str]] = {
-    "soccer": {"host": "https://v3.football.api-sports.io", "label": "Football", "kind": "football"},
-    "afl":    {"host": "https://v1.afl.api-sports.io", "label": "AFL", "kind": "afl"},
-    "nba":    {"host": "https://v1.basketball.api-sports.io", "label": "Basketball", "kind": "basketball"},
-    "mlb":    {"host": "https://v1.baseball.api-sports.io", "label": "Baseball", "kind": "baseball"},
-    "nhl":    {"host": "https://v1.hockey.api-sports.io", "label": "Ice Hockey", "kind": "hockey"},
-    "rugby":  {"host": "https://v1.rugby.api-sports.io", "label": "Rugby Union", "kind": "rugby"},
-    "nrl":    {"host": "https://v1.rugby.api-sports.io", "label": "Rugby League", "kind": "rugby"},
-    "nfl":    {"host": "https://v1.american-football.api-sports.io", "label": "NFL", "kind": "nfl"},
-    "f1":     {"host": "https://v1.formula-1.api-sports.io", "label": "Formula 1", "kind": "f1"},
-    "mma":    {"host": "https://v1.mma.api-sports.io", "label": "MMA", "kind": "mma"},
-}
-
-LIVE_SHORTS: Dict[str, set] = {
-    "football":   {"1H", "2H", "HT", "ET", "BT", "P", "LIVE", "INT"},
-    "afl":        {"Q1", "Q2", "Q3", "Q4", "QT", "HT", "ER", "OT"},
-    "basketball": {"Q1", "Q2", "Q3", "Q4", "OT", "BT", "HT"},
-    "hockey":     {"P1", "P2", "P3", "OT", "PT", "BT", "SO"},
-    "rugby":      {"1H", "2H", "HT", "ET", "BT", "PT", "GP"},
-    "nfl":        {"Q1", "Q2", "Q3", "Q4", "OT", "HT"},
-    "mma":        {"LIVE", "EOR"},
+SPORTS: Dict[str, Dict[str, Any]] = {
+    "soccer": {"label": "Football", "kind": "soccer",
+               "leagues": [("soccer", "all")]},
+    "afl":    {"label": "AFL", "kind": "afl",
+               "leagues": [("australian-football", "afl")]},
+    "nrl":    {"label": "Rugby League", "kind": "rugby",
+               "leagues": [("rugby-league", "3")]},
+    "rugby":  {"label": "Rugby Union", "kind": "rugby",
+               "leagues": [("rugby", "180659"), ("rugby", "242041"),
+                           ("rugby", "267979"), ("rugby", "270557"),
+                           ("rugby", "289234")]},
+    "nba":    {"label": "Basketball", "kind": "generic",
+               "leagues": [("basketball", "nba")]},
+    "mlb":    {"label": "Baseball", "kind": "generic",
+               "leagues": [("baseball", "mlb")]},
+    "nhl":    {"label": "Ice Hockey", "kind": "generic",
+               "leagues": [("hockey", "nhl")]},
+    "nfl":    {"label": "NFL", "kind": "generic",
+               "leagues": [("football", "nfl")]},
+    "f1":     {"label": "Formula 1", "kind": "racing",
+               "leagues": [("racing", "f1")]},
+    "mma":    {"label": "MMA", "kind": "mma",
+               "leagues": [("mma", "ufc")]},
 }
 
 SUPERSCRIPT_LIVE = "\u1d38\u1da6\u1d5b\u1d49"
@@ -73,7 +71,6 @@ _STOP = {
 }
 
 _cache: Dict[str, Tuple[float, Any]] = {}
-_quota: Dict[str, Optional[int]] = {}
 
 
 def _cache_get(key: str, ttl: int) -> Any:
@@ -90,91 +87,49 @@ def _cache_put(key: str, data: Any) -> None:
     _cache[key] = (time.time(), data)
 
 
-async def _api_get(host: str, path: str, params: Dict[str, Any]) -> Dict[str, Any]:
+async def _espn_get(path: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     async with httpx.AsyncClient(timeout=12.0) as client:
-        r = await client.get(host + path, params=params,
-                             headers={"x-apisports-key": APISPORTS_KEY})
-    rem = r.headers.get("x-ratelimit-requests-remaining")
-    if rem is not None:
-        try:
-            _quota[host] = int(rem)
-        except ValueError:
-            pass
+        r = await client.get(f"{ESPN}/{path}", params=params or {},
+                             headers={"Accept": "application/json"})
     r.raise_for_status()
     return r.json()
 
 
-def _plan_error(payload: Dict[str, Any]) -> Optional[str]:
-    errs = payload.get("errors")
-    if isinstance(errs, dict):
-        for k in ("plan", "rateLimit", "requests", "token"):
-            if errs.get(k):
-                return str(errs[k])
-        if errs:
-            return "; ".join(str(v) for v in errs.values())
-    return None
-
-
-def _is_live(kind: str, g: Dict[str, Any]) -> bool:
-    gg = g.get("game") or g
-    st = ((gg.get("status") or {}).get("short") or "")
-    st = str(st).upper()
-    if kind == "baseball":
-        return st.startswith("IN") or st == "LIVE"
-    return st in LIVE_SHORTS.get(kind, set())
-
-
-def _f1_is_live(r: Dict[str, Any]) -> bool:
-    return str(r.get("status") or "").lower() in ("live", "in progress")
-
-
-async def _live_games(sport: str) -> Dict[str, Any]:
-    cfg = SPORTS[sport]
-    key = f"live:{cfg['host']}"
+async def _scoreboard(sport_path: str, league: str,
+                      dates: Optional[str] = None) -> List[dict]:
+    key = f"sb:{sport_path}/{league}:{dates or ''}"
     cached = _cache_get(key, LIST_TTL)
     if cached is not None:
         return cached
-    kind, host = cfg["kind"], cfg["host"]
-    games: List[dict] = []
-    plan_error: Optional[str] = None
     try:
-        if kind == "football":
-            data = await _api_get(host, "/fixtures", {"live": "all"})
-            plan_error = _plan_error(data)
-            games = data.get("response") or []
-        elif kind == "nfl":
-            data = await _api_get(host, "/games", {"live": "all"})
-            plan_error = _plan_error(data)
-            games = data.get("response") or []
-        elif kind == "f1":
-            year = datetime.now(timezone.utc).year
-            data = await _api_get(host, "/races", {"season": year, "type": "Race"})
-            plan_error = _plan_error(data)
-            games = [r for r in (data.get("response") or []) if _f1_is_live(r)]
-        else:
-            now = datetime.now(timezone.utc)
-            dates = [now.strftime("%Y-%m-%d")]
-            if now.hour < 6:
-                dates.append((now - timedelta(days=1)).strftime("%Y-%m-%d"))
-            path = "/fights" if kind == "mma" else "/games"
-            merged: List[dict] = []
-            for d in dates:
-                data = await _api_get(host, path, {"date": d})
-                pe = _plan_error(data)
-                if pe:
-                    plan_error = pe
-                    break
-                merged.extend(data.get("response") or [])
-            games = [g for g in merged if _is_live(kind, g)]
+        params = {"dates": dates} if dates else None
+        data = await _espn_get(f"{sport_path}/{league}/scoreboard", params)
+        events = data.get("events") or []
     except Exception as exc:
-        logger.warning("livestats %s fetch failed: %s", sport, exc)
+        logger.warning("espn scoreboard %s/%s failed: %s", sport_path, league, exc)
         stale = _cache.get(key)
-        if stale:
-            return stale[1]
-        return {"games": [], "plan_error": None, "fetch_error": str(exc)}
-    result = {"games": games, "plan_error": plan_error}
-    _cache_put(key, result)
-    return result
+        return stale[1] if stale else []
+    _cache_put(key, events)
+    return events
+
+
+async def _summary(sport_path: str, league: str, event_id: str) -> Dict[str, Any]:
+    key = f"sum:{sport_path}/{league}/{event_id}"
+    cached = _cache_get(key, SUMMARY_TTL)
+    if cached is not None:
+        return cached
+    try:
+        data = await _espn_get(f"{sport_path}/{league}/summary", {"event": event_id})
+    except Exception as exc:
+        logger.warning("espn summary %s failed: %s", event_id, exc)
+        stale = _cache.get(key)
+        return stale[1] if stale else {}
+    _cache_put(key, data)
+    return data
+
+
+def _state(ev: dict) -> str:
+    return str(((ev.get("status") or {}).get("type") or {}).get("state") or "")
 
 
 # ── programme-title → live-game fuzzy matcher ────────────────────────
@@ -189,48 +144,62 @@ def _tokens(s: str) -> set:
     return {t for t in _norm(s).split() if len(t) > 1 and t not in _STOP}
 
 
-def _team_names(kind: str, g: Dict[str, Any]) -> Tuple[str, str]:
-    if kind == "mma":
-        f = g.get("fighters") or {}
-        return ((f.get("first") or {}).get("name") or "",
-                (f.get("second") or {}).get("name") or "")
-    if kind == "f1":
-        return ((g.get("competition") or {}).get("name") or "", "")
-    t = g.get("teams") or {}
-    return ((t.get("home") or {}).get("name") or "",
-            (t.get("away") or {}).get("name") or "")
+def _competitors(ev: dict) -> Tuple[dict, dict]:
+    comp = (ev.get("competitions") or [{}])[0]
+    home, away = {}, {}
+    comps = comp.get("competitors") or []
+    for c in comps:
+        if c.get("homeAway") == "home":
+            home = c
+        elif c.get("homeAway") == "away":
+            away = c
+    if not home and not away and len(comps) >= 2:
+        home, away = comps[0], comps[1]
+    return home, away
 
 
-def _match_score(title_tokens: set, title_norm: str, home: str, away: str) -> Tuple[float, int]:
-    score, sides = 0.0, 0
-    for name in (home, away):
-        if not name:
-            continue
+def _side_names(c: dict) -> List[str]:
+    t = c.get("team") or {}
+    ath = c.get("athlete") or {}
+    return [n for n in (t.get("displayName"), t.get("shortDisplayName"),
+                        t.get("name"), ath.get("displayName")) if n]
+
+
+def _match_score(title_tokens: set, title_norm: str, names: List[str]) -> float:
+    best = 0.0
+    for name in names:
         nn = _norm(name)
         if nn and nn in title_norm:
-            score += 3
-            sides += 1
+            best = max(best, 3.0)
             continue
         overlap = _tokens(name) & title_tokens
         if any(len(t) >= 3 for t in overlap):
-            score += 1 + 0.5 * max(0, len(overlap) - 1)
-            sides += 1
-    return score, sides
+            best = max(best, 1 + 0.5 * max(0, len(overlap) - 1))
+    return best
 
 
-def _resolve(sport: str, title: str, games: List[dict]) -> Tuple[Optional[dict], str]:
-    kind = SPORTS[sport]["kind"]
+def _resolve(title: str, events: List[dict], kind: str) -> Tuple[Optional[dict], str]:
     tn, tt = _norm(title), _tokens(title)
     best, best_score, best_sides = None, 0.0, 0
-    for g in games:
-        h, a = _team_names(kind, g)
-        s, sides = _match_score(tt, tn, h, a)
+    for ev in events:
+        if kind in ("racing", "mma"):
+            s = _match_score(tt, tn, [ev.get("name") or "", ev.get("shortName") or ""])
+            sides = 1 if s > 0 else 0
+        else:
+            home, away = _competitors(ev)
+            hs = _match_score(tt, tn, _side_names(home))
+            as_ = _match_score(tt, tn, _side_names(away))
+            s = hs + as_
+            sides = (1 if hs > 0 else 0) + (1 if as_ > 0 else 0)
         if s > best_score:
-            best, best_score, best_sides = g, s, sides
+            best, best_score, best_sides = ev, s, sides
     if best is not None and (best_sides >= 2 or best_score >= 3):
         return best, "matched"
-    if len(games) == 1 or (kind == "f1" and games):
-        return games[0], "only_live"
+    if kind == "racing" and events:
+        return (best, "matched") if best is not None and best_score > 0 \
+            else (events[0], "only_live")
+    if len(events) == 1:
+        return events[0], "only_live"
     return None, "no_match"
 
 
@@ -238,418 +207,475 @@ def _resolve(sport: str, title: str, games: List[dict]) -> Tuple[Optional[dict],
 
 def _shape(sport: str, found: bool = True, **kw: Any) -> Dict[str, Any]:
     cfg = SPORTS[sport]
-    remaining = _quota.get(cfg["host"])
-    refresh = 120
-    if remaining is not None:
-        if remaining < 8:
-            refresh = 600
-        elif remaining < 20:
-            refresh = 300
     base: Dict[str, Any] = {
         "found": found,
         "sport": sport,
         "sportLabel": cfg["label"],
-        "nextRefreshSecs": refresh,
-        "quotaRemaining": remaining,
+        "nextRefreshSecs": 30 if found else 90,
     }
     base.update(kw)
     return base
 
 
-def _period_row(label: str, hv: Any, av: Any) -> Dict[str, str]:
-    return {
-        "label": label,
-        "home": "-" if hv is None else str(hv),
-        "away": "-" if av is None else str(av),
-    }
-
-
-def _num(x: Any) -> float:
+def _num(x: Any) -> Optional[float]:
     if x is None:
-        return 0.0
+        return None
     if isinstance(x, (int, float)):
         return float(x)
     try:
-        return float(str(x).replace("%", "").strip())
+        return float(str(x).replace("%", "").replace(",", "").strip())
     except ValueError:
-        return 0.0
+        return None
 
 
-def _bar(label: str, hv: Any, av: Any) -> Dict[str, Any]:
+PERCENT_STATS = {"possession", "territory", "possessionpct", "goalaccuracy",
+                 "disposalefficiency", "passpct", "shotpct", "tacklepct"}
+
+
+def _fmt_stat(name: str, value: Any) -> str:
+    v = _num(value)
+    if v is None:
+        return str(value)
+    lname = name.lower()
+    if lname in PERCENT_STATS:
+        if 0 < v <= 1.0:
+            v *= 100
+        return f"{int(round(v))}%"
+    if v == int(v):
+        return str(int(v))
+    return f"{v:g}"
+
+
+def _bar(name: str, label: str, hv: Any, av: Any) -> Optional[Dict[str, Any]]:
     h, a = _num(hv), _num(av)
-    total = h + a
-    pct = 50 if total <= 0 else int(round(h * 100 / total))
+    if h is None or a is None:
+        return None
+    lname = name.lower()
+    if lname in PERCENT_STATS:
+        if 0 < h <= 1.0 and 0 < a <= 1.0:
+            h, a = h * 100, a * 100
+        if h <= 0 and a <= 0:
+            return None
+        pct = int(round(h)) if (h + a) > 90 else int(round(h * 100 / max(h + a, 1)))
+    else:
+        total = h + a
+        if total <= 0:
+            return None
+        pct = int(round(h * 100 / total))
     return {
         "label": label,
-        "home": "0" if hv is None else str(hv),
-        "away": "0" if av is None else str(av),
+        "home": _fmt_stat(name, hv),
+        "away": _fmt_stat(name, av),
         "homePct": max(2, min(98, pct)),
     }
 
 
-def _pp(v: Any) -> Tuple[Any, Any]:
-    """Period value → (home, away).  Handles dicts and 'h-a' strings."""
-    if isinstance(v, dict):
-        return v.get("home"), v.get("away")
-    if isinstance(v, str) and "-" in v:
-        a, b = v.split("-", 1)
-        return a.strip(), b.strip()
-    return None, None
+def _period_row(label: str, hv: Any, av: Any) -> Dict[str, str]:
+    return {
+        "label": label,
+        "home": "-" if hv in (None, "") else str(hv),
+        "away": "-" if av in (None, "") else str(av),
+    }
 
 
-FOOTBALL_STAT_KEYS = [
-    ("Ball Possession", "Possession"),
-    ("Total Shots", "Shots"),
-    ("Shots on Goal", "On Target"),
-    ("Corner Kicks", "Corners"),
-    ("Fouls", "Fouls"),
-    ("Yellow Cards", "Yellow Cards"),
-    ("Goalkeeper Saves", "Saves"),
-]
+def _team_side(c: dict, kind: str) -> Dict[str, Any]:
+    t = c.get("team") or {}
+    ath = c.get("athlete") or {}
+    name = t.get("displayName") or ath.get("displayName") or ""
+    logo = t.get("logo") or ""
+    if not logo:
+        logos = t.get("logos") or []
+        if logos:
+            logo = logos[0].get("href") or ""
+    color = t.get("color") or ""
+    form = ""
+    for rec in c.get("records") or []:
+        if rec.get("type") == "total" and re.fullmatch(r"[WLD]{2,6}", str(rec.get("summary") or "")):
+            form = rec["summary"]
+    side: Dict[str, Any] = {
+        "name": name,
+        "abbr": t.get("abbreviation") or "",
+        "logo": logo,
+        "score": c.get("score"),
+        "color": f"#{color}" if color else "",
+        "form": form,
+    }
+    if kind == "afl":
+        ls = c.get("linescores") or []
+        if ls:
+            last = ls[-1]
+            g = last.get("cumulativeGoalsDisplayValue")
+            b = last.get("cumulativeBehindsDisplayValue")
+            if g is not None and b is not None:
+                side["scoreDetail"] = f"{g}.{b}"
+    return side
 
 
-async def _football_stats(fixture_id: Any, home_id: Any) -> List[Dict[str, Any]]:
-    if fixture_id is None:
-        return []
-    key = f"fstats:{fixture_id}"
-    cached = _cache_get(key, STATS_TTL)
-    if cached is not None:
-        return cached
-    try:
-        data = await _api_get(SPORTS["soccer"]["host"], "/fixtures/statistics",
-                              {"fixture": fixture_id})
-        resp = data.get("response") or []
-    except Exception as exc:
-        logger.warning("football stats failed: %s", exc)
-        return []
-    home_map: Dict[str, Any] = {}
-    away_map: Dict[str, Any] = {}
-    for side in resp:
-        target = home_map if (side.get("team") or {}).get("id") == home_id else away_map
-        for st in side.get("statistics") or []:
-            target[str(st.get("type"))] = st.get("value")
+def _status_block(ev: dict, comp: dict) -> Dict[str, Any]:
+    st = comp.get("status") or ev.get("status") or {}
+    t = st.get("type") or {}
+    live = t.get("state") == "in"
+    clock = ""
+    if live:
+        dc = str(st.get("displayClock") or "").strip()
+        dp = str(st.get("displayPeriod") or "").strip()
+        if dc and dc not in ("0:00", "0'"):
+            clock = f"{dp} · {dc}" if dp and dp not in dc else dc
+        else:
+            clock = t.get("shortDetail") or ""
+    return {
+        "short": t.get("shortDetail") or "",
+        "long": t.get("detail") or t.get("description") or "",
+        "clock": clock,
+        "live": live,
+    }
+
+
+def _stats_map(summary: dict) -> Tuple[Dict[str, Tuple[Any, str]], Dict[str, Tuple[Any, str]]]:
+    """boxscore.teams → {statName: (displayValue, label)} per side."""
+    home: Dict[str, Tuple[Any, str]] = {}
+    away: Dict[str, Tuple[Any, str]] = {}
+    for t in (summary.get("boxscore") or {}).get("teams") or []:
+        target = home if t.get("homeAway") == "home" else away
+        for item in t.get("statistics") or []:
+            inner = item.get("stats")
+            if isinstance(inner, list):
+                for s in inner:
+                    target[str(s.get("name"))] = (s.get("displayValue"), s.get("label") or "")
+            elif item.get("name"):
+                target[str(item["name"])] = (item.get("displayValue"), item.get("label") or "")
+    return home, away
+
+
+def _curated_bars(keys: List[Tuple[str, str]],
+                  hmap: Dict[str, Tuple[Any, str]],
+                  amap: Dict[str, Tuple[Any, str]]) -> List[Dict[str, Any]]:
     bars = []
-    for api_key, label in FOOTBALL_STAT_KEYS:
-        if api_key in home_map or api_key in away_map:
-            bars.append(_bar(label, home_map.get(api_key), away_map.get(api_key)))
-    _cache_put(key, bars)
+    for name, label in keys:
+        if name in hmap or name in amap:
+            b = _bar(name, label,
+                     (hmap.get(name) or (None, ""))[0],
+                     (amap.get(name) or (None, ""))[0])
+            if b:
+                bars.append(b)
     return bars
 
 
-async def _board_football(sport: str, g: Dict[str, Any]) -> Dict[str, Any]:
-    fx = g.get("fixture") or {}
-    st = fx.get("status") or {}
-    teams = g.get("teams") or {}
-    home_t, away_t = teams.get("home") or {}, teams.get("away") or {}
-    goals = g.get("goals") or {}
-    ht = (g.get("score") or {}).get("halftime") or {}
-    periods: List[Dict[str, str]] = []
-    if ht.get("home") is not None:
-        periods.append(_period_row("1H", ht.get("home"), ht.get("away")))
-        if (st.get("short") or "") not in ("1H", "HT") and goals.get("home") is not None:
-            periods.append(_period_row(
-                "2H",
-                (goals.get("home") or 0) - (ht.get("home") or 0),
-                (goals.get("away") or 0) - (ht.get("away") or 0),
-            ))
-    events = []
-    for ev in (g.get("events") or [])[-40:]:
-        t = ev.get("time") or {}
-        elapsed, extra = t.get("elapsed"), t.get("extra")
-        minute = ""
-        if elapsed is not None:
-            minute = f"{elapsed}'" + (f"+{extra}" if extra else "")
-        side = "home" if (ev.get("team") or {}).get("id") == home_t.get("id") else "away"
-        events.append({
-            "time": minute,
-            "team": side,
-            "type": str(ev.get("type") or "").upper(),
-            "player": (ev.get("player") or {}).get("name") or "",
-            "detail": ev.get("detail") or "",
+def _generic_bars(hmap: Dict[str, Tuple[Any, str]],
+                  amap: Dict[str, Tuple[Any, str]],
+                  limit: int = 9) -> List[Dict[str, Any]]:
+    bars = []
+    for name, (hv, label) in hmap.items():
+        if len(bars) >= limit:
+            break
+        av = (amap.get(name) or (None, ""))[0]
+        b = _bar(name, label or name, hv, av)
+        if b:
+            bars.append(b)
+    return bars
+
+
+AFL_KEYS = [
+    ("disposals", "Disposals"), ("kicks", "Kicks"), ("handballs", "Handballs"),
+    ("marks", "Marks"), ("tackles", "Tackles"), ("inside50s", "Inside 50s"),
+    ("totalClearances", "Clearances"), ("contestedPossessions", "Contested Poss"),
+    ("hitouts", "Hitouts"), ("freesFor", "Free Kicks"),
+    ("goalAccuracy", "Goal Accuracy"), ("clangers", "Clangers"),
+]
+
+RUGBY_KEYS = [
+    ("possession", "Possession"), ("territory", "Territory"),
+    ("runs", "Runs"), ("metres", "Run Metres"), ("tackles", "Tackles"),
+    ("missedTackles", "Missed Tackles"), ("cleanBreaks", "Line Breaks"),
+    ("offload", "Offloads"), ("kicks", "Kicks"), ("passes", "Passes"),
+    ("penaltiesConceded", "Penalties"), ("turnoverKnockOn", "Errors"),
+]
+
+SOCCER_KEYS = [
+    ("possessionPct", "Possession"), ("totalShots", "Shots"),
+    ("shotsOnTarget", "On Target"), ("wonCorners", "Corners"),
+    ("foulsCommitted", "Fouls"), ("yellowCards", "Yellow Cards"),
+    ("saves", "Saves"), ("totalPasses", "Passes"),
+    ("passPct", "Pass Accuracy"),
+]
+
+_KIND_KEYS = {"afl": AFL_KEYS, "rugby": RUGBY_KEYS, "soccer": SOCCER_KEYS}
+
+EVENT_SKIP_TYPES = {
+    "kickoff", "substitution", "end regular time", "halftime",
+    "start 2nd half", "start 1st half", "end of 90 mins",
+    "player substituted", "video review", "shootout",
+}
+
+SCORING_TYPES = {
+    "goal", "try", "penalty try", "behind", "conversion", "penalty goal",
+    "penalty - scored", "own goal", "drop goal", "field goal", "touchdown",
+}
+
+
+def _event_rows(summary: dict, sb_comp: dict, home_id: str) -> List[Dict[str, Any]]:
+    """Timeline from keyEvents / plays / scoreboard details — newest first."""
+    rows: List[Dict[str, Any]] = []
+
+    def side_of(team: Any) -> str:
+        tid = str((team or {}).get("id") or "")
+        return "home" if tid == home_id else "away"
+
+    def add(time_s: str, team: Any, type_s: str, player: str, detail: str = "") -> None:
+        tl = type_s.strip().lower()
+        if tl in EVENT_SKIP_TYPES or "substitut" in tl:
+            return
+        rows.append({
+            "time": time_s,
+            "team": side_of(team),
+            "type": type_s.upper(),
+            "player": player,
+            "detail": detail,
+            "scoring": tl in SCORING_TYPES,
         })
-    stats = await _football_stats(fx.get("id"), home_t.get("id"))
-    venue = (fx.get("venue") or {}).get("name") or ""
-    league = g.get("league") or {}
+
+    for ev in summary.get("keyEvents") or []:
+        tp = (ev.get("type") or {}).get("text") or ""
+        players = [(p.get("athlete") or {}).get("displayName") or ""
+                   for p in ev.get("participants") or []]
+        add((ev.get("clock") or {}).get("displayValue") or "",
+            ev.get("team"), tp, players[0] if players else "")
+
+    if not rows:
+        for p in summary.get("plays") or []:
+            tp = (p.get("type") or {}).get("text") or ""
+            text = str(p.get("text") or "")
+            player = text
+            if tp and text.lower().endswith(tp.lower()):
+                player = text[: -len(tp)].strip(" -·")
+            period = (p.get("period") or {}).get("number")
+            clock = (p.get("clock") or {}).get("displayValue") or ""
+            add(f"Q{period} {clock}".strip() if period else clock,
+                p.get("team"), tp, player)
+
+    if not rows:
+        for d in sb_comp.get("details") or []:
+            tp = (d.get("type") or {}).get("text") or ""
+            players = [a.get("displayName") or "" for a in d.get("athletesInvolved") or []]
+            add((d.get("clock") or {}).get("displayValue") or "",
+                d.get("team"), tp, players[0] if players else "")
+
+    if not rows:
+        for sp in summary.get("scoringPlays") or []:
+            period = (sp.get("period") or {}).get("number")
+            clock = (sp.get("clock") or {}).get("displayValue") or ""
+            add(f"Q{period} {clock}".strip() if period else clock,
+                sp.get("team"), (sp.get("type") or {}).get("text") or "SCORE",
+                str(sp.get("text") or ""))
+
+    return list(reversed(rows[-40:]))
+
+
+def _linescore_periods(home_c: dict, away_c: dict, kind: str) -> List[Dict[str, str]]:
+    hls = home_c.get("linescores") or []
+    als = away_c.get("linescores") or []
+    n = max(len(hls), len(als))
+    if n == 0:
+        return []
+
+    def val(ls: List[dict], i: int) -> Optional[str]:
+        if i >= len(ls):
+            return None
+        v = ls[i].get("displayValue")
+        if v is None:
+            v = ls[i].get("value")
+            if isinstance(v, float) and v == int(v):
+                v = int(v)
+        return None if v is None else str(v)
+
+    rows: List[Dict[str, str]] = []
+    if kind == "rugby":
+        # ESPN rugby linescores are CUMULATIVE (HT, FT, ET…).
+        h1, a1 = _num(val(hls, 0)), _num(val(als, 0))
+        h2, a2 = _num(val(hls, 1)), _num(val(als, 1))
+        if h1 is not None or a1 is not None:
+            rows.append(_period_row("1H", _int_s(h1), _int_s(a1)))
+        if (h2 or 0) > 0 or (a2 or 0) > 0:
+            rows.append(_period_row(
+                "2H",
+                _int_s((h2 or 0) - (h1 or 0)) if h2 is not None else None,
+                _int_s((a2 or 0) - (a1 or 0)) if a2 is not None else None,
+            ))
+        return rows
+
+    labels = {"afl": "Q", "generic": "P"}
+    prefix = labels.get(kind, "P")
+    for i in range(min(n, 9)):
+        hv, av = val(hls, i), val(als, i)
+        if hv is None and av is None:
+            continue
+        rows.append(_period_row(f"{prefix}{i + 1}", hv, av))
+    return rows
+
+
+def _int_s(v: Optional[float]) -> Optional[str]:
+    if v is None:
+        return None
+    return str(int(v)) if v == int(v) else f"{v:g}"
+
+
+async def _board_team_sport(sport: str, kind: str, sport_path: str,
+                            league: str, ev: dict) -> Dict[str, Any]:
+    comp = (ev.get("competitions") or [{}])[0]
+    home_c, away_c = _competitors(ev)
+    home = _team_side(home_c, kind)
+    away = _team_side(away_c, kind)
+    home_id = str((home_c.get("team") or {}).get("id") or "")
+
+    summary = await _summary(sport_path, league, str(ev.get("id")))
+    if kind == "afl":
+        for c in ((summary.get("header") or {}).get("competitions") or [{}])[0].get("competitors") or []:
+            ls = c.get("linescores") or []
+            if not ls:
+                continue
+            g = ls[-1].get("cumulativeGoalsDisplayValue")
+            b = ls[-1].get("cumulativeBehindsDisplayValue")
+            if g is None or b is None:
+                continue
+            target = home if c.get("homeAway") == "home" else away
+            target["scoreDetail"] = f"{g}.{b}"
+    hmap, amap = _stats_map(summary)
+    keys = _KIND_KEYS.get(kind)
+    bars = _curated_bars(keys, hmap, amap) if keys else _generic_bars(hmap, amap)
+    if keys and len(bars) < 3:
+        bars.extend(b for b in _generic_bars(hmap, amap, limit=9 - len(bars))
+                    if b["label"] not in {x["label"] for x in bars})
+
+    venue = ((comp.get("venue") or {}).get("fullName")
+             or ((summary.get("gameInfo") or {}).get("venue") or {}).get("fullName")
+             or "")
+    header = summary.get("header") or {}
+    hl = header.get("league") or {}
+    league_name = hl.get("name") or ""
+    if not league_name:
+        for lg in header.get("leagues") or []:
+            league_name = lg.get("name") or ""
+            break
+
     return _shape(
         sport,
-        fixtureId=fx.get("id"),
-        league=" · ".join(x for x in [league.get("name"), league.get("round")] if x),
+        fixtureId=ev.get("id"),
+        league=league_name,
         venue=venue,
-        status={
-            "short": st.get("short") or "",
-            "long": st.get("long") or "",
-            "clock": f"{st.get('elapsed')}'" if st.get("elapsed") is not None else "",
-            "live": True,
-        },
-        home={"name": home_t.get("name") or "", "logo": home_t.get("logo") or "",
-              "score": goals.get("home")},
-        away={"name": away_t.get("name") or "", "logo": away_t.get("logo") or "",
-              "score": goals.get("away")},
-        periods=periods,
-        stats=stats,
-        events=list(reversed(events)),
+        status=_status_block(ev, comp),
+        home=home,
+        away=away,
+        periods=_linescore_periods(home_c, away_c, kind),
+        stats=bars,
+        events=_event_rows(summary, comp, home_id),
     )
 
 
-def _generic_header(g: Dict[str, Any]) -> Tuple[dict, dict, dict, str, str]:
-    gg = g.get("game") or g
-    st = gg.get("status") or {}
-    teams = g.get("teams") or {}
-    league = g.get("league") or {}
-    venue = gg.get("venue") or g.get("venue") or ""
-    if isinstance(venue, dict):
-        venue = venue.get("name") or ""
-    return (teams.get("home") or {}, teams.get("away") or {}, st,
-            str(league.get("name") or ""), str(venue))
+async def _board_racing(sport: str, ev: dict) -> Dict[str, Any]:
+    comps = ev.get("competitions") or []
+    active = next((c for c in comps
+                   if ((c.get("status") or {}).get("type") or {}).get("state") == "in"),
+                  None)
+    race = next((c for c in comps
+                 if (c.get("type") or {}).get("abbreviation") == "Race"), None)
+    comp = active or race or (comps[0] if comps else {})
+    session = (comp.get("type") or {}).get("text") or (comp.get("type") or {}).get("abbreviation") or ""
 
+    st = comp.get("status") or {}
+    st_type = st.get("type") or {}
+    live = st_type.get("state") == "in"
+    lap = st.get("period")
+    clock = f"LAP {lap}" if (live and lap and int(lap) > 0) else (st_type.get("shortDetail") or "")
 
-async def _board_basketball(sport: str, g: Dict[str, Any]) -> Dict[str, Any]:
-    home_t, away_t, st, league, venue = _generic_header(g)
-    s = g.get("scores") or {}
-    h, a = s.get("home") or {}, s.get("away") or {}
-    periods = []
-    for key, label in [("quarter_1", "Q1"), ("quarter_2", "Q2"),
-                       ("quarter_3", "Q3"), ("quarter_4", "Q4"), ("over_time", "OT")]:
-        if h.get(key) is not None or a.get(key) is not None:
-            periods.append(_period_row(label, h.get(key), a.get(key)))
+    leaderboard = []
+    for c in sorted(comp.get("competitors") or [], key=lambda x: x.get("order") or 99)[:12]:
+        ath = c.get("athlete") or {}
+        leaderboard.append({
+            "pos": c.get("order"),
+            "name": ath.get("displayName") or "",
+            "team": (c.get("vehicle") or {}).get("manufacturer") or "",
+            "detail": "WINNER" if c.get("winner") else "",
+            "flag": (ath.get("flag") or {}).get("href") or "",
+        })
+
+    circuit = ev.get("circuit") or {}
+    city = (circuit.get("address") or {}).get("city") or ""
+    country = (circuit.get("address") or {}).get("country") or ""
+    venue = " · ".join(x for x in [circuit.get("fullName"), f"{city}, {country}".strip(", ")] if x)
+
+    sessions = []
+    for c in comps:
+        ct = (c.get("type") or {})
+        cst = ((c.get("status") or {}).get("type") or {})
+        sessions.append({
+            "name": ct.get("text") or ct.get("abbreviation") or "",
+            "detail": cst.get("shortDetail") or "",
+            "state": cst.get("state") or "",
+        })
+
     return _shape(
-        sport, fixtureId=(g.get("game") or g).get("id"), league=league, venue=venue,
-        status={"short": st.get("short") or "", "long": st.get("long") or "",
-                "clock": str(st.get("timer") or ""), "live": True},
-        home={"name": home_t.get("name") or "", "logo": home_t.get("logo") or "",
-              "score": h.get("total")},
-        away={"name": away_t.get("name") or "", "logo": away_t.get("logo") or "",
-              "score": a.get("total")},
-        periods=periods, stats=[], events=[],
+        sport,
+        fixtureId=ev.get("id"),
+        league=" · ".join(x for x in [ev.get("name"), session] if x),
+        venue=venue,
+        status={"short": st_type.get("shortDetail") or "", "long": st_type.get("detail") or "",
+                "clock": clock, "live": live},
+        home={"name": ev.get("shortName") or ev.get("name") or "", "abbr": "", "logo": "",
+              "score": None, "color": "", "form": ""},
+        away={"name": "", "abbr": "", "logo": "", "score": None, "color": "", "form": ""},
+        periods=[], stats=[], events=[], leaderboard=leaderboard, sessions=sessions,
     )
 
 
-async def _board_baseball(sport: str, g: Dict[str, Any]) -> Dict[str, Any]:
-    home_t, away_t, st, league, venue = _generic_header(g)
-    s = g.get("scores") or {}
-    h, a = s.get("home") or {}, s.get("away") or {}
-    hi, ai = h.get("innings") or {}, a.get("innings") or {}
-    periods = []
-    for i in range(1, 10):
-        hv = hi.get(str(i), hi.get(i))
-        av = ai.get(str(i), ai.get(i))
-        if hv is not None or av is not None:
-            periods.append(_period_row(str(i), hv, av))
-    if hi.get("extra") is not None or ai.get("extra") is not None:
-        periods.append(_period_row("EX", hi.get("extra"), ai.get("extra")))
-    stats = []
-    if h.get("hits") is not None or a.get("hits") is not None:
-        stats.append(_bar("Hits", h.get("hits"), a.get("hits")))
-    if h.get("errors") is not None or a.get("errors") is not None:
-        stats.append(_bar("Errors", h.get("errors"), a.get("errors")))
-    short = str(st.get("short") or "")
-    clock = f"INN {short[2:]}" if short.startswith("IN") and len(short) > 2 else ""
-    return _shape(
-        sport, fixtureId=(g.get("game") or g).get("id"), league=league, venue=venue,
-        status={"short": short, "long": st.get("long") or "", "clock": clock, "live": True},
-        home={"name": home_t.get("name") or "", "logo": home_t.get("logo") or "",
-              "score": h.get("total")},
-        away={"name": away_t.get("name") or "", "logo": away_t.get("logo") or "",
-              "score": a.get("total")},
-        periods=periods, stats=stats, events=[],
-    )
-
-
-async def _board_hockey(sport: str, g: Dict[str, Any]) -> Dict[str, Any]:
-    home_t, away_t, st, league, venue = _generic_header(g)
-    scores = g.get("scores") or {}
-    per = g.get("periods") or {}
-    periods = []
-    for key, label in [("first", "P1"), ("second", "P2"), ("third", "P3"),
-                       ("overtime", "OT"), ("penalties", "SO")]:
-        hv, av = _pp(per.get(key))
-        if hv is not None or av is not None:
-            periods.append(_period_row(label, hv, av))
-    return _shape(
-        sport, fixtureId=(g.get("game") or g).get("id"), league=league, venue=venue,
-        status={"short": st.get("short") or "", "long": st.get("long") or "",
-                "clock": str(g.get("timer") or st.get("timer") or ""), "live": True},
-        home={"name": home_t.get("name") or "", "logo": home_t.get("logo") or "",
-              "score": scores.get("home")},
-        away={"name": away_t.get("name") or "", "logo": away_t.get("logo") or "",
-              "score": scores.get("away")},
-        periods=periods, stats=[], events=[],
-    )
-
-
-async def _board_rugby(sport: str, g: Dict[str, Any]) -> Dict[str, Any]:
-    home_t, away_t, st, league, venue = _generic_header(g)
-    scores = g.get("scores") or {}
-    per = g.get("periods") or {}
-    periods = []
-    for key, label in [("first", "1H"), ("second", "2H"),
-                       ("overtime", "ET"), ("second_overtime", "ET2")]:
-        hv, av = _pp(per.get(key))
-        if hv is not None or av is not None:
-            periods.append(_period_row(label, hv, av))
-    return _shape(
-        sport, fixtureId=(g.get("game") or g).get("id"), league=league, venue=venue,
-        status={"short": st.get("short") or "", "long": st.get("long") or "",
-                "clock": str(st.get("timer") or ""), "live": True},
-        home={"name": home_t.get("name") or "", "logo": home_t.get("logo") or "",
-              "score": scores.get("home")},
-        away={"name": away_t.get("name") or "", "logo": away_t.get("logo") or "",
-              "score": scores.get("away")},
-        periods=periods, stats=[], events=[],
-    )
-
-
-async def _board_nfl(sport: str, g: Dict[str, Any]) -> Dict[str, Any]:
-    home_t, away_t, st, league, venue = _generic_header(g)
-    s = g.get("scores") or {}
-    h, a = s.get("home") or {}, s.get("away") or {}
-    periods = []
-    for key, label in [("quarter_1", "Q1"), ("quarter_2", "Q2"),
-                       ("quarter_3", "Q3"), ("quarter_4", "Q4"), ("overtime", "OT")]:
-        if h.get(key) is not None or a.get(key) is not None:
-            periods.append(_period_row(label, h.get(key), a.get(key)))
-    return _shape(
-        sport, fixtureId=(g.get("game") or g).get("id"), league=league, venue=venue,
-        status={"short": st.get("short") or "", "long": st.get("long") or "",
-                "clock": str(st.get("timer") or ""), "live": True},
-        home={"name": home_t.get("name") or "", "logo": home_t.get("logo") or "",
-              "score": h.get("total")},
-        away={"name": away_t.get("name") or "", "logo": away_t.get("logo") or "",
-              "score": a.get("total")},
-        periods=periods, stats=[], events=[],
-    )
-
-
-async def _board_afl(sport: str, g: Dict[str, Any]) -> Dict[str, Any]:
-    home_t, away_t, st, league, venue = _generic_header(g)
-    s = g.get("scores") or {}
-    h, a = s.get("home") or {}, s.get("away") or {}
-    stats = []
-    if h.get("goals") is not None or a.get("goals") is not None:
-        stats.append(_bar("Goals", h.get("goals"), a.get("goals")))
-    if h.get("behinds") is not None or a.get("behinds") is not None:
-        stats.append(_bar("Behinds", h.get("behinds"), a.get("behinds")))
-    return _shape(
-        sport, fixtureId=(g.get("game") or g).get("id"),
-        league=league or "AFL", venue=venue,
-        status={"short": st.get("short") or "", "long": st.get("long") or "",
-                "clock": str(st.get("timer") or ""), "live": True},
-        home={"name": home_t.get("name") or "", "logo": home_t.get("logo") or "",
-              "score": h.get("score")},
-        away={"name": away_t.get("name") or "", "logo": away_t.get("logo") or "",
-              "score": a.get("score")},
-        periods=[], stats=stats, events=[],
-    )
-
-
-async def _f1_rankings(race_id: Any) -> List[Dict[str, Any]]:
-    if race_id is None:
-        return []
-    key = f"f1rank:{race_id}"
-    cached = _cache_get(key, STATS_TTL)
-    if cached is not None:
-        return cached
-    try:
-        data = await _api_get(SPORTS["f1"]["host"], "/rankings/races", {"race": race_id})
-        rows = []
-        for r in (data.get("response") or [])[:12]:
-            rows.append({
-                "pos": r.get("position"),
-                "name": (r.get("driver") or {}).get("name") or "",
-                "team": (r.get("team") or {}).get("name") or "",
-                "detail": str(r.get("time") or ""),
-            })
-        _cache_put(key, rows)
-        return rows
-    except Exception as exc:
-        logger.warning("f1 rankings failed: %s", exc)
-        return []
-
-
-async def _board_f1(sport: str, g: Dict[str, Any]) -> Dict[str, Any]:
-    comp = (g.get("competition") or {}).get("name") or "Grand Prix"
-    circuit = g.get("circuit") or {}
-    laps = g.get("laps") or {}
-    clock = ""
-    if laps.get("current"):
-        clock = f"LAP {laps.get('current')}/{laps.get('total') or '?'}"
-    leaderboard = await _f1_rankings(g.get("id"))
-    return _shape(
-        sport, fixtureId=g.get("id"), league=comp,
-        venue=circuit.get("name") or "",
-        status={"short": str(g.get("status") or ""), "long": str(g.get("status") or ""),
-                "clock": clock, "live": True},
-        home={"name": comp, "logo": circuit.get("image") or "", "score": None},
-        away={"name": "", "logo": "", "score": None},
-        periods=[], stats=[], events=[], leaderboard=leaderboard,
-    )
-
-
-async def _board_mma(sport: str, g: Dict[str, Any]) -> Dict[str, Any]:
-    f = g.get("fighters") or {}
-    first, second = f.get("first") or {}, f.get("second") or {}
-    st = g.get("status") or {}
-    return _shape(
-        sport, fixtureId=g.get("id"),
-        league=str(g.get("category") or "MMA"), venue="",
-        status={"short": st.get("short") or "", "long": st.get("long") or "",
-                "clock": "", "live": True},
-        home={"name": first.get("name") or "", "logo": first.get("logo") or "", "score": None},
-        away={"name": second.get("name") or "", "logo": second.get("logo") or "", "score": None},
-        periods=[], stats=[], events=[],
-    )
-
-
-_KIND_BUILDERS = {
-    "football": _board_football,
-    "basketball": _board_basketball,
-    "baseball": _board_baseball,
-    "hockey": _board_hockey,
-    "rugby": _board_rugby,
-    "nfl": _board_nfl,
-    "afl": _board_afl,
-    "f1": _board_f1,
-    "mma": _board_mma,
-}
+def _live_or_candidates(events: List[dict], include_finished: bool) -> List[dict]:
+    live = [e for e in events if _state(e) == "in"]
+    if live or not include_finished:
+        return live
+    post = [e for e in events if _state(e) == "post"]
+    return post or events
 
 
 @router.get("/board")
 async def board(
     sport: str = Query(..., description="Sport bucket id from the WhatsOn hub"),
     title: str = Query(..., min_length=2, description="EPG programme title"),
+    includeFinished: bool = Query(False, description="Match finished games too (testing/demo)"),
+    dates: Optional[str] = Query(None, regex=r"^[0-9-]{4,17}$",
+                                 description="ESPN dates filter (testing/demo)"),
 ):
     sport = sport.lower().strip()
     if sport not in SPORTS:
         raise HTTPException(400, f"unsupported sport '{sport}'")
-    if not APISPORTS_KEY:
-        raise HTTPException(500, "APISPORTS_KEY not configured")
+    cfg = SPORTS[sport]
+    kind = cfg["kind"]
+    label = cfg["label"]
 
-    live = await _live_games(sport)
-    label = SPORTS[sport]["label"]
-    if live.get("plan_error"):
-        return _shape(sport, found=False, reason="plan_locked",
-                      message=f"{label} live data needs an API-Sports plan upgrade "
-                              f"— {live['plan_error']}")
-    games = live.get("games") or []
-    if not games:
-        if live.get("fetch_error"):
+    candidates: List[Tuple[dict, str, str]] = []
+    fetch_failed = True
+    for sport_path, league in cfg["leagues"]:
+        events = await _scoreboard(sport_path, league, dates)
+        if events:
+            fetch_failed = False
+        for ev in _live_or_candidates(events, includeFinished):
+            candidates.append((ev, sport_path, league))
+
+    if not candidates:
+        if fetch_failed:
             return _shape(sport, found=False, reason="fetch_error",
                           message="Can't reach the live data feed right now — retrying")
         return _shape(sport, found=False, reason="no_live_games",
                       message=f"No live {label} match in the data feed right now")
 
-    g, how = _resolve(sport, title, games)
-    if g is None:
-        return _shape(sport, found=False, reason="no_match", liveCount=len(games),
-                      message=f"{len(games)} live {label} matches in the feed — "
+    ev, how = _resolve(title, [c[0] for c in candidates], kind)
+    if ev is None:
+        return _shape(sport, found=False, reason="no_match", liveCount=len(candidates),
+                      message=f"{len(candidates)} live {label} matches in the feed — "
                               f"none matched this programme yet")
+    sport_path, league = next((c[1], c[2]) for c in candidates if c[0] is ev)
 
-    payload = await _KIND_BUILDERS[SPORTS[sport]["kind"]](sport, g)
+    if kind == "racing":
+        payload = await _board_racing(sport, ev)
+    else:
+        payload = await _board_team_sport(sport, kind, sport_path, league, ev)
     payload["matched"] = how
     return payload
-
-
-@router.get("/quota")
-async def quota():
-    """In-memory view of the daily quota per sport (no API calls)."""
-    return {"quota": {s: _quota.get(cfg["host"]) for s, cfg in SPORTS.items()}}
