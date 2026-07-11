@@ -1,16 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v2.11 CC circle — neutral grey ring, teal when D-pad focused. -->
+<!-- v2.12 CC circle — neutral grey ring, app-blue (#5DC8FF) when
+     D-pad focused. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_focused="true">
         <shape android:shape="oval">
-            <solid android:color="#403BE8C8" />
-            <stroke android:width="3dp" android:color="#3BE8C8" />
+            <solid android:color="#405DC8FF" />
+            <stroke android:width="3dp" android:color="#5DC8FF" />
         </shape>
     </item>
     <item android:state_pressed="true">
         <shape android:shape="oval">
-            <solid android:color="#403BE8C8" />
-            <stroke android:width="3dp" android:color="#3BE8C8" />
+            <solid android:color="#405DC8FF" />
+            <stroke android:width="3dp" android:color="#5DC8FF" />
         </shape>
     </item>
     <item>

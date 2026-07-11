@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v2.11 Programme progress bar — teal fill on a translucent light
-     track, matching the reference banner. -->
+<!-- v2.12 Programme progress bar — app-blue fill (#5DC8FF) on a
+     translucent light track. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:id="@android:id/background">
         <shape android:shape="rectangle">
@@ -12,7 +12,7 @@
         <clip>
             <shape android:shape="rectangle">
                 <corners android:radius="2dp" />
-                <solid android:color="#3BE8C8" />
+                <solid android:color="#5DC8FF" />
             </shape>
         </clip>
     </item>

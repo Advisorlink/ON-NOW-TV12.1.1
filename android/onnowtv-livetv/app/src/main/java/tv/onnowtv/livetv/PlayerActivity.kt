@@ -26,11 +26,18 @@ import androidx.media3.ui.PlayerView
 import coil.load
 import coil.transform.RoundedCornersTransformation
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
+import org.json.JSONObject
 import tv.onnowtv.livetv.data.Channel
 import tv.onnowtv.livetv.data.Programme
+import tv.onnowtv.livetv.data.XtreamRepository
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -151,9 +158,13 @@ class PlayerActivity : AppCompatActivity() {
     private val clockAmPmFmt = SimpleDateFormat("a", Locale.UK)
     private val clockDateFmt = SimpleDateFormat("EEE, MMM d", Locale.UK)
     private val timeRangeFmt = SimpleDateFormat("h:mm a", Locale.UK)
-    /** Stack of recently-watched channel ids; head = previous channel.
-     *  Used by the SWAP button. */
-    private val recentChannelStack = ArrayDeque<String>()
+    /** Id of the channel we were watching immediately before the
+     *  current one.  `null` on first boot.  Powers a strict two-
+     *  channel toggle for the SWAP BACK button — pressing it flips
+     *  between "current" and "previous", and successive presses
+     *  ping-pong those two entries regardless of any channels the
+     *  user visited in-between via CH±. */
+    private var previousChannelId: String? = null
     private val controlsHideHandler = Handler(Looper.getMainLooper())
     private var subtitlesEnabled: Boolean = false
     private val aspectModes = intArrayOf(
@@ -529,14 +540,13 @@ class PlayerActivity : AppCompatActivity() {
      * new one opens — no double-stream condition.
      */
     private fun tuneTo(channel: Channel, initial: Boolean = false) {
-        // v2.10 — Remember the channel we're leaving so the SWAP
-        // button can jump back to it.  Cap the stack at 8 entries
-        // and never push the same id we're already tuning to.
+        // v2.12 — Remember the channel we're leaving so the SWAP BACK
+        // button can flip back to it.  Strict single-slot memory:
+        // successive tunes overwrite it, and successive SWAP presses
+        // then ping-pong between just these two entries.
         val leaving = currentChannel
         if (leaving != null && leaving.id != channel.id) {
-            recentChannelStack.remove(leaving.id)
-            recentChannelStack.addFirst(leaving.id)
-            while (recentChannelStack.size > 8) recentChannelStack.removeLast()
+            previousChannelId = leaving.id
         }
         if (currentChannel?.id != channel.id) {
             consecutiveFailures = 0
@@ -973,11 +983,13 @@ class PlayerActivity : AppCompatActivity() {
         if (target != null) tuneTo(target)
     }
 
-    /** SWAP — jump back to the most recently watched channel.  Held
-     *  in [recentChannelStack]; the head is the one we tuned away
-     *  from last.  Silent no-op when the stack is empty (fresh boot). */
+    /** SWAP BACK — strict two-channel toggle.  Flips back to
+     *  [previousChannelId] (the channel we were on immediately
+     *  before the current tune).  `tuneTo` then overwrites the
+     *  memory with what we just left, so a second press ping-pongs
+     *  us straight back — regardless of any CH± zapping in between. */
     private fun swapToPreviousChannel() {
-        val prevId = recentChannelStack.removeFirstOrNull() ?: return
+        val prevId = previousChannelId ?: return
         val list = PlaybackQueue.channels
         val target = list.firstOrNull { it.id == prevId }
             ?: BundleHolder.current?.channels?.firstOrNull { it.id == prevId }
@@ -1081,15 +1093,102 @@ class PlayerActivity : AppCompatActivity() {
             infoNextTime.text = next?.let { timeRangeFmt.format(Date(it.startMs)) } ?: ""
         }
         if (::infoNextThumb.isInitialized) {
-            if (!ch.logoUrl.isNullOrBlank()) {
+            paintUpNextThumb(ch, next)
+        }
+    }
+
+    /** In-memory TMDB backdrop cache for the UP NEXT thumbnail —
+     *  keyed by lowercased programme title, value = backdrop URL
+     *  (or empty string if the lookup returned nothing so we don't
+     *  hammer the endpoint on every overlay repaint). */
+    private val upNextArtCache = mutableMapOf<String, String>()
+    private var upNextArtJob: Job? = null
+
+    /** Populate the small 16:9 UP NEXT thumbnail.  Prefers a TMDB
+     *  backdrop for the next programme title (via the existing
+     *  `/api/epg/art` endpoint), falls back to the channel logo,
+     *  and finally hides the view when neither is available. */
+    private fun paintUpNextThumb(ch: Channel, next: Programme?) {
+        val loadLogoFallback = {
+            val logo = ch.logoUrl
+            if (!logo.isNullOrBlank()) {
                 infoNextThumb.visibility = View.VISIBLE
-                infoNextThumb.load(ch.logoUrl) {
+                infoNextThumb.load(logo) {
                     crossfade(true)
-                    transformations(RoundedCornersTransformation(14f))
+                    transformations(RoundedCornersTransformation(10f))
                 }
             } else {
                 infoNextThumb.visibility = View.GONE
             }
+        }
+        val title = next?.title?.trim().orEmpty()
+        if (title.isBlank()) {
+            loadLogoFallback()
+            return
+        }
+        val key = title.lowercase(Locale.UK)
+        val cached = upNextArtCache[key]
+        if (cached != null) {
+            if (cached.isNotBlank()) {
+                infoNextThumb.visibility = View.VISIBLE
+                infoNextThumb.load(cached) {
+                    crossfade(true)
+                    transformations(RoundedCornersTransformation(10f))
+                }
+            } else {
+                loadLogoFallback()
+            }
+            return
+        }
+        // Show the logo optimistically while the network lookup runs.
+        loadLogoFallback()
+        upNextArtJob?.cancel()
+        upNextArtJob = lifecycleScope.launch(Dispatchers.IO) {
+            val backdrop = fetchUpNextBackdrop(title)
+            upNextArtCache[key] = backdrop
+            if (backdrop.isBlank()) return@launch
+            withContext(Dispatchers.Main) {
+                // Only paint if the next programme is still the one
+                // we launched the fetch for — otherwise the overlay
+                // has moved on to a different channel/programme.
+                val (_, currentNext) = currentChannel?.let { currentProgramme(it) } ?: (null to null)
+                if (currentNext?.title?.trim()?.lowercase(Locale.UK) != key) return@withContext
+                infoNextThumb.visibility = View.VISIBLE
+                infoNextThumb.load(backdrop) {
+                    crossfade(true)
+                    crossfade(180)
+                    transformations(RoundedCornersTransformation(10f))
+                }
+            }
+        }
+    }
+
+    /** Blocking TMDB backdrop lookup via the app's own art proxy.
+     *  Returns "" on any failure or when the endpoint has no art
+     *  for the title.  Must be called off the main thread. */
+    private fun fetchUpNextBackdrop(title: String): String {
+        return try {
+            val url = URL(
+                XtreamRepository.BACKEND_BASE.trimEnd('/') +
+                    "/api/epg/art?title=" + URLEncoder.encode(title, "UTF-8"),
+            )
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 5_000
+                readTimeout = 10_000
+                setRequestProperty("Accept", "application/json")
+            }
+            try {
+                if (conn.responseCode !in 200..299) return ""
+                val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                val obj = JSONObject(text)
+                obj.optString("backdrop").ifBlank { obj.optString("poster") }
+            } finally {
+                conn.disconnect()
+            }
+        } catch (t: Throwable) {
+            Log.w("PlayerActivity", "up next art failed: ${t.message}")
+            ""
         }
     }
 

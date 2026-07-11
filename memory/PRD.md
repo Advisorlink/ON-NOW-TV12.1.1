@@ -1,4 +1,18 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.14.22 — Player pop-up: blue palette, flipped scrim, 16:9 UP NEXT art + WhatsOn as boot focus + old Sports Guide removed (Feb 2026).**
+>
+> Batch of user-requested polish on the live-TV player overlay plus a clean-up of the legacy fixture-based Sports Guide (superseded by the WhatsOn Live hub):
+> 1. **Swap-Back → strict 2-channel toggle** — replaced the 8-entry `ArrayDeque` recent-channel stack with a single `previousChannelId: String?`. `tuneTo` overwrites it with the leaving channel, so `swapToPreviousChannel` ping-pongs between the last two watched entries regardless of any CH± zapping in-between.
+> 2. **Overlay recolour** — every teal accent on the player overlay swapped to app-blue `#5DC8FF` (matches `livetv_accent`/`livetv_blue`): SWAP-BACK focus ring, play/pause circle ring, CC circle focus ring, progress-bar fill, UP-NEXT eyebrow + underline, tune-in pill text, and top-right date under the clock.
+> 3. **Scrim gradient flipped** — `player_overlay_scrim_bg.xml` now uses `angle=270` (top→bottom) with fully-transparent start and near-opaque end: the movie bleeds through the top of the banner, text sits on a solid base.
+> 4. **UP-NEXT 16:9 art** — thumbnail changed from a 72×72dp square (channel logo) to a 112×63dp 16:9 rectangle filled with a TMDB backdrop fetched via the existing `/api/epg/art?title=…` endpoint (already used by the hero backdrop). New `paintUpNextThumb()`/`fetchUpNextBackdrop()` in `PlayerActivity` with an in-memory cache keyed by lowercased programme title. Falls back to the channel logo while the network lookup runs (and permanently when TMDB has no art). Rounded 10dp corners.
+> 5. **Boot focus → WHAT'S ON LIVE pill** — on `EpgActivity.onCreate` the initial D-pad focus now lands on the `whatson_pill` instead of the "All channels" category pill. Library deep-link path still routes focus into the channels list.
+> 6. **Old Sports Guide removed completely** — deleted `SportsGuideActivity.kt`, `activity_sports_guide.xml`, `SportRailAdapter`, `FixtureCardAdapter`, `SportsRepository`, `Sports.kt`, `item_fixture_card.xml`, `item_sport_pill.xml`, `sport_pill_bg.xml`, `fixture_card_bg.xml`, `ic_nav_sports.xml`, the manifest activity entry, the side-rail trophy button, and the `railSports` field / findViewById / click handler in `EpgActivity`. The WhatsOn Live hub is now the only live-sports surface.
+>
+> **Files touched:** `PlayerActivity.kt` (swap toggle + UP-NEXT art loader + imports), `EpgActivity.kt` (boot focus + rail cleanup), `activity_player.xml` (blue accents, 16:9 thumb), `activity_epg.xml` (removed rail_sports button), `AndroidManifest.xml` (removed activity), `player_overlay_scrim_bg.xml`, `player_pill_button_bg.xml`, `player_circle_teal_bg.xml`, `player_circle_neutral_bg.xml`, `player_progress_bar.xml`. Deleted 11 legacy sports-guide files.
+>
+
+
 > **🟢 v2.14.20 — WhatsOn hub: real photographic 3D sport icons (June 2026).**
 >
 > User verdict on the v2.14.17 hand-drawn vector glyphs: "absolutely horrible… you can't even tell what they are." Replaced all 18 with AI-generated glossy 3D photographic sport images (Gemini image gen → rembg u2net cutout → alpha-trim → 128×128 optimized PNG, ~460 KB total under `res/drawable-nodpi/img_sport_*.png`): golden trophy (ALL), soccer ball, red F1 car, orange racing helmet, golf ball on tee, cricket bat+ball, tennis ball, white/navy rugby-union ball, purple NRL ball, red Sherrin AFL ball, brown NFL pigskin, basketball, crossed hockey sticks+puck, baseball, red boxing glove, yellow road bike, magenta track spikes, gold championship belt.

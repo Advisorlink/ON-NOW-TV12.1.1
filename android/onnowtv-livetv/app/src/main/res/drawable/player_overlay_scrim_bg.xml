@@ -1,13 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v2.11 Bottom banner backdrop — the reference lets the movie show
-     faintly behind the banner, so we use a transparent → near-black
-     vertical fade.  Text stays readable because the lower 2/3 is
-     ~95% opaque. -->
+<!-- v2.12 Bottom banner backdrop — user preference: TOP FADED,
+     BOTTOM SOLID.  angle=270 means the gradient runs top → bottom,
+     so startColor is at the TOP (fully transparent) and endColor
+     is at the BOTTOM (near-opaque black).  This lets the movie
+     bleed through the top edge of the banner while keeping the
+     lower part rock-solid for text readability. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <gradient
-        android:angle="90"
-        android:startColor="#26070A0D"
-        android:centerColor="#E6070A0D"
+        android:angle="270"
+        android:startColor="#00070A0D"
+        android:centerColor="#B3070A0D"
         android:endColor="#F5070A0D" />
 </shape>

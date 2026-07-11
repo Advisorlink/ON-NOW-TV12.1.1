@@ -52,7 +52,7 @@
         android:paddingHorizontal="18dp"
         android:paddingVertical="10dp"
         android:background="@drawable/tune_pill_bg"
-        android:textColor="#3BE8C8"
+        android:textColor="#5DC8FF"
         android:textSize="22sp"
         android:fontFamily="monospace"
         android:letterSpacing="0.12"
@@ -108,7 +108,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="-4dp"
-            android:textColor="#3BE8C8"
+            android:textColor="#5DC8FF"
             android:textSize="14sp"
             android:fontFamily="sans-serif"
             android:letterSpacing="0.04"
@@ -249,7 +249,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="UP NEXT"
-                        android:textColor="#3BE8C8"
+                        android:textColor="#5DC8FF"
                         android:textSize="10sp"
                         android:textStyle="bold"
                         android:fontFamily="sans-serif-medium"
@@ -260,7 +260,7 @@
                         android:layout_width="30dp"
                         android:layout_height="2dp"
                         android:layout_marginTop="4dp"
-                        android:background="#3BE8C8" />
+                        android:background="#5DC8FF" />
 
                     <TextView
                         android:id="@+id/player_info_next_title"
@@ -299,12 +299,15 @@
                         tools:text="10:00 PM" />
                 </LinearLayout>
 
+                <!-- v2.12 UP NEXT thumbnail — small 16:9 cover-art
+                     rectangle, filled with a TMDB backdrop for the
+                     next programme (falls back to the channel logo). -->
                 <ImageView
                     android:id="@+id/player_info_next_thumb"
-                    android:layout_width="72dp"
-                    android:layout_height="72dp"
+                    android:layout_width="112dp"
+                    android:layout_height="63dp"
                     android:layout_gravity="center_vertical"
-                    android:scaleType="fitCenter"
+                    android:scaleType="centerCrop"
                     android:contentDescription="@null"
                     tools:src="@android:drawable/ic_menu_gallery" />
             </LinearLayout>

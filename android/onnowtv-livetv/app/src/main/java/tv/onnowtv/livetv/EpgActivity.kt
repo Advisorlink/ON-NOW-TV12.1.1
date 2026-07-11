@@ -75,7 +75,6 @@ class EpgActivity : AppCompatActivity() {
     private lateinit var railSearch: ImageButton
     private lateinit var railRefresh: ImageButton
     private lateinit var railList: ImageButton
-    private lateinit var railSports: ImageButton
     private lateinit var railFullscreen: ImageButton
     private lateinit var railSignout: ImageButton
 
@@ -250,16 +249,14 @@ class EpgActivity : AppCompatActivity() {
             }
         }
 
-        // Focus the All-channels pill on boot (index 3 in the
-        // rail: Favourites · Recently Watched · Reminders · All
-        // channels · …categories).  The user wants the middle
-        // column populated immediately, not stuck on an empty
-        // Favourites view.
+        // v2.12 — On boot, land D-pad focus on the "WHAT'S ON LIVE"
+        // pill so the user immediately sees the currently-airing
+        // live-sport hub as the highlighted call-to-action.
         //
         // EXCEPTION: when launched from LibraryActivity via the
         // deep-link extra, jump focus DIRECTLY into the channel
         // list so the user lands on the first channel of their
-        // collection — not parked on a category pill.
+        // collection — not parked on the WhatsOn pill.
         val deepLinkCategoryId = intent.getStringExtra(EXTRA_INITIAL_CATEGORY_ID)
         val deepLinkCollectionId = intent.getStringExtra(EXTRA_INITIAL_COLLECTION_ID)
         if (!deepLinkCategoryId.isNullOrBlank() || !deepLinkCollectionId.isNullOrBlank()) {
@@ -268,15 +265,8 @@ class EpgActivity : AppCompatActivity() {
                     ?.itemView?.requestFocus()
             }
         } else {
-            categoriesList.post {
-                val allChannelsIndex = allCategoriesWithCounts
-                    .indexOfFirst { it.id == "__all__" }
-                    .coerceAtLeast(0)
-                categoriesList.scrollToPosition(allChannelsIndex)
-                categoriesList.post {
-                    categoriesList.findViewHolderForAdapterPosition(allChannelsIndex)
-                        ?.itemView?.requestFocus()
-                }
+            whatsOnPill.post {
+                whatsOnPill.requestFocus()
             }
         }
 
@@ -299,7 +289,6 @@ class EpgActivity : AppCompatActivity() {
         railSearch   = findViewById(R.id.rail_search)
         railRefresh  = findViewById(R.id.rail_refresh)
         railList     = findViewById(R.id.rail_list)
-        railSports   = findViewById(R.id.rail_sports)
         railLibrary  = findViewById(R.id.rail_library)
         railFullscreen = findViewById(R.id.rail_fullscreen)
         railSignout  = findViewById(R.id.rail_signout)
@@ -587,9 +576,6 @@ class EpgActivity : AppCompatActivity() {
         railRefresh.setOnClickListener { applyCategory() }
         railList.setOnClickListener {
             categoriesList.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
-        }
-        railSports.setOnClickListener {
-            startActivity(android.content.Intent(this, SportsGuideActivity::class.java))
         }
         railLibrary.setOnClickListener {
             startActivity(android.content.Intent(this, LibraryActivity::class.java))
