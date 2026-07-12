@@ -76,7 +76,7 @@ class EpgActivity : AppCompatActivity() {
     private lateinit var railRefresh: ImageButton
     private lateinit var railList: ImageButton
     private lateinit var railFullscreen: ImageButton
-    private lateinit var railPpv: ImageButton
+    private lateinit var railPpv: android.widget.TextView
     private lateinit var railSignout: ImageButton
 
     // Hero refs
