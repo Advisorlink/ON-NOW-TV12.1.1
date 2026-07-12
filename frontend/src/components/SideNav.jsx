@@ -11,6 +11,7 @@ import {
     Users,
     UserCircle2,
     CalendarDays,
+    Check,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getAutoplay1080p, setAutoplay1080p } from '@/lib/prefs';
@@ -133,8 +134,37 @@ export default function SideNav() {
     }, []);
     const activeProfile = React.useMemo(() => {
         try { return getActiveProfile(); } catch { return null; }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [profileRev, location.pathname]);
+
+    // v2.16.21 — Non-invasive "saved to profile" indicator.  Every
+    // successful cloud-sync push fires `vesper:cloud-sync-success`;
+    // we briefly overlay a green tick on the profile avatar for
+    // ~1.1s, then revert.  Replaces the sonner toast pop-up the
+    // user found too invasive.  Uses a single visible-flag +
+    // fade-out CSS transition so rapid consecutive pushes just
+    // re-arm the timer (no flicker).
+    const [syncedFlash, setSyncedFlash] = React.useState(false);
+    const syncFlashTimerRef = React.useRef(null);
+    React.useEffect(() => {
+        const onSynced = () => {
+            setSyncedFlash(true);
+            if (syncFlashTimerRef.current) {
+                clearTimeout(syncFlashTimerRef.current);
+            }
+            syncFlashTimerRef.current = setTimeout(() => {
+                setSyncedFlash(false);
+                syncFlashTimerRef.current = null;
+            }, 1100);
+        };
+        window.addEventListener('vesper:cloud-sync-success', onSynced);
+        return () => {
+            window.removeEventListener('vesper:cloud-sync-success', onSynced);
+            if (syncFlashTimerRef.current) {
+                clearTimeout(syncFlashTimerRef.current);
+                syncFlashTimerRef.current = null;
+            }
+        };
+    }, []);
 
     const openProfilePicker = () => {
         setExpanded(false);
@@ -432,7 +462,10 @@ export default function SideNav() {
                     className="relative flex items-center gap-4 h-12 px-2 rounded-lg text-left w-full"
                     style={{ color: 'var(--vesper-text)' }}
                 >
-                    <span className="flex items-center justify-center w-9 h-9 shrink-0">
+                    <span
+                        className="flex items-center justify-center w-9 h-9 shrink-0"
+                        style={{ position: 'relative' }}
+                    >
                         {activeProfile ? (
                             <AvatarCircle
                                 avatarId={activeProfile.avatarId}
@@ -445,6 +478,37 @@ export default function SideNav() {
                                 style={{ color: 'var(--vesper-text-2)' }}
                             />
                         )}
+                        {/* v2.16.21 — Green tick overlay that briefly
+                            replaces the avatar every time a cloud
+                            sync push succeeds.  Non-invasive: fades
+                            in for ~180 ms, holds for ~700 ms, fades
+                            out for ~200 ms.  data-testid so QA can
+                            assert the sync signal without waiting for
+                            a toast. */}
+                        <span
+                            data-testid="nav-profile-synced"
+                            aria-hidden="true"
+                            style={{
+                                position: 'absolute',
+                                inset: 0,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRadius: '9999px',
+                                background:
+                                    'radial-gradient(circle at 40% 35%, #4ADE80 0%, #16A34A 80%)',
+                                boxShadow:
+                                    '0 0 0 2px rgba(74,222,128,0.28), ' +
+                                    '0 0 12px rgba(74,222,128,0.55)',
+                                opacity: syncedFlash ? 1 : 0,
+                                transform: syncedFlash ? 'scale(1)' : 'scale(0.82)',
+                                transition:
+                                    'opacity 200ms ease, transform 200ms cubic-bezier(0.2,0.8,0.2,1)',
+                                pointerEvents: 'none',
+                            }}
+                        >
+                            <Check size={18} strokeWidth={3} color="#ffffff" />
+                        </span>
                     </span>
                     <span
                         className="font-sans text-[15px] font-medium overflow-hidden whitespace-nowrap transition-opacity duration-300"

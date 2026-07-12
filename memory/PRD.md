@@ -10216,3 +10216,46 @@ versionCode, and every box's next OTA check picks it up.
 - Rest of the gate (install button, skip button, progress bar,
   notes panel, cinematic backdrop) unchanged and still lints
   clean.
+
+## v2.16.21 — Sync-success sonner toast → green-tick avatar overlay (Feb 2026)
+
+User: "That right-side popup 'Saved to profile' is too invasive.
+Just turn the profile icon in the rail into a green tick for one
+second, then back to the profile icon.  No popup."
+
+### Change
+- **`lib/vesperCloudSync.js`** — removed all `toast(...)` calls +
+  the `sonner` import.  Every push now dispatches:
+    • `vesper:cloud-sync-success` on HTTP 2xx (with `detail: {bytes}`)
+    • `vesper:cloud-sync-error`   on failure    (with `{status}` or `{networkError:true}`)
+  Fire-and-forget CustomEvents, safe under SSR.
+- **`components/SideNav.jsx`** — added a small state hook that
+  listens for `vesper:cloud-sync-success`, flips `syncedFlash=true`
+  for 1100 ms, then reverts.  Rapid consecutive syncs re-arm the
+  timer instead of flickering.  Cleaned up an unused
+  `eslint-disable react-hooks/exhaustive-deps` directive while
+  editing.
+- The profile avatar now sits inside a `position: relative` wrapper
+  with a full-cover overlay `span` (data-testid `nav-profile-synced`):
+    • Green radial gradient (`#4ADE80 → #16A34A`)
+    • Soft green glow ring (`0 0 12px rgba(74,222,128,0.55)`)
+    • White `<Check size={18} strokeWidth={3}>` glyph centred
+    • `opacity 0 → 1` + `transform scale(0.82) → 1` transition
+      (~200 ms ease/cubic-bezier)
+  `pointer-events: none` so it never intercepts the button click.
+
+### UX
+Every time cloud sync succeeds (add a favourite, tweak a pref,
+adjust a profile, add a Live TV fav, edit a reminder…) the avatar
+briefly blooms into a green tick, then fades back.  Peripheral
+enough that the user isn't interrupted mid-navigation, but visible
+enough to give the "yes it saved" confirmation they wanted.
+
+### Verification
+- Playwright: signed in, seeded a profile, picked it, wrote to a
+  synced localStorage key → after ~2.9 s the overlay reached
+  opacity 1, after another ~1.5 s it faded to opacity 0.
+  Sonner-toast query returned false (no popup).
+- ESLint clean on both edited files.
+- Sonner `<Toaster />` mount stays in App.js — other callers
+  (Player.jsx screen-unlock etc.) still rely on it.

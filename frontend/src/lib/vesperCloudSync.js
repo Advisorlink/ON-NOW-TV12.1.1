@@ -23,11 +23,22 @@
 
 import { getToken } from '@/lib/auth';
 import { collectBackupPayload } from '@/lib/profileBackup';
-import { toast } from 'sonner';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 const DEBOUNCE_MS = 2500;
-const TOAST_ID = 'vesper-cloud-sync';
+
+/** Global sync-event names — SideNav listens for these to briefly
+ *  overlay a green tick on the profile avatar (v2.16.21 replaces
+ *  the invasive sonner "Saved to profile ✓" toast the user asked
+ *  us to kill).  Consumers should treat these as fire-and-forget. */
+const EVENT_OK = 'vesper:cloud-sync-success';
+const EVENT_ERR = 'vesper:cloud-sync-error';
+
+function emit(name, detail) {
+    try {
+        window.dispatchEvent(new CustomEvent(name, { detail: detail || null }));
+    } catch { /* SSR / test env */ }
+}
 
 /* Prefixes / exact keys that should trigger a debounced push when
  * they change.  Kept in sync with ESSENTIAL_KEYS/PREFIXES from
@@ -105,32 +116,14 @@ export async function pushNow(silent = false) {
             keepalive: true,
         });
         if (!res.ok) {
-            if (!silent) {
-                toast('Couldn\u2019t save to profile', {
-                    id: TOAST_ID,
-                    description: `Check your connection (HTTP ${res.status}).`,
-                    duration: 3200,
-                });
-            }
+            emit(EVENT_ERR, { status: res.status });
             return false;
         }
-        if (!silent) {
-            toast('Saved to profile', {
-                id: TOAST_ID,
-                description: 'Your library is safely in the cloud.',
-                duration: 2200,
-            });
-        }
+        emit(EVENT_OK, { bytes: payload && JSON.stringify(payload).length });
         return true;
     } catch (e) {
         console.warn('[vesperCloudSync] push failed', e);
-        if (!silent) {
-            toast('Couldn\u2019t save to profile', {
-                id: TOAST_ID,
-                description: 'Network unavailable — will retry next change.',
-                duration: 3200,
-            });
-        }
+        emit(EVENT_ERR, { networkError: true });
         return false;
     }
 }
