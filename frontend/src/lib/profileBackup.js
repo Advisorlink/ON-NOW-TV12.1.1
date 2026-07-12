@@ -59,6 +59,12 @@ const EXCLUDE_PREFIXES = [
     'vesper-poster-',
     'vesper-backdrop-',
     'vesper-party-breadcrumbs', // diagnostic log, regenerates per session
+    // v2.16.18 — Never sync auth secrets to the cloud.  The JWT +
+    // account label are per-device and travel with the login itself;
+    // shipping them across accounts / devices is at best noise, at
+    // worst a session-hijack risk.
+    'vesper-auth-token-v1',
+    'vesper-auth-account-v1',
 ];
 
 /* Cap per-key size.  Even if a key wasn't explicitly excluded, drop
@@ -299,4 +305,17 @@ export function fmtBytes(n) {
     if (n < 1024) return `${n} B`;
     if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
     return `${(n / 1024 / 1024).toFixed(2)} MB`;
+}
+
+/** Cheap "is there anything worth restoring?" check.  Used by the
+ *  cloud-sync restore prompt to skip showing a dialog when the
+ *  remote snapshot is effectively empty (no profiles / no library /
+ *  no continue-watching).  v2.16.18. */
+export function isRestorableSnapshot(payload) {
+    if (!payload || typeof payload !== 'object') return false;
+    const s = summarizeBackupPayload(payload);
+    return (
+        s.profileCount + s.cwCount + s.libraryCount +
+        s.liveFavourites + s.reminders
+    ) > 0;
 }

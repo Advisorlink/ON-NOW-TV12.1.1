@@ -4806,8 +4806,17 @@ from instant_bundle import router as instant_bundle_router  # noqa: E402
 app.include_router(instant_bundle_router)
 
 # v2.10.47 — Custom JWT login system (Xtream-credential vault).
-from auth_router import build_auth_router, ensure_indexes as ensure_auth_indexes  # noqa: E402
+from auth_router import build_auth_router, ensure_indexes as ensure_auth_indexes, make_get_current_account  # noqa: E402
 app.include_router(build_auth_router(lambda: db))
+
+# v2.16.18 — Vesper Movies/TV user-data cloud sync (Continue Watching,
+# Library, Profiles, theme, addons…).  Keyed on the authenticated
+# Vesper account id — reuses the same JWT auth as every other
+# /api/auth/* endpoint.  Must be wired AFTER the auth router so
+# `make_get_current_account` is importable.
+from vesper_sync import router as vesper_sync_router, configure_vesper_sync  # noqa: E402
+app.include_router(vesper_sync_router)
+configure_vesper_sync(db, make_get_current_account(lambda: db))
 
 
 app.add_middleware(

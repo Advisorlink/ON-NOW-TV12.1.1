@@ -10030,3 +10030,84 @@ via `PlayerActivity.tuneTo` — unchanged.
   `tv.onnowtv.livetv` — no import required.
 - Idempotent: rememberTunedChannel is a no-op when id == currentId,
   so no double-count risk from openFullscreen → tuneTo path.
+
+## v2.16.18 — Vesper Movies/TV cloud sync tied to the login (Feb 2026)
+
+User: "Now that Live TV cloud-backup is working, do the same thing
+for Movies and TV.  Anytime someone adds to a library, adds
+continue-watching, all that stuff — just connect it to the actual
+Vesper login so we don't have to worry about saving profiles and
+backup profiles before we reinstall.  The restore prompt should
+look really beautiful, really inviting."
+
+### Backend
+- New `/app/backend/vesper_sync.py` with three endpoints:
+    • POST /api/vesper/sync/push  { data, client_updated_at? }
+    • GET  /api/vesper/sync/pull
+    • GET  /api/vesper/sync/meta  (light: {updated_at, key_count,
+                                          approx_bytes})
+  All three require a valid Vesper JWT.  User key = `account.id`
+  (immutable), extracted server-side via a lazy-bound
+  `configure_vesper_sync(db, auth_fn)` wiring (avoids the "Depends
+  is resolved at import time" pitfall).
+- Mongo collection `vesper_sync` — one document per account.
+- End-to-end tested with curl + Playwright: JWT rejected without
+  auth, push+pull round-trip persists exactly the JSON body.
+
+### Frontend
+- `lib/vesperCloudSync.js` (new).  Monkey-patches
+  `Storage.prototype.setItem` / `removeItem` so every write to a
+  "synced" localStorage key (Profiles, Continue Watching, Library,
+  Live TV favs, theme, prefs, …) schedules a 2.5 s debounced push.
+  Cross-tab writes hooked via the `storage` event.
+  `pagehide` / `beforeunload` triggers a keepalive flush so the
+  very last edit before a tab close reaches the server.
+- `enableVesperCloudSync()` called from `AuthContext.login` +
+  boot-time re-authenticated resume.  `disableVesperCloudSync()`
+  called from `logout`.
+- Successful push → "Saved to profile ✓ · Your library is safely
+  in the cloud" sonner toast.  Failure → "Couldn't save to profile"
+  with the reason.
+- `<Toaster />` (Sonner) mounted at app root in App.js — was
+  missing entirely; several existing `toast.success(...)` calls in
+  Player.jsx were silently no-oping before this.
+
+### Beautiful restore dialog
+`components/CloudRestoreDialog.jsx` — fires ONCE per fresh login
+when the server has a non-empty snapshot for the account.
+Highlights:
+  • Radial cyan glow + ambient sparkle particles across a dark
+    navy card (matches Vesper's #5DC8FF brand accent).
+  • Hero: cloud+sparkle glyph in a glowing rounded tile, uppercase
+    "WELCOME BACK" eyebrow, gradient headline "We found your
+    library in the cloud".
+  • Per-category rows staggered in (60 ms delay each) with icons:
+    Users, PlayCircle, Heart, Tv, Bell — showing counts + a
+    friendly sub-caption ("Pick up exactly where you left off",
+    "Your top channels, ready to zap", etc.)
+  • Meta footer: "Last saved 1 min ago · 864 B" relative time.
+  • Big cyan-gradient "Restore my library" primary CTA (auto-
+    focus for TV D-pad) + subtle "Start fresh" secondary.  Back-
+    press dismisses via `setOnDismissListener` equivalent —
+    login flow can never wedge.
+- Mounted inside `<AuthProvider>` via `CloudRestoreMount.jsx` —
+  reads `cloudRestore.snapshot` state from the auth context.
+
+### Security fix
+- Added `vesper-auth-token-v1` + `vesper-auth-account-v1` to
+  `profileBackup.EXCLUDE_PREFIXES`.  The JWT was silently being
+  pushed inside the payload, which would be a session-hijack
+  risk if the snapshot were ever mishandled.  Confirmed via
+  Playwright that the server-side document now excludes both.
+
+### Verification
+- Backend: curl-tested push + pull unauth (401), then with JWT
+  (200 round-trip persists exact JSON).
+- Frontend: Playwright drove login → dialog visible (screenshot)
+  → dismiss → localStorage write → 2.5 s debounce → POST fired
+  → server confirms the marker in the returned payload → toast
+  visible.
+- Auth secrets NOT in payload after fix (key_count dropped from
+  6 → 3 clean keys).
+- ESLint clean on all touched JS/JSX; Python lint clean on
+  vesper_sync.py.

@@ -20,6 +20,12 @@ import {
     apiLogin,
     apiLogout,
 } from '@/lib/auth';
+import {
+    enableVesperCloudSync,
+    disableVesperCloudSync,
+    pullOnce as pullCloudSnapshot,
+} from '@/lib/vesperCloudSync';
+import { isRestorableSnapshot } from '@/lib/profileBackup';
 
 const AuthContext = React.createContext({
     status: 'checking',
@@ -27,6 +33,7 @@ const AuthContext = React.createContext({
     login: async () => {},
     logout: async () => {},
     refresh: async () => {},
+    cloudRestore: { snapshot: null, dismiss: () => {} },
 });
 
 export function AuthProvider({ children }) {
@@ -39,6 +46,12 @@ export function AuthProvider({ children }) {
         getToken() ? 'authenticated' : 'guest',
     );
     const [account, setAccount] = React.useState(() => getAccount());
+    // v2.16.18 — Cloud-sync restore prompt.  Populated after a
+    // successful `login()` (or on-boot resume of an authenticated
+    // session that hasn't been offered restore yet) when the server
+    // has a non-empty snapshot for this account.  Cleared once the
+    // user picks Restore or Start-fresh.
+    const [cloudSnapshot, setCloudSnapshot] = React.useState(null);
 
     const refresh = React.useCallback(async () => {
         const t = getToken();
@@ -87,6 +100,16 @@ export function AuthProvider({ children }) {
         try {
             window.dispatchEvent(new CustomEvent('vesper:profile-change'));
         } catch { /* ignore */ }
+        // v2.16.18 — Turn on the cloud-sync loop for this account
+        // and check for a restorable snapshot in the background.
+        // Result renders <CloudRestoreDialog> via the value below.
+        try {
+            enableVesperCloudSync();
+            const snap = await pullCloudSnapshot();
+            if (snap && isRestorableSnapshot(snap.data)) {
+                setCloudSnapshot(snap);
+            }
+        } catch { /* silent — user just signed in, don't block */ }
         return data;
     }, []);
 
@@ -94,14 +117,44 @@ export function AuthProvider({ children }) {
         await apiLogout();
         setStatus('guest');
         setAccount(null);
+        setCloudSnapshot(null);
+        disableVesperCloudSync();
         try {
             window.dispatchEvent(new CustomEvent('vesper:profile-change'));
         } catch { /* ignore */ }
     }, []);
 
+    // v2.16.18 — On boot, if we already have a valid token (returning
+    // user) turn cloud-sync back on so their next Library / Continue
+    // Watching / theme edit pushes silently.  We deliberately DO NOT
+    // pull-and-prompt on every refresh: the restore dialog is a
+    // one-time-per-fresh-install thing.  It fires on explicit login
+    // only.
+    React.useEffect(() => {
+        if (status === 'authenticated') {
+            enableVesperCloudSync();
+        } else if (status === 'guest') {
+            disableVesperCloudSync();
+        }
+    }, [status]);
+
+    const dismissCloudRestore = React.useCallback(() => {
+        setCloudSnapshot(null);
+    }, []);
+
     const value = React.useMemo(
-        () => ({ status, account, login, logout, refresh }),
-        [status, account, login, logout, refresh],
+        () => ({
+            status,
+            account,
+            login,
+            logout,
+            refresh,
+            cloudRestore: {
+                snapshot: cloudSnapshot,
+                dismiss: dismissCloudRestore,
+            },
+        }),
+        [status, account, login, logout, refresh, cloudSnapshot, dismissCloudRestore],
     );
 
     return (

@@ -53,6 +53,8 @@ import Onboarding, { hasSeenOnboarding } from '@/components/Onboarding';
 import BootSplash from '@/components/BootSplash';
 import { AuthProvider } from '@/contexts/AuthContext';
 import LoginGate from '@/components/LoginGate';
+import CloudRestoreMount from '@/components/CloudRestoreMount';
+import { Toaster as SonnerToaster } from '@/components/ui/sonner';
 import Person from '@/pages/Person';
 // v2.8.43 — ON NOW TV TUNES (music app)
 import MusicLayout from '@/pages/music/MusicLayout';
@@ -872,6 +874,8 @@ function App() {
                     <Router>
                         <AuthProvider>
                             <DeepLinkHandler />
+                            <SonnerToaster />
+                            <CloudRestoreMount />
                             <MobilePlatformRoot>
                                 <LoginGate>
                                     <VesperOnlyChrome />
