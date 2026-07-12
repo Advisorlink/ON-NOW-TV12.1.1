@@ -13,4 +13,5 @@ object AppPackages {
     const val VESPER = "tv.onnowtv.app"
     const val KIDS = "tv.onnowtv.kids"
     const val TUNES = "tv.onnowtv.tunes"
+    const val LIVETV = "tv.onnowtv.livetv"
 }

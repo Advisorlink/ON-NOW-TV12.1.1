@@ -72,7 +72,7 @@
         android:textSize="12sp"
         android:lineSpacingExtra="3dp"
         android:fontFamily="sans-serif"
-        android:text="Don&#8217;t worry — your profiles, collections and favourites are safely saved to your login. Updating won&#8217;t lose anything." />
+        android:text="Don&#8217;t worry, your profiles are safely saved to your login." />
 
     <!-- Two-button row: primary UPDATE + ghost CANCEL. -->
     <LinearLayout

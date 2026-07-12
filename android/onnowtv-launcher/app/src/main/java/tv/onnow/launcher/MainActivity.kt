@@ -749,20 +749,25 @@ class MainActivity : AppCompatActivity() {
         // v2.12.2 — If this is an UPDATE (the package is already on
         // the box), pop a confirm dialog before running the forced
         // clean-install pipeline.  User just wants a heads-up + a
-        // reassurance that their profiles are safe.
+        // reassurance that their profiles/data are safe.
         //
-        // v2.12.9 — VESPER-ONLY.  Only Vesper carries user profiles,
-        // so this dialog only fires for the Vesper (Movies/TV) tile.
-        // Fresh installs and every other app (Tunes, Kids, Sports, …)
-        // go straight to the install pipeline with no dialog.
+        // v2.16.28 — Fires for BOTH the Vesper (Movies/TV) tile AND
+        // the Live TV / Sports tile — the two apps that carry user
+        // profiles + saved data.  Each uses its own reassurance text
+        // (Vesper: profiles + continue watching + library; Live TV:
+        // profiles + collections + favourites) because they store
+        // different things in the cloud.  Fresh installs and every
+        // other app (Tunes, Kids, …) go straight to install with
+        // no dialog.
         //
         // v2.16.27 — Removed the "Back up profiles first" branch.
-        // Vesper now performs an automatic cloud backup on every
-        // profile change (keyed to the user's login), so updating
-        // is inherently safe.  The dialog is now a simple two-button
+        // Vesper/Live TV now perform an automatic cloud backup on
+        // every change (keyed to the user's login), so updating is
+        // inherently safe.  The dialog is now a simple two-button
         // "Update available? [Update] [Cancel]" confirm.
-        if (installed && isVesperTile(item)) {
-            showPreUpdateDialog(item)
+        val reassurance = reassuranceCopyFor(item)
+        if (installed && reassurance != null) {
+            showPreUpdateDialog(item, reassurance)
             return
         }
 
@@ -779,35 +784,60 @@ class MainActivity : AppCompatActivity() {
             item.targetPackage == AppPackages.VESPER
 
     /**
-     * v2.16.27 — Simple update-confirm dialog for the Vesper tile.
+     * v2.16.28 — True when this dock tile points at the Live TV
+     * (Sports) app.
+     */
+    private fun isLiveTvTile(item: DockItem): Boolean =
+        item.apkPackageId == AppPackages.LIVETV ||
+            item.targetPackage == AppPackages.LIVETV
+
+    /**
+     * v2.16.28 — Returns the tile-specific reassurance copy to show
+     * in the update-confirm dialog, or `null` if this tile doesn't
+     * warrant a confirm prompt (Tunes, Kids, etc go straight to
+     * install).  Copy is user-written verbatim, no em-dashes.
+     */
+    private fun reassuranceCopyFor(item: DockItem): String? = when {
+        isVesperTile(item) ->
+            "Don't worry, your profiles, continue watching, and library " +
+                "are safely saved to your login."
+        isLiveTvTile(item) ->
+            "Don't worry, your profiles, collections, and favourites " +
+                "are safely saved to your login."
+        else -> null
+    }
+
+    /**
+     * v2.16.27 — Simple update-confirm dialog for tiles that carry
+     * user data (currently Vesper + Live TV).
      *
      *   • **Update** → run the standard install pipeline.  The
      *     root-installer path will pm-uninstall + pm-install so the
      *     new APK ACTUALLY lands even if versionCodes match.
      *   • **Cancel** → dismiss, no-op.
      *
-     * Includes a reassurance note ("your profiles + collections +
-     * favourites are safely saved to your login") because the old
-     * dialog used to offer a manual backup path — the note keeps
-     * users confident that updating is safe now that Vesper auto-
-     * syncs to the cloud on every change.
+     * The [reassurance] paragraph is threaded in per-tile so Vesper
+     * says "profiles, continue watching, library" and Live TV says
+     * "profiles, collections, favourites".
      *
      * Uses a custom themed layout (`dialog_update_confirm`) instead of
      * `AlertDialog.Builder` so we match the launcher's neon-navy
      * aesthetic (deep navy background, cyan accent, letter-spaced
      * caps buttons) instead of the system light-mode Material sheet.
      */
-    private fun showPreUpdateDialog(item: DockItem) {
+    private fun showPreUpdateDialog(item: DockItem, reassurance: String) {
         val view = layoutInflater.inflate(R.layout.dialog_update_confirm, null, false)
 
         val titleView = view.findViewById<android.widget.TextView>(R.id.update_dialog_title)
         val messageView = view.findViewById<android.widget.TextView>(R.id.update_dialog_message)
+        val reassuranceView = view.findViewById<android.widget.TextView>(R.id.update_dialog_reassurance)
         val btnInstall = view.findViewById<android.widget.Button>(R.id.update_dialog_btn_install)
         val btnCancel = view.findViewById<android.widget.Button>(R.id.update_dialog_btn_cancel)
 
         titleView.text = "Update ${item.label}?"
         messageView.text =
             "This will replace the currently-installed version with the latest one from the store."
+        reassuranceView.text = reassurance
 
         // Transparent-framed AlertDialog so ONLY our custom card is
         // visible — no default system chrome around it.

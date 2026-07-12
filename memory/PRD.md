@@ -1,4 +1,36 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.16.28 — Launcher update dialog: per-tile reassurance copy, no em-dashes (Feb 2026).**
+>
+> User correction: the update-confirm dialog needs to fire for BOTH the Vesper (Movies/TV) tile AND the Live TV / Sports tile, with different reassurance copy for each.  Also: strip every em-dash from the copy (user preference).
+>
+> ### Copy (verbatim, user-written)
+> - **Vesper (Movies/TV)** — *"Don't worry, your profiles, continue watching, and library are safely saved to your login."*
+> - **Live TV (Sports)** — *"Don't worry, your profiles, collections, and favourites are safely saved to your login."*
+>
+> ### Implementation
+> - **`AppPackages.kt`** — added `LIVETV = "tv.onnowtv.livetv"` constant.
+> - **`MainActivity.kt`** —
+>   - New `isLiveTvTile(item)` predicate (mirrors `isVesperTile`).
+>   - New `reassuranceCopyFor(item): String?` — single source of truth for which tiles get the confirm dialog and what copy to show.  Returns `null` for Tunes/Kids/etc, which then skip the dialog.
+>   - `onTileInstallRequested` calls `reassuranceCopyFor(item)`; if non-null AND the package is already installed, it shows `showPreUpdateDialog(item, reassurance)`.  Otherwise straight to the install pipeline (unchanged).
+>   - `showPreUpdateDialog` now takes a `reassurance: String` parameter and threads it into the reassurance chip via `reassuranceView.text = reassurance`.
+> - **`dialog_update_confirm.xml`** — stripped the em-dash from the fallback `android:text` on the reassurance chip.  (The real copy is now always set from Kotlin, but the fallback matters for the layout preview and for any edge case where the code doesn't run.)
+>
+> ### OTA pipeline
+> Unchanged.  The **UPDATE** button still calls `proceedWithTileInstall(item, installed = true)` for both tiles.  Backend-published APK updates install exactly the same way for Movies and Live TV.
+>
+> ### Verification
+> - `python xml.etree.ElementTree` parses `dialog_update_confirm.xml` cleanly.
+> - `/tmp/kt_brace_check.py` on `MainActivity.kt` + `AppPackages.kt`: brace=0 paren=0 brack=0 OK.
+> - `grep` on `MainActivity.kt` confirms `reassuranceCopyFor` / `showPreUpdateDialog` / `isVesperTile` / `isLiveTvTile` all present and wired.
+> - No em-dashes remain in user-visible copy (verified with `grep '—'`).
+>
+> **Files touched:**
+> - `android/onnowtv-launcher/.../AppPackages.kt`
+> - `android/onnowtv-launcher/.../MainActivity.kt`
+> - `android/onnowtv-launcher/.../res/layout/dialog_update_confirm.xml`
+>
+
 > **🟢 v2.16.27 — Launcher: simplified Vesper update dialog, no more "Back up first" (Feb 2026).**
 >
 > User feedback: "When you click on the movie tile, it shouldn't say Back Up anymore.  It should just say Update available, with Update and Cancel — because Vesper's cloud sync already saves everything to the user's login."
