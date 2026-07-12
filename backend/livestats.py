@@ -198,6 +198,55 @@ def _match_score(title_tokens: set, title_norm: str, names: List[str]) -> float:
     return best
 
 
+# Archive / retro title markers — mirrors the frontend classifier's
+# NON_LIVE_MARKERS.  Used to block the `only_live` fallback so an
+# archive rebroadcast tagged with the sport bucket (e.g. "2006 MLB
+# Draft") cannot inherit today's live scoreboard.
+_ARCHIVE_MARKERS = (
+    "highlights", " replay", "replayed", "rerun", "re-run",
+    "encore", "review", "recap", "post-match", "post match",
+    "reaction", "build-up", " preview", "best of ", "top 10",
+    "top ten", "classic", "throwback", "greatest", "documentary",
+    "the story of", "special", " draft", "hall of fame",
+    "retrospective", "retro", "archive", "vintage", "history of",
+    "flashback", "iconic", "the making of", "top plays",
+    "top moments", "all-time",
+)
+
+
+def _looks_like_archive(title: str) -> bool:
+    """True when the EPG title suggests an archive/retro rebroadcast
+    rather than a live match.  Also fires on 4-digit year prefixes
+    (`1998`, `2006`) which are strong retro signals."""
+    t = " " + title.lower() + " "
+    if any(m in t for m in _ARCHIVE_MARKERS):
+        return True
+    # 4-digit year at the start of the title → almost certainly a
+    # retro rebroadcast ("2006 Major League Baseball Draft",
+    # "1998 World Cup Final").
+    stripped = title.lstrip()
+    if len(stripped) >= 5 and stripped[:4].isdigit():
+        year = int(stripped[:4])
+        if 1950 <= year <= 2020:
+            return True
+    return False
+
+
+def _looks_like_generic(title: str, kind: str) -> bool:
+    """True when the EPG title is generic sport-genre text ("Live
+    Football", "MLB Baseball", "PGA Tour") with no specific team /
+    fighter / player tokens — safe to fall back to the single live
+    event.  False when the title contains 2+ meaningful tokens (real
+    competitor names), where a bad match risks false-attribution.
+
+    Tennis/racing/golf are always considered generic because their
+    EPG titles rarely name the specific players/tournament exactly."""
+    if kind in ("racing", "golf", "tennis", "mma"):
+        return True
+    meaningful = [t for t in _tokens(title) if len(t) >= 3]
+    return len(meaningful) < 2
+
+
 def _resolve(title: str, events: List[dict], kind: str) -> Tuple[Optional[dict], str]:
     tn, tt = _norm(title), _tokens(title)
     best, best_score, best_sides = None, 0.0, 0
@@ -215,19 +264,18 @@ def _resolve(title: str, events: List[dict], kind: str) -> Tuple[Optional[dict],
             best, best_score, best_sides = ev, s, sides
     if best is not None and (best_sides >= 2 or best_score >= 3):
         return best, "matched"
-    if kind in ("racing", "golf") and events:
-        # Single-event scoreboards: EPG titles like "Live Golf: PGA
-        # Tour" rarely name the specific tournament, so fall back to
-        # the first live event (or the best partial match).
+    # v2.16.4 — Restored the "single live event" fallback for ALL
+    # sports where ESPN typically has a small live scoreboard and
+    # EPG titles are often generic ("Live Football", "PGA Tour").
+    # Gated by _looks_like_archive() so the "2006 MLB Draft"
+    # false-attribution bug stays fixed, AND by _looks_like_generic()
+    # so a specific title like "Brewers vs Pirates" that fails to
+    # match any live game returns `no_match` rather than being
+    # falsely attributed to the current live game.
+    if (events and not _looks_like_archive(title)
+            and _looks_like_generic(title, kind)):
         return (best, "matched") if best is not None and best_score > 0 \
             else (events[0], "only_live")
-    # v2.16.3 — Removed the "single live game fallback" for team
-    # sports.  It was falsely attributing the current PIT@MIL live
-    # stats to unrelated shows like "2006 Major League Baseball
-    # Draft" that only shared the word "baseball" with the sport
-    # bucket.  Team-sport titles MUST genuinely name at least one
-    # competitor.  Tennis and racing keep their own dedicated
-    # fallbacks below in board().
     return None, "no_match"
 
 
@@ -878,24 +926,23 @@ def _board_golf(sport: str, ev: dict) -> Dict[str, Any]:
     # Sort by declared order (ESPN pre-sorts by leaderboard position).
     sorted_players = sorted(comps, key=lambda c: c.get("order") or 9999)
 
+    def _to_par(raw: Any) -> str:
+        if raw in (None, ""):
+            return "E"
+        if isinstance(raw, (int, float)):
+            v = int(raw) if float(raw) == int(raw) else raw
+            return "E" if v == 0 else (f"+{v}" if v > 0 else str(v))
+        return str(raw)
+
     leaderboard: List[Dict[str, Any]] = []
     for c in sorted_players[:15]:
         ath = c.get("athlete") or {}
         flag_href = (ath.get("flag") or {}).get("href") or ""
-        # score is to-par like "-10" or "E"; fall back to sum
-        raw_score = c.get("score")
-        if raw_score in (None, ""):
-            detail = "E"
-        elif isinstance(raw_score, (int, float)):
-            v = int(raw_score) if float(raw_score) == int(raw_score) else raw_score
-            detail = "E" if v == 0 else (f"+{v}" if v > 0 else str(v))
-        else:
-            detail = str(raw_score)
         leaderboard.append({
             "pos": c.get("order"),
             "name": ath.get("displayName") or ath.get("shortName") or "",
             "team": _flag_country_abbr(flag_href),
-            "detail": detail,
+            "detail": _to_par(c.get("score")),
             "flag": flag_href,
         })
 
@@ -913,6 +960,110 @@ def _board_golf(sport: str, ev: dict) -> Dict[str, Any]:
     country = (ven.get("address") or {}).get("country") or ""
     venue = " · ".join(x for x in [course, ", ".join(y for y in [city, country] if y)] if x)
 
+    # v2.16.4 — Fill the top scoreboard with LEADER + RUNNER-UP so
+    # the golf panel doesn't look empty, and populate `sessions[]`
+    # with the leader's round-by-round scorecard so the STATS box
+    # renders a full "ROUNDS BREAKDOWN" board.
+    home: Dict[str, Any] = {"name": "", "abbr": "", "logo": "",
+                            "score": None, "color": "", "form": ""}
+    away: Dict[str, Any] = {"name": "", "abbr": "", "logo": "",
+                            "score": None, "color": "", "form": ""}
+    sessions: List[Dict[str, Any]] = []
+    stats_bars: List[Dict[str, Any]] = []
+
+    if sorted_players:
+        leader = sorted_players[0]
+        lath = leader.get("athlete") or {}
+        home = {
+            "name": lath.get("displayName") or "",
+            "abbr": lath.get("shortName") or "",
+            "logo": (lath.get("flag") or {}).get("href") or "",
+            "score": _to_par(leader.get("score")),
+            "color": "#7FC57F",
+            "form": "",
+        }
+        if len(sorted_players) >= 2:
+            r2 = sorted_players[1]
+            rath = r2.get("athlete") or {}
+            away = {
+                "name": rath.get("displayName") or "",
+                "abbr": rath.get("shortName") or "",
+                "logo": (rath.get("flag") or {}).get("href") or "",
+                "score": _to_par(r2.get("score")),
+                "color": "#8FA1BF",
+                "form": "",
+            }
+        # Leader's per-round scorecard → sessions rows.  ESPN's
+        # linescores[i].value is the stroke count for round i,
+        # displayValue is the to-par, and the nested `linescores`
+        # array holds hole-by-hole data (18 entries = round complete;
+        # fewer entries = round still in progress).
+        leader_rounds = leader.get("linescores") or []
+        for i, ls in enumerate(leader_rounds[:4]):
+            strokes = ls.get("value")
+            to_par = ls.get("displayValue") or ""
+            holes = ls.get("linescores") or []
+            if strokes is None or strokes == 0:
+                sessions.append({"name": f"Round {i + 1}",
+                                 "detail": "UPCOMING", "state": "pre"})
+            elif len(holes) >= 18:
+                # Complete round
+                sessions.append({
+                    "name": f"Round {i + 1}",
+                    "detail": f"{int(strokes)} ({to_par})" if to_par else str(int(strokes)),
+                    "state": "post",
+                })
+            else:
+                # Round in progress — show holes played + current to-par
+                sessions.append({
+                    "name": f"Round {i + 1}",
+                    "detail": f"THRU {len(holes)} · {to_par}" if to_par else f"THRU {len(holes)}",
+                    "state": "in",
+                })
+        # Ensure all 4 rounds are represented even if ESPN omits
+        # future ones from linescores.
+        while len(sessions) < 4:
+            sessions.append({"name": f"Round {len(sessions) + 1}",
+                             "detail": "UPCOMING", "state": "pre"})
+        # Cross-field summary stats — three rows using head-to-head
+        # bar shape so the frontend renderBars picks them up.  In
+        # golf lower = better, so the *inverse* of the raw diff drives
+        # the bar; homePct is boosted so the leader visually dominates.
+        pars = []
+        for c in sorted_players:
+            v = _num(c.get("score"))
+            if v is not None:
+                pars.append(v)
+        if pars:
+            leader_par = pars[0]
+            field_avg = round(sum(pars) / len(pars), 1)
+            worst = max(pars)
+            second = pars[1] if len(pars) > 1 else leader_par
+            # Bar 1: Leader vs 2nd — margin (leader always ≥ visually)
+            margin = max(1.0, abs(second - leader_par) + 1.0)
+            stats_bars.append({
+                "label": "Leader vs 2nd",
+                "home": _to_par(leader_par),
+                "away": _to_par(second),
+                "homePct": max(52, min(85, int(50 + margin * 8))),
+            })
+            # Bar 2: Leader vs Field Avg
+            diff = max(1.0, abs(field_avg - leader_par))
+            stats_bars.append({
+                "label": "Leader vs Field",
+                "home": _to_par(leader_par),
+                "away": _to_par(field_avg),
+                "homePct": max(58, min(92, int(50 + diff * 3.5))),
+            })
+            # Bar 3: Cut Line (worst score currently in field)
+            under_par = sum(1 for v in pars if v < 0)
+            stats_bars.append({
+                "label": f"Field ({len(pars)} players)",
+                "home": f"{under_par} UNDER",
+                "away": f"{len(pars) - under_par} OVER",
+                "homePct": max(10, min(90, int(under_par * 100 / max(len(pars), 1)))),
+            })
+
     return _shape(
         sport,
         fixtureId=ev.get("id"),
@@ -924,15 +1075,209 @@ def _board_golf(sport: str, ev: dict) -> Dict[str, Any]:
             "clock": round_label,
             "live": live,
         },
-        home={"name": ev.get("name") or "", "abbr": "", "logo": "",
-              "score": None, "color": "", "form": ""},
-        away={"name": "", "abbr": "", "logo": "",
-              "score": None, "color": "", "form": ""},
+        home=home,
+        away=away,
         periods=[],
-        stats=[],
+        stats=stats_bars,
         events=[],
         leaderboard=leaderboard,
-        sessions=[],
+        sessions=sessions,
+    )
+
+
+# ── MMA / UFC: fight card with fighter records ─────────────────────
+
+def _board_mma(sport: str, ev: dict) -> Dict[str, Any]:
+    """UFC / MMA card renderer.  ESPN's `mma/ufc` scoreboard returns
+    ONE event per card (e.g. UFC 329) whose competitions[] holds all
+    the fights on that card.  The featured/main event is the last
+    competition (highest ordinal); we surface it in the top score
+    band, list the full card in events[], and pull physical stats
+    into the stats bars."""
+    ev_name = ev.get("name") or ev.get("shortName") or "UFC Card"
+    comps = ev.get("competitions") or []
+    if not comps:
+        return _shape(sport, found=False, reason="no_match",
+                      message="Fight card details unavailable")
+
+    # Find the live fight, else the main event (last in card), else first.
+    live_comp = next((c for c in comps
+                      if ((c.get("status") or {}).get("type") or {}).get("state") == "in"), None)
+    main = live_comp or comps[-1]
+
+    def _fighter(c: dict) -> Dict[str, Any]:
+        ath = c.get("athlete") or {}
+        recs = c.get("records") or []
+        summary = ""
+        for r in recs:
+            if r.get("type") in ("total", "career"):
+                summary = r.get("summary") or ""
+                break
+        if not summary and recs:
+            summary = recs[0].get("summary") or ""
+        return {
+            "name": ath.get("displayName") or ath.get("shortName") or "",
+            "abbr": ath.get("shortName") or "",
+            "logo": (ath.get("headshot") or {}).get("href")
+                    or (ath.get("flag") or {}).get("href") or "",
+            "score": c.get("score") or "",
+            "color": ("#" + (c.get("team") or {}).get("color", "").lstrip("#"))
+                     if (c.get("team") or {}).get("color") else "",
+            "form": summary,
+            "record": summary,
+            "rank": (c.get("curatedRank") or {}).get("current"),
+        }
+
+    fighters = main.get("competitors") or []
+    home = _fighter(fighters[0]) if len(fighters) > 0 else {}
+    away = _fighter(fighters[1]) if len(fighters) > 1 else {}
+
+    # Weight class label from the main event's `type.text` or note.
+    weight_class = ""
+    for n in main.get("notes") or []:
+        txt = str(n.get("headline") or n.get("text") or "")
+        if txt:
+            weight_class = txt
+            break
+    if not weight_class:
+        weight_class = (main.get("type") or {}).get("text") or ""
+
+    st = main.get("status") or {}
+    t = st.get("type") or {}
+    live = t.get("state") == "in"
+    round_no = st.get("period") or 0
+    clock = str(st.get("displayClock") or "").strip()
+    clock_txt = ""
+    if live:
+        if round_no and clock and clock not in ("0:00", "-"):
+            clock_txt = f"R{round_no} · {clock}"
+        elif round_no:
+            clock_txt = f"R{round_no}"
+        else:
+            clock_txt = t.get("shortDetail") or ""
+
+    # Fight card timeline: every bout on the card as an event row.
+    events: List[Dict[str, Any]] = []
+    for c in comps:
+        cf = c.get("competitors") or []
+        if len(cf) < 2:
+            continue
+        a1 = (cf[0].get("athlete") or {}).get("shortName") \
+             or (cf[0].get("athlete") or {}).get("displayName") or "?"
+        a2 = (cf[1].get("athlete") or {}).get("shortName") \
+             or (cf[1].get("athlete") or {}).get("displayName") or "?"
+        cst = ((c.get("status") or {}).get("type") or {})
+        cstate = cst.get("state") or ""
+        cnotes = ""
+        for n in c.get("notes") or []:
+            cnotes = str(n.get("headline") or n.get("text") or "")
+            if cnotes:
+                break
+        # Determine winner if fight is finished
+        winner = None
+        for f in cf:
+            if f.get("winner"):
+                ath = f.get("athlete") or {}
+                winner = ath.get("shortName") or ath.get("displayName") or ""
+                break
+        detail_txt = ""
+        if cstate == "post" and winner:
+            detail_txt = f"WON: {winner}"
+        elif cstate == "in":
+            detail_txt = "LIVE NOW"
+        else:
+            detail_txt = cst.get("shortDetail") or "SCHEDULED"
+        events.append({
+            "time": cnotes[:12] if cnotes else "",
+            "team": "home",
+            "type": detail_txt,
+            "player": f"{a1}  vs  {a2}",
+            "detail": "",
+            "scoring": cstate == "post",
+        })
+
+    # Rich stats bars derived from fighter records (career wins,
+    # losses, draws and win rate).  ESPN's scoreboard endpoint
+    # rarely exposes height/reach/weight so we lean on the record
+    # string ("27-9-0") which is always present.
+    def _parse_record(rec: str) -> Optional[Tuple[int, int, int]]:
+        m = re.match(r"^\s*(\d+)\s*-\s*(\d+)(?:\s*-\s*(\d+))?", rec or "")
+        if not m:
+            return None
+        return int(m.group(1)), int(m.group(2)), int(m.group(3) or 0)
+
+    stats_bars: List[Dict[str, Any]] = []
+    h_rec = _parse_record(home.get("record", ""))
+    a_rec = _parse_record(away.get("record", ""))
+    if h_rec and a_rec:
+        hw, hl, hd = h_rec
+        aw, al, ad = a_rec
+        # Career Wins
+        stats_bars.append({
+            "label": "Career Wins",
+            "home": str(hw),
+            "away": str(aw),
+            "homePct": max(10, min(90, int(round(hw * 100 / max(hw + aw, 1))))),
+        })
+        # Total Fights
+        ht = hw + hl + hd
+        at = aw + al + ad
+        stats_bars.append({
+            "label": "Total Fights",
+            "home": str(ht),
+            "away": str(at),
+            "homePct": max(10, min(90, int(round(ht * 100 / max(ht + at, 1))))),
+        })
+        # Win Rate
+        h_pct = int(round(hw * 100 / max(ht, 1)))
+        a_pct = int(round(aw * 100 / max(at, 1)))
+        stats_bars.append({
+            "label": "Win Rate",
+            "home": f"{h_pct}%",
+            "away": f"{a_pct}%",
+            "homePct": max(10, min(90, int(round(h_pct * 100 / max(h_pct + a_pct, 1))))),
+        })
+        # Losses (inverse bar — lower is better, so shrink dominant side)
+        stats_bars.append({
+            "label": "Career Losses",
+            "home": str(hl),
+            "away": str(al),
+            "homePct": max(10, min(90, int(round(hl * 100 / max(hl + al, 1))))),
+        })
+    # Ranks if both fighters have a curatedRank
+    if home.get("rank") and away.get("rank"):
+        try:
+            hr = int(home["rank"])
+            ar = int(away["rank"])
+            if hr > 0 and ar > 0:
+                stats_bars.append({
+                    "label": "Rank",
+                    "home": f"#{hr}",
+                    "away": f"#{ar}",
+                    # lower rank = better — invert the bar
+                    "homePct": max(10, min(90, int(round(ar * 100 / max(hr + ar, 1))))),
+                })
+        except (ValueError, TypeError):
+            pass
+
+    venue = (ev.get("competitions", [{}])[0].get("venue") or {}).get("fullName") or ""
+
+    return _shape(
+        sport,
+        fixtureId=ev.get("id"),
+        league=weight_class or ev_name,
+        venue=venue,
+        status={
+            "short": t.get("shortDetail") or "",
+            "long": t.get("detail") or t.get("description") or ev_name,
+            "clock": clock_txt,
+            "live": live,
+        },
+        home=home,
+        away=away,
+        periods=[],
+        stats=stats_bars,
+        events=events,
     )
 
 
@@ -995,6 +1340,8 @@ async def board(
         payload = _board_cricket(sport, ev)
     elif kind == "golf":
         payload = _board_golf(sport, ev)
+    elif kind == "mma":
+        payload = _board_mma(sport, ev)
     else:
         payload = await _board_team_sport(sport, kind, sport_path, league, ev)
     payload["matched"] = how

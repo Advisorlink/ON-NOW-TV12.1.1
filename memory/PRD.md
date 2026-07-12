@@ -1,4 +1,39 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.16.4 — All-sports stats populated: UFC card, Golf leaderboard + rounds, Soccer/MLB generic-title fallback restored, false-attribution still blocked (Jul 2026).**
+>
+> Continued from v2.16.3 after user reported UFC only showed 2 items, golf had no stats, soccer/football gave nothing on generic EPG titles.  Deep root-cause pass:
+>
+> 1. **UFC / MMA — dedicated `_board_mma()` renderer.** The previous MMA path used `_board_team_sport` which expects teams (not fighters). New handler:
+>    - Picks live comp on the card (or the main event if no fight is currently live).
+>    - `home/away` = the two fighters with their **W-L-D records** ("27-9-0") pulled from `records[]`.
+>    - `league` = weight class or card name ("UFC 329: McGregor vs. Holloway 2").
+>    - `status.clock` = `R{round} · {clock}` when live, degrades gracefully when displayClock missing.
+>    - `events[]` = the **full 14-bout fight card** with completed / LIVE NOW / SCHEDULED status per bout.
+>    - `stats[]` = 4 head-to-head bars from record parsing: **Career Wins, Total Fights, Win Rate, Career Losses** (+ Rank if both fighters have `curatedRank`).
+> 2. **Golf — 3-box population.**  Was only returning a leaderboard; scoreboard was blank and the right box was empty because `sessions=[]`.  Fixed:
+>    - `home` = **current leader** with country flag as logo + to-par as score.
+>    - `away` = **runner-up** for the top score band.
+>    - `sessions[]` = leader's **round-by-round scorecard**.  Detects in-progress rounds by checking the nested `linescores` hole count (fewer than 18 → "THRU 13 · -5" state=`in`), completed rounds show strokes + to-par, unplayed → "UPCOMING".  Always emits 4 round rows.
+>    - `stats[]` = 3 field-summary bars: **Leader vs 2nd** (with pct boosted so leader visually dominates), **Leader vs Field Avg**, **Field composition** ("73 UNDER vs 62 OVER") — the frontend `leaderboard→sessions` branch renders sessions in the stats box, so these bars are supplementary.
+>    - ESPN returns golf scores as *strings* (`"-11"`), not ints — fixed by parsing via `_num()`.
+> 3. **Restored `only_live` fallback with two safety gates.**  My previous fix removed the fallback and broke every sport where the EPG title doesn't name the teams (e.g., "Live Football").  New logic:
+>    - **`_looks_like_archive(title)`** — blocks fallback when title matches archive markers (highlights, draft, hall of fame, retrospective, 4-digit year prefix 1950-2020, etc.).  Preserves the "2006 MLB Draft" fix.
+>    - **`_looks_like_generic(title, kind)`** — allows fallback ONLY when title has fewer than 2 meaningful tokens (generic like "Live Football", "MLB Baseball", "PGA Tour").  A specific title like `"Brewers vs Pirates"` where those teams AREN'T actually live gets `no_match` — no false attribution to whichever other game IS live.  Racing/golf/tennis/MMA are always considered generic because their titles rarely name specific competitors.
+>
+> **Testing (curl e2e via preview URL, 2026-07-11) — 17-case regression sweep:**
+> - `soccer/Live Football` → only_live → Hartford v Westchester, 9 bars + 7 timeline events ✅
+> - `soccer/Hartford Athletic vs Westchester SC` → matched cleanly ✅
+> - `mlb/MLB Baseball` → only_live → Orioles v Royals, 9 bars + 40 timeline events + 7 innings ✅
+> - `mlb/Brewers vs Pirates` (specific but not live) → **no_match** (no false attribution) ✅
+> - `mlb/2006 Major League Baseball Draft` → **no_match** (archive filter) ✅
+> - `golf/Live Golf` → only_live → Thorbjornsen leader, 15-row leaderboard + 4 round scorecard + 3 field bars ✅
+> - `golf/Amundi Evian Championship` → LPGA matched, Ryu -19 leader ✅
+> - `mma/UFC Fight Night` → only_live → Whittaker vs Krylov (27-9-0 v 31-11-0), 14-bout card, 4 record bars ✅
+> - Kotlin brace/paren balance OK on all 3 touched files.  Python lint clean.  CI build + on-box verification pending.
+>
+> **Files touched:**
+> - `backend/livestats.py` — new `_looks_like_archive()`, `_looks_like_generic()`, `_board_mma()`; overhauled `_board_golf()` (leader+runner-up scoreboard, per-round sessions with in-progress detection, field-summary stat bars); `_resolve()` fallback gates; ESPN string-score handling via `_num()`
+>
 > **🟢 v2.16.3 — Baseball classifier fix, "only_live" false-attribution fix, Golf added (Jul 2026).**
 >
 > Three targeted fixes/additions after user testing:
