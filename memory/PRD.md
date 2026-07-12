@@ -10111,3 +10111,53 @@ Highlights:
   6 → 3 clean keys).
 - ESLint clean on all touched JS/JSX; Python lint clean on
   vesper_sync.py.
+
+## v2.16.19 — Restore dialog reframed as profiles-first + viewing-style copy (Feb 2026)
+
+User: "It shouldn't just be restoring the library, it should be
+restoring every profile.  Just say 'We found your profiles' and
+'Would you like to restore your profiles?' — nothing crazier.
+Make it really beautiful.  Also, in the viewing-style step, if
+someone clicks a category but doesn't pick a movie, that should
+still register — they should get For You content just from
+category picks."
+
+### CloudRestoreDialog copy changes
+- Hero headline: "We found your library in the cloud" → **"We
+  found your profiles in the cloud"** (gradient white → cyan).
+- Body copy: **"Everyone signed in to this account is already
+  set up and waiting — avatars, watch progress and preferences
+  included."**
+- Primary CTA: "Restore my library" → **"Restore my profiles"**.
+- Continue-Watching row label tightened: "5 Continue Watching
+  items" → "5 in Continue Watching".
+- Profile row still shows inline profile names (e.g. "3 profiles
+  · Alice · Bob · Kids") — the most reassuring detail.
+- Secondary "Start fresh" button + back-press dismiss + auto-
+  focus on the primary CTA all unchanged.
+
+### Viewing-style step copy fix
+Confirmed via code trace: the ForYouShelf already fires
+`/api/tmdb/for-you` on genre-only picks (no items required).  The
+issue was purely UX — the wizard's "How this works" banner
+implied you also had to tap a specific title:
+
+  Before: "Tap any genre on the left to see its top 20 most-
+          watched titles, then tap the movies or TV shows you
+          love and we'll add them to your For You rail."
+  After:  "Just tap any genres you enjoy on the left — that alone
+          is enough to tailor your For You rail.  Tapping a
+          specific movie or TV show is optional — it just sharpens
+          the recommendations even more."
+
+Empty-state copy in the right panel also updated: "Pick any
+genres on the left. That alone is enough — we'll tailor your For
+You rail to those categories."
+
+### Verification
+- Playwright drove testuser login with a 5-key snapshot on the
+  server (profiles: Alice, Bob, Kids · 5 CW · 8 library · 12
+  Live TV favs · 2 reminders) → the beautiful new dialog rendered
+  with all rows animated in, correct counts, and the "Restore my
+  profiles" CTA.  Screenshot captured.
+- ESLint clean on CloudRestoreDialog.jsx + ProfileEdit.jsx.

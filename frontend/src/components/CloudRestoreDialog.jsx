@@ -82,7 +82,7 @@ export default function CloudRestoreDialog({ snapshot, onDismiss }) {
             items.push({
                 key: 'cw',
                 icon: PlayCircle,
-                title: `${summary.cwCount} Continue Watching ${summary.cwCount === 1 ? 'item' : 'items'}`,
+                title: `${summary.cwCount} in Continue Watching`,
                 sub: 'Pick up exactly where you left off',
             });
         }
@@ -223,7 +223,7 @@ export default function CloudRestoreDialog({ snapshot, onDismiss }) {
                                 WebkitTextFillColor: 'transparent',
                             }}
                         >
-                            We found your library in the cloud
+                            We found your profiles in the cloud
                         </div>
                     </div>
                 </div>
@@ -237,8 +237,8 @@ export default function CloudRestoreDialog({ snapshot, onDismiss }) {
                         maxWidth: 520,
                     }}
                 >
-                    Everything you’ve added, watched, or favourited on your other devices —
-                    ready to slide right back in.
+                    Everyone signed in to this account is already set up and waiting —
+                    avatars, watch progress and preferences included.
                 </p>
 
                 {/* Category rows */}
@@ -314,7 +314,7 @@ export default function CloudRestoreDialog({ snapshot, onDismiss }) {
                         ) : (
                             <>
                                 <Check size={19} strokeWidth={2.4} />
-                                Restore my library
+                                Restore my profiles
                             </>
                         )}
                     </button>

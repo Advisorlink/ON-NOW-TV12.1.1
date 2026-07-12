@@ -1086,7 +1086,7 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                             maxWidth: '70ch',
                         }}
                     >
-                        Tap any <strong style={{ color: 'var(--vesper-blue-bright)' }}>genre</strong> on the left to see its top 20 most-watched titles, then tap the <strong style={{ color: 'var(--vesper-blue-bright)' }}>movies</strong> or <strong style={{ color: 'var(--vesper-blue-bright)' }}>TV shows</strong> you love and we&apos;ll add them to your <strong style={{ color: 'var(--vesper-blue-bright)' }}>For You</strong> rail.  Skip if you&apos;d rather decide later.
+                        Just tap any <strong style={{ color: 'var(--vesper-blue-bright)' }}>genres</strong> you enjoy on the left — that alone is enough to tailor your <strong style={{ color: 'var(--vesper-blue-bright)' }}>For You</strong> rail.  Tapping a specific <strong style={{ color: 'var(--vesper-blue-bright)' }}>movie</strong> or <strong style={{ color: 'var(--vesper-blue-bright)' }}>TV show</strong> in the right panel is optional — it just sharpens the recommendations even more.
                     </div>
                 </div>
             </div>
@@ -1164,10 +1164,9 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                         >
                             <Sparkles size={26} strokeWidth={1.6} />
                             <div style={{ fontSize: 15, maxWidth: 280 }}>
-                                Pick any genres on the left.  Tap as many as you
-                                like — we'll combine the top 50 most-watched
-                                titles across them and put them in your For You
-                                rail.
+                                Pick any genres on the left. That alone is
+                                enough — we&apos;ll tailor your For You rail
+                                to those categories.
                             </div>
                         </div>
                     ) : (
