@@ -1,4 +1,36 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.16.27 — Launcher: simplified Vesper update dialog, no more "Back up first" (Feb 2026).**
+>
+> User feedback: "When you click on the movie tile, it shouldn't say Back Up anymore.  It should just say Update available, with Update and Cancel — because Vesper's cloud sync already saves everything to the user's login."
+>
+> ### Removed
+> - The **"Back up profiles first"** button from the pre-update dialog (was `R.id.update_dialog_btn_backup`).
+> - `MainActivity.launchVesperBackupPage()` — dead code after the button removal.
+> - Renamed `showPreUpdateBackupDialog` → `showPreUpdateDialog` to reflect its new one-purpose role.
+>
+> ### Added
+> - A **reassurance chip** below the body copy in `dialog_update_confirm.xml`: cyan-tinted rounded card that reads *"Don't worry — your profiles, collections and favourites are safely saved to your login.  Updating won't lose anything."*  Uses `bg_update_dialog_btn_secondary` as the chip background and `#FFAEE4FF` text so it visually pops between the message and the buttons.
+>
+> ### Dialog is now
+> - Badge: **UPDATE AVAILABLE**
+> - Title: **Update {tile-label}?**
+> - Body: *"This will replace the currently-installed version with the latest one from the store."*
+> - Reassurance chip: *"Don't worry — your profiles, collections and favourites are safely saved to your login. Updating won't lose anything."*
+> - Buttons: **UPDATE** (primary, first-focus) · **CANCEL** (ghost).
+>
+> ### OTA pipeline
+> The **UPDATE** button still calls `proceedWithTileInstall(item, installed = true)` unchanged — same forced clean-install path (root-installer `pm uninstall && pm install`) that has always driven backend-published APK updates.  No changes to any install / conflict / signature logic.
+>
+> ### Verification
+> - `python xml.etree.ElementTree` parses `dialog_update_confirm.xml` cleanly.
+> - `/tmp/kt_brace_check.py` on `MainActivity.kt`: brace=0 paren=0 brack=0 OK.
+> - Grep confirms zero remaining references to `launchVesperBackupPage`, `showPreUpdateBackupDialog`, or `update_dialog_btn_backup`.
+>
+> **Files touched:**
+> - `android/onnowtv-launcher/app/src/main/res/layout/dialog_update_confirm.xml` (full rewrite, 2 buttons + reassurance chip)
+> - `android/onnowtv-launcher/app/src/main/java/tv/onnow/launcher/MainActivity.kt` (removed ~90 lines of backup-branch code)
+>
+
 > **🟢 v2.16.26 — Live TV EPG D-pad focus: STRICT boundary isolation (Feb 2026).**
 >
 > User feedback (video): D-pad focus was still bleeding at row/column boundaries in the EPG hub — pressing RIGHT on the last sport chip jumped into the first channel listing, LEFT on the first sport chip could hop to the sidebar, UP on sport chips did unpredictable things, and reaching the top of a row could laterally jump to the icon rail. New strict contract per user's exact rules:

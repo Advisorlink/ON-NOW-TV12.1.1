@@ -1,14 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Pre-update backup dialog layout — matches the launcher's
-    neon-navy aesthetic (deep navy fill, cyan accent, letter-spaced
-    caps buttons).  Shown by MainActivity.showPreUpdateBackupDialog()
-    before running any update-install pipeline.
-
-    Layout: an icon strip at the top, a bold title, a body paragraph,
-    then three horizontally-arranged buttons (primary Back Up,
-    secondary Install Now, tertiary Cancel).  DPI-independent — the
-    same file scales from a phone form-factor to a 4K TV.
+    v2.16.27 — Simplified update-confirm dialog.  The "Back up profiles
+    first" button was removed because Vesper now performs an automatic
+    cloud backup keyed to the user's login on every profile change, so
+    updating never risks data loss.  Layout is now: UPDATE AVAILABLE
+    badge → title → body copy → reassurance note ("your profiles are
+    safe") → two buttons (primary UPDATE, ghost CANCEL).
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
@@ -19,8 +16,8 @@
     android:background="@drawable/bg_update_dialog_card"
     android:padding="28dp">
 
-    <!-- Header strip — big cyan-tinted UPDATE badge so it visually
-         echoes the "UPDATE · v2.10.75" pill already used on tiles. -->
+    <!-- Header pill — cyan-tinted UPDATE badge, echoes the "UPDATE ·
+         v2.10.75" pill already used on tiles. -->
     <TextView
         android:id="@+id/update_dialog_badge"
         android:layout_width="wrap_content"
@@ -58,27 +55,42 @@
         android:textSize="14sp"
         android:lineSpacingExtra="4dp"
         android:fontFamily="sans-serif"
-        tools:text="This will replace the currently-installed version. Back up your profiles first — the old app data (profiles, collections, favourites) will be cleared when the new version installs." />
+        tools:text="This will replace the currently-installed version with the latest one from the store." />
 
-    <!-- Button row.  Primary on the LEFT (matches TV D-pad first-focus
-         convention where the top-left/first-item is the "yes" answer).
-         Order: Back up profiles first → Install now → Cancel. -->
+    <!-- v2.16.27 — Reassurance note.  Sits between the body copy and
+         the buttons.  Uses a rounded chip background + soft cyan tint
+         so the user's eye lands on it and they know updating is safe. -->
+    <TextView
+        android:id="@+id/update_dialog_reassurance"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="10dp"
+        android:background="@drawable/bg_update_dialog_btn_secondary"
+        android:textColor="#FFAEE4FF"
+        android:textSize="12sp"
+        android:lineSpacingExtra="3dp"
+        android:fontFamily="sans-serif"
+        android:text="Don&#8217;t worry — your profiles, collections and favourites are safely saved to your login. Updating won&#8217;t lose anything." />
+
+    <!-- Two-button row: primary UPDATE + ghost CANCEL. -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="26dp"
+        android:layout_marginTop="22dp"
         android:orientation="horizontal">
 
         <Button
-            android:id="@+id/update_dialog_btn_backup"
+            android:id="@+id/update_dialog_btn_install"
             android:layout_width="0dp"
             android:layout_height="48dp"
             android:layout_weight="1"
             android:background="@drawable/bg_update_dialog_btn_primary"
             android:textColor="#FF04060B"
-            android:textSize="12sp"
-            android:letterSpacing="0.03"
-            android:paddingHorizontal="10dp"
+            android:textSize="13sp"
+            android:letterSpacing="0.08"
+            android:paddingHorizontal="12dp"
             android:gravity="center"
             android:maxLines="1"
             android:ellipsize="none"
@@ -87,31 +99,16 @@
             android:textAllCaps="true"
             android:focusable="true"
             android:focusableInTouchMode="false"
-            android:text="Back up profiles" />
-
-        <Button
-            android:id="@+id/update_dialog_btn_install"
-            android:layout_width="0dp"
-            android:layout_height="48dp"
-            android:layout_weight="1"
-            android:layout_marginStart="10dp"
-            android:background="@drawable/bg_update_dialog_btn_secondary"
-            android:textColor="#FF2BB6FF"
-            android:textSize="13sp"
-            android:letterSpacing="0.08"
-            android:fontFamily="sans-serif-medium"
-            android:textStyle="bold"
-            android:textAllCaps="true"
-            android:focusable="true"
-            android:focusableInTouchMode="false"
-            android:text="Install now" />
+            android:nextFocusRight="@id/update_dialog_btn_cancel"
+            android:nextFocusLeft="@id/update_dialog_btn_install"
+            android:text="Update" />
 
         <Button
             android:id="@+id/update_dialog_btn_cancel"
             android:layout_width="wrap_content"
             android:layout_height="48dp"
             android:layout_marginStart="10dp"
-            android:paddingHorizontal="18dp"
+            android:paddingHorizontal="22dp"
             android:background="@drawable/bg_update_dialog_btn_ghost"
             android:textColor="#FF8EA0B7"
             android:textSize="13sp"
@@ -121,6 +118,8 @@
             android:textAllCaps="true"
             android:focusable="true"
             android:focusableInTouchMode="false"
+            android:nextFocusLeft="@id/update_dialog_btn_install"
+            android:nextFocusRight="@id/update_dialog_btn_cancel"
             android:text="Cancel" />
     </LinearLayout>
 </LinearLayout>

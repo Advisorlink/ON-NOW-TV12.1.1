@@ -747,24 +747,22 @@ class MainActivity : AppCompatActivity() {
         val installed = isPackageInstalled(item.apkPackageId)
 
         // v2.12.2 — If this is an UPDATE (the package is already on
-        // the box), give the user a chance to back up their profiles
-        // BEFORE we uninstall the old version.  Vesper stores user
-        // profiles + collections + favourites in localStorage — the
-        // launcher's forced clean-install path (pm uninstall + pm
-        // install) drops that data along with the old APK.  The
-        // backup UI lives inside Vesper at `#/profiles/backup`, so
-        // "Back up first" fires a deep-link intent to Vesper and
-        // returns without touching the install pipeline; the user
-        // completes the backup + comes back to the launcher and
-        // re-taps the tile to actually run the update.
+        // the box), pop a confirm dialog before running the forced
+        // clean-install pipeline.  User just wants a heads-up + a
+        // reassurance that their profiles are safe.
         //
         // v2.12.9 — VESPER-ONLY.  Only Vesper carries user profiles,
-        // so the backup prompt fires exclusively when the tile being
-        // UPDATED is Vesper.  Fresh installs (not installed yet) and
-        // every other app (Tunes, Kids, Sports, …) go straight to
-        // the install pipeline with no backup dialog.
+        // so this dialog only fires for the Vesper (Movies/TV) tile.
+        // Fresh installs and every other app (Tunes, Kids, Sports, …)
+        // go straight to the install pipeline with no dialog.
+        //
+        // v2.16.27 — Removed the "Back up profiles first" branch.
+        // Vesper now performs an automatic cloud backup on every
+        // profile change (keyed to the user's login), so updating
+        // is inherently safe.  The dialog is now a simple two-button
+        // "Update available? [Update] [Cancel]" confirm.
         if (installed && isVesperTile(item)) {
-            showPreUpdateBackupDialog(item)
+            showPreUpdateDialog(item)
             return
         }
 
@@ -781,46 +779,38 @@ class MainActivity : AppCompatActivity() {
             item.targetPackage == AppPackages.VESPER
 
     /**
-     * v2.12.2 — Pre-update dialog with three actions:
+     * v2.16.27 — Simple update-confirm dialog for the Vesper tile.
      *
-     *   • **Back up profiles first** → deep-link Vesper to
-     *     `#/profiles/backup`.  User backs up, comes back, re-taps
-     *     the tile to install.  We do NOT stash the install intent
-     *     — safer to make the user re-confirm than surprise-install
-     *     a few seconds after backup finishes.
-     *
-     *   • **Install now** → run the standard install pipeline.
-     *     The root-installer path will pm-uninstall + pm-install so
-     *     the update ACTUALLY lands even if versionCodes match.
-     *
+     *   • **Update** → run the standard install pipeline.  The
+     *     root-installer path will pm-uninstall + pm-install so the
+     *     new APK ACTUALLY lands even if versionCodes match.
      *   • **Cancel** → dismiss, no-op.
      *
-     * v2.12.4 — Uses a custom themed layout (`dialog_update_confirm`)
-     * instead of `android.app.AlertDialog.Builder` because the system
-     * default dialog is a light-mode Material 2 sheet that clashes
-     * badly with the launcher's neon-navy aesthetic (deep navy
-     * background, cyan accent, letter-spaced caps buttons).  The
-     * new dialog is a rounded card with a subtle cyan glow border
-     * and three focus-styled buttons for D-pad users on a TV.
+     * Includes a reassurance note ("your profiles + collections +
+     * favourites are safely saved to your login") because the old
+     * dialog used to offer a manual backup path — the note keeps
+     * users confident that updating is safe now that Vesper auto-
+     * syncs to the cloud on every change.
+     *
+     * Uses a custom themed layout (`dialog_update_confirm`) instead of
+     * `AlertDialog.Builder` so we match the launcher's neon-navy
+     * aesthetic (deep navy background, cyan accent, letter-spaced
+     * caps buttons) instead of the system light-mode Material sheet.
      */
-    private fun showPreUpdateBackupDialog(item: DockItem) {
+    private fun showPreUpdateDialog(item: DockItem) {
         val view = layoutInflater.inflate(R.layout.dialog_update_confirm, null, false)
 
         val titleView = view.findViewById<android.widget.TextView>(R.id.update_dialog_title)
         val messageView = view.findViewById<android.widget.TextView>(R.id.update_dialog_message)
-        val btnBackup = view.findViewById<android.widget.Button>(R.id.update_dialog_btn_backup)
         val btnInstall = view.findViewById<android.widget.Button>(R.id.update_dialog_btn_install)
         val btnCancel = view.findViewById<android.widget.Button>(R.id.update_dialog_btn_cancel)
 
         titleView.text = "Update ${item.label}?"
         messageView.text =
-            "This will replace the currently-installed version.\n\n" +
-                "Would you like to back up your profiles first?  " +
-                "The old app data (profiles, collections, favourites) " +
-                "will be cleared when the new version installs."
+            "This will replace the currently-installed version with the latest one from the store."
 
-        // Use a transparent-framed AlertDialog so ONLY our custom
-        // card is visible — no default system chrome around it.
+        // Transparent-framed AlertDialog so ONLY our custom card is
+        // visible — no default system chrome around it.
         val dialog = android.app.AlertDialog.Builder(
             this,
             android.R.style.Theme_Material_Dialog_Alert,
@@ -831,10 +821,6 @@ class MainActivity : AppCompatActivity() {
         dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
         dialog.window?.setDimAmount(0.72f)
 
-        btnBackup.setOnClickListener {
-            dialog.dismiss()
-            launchVesperBackupPage()
-        }
         btnInstall.setOnClickListener {
             dialog.dismiss()
             proceedWithTileInstall(item, installed = true)
@@ -844,47 +830,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         dialog.show()
-        // First-focus goes on "Back up profiles first" — safest
-        // default action for a TV user who reflexively taps OK.
-        btnBackup.requestFocus()
-    }
-
-    /**
-     * Launch Vesper directly to the `#/profiles/backup` route so the
-     * user can save their profiles + collections + favourites before
-     * we uninstall the old build.  If Vesper isn't installed (edge
-     * case — user is updating something OTHER than Vesper and Vesper
-     * itself isn't on the box), fall back to a Toast telling them.
-     */
-    private fun launchVesperBackupPage() {
-        // v2.12.8 — Vesper's runtime applicationId is `tv.onnowtv.app`.
-        // (`tv.vesper.app` is the Kotlin package/namespace only — a
-        // compile-time thing that never appears in the installed
-        // package list.)  Using the wrong id caused the "Vesper isn't
-        // installed" toast to fire even on boxes where Vesper was
-        // clearly running.  Same fix already applied in the v2 AI
-        // deep-link path in `VoiceAssistantActivity.kt`.
-        val vesperPkg = AppPackages.VESPER
-        val launch = packageManager.getLaunchIntentForPackage(vesperPkg)
-        if (launch == null) {
-            Toast.makeText(
-                this,
-                "Vesper isn't installed on this box — install it first to use the profile backup UI.",
-                Toast.LENGTH_LONG,
-            ).show()
-            return
-        }
-        launch.putExtra("vesper_route", "#/profiles/backup")
-        launch.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        try {
-            startActivity(launch)
-        } catch (t: Throwable) {
-            Toast.makeText(
-                this,
-                "Could not open Vesper: ${t.message}",
-                Toast.LENGTH_LONG,
-            ).show()
-        }
+        // First-focus goes on "Update" — the primary action, matches
+        // TV D-pad convention where OK reflexively fires the yes path.
+        btnInstall.requestFocus()
     }
 
     /**
