@@ -9820,3 +9820,51 @@ FIX:
   SyncManager.kt + EpgActivity.kt + AuthStore.kt + XtreamRepository.kt.
 - Grep sweep confirms no other stale
   `tv.onnowtv.livetv.XtreamRepository` fully-qualified refs remain.
+
+## v2.16.14 — Cloud backup actually reaches the cloud (Feb 2026)
+
+### Bug report
+User: "It didn't save any of my stuff.  I saved favourites and
+everything and it didn't save anything.  When I logged in again
+with the same username and password, it didn't show me my saved."
+
+### Root cause
+`SyncManager.DEBOUNCE_MS` was `30_000L`.  With a 30 s trailing
+debounce, if the user closed the app (Home key, Back-out, or a
+force-kill by the OS after the LivePreviewSession stopped the
+foreground stream) any pending push was silently discarded — the
+scheduled task on the single-thread executor never fired, so the
+newly-added favourites / collections / reminders never left the
+device.  Next login pulled an EMPTY snapshot → nothing to restore.
+
+Verified end-to-end that the backend at onnowhub.com correctly
+handles push + pull and MongoDB persists the JSON, so this was
+purely a client-side timing bug.
+
+### Fixes
+1. Debounce dropped `30_000L` → `2_500L` in `SyncManager.kt`.
+2. New `SyncManager.flushNow(ctx)` — silent, blocking-on-IO-thread,
+   bypasses debounce.  Wired into `LiveTVApp.onStop` so any pending
+   push is force-flushed when the process moves to background,
+   before the OS potentially reclaims memory.
+3. New `SyncManager.showSyncToasts: Boolean = true` (@Volatile) +
+   `mainHandler` + `toast(ctx, msg)` helper that posts on the main
+   thread.  `pushDebounced` now surfaces:
+     • "Saved to profile ✓" on HTTP 2xx
+     • "Couldn't save to profile — check connection" on failure
+   User asked for visible confirmation ("saved to profile") on
+   every add — this delivers it after each debounced-batch push.
+4. `flushNow` is silent by design (no toast) because the app is
+   already tearing down on background; a toast at that moment
+   would either not render (no window token) or blink on the
+   launcher.
+
+### Verification
+- End-to-end round-trip against production
+  (`https://onnowhub.com/api/livetv/sync/{push,pull}`) with a
+  SHA-256(`njala.ddns.me|damo26`) `user_key`: push returned 200
+  ok, pull returned the exact JSON body — favourites +
+  collections + reminders all persisted.
+- Brace balance re-checked on SyncManager.kt, LiveTVApp.kt,
+  EpgActivity.kt → all (0,0,0).
+- No stale FQ refs to `tv.onnowtv.livetv.XtreamRepository`.

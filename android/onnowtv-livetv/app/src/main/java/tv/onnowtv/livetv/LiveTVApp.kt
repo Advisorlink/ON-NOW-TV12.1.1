@@ -58,6 +58,18 @@ class LiveTVApp : Application() {
                     // OkHttp connection pool is evicted.
                     Log.i("LiveTVApp", "App backgrounded — releasing LivePreviewSession")
                     LivePreviewSession.release()
+                    // v2.16.14 — Force-flush any pending cloud
+                    // backup push NOW so favourites / collections /
+                    // reminders that were added seconds before the
+                    // user exited actually reach the profile.  The
+                    // 2.5 s debounce means most edits push before
+                    // this ever fires, but this is the belt-and-
+                    // braces safety net for a fast Home-key exit.
+                    try {
+                        tv.onnowtv.livetv.data.SyncManager.flushNow(applicationContext)
+                    } catch (t: Throwable) {
+                        Log.w("LiveTVApp", "flushNow onStop failed", t)
+                    }
                 }
             }
         )

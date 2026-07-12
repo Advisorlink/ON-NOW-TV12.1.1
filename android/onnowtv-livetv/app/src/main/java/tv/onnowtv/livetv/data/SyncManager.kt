@@ -34,7 +34,10 @@ import java.util.concurrent.atomic.AtomicLong
  * ReminderStore.save) are never blocked.  Debounce works via a
  * shared `pushGeneration` counter — the scheduled task only fires
  * if its generation is still the latest, which lets us collapse a
- * rapid burst of edits into ONE push.
+ * rapid burst of edits into ONE push.  v2.16.14 shortened the
+ * debounce from 30 s → 2.5 s and added a `flushNow` hook fired
+ * from `LiveTVApp.onStop` so no write is ever lost to a fast
+ * Home-key exit.
  *
  * ── Merge semantics (user requested UNION on conflict) ──────
  * Favourites: set union of local + remote.
@@ -48,7 +51,16 @@ import java.util.concurrent.atomic.AtomicLong
 object SyncManager {
 
     private const val TAG = "SyncManager"
-    private const val DEBOUNCE_MS = 30_000L
+    // v2.16.14 — Debounce dropped from 30 s → 2.5 s.  With the old
+    // 30 s window a user could add a favourite and switch off the
+    // TV / sign out before the scheduled push ever fired, so the
+    // cloud snapshot was silently never updated and the next fresh
+    // install had nothing to restore.  2.5 s still collapses a
+    // rapid burst of edits into ONE POST but fires quickly enough
+    // that closing the app almost never eats the write.  A
+    // process-lifecycle observer (LiveTVApp.onStop) additionally
+    // force-flushes any pending push on background transition.
+    private const val DEBOUNCE_MS = 2_500L
 
     private val http: OkHttpClient by lazy {
         OkHttpClient.Builder()
@@ -61,6 +73,30 @@ object SyncManager {
     private val pushGeneration = AtomicLong(0L)
 
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
+
+    // v2.16.14 — When true (default), successful/failed cloud
+    // pushes surface a small Toast so the user has visible proof
+    // their favourites/collections/reminders actually reached the
+    // profile.  Silent-fail was the root of the "nothing saved
+    // when I logged in on the other box" bug.
+    @Volatile
+    var showSyncToasts: Boolean = true
+
+    private val mainHandler by lazy {
+        android.os.Handler(android.os.Looper.getMainLooper())
+    }
+
+    private fun toast(ctx: Context, msg: String) {
+        if (!showSyncToasts) return
+        mainHandler.post {
+            try {
+                android.widget.Toast.makeText(
+                    ctx.applicationContext, msg,
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
+            } catch (_: Throwable) { /* headless / no window token — ignore */ }
+        }
+    }
 
     // ── keys ────────────────────────────────────────────────────
 
@@ -257,9 +293,11 @@ object SyncManager {
         }
     }
 
-    /** Fire-and-forget push, debounced 30 s.  Every call resets the
+    /** Fire-and-forget push, debounced 2.5 s.  Every call resets the
      *  clock; the actual HTTP POST only happens once the burst has
-     *  settled.  Callable from any thread.  No-op if not signed in. */
+     *  settled.  Callable from any thread.  No-op if not signed in.
+     *  Emits a "Saved to profile ✓" toast on success (unless
+     *  [showSyncToasts] is disabled). */
     fun pushDebounced(ctx: Context) {
         val ctxApp = ctx.applicationContext
         val gen = pushGeneration.incrementAndGet()
@@ -279,14 +317,51 @@ object SyncManager {
                 http.newCall(req).execute().use { r ->
                     if (!r.isSuccessful) {
                         Log.w(TAG, "push failed: HTTP ${r.code}")
+                        toast(ctxApp, "Couldn't save to profile — check connection")
                     } else {
                         Log.i(TAG, "push OK (${body.toString().length}B)")
+                        toast(ctxApp, "Saved to profile ✓")
                     }
                 }
             } catch (t: Throwable) {
                 Log.w(TAG, "push threw: ${t.message}")
+                toast(ctxApp, "Couldn't save to profile — check connection")
             }
         }, DEBOUNCE_MS, TimeUnit.MILLISECONDS)
+    }
+
+    /** Force any queued debounced push to fire NOW, silently.
+     *  Called from LiveTVApp.onStop so pending edits reach the
+     *  cloud before the OS potentially kills our process.  No
+     *  callback and no toast — the app is already going away. */
+    fun flushNow(ctx: Context) {
+        val ctxApp = ctx.applicationContext
+        if (!AuthStore.isSignedIn(ctxApp)) return
+        // Bump generation so any scheduled debounced push aborts.
+        pushGeneration.incrementAndGet()
+        io.execute {
+            try {
+                val key = userKey(ctxApp) ?: return@execute
+                val body = JSONObject().apply {
+                    put("user_key", key)
+                    put("data", buildSnapshot(ctxApp))
+                    put("client_updated_at", System.currentTimeMillis())
+                }
+                val req = Request.Builder()
+                    .url("${apiBase()}/api/livetv/sync/push")
+                    .post(body.toString().toRequestBody(jsonMedia))
+                    .build()
+                http.newCall(req).execute().use { r ->
+                    if (!r.isSuccessful) {
+                        Log.w(TAG, "flushNow failed: HTTP ${r.code}")
+                    } else {
+                        Log.i(TAG, "flushNow OK (${body.toString().length}B)")
+                    }
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "flushNow threw: ${t.message}")
+            }
+        }
     }
 
     /** One-shot pull.  Callback fires on the IO thread with the
