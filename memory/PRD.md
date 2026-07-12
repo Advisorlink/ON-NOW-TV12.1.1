@@ -1,4 +1,30 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.16.5 — PPV / VIP rail button + Basketball stats via league expansion + post-game rebroadcast support (Jul 2026).**
+>
+> User asked for a **PPV button on the bottom of the icon rail** that opens all VIP channels, and reported **basketball wasn't showing stats** (offseason — no live NBA on ESPN).
+>
+> 1. **PPV rail button (`rail_ppv`)** — new crown-icon `ImageButton` inserted between the fullscreen icon (top block) and the sign-out icon (bottom).  New drawable `ic_nav_ppv.xml` (24dp vector, three-peaked crown with three gems in the E6EAF2 palette that matches the other rail glyphs).  Click switches to synthetic category id `__ppv__` and calls `applyCategory()`.
+> 2. **`__ppv__` category logic in `applyCategory()`** — filters `bundle.channels` by `bundle.categories` whose *name* contains any of `"vip"`, `"ppv"`, `"pay per view"`, `"pay-per-view"` (case-insensitive substring).  Result sorted by LCN so the user sees the numeric grid.  Channel-count chip shows `"PPV · N CHANNELS"`.  The middle "PLAYING NOW" + right "COMING UP NEXT" columns work exactly as they do for any other category — no special-casing needed.
+> 3. **Basketball fix — league expansion + post-game fallback.**  Feb is NBA offseason on ESPN's public feed, so the previous single-league mapping `("basketball", "nba")` returned zero live events.  Fixed by:
+>    - Widening `SPORTS["nba"].leagues` to `[("basketball","nba"), ("basketball","wnba"), ("basketball","mens-college-basketball")]` — WNBA + NCAA-M now surface in the Basketball bucket.
+>    - Overhauling `_live_or_candidates()`: live events preferred, but today's `post` events are kept as fallback candidates so a rebroadcast of last night's Knicks vs Spurs game (state=post, "Final 94-90") still yields the full boxscore.  Safe because `_looks_like_generic()` and `_looks_like_archive()` gates in `_resolve()` prevent false attribution — a specific title that doesn't match any live/today's game returns `no_match` rather than yesterday's random result.
+>
+> **Testing (curl e2e sweep, 2026-07-11) — 15 cases:**
+> - `nba/NBA Live` → only_live → Spurs vs Knicks 90-94 Final, 9 stat bars, 40-event timeline, 4 quarter linescores ✅
+> - `nba/WNBA: Aces vs Mercury` → matched → Las Vegas Aces vs Phoenix Mercury 106-58, full stats ✅
+> - `nba/Warriors vs Lakers (not live)` → no_match (specific title, no false attribution) ✅
+> - `mlb/2006 Major League Baseball Draft` → no_match (archive filter still holds) ✅
+> - `soccer/Live Football` → only_live → Argentina vs Switzerland live ✅
+> - `cricket/Live Cricket` → only_live → India vs Australia (post-game fallback caught the Final)
+> - `tennis`, `golf`, `mma` all still returning full boards.
+> - Kotlin brace/paren balance OK (330/330 curly, 842/842 parens after string-literal exclusion), both XML files validate with `ElementTree`.
+>
+> **Files touched:**
+> - `backend/livestats.py` — SPORTS["nba"] +wnba +mens-college-basketball leagues; `_live_or_candidates()` now always includes post games as fallback
+> - `android/onnowtv-livetv/.../res/drawable/ic_nav_ppv.xml` (new) — crown icon
+> - `android/onnowtv-livetv/.../res/layout/activity_epg.xml` — `<ImageButton android:id="@+id/rail_ppv"/>` inserted at the bottom of the icon rail
+> - `android/onnowtv-livetv/.../EpgActivity.kt` — `railPpv` field + findViewById + click handler; `__ppv__` branch in `applyCategory()`; chip label shows "PPV · N CHANNELS"
+>
 > **🟢 v2.16.4 — All-sports stats populated: UFC card, Golf leaderboard + rounds, Soccer/MLB generic-title fallback restored, false-attribution still blocked (Jul 2026).**
 >
 > Continued from v2.16.3 after user reported UFC only showed 2 items, golf had no stats, soccer/football gave nothing on generic EPG titles.  Deep root-cause pass:

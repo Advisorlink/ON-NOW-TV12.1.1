@@ -47,7 +47,9 @@ SPORTS: Dict[str, Dict[str, Any]] = {
                            ("rugby", "267979"), ("rugby", "270557"),
                            ("rugby", "289234")]},
     "nba":    {"label": "Basketball", "kind": "generic",
-               "leagues": [("basketball", "nba")]},
+               "leagues": [("basketball", "nba"),
+                           ("basketball", "wnba"),
+                           ("basketball", "mens-college-basketball")]},
     "mlb":    {"label": "Baseball", "kind": "generic",
                "leagues": [("baseball", "mlb")]},
     "nhl":    {"label": "Ice Hockey", "kind": "generic",
@@ -704,11 +706,23 @@ async def _board_racing(sport: str, ev: dict) -> Dict[str, Any]:
 
 
 def _live_or_candidates(events: List[dict], include_finished: bool) -> List[dict]:
+    """Live events for a scoreboard, with today's completed games
+    kept as fallback candidates.
+
+    v2.16.5 — For team-sport rebroadcasts ("NBA GAME: Knicks vs Spurs"
+    airing after the game finished), we still want to serve the game's
+    stats.  Live events are preferred; post-game events are appended
+    so the fuzzy matcher in `_resolve` can pick them up when the
+    title strongly matches.  The generic-title gate in `_resolve`
+    prevents false attribution — a specific title that doesn't match
+    the day's finals returns `no_match` rather than yesterday's game.
+    """
     live = [e for e in events if _state(e) == "in"]
-    if live or not include_finished:
-        return live
     post = [e for e in events if _state(e) == "post"]
-    return post or events
+    if include_finished:
+        return live + post
+    # Prefer live; fall through to post so rebroadcasts still resolve.
+    return live if live else post
 
 
 # ── tennis: tournament events → per-match pseudo-events ─────────────

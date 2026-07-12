@@ -76,6 +76,7 @@ class EpgActivity : AppCompatActivity() {
     private lateinit var railRefresh: ImageButton
     private lateinit var railList: ImageButton
     private lateinit var railFullscreen: ImageButton
+    private lateinit var railPpv: ImageButton
     private lateinit var railSignout: ImageButton
 
     // Hero refs
@@ -294,6 +295,7 @@ class EpgActivity : AppCompatActivity() {
         railList     = findViewById(R.id.rail_list)
         railLibrary  = findViewById(R.id.rail_library)
         railFullscreen = findViewById(R.id.rail_fullscreen)
+        railPpv      = findViewById(R.id.rail_ppv)
         railSignout  = findViewById(R.id.rail_signout)
 
         hero               = findViewById(R.id.hero)
@@ -608,6 +610,19 @@ class EpgActivity : AppCompatActivity() {
             val ch = LivePreviewSession.currentChannel ?: focusedChannel
             if (ch != null) openFullscreen(ch)
         }
+        // v2.16.5 — Pay-per-view / VIP.  Switches to the synthetic
+        // "__ppv__" category which pulls every channel whose Xtream
+        // category name contains "VIP" (or "PPV" / "Pay Per View").
+        // The rest of the EPG UI (channel column, NOW / UP-NEXT
+        // panes) works exactly as it does for any other category.
+        railPpv.setOnClickListener {
+            currentCategoryId = "__ppv__"
+            applyCategory()
+            channelsList.post {
+                channelsList.findViewHolderForAdapterPosition(0)
+                    ?.itemView?.requestFocus()
+            }
+        }
         railSignout.setOnClickListener {
             // v2.9.15 — Confirm dialog before sign-out (user
             // explicitly asked it back).  Action-sheet style so it
@@ -806,6 +821,23 @@ class EpgActivity : AppCompatActivity() {
             "__all__", null -> bundle.channels
             "__favourites__" -> bundle.channels.filter { favouriteSet.contains(it.id) }
             "__recents__" -> emptyList()
+            "__ppv__" -> {
+                // v2.16.5 — Pay-per-view / VIP.  Find every Xtream
+                // category whose NAME suggests VIP / PPV / Pay-Per-
+                // View content, then pull channels from those
+                // categories.  Case-insensitive substring match so
+                // "★ VIP - Sports", "PPV | UFC", "Pay Per View HD"
+                // all get folded into one list.  Ordered by the
+                // channel's LCN so the user sees the numeric grid.
+                val ppvIds: Set<String> = bundle.categories.filter { c ->
+                    val n = c.name.lowercase()
+                    "vip" in n || "ppv" in n ||
+                        "pay per view" in n || "pay-per-view" in n
+                }.map { it.id }.toSet()
+                bundle.channels
+                    .filter { it.categoryId != null && it.categoryId in ppvIds }
+                    .sortedBy { it.lcn?.toIntOrNull() ?: Int.MAX_VALUE }
+            }
             "__collection__" -> {
                 // Preserve the user's add-order within the collection
                 // by walking the collection's channelIds in order.
@@ -818,7 +850,11 @@ class EpgActivity : AppCompatActivity() {
         val visible = channels.take(500)
         currentChannelList = visible
         channelAdapter.submit(visible)
-        channelCountChip.text = "${"%,d".format(visible.size)} CHANNELS"
+        val chipLabel = when (sel) {
+            "__ppv__" -> "PPV · ${"%,d".format(visible.size)} CHANNELS"
+            else -> "${"%,d".format(visible.size)} CHANNELS"
+        }
+        channelCountChip.text = chipLabel
         categoryAdapter.setSelected(sel)
 
         // Pre-populate the hero + guide with the first channel so
