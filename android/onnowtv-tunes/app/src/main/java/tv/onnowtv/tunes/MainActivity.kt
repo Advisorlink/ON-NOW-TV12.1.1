@@ -50,6 +50,10 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
+        // v2.16.7 — Restore the normal NoActionBar theme AFTER the
+        // manifest-declared Splash theme has already painted its
+        // windowBackground.  Must run before super.onCreate.
+        setTheme(R.style.Theme_OnNowTunes_NoActionBar)
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 

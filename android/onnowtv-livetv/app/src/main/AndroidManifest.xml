@@ -58,7 +58,7 @@
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale"
             android:launchMode="singleTask"
-            android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
+            android:theme="@style/Theme.OnNowLiveTV.Splash" />
 
         <activity
             android:name=".PlayerActivity"

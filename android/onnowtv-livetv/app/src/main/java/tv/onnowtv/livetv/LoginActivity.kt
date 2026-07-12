@@ -54,6 +54,11 @@ class LoginActivity : AppCompatActivity() {
     @Volatile private var busy = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // v2.16.7 — Restore the normal NoActionBar theme AFTER the
+        // manifest-declared Splash theme has already painted the
+        // login-screen backdrop instantly.  Must run before
+        // super.onCreate so subsequent theming is correct.
+        setTheme(R.style.Theme_OnNowLiveTV_NoActionBar)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_login)
 

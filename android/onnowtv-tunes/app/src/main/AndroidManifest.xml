@@ -28,7 +28,7 @@
             android:exported="true"
             android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale"
             android:launchMode="singleTask"
-            android:theme="@style/Theme.OnNowTunes.NoActionBar">
+            android:theme="@style/Theme.OnNowTunes.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Tunes cold-start splash background.
+
+    Painted by the OS the INSTANT the launcher hands control to the
+    app — before Application.onCreate + Activity.onCreate even run.
+    Prevents the ~1s black flash while Android System WebView cold-
+    boots and the React music UI mounts.
+
+    Palette matches the Tunes login / player background so the
+    transition from splash → WebView first paint is seamless.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/tunes_bg" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="700dp"
+                android:centerX="0.5"
+                android:centerY="0.5"
+                android:startColor="#33FF2D7F"
+                android:centerColor="#1AFF2D7F"
+                android:endColor="#000A0118" />
+        </shape>
+    </item>
+</layer-list>

@@ -12,4 +12,16 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
     </style>
+
+    <!--
+        v2.16.7 — Cold-start splash.  Applied to MainActivity so the
+        OS paints @drawable/splash_tunes as the very first frame,
+        masking the ~1s WebView cold-boot delay behind the Tunes
+        brand backdrop.  MainActivity.onCreate calls setTheme
+        (NoActionBar) BEFORE super.onCreate so the rest of the app
+        renders under the normal theme.
+    -->
+    <style name="Theme.OnNowTunes.Splash" parent="Theme.OnNowTunes.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash_tunes</item>
+    </style>
 </resources>

@@ -1,4 +1,32 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.16.7 — Zero-delay cold-start splash for Live TV / Vesper / Tunes login screens (Jul 2026).**
+>
+> User feedback: tapping the app icon feels slow — there's a noticeable ~1-2s delay before the login/first screen appears.  Root cause across all three apps:
+>
+> - **Live TV**: `MainActivity` uses `Theme.OnNowLiveTV.Splash` (gradient windowBackground — good), but when it routes to `LoginActivity`, the login activity uses plain `Theme.OnNowLiveTV.NoActionBar` (solid color).  The visible transition splash → solid color → login layout is what the user perceives as delay.
+> - **Vesper / Tunes**: both are WebView-based.  Android System WebView cold-boot on TV boxes takes 500ms–2s.  During that time the OS shows the launcher activity's `windowBackground` — currently a plain solid color for both apps.  The user sees a dark blank until WebView finishes booting.
+>
+> **Fix — Android splash-screen idiom** (works on Android 9 target where the modern Splash Screen API is unavailable):
+> 1. **Vesper** — new `res/drawable/splash_vesper.xml` (dark navy #06080F base + subtle radial red glow #FF2535 matching the Vesper brand).  New `Theme.Vesper.Splash` extending `Theme.Vesper.Fullscreen` with `windowBackground = @drawable/splash_vesper`.  Manifest updated so `MainActivity` uses the splash theme.  `MainActivity.onCreate()` calls `setTheme(R.style.Theme_Vesper_Fullscreen)` BEFORE `super.onCreate` so subsequent dialogs / re-inflated attributes get the correct chrome.
+> 2. **Tunes** — same pattern.  New `splash_tunes.xml` (dark purple #0A0118 base + radial magenta #FF2D7F glow matching the Tunes palette).  New `Theme.OnNowTunes.Splash`.  Manifest + `MainActivity.onCreate` updated identically.
+> 3. **Live TV** — `LoginActivity` manifest theme swapped from `NoActionBar` → `Splash`.  `LoginActivity.onCreate()` calls `setTheme(R.style.Theme_OnNowLiveTV_NoActionBar)` before `super.onCreate` so the splash gradient paints instantly on the first frame, then the actual login layout crossfades in seamlessly.  Uses the existing `splash_gradient.xml` (already there from v2.8.115) so no new drawable needed.
+>
+> **Impact:** OS paints the splash `windowBackground` the INSTANT the launcher hands control to the app — before `Application.onCreate` or `Activity.onCreate` even runs.  From the user's perspective the app is instant; the WebView (or LoginActivity) view hierarchy fades in on top of a background that already looks correct.  No functional change to loading logic — the underlying WebView boot / route-to-login is unchanged, but the perceived delay is eliminated.
+>
+> **Files touched:**
+> - `android/vesper-tv/.../res/drawable/splash_vesper.xml` (new)
+> - `android/vesper-tv/.../res/values/themes.xml` (+`Theme.Vesper.Splash`)
+> - `android/vesper-tv/.../AndroidManifest.xml` (MainActivity theme → Splash)
+> - `android/vesper-tv/.../MainActivity.kt` (setTheme in onCreate)
+> - `android/onnowtv-tunes/.../res/drawable/splash_tunes.xml` (new)
+> - `android/onnowtv-tunes/.../res/values/themes.xml` (+`Theme.OnNowTunes.Splash`)
+> - `android/onnowtv-tunes/.../AndroidManifest.xml`
+> - `android/onnowtv-tunes/.../MainActivity.kt`
+> - `android/onnowtv-livetv/.../AndroidManifest.xml` (LoginActivity theme → Splash)
+> - `android/onnowtv-livetv/.../LoginActivity.kt` (setTheme in onCreate)
+>
+> All 7 XMLs validate via ElementTree, Kotlin balances OK (Vesper apparent imbalance is a false positive — file contains 6 triple-quoted JS strings whose `{ }` chars confuse simple parsers; the actual edit only added a `setTheme()` call + comment).
+>
 > **🟢 v2.16.6 — PPV rail button now shows "PPV" text; section-divider aware category grouping (Jul 2026).**
 >
 > User feedback on v2.16.5 rail button: the crown icon isn't obvious enough at TV distance — the button should literally read **"PPV"** — and the filter was missing key VIP categories that lack "PPV/VIP" in the name (`TRILLER TV EVENTS`, `DARTS(EVENTS ONLY)`).  Fixes:

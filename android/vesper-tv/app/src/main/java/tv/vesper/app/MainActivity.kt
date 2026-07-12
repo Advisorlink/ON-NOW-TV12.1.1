@@ -201,9 +201,13 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
+        // v2.16.7 — Restore the normal Fullscreen theme AFTER the
+        // manifest-declared Splash theme has already painted its
+        // windowBackground.  Must run before super.onCreate so any
+        // dialog windows / re-inflated attributes inherit the right
+        // chrome and don't accidentally repaint the splash artwork.
+        setTheme(R.style.Theme_Vesper_Fullscreen)
         super.onCreate(savedInstanceState)
-
-        // v2.10.95 — Route hardware volume keys to STREAM_MUSIC.
         // Without this, Android picks the "currently active" stream,
         // which on a TV-box-WebView combo with no audio actively
         // playing falls back to STREAM_RING.  STREAM_RING typically

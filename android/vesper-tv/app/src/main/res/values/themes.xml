@@ -21,4 +21,17 @@
             shortEdges
         </item>
     </style>
+
+    <!--
+        v2.16.7 — Cold-start splash.  Applied to MainActivity in the
+        manifest so the OS paints @drawable/splash_vesper as the very
+        first frame the user sees when tapping the app icon, hiding
+        the ~1s WebView cold-boot delay behind branded artwork.
+        MainActivity.onCreate calls setTheme(Fullscreen) BEFORE
+        super.onCreate so all subsequent theming (typography, dialogs)
+        still comes from the normal Fullscreen theme.
+    -->
+    <style name="Theme.Vesper.Splash" parent="Theme.Vesper.Fullscreen">
+        <item name="android:windowBackground">@drawable/splash_vesper</item>
+    </style>
 </resources>

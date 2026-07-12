@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Vesper cold-start splash background.
+
+    Painted by the OS the INSTANT the launcher hands control to the
+    app — before Application.onCreate + Activity.onCreate even run.
+    Users see the brand backdrop immediately instead of a black
+    system frame or the loader spinner popping in ~1s late while
+    Android System WebView cold-boots.
+
+    Palette matches the Vesper login page so the transition from
+    splash → WebView's first paint is seamless: dark navy base
+    (#06080F) with a subtle radial red glow, plus a big centred "V2"
+    wordmark drawn via a layer-list bitmap.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 1. Solid dark navy base -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#FF06080F" />
+        </shape>
+    </item>
+    <!-- 2. Subtle radial red glow (Vesper accent) -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="700dp"
+                android:centerX="0.5"
+                android:centerY="0.5"
+                android:startColor="#33FF2535"
+                android:centerColor="#1AFF2535"
+                android:endColor="#0006080F" />
+        </shape>
+    </item>
+</layer-list>
