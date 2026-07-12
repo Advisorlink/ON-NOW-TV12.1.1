@@ -9868,3 +9868,56 @@ purely a client-side timing bug.
 - Brace balance re-checked on SyncManager.kt, LiveTVApp.kt,
   EpgActivity.kt → all (0,0,0).
 - No stale FQ refs to `tv.onnowtv.livetv.XtreamRepository`.
+
+## v2.16.15 — Cloud restore popup redesign (Feb 2026)
+
+User: "The restore your data popup looks like the old Android real
+basic popup — needs to look a lot more like the rest of our
+design."
+
+### Fix
+- Replaced stock `AlertDialog.Builder` with the brand-styled
+  `ActionSheetDialog` already used by every long-press menu
+  (channel context, sign-out confirm, Library manage, etc.) —
+  dark navy card, rounded corners, softer typography, focusable
+  d-pad rows.
+- Extended `ActionSheetDialog` with a new `.body(text)` fluent
+  method — renders mixed-case, non-monospace prose between the
+  subtitle eyebrow and action rows.  Was needed because the
+  existing `subtitle` field force-uppercases the text (correct
+  for "CHANNEL ACTIONS", wrong for a long descriptive body).
+- Corresponding new `@+id/action_sheet_body` TextView added to
+  `dialog_action_sheet.xml` (initially GONE, made VISIBLE when
+  `.body()` is called).
+
+### Restore prompt now reads:
+    ┌─ Restore your data? ──────────────────┐
+    │ CLOUD BACKUP FOUND                    │
+    │                                       │
+    │ We found a backup of your data on     │
+    │ the cloud:                            │
+    │                                       │
+    │ •  5 favourites                       │
+    │ •  3 collections                      │
+    │ •  2 reminders                        │
+    │                                       │
+    │ Restore them onto this device?        │
+    │                                       │
+    │  ↺  Restore                           │
+    │  ✕  Start fresh                       │
+    └───────────────────────────────────────┘
+
+### Behaviour
+- Cancelable (matching the rest of the app's dialogs), but
+  `setOnDismissListener` falls through to `launchMain(ctx)` so a
+  back-press can never wedge the login flow.
+- `.show()` returns the underlying `Dialog` (was already the
+  case) — we chain `.apply { setOnDismissListener { … } }` on top.
+
+### Verification
+- Brace/paren balance clean on LoginActivity.kt +
+  ActionSheetDialog.kt.
+- XML lint (via Python ElementTree) on dialog_action_sheet.xml —
+  all 4 `@+id` referenced by ActionSheetDialog.kt exist.
+- Icon glyphs (↺, ✕) match the palette already used by
+  LibraryActivity / EpgActivity long-press menus.

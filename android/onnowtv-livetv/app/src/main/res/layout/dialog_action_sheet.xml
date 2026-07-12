@@ -40,6 +40,25 @@
         android:singleLine="false"
         android:visibility="gone" />
 
+    <!--
+        Optional multi-line body block used by dialogs that need to
+        convey real prose (e.g. the cloud-restore prompt), not just
+        a short "CHANNEL ACTIONS" eyebrow.  Distinct from the
+        subtitle so we don't have to fight the uppercase / monospace
+        treatment applied to that field.
+    -->
+    <TextView
+        android:id="@+id/action_sheet_body"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="26dp"
+        android:paddingBottom="18dp"
+        android:textColor="#C7D3EE"
+        android:textSize="15sp"
+        android:lineSpacingExtra="4dp"
+        android:fontFamily="sans-serif"
+        android:visibility="gone" />
+
     <LinearLayout
         android:id="@+id/action_sheet_items"
         android:layout_width="match_parent"

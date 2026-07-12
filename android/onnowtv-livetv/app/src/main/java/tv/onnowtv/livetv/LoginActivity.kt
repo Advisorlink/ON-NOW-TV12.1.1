@@ -163,16 +163,22 @@ class LoginActivity : AppCompatActivity() {
         if (favCount > 0) parts.add("$favCount favourite${if (favCount != 1) "s" else ""}")
         if (colCount > 0) parts.add("$colCount collection${if (colCount != 1) "s" else ""}")
         if (remCount > 0) parts.add("$remCount reminder${if (remCount != 1) "s" else ""}")
-        val body = "We found your backup on the cloud:\n\n• " +
-            parts.joinToString("\n• ") +
-            "\n\nRestore them onto this device?"
 
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Restore your data?")
-            .setMessage(body)
-            .setCancelable(false)
-            .setPositiveButton("Restore") { d, _ ->
-                d.dismiss()
+        // v2.16.15 — Replaced the stock AlertDialog with the same
+        // brand-styled ActionSheetDialog used across the rest of
+        // the app (channel long-press, sign-out, etc.) so the
+        // popup no longer looks like a bare Android system dialog.
+        val body = buildString {
+            append("We found a backup of your data on the cloud:\n\n")
+            for (p in parts) append("•  ").append(p).append('\n')
+            append("\nRestore them onto this device?")
+        }
+
+        tv.onnowtv.livetv.ui.ActionSheetDialog(this)
+            .title("Restore your data?")
+            .subtitle("Cloud backup found")
+            .body(body)
+            .item("Restore", icon = "↺") {
                 statusText.text = "Restoring\u2026"
                 CoroutineScope(Dispatchers.Main).launch {
                     withContext(Dispatchers.IO) {
@@ -182,11 +188,22 @@ class LoginActivity : AppCompatActivity() {
                     launchMain(ctx)
                 }
             }
-            .setNegativeButton("Start fresh") { d, _ ->
-                d.dismiss()
+            .item("Start fresh", icon = "✕") {
                 launchMain(ctx)
             }
             .show()
+            .apply {
+                // The action-sheet is cancelable by default; if the
+                // user hits BACK we still need to leave the login
+                // screen behind so the flow doesn't wedge.  If they
+                // picked an action explicitly the dismiss listener
+                // fires AFTER launchMain has already been called
+                // above — `finish()` inside launchMain means this
+                // no-ops harmlessly.
+                setOnDismissListener {
+                    if (!isFinishing) launchMain(ctx)
+                }
+            }
     }
 
     private fun launchMain(ctx: android.content.Context) {

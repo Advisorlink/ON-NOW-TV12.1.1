@@ -44,9 +44,15 @@ class ActionSheetDialog(context: Context) {
     private val actions = mutableListOf<Action>()
     private var titleText: String = ""
     private var subtitleText: String? = null
+    private var bodyText: CharSequence? = null
 
     fun title(text: String) = apply { titleText = text }
     fun subtitle(text: String?) = apply { subtitleText = text }
+
+    /** Multi-line prose body — e.g. the cloud-restore breakdown.
+     *  Rendered mixed-case, non-monospace, with generous line
+     *  spacing so it reads like body copy, not a shouty eyebrow. */
+    fun body(text: CharSequence?) = apply { bodyText = text }
 
     fun item(label: String, icon: String? = null, trailing: String? = null, onClick: () -> Unit) =
         apply { actions.add(Action(label, icon, trailing, onClick)) }
@@ -58,12 +64,17 @@ class ActionSheetDialog(context: Context) {
         val root = LayoutInflater.from(ctx).inflate(R.layout.dialog_action_sheet, null, false)
         val titleView = root.findViewById<TextView>(R.id.action_sheet_title)
         val subtitleView = root.findViewById<TextView>(R.id.action_sheet_subtitle)
+        val bodyView = root.findViewById<TextView>(R.id.action_sheet_body)
         val items = root.findViewById<LinearLayout>(R.id.action_sheet_items)
 
         titleView.text = titleText
         subtitleText?.let {
             subtitleView.text = it.uppercase()
             subtitleView.visibility = View.VISIBLE
+        }
+        bodyText?.let {
+            bodyView.text = it
+            bodyView.visibility = View.VISIBLE
         }
 
         val inflater = LayoutInflater.from(ctx)
