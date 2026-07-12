@@ -10259,3 +10259,41 @@ enough to give the "yes it saved" confirmation they wanted.
 - ESLint clean on both edited files.
 - Sonner `<Toaster />` mount stays in App.js — other callers
   (Player.jsx screen-unlock etc.) still rely on it.
+
+## v2.16.22 — Live TV login: IME "Next" advances focus to password (Feb 2026)
+
+User: "In the Live TV login, when I press Next on the on-screen
+keyboard after typing the username, it should go to the password
+field.  Right now it just disappears — I have to click with a
+mouse to reach password."
+
+### Root cause
+`activity_login.xml` declared `android:imeOptions="actionNext"` on
+the username field but no explicit `nextFocusForward` /
+`nextFocusDown`.  On some Android TV OEM builds, the IME's "Next"
+action falls back to the default forward-focus traversal, which
+can fail to find the password EditText because of the intervening
+`LinearLayout` wrapper (containing PASSWORD label + Show toggle) —
+the IME then just closes without moving focus.
+
+### Fix
+1. Explicit `android:nextFocusForward="@id/login_password"` +
+   `android:nextFocusDown="@id/login_password"` on the username
+   field.  Same pair added on the password field pointing at
+   `@id/login_submit` for consistency.
+2. Kotlin belt-and-braces in `LoginActivity.kt`:
+     • `usernameField.setOnEditorActionListener` — on
+       `IME_ACTION_NEXT` (or hardware ENTER as a fallback) calls
+       `passwordField.requestFocus()`, moves cursor to end, and
+       explicitly re-opens the IME with `showSoftInput(pw,
+       SHOW_IMPLICIT)` so the keyboard stays up on the new field.
+     • `passwordField.setOnEditorActionListener` — on
+       `IME_ACTION_DONE` / `IME_ACTION_GO` / hardware ENTER,
+       calls `proceed()` directly (no need to reach for the
+       Sign-in pill after typing).
+
+### Verification
+- Brace/paren balance clean on LoginActivity.kt.
+- XML lint clean on activity_login.xml (Python ElementTree).
+- No new imports beyond fully-qualified `android.view.KeyEvent`
+  and `android.view.inputmethod.*` — no runtime deps added.

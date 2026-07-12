@@ -71,6 +71,43 @@ class LoginActivity : AppCompatActivity() {
 
         loginBtn.setOnClickListener { proceed() }
         showPassToggle.setOnClickListener { togglePasswordVisibility() }
+
+        // v2.16.22 — On-screen keyboard "Next" from the username
+        // field must jump focus to the password field (used to drop
+        // focus + hide the IME instead, forcing the user to grab a
+        // mouse).  Explicit editor-action listener guarantees it
+        // works on every Android TV OEM, not just the ones that
+        // honour `imeOptions="actionNext"` layout attr.
+        usernameField.setOnEditorActionListener { _, actionId, event ->
+            val isNext = actionId == android.view.inputmethod.EditorInfo.IME_ACTION_NEXT ||
+                (event != null && event.keyCode == android.view.KeyEvent.KEYCODE_ENTER)
+            if (isNext) {
+                passwordField.requestFocus()
+                // Move the cursor to the end if the field already
+                // has text (e.g. autofill filled it in).
+                passwordField.setSelection(passwordField.text?.length ?: 0)
+                // Keep the IME open on the password field so the
+                // user can start typing immediately without a
+                // second tap.
+                val imm = getSystemService(INPUT_METHOD_SERVICE)
+                    as? android.view.inputmethod.InputMethodManager
+                imm?.showSoftInput(passwordField,
+                    android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+                true
+            } else false
+        }
+        // "Done" on the password field triggers the sign-in click
+        // directly instead of just closing the keyboard.
+        passwordField.setOnEditorActionListener { _, actionId, event ->
+            val isDone = actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE ||
+                actionId == android.view.inputmethod.EditorInfo.IME_ACTION_GO ||
+                (event != null && event.keyCode == android.view.KeyEvent.KEYCODE_ENTER)
+            if (isDone) {
+                proceed()
+                true
+            } else false
+        }
+
         usernameField.requestFocus()
 
         intent?.getStringExtra(EXTRA_AUTH_ERROR)?.takeIf { it.isNotBlank() }?.let { msg ->

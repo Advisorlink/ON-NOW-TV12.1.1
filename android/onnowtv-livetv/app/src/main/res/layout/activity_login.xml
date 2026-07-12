@@ -226,6 +226,8 @@
                 android:singleLine="true"
                 android:inputType="text"
                 android:imeOptions="actionNext"
+                android:nextFocusForward="@id/login_password"
+                android:nextFocusDown="@id/login_password"
                 android:autofillHints="username" />
 
             <!-- Password field with show/hide toggle -->
@@ -274,6 +276,8 @@
                 android:singleLine="true"
                 android:inputType="textPassword"
                 android:imeOptions="actionDone"
+                android:nextFocusForward="@id/login_submit"
+                android:nextFocusDown="@id/login_submit"
                 android:autofillHints="password" />
 
             <!-- Sign-in button -->
