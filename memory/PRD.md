@@ -10379,3 +10379,29 @@ next CI-built APK; launcher OTA rolls it forward automatically.
 - ESLint clean on all three edited JS/JSX files.
 - XML lint OK on splash_vesper.xml.
 - Playwright dogfooded the profile-loss fix — see above.
+
+## v2.16.24 — Live TV login hint cleanup + isolation reassurance (Feb 2026)
+
+User: "Take the 'TRAV201022' hint out of the first text box in the
+Live TV login.  And confirm that saving a profile in Live TV
+doesn't overwrite the Vesper one — those are two completely
+separate things, right?"
+
+### Answer to the isolation question
+Yes — they're fully isolated by design:
+  • **Live TV** cloud sync → `/api/livetv/sync/{push,pull}` →
+    keyed on `SHA-256(host|xtream_username)` → Mongo collection
+    `livetv_sync`.
+  • **Vesper Movies/TV** cloud sync → `/api/vesper/sync/{push,pull}`
+    → keyed on the authenticated Vesper `account.id` (from the
+    JWT) → Mongo collection `vesper_sync`.
+Different endpoints, different keys, different collections, different
+auth mechanisms.  Nothing on one side can touch the other.
+
+### Fix
+`android/onnowtv-livetv/app/src/main/res/layout/activity_login.xml`:
+username field `android:hint="e.g. TRAV201022"` → `"Username"`.
+Cleaner and neutral — the specific example was distracting when
+several users saw it every login.  XML validated (ElementTree).
+Ships in next CI-built APK; launcher OTA rolls it forward
+automatically.

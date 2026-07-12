@@ -222,7 +222,7 @@
                 android:textColor="@color/livetv_fg"
                 android:textColorHint="#4A5A78"
                 android:textSize="16sp"
-                android:hint="e.g. TRAV201022"
+                android:hint="Username"
                 android:singleLine="true"
                 android:inputType="text"
                 android:imeOptions="actionNext"
