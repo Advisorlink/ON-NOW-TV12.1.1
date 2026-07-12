@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    PPV rail button text colour.
+    • Focused: crisp white so "PPV" pops against the bright crimson
+      focus-state background.
+    • Idle: saturated crimson red so the letters glow against the
+      dark burgundy interior.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true" android:color="#FFFFFFFF" />
+    <item android:color="#FFFF3B4E" />
+</selector>

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Premium PPV rail button background — deliberately distinct from
+    the muted grey `rail_icon_bg` used by every other icon on the
+    rail.  Signals "pay-per-view / premium content" via a saturated
+    crimson palette that catches the eye.
+
+    Idle state:
+      • Dark burgundy gradient interior (subtle depth, not just flat)
+      • Medium-red hairline border (1.5dp)
+      • Rounded 10dp corners matching the rest of the rail
+
+    Focused state (D-pad landing / mouse hover):
+      • Bright crimson gradient FLIP — the button "lights up"
+      • Crisp white 2dp border pop for TV-focus clarity
+      • Slightly rounder corners for a "candy button" glow feel
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- FOCUSED — bright red, white border, feels premium -->
+    <item android:state_focused="true">
+        <layer-list>
+            <!-- Outer glow ring (soft red halo) -->
+            <item>
+                <shape android:shape="rectangle">
+                    <solid android:color="#33FF3B4E" />
+                    <corners android:radius="12dp" />
+                </shape>
+            </item>
+            <!-- Main gradient body -->
+            <item
+                android:top="2dp" android:bottom="2dp"
+                android:left="2dp" android:right="2dp">
+                <shape android:shape="rectangle">
+                    <gradient
+                        android:type="linear"
+                        android:angle="270"
+                        android:startColor="#FFF32E4C"
+                        android:centerColor="#FFCF1B36"
+                        android:endColor="#FF8A0E22" />
+                    <stroke android:width="1.5dp" android:color="#FFFFFFFF" />
+                    <corners android:radius="10dp" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+
+    <!-- IDLE — dark burgundy body, medium-red hairline -->
+    <item>
+        <layer-list>
+            <item>
+                <shape android:shape="rectangle">
+                    <gradient
+                        android:type="linear"
+                        android:angle="270"
+                        android:startColor="#FF3A1220"
+                        android:centerColor="#FF2A0B18"
+                        android:endColor="#FF1E0812" />
+                    <stroke android:width="1.5dp" android:color="#FFCF1B36" />
+                    <corners android:radius="10dp" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+
+</selector>

@@ -97,21 +97,27 @@
             android:focusable="true"
             android:contentDescription="My Library" />
 
-        <!-- v2.16.9 — Pay-per-view (VIP channels).  Sits between
-             Library and Fullscreen in the rail.  Uses a text label
-             instead of an icon so "PPV" reads unambiguously at TV
-             viewing distance — matches the "V2" wordmark at the top. -->
+        <!-- v2.16.10 — Pay-per-view (VIP channels).  Deliberately
+             distinctive from the muted grey rail icons: crimson
+             gradient background + red letters at rest, INVERTS to
+             white-on-bright-red when focused so it feels premium
+             and pay-worthy.  Text shadow adds depth so it reads
+             carved-in rather than flat. -->
         <TextView android:id="@+id/rail_ppv"
             android:layout_width="44dp" android:layout_height="44dp"
             android:layout_marginTop="14dp"
             android:gravity="center"
             android:text="PPV"
-            android:textColor="#E6EAF2"
-            android:textSize="12sp"
+            android:textColor="@color/rail_ppv_text_color"
+            android:textSize="13sp"
             android:textStyle="bold"
             android:fontFamily="sans-serif-black"
-            android:letterSpacing="0.04"
-            android:background="@drawable/rail_icon_bg"
+            android:letterSpacing="0.06"
+            android:shadowColor="#B3000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="2"
+            android:background="@drawable/rail_ppv_bg"
             android:focusable="true"
             android:contentDescription="Pay-per-view" />
 
