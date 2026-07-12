@@ -68,6 +68,9 @@
             android:src="@drawable/ic_nav_home"
             android:background="@drawable/rail_icon_bg"
             android:focusable="true"
+            android:nextFocusUp="@id/rail_home"
+            android:nextFocusLeft="@id/rail_home"
+            android:nextFocusRight="@id/categories_list"
             android:contentDescription="Home" />
 
         <ImageButton android:id="@+id/rail_search"
@@ -77,6 +80,8 @@
             android:src="@drawable/ic_nav_search"
             android:background="@drawable/rail_icon_bg"
             android:focusable="true"
+            android:nextFocusLeft="@id/rail_search"
+            android:nextFocusRight="@id/categories_list"
             android:contentDescription="Search" />
 
         <ImageButton android:id="@+id/rail_refresh"
@@ -86,6 +91,8 @@
             android:src="@drawable/ic_refresh"
             android:background="@drawable/rail_icon_bg"
             android:focusable="true"
+            android:nextFocusLeft="@id/rail_refresh"
+            android:nextFocusRight="@id/categories_list"
             android:contentDescription="Refresh" />
 
         <ImageButton android:id="@+id/rail_library"
@@ -95,6 +102,8 @@
             android:src="@drawable/ic_nav_library"
             android:background="@drawable/rail_icon_bg"
             android:focusable="true"
+            android:nextFocusLeft="@id/rail_library"
+            android:nextFocusRight="@id/categories_list"
             android:contentDescription="My Library" />
 
         <!-- v2.16.10 — Pay-per-view (VIP channels).  Deliberately
@@ -119,6 +128,8 @@
             android:shadowRadius="2"
             android:background="@drawable/rail_ppv_bg"
             android:focusable="true"
+            android:nextFocusLeft="@id/rail_ppv"
+            android:nextFocusRight="@id/categories_list"
             android:contentDescription="Pay-per-view" />
 
         <ImageButton android:id="@+id/rail_fullscreen"
@@ -128,6 +139,8 @@
             android:src="@drawable/ic_nav_fullscreen"
             android:background="@drawable/rail_icon_bg"
             android:focusable="true"
+            android:nextFocusLeft="@id/rail_fullscreen"
+            android:nextFocusRight="@id/categories_list"
             android:contentDescription="Fullscreen" />
 
         <Space android:layout_width="0dp" android:layout_height="0dp"
@@ -140,6 +153,8 @@
             android:background="@drawable/rail_icon_bg"
             android:focusable="true"
             android:nextFocusDown="@id/rail_signout"
+            android:nextFocusLeft="@id/rail_signout"
+            android:nextFocusRight="@id/categories_list"
             android:contentDescription="Sign out" />
     </LinearLayout>
 
@@ -339,20 +354,12 @@
                     android:textStyle="bold"
                     android:text="" />
 
-                <ImageButton android:id="@+id/btn_favourite"
-                    android:layout_width="40dp" android:layout_height="40dp"
-                    android:layout_marginEnd="6dp"
-                    android:background="@drawable/hero_icon_btn_bg"
-                    android:src="@drawable/ic_star"
-                    android:padding="10dp" android:focusable="true"
-                    android:contentDescription="Favourite" />
-
-                <ImageButton android:id="@+id/btn_refresh"
-                    android:layout_width="40dp" android:layout_height="40dp"
-                    android:background="@drawable/hero_icon_btn_bg"
-                    android:src="@drawable/ic_refresh"
-                    android:padding="10dp" android:focusable="true"
-                    android:contentDescription="Refresh" />
+                <!-- v2.16.25 — Top-right star + refresh icons removed
+                     at user request ("you can remove the refresh and
+                     the star from the top right-hand corner now").
+                     The rail already carries a Favourites entry so
+                     the star was redundant; refresh happens
+                     automatically on category change. -->
 
                 <!-- v2.9.9 — Hero sign-out button removed per user
                      feedback ("move sign-out to the bottom of the
@@ -609,7 +616,11 @@
                     android:focusable="false"
                     android:nestedScrollingEnabled="true"
                     android:clipToPadding="false"
-                    android:overScrollMode="never" />
+                    android:overScrollMode="never"
+                    android:nextFocusUp="@id/categories_list"
+                    android:nextFocusDown="@id/categories_list"
+                    android:nextFocusLeft="@id/rail_signout"
+                    android:nextFocusRight="@id/channels_list" />
 
                 <!-- v2.9.15 — In-sidebar sign-out button REMOVED per
                      user feedback ("I don't want that sign-out button
@@ -686,6 +697,10 @@
                     android:nestedScrollingEnabled="true"
                     android:clipToPadding="false"
                     android:overScrollMode="never"
+                    android:nextFocusUp="@id/whatson_sport_row"
+                    android:nextFocusDown="@id/channels_list"
+                    android:nextFocusLeft="@id/categories_list"
+                    android:nextFocusRight="@id/whatson_sport_row"
                     android:visibility="gone" />
 
                 <androidx.recyclerview.widget.RecyclerView
@@ -696,7 +711,11 @@
                     android:focusable="false"
                     android:nestedScrollingEnabled="true"
                     android:clipToPadding="false"
-                    android:overScrollMode="never" />
+                    android:overScrollMode="never"
+                    android:nextFocusUp="@id/whatson_sport_row"
+                    android:nextFocusDown="@id/channels_list"
+                    android:nextFocusLeft="@id/categories_list"
+                    android:nextFocusRight="@id/guide_list" />
             </LinearLayout>
 
             <!-- R: Guide  (heading = "COMING UP NEXT" + "TODAY · date · time") -->
@@ -748,7 +767,11 @@
                     android:focusable="false"
                     android:nestedScrollingEnabled="true"
                     android:clipToPadding="false"
-                    android:overScrollMode="never" />
+                    android:overScrollMode="never"
+                    android:nextFocusUp="@id/guide_list"
+                    android:nextFocusDown="@id/guide_list"
+                    android:nextFocusLeft="@id/channels_list"
+                    android:nextFocusRight="@id/guide_list" />
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>

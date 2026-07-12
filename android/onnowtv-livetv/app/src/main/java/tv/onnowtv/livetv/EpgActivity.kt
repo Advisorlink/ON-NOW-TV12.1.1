@@ -88,8 +88,6 @@ class EpgActivity : AppCompatActivity() {
     private lateinit var heroProgress: View
     private lateinit var heroUpNext: TextView
     private lateinit var clock: TextView
-    private lateinit var btnFavourite: ImageButton
-    private lateinit var btnRefresh: ImageButton
     // v2.9.9 — Hero sign-out button removed; nullable so the legacy
     // listener wiring no-ops when the view isn't in the layout.
     private var btnLogout: ImageButton? = null
@@ -321,8 +319,8 @@ class EpgActivity : AppCompatActivity() {
         heroProgress       = findViewById(R.id.hero_progress)
         heroUpNext         = findViewById(R.id.hero_up_next)
         clock              = findViewById(R.id.clock)
-        btnFavourite       = findViewById(R.id.btn_favourite)
-        btnRefresh         = findViewById(R.id.btn_refresh)
+        // v2.16.25 — btn_favourite + btn_refresh removed from the
+        // hero at user request; no bindings needed here.
         // v2.9.9 — `btn_logout` was removed from the hero in
         // `activity_epg.xml`.  R.id.btn_logout no longer exists, so
         // we don't bind anything here.  All references to
@@ -595,10 +593,19 @@ class EpgActivity : AppCompatActivity() {
     /** Same idea for the HORIZONTAL WhatsOn sport chip row: block
      *  D-pad RIGHT past the last chip so a fast horizontal scroll
      *  can't throw focus into an unrelated column.  LEFT at chip 0
-     *  stays free so the user can hop back to the sidebar. */
-    private fun containHorizontalKeyNav(list: RecyclerView) {
+     *  stays free so the user can hop back to the sidebar.
+     *  v2.16.25 — Also blocks UP unconditionally when
+     *  [swallowUp]=true, keeping focus on the current sport chip
+     *  until the user explicitly presses DOWN. */
+    private fun containHorizontalKeyNav(
+        list: RecyclerView,
+        swallowUp: Boolean = false,
+    ) {
         list.setOnKeyListener { _, keyCode, event ->
             if (event.action != android.view.KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+            if (swallowUp && keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) {
+                return@setOnKeyListener true
+            }
             val focused = list.focusedChild ?: return@setOnKeyListener false
             val pos = list.getChildAdapterPosition(focused)
             if (pos == RecyclerView.NO_POSITION) return@setOnKeyListener false
@@ -648,11 +655,10 @@ class EpgActivity : AppCompatActivity() {
     }
 
     private fun wireHeroIcons() {
-        btnRefresh.setOnClickListener { applyCategory() }
-        btnFavourite.setOnClickListener { /* future: persist favourite */ }
-        // v2.9.9 — Hero `btnLogout` removed.  If it still exists in
-        // the layout for any reason, keep the click handler wired;
-        // otherwise this is a silent no-op.
+        // v2.16.25 — Hero refresh + favourite buttons removed.  Only
+        // legacy `btnLogout` remains as an optional binding (already
+        // null from onCreate) — keep the guarded click handler in
+        // case a future layout brings the view back.
         btnLogout?.setOnClickListener {
             LivePreviewSession.release()
             finishAffinity()
@@ -974,18 +980,21 @@ class EpgActivity : AppCompatActivity() {
             whatsOnActiveSport = if (key == "__all__") null else key
             whatsOnAdapter.submit(whatsOnRows, whatsOnActiveSport)
             paintWhatsOnChannels()
-            channelsList.post {
-                channelsList.scrollToPosition(0)
-                channelsList.findViewHolderForAdapterPosition(0)
-                    ?.itemView?.requestFocus()
-            }
+            // v2.16.25 — Do NOT steal focus away to channels on
+            // chip select.  User: "if you click on a sport, the
+            // focus should stay on that sport tile until you push
+            // down".  channelsList still repaints; the user then
+            // explicitly presses DOWN to hop into it.
         }
         whatsOnSportRow.layoutManager = LinearLayoutManager(
             this, LinearLayoutManager.HORIZONTAL, false,
         )
         whatsOnSportRow.adapter = whatsOnAdapter
         whatsOnSportRow.itemAnimator = null
-        containHorizontalKeyNav(whatsOnSportRow)
+        // v2.16.25 — Contain both RIGHT (past last chip) AND UP.
+        // User: "if you click on a sport, the focus should stay on
+        // that sport tile until you push down".
+        containHorizontalKeyNav(whatsOnSportRow, swallowUp = true)
 
         // Initial count — silently populates the "0" pill before
         // the user has focussed anything.  Full recompute happens

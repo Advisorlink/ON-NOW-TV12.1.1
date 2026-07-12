@@ -10405,3 +10405,71 @@ Cleaner and neutral — the specific example was distracting when
 several users saw it every login.  XML validated (ElementTree).
 Ships in next CI-built APK; launcher OTA rolls it forward
 automatically.
+
+## v2.16.25 — Live TV EPG D-pad focus containment + top-right cleanup (Feb 2026)
+
+User: "Focus should only move up/down within the column it's in.
+Left rail → only up/down that column, stop at top+bottom, no
+skipping to the icon rail.  Middle column → same, stops at the
+sport-chip row.  When I click on a sport in WhatsOn Live, focus
+should STAY on that sport chip until I press DOWN.  Also remove
+the refresh + star icons from the top right."
+
+### Changes
+
+**1. Removed top-right refresh + star icons.**
+- `activity_epg.xml` — deleted the `btn_favourite` (ic_star) and
+  `btn_refresh` (ic_refresh) ImageButtons from the hero header row.
+- `EpgActivity.kt` — dropped the two `lateinit var` declarations,
+  the corresponding `findViewById` calls, and the `wireHeroIcons`
+  click handlers.  `wireHeroIcons()` is now just a null-safe
+  logout hook (kept for a possible future layout revival).
+
+**2. Explicit deterministic focus chain across all main panes.**
+Every RecyclerView in the EPG now carries an unambiguous
+`android:nextFocusUp / Down / Left / Right` quad.  This closes the
+old escape route where Android's default focus-search would
+occasionally leap ACROSS the LEFT icon rail into an unrelated
+sibling when the current column ran out of items:
+- **Left icon rail** (`rail_home`, `rail_search`, `rail_refresh`,
+  `rail_library`, `rail_ppv`, `rail_fullscreen`, `rail_signout`) —
+  each button:
+    · `nextFocusLeft="@id/self"`  (can't drift off-screen left)
+    · `nextFocusRight="@id/categories_list"`  (deterministic hop)
+    · `rail_home.nextFocusUp="@id/rail_home"` (top cap)
+- **categories_list** (left column, channel groups) —
+    · Up/Down = self (contained inside the column)
+    · Left = `rail_signout`  (bottom rail button, so we can hop back)
+    · Right = `channels_list`
+- **whatson_sport_row** (horizontal chip row above channels) —
+    · Up = self (blocks escape into the WhatsOn pill / hero)
+    · Down = `channels_list`  (only way out downward)
+    · Left = `categories_list`
+    · Right = self  (block escape past the last chip)
+- **channels_list** (middle column) —
+    · Up = `whatson_sport_row` (or blocked by contain-vertical when
+      hub isn't active — existing behaviour)
+    · Down = self  (bottom cap)
+    · Left = `categories_list`
+    · Right = `guide_list`
+- **guide_list** (right column, upcoming programmes) —
+    · Up/Down = self, Left = `channels_list`, Right = self.
+
+**3. Sport chip focus stickiness.**
+`setupWhatsOnHub()` used to `channelsList.requestFocus()` +
+`scrollToPosition(0)` inside the chip-click callback — which
+yanked the highlight off the just-tapped chip.  Removed.  Channels
+list still repaints, but focus stays on the chip.  DOWN is now the
+only way to hop into channels.
+
+`containHorizontalKeyNav` grew an optional `swallowUp: Boolean =
+false` param.  `setupWhatsOnHub` passes `swallowUp = true` so
+pressing UP on any chip in the WhatsOn sport row is unconditionally
+consumed — the sport row is the topmost focusable element in that
+column, so this makes "top cap" fully explicit.
+
+### Verification
+- Brace/paren balance clean on `EpgActivity.kt`.
+- XML lint OK on `activity_epg.xml` (Python ElementTree).
+- Focus chain reads as a proper DAG — no cycles beyond deliberate
+  self-loops for the boundary caps.  Ships in next CI-built APK.
