@@ -1,4 +1,21 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.16.6 — PPV rail button now shows "PPV" text; section-divider aware category grouping (Jul 2026).**
+>
+> User feedback on v2.16.5 rail button: the crown icon isn't obvious enough at TV distance — the button should literally read **"PPV"** — and the filter was missing key VIP categories that lack "PPV/VIP" in the name (`TRILLER TV EVENTS`, `DARTS(EVENTS ONLY)`).  Fixes:
+>
+> 1. **Text-based rail button.** Replaced `ImageButton` (crown vector) with a `TextView` styled the same as the "V2" wordmark at the top of the rail — 44×44 dp box, `#E6EAF2` white, 12sp bold sans-serif-black, tracking 0.04, reads "PPV" centered.  Deleted unused `ic_nav_ppv.xml` drawable.
+> 2. **Section-divider aware category filter.** The user's Xtream categories use `===VIP CHANNELS====` style dividers to visually group premium content.  New logic walks `bundle.categories` in list order:
+>    - Detects "divider" categories via `^={3,}.*={3,}$` regex on the name.
+>    - Finds the VIP divider (`vip` or `ppv` inside the `===...===` wrapping).
+>    - Includes every non-divider category from there until the next divider.
+>    - Belt-and-braces fallback: also unions any category whose bare name explicitly matches `PPV / Pay Per View / Pay-Per-View / \bVIP\b` — safe if the provider omits dividers.
+> 3. **Simulation test** against the exact category list from user's screenshot: `===VIP CHANNELS====, PPV 1 (PAY-PER-VIEW), PPV 2 (PAY-PER-VIEW), PPV 3, PPV 4, TRILLER TV EVENTS, DARTS(EVENTS ONLY), ====UK SPORT====, SKY SPORTS 1, ====ENTERTAINMENT====, SKY ONE`.  Correctly includes all 6 VIP items, correctly excludes UK SPORT / entertainment / dividers themselves.
+>
+> **Files touched:**
+> - `android/…/res/layout/activity_epg.xml` — `rail_ppv` swapped from `<ImageButton>` to `<TextView>` with "PPV" label
+> - `android/…/EpgActivity.kt` — `railPpv: TextView` type change; `__ppv__` branch rewritten with divider-based traversal
+> - `android/…/res/drawable/ic_nav_ppv.xml` — DELETED (no longer referenced)
+>
 > **🟢 v2.16.5 — PPV / VIP rail button + Basketball stats via league expansion + post-game rebroadcast support (Jul 2026).**
 >
 > User asked for a **PPV button on the bottom of the icon rail** that opens all VIP channels, and reported **basketball wasn't showing stats** (offseason — no live NBA on ESPN).

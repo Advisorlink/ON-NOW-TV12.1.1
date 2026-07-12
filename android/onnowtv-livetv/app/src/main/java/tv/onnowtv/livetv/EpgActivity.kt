@@ -822,18 +822,47 @@ class EpgActivity : AppCompatActivity() {
             "__favourites__" -> bundle.channels.filter { favouriteSet.contains(it.id) }
             "__recents__" -> emptyList()
             "__ppv__" -> {
-                // v2.16.5 — Pay-per-view / VIP.  Find every Xtream
-                // category whose NAME suggests VIP / PPV / Pay-Per-
-                // View content, then pull channels from those
-                // categories.  Case-insensitive substring match so
-                // "★ VIP - Sports", "PPV | UFC", "Pay Per View HD"
-                // all get folded into one list.  Ordered by the
-                // channel's LCN so the user sees the numeric grid.
-                val ppvIds: Set<String> = bundle.categories.filter { c ->
+                // v2.16.6 — Pay-per-view / VIP.  The user's Xtream
+                // categories use "===VIP CHANNELS====" style dividers
+                // to group premium content.  Walk the categories in
+                // list order: find the VIP divider, then include
+                // every non-divider category from there until the
+                // next divider (e.g. "====UK SPORT====").  This
+                // catches TRILLER TV EVENTS + DARTS(EVENTS ONLY)
+                // etc. that don't have "vip" or "ppv" in their name
+                // but live under the VIP CHANNELS section.
+                //
+                // A "divider" is a category whose name is bracketed
+                // by 3+ consecutive '=' characters on both ends.
+                fun isDivider(n: String): Boolean {
+                    val t = n.trim()
+                    return t.length >= 6 && Regex("^={3,}.*={3,}$").matches(t)
+                }
+                val cats = bundle.categories
+                val vipStart = cats.indexOfFirst {
+                    val n = it.name.trim().lowercase()
+                    isDivider(it.name) && ("vip" in n || "ppv" in n)
+                }
+                val ppvIds: MutableSet<String> = mutableSetOf()
+                if (vipStart >= 0) {
+                    for (i in (vipStart + 1) until cats.size) {
+                        val c = cats[i]
+                        if (isDivider(c.name)) break
+                        ppvIds.add(c.id)
+                    }
+                }
+                // Belt-and-braces fallback: also include any category
+                // whose name explicitly contains PPV / VIP / Pay-Per-
+                // View tokens, in case the provider omits dividers.
+                for (c in cats) {
                     val n = c.name.lowercase()
-                    "vip" in n || "ppv" in n ||
-                        "pay per view" in n || "pay-per-view" in n
-                }.map { it.id }.toSet()
+                    if (isDivider(c.name)) continue
+                    if ("ppv" in n || "pay per view" in n ||
+                        "pay-per-view" in n ||
+                        Regex("(^|[^a-z])vip([^a-z]|$)").containsMatchIn(n)) {
+                        ppvIds.add(c.id)
+                    }
+                }
                 bundle.channels
                     .filter { it.categoryId != null && it.categoryId in ppvIds }
                     .sortedBy { it.lcn?.toIntOrNull() ?: Int.MAX_VALUE }
