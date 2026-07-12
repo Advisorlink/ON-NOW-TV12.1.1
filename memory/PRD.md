@@ -1,5 +1,35 @@
 # ON NOW TV V2 — PRD
-> **🟢 v2.16.9 — Swap-back fix (process-scoped memory), rail cleanup (remove ic_nav_list, reorder PPV), focus containment on search results, honest answer on darts (Jul 2026).**
+> **🟢 v2.16.11 — PPV button now filters the sidebar to VIP sub-categories instead of merging all channels (Jul 2026).**
+>
+> Previous v2.16.6 behaviour: clicking the PPV rail button merged every VIP channel from all 6 categories (PPV 1-4 + TRILLER TV EVENTS + DARTS) into one flat list.  User feedback: they want the sidebar itself filtered so they can pick each category individually.
+>
+> **Implementation:**
+> 1. New `railFilter: String?` state variable on `EpgActivity`.  `"__ppv__"` = sidebar filtered; `null` = full sidebar.
+> 2. New helper `computePpvCategoryIds()` — extracted the section-divider walk (`===VIP CHANNELS===` → next `===...===` divider) + PPV/VIP name fallback into a reusable method that returns an ordered id list.
+> 3. New helper `visibleCategoriesForSidebar()` — returns either `allCategoriesWithCounts` (normal mode) or `allCategoriesWithCounts` filtered to `computePpvCategoryIds()` in the SAME order (PPV mode).
+> 4. Updated `railPpv.setOnClickListener` to:
+>    - Set `railFilter = "__ppv__"`
+>    - Auto-select the first PPV category so the middle column populates immediately
+>    - Re-submit the sidebar via `categoryAdapter.submit(visibleCategoriesForSidebar(), ...)`
+>    - Move D-pad focus to the sidebar so the user can browse the 6 VIP categories with UP/DOWN
+> 5. Updated both `categoryAdapter.submit(...)` call sites to use the helper.
+> 6. Removed the OLD bulk-merge `"__ppv__"` branch in `applyCategory()` — since the sidebar now surfaces individual PPV categories, the normal `else -> bundle.channels.filter { it.categoryId == sel }` path handles each pick correctly.
+> 7. Kept the `channelCountChip` "PPV · N CHANNELS" prefix — now gated on `railFilter == "__ppv__"` rather than `sel == "__ppv__"`.
+> 8. Added BACK-press handling: when in PPV mode, BACK exits PPV mode (restores full sidebar, jumps to `__whatson__` hub) instead of exiting the activity.
+>
+> **UX flow:**
+> - Tap PPV rail button → sidebar shrinks to the 6 VIP categories → first (PPV 1) auto-selected → middle column loads its channels → D-pad focus lands on the categories column so the user can flip through them.
+> - D-pad UP/DOWN on categories cycles between PPV 1, PPV 2, PPV 3, PPV 4, TRILLER TV EVENTS, DARTS(EVENTS ONLY).  Each click loads its channels in the middle column exactly like any normal category.
+> - Press BACK → restore normal sidebar + return to the What's On Live hub.
+>
+> **Simulation validated** against the exact screenshot layout: sidebar in PPV mode contains those 6 categories in order, and no others.
+>
+> **Files touched:**
+> - `EpgActivity.kt` — +`railFilter` field, +`computePpvCategoryIds()`, +`visibleCategoriesForSidebar()`, rewrote PPV click handler, removed bulk `__ppv__` branch, added BACK handling
+>
+> **🟢 v2.16.10 — Distinctive premium PPV button styling (crimson gradient body + red/white letter inversion on focus).**
+>
+> **🟢 v2.16.9 — Swap-back fix (process-scoped memory), rail cleanup, focus containment on search results, darts verdict (Jul 2026).**
 >
 > 1. **SWAP BACK ping-pong now works across Activity restarts.**  Root cause: `previousChannelId` was a private field on `PlayerActivity` that got wiped every time the user backed out to the EPG and re-entered the player.  Fix: new process-scoped `PreviousChannelMemory` singleton in `PlaybackQueue.kt` that survives Activity destroy/create.  `tuneTo()` calls `rememberTunedChannel(id)` which internally rolls the previous entry.  `swapToPreviousChannel()` reads from the singleton.  Legacy `previousChannelId` field is kept only for potential external references but no longer used in the flow.
 > 2. **Icon rail cleanup + reorder.**  Removed the "three horizontal lines" `rail_list` button (it just re-focused the sidebar — redundant with pressing LEFT).  New rail order top→bottom: Home / Search / Refresh / Library / **PPV** / Fullscreen / (space) / Sign-out.  PPV moved from bottom (above sign-out) to right after Library, per user request.  Removed the `railList: ImageButton` field, its `findViewById` bind, and its click handler in `EpgActivity.kt`.  Added `nextFocusDown="@id/rail_signout"` on the sign-out button to loop-clamp focus at the bottom of the rail.

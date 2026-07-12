@@ -154,6 +154,22 @@ class EpgActivity : AppCompatActivity() {
     private var currentCategoryId: String? = null
     private var focusedChannel: Channel? = null
     private var allCategoriesWithCounts: List<Category> = emptyList()
+
+    /**
+     * v2.16.11 — PPV mode.
+     *
+     * When the user hits the "PPV" rail button we don't want to
+     * lump every VIP category's channels into one giant list; the
+     * user wants the sidebar itself to filter down to just the VIP
+     * sub-categories (PPV 1-4, TRILLER TV EVENTS, DARTS EVENTS ONLY,
+     * etc.) so they can pick which one they're after.
+     *
+     * `railFilter = "__ppv__"` swaps the sidebar to show only PPV
+     * categories.  `null` = normal full sidebar.  Set/cleared by
+     * the rail-button click handlers and reset by any hub-level
+     * navigation that fundamentally changes context.
+     */
+    private var railFilter: String? = null
     /** v2.16.2 — ConcurrentHashMap: the WhatsOn prefetch writes from
      *  many IO threads while the main thread reads/iterates — the
      *  old HashMap raced and could corrupt or CME mid-scan. */
@@ -362,7 +378,6 @@ class EpgActivity : AppCompatActivity() {
             .filter { it.channelCount > 0 && !it.name.contains("#####") }
 
         allCategoriesWithCounts = listOf(favourites, recents, reminders, virtualAll) + real
-
         // Smart default: highest EPG coverage ratio in real categories.
         val epgCoverageByCat: Map<String, Double> = real.associate { cat ->
             val cs = bundle.channels.filter { it.categoryId == cat.id }
@@ -400,6 +415,60 @@ class EpgActivity : AppCompatActivity() {
             }
     }
 
+    /**
+     * v2.16.11 — Compute the ordered list of PPV/VIP category ids
+     * to expose in the sidebar when the rail's PPV button is active.
+     *
+     * Uses the same section-divider heuristic as before but returns
+     * the ORDERED list of matching category IDs (preserving the
+     * user's Xtream layout) so the sidebar reflects the natural
+     * grouping of the "===VIP CHANNELS====" section.
+     */
+    private fun computePpvCategoryIds(): List<String> {
+        val cats = BundleHolder.current?.categories ?: return emptyList()
+        val dividerRe = Regex("^={3,}.*={3,}$")
+        fun isDivider(n: String) = dividerRe.matches(n.trim())
+        val out = LinkedHashSet<String>()
+        // 1. Section-divider walk: everything between "===VIP===" (or "===PPV===")
+        //    and the next divider.
+        val vipStart = cats.indexOfFirst {
+            val n = it.name.trim().lowercase()
+            isDivider(it.name) && ("vip" in n || "ppv" in n)
+        }
+        if (vipStart >= 0) {
+            for (i in (vipStart + 1) until cats.size) {
+                val c = cats[i]
+                if (isDivider(c.name)) break
+                out.add(c.id)
+            }
+        }
+        // 2. Belt-and-braces: also union any category whose bare
+        //    name explicitly matches PPV / Pay-Per-View / \bVIP\b.
+        val extraRe = Regex("(^|[^a-z])vip([^a-z]|$)")
+        for (c in cats) {
+            if (isDivider(c.name)) continue
+            val n = c.name.lowercase()
+            if ("ppv" in n || "pay per view" in n || "pay-per-view" in n ||
+                extraRe.containsMatchIn(n)) {
+                out.add(c.id)
+            }
+        }
+        return out.toList()
+    }
+
+    /**
+     * v2.16.11 — The category list currently visible in the sidebar,
+     * which depends on the rail filter.  Called by every
+     * `categoryAdapter.submit(...)` call site.
+     */
+    private fun visibleCategoriesForSidebar(): List<Category> {
+        if (railFilter != "__ppv__") return allCategoriesWithCounts
+        val order = computePpvCategoryIds()
+        // Preserve user's Xtream ordering and drop everything else.
+        val byId = allCategoriesWithCounts.associateBy { it.id }
+        return order.mapNotNull { byId[it] }
+    }
+
     private fun setupAdapters() {
         categoryAdapter = CategoryPillAdapter(
             onPick = { c ->
@@ -425,7 +494,7 @@ class EpgActivity : AppCompatActivity() {
         categoriesList.layoutManager = LinearLayoutManager(this)
         categoriesList.adapter = categoryAdapter
         categoriesList.itemAnimator = null
-        categoryAdapter.submit(allCategoriesWithCounts, currentCategoryId)
+        categoryAdapter.submit(visibleCategoriesForSidebar(), currentCategoryId)
 
         channelAdapter = ChannelPillAdapter(
             nowResolver = { ch -> liveProgrammeOf(ch) },
@@ -603,16 +672,22 @@ class EpgActivity : AppCompatActivity() {
             val ch = LivePreviewSession.currentChannel ?: focusedChannel
             if (ch != null) openFullscreen(ch)
         }
-        // v2.16.5 — Pay-per-view / VIP.  Switches to the synthetic
-        // "__ppv__" category which pulls every channel whose Xtream
-        // category name contains "VIP" (or "PPV" / "Pay Per View").
-        // The rest of the EPG UI (channel column, NOW / UP-NEXT
-        // panes) works exactly as it does for any other category.
+        // v2.16.11 — Pay-per-view / VIP.  Enter PPV MODE:
+        //   1. Filter the left sidebar to the VIP sub-categories
+        //      only (PPV 1-4, TRILLER TV EVENTS, DARTS, etc.).
+        //   2. Auto-select the first PPV category so the middle
+        //      column immediately shows its channels.
+        //   3. Land D-pad focus in the categories column so the
+        //      user can flip through them without extra key presses.
         railPpv.setOnClickListener {
-            currentCategoryId = "__ppv__"
+            val ppvIds = computePpvCategoryIds()
+            if (ppvIds.isEmpty()) return@setOnClickListener
+            railFilter = "__ppv__"
+            currentCategoryId = ppvIds.first()
+            categoryAdapter.submit(visibleCategoriesForSidebar(), currentCategoryId)
             applyCategory()
-            channelsList.post {
-                channelsList.findViewHolderForAdapterPosition(0)
+            categoriesList.post {
+                categoriesList.findViewHolderForAdapterPosition(0)
                     ?.itemView?.requestFocus()
             }
         }
@@ -757,6 +832,17 @@ class EpgActivity : AppCompatActivity() {
             closeSearchOverlay()
             return
         }
+        // v2.16.11 — BACK inside PPV mode exits back to the normal
+        // full-sidebar view instead of leaving the EPG entirely.
+        // Users hit PPV to browse premium channels; BACK feels
+        // like "return to the main channel picker".
+        if (railFilter == "__ppv__") {
+            railFilter = null
+            currentCategoryId = "__whatson__"
+            categoryAdapter.submit(visibleCategoriesForSidebar(), currentCategoryId)
+            applyCategory()
+            return
+        }
         // v2.9.15 — In collection mode, just let `super.onBackPressed()`
         // pop this EpgActivity instance off the stack.  Since
         // EpgActivity is `singleTop`, the instance underneath
@@ -818,52 +904,6 @@ class EpgActivity : AppCompatActivity() {
             "__all__", null -> bundle.channels
             "__favourites__" -> bundle.channels.filter { favouriteSet.contains(it.id) }
             "__recents__" -> emptyList()
-            "__ppv__" -> {
-                // v2.16.6 — Pay-per-view / VIP.  The user's Xtream
-                // categories use "===VIP CHANNELS====" style dividers
-                // to group premium content.  Walk the categories in
-                // list order: find the VIP divider, then include
-                // every non-divider category from there until the
-                // next divider (e.g. "====UK SPORT====").  This
-                // catches TRILLER TV EVENTS + DARTS(EVENTS ONLY)
-                // etc. that don't have "vip" or "ppv" in their name
-                // but live under the VIP CHANNELS section.
-                //
-                // A "divider" is a category whose name is bracketed
-                // by 3+ consecutive '=' characters on both ends.
-                fun isDivider(n: String): Boolean {
-                    val t = n.trim()
-                    return t.length >= 6 && Regex("^={3,}.*={3,}$").matches(t)
-                }
-                val cats = bundle.categories
-                val vipStart = cats.indexOfFirst {
-                    val n = it.name.trim().lowercase()
-                    isDivider(it.name) && ("vip" in n || "ppv" in n)
-                }
-                val ppvIds: MutableSet<String> = mutableSetOf()
-                if (vipStart >= 0) {
-                    for (i in (vipStart + 1) until cats.size) {
-                        val c = cats[i]
-                        if (isDivider(c.name)) break
-                        ppvIds.add(c.id)
-                    }
-                }
-                // Belt-and-braces fallback: also include any category
-                // whose name explicitly contains PPV / VIP / Pay-Per-
-                // View tokens, in case the provider omits dividers.
-                for (c in cats) {
-                    val n = c.name.lowercase()
-                    if (isDivider(c.name)) continue
-                    if ("ppv" in n || "pay per view" in n ||
-                        "pay-per-view" in n ||
-                        Regex("(^|[^a-z])vip([^a-z]|$)").containsMatchIn(n)) {
-                        ppvIds.add(c.id)
-                    }
-                }
-                bundle.channels
-                    .filter { it.categoryId != null && it.categoryId in ppvIds }
-                    .sortedBy { it.lcn?.toIntOrNull() ?: Int.MAX_VALUE }
-            }
             "__collection__" -> {
                 // Preserve the user's add-order within the collection
                 // by walking the collection's channelIds in order.
@@ -876,10 +916,12 @@ class EpgActivity : AppCompatActivity() {
         val visible = channels.take(500)
         currentChannelList = visible
         channelAdapter.submit(visible)
-        val chipLabel = when (sel) {
-            "__ppv__" -> "PPV · ${"%,d".format(visible.size)} CHANNELS"
-            else -> "${"%,d".format(visible.size)} CHANNELS"
-        }
+        // v2.16.11 — Show a "PPV" prefix on the count chip while
+        // the sidebar is filtered to VIP categories.
+        val chipLabel = if (railFilter == "__ppv__")
+            "PPV · ${"%,d".format(visible.size)} CHANNELS"
+        else
+            "${"%,d".format(visible.size)} CHANNELS"
         channelCountChip.text = chipLabel
         categoryAdapter.setSelected(sel)
 
@@ -1792,7 +1834,7 @@ class EpgActivity : AppCompatActivity() {
             ).show()
         }
         buildCategories()
-        categoryAdapter.submit(allCategoriesWithCounts, currentCategoryId)
+        categoryAdapter.submit(visibleCategoriesForSidebar(), currentCategoryId)
         if (currentCategoryId == "__favourites__") applyCategory()
     }
 
