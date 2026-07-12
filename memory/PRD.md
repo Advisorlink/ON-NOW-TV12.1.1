@@ -9792,3 +9792,31 @@ FIX:
   EpgActivity.kt during editing — brace balance re-verified vs HEAD (0,0,0).
 - No kotlinc in pod: Kotlin verified via brace/paren balance + structure
   scripts; XML via minidom. Compile happens in CI as usual.
+
+## v2.16.13 — CI build fix + "Sync now" long-press (Feb 2026)
+
+### CI compile fix
+- `SyncManager.kt:85` was referencing `tv.onnowtv.livetv.XtreamRepository`
+  but the class lives in `tv.onnowtv.livetv.data.XtreamRepository`.
+  Compile failed with `Unresolved reference: XtreamRepository`.
+- Since `SyncManager` and `XtreamRepository` share the same package
+  (`tv.onnowtv.livetv.data`), the fully-qualified prefix was dropped
+  and the simple `XtreamRepository.BACKEND_BASE` reference now resolves.
+
+### "Sync now" long-press on sign-out rail button
+- New method `SyncManager.forcePush(ctx, cb)` — bypasses the 30 s
+  debounce timer, immediately POSTs the current Favourites +
+  Collections + Reminders snapshot to `/api/livetv/sync/push`.
+  Invalidates any pending debounced push so we don't double-post.
+- `EpgActivity.railSignout.setOnLongClickListener` now fires the
+  force-push, toasting "Syncing now…" then "Synced ✓" / "Sync failed —
+  check connection".  If the user is signed out, toasts "Sign in first
+  to sync" and returns.
+- Short-press is unchanged (still opens the sign-out confirm
+  ActionSheetDialog).
+
+### Verification
+- Brace/paren/bracket balance re-checked (0, 0, 0) on
+  SyncManager.kt + EpgActivity.kt + AuthStore.kt + XtreamRepository.kt.
+- Grep sweep confirms no other stale
+  `tv.onnowtv.livetv.XtreamRepository` fully-qualified refs remain.

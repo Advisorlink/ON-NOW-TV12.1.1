@@ -82,7 +82,7 @@ object SyncManager {
         // Reuse the same backend URL that the Xtream repository +
         // livestats screen already speak to.  This is baked into
         // XtreamRepository so it stays in sync with the pod's env.
-        return tv.onnowtv.livetv.XtreamRepository.BACKEND_BASE.trimEnd('/')
+        return XtreamRepository.BACKEND_BASE.trimEnd('/')
     }
 
     // ── snapshot builder ────────────────────────────────────────
@@ -220,6 +220,42 @@ object SyncManager {
     }
 
     // ── network ─────────────────────────────────────────────────
+
+    /** Immediate one-shot push that bypasses the 30 s debounce.
+     *  Wired to the long-press on the sign-out rail button so the
+     *  user can force a "Sync now" for cross-device continuity.
+     *  Callback fires on the IO thread with true = HTTP 2xx, false
+     *  = anything else (network, HTTP error, not signed in).  Any
+     *  pending debounced push is also invalidated so we don't POST
+     *  the same snapshot twice within a second. */
+    fun forcePush(ctx: Context, cb: (Boolean) -> Unit) {
+        val ctxApp = ctx.applicationContext
+        // Bump generation so any queued debounced push aborts on run.
+        pushGeneration.incrementAndGet()
+        io.execute {
+            try {
+                val key = userKey(ctxApp) ?: return@execute cb(false)
+                val body = JSONObject().apply {
+                    put("user_key", key)
+                    put("data", buildSnapshot(ctxApp))
+                    put("client_updated_at", System.currentTimeMillis())
+                }
+                val req = Request.Builder()
+                    .url("${apiBase()}/api/livetv/sync/push")
+                    .post(body.toString().toRequestBody(jsonMedia))
+                    .build()
+                http.newCall(req).execute().use { r ->
+                    val ok = r.isSuccessful
+                    if (ok) Log.i(TAG, "forcePush OK (${body.toString().length}B)")
+                    else Log.w(TAG, "forcePush failed: HTTP ${r.code}")
+                    cb(ok)
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "forcePush threw: ${t.message}")
+                cb(false)
+            }
+        }
+    }
 
     /** Fire-and-forget push, debounced 30 s.  Every call resets the
      *  clock; the actual HTTP POST only happens once the burst has

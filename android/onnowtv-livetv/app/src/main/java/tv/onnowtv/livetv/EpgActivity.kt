@@ -717,6 +717,33 @@ class EpgActivity : AppCompatActivity() {
                 .item("Cancel", icon = "✕") { /* dismiss */ }
                 .show()
         }
+        // v2.16.13 — Long-press = force "Sync now": force-pushes the
+        // current Favourites/Collections/Reminders snapshot to the
+        // cloud bypassing the 30 s debounce.  Useful when the user
+        // wants to switch boxes and see their library immediately
+        // on the other side.  Toasts confirm the outcome.
+        railSignout.setOnLongClickListener {
+            if (!tv.onnowtv.livetv.data.AuthStore.isSignedIn(this)) {
+                android.widget.Toast.makeText(
+                    this, "Sign in first to sync",
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
+                return@setOnLongClickListener true
+            }
+            android.widget.Toast.makeText(
+                this, "Syncing now…", android.widget.Toast.LENGTH_SHORT,
+            ).show()
+            tv.onnowtv.livetv.data.SyncManager.forcePush(this) { ok ->
+                runOnUiThread {
+                    android.widget.Toast.makeText(
+                        this,
+                        if (ok) "Synced ✓" else "Sync failed — check connection",
+                        android.widget.Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
+            true
+        }
     }
 
     private fun wireSearch() {
