@@ -9980,3 +9980,53 @@ TextureView SurfaceTexture on the return-from-fullscreen path:
   `View.doOnLayout` resolves.
 - No stale FQ refs; no other callers of `attachTo` need changes
   (fix lives inside the method).
+
+## v2.16.17 — SWAP BACK now remembers every channel (Feb 2026)
+
+User: "I need the SWAP BACK button to swap back to whatever channel
+was previously playing.  At the moment it's only swapping back if
+I've changed the channel whilst inside the player.  Any channel
+I've been watching should work.  Say I'm watching the World Cup,
+then go into Kids and start The Best of Geoff — the swap button
+should take me back to the World Cup."
+
+### Root cause
+`PreviousChannelMemory.rememberTunedChannel(id)` was only called
+inside `PlayerActivity.tuneTo`.  Channels the user started in the
+EPG hub's top-left preview (via `startPreview` →
+`LivePreviewSession.setChannel`) were never registered.  So on the
+scenario above:
+  1. Watch World Cup in preview  → memory NOT updated (currentId=null)
+  2. Navigate to Kids, open Geoff fullscreen → tuneTo(geoff, initial)
+     → rememberTunedChannel(geoff).  currentId was null so nothing
+     shifted → **previousId stays null**.
+  3. SWAP → previousChannelId() returns null → no-op.
+
+### Fix
+Hooked `PreviousChannelMemory.rememberTunedChannel(channel.id)`
+inside `LivePreviewSession.setChannel(ctx, channel)` — the single
+choke-point every "start watching a NEW channel" path flows
+through (preview, first-time full-screen, live-stats mode).
+Placed AFTER the same-channel early-return so re-taps don't push
+the current channel into `previousId` (would otherwise cause a
+useless self-swap).  In-player DPAD zapping still updates memory
+via `PlayerActivity.tuneTo` — unchanged.
+
+### End-to-end trace with fix
+  1. startPreview(worldCup) → setChannel → remember(worldCup):
+       currentId=worldCup, previousId=null
+  2. startPreview(geoff)    → setChannel → remember(geoff):
+       currentId=geoff, previousId=worldCup ✓
+  3. openFullscreen(geoff)  → setChannel is no-op (same id),
+     tuneTo(geoff, initial) → remember(geoff) → no change ✓
+  4. SWAP → previousChannelId() = worldCup → tuneTo(worldCup) →
+     remember(worldCup) → currentId=worldCup, previousId=geoff.
+     Next SWAP ping-pongs back to geoff. ✓
+
+### Verification
+- Brace balance clean on LivePreviewSession.kt, PlaybackQueue.kt,
+  PlayerActivity.kt (0,0,0).
+- PreviousChannelMemory + LivePreviewSession are both in package
+  `tv.onnowtv.livetv` — no import required.
+- Idempotent: rememberTunedChannel is a no-op when id == currentId,
+  so no double-count risk from openFullscreen → tuneTo path.

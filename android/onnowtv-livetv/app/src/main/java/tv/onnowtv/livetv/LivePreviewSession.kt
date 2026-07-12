@@ -125,6 +125,18 @@ object LivePreviewSession {
             }
             return
         }
+        // v2.16.17 — SWAP BACK memory used to update ONLY inside
+        // PlayerActivity.tuneTo, which meant channels the user
+        // started in the EPG hub's top-left preview (via
+        // `startPreview`) were never remembered.  So the first
+        // time they clicked into a full-screen show from a fresh
+        // navigation, the previous preview channel was invisible
+        // to the SWAP button.  Hooking the memory here catches
+        // every "start watching a NEW channel" path (preview,
+        // first-time full-screen, live-stats mode).  Same-channel
+        // re-taps early-return above and don't touch the memory —
+        // exactly what we want (no self-swap).
+        PreviousChannelMemory.rememberTunedChannel(channel.id)
         currentChannel = channel
         // v2.9.5 — substitute saved user creds into the URL so we
         // never play with the backend's env account.
