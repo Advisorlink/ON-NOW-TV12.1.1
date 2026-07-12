@@ -10161,3 +10161,58 @@ You rail to those categories."
   with all rows animated in, correct counts, and the "Restore my
   profiles" CTA.  Screenshot captured.
 - ESLint clean on CloudRestoreDialog.jsx + ProfileEdit.jsx.
+
+## v2.16.20 — Update gate no longer nags for manual backup (Feb 2026)
+
+User: "When you click to install an update for the movies in Vesper,
+it shouldn't have the popup saying you need to install the backup
+of profiles.  Also I need to make sure this is written in a way
+that I can put it into the launcher for the next update."
+
+### Change
+`components/UpdateGate.jsx`:
+- Deleted the entire `data-testid="update-gate-backup-btn"` cyan
+  "Back up first" button block (~45 lines).  The button used to
+  jump the user to Settings → manual code+PIN Backup panel; with
+  cloud sync (v2.16.18) it's now redundant + confusing.
+- Removed the now-unused `CloudUpload` icon import.
+- Added a small cyan-tinted reassurance strip directly under the
+  "YOU HAVE v… · LATEST v…" line:
+
+      • Your profiles are safely saved to your login — nothing
+        to back up before you update.
+
+  Uses a subtle cyan bullet + rgba(93,200,255,0.06) fill so it
+  reads as informational, not another CTA.  `data-testid=
+  "update-gate-cloud-note"` for QA.
+
+### Delivery to the launcher OTA
+Verified the CI plumbing works untouched:
+  1. `.github/workflows/build-apk.yml` runs `yarn build` in
+     `/frontend`, then `cp -r frontend/build/. android/vesper-tv/
+     app/src/main/assets/web/` — every React change lands inside
+     the WebView assets on every push.
+  2. `app/build.gradle.kts` reads `versionCode` +
+     `versionName` from Gradle properties supplied by CI, so
+     every push produces a strictly higher versionCode
+     automatically.
+  3. Vesper's in-app UpdateGate polls
+     `/api/app/latest-version` → compares against `window.
+     __APP_VERSION__` (set from `BuildConfig.VERSION_NAME` in
+     `VesperWebViewClient.kt`) → shows the modal + APK download
+     link.  The launcher's home-update path
+     (`/api/launcher/home-update/info`) is a separate flow for
+     the LAUNCHER updating ITSELF; Vesper updates go through the
+     GitHub `apk-latest` tag which the CI workflow rolls forward
+     on every push.
+
+So: **nothing else needs manual touching.**  Next CI push
+produces an APK with the new UpdateGate modal + auto-incremented
+versionCode, and every box's next OTA check picks it up.
+
+### Verification
+- ESLint clean on UpdateGate.jsx after the edit.
+- CloudUpload import trimmed → no unused-import warnings.
+- Rest of the gate (install button, skip button, progress bar,
+  notes panel, cinematic backdrop) unchanged and still lints
+  clean.

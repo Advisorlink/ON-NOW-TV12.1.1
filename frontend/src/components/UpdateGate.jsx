@@ -24,7 +24,7 @@
  *     as a fallback.
  */
 import React, { useEffect, useState } from 'react';
-import { Download, RefreshCw, ExternalLink, Tv2, X, CloudUpload } from 'lucide-react';
+import { Download, RefreshCw, ExternalLink, Tv2, X } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 
@@ -398,6 +398,45 @@ export default function UpdateGate() {
                     &nbsp;·&nbsp;LATEST&nbsp;<strong style={{ color: '#5DC8FF' }}>v{info.version}</strong>
                 </div>
 
+                {/* v2.16.20 — Reassurance line replacing the old
+                    "Back up first" button.  With cloud sync
+                    (v2.16.18) the login itself carries every
+                    profile + Continue Watching + Library + Live TV
+                    fav across reinstalls, so the update flow no
+                    longer needs a pre-install manual-backup
+                    detour. */}
+                <div
+                    data-testid="update-gate-cloud-note"
+                    style={{
+                        marginTop: 10,
+                        padding: '10px 12px',
+                        background: 'rgba(93,200,255,0.06)',
+                        border: '1px solid rgba(93,200,255,0.22)',
+                        borderRadius: 10,
+                        fontSize: 12,
+                        lineHeight: 1.45,
+                        color: '#B7DDF5',
+                        textAlign: 'left',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 8,
+                    }}
+                >
+                    <span
+                        aria-hidden="true"
+                        style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: '50%',
+                            background: '#5DC8FF',
+                            boxShadow: '0 0 8px rgba(93,200,255,0.9)',
+                            flexShrink: 0,
+                        }}
+                    />
+                    Your profiles are safely saved to your login — nothing
+                    to back up before you update.
+                </div>
+
                 {info.notes && (
                     <div
                         data-testid="update-gate-notes"
@@ -493,53 +532,6 @@ export default function UpdateGate() {
                             </>
                         )}
                     </button>
-                    {!busy && (
-                        <button
-                            data-testid="update-gate-backup-btn"
-                            data-focusable="true"
-                            data-focus-style="pill"
-                            tabIndex={0}
-                            onClick={() => {
-                                /* v2.6.71: user asked for a "Backup
-                                   Accounts" button so they don't lose
-                                   profiles / My List / sources when
-                                   reinstalling.  Persists a tiny
-                                   "open the backup section" hint then
-                                   hard-navigates to Settings → the
-                                   user lands directly on the backup
-                                   panel.  We also dismiss the gate
-                                   modal so they can interact with
-                                   Settings unblocked. */
-                                try {
-                                    sessionStorage.setItem(
-                                        'vesper-settings-jump-to',
-                                        'backup',
-                                    );
-                                } catch { /* ignore */ }
-                                setSnoozed(true);
-                                window.location.hash = '#/settings';
-                            }}
-                            style={{
-                                height: 46,
-                                padding: '0 18px',
-                                borderRadius: 999,
-                                background: 'rgba(93,200,255,0.10)',
-                                border: '1px solid rgba(93,200,255,0.45)',
-                                color: '#5DC8FF',
-                                fontSize: 12,
-                                fontWeight: 700,
-                                letterSpacing: '0.06em',
-                                textTransform: 'uppercase',
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 8,
-                            }}
-                        >
-                            <CloudUpload size={14} />
-                            Back up first
-                        </button>
-                    )}
                     {!busy && (
                         <button
                             data-testid="update-gate-skip-btn"
