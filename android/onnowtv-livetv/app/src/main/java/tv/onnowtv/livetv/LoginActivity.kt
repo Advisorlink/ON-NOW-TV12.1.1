@@ -117,13 +117,85 @@ class LoginActivity : AppCompatActivity() {
             // otherwise use exactly what the user typed (legacy path).
             val (saveUser, savePass) = mapped ?: (u to p)
             AuthStore.saveCredentials(ctx, saveUser, savePass)
-            startActivity(
-                Intent(ctx, MainActivity::class.java)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
-            )
-            overridePendingTransition(0, 0)
-            finish()
+
+            // v2.16.12 — On successful sign-in, check the cloud
+            // backup keyed by this Xtream login.  If a snapshot
+            // exists we prompt the user before restoring, per user
+            // preference (Vesper-style popup rather than silent).
+            statusText.text = "Checking backups\u2026"
+            val snap = withContext(Dispatchers.IO) {
+                pullSnapshotBlocking(ctx)
+            }
+            if (snap != null &&
+                tv.onnowtv.livetv.data.SyncManager
+                    .isRestorableSnapshot(snap)) {
+                showRestorePrompt(ctx, snap)
+            } else {
+                launchMain(ctx)
+            }
         }
+    }
+
+    /** Blocking cloud-backup fetch.  Called from IO. */
+    private fun pullSnapshotBlocking(ctx: android.content.Context): org.json.JSONObject? {
+        val out = java.util.concurrent.atomic.AtomicReference<org.json.JSONObject?>(null)
+        val latch = java.util.concurrent.CountDownLatch(1)
+        tv.onnowtv.livetv.data.SyncManager.pullOnce(ctx) { snap ->
+            out.set(snap)
+            latch.countDown()
+        }
+        try {
+            latch.await(6, java.util.concurrent.TimeUnit.SECONDS)
+        } catch (_: Throwable) {
+            // Fall through with whatever we got (probably null).
+        }
+        return out.get()
+    }
+
+    private fun showRestorePrompt(
+        ctx: android.content.Context,
+        snap: org.json.JSONObject,
+    ) {
+        val favCount = snap.optJSONArray("favourites")?.length() ?: 0
+        val colCount = snap.optJSONArray("collections")?.length() ?: 0
+        val remCount = snap.optJSONArray("reminders")?.length() ?: 0
+        val parts = mutableListOf<String>()
+        if (favCount > 0) parts.add("$favCount favourite${if (favCount != 1) "s" else ""}")
+        if (colCount > 0) parts.add("$colCount collection${if (colCount != 1) "s" else ""}")
+        if (remCount > 0) parts.add("$remCount reminder${if (remCount != 1) "s" else ""}")
+        val body = "We found your backup on the cloud:\n\n• " +
+            parts.joinToString("\n• ") +
+            "\n\nRestore them onto this device?"
+
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Restore your data?")
+            .setMessage(body)
+            .setCancelable(false)
+            .setPositiveButton("Restore") { d, _ ->
+                d.dismiss()
+                statusText.text = "Restoring\u2026"
+                CoroutineScope(Dispatchers.Main).launch {
+                    withContext(Dispatchers.IO) {
+                        tv.onnowtv.livetv.data.SyncManager
+                            .applySnapshot(ctx, snap)
+                    }
+                    launchMain(ctx)
+                }
+            }
+            .setNegativeButton("Start fresh") { d, _ ->
+                d.dismiss()
+                launchMain(ctx)
+            }
+            .show()
+    }
+
+    private fun launchMain(ctx: android.content.Context) {
+        startActivity(
+            Intent(ctx, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+        )
+        overridePendingTransition(0, 0)
+        finish()
     }
 
     /**

@@ -77,6 +77,8 @@ object CollectionsStore {
             arr.put(obj)
         }
         prefs(ctx).edit().putString(KEY, arr.toString()).apply()
+        // v2.16.12 — silent cloud backup keyed by Xtream login.
+        SyncManager.pushDebounced(ctx)
     }
 
     /** Append a brand-new collection at the top of the row. */

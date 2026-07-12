@@ -1,5 +1,52 @@
 # ON NOW TV V2 — PRD
-> **🟢 v2.16.11 — PPV button now filters the sidebar to VIP sub-categories instead of merging all channels (Jul 2026).**
+> **🟢 v2.16.12 — Silent cloud backup for Live TV, keyed by Xtream login (Jul 2026).**
+>
+> User feedback: "I need a backup for the Live TV — save favourites/collections to their login so it appears on any device."  Went with **auto-save-to-login approach** (Option B from ask_human):
+>
+> ### Backend
+> - **New router `/app/backend/livetv_sync.py`** with two endpoints:
+>   - `POST /api/livetv/sync/push` — accepts `{user_key, data, client_updated_at}`, upserts to MongoDB collection `livetv_sync` keyed by `user_key`.  Server records its own `updated_at` for authoritative ordering.  Body deliberately opaque so client blob shape can evolve without touching backend.
+>   - `GET  /api/livetv/sync/pull?user_key=xxx` — returns `{found, data, updated_at}` or `{found: false}`.
+> - Wired into `server.py` after the livestats router; `configure_livetv_sync(db)` binds the Motor client.
+> - End-to-end verified: push a 3-favourite + 1-collection + 1-reminder snapshot → pull it back cleanly.
+>
+> ### Android
+> - **New `SyncManager.kt`** in the data package (~295 lines):
+>   - `userKey(ctx)` = `SHA-256(host + "|" + username)` — never touches the password.  Uses `AuthStore.HOST` and `AuthStore.username()`.
+>   - `buildSnapshot(ctx)` → JSON containing `favourites[]`, `collections[]`, `reminders[]`, `version: 1`.
+>   - `applySnapshot(ctx, snap)` → **UNION merge** into local stores (per user request — no data loss on conflict):
+>     - Favourites: set-union
+>     - Collections: keyed by id → keep newer `addedAt`, union `channelIds`
+>     - Reminders: keyed by `key` → local wins if key already present, else add; then `pruneExpired`
+>   - `pushDebounced(ctx)` — 30-second debounce via `AtomicLong` generation counter; a burst of edits collapses to ONE HTTP POST after the burst settles.
+>   - `pullOnce(ctx, cb)` — one-shot fire-and-forget with callback.
+>   - `isRestorableSnapshot(snap)` — true if `favs + cols + rems > 0`.
+> - **Auto-push hooks** in `FavouritesStore.save`, `CollectionsStore.save`, `ReminderStore.save`.  Every existing call site now silently backs up.
+> - **Restore prompt in `LoginActivity`** (per user preference — Vesper-style popup, not silent):
+>   - After successful credential save, blocks up to 6 s pulling from cloud.
+>   - If a restorable snapshot exists, shows an `AlertDialog`: "We found your backup on the cloud: • N favourites, • M collections, • K reminders. Restore them onto this device?"
+>   - **Restore** → applies snapshot, then launches MainActivity.
+>   - **Start fresh** → launches MainActivity without applying.
+>   - No blocking on failure/timeout — falls straight through to MainActivity.
+>
+> ### Testing verified via curl
+> - Non-existent user → `{found: false}` ✅
+> - Push blob → `{ok: true, updated_at: ..., bytes: 314}` ✅
+> - Pull same key from a "different device" → full snapshot recovered ✅
+> - Python lint clean; Kotlin brace/paren balance verified visually (parser reports false positives due to `${...}` template complexity).
+>
+> **Files touched:**
+> - NEW `backend/livetv_sync.py`
+> - `backend/server.py` (+import & bind)
+> - NEW `android/onnowtv-livetv/.../data/SyncManager.kt`
+> - `android/onnowtv-livetv/.../data/FavouritesStore.kt` (+pushDebounced hook)
+> - `android/onnowtv-livetv/.../data/CollectionsStore.kt` (+pushDebounced hook)
+> - `android/onnowtv-livetv/.../data/ReminderStore.kt` (+pushDebounced hook)
+> - `android/onnowtv-livetv/.../LoginActivity.kt` (+cloud pull + restore prompt + `launchMain()` extracted)
+>
+> **🟢 v2.16.11 — PPV button now filters the sidebar to VIP sub-categories.**
+>
+> **🟢 v2.16.10 — Premium PPV button styling.**
 >
 > Previous v2.16.6 behaviour: clicking the PPV rail button merged every VIP channel from all 6 categories (PPV 1-4 + TRILLER TV EVENTS + DARTS) into one flat list.  User feedback: they want the sidebar itself filtered so they can pick each category individually.
 >

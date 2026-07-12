@@ -27,6 +27,8 @@ object FavouritesStore {
 
     fun save(ctx: Context, items: Set<String>) {
         prefs(ctx).edit().putStringSet(KEY, items).apply()
+        // v2.16.12 — silent cloud backup keyed by Xtream login.
+        SyncManager.pushDebounced(ctx)
     }
 
     /** Returns the NEW state — true = now favourited, false = removed. */

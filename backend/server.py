@@ -4789,6 +4789,13 @@ app.include_router(sportsdb_router)
 from livestats import router as livestats_router  # noqa: E402
 app.include_router(livestats_router)
 
+# v2.16.12 — Live TV user-data sync (favourites / collections /
+# reminders backed up per Xtream login).  Router needs the Mongo db
+# handle so we bind it after include_router.
+from livetv_sync import router as livetv_sync_router, configure_livetv_sync  # noqa: E402
+app.include_router(livetv_sync_router)
+configure_livetv_sync(db)
+
 from backup import router as backup_router  # noqa: E402
 app.include_router(backup_router)
 

@@ -84,6 +84,8 @@ object ReminderStore {
             })
         }
         prefs(ctx).edit().putString(KEY, arr.toString()).apply()
+        // v2.16.12 — silent cloud backup keyed by Xtream login.
+        SyncManager.pushDebounced(ctx)
     }
 
     /** Drop reminders whose stop time has already passed. */
