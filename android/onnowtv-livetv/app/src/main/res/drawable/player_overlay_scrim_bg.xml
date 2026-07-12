@@ -1,15 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v2.12 Bottom banner backdrop — user preference: TOP FADED,
-     BOTTOM SOLID.  angle=270 means the gradient runs top → bottom,
-     so startColor is at the TOP (fully transparent) and endColor
-     is at the BOTTOM (near-opaque black).  This lets the movie
-     bleed through the top edge of the banner while keeping the
-     lower part rock-solid for text readability. -->
+<!-- v2.16.8 Bottom banner backdrop — TOP DARK / BOTTOM BLACKOUT.
+     angle=270 = gradient runs top → bottom, so startColor is at
+     the TOP and endColor is at the BOTTOM.
+
+     User preference: the bottom must be fully opaque so no image
+     bleeds through behind the text, and the top should be quite
+     dark (only a hint of the movie showing) rather than fully
+     transparent.
+
+       • Top     — 60% alpha (image ~40% visible, subtle bleed)
+       • Center  — 90% alpha (almost solid, near text baseline)
+       • Bottom  — 100% alpha (rock-solid, no image behind at all)
+-->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <gradient
         android:angle="270"
-        android:startColor="#00070A0D"
-        android:centerColor="#B3070A0D"
-        android:endColor="#F5070A0D" />
+        android:startColor="#99070A0D"
+        android:centerColor="#E6070A0D"
+        android:endColor="#FF070A0D" />
 </shape>
