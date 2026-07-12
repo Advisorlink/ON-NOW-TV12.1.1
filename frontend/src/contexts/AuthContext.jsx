@@ -23,6 +23,7 @@ import {
 import {
     enableVesperCloudSync,
     disableVesperCloudSync,
+    resumeVesperCloudSync,
     pullOnce as pullCloudSnapshot,
 } from '@/lib/vesperCloudSync';
 import { isRestorableSnapshot } from '@/lib/profileBackup';
@@ -52,6 +53,11 @@ export function AuthProvider({ children }) {
     // has a non-empty snapshot for this account.  Cleared once the
     // user picks Restore or Start-fresh.
     const [cloudSnapshot, setCloudSnapshot] = React.useState(null);
+    // v2.16.23 — Set by `login()` for its full lifetime so the
+    // status-based sync useEffect can defer to it.  A `setStatus
+    // ('authenticated')` inside login() otherwise races the effect,
+    // which was calling `resumeVesperCloudSync()` mid-pull.
+    const loginInProgressRef = React.useRef(false);
 
     const refresh = React.useCallback(async () => {
         const t = getToken();
@@ -91,26 +97,47 @@ export function AuthProvider({ children }) {
     }, [refresh]);
 
     const login = React.useCallback(async (username, password) => {
-        const data = await apiLogin(username, password);
-        setStatus('authenticated');
-        setAccount(data.account);
-        /* Profile storage is namespaced per-account; broadcast so
-         * any mounted UI (SideNav, ProfileSelect, Home) re-reads
-         * the freshly-scoped list for the new user. */
+        loginInProgressRef.current = true;
         try {
-            window.dispatchEvent(new CustomEvent('vesper:profile-change'));
-        } catch { /* ignore */ }
-        // v2.16.18 — Turn on the cloud-sync loop for this account
-        // and check for a restorable snapshot in the background.
-        // Result renders <CloudRestoreDialog> via the value below.
-        try {
-            enableVesperCloudSync();
-            const snap = await pullCloudSnapshot();
-            if (snap && isRestorableSnapshot(snap.data)) {
-                setCloudSnapshot(snap);
+            const data = await apiLogin(username, password);
+            setStatus('authenticated');
+            setAccount(data.account);
+            /* Profile storage is namespaced per-account; broadcast so
+             * any mounted UI (SideNav, ProfileSelect, Home) re-reads
+             * the freshly-scoped list for the new user. */
+            try {
+                window.dispatchEvent(new CustomEvent('vesper:profile-change'));
+            } catch { /* ignore */ }
+            // v2.16.18 — Turn on the cloud-sync loop for this account
+            // and check for a restorable snapshot in the background.
+            // Result renders <CloudRestoreDialog> via the value below.
+            // v2.16.23 — Push is SUSPENDED until the user resolves the
+            // dialog.  If no restorable snapshot exists we resume
+            // immediately so ambient writes still sync.  The boot-time
+            // useEffect below detects `loginInProgressRef.current` and
+            // does NOT resume for us — critical, otherwise a re-render
+            // triggered by setStatus above would run enable+resume in
+            // parallel with our still-pending pull, opening the exact
+            // "3 profiles turn into 1" race we're trying to close.
+            try {
+                enableVesperCloudSync();
+                const snap = await pullCloudSnapshot();
+                if (snap && isRestorableSnapshot(snap.data)) {
+                    setCloudSnapshot(snap);
+                    // Do NOT resume yet — dismissCloudRestore /
+                    // <CloudRestoreDialog>'s Restore path will resume.
+                    // Restore path reloads the page → fresh boot
+                    // useEffect resumes cleanly on the next mount.
+                } else {
+                    resumeVesperCloudSync();
+                }
+            } catch {
+                resumeVesperCloudSync();
             }
-        } catch { /* silent — user just signed in, don't block */ }
-        return data;
+            return data;
+        } finally {
+            loginInProgressRef.current = false;
+        }
     }, []);
 
     const logout = React.useCallback(async () => {
@@ -130,9 +157,15 @@ export function AuthProvider({ children }) {
     // pull-and-prompt on every refresh: the restore dialog is a
     // one-time-per-fresh-install thing.  It fires on explicit login
     // only.
+    // v2.16.23 — Boot-time resume: no dialog will show for this
+    // path, so we immediately resume pushes as well.  BUT — do not
+    // resume mid-login: the login() coroutine owns suspend/resume
+    // during its own lifetime and will race us otherwise.
     React.useEffect(() => {
+        if (loginInProgressRef.current) return;
         if (status === 'authenticated') {
             enableVesperCloudSync();
+            resumeVesperCloudSync();
         } else if (status === 'guest') {
             disableVesperCloudSync();
         }
@@ -140,6 +173,9 @@ export function AuthProvider({ children }) {
 
     const dismissCloudRestore = React.useCallback(() => {
         setCloudSnapshot(null);
+        // v2.16.23 — Resume push loop now that the user has picked
+        // (or dismissed) the restore prompt.
+        resumeVesperCloudSync();
     }, []);
 
     const value = React.useMemo(

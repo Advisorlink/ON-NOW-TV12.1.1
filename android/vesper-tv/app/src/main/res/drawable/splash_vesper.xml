@@ -8,29 +8,18 @@
     system frame or the loader spinner popping in ~1s late while
     Android System WebView cold-boots.
 
-    Palette matches the Vesper login page so the transition from
-    splash → WebView's first paint is seamless: dark navy base
-    (#06080F) with a subtle radial red glow, plus a big centred "V2"
-    wordmark drawn via a layer-list bitmap.
+    v2.16.23 — Stripped the previous #FF2535 red radial glow.  User:
+    "I don't like that weird red glow — should just be opening
+    directly up straight into the login screen."  The login page
+    itself renders a subtle cyan accent, so the splash now sits as
+    a flat #06080F dark-navy panel that transitions imperceptibly
+    into the WebView's first paint.
 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 1. Solid dark navy base -->
+    <!-- Solid dark navy base — matches @color/vesper_bg -->
     <item>
         <shape android:shape="rectangle">
             <solid android:color="#FF06080F" />
-        </shape>
-    </item>
-    <!-- 2. Subtle radial red glow (Vesper accent) -->
-    <item>
-        <shape android:shape="rectangle">
-            <gradient
-                android:type="radial"
-                android:gradientRadius="700dp"
-                android:centerX="0.5"
-                android:centerY="0.5"
-                android:startColor="#33FF2535"
-                android:centerColor="#1AFF2535"
-                android:endColor="#0006080F" />
         </shape>
     </item>
 </layer-list>

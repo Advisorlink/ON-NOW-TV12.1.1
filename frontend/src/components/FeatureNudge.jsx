@@ -115,10 +115,10 @@ export default function FeatureNudge() {
     /* v2.12.15 — Whenever the nudge becomes visible, hand D-pad focus
        to the primary "Try it" button so the remote can act on it
        without the user having to blindly guess where the highlight
-       jumped to.  Also wires a global BACK/ESCAPE handler that
-       dismisses the toast (same behaviour as tapping "Maybe later")
-       so a single BACK press on the remote always closes the tip.
-       Runs whenever `nudge` transitions from null → object. */
+       jumped to.  v2.16.23 — Also traps TAB inside the nudge and
+       BLOCKS BACK/ESCAPE from dismissing it — user asked: "you
+       can't escape until you click one of the buttons".  Runs
+       whenever `nudge` transitions from null → object. */
     useEffect(() => {
         if (!nudge) return undefined;
         // Remember whatever tile was focused BEFORE we hijack focus,
@@ -149,23 +149,43 @@ export default function FeatureNudge() {
                 btn.setAttribute('data-focused', 'true');
             } catch { /* ignore */ }
         });
-        // BACK / ESCAPE = dismiss the tip (same as "Maybe later").
-        // Capture-phase + stopPropagation so the app-wide back
-        // handlers (Home has one that routes to profile picker)
-        // don't fire underneath us.
+        // v2.16.23 — Contain keyboard focus and block escape.  BACK
+        // / ESCAPE / TAB-out are all swallowed; the ONLY way out is
+        // to click one of the two buttons ("Try it" or "Maybe
+        // later").  User's spec.
         const onKey = (e) => {
             const k = e.key;
-            if (k === 'Escape' || k === 'Backspace' || k === 'GoBack' || k === 'BrowserBack') {
+            // Block dismissal via BACK/ESC — capture-phase +
+            // stopPropagation so the app-wide back handlers (Home
+            // has one that routes to profile picker) don't fire
+            // underneath us either.
+            if (k === 'Escape' || k === 'Backspace' ||
+                k === 'GoBack' || k === 'BrowserBack') {
                 e.preventDefault();
                 e.stopPropagation();
-                if (!isPreview) snoozeNudge(nudge.key);
-                setNudge(null);
-                // Inline restore — closures don't have access to
-                // restorePrevFocus() defined below this effect.
-                const prev = prevFocusRef.current;
-                prevFocusRef.current = null;
-                if (prev && prev.isConnected) {
-                    try { prev.focus({ preventScroll: true }); } catch { /* ignore */ }
+                // Re-focus the primary CTA in case the previous
+                // focus somehow drifted.
+                try { tryBtnRef.current?.focus({ preventScroll: true }); }
+                catch { /* ignore */ }
+                return;
+            }
+            // Contain TAB within the nudge card so keyboard users
+            // can't Tab into the background dashboard.
+            if (k === 'Tab') {
+                const root = document.querySelector('[data-testid="feature-nudge"]');
+                if (!root) return;
+                const focusables = root.querySelectorAll(
+                    'button, [tabindex]:not([tabindex="-1"])',
+                );
+                if (!focusables.length) return;
+                const first = focusables[0];
+                const last = focusables[focusables.length - 1];
+                if (e.shiftKey && document.activeElement === first) {
+                    e.preventDefault();
+                    try { last.focus({ preventScroll: true }); } catch { /* ignore */ }
+                } else if (!e.shiftKey && document.activeElement === last) {
+                    e.preventDefault();
+                    try { first.focus({ preventScroll: true }); } catch { /* ignore */ }
                 }
             }
         };

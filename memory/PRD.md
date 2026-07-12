@@ -10297,3 +10297,85 @@ the IME then just closes without moving focus.
 - XML lint clean on activity_login.xml (Python ElementTree).
 - No new imports beyond fully-qualified `android.view.KeyEvent`
   and `android.view.inputmethod.*` — no runtime deps added.
+
+## v2.16.23 — Three critical fixes: profile-loss bug, tips focus, red splash (Feb 2026)
+
+### Bug #1 — "3 profiles turn into 1 after reinstall" (CRITICAL, data-loss)
+User: "I set up 3 profiles under Trav26.  After I reinstalled the
+app, only 1 profile was found.  The other 2 are now GONE."
+
+**Root cause** — race window between login and the restore dialog:
+1. `AuthContext.login()` awaits `apiLogin` → sets `status='authenticated'`.
+2. The status-driven `useEffect` fires → `enableVesperCloudSync()` +
+   `resumeVesperCloudSync()` — sync loop is now armed AND resumed.
+3. `login()` then calls `enableVesperCloudSync()` (resets suspended
+   to true) → awaits `pullOnce()` (~500 ms).
+4. During that 500 ms, ambient localStorage writes fire — theme boot,
+   provider hydrate, EPG cache marker.  Each schedules a debounced
+   push.
+5. 2.5 s later, `pushNow` fires with the near-empty local snapshot.
+6. **Server snapshot is overwritten.**  Dialog then pulls again on
+   subsequent logins → shows only 1 profile (or 0).
+
+**Fix** — two-stage sync + login-race guard:
+- New `pushSuspended` module-level flag in `lib/vesperCloudSync.js`.
+  `schedulePush` + `pushNow` both hard-noop when suspended.
+- `enableVesperCloudSync()` now sets `pushSuspended = true` on entry.
+- New `resumeVesperCloudSync()` export — called by AuthContext
+  only after the dialog has been resolved (Restore path reloads
+  → boot useEffect resumes on next mount; Start-fresh path calls
+  `dismissCloudRestore()` → resumes; no snapshot at all → login()
+  resumes immediately).
+- `login()` wraps its body with `loginInProgressRef.current = true`
+  around a `try…finally` so the status-driven useEffect can defer.
+  The useEffect returns early if `loginInProgressRef.current` — it's
+  the login coroutine's job to resume once its pull completes.
+
+**Verified end-to-end via Playwright** — pushed 3 profiles (Alice,
+Bob, Carol) to the server, wiped local storage, logged in,
+confirmed:
+  • `window.__vesperCloudSync.suspended === true` during dialog.
+  • Only ONE HTTP request fired during the dialog window (the
+    `/pull`; no `/push`).
+  • Incidental `localStorage.setItem('onnowtv-theme:global', 'noir')`
+    write did NOT push (previously would have).
+  • Clicking "Restore my profiles" → reload → landed on Profile
+    Select showing all 3 profiles (Alice · Bob · Carol).
+  • Server retained all 3 profiles after the round-trip.
+
+### Bug #2 — Tips popup focus + escape
+User: "When tips pop up, focus should go inside the box and you
+can't escape until you click one of the buttons."
+
+**Fix** — `components/FeatureNudge.jsx`:
+- BACK / ESCAPE / Backspace / GoBack / BrowserBack are now
+  *swallowed* by the same capture-phase keydown listener that used
+  to close the toast.  Instead of dismissing, the handler
+  re-focuses the primary "Try it" button so the highlight can
+  never drift out of the card.
+- TAB / SHIFT-TAB are trapped inside the card — hitting Tab past
+  the last button wraps to the first; Shift-Tab past the first
+  wraps to the last.  Uses `data-testid="feature-nudge"` as the
+  scope selector to enumerate its own focusables.
+- The initial `requestAnimationFrame → tryBtnRef.current.focus()`
+  is unchanged (still lands the D-pad highlight on "Try it").
+- Only path OUT of the tip is now an explicit button click.
+
+### Bug #3 — Weird red glow on Vesper 2 cold-start
+User: "The app opens with a weird red glow — I don't like it,
+should just open straight into the login screen."
+
+**Root cause** — `android/vesper-tv/app/src/main/res/drawable/
+splash_vesper.xml` had a `#FF2535` radial-gradient shape layered
+over the dark navy base.  Legacy from a pre-cyan-brand design
+iteration.
+
+**Fix** — stripped the red gradient layer; splash is now a flat
+`#FF06080F` dark-navy panel that transitions imperceptibly into
+the WebView's first paint on the login screen.  Ships in the
+next CI-built APK; launcher OTA rolls it forward automatically.
+
+### Verification
+- ESLint clean on all three edited JS/JSX files.
+- XML lint OK on splash_vesper.xml.
+- Playwright dogfooded the profile-loss fix — see above.

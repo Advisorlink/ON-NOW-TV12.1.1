@@ -68,6 +68,25 @@ let enabled = false;
 let pendingTimer = null;
 let installed = false;
 
+/* v2.16.23 — Push-suspend flag.  When true, `schedulePush` and
+ * `pushNow` are hard-noops so the client can never overwrite the
+ * server snapshot before the user has had a chance to accept /
+ * decline the pull-on-login restore dialog.
+ *
+ * The historical bug: user logs into a fresh install → any
+ * incidental localStorage write between login and the dialog
+ * (theme boot, provider hydration, EPG cache marker …) armed the
+ * 2.5 s debounce → the debounce fired → pushed a NEAR-EMPTY
+ * payload → SERVER SNAPSHOT OVERWRITTEN → dialog then showed
+ * "1 profile" (or 0) even though the server originally had 3.
+ *
+ * Solution: pushes are suspended from `enableVesperCloudSync()`
+ * until `resumeVesperCloudSync()` is called by AuthContext once
+ * the restore dialog has been dismissed one way or the other.  If
+ * the pull returns no snapshot (nothing to offer) we resume
+ * immediately from the login callback. */
+let pushSuspended = true;
+
 function shouldTrigger(key) {
     if (typeof key !== 'string' || !key) return false;
     return TRIGGER_PREFIXES.some((p) => key.startsWith(p));
@@ -75,6 +94,7 @@ function shouldTrigger(key) {
 
 function schedulePush() {
     if (!enabled) return;
+    if (pushSuspended) return;
     if (pendingTimer) window.clearTimeout(pendingTimer);
     pendingTimer = window.setTimeout(() => {
         pendingTimer = null;
@@ -84,9 +104,12 @@ function schedulePush() {
 
 /** POST the current localStorage snapshot to the cloud.  Returns
  *  a Promise that resolves true on 2xx, false on any failure.
- *  `silent=true` suppresses toasts (used by the pagehide flush).  */
+ *  `silent=true` suppresses the sync-success/sync-error event so
+ *  the sidebar tick doesn't fire on the pagehide-flush teardown.
+ *  Also honours the push-suspend flag — see `pushSuspended` above. */
 export async function pushNow(silent = false) {
     if (!enabled) return false;
+    if (pushSuspended) return false;
     const token = getToken();
     if (!token) return false;
     let payload;
@@ -212,10 +235,17 @@ function installHooks() {
 }
 
 /** Enable the cloud sync loop for the currently authenticated user.
- *  Safe to call multiple times. */
+ *  Safe to call multiple times.
+ *  v2.16.23 — Pushes are SUSPENDED by default when the loop is
+ *  first enabled after login; call `resumeVesperCloudSync()` once
+ *  the pull-on-login restore dialog has been dismissed (either
+ *  action).  This prevents the "3 profiles turn into 1" bug where
+ *  incidental writes during the login → dialog window would
+ *  overwrite the server snapshot before the user could restore. */
 export function enableVesperCloudSync() {
     installHooks();
     enabled = true;
+    pushSuspended = true;
     // v2.16.18 — Diagnostic hook so support / QA can force a sync
     // from the browser console (`window.__vesperCloudSync.forceFlush()`).
     // Kept intentionally — reveals no secrets, and being able to poke
@@ -225,14 +255,23 @@ export function enableVesperCloudSync() {
             pushNow, pullOnce, fetchMeta, forceFlush,
             get enabled() { return enabled; },
             get pending() { return !!pendingTimer; },
+            get suspended() { return pushSuspended; },
         };
     } catch { /* SSR guard */ }
+}
+
+/** Resume pushes after the initial pull-on-login has been resolved.
+ *  Cancels any push that was queued while suspended (they were
+ *  no-ops on schedule anyway; this just clears the pending flag). */
+export function resumeVesperCloudSync() {
+    pushSuspended = false;
 }
 
 /** Suspend cloud sync (used on logout).  Leaves the monkey-patch in
  *  place — flipping `enabled=false` is enough to no-op every push. */
 export function disableVesperCloudSync() {
     enabled = false;
+    pushSuspended = true;
     if (pendingTimer) {
         window.clearTimeout(pendingTimer);
         pendingTimer = null;
