@@ -88,14 +88,6 @@
             android:focusable="true"
             android:contentDescription="Refresh" />
 
-        <ImageButton android:id="@+id/rail_list"
-            android:layout_width="44dp" android:layout_height="44dp"
-            android:padding="10dp"
-            android:src="@drawable/ic_nav_list"
-            android:background="@drawable/rail_icon_bg"
-            android:focusable="true"
-            android:contentDescription="List" />
-
         <ImageButton android:id="@+id/rail_library"
             android:layout_width="44dp" android:layout_height="44dp"
             android:layout_marginTop="14dp"
@@ -104,6 +96,24 @@
             android:background="@drawable/rail_icon_bg"
             android:focusable="true"
             android:contentDescription="My Library" />
+
+        <!-- v2.16.9 — Pay-per-view (VIP channels).  Sits between
+             Library and Fullscreen in the rail.  Uses a text label
+             instead of an icon so "PPV" reads unambiguously at TV
+             viewing distance — matches the "V2" wordmark at the top. -->
+        <TextView android:id="@+id/rail_ppv"
+            android:layout_width="44dp" android:layout_height="44dp"
+            android:layout_marginTop="14dp"
+            android:gravity="center"
+            android:text="PPV"
+            android:textColor="#E6EAF2"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-black"
+            android:letterSpacing="0.04"
+            android:background="@drawable/rail_icon_bg"
+            android:focusable="true"
+            android:contentDescription="Pay-per-view" />
 
         <ImageButton android:id="@+id/rail_fullscreen"
             android:layout_width="44dp" android:layout_height="44dp"
@@ -117,31 +127,13 @@
         <Space android:layout_width="0dp" android:layout_height="0dp"
             android:layout_weight="1" />
 
-        <!-- v2.16.6 — Pay-per-view (VIP channels).  Sits just above
-             the sign-out affordance at the bottom of the rail.
-             Uses a text label instead of an icon so "PPV" reads
-             unambiguously at TV viewing distance — matches the "V2"
-             wordmark at the top of the rail. -->
-        <TextView android:id="@+id/rail_ppv"
-            android:layout_width="44dp" android:layout_height="44dp"
-            android:layout_marginBottom="14dp"
-            android:gravity="center"
-            android:text="PPV"
-            android:textColor="#E6EAF2"
-            android:textSize="12sp"
-            android:textStyle="bold"
-            android:fontFamily="sans-serif-black"
-            android:letterSpacing="0.04"
-            android:background="@drawable/rail_icon_bg"
-            android:focusable="true"
-            android:contentDescription="Pay-per-view" />
-
         <ImageButton android:id="@+id/rail_signout"
             android:layout_width="44dp" android:layout_height="44dp"
             android:padding="10dp"
             android:src="@drawable/ic_nav_signout"
             android:background="@drawable/rail_icon_bg"
             android:focusable="true"
+            android:nextFocusDown="@id/rail_signout"
             android:contentDescription="Sign out" />
     </LinearLayout>
 

@@ -165,6 +165,8 @@ class PlayerActivity : AppCompatActivity() {
      *  ping-pong those two entries regardless of any channels the
      *  user visited in-between via CH±. */
     private var previousChannelId: String? = null
+    // v2.16.9 — kept for legacy references only; live SWAP BACK now
+    // reads from PreviousChannelMemory (process-scoped) instead.
     private val controlsHideHandler = Handler(Looper.getMainLooper())
     private var subtitlesEnabled: Boolean = false
     private val aspectModes = intArrayOf(
@@ -540,14 +542,12 @@ class PlayerActivity : AppCompatActivity() {
      * new one opens — no double-stream condition.
      */
     private fun tuneTo(channel: Channel, initial: Boolean = false) {
-        // v2.12 — Remember the channel we're leaving so the SWAP BACK
-        // button can flip back to it.  Strict single-slot memory:
-        // successive tunes overwrite it, and successive SWAP presses
-        // then ping-pong between just these two entries.
-        val leaving = currentChannel
-        if (leaving != null && leaving.id != channel.id) {
-            previousChannelId = leaving.id
-        }
+        // v2.16.9 — SWAP BACK memory lives in a process-scoped
+        // singleton (PreviousChannelMemory) so the ping-pong keeps
+        // working across Activity restarts.  Every tune records the
+        // channel that is now playing; the singleton internally
+        // rolls the previous entry so we always know the last two.
+        PreviousChannelMemory.rememberTunedChannel(channel.id)
         if (currentChannel?.id != channel.id) {
             consecutiveFailures = 0
             retryHandler.removeCallbacksAndMessages(null)
@@ -989,7 +989,9 @@ class PlayerActivity : AppCompatActivity() {
      *  memory with what we just left, so a second press ping-pongs
      *  us straight back — regardless of any CH± zapping in between. */
     private fun swapToPreviousChannel() {
-        val prevId = previousChannelId ?: return
+        // v2.16.9 — Read the previous channel from the process-
+        // scoped PreviousChannelMemory (survives Activity restart).
+        val prevId = PreviousChannelMemory.previousChannelId() ?: return
         val list = PlaybackQueue.channels
         val target = list.firstOrNull { it.id == prevId }
             ?: BundleHolder.current?.channels?.firstOrNull { it.id == prevId }

@@ -67,14 +67,11 @@ class EpgActivity : AppCompatActivity() {
     /** Non-null when launched in COLLECTION-MODE. */
     private var currentCollection: tv.onnowtv.livetv.data.LibraryCollection? = null
 
-    // Add the new rail library button
-    private lateinit var railLibrary: ImageButton
-
     // Rail refs
     private lateinit var railHome: ImageButton
     private lateinit var railSearch: ImageButton
     private lateinit var railRefresh: ImageButton
-    private lateinit var railList: ImageButton
+    private lateinit var railLibrary: ImageButton
     private lateinit var railFullscreen: ImageButton
     private lateinit var railPpv: android.widget.TextView
     private lateinit var railSignout: ImageButton
@@ -292,7 +289,6 @@ class EpgActivity : AppCompatActivity() {
         railHome     = findViewById(R.id.rail_home)
         railSearch   = findViewById(R.id.rail_search)
         railRefresh  = findViewById(R.id.rail_refresh)
-        railList     = findViewById(R.id.rail_list)
         railLibrary  = findViewById(R.id.rail_library)
         railFullscreen = findViewById(R.id.rail_fullscreen)
         railPpv      = findViewById(R.id.rail_ppv)
@@ -597,9 +593,6 @@ class EpgActivity : AppCompatActivity() {
         railHome.setOnClickListener { finish() }
         railSearch.setOnClickListener { openSearchOverlay() }
         railRefresh.setOnClickListener { applyCategory() }
-        railList.setOnClickListener {
-            categoriesList.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
-        }
         railLibrary.setOnClickListener {
             startActivity(android.content.Intent(this, LibraryActivity::class.java))
         }
@@ -668,6 +661,10 @@ class EpgActivity : AppCompatActivity() {
         searchOverlayResults.layoutManager = LinearLayoutManager(this)
         searchOverlayResults.adapter = searchResultsAdapter
         searchOverlayResults.itemAnimator = null
+        // v2.16.9 — Clamp D-pad UP/DOWN inside the results list so
+        // scrolling past the last hit doesn't shove focus into the
+        // dimmed EPG behind the overlay.
+        containVerticalKeyNav(searchOverlayResults)
 
         searchOverlayInput.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}

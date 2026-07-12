@@ -46,3 +46,34 @@ object PlaybackQueue {
         return list[idx]
     }
 }
+
+
+/**
+ * Process-scoped "last two channels" memory used by the SWAP BACK
+ * pill on the player toolbar.  Lives OUTSIDE PlayerActivity so the
+ * ping-pong keeps working when the user bounces back to the EPG
+ * (which destroys PlayerActivity) and re-enters the player on a
+ * fresh channel.
+ *
+ * Semantics: [rememberTunedChannel] records the channel that is now
+ * playing, shifting the previous playing channel into [previousId].
+ * Successive tunes overwrite the pair so we only ever remember the
+ * strict last two.  Consecutive tunes to the same channel are
+ * ignored so the SWAP button doesn't get "stuck".
+ */
+object PreviousChannelMemory {
+    @Volatile private var currentId: String? = null
+    @Volatile private var previousId: String? = null
+
+    fun rememberTunedChannel(id: String) {
+        if (id.isBlank()) return
+        val cur = currentId
+        if (cur != null && cur != id) {
+            previousId = cur
+        }
+        currentId = id
+    }
+
+    fun previousChannelId(): String? = previousId
+}
+

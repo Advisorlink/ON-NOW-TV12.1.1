@@ -1,4 +1,26 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.16.9 — Swap-back fix (process-scoped memory), rail cleanup (remove ic_nav_list, reorder PPV), focus containment on search results, honest answer on darts (Jul 2026).**
+>
+> 1. **SWAP BACK ping-pong now works across Activity restarts.**  Root cause: `previousChannelId` was a private field on `PlayerActivity` that got wiped every time the user backed out to the EPG and re-entered the player.  Fix: new process-scoped `PreviousChannelMemory` singleton in `PlaybackQueue.kt` that survives Activity destroy/create.  `tuneTo()` calls `rememberTunedChannel(id)` which internally rolls the previous entry.  `swapToPreviousChannel()` reads from the singleton.  Legacy `previousChannelId` field is kept only for potential external references but no longer used in the flow.
+> 2. **Icon rail cleanup + reorder.**  Removed the "three horizontal lines" `rail_list` button (it just re-focused the sidebar — redundant with pressing LEFT).  New rail order top→bottom: Home / Search / Refresh / Library / **PPV** / Fullscreen / (space) / Sign-out.  PPV moved from bottom (above sign-out) to right after Library, per user request.  Removed the `railList: ImageButton` field, its `findViewById` bind, and its click handler in `EpgActivity.kt`.  Added `nextFocusDown="@id/rail_signout"` on the sign-out button to loop-clamp focus at the bottom of the rail.
+> 3. **Focus containment on search overlay results.**  `containVerticalKeyNav()` already existed and was applied to `categoriesList`, `channelsList`, and `guideList`.  The `search_overlay_results` RecyclerView was un-guarded, so D-pad DOWN at the last search hit shoved focus into the dimmed EPG behind.  Fix: apply `containVerticalKeyNav(searchOverlayResults)`.  Bottom-of-row DOWN now stops cleanly at the last hit.
+> 4. **Darts live stats — honest verdict.**  Exhaustively probed ESPN's undocumented API for `darts/pdc`, `darts/wdc`, `darts/all`, `darts`, `sports/darts` — every path returns HTTP 400.  **ESPN does not index darts.**  Same result for snooker, boxing, badminton, table tennis.  Cannot add these via our current data source; would need a paid API or scraping (deferred).  Sports we CAN legitimately show live stats for remain: soccer, AFL, NRL, rugby union, NBA/WNBA/NCAA-M basketball, MLB, NHL, NFL, F1, MMA/UFC, cricket (5 hardcoded trophies), tennis (ATP/WTA), golf (PGA/LPGA/DP/Champions/LIV).
+>
+> **Files touched:**
+> - `android/onnowtv-livetv/.../PlaybackQueue.kt` — +`PreviousChannelMemory` singleton
+> - `android/onnowtv-livetv/.../PlayerActivity.kt` — `tuneTo` + `swapToPreviousChannel` now use singleton
+> - `android/onnowtv-livetv/.../EpgActivity.kt` — removed `railList` field/bind/handler, deduplicated `railLibrary` decl, added `containVerticalKeyNav(searchOverlayResults)`
+> - `android/onnowtv-livetv/.../res/layout/activity_epg.xml` — deleted `rail_list` `<ImageButton>`, moved `rail_ppv` between Library and Fullscreen, added `nextFocusDown="@id/rail_signout"` on sign-out
+>
+> Git diff verified clean (13 lines net delta in EpgActivity, 20 lines PlayerActivity, 31 lines PlaybackQueue, 44 lines XML).  XML validates.  `railList`/`rail_list` fully purged from the codebase.
+>
+> **🟢 v2.16.8 — Player overlay scrim gradient: top DARKER (60% alpha), bottom fully OPAQUE (100%) — no image bleed behind text (Jul 2026).**
+>
+> User request: the bottom of the player-controls scrim should be fully opaque (no video visible behind) and the top should be darker than the previous fully-transparent value.  Alpha ramp updated in `player_overlay_scrim_bg.xml`:
+> - Top: 0% → **60%** alpha (subtle image bleed instead of fully clear)
+> - Middle: 70% → **90%** alpha (ramps darker sooner)
+> - Bottom: 96% → **100%** alpha (rock-solid, brand-navy tint preserved via `#070A0D` base)
+>
 > **🟢 v2.16.7 — Zero-delay cold-start splash for Live TV / Vesper / Tunes login screens (Jul 2026).**
 >
 > User feedback: tapping the app icon feels slow — there's a noticeable ~1-2s delay before the login/first screen appears.  Root cause across all three apps:
