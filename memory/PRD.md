@@ -1,4 +1,34 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.16.26 — Live TV EPG D-pad focus: STRICT boundary isolation (Feb 2026).**
+>
+> User feedback (video): D-pad focus was still bleeding at row/column boundaries in the EPG hub — pressing RIGHT on the last sport chip jumped into the first channel listing, LEFT on the first sport chip could hop to the sidebar, UP on sport chips did unpredictable things, and reaching the top of a row could laterally jump to the icon rail. New strict contract per user's exact rules:
+>
+> - **Sport chip row (WhatsOn hub)** — LEFT/RIGHT ONLY within the row.  LEFT at "All Sport" (pos 0) HARD-STOPS (no jump to sidebar/pill).  RIGHT at "Other Sport" (last) HARD-STOPS (no jump into channel list or guide column).  UP does NOTHING.  DOWN → channels row 0 (natural companion below).
+> - **Channels & Guide rows** — TOP hard-stops (no lateral jump).  BOTTOM hard-stops (no lateral jump).  Exception: channels row-0 UP → sport chip row *only when the hub is active* (natural above-row hop, not lateral).
+> - **Categories (Channel Groups sidebar)** — UP at row-0 → WhatsOn pill (the ONLY way to reach the pill).  DOWN at last row hard-stops.  LEFT → icon rail.  RIGHT → channels.
+> - **WhatsOn pill** — UP self-loops (nothing happens).  DOWN → categories.  LEFT → rail_signout (icon rail).  RIGHT self-loops (nothing).  OK/CLICK → activates hub + focus jumps to channels row 0.
+> - **Icon rail** — UP at rail_home hard-stops.  DOWN at rail_signout hard-stops.  LEFT hard-stops on every icon.  RIGHT → sidebar (categories).
+>
+> **Implementation:**
+> - **`activity_epg.xml`** —
+>   - `whatson_pill` LinearLayout: added `nextFocusUp="@id/whatson_pill"` (self), `nextFocusDown="@id/categories_list"`, `nextFocusLeft="@id/rail_signout"`, `nextFocusRight="@id/whatson_pill"` (self).  Previously had NO nextFocus attrs so Android's default focus search jumped anywhere.
+>   - `categories_list` RecyclerView: `nextFocusUp` changed from `@id/categories_list` (self-loop) → `@id/whatson_pill` so UP-at-pos-0 escapes to the pill.
+>   - `whatson_sport_row` RecyclerView: `nextFocusLeft` changed from `@id/categories_list` → `@id/whatson_sport_row` (self-loop), so LEFT-at-pos-0 can't hop to sidebar (Kotlin swallows it, XML is belt-and-braces).
+> - **`EpgActivity.kt`** —
+>   - `containVerticalKeyNav` now takes `allowUpEscapeWhen: (() -> Boolean)?`.  `categoriesList` invoked with `allowUpEscapeWhen = { true }` so UP-at-pos-0 returns `false` (unswallowed) and XML nextFocusUp fires.
+>   - `containHorizontalKeyNav` extended with `swallowLeftAtStart: Boolean` (also added `swallowDown` for symmetry/future use).  Sport chip row invoked with `swallowUp = true, swallowLeftAtStart = true` — both boundaries HARD-STOP, only DOWN falls through to XML nextFocusDown="@id/channels_list".
+>
+> **Verification:**
+> - `python xml.etree.ElementTree` parses layout cleanly.
+> - `/tmp/kt_brace_check.py` on `EpgActivity.kt`: brace=0 paren=0 brack=0 OK.
+> - Every focus edge traced manually against user's rules (see docstrings in file).  Every rule satisfied.
+> - No Kotlin toolchain in the pod — CI build + on-box verification pending (as with every Kotlin change).
+>
+> **Files touched:**
+> - `android/onnowtv-livetv/app/src/main/res/layout/activity_epg.xml`
+> - `android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/EpgActivity.kt`
+>
+
 > **🟢 v2.16.12 — Silent cloud backup for Live TV, keyed by Xtream login (Jul 2026).**
 >
 > User feedback: "I need a backup for the Live TV — save favourites/collections to their login so it appears on any device."  Went with **auto-save-to-login approach** (Option B from ask_human):

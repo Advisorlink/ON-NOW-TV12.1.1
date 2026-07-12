@@ -547,7 +547,13 @@ class EpgActivity : AppCompatActivity() {
         // focus traversal handles that).  channelsList allows UP
         // to escape UPward when the WhatsOn sport chip row is
         // visible, so the user can hop from row 0 to the chips.
-        containVerticalKeyNav(categoriesList)
+        //
+        // v2.16.26 — categoriesList lets UP-at-pos-0 escape upward
+        // unconditionally so the sidebar's top row can hop to the
+        // WhatsOn pill (nextFocusUp="@id/whatson_pill" in XML).
+        // Per user's strict rule: "the ONLY way to get to What's On
+        // Live is by being in Channel Groups and pressing UP."
+        containVerticalKeyNav(categoriesList, allowUpEscapeWhen = { true })
         containVerticalKeyNav(channelsList, allowUpEscapeWhen = {
             ::whatsOnSportRow.isInitialized &&
                 whatsOnSportRow.visibility == View.VISIBLE
@@ -592,18 +598,26 @@ class EpgActivity : AppCompatActivity() {
 
     /** Same idea for the HORIZONTAL WhatsOn sport chip row: block
      *  D-pad RIGHT past the last chip so a fast horizontal scroll
-     *  can't throw focus into an unrelated column.  LEFT at chip 0
-     *  stays free so the user can hop back to the sidebar.
+     *  can't throw focus into an unrelated column.
      *  v2.16.25 — Also blocks UP unconditionally when
      *  [swallowUp]=true, keeping focus on the current sport chip
-     *  until the user explicitly presses DOWN. */
+     *  until the user explicitly presses DOWN.
+     *  v2.16.26 — Also blocks LEFT at position 0 when
+     *  [swallowLeftAtStart]=true, so a chip row's LEFT edge is a
+     *  HARD STOP (per user: "LEFT at All Sport should just stop,
+     *  it doesn't go on to the What's On Live"). */
     private fun containHorizontalKeyNav(
         list: RecyclerView,
         swallowUp: Boolean = false,
+        swallowDown: Boolean = false,
+        swallowLeftAtStart: Boolean = false,
     ) {
         list.setOnKeyListener { _, keyCode, event ->
             if (event.action != android.view.KeyEvent.ACTION_DOWN) return@setOnKeyListener false
             if (swallowUp && keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) {
+                return@setOnKeyListener true
+            }
+            if (swallowDown && keyCode == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
                 return@setOnKeyListener true
             }
             val focused = list.focusedChild ?: return@setOnKeyListener false
@@ -612,6 +626,7 @@ class EpgActivity : AppCompatActivity() {
             val itemCount = list.adapter?.itemCount ?: 0
             when (keyCode) {
                 android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> pos >= itemCount - 1
+                android.view.KeyEvent.KEYCODE_DPAD_LEFT -> swallowLeftAtStart && pos == 0
                 else -> false
             }
         }
@@ -991,10 +1006,16 @@ class EpgActivity : AppCompatActivity() {
         )
         whatsOnSportRow.adapter = whatsOnAdapter
         whatsOnSportRow.itemAnimator = null
-        // v2.16.25 — Contain both RIGHT (past last chip) AND UP.
-        // User: "if you click on a sport, the focus should stay on
-        // that sport tile until you push down".
-        containHorizontalKeyNav(whatsOnSportRow, swallowUp = true)
+        // v2.16.26 — STRICT horizontal isolation on the sport chip
+        // row.  User rule: LEFT/RIGHT within row only, UP does
+        // nothing, LEFT at the first chip STOPS (no jump to
+        // sidebar / WhatsOn pill), RIGHT at the last chip STOPS
+        // (no jump into channel list / guide column).
+        containHorizontalKeyNav(
+            whatsOnSportRow,
+            swallowUp = true,
+            swallowLeftAtStart = true,
+        )
 
         // Initial count — silently populates the "0" pill before
         // the user has focussed anything.  Full recompute happens

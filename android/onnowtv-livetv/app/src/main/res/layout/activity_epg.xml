@@ -547,7 +547,11 @@
                     android:paddingEnd="12dp"
                     android:background="@drawable/whatson_pill_bg"
                     android:focusable="true"
-                    android:clickable="true">
+                    android:clickable="true"
+                    android:nextFocusUp="@id/whatson_pill"
+                    android:nextFocusDown="@id/categories_list"
+                    android:nextFocusLeft="@id/rail_signout"
+                    android:nextFocusRight="@id/whatson_pill">
 
                     <View
                         android:id="@+id/whatson_pill_dot"
@@ -617,7 +621,7 @@
                     android:nestedScrollingEnabled="true"
                     android:clipToPadding="false"
                     android:overScrollMode="never"
-                    android:nextFocusUp="@id/categories_list"
+                    android:nextFocusUp="@id/whatson_pill"
                     android:nextFocusDown="@id/categories_list"
                     android:nextFocusLeft="@id/rail_signout"
                     android:nextFocusRight="@id/channels_list" />
@@ -699,7 +703,7 @@
                     android:overScrollMode="never"
                     android:nextFocusUp="@id/whatson_sport_row"
                     android:nextFocusDown="@id/channels_list"
-                    android:nextFocusLeft="@id/categories_list"
+                    android:nextFocusLeft="@id/whatson_sport_row"
                     android:nextFocusRight="@id/whatson_sport_row"
                     android:visibility="gone" />
 
