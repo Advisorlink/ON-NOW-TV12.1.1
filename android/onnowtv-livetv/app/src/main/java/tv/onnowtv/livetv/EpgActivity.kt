@@ -16,6 +16,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.doOnLayout
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -2122,13 +2123,56 @@ class EpgActivity : AppCompatActivity() {
             previewPlayerView.visibility = View.VISIBLE
             previewLiveBadge.visibility = View.VISIBLE
             previewMiniBar.visibility = View.VISIBLE
-            // Defer one frame so the TextureView is laid out + its
-            // SurfaceTexture is ready.
-            previewPlayerView.post {
+            // v2.16.16 — Defer the attach until the PlayerView has
+            // actually been laid out.  A bare `.post {}` runs before
+            // the next layout pass on some devices — the TextureView
+            // is still 0×0 with no SurfaceTexture, and the player
+            // ends up bound to a dead surface (audio plays, video
+            // stays black).  `doOnLayout` guarantees dimensions +
+            // SurfaceTexture creation before we hand it to ExoPlayer.
+            previewPlayerView.doOnLayout {
                 LivePreviewSession.attachTo(previewPlayerView)
                 LivePreviewSession.getOrCreate(this).playWhenReady = true
+                schedulePreviewRenderWatchdog()
             }
         }
+    }
+
+    /** v2.16.16 — Belt-and-braces watchdog.  After a fullscreen
+     *  round-trip the shared ExoPlayer can end up decoding frames
+     *  into a null / dead surface (audio audible, video black) —
+     *  usually because the TextureView's SurfaceTexture was recreated
+     *  in a lifecycle window we can't observe from the outside.  We
+     *  hook [Player.Listener.onRenderedFirstFrame] to know when
+     *  video is actually blitting; if 900 ms elapses without that
+     *  callback (and the player is READY + playWhenReady=true), we
+     *  force another `attachTo` — which unbinds and rebinds the
+     *  surface, invariably fixing it. */
+    private var previewWatchdogListener: androidx.media3.common.Player.Listener? = null
+    private val previewWatchdogHandler = Handler(Looper.getMainLooper())
+    private val previewWatchdogRetry = Runnable {
+        val p = LivePreviewSession.getOrCreate(this)
+        if (p.playbackState == androidx.media3.common.Player.STATE_READY &&
+            p.playWhenReady
+        ) {
+            Log.w("EpgActivity", "preview: no first frame — forcing re-attach")
+            LivePreviewSession.attachTo(previewPlayerView)
+        }
+    }
+    private fun schedulePreviewRenderWatchdog() {
+        val p = LivePreviewSession.getOrCreate(this)
+        previewWatchdogListener?.let { p.removeListener(it) }
+        previewWatchdogHandler.removeCallbacks(previewWatchdogRetry)
+        val listener = object : androidx.media3.common.Player.Listener {
+            override fun onRenderedFirstFrame() {
+                previewWatchdogHandler.removeCallbacks(previewWatchdogRetry)
+                p.removeListener(this)
+                previewWatchdogListener = null
+            }
+        }
+        previewWatchdogListener = listener
+        p.addListener(listener)
+        previewWatchdogHandler.postDelayed(previewWatchdogRetry, 900L)
     }
 
     /**

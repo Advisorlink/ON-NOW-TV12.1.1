@@ -162,14 +162,20 @@ object LivePreviewSession {
      *       was called on THAT textureView, so the player has no
      *       video output AT ALL.
      *
-     *  The fix that covers all three: explicitly clear the player's
-     *  video output FIRST (force-detach the player from whatever
-     *  surface it thinks it owns), null the view's player (force the
-     *  PlayerView side to forget anything), then re-assign.  That
-     *  guarantees `PlayerView.setPlayer` runs its full bind path —
-     *  `componentListener.setSurfaceTextureListener(textureView)`
-     *  registers, ExoPlayer's `setVideoTextureView(textureView)` is
-     *  called, and the live SurfaceTexture is bound. */
+     *  v2.16.16 — Added an explicit 4th belt-and-braces step: after
+     *  `view.player = p` (which SHOULD run PlayerView's full bind
+     *  path incl. `p.setVideoTextureView`), we directly grab the
+     *  PlayerView's underlying Texture/SurfaceView and bind it to
+     *  the player ourselves.  This closes the last remaining race
+     *  where PlayerView's internal setVideoTextureViewInternal
+     *  sees `textureView.isAvailable == false` (SurfaceTexture not
+     *  yet created), registers a SurfaceTextureListener, but the
+     *  SurfaceTexture becomes available before the listener is
+     *  actually attached — so `onSurfaceTextureAvailable` never
+     *  fires and the player sits with `videoOutput = null`, decoding
+     *  audio but showing black.  Calling
+     *  `setVideoTextureView(tv)` directly here forces ExoPlayer to
+     *  re-read the current SurfaceTexture. */
     fun attachTo(view: PlayerView) {
         val p = getOrCreate(view.context)
         // 1. Tell the player it has NO video output anymore.  This is
@@ -185,6 +191,17 @@ object LivePreviewSession {
         //    SurfaceTextureListener AND calls p.setVideoTextureView()
         //    against the live SurfaceTexture.
         view.player = p
+        // 4. v2.16.16 — Force a direct rebind of the underlying
+        //    video surface, in case PlayerView's setPlayer path
+        //    lost the SurfaceTexture race.  If the surface was
+        //    already bound correctly this is an internal no-op
+        //    inside ExoPlayerImpl (`if (this.textureView ==
+        //    textureView) return;`), so it's safe to spam.
+        when (val surface = view.videoSurfaceView) {
+            is android.view.TextureView -> p.setVideoTextureView(surface)
+            is android.view.SurfaceView -> p.setVideoSurfaceView(surface)
+            else -> { /* no surface exposed — nothing else to do */ }
+        }
     }
 
     /** Detach [view] from the shared player WITHOUT releasing the

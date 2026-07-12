@@ -9921,3 +9921,62 @@ design."
   all 4 `@+id` referenced by ActionSheetDialog.kt exist.
 - Icon glyphs (↺, ✕) match the palette already used by
   LibraryActivity / EpgActivity long-press menus.
+
+## v2.16.16 — Fullscreen → preview surface race (Feb 2026)
+
+User: "When I go fullscreen into a program and back out, sometimes
+the top video box is black but I can still hear the sound.  Any
+time I push back, the top-left video needs to be showing."
+
+### Root cause
+Two independent races between the ExoPlayer video output and the
+TextureView SurfaceTexture on the return-from-fullscreen path:
+
+1. **`.post {}` fires before layout.**  `EpgActivity.onResume`
+   was scheduling `attachTo(previewPlayerView)` with a bare
+   `previewPlayerView.post { … }`, which runs at the end of the
+   current message queue — often BEFORE the layout pass.  On
+   devices where the TextureView SurfaceTexture wasn't yet
+   recreated, PlayerView's internal `setPlayer` path registered
+   its SurfaceTextureListener but the SurfaceTexture had already
+   become available in the (very short) gap, so
+   `onSurfaceTextureAvailable` never fired and ExoPlayer's video
+   output stayed null.  Audio decodes normally; video is black.
+2. **PlayerView.setPlayer race with recreated SurfaceTexture.**
+   Even when layout does complete, PlayerView's internal
+   `setVideoTextureViewInternal` can lose the race when the
+   SurfaceTexture is being torn down + recreated in the same
+   frame.
+
+### Fixes
+1. `EpgActivity.onResume`: switched `previewPlayerView.post { … }`
+   → `previewPlayerView.doOnLayout { … }` (androidx.core-ktx).
+   Guarantees the TextureView has real dimensions + a live
+   SurfaceTexture before we hand it to ExoPlayer.
+2. `LivePreviewSession.attachTo`: added an explicit 4th step —
+   after `view.player = p`, we grab `view.videoSurfaceView` and
+   directly call `p.setVideoTextureView(tv)` /
+   `p.setVideoSurfaceView(sv)` on the underlying view.  Redundant
+   if PlayerView bound correctly (ExoPlayer no-ops when the
+   textureView is already the current output), but bulletproofs
+   against the internal race.
+3. New `schedulePreviewRenderWatchdog()` in `EpgActivity`.  After
+   attach we install a temporary `Player.Listener` that clears a
+   900 ms retry callback on `onRenderedFirstFrame`.  If the first
+   frame doesn't render within that window and the player is
+   `STATE_READY + playWhenReady=true`, we force another
+   `attachTo` — invariably kicks the surface back into life.
+   Any prior watchdog listener / retry is cancelled first so
+   rapid back-outs don't accumulate.
+
+### Verification
+- Brace/paren balance clean on LivePreviewSession.kt,
+  EpgActivity.kt, PlayerActivity.kt (0,0,0).
+- Media3 1.4.1 — `PlayerView.getVideoSurfaceView(): View?` and
+  `Player.setVideoTextureView(TextureView)` /
+  `setVideoSurfaceView(SurfaceView)` are stable public API on
+  this version.
+- androidx.core:core-ktx:1.13.1 is already a dep, so
+  `View.doOnLayout` resolves.
+- No stale FQ refs; no other callers of `attachTo` need changes
+  (fix lives inside the method).
