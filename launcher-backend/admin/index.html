@@ -1178,17 +1178,29 @@
         let pollTimer     = null;
         let inFlight      = false;
 
-        /* Fetch helpers.  Absolute paths so they work whether the
-           admin panel is served direct on port 8002 OR proxied
-           through /api/launcher-admin/ on the Vesper backend. */
+        /* Fetch helpers.  URLs are RELATIVE to the current admin
+           page so they work in both deployments:
+             • Direct on launcher-backend (`/admin/` locally,
+               `/launcher/admin/` on the VPS behind nginx) →
+               `../api/admin/…` resolves to
+               `/launcher/api/admin/…` — which nginx forwards to
+               the launcher-backend on :8002.
+             • Reverse-proxied via the Vesper backend
+               (`/api/launcher-admin/admin/`) → `../api/admin/…`
+               resolves to `/api/launcher-admin/api/admin/…` —
+               which the Vesper backend forwards to the same
+               launcher-backend endpoint.
+           Both paths land at `/api/admin/presence/active` inside
+           the launcher-backend, which then proxies to Vesper's
+           `/api/presence/admin/active`. */
         async function fetchActive() {
-            const r = await fetch('/api/admin/presence/active', { credentials: 'include' });
+            const r = await fetch('../api/admin/presence/active', { credentials: 'include' });
             if (!r.ok) throw new Error('HTTP ' + r.status);
             return await r.json();
         }
         async function fetchHistory(username) {
             const r = await fetch(
-                '/api/admin/presence/user/' + encodeURIComponent(username) + '/history?days=7',
+                '../api/admin/presence/user/' + encodeURIComponent(username) + '/history?days=7',
                 { credentials: 'include' }
             );
             if (!r.ok) throw new Error('HTTP ' + r.status);
