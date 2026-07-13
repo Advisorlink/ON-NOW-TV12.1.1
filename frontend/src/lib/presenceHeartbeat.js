@@ -15,10 +15,15 @@
  * WebView shells, so `_appFromLocation()` sniffs the route and
  * tags heartbeats correctly for each surface.
  */
-import { getToken } from '@/lib/auth';
+import { getToken, getAccount } from '@/lib/auth';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 const HEARTBEAT_INTERVAL_MS = 30_000;
+// Must match PRESENCE_INGEST_KEY on the backend.  Same deterministic
+// default so brand-new deployments work without env config.  Used
+// as a fallback when the user is signed in via a legacy flow that
+// never issued a JWT — we still want the admin to see their row.
+const PRESENCE_INGEST_KEY = 'onnow-presence-ingest-3f9c2a71b8de405e9047ac1d6f8b3e5c';
 
 /** Local UUID; we don't need cryptographic strength here. */
 function _uuid() {
@@ -55,15 +60,26 @@ let _current = null;   // { sessionId, timer, payload }
 
 async function _postHeartbeat(payload) {
     const token = getToken();
-    if (!token) return; // Anonymous users can't be traced; keep silent.
+    const account = getAccount();
+    const username = account && account.username;
+    if (!token && !username) return; // Truly anonymous — nothing to report.
     try {
+        const headers = { 'Content-Type': 'application/json' };
+        let body = payload;
+        if (token) {
+            headers.Authorization = `Bearer ${token}`;
+        } else {
+            // Fallback for users whose current session doesn't carry
+            // a JWT (legacy login, restored session, etc.).  Tag the
+            // payload with `client_key` so the ingest-key path can
+            // still identify who's watching.
+            headers['X-Presence-Key'] = PRESENCE_INGEST_KEY;
+            body = { ...payload, client_key: username };
+        }
         await fetch(`${API}/api/presence/heartbeat`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify(payload),
+            headers,
+            body: JSON.stringify(body),
             keepalive: true,
         });
     } catch (_err) {
@@ -74,14 +90,16 @@ async function _postHeartbeat(payload) {
 
 async function _postEnd(sessionId, app) {
     const token = getToken();
-    if (!token) return;
+    const account = getAccount();
+    const username = account && account.username;
+    if (!token && !username) return;
     try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers.Authorization = `Bearer ${token}`;
+        else       headers['X-Presence-Key'] = PRESENCE_INGEST_KEY;
         await fetch(`${API}/api/presence/end`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
-            },
+            headers,
             body: JSON.stringify({ session_id: sessionId, app }),
             keepalive: true,
         });

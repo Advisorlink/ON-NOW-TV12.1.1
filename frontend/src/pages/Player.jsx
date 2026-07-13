@@ -112,22 +112,36 @@ export default function Player() {
 
     // v2.16.29 — Announce presence to the launcher-admin "Live" tab
     // while this player is mounted.  Send an initial heartbeat as
-    // soon as we know the title, refresh every 30 s, and explicitly
-    // end the session on unmount so the admin's live list drops
-    // the row the moment the user backs out of playback.
+    // soon as the component mounts (even with the default "Now
+    // Playing" placeholder title) and end on unmount so the row
+    // drops off the live table the moment the user backs out.
+    // v2.16.30 — Uses whatever we have (falls back to url basename)
+    // and no longer skips when title is still "Now Playing" — the
+    // WebView was silently no-op'ing on real-world launches where
+    // the movie loaded via a hash-only URL without &title.
     useEffect(() => {
-        if (!title || title === 'Now Playing') return undefined;
+        if (!url) return undefined;
         const kind = type === 'series' ? 'series'
             : type === 'channel'       ? 'fta_channel'
             : 'movie';
+        // Fall back to the URL's last path segment if no title param
+        // was passed — better a filename than a blank row.
+        let bestTitle = title;
+        if (!bestTitle || bestTitle === 'Now Playing') {
+            try {
+                const parsed = new URL(url);
+                const seg = decodeURIComponent(parsed.pathname.split('/').filter(Boolean).pop() || '');
+                bestTitle = seg || 'Watching';
+            } catch { bestTitle = 'Watching'; }
+        }
         startPresence({
             contentKind:  kind,
-            contentTitle: title,
+            contentTitle: bestTitle,
             contentId:    imdbId || '',
             contentMeta:  partyCode ? { party: partyCode } : {},
         });
         return () => stopPresence();
-    }, [title, type, imdbId, partyCode]);
+    }, [url, title, type, imdbId, partyCode]);
 
     const videoRef = useRef(null);
     const hlsRef = useRef(null);
