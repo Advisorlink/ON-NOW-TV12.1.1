@@ -305,6 +305,9 @@ class PlayerActivity : AppCompatActivity() {
         }
         startProgressTicker()
 
+        // v2.16.29 — Announce presence to the launcher-admin Live tab.
+        currentChannel?.let { tv.onnowtv.livetv.data.PresenceReporter.start(this, it) }
+
         // Attach the reminder watcher so a programme that's about
         // to start can pop a banner at the top-right of the player.
         // OK on the banner switches channel via PlaybackQueue.
@@ -553,6 +556,9 @@ class PlayerActivity : AppCompatActivity() {
             retryHandler.removeCallbacksAndMessages(null)
         }
         currentChannel = channel
+        // v2.16.29 — Bump the launcher-admin Live tab so it shows
+        // the new channel name the moment the user zaps.
+        tv.onnowtv.livetv.data.PresenceReporter.start(this, channel)
         val p = player ?: return
         if (!initial) status.text = "Tuning…"
         // Hide ExoPlayer's transport controls AND the info card the
@@ -1383,6 +1389,9 @@ class PlayerActivity : AppCompatActivity() {
         controlsHideHandler.removeCallbacksAndMessages(null)
         clockHandler.removeCallbacksAndMessages(null)
         ReminderWatcher.detach(this)
+        // v2.16.29 — Drop the row from the launcher-admin Live tab
+        // the moment the user leaves the player.
+        tv.onnowtv.livetv.data.PresenceReporter.stop()
         if (usingSharedPlayer) {
             // Detach the surface — DO NOT release the underlying
             // player.  EpgActivity's onResume will re-adopt it.

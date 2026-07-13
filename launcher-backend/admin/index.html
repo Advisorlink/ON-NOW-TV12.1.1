@@ -12,6 +12,151 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=DM+Serif+Display&family=Inter:wght@400;700&family=Lobster&family=Merriweather:wght@400;700&family=Montserrat:wght@400;600;700&family=Nunito:wght@400;700&family=Oswald:wght@400;700&family=Pacifico&family=Playfair+Display:wght@400;700&family=Poppins:wght@400;700&family=Roboto:wght@400;700&family=Russo+One&display=swap" rel="stylesheet">
+<style>
+    /* v2.16.29 — "Live · Who's watching right now" tab.
+       Deliberately inline so the styles land with the tab markup
+       and can't drift out of sync with static/style.css.  All
+       colours pull from the existing --accent / --bg-* palette. */
+    .live-toolbar {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 16px; flex-wrap: wrap; margin: 20px 0 18px;
+    }
+    .live-filters { display: flex; gap: 8px; flex-wrap: wrap; }
+    .live-filter {
+        appearance: none; -webkit-appearance: none;
+        background: var(--bg-row); border: 1px solid rgba(255,255,255,0.08);
+        color: #c7d1e0; font: 600 12px/1 Inter, system-ui, sans-serif;
+        letter-spacing: 0.06em; text-transform: uppercase;
+        padding: 8px 14px; border-radius: 999px; cursor: pointer;
+        transition: color .15s, background .15s, border-color .15s;
+    }
+    .live-filter:hover { color: var(--accent); border-color: var(--accent); }
+    .live-filter.active {
+        color: var(--accent); border-color: var(--accent);
+        background: var(--accent-soft);
+    }
+    .live-status { display: flex; align-items: center; gap: 12px; }
+    .live-count-badge {
+        display: inline-flex; align-items: center; gap: 6px;
+        background: var(--accent-soft); color: var(--accent);
+        padding: 6px 12px; border-radius: 999px;
+        font: 700 11px/1 Inter, sans-serif; letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+    .live-count-badge::before {
+        content: ""; width: 8px; height: 8px; border-radius: 50%;
+        background: #2EE7A7; box-shadow: 0 0 8px #2EE7A7;
+        animation: livePulse 1.4s ease-in-out infinite;
+    }
+    @keyframes livePulse {
+        0%,100% { opacity: 0.55; transform: scale(0.85); }
+        50%     { opacity: 1;    transform: scale(1.15); }
+    }
+    .live-updated { font: 400 12px/1 Inter, sans-serif; color: #7f8ea3; }
+
+    .live-table-wrap {
+        background: var(--bg-card); border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.05); overflow: hidden;
+    }
+    .live-table { width: 100%; border-collapse: collapse; }
+    .live-table thead th {
+        text-align: left; font: 700 10px/1 Inter, sans-serif;
+        letter-spacing: 0.14em; text-transform: uppercase; color: #7f8ea3;
+        padding: 14px 18px; background: var(--bg-mid);
+        border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .live-table tbody tr {
+        cursor: pointer; transition: background .12s;
+        border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+    .live-table tbody tr:last-child { border-bottom: none; }
+    .live-table tbody tr:hover { background: var(--bg-row-hover); }
+    .live-table td {
+        padding: 14px 18px; font: 400 13px/1.35 Inter, sans-serif;
+        color: #e0e6f0; vertical-align: middle;
+    }
+    .live-empty {
+        padding: 60px 20px !important; text-align: center;
+        color: #6c7891; font-size: 14px;
+    }
+    .live-app-badge {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 4px 10px; border-radius: 6px;
+        font: 700 10px/1 Inter, sans-serif;
+        letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    .live-app-badge[data-app="movies"] { background: #2A1638; color: #FFB4E5; }
+    .live-app-badge[data-app="livetv"] { background: #38180F; color: #FFB08A; }
+    .live-app-badge[data-app="tunes"]  { background: #10321F; color: #7BE6B0; }
+    .live-app-badge[data-app="kids"]   { background: #24280C; color: #F0E27C; }
+    .live-app-badge[data-app="fta"]    { background: #12233D; color: #7EC8FF; }
+    .live-username { font-weight: 600; color: #F4F7FB; }
+    .live-what {
+        display: flex; flex-direction: column; gap: 2px;
+    }
+    .live-what-title { color: #F4F7FB; font-weight: 500; }
+    .live-what-kind {
+        color: #7f8ea3; font-size: 11px;
+        text-transform: uppercase; letter-spacing: 0.08em;
+    }
+    .live-duration { font-variant-numeric: tabular-nums; color: #AEE4FF; font-weight: 600; }
+    .live-relative { color: #7f8ea3; font-size: 12px; }
+    .live-device { color: #7f8ea3; font-size: 12px; font-style: italic; }
+
+    /* History modal */
+    .live-modal-overlay {
+        position: fixed; inset: 0; background: rgba(4,6,11,0.78);
+        display: flex; align-items: center; justify-content: center;
+        z-index: 200; backdrop-filter: blur(6px);
+    }
+    .live-modal-overlay[hidden] { display: none; }
+    .live-modal {
+        background: var(--bg-card); border: 1px solid rgba(43,182,255,0.28);
+        border-radius: 14px; padding: 28px; width: min(720px, 92vw);
+        max-height: 82vh; display: flex; flex-direction: column;
+        box-shadow: 0 24px 80px rgba(0,0,0,0.6), 0 0 40px rgba(43,182,255,0.08);
+        position: relative;
+    }
+    .live-modal-close {
+        position: absolute; top: 14px; right: 18px;
+        background: transparent; border: none; color: #7f8ea3;
+        font-size: 28px; line-height: 1; cursor: pointer;
+    }
+    .live-modal-close:hover { color: var(--accent); }
+    .live-modal-eyebrow {
+        color: var(--accent); font: 700 10px/1 Inter, sans-serif;
+        letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 6px;
+    }
+    .live-modal h3 { margin: 0; color: #F4F7FB; font-size: 22px; }
+    .live-modal-summary { color: #7f8ea3; font-size: 13px; margin-top: 6px; }
+    .live-modal-body {
+        margin-top: 22px; overflow-y: auto; padding-right: 6px;
+    }
+    .live-modal-loading, .live-modal-empty {
+        padding: 40px 8px; text-align: center; color: #6c7891;
+    }
+    .live-history-day {
+        margin-bottom: 20px;
+    }
+    .live-history-day-head {
+        font: 700 11px/1 Inter, sans-serif; letter-spacing: 0.12em;
+        color: #7f8ea3; text-transform: uppercase;
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+        padding-bottom: 6px; margin-bottom: 8px;
+    }
+    .live-history-row {
+        display: grid; grid-template-columns: 74px 1fr auto;
+        gap: 12px; padding: 10px 0; align-items: center;
+        border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+    .live-history-row:last-child { border-bottom: none; }
+    .live-history-time {
+        font-variant-numeric: tabular-nums; color: #AEE4FF;
+        font: 600 12px/1 Inter, sans-serif;
+    }
+    .live-history-title { color: #E0E6F0; font-size: 13px; }
+    .live-history-dur   { color: #7f8ea3; font: 600 12px/1 Inter, sans-serif; }
+</style>
 </head>
 <body>
 
@@ -46,6 +191,7 @@
             <button class="tab"        data-tab="v2ai">V2 AI</button>
             <button class="tab"        data-tab="qrvideos">QR Videos</button>
             <button class="tab"        data-tab="notify">Notify</button>
+            <button class="tab"        data-tab="live" data-testid="admin-tab-live">Live</button>
             <button class="tab"        data-tab="vesper">Vesper Logins</button>
             <button class="tab"        data-tab="backup">Backup</button>
             <a
@@ -819,6 +965,64 @@
     </section>
 
     <!-- VESPER LOGINS TAB -->
+    <!-- LIVE PRESENCE TAB (v2.16.29) -->
+    <section id="tab-live" class="tab-panel">
+        <div class="panel-head">
+            <h2>Live · Who's watching right now</h2>
+            <p>Every user who's currently streaming something across Movies, Live TV, Music, Kids and FTA.  Click any row to see that user's last 7 days of activity.  Auto-refreshes every 10 seconds.</p>
+        </div>
+
+        <div class="live-toolbar">
+            <div class="live-filters" role="tablist" aria-label="Filter by app">
+                <button type="button" class="live-filter active" data-app="all"    data-testid="live-filter-all">All</button>
+                <button type="button" class="live-filter"        data-app="movies" data-testid="live-filter-movies">Movies</button>
+                <button type="button" class="live-filter"        data-app="livetv" data-testid="live-filter-livetv">Live TV</button>
+                <button type="button" class="live-filter"        data-app="tunes"  data-testid="live-filter-tunes">Music</button>
+                <button type="button" class="live-filter"        data-app="kids"   data-testid="live-filter-kids">Kids</button>
+                <button type="button" class="live-filter"        data-app="fta"    data-testid="live-filter-fta">FTA</button>
+            </div>
+            <div class="live-status">
+                <span id="liveCountBadge" class="live-count-badge" data-testid="live-count">0 online</span>
+                <span id="liveUpdatedAt"  class="live-updated"    data-testid="live-updated"></span>
+                <button id="liveRefreshBtn" type="button" class="ghost" data-testid="live-refresh">Refresh</button>
+            </div>
+        </div>
+
+        <div id="liveTableWrap" class="live-table-wrap">
+            <table class="live-table" data-testid="live-table">
+                <thead>
+                    <tr>
+                        <th style="width:110px;">App</th>
+                        <th style="width:180px;">User</th>
+                        <th>Watching</th>
+                        <th style="width:120px;">Duration</th>
+                        <th style="width:150px;">Started</th>
+                        <th style="width:150px;">Device</th>
+                    </tr>
+                </thead>
+                <tbody id="liveTbody" data-testid="live-tbody">
+                    <tr><td colspan="6" class="live-empty">Loading&hellip;</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Live history modal (per-user 7-day drilldown) -->
+    <div id="liveHistoryOverlay" class="live-modal-overlay" hidden data-testid="live-history-modal">
+        <div class="live-modal">
+            <button class="live-modal-close" id="liveHistoryClose" data-testid="live-history-close" aria-label="Close">&times;</button>
+            <div class="live-modal-head">
+                <div class="live-modal-eyebrow">Last 7 days</div>
+                <h3 id="liveHistoryUser">&nbsp;</h3>
+                <div id="liveHistorySummary" class="live-modal-summary">&nbsp;</div>
+            </div>
+            <div id="liveHistoryBody" class="live-modal-body">
+                <div class="live-modal-loading">Loading&hellip;</div>
+            </div>
+        </div>
+    </div>
+
+
     <section id="tab-vesper" class="tab-panel">
         <div class="panel-head">
             <h2>Vesper Logins</h2>
@@ -933,5 +1137,250 @@
 <!-- v2.10.49a — Cache-bust the JS so the bug-fixed `_abs()` (and the
      Vesper Logins tab) load even if the browser cached an old copy. -->
 <script src="static/app.js?v=2.10.62"></script>
+<script>
+    /* v2.16.29 — "Live" tab controller.
+       Polls /api/admin/presence/active every 10s.  Renders one row
+       per active session.  Clicking a row opens a 7-day drilldown. */
+    (function () {
+        const APP_LABELS = {
+            movies: 'Movies',
+            livetv: 'Live TV',
+            tunes:  'Music',
+            kids:   'Kids',
+            fta:    'FTA',
+        };
+        const KIND_LABELS = {
+            movie:         'Movie',
+            series:        'Series',
+            live_channel:  'Live channel',
+            fta_channel:   'FTA channel',
+            music_track:   'Music track',
+            kids_show:     'Kids show',
+        };
+
+        const $  = (sel, root) => (root || document).querySelector(sel);
+        const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
+
+        const tbody       = $('#liveTbody');
+        const countBadge  = $('#liveCountBadge');
+        const updatedAt   = $('#liveUpdatedAt');
+        const refreshBtn  = $('#liveRefreshBtn');
+        const filterBtns  = $$('.live-filter');
+        const modal       = $('#liveHistoryOverlay');
+        const modalUser   = $('#liveHistoryUser');
+        const modalSum    = $('#liveHistorySummary');
+        const modalBody   = $('#liveHistoryBody');
+        const modalClose  = $('#liveHistoryClose');
+        const liveTab     = document.querySelector('[data-tab="live"]');
+
+        let activeFilter  = 'all';
+        let latest        = [];
+        let pollTimer     = null;
+        let inFlight      = false;
+
+        /* Fetch helpers.  Absolute paths so they work whether the
+           admin panel is served direct on port 8002 OR proxied
+           through /api/launcher-admin/ on the Vesper backend. */
+        async function fetchActive() {
+            const r = await fetch('/api/admin/presence/active', { credentials: 'include' });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return await r.json();
+        }
+        async function fetchHistory(username) {
+            const r = await fetch(
+                '/api/admin/presence/user/' + encodeURIComponent(username) + '/history?days=7',
+                { credentials: 'include' }
+            );
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return await r.json();
+        }
+
+        /* Duration formatter — outputs "1h 23m" / "12m 05s" / "42s". */
+        function fmtDuration(secs) {
+            secs = Math.max(0, Math.floor(secs || 0));
+            const h = Math.floor(secs / 3600);
+            const m = Math.floor((secs % 3600) / 60);
+            const s = secs % 60;
+            if (h) return h + 'h ' + String(m).padStart(2, '0') + 'm';
+            if (m) return m + 'm ' + String(s).padStart(2, '0') + 's';
+            return s + 's';
+        }
+
+        /* Relative-time formatter — "3s ago", "12m ago", "1h ago". */
+        function fmtRelative(isoStr) {
+            if (!isoStr) return '';
+            const then = new Date(isoStr).getTime();
+            if (!then) return '';
+            const secs = Math.max(0, Math.floor((Date.now() - then) / 1000));
+            if (secs < 60)      return secs + 's ago';
+            if (secs < 3600)    return Math.floor(secs / 60) + 'm ago';
+            if (secs < 86400)   return Math.floor(secs / 3600) + 'h ago';
+            return Math.floor(secs / 86400) + 'd ago';
+        }
+
+        function fmtClock(isoStr) {
+            if (!isoStr) return '';
+            const d = new Date(isoStr);
+            if (isNaN(d)) return '';
+            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+        function fmtDay(isoStr) {
+            if (!isoStr) return '';
+            const d = new Date(isoStr);
+            if (isNaN(d)) return '';
+            return d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+        }
+
+        function esc(s) {
+            return String(s == null ? '' : s)
+                .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+        }
+
+        /* Render the live-now table for the current filter. */
+        function renderTable() {
+            const rows = activeFilter === 'all'
+                ? latest
+                : latest.filter(s => s.app === activeFilter);
+            countBadge.textContent = rows.length + ' online';
+            if (!rows.length) {
+                tbody.innerHTML =
+                    '<tr><td colspan="6" class="live-empty">Nobody is watching anything on ' +
+                    (activeFilter === 'all' ? 'any app' : esc(APP_LABELS[activeFilter] || activeFilter)) +
+                    ' right now.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = rows.map(s => {
+                const appLabel = APP_LABELS[s.app] || s.app || '?';
+                const kind     = KIND_LABELS[s.content_kind] || s.content_kind || '';
+                return '<tr data-username="' + esc(s.username) + '" data-testid="live-row-' + esc(s.username) + '">' +
+                    '<td><span class="live-app-badge" data-app="' + esc(s.app) + '">' + esc(appLabel) + '</span></td>' +
+                    '<td><span class="live-username">' + esc(s.username || '(unknown)') + '</span></td>' +
+                    '<td><div class="live-what"><span class="live-what-title">' + esc(s.content_title || '&mdash;') + '</span>' +
+                    (kind ? '<span class="live-what-kind">' + esc(kind) + '</span>' : '') +
+                    '</div></td>' +
+                    '<td><span class="live-duration">' + esc(fmtDuration(s.duration_secs)) + '</span></td>' +
+                    '<td><span class="live-relative">' + esc(fmtRelative(s.started_at)) + '</span></td>' +
+                    '<td><span class="live-device">' + esc(s.device_hint || '') + '</span></td>' +
+                    '</tr>';
+            }).join('');
+        }
+
+        async function poll() {
+            if (inFlight) return;
+            inFlight = true;
+            try {
+                const data = await fetchActive();
+                latest = Array.isArray(data.sessions) ? data.sessions : [];
+                renderTable();
+                updatedAt.textContent = 'Updated ' + new Date().toLocaleTimeString();
+            } catch (err) {
+                updatedAt.textContent = 'Update failed · retrying';
+                tbody.innerHTML =
+                    '<tr><td colspan="6" class="live-empty">Failed to load presence: ' +
+                    esc(err.message || err) + '</td></tr>';
+            } finally {
+                inFlight = false;
+            }
+        }
+
+        function startPolling() {
+            stopPolling();
+            poll();
+            pollTimer = setInterval(poll, 10000);
+        }
+        function stopPolling() {
+            if (pollTimer) clearInterval(pollTimer);
+            pollTimer = null;
+        }
+
+        /* History modal */
+        function groupSessionsByDay(sessions) {
+            const groups = {};
+            (sessions || []).forEach(s => {
+                if (!s.started_at) return;
+                const day = fmtDay(s.started_at) || '(unknown day)';
+                (groups[day] = groups[day] || []).push(s);
+            });
+            return groups;
+        }
+
+        function renderHistoryModal(data) {
+            const sessions = Array.isArray(data.sessions) ? data.sessions : [];
+            const total = sessions.reduce((sum, s) => sum + (s.duration_secs || 0), 0);
+            modalSum.textContent =
+                sessions.length + ' session' + (sessions.length === 1 ? '' : 's') +
+                ' · ' + fmtDuration(total) + ' watched';
+            if (!sessions.length) {
+                modalBody.innerHTML = '<div class="live-modal-empty">No sessions in the last 7 days.</div>';
+                return;
+            }
+            const groups = groupSessionsByDay(sessions);
+            const days = Object.keys(groups);
+            modalBody.innerHTML = days.map(day => {
+                const rows = groups[day].map(s => {
+                    const appLabel = APP_LABELS[s.app] || s.app || '?';
+                    return '<div class="live-history-row">' +
+                        '<span class="live-history-time">' + esc(fmtClock(s.started_at)) + '</span>' +
+                        '<span class="live-history-title">' +
+                        '<span class="live-app-badge" data-app="' + esc(s.app) + '" style="margin-right:8px;">' + esc(appLabel) + '</span>' +
+                        esc(s.content_title || '&mdash;') +
+                        '</span>' +
+                        '<span class="live-history-dur">' + esc(fmtDuration(s.duration_secs)) + '</span>' +
+                        '</div>';
+                }).join('');
+                return '<div class="live-history-day"><div class="live-history-day-head">' + esc(day) + '</div>' + rows + '</div>';
+            }).join('');
+        }
+
+        async function openHistory(username) {
+            modalUser.textContent = username;
+            modalSum.textContent  = '';
+            modalBody.innerHTML   = '<div class="live-modal-loading">Loading&hellip;</div>';
+            modal.hidden = false;
+            try {
+                const data = await fetchHistory(username);
+                renderHistoryModal(data);
+            } catch (err) {
+                modalBody.innerHTML =
+                    '<div class="live-modal-empty">Failed to load history: ' +
+                    esc(err.message || err) + '</div>';
+            }
+        }
+        function closeHistory() { modal.hidden = true; }
+
+        /* Wire up interactions. */
+        filterBtns.forEach(btn => btn.addEventListener('click', () => {
+            filterBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            activeFilter = btn.getAttribute('data-app') || 'all';
+            renderTable();
+        }));
+        tbody.addEventListener('click', ev => {
+            const row = ev.target.closest('tr[data-username]');
+            if (!row) return;
+            openHistory(row.getAttribute('data-username'));
+        });
+        modalClose.addEventListener('click', closeHistory);
+        modal.addEventListener('click', ev => { if (ev.target === modal) closeHistory(); });
+        document.addEventListener('keydown', ev => {
+            if (ev.key === 'Escape' && !modal.hidden) closeHistory();
+        });
+        refreshBtn.addEventListener('click', () => poll());
+
+        /* Start / stop polling as the Live tab shows / hides.  The
+           tab switcher in app.js just toggles `.active` on the tab
+           button and the panel; we react to clicks on the Live tab
+           and to any tab click that takes us away. */
+        document.addEventListener('click', ev => {
+            const t = ev.target.closest('.tab[data-tab]');
+            if (!t) return;
+            if (t.getAttribute('data-tab') === 'live') startPolling();
+            else stopPolling();
+        });
+        /* If the Live tab is preselected (e.g. deep link), start now. */
+        if (liveTab && liveTab.classList.contains('active')) startPolling();
+    })();
+</script>
 </body>
 </html>

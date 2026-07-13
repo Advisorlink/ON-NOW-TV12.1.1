@@ -23,6 +23,7 @@ import PartyStartingScreen from '@/components/PartyStartingScreen';
 import PartyHostControls from '@/components/PartyHostControls';
 import PlayerOverlay from '@/components/PlayerOverlay';
 import StreamPickerModal from '@/components/StreamPickerModal';
+import { startPresence, stopPresence } from '@/lib/presenceHeartbeat';
 import { Vesper } from '@/lib/api';
 import Host from '@/lib/host';
 import { API } from '@/lib/api';
@@ -108,6 +109,25 @@ export default function Player() {
      * navigation; only for hand-testing. */
     const showDockForTesting = params.get('test-dock') === '1';
     const partyStartPositionMs = parseInt(params.get('position_ms') || '0', 10) || 0;
+
+    // v2.16.29 — Announce presence to the launcher-admin "Live" tab
+    // while this player is mounted.  Send an initial heartbeat as
+    // soon as we know the title, refresh every 30 s, and explicitly
+    // end the session on unmount so the admin's live list drops
+    // the row the moment the user backs out of playback.
+    useEffect(() => {
+        if (!title || title === 'Now Playing') return undefined;
+        const kind = type === 'series' ? 'series'
+            : type === 'channel'       ? 'fta_channel'
+            : 'movie';
+        startPresence({
+            contentKind:  kind,
+            contentTitle: title,
+            contentId:    imdbId || '',
+            contentMeta:  partyCode ? { party: partyCode } : {},
+        });
+        return () => stopPresence();
+    }, [title, type, imdbId, partyCode]);
 
     const videoRef = useRef(null);
     const hlsRef = useRef(null);

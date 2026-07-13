@@ -1,4 +1,68 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.16.29 — Live presence analytics for the launcher admin (Feb 2026).**
+>
+> New **"Live" tab** in the launcher admin panel showing every user currently watching something across ALL five apps (Movies, Live TV, Music, Kids, FTA).  Auto-refreshes every 10 s.  Click any row for that user's 7-day session history.
+>
+> ### Backend  (`/app/backend/presence.py`)
+> - Mongo collection `presence_sessions` with a 7-day TTL index on `last_heartbeat_at`, plus a `(app, last_heartbeat_at)` and `(username, started_at)` compound index for the admin queries.
+> - `POST /api/presence/heartbeat` — idempotent upsert per `(session_id, app)`.  Two auth flavours:
+>   - **Vesper JWT** (`Authorization: Bearer …`) → username + account_id pulled from the token.  Used by Vesper React (Movies + FTA inside Vesper), and by the Kids + Tunes Android WebView shells because they run the same React bundle.
+>   - **X-Presence-Key** + `client_key` in body — shared-secret ingest for native clients that don't have a Vesper JWT (Live TV, FTA-native).  `PRESENCE_INGEST_KEY` env var; deterministic default so it works out-of-the-box in preview.
+> - `POST /api/presence/end` — explicit end on unmount / player exit.
+> - `GET /api/presence/admin/active` (X-Admin-Key) — last-heartbeat within the 90 s active window.
+> - `GET /api/presence/admin/user/{username}/history?days=7` (X-Admin-Key) — clamped 1..30 days.
+> - Wired into `server.py` after `configure_vesper_sync` via `include_router(presence_router)` + `configure_presence(db)`.
+>
+> ### Launcher-backend proxy  (`/app/launcher-backend/main.py`)
+> - Two new admin endpoints that transparently forward to the Vesper backend via the existing `_vesper_proxy` helper (which attaches the shared `X-Admin-Key`):
+>   - `GET /api/admin/presence/active`
+>   - `GET /api/admin/presence/user/{username}/history?days=7`
+> - Called by the admin panel JS as `/api/admin/presence/…` which the reverse proxy rewrites through the launcher-admin namespace.
+>
+> ### Admin UI  (`/app/launcher-backend/admin/index.html`)
+> - New nav button **Live** between Notify and Vesper Logins, plus a `<section id="tab-live">` panel with:
+>   - Filter chips: All / Movies / Live TV / Music / Kids / FTA.
+>   - Live counter badge with a pulsing green LED (`0 ONLINE` / `5 ONLINE`).
+>   - Auto-refresh every 10 s + manual **Refresh** button + timestamp.
+>   - Table columns: **App** (colored badge, one style per app) · **User** · **Watching** (title + kind subline) · **Duration** (tabular numerics) · **Started** (relative "2s ago") · **Device**.
+>   - Empty state per filter: *"Nobody is watching anything on Live TV right now."*
+>   - Full-viewport history modal (backdrop blur, Escape/click-outside closes) grouping the last 7 days by day with time · app badge · title · duration per row and a top-line "3 sessions · 1m 10s watched" summary.
+> - All styling inline in the same file (`<style>` block) using the existing `--accent` / `--bg-*` CSS variables so it matches the neon-navy admin palette pixel-perfectly.  Includes 5 distinct app-badge palettes.
+>
+> ### Reverse proxy fix  (`/app/backend/server.py`)
+> - `_rewrite_admin_html` now also runs the `/api/admin/` and `/api/launcher/` string-literal rewrites that `_rewrite_admin_js` already did — needed because the new admin panel ships inline `<script>` blocks that fetch admin endpoints, and inline scripts land in HTML, not in `static/app.js`.  Without this, the Live tab's fetches would go straight to the Vesper backend (which doesn't own those admin endpoints) and 404.
+>
+> ### Vesper React client  (`/app/frontend/src/lib/presenceHeartbeat.js`)
+> - Small module: `startPresence({contentKind, contentTitle, contentId, contentMeta, deviceHint, appOverride})` + `updatePresence(patch)` + `stopPresence()`.
+> - Auto-detects the app from `window.location`:
+>   - `/kids/*`  → `kids`
+>   - `/music/*` → `tunes`
+>   - `/fta/*`   → `fta`
+>   - anything else → `movies`
+> - Sends heartbeat every 30 s while a session is active; final `/end` is fired from `pagehide` + `beforeunload` with `fetch({keepalive: true})` so the row drops off the live table the moment the WebView backgrounds.
+>
+> ### Wiring
+> - **`Player.jsx`** — new `useEffect` reading `title` / `type` / `imdbId` from the search params, calls `startPresence({contentKind: series/fta_channel/movie, contentTitle: title, contentId: imdbId})` on mount and `stopPresence()` on unmount.
+> - **`useMusicPlayer.js`** — new `_wireMusicPresence()` IIFE at module load subscribes to the singleton engine and starts / stops presence based on `state.isPlaying + state.current`.  Switching tracks ends the previous session and starts a fresh one.
+> - **`android/onnowtv-livetv/…/data/PresenceReporter.kt`** — Kotlin singleton mirroring the React library.  Hooked in `PlayerActivity.onCreate` (initial channel), in `tuneTo(channel)` (zap), and `onDestroy` (stop).  Uses the Xtream username as `client_key` via the shared ingest key.
+> - **`android/onnowtv-fta-native/…/data/FtaPresenceReporter.kt`** — same pattern.  FTA has no user login, so `client_key = "fta-device:" + Settings.Secure.ANDROID_ID[0..8]` so at least the admin can distinguish devices in the field.
+>
+> ### Verification (end-to-end, live in the preview pod)
+> - Backend curl: heartbeat with ingest key returns 200; admin/active returns the seeded session with correct duration + is_live; admin/user/{username}/history returns the ended session with `ended_at` populated.
+> - Playwright browser test: logged into Vesper as `testuser`, called `/api/presence/heartbeat` from the browser with the real JWT → session shows up in `/api/presence/admin/active` attributed to `testuser` with the real `account_id`.
+> - Admin UI: opened the Live tab, saw the `MOVIES` badge, `testuser` username, `Big Buck Bunny · MOVIE` title, `2s ago`, `1 ONLINE` badge.  Modal opens on row click and renders the 7-day history grouped by day.
+> - Kotlin: `/tmp/kt_brace_check.py` on `PresenceReporter.kt`, `FtaPresenceReporter.kt`, `PlayerActivity.kt` (both apps): brace=paren=brack=0 OK.
+> - React: `mcp_lint_javascript` on `presenceHeartbeat.js`, `Player.jsx`, `useMusicPlayer.js` — no new issues; only pre-existing eslint-disable warnings.
+>
+> **Environment**
+> - `ADMIN_KEY` env in Vesper backend (X-Admin-Key gate on the admin endpoints).  Deterministic default so it works in the preview pod without config.
+> - `PRESENCE_INGEST_KEY` env in Vesper backend (shared with native clients).  Deterministic default matches the constant baked into `PresenceReporter.kt` and `FtaPresenceReporter.kt`.
+>
+> **Files touched**
+> - Added `backend/presence.py`, `frontend/src/lib/presenceHeartbeat.js`, `android/onnowtv-livetv/.../data/PresenceReporter.kt`, `android/onnowtv-fta-native/.../data/FtaPresenceReporter.kt`.
+> - Edited `backend/server.py`, `launcher-backend/main.py`, `launcher-backend/admin/index.html`, `frontend/src/pages/Player.jsx`, `frontend/src/hooks/useMusicPlayer.js`, `android/onnowtv-livetv/.../PlayerActivity.kt`, `android/onnowtv-fta-native/.../PlayerActivity.kt`.
+>
+
 > **🟢 v2.16.28 — Launcher update dialog: per-tile reassurance copy, no em-dashes (Feb 2026).**
 >
 > User correction: the update-confirm dialog needs to fire for BOTH the Vesper (Movies/TV) tile AND the Live TV / Sports tile, with different reassurance copy for each.  Also: strip every em-dash from the copy (user preference).

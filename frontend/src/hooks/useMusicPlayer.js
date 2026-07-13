@@ -543,6 +543,43 @@ class PlayerEngine {
 
 const engine = (typeof window !== 'undefined' && (window.__musicEngine || (window.__musicEngine = new PlayerEngine()))) || new PlayerEngine();
 
+// v2.16.29 — Report presence to the launcher-admin "Live" tab.
+// Music sessions are keyed on the current track's stable id (or
+// title if no id is available), so switching tracks ends the prior
+// session and starts a new one instead of muddling both under one
+// row.  Pausing ends the session; resuming re-starts it.
+(function _wireMusicPresence() {
+    if (typeof window === 'undefined') return;
+    try {
+        // Lazy-import so the video Player's own useEffect wire still
+        // works when this hook is tree-shaken out on non-music
+        // routes.
+        // eslint-disable-next-line global-require
+        const { startPresence, stopPresence } = require('../lib/presenceHeartbeat');
+        let lastKey = null;
+        engine.subscribe((s) => {
+            const cur = s && s.current;
+            const key = (cur && (cur.id || cur.title)) || null;
+            if (!s.isPlaying || !cur) {
+                if (lastKey) { stopPresence(); lastKey = null; }
+                return;
+            }
+            if (key !== lastKey) {
+                const kind = (s.kind === 'radio')   ? 'live_channel'
+                    : (s.kind === 'podcast')        ? 'music_track'
+                    : 'music_track';
+                startPresence({
+                    contentKind:  kind,
+                    contentTitle: cur.title || 'Unknown track',
+                    contentId:    cur.id || '',
+                    contentMeta:  { artist: cur.subtitle || '', engine: s.kind || 'audio' },
+                });
+                lastKey = key;
+            }
+        });
+    } catch (_err) { /* presence is best-effort */ }
+})();
+
 export function useMusicPlayer() {
     const [state, setState] = useState(engine.state);
     useEffect(() => engine.subscribe(setState), []);

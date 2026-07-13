@@ -49,8 +49,17 @@ class PlayerActivity : AppCompatActivity() {
         val status: android.widget.TextView = findViewById(R.id.player_status)
 
         val channelId    = intent.getStringExtra(EXTRA_CHANNEL_ID).orEmpty()
+        val channelName  = intent.getStringExtra(EXTRA_CHANNEL_NAME).orEmpty()
         val mjhMaster    = intent.getStringExtra(EXTRA_MJH_MASTER).orEmpty()
         val headersFlat  = intent.getStringExtra(EXTRA_HEADERS).orEmpty()
+
+        // v2.16.29 — Announce this FTA session to the launcher-admin
+        // Live tab so the operator can see which box is watching what.
+        if (channelName.isNotBlank() || channelId.isNotBlank()) {
+            tv.onnowtv.fta_native.data.FtaPresenceReporter.start(
+                this, channelId, channelName.ifBlank { channelId }
+            )
+        }
 
         val headers: Map<String, String> = headersFlat.lines()
             .mapNotNull {
@@ -159,6 +168,8 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        // v2.16.29 — Drop the row from the launcher-admin Live tab.
+        tv.onnowtv.fta_native.data.FtaPresenceReporter.stop()
         player?.release()
         player = null
         super.onDestroy()

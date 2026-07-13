@@ -4271,13 +4271,25 @@ async def v2ai_asset_proxy(path: str):
 
 def _rewrite_admin_html(body: bytes) -> bytes:
     """Rewrite absolute paths in the admin index so static assets resolve
-    through the proxy namespace."""
+    through the proxy namespace.
+
+    v2.16.29 — Also rewrites `/api/admin/...` and `/api/launcher/...`
+    URL string literals inside inline `<script>` blocks, using the
+    same rules as `_rewrite_admin_js`.  Without this, admin panels
+    that ship their own inline JS (like the new Live tab) fetch
+    directly against the Vesper backend instead of going through the
+    proxy, which 404s because the Vesper backend doesn't own those
+    admin endpoints."""
     try:
         text = body.decode("utf-8")
     except UnicodeDecodeError:
         return body
     text = text.replace('href="/admin/', 'href="/api/launcher-admin/admin/')
     text = text.replace('src="/admin/', 'src="/api/launcher-admin/admin/')
+    text = text.replace("'/api/admin/", "'/api/launcher-admin/api/admin/")
+    text = text.replace("'/api/launcher/", "'/api/launcher-admin/api/launcher/")
+    text = text.replace("`/api/admin/", "`/api/launcher-admin/api/admin/")
+    text = text.replace("`/api/launcher/", "`/api/launcher-admin/api/launcher/")
     return text.encode("utf-8")
 
 
@@ -4817,6 +4829,15 @@ app.include_router(build_auth_router(lambda: db))
 from vesper_sync import router as vesper_sync_router, configure_vesper_sync  # noqa: E402
 app.include_router(vesper_sync_router)
 configure_vesper_sync(db, make_get_current_account(lambda: db))
+
+# v2.16.29 — Live-presence analytics for the launcher admin panel.
+# Every client app (Vesper movies/FTA, Live TV, Tunes, Kids, FTA
+# native) pings /api/presence/heartbeat every ~30 s while watching.
+# The launcher admin's new "Live" tab surfaces the resulting sessions
+# (both live-now and 7-day history) via X-Admin-Key gated endpoints.
+from presence import router as presence_router, configure_presence  # noqa: E402
+app.include_router(presence_router)
+configure_presence(db)
 
 
 app.add_middleware(

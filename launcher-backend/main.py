@@ -2588,6 +2588,30 @@ async def vesper_bulk_import(payload: dict = Body(...)) -> JSONResponse:
     return await _vesper_proxy("POST", "/api/admin/accounts/bulk-import", payload)
 
 
+# ════════════════════════════════════════════════════════════════════
+#  v2.16.29 — Live-presence analytics proxy.
+#  The Vesper backend owns the `presence_sessions` collection; this
+#  layer just re-exposes the two admin-read endpoints under the
+#  launcher-backend's own admin gate so the Live tab in the launcher
+#  admin panel can fetch them via `/api/launcher-admin/api/admin/...`.
+# ════════════════════════════════════════════════════════════════════
+@app.get("/api/admin/presence/active",
+         dependencies=[Depends(require_admin)])
+async def presence_active() -> JSONResponse:
+    return await _vesper_proxy("GET", "/api/presence/admin/active")
+
+
+@app.get("/api/admin/presence/user/{username}/history",
+         dependencies=[Depends(require_admin)])
+async def presence_user_history(username: str, days: int = 7) -> JSONResponse:
+    # Clamp days to a sane range so a runaway URL param can't slow-scan Mongo.
+    days = max(1, min(days, 30))
+    return await _vesper_proxy(
+        "GET",
+        f"/api/presence/admin/user/{username}/history?days={days}",
+    )
+
+
 @app.post("/api/admin/layout", dependencies=[Depends(require_admin)])
 def set_layout(layout: LayoutSettings) -> dict:
     """v1.0 — Persist admin-edited Layout Editor values."""
