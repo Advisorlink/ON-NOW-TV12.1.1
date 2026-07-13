@@ -631,6 +631,22 @@ class ExoPlayerActivity : ComponentActivity() {
         backdrop    = intent.getStringExtra(VlcPlayerActivity.EXTRA_BACKDROP) ?: ""
         poster      = intent.getStringExtra(VlcPlayerActivity.EXTRA_POSTER) ?: ""
         cwId        = intent.getStringExtra(VlcPlayerActivity.EXTRA_CW_ID) ?: ""
+        // v2.16.31 — Announce this playback to the launcher-admin
+        // Live tab.  Native player is the actual viewer on the box,
+        // so THIS is the heartbeat that lands in production Mongo
+        // (the React `Player.jsx` hook only fires in the browser
+        // preview flow — never on a real TV).
+        try {
+            val kind = intent.getStringExtra(VlcPlayerActivity.EXTRA_TYPE)?.lowercase()
+            val presenceKind = when (kind) {
+                "series" -> "series"
+                "channel" -> "fta_channel"
+                else -> "movie"
+            }
+            tv.vesper.app.data.VesperPresenceReporter.start(
+                this, streamTitle.ifBlank { "Watching" }, presenceKind, cwId,
+            )
+        } catch (_: Throwable) { /* best-effort */ }
         // v2.12.1 — Optional YouTube DASH audio-only slave URL.  Set
         // by `WebAppInterface.playTrailerFullscreen()` for HD YouTube
         // trailers where NewPipeExtractor returned a video-only 1080p+
@@ -1707,6 +1723,8 @@ class ExoPlayerActivity : ComponentActivity() {
     override fun onResume()  { super.onResume();  hideSystemUi(); try { player.play() } catch (_: Exception) {} }
     override fun onDestroy() {
         super.onDestroy()
+        // v2.16.31 — Drop the row from the launcher-admin Live tab.
+        try { tv.vesper.app.data.VesperPresenceReporter.stop(this) } catch (_: Throwable) {}
         if (remoteCmdReceiverRegistered) {
             try { unregisterReceiver(remoteCmdReceiver) } catch (_: Exception) {}
             remoteCmdReceiverRegistered = false

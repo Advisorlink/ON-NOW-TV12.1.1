@@ -403,6 +403,22 @@ class VlcPlayerActivity : AppCompatActivity() {
         isSeries = contentType?.equals("series", ignoreCase = true) == true
         startAtMs = intent.getLongExtra(EXTRA_START_AT_MS, 0L)
         cwId = intent.getStringExtra(EXTRA_CW_ID)
+        // v2.16.31 — Announce this playback to the launcher-admin
+        // Live tab (see [VesperPresenceReporter] for why this lives
+        // in the native activity instead of the React player).
+        try {
+            val presenceKind = when (contentType?.lowercase()) {
+                "series" -> "series"
+                "channel" -> "fta_channel"
+                else -> "movie"
+            }
+            tv.vesper.app.data.VesperPresenceReporter.start(
+                this,
+                streamTitle.orEmpty().ifBlank { "Watching" },
+                presenceKind,
+                cwId.orEmpty(),
+            )
+        } catch (_: Throwable) { /* best-effort */ }
         partyCode = intent.getStringExtra(EXTRA_PARTY_CODE)
         // Default to "" (no role) when there is no party.  Defaulting
         // to "guest" — as we used to — meant EVERY non-party launch
@@ -3123,6 +3139,8 @@ class VlcPlayerActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        // v2.16.31 — Drop the row from the launcher-admin Live tab.
+        try { tv.vesper.app.data.VesperPresenceReporter.stop(this) } catch (_: Throwable) {}
         // Final progress flush so the Continue Watching shelf picks
         // up the exit position even before the 5 s throttle window.
         try {

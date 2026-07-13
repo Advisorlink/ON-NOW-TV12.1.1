@@ -90,6 +90,25 @@ class WebAppInterface(private val activity: Activity) {
     @JavascriptInterface
     fun getHostPackage(): String = activity.packageName
 
+    /**
+     * v2.16.31 — React AuthContext calls this once at login and after
+     * every profile switch so the native player (which has no access
+     * to the WebView's localStorage) knows which Vesper user is
+     * currently signed in.  The value is written to SharedPreferences
+     * so it survives the native activity crossing WebView boundaries.
+     *
+     * The [apiBaseUrl] arg is the Vesper backend origin — same value
+     * as `process.env.REACT_APP_BACKEND_URL` in the React bundle —
+     * so the native reporter posts to the right host without having
+     * to be re-baked at APK build time when we swap prod URLs.
+     */
+    @JavascriptInterface
+    fun setPresenceUser(username: String?, apiBaseUrl: String?) {
+        try {
+            tv.vesper.app.data.VesperPresenceReporter.setUser(activity, username, apiBaseUrl)
+        } catch (_: Throwable) { /* best-effort */ }
+    }
+
     @JavascriptInterface
     fun playVideo(url: String, title: String?, mime: String?) {
         // Legacy bridge — kept for backwards compat with v1.1.x APKs.

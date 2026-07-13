@@ -37,6 +37,24 @@ const AuthContext = React.createContext({
     cloudRestore: { snapshot: null, dismiss: () => {} },
 });
 
+/**
+ * v2.16.31 — Push the current Vesper username + backend URL into the
+ * native Android host so the native ExoPlayer / VLC activity can
+ * report presence heartbeats.  The native player can't read the
+ * WebView's localStorage, so this bridge is the only handoff of the
+ * signed-in identity.  No-op in a plain browser build (no
+ * `window.OnNowTV` interface present).
+ */
+function _pushPresenceUserToHost(account) {
+    try {
+        const host = typeof window !== 'undefined' ? window.OnNowTV : null;
+        if (!host || typeof host.setPresenceUser !== 'function') return;
+        const username = (account && account.username) ? String(account.username) : '';
+        const apiBase  = process.env.REACT_APP_BACKEND_URL || '';
+        host.setPresenceUser(username, apiBase);
+    } catch { /* best-effort — never fail login/logout over presence */ }
+}
+
 export function AuthProvider({ children }) {
     // If we have a cached token + account in localStorage, assume
     // authenticated immediately so the login screen doesn't flash
@@ -78,9 +96,11 @@ export function AuthProvider({ children }) {
         if (acc) {
             setStatus('authenticated');
             setAccount(acc);
+            _pushPresenceUserToHost(acc);
         } else {
             setStatus('guest');
             setAccount(null);
+            _pushPresenceUserToHost(null);
         }
     }, []);
 
@@ -102,6 +122,7 @@ export function AuthProvider({ children }) {
             const data = await apiLogin(username, password);
             setStatus('authenticated');
             setAccount(data.account);
+            _pushPresenceUserToHost(data.account);
             /* Profile storage is namespaced per-account; broadcast so
              * any mounted UI (SideNav, ProfileSelect, Home) re-reads
              * the freshly-scoped list for the new user. */
@@ -146,6 +167,7 @@ export function AuthProvider({ children }) {
         setAccount(null);
         setCloudSnapshot(null);
         disableVesperCloudSync();
+        _pushPresenceUserToHost(null);
         try {
             window.dispatchEvent(new CustomEvent('vesper:profile-change'));
         } catch { /* ignore */ }
