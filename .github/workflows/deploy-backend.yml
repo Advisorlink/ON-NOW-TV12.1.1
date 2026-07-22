@@ -117,57 +117,6 @@ jobs:
               fi
             "
 
-      - name: Patch managed Xtream credentials into VPS .env (if secrets set)
-        # v2.16.33 — The rsync step above deliberately excludes .env
-        # so production secrets aren't overwritten from the repo.  But
-        # the managed Live-TV provider creds (`LIVETV_DEFAULT_*`) DO
-        # need to be rotatable without an SSH session, so we patch
-        # them in-place here from GitHub Secrets when they're set.
-        # The step is a no-op when the secrets are missing — safe to
-        # leave in the workflow forever.
-        env:
-          SSHPASS: ${{ secrets.VPS_SSH_PASSWORD }}
-          VPS_HOST: ${{ steps.targets.outputs.host }}
-          VPS_USER: ${{ steps.targets.outputs.user }}
-          VPS_PATH: ${{ steps.targets.outputs.path }}
-          LIVETV_USER: ${{ secrets.LIVETV_MANAGED_USERNAME }}
-          LIVETV_PASS: ${{ secrets.LIVETV_MANAGED_PASSWORD }}
-        run: |
-          if [ -z "$LIVETV_USER" ] || [ -z "$LIVETV_PASS" ]; then
-            echo "LIVETV_MANAGED_USERNAME / LIVETV_MANAGED_PASSWORD not set — skipping .env patch."
-            exit 0
-          fi
-          # Send the new values across a stdin heredoc so they never
-          # land in shell history or the process listing on the VPS.
-          sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
-            "$VPS_USER@$VPS_HOST" \
-            "ENV_FILE=$VPS_PATH/.env NEW_USER=\"$LIVETV_USER\" NEW_PASS=\"$LIVETV_PASS\" bash -s" <<'REMOTE'
-              set -e
-              if [ ! -f "$ENV_FILE" ]; then
-                echo "::error::.env missing on VPS at $ENV_FILE"
-                exit 1
-              fi
-              # Backup once per day so we can roll back if a bad creds
-              # push locks us out.
-              cp -n "$ENV_FILE" "$ENV_FILE.bak-$(date +%F)" 2>/dev/null || true
-              # Escape sed metacharacters (/, &, |) in the new values so
-              # a $ or ! in a password can't break the substitution.
-              esc() { printf '%s' "$1" | sed -e 's/[\/&|]/\\&/g'; }
-              U_ESC=$(esc "$NEW_USER")
-              P_ESC=$(esc "$NEW_PASS")
-              if grep -q '^LIVETV_DEFAULT_USERNAME=' "$ENV_FILE"; then
-                sed -i "s|^LIVETV_DEFAULT_USERNAME=.*|LIVETV_DEFAULT_USERNAME=\"$U_ESC\"|" "$ENV_FILE"
-              else
-                echo "LIVETV_DEFAULT_USERNAME=\"$U_ESC\"" >> "$ENV_FILE"
-              fi
-              if grep -q '^LIVETV_DEFAULT_PASSWORD=' "$ENV_FILE"; then
-                sed -i "s|^LIVETV_DEFAULT_PASSWORD=.*|LIVETV_DEFAULT_PASSWORD=\"$P_ESC\"|" "$ENV_FILE"
-              else
-                echo "LIVETV_DEFAULT_PASSWORD=\"$P_ESC\"" >> "$ENV_FILE"
-              fi
-              echo "Managed Xtream creds patched in $ENV_FILE."
-REMOTE
-
       - name: Restart backend service + health check
         env:
           SSHPASS: ${{ secrets.VPS_SSH_PASSWORD }}
