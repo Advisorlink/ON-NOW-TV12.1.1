@@ -5047,12 +5047,25 @@ async def _start_epg_scheduler():
 
 @app.on_event("startup")
 async def _start_instant_bundle() -> None:
-    """Live TV plumbing has been disabled per user request.  The
-    instant-bundle scheduler is no longer started; the /live-tv UI
-    route now renders a 'Coming Soon' placeholder and the new
-    native Android launcher will own the Live TV experience going
-    forward."""
-    return
+    """v2.16.32 — Re-enabled the instant-bundle scheduler after the
+    native Live TV APK regressed to XMLTV direct-fetch (i.e. very
+    slow EPG loading).  The native launcher pulls channels + EPG
+    from `/api/xtream/instant-bundle`; without the scheduler the
+    bundle ships channels-only, so the client falls back to a
+    direct provider XMLTV download that takes ~30-60 s on cold
+    boot.  Warming the bundle in the background gets us back to
+    the near-instant EPG the user remembers.
+
+    The `_disable_instant_bundle` env var still lets us kill-switch
+    the scheduler quickly if the provider misbehaves again."""
+    if os.environ.get("DISABLE_INSTANT_BUNDLE", "").lower() in ("1", "true", "yes"):
+        logger.info("instant_bundle: disabled via env — no scheduler")
+        return
+    try:
+        from instant_bundle import start_scheduler as _ib_start
+        _ib_start(os.environ.get("XTREAM_ADMIN_TOKEN", ""))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to start instant-bundle scheduler: %s", exc)
 
 
 @app.on_event("startup")
