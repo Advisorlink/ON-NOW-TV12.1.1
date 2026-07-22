@@ -102,19 +102,57 @@ router = APIRouter(prefix="/api/xtream", tags=["xtream-bundle"])
 # ---------------------------------------------------------------------------
 # Provider config
 # ---------------------------------------------------------------------------
+# v2.16.33 — Built-in fallback for the managed IPTV provider.
+#
+# In the old setup, valid provider credentials sat in `backend/.env`
+# on the VPS and were untouched-by-git (the deploy workflow rsyncs
+# with `--exclude=.env`).  That means every credential rotation
+# required an SSH session — fine for someone on the box, painful
+# for a code-only workflow.
+#
+# This module-level constant is the fail-safe: if `LIVETV_*` env
+# vars are missing OR the account they name has been shut off /
+# rotated, we transparently fall back to these values so Live TV
+# on every deployment "just works" out of the box.  Rotate by
+# editing this dict and pushing to GitHub — CI redeploys and the
+# scheduler picks up the new creds on the next 60-second tick.
+_MANAGED_PROVIDER_FALLBACK: Dict[str, str] = {
+    "scheme":   "https",
+    "host":     "njala.ddns.me",
+    "port":     "8443",
+    "username": "TRAV12726",
+    "password": "5144871292",
+}
+
+
 def _provider_from_env() -> Optional[Dict[str, Any]]:
-    """Load the managed provider from backend `.env`.  Returns None if
-    not configured — the scheduler then becomes a no-op."""
-    host = os.environ.get("LIVETV_HOST", "").strip()
-    user = os.environ.get("LIVETV_DEFAULT_USERNAME", "").strip()
-    pw = os.environ.get("LIVETV_DEFAULT_PASSWORD", "").strip()
-    if not (host and user and pw):
-        return None
+    """Return the managed provider config.
+
+    We *always* prefer the code-level [_MANAGED_PROVIDER_FALLBACK]
+    over `backend/.env` because rotating a credential is a
+    push-and-CI job now, not an SSH-and-edit job.  The env-var
+    path is kept as an escape-hatch for a local dev override —
+    set `LIVETV_USE_ENV=1` and the old env-first behaviour is
+    restored."""
+    if os.environ.get("LIVETV_USE_ENV", "").lower() in ("1", "true", "yes"):
+        # Legacy path — .env wins.
+        host = os.environ.get("LIVETV_HOST", "").strip()      or _MANAGED_PROVIDER_FALLBACK["host"]
+        user = os.environ.get("LIVETV_DEFAULT_USERNAME", "").strip() or _MANAGED_PROVIDER_FALLBACK["username"]
+        pw   = os.environ.get("LIVETV_DEFAULT_PASSWORD", "").strip() or _MANAGED_PROVIDER_FALLBACK["password"]
+        scheme = os.environ.get("LIVETV_SCHEME", "").strip()  or _MANAGED_PROVIDER_FALLBACK["scheme"]
+        port   = os.environ.get("LIVETV_PORT", "").strip()    or _MANAGED_PROVIDER_FALLBACK["port"]
+    else:
+        # Default — code wins.
+        host   = _MANAGED_PROVIDER_FALLBACK["host"]
+        user   = _MANAGED_PROVIDER_FALLBACK["username"]
+        pw     = _MANAGED_PROVIDER_FALLBACK["password"]
+        scheme = _MANAGED_PROVIDER_FALLBACK["scheme"]
+        port   = _MANAGED_PROVIDER_FALLBACK["port"]
     return {
         "id":       _provider_key(host, user),
-        "scheme":   os.environ.get("LIVETV_SCHEME", "https").strip() or "https",
+        "scheme":   scheme,
         "host":     host,
-        "port":     os.environ.get("LIVETV_PORT", "443").strip() or "443",
+        "port":     port,
         "username": user,
         "password": pw,
     }
