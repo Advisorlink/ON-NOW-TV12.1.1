@@ -303,6 +303,156 @@ async def music_home():
     return {"cached": False, "data": data}
 
 
+@music_api.get("/chart-preset/{preset_id}")
+async def music_chart_preset(preset_id: str):
+    """v2.8.66 — Curated chart preset (Top 100 by country + decade
+    playlists) for the Music home shelf.  Returns up to 100 tracks
+    per preset, always with a Deezer preview_url + real cover art.
+
+    Preset ids:
+      • top-au / top-us / top-uk  → iTunes RSS topsongs for that
+        country's store, resolved 1:1 against Deezer for previews.
+      • decade-20s / decade-10s / decade-2000s / decade-90s /
+        decade-80s / decade-70s → Deezer text search using the
+        decade + "hits" as the query.
+      • oldies → curated 50s/60s classics search.
+
+    Cached 6 h.  Falls back to whatever partial list resolved even
+    if some tracks couldn't be matched against Deezer.
+    """
+    cache_key = f"music:chart-preset:v5:{preset_id}"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, "data": cached}
+
+    async def _itunes_country_songs(country: str, limit: int = 100):
+        url = f"https://itunes.apple.com/{country}/rss/topsongs/limit={limit}/json"
+        try:
+            async with httpx.AsyncClient(timeout=12) as client:
+                r = await client.get(url, headers={"User-Agent": "ON-NOW-TV-Tunes/1.0"})
+                r.raise_for_status()
+                entries = (r.json().get("feed") or {}).get("entry") or []
+                out: List[Dict[str, str]] = []
+                for e in entries:
+                    title = ((e.get("im:name") or {}).get("label") or "").strip()
+                    artist = ((e.get("im:artist") or {}).get("label") or "").strip()
+                    if title and artist:
+                        out.append({"title": title, "artist": artist})
+                return out
+        except Exception as exc:
+            log.warning("itunes country=%s failed: %s", country, exc)
+            return []
+
+    async def _resolve_to_deezer(items: List[Dict[str, str]]) -> List[Dict[str, Any]]:
+        """Best-effort resolve iTunes title/artist pairs against
+        Deezer's /search/track.
+
+        Deezer rate-limits burst traffic (~50 req/5 s per IP)
+        and silently returns HTTP 429 → httpx raises → we catch
+        and return None.  Cap at 4 concurrent + a small stagger
+        between fires so 100 items land at ~20 req/s comfortably
+        under the limit.  Also retry-once on empty results — a
+        first-pass miss is usually a transient throttle rather
+        than a genuine catalog gap."""
+        sem = asyncio.Semaphore(4)
+        errors = 0
+
+        async def _search_once(q: str) -> Optional[Dict[str, Any]]:
+            try:
+                d = await _deezer_get("/search/track", {"q": q, "limit": 1})
+                data = d.get("data") or []
+                return _shape_track(data[0]) if data else None
+            except Exception:
+                return None
+
+        async def _one(idx: int, it: Dict[str, str]):
+            nonlocal errors
+            # Stagger to keep well below Deezer's burst limit.
+            await asyncio.sleep(idx * 0.05)
+            async with sem:
+                q = f'{it["artist"]} {it["title"]}'
+                r = await _search_once(q)
+                if r is None:
+                    # Backoff + retry with the title alone (drops
+                    # off "featuring …" tails that trip search).
+                    await asyncio.sleep(0.3)
+                    r = await _search_once(it["title"])
+                if r is None:
+                    errors += 1
+                return r
+
+        results = await asyncio.gather(*[_one(i, it) for i, it in enumerate(items)])
+        if errors:
+            log.info("chart-preset: %d of %d tracks unresolved", errors, len(items))
+        # Dedupe by track id.
+        seen: set = set()
+        out: List[Dict[str, Any]] = []
+        for t in results:
+            if not t:
+                continue
+            tid = t.get("id")
+            if tid in seen:
+                continue
+            seen.add(tid)
+            out.append(t)
+        return out
+
+    async def _deezer_search_tracks(query: str, limit: int = 100) -> List[Dict[str, Any]]:
+        try:
+            d = await _deezer_get(
+                "/search/track",
+                {"q": query, "limit": limit},
+            )
+            return [_shape_track(t) for t in (d.get("data") or [])]
+        except Exception as exc:
+            log.warning("deezer search %r failed: %s", query, exc)
+            return []
+
+    country_map = {"top-au": "au", "top-us": "us", "top-uk": "gb"}
+    decade_map = {
+        "decade-2020s": "2020s hits",
+        "decade-2010s": "2010s hits",
+        "decade-2000s": "2000s hits",
+        "decade-90s":   "90s greatest hits",
+        "decade-80s":   "80s greatest hits",
+        "decade-70s":   "70s hits",
+        "oldies":       "50s 60s classics hits",
+    }
+
+    tracks: List[Dict[str, Any]] = []
+    title = ""
+    subtitle = ""
+    if preset_id in country_map:
+        country = country_map[preset_id]
+        items = await _itunes_country_songs(country, 100)
+        tracks = await _resolve_to_deezer(items[:100])
+        title_map = {"top-au": "Top 100 Australia", "top-us": "Top 100 USA", "top-uk": "Top 100 UK"}
+        title = title_map[preset_id]
+        subtitle = "iTunes chart · resolved against Deezer for previews"
+    elif preset_id in decade_map:
+        tracks = await _deezer_search_tracks(decade_map[preset_id], 100)
+        pretty = {
+            "decade-2020s": "The 2020s", "decade-2010s": "The 2010s",
+            "decade-2000s": "The 2000s", "decade-90s":  "The '90s",
+            "decade-80s":   "The '80s",   "decade-70s":  "The '70s",
+            "oldies":       "Golden Oldies",
+        }
+        title = pretty[preset_id]
+        subtitle = f"Deezer search · {decade_map[preset_id]}"
+    else:
+        raise HTTPException(404, f"Unknown chart preset: {preset_id}")
+
+    data = {
+        "id":        preset_id,
+        "title":     title,
+        "subtitle":  subtitle,
+        "tracks":    tracks,
+        "generated": int(time.time()),
+    }
+    await cache.set(cache_key, data, ttl_seconds=6 * 3600)
+    return {"cached": False, "data": data}
+
+
 @music_api.get("/search")
 async def music_search(q: str = Query(..., min_length=1, max_length=120)):
     """Fan-out search: hits Deezer (tracks/albums/artists) + Radio

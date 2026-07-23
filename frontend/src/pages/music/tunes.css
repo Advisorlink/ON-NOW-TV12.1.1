@@ -963,6 +963,68 @@
 .tunes-tile--mood .tunes-tile__subtitle { color: rgba(255, 255, 255, 0.85); }
 
 /* ============================================================
+   CHART & DECADE TILE — wide rectangles (like Continue Watching)
+   sitting between "New Releases" and "Moods".  Larger footprint
+   than the square Mood tile so decade titles ("The 2020s") and
+   country flags ("🇦🇺") get room to breathe.  Same focus + scrim
+   pattern as MoodTile so keyboard/D-pad navigation is identical.
+============================================================ */
+
+.tunes-tile--chart {
+    /* Force a 16:9-ish rectangle regardless of the base tile's
+       aspect-ratio rule.  Width picked so ~5 tiles fit on a 1080p
+       screen but each is comfortably clickable on a 720p box. */
+    aspect-ratio: 16 / 9;
+    width: 320px;
+    min-width: 320px;
+    border: none;
+    color: #ffffff;
+    overflow: hidden;
+    position: relative;
+}
+
+.tunes-tile--chart .tunes-tile__caption {
+    /* Push the caption a hair higher — the ~72 pt emblem in the
+       corner would otherwise crowd the title. */
+    padding: 18px 20px;
+}
+
+.tunes-tile--chart .tunes-tile__title {
+    color: #ffffff;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    line-height: 1.05;
+}
+
+.tunes-tile--chart .tunes-tile__subtitle {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.tunes-tile__chart-emblem {
+    position: absolute;
+    top: 14px;
+    right: 18px;
+    font-size: 46px;
+    line-height: 1;
+    font-weight: 900;
+    color: rgba(255, 255, 255, 0.92);
+    text-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+    /* Slight rotation on the decade emblems for a retro-poster
+       feel — the flag emojis rotate too but it's imperceptible. */
+    transform: rotate(-6deg);
+    letter-spacing: -0.04em;
+}
+
+/* ============================================================
    GENRE TILES — flat colored squares with title overlay
 ============================================================ */
 

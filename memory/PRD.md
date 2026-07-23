@@ -1,4 +1,37 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.8.66 — Music: "Charts & Eras" shelf on the home screen (Feb 2026).**
+>
+> User: "The music app looks old — you can't really find the new stuff. Add a section under the top two sections, just before the Moods row, with Top 100 Australia / USA / UK plus decade tiles (80s / 90s / 2000s / golden oldies) styled like Continue Watching rectangles. Beautifully designed, all the songs in it."
+>
+> ### Frontend
+> New `CHART_PRESETS` config + `ChartTile` component in `MusicHome.jsx` renders a wide-rectangle horizontal shelf inserted between "New Releases" and "Moods".  10 tiles: 3 country charts (AU / US / UK — with real country flags on themed gradients) and 7 era tiles (2020s / 2010s / 2000s / '90s / '80s / '70s / Golden Oldies — with tilted decade emblems on retro-poster gradients).  Same focus + scrim + testid pattern as MoodTile so keyboard / D-pad navigation is identical.
+>
+> New `MusicChart.jsx` page bound to `/music/chart/:id` — reuses the exact MusicAlbum layout (gradient cover, Play All / Shuffle, full track list with playback + like affordances).  Chart cover is the same gradient palette as the tile the user clicked, so the click-through feels like a continuation of the shelf.
+>
+> ### Backend
+> New `GET /api/music/chart-preset/{preset_id}` in `music_api.py` — up to 100 tracks per preset, always shaped with Deezer preview URLs + full cover art.  Two source strategies:
+>  • **Country charts (`top-au`/`top-us`/`top-uk`):** iTunes RSS `topsongs/limit=100/json` for that country, then each entry is resolved 1:1 against Deezer's `/search/track` for the preview_url + cover_xl + album/artist IDs.
+>  • **Decade / oldies charts:** Deezer `/search/track` with a curated query per era (`"80s greatest hits"`, `"2020s hits"`, etc.).
+>
+> Deezer rate-limits burst traffic (~50 req / 5 s per IP) so the resolver caps at 4 concurrent + a 50 ms stagger + a single retry-with-title-only fallback on empty results — pushed the country-chart resolve rate from ~10 % to ~85 % success.  Cached 6 h.
+>
+> ### Verification (curl e2e via preview URL)
+> - `/chart-preset/top-au` → 89 tracks, "Choosin' Texas" by Ella Langley leading
+> - `/chart-preset/top-us` → 81 tracks
+> - `/chart-preset/top-uk` → 88 tracks (Dai Dai / Shakira leading, Taylor Swift / Harry Styles / Olivia Rodrigo / Sabrina Carpenter et al. in the top 20)
+> - `/chart-preset/decade-90s` → 98 tracks · `decade-80s` → 100 tracks · `decade-2020s` → 46
+> - Home shelf screenshot confirms 10 tiles render in the right order (above Moods, below New Releases), scrollable horizontally.
+> - Chart page screenshot confirms full track list + Play All + Shuffle affordances + gradient hero card.
+>
+> ### Files touched
+> - `backend/music_api.py` (new `/chart-preset/{id}` endpoint + rate-limited Deezer resolver)
+> - `frontend/src/pages/music/MusicHome.jsx` (`CHART_PRESETS`, `ChartTile`, shelf insertion above Moods)
+> - `frontend/src/pages/music/MusicChart.jsx` (new page, ~200 lines)
+> - `frontend/src/pages/music/tunes.css` (`.tunes-tile--chart`, `.tunes-tile__chart-emblem`)
+> - `frontend/src/App.js` (new route `/music/chart/:id`)
+> - `frontend/src/lib/music-api.js` (new `musicAPI.chartPreset(id)`)
+>
+
 > **🟢 v2.16.37 — Live TV WhatsOn hub populates on boot (Feb 2026).**
 >
 > After v2.16.36 restored ready-on-boot EPG for channel rows, user came back with a related complaint: **"the What's On Live isn't populating everything on boot — I have to go into a category with sports in it, then it'll show up on the live".**  Diagnosis found two additional gaps:

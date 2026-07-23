@@ -22,6 +22,7 @@ export function isRealArt(url) {
 
 export const musicAPI = {
     home: () => jget('/home'),
+    chartPreset: (id) => jget(`/chart-preset/${encodeURIComponent(id)}`),
     search: (q) => jget(`/search?q=${encodeURIComponent(q)}`),
     album: (id) => jget(`/album/${id}`),
     artist: (id) => jget(`/artist/${id}`),

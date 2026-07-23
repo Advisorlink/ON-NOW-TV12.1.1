@@ -358,6 +358,106 @@ function Shelf({ eyebrow, title, children, testId }) {
     );
 }
 
+/* -- Charts & Decades (wide-rectangle presets, above Moods) ---
+ * v2.8.66 — User request: "top 100 Australia, top 100 USA, plus
+ * decades like 80s / 90s / 2000s / golden oldies, as wide tiles
+ * like Continue Watching, right before the Moods row".
+ *
+ * Each preset routes to the existing search page with a curated
+ * query so we don't need a new detail screen — the search
+ * results panel already renders tracks + albums beautifully.
+ * The gradient palettes are hand-picked to feel like the music
+ * era / country each tile represents (retro warm tones for the
+ * 70s / 80s, ice cool for the 90s, neon for the 2000s, sunlit
+ * for AU, patriotic for US/UK). */
+const CHART_PRESETS = [
+    {
+        id: 'top-au',      title: 'Top 100 Australia', subtitle: 'CHART TOPPERS',
+        flag: '🇦🇺',
+        bg: 'linear-gradient(135deg, #0057b7 0%, #ffd800 55%, #e30613 100%)',
+        q: 'top hits australia 2026',
+    },
+    {
+        id: 'top-us',      title: 'Top 100 USA',       subtitle: 'BILLBOARD HOT',
+        flag: '🇺🇸',
+        bg: 'linear-gradient(135deg, #0a3161 0%, #b31942 100%)',
+        q: 'top hits usa 2026 billboard hot 100',
+    },
+    {
+        id: 'top-uk',      title: 'Top 100 UK',        subtitle: 'OFFICIAL CHART',
+        flag: '🇬🇧',
+        bg: 'linear-gradient(135deg, #012169 0%, #c8102e 100%)',
+        q: 'uk official charts top 40 2026',
+    },
+    {
+        id: 'decade-2020s', title: "The 2020s",         subtitle: "NOW PLAYING",
+        emblem: "'20s",
+        bg: 'linear-gradient(135deg, #ff006e 0%, #8338ec 50%, #3a86ff 100%)',
+        q: 'top hits 2020s',
+    },
+    {
+        id: 'decade-2010s', title: "The 2010s",         subtitle: "STREAMING ERA",
+        emblem: "'10s",
+        bg: 'linear-gradient(135deg, #06d6a0 0%, #118ab2 100%)',
+        q: 'top hits 2010s',
+    },
+    {
+        id: 'decade-2000s', title: "The 2000s",         subtitle: "MP3 ERA",
+        emblem: "'00s",
+        bg: 'linear-gradient(135deg, #cc2b5e 0%, #753a88 100%)',
+        q: 'top hits 2000s',
+    },
+    {
+        id: 'decade-90s',   title: "The '90s",           subtitle: "CD ERA",
+        emblem: "'90s",
+        bg: 'linear-gradient(135deg, #43cea2 0%, #185a9d 100%)',
+        q: '90s greatest hits',
+    },
+    {
+        id: 'decade-80s',   title: "The '80s",           subtitle: "SYNTH & NEON",
+        emblem: "'80s",
+        bg: 'linear-gradient(135deg, #f953c6 0%, #b91d73 60%, #202038 100%)',
+        q: '80s greatest hits',
+    },
+    {
+        id: 'decade-70s',   title: "The '70s",           subtitle: "DISCO & ROCK",
+        emblem: "'70s",
+        bg: 'linear-gradient(135deg, #ff8008 0%, #ffc837 100%)',
+        q: '70s greatest hits disco rock',
+    },
+    {
+        id: 'oldies',       title: "Golden Oldies",       subtitle: "'50s & '60s CLASSICS",
+        emblem: '★',
+        bg: 'linear-gradient(135deg, #d4af37 0%, #7c5f16 100%)',
+        q: 'golden oldies 50s 60s classics',
+    },
+];
+
+function ChartTile({ preset }) {
+    const navigate = useNavigate();
+    return (
+        <button
+            type="button"
+            className="tunes-tile tunes-tile--chart"
+            style={{ background: preset.bg }}
+            data-testid={`tunes-chart-${preset.id}`}
+            data-focusable="true"
+            data-focus-style="tile"
+            tabIndex={0}
+            onClick={() => navigate(`/music/chart/${preset.id}`)}
+        >
+            <span className="tunes-tile__chart-emblem" aria-hidden="true">
+                {preset.flag || preset.emblem}
+            </span>
+            <div className="tunes-tile__scrim" />
+            <div className="tunes-tile__caption">
+                <p className="tunes-tile__subtitle">{preset.subtitle}</p>
+                <p className="tunes-tile__title">{preset.title}</p>
+            </div>
+        </button>
+    );
+}
+
 /* -- Moods (horizontal one-line shelf, like Continue Watching) - */
 const MOODS = [
     { id: 'chill',     title: 'Chill',     subtitle: 'EASY LISTENING', bg: 'linear-gradient(135deg, #5b8def 0%, #2a82b8 100%)', icon: Moon,       q: 'chill lofi' },
@@ -567,6 +667,10 @@ export default function MusicHome() {
                     ))}
                 </Shelf>
             )}
+
+            <Shelf eyebrow="TOP 100 & DECADES" title="Charts &amp; Eras" testId="shelf-charts-decades">
+                {CHART_PRESETS.map((p) => <ChartTile key={p.id} preset={p} />)}
+            </Shelf>
 
             <Shelf eyebrow="HOW DO YOU FEEL" title="Moods" testId="shelf-moods">
                 {MOODS.map((m) => <MoodTile key={m.id} mood={m} />)}
