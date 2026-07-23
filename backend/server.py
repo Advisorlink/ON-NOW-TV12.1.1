@@ -4814,8 +4814,16 @@ app.include_router(backup_router)
 from library import router as library_router  # noqa: E402
 app.include_router(library_router)
 
-from instant_bundle import router as instant_bundle_router  # noqa: E402
+from instant_bundle import router as instant_bundle_router, attach_collection as instant_bundle_attach  # noqa: E402
 app.include_router(instant_bundle_router)
+# v2.16.35 — Wire the Mongo collection so `_restore_from_db()` in
+# instant_bundle can load the persisted EPG on backend startup.
+# Without this, every restart wiped the in-memory EPG cache and
+# forced a full ~13 min re-warm during which the /instant-bundle
+# endpoint shipped 14 k channels with ZERO EPG buckets — that's
+# why users kept seeing "Loading guide…" on every channel row
+# until they clicked one.
+instant_bundle_attach(db["xtream_bundle"])
 
 # v2.10.47 — Custom JWT login system (Xtream-credential vault).
 from auth_router import build_auth_router, ensure_indexes as ensure_auth_indexes, make_get_current_account  # noqa: E402

@@ -1,4 +1,45 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.16.35 — Live TV EPG deep-fix: THREE stacked backend bugs, "EPG only shows on click" resolved (Feb 2026).**
+>
+> User was ADAMANT the EPG lazy-load fix from v2.16.34 wasn't working — the channel row's NOW pill was still empty until they explicitly clicked the channel.  Deep-dive uncovered **THREE stacked backend bugs**, each hiding the next.  All shipped in a single pass.
+>
+> ### Bug #1 — `attach_collection()` never called
+> `server.py` imports and starts the instant-bundle scheduler but NEVER wires up the Mongo collection.  As a result:
+> - `_restore_from_db()` silently returns on every startup (checks `if _collection is None: return`).
+> - `_persist()` silently no-ops after every EPG refresh.
+> - Every backend restart drops the entire in-memory EPG cache and forces a fresh ~13 min XMLTV re-parse + provider pre-warm.  During that entire window, `/api/xtream/instant-bundle` ships channels but ZERO EPG buckets.
+> - **Fix:** `server.py` now calls `instant_bundle_attach(db["xtream_bundle"])` right after `include_router(instant_bundle_router)`.  On restart the bundle payload is populated from Mongo in ~1 s.
+>
+> ### Bug #2 — Bundle payload not rebuilt after XMLTV parse
+> `_refresh_epg()` parses the XMLTV feed into `by_stream_id` (fresh EPG for ~3.2 k popular channels), THEN kicks off a ~13 min per-channel pre-warm for the remaining ~10.9 k gap channels, THEN publishes to `_state["epg"]` at the very end (line 748).  During that pre-warm window `_state["epg"]` kept the previous (stale, or empty on fresh restart) value.
+> - **Fix:** publish + rebuild cached payload IMMEDIATELY after the XMLTV parse, BEFORE the per-channel pre-warm starts.  New log line: `XMLTV baseline published early — N stream_id channels have EPG, pre-warm starts now`.  ~3.2 k channels get fresh EPG the moment XMLTV is parsed (~13 s), not 13 min later.
+>
+> ### Bug #3 — Field-name mismatch (THE actual "click-to-see-EPG" root cause)
+> `/api/xtream/instant-bundle` served programmes with the raw provider-shape keys `{"title", "desc", "category", "startTimestamp", "stopTimestamp", "live"}`.  The Kotlin client's `XtreamRepository.parseBundle` (Live TV APK) reads `p.optLong("start")` / `p.optLong("stop")` / `p.optString("description")` — NOT `startTimestamp` / `stopTimestamp` / `desc`.  Every bundle-fed programme therefore parsed with **`startMs=0` and `stopMs=0`**, so `Programme.isLiveAt(now)` returned **false FOR EVERY PROGRAMME EVER**.  The channel pill's `liveProgrammeOf(ch)` always returned null → row displayed "Loading guide…" indefinitely.
+> - The only code path that worked was CLICKING a channel — that fires `loadGuideForChannel` which uses the SEPARATE `/api/xtream/epg/{stream_id}` endpoint, whose serializer correctly maps `startTimestamp → start` and `stopTimestamp → stop`.  That's why clicking fixed each channel individually.
+> - **Fix:** `_rebuild_cached_payload()` now remaps the EPG programme shape on serialization: `{"title", "description", "start", "stop", "live"}`.  Wire format now matches the per-channel endpoint AND the client parser.
+>
+> ### Verification (curl e2e via preview URL, 2026-07-23)
+> - `GET /api/xtream/instant-bundle` → bundle now has 3195 EPG buckets with correct programme fields (`['title', 'description', 'start', 'stop', 'live']`).
+> - Programme timestamps parse correctly on the client — sanity check counted **3194 channels with a currently-LIVE programme** RIGHT NOW (all of them; only 1 buffer between shows).
+> - Sample match: "BBC ONE FHD" showing "BBC Sport" — real EPG data flowing end-to-end without a click.
+> - Startup restore working: `warm-started from MongoDB (channels=14088 categories=160 epg=N)` now fires on every restart.
+> - Stale-EPG guard: when the persisted EPG's keys don't intersect any current channel's `stream_id`, we log a warning and force a fresh XMLTV fetch instead of shipping the corrupt map.
+> - **`/tmp/kt_brace_check.py`** on `MainActivity.kt`, `EpgActivity.kt`, `PresenceReporter.kt`: brace=paren=brack=0 OK.
+>
+> ### Client-side companion tweak (also v2.16.35)
+> `MainActivity.kt` fast-path used to hard-override the bundle's EPG with `EpgCache.load(this)`, which returns an EMPTY map on schema-v3+ (per-channel disk cache design).  This threw away the server-side EPG the moment we successfully fetched it.  Now: `effectiveEpg = if (cachedEpg.isEmpty()) bundle.epg else cachedEpg` — pre-v3 legacy users keep the old behaviour, v3+ users get the fresh server EPG in memory instantly.
+>
+> ### Also carried forward from v2.16.34
+> `EpgActivity.kickOffWhatsOnPrefetch()` no longer poisons `epgKnownEmpty` when a per-channel disk cache is empty — was masking the network-fallback path for lazy fetches.
+>
+> ### Files touched
+> - `backend/server.py` (+`attach_collection` wire-up)
+> - `backend/instant_bundle.py` (early-publish after XMLTV, field-name remap, stale-key discard on restore)
+> - `android/onnowtv-livetv/.../MainActivity.kt` (use bundle EPG when disk cache is empty)
+> - `android/onnowtv-livetv/.../data/PresenceReporter.kt` (fixed unrelated bogus `tv.onnowtv.livetv.model.Channel` import that was breaking CI compile from v2.16.29)
+>
+
 > **🟢 v2.16.34 — Live TV EPG lazy-load fix: guide populates without needing a click (Feb 2026).**
 >
 > User bug report: "The EPG is only loading when I actually click on a channel — otherwise every row just says 'Loading guide…' forever."  Regression caused by v2.16.2's disk-EPG prefetch which was poisoning `epgKnownEmpty` for any channel whose per-channel gz cache was empty on disk.

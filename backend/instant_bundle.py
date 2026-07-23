@@ -226,6 +226,36 @@ async def _rebuild_cached_payload() -> None:
 
     Must run under `_state_lock` for atomicity."""
     p = _provider_from_env() or {}
+    # v2.16.35 — Remap EPG programme fields to match what the
+    # native Live TV client expects.
+    #
+    # ROOT CAUSE OF THE "EPG-only-loads-on-click" BUG:
+    # Internal `_state["epg"]` stores programmes with the raw
+    # provider-shape keys `startTimestamp`, `stopTimestamp`, `desc`.
+    # The Kotlin client (`XtreamRepository.parseBundle`, lines 146-147
+    # in the Live TV APK) reads `p.optLong("start")` and
+    # `p.optLong("stop")` — NOT `startTimestamp`/`stopTimestamp`.
+    # Every bundle-fed programme therefore parsed with startMs=0 /
+    # stopMs=0, so `Programme.isLiveAt(now)` always returned false
+    # and the NOW pill NEVER populated from the bundle.  The user's
+    # only working code path was CLICKING a channel, which uses
+    # `/api/xtream/epg/{sid}` (a completely separate endpoint that
+    # happens to emit the right field names).
+    #
+    # Fix: remap on serialization so the wire format matches the
+    # per-channel endpoint AND the client parser.
+    remapped_epg: Dict[str, List[Dict[str, Any]]] = {}
+    for sid, progs in (_state["epg"] or {}).items():
+        remapped_epg[sid] = [
+            {
+                "title":       it.get("title", ""),
+                "description": it.get("desc", ""),
+                "start":       it.get("startTimestamp", 0),
+                "stop":        it.get("stopTimestamp",  0),
+                "live":        bool(it.get("live", False)),
+            }
+            for it in progs
+        ]
     payload = {
         "provider": {
             "id":     p.get("id", "managed"),
@@ -236,7 +266,7 @@ async def _rebuild_cached_payload() -> None:
         },
         "categories":          _state["categories"],
         "channels":            _state["channels"],
-        "epg":                 _state["epg"],
+        "epg":                 remapped_epg,
         "generated_at":        _state["generated_at"],
         "channels_fetched_at": _state["channels_fetched_at"],
         "epg_fetched_at":      _state["epg_fetched_at"],
@@ -350,13 +380,30 @@ async def _restore_from_db() -> None:
                     items = old_epg.get(eid)
                     if items:
                         by_stream_id[str(ch["stream_id"])] = items
-                _state["epg"] = by_stream_id
-                _state["epg_by_xmltv_id"] = old_epg
-                log.info(
-                    "instant_bundle: migrated persisted EPG to stream_id keys "
-                    "(xmltv_channels=%d → stream_id_channels=%d)",
-                    len(old_epg), len(by_stream_id),
-                )
+                # v2.16.35 — Only accept the migration if it actually
+                # produced usable data.  If zero buckets survived
+                # (which happens when the persisted EPG was written
+                # by an older provider whose stream_ids no longer
+                # match ANY current channel), KEEP the un-migrated
+                # copy in `epg_by_xmltv_id` for diagnostics but
+                # RESET the primary EPG to empty so subsequent lazy
+                # fetches don't get short-circuited by stale keys.
+                if by_stream_id:
+                    _state["epg"] = by_stream_id
+                    _state["epg_by_xmltv_id"] = old_epg
+                    log.info(
+                        "instant_bundle: migrated persisted EPG to stream_id keys "
+                        "(xmltv_channels=%d → stream_id_channels=%d)",
+                        len(old_epg), len(by_stream_id),
+                    )
+                else:
+                    _state["epg"] = {}
+                    _state["epg_fetched_at"] = 0
+                    log.warning(
+                        "instant_bundle: persisted EPG (%d keys) does not match "
+                        "any current channel — discarding and forcing a fresh XMLTV fetch",
+                        len(old_epg),
+                    )
         # Build the gzipped response cache once now so the very
         # first /instant-bundle request after a backend restart
         # doesn't have to do it on the request thread.
@@ -585,6 +632,27 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
         if not items:
             continue
         by_stream_id[str(ch["stream_id"])] = items
+
+    # v2.16.35 — Publish the XMLTV-derived EPG to `_state["epg"]`
+    # + rebuild the gzipped bundle payload IMMEDIATELY (before the
+    # ~13-min per-channel pre-warm phase begins).  The XMLTV feed
+    # already covers the ~3.2 k most-popular channels; without this
+    # early publish, `_state["epg"]` kept the previous (potentially
+    # stale) restored copy for the entire warm-up window, so any
+    # client that downloaded the bundle during that window got
+    # nothing usable for its NOW-PLAYING pills.
+    async with _state_lock:
+        _state["epg"] = by_stream_id
+        _state["epg_fetched_at"] = int(time.time())
+        _state["generated_at"]   = int(time.time())
+        _state["last_error"]     = None
+        # Not fully done yet, but the XMLTV baseline is live.
+        _state["epg_phase"]      = "warming_priority"
+        await _rebuild_cached_payload()
+    log.info(
+        "instant_bundle: XMLTV baseline published early — %d stream_id channels have EPG, pre-warm starts now",
+        len(by_stream_id),
+    )
 
     # v2.7.80 — Per-channel pre-warm for the ~75 % of channels the
     # bulk XMLTV feed doesn't cover.

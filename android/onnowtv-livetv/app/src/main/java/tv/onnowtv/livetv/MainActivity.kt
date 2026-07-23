@@ -178,16 +178,27 @@ class MainActivity : AppCompatActivity() {
                                 out
                             }
 
+                            // v2.16.35 — When the legacy `EpgCache.load`
+                            // returns EMPTY (schema-v3+ per-channel disk
+                            // cache), use the bundle's server-side EPG
+                            // as an in-memory fallback so the WhatsOn
+                            // hub and channel pills have data
+                            // instantly — even before the per-channel
+                            // prefetch reads from disk.  When the
+                            // legacy load actually has programmes
+                            // (pre-v3 users), keep that behaviour.
+                            val effectiveEpg = if (cachedEpg.isEmpty()) bundle.epg else cachedEpg
                             val merged = bundle.copy(
                                 channels = patchedChannels,
-                                epg = cachedEpg,
+                                epg = effectiveEpg,
                             )
                             BundleHolder.current = merged
                             Log.i(
                                 "MainActivity",
                                 "fast-path: ${merged.channels.size} channels / " +
-                                    "epg=lazy-from-disk " +
-                                    "(cache age=${BundleCache.ageMs(this) / 1000}s)",
+                                    "epg=${effectiveEpg.size} buckets (" +
+                                    (if (cachedEpg.isEmpty()) "from bundle" else "from disk") +
+                                    ") (cache age=${BundleCache.ageMs(this) / 1000}s)",
                             )
                             // If either cache is stale, schedule a
                             // background refresh after EpgActivity opens.
