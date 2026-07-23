@@ -178,16 +178,32 @@ class MainActivity : AppCompatActivity() {
                                 out
                             }
 
-                            // v2.16.35 — When the legacy `EpgCache.load`
-                            // returns EMPTY (schema-v3+ per-channel disk
-                            // cache), use the bundle's server-side EPG
-                            // as an in-memory fallback so the WhatsOn
-                            // hub and channel pills have data
-                            // instantly — even before the per-channel
-                            // prefetch reads from disk.  When the
-                            // legacy load actually has programmes
-                            // (pre-v3 users), keep that behaviour.
-                            val effectiveEpg = if (cachedEpg.isEmpty()) bundle.epg else cachedEpg
+                            // v2.16.36 — For schema-v3+ (per-channel
+                            // disk layout) the legacy `EpgCache.load`
+                            // returns an EMPTY map by design and the
+                            // bundle's own `.epg` from the direct
+                            // fetcher is also empty.  Bulk-hydrate
+                            // straight from the per-channel gz files
+                            // so the EpgActivity gets a fully
+                            // populated map from the very first paint
+                            // — no "Loading guide…" flash, no scroll
+                            // required.  Pre-v3 users keep the old
+                            // path.
+                            val effectiveEpg = when {
+                                cachedEpg.isNotEmpty()   -> cachedEpg      // pre-v3 legacy
+                                bundle.epg.isNotEmpty()  -> bundle.epg     // backend served EPG
+                                else -> {
+                                    val t0 = System.currentTimeMillis()
+                                    val wanted = patchedChannels
+                                        .mapNotNull { it.epgChannelId?.takeIf { s -> s.isNotBlank() } }
+                                    val hydrated = EpgCache.loadAllChannels(applicationContext, wanted)
+                                    Log.i(
+                                        "MainActivity",
+                                        "fast-path bulk-hydrate: ${hydrated.size} channels in ${System.currentTimeMillis() - t0} ms",
+                                    )
+                                    hydrated
+                                }
+                            }
                             val merged = bundle.copy(
                                 channels = patchedChannels,
                                 epg = effectiveEpg,
@@ -196,9 +212,8 @@ class MainActivity : AppCompatActivity() {
                             Log.i(
                                 "MainActivity",
                                 "fast-path: ${merged.channels.size} channels / " +
-                                    "epg=${effectiveEpg.size} buckets (" +
-                                    (if (cachedEpg.isEmpty()) "from bundle" else "from disk") +
-                                    ") (cache age=${BundleCache.ageMs(this) / 1000}s)",
+                                    "epg=${effectiveEpg.size} buckets " +
+                                    "(cache age=${BundleCache.ageMs(this) / 1000}s)",
                             )
                             // If either cache is stale, schedule a
                             // background refresh after EpgActivity opens.
@@ -713,6 +728,39 @@ class MainActivity : AppCompatActivity() {
             tv.onnowtv.livetv.data.EpgRefreshWorker.schedulePeriodic(applicationContext)
         } catch (t: Throwable) {
             Log.w("MainActivity", "background EPG refresh enqueue failed: ${t.message}")
+        }
+
+        // v2.16.36 — Bulk-hydrate the on-disk EPG cache INTO the
+        // bundle before we hand off to EpgActivity.  Previously the
+        // bundle's `.epg` map was always empty (schema-v3 stores
+        // programmes in per-channel files), so EpgActivity opened
+        // with `epgCache` empty and every channel row painted with
+        // a "Loading guide…" placeholder for 1-3 s until the
+        // background prefetch finished.  Users perceived this as
+        // "the guide only loads when I scroll or click".  Doing the
+        // hydration here — while the MainActivity loader screen is
+        // still on-screen with its dots + tips animation — makes
+        // the wait invisible and gives EpgActivity a fully
+        // populated map from the very first paint.
+        try {
+            val t0 = System.currentTimeMillis()
+            headline.text = "Loading guide from cache…"
+            substatus.text = "Reading per-channel EPG files"
+            val wanted = mergedBundle.channels
+                .mapNotNull { it.epgChannelId?.takeIf { s -> s.isNotBlank() } }
+            val loaded = withContext(Dispatchers.IO) {
+                tv.onnowtv.livetv.data.EpgCache
+                    .loadAllChannels(applicationContext, wanted)
+            }
+            if (loaded.isNotEmpty()) {
+                mergedBundle = mergedBundle.copy(epg = loaded)
+                Log.i(
+                    "MainActivity",
+                    "hydrated ${loaded.size} channels from disk in ${System.currentTimeMillis() - t0} ms",
+                )
+            }
+        } catch (t: Throwable) {
+            Log.w("MainActivity", "bulk EPG hydrate failed: ${t.message}")
         }
 
         BundleHolder.current = mergedBundle

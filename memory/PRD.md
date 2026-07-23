@@ -1,4 +1,27 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.16.36 — Live TV EPG "ready on boot" restored: no more scroll-triggered / click-triggered loading (Feb 2026).**
+>
+> After v2.16.35 shipped, user came back and said "I don't want it to be loading as I scroll — I want it to just be there, how it was working before".  Diagnosis: the client uses `DirectProviderFetcher` as the primary bundle source (backend was IP-blocked by the provider in v2.9.10 so we deliberately race direct-first), and the direct fetcher builds a bundle payload with **`epg: {}`** — programmes are held per-channel in the on-disk schema-v3 cache (`filesDir/epg-channels-v3/*.jsonl.gz`) and were previously only read lazily by `EpgActivity.kickOffWhatsOnPrefetch()` AFTER the RecyclerView had already painted every row with a "Loading guide…" placeholder.  Rows only rebound when the user scrolled (RecyclerView view-recycle) — hence the "load-on-scroll" perception.
+>
+> ### Fix — bulk-hydrate the on-disk EPG cache BEFORE launching EpgActivity
+> New helper `EpgCache.loadAllChannels(ctx, wantedIds)` reads every per-channel `.jsonl.gz` file in parallel across an 8-thread fixed pool.  Empirically finishes ~3 000 channels in under a second on a mid-range Android TV box.  Wired into MainActivity in both paths:
+>
+> 1. **Fast-path (BundleCache hit — the common case):** `effectiveEpg` now falls through to `EpgCache.loadAllChannels` when both the legacy `EpgCache.load()` and the bundle's own `.epg` are empty (i.e. schema-v3+ + direct-fetcher payload).  Runs inside `onCreate` before `setContentView`, so it happens during the launcher-to-activity transition and is invisible to the user.
+> 2. **Slow-path (fresh boot / cache miss):** immediately after the XMLTV preload writes per-channel files (or after the "cache already exists" skip branch), `loadAllChannels` is invoked from a coroutine on `Dispatchers.IO` while the MainActivity loader screen shows "Loading guide from cache…" with its dots + tips animation.  The user perceives it as part of the normal boot sequence, not a hitch.
+>
+> Also added a defensive `channelAdapter.notifyDataSetChanged()` at the end of `EpgActivity.kickOffWhatsOnPrefetch` (and at the end of every throttled batch) as a safety-net rebind for any channels whose disk file appeared AFTER the initial hydration — belt-and-braces guard against races where a lazy-fetch persistence completes before the prefetch is done scanning.
+>
+> ### Verification
+> - Kotlin brace-balance clean on `MainActivity.kt`, `EpgActivity.kt`, `data/EpgCache.kt`.
+> - Trace-through for all three boot paths confirms `epgCache.putAll(bundle.epg)` in `EpgActivity.onCreate` now receives a populated map before the RecyclerView first-paints.
+> - The remaining ~11 k long-tail channels (no XMLTV data → no on-disk file) still fall through to the per-channel `/api/xtream/epg/{stream_id}` lazy-fetch, unchanged — those channels have no cached EPG to hydrate, they never did, and the backend cache-hit path returns them in ~200 ms.
+>
+> ### Files touched
+> - `android/onnowtv-livetv/.../data/EpgCache.kt` (new `loadAllChannels` bulk-hydrate helper)
+> - `android/onnowtv-livetv/.../MainActivity.kt` (fast-path + slow-path hydration hook)
+> - `android/onnowtv-livetv/.../EpgActivity.kt` (defensive `notifyDataSetChanged` on prefetch completion + per-batch)
+>
+
 > **🟢 v2.16.35 — Live TV EPG deep-fix: THREE stacked backend bugs, "EPG only shows on click" resolved (Feb 2026).**
 >
 > User was ADAMANT the EPG lazy-load fix from v2.16.34 wasn't working — the channel row's NOW pill was still empty until they explicitly clicked the channel.  Deep-dive uncovered **THREE stacked backend bugs**, each hiding the next.  All shipped in a single pass.

@@ -1121,6 +1121,16 @@ class EpgActivity : AppCompatActivity() {
                         whatsOnAdapter.submit(whatsOnRows, whatsOnActiveSport)
                         paintWhatsOnChannelsIncremental()
                     }
+                    // v2.16.36 — Refresh every visible channel row so
+                    // the NOW-PLAYING pills that were painted BEFORE
+                    // the disk prefetch finished (i.e. the rows on
+                    // screen at activity-open) rebind against the
+                    // now-populated `epgCache`.  Without this the
+                    // user MUST scroll for the pills to redraw —
+                    // exactly the "load-only-on-click" symptom the
+                    // user was complaining about, just via bind-
+                    // recycle instead of an explicit click.
+                    channelAdapter.notifyDataSetChanged()
                 }
             }
             withContext(Dispatchers.Main) {
@@ -1129,6 +1139,11 @@ class EpgActivity : AppCompatActivity() {
                 if (currentCategoryId == "__whatson__") {
                     paintWhatsOnChannelsIncremental()
                 }
+                // Final catch-all rebind once the entire disk-cache
+                // pass has settled — safeguard for channels whose
+                // pill state was still stale after the throttled
+                // per-batch refreshes.
+                channelAdapter.notifyDataSetChanged()
             }
         }
     }
