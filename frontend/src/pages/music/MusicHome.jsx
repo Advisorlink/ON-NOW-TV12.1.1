@@ -358,78 +358,92 @@ function Shelf({ eyebrow, title, children, testId }) {
     );
 }
 
-/* -- Charts & Decades (wide-rectangle presets, above Moods) ---
+/* -- Charts & Decades (wide-rectangle presets, at the bottom of
+ *    the home feed, below Moods / Genres) ---
+ *
  * v2.8.66 — User request: "top 100 Australia, top 100 USA, plus
  * decades like 80s / 90s / 2000s / golden oldies, as wide tiles
  * like Continue Watching, right before the Moods row".
+ * v2.8.68 — Refresh: real photography backdrops (skylines for
+ * country charts, era-defining stock for decades) with a soft
+ * black scrim, and a tiny country-flag chip pinned top-right
+ * on the country tiles.  Previous plain-gradient tiles felt
+ * "old" per user feedback.
  *
- * Each preset routes to the existing search page with a curated
- * query so we don't need a new detail screen — the search
- * results panel already renders tracks + albums beautifully.
- * The gradient palettes are hand-picked to feel like the music
- * era / country each tile represents (retro warm tones for the
- * 70s / 80s, ice cool for the 90s, neon for the 2000s, sunlit
- * for AU, patriotic for US/UK). */
+ * All artwork is served from Unsplash CDN (unsplash.com/photos/…)
+ * so we don't need to host or transcode anything.  Every image
+ * is licensed for free commercial use.
+ */
 const CHART_PRESETS = [
     {
         id: 'top-au',      title: 'Top 100 Australia', subtitle: 'CHART TOPPERS',
         flag: '🇦🇺',
-        bg: 'linear-gradient(135deg, #0057b7 0%, #ffd800 55%, #e30613 100%)',
-        q: 'top hits australia 2026',
+        // Sydney Opera House at sunset
+        image: 'https://images.unsplash.com/photo-1523482580672-f109ba8cb9be?w=800&q=75',
+        tint: 'linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,0.7) 100%)',
     },
     {
         id: 'top-us',      title: 'Top 100 USA',       subtitle: 'BILLBOARD HOT',
         flag: '🇺🇸',
-        bg: 'linear-gradient(135deg, #0a3161 0%, #b31942 100%)',
-        q: 'top hits usa 2026 billboard hot 100',
+        // NYC skyline
+        image: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=800&q=75',
+        tint: 'linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,0.7) 100%)',
     },
     {
         id: 'top-uk',      title: 'Top 100 UK',        subtitle: 'OFFICIAL CHART',
         flag: '🇬🇧',
-        bg: 'linear-gradient(135deg, #012169 0%, #c8102e 100%)',
-        q: 'uk official charts top 40 2026',
+        // London / Big Ben at dusk
+        image: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=800&q=75',
+        tint: 'linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,0.7) 100%)',
     },
     {
         id: 'decade-2020s', title: "The 2020s",         subtitle: "NOW PLAYING",
         emblem: "'20s",
-        bg: 'linear-gradient(135deg, #ff006e 0%, #8338ec 50%, #3a86ff 100%)',
-        q: 'top hits 2020s',
+        // Modern neon / hologram vibes
+        image: 'https://images.unsplash.com/photo-1518676590629-3dcba9c5a555?w=800&q=75',
+        tint: 'linear-gradient(180deg, rgba(255,0,110,0.2) 0%, rgba(58,134,255,0.35) 60%, rgba(0,0,0,0.85) 100%)',
     },
     {
         id: 'decade-2010s', title: "The 2010s",         subtitle: "STREAMING ERA",
         emblem: "'10s",
-        bg: 'linear-gradient(135deg, #06d6a0 0%, #118ab2 100%)',
-        q: 'top hits 2010s',
+        // Festival lights / Coachella-esque
+        image: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&q=75',
+        tint: 'linear-gradient(180deg, rgba(6,214,160,0.15) 0%, rgba(17,138,178,0.35) 60%, rgba(0,0,0,0.85) 100%)',
     },
     {
         id: 'decade-2000s', title: "The 2000s",         subtitle: "MP3 ERA",
         emblem: "'00s",
-        bg: 'linear-gradient(135deg, #cc2b5e 0%, #753a88 100%)',
-        q: 'top hits 2000s',
+        // iPod-era product / retro tech
+        image: 'https://images.unsplash.com/photo-1461360370896-922624d12aa1?w=800&q=75',
+        tint: 'linear-gradient(180deg, rgba(204,43,94,0.15) 0%, rgba(117,58,136,0.35) 60%, rgba(0,0,0,0.85) 100%)',
     },
     {
         id: 'decade-90s',   title: "The '90s",           subtitle: "CD ERA",
         emblem: "'90s",
-        bg: 'linear-gradient(135deg, #43cea2 0%, #185a9d 100%)',
-        q: '90s greatest hits',
+        // CDs / cassettes / retro
+        image: 'https://images.unsplash.com/photo-1483412033650-1015ddeb83d1?w=800&q=75',
+        tint: 'linear-gradient(180deg, rgba(67,206,162,0.2) 0%, rgba(24,90,157,0.4) 60%, rgba(0,0,0,0.85) 100%)',
     },
     {
         id: 'decade-80s',   title: "The '80s",           subtitle: "SYNTH & NEON",
         emblem: "'80s",
-        bg: 'linear-gradient(135deg, #f953c6 0%, #b91d73 60%, #202038 100%)',
-        q: '80s greatest hits',
+        // Retro neon synthwave
+        image: 'https://images.unsplash.com/photo-1518972559570-7cc1309f3229?w=800&q=75',
+        tint: 'linear-gradient(180deg, rgba(249,83,198,0.2) 0%, rgba(185,29,115,0.45) 60%, rgba(0,0,0,0.85) 100%)',
     },
     {
         id: 'decade-70s',   title: "The '70s",           subtitle: "DISCO & ROCK",
         emblem: "'70s",
-        bg: 'linear-gradient(135deg, #ff8008 0%, #ffc837 100%)',
-        q: '70s greatest hits disco rock',
+        // Vinyl records / groovy
+        image: 'https://images.unsplash.com/photo-1461360228754-6e81c478b882?w=800&q=75',
+        tint: 'linear-gradient(180deg, rgba(255,128,8,0.2) 0%, rgba(255,200,55,0.35) 55%, rgba(0,0,0,0.85) 100%)',
     },
     {
         id: 'oldies',       title: "Golden Oldies",       subtitle: "'50s & '60s CLASSICS",
         emblem: '★',
-        bg: 'linear-gradient(135deg, #d4af37 0%, #7c5f16 100%)',
-        q: 'golden oldies 50s 60s classics',
+        // Vintage vinyl / jukebox
+        image: 'https://images.unsplash.com/photo-1470019693664-1d202d2c0907?w=800&q=75',
+        tint: 'linear-gradient(180deg, rgba(212,175,55,0.2) 0%, rgba(124,95,22,0.5) 60%, rgba(0,0,0,0.9) 100%)',
     },
 ];
 
@@ -439,17 +453,32 @@ function ChartTile({ preset }) {
         <button
             type="button"
             className="tunes-tile tunes-tile--chart"
-            style={{ background: preset.bg }}
             data-testid={`tunes-chart-${preset.id}`}
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
             onClick={() => navigate(`/music/chart/${preset.id}`)}
         >
-            <span className="tunes-tile__chart-emblem" aria-hidden="true">
-                {preset.flag || preset.emblem}
-            </span>
-            <div className="tunes-tile__scrim" />
+            <img
+                src={preset.image}
+                alt=""
+                loading="lazy"
+                className="tunes-tile__chart-photo"
+            />
+            <div
+                className="tunes-tile__chart-tint"
+                style={{ background: preset.tint }}
+            />
+            {preset.flag && (
+                <span className="tunes-tile__chart-flag" aria-hidden="true">
+                    {preset.flag}
+                </span>
+            )}
+            {preset.emblem && !preset.flag && (
+                <span className="tunes-tile__chart-emblem" aria-hidden="true">
+                    {preset.emblem}
+                </span>
+            )}
             <div className="tunes-tile__caption">
                 <p className="tunes-tile__subtitle">{preset.subtitle}</p>
                 <p className="tunes-tile__title">{preset.title}</p>
@@ -668,10 +697,6 @@ export default function MusicHome() {
                 </Shelf>
             )}
 
-            <Shelf eyebrow="TOP 100 & DECADES" title="Charts &amp; Eras" testId="shelf-charts-decades">
-                {CHART_PRESETS.map((p) => <ChartTile key={p.id} preset={p} />)}
-            </Shelf>
-
             <Shelf eyebrow="HOW DO YOU FEEL" title="Moods" testId="shelf-moods">
                 {MOODS.map((m) => <MoodTile key={m.id} mood={m} />)}
             </Shelf>
@@ -686,6 +711,15 @@ export default function MusicHome() {
                     </div>
                 </section>
             )}
+
+            {/* v2.8.68 — Charts & Eras shelf moved to the very bottom of
+                the home feed, below the For You content the user
+                expects at the top.  User feedback: this is an
+                ADDITIONAL section, not a replacement for the
+                editorial shelves. */}
+            <Shelf eyebrow="TOP 100 & DECADES" title="Charts &amp; Eras" testId="shelf-charts-decades">
+                {CHART_PRESETS.map((p) => <ChartTile key={p.id} preset={p} />)}
+            </Shelf>
 
             <div style={{ height: 60 }} />
         </div>

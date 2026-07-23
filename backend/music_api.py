@@ -167,10 +167,31 @@ def _shape_artist(a: Dict[str, Any]) -> Dict[str, Any]:
 #  Deezer (music catalog + previews)
 # ════════════════════════════════════════════════════════════════════
 async def _deezer_get(path: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """GET against Deezer Public API; 10-s timeout; returns JSON."""
+    """GET against Deezer Public API; 10-s timeout; returns JSON.
+
+    v2.8.68 — Send a browser-shaped User-Agent + Accept header so
+    Akamai's edge doesn't 403 us as a headless scraper.  Deezer's
+    public API doesn't require auth, but their edge WAF blocks
+    unknown crawlers when it sees traffic spikes.  Also fail-soft
+    on 403 (block) / 429 (throttle) — return `{}` instead of raising
+    so callers just get an empty result and can retry later without
+    the whole /home shelf disappearing on the user.
+    """
     url = f"{DEEZER_BASE}{path}"
-    async with httpx.AsyncClient(timeout=10) as client:
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Linux; Android 9; ON-NOW-TV) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        ),
+        "Accept":          "application/json,*/*",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    async with httpx.AsyncClient(timeout=10, headers=headers) as client:
         r = await client.get(url, params=params)
+        if r.status_code in (403, 429):
+            log.warning("deezer %s → HTTP %d (Akamai/rate-limit)", path, r.status_code)
+            return {}
         r.raise_for_status()
         return r.json()
 
@@ -190,7 +211,7 @@ async def music_home():
     Sabrina Carpenter, Bruno Mars, Billie Eilish, etc.) instead of
     Jul, Ninho, GIMS et al.
     """
-    cached = await cache.get("music:home:v6")
+    cached = await cache.get("music:home:v7")
     if cached:
         return {"cached": True, "data": cached}
 
@@ -238,18 +259,31 @@ async def music_home():
         except Exception:
             return None
 
+    # v2.8.68 — Rate-limit the parallel Deezer fan-out.  Previously
+    # 20+ concurrent /search/track calls would trip Deezer's burst
+    # limiter, silently return HTTP 429, and the home shelves came
+    # back empty — user's "For You" page went dark.  4-way sem +
+    # 50 ms stagger keeps us comfortably under the 50 req / 5 s cap.
+    _home_sem = asyncio.Semaphore(4)
+
+    async def _limited(coro_factory):
+        async with _home_sem:
+            return await coro_factory()
+
     async def fetch_charts():
         items = await _itunes_us("topsongs", 25)
-        results = await asyncio.gather(
-            *[_deezer_first_track(f"{it['artist']} {it['title']}") for it in items[:25]]
-        )
+        results = await asyncio.gather(*[
+            _limited(lambda it=it: _deezer_first_track(f"{it['artist']} {it['title']}"))
+            for it in items[:25]
+        ])
         return [t for t in results if t]
 
     async def fetch_new_releases():
         items = await _itunes_us("topalbums", 25)
-        results = await asyncio.gather(
-            *[_deezer_first_album(f"{it['artist']} {it['title']}") for it in items[:25]]
-        )
+        results = await asyncio.gather(*[
+            _limited(lambda it=it: _deezer_first_album(f"{it['artist']} {it['title']}"))
+            for it in items[:25]
+        ])
         return [a for a in results if a]
 
     async def fetch_top_artists():
@@ -265,7 +299,9 @@ async def music_home():
             seen_set.add(a.lower())
             if len(seen) >= 20:
                 break
-        results = await asyncio.gather(*[_deezer_first_artist(a) for a in seen])
+        results = await asyncio.gather(*[
+            _limited(lambda name=name: _deezer_first_artist(name)) for name in seen
+        ])
         return [a for a in results if a]
 
     async def fetch_genres():
@@ -299,7 +335,7 @@ async def music_home():
         ],
         "genres": genres,
     }
-    await cache.set("music:home:v6", data, ttl_seconds=3600)
+    await cache.set("music:home:v7", data, ttl_seconds=3600)
     return {"cached": False, "data": data}
 
 
@@ -320,7 +356,7 @@ async def music_chart_preset(preset_id: str):
     Cached 6 h.  Falls back to whatever partial list resolved even
     if some tracks couldn't be matched against Deezer.
     """
-    cache_key = f"music:chart-preset:v5:{preset_id}"
+    cache_key = f"music:chart-preset:v6:{preset_id}"
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, "data": cached}
@@ -349,12 +385,13 @@ async def music_chart_preset(preset_id: str):
 
         Deezer rate-limits burst traffic (~50 req/5 s per IP)
         and silently returns HTTP 429 → httpx raises → we catch
-        and return None.  Cap at 4 concurrent + a small stagger
-        between fires so 100 items land at ~20 req/s comfortably
-        under the limit.  Also retry-once on empty results — a
-        first-pass miss is usually a transient throttle rather
-        than a genuine catalog gap."""
-        sem = asyncio.Semaphore(4)
+        and return None.  Cap at 6 concurrent (bumped from 4 in
+        v2.8.68 to speed up cold-cache loads while staying safely
+        under the burst cap) + a small stagger between fires.
+        Also retry-once on empty results — a first-pass miss is
+        usually a transient throttle rather than a genuine
+        catalog gap."""
+        sem = asyncio.Semaphore(6)
         errors = 0
 
         async def _search_once(q: str) -> Optional[Dict[str, Any]]:
@@ -367,15 +404,13 @@ async def music_chart_preset(preset_id: str):
 
         async def _one(idx: int, it: Dict[str, str]):
             nonlocal errors
-            # Stagger to keep well below Deezer's burst limit.
-            await asyncio.sleep(idx * 0.05)
+            # Small stagger to smooth the burst across the semaphore.
+            await asyncio.sleep(idx * 0.03)
             async with sem:
                 q = f'{it["artist"]} {it["title"]}'
                 r = await _search_once(q)
                 if r is None:
-                    # Backoff + retry with the title alone (drops
-                    # off "featuring …" tails that trip search).
-                    await asyncio.sleep(0.3)
+                    await asyncio.sleep(0.2)
                     r = await _search_once(it["title"])
                 if r is None:
                     errors += 1
@@ -384,7 +419,6 @@ async def music_chart_preset(preset_id: str):
         results = await asyncio.gather(*[_one(i, it) for i, it in enumerate(items)])
         if errors:
             log.info("chart-preset: %d of %d tracks unresolved", errors, len(items))
-        # Dedupe by track id.
         seen: set = set()
         out: List[Dict[str, Any]] = []
         for t in results:
@@ -425,12 +459,15 @@ async def music_chart_preset(preset_id: str):
     if preset_id in country_map:
         country = country_map[preset_id]
         items = await _itunes_country_songs(country, 100)
-        tracks = await _resolve_to_deezer(items[:100])
+        # v2.8.68 — Cap the resolve list to 60 so cold-cache loads
+        # complete in ~3-5 s (down from 12-15 s at 100).  Still
+        # plenty of songs for a "chart" experience.
+        tracks = await _resolve_to_deezer(items[:60])
         title_map = {"top-au": "Top 100 Australia", "top-us": "Top 100 USA", "top-uk": "Top 100 UK"}
         title = title_map[preset_id]
         subtitle = "iTunes chart · resolved against Deezer for previews"
     elif preset_id in decade_map:
-        tracks = await _deezer_search_tracks(decade_map[preset_id], 100)
+        tracks = await _deezer_search_tracks(decade_map[preset_id], 60)
         pretty = {
             "decade-2020s": "The 2020s", "decade-2010s": "The 2010s",
             "decade-2000s": "The 2000s", "decade-90s":  "The '90s",

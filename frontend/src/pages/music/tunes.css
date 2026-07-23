@@ -964,10 +964,13 @@
 
 /* ============================================================
    CHART & DECADE TILE — wide rectangles (like Continue Watching)
-   sitting between "New Releases" and "Moods".  Larger footprint
-   than the square Mood tile so decade titles ("The 2020s") and
-   country flags ("🇦🇺") get room to breathe.  Same focus + scrim
-   pattern as MoodTile so keyboard/D-pad navigation is identical.
+   pinned to the very bottom of the Music home feed.
+
+   v2.8.68 refresh: real photography backdrops with a soft
+   bottom-fade black tint (so the caption stays legible) plus a
+   country-flag chip (top-right) for country charts / a tilted
+   decade emblem for era tiles.  Previous plain-gradient tiles
+   felt "old" per user feedback.
 ============================================================ */
 
 .tunes-tile--chart {
@@ -981,12 +984,37 @@
     color: #ffffff;
     overflow: hidden;
     position: relative;
+    background: #111;   /* fallback while the photo loads */
+}
+
+.tunes-tile__chart-photo {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 0;
+    transition: transform 320ms ease;
+}
+
+.tunes-tile--chart:hover .tunes-tile__chart-photo,
+.tunes-tile--chart:focus-visible .tunes-tile__chart-photo {
+    transform: scale(1.05);
+}
+
+.tunes-tile__chart-tint {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
 }
 
 .tunes-tile--chart .tunes-tile__caption {
     /* Push the caption a hair higher — the ~72 pt emblem in the
        corner would otherwise crowd the title. */
     padding: 18px 20px;
+    position: relative;
+    z-index: 2;
 }
 
 .tunes-tile--chart .tunes-tile__title {
@@ -994,32 +1022,50 @@
     font-size: 22px;
     font-weight: 800;
     letter-spacing: -0.02em;
-    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
     line-height: 1.05;
 }
 
 .tunes-tile--chart .tunes-tile__subtitle {
-    color: rgba(255, 255, 255, 0.9);
+    color: rgba(255, 255, 255, 0.95);
     font-size: 11px;
     letter-spacing: 0.14em;
     font-weight: 600;
     text-transform: uppercase;
     margin-bottom: 4px;
-    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
 }
 
+/* Country flag chip — small pill top-right, semi-transparent
+   glass over the photograph. */
+.tunes-tile__chart-flag {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 3;
+    font-size: 26px;
+    line-height: 1;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    pointer-events: none;
+}
+
+/* Decade emblem — big tilted text in the corner. */
 .tunes-tile__chart-emblem {
     position: absolute;
     top: 14px;
     right: 18px;
+    z-index: 3;
     font-size: 46px;
     line-height: 1;
     font-weight: 900;
     color: rgba(255, 255, 255, 0.92);
-    text-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    text-shadow: 0 4px 16px rgba(0, 0, 0, 0.55);
     pointer-events: none;
-    /* Slight rotation on the decade emblems for a retro-poster
-       feel — the flag emojis rotate too but it's imperceptible. */
     transform: rotate(-6deg);
     letter-spacing: -0.04em;
 }
