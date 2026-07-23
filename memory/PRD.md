@@ -1,4 +1,39 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.16.37 — Live TV WhatsOn hub populates on boot (Feb 2026).**
+>
+> After v2.16.36 restored ready-on-boot EPG for channel rows, user came back with a related complaint: **"the What's On Live isn't populating everything on boot — I have to go into a category with sports in it, then it'll show up on the live".**  Diagnosis found two additional gaps:
+>
+> ### Gap #1 — Slow-path second-boot missed the name-fallback patching
+> On second boot (`EpgCache.exists = true`, no XMLTV re-parse), `MainActivity.runLoader` was skipping the whole `name-based epgChannelId → XMLTV_ID` rewrite that the first-boot XMLTV branch does at line 675+.  So provider channel variants whose disk EPG lives under an XMLTV id (e.g. `SkySportsRacing.uk`) never had their `epgChannelId` patched — the WhatsOn scan's `epgCache[sid]` lookup missed them.  Fast-path was ALREADY doing this (line 153+); slow-path was inconsistent.
+> - **Fix:** duplicate the name-fallback patch in the slow-path `haveCachedEpg` branch using `EpgCache.loadNameMap` + `EpgCache.channelExists`.  Symmetric with the fast-path.
+>
+> ### Gap #2 — Provider variants that don't name-match any XMLTV display-name
+> Even WITH patching, channels like `"SKY SPORTS RACING FHD 50fps"` (normalises to `"skysportsracingfhd50fps"`, not `"skysportsracing"`) don't match any XMLTV `<display-name>` so they never got a per-channel gz file written by the XMLTV parse.  Their EPG only lands via the per-channel lazy fetch — which fires when the user scrolls into a category with sports in it.  User-observed symptom: hub under-populated on boot, "fills in" as you walk into Sky Sports / ESPN / etc.
+> - **Fix:** new dedicated backend endpoint `GET /api/xtream/instant-bundle/epg-only?window_hours=8` returns a compact map of `stream_id → List<Programme>` covering just the current + next 8 h of programmes.  ~1.7 MB gzip on the wire, ~22 MB decompressed (well under any Android TV heap, verified against production endpoint), 3 219 buckets, includes all 59 currently-live-marker channels.  Response is built inside `_rebuild_cached_payload` once per refresh (same lock as the full bundle).
+> - Client: `XtreamRepository.fetchEpgOnlyMap(windowHours = 8)` streams + parses the payload and merges every returned bucket into `epgCache`.  Wired into `EpgActivity.kickOffSportsNetworkPrewarm()` which runs after the disk-cache hydrate settles — chained off both the early-return path (nothing to load from disk) AND the normal path (after batches complete).
+> - Merged programmes are also persisted to the per-channel disk cache via `EpgCache.mergeChannel(...)` so subsequent boots pick them up from the fast local hydrate.
+>
+> ### Verification
+> - Endpoint smoke-test via preview URL: `/instant-bundle/epg-only?window_hours=8` returns 200 in ~750 ms, 1.7 MB gzip, 21.6 MB decompressed, **3 219 buckets, 59 channels currently live** (Australian Racing, live sports with `ᴸᶦᵛᵉ` marker, etc.).
+> - Kotlin brace-balance clean on `MainActivity.kt`, `EpgActivity.kt`, `XtreamRepository.kt`, `EpgCache.kt`.
+> - Python lint clean on `instant_bundle.py`.
+>
+> ### Boot flow after v2.16.37
+> 1. `MainActivity.runLoader` picks the bundle (fast-path from BundleCache, slow-path with backend-EPG merge) — same as v2.16.36.
+> 2. v2.16.37 slow-path second-boot patching rewrites `epgChannelId` on channels whose XMLTV data lives under a non-numeric id — symmetric with fast-path.
+> 3. v2.16.36 disk hydrate reads every per-channel gz into `mergedBundle.epg`.
+> 4. EpgActivity opens; `epgCache.putAll(bundle.epg)` fills memory.
+> 5. `setupWhatsOnHub()` → `recomputeWhatsOnRows` → hub paints its FIRST count from disk-derived EPG.
+> 6. `kickOffWhatsOnPrefetch` → since `epgCache` is fully hydrated, immediately chains to `kickOffSportsNetworkPrewarm`.
+> 7. **NEW:** `kickOffSportsNetworkPrewarm` fires ONE request to the epg-only endpoint, merges the 8-h window into `epgCache`, and refreshes the hub — the ~150 provider variants with no XMLTV name-match now have live-sport programmes and show up in their sport buckets.  Total time-to-full-hub: ~2 s after EpgActivity open.
+>
+> ### Files touched
+> - `backend/instant_bundle.py` (new `/instant-bundle/epg-only` endpoint with `window_hours` filter + `cached_epg_only_gz` state key + build-alongside in `_rebuild_cached_payload`)
+> - `android/onnowtv-livetv/.../MainActivity.kt` (slow-path second-boot name-fallback patching)
+> - `android/onnowtv-livetv/.../EpgActivity.kt` (`kickOffSportsNetworkPrewarm` chained off both paths of `kickOffWhatsOnPrefetch`)
+> - `android/onnowtv-livetv/.../data/XtreamRepository.kt` (new `fetchEpgOnlyMap(windowHours, keepIds)`)
+>
+
 > **🟢 v2.16.36 — Live TV EPG "ready on boot" restored: no more scroll-triggered / click-triggered loading (Feb 2026).**
 >
 > After v2.16.35 shipped, user came back and said "I don't want it to be loading as I scroll — I want it to just be there, how it was working before".  Diagnosis: the client uses `DirectProviderFetcher` as the primary bundle source (backend was IP-blocked by the provider in v2.9.10 so we deliberately race direct-first), and the direct fetcher builds a bundle payload with **`epg: {}`** — programmes are held per-channel in the on-disk schema-v3 cache (`filesDir/epg-channels-v3/*.jsonl.gz`) and were previously only read lazily by `EpgActivity.kickOffWhatsOnPrefetch()` AFTER the RecyclerView had already painted every row with a "Loading guide…" placeholder.  Rows only rebound when the user scrolled (RecyclerView view-recycle) — hence the "load-on-scroll" perception.

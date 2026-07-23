@@ -474,14 +474,28 @@ class MainActivity : AppCompatActivity() {
                     null
                 }
             }
-            // Race: whichever returns FIRST with non-null wins.
+            // v2.16.37 — Race for the WINNER (channels + basic
+            // structure), but do NOT cancel the loser.  Even if
+            // direct wins the channel-list race, the backend
+            // bundle carries a fresh XMLTV-derived EPG map (~14 MB
+            // gzipped, ~3 200 channels of programmes) that the
+            // direct fetcher cannot produce (Xtream `get_short_epg`
+            // is per-channel).  We wait up to `BACKEND_EPG_WAIT_MS`
+            // extra AFTER direct wins so we can merge backend's
+            // `.epg` into the winning bundle — this is what makes
+            // the WhatsOn hub populate on boot instead of waiting
+            // for the user to walk through categories.
+            val BACKEND_EPG_WAIT_MS = 5_000L
             var winner: Pair<String, XtreamBundle>? = null
+            var directWonAt = 0L
             while (winner == null) {
                 if (directJob.isCompleted) {
                     val r = directJob.await()
                     if (r != null) {
                         winner = r
-                        backendJob.cancel()
+                        directWonAt = SystemClock.elapsedRealtime()
+                        // Do NOT cancel backendJob — its EPG map is
+                        // still valuable.  We'll merge below.
                         break
                     }
                 }
@@ -497,6 +511,37 @@ class MainActivity : AppCompatActivity() {
                     break
                 }
                 delay(250)
+            }
+            // If direct won but backend is still working, give it a
+            // short grace window to complete so we can merge its EPG.
+            if (winner != null && directWonAt > 0L && !backendJob.isCompleted) {
+                val deadline = directWonAt + BACKEND_EPG_WAIT_MS
+                while (!backendJob.isCompleted &&
+                       SystemClock.elapsedRealtime() < deadline) {
+                    delay(200)
+                }
+                if (!backendJob.isCompleted) {
+                    backendJob.cancel()
+                    Log.i("MainActivity", "backend EPG-merge: timed out after ${BACKEND_EPG_WAIT_MS} ms")
+                }
+            }
+            // Merge backend's EPG (keyed by stream_id) into the
+            // winning bundle so the WhatsOn hub scan on boot can
+            // find every live sport WITHOUT the user having to
+            // navigate into the Sky Sports category first.
+            if (winner != null && backendJob.isCompleted) {
+                try {
+                    val br = backendJob.await()
+                    val backendEpg = br?.second?.epg
+                    if (!backendEpg.isNullOrEmpty() && winner!!.second.epg.isEmpty()) {
+                        val merged = winner!!.second.copy(epg = backendEpg)
+                        winner = winner!!.first to merged
+                        Log.i(
+                            "MainActivity",
+                            "backend EPG merge: adopted ${backendEpg.size} buckets into direct-fetched bundle",
+                        )
+                    }
+                } catch (_: Throwable) { /* backend never landed — ok */ }
             }
             if (winner != null) {
                 bundleJson = winner.first
@@ -623,6 +668,48 @@ class MainActivity : AppCompatActivity() {
             if (cached != null && cached.isNotEmpty()) {
                 mergedBundle = bundle.copy(epg = cached)
                 Log.i("MainActivity", "EPG cache hit: ${cached.size} channels — skipping XMLTV preload")
+            }
+            // v2.16.37 — Apply the persisted XMLTV display-name → id
+            // patching on the SECOND-boot slow path too.  Without
+            // this, channels whose EPG lives on disk under an XMLTV
+            // id (e.g. "BBCOne.uk") — not the numeric provider
+            // stream_id — never get their `epgChannelId` rewritten,
+            // and the WhatsOn hub's `epgCache[sid]` lookup misses
+            // them.  Symptom: hub shows 0 live sports on boot; the
+            // moment the user opens a sports category the guide
+            // panel triggers a per-channel fetch that populates
+            // epgCache under the correct key, and the hub finally
+            // sees the live match.  Fast path already did this
+            // (see line 153+); slow path was inconsistent.
+            val nameMap = tv.onnowtv.livetv.data.EpgCache
+                .loadNameMap(applicationContext)
+            if (nameMap.isNotEmpty()) {
+                var rescued = 0
+                val patched = mergedBundle.channels.map { ch ->
+                    val sid = ch.epgChannelId
+                    if (!sid.isNullOrBlank()
+                        && tv.onnowtv.livetv.data.EpgCache
+                            .channelExists(applicationContext, sid)) {
+                        return@map ch  // already lines up with a disk file
+                    }
+                    val key = tv.onnowtv.livetv.data.XmlTvFetcher
+                        .normaliseChannelName(ch.name)
+                    if (key.isBlank()) return@map ch
+                    val xmlId = nameMap[key] ?: return@map ch
+                    if (!tv.onnowtv.livetv.data.EpgCache
+                            .channelExists(applicationContext, xmlId)) {
+                        return@map ch
+                    }
+                    rescued += 1
+                    ch.copy(epgChannelId = xmlId)
+                }
+                if (rescued > 0) {
+                    mergedBundle = mergedBundle.copy(channels = patched)
+                    Log.i(
+                        "MainActivity",
+                        "slow-path second-boot name-fallback: $rescued channels patched",
+                    )
+                }
             }
         }
 

@@ -125,6 +125,9 @@ class EpgActivity : AppCompatActivity() {
     /** Marks that the boot-time prefetch has already been kicked
      *  off (or completed) so we don't fire it twice. */
     private var whatsOnPrefetchStarted: Boolean = false
+    /** v2.16.37 — Marks that the boot-time SPORTS-network prewarm
+     *  has been kicked off, so we don't hammer the backend twice. */
+    private var sportsNetworkPrewarmStarted: Boolean = false
     /** Currently-selected sport bucket inside the "What's On Live"
      *  hub.  `null` → the pinned "ALL" chip is active. */
     private var whatsOnActiveSport: String? = null
@@ -1060,8 +1063,12 @@ class EpgActivity : AppCompatActivity() {
 
         if (toLoad.isEmpty()) {
             // Bundle already had every channel's EPG — nothing to
-            // load.  Make sure the sublabel is in its resting state.
+            // load from disk.  Still kick off the sports network
+            // prewarm so channels whose XMLTV data was under a
+            // name that didn't match get filled from the backend
+            // per-channel endpoint.
             whatsOnPillSublabel.text = "SPORTS · RIGHT NOW"
+            kickOffSportsNetworkPrewarm()
             return
         }
 
@@ -1144,6 +1151,90 @@ class EpgActivity : AppCompatActivity() {
                 // pill state was still stale after the throttled
                 // per-batch refreshes.
                 channelAdapter.notifyDataSetChanged()
+            }
+            // Once the disk-EPG pass is done, chain the network
+            // prewarm for sports channels missing EPG.  This is
+            // what fills in the gaps for provider variants whose
+            // name didn't match XMLTV (e.g. "SKY SPORTS RACING
+            // FHD 50fps") — their disk file doesn't exist so
+            // `epgCache` stays empty until a network fetch runs.
+            kickOffSportsNetworkPrewarm()
+        }
+    }
+
+    /** v2.16.37 — Bulk EPG hydrate for the WhatsOn hub.
+     *
+     *  Fetches an 8 h EPG window from the backend's dedicated
+     *  `/instant-bundle/epg-only?window_hours=8` endpoint (~1-2 MB
+     *  gzip, ~5 MB decompressed) and merges every returned bucket
+     *  into `epgCache`.  This fills in the channels that the disk-
+     *  cache hydrate missed — chiefly the quality-suffix variants
+     *  ("SKY SPORTS RACING FHD 50fps", "SKY SPORTS ACTION HEVC HB
+     *  1080p", etc.) whose normalised name didn't match any XMLTV
+     *  display-name and therefore never got a per-channel gz
+     *  written by the XMLTV parse.  ONE network round-trip
+     *  populates hundreds of channels — vastly cheaper than the
+     *  old per-channel prewarm which needed 500+ requests. */
+    private fun kickOffSportsNetworkPrewarm() {
+        if (sportsNetworkPrewarmStarted) return
+        sportsNetworkPrewarmStarted = true
+
+        // Any channel whose epgChannelId isn't already covered by
+        // the in-memory cache is a candidate for the bulk fill.
+        val wantedSids: Set<String> = bundle.channels
+            .mapNotNull { it.epgChannelId?.takeIf { s -> s.isNotBlank() } }
+            .filter { epgCache[it]?.isNotEmpty() != true }
+            .toHashSet()
+        if (wantedSids.isEmpty()) return
+
+        android.util.Log.i(
+            "EpgActivity",
+            "sports network prewarm: ${wantedSids.size} channels missing EPG — pulling epg-only 8 h window",
+        )
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val t0 = System.currentTimeMillis()
+            val fetched = try {
+                XtreamRepository.fetchEpgOnlyMap(
+                    windowHours = 8,
+                    keepIds = wantedSids,
+                )
+            } catch (t: Throwable) {
+                android.util.Log.w("EpgActivity", "epg-only prewarm failed: ${t.message}")
+                emptyMap()
+            }
+            if (fetched.isEmpty()) return@launch
+            // Merge into the in-memory cache and persist each
+            // channel's programmes to disk so subsequent boots
+            // pick them up from the fast local hydrate.
+            for ((sid, progs) in fetched) {
+                epgCache[sid] = progs
+                try {
+                    tv.onnowtv.livetv.data.EpgCache
+                        .mergeChannel(applicationContext, sid, progs)
+                } catch (_: Throwable) { /* best-effort */ }
+            }
+            android.util.Log.i(
+                "EpgActivity",
+                "sports network prewarm: merged ${fetched.size} channels in ${System.currentTimeMillis() - t0} ms",
+            )
+            // One classifier scan + hub refresh at the end.
+            val (rows, byBucket) = computeWhatsOnRows()
+            withContext(Dispatchers.Main) {
+                whatsOnRows = rows
+                whatsOnChannelsByBucket = byBucket
+                if (::whatsOnPillCount.isInitialized) {
+                    whatsOnPillCount.text = (rows.firstOrNull()?.count ?: 0).toString()
+                }
+                if (currentCategoryId == "__whatson__") {
+                    whatsOnAdapter.submit(whatsOnRows, whatsOnActiveSport)
+                    paintWhatsOnChannelsIncremental()
+                }
+                channelAdapter.notifyDataSetChanged()
+                android.util.Log.i(
+                    "EpgActivity",
+                    "sports network prewarm: DONE (${rows.firstOrNull()?.count ?: 0} live sports channels)",
+                )
             }
         }
     }

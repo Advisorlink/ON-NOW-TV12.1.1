@@ -68,8 +68,9 @@ _state: Dict[str, Any] = {
     # refresh.  Saves an OOM-inducing ~50 MB allocation churn
     # on every /instant-bundle request when many clients hit
     # the endpoint at once.
-    "cached_payload_gz":   None,
-    "cached_payload_at":   0,
+    "cached_payload_gz":   None,   # gzipped instant-bundle payload
+    "cached_payload_at":   0,       # unix ts when the cache was last built
+    "cached_epg_only_gz":  None,    # gzipped epg-only companion (v2.16.37)
     # Live progress reporting for the native Android Live TV
     # boot loader.  These keys update during _refresh_epg so the
     # client can show a determinate progress bar while waiting
@@ -278,6 +279,27 @@ async def _rebuild_cached_payload() -> None:
     log.info(
         "instant_bundle: cached payload built (gz=%d KB, raw=%d KB)",
         len(gz) // 1024, len(body) // 1024,
+    )
+    # v2.16.37 — Also build the epg-only companion payload so
+    # `GET /instant-bundle/epg-only` can serve mobile clients that
+    # need JUST the EPG (see DirectProviderFetcher flow — it ships
+    # empty EPG so the client can't populate the WhatsOn hub on
+    # boot without a second call).  Compressed together with the
+    # main bundle because the two payloads share `remapped_epg`,
+    # so we get the compression work out of the way once.
+    epg_only_body = json.dumps(
+        {
+            "epg":                 remapped_epg,
+            "epg_fetched_at":      _state["epg_fetched_at"],
+            "generated_at":        _state["generated_at"],
+        },
+        separators=(",", ":"),
+    ).encode("utf-8")
+    epg_only_gz = gzip.compress(epg_only_body, compresslevel=6)
+    _state["cached_epg_only_gz"] = epg_only_gz
+    log.info(
+        "instant_bundle: epg-only payload built (gz=%d KB, raw=%d KB, buckets=%d)",
+        len(epg_only_gz) // 1024, len(epg_only_body) // 1024, len(remapped_epg),
     )
     # Body bytes go out of scope here; only the gz bytes (and the
     # underlying _state dicts) remain in memory.
@@ -926,6 +948,99 @@ async def instant_bundle() -> Response:
                 await _rebuild_cached_payload()
 
     gz = _state["cached_payload_gz"]
+    return Response(
+        content=gz,
+        media_type="application/json",
+        headers={
+            "Content-Encoding": "gzip",
+            "Cache-Control":    "no-store",
+        },
+    )
+
+
+@router.get("/instant-bundle/epg-only")
+async def instant_bundle_epg_only(window_hours: int = 0) -> Response:
+    """v2.16.37 — Return ONLY the EPG map (no channels, no
+    categories), gzipped.
+
+    Added so mobile clients that use `DirectProviderFetcher` (which
+    only ships channels + categories, `epg = {}`) can still get the
+    full XMLTV-derived EPG in a single small request instead of
+    downloading the whole 130 MB bundle.  Payload shape mirrors
+    what the client's `parseBundleJson` expects for the `epg` key:
+    a `Dict[str, List[Programme]]` keyed by `stream_id`, with
+    programme fields `start` / `stop` / `title` / `description` /
+    `live` (already remapped by `_rebuild_cached_payload`).
+
+    Query params:
+      - `window_hours`: if > 0, only include programmes whose stop
+        timestamp is between (now - 1 h) and (now + window_hours).
+        This shrinks the payload from ~13 MB gzipped (all 72 h of
+        EPG) to ~1-2 MB gzipped for the 8 h window the WhatsOn hub
+        actually cares about — critical for 256 MB-heap Android
+        TV boxes that would otherwise OOM decoding the full map.
+
+    The dedicated payload is built once per refresh — same lock as
+    the full bundle — so this endpoint's hot path is a pure
+    byte-stream from the in-memory cache (when window_hours=0).
+    """
+    p = _provider_from_env()
+    if not p:
+        raise HTTPException(503, "Managed Xtream provider not configured on backend.")
+
+    # Windowed responses can't use the pre-built cache; slice on
+    # the fly.  The trade-off is a bit of CPU per request in
+    # exchange for a payload that fits in a 256 MB-heap client.
+    if window_hours > 0:
+        now = int(time.time())
+        floor = now - 3600
+        ceiling = now + window_hours * 3600
+        sliced: Dict[str, List[Dict[str, Any]]] = {}
+        for sid, progs in (_state["epg"] or {}).items():
+            keep: List[Dict[str, Any]] = []
+            for it in progs:
+                stop = it.get("stopTimestamp", 0)
+                if stop < floor: continue
+                start = it.get("startTimestamp", 0)
+                if start > ceiling: continue
+                keep.append({
+                    "title":       it.get("title", ""),
+                    "description": it.get("desc", ""),
+                    "start":       start,
+                    "stop":        stop,
+                    "live":        bool(it.get("live", False)),
+                })
+            if keep:
+                sliced[sid] = keep
+        body = json.dumps(
+            {
+                "epg":            sliced,
+                "epg_fetched_at": _state["epg_fetched_at"],
+                "generated_at":   _state["generated_at"],
+                "window_hours":   window_hours,
+            },
+            separators=(",", ":"),
+        ).encode("utf-8")
+        gz = gzip.compress(body, compresslevel=6)
+        return Response(
+            content=gz,
+            media_type="application/json",
+            headers={
+                "Content-Encoding": "gzip",
+                "Cache-Control":    "no-store",
+            },
+        )
+
+    # Full (window_hours=0) — serve the pre-built cache.
+    gz = _state.get("cached_epg_only_gz")
+    if not gz:
+        async with _state_lock:
+            gz = _state.get("cached_epg_only_gz")
+            if not gz:
+                await _rebuild_cached_payload()
+                gz = _state.get("cached_epg_only_gz")
+    if not gz:
+        raise HTTPException(503, "EPG not warmed yet.")
     return Response(
         content=gz,
         media_type="application/json",

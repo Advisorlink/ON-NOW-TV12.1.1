@@ -30,6 +30,7 @@ object XtreamRepository {
     const val BACKEND_BASE = "https://onnowhub.com"
 
     private const val ENDPOINT = "/api/xtream/instant-bundle"
+    private const val EPG_ONLY_ENDPOINT = "/api/xtream/instant-bundle/epg-only"
     private const val PER_CHANNEL_EPG = "/api/xtream/epg/"
 
     suspend fun fetchBundle(backendBase: String = BACKEND_BASE): XtreamBundle =
@@ -37,6 +38,90 @@ object XtreamRepository {
             val text = fetchBundleJson(backendBase)
             parseBundle(text)
         }
+
+    /** v2.16.37 — Fetch the EPG-only bundle from the backend and
+     *  parse it directly into a `Map<stream_id, List<Programme>>`.
+     *  Used on boot by `EpgActivity` to fill in EPG for channels
+     *  whose disk cache is missing (e.g. provider variants like
+     *  "SKY SPORTS RACING FHD 50fps" whose normalised name didn't
+     *  match any XMLTV display-name and therefore never got a
+     *  per-channel gz written by the XMLTV parse).
+     *
+     *  Pass `windowHours` (default 8) to request only the current
+     *  + next N hours of programmes — critical because the raw
+     *  72 h EPG decompresses to ~130 MB and would OOM the 256 MB-
+     *  heap Android TV boxes if parsed in full.  The 8 h window
+     *  is ~1-2 MB gzipped.
+     *
+     *  Returns an empty map on any failure — callers should still
+     *  fall back to the per-channel `/epg/{sid}` endpoint. */
+    suspend fun fetchEpgOnlyMap(
+        backendBase: String = BACKEND_BASE,
+        windowHours: Int = 8,
+        keepIds: Set<String>? = null,
+    ): Map<String, List<Programme>> = withContext(Dispatchers.IO) {
+        val ep = if (windowHours > 0)
+            "$EPG_ONLY_ENDPOINT?window_hours=$windowHours"
+        else
+            EPG_ONLY_ENDPOINT
+        val url = URL(backendBase.trimEnd('/') + ep)
+        val conn = (url.openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 8_000
+            readTimeout = 15_000
+            setRequestProperty("Accept-Encoding", "gzip")
+            setRequestProperty("Accept", "application/json")
+        }
+        try {
+            val code = conn.responseCode
+            if (code !in 200..299) {
+                Log.w(TAG, "epg-only fetch HTTP $code")
+                return@withContext emptyMap()
+            }
+            val raw = conn.inputStream
+            val stream = if ("gzip".equals(conn.contentEncoding, ignoreCase = true)) {
+                GZIPInputStream(raw)
+            } else {
+                raw
+            }
+            // With windowHours=8 the payload is ~5 MB uncompressed
+            // (well within any Android heap).  We read the whole
+            // JSON into memory here — a streaming JsonReader
+            // would save a few MB but adds complexity without
+            // solving the OOM class of problem.
+            val text = stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            val obj = org.json.JSONObject(text)
+            val epgObj = obj.optJSONObject("epg") ?: return@withContext emptyMap()
+            val out = HashMap<String, List<Programme>>(epgObj.length())
+            val keys = epgObj.keys()
+            while (keys.hasNext()) {
+                val sid = keys.next()
+                if (keepIds != null && sid !in keepIds) continue
+                val arr = epgObj.optJSONArray(sid) ?: continue
+                val list = ArrayList<Programme>(arr.length())
+                for (i in 0 until arr.length()) {
+                    val p = arr.getJSONObject(i)
+                    list.add(
+                        Programme(
+                            title = p.optString("title").ifBlank { "—" },
+                            description = p.optString("description").takeIf { it.isNotBlank() },
+                            startMs = p.optLong("start", 0L) * 1000L,
+                            stopMs = p.optLong("stop", 0L) * 1000L,
+                            live = p.optBoolean("live", false),
+                        ),
+                    )
+                }
+                if (list.isNotEmpty()) out[sid] = list
+            }
+            Log.i(TAG, "epg-only parsed: ${out.size} channels retained (window=${windowHours}h)")
+            out
+        } catch (t: Throwable) {
+            Log.w(TAG, "epg-only fetch failed: ${t.message}")
+            emptyMap()
+        } finally {
+            conn.disconnect()
+        }
+    }
 
     /** Fetch the raw bundle JSON string (decompressed).  Exposed
      *  so callers can persist the JSON to disk via `BundleCache`. */
