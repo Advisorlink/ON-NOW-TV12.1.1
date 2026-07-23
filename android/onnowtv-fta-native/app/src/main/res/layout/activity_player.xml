@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Full-screen ExoPlayer for an FTA channel. -->
+<!--
+  Full-screen ExoPlayer for an FTA channel.
+
+  v2.7.4 — Player upgrade: subtitle-track button surfaced via
+  `show_subtitle_button` (Media3 auto-populates it from the
+  stream's text tracks) and a top-left "NOW PLAYING" info card
+  now mirrors what the Live TV EPG shows so users know what
+  channel + programme is on without flipping back to the guide.
+-->
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -14,7 +22,52 @@
         android:layout_height="match_parent"
         app:resize_mode="fit"
         app:use_controller="true"
+        app:show_subtitle_button="true"
         app:show_buffering="when_playing" />
+
+    <!-- Top-left "NOW PLAYING" card — matches Live TV EPG hero. -->
+    <LinearLayout
+        android:id="@+id/now_card"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:layout_marginStart="24dp"
+        android:layout_marginTop="24dp"
+        android:paddingHorizontal="18dp"
+        android:paddingVertical="12dp"
+        android:orientation="vertical"
+        android:background="#B3000000"
+        android:elevation="6dp"
+        android:visibility="gone">
+        <TextView
+            android:id="@+id/now_channel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#FFE55C"
+            android:textStyle="bold"
+            android:letterSpacing="0.08"
+            android:textSize="12sp"
+            android:fontFamily="sans-serif-medium"
+            android:text="CHANNEL" />
+        <TextView
+            android:id="@+id/now_programme"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:fontFamily="sans-serif-black"
+            android:text="Programme" />
+        <TextView
+            android:id="@+id/now_times"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textColor="#B3FFFFFF"
+            android:textSize="12sp"
+            android:fontFamily="sans-serif-medium"
+            android:text="" />
+    </LinearLayout>
 
     <TextView
         android:id="@+id/player_status"

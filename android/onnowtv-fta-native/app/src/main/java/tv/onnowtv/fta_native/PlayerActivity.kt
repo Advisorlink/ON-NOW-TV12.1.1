@@ -47,11 +47,27 @@ class PlayerActivity : AppCompatActivity() {
 
         val view: PlayerView = findViewById(R.id.player_view)
         val status: android.widget.TextView = findViewById(R.id.player_status)
+        val nowCard: android.widget.LinearLayout = findViewById(R.id.now_card)
+        val nowChannel: android.widget.TextView = findViewById(R.id.now_channel)
+        val nowProgramme: android.widget.TextView = findViewById(R.id.now_programme)
+        val nowTimes: android.widget.TextView = findViewById(R.id.now_times)
 
         val channelId    = intent.getStringExtra(EXTRA_CHANNEL_ID).orEmpty()
         val channelName  = intent.getStringExtra(EXTRA_CHANNEL_NAME).orEmpty()
+        val programmeTitle = intent.getStringExtra(EXTRA_PROGRAMME_TITLE).orEmpty()
         val mjhMaster    = intent.getStringExtra(EXTRA_MJH_MASTER).orEmpty()
         val headersFlat  = intent.getStringExtra(EXTRA_HEADERS).orEmpty()
+
+        // v2.7.4 — Populate the "NOW PLAYING" card with the same
+        // channel + programme info the Live TV EPG shows.  The card
+        // fades in with the player controls and hides with them.
+        if (channelName.isNotBlank()) {
+            nowChannel.text = channelName.uppercase()
+            nowProgramme.text = programmeTitle.ifBlank { "Live broadcast" }
+            nowCard.visibility = android.view.View.VISIBLE
+            nowCard.alpha = 0f
+            nowCard.animate().alpha(1f).setDuration(400).start()
+        }
 
         // v2.16.29 — Announce this FTA session to the launcher-admin
         // Live tab so the operator can see which box is watching what.
@@ -98,12 +114,38 @@ class PlayerActivity : AppCompatActivity() {
             .setLoadControl(loadControl)
             .setMediaSourceFactory(mediaSourceFactory)
             .build()
+
+        // v2.7.4 — Enable text-track selection so the built-in
+        // subtitle button (see `show_subtitle_button` in the XML)
+        // can pull in the stream's TTML/WebVTT tracks.  Media3
+        // discovers them from the HLS manifest automatically —
+        // this parameter just tells the selector we're willing
+        // to render them.  Defaults to English but the user can
+        // override via the CC menu.
+        p.trackSelectionParameters = p.trackSelectionParameters
+            .buildUpon()
+            .setPreferredTextLanguage("en")
+            .setSelectUndeterminedTextLanguage(true)
+            .build()
+
         view.player = p
-        view.controllerShowTimeoutMs = 3_000
+        view.controllerShowTimeoutMs = 4_000
         view.controllerHideOnTouch = true
         view.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
         view.useController = true
         view.controllerAutoShow = false
+        // Fade the NOW-PLAYING card in sync with the transport
+        // controls so it doesn't linger over the video.
+        view.setControllerVisibilityListener(
+            androidx.media3.ui.PlayerView.ControllerVisibilityListener { vis ->
+                if (nowCard.visibility != android.view.View.GONE) {
+                    nowCard.animate()
+                        .alpha(if (vis == android.view.View.VISIBLE) 1f else 0f)
+                        .setDuration(220)
+                        .start()
+                }
+            },
+        )
         player = p
 
         p.addListener(object : Player.Listener {

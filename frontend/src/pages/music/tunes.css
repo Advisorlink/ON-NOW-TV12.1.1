@@ -2078,6 +2078,19 @@
     font-weight: 700;
 }
 
+/* v2.8.67 — Podcast-tinted chip so the country selector on
+   PodcastBrowse matches the peach/orange accent used by the
+   page title.  `tunes-chip--radio` gets the same treatment
+   with the blue-cyan gradient used on RadioBrowse. */
+.tunes-chip--podcast.tunes-chip--active {
+    background: linear-gradient(135deg, #fed7aa 0%, #fb923c 100%);
+    color: #1a0f00;
+}
+.tunes-chip--radio.tunes-chip--active {
+    background: linear-gradient(135deg, #7dd3fc 0%, #06b6d4 100%);
+    color: #01131b;
+}
+
 .tunes-skel {
     background: linear-gradient(
         90deg,

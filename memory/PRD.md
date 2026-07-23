@@ -1,4 +1,44 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.7.4 / v2.8.67 — FTA player upgrade + Podcast navigation polish (Feb 2026).**
+>
+> ### FTA player (v2.7.4)
+> User: "Make the free-to-air player better — subtitles on/off, plus show what's on like Live TV does."
+>
+> **`activity_player.xml`:**
+>  • Added `app:show_subtitle_button="true"` on the `PlayerView` — Media3 auto-populates a CC button from the stream's TTML/WebVTT tracks and shows a proper multi-language track picker on tap.
+>  • Added a top-left `now_card` (channel name eyebrow · programme title headline · optional time strip) matching the Live TV EPG hero card so the user always knows what channel + programme they're on without flipping back to the guide.
+>
+> **`PlayerActivity.kt`:**
+>  • Reads the existing `EXTRA_PROGRAMME_TITLE` (already passed by `EpgActivity` on launch) and paints the NOW card.
+>  • Enabled text-track selection on the ExoPlayer via `trackSelectionParameters.setPreferredTextLanguage("en") + setSelectUndeterminedTextLanguage(true)` — Media3 discovers CC tracks from the HLS manifest and defaults to English, user overrides via the CC menu.
+>  • Wired `PlayerView.ControllerVisibilityListener` so the NOW card fades in/out in sync with the transport controls (220 ms) — no longer lingers over the video mid-programme.
+>  • Increased controller show timeout from 3 s → 4 s to match Live TV.
+>
+> ### Podcast browse (v2.8.67)
+> User: "Music podcasts and radio nav should be perfect."
+>
+> **`PodcastBrowse.jsx`:**
+>  • Rebuilt around a country chip row (🇺🇸 USA · 🇬🇧 UK · 🇦🇺 Australia · 🇨🇦 Canada · 🇩🇪 Germany · 🇮🇳 India · 🇳🇿 New Zealand · 🇯🇵 Japan) that pipes into the existing `/api/music/podcasts/top?country=X` endpoint.
+>  • Peach/orange gradient page title matching the podcast section accent; explanatory subtitle underneath.
+>  • Each chip is `data-focusable="true" data-focus-style="pill" tabIndex={0}` for identical D-pad behaviour to RadioBrowse and MusicHome shelves.
+>  • Podcast tiles carry `data-testid="tunes-podcast-{id}"` per store rule.
+>
+> **`tunes.css`:**
+>  • New `.tunes-chip--podcast.tunes-chip--active` variant paints active country chips in peach→orange.
+>  • New `.tunes-chip--radio.tunes-chip--active` variant paints active radio genre chips in sky→cyan — RadioBrowse was already using the modifier class name but it had no corresponding style; now it does.
+>
+> ### Verification
+> - Screenshot (preview URL, UK selected): 20+ real current UK podcasts render (The Rest Is Politics, The News Agents, The Louis Theroux Podcast, Newscast, Diary Of A CEO, Off Menu, The Romesh Ranganathan Show, Rosebud with Gyles Brandreth, etc.).  USA chip shows focus outline; UK chip shows the peach-orange active pill.
+> - Kotlin brace-balance clean on `PlayerActivity.kt`.  XML parses cleanly.
+> - JS lint clean on `PodcastBrowse.jsx`.
+>
+> ### Files touched
+> - `android/onnowtv-fta-native/app/src/main/res/layout/activity_player.xml`
+> - `android/onnowtv-fta-native/app/src/main/java/tv/onnowtv/fta_native/PlayerActivity.kt`
+> - `frontend/src/pages/music/PodcastBrowse.jsx`
+> - `frontend/src/pages/music/tunes.css`
+>
+
 > **🟢 v2.8.66 — Music: "Charts & Eras" shelf on the home screen (Feb 2026).**
 >
 > User: "The music app looks old — you can't really find the new stuff. Add a section under the top two sections, just before the Moods row, with Top 100 Australia / USA / UK plus decade tiles (80s / 90s / 2000s / golden oldies) styled like Continue Watching rectangles. Beautifully designed, all the songs in it."
