@@ -1,4 +1,31 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.16.34 — Live TV EPG lazy-load fix: guide populates without needing a click (Feb 2026).**
+>
+> User bug report: "The EPG is only loading when I actually click on a channel — otherwise every row just says 'Loading guide…' forever."  Regression caused by v2.16.2's disk-EPG prefetch which was poisoning `epgKnownEmpty` for any channel whose per-channel gz cache was empty on disk.
+>
+> ### Root cause
+> `kickOffWhatsOnPrefetch()` (EpgActivity.kt) reads every channel's disk-cached EPG in parallel batches to warm the WhatsOn hub.  When a channel's gz file was missing OR empty (which is the common case for the ~10,880 provider channels not present in the XMLTV), the old code did `epgKnownEmpty.add(sid)`.  That flag then short-circuited `lazyFetchForChannel(ch)` on row-bind (line 1503), so the network fallback `/api/xtream/epg/{stream_id}` was NEVER called — the row stayed on "Loading guide…" indefinitely and only populated when the user click-selected the channel (which triggers `loadGuideForChannel` directly, bypassing the flag check).
+>
+> ### Fix
+> Removed the `else { epgKnownEmpty.add(sid) }` branch from the disk-prefetch loop.  The `epgKnownEmpty` flag is now set from EXACTLY ONE place: `lazyFetchForChannel` line 1540, after the network provider fallback also returned empty — that is the sole authoritative "no EPG available" signal.
+>
+> ### Verified flow after fix
+> 1. Channel row binds → `nowResolver(channel)` reads `epgCache` (empty) → row shows "Loading guide…" briefly.
+> 2. `onBound(channel)` → `lazyFetchForChannel(channel)` → disk (still empty) → backend `/api/xtream/epg/{stream_id}` (verified 194 ms cache hit for warmed channels, ~500-1500 ms cold provider round-trip).
+> 3. On success → `epgCache[sid] = fetched` + `channelAdapter.refreshChannel(ch.id)` → row rebinds → NOW title paints.
+> 4. On empty from network too → `epgKnownEmpty.add(sid)` → row shows "NO GUIDE DATA" honestly.
+> 5. The 30 s clock ticker (`clockHandler`, EpgActivity.kt L1832) re-runs `recomputeWhatsOnRows()` so any channels that just gained EPG via the lazy-fetch path start counting toward the WhatsOn hub within 30 s.
+>
+> ### Verification
+> - `/tmp/kt_brace_check.py` on `EpgActivity.kt`: brace=0 paren=0 brack=0 OK.
+> - Backend `/api/xtream/instant-bundle/meta`: `epg_phase="ready"`, priority + warm both 100 % done (4131/4131 and 10892/10892).
+> - Backend `/api/xtream/epg/1` (warmed channel): 194 ms, `source: "cache"`, 336 programmes.
+> - No compilation possible in the pod — CI + on-box APK verification required by the user.
+>
+> ### Files touched
+> - `android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/EpgActivity.kt` (removed 2 lines, added 10-line explanatory comment)
+>
+
 > **🟢 v2.16.29 — Live presence analytics for the launcher admin (Feb 2026).**
 >
 > New **"Live" tab** in the launcher admin panel showing every user currently watching something across ALL five apps (Movies, Live TV, Music, Kids, FTA).  Auto-refreshes every 10 s.  Click any row for that user's 7-day session history.

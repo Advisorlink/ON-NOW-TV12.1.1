@@ -1090,9 +1090,17 @@ class EpgActivity : AppCompatActivity() {
                         }
                         if (!list.isNullOrEmpty()) {
                             epgCache[sid] = list
-                        } else {
-                            epgKnownEmpty.add(sid)
                         }
+                        // v2.16.34 — Do NOT flag `epgKnownEmpty` here.
+                        // An empty disk cache means the XMLTV preload
+                        // hasn't populated this channel yet (or never
+                        // will) — it does NOT mean the provider has
+                        // no EPG for it.  If we set the flag here,
+                        // `lazyFetchForChannel` short-circuits the
+                        // backend fallback and the channel gets stuck
+                        // showing "NO GUIDE DATA" forever.  Let the
+                        // network path be the sole authority on the
+                        // "known empty" verdict.
                     }
                 }
                 jobs.awaitAll()
