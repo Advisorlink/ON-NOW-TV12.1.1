@@ -164,6 +164,116 @@ def _shape_artist(a: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # ════════════════════════════════════════════════════════════════════
+#  iTunes Search API — fallback source when Deezer's Akamai edge
+#  is 403-blocking our IP (v2.8.69).  Same output shape as the Deezer
+#  helpers above so callers don't have to branch.  iTunes returns a
+#  30-second previewUrl + real artwork on every hit, no auth needed.
+# ════════════════════════════════════════════════════════════════════
+def _itunes_upscale_art(url: str, size: int = 600) -> str:
+    """Rewrite iTunes/Apple artwork URLs from 100×100 → 600×600 so
+    tiles render at HD instead of thumb-quality."""
+    if not url:
+        return ""
+    return url.replace("100x100bb", f"{size}x{size}bb")
+
+
+def _shape_itunes_track(r: Dict[str, Any]) -> Dict[str, Any]:
+    art = _itunes_upscale_art(r.get("artworkUrl100") or "")
+    return {
+        "id": f"it-{r.get('trackId')}",
+        "title": r.get("trackName") or "Unknown",
+        "duration": int((r.get("trackTimeMillis") or 0) // 1000),
+        "preview_url": r.get("previewUrl"),
+        "artist": {
+            "id": f"it-a-{r.get('artistId')}",
+            "name": r.get("artistName") or "Unknown",
+            # iTunes doesn't return an artist portrait — reuse the
+            # collection artwork as a fallback so ArtistTile paints
+            # SOMETHING rather than a grey blob.
+            "picture": art,
+        },
+        "album": {
+            "id": f"it-c-{r.get('collectionId')}",
+            "title": r.get("collectionName") or "",
+            "cover": art,
+        },
+        "explicit": bool(r.get("trackExplicitness") == "explicit"),
+    }
+
+
+def _shape_itunes_album(r: Dict[str, Any]) -> Dict[str, Any]:
+    art = _itunes_upscale_art(r.get("artworkUrl100") or "")
+    return {
+        "id": f"it-c-{r.get('collectionId')}",
+        "title": r.get("collectionName") or "Untitled",
+        "cover": art,
+        "release_date": (r.get("releaseDate") or "")[:10],
+        "nb_tracks": int(r.get("trackCount") or 0),
+        "duration": 0,
+        "artist": {
+            "id": f"it-a-{r.get('artistId')}",
+            "name": r.get("artistName") or "Unknown",
+        },
+    }
+
+
+def _shape_itunes_artist_from_song(r: Dict[str, Any]) -> Dict[str, Any]:
+    """iTunes has no dedicated artist-portrait endpoint, so we build
+    an artist card from a song search hit — reusing the song's album
+    cover as the artist picture."""
+    art = _itunes_upscale_art(r.get("artworkUrl100") or "")
+    return {
+        "id": f"it-a-{r.get('artistId')}",
+        "name": r.get("artistName") or "Unknown",
+        "picture": art,
+        "nb_album": 0,
+        "nb_fan": 0,
+    }
+
+
+async def _itunes_search(term: str, entity: str, country: str = "us", limit: int = 1) -> List[Dict[str, Any]]:
+    """Thin wrapper around https://itunes.apple.com/search."""
+    url = f"{ITUNES_BASE}/search"
+    params = {
+        "term":    term,
+        "entity":  entity,     # 'song' | 'album' | 'musicArtist'
+        "country": country,
+        "media":   "music",
+        "limit":   limit,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            r = await client.get(
+                url,
+                params=params,
+                headers={"User-Agent": "ON-NOW-TV-Tunes/1.0"},
+            )
+            r.raise_for_status()
+            return r.json().get("results") or []
+    except Exception as exc:
+        log.warning("itunes search %r/%s failed: %s", term, entity, exc)
+        return []
+
+
+# Curated fallback genre list — used when Deezer's /genre endpoint
+# returns nothing (Akamai block).  Covers must exist / be free-hostable.
+_FALLBACK_GENRES: List[Dict[str, str]] = [
+    {"id": "132", "name": "Pop",         "picture": "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&q=75"},
+    {"id": "116", "name": "Rap / Hip Hop","picture": "https://images.unsplash.com/photo-1520166012956-add9ba0835cb?w=500&q=75"},
+    {"id": "152", "name": "Rock",        "picture": "https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=500&q=75"},
+    {"id": "113", "name": "Dance",       "picture": "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=500&q=75"},
+    {"id": "165", "name": "R&B",         "picture": "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=500&q=75"},
+    {"id": "129", "name": "Country",     "picture": "https://images.unsplash.com/photo-1519677100203-a0e668c92439?w=500&q=75"},
+    {"id": "144", "name": "Indie",       "picture": "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=500&q=75"},
+    {"id": "173", "name": "Jazz",        "picture": "https://images.unsplash.com/photo-1415201364774-f6f0bb35f28f?w=500&q=75"},
+    {"id": "153", "name": "Metal",       "picture": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=75"},
+    {"id": "466", "name": "Classical",   "picture": "https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=500&q=75"},
+    {"id": "106", "name": "Reggae",      "picture": "https://images.unsplash.com/photo-1523251343397-9225e4cb6319?w=500&q=75"},
+    {"id": "197", "name": "Electronic",  "picture": "https://images.unsplash.com/photo-1571266028243-e4bb35f36f8b?w=500&q=75"},
+]
+
+
+# ════════════════════════════════════════════════════════════════════
 #  Deezer (music catalog + previews)
 # ════════════════════════════════════════════════════════════════════
 async def _deezer_get(path: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -239,25 +349,38 @@ async def music_home():
         try:
             d = await _deezer_get("/search/track", {"q": query, "limit": 1})
             data = d.get("data") or []
-            return _shape_track(data[0]) if data else None
+            if data:
+                return _shape_track(data[0])
         except Exception:
-            return None
+            pass
+        # Deezer blocked / empty → iTunes fallback
+        results = await _itunes_search(query, entity="song", country="us", limit=1)
+        return _shape_itunes_track(results[0]) if results else None
 
     async def _deezer_first_album(query: str):
         try:
             d = await _deezer_get("/search/album", {"q": query, "limit": 1})
             data = d.get("data") or []
-            return _shape_album(data[0]) if data else None
+            if data:
+                return _shape_album(data[0])
         except Exception:
-            return None
+            pass
+        # Deezer blocked / empty → iTunes fallback
+        results = await _itunes_search(query, entity="album", country="us", limit=1)
+        return _shape_itunes_album(results[0]) if results else None
 
     async def _deezer_first_artist(name: str):
         try:
             d = await _deezer_get("/search/artist", {"q": name, "limit": 1})
             data = d.get("data") or []
-            return _shape_artist(data[0]) if data else None
+            if data:
+                return _shape_artist(data[0])
         except Exception:
-            return None
+            pass
+        # Deezer blocked / empty → iTunes fallback (song search reused
+        # as an artist card, since iTunes has no artist portrait API).
+        results = await _itunes_search(name, entity="song", country="us", limit=1)
+        return _shape_itunes_artist_from_song(results[0]) if results else None
 
     # v2.8.68 — Rate-limit the parallel Deezer fan-out.  Previously
     # 20+ concurrent /search/track calls would trip Deezer's burst
@@ -317,10 +440,13 @@ async def music_home():
                     "name": g.get("name") or "Unknown",
                     "picture": g.get("picture_xl") or g.get("picture_big"),
                 })
-            return out[:15]
+            if out:
+                return out[:15]
         except Exception as exc:
             log.warning("genres fetch failed: %s", exc)
-            return []
+        # Deezer blocked / empty → curated fallback list so the
+        # "Browse Genres" shelf never disappears.
+        return list(_FALLBACK_GENRES)
 
     charts, new_releases, top_artists, genres = await asyncio.gather(
         fetch_charts(), fetch_new_releases(), fetch_top_artists(),
@@ -335,7 +461,14 @@ async def music_home():
         ],
         "genres": genres,
     }
-    await cache.set("music:home:v7", data, ttl_seconds=3600)
+    # v2.8.69 — Only cache when at least ONE shelf is populated.
+    # Previously an all-empty payload (Deezer 403 + iTunes down) would
+    # be cached for an hour, leaving the For You page blank until the
+    # backend restarted.  If both upstreams fail we return uncached so
+    # the very next request retries.
+    has_content = any(len(s["items"]) > 0 for s in data["shelves"]) or bool(genres)
+    if has_content:
+        await cache.set("music:home:v7", data, ttl_seconds=3600)
     return {"cached": False, "data": data}
 
 
@@ -398,9 +531,13 @@ async def music_chart_preset(preset_id: str):
             try:
                 d = await _deezer_get("/search/track", {"q": q, "limit": 1})
                 data = d.get("data") or []
-                return _shape_track(data[0]) if data else None
+                if data:
+                    return _shape_track(data[0])
             except Exception:
-                return None
+                pass
+            # Deezer blocked / empty → iTunes fallback
+            results = await _itunes_search(q, entity="song", country="us", limit=1)
+            return _shape_itunes_track(results[0]) if results else None
 
         async def _one(idx: int, it: Dict[str, str]):
             nonlocal errors
@@ -437,10 +574,17 @@ async def music_chart_preset(preset_id: str):
                 "/search/track",
                 {"q": query, "limit": limit},
             )
-            return [_shape_track(t) for t in (d.get("data") or [])]
+            data = d.get("data") or []
+            if data:
+                return [_shape_track(t) for t in data]
         except Exception as exc:
             log.warning("deezer search %r failed: %s", query, exc)
-            return []
+        # Deezer blocked / empty → iTunes fallback (up to 50, the
+        # iTunes Search API cap per response).
+        results = await _itunes_search(
+            query, entity="song", country="us", limit=min(limit, 50),
+        )
+        return [_shape_itunes_track(r) for r in results]
 
     country_map = {"top-au": "au", "top-us": "us", "top-uk": "gb"}
     decade_map = {
@@ -486,7 +630,10 @@ async def music_chart_preset(preset_id: str):
         "tracks":    tracks,
         "generated": int(time.time()),
     }
-    await cache.set(cache_key, data, ttl_seconds=6 * 3600)
+    # v2.8.69 — Only cache when we actually resolved tracks so a
+    # transient upstream outage can't blank the chart page for 6 h.
+    if tracks:
+        await cache.set(cache_key, data, ttl_seconds=6 * 3600)
     return {"cached": False, "data": data}
 
 
