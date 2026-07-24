@@ -273,6 +273,13 @@
     box-shadow: 0 0 12px var(--vesper-blue-glow);
 }
 
+/* v2.8.69 — Full-Screen rail button faded out when nothing is
+   playing, but still focusable so the D-pad path is stable. */
+.tunes-nav__item[data-disabled="true"] {
+    opacity: 0.45;
+    pointer-events: none;
+}
+
 .tunes-nav__spacer { flex: 1; }
 
 /* Theme toggle pill at the bottom of the rail. */

@@ -99,6 +99,56 @@ export function FullScreenPlayer({ onClose }) {
         if (onClose) onClose();
     };
 
+    // v2.8.69 — BACK handling.  User's complaint was that pressing
+    // BACK on the remote while the FullScreenPlayer overlay was
+    // open would navigate the underlying URL instead of just
+    // closing the overlay — so they'd end up two steps back on
+    // a second press.  Fix: push a synthetic history entry on
+    // mount and listen for popstate.  When the WebView's
+    // `goBack()` fires, popstate resolves → we close the overlay
+    // and DON'T navigate.  Escape / Backspace also close the
+    // overlay directly for keyboard users.  The synthetic entry
+    // is silently rewritten on close so we don't leave a dead
+    // "#/fs-player" fragment in the address bar.
+    useEffect(() => {
+        let closedByPop = false;
+        const marker = { fsPlayer: true, ts: Date.now() };
+        try { window.history.pushState(marker, ''); } catch { /* ignore */ }
+
+        const onPop = () => {
+            closedByPop = true;
+            handleClose();
+        };
+        const onKey = (e) => {
+            if (e.key !== 'Escape' && e.key !== 'Backspace') return;
+            const tag = (e.target?.tagName || '').toUpperCase();
+            if (e.key === 'Backspace' && (tag === 'INPUT' || tag === 'TEXTAREA')) return;
+            e.preventDefault();
+            e.stopPropagation();
+            // Trigger the same history unwind so we don't leave the
+            // synthetic entry behind.
+            try { window.history.back(); }
+            catch { handleClose(); }
+        };
+        window.addEventListener('popstate', onPop);
+        window.addEventListener('keydown', onKey, true);
+        return () => {
+            window.removeEventListener('popstate', onPop);
+            window.removeEventListener('keydown', onKey, true);
+            // If unmounted without a popstate (parent flipped the
+            // `expanded` flag manually), roll our synthetic entry
+            // back so the browser history stays clean.
+            if (!closedByPop) {
+                try {
+                    if (window.history.state && window.history.state.fsPlayer) {
+                        window.history.back();
+                    }
+                } catch { /* ignore */ }
+            }
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     // Fetch synced lyrics from LRCLIB whenever the track changes.
     const t = state.current;
     useEffect(() => {

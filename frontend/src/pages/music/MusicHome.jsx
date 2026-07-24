@@ -697,6 +697,15 @@ export default function MusicHome() {
                 </Shelf>
             )}
 
+            {/* v2.8.69 — Charts & Eras shelf lives directly under
+                New Releases per user request: they wanted the country
+                / decade tiles to feel like a continuation of the
+                "For You" catalogue, not a separate section at the
+                bottom of the page. */}
+            <Shelf eyebrow="TOP 100 & DECADES" title="Charts &amp; Eras" testId="shelf-charts-decades">
+                {CHART_PRESETS.map((p) => <ChartTile key={p.id} preset={p} />)}
+            </Shelf>
+
             <Shelf eyebrow="HOW DO YOU FEEL" title="Moods" testId="shelf-moods">
                 {MOODS.map((m) => <MoodTile key={m.id} mood={m} />)}
             </Shelf>
@@ -711,15 +720,6 @@ export default function MusicHome() {
                     </div>
                 </section>
             )}
-
-            {/* v2.8.68 — Charts & Eras shelf moved to the very bottom of
-                the home feed, below the For You content the user
-                expects at the top.  User feedback: this is an
-                ADDITIONAL section, not a replacement for the
-                editorial shelves. */}
-            <Shelf eyebrow="TOP 100 & DECADES" title="Charts &amp; Eras" testId="shelf-charts-decades">
-                {CHART_PRESETS.map((p) => <ChartTile key={p.id} preset={p} />)}
-            </Shelf>
 
             <div style={{ height: 60 }} />
         </div>

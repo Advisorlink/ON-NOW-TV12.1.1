@@ -16,9 +16,11 @@ import {
     User,
     Settings as SettingsIcon,
     Music2,
+    Maximize2,
 } from 'lucide-react';
 import { MiniPlayer } from '../../components/music/MiniPlayer';
 import useSpatialFocus from '../../hooks/useSpatialFocus';
+import { useMusicPlayer } from '../../hooks/useMusicPlayer';
 import './tunes.css';
 import './karaoke.css';
 import './karaoke-party.css';
@@ -47,11 +49,26 @@ function TunesNav({ theme, onThemeChange }) {
     const [expanded, setExpanded] = useState(false);
     const location = useLocation();
     const navigate = useNavigate();
+    const { state: playerState } = useMusicPlayer();
+    const hasCurrentTrack = !!playerState?.current;
 
     const handleNavClick = (path) => {
         setExpanded(false);
         if (document.activeElement?.blur) document.activeElement.blur();
         navigate(path);
+    };
+
+    const handleOpenFullScreen = () => {
+        // v2.8.69 — Rail button that opens the FullScreenPlayer
+        // overlay via the pub/sub hook exposed by MiniPlayer.  If
+        // nothing is currently playing, we do nothing (the button
+        // is rendered `data-disabled="true"` in that state).
+        if (!hasCurrentTrack) return;
+        setExpanded(false);
+        if (document.activeElement?.blur) document.activeElement.blur();
+        try {
+            window.dispatchEvent(new CustomEvent('tunes:open-fullscreen'));
+        } catch { /* ignore */ }
     };
 
     return (
@@ -116,6 +133,29 @@ function TunesNav({ theme, onThemeChange }) {
                         </NavLink>
                     );
                 })}
+                {/* v2.8.69 — Full-screen player rail button.  Sits
+                    directly below Library per user request.  Dispatches
+                    `tunes:open-fullscreen` which MiniPlayer subscribes
+                    to and flips `expanded → true`, opening the
+                    now-playing overlay on top of the current page.
+                    Disabled visual state when nothing is playing. */}
+                <button
+                    type="button"
+                    className="tunes-nav__item"
+                    onClick={handleOpenFullScreen}
+                    data-testid="tunes-nav-fullscreen"
+                    data-focusable="true"
+                    data-focus-style="nav"
+                    data-disabled={!hasCurrentTrack}
+                    aria-disabled={!hasCurrentTrack}
+                    tabIndex={0}
+                    title={hasCurrentTrack ? 'Open full-screen player' : 'Nothing playing'}
+                >
+                    <span className="tunes-nav__item-icon">
+                        <Maximize2 size={22} strokeWidth={1.7} />
+                    </span>
+                    <span className="tunes-nav__item-label">Full Screen</span>
+                </button>
             </div>
 
             <div className="tunes-nav__spacer" />
