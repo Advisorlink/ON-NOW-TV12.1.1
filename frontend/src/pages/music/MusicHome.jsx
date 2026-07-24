@@ -385,8 +385,8 @@ const CHART_PRESETS = [
     {
         id: 'top-us',      title: 'Top 100 USA',       subtitle: 'BILLBOARD HOT',
         flag: '🇺🇸',
-        // v2.8.69 — Music-themed: DJ / mixing-desk lights
-        image: 'https://images.unsplash.com/photo-1493225458563-2ad76e161ea6?w=800&q=75',
+        // v2.8.69 — Music-themed: concert crowd + stage lights
+        image: 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=800&q=75',
         tint: 'linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(0,0,0,0.75) 100%)',
     },
     {
@@ -399,8 +399,8 @@ const CHART_PRESETS = [
     {
         id: 'decade-2020s', title: "The 2020s",         subtitle: "NOW PLAYING",
         emblem: "'20s",
-        // Modern neon / hologram vibes
-        image: 'https://images.unsplash.com/photo-1518676590629-3dcba9c5a555?w=800&q=75',
+        // Modern concert lights
+        image: 'https://images.unsplash.com/photo-1524678606370-a47ad25cb82a?w=800&q=75',
         tint: 'linear-gradient(180deg, rgba(255,0,110,0.2) 0%, rgba(58,134,255,0.35) 60%, rgba(0,0,0,0.85) 100%)',
     },
     {
@@ -413,8 +413,8 @@ const CHART_PRESETS = [
     {
         id: 'decade-2000s', title: "The 2000s",         subtitle: "MP3 ERA",
         emblem: "'00s",
-        // iPod-era product / retro tech
-        image: 'https://images.unsplash.com/photo-1461360370896-922624d12aa1?w=800&q=75',
+        // Headphones — iPod / MP3 era vibe
+        image: 'https://images.unsplash.com/photo-1519892300165-cb5542fb47c7?w=800&q=75',
         tint: 'linear-gradient(180deg, rgba(204,43,94,0.15) 0%, rgba(117,58,136,0.35) 60%, rgba(0,0,0,0.85) 100%)',
     },
     {
