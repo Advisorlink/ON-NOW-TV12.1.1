@@ -5,7 +5,9 @@ import android.util.Log
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -113,6 +115,7 @@ class EpgRefreshWorker(
     companion object {
         private const val TAG = "EpgRefreshWorker"
         const val UNIQUE_NAME = "onnowtv.livetv.epg-refresh"
+        const val UNIQUE_NAME_ONESHOT = "onnowtv.livetv.epg-refresh-now"
         const val TAG_WORK = "onnowtv-epg-refresh"
 
         /**
@@ -142,11 +145,36 @@ class EpgRefreshWorker(
             )
         }
 
+        /**
+         * v2.16.39 — Fire a one-time refresh immediately.  Used as
+         * a staleness safety net at boot: if the on-disk cache is
+         * >24 h old the periodic worker clearly missed its window
+         * (box powered off overnight, app force-stopped — Android
+         * TV launchers do this a lot), so we top the guide up right
+         * away instead of waiting up to 12 more hours.  KEEP policy
+         * — a refresh already in flight is never duplicated.
+         */
+        fun refreshNow(ctx: Context) {
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build()
+            val request = OneTimeWorkRequestBuilder<EpgRefreshWorker>()
+                .setConstraints(constraints)
+                .addTag(TAG_WORK)
+                .build()
+            WorkManager.getInstance(ctx).enqueueUniqueWork(
+                UNIQUE_NAME_ONESHOT,
+                ExistingWorkPolicy.KEEP,
+                request,
+            )
+        }
+
         /** Wipe any pending refresh on sign-out so the next sign-in
          *  re-enqueues with the new credentials. */
         fun cancel(ctx: Context) {
             try {
                 WorkManager.getInstance(ctx).cancelUniqueWork(UNIQUE_NAME)
+                WorkManager.getInstance(ctx).cancelUniqueWork(UNIQUE_NAME_ONESHOT)
             } catch (_: Throwable) {}
         }
     }

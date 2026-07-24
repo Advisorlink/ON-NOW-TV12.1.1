@@ -10882,3 +10882,48 @@ column, so this makes "top cap" fully explicit.
 ### Next up
 - FTA player "What's On" UP NEXT / times / progress UI (P1, postponed).
 - "Wrong bucket?" long-press EPG sport override (P1).
+
+---
+
+## v2.16.39 — Live TV: "Loading guide… forever after ~24h" fix (June 2026)
+
+> Operator report: after a few hours / ~24 h, re-entering the Live TV
+> app shows "Loading guide" but the guide never populates. First boot
+> works perfectly. "It's like it's not caching it properly for the
+> three days and not doing the updates."
+
+### ROOT CAUSE
+`EpgCache.openStreamingWriter()` **wiped the entire live 3-day EPG
+cache directory the moment it opened** — before the new XMLTV download
+had started. The 12-hour `EpgRefreshWorker` calls this every cycle.
+When the XMLTV fetch failed (provider 503/timeout/rate-limit, box
+losing network, Android killing the worker mid-run), `abort()` left
+the cache destroyed — the worker's "keeping previous cache" log was a
+lie. Consequences on next launch: `.done` gone → `exists()` false →
+every per-channel disk lookup missed → all rows stuck on "Loading
+guide…"; the wiped `.namemap.json` also broke name-based id patching
+so the lazy `get_short_epg` fallback missed too. A boot-time re-parse
+could fail for the same reason (rate-limited xmltv.php), leaving the
+app with no guide at all.
+
+### FIX (staging + atomic promote)
+- `EpgCache.openStreamingWriter()` now writes to a private staging dir
+  (`epg-channels-v3-staging-<uuid>`); sweeps stale staging dirs >2h old.
+- `StreamingWriter.finish()` stamps schema/ts/.done INSIDE staging then
+  atomically renames staging → live (`promote()`, synchronized; old
+  cache moved aside and deleted after). Failed refresh = staging
+  discarded, live cache untouched.
+- `StreamingWriter.abort()` deletes staging only — never the live cache.
+- `mergeChannel()` no longer bumps the master `.timestamp` (it tracks
+  the last FULL XMLTV parse; lazy merges made stale caches look fresh).
+
+### Staleness safety net
+- `EpgRefreshWorker.refreshNow()` — one-time expedited refresh
+  (unique KEEP, network-constrained). `cancel()` clears it too.
+- `MainActivity` fast path AND slow path: if `EpgCache.ageMs() > 24h`
+  at boot, enqueue `refreshNow()` — covers boxes where the periodic
+  worker missed its window (powered off overnight, force-stopped).
+
+### Verification
+- Brace check clean on EpgCache.kt / EpgRefreshWorker.kt / MainActivity.kt.
+- Compile happens in CI (`build-livetv.yml`).

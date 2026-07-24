@@ -228,6 +228,19 @@ class MainActivity : AppCompatActivity() {
                             try {
                                 tv.onnowtv.livetv.data.EpgRefreshWorker
                                     .schedulePeriodic(applicationContext)
+                                // v2.16.39 — Staleness safety net:
+                                // if the cache hasn't refreshed in
+                                // >24 h the periodic worker missed
+                                // its window (box off / force-stop).
+                                // Kick a one-time refresh now — the
+                                // staging writer keeps the current
+                                // cache intact until the new one is
+                                // fully committed.
+                                if (EpgCache.ageMs(this) > 24 * 60 * 60 * 1000L) {
+                                    Log.i("MainActivity", "EPG cache >24h old — enqueueing immediate refresh")
+                                    tv.onnowtv.livetv.data.EpgRefreshWorker
+                                        .refreshNow(applicationContext)
+                                }
                             } catch (t: Throwable) {
                                 Log.w(
                                     "MainActivity",
@@ -813,6 +826,11 @@ class MainActivity : AppCompatActivity() {
         // on every cold boot is a no-op once it's running.
         try {
             tv.onnowtv.livetv.data.EpgRefreshWorker.schedulePeriodic(applicationContext)
+            // v2.16.39 — same staleness safety net as the fast path.
+            if (haveCachedEpg && EpgCache.ageMs(applicationContext) > 24 * 60 * 60 * 1000L) {
+                Log.i("MainActivity", "EPG cache >24h old — enqueueing immediate refresh")
+                tv.onnowtv.livetv.data.EpgRefreshWorker.refreshNow(applicationContext)
+            }
         } catch (t: Throwable) {
             Log.w("MainActivity", "background EPG refresh enqueue failed: ${t.message}")
         }

@@ -75,11 +75,16 @@ object EpgCache {
      *  patching of the bundle's channel list without re-running
      *  the XMLTV parse.  Called by [StreamingWriter.finish]. */
     fun saveNameMap(ctx: Context, nameToId: Map<String, String>) {
+        writeNameMapTo(cacheDir(ctx), nameToId)
+    }
+
+    private fun writeNameMapTo(dir: File, nameToId: Map<String, String>) {
         if (nameToId.isEmpty()) return
         try {
+            dir.mkdirs()
             val obj = JSONObject()
             for ((k, v) in nameToId) obj.put(k, v)
-            nameMapFile(ctx).writeText(obj.toString())
+            File(dir, NAMEMAP_FILE).writeText(obj.toString())
         } catch (t: Throwable) {
             Log.w(TAG, "saveNameMap failed: ${t.message}")
         }
@@ -117,12 +122,14 @@ object EpgCache {
 
     /** Filename for a given channel id — SHA-1 hex digest so we
      *  never trip over channel ids that contain `/`, `?`, etc. */
-    private fun fileFor(ctx: Context, channelId: String): File {
+    private fun hashName(channelId: String): String {
         val md = MessageDigest.getInstance("SHA-1")
-        val hash = md.digest(channelId.toByteArray(Charsets.UTF_8))
+        return md.digest(channelId.toByteArray(Charsets.UTF_8))
             .joinToString("") { "%02x".format(it) }
-        return File(cacheDir(ctx), "$hash.jsonl.gz")
     }
+
+    private fun fileFor(ctx: Context, channelId: String): File =
+        File(cacheDir(ctx), "${hashName(channelId)}.jsonl.gz")
 
     /** True only when a COMPLETED cache of the current schema lives
      *  on disk.  A directory that contains a schema stamp but no
@@ -254,20 +261,57 @@ object EpgCache {
         }
     }
 
-    /** Open a [StreamingWriter] for the XMLTV parse.  The writer
-     *  accumulates programmes in a small in-memory buffer per
-     *  channel, then flushes complete channels to disk and clears
-     *  the buffer — keeping the heap footprint bounded regardless
-     *  of how many programmes the XMLTV ships.  Caller MUST call
-     *  [StreamingWriter.finish] when the parse completes. */
+    /** Open a [StreamingWriter] for the XMLTV parse.
+     *
+     *  v2.16.39 — CRITICAL FIX: writers now target a private
+     *  STAGING directory and only swap into place on a successful
+     *  [StreamingWriter.finish].  The previous implementation wiped
+     *  the LIVE cache dir the moment the writer opened — BEFORE the
+     *  new XMLTV download had even started.  Any failure after that
+     *  point (provider 503 / timeout / rate-limit, the box losing
+     *  network, Android killing the 12-h refresh worker mid-run)
+     *  left the app with NO guide at all: every channel row showed
+     *  "Loading guide…" forever until a full re-download succeeded.
+     *  With staging, a failed refresh simply discards the staging
+     *  dir and the existing 3-day cache stays fully intact. */
     fun openStreamingWriter(ctx: Context): StreamingWriter {
-        val dir = cacheDir(ctx)
-        // Wipe any in-progress write from a previous crash.
-        if (dir.exists()) {
-            dir.listFiles()?.forEach { runCatching { it.delete() } }
+        // Sweep leftover staging dirs from crashed writers (>2 h old).
+        try {
+            ctx.filesDir.listFiles()?.forEach { f ->
+                if (f.isDirectory && f.name.startsWith("$DIR_NAME-staging-") &&
+                    System.currentTimeMillis() - f.lastModified() > 2 * 60 * 60 * 1000L
+                ) {
+                    f.deleteRecursively()
+                }
+            }
+        } catch (_: Throwable) {}
+        val staging = File(ctx.filesDir, "$DIR_NAME-staging-${java.util.UUID.randomUUID()}")
+        staging.mkdirs()
+        return StreamingWriter(ctx, staging)
+    }
+
+    /** Atomically swap a fully-written staging dir into place as
+     *  the live cache.  Same-filesystem renames — effectively
+     *  instant.  Synchronized so two writers finishing at the same
+     *  time (boot preload racing the background worker) can't
+     *  interleave the swap. */
+    @Synchronized
+    private fun promote(ctx: Context, staging: File): Boolean {
+        return try {
+            val live = cacheDir(ctx)
+            val old = File(ctx.filesDir, "$DIR_NAME.old")
+            old.deleteRecursively()
+            if (live.exists() && !live.renameTo(old)) {
+                live.deleteRecursively()
+            }
+            val ok = staging.renameTo(live)
+            old.deleteRecursively()
+            if (!ok) Log.w(TAG, "promote: rename staging→live failed")
+            ok
+        } catch (t: Throwable) {
+            Log.w(TAG, "promote failed: ${t.message}")
+            false
         }
-        dir.mkdirs()
-        return StreamingWriter(ctx)
     }
 
     /** v2.9.11 — Wipe the cache (used on sign-out). */
@@ -295,6 +339,7 @@ object EpgCache {
      */
     class StreamingWriter internal constructor(
         private val ctx: Context,
+        private val dir: File,
     ) {
         private val buffers = HashMap<String, MutableList<Programme>>(512)
         private var bufferedProgrammes = 0
@@ -328,7 +373,7 @@ object EpgCache {
 
         private fun appendToChannelFile(channelId: String, programmes: List<Programme>) {
             try {
-                val f = fileFor(ctx, channelId)
+                val f = File(dir, "${hashName(channelId)}.jsonl.gz")
                 // APPEND mode — the same channel id can be flushed
                 // multiple times as the parser walks the file.  We
                 // wrap each chunk in its own GZIPOutputStream which
@@ -380,30 +425,34 @@ object EpgCache {
             // Persist the name map FIRST so any reader of the
             // committed (.done-stamped) cache always sees a
             // consistent (channels + name-map) snapshot.
-            if (nameMap.isNotEmpty()) saveNameMap(ctx, nameMap)
-            // Stamp + .done in that order so a partial finish is
-            // never treated as a complete cache.
+            if (nameMap.isNotEmpty()) writeNameMapTo(dir, nameMap)
+            // Stamp + .done inside the STAGING dir so the swapped-in
+            // cache is complete from the very first observable moment.
             try {
-                schemaFile(ctx).writeText(CURRENT_SCHEMA_VERSION.toString())
-                tsFile(ctx).writeText(System.currentTimeMillis().toString())
-                doneFile(ctx).writeText(System.currentTimeMillis().toString())
+                File(dir, SCHEMA_FILE).writeText(CURRENT_SCHEMA_VERSION.toString())
+                File(dir, TS_FILE).writeText(System.currentTimeMillis().toString())
+                File(dir, DIR_DONE_FILE).writeText(System.currentTimeMillis().toString())
             } catch (t: Throwable) {
                 Log.w(TAG, "stamp failed: ${t.message}")
             }
+            // v2.16.39 — Atomic swap: the live cache is only replaced
+            // AFTER the new one is fully written and stamped.
+            val promoted = promote(ctx, dir)
             Log.i(
                 TAG,
-                "streamed write committed: $totalChannelsFlushed channels, " +
-                    "$totalProgrammes programmes",
+                "streamed write committed (promoted=$promoted): " +
+                    "$totalChannelsFlushed channels, $totalProgrammes programmes",
             )
             return WriteResult(totalChannelsFlushed, totalProgrammes)
         }
 
-        /** Abort without writing the .done marker, leaving the
-         *  cache as "missing" so the next boot retries the parse. */
+        /** Abort — discards the staging dir.  The LIVE cache is
+         *  never touched, so a failed refresh keeps the previous
+         *  guide fully usable. */
         fun abort() {
             buffers.clear()
             bufferedProgrammes = 0
-            runCatching { doneFile(ctx).delete() }
+            runCatching { dir.deleteRecursively() }
         }
 
         data class WriteResult(val channelsFlushed: Int, val totalProgrammes: Int)
@@ -481,7 +530,13 @@ object EpgCache {
             if (!schemaFile(ctx).exists()) {
                 schemaFile(ctx).writeText(CURRENT_SCHEMA_VERSION.toString())
             }
-            tsFile(ctx).writeText(System.currentTimeMillis().toString())
+            // v2.16.39 — Only seed the master timestamp when absent.
+            // It tracks the last FULL XMLTV parse; bumping it on
+            // every lazy per-channel merge made a stale cache look
+            // fresh and defeated the boot-time staleness check.
+            if (!tsFile(ctx).exists()) {
+                tsFile(ctx).writeText(System.currentTimeMillis().toString())
+            }
             doneFile(ctx).writeText(System.currentTimeMillis().toString())
         } catch (t: Throwable) {
             Log.w(TAG, "mergeChannel stamp failed: ${t.message}")
