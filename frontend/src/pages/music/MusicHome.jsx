@@ -378,23 +378,23 @@ const CHART_PRESETS = [
     {
         id: 'top-au',      title: 'Top 100 Australia', subtitle: 'CHART TOPPERS',
         flag: '🇦🇺',
-        // Sydney Opera House at sunset
-        image: 'https://images.unsplash.com/photo-1523482580672-f109ba8cb9be?w=800&q=75',
-        tint: 'linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,0.7) 100%)',
+        // v2.8.69 — Music-themed: warm-lit concert crowd
+        image: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&q=75',
+        tint: 'linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(0,0,0,0.75) 100%)',
     },
     {
         id: 'top-us',      title: 'Top 100 USA',       subtitle: 'BILLBOARD HOT',
         flag: '🇺🇸',
-        // NYC skyline
-        image: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=800&q=75',
-        tint: 'linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,0.7) 100%)',
+        // v2.8.69 — Music-themed: DJ / mixing-desk lights
+        image: 'https://images.unsplash.com/photo-1493225458563-2ad76e161ea6?w=800&q=75',
+        tint: 'linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(0,0,0,0.75) 100%)',
     },
     {
         id: 'top-uk',      title: 'Top 100 UK',        subtitle: 'OFFICIAL CHART',
         flag: '🇬🇧',
-        // London / Big Ben at dusk
-        image: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=800&q=75',
-        tint: 'linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,0.7) 100%)',
+        // v2.8.69 — Music-themed: classic vinyl records
+        image: 'https://images.unsplash.com/photo-1461360370896-922624d12aa1?w=800&q=75',
+        tint: 'linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(0,0,0,0.75) 100%)',
     },
     {
         id: 'decade-2020s', title: "The 2020s",         subtitle: "NOW PLAYING",
