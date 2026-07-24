@@ -23,6 +23,10 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import androidx.media3.ui.PlayerView
+import androidx.appcompat.app.AlertDialog
+import org.videolan.libvlc.util.VLCVideoLayout
+import tv.onnowtv.livetv.data.PlayerPrefs
+import tv.onnowtv.livetv.data.VlcPlayerController
 import coil.load
 import coil.transform.RoundedCornersTransformation
 import kotlinx.coroutines.Dispatchers
@@ -104,6 +108,14 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var infoUpNext: TextView
     private lateinit var tunePill: TextView
     private lateinit var bufferLoader: tv.onnowtv.livetv.ui.OrbitalLoaderView
+
+    // v2.16.38 — selectable playback backend (ExoPlayer / LibVLC).
+    // Read once from PlayerPrefs in onCreate; switched at runtime
+    // via the settings cog without leaving the activity.
+    private var backend: PlayerPrefs.Backend = PlayerPrefs.Backend.EXO
+    private var vlcController: VlcPlayerController? = null
+    private lateinit var vlcVideoLayout: VLCVideoLayout
+    private lateinit var settingsCog: ImageButton
 
     // v2.9.1: brand-styled bottom controls bar + dedicated info
     // card.  All views live in `activity_player.xml`; init in
@@ -213,6 +225,9 @@ class PlayerActivity : AppCompatActivity() {
         infoUpNext    = findViewById(R.id.info_up_next)
         tunePill      = findViewById(R.id.tune_pill)
         bufferLoader  = findViewById(R.id.buffer_loader)
+        vlcVideoLayout = findViewById(R.id.vlc_video_layout)
+        settingsCog   = findViewById(R.id.player_settings_cog)
+        backend       = PlayerPrefs.getBackend(this)
 
         // v2.9.1 — bottom control bar + info card.
         controlsBar   = findViewById(R.id.player_controls_bar)
@@ -297,7 +312,17 @@ class PlayerActivity : AppCompatActivity() {
                 epgChannelId = channelId,
             )
 
-        if (usingSharedPlayer) {
+        if (backend == PlayerPrefs.Backend.VLC) {
+            // VLC never adopts the shared Exo preview session — release
+            // it first so the single-stream Xtream slot is freed before
+            // VLC opens its own connection.
+            if (usingSharedPlayer) {
+                LivePreviewSession.release()
+                usingSharedPlayer = false
+            }
+            buildVlcPlayer()
+            tuneTo(currentChannel!!, initial = true)
+        } else if (usingSharedPlayer) {
             attachSharedPlayer(currentChannel!!)
         } else {
             buildPlayer()
@@ -481,6 +506,129 @@ class PlayerActivity : AppCompatActivity() {
         })
     }
 
+    /* ─────────────────── v2.16.38 LibVLC backend ─────────────────── */
+
+    /** Build (or rebuild) the LibVLC controller and flip the video
+     *  surfaces so `vlc_video_layout` is the active layer. */
+    private fun buildVlcPlayer() {
+        playerView.player = null
+        playerView.visibility = View.GONE
+        vlcVideoLayout.visibility = View.VISIBLE
+        vlcController = VlcPlayerController(
+            applicationContext,
+            vlcVideoLayout,
+            object : VlcPlayerController.Callbacks {
+                override fun onReady() {
+                    runOnUiThread {
+                        status.text = ""
+                        consecutiveFailures = 0
+                        bufferLoader.visibility = View.GONE
+                        hideHandler.removeCallbacksAndMessages(null)
+                        infoCard.animate().cancel()
+                        infoCard.animate().alpha(0f).setDuration(180)
+                            .withEndAction { infoCard.visibility = View.GONE }
+                            .start()
+                        syncPlayPauseGlyph()
+                    }
+                }
+                override fun onBuffering(buffering: Boolean) {
+                    runOnUiThread {
+                        bufferLoader.visibility = if (buffering) View.VISIBLE else View.GONE
+                    }
+                }
+                override fun onEnded() {
+                    runOnUiThread {
+                        bufferLoader.visibility = View.GONE
+                        status.text = "Stream ended"
+                    }
+                }
+                override fun onError(message: String) {
+                    runOnUiThread {
+                        bufferLoader.visibility = View.GONE
+                        if (consecutiveFailures < 3) {
+                            consecutiveFailures += 1
+                            val delay = 800L * (1 shl (consecutiveFailures - 1))
+                            status.text = "Stream error — retrying in ${delay / 1000.0}s…"
+                            scheduleRetry(delay)
+                        } else {
+                            status.text = message
+                        }
+                    }
+                }
+            },
+        )
+    }
+
+    /** Settings-cog dialog — pick ExoPlayer or LibVLC.  The choice
+     *  persists via [PlayerPrefs] and applies immediately by
+     *  re-tuning the current channel on the new backend. */
+    private fun showBackendPicker() {
+        val backends = PlayerPrefs.Backend.values()
+        val labels = backends.map { it.label }.toTypedArray()
+        val checked = backends.indexOf(backend)
+        AlertDialog.Builder(this)
+            .setTitle("Player engine")
+            .setSingleChoiceItems(labels, checked) { dialog, which ->
+                dialog.dismiss()
+                val chosen = backends[which]
+                if (chosen != backend) {
+                    PlayerPrefs.setBackend(this, chosen)
+                    switchBackend(chosen)
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    /** Tear down the active backend, build the other one, and
+     *  re-tune the current channel — all without leaving the
+     *  activity or dismissing the overlay. */
+    private fun switchBackend(newBackend: PlayerPrefs.Backend) {
+        if (newBackend == backend) return
+        status.text = "Switching player…"
+        retryHandler.removeCallbacksAndMessages(null)
+        consecutiveFailures = 0
+        if (newBackend == PlayerPrefs.Backend.VLC) {
+            if (usingSharedPlayer) {
+                // Free the shared Exo session's upstream slot before
+                // VLC opens its own connection (single-stream account).
+                playerView.player = null
+                LivePreviewSession.release()
+                usingSharedPlayer = false
+                player = null
+            } else {
+                releaseUpstream()
+                player?.release()
+                player = null
+                try { cachedHttpClient?.connectionPool?.evictAll() } catch (_: Throwable) {}
+                cachedHttpClient = null
+                playerView.player = null
+            }
+            backend = newBackend
+            buildVlcPlayer()
+        } else {
+            vlcController?.release()
+            vlcController = null
+            vlcVideoLayout.visibility = View.GONE
+            backend = newBackend
+            playerView.visibility = View.VISIBLE
+            buildPlayer()
+        }
+        val ch = currentChannel ?: return
+        status.text = "Tuning…"
+        val url = tv.onnowtv.livetv.data.AuthStore.rewriteStreamUrl(this, ch.streamUrl)
+        if (backend == PlayerPrefs.Backend.VLC) {
+            bufferLoader.visibility = View.VISIBLE
+            vlcController?.tune(url)
+        } else {
+            val p = player ?: return
+            p.setMediaItem(MediaItem.fromUri(url))
+            p.playWhenReady = true
+            p.prepare()
+        }
+        syncPlayPauseGlyph()
+    }
+
     /**
      * Pull the most useful diagnostic info out of a PlaybackException
      * — for `Bad HTTP status` we extract the actual HTTP code from
@@ -526,6 +674,7 @@ class PlayerActivity : AppCompatActivity() {
      * connection sitting in the OkHttp pool.
      */
     private fun releaseUpstream() {
+        try { vlcController?.stop() } catch (_: Throwable) {}
         val p = player
         if (p != null) {
             try { p.stop() } catch (_: Throwable) {}
@@ -559,9 +708,8 @@ class PlayerActivity : AppCompatActivity() {
         // v2.16.29 — Bump the launcher-admin Live tab so it shows
         // the new channel name the moment the user zaps.
         tv.onnowtv.livetv.data.PresenceReporter.start(this, channel)
-        val p = player ?: return
         if (!initial) status.text = "Tuning…"
-        // Hide ExoPlayer's transport controls AND the info card the
+        // Hide the transport controls AND the info card the
         // moment we start tuning.  We don't want any chrome on
         // screen during the loading / buffering phase — the user
         // wants the playback area to come up bright and clean.
@@ -571,16 +719,22 @@ class PlayerActivity : AppCompatActivity() {
         infoCard.visibility = View.GONE
         infoCard.alpha = 0f
         // v2.9.5 — Substitute the saved user creds before tuning.
-        p.setMediaItem(MediaItem.fromUri(
-            tv.onnowtv.livetv.data.AuthStore.rewriteStreamUrl(this, channel.streamUrl)
-        ))
-        p.playWhenReady = true
-        p.prepare()
-        if (usingSharedPlayer) {
-            // Keep the session in sync so when we shrink back to
-            // the EPG the preview shows whatever channel the user
-            // last zapped to in full-screen.
-            LivePreviewSession.rememberChannel(channel)
+        val streamUrl = tv.onnowtv.livetv.data.AuthStore.rewriteStreamUrl(this, channel.streamUrl)
+        if (backend == PlayerPrefs.Backend.VLC) {
+            val vlc = vlcController ?: return
+            bufferLoader.visibility = View.VISIBLE
+            vlc.tune(streamUrl)
+        } else {
+            val p = player ?: return
+            p.setMediaItem(MediaItem.fromUri(streamUrl))
+            p.playWhenReady = true
+            p.prepare()
+            if (usingSharedPlayer) {
+                // Keep the session in sync so when we shrink back to
+                // the EPG the preview shows whatever channel the user
+                // last zapped to in full-screen.
+                LivePreviewSession.rememberChannel(channel)
+            }
         }
         // Pre-populate the info card with the new channel so it's
         // ready to flash when the user presses OK / INFO later.
@@ -603,14 +757,17 @@ class PlayerActivity : AppCompatActivity() {
      */
     private fun scheduleRetry(delayMs: Long) {
         val ch = currentChannel ?: return
-        val p = player ?: return
         retryHandler.removeCallbacksAndMessages(null)
         retryHandler.postDelayed({
-            p.setMediaItem(MediaItem.fromUri(
-                tv.onnowtv.livetv.data.AuthStore.rewriteStreamUrl(this, ch.streamUrl)
-            ))
-            p.playWhenReady = true
-            p.prepare()
+            val url = tv.onnowtv.livetv.data.AuthStore.rewriteStreamUrl(this, ch.streamUrl)
+            if (backend == PlayerPrefs.Backend.VLC) {
+                vlcController?.tune(url)
+            } else {
+                val p = player ?: return@postDelayed
+                p.setMediaItem(MediaItem.fromUri(url))
+                p.playWhenReady = true
+                p.prepare()
+            }
             status.text = "Reconnecting…"
         }, delayMs)
     }
@@ -822,6 +979,14 @@ class PlayerActivity : AppCompatActivity() {
             KeyEvent.KEYCODE_CHANNEL_UP,
             KeyEvent.KEYCODE_PAGE_UP -> {
                 if (playerOverlay.visibility == View.VISIBLE) {
+                    // v2.16.38 — first UP hops focus to the settings
+                    // cog (top-left); a second UP dismisses the
+                    // overlay.  Keeps the cog D-pad reachable.
+                    if (keyCode == KeyEvent.KEYCODE_DPAD_UP && !settingsCog.hasFocus()) {
+                        settingsCog.requestFocus()
+                        bumpControlsHide()
+                        return true
+                    }
                     hideControlsBar(); return true
                 }
                 PlaybackQueue.prev()?.let { tuneTo(it) }
@@ -837,6 +1002,13 @@ class PlayerActivity : AppCompatActivity() {
                 // are hidden).
                 if (playerOverlay.visibility != View.VISIBLE) {
                     showControlsBar()
+                    return true
+                }
+                // v2.16.38 — DOWN from the cog returns focus to the
+                // control row.
+                if (settingsCog.hasFocus()) {
+                    btnPlayPause.requestFocus()
+                    bumpControlsHide()
                     return true
                 }
                 return super.onKeyDown(keyCode, event)
@@ -885,6 +1057,8 @@ class PlayerActivity : AppCompatActivity() {
         btnRewind.setOnClickListener { seekRelative(-10_000L); bumpControlsHide() }
         btnForward.setOnClickListener { seekRelative(+10_000L); bumpControlsHide() }
         btnSubtitles.setOnClickListener { toggleSubtitles(); bumpControlsHide() }
+        // v2.16.38 — settings cog opens the backend picker
+        settingsCog.setOnClickListener { showBackendPicker(); bumpControlsHide() }
         // v2.10 — new design buttons
         btnChUp.setOnClickListener { channelStep(forward = true); bumpControlsHide() }
         btnChDown.setOnClickListener { channelStep(forward = false); bumpControlsHide() }
@@ -906,7 +1080,7 @@ class PlayerActivity : AppCompatActivity() {
         listOf(
             btnRewind, btnPlayPause, btnForward,
             btnChUp, btnChDown, btnSwap,
-            btnSubtitles, btnFavorite,
+            btnSubtitles, btnFavorite, settingsCog,
         ).forEach { b ->
             b.setOnFocusChangeListener { _, hasFocus -> if (hasFocus) bumpControlsHide() }
         }
@@ -934,6 +1108,12 @@ class PlayerActivity : AppCompatActivity() {
             clockBlock.visibility = View.VISIBLE
             clockBlock.animate().alpha(1f).setDuration(180L).start()
         }
+        // v2.16.38 — settings cog rides along with the overlay.
+        if (settingsCog.visibility != View.VISIBLE) {
+            settingsCog.alpha = 0f
+            settingsCog.visibility = View.VISIBLE
+            settingsCog.animate().alpha(1f).setDuration(180L).start()
+        }
         controlsBar.alpha = 1f
         controlsBar.visibility = View.VISIBLE
         // Always sync the Play/Pause label to the current state.
@@ -953,6 +1133,9 @@ class PlayerActivity : AppCompatActivity() {
         clockBlock.animate().alpha(0f).setDuration(180L).withEndAction {
             clockBlock.visibility = View.GONE
         }.start()
+        settingsCog.animate().alpha(0f).setDuration(180L).withEndAction {
+            settingsCog.visibility = View.GONE
+        }.start()
     }
 
     private fun bumpControlsHide() {
@@ -961,13 +1144,22 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun togglePlayPause() {
-        val p = player ?: return
-        p.playWhenReady = !p.playWhenReady
+        if (backend == PlayerPrefs.Backend.VLC) {
+            val vlc = vlcController ?: return
+            if (vlc.isPlaying()) vlc.pause() else vlc.resume()
+        } else {
+            val p = player ?: return
+            p.playWhenReady = !p.playWhenReady
+        }
         syncPlayPauseGlyph()
     }
 
     private fun syncPlayPauseGlyph() {
-        val playing = player?.playWhenReady == true
+        val playing = if (backend == PlayerPrefs.Backend.VLC) {
+            vlcController?.isPlaying() == true
+        } else {
+            player?.playWhenReady == true
+        }
         // v2.9.9 — Vector icons instead of unicode glyphs (the new
         // modern player control bar uses ImageButtons).
         btnPlayPause.setImageResource(
@@ -1246,6 +1438,13 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun seekRelative(deltaMs: Long) {
+        if (backend == PlayerPrefs.Backend.VLC) {
+            // Live MPEG-TS — no timeshift buffer on the VLC path.
+            status.text = if (deltaMs > 0) "Live · cannot fast-forward" else "Live · cannot rewind"
+            hideHandler.removeCallbacksAndMessages(null)
+            hideHandler.postDelayed({ status.text = "" }, 1_400L)
+            return
+        }
         val p = player ?: return
         val pos = p.currentPosition
         val dur = p.duration
@@ -1263,12 +1462,23 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun toggleSubtitles() {
-        val p = player ?: return
         subtitlesEnabled = !subtitlesEnabled
-        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
-            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !subtitlesEnabled)
-            .setPreferredTextLanguage(if (subtitlesEnabled) "en" else null)
-            .build()
+        if (backend == PlayerPrefs.Backend.VLC) {
+            val ok = vlcController?.setSubtitlesEnabled(subtitlesEnabled) == true
+            if (subtitlesEnabled && !ok) {
+                subtitlesEnabled = false
+                status.text = "No subtitles on this channel"
+                hideHandler.removeCallbacksAndMessages(null)
+                hideHandler.postDelayed({ status.text = "" }, 1_400L)
+                return
+            }
+        } else {
+            val p = player ?: return
+            p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !subtitlesEnabled)
+                .setPreferredTextLanguage(if (subtitlesEnabled) "en" else null)
+                .build()
+        }
         btnSubtitles.alpha = if (subtitlesEnabled) 1f else 0.55f
         status.text = if (subtitlesEnabled) "Subtitles ON" else "Subtitles OFF"
         hideHandler.removeCallbacksAndMessages(null)
@@ -1349,6 +1559,17 @@ class PlayerActivity : AppCompatActivity() {
             finishAffinity()
             return
         }
+        if (backend == PlayerPrefs.Backend.VLC) {
+            // onStop stopped the VLC stream to free the upstream slot
+            // — re-open it now that we're back on screen.
+            val ch = currentChannel
+            val vlc = vlcController
+            if (ch != null && vlc != null && !vlc.isPlaying()) {
+                bufferLoader.visibility = View.VISIBLE
+                vlc.tune(tv.onnowtv.livetv.data.AuthStore.rewriteStreamUrl(this, ch.streamUrl))
+            }
+            return
+        }
         if (usingSharedPlayer) {
             // Re-bind the surface in case Android paused us.  If the
             // process was backgrounded the session may have been
@@ -1406,6 +1627,9 @@ class PlayerActivity : AppCompatActivity() {
             try { cachedHttpClient?.connectionPool?.evictAll() } catch (_: Throwable) {}
             cachedHttpClient = null
         }
+        // v2.16.38 — free VLC's JNI handles (idempotent).
+        vlcController?.release()
+        vlcController = null
         super.onDestroy()
     }
 }

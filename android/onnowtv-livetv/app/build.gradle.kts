@@ -107,4 +107,13 @@ dependencies {
     // the on-disk EpgCache never goes stale even when the user
     // hasn't opened the app for days.
     implementation("androidx.work:work-runtime-ktx:2.9.1")
+
+    // v2.16.38 — LibVLC as an alternative playback backend, selectable
+    // in the player's settings cog.  ExoPlayer is still the default;
+    // users who prefer VLC's broader codec support / faster tuning
+    // characteristics can opt in.  Choice persists in SharedPrefs.
+    // `libvlc-all` bundles every ABI (armv7 / arm64 / x86 / x86_64)
+    // which inflates the APK by ~50-100 MB but keeps the build simple
+    // — we don't need per-ABI splits for a private IPTV product.
+    implementation("org.videolan.android:libvlc-all:3.6.0")
 }

@@ -33,6 +33,17 @@
         app:use_controller="false"
         app:show_buffering="never" />
 
+    <!-- ─────────── (1b) VLC video surface — v2.16.38 ───────────
+         Only one of the two video surfaces is attached to the
+         Window at a time.  PlayerActivity flips visibility based
+         on PlayerPrefs.getBackend() — the other one stays GONE
+         so we don't spend GPU work on an unused layer. -->
+    <org.videolan.libvlc.util.VLCVideoLayout
+        android:id="@+id/vlc_video_layout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
     <!-- ─────────── (2) Orbital buffering loader (centred) ─────────── -->
     <tv.onnowtv.livetv.ui.OrbitalLoaderView
         android:id="@+id/buffer_loader"
@@ -59,6 +70,30 @@
         android:visibility="gone"
         tools:ignore="HardcodedText"
         tools:text="→ 21…" />
+
+    <!-- ─────────── (3b) Settings cog — v2.16.38 ───────────
+         Small circular button that opens the player-backend
+         picker (ExoPlayer / LibVLC).  Sits in the top-left so it
+         doesn't collide with the tune-pill / clock in the top-
+         right.  Visible only when the bottom info banner is
+         showing (controlled from PlayerActivity in sync with
+         `infoCard.visibility`) so it never lingers over the
+         video mid-programme.  Focusable so the D-pad can reach
+         it from the info banner. -->
+    <ImageButton
+        android:id="@+id/player_settings_cog"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_gravity="top|start"
+        android:layout_marginTop="30dp"
+        android:layout_marginStart="30dp"
+        android:padding="8dp"
+        android:background="@drawable/tune_pill_bg"
+        android:src="@drawable/ic_settings_cog"
+        android:contentDescription="Player settings"
+        android:focusable="true"
+        android:focusableInTouchMode="false"
+        android:visibility="gone" />
 
     <!-- ─────────── (4) Top-right CLOCK / DATE ─────────── -->
     <LinearLayout

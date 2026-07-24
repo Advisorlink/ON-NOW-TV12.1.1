@@ -10830,3 +10830,55 @@ column, so this makes "top cap" fully explicit.
 - XML lint OK on `activity_epg.xml` (Python ElementTree).
 - Focus chain reads as a proper DAG — no cycles beyond deliberate
   self-loops for the boundary caps.  Ships in next CI-built APK.
+
+---
+
+## v2.16.38 — Live TV: LibVLC / ExoPlayer backend toggle (June 2026)
+
+> Operator request: add VLC player (LibVLC) to the Live TV app with a
+> settings cog to toggle between LibVLC and ExoPlayer. Must support fast
+> zapping on MPEG-TS, keep the exact same UI overlay, and the chosen
+> backend must persist permanently until manually changed again.
+
+### Changes (onnowtv-livetv)
+**1. Dependency + prefs + controller (created previous session):**
+- `build.gradle.kts` — `org.videolan.android:libvlc-all:3.6.0`.
+- `data/PlayerPrefs.kt` — persistent backend pref (`livetv_prefs` /
+  `player.backend`), enum EXO (default) / VLC, survives reboot.
+- `data/VlcPlayerController.kt` — LibVLC wrapper: fast-zap options
+  (`--network-caching=300 --live-caching=200 --clock-jitter=0
+  --drop-late-frames --skip-frames --http-reconnect`), HW decode,
+  same UA as ExoPlayer, single MediaPlayer reused across zaps,
+  Callbacks (onReady/onBuffering/onEnded/onError). NEW this session:
+  `setSubtitlesEnabled()` via SPU track select/-1.
+- `activity_player.xml` — `vlc_video_layout` (VLCVideoLayout, GONE by
+  default) + `player_settings_cog` ImageButton (top-left, focusable).
+
+**2. PlayerActivity.kt wiring (this session):**
+- `backend = PlayerPrefs.getBackend()` read in onCreate BEFORE building
+  any player; VLC path force-releases the shared Exo preview session
+  first (single-stream Xtream account — no double connection).
+- `buildVlcPlayer()` — flips surfaces (PlayerView GONE ↔ VLCVideoLayout
+  VISIBLE), maps VLC events onto the existing status/bufferLoader/
+  infoCard flows incl. 3-attempt exponential retry on error.
+- `tuneTo()/scheduleRetry()/togglePlayPause()/syncPlayPauseGlyph()/
+  toggleSubtitles()/seekRelative()/releaseUpstream()/onResume()/
+  onDestroy()` all branch per-backend. Same overlay, presence
+  reporting, EPG warm, favourites, SWAP BACK etc. shared by both.
+- Settings cog: rides in/out with the overlay; click → AlertDialog
+  single-choice "Player engine" (ExoPlayer default / LibVLC); choosing
+  the other backend saves the pref and hot-swaps (`switchBackend()`)
+  re-tuning the same channel without leaving the activity.
+- D-pad: with overlay open, first DPAD_UP focuses the cog, second UP
+  dismisses; DPAD_DOWN from cog returns to Play/Pause. CHANNEL_UP/
+  PAGE_UP still dismiss immediately.
+
+### Verification
+- `python3 /tmp/kt_brace_check.py` clean on all Live TV .kt files
+  (script recreated post-fork; copy kept at /app/memory/kt_brace_check.py).
+- XML lint OK on activity_player.xml + ic_settings_cog.xml.
+- No local Android SDK — compile happens in CI (`build-livetv.yml`).
+
+### Next up
+- FTA player "What's On" UP NEXT / times / progress UI (P1, postponed).
+- "Wrong bucket?" long-press EPG sport override (P1).
