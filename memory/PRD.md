@@ -11006,3 +11006,30 @@ both engines — Live TV pattern.
 - eng audio/sub prefs + shared 30 s stall watchdog/error-advance: same.
 - Documented full Exo→VLC mapping table in VesperVlcEngine init.
 - Live profile stays fast-zap 600 ms (deliberate, Live TV spec).
+
+### v2.16.44 — LibVLC seek/resume deep fix: real root causes (June 2026)
+> Operator: "resume + scrub must pick up as fast as ExoPlayer did. Deep dive, no excuses."
+Root causes found (v2.16.43 fixed the WRONG knob):
+1. http:// VOD obeys :network-caching (was 6000ms), NOT :file-caching.
+   network-caching = PTS delay refilled after EVERY seek → guaranteed
+   6-8s stall per scrub/resume. → VOD :network-caching dropped to 1500.
+   Resilience now from 64MiB prefetch RAM buffer (Exo-style small
+   playback threshold + big back-buffer).
+2. --http-continuous REMOVED. It is NOT keep-alive — marks source as
+   endlessly-growing file, breaks byte-range seeking/EOF on VOD hosts
+   (direct cause of seek hangs).
+3. Resume was play-from-0-then-seek (2 buffer cycles). Now bakes
+   :start-time=<sec> into the Media → demuxer opens directly at offset
+   (1 HTTP range request) = Exo setMediaItem(item, startPositionMs).
+   applyResumeSeekWithRetry() kept as verify-first fallback (checks
+   mp.time BEFORE issuing corrective seek; happy path = 0 extra seeks).
+4. seekTo now uses setTime(ms, fast=true) keyframe seek — VERIFIED
+   present in libvlc-all 3.6.0 by decompiling the AAR ((JZ)J descriptor).
+   Old `.time =` setter = precise seek (decode-from-keyframe, seconds
+   of extra HTTP fetch per scrub). Fallback to precise on throw.
+5. --prefetch-seek-threshold=33554432 (32MiB): +10/+30s skips read
+   through prefetch RAM instead of tearing down the HTTP connection
+   (default threshold was 16KiB → every skip = full reconnect).
+- bufferAheadMs() VOD cap synced 6000→1500.
+- Brace check + 8/8 logic assertions PASS. NEEDS USER CI REBUILD + APK
+  install to verify on box. If still slow: adb logcat -s VesperVlcEngine:V

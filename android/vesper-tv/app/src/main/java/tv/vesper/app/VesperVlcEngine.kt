@@ -20,10 +20,11 @@ import org.videolan.libvlc.util.VLCVideoLayout
  * — dock, scrubber, pickers, next-episode pill, party layer — stays
  * pixel-identical regardless of engine.
  *
- * All LibVLC instance options + per-media VOD tuning are verbatim
- * copies of the battle-tested VlcPlayerActivity config (deep-buffer
- * VOD profile: 10 s network/file caching, 8 MB prefetch pool,
- * http-reconnect/continuous, HW decode with software fallback).
+ * All LibVLC instance options + per-media VOD tuning follow the
+ * v2.16.44 fast-seek profile: 1.5 s network-caching (PTS delay) +
+ * 64 MiB prefetch RAM read-ahead + 32 MiB read-through seek threshold,
+ * :start-time resume, keyframe fast-seek, http-reconnect, HW decode
+ * with software fallback.
  */
 class VesperVlcEngine(
     ctx: Context,
@@ -49,6 +50,10 @@ class VesperVlcEngine(
     private var released = false
     private var pendingStartAtMs = 0L
     private var hasSeekedToStart = false
+    // v2.16.44 — true when :start-time was baked into the Media so the
+    // demuxer opens DIRECTLY at the resume offset (single HTTP range
+    // request, no play-from-0-then-seek double buffer cycle).
+    private var resumeViaStartTime = false
 
     // v2.16.42 — Latest buffer fill percentage reported by LibVLC's
     // Buffering event (0-100 float).  Held here so the Vesper info
@@ -84,7 +89,6 @@ class VesperVlcEngine(
         //    value was mis-unit'd)
         //  • OkHttp connectTimeout 20 s             →  --ipv4-timeout=20000 (ms)
         //  • retryOnConnectionFailure(true)         →  --http-reconnect
-        //  • keep-alive / warm sockets              →  --http-continuous
         //  • UA "Vesper-ExoPlayer/2.7.43"           →  --http-user-agent=…
         //    (identical client identity so debrid hosts / CDNs treat
         //    both engines exactly the same)
@@ -97,13 +101,24 @@ class VesperVlcEngine(
             "--no-drop-late-frames",
             "--no-skip-frames",
             "--rtsp-tcp",
-            "--network-caching=6000",           // = Exo bufferForPlaybackMs
+            "--network-caching=6000",           // instance default; VOD/live override per-media
             "--prefetch-buffer-size=65536",     // KiB → 64 MiB ≈ Exo 50 s target
             "--prefetch-read-size=524288",      // bytes → 512 KiB reads
+            // v2.16.44 — Forward skips within the 64 MiB prefetch RAM
+            // buffer now READ THROUGH the buffer instead of tearing the
+            // HTTP connection down for a new range request.  The default
+            // threshold is 16 KiB, so literally every +10 s skip forced a
+            // full reconnect.  32 MiB ≈ +30 s of 8 Mbps video served
+            // straight from RAM.
+            "--prefetch-seek-threshold=33554432",
             "--ipv4-timeout=20000",             // = OkHttp connectTimeout 20 s
             "--http-user-agent=Vesper-ExoPlayer/2.7.43",
             "--http-reconnect",
-            "--http-continuous",
+            // v2.16.44 — REMOVED --http-continuous.  That flag is NOT
+            // keep-alive: it marks the source as an endlessly-growing
+            // file (webcam JPG style), which breaks EOF handling and
+            // byte-range seeking on normal VOD hosts — a direct cause
+            // of the "scrub hangs forever" reports.
             "--avcodec-hw=any",
             // v2.16.43 — FAST SEEK.  Without this flag LibVLC does
             // frame-exact seek: it walks the decoder from the last
@@ -175,6 +190,7 @@ class VesperVlcEngine(
         val mp = mediaPlayer ?: return
         pendingStartAtMs = startAtMs
         hasSeekedToStart = false
+        resumeViaStartTime = false
         // v2.16.42 — reset the buffer readout so the info overlay
         // doesn't show a stale "100 %" carried over from the
         // previous stream while the new one is still connecting.
@@ -205,20 +221,29 @@ class VesperVlcEngine(
             } else {
                 // VOD profile — thresholds tuned for FAST SEEK.
                 //
-                // v2.16.43 — file-caching dropped 6000 → 1500 ms.
-                // On a seek libVLC flushes its input cache and refills
-                // to `:file-caching` ms before resuming playback; at
-                // 6 000 ms every scrub / resume incurred a full 6-8 s
-                // wait even though the underlying HTTP byte-range
-                // fetch usually returns in under a second.  1500 ms
-                // is enough runway to smooth out any brief blip and
-                // makes seek feel like a native player again.
-                //
-                // network-caching stays at 6000 ms so the INITIAL open
-                // (cold TCP + TLS handshake against Torrentio-scraped
-                // debrid URLs) still has its full resilience window.
-                media.addOption(":network-caching=6000")
+                // v2.16.44 — ROOT CAUSE FIX.  http:// sources obey
+                // :network-caching, NOT :file-caching — the v2.16.43
+                // file-caching drop changed nothing for scraped debrid
+                // URLs.  network-caching is VLC's PTS delay: on open
+                // AND after EVERY seek the input flushes and refills
+                // this many ms of demuxed data before video resumes.
+                // At 6 000 ms every scrub/resume ate a guaranteed 6-8 s
+                // stall.  1 500 ms starts video ~4× sooner; sustained
+                // resilience comes from the 64 MiB prefetch RAM buffer
+                // (instance args), exactly how ExoPlayer pairs a small
+                // bufferForPlaybackMs with a large maxBufferMs.
+                media.addOption(":network-caching=1500")
                 media.addOption(":file-caching=1500")
+                // v2.16.44 — Continue-Watching resume: bake the offset
+                // into the media so the demuxer OPENS at the target
+                // (one HTTP range request, first frame ≈ open latency).
+                // The old flow played from 0 then seeked → two full
+                // buffer cycles ≈ 10-15 s.  Equivalent of ExoPlayer's
+                // setMediaItem(item, startPositionMs).
+                if (startAtMs > 5_000L) {
+                    media.addOption(":start-time=${startAtMs / 1000L}")
+                    resumeViaStartTime = true
+                }
                 media.addOption(":clock-jitter=0")
                 media.addOption(":clock-synchro=0")
                 media.addOption(":no-audio-time-stretch")
@@ -290,7 +315,22 @@ class VesperVlcEngine(
             if (released) return@Runnable
             if (hasSeekedToStart) return@Runnable
             val mp = mediaPlayer ?: return@Runnable
-            try { mp.time = target } catch (_: Throwable) {}
+            // v2.16.44 — :start-time usually already landed us at the
+            // target; verify BEFORE issuing any corrective seek so the
+            // happy path costs zero extra buffer flushes.
+            val current = try { mp.time } catch (_: Throwable) { 0L }
+            if (kotlin.math.abs(current - target) < 10_000L && current > 0L) {
+                hasSeekedToStart = true
+                Log.i(TAG, "resume OK (target=${target}ms actual=${current}ms viaStartTime=$resumeViaStartTime)")
+                return@Runnable
+            }
+            // Corrective seek uses the FAST (keyframe) overload — the
+            // `.time =` property setter is a precise seek that decodes
+            // forward from the previous keyframe (seconds of extra work
+            // on an HTTP stream).
+            try { mp.setTime(target, true) } catch (_: Throwable) {
+                try { mp.time = target } catch (_: Throwable) {}
+            }
             // Give VLC a beat to update its internal time before we
             // read it back — otherwise we'd always see the pre-seek
             // value and mistakenly retry.
@@ -323,8 +363,17 @@ class VesperVlcEngine(
     fun durationMs(): Long = try { mediaPlayer?.length ?: 0L } catch (_: Throwable) { 0L }
     fun seekTo(ms: Long) {
         val target = ms.coerceAtLeast(0L)
-        Log.d(TAG, "seekTo(${target}ms)")
-        try { mediaPlayer?.time = target } catch (_: Throwable) {}
+        Log.d(TAG, "seekTo(${target}ms) fast")
+        // v2.16.44 — setTime(ms, fast=true): keyframe seek (verified
+        // present in libvlc-all 3.6.0 bindings).  The `.time =` setter
+        // is a PRECISE seek — VLC decodes from the previous keyframe to
+        // the exact frame, which on an HTTP stream means downloading +
+        // decoding several extra MB per scrub.  Fast seek lands on the
+        // nearest keyframe (≤2 s drift) and resumes almost instantly —
+        // the exact behaviour ExoPlayer ships by default.
+        try { mediaPlayer?.setTime(target, true) } catch (_: Throwable) {
+            try { mediaPlayer?.time = target } catch (_: Throwable) {}
+        }
     }
     /** 0-100 software volume (fixed-volume HDMI boxes). */
     fun setVolume(pct: Int) { try { mediaPlayer?.setVolume(pct.coerceIn(0, 100)) } catch (_: Throwable) {} }
@@ -371,7 +420,8 @@ class VesperVlcEngine(
      *  readout — the same intent as ExoPlayer's buffered-ahead
      *  number, just derived from what LibVLC actually reports. */
     fun bufferAheadMs(): Long {
-        val cap = if (isLiveMedia) 600L else 6000L
+        // v2.16.44 — VOD cap follows the new :network-caching=1500.
+        val cap = if (isLiveMedia) 600L else 1500L
         val pct = bufferedPercent().toLong().coerceIn(0L, 100L)
         return (pct * cap) / 100L
     }
