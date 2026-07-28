@@ -140,16 +140,28 @@ class VesperVlcEngine(
                     // info overlay was previously stuck at whatever
                     // partial % the last Buffering event delivered.
                     lastBufferingPct = 100f
+                    Log.i(TAG, "Playing event (buffer→100%, pos=${try { mp.time } catch (_: Throwable) { -1L }}ms)")
                     listener.onVlcBuffering(false)
                     listener.onVlcPlaying()
                 }
-                MediaPlayer.Event.Paused -> listener.onVlcPaused()
+                MediaPlayer.Event.Paused -> {
+                    Log.i(TAG, "Paused event")
+                    listener.onVlcPaused()
+                }
                 MediaPlayer.Event.Buffering -> {
                     lastBufferingPct = event.buffering
+                    // Only log the extremes so we don't spam logcat
+                    // with every intermediate tick.
+                    if (event.buffering <= 5f || event.buffering >= 95f) {
+                        Log.d(TAG, "Buffering event: ${event.buffering}%")
+                    }
                     listener.onVlcBuffering(event.buffering < 100f)
                 }
                 MediaPlayer.Event.EndReached -> listener.onVlcEnded()
-                MediaPlayer.Event.EncounteredError -> listener.onVlcError()
+                MediaPlayer.Event.EncounteredError -> {
+                    Log.w(TAG, "EncounteredError event")
+                    listener.onVlcError()
+                }
                 else -> Unit
             }
         }
@@ -168,6 +180,7 @@ class VesperVlcEngine(
         // previous stream while the new one is still connecting.
         lastBufferingPct = 0f
         isLiveMedia = live
+        Log.i(TAG, "setMedia (live=$live startAtMs=$startAtMs url=${url.take(80)}...)")
         try {
             val media = Media(vlc, Uri.parse(url))
             media.setHWDecoderEnabled(true, false)
@@ -308,16 +321,43 @@ class VesperVlcEngine(
     fun isPlaying(): Boolean = try { mediaPlayer?.isPlaying == true } catch (_: Throwable) { false }
     fun positionMs(): Long = try { mediaPlayer?.time ?: 0L } catch (_: Throwable) { 0L }
     fun durationMs(): Long = try { mediaPlayer?.length ?: 0L } catch (_: Throwable) { 0L }
-    fun seekTo(ms: Long) { try { mediaPlayer?.time = ms.coerceAtLeast(0L) } catch (_: Throwable) {} }
+    fun seekTo(ms: Long) {
+        val target = ms.coerceAtLeast(0L)
+        Log.d(TAG, "seekTo(${target}ms)")
+        try { mediaPlayer?.time = target } catch (_: Throwable) {}
+    }
     /** 0-100 software volume (fixed-volume HDMI boxes). */
     fun setVolume(pct: Int) { try { mediaPlayer?.setVolume(pct.coerceIn(0, 100)) } catch (_: Throwable) {} }
 
-    /* ─── Buffer readout (v2.16.42) ─── */
+    /* ─── Buffer readout (v2.16.42, hardened v2.16.43) ─── */
 
-    /** Current buffer fill percentage as reported by LibVLC's
-     *  Buffering event stream — 0-100 integer.  Displayed in the
-     *  Vesper info overlay to mirror ExoPlayer.bufferedPercentage. */
-    fun bufferedPercent(): Int = lastBufferingPct.toInt().coerceIn(0, 100)
+    /** Current buffer fill percentage as reported by LibVLC.
+     *
+     *  Sources (first hit wins):
+     *    1. Actively rebuffering → last `event.buffering` value straight
+     *       from the Buffering event stream (0-99).
+     *    2. `mediaPlayer.isPlaying == true` → we're happily decoding
+     *       frames, so the input cache MUST be full enough to keep up.
+     *       Report 100 % even if we haven't seen the Buffering(100)
+     *       event yet (VLC only fires the event stream WHILE refilling
+     *       — in steady state it goes silent, which used to leave the
+     *       overlay stuck showing whatever partial % the last event
+     *       delivered, most often 0).
+     *    3. Fall back to the last-known value.
+     *
+     *  Result: the overlay reads a coherent number the moment playback
+     *  is healthy, without depending on any single event landing. */
+    fun bufferedPercent(): Int {
+        // (1) mid-rebuffer — trust the live number
+        if (lastBufferingPct < 100f && lastBufferingPct > 0f) {
+            return lastBufferingPct.toInt().coerceIn(0, 100)
+        }
+        // (2) steady-state playing — buffer must be full
+        val playing = try { mediaPlayer?.isPlaying == true } catch (_: Throwable) { false }
+        if (playing) return 100
+        // (3) neither playing nor mid-buffer — return what we last saw
+        return lastBufferingPct.toInt().coerceIn(0, 100)
+    }
 
     /** Rough "buffered ahead" estimate in milliseconds.
      *
@@ -332,7 +372,8 @@ class VesperVlcEngine(
      *  number, just derived from what LibVLC actually reports. */
     fun bufferAheadMs(): Long {
         val cap = if (isLiveMedia) 600L else 6000L
-        return (lastBufferingPct.toLong().coerceIn(0L, 100L) * cap) / 100L
+        val pct = bufferedPercent().toLong().coerceIn(0L, 100L)
+        return (pct * cap) / 100L
     }
 
     /* ─── Track pickers ─── */
