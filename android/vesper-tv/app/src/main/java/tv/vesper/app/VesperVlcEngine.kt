@@ -51,14 +51,40 @@ class VesperVlcEngine(
     private var hasSeekedToStart = false
 
     init {
-        // Instance options — verbatim VlcPlayerActivity VOD profile.
+        // ─── v2.16.41 — Buffer model mapped 1:1 onto buildExoEngine() ───
+        // ExoPlayer (DefaultLoadControl + OkHttp)   →  LibVLC equivalent
+        //  • bufferForPlaybackMs        = 6_000     →  :network-caching=6000
+        //    (start playback after ~6 s of demuxed data — same first-
+        //    frame threshold as Exo)
+        //  • bufferForPlaybackAfterRebufferMs=10_000→  no separate knob in
+        //    VLC; network-caching governs both (documented trade-off)
+        //  • minBuffer/maxBuffer 50s/120s target    →  prefetch stream
+        //    filter read-ahead: 65536 KiB (64 MiB) ≈ 50-60 s of a typical
+        //    8 Mbps 1080p stream, refilled in 512 KiB reads — the same
+        //    "keep refilling toward 50 s" behaviour Exo's LoadControl has
+        //    (NOTE: --prefetch-buffer-size is KiB, --prefetch-read-size
+        //    is BYTES per VLC 3.0 docs — the legacy VlcPlayerActivity
+        //    value was mis-unit'd)
+        //  • OkHttp connectTimeout 20 s             →  --ipv4-timeout=20000 (ms)
+        //  • retryOnConnectionFailure(true)         →  --http-reconnect
+        //  • keep-alive / warm sockets              →  --http-continuous
+        //  • UA "Vesper-ExoPlayer/2.7.43"           →  --http-user-agent=…
+        //    (identical client identity so debrid hosts / CDNs treat
+        //    both engines exactly the same)
+        //  • preferred eng audio/text               →  :audio-language /
+        //    :sub-language (per-media, below)
+        //  • 30 s first-frame stall watchdog + error-advance cascade →
+        //    shared at the ExoPlayerActivity level, fed by onVlcPlaying /
+        //    onVlcError — identical hop behaviour on both engines.
         val args = arrayListOf(
             "--no-drop-late-frames",
             "--no-skip-frames",
             "--rtsp-tcp",
-            "--network-caching=10000",
-            "--prefetch-buffer-size=8388608",   // 8 MB
-            "--prefetch-read-size=524288",      // 512 KB
+            "--network-caching=6000",           // = Exo bufferForPlaybackMs
+            "--prefetch-buffer-size=65536",     // KiB → 64 MiB ≈ Exo 50 s target
+            "--prefetch-read-size=524288",      // bytes → 512 KiB reads
+            "--ipv4-timeout=20000",             // = OkHttp connectTimeout 20 s
+            "--http-user-agent=Vesper-ExoPlayer/2.7.43",
             "--http-reconnect",
             "--http-continuous",
             "--avcodec-hw=any",
@@ -103,6 +129,8 @@ class VesperVlcEngine(
         try {
             val media = Media(vlc, Uri.parse(url))
             media.setHWDecoderEnabled(true, false)
+            // Same client identity as ExoPlayer's OkHttp factory.
+            media.addOption(":http-user-agent=Vesper-ExoPlayer/2.7.43")
             media.addOption(":audio-language=eng,en,english")
             media.addOption(":sub-language=eng,en,english")
             if (live) {
@@ -120,9 +148,10 @@ class VesperVlcEngine(
                 media.addOption(":avcodec-threads=0")
                 media.addOption(":avcodec-hw=any")
             } else {
-                // Deep-buffer VOD profile (VlcPlayerActivity verbatim).
-                media.addOption(":network-caching=10000")
-                media.addOption(":file-caching=10000")
+                // VOD profile — thresholds matched to buildExoEngine()'s
+                // DefaultLoadControl (see the mapping table in init).
+                media.addOption(":network-caching=6000")   // Exo bufferForPlaybackMs
+                media.addOption(":file-caching=6000")
                 media.addOption(":clock-jitter=0")
                 media.addOption(":clock-synchro=0")
                 media.addOption(":no-audio-time-stretch")

@@ -10992,3 +10992,17 @@ both engines — Live TV pattern.
   year matcher w/ cached catalogue, VOD preferred on autoplay,
   scraped links fallback). Questions asked: prefer-vs-picker,
   movies-only vs series, confirm plan includes VOD.
+
+### v2.16.41 — VLC buffer model matched 1:1 to ExoPlayer (June 2026)
+> Operator: "make sure LibVLC has the exact same buffering setup as Exo."
+- `:network-caching=6000` = Exo bufferForPlaybackMs (6 s first frame)
+- prefetch filter 65536 KiB (64 MiB) read-ahead ≈ Exo 50 s refill target
+  (fixed unit bug: --prefetch-buffer-size is KiB, read-size is bytes;
+  legacy VlcPlayerActivity value 8388608 "8MB" was actually mis-unit'd)
+- --ipv4-timeout=20000 = OkHttp connectTimeout 20 s
+- --http-user-agent / :http-user-agent = "Vesper-ExoPlayer/2.7.43"
+  (identical client identity to hosts/CDNs on both engines)
+- --http-reconnect/--http-continuous = OkHttp retry + keep-alive
+- eng audio/sub prefs + shared 30 s stall watchdog/error-advance: same.
+- Documented full Exo→VLC mapping table in VesperVlcEngine init.
+- Live profile stays fast-zap 600 ms (deliberate, Live TV spec).
