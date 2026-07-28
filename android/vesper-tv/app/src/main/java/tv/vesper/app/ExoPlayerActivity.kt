@@ -73,9 +73,15 @@ private const val REMOTE_NOW_PLAYING_ACTION = "tv.onnow.remote.NOW_PLAYING"
 private const val REMOTE_CMD_ACTION = "tv.onnow.remote.CMD"
 
 @UnstableApi
-class ExoPlayerActivity : ComponentActivity() {
+class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
 
     private lateinit var player: ExoPlayer
+    // v2.16.40 — LibVLC engine (MAIN by default) rendered inside this
+    // same activity + Compose overlay.  `player` stays uninitialised
+    // when useVlc is true; every playback touchpoint goes through the
+    // pb*() helpers which branch per engine.
+    private var useVlc: Boolean = false
+    private var vlcEngine: VesperVlcEngine? = null
     private var streamUrl: String = ""
     private var streamTitle: String = ""
     /** v2.12.1 — YouTube DASH audio-only slave for HD trailers.  See
@@ -175,10 +181,8 @@ class ExoPlayerActivity : ComponentActivity() {
                     if (pos < 0L) return
                     runOnUiThread {
                         try {
-                            if (::player.isInitialized) {
-                                player.seekTo(pos)
-                                lastNpBroadcastAt = 0L
-                            }
+                            pbSeekTo(pos)
+                            lastNpBroadcastAt = 0L
                         } catch (_: Exception) {}
                     }
                 }
@@ -207,7 +211,7 @@ class ExoPlayerActivity : ComponentActivity() {
                 putExtra("rating", rating)
                 putExtra("position_ms", posMs)
                 putExtra("duration_ms", durMs)
-                putExtra("playing", if (::player.isInitialized) player.isPlaying else false)
+                putExtra("playing", pbIsPlaying())
                 putExtra("has_next", hasNextEpisodeFlow.value)
             })
         } catch (_: Exception) {}
@@ -215,6 +219,29 @@ class ExoPlayerActivity : ComponentActivity() {
 
     private fun pingUserActivity() {
         userActivityFlow.value = System.currentTimeMillis()
+    }
+
+    /* ─── v2.16.40 — engine-agnostic playback helpers ───────────── */
+    private fun pbIsPlaying(): Boolean =
+        if (useVlc) vlcEngine?.isPlaying() == true
+        else ::player.isInitialized && player.isPlaying
+    private fun pbPlay() {
+        if (useVlc) vlcEngine?.play()
+        else if (::player.isInitialized) player.play()
+    }
+    private fun pbPause() {
+        if (useVlc) vlcEngine?.pause()
+        else if (::player.isInitialized) player.pause()
+    }
+    private fun pbPositionMs(): Long =
+        if (useVlc) vlcEngine?.positionMs() ?: 0L
+        else if (::player.isInitialized) player.currentPosition else 0L
+    private fun pbDurationMs(): Long =
+        if (useVlc) vlcEngine?.durationMs() ?: 0L
+        else if (::player.isInitialized) player.duration else 0L
+    private fun pbSeekTo(ms: Long) {
+        if (useVlc) vlcEngine?.seekTo(ms.coerceAtLeast(0L))
+        else if (::player.isInitialized) player.seekTo(ms.coerceAtLeast(0L))
     }
 
     /**
@@ -251,7 +278,8 @@ class ExoPlayerActivity : ComponentActivity() {
         softVolumeStepIdx = (softVolumeStepIdx + if (raise) 1 else -1).coerceIn(0, 15)
         val pct = softVolumeStepIdx * 100 / 15
         try {
-            if (this::player.isInitialized) player.volume = softVolumeStepIdx / 15f
+            if (useVlc) vlcEngine?.setVolume(pct)
+            else if (this::player.isInitialized) player.volume = softVolumeStepIdx / 15f
         } catch (_: Throwable) { /* never crash playback */ }
         return pct
     }
@@ -803,6 +831,28 @@ class ExoPlayerActivity : ComponentActivity() {
 
         if (streamUrl.isBlank()) { finish(); return }
 
+        // ─── v2.16.40 — pick the playback engine ─────────────────
+        // LibVLC is the MAIN engine (user demand).  ExoPlayer stays
+        // available via Settings → Player Backend, via the trailer
+        // HD-pair path (MergingMediaSource is Exo-only), and via the
+        // per-launch force extra used by the engine-fallback paths.
+        val forcedEngine = intent.getStringExtra(EXTRA_FORCE_ENGINE)
+        useVlc = when {
+            forcedEngine == "exo" -> false
+            forcedEngine == "vlc" -> true
+            trailerAudioUrl.isNotBlank() -> false
+            else -> useVlcEngine(this)
+        }
+        Log.i(TAG, "playback engine: ${if (useVlc) "LibVLC" else "ExoPlayer"} (forced=$forcedEngine)")
+        if (!useVlc) {
+            buildExoEngine()
+        }
+        buildUiAndStart()
+    }
+
+    /** v2.16.40 — original ExoPlayer construction block, verbatim
+     *  (only extracted so the VLC path can skip it wholesale). */
+    private fun buildExoEngine() {
         // ─── Beefed-up ExoPlayer ─────────────────────────────────
         val bandwidth = DefaultBandwidthMeter.Builder(this).build()
         // v2.7.52 — Tuning revisit per user feedback.  v2.7.43 set
@@ -955,11 +1005,15 @@ class ExoPlayerActivity : ComponentActivity() {
                         finish()
                         return
                     }
+                    // v2.16.40 — Fatal Exo codec/container error →
+                    // restart THIS activity with the embedded LibVLC
+                    // engine forced (same overlay), instead of the
+                    // legacy VlcPlayerActivity with its old UI.
                     try {
-                        val fallback = Intent(
-                            this@ExoPlayerActivity, VlcPlayerActivity::class.java
-                        )
-                        fallback.putExtras(intent)
+                        val fallback = Intent(intent)
+                        fallback.setClass(this@ExoPlayerActivity, ExoPlayerActivity::class.java)
+                        fallback.putExtra(EXTRA_FORCE_ENGINE, "vlc")
+                        fallback.putExtra(VlcPlayerActivity.EXTRA_START_AT_MS, pbPositionMs())
                         startActivity(fallback)
                     } catch (_: Throwable) { /* */ }
                     finish()
@@ -1044,7 +1098,12 @@ class ExoPlayerActivity : ComponentActivity() {
         if (altStreams.size > 1) {
             armBufferStallWatchdog()
         }
+    }
 
+    /** v2.16.40 — shared UI assembly: video surface (PlayerView or
+     *  VLCVideoLayout depending on engine) + the SAME Compose
+     *  overlay for both engines. */
+    private fun buildUiAndStart() {
         // ─── UI: PlayerView (raw video surface, no native controls) + Compose overlay ───
         val root = FrameLayout(this).apply {
             setBackgroundColor(0xFF020610.toInt())
@@ -1054,25 +1113,42 @@ class ExoPlayerActivity : ComponentActivity() {
             )
         }
 
-        // ExoPlayer's video surface — controls OFF; we render our own.
-        val playerView = PlayerView(this).apply {
-            useController = false
-            this.player = this@ExoPlayerActivity.player
-            setBackgroundColor(0xFF000000.toInt())
-            setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
-            resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT,
-            )
-            // v2.7.52 — make PlayerView totally non-focusable so D-pad
-            // events never land here.  Compose overlay handles all
-            // remote input.
-            isFocusable = false
-            isFocusableInTouchMode = false
-            descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+        // Video surface — controls OFF; we render our own overlay.
+        // v2.16.40 — VLC engine gets a VLCVideoLayout instead of the
+        // Media3 PlayerView; everything above/around it is identical.
+        val videoSurface: View = if (useVlc) {
+            org.videolan.libvlc.util.VLCVideoLayout(this).apply {
+                setBackgroundColor(0xFF000000.toInt())
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                )
+                isFocusable = false
+                isFocusableInTouchMode = false
+                descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+            }.also { vl ->
+                vlcEngine = VesperVlcEngine(this, vl, this)
+            }
+        } else {
+            PlayerView(this).apply {
+                useController = false
+                this.player = this@ExoPlayerActivity.player
+                setBackgroundColor(0xFF000000.toInt())
+                setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
+                resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                )
+                // v2.7.52 — make PlayerView totally non-focusable so D-pad
+                // events never land here.  Compose overlay handles all
+                // remote input.
+                isFocusable = false
+                isFocusableInTouchMode = false
+                descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+            }
         }
-        root.addView(playerView)
+        root.addView(videoSurface)
 
         // Compose overlay on top
         val composeView = androidx.compose.ui.platform.ComposeView(this).apply {
@@ -1110,14 +1186,16 @@ class ExoPlayerActivity : ComponentActivity() {
                     partyDrawerOpen = partyDrawerOpenFlow.asStateFlow(),
                     partyRole       = partyRole,
                     onPlayPause = {
-                        if (player.isPlaying) player.pause() else player.play()
+                        if (pbIsPlaying()) pbPause() else pbPlay()
+                        // VLC has no onIsPlayingChanged equivalent for
+                        // the pause() call itself — sync the flow here.
+                        if (useVlc) isPlayingFlow.value = pbIsPlaying()
                     },
                     onSeekBy = { deltaMs ->
-                        val target = (player.currentPosition + deltaMs).coerceAtLeast(0L)
-                        player.seekTo(target)
+                        pbSeekTo(pbPositionMs() + deltaMs)
                     },
                     onSeekTo = { posMs ->
-                        player.seekTo(posMs.coerceAtLeast(0L))
+                        pbSeekTo(posMs)
                     },
                     onPickAudio    = { id -> selectTrack(C.TRACK_TYPE_AUDIO, id) },
                     onPickSubtitle = { id -> selectTrack(C.TRACK_TYPE_TEXT, id) },
@@ -1161,6 +1239,17 @@ class ExoPlayerActivity : ComponentActivity() {
             } catch (_: Exception) {}
         }
 
+        // v2.16.40 — VLC engine starts AFTER the surface is attached
+        // to the window so the first frame lands on screen.
+        if (useVlc) {
+            val subUrl = intent.getStringExtra(VlcPlayerActivity.EXTRA_SUB_URL) ?: ""
+            val startPos = if (startAtMs > 5_000L) startAtMs else 0L
+            composeView.post {
+                vlcEngine?.setMedia(streamUrl, startPos, subUrl, live = isLive)
+                if (altStreams.size > 1) armBufferStallWatchdog()
+            }
+        }
+
         // ─── Poll player position 4× per second so the scrubber stays smooth ───
         lifecycle.addObserver(androidx.lifecycle.LifecycleEventObserver { _, event ->
             when (event) {
@@ -1183,7 +1272,19 @@ class ExoPlayerActivity : ComponentActivity() {
         pollJob?.cancel()
         pollJob = pollScope.launch {
             while (isActive) {
-                if (::player.isInitialized) {
+                if (useVlc) {
+                    val eng = vlcEngine
+                    if (eng != null) {
+                        val pos = eng.positionMs().coerceAtLeast(0L)
+                        val dur = eng.durationMs().coerceAtLeast(0L)
+                        positionMsFlow.value = pos
+                        durationMsFlow.value = dur
+                        maybeBroadcastNowPlaying(pos, dur)
+                        if (eng.isPlaying() && pos > 0L) {
+                            maybePersistProgress(pos, dur)
+                        }
+                    }
+                } else if (::player.isInitialized) {
                     val pos = player.currentPosition.coerceAtLeast(0L)
                     val dur = player.duration.coerceAtLeast(0L)
                     positionMsFlow.value = pos
@@ -1584,7 +1685,7 @@ class ExoPlayerActivity : ComponentActivity() {
                 // otherwise Continue Watching would never see the
                 // user finished the credits.
                 lastProgressSaveAt = 0L
-                val dur = player.duration.coerceAtLeast(0L)
+                val dur = pbDurationMs().coerceAtLeast(0L)
                 if (cwId.isNotBlank() && dur > 0L) {
                     maybePersistProgress(dur, dur)
                 }
@@ -1640,6 +1741,12 @@ class ExoPlayerActivity : ComponentActivity() {
                 } catch (_: Throwable) { /* defensive */ }
 
                 // ── 3) Stop, clear queue, set new item, prepare ─────
+                // v2.16.40 — VLC engine: single setMedia call swaps
+                // the stream in-place (same MediaPlayer instance).
+                if (useVlc) {
+                    isLoadingFlow.value = true
+                    vlcEngine?.setMedia(primedUrl, 0L, nextEpisodePrimedSubUrl)
+                } else {
                 // Stop the player first so the OLD episode's frames
                 // stop rendering immediately.  Without `stop()` the
                 // user would see the last frame of the old episode
@@ -1658,6 +1765,7 @@ class ExoPlayerActivity : ComponentActivity() {
                 player.setMediaItem(newItem, 0L)
                 player.prepare()
                 player.playWhenReady = true
+                }
                 // v2.10.37 — Mark this as an in-flight swap so
                 // onPlayerError above knows to restart ExoPlayer
                 // rather than fall back to VLC if the new stream
@@ -1707,20 +1815,20 @@ class ExoPlayerActivity : ComponentActivity() {
                 finish(); true
             }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                if (player.isPlaying) player.pause() else player.play(); true
+                if (pbIsPlaying()) pbPause() else pbPlay(); true
             }
             KeyEvent.KEYCODE_MEDIA_REWIND -> {
-                player.seekTo((player.currentPosition - 10_000).coerceAtLeast(0L)); true
+                pbSeekTo(pbPositionMs() - 10_000); true
             }
             KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
-                player.seekTo(player.currentPosition + 10_000); true
+                pbSeekTo(pbPositionMs() + 10_000); true
             }
             else -> super.onKeyDown(keyCode, event)
         }
     }
 
-    override fun onPause()   { super.onPause();   try { player.pause() } catch (_: Exception) {} }
-    override fun onResume()  { super.onResume();  hideSystemUi(); try { player.play() } catch (_: Exception) {} }
+    override fun onPause()   { super.onPause();   try { pbPause() } catch (_: Exception) {} }
+    override fun onResume()  { super.onResume();  hideSystemUi(); try { pbPlay() } catch (_: Exception) {} }
     override fun onDestroy() {
         super.onDestroy()
         // v2.16.31 — Drop the row from the launcher-admin Live tab.
@@ -1737,13 +1845,15 @@ class ExoPlayerActivity : ComponentActivity() {
         try { partyVoice?.release() } catch (_: Exception) {}
         try { liveGuide?.release() } catch (_: Exception) {}
         try { cancelBufferStallWatchdog() } catch (_: Exception) {}
-        try { player.release() } catch (_: Exception) {}
+        try { vlcEngine?.release() } catch (_: Exception) {}
+        vlcEngine = null
+        try { if (::player.isInitialized) player.release() } catch (_: Exception) {}
     }
 
     override fun finish() {
         try {
-            val pos = player.currentPosition.coerceAtLeast(0L)
-            val dur = player.duration.coerceAtLeast(0L)
+            val pos = pbPositionMs().coerceAtLeast(0L)
+            val dur = pbDurationMs().coerceAtLeast(0L)
             // v2.8.125 — Force-persist the final position on exit
             // (bypass the 5 s throttle) so the Continue Watching
             // shelf always sees the latest position when the user
@@ -1782,10 +1892,14 @@ class ExoPlayerActivity : ComponentActivity() {
         try {
             streamUrl = ch.streamUrl
             liveStreamId = ch.streamId
-            val item = MediaItem.fromUri(ch.streamUrl)
-            player.setMediaItem(item, /* resetPosition */ true)
-            player.prepare()
-            player.playWhenReady = true
+            if (useVlc) {
+                vlcEngine?.setMedia(ch.streamUrl, 0L, live = true)
+            } else {
+                val item = MediaItem.fromUri(ch.streamUrl)
+                player.setMediaItem(item, /* resetPosition */ true)
+                player.prepare()
+                player.playWhenReady = true
+            }
             liveGuide?.markPlaying(ch.streamId)
             Log.i(TAG, "tuned live channel ${ch.streamId} → ${ch.streamUrl}")
         } catch (t: Throwable) {
@@ -1817,6 +1931,111 @@ class ExoPlayerActivity : ComponentActivity() {
     }
 
     // ─── Track + stream picker helpers ─────────────────────────────
+
+    /* ─── v2.16.40 — VLC engine listener + track plumbing ────────── */
+
+    override fun onVlcPlaying() {
+        runOnUiThread {
+            isLoadingFlow.value = false
+            isPlayingFlow.value = true
+            durationMsFlow.value = (vlcEngine?.durationMs() ?: 0L).coerceAtLeast(0L)
+            firstReadyReachedForCurrentStream = true
+            cancelBufferStallWatchdog()
+            errorAdvanceJob?.cancel()
+            errorAdvanceCount = 0
+            errorMessageFlow.value = null
+            if (isSwappingEpisodeFlow.value) isSwappingEpisodeFlow.value = false
+            refreshVlcTracks()
+        }
+    }
+
+    override fun onVlcPaused() {
+        runOnUiThread { isPlayingFlow.value = false }
+    }
+
+    override fun onVlcBuffering(buffering: Boolean) {
+        runOnUiThread { isLoadingFlow.value = buffering }
+    }
+
+    override fun onVlcEnded() {
+        runOnUiThread {
+            isPlayingFlow.value = false
+            // Mirror VlcPlayerActivity's EndReached: series land on
+            // the episode picker (autoplay=false — the user let the
+            // credits play out), movies just close the player.
+            if (isSeriesEpisode) saveNextEpisodeIntent(autoplay = false)
+            finish()
+        }
+    }
+
+    override fun onVlcError() {
+        runOnUiThread {
+            Log.e(TAG, "VLC engine error (firstReady=$firstReadyReachedForCurrentStream)")
+            if (!firstReadyReachedForCurrentStream) {
+                if (altStreams.size > 1 && nextAdvanceIndexAfter(currentStreamIdx) != null) {
+                    scheduleErrorAdvance()
+                } else {
+                    fallbackToExoEngine()
+                }
+            } else {
+                isLoadingFlow.value = false
+                errorMessageFlow.value = "Playback error — open the stream picker to try another."
+            }
+        }
+    }
+
+    /** VLC failed before the first frame with nothing left to try —
+     *  restart this activity with the ExoPlayer engine forced so the
+     *  title still gets a second chance on the other decoder stack. */
+    private fun fallbackToExoEngine() {
+        Log.w(TAG, "VLC failed before first frame — restarting with ExoPlayer engine")
+        try {
+            val restart = Intent(intent)
+            restart.setClass(this, ExoPlayerActivity::class.java)
+            restart.putExtra(EXTRA_FORCE_ENGINE, "exo")
+            startActivity(restart)
+        } catch (_: Throwable) { /* nothing more to try */ }
+        finish()
+    }
+
+    /** Engine-agnostic track-list refresh for the picker sheets. */
+    private fun refreshTracksUi() {
+        if (useVlc) refreshVlcTracks()
+        else if (::player.isInitialized) refreshTrackLists(player.currentTracks)
+    }
+
+    /** Populate the audio/subtitle picker flows from VLC's track
+     *  descriptions.  Ids are prefixed "vlc|<id>" so selectTrack can
+     *  route them back to the engine. */
+    private fun refreshVlcTracks() {
+        val eng = vlcEngine ?: return
+        val curAudio = eng.currentAudioTrack()
+        val curSpu = eng.currentSpuTrack()
+        val audio = eng.audioTrackList()
+            .filter { it.first >= 0 }
+            .map { (id, name) ->
+                TrackOption(id = "vlc|$id", label = name, selected = id == curAudio)
+            }
+        val text = eng.spuTrackList()
+            .filter { it.first >= 0 }
+            .map { (id, name) ->
+                TrackOption(id = "vlc|$id", label = name, selected = id == curSpu)
+            }
+            .toMutableList()
+        if (!lazySubsFetched && canFetchLazySubs()) {
+            text.add(
+                TrackOption(
+                    id = LAZY_SUBS_ID,
+                    label = if (lazySubsLoading) "Finding subtitles…"
+                            else "Find subtitles (English)",
+                    selected = false,
+                )
+            )
+        }
+        audioTracksFlow.value = audio
+        subtitleTracksFlow.value = text
+    }
+
     /** Refresh audio/subtitle picker option lists from current Tracks. */
     private fun refreshTrackLists(tracks: androidx.media3.common.Tracks) {
         val audio = mutableListOf<TrackOption>()
@@ -1877,7 +2096,7 @@ class ExoPlayerActivity : ComponentActivity() {
         if (cw.isBlank() || backendBase.isBlank()) return
         val typeSlug = if (cw.contains(":")) "series" else "movie"
         lazySubsLoading = true
-        refreshTrackLists(player.currentTracks)
+        refreshTracksUi()
         lifecycleScope.launch {
             val subUrl = withContext(kotlinx.coroutines.Dispatchers.IO) {
                 try {
@@ -1903,8 +2122,19 @@ class ExoPlayerActivity : ComponentActivity() {
             lazySubsLoading = false
             if (subUrl.isBlank()) {
                 lazySubsFetched = true   // don't offer again
-                refreshTrackLists(player.currentTracks)
+                refreshTracksUi()
                 errorMessageFlow.value = "No English subtitles found for this title."
+                return@launch
+            }
+            // v2.16.40 — VLC engine: attach as a slave track (native
+            // SRT/VTT support), no media re-prepare needed.
+            if (useVlc) {
+                lazySubsFetched = true
+                vlcEngine?.addSubtitleSlave(subUrl)
+                lifecycleScope.launch {
+                    delay(2_500)
+                    refreshVlcTracks()
+                }
                 return@launch
             }
             try {
@@ -1952,6 +2182,19 @@ class ExoPlayerActivity : ComponentActivity() {
             fetchAndAttachLazySubs()
             return
         }
+        // v2.16.40 — VLC engine track selection.
+        if (useVlc) {
+            val eng = vlcEngine ?: return
+            if (trackType == C.TRACK_TYPE_TEXT && id == "off") {
+                eng.disableSubtitles()
+            } else {
+                val vid = id.removePrefix("vlc|").toIntOrNull() ?: return
+                if (trackType == C.TRACK_TYPE_AUDIO) eng.selectAudioTrack(vid)
+                else eng.selectSpuTrack(vid)
+            }
+            refreshVlcTracks()
+            return
+        }
         try {
             if (id == "off" && trackType == C.TRACK_TYPE_TEXT) {
                 player.trackSelectionParameters = player.trackSelectionParameters
@@ -1983,7 +2226,7 @@ class ExoPlayerActivity : ComponentActivity() {
     private fun switchStream(idx: Int, userInitiated: Boolean = true) {
         if (idx !in altStreams.indices) return
         val entry = altStreams[idx]
-        val resumePos = player.currentPosition.coerceAtLeast(0L)
+        val resumePos = pbPositionMs().coerceAtLeast(0L)
         // v2.10.99 — If the picked stream is a magnet: URL (torrent),
         // ExoPlayer can't decode it (it has no bittorrent demuxer).
         // Hand the playback off to VlcPlayerActivity instead, with
@@ -2040,13 +2283,18 @@ class ExoPlayerActivity : ComponentActivity() {
             // the moment a new pick starts loading.
             errorMessageFlow.value = null
             if (userInitiated) errorAdvanceCount = 0
-            val item = MediaItem.Builder()
-                .setUri(entry.url)
-                .setMediaId(entry.url)
-                .build()
-            player.setMediaItem(item, resumePos)
-            player.prepare()
-            player.playWhenReady = true
+            if (useVlc) {
+                isLoadingFlow.value = true
+                vlcEngine?.setMedia(entry.url, resumePos)
+            } else {
+                val item = MediaItem.Builder()
+                    .setUri(entry.url)
+                    .setMediaId(entry.url)
+                    .build()
+                player.setMediaItem(item, resumePos)
+                player.prepare()
+                player.playWhenReady = true
+            }
             // v2.13.8 — USER PICKS ARE SACRED.  The old watchdog gave
             // EVERY stream (including explicit user picks) 10 s to
             // reach READY, then silently auto-advanced to the NEXT
@@ -2081,6 +2329,19 @@ class ExoPlayerActivity : ComponentActivity() {
         // left behind by older builds (which is why some users were
         // stuck on LibVLC even after the v2.7.86 migration ran).
         const val PREF_KEY_EXPLICIT_LIBVLC = "explicit_libvlc_v2_7_87"
+        // v2.16.40 — Per-launch engine override ("exo" | "vlc") used
+        // by the engine-fallback restarts and the trailer path.
+        const val EXTRA_FORCE_ENGINE = "force_engine"
+
+        /** v2.16.40 — LibVLC is the MAIN engine again (user demand),
+         *  rendered inside THIS activity with the identical Compose
+         *  overlay.  Default is VLC; the Settings → Player Backend
+         *  toggle writes PREF_KEY_USE_EXO=true to flip to ExoPlayer. */
+        fun useVlcEngine(ctx: android.content.Context): Boolean {
+            return !ctx.getSharedPreferences(
+                "vesper_player", android.content.Context.MODE_PRIVATE
+            ).getBoolean(PREF_KEY_USE_EXO, false)
+        }
 
         @Suppress("unused")
         fun shouldUseExoPlayer(ctx: android.content.Context): Boolean {

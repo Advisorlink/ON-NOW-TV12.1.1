@@ -10927,3 +10927,68 @@ app with no guide at all.
 ### Verification
 - Brace check clean on EpgCache.kt / EpgRefreshWorker.kt / MainActivity.kt.
 - Compile happens in CI (`build-livetv.yml`).
+
+---
+
+## v2.16.40 — Vesper: LibVLC is the MAIN player again, SAME Exo overlay (June 2026)
+
+> Operator: "We need LibVLC to actually be the main player in the
+> Vesper app again, but with the exact same overlay as it does now in
+> Exo — similar to what you did in Live TV. Extremely important, ASAP."
+
+### Approach
+Did NOT resurrect the legacy `VlcPlayerActivity` UI (old XML overlay).
+Instead embedded a LibVLC engine INSIDE `ExoPlayerActivity` so the
+Compose overlay (dock, scrubber, audio/sub pickers, Swap Stream,
+next-episode pill, party layer, live guide) is pixel-identical on
+both engines — Live TV pattern.
+
+### New file
+- `VesperVlcEngine.kt` — LibVLC wrapper: VlcPlayerActivity's proven
+  VOD deep-buffer profile (10s net/file caching, 8MB prefetch,
+  http-reconnect/continuous, HW decode w/ fallback, eng audio/sub
+  pref) + live fast-zap profile; events → Listener (Playing/Paused/
+  Buffering/EndReached/Error); resume-seek-on-Playing; slave subtitle
+  attach w/ retry; audio/SPU track list & select; full release().
+
+### ExoPlayerActivity changes
+- Engine decision at launch: `EXTRA_FORCE_ENGINE` ("exo"/"vlc") >
+  trailer HD-pair (Exo-only) > `useVlcEngine()` pref (DEFAULT = VLC).
+- Split monolith: `buildExoEngine()` (Exo-only, verbatim) +
+  `buildUiAndStart()` (shared UI; PlayerView ⇄ VLCVideoLayout).
+- `pb*()` engine-agnostic helpers (play/pause/isPlaying/pos/dur/seek/
+  volume); ALL overlay lambdas, media keys, polling, finish(),
+  onPause/onResume/onDestroy, remote-cmd seek go through them.
+- VLC branches in: switchStream, tuneToLiveChannel (live profile),
+  jumpToPrimedNextEpisode (direct setMedia swap; Exo keeps its queue
+  prime), lazy "Find subtitles" (VLC slave attach), selectTrack
+  ("vlc|<id>" ids, "off" → spu -1), refreshVlcTracks() feeds the same
+  TrackOption flows.
+- Engine cross-fallback: Exo fatal codec error → relaunch self forced
+  VLC (was: legacy VlcPlayerActivity); VLC error before first frame
+  with no alt streams → relaunch self forced Exo. Watchdog/error-
+  advance cascade works on both engines.
+- Magnet links unchanged → legacy VlcPlayerActivity (torrent demux).
+
+### Pref + migration
+- Pref: "vesper_player"/"use_exoplayer_backend", DEFAULT false = VLC.
+- MainActivity one-time migration `force_vlc_engine_v2_16_40` clears
+  the old v2.7.86 forced-Exo value.
+- WebAppInterface.getPlayerBackend() now reports the ENGINE via
+  `useVlcEngine()` — existing Settings → Player Backend toggle works
+  as the engine switch (no React changes needed).
+- shouldUseExoPlayer() untouched (still routes launches to
+  ExoPlayerActivity, which now hosts both engines).
+
+### Verification
+- Brace check clean on ALL vesper-tv .kt files. Compile in CI.
+- Gotcha fixed: stray duplicated trailing lines after class close
+  (search_replace artifact) removed; overlay lambdas + position
+  polling initially still hit `player` directly — now via pb*().
+
+### PENDING (awaiting user answers)
+- Xtream VOD in Vesper (feasible — same creds expose get_vod_streams/
+  get_series + direct /movie/user/pass/id URLs; plan: backend title+
+  year matcher w/ cached catalogue, VOD preferred on autoplay,
+  scraped links fallback). Questions asked: prefer-vs-picker,
+  movies-only vs series, confirm plan includes VOD.

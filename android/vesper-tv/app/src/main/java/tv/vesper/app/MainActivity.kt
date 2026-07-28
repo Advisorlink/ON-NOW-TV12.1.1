@@ -296,6 +296,28 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        /* v2.16.40 — One-time migration: LibVLC is the MAIN engine
+           again — now embedded inside ExoPlayerActivity with the
+           identical Compose overlay.  Clears the v2.7.86 forced
+           `use_exoplayer_backend=true` so the new default (VLC)
+           takes effect; the user can still pick ExoPlayer from
+           Settings afterwards.                                    */
+        run {
+            val mig = getSharedPreferences("onnowtv-migrations", MODE_PRIVATE)
+            val key = "force_vlc_engine_v2_16_40"
+            if (!mig.getBoolean(key, false)) {
+                getSharedPreferences("vesper_player", MODE_PRIVATE)
+                    .edit()
+                    .putBoolean(ExoPlayerActivity.PREF_KEY_USE_EXO, false)
+                    .apply()
+                mig.edit().putBoolean(key, true).apply()
+                android.util.Log.i(
+                    "VesperMain",
+                    "v2.16.40 migration: player engine → LibVLC (once)"
+                )
+            }
+        }
+
         // Detect Android TV vs phone via the LEANBACK system feature.
         // ALSO falls back to UI_MODE_TYPE_TELEVISION for cheap Chinese
         // AOSP boxes that don't always declare leanback but DO ship
