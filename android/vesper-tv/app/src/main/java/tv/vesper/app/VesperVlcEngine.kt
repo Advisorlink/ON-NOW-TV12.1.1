@@ -105,6 +105,18 @@ class VesperVlcEngine(
             "--http-reconnect",
             "--http-continuous",
             "--avcodec-hw=any",
+            // v2.16.43 — FAST SEEK.  Without this flag LibVLC does
+            // frame-exact seek: it walks the decoder from the last
+            // I-frame to the exact frame the user asked for, which
+            // for HTTP streams means downloading + parsing several
+            // extra MB.  Result on a scraped Torrentio link: every
+            // scrub / Continue-Watching resume took 8-15 s with the
+            // player "stuck on buffering".  Fast-seek jumps to the
+            // nearest KEY-FRAME (usually 2 s of drift at worst) and
+            // resumes playback in ≈1 s — same behaviour as ExoPlayer
+            // and every consumer video player.  Applies to BOTH
+            // manual seek AND the resume-from-progress jump.
+            "--input-fast-seek",
         )
         val vlc = LibVLC(ctx.applicationContext, args)
         libVlc = vlc
@@ -113,15 +125,21 @@ class VesperVlcEngine(
         mp.setEventListener { event ->
             when (event.type) {
                 MediaPlayer.Event.Playing -> {
-                    // One-shot resume seek — mirrors VlcPlayerActivity's
-                    // hasSeekedToStart pattern (seek only sticks after
-                    // the media is actually playing).
-                    if (!hasSeekedToStart) {
-                        hasSeekedToStart = true
-                        if (pendingStartAtMs > 5_000L) {
-                            try { mp.time = pendingStartAtMs } catch (_: Throwable) {}
-                        }
-                    }
+                    // v2.16.43 — Continue-Watching resume seek moved
+                    // to `applyResumeSeekWithRetry` because the very
+                    // first Playing event sometimes fires BEFORE
+                    // libVLC's demuxer has parsed the container's
+                    // duration; `mp.time = X` is then silently dropped
+                    // and the movie starts from frame 0.  The retry
+                    // loop re-issues the seek up to 5× at 300 ms
+                    // intervals until the reported time actually lands
+                    // near the target — matches what every media app
+                    // that resumes off a saved position has to do.
+                    applyResumeSeekWithRetry()
+                    // Full buffer is implied once Playing fires — the
+                    // info overlay was previously stuck at whatever
+                    // partial % the last Buffering event delivered.
+                    lastBufferingPct = 100f
                     listener.onVlcBuffering(false)
                     listener.onVlcPlaying()
                 }
@@ -172,14 +190,30 @@ class VesperVlcEngine(
                 media.addOption(":avcodec-threads=0")
                 media.addOption(":avcodec-hw=any")
             } else {
-                // VOD profile — thresholds matched to buildExoEngine()'s
-                // DefaultLoadControl (see the mapping table in init).
-                media.addOption(":network-caching=6000")   // Exo bufferForPlaybackMs
-                media.addOption(":file-caching=6000")
+                // VOD profile — thresholds tuned for FAST SEEK.
+                //
+                // v2.16.43 — file-caching dropped 6000 → 1500 ms.
+                // On a seek libVLC flushes its input cache and refills
+                // to `:file-caching` ms before resuming playback; at
+                // 6 000 ms every scrub / resume incurred a full 6-8 s
+                // wait even though the underlying HTTP byte-range
+                // fetch usually returns in under a second.  1500 ms
+                // is enough runway to smooth out any brief blip and
+                // makes seek feel like a native player again.
+                //
+                // network-caching stays at 6000 ms so the INITIAL open
+                // (cold TCP + TLS handshake against Torrentio-scraped
+                // debrid URLs) still has its full resilience window.
+                media.addOption(":network-caching=6000")
+                media.addOption(":file-caching=1500")
                 media.addOption(":clock-jitter=0")
                 media.addOption(":clock-synchro=0")
                 media.addOption(":no-audio-time-stretch")
                 media.addOption(":network-timeout=600")
+                // Per-media parity with the global --input-fast-seek
+                // arg in case a future libVLC binding decides the
+                // global flag no longer applies to on-the-fly opens.
+                media.addOption(":input-fast-seek")
             }
             mp.media = media
             media.release()
@@ -213,6 +247,60 @@ class VesperVlcEngine(
             }
         }
         mainHandler.postDelayed(tryAdd, 1_200L)
+    }
+
+    /**
+     * v2.16.43 — Continue-Watching resume seek with retry.
+     *
+     * The first Playing event sometimes fires before libVLC has
+     * decoded the container's duration; a `time = X` assignment
+     * during that window is silently dropped (VLC ends up starting
+     * from frame 0 with no error).  We retry up to 5× at 300 ms
+     * spacing until the reported time actually lands near the target.
+     *
+     * Idempotent: no-op after the first successful hit
+     * (`hasSeekedToStart = true` locks it) so subsequent Playing
+     * events triggered by user pause/seek don't yank position back.
+     */
+    private fun applyResumeSeekWithRetry() {
+        if (hasSeekedToStart) return
+        val target = pendingStartAtMs
+        if (target <= 5_000L) {
+            // Nothing to resume from — just mark done.
+            hasSeekedToStart = true
+            return
+        }
+        val maxAttempts = 5
+        val attempt = intArrayOf(0)
+        lateinit var tryOnce: Runnable
+        tryOnce = Runnable {
+            if (released) return@Runnable
+            if (hasSeekedToStart) return@Runnable
+            val mp = mediaPlayer ?: return@Runnable
+            try { mp.time = target } catch (_: Throwable) {}
+            // Give VLC a beat to update its internal time before we
+            // read it back — otherwise we'd always see the pre-seek
+            // value and mistakenly retry.
+            mainHandler.postDelayed({
+                if (released || hasSeekedToStart) return@postDelayed
+                val actual = try { mediaPlayer?.time ?: 0L } catch (_: Throwable) { 0L }
+                // Accept anywhere within 10 s of target — the fast-
+                // seek keyframe can drift a couple of seconds.
+                if (kotlin.math.abs(actual - target) < 10_000L && actual > 0L) {
+                    hasSeekedToStart = true
+                    Log.i(TAG, "resume seek OK (target=${target}ms actual=${actual}ms)")
+                    return@postDelayed
+                }
+                attempt[0]++
+                if (attempt[0] < maxAttempts) {
+                    mainHandler.postDelayed(tryOnce, 300L)
+                } else {
+                    hasSeekedToStart = true
+                    Log.w(TAG, "resume seek gave up after $maxAttempts tries (target=${target}ms)")
+                }
+            }, 200L)
+        }
+        mainHandler.post(tryOnce)
     }
 
     fun play() { try { mediaPlayer?.play() } catch (_: Throwable) {} }
