@@ -26,13 +26,6 @@ import { is1080p, is4K, isAV1 } from '@/lib/streamMeta';
 
 const SIZE_CAP_GB = 3.0;
 
-/** True when a stream came from the user's Xtream VOD library —
- *  ranked ABOVE everything (including EasyNews++) because it's a
- *  direct HTTP mp4/mkv from an account the user pays for.  Instant
- *  first-frame, no debrid resolve, no rate limits. */
-export const isXtreamVod = (s) =>
-    s?._is_xtream_vod === true || s?._addon_id === '__xtream_vod__';
-
 export const isEasyNews = (s) =>
     /easy[\s_-]?news/i.test(
         `${s?._addon_id || ''} ${s?._addon_name || ''} ${s?._addon_source || ''} ${s?.name || ''}`
@@ -101,21 +94,11 @@ function scoreStream(s) {
  */
 export function orderStreams(streams) {
     if (!Array.isArray(streams) || streams.length === 0) return streams;
-    // v2.16.42 — Xtream VOD ALWAYS wins, ranked above every other
-    // source.  It's a direct HTTP mp4/mkv from the user's paid
-    // account: no debrid resolve, no scrape latency, no 429s.
-    const vod = [];
     const easy = [];
     const rest = [];
-    streams.forEach((s, i) => {
-        if (isXtreamVod(s)) {
-            vod.push({ s, i, key: 0 });
-        } else if (isEasyNews(s)) {
-            easy.push({ s, i, key: scoreStream(s) });
-        } else {
-            rest.push({ s, i, key: scoreStream(s) });
-        }
-    });
+    streams.forEach((s, i) =>
+        (isEasyNews(s) ? easy : rest).push({ s, i, key: scoreStream(s) })
+    );
     const bySmallestFhd = (a, b) => {
         const fa = is1080p(a.s) && !is4K(a.s) && !isAV1(a.s) ? 0 : 1;
         const fb = is1080p(b.s) && !is4K(b.s) && !isAV1(b.s) ? 0 : 1;
@@ -131,7 +114,7 @@ export function orderStreams(streams) {
         if (da !== db) return da - db;
         return bySmallestFhd(a, b);
     });
-    return [...vod.map((x) => x.s), ...easy.map((x) => x.s), ...rest.map((x) => x.s)];
+    return [...easy, ...rest].map((x) => x.s);
 }
 
 /**
@@ -159,9 +142,6 @@ export function pickAutoplayCandidate(streams) {
         typeof s?._size_gb !== 'number' || s._size_gb <= SIZE_CAP_GB;
 
     return (
-        // Tier 0 — Xtream VOD from the user's own library.  Direct
-        // HTTP mp4/mkv, instant first-frame, zero scrape latency.
-        streams.find(isXtreamVod) ||
         // Tier 1 — EP-STREM (Plexio) direct, English
         non4k.find((s) => isEpStrem(s) && direct(s) && english(s)) ||
         non4k.find((s) => isEpStrem(s) && english(s)) ||

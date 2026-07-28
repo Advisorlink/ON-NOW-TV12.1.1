@@ -50,6 +50,23 @@ class VesperVlcEngine(
     private var pendingStartAtMs = 0L
     private var hasSeekedToStart = false
 
+    // v2.16.42 — Latest buffer fill percentage reported by LibVLC's
+    // Buffering event (0-100 float).  Held here so the Vesper info
+    // overlay's polling loop can read "buffered %" and a derived
+    // "buffered ahead in ms" without hooking the event stream itself.
+    //
+    // LibVLC only fires Buffering while the input cache is refilling;
+    // during steady playback the last-known value stays at 100 which
+    // is exactly what we want to display (full buffer).  On setMedia
+    // we reset to 0 so the very first frame doesn't show a stale
+    // "100 %" from the previous stream.
+    @Volatile private var lastBufferingPct: Float = 100f
+
+    // Track whether the current media is a live stream so the
+    // buffered-ahead estimate uses the correct network-caching cap
+    // (600 ms live vs 6 000 ms VOD — same as the addOption values).
+    @Volatile private var isLiveMedia: Boolean = false
+
     init {
         // ─── v2.16.41 — Buffer model mapped 1:1 onto buildExoEngine() ───
         // ExoPlayer (DefaultLoadControl + OkHttp)   →  LibVLC equivalent
@@ -109,8 +126,10 @@ class VesperVlcEngine(
                     listener.onVlcPlaying()
                 }
                 MediaPlayer.Event.Paused -> listener.onVlcPaused()
-                MediaPlayer.Event.Buffering ->
+                MediaPlayer.Event.Buffering -> {
+                    lastBufferingPct = event.buffering
                     listener.onVlcBuffering(event.buffering < 100f)
+                }
                 MediaPlayer.Event.EndReached -> listener.onVlcEnded()
                 MediaPlayer.Event.EncounteredError -> listener.onVlcError()
                 else -> Unit
@@ -126,6 +145,11 @@ class VesperVlcEngine(
         val mp = mediaPlayer ?: return
         pendingStartAtMs = startAtMs
         hasSeekedToStart = false
+        // v2.16.42 — reset the buffer readout so the info overlay
+        // doesn't show a stale "100 %" carried over from the
+        // previous stream while the new one is still connecting.
+        lastBufferingPct = 0f
+        isLiveMedia = live
         try {
             val media = Media(vlc, Uri.parse(url))
             media.setHWDecoderEnabled(true, false)
@@ -199,6 +223,29 @@ class VesperVlcEngine(
     fun seekTo(ms: Long) { try { mediaPlayer?.time = ms.coerceAtLeast(0L) } catch (_: Throwable) {} }
     /** 0-100 software volume (fixed-volume HDMI boxes). */
     fun setVolume(pct: Int) { try { mediaPlayer?.setVolume(pct.coerceIn(0, 100)) } catch (_: Throwable) {} }
+
+    /* ─── Buffer readout (v2.16.42) ─── */
+
+    /** Current buffer fill percentage as reported by LibVLC's
+     *  Buffering event stream — 0-100 integer.  Displayed in the
+     *  Vesper info overlay to mirror ExoPlayer.bufferedPercentage. */
+    fun bufferedPercent(): Int = lastBufferingPct.toInt().coerceIn(0, 100)
+
+    /** Rough "buffered ahead" estimate in milliseconds.
+     *
+     *  LibVLC does NOT expose a decoded-frames-ahead count like
+     *  ExoPlayer does — its input cache is byte/time-based.  For the
+     *  info overlay we approximate:
+     *      bufferAheadMs ≈ (buffer_fill_% / 100) × network_caching_ms
+     *  where network_caching_ms is the `:network-caching` we set on
+     *  the media (6000 ms for VOD, 600 ms for live).  It's honest as
+     *  a "how much runway do we have if the network drops right now"
+     *  readout — the same intent as ExoPlayer's buffered-ahead
+     *  number, just derived from what LibVLC actually reports. */
+    fun bufferAheadMs(): Long {
+        val cap = if (isLiveMedia) 600L else 6000L
+        return (lastBufferingPct.toLong().coerceIn(0L, 100L) * cap) / 100L
+    }
 
     /* ─── Track pickers ─── */
 

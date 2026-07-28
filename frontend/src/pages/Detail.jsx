@@ -582,65 +582,6 @@ export default function Detail() {
         };
     }, [type, id, partyCode, isPartyGuest, isPartyHost]);
 
-    // v2.16.42 — Xtream VOD probe.  Runs INDEPENDENTLY of the addon
-    // stream fetch above so we can fire it the moment we have a
-    // usable title + year (from meta), and prepend the direct
-    // provider URL to the streams list.  Xtream VOD wins over every
-    // scraped source (see streamOrder.js) because it's a direct HTTP
-    // mp4/mkv from the user's paid library — instant first-frame, no
-    // debrid resolve, no rate limits.
-    useEffect(() => {
-        if (type !== 'movie') return;
-        if (isPartyGuest) return;
-        const title = (meta?.name || meta?.title || '').trim();
-        if (!title) return;
-        // Parse year from meta.releaseInfo ("2021" or "2021-2023") or fallbacks.
-        const rawYear = String(meta?.releaseInfo || meta?.year || tmdbInfo?.year || '');
-        const ym = rawYear.match(/(19|20)\d{2}/);
-        const year = ym ? Number(ym[0]) : null;
-        const ctrl = new AbortController();
-        let cancel = false;
-        (async () => {
-            const match = await Vesper.matchXtreamVOD(
-                {
-                    title,
-                    year,
-                    imdb_id: id && id.startsWith('tt') ? id : '',
-                    tmdb_id: tmdbInfo?.tmdb_id ? String(tmdbInfo.tmdb_id) : '',
-                    type,
-                },
-                { signal: ctrl.signal },
-            );
-            if (cancel || !match || !match.url) return;
-            const synthetic = {
-                url: match.url,
-                name: 'Xtream VOD',
-                title: match.name || title,
-                _addon_id: '__xtream_vod__',
-                _addon_name: 'Xtream VOD',
-                _is_xtream_vod: true,
-                _english_strict: true,
-                _is_english: true,
-                _quality_label: '1080p',
-                _size_gb: 0,
-                behaviorHints: { notWebReady: false },
-                description: 'Direct from your Xtream library',
-            };
-            // Prepend — but never double-add if a re-render triggered
-            // this effect twice.
-            setStreams((prev) => {
-                if (Array.isArray(prev) && prev.some((s) => s?._addon_id === '__xtream_vod__')) {
-                    return prev;
-                }
-                return [synthetic, ...(prev || [])];
-            });
-        })();
-        return () => {
-            cancel = true;
-            try { ctrl.abort(); } catch { /* ignore */ }
-        };
-    }, [type, id, meta?.name, meta?.releaseInfo, meta?.year, tmdbInfo?.tmdb_id, isPartyGuest]);
-
     // When streams arrive, land focus on the first stream so that
     // pressing Down on the D-pad selects the next stream (not the
     // recommendations rail below).  Only run if focus is still on

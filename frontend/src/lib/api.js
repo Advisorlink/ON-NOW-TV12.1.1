@@ -456,36 +456,6 @@ export const Vesper = {
         await backendP;
         return { streams: assemble(), diagnostics: results };
     },
-
-    /**
-     * Xtream-Codes VOD matcher.
-     *
-     * The user's provider ships a large on-demand movie library that
-     * always plays back INSTANTLY (direct mp4/mkv over HTTPS from the
-     * account they already paid for).  Scraped Torrentio / EasyNews
-     * results take 5-15 s to resolve and often 404 on cold cache.
-     *
-     * This helper hits the backend `/api/xtream/vod-match` endpoint
-     * which searches the provider's catalogue by title + year and
-     * returns either `{match: {...}}` (with a direct stream URL) or
-     * `{match: null}` when the movie isn't in the library.
-     *
-     * Currently supports movies only — series would need per-episode
-     * traversal via `get_series_info` and is deliberately deferred.
-     */
-    matchXtreamVOD: async ({ title, year, type = 'movie', imdb_id = '', tmdb_id = '' }, opts = {}) => {
-        if (!title) return null;
-        try {
-            const r = await api.post(
-                '/xtream/vod-match',
-                { title, year: year || null, imdb_id, tmdb_id, type },
-                { signal: opts.signal, timeout: 8000 },
-            );
-            return r.data?.match || null;
-        } catch (_e) {
-            return null;
-        }
-    },
 };
 
 async function findAddonById(id) {

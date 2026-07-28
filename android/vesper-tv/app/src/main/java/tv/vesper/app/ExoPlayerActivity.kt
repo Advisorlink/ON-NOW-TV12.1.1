@@ -1279,6 +1279,13 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
                         val dur = eng.durationMs().coerceAtLeast(0L)
                         positionMsFlow.value = pos
                         durationMsFlow.value = dur
+                        // v2.16.42 — surface LibVLC's buffer fill %
+                        // and the derived buffered-ahead estimate to
+                        // the info overlay.  Without this the overlay
+                        // showed a permanent "0 %" / "0 ms" whenever
+                        // VLC was the active engine.
+                        bufferedPercentFlow.value = eng.bufferedPercent()
+                        bufferAheadMsFlow.value = eng.bufferAheadMs()
                         maybeBroadcastNowPlaying(pos, dur)
                         if (eng.isPlaying() && pos > 0L) {
                             maybePersistProgress(pos, dur)
