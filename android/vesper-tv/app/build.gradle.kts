@@ -64,6 +64,25 @@ android {
         }
     }
 
+    // v2.16.42 build fix — libVLC and libmpv both bundle their own
+    // copy of libc++_shared.so (the ndk C++ runtime).  Manifest
+    // merger errors out with "2 files found with path 'lib/arm64-v8a/
+    // libc++_shared.so'" unless we tell Gradle which copy wins.
+    // `pickFirst` picks whichever appears first in the merge order
+    // and drops the duplicate — safe because both libraries ship the
+    // exact same ABI-compatible libc++ runtime.
+    packaging {
+        jniLibs {
+            pickFirsts += setOf(
+                "**/libc++_shared.so",
+                // Same story for libssl / libcrypto — OkHttp's
+                // conscrypt bundle can collide with libVLC's copies.
+                "**/libssl.so",
+                "**/libcrypto.so",
+            )
+        }
+    }
+
     signingConfigs {
         getByName("debug") {
             // Force v1 (JAR) signing ON so cheap Android-6/7 set-top boxes

@@ -11192,3 +11192,15 @@ deployed Android TV box (HK1 / RK / S905 / NVIDIA Shield / etc.)
 ships with Android 9+ (API 28+), so zero real-world coverage loss.
 Live TV, Tunes, Launcher, Kids, FTA apps are unchanged (they don't
 ship MPV).
+
+## v2.16.42 build fix #4 — libc++_shared.so duplicate (June 2026)
+
+> CI: `2 files found with path 'lib/arm64-v8a/libc++_shared.so'` —
+> libVLC (`libvlc-all-3.6.0`) and libmpv (`libmpv-0.5.1`) both bundle
+> their own copy of the NDK C++ runtime.
+
+Fix: added a `packaging { jniLibs { pickFirsts += ... } }` block to
+Vesper's `build.gradle.kts` telling Gradle to pick the first
+`libc++_shared.so` (and same for libssl.so / libcrypto.so, since
+OkHttp's conscrypt can collide too) and drop the duplicate.  Both
+libraries ship ABI-compatible libc++ runtimes so this is safe.
