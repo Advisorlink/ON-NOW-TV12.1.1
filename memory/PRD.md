@@ -11125,3 +11125,29 @@ framedrop=no
 ### PENDING (not yet built)
 - Xtream VOD in Vesper (still awaiting operator answers).
 - FTA "What's On" UP NEXT UI (still deferred).
+
+---
+
+## v2.16.42 build fix — Jellyfin FFmpeg version pin (June 2026)
+
+> CI (`build-vesper.yml`) failed at `checkDebugAarMetadata` for
+> `org.jellyfin.media3:media3-ffmpeg-decoder:1.4.1+1` — jitpack HTTP
+> 400 Bad Request.
+
+### Root cause
+Jellyfin publishes the FFmpeg audio decoder against SPECIFIC Media3
+minor versions and SKIPPED 1.4.x entirely.  Actual available
+versions on Maven Central: 1.2.0+1, 1.2.1+1, 1.3.1+1, 1.3.1+2,
+**1.5.0+1**, 1.6.1+1, 1.6.1+2, 1.8.0+1, 1.9.0+1.  No 1.4.x line.
+
+### Fix
+- Bumped `androidx.media3:*` deps: **1.4.1 → 1.5.0** (all 5 modules).
+- Pinned Jellyfin FFmpeg: `org.jellyfin.media3:media3-ffmpeg-decoder:1.5.0+1`.
+- No API surface changes — all Vesper's media3 imports (C, MediaItem,
+  PlaybackException, Player, DefaultHttpDataSource, DefaultLoadControl,
+  ExoPlayer, DefaultMediaSourceFactory, MergingMediaSource, PlayerView,
+  AspectRatioFrameLayout) are stable across 1.4→1.5.
+
+### Verification
+- Brace check clean on all Vesper .kt files.
+- Push via "Save to GitHub" and re-run CI — the AAR resolve should now succeed.
