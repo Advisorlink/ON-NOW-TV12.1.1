@@ -391,25 +391,25 @@ fun PlayerOverlay(
             }
         }
 
-        // v2.16.42 — Settings cog (top-right).  Rides in/out with the
-        // rest of the overlay (`dockVisible`), stays focus-reachable
-        // from the dock via D-pad UP.
+        // v2.16.42 — Settings cog (top-LEFT, per operator request).
+        // Rides in/out with the rest of the overlay (`dockVisible`),
+        // stays focus-reachable from the dock via D-pad UP.
         AnimatedVisibility(
             visible  = !inParty && !showFullLoader && dockVisible && sheet == SheetKind.None,
             enter    = fadeIn(tween(220)),
             exit     = fadeOut(tween(280)),
             modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 40.dp, end = 48.dp)
+                .align(Alignment.TopStart)
+                .padding(top = 40.dp, start = 48.dp)
                 .zIndex(3f),
         ) {
             val cogFocus = remember { FocusRequester() }
             Box(
                 modifier = Modifier
-                    .size(52.dp)
+                    .size(58.dp)
                     .clip(CircleShape)
-                    .background(Color(0xCC020610))
-                    .border(1.dp, Color(0x33FFFFFF), CircleShape)
+                    .background(Color(0xEE020610))
+                    .border(1.5.dp, Color(0x66FFFFFF), CircleShape)
                     .focusRequester(cogFocus)
                     .focusable()
                     .onFocusChanged { if (it.isFocused) bump() }
@@ -423,7 +423,7 @@ fun PlayerOverlay(
                     imageVector = Icons.Filled.Settings,
                     contentDescription = "Player settings",
                     tint = Color(0xFFE8F3FF),
-                    modifier = Modifier.size(26.dp),
+                    modifier = Modifier.size(30.dp),
                 )
             }
         }
@@ -1486,6 +1486,7 @@ private fun BufferingInfoSheet(
     bufferAheadMs: Long,
     bufferedPercent: Int,
     bitrateKbps: Long,
+    engineToken: String = "",
     onDismiss: () -> Unit,
 ) {
     val dismissFocus = remember { FocusRequester() }
@@ -1545,6 +1546,36 @@ private fun BufferingInfoSheet(
                 color = Color.White.copy(alpha = 0.6f),
                 fontSize = 13.sp,
             )
+            // v2.16.42 — Show the active playback engine right here
+            // so the operator can tell, at a glance in the field,
+            // which engine (MPV / VLC / ExoPlayer / ExoPlayer+FFmpeg)
+            // is drawing the picture.
+            if (engineToken.isNotBlank()) {
+                Spacer(Modifier.height(14.dp))
+                val engineLabel = when (engineToken) {
+                    "mpv" -> "MPV"
+                    "vlc" -> "LibVLC"
+                    "exo" -> "ExoPlayer"
+                    "exo_ffmpeg" -> "ExoPlayer + FFmpeg"
+                    else -> engineToken.uppercase()
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "ENGINE",
+                        color = Color(0xFF5DC8FF),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.4.sp,
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        engineLabel,
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
             Spacer(Modifier.height(22.dp))
 
             // ── Big number: buffer ahead in seconds ──

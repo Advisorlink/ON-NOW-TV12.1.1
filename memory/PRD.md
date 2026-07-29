@@ -11312,3 +11312,26 @@ Init now reads them cleanly.
 - `kotlinc -cp "<all jars>"` on the 4 engine files:
   `PlayerEngine.kt`, `VesperMpvEngine.kt`, `VesperVlcEngine.kt`,
   `VesperExoFfmpegRenderersFactory.kt` → ZERO errors, zero warnings.
+
+## v2.16.43 — Cog top-LEFT + engine label in Info sheet (June 2026)
+
+> Operator, on the first working APK: "There's no cog in the top left-
+> hand corner to change the player" (I originally placed it top-right).
+> "Inside the ExoPlayer design on whatever player we're using, when
+> you click the information button, it also needs to show you what
+> engine we're actually using."
+> Also confirmed: playback is really smooth (MPV working), overlay IS
+> the correct modern Compose design (dock, subs/audio/speed/aspect/
+> swap-stream — same design on all 4 engines, as intended).
+
+### Changes
+- PlayerOverlay settings cog moved from `Alignment.TopEnd` →
+  `Alignment.TopStart` (top-LEFT), size 52→58dp, background
+  0xCC→0xEE (more opaque, more visible), border 1dp→1.5dp with
+  0x33→0x66 alpha, icon 26→30dp.
+- BufferingInfoSheet now accepts `engineToken` param and renders a
+  "ENGINE  <MPV / LibVLC / ExoPlayer / ExoPlayer + FFmpeg>" row
+  right under the "Live numbers..." subtitle so pressing the Info
+  button on the dock immediately reveals which engine is drawing
+  the picture.
+- Info-sheet call-site updated to pass `currentEngineToken` through.
