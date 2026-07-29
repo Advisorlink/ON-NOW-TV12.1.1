@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
@@ -42,6 +43,10 @@ class VesperVlcEngine(
 
     companion object {
         private const val TAG = "VesperVlcEngine"
+        // v2.16.47 — Engine build stamp.  Logged at init + surfaced in
+        // the player's Info sheet so a stale-APK install is instantly
+        // detectable on screen (recurring debugging blocker).
+        const val ENGINE_VERSION = "2.16.47"
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -71,6 +76,20 @@ class VesperVlcEngine(
     // buffered-ahead estimate uses the correct network-caching cap
     // (600 ms live vs 6 000 ms VOD — same as the addOption values).
     @Volatile private var isLiveMedia: Boolean = false
+
+    // v2.16.47 — Open-pipeline timing.  openStartedAt marks setMedia();
+    // firstFrameMs is the measured delta to the first Playing event.
+    // Surfaced via timeToFirstFrameMs() → Info sheet, so the user can
+    // read the real open cost on screen without adb.
+    @Volatile private var openStartedAt = 0L
+    @Volatile private var firstFrameMs = -1L
+
+    private fun sinceOpenMs(): Long =
+        if (openStartedAt > 0L) SystemClock.elapsedRealtime() - openStartedAt else -1L
+
+    /** Milliseconds from setMedia() to the first Playing event of the
+     *  current stream, or -1 while still opening. */
+    fun timeToFirstFrameMs(): Long = firstFrameMs
 
     init {
         // ─── v2.16.41 — Buffer model mapped 1:1 onto buildExoEngine() ───
@@ -146,11 +165,16 @@ class VesperVlcEngine(
             "--input-fast-seek",
         )
         val vlc = LibVLC(ctx.applicationContext, args)
+        Log.i(TAG, "VesperVlcEngine v$ENGINE_VERSION init (${args.size} instance args)")
         libVlc = vlc
         val mp = MediaPlayer(vlc)
         mp.attachViews(videoLayout, null, false, false)
         mp.setEventListener { event ->
             when (event.type) {
+                MediaPlayer.Event.Opening -> {
+                    // v2.16.47 — open-timing trail: connect/probe phase.
+                    Log.i(TAG, "OPEN +${sinceOpenMs()}ms — Opening (connect + container probe)")
+                }
                 MediaPlayer.Event.Playing -> {
                     // v2.16.43 — Continue-Watching resume seek moved
                     // to `applyResumeSeekWithRetry` because the very
@@ -167,6 +191,10 @@ class VesperVlcEngine(
                     // info overlay was previously stuck at whatever
                     // partial % the last Buffering event delivered.
                     lastBufferingPct = 100f
+                    if (firstFrameMs < 0L && openStartedAt > 0L) {
+                        firstFrameMs = sinceOpenMs()
+                        Log.i(TAG, "OPEN +${firstFrameMs}ms — FIRST FRAME (playback started)")
+                    }
                     Log.i(TAG, "Playing event (buffer→100%, pos=${try { mp.time } catch (_: Throwable) { -1L }}ms)")
                     listener.onVlcBuffering(false)
                     listener.onVlcPlaying()
@@ -180,7 +208,7 @@ class VesperVlcEngine(
                     // Only log the extremes so we don't spam logcat
                     // with every intermediate tick.
                     if (event.buffering <= 5f || event.buffering >= 95f) {
-                        Log.d(TAG, "Buffering event: ${event.buffering}%")
+                        Log.d(TAG, "Buffering ${event.buffering}% (+${sinceOpenMs()}ms since open)")
                     }
                     listener.onVlcBuffering(event.buffering < 100f)
                 }
@@ -208,7 +236,9 @@ class VesperVlcEngine(
         // previous stream while the new one is still connecting.
         lastBufferingPct = 0f
         isLiveMedia = live
-        Log.i(TAG, "setMedia (live=$live startAtMs=$startAtMs url=${url.take(80)}...)")
+        openStartedAt = SystemClock.elapsedRealtime()
+        firstFrameMs = -1L
+        Log.i(TAG, "OPEN[v$ENGINE_VERSION] setMedia (live=$live startAtMs=$startAtMs url=${url.take(80)}...)")
         try {
             val media = Media(vlc, Uri.parse(url))
             media.setHWDecoderEnabled(true, false)

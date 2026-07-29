@@ -170,6 +170,9 @@ fun PlayerOverlay(
     // has no decoded-frames-ahead metric, so the number was a
     // misleading constant "1 s").
     isVlcEngine: Boolean = false,
+    // v2.16.47 — measured setMedia→first-frame ms, shown in the Info
+    // sheet so slow opens can be diagnosed on screen without adb.
+    vlcFirstFrameMs: StateFlow<Long> = MutableStateFlow(-1L).asStateFlow(),
     userActivity: StateFlow<Long>,
     // v2.7.60 — Native Watch Together voice dock.  Null when not in a
     // party (or when party_code wasn't supplied via intent extras).
@@ -218,6 +221,7 @@ fun PlayerOverlay(
     // button in the LEFT dock cluster).
     val bufferedPercentValue by collectAsStateSafe(bufferedPercent, 0)
     val bitrate by collectAsStateSafe(bitrateKbps, 0L)
+    val firstFrameMsValue by collectAsStateSafe(vlcFirstFrameMs, -1L)
     val loading by collectAsStateSafe(isLoading, true)
     val error by collectAsStateSafe(errorMessage, null)
     val audios by collectAsStateSafe(audioTracks, emptyList())
@@ -375,6 +379,7 @@ fun PlayerOverlay(
                     bufferedPercent = bufferedPercentValue,
                     bitrateKbps = bitrate,
                     isVlc = isVlcEngine,
+                    firstFrameMs = firstFrameMsValue,
                     onDismiss = { sheet = SheetKind.None; bump() },
                 )
                 SheetKind.None -> Unit
@@ -1440,6 +1445,7 @@ private fun BufferingInfoSheet(
     bufferedPercent: Int,
     bitrateKbps: Long,
     isVlc: Boolean = false,
+    firstFrameMs: Long = -1L,
     onDismiss: () -> Unit,
 ) {
     val dismissFocus = remember { FocusRequester() }
@@ -1557,7 +1563,15 @@ private fun BufferingInfoSheet(
             ) {
                 BufferingStat(label = "Buffered", value = "${bufferedPercent}%")
                 if (isVlc) {
-                    BufferingStat(label = "Engine", value = "LibVLC")
+                    // Engine build stamp — if this doesn't match the
+                    // latest version, the box is running a stale APK.
+                    BufferingStat(label = "Engine", value = "LibVLC v${VesperVlcEngine.ENGINE_VERSION}")
+                    if (firstFrameMs > 0) {
+                        BufferingStat(
+                            label = "First frame",
+                            value = "%.1f s".format(firstFrameMs / 1000f),
+                        )
+                    }
                 } else {
                     BufferingStat(
                         label = "Bitrate",

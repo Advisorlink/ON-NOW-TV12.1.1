@@ -421,6 +421,8 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
     private val bufferedPercentFlow = MutableStateFlow(0)
     private val bufferAheadMsFlow = MutableStateFlow(0L)
     private val bitrateKbpsFlow = MutableStateFlow(0L)
+    // v2.16.47 — measured setMedia→first-frame ms (VLC engine only).
+    private val vlcFirstFrameMsFlow = MutableStateFlow(-1L)
     private val isLoadingFlow = MutableStateFlow(true)
     private val errorMessageFlow = MutableStateFlow<String?>(null)
     private val audioTracksFlow = MutableStateFlow<List<TrackOption>>(emptyList())
@@ -1182,6 +1184,7 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
                     // "1 s ahead" number for a qualitative health
                     // readout when LibVLC is the engine.
                     isVlcEngine     = useVlc,
+                    vlcFirstFrameMs = vlcFirstFrameMsFlow.asStateFlow(),
                     // v2.7.54 — pump activity from Activity.dispatchKeyEvent
                     userActivity    = userActivityFlow.asStateFlow(),
                     // v2.7.60 — native Watch Together voice dock
@@ -1290,6 +1293,7 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
                         // VLC was the active engine.
                         bufferedPercentFlow.value = eng.bufferedPercent()
                         bufferAheadMsFlow.value = eng.bufferAheadMs()
+                        vlcFirstFrameMsFlow.value = eng.timeToFirstFrameMs()
                         maybeBroadcastNowPlaying(pos, dur)
                         if (eng.isPlaying() && pos > 0L) {
                             maybePersistProgress(pos, dur)

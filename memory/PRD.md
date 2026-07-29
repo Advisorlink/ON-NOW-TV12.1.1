@@ -11079,3 +11079,25 @@ Root cause: live-stream anti-latency hacks polluting the VOD path.
    are RTSP/live-only tweaks, not for file/VOD playback.
 - Verified: kt_brace_check OK; live block confirmed intact (grep).
   NEEDS USER CI REBUILD to feel on box.
+
+### v2.16.47 — Build-proof + open-timing instrumentation (June 2026)
+> User: "still juddery, still 20s load" — but the v2.16.46 judder fix
+> was NEVER in any build they tested (finished after their last build).
+> Stale-APK ambiguity has recurred >6 times; this round ends it.
+1. ENGINE_VERSION const ("2.16.47") in VesperVlcEngine companion.
+   Logged at engine init AND shown on-screen in the player Info sheet
+   Engine stat: "LibVLC v2.16.47". If sheet shows anything else, the
+   box is running a stale APK — no more guessing.
+2. Open-pipeline timing: setMedia() stamps openStartedAt
+   (SystemClock.elapsedRealtime); Opening event, Buffering extremes
+   and FIRST FRAME all log "+Xms since open"; timeToFirstFrameMs()
+   getter → ExoPlayerActivity vlcFirstFrameMsFlow (poll loop) →
+   PlayerOverlay → Info sheet "First frame: X.X s" stat.
+3. Confirmed watchdog NOT the 20s cause: 30s autoplay timeout,
+   VLC onVlcPlaying sets firstReadyReached + cancels watchdog
+   correctly; error-advance only on EncounteredError.
+- Verified: kt_brace_check OK ×3, 18/18 logic assertions PASS.
+- NEXT DEBUG STEP once user runs a REAL v2.16.47 build: read the
+  on-screen First frame stat + `adb logcat -s VesperVlcEngine:V`
+  OPEN trail to see exactly which phase eats the 20s (connect/probe
+  vs cache fill). Judder verdict also only valid on v2.16.47+.
