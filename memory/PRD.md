@@ -10992,3 +10992,53 @@ both engines — Live TV pattern.
   year matcher w/ cached catalogue, VOD preferred on autoplay,
   scraped links fallback). Questions asked: prefer-vs-picker,
   movies-only vs series, confirm plan includes VOD.
+
+---
+
+## v2.16.41 — Vesper LibVLC: frame-pacing profile for judder-free pans (June 2026)
+
+> Operator: "Judder on slow pans, NOT buffering — focus on consistent
+> frame timing. SurfaceView over TextureView, vsync sync on, disable
+> frame dropping unless absolutely needed, HW decoding on, match
+> display refresh rate to content, test gles2."
+
+### VesperVlcEngine changes
+- **SurfaceView explicit** — `attachViews(..., useTextureView = false)`
+  named so no theme/version change can flip us to the compositor path.
+- **Frame-pacing instance opts:**
+  `--no-drop-late-frames --no-skip-frames --clock-jitter=0
+   --clock-synchro=0 --audio-desync=0 --avcodec-skiploopfilter=0`
+  (surface drives vsync; VLC's clock heuristics never nudge the
+  presentation time; full loop filter kills macroblock shimmer that
+  reads as micro-judder during pans).
+- **HW decoding:** unchanged (`--avcodec-hw=any` +
+  `setHWDecoderEnabled(true, false)`).
+- **VOD per-media** repeats the frame-pacing opts (no drop/skip) so a
+  future edit can't accidentally re-enable them. Threads=0 (all cores).
+- **LIVE per-media** KEEPS drop-late/skip-frames + loop-filter=1 —
+  a stalled decoder on live IPTV is worse than a dropped frame; the
+  judder concern is a VOD/pan issue.
+- **Hidden pref `vesper_player/vlc_vout`** — set to "gles2" for A/B
+  on boxes where android_display mis-negotiates the surface refresh
+  window. Blank/absent (default) = SurfaceView-backed android_display.
+- **Content fps detection** on Playing: reads `IMedia.VideoTrack.
+  frameRateNum/Den` and fires `Listener.onVlcContentFps(fps)` once
+  per media.
+
+### ExoPlayerActivity changes
+- `onVlcContentFps` → `applyPreferredDisplayModeForFps` picks the
+  same-resolution display mode whose refresh rate is an integer
+  multiple of the content fps (24→48/72, 25→50, 30→60, 60→60) via
+  `Display.getSupportedModes()` + `WindowManager.LayoutParams
+  .preferredDisplayModeId`. No-op on API<23 or single-mode displays.
+  Logs both the chosen mode and any skip reason.
+
+### Verification
+- Brace check clean on VesperVlcEngine.kt and ExoPlayerActivity.kt.
+- Compile in CI.
+
+### A/B test crib for the operator
+- Default build: SurfaceView + android_display. Judder on slow pans?
+- To try gles2 on a specific box, drop `vlc_vout=gles2` into
+  `vesper_player` prefs (or we can wire a Settings toggle if you want)
+  and relaunch the player. Same overlay; only the video path changes.

@@ -49,12 +49,59 @@ class VesperVlcEngine(
     private var released = false
     private var pendingStartAtMs = 0L
     private var hasSeekedToStart = false
+    private var refreshRateMatched = false
+
+    /** Read the first video track's fps (frameRateNum / frameRateDen)
+     *  from libVLC.  Returns 0f when the track isn't parsed yet. */
+    private fun detectContentFps(mp: MediaPlayer): Float {
+        return try {
+            val media = mp.media ?: return 0f
+            val count = media.trackCount
+            for (i in 0 until count) {
+                val track = media.getTrack(i) ?: continue
+                if (track.type != IMedia.Track.Type.Video) continue
+                val vt = track as? IMedia.VideoTrack ?: continue
+                val num = vt.frameRateNum
+                val den = vt.frameRateDen
+                if (num > 0 && den > 0) return num.toFloat() / den.toFloat()
+            }
+            0f
+        } catch (_: Throwable) { 0f }
+    }
 
     init {
-        // Instance options — verbatim VlcPlayerActivity VOD profile.
+        // v2.16.41 — FRAME-PACING PROFILE (operator: judder on slow
+        // pans, NOT buffering).  Focus on consistent frame timing:
+        //   • --no-drop-late-frames / --no-skip-frames — NEVER drop
+        //     a decoded frame; every frame must be presented on its
+        //     scheduled vsync.  The tiniest drop shows up as a
+        //     stutter on a slow horizontal pan.
+        //   • --clock-jitter=0 / --clock-synchro=0 — disable VLC's
+        //     master-clock resync heuristics.  On Android the
+        //     surface drives vsync directly, and any clock nudge
+        //     from VLC's audio-clock heuristics manifests as a
+        //     visible hitch every few seconds during pans.
+        //   • --audio-desync=0 — no A/V offset compensation.
+        //   • --avcodec-skiploopfilter=0 — DO NOT skip in-loop
+        //     deblocking (VlcPlayerActivity had this at 1 for live;
+        //     for VOD we keep the full loop filter to avoid the
+        //     macroblock shimmer that also reads as pan judder).
+        //   • --vout=<pref> — SurfaceView-backed android_display is
+        //     the default; a hidden "vlc_vout" preference can force
+        //     "gles2" for A/B testing on boxes where android_display
+        //     mis-negotiates the surface refresh window.
+        //   • --avcodec-hw=any + setHWDecoderEnabled(true, false) —
+        //     hardware decode stays on; software fallback only when
+        //     the codec is genuinely unsupported.
+        val vout = ctx.getSharedPreferences("vesper_player", Context.MODE_PRIVATE)
+            .getString("vlc_vout", "")?.trim().orEmpty()
         val args = arrayListOf(
             "--no-drop-late-frames",
             "--no-skip-frames",
+            "--clock-jitter=0",
+            "--clock-synchro=0",
+            "--audio-desync=0",
+            "--avcodec-skiploopfilter=0",
             "--rtsp-tcp",
             "--network-caching=10000",
             "--prefetch-buffer-size=8388608",   // 8 MB
@@ -63,10 +110,17 @@ class VesperVlcEngine(
             "--http-continuous",
             "--avcodec-hw=any",
         )
+        if (vout.isNotBlank()) args.add("--vout=$vout")   // e.g. "gles2"
         val vlc = LibVLC(ctx.applicationContext, args)
         libVlc = vlc
         val mp = MediaPlayer(vlc)
-        mp.attachViews(videoLayout, null, false, false)
+        // SurfaceView is the default backing for VLCVideoLayout — we
+        // pass useTextureView=false explicitly so nothing upstream
+        // (theme, style, VLC minor-version change) can flip this to
+        // TextureView, which routes every frame through the GPU
+        // composition path and re-introduces the exact judder we're
+        // trying to kill on slow pans.
+        mp.attachViews(videoLayout, null, /* subtitles */ false, /* useTextureView */ false)
         mp.setEventListener { event ->
             when (event.type) {
                 MediaPlayer.Event.Playing -> {
@@ -81,6 +135,17 @@ class VesperVlcEngine(
                     }
                     listener.onVlcBuffering(false)
                     listener.onVlcPlaying()
+                    // v2.16.41 — Attempt to match the display's
+                    // refresh rate to the content's frame rate for
+                    // pan-smoothness (24 fps → 24 Hz / 48 Hz / 72 Hz
+                    // where available; 25 → 50 Hz; 30 → 60 Hz).
+                    // Runs once per media so a subsequent stream
+                    // swap re-negotiates the mode.
+                    if (!refreshRateMatched) {
+                        refreshRateMatched = true
+                        val fps = detectContentFps(mp)
+                        if (fps > 0f) listener.onVlcContentFps(fps)
+                    }
                 }
                 MediaPlayer.Event.Paused -> listener.onVlcPaused()
                 MediaPlayer.Event.Buffering ->
@@ -100,6 +165,7 @@ class VesperVlcEngine(
         val mp = mediaPlayer ?: return
         pendingStartAtMs = startAtMs
         hasSeekedToStart = false
+        refreshRateMatched = false
         try {
             val media = Media(vlc, Uri.parse(url))
             media.setHWDecoderEnabled(true, false)
@@ -113,6 +179,10 @@ class VesperVlcEngine(
                 media.addOption(":clock-jitter=0")
                 media.addOption(":clock-synchro=0")
                 media.addOption(":no-audio-time-stretch")
+                // Live IPTV MUST catch up on a network dip — a stalled
+                // decoder on a live feed is visibly worse than a
+                // dropped frame.  So live keeps drop/skip, while VOD
+                // never drops (frame-pacing profile).
                 media.addOption(":drop-late-frames")
                 media.addOption(":skip-frames")
                 media.addOption(":avcodec-skiploopfilter=1")
@@ -120,12 +190,20 @@ class VesperVlcEngine(
                 media.addOption(":avcodec-threads=0")
                 media.addOption(":avcodec-hw=any")
             } else {
-                // Deep-buffer VOD profile (VlcPlayerActivity verbatim).
+                // v2.16.41 — VOD FRAME-PACING PROFILE.  Deep buffer
+                // for throughput smoothness + strict clock so pans
+                // never judder.  NO drop-late/skip-frames here — the
+                // instance opts already forbid them, but we're
+                // explicit so a future edit can't accidentally add
+                // them back.
                 media.addOption(":network-caching=10000")
                 media.addOption(":file-caching=10000")
                 media.addOption(":clock-jitter=0")
                 media.addOption(":clock-synchro=0")
                 media.addOption(":no-audio-time-stretch")
+                media.addOption(":audio-desync=0")
+                media.addOption(":avcodec-skiploopfilter=0")
+                media.addOption(":avcodec-threads=0")   // all cores decode
                 media.addOption(":network-timeout=600")
             }
             mp.media = media

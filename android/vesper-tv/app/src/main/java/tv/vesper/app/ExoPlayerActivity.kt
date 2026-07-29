@@ -1984,6 +1984,62 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
         }
     }
 
+    /** v2.16.41 — Match the display refresh rate to the content's
+     *  frame rate for pan-smoothness.  Android M+ exposes every
+     *  supported display mode via `Display.getSupportedModes()`; we
+     *  pick the mode with the SAME resolution as the current mode
+     *  whose refresh rate is an integer multiple of the content fps
+     *  (24→48/72/24, 25→50, 30→60, 60→60).  Apply via
+     *  WindowManager.LayoutParams.preferredDisplayModeId — the
+     *  compositor then drives every vsync at a rate that never needs
+     *  frame duplication, killing the 3:2-pulldown-style beats that
+     *  read as judder on slow pans.
+     *
+     *  No-op on API < 23 or when the display exposes only one mode
+     *  (most cheap HK1 boxes; they're already 60 Hz which is fine
+     *  for 30 fps and acceptable for 24 fps with mild judder). */
+    override fun onVlcContentFps(fps: Float) {
+        if (fps <= 0f) return
+        runOnUiThread { applyPreferredDisplayModeForFps(fps) }
+    }
+
+    private fun applyPreferredDisplayModeForFps(fps: Float) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        try {
+            val display = window.decorView.display ?: return
+            val current = display.mode
+            val modes = display.supportedModes
+            if (modes.size <= 1) {
+                Log.i(TAG, "display supports a single mode — refresh-rate match skipped")
+                return
+            }
+            // Prefer an EXACT multiple within 0.05 Hz; fall back to
+            // the closest same-resolution mode.
+            val sameRes = modes.filter {
+                it.physicalWidth == current.physicalWidth &&
+                it.physicalHeight == current.physicalHeight
+            }
+            val exact = sameRes.filter { mode ->
+                val ratio = mode.refreshRate / fps
+                val rounded = Math.round(ratio).toFloat()
+                rounded >= 1f && Math.abs(mode.refreshRate - rounded * fps) < 0.05f
+            }.maxByOrNull { it.refreshRate }
+            val chosen = exact
+                ?: sameRes.minByOrNull { Math.abs(it.refreshRate - fps) }
+                ?: return
+            if (chosen.modeId == current.modeId) {
+                Log.i(TAG, "display already at ${current.refreshRate}Hz for ${fps}fps content — no switch needed")
+                return
+            }
+            val lp = window.attributes
+            lp.preferredDisplayModeId = chosen.modeId
+            window.attributes = lp
+            Log.i(TAG, "display mode → ${chosen.refreshRate}Hz for ${fps}fps content (was ${current.refreshRate}Hz)")
+        } catch (t: Throwable) {
+            Log.w(TAG, "preferredDisplayModeId failed", t)
+        }
+    }
+
     /** VLC failed before the first frame with nothing left to try —
      *  restart this activity with the ExoPlayer engine forced so the
      *  title still gets a second chance on the other decoder stack. */
