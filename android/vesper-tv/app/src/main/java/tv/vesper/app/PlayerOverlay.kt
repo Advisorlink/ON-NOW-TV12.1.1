@@ -164,6 +164,12 @@ fun PlayerOverlay(
     audioTracks: StateFlow<List<TrackOption>>,
     subtitleTracks: StateFlow<List<TrackOption>>,
     streams: StateFlow<List<StreamOption>>,
+    // v2.16.45 — true when the LibVLC engine drives playback.  The
+    // Buffering Info sheet then shows a qualitative "STREAM IS
+    // STRONG" readout instead of the seconds-ahead number (LibVLC
+    // has no decoded-frames-ahead metric, so the number was a
+    // misleading constant "1 s").
+    isVlcEngine: Boolean = false,
     userActivity: StateFlow<Long>,
     // v2.7.60 — Native Watch Together voice dock.  Null when not in a
     // party (or when party_code wasn't supplied via intent extras).
@@ -368,6 +374,7 @@ fun PlayerOverlay(
                     bufferAheadMs = bufAhead,
                     bufferedPercent = bufferedPercentValue,
                     bitrateKbps = bitrate,
+                    isVlc = isVlcEngine,
                     onDismiss = { sheet = SheetKind.None; bump() },
                 )
                 SheetKind.None -> Unit
@@ -1432,6 +1439,7 @@ private fun BufferingInfoSheet(
     bufferAheadMs: Long,
     bufferedPercent: Int,
     bitrateKbps: Long,
+    isVlc: Boolean = false,
     onDismiss: () -> Unit,
 ) {
     val dismissFocus = remember { FocusRequester() }
@@ -1493,30 +1501,52 @@ private fun BufferingInfoSheet(
             )
             Spacer(Modifier.height(22.dp))
 
-            // ── Big number: buffer ahead in seconds ──
-            Row(verticalAlignment = Alignment.Bottom) {
+            if (isVlc) {
+                // v2.16.45 — LibVLC health readout (USER SPEC: "just
+                // say in green: this stream is strong").
+                val vlcStrong = bufferedPercent >= 95
                 Text(
-                    bufferSec.toString(),
-                    color = bufferColor,
-                    fontSize = 64.sp,
+                    if (vlcStrong) "STREAM IS STRONG" else "BUFFERING\u2026 ${bufferedPercent}%",
+                    color = if (vlcStrong) Color(0xFF7AEB8A) else Color(0xFFFFD54F),
+                    fontSize = 34.sp,
                     fontWeight = FontWeight.Black,
                 )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.height(6.dp))
                 Text(
-                    "s ahead",
-                    color = Color.White.copy(alpha = 0.72f),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(bottom = 14.dp),
+                    if (vlcStrong)
+                        "Playback is healthy — the player is keeping up with the stream, sit back."
+                    else
+                        "The player is refilling its buffer.  If this keeps happening, open the Stream picker and try another link.",
+                    color = if (vlcStrong) Color(0xFF7AEB8A) else Color(0xFFFFD54F),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            } else {
+                // ── Big number: buffer ahead in seconds ──
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        bufferSec.toString(),
+                        color = bufferColor,
+                        fontSize = 64.sp,
+                        fontWeight = FontWeight.Black,
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "s ahead",
+                        color = Color.White.copy(alpha = 0.72f),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(bottom = 14.dp),
+                    )
+                }
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    bufferAdvice,
+                    color = bufferColor,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
                 )
             }
-            Spacer(Modifier.height(2.dp))
-            Text(
-                bufferAdvice,
-                color = bufferColor,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
 
             Spacer(Modifier.height(22.dp))
 
@@ -1526,11 +1556,15 @@ private fun BufferingInfoSheet(
                 horizontalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 BufferingStat(label = "Buffered", value = "${bufferedPercent}%")
-                BufferingStat(
-                    label = "Bitrate",
-                    value = if (bitrateKbps > 0) "${bitrateKbps} kbps" else "—",
-                )
-                BufferingStat(label = "Target", value = "${healthyThreshold}s+")
+                if (isVlc) {
+                    BufferingStat(label = "Engine", value = "LibVLC")
+                } else {
+                    BufferingStat(
+                        label = "Bitrate",
+                        value = if (bitrateKbps > 0) "${bitrateKbps} kbps" else "—",
+                    )
+                    BufferingStat(label = "Target", value = "${healthyThreshold}s+")
+                }
             }
 
             Spacer(Modifier.height(22.dp))
@@ -1553,23 +1587,42 @@ private fun BufferingInfoSheet(
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.4.sp,
                 )
-                Text(
-                    "The big number is how many seconds of video have been downloaded " +
-                        "AHEAD of where you're watching.  The higher, the safer.",
-                    color = Color.White.copy(alpha = 0.78f),
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp,
-                )
-                Text(
-                    "Above ${healthyThreshold}s = comfortable — no stutters likely.\n" +
-                        "Below ${healthyThreshold}s = borderline — the stream may stall.  " +
-                        "Tap the Stream button next to me, pick a different link " +
-                        "(EasyNews++ direct streams or Torrentio debrid-cached ones " +
-                        "usually buffer fastest).",
-                    color = Color.White.copy(alpha = 0.78f),
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp,
-                )
+                if (isVlc) {
+                    Text(
+                        "LibVLC reports stream health as a buffer-fill percentage " +
+                            "rather than seconds-ahead.  Green = the buffer is full " +
+                            "and playback is keeping up with the stream.",
+                        color = Color.White.copy(alpha = 0.78f),
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                    )
+                    Text(
+                        "If you see BUFFERING flash often, tap the Stream button " +
+                            "next to me and pick a different link (EasyNews++ " +
+                            "direct streams usually buffer fastest).",
+                        color = Color.White.copy(alpha = 0.78f),
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                    )
+                } else {
+                    Text(
+                        "The big number is how many seconds of video have been downloaded " +
+                            "AHEAD of where you're watching.  The higher, the safer.",
+                        color = Color.White.copy(alpha = 0.78f),
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                    )
+                    Text(
+                        "Above ${healthyThreshold}s = comfortable — no stutters likely.\n" +
+                            "Below ${healthyThreshold}s = borderline — the stream may stall.  " +
+                            "Tap the Stream button next to me, pick a different link " +
+                            "(EasyNews++ direct streams or Torrentio debrid-cached ones " +
+                            "usually buffer fastest).",
+                        color = Color.White.copy(alpha = 0.78f),
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                    )
+                }
             }
 
             Spacer(Modifier.height(20.dp))

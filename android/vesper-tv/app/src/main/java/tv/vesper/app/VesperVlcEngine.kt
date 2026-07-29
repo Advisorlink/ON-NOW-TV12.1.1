@@ -104,13 +104,16 @@ class VesperVlcEngine(
             "--network-caching=6000",           // instance default; VOD/live override per-media
             "--prefetch-buffer-size=65536",     // KiB → 64 MiB ≈ Exo 50 s target
             "--prefetch-read-size=524288",      // bytes → 512 KiB reads
-            // v2.16.44 — Forward skips within the 64 MiB prefetch RAM
-            // buffer now READ THROUGH the buffer instead of tearing the
-            // HTTP connection down for a new range request.  The default
-            // threshold is 16 KiB, so literally every +10 s skip forced a
-            // full reconnect.  32 MiB ≈ +30 s of 8 Mbps video served
-            // straight from RAM.
-            "--prefetch-seek-threshold=33554432",
+            // v2.16.45 — prefetch-seek-threshold REVERTED to default
+            // (16 KiB).  The 32 MiB read-through added in v2.16.44
+            // made INITIAL OPEN take ~20 s: during container probing
+            // (MKV SeekHead/Cues/attachment hops, mp4 moov parsing)
+            // every internal forward seek downloaded-and-discarded up
+            // to 32 MB of data on a still-empty prefetch buffer.
+            // User-facing scrubs stay fast without it — fast-seek +
+            // the 1.5 s network-caching refill do the heavy lifting,
+            // and an HTTP range reconnect on a warm debrid host is
+            // only ~200-500 ms.
             "--ipv4-timeout=20000",             // = OkHttp connectTimeout 20 s
             "--http-user-agent=Vesper-ExoPlayer/2.7.43",
             "--http-reconnect",

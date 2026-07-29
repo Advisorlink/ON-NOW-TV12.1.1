@@ -239,6 +239,9 @@ export function syncFromNative() {
                 // episode of the show.
                 streamUrl: '',
                 subtitleUrl: '',
+                // The cloned streams list would point at the OLD
+                // episode's files — blank it for the same reason.
+                streams: [],
             };
             list.unshift(cloned);
             changed = true;

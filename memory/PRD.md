@@ -11033,3 +11033,31 @@ Root causes found (v2.16.43 fixed the WRONG knob):
 - bufferAheadMs() VOD cap synced 6000→1500.
 - Brace check + 8/8 logic assertions PASS. NEEDS USER CI REBUILD + APK
   install to verify on box. If still slow: adb logcat -s VesperVlcEngine:V
+
+### v2.16.45 — Open-speed regression + CW polish batch (June 2026)
+> User: v2.16.44 fixed resume+scrub (confirmed working!) but initial
+> stream open regressed 5s → 20s. Also 3 UX asks.
+1. OPEN-SPEED FIX: removed --prefetch-seek-threshold=33554432.
+   During container probe (MKV SeekHead/Cues hops, mp4 moov) every
+   internal forward seek read-and-discarded up to 32MB on an empty
+   prefetch buffer → ~20s cold open. Default 16KiB restored. Scrub
+   speed unaffected (fast-seek + 1.5s caching are the real wins;
+   range reconnect on warm debrid ≈ 200-500ms).
+2. INFO SHEET (VLC): PlayerOverlay gained isVlcEngine param (Exo
+   passes useVlc). BufferingInfoSheet now shows big green "STREAM IS
+   STRONG" (bufferedPercent>=95) or amber "BUFFERING… X%" instead of
+   the misleading "1 s ahead" number; stats row shows Buffered% +
+   Engine=LibVLC; VLC-specific explainer text.
+3. CW BACK NAV: ContinueWatchingShelf.resume() now navigates the
+   WebView to /title/{type}/{baseId} for MOVIES too before firing
+   Host.playVideo (series already did) → BACK from player lands on
+   the info page, not Home.
+4. CW SWAP-STREAM: Detail.jsx playStream snapshots a trimmed stream
+   list (15 rows, only serialiser fields + description[:200] for
+   size chips) into cw.upsert({streams}); shelf resume passes it as
+   streamsList → native in-player Stream picker now available on CW
+   resumes. syncFromNative episode-clone blanks streams:[] (old
+   episode's files).
+- Verified: kt_brace_check OK (engine/exo/overlay), eslint clean,
+  webpack compiled, home smoke screenshot OK. Kotlin bits need USER
+  CI REBUILD. kt_brace_check.py now also at /app/memory/tools/.

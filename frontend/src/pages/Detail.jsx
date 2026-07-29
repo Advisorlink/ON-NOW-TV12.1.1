@@ -1518,6 +1518,28 @@ export default function Detail() {
             const episodeLabel = episodeOverride
                 ? `S${String(episodeOverride.season).padStart(2, '0')}E${String(episodeOverride.episode).padStart(2, '0')}`
                 : '';
+            // v2.16.45 — Snapshot the (trimmed) stream list into the
+            // CW entry so the in-player "Stream" swap picker stays
+            // available when resuming from Continue Watching.  Only
+            // the fields Host.playVideo's serialiser reads are kept,
+            // capped at 15 rows so localStorage stays lean.
+            const cwStreams = ((streamsOverride && streamsOverride.length)
+                ? orderStreams(streamsOverride)
+                : orderedStreams)
+                .filter((s) => /^https?:\/\//i.test(s.url || s.externalUrl || ''))
+                .slice(0, 15)
+                .map((s) => ({
+                    title: s.title || s.name || '',
+                    description: (s.description || '').slice(0, 200),
+                    url: s.url || '',
+                    externalUrl: s.externalUrl || '',
+                    infoHash: s.infoHash || null,
+                    _is_english: !!s._is_english,
+                    _addon_source: s._addon_source || '',
+                    _quality_label: s._quality_label || '',
+                    _pm_cached: !!s._pm_cached,
+                    _seeders: s._seeders ?? s.seeders ?? 0,
+                }));
             cw.upsert({
                 id: playId,
                 type,
@@ -1532,6 +1554,7 @@ export default function Detail() {
                 genres: meta?.genres || [],
                 streamUrl: playUrl,
                 subtitleUrl,
+                streams: cwStreams,
                 positionMs: existing?.positionMs || 0,
                 durationMs: existing?.durationMs || 0,
                 route: `/title/${type}/${id}`,

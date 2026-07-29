@@ -108,6 +108,12 @@ export default function ContinueWatchingShelf() {
                     `/title/series/${baseId}` +
                     `?focusSeason=${focusSeason}&focusEpisode=${focusEpisode}`,
                 );
+            } else {
+                // v2.16.45 — Movies park the WebView on the title's
+                // Detail page BEFORE firing the native player, so
+                // pressing BACK from playback lands on the info page
+                // — not the Home screen (series already did this).
+                navigate(`/title/${t}/${baseId}`);
             }
             const fired = Host.playVideo({
                 url: fresh.streamUrl || e.streamUrl,
@@ -123,6 +129,14 @@ export default function ContinueWatchingShelf() {
                 genres: e.genres || [],
                 startAtMs,
                 cwId: e.id,
+                // v2.16.45 — Pass the stream list snapshot saved at
+                // play time so the in-player "Stream" swap picker is
+                // available on Continue Watching resumes too (it was
+                // the only launch path without alt streams).
+                streamsList:
+                    (Array.isArray(fresh.streams) && fresh.streams.length
+                        ? fresh.streams
+                        : e.streams) || [],
             });
             if (fired) return;
         }

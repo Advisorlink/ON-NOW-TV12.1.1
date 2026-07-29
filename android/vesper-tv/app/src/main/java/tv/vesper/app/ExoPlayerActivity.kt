@@ -1178,6 +1178,10 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
                     audioTracks     = audioTracksFlow.asStateFlow(),
                     subtitleTracks  = subtitleTracksFlow.asStateFlow(),
                     streams         = streamsFlow.asStateFlow(),
+                    // v2.16.45 — the Info sheet swaps the misleading
+                    // "1 s ahead" number for a qualitative health
+                    // readout when LibVLC is the engine.
+                    isVlcEngine     = useVlc,
                     // v2.7.54 — pump activity from Activity.dispatchKeyEvent
                     userActivity    = userActivityFlow.asStateFlow(),
                     // v2.7.60 — native Watch Together voice dock
