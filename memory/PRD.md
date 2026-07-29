@@ -11151,3 +11151,32 @@ versions on Maven Central: 1.2.0+1, 1.2.1+1, 1.3.1+1, 1.3.1+2,
 ### Verification
 - Brace check clean on all Vesper .kt files.
 - Push via "Save to GitHub" and re-run CI — the AAR resolve should now succeed.
+
+---
+
+## v2.16.42 build fix #2 — Jellyfin 1.5.0+1 bakes minCompileSdk=35 (June 2026)
+
+> CI: `12 issues were found when checking AAR metadata:` — `Dependency
+> 'org.jellyfin.media3:media3-ffmpeg-decoder:1.5.0+1' requires
+> libraries and applications that depend on it to compile against
+> version 35 or later of the Android APIs.  :app is currently
+> compiled against android-34.`
+
+### Root cause
+Jellyfin's `1.5.0+1` was built with newer AndroidX transitives that
+require `compileSdk=35`.  Our AGP 8.4.0 caps at `compileSdk=34` (max
+supported by AGP 8.4.x is 34), and bumping to AGP 8.6+/SDK 35 would
+be a much larger, unrelated change to land under time pressure.
+
+### Fix (minimal, safe path)
+- Reverted media3 back to 1.4.1 (all 5 modules).
+- Pinned Jellyfin FFmpeg to **`1.3.1+2`** — last release that doesn't
+  bake minCompileSdk=35 into its AAR metadata.  Built against Media3
+  1.3.1 but Gradle transitively resolves to our declared 1.4.1
+  (higher version wins) — `FfmpegAudioRenderer` API is stable across
+  1.3 → 1.4.
+
+### Deferred (future work)
+- Bump AGP 8.4.0 → 8.7.x + compileSdk 34 → 35 in a dedicated pass so
+  we can adopt the newest Media3 / Jellyfin releases.  Not urgent —
+  1.3.1+2 covers the same codecs (DTS / TrueHD / EAC3-JOC / Vorbis).

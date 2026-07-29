@@ -174,11 +174,14 @@ dependencies {
     // Registered via VesperExoFfmpegRenderersFactory when the
     // "ExoPlayer + FFmpeg" engine is selected.  ~7 MB per ABI.
     //
-    // Jellyfin only publishes ffmpeg-decoder builds for specific
-    // Media3 minor versions and skipped 1.4.x — hence the media3
-    // bump above to 1.5.0 to match the closest published pair
-    // (1.5.0+1).
-    implementation("org.jellyfin.media3:media3-ffmpeg-decoder:1.5.0+1")
+    // v2.16.42 build fix: pinning `1.3.1+2` — the last Jellyfin FFmpeg
+    // release that doesn't demand compileSdk 35.  Jellyfin then
+    // SKIPPED the 1.4 line and their next release `1.5.0+1` bakes a
+    // minCompileSdk=35 requirement into its AAR metadata (via newer
+    // AndroidX transitives) which our AGP 8.4.0 / compileSdk 34 build
+    // rejects.  `1.3.1+2` is built against Media3 1.3.1 but Gradle
+    // resolves transitively to our declared 1.4.1 — API stable.
+    implementation("org.jellyfin.media3:media3-ffmpeg-decoder:1.3.1+2")
 
     // v2.7.39 — Media3 ExoPlayer as a SECOND player backend so the
     // user can A/B test which one streams better on their HK1 box.
@@ -186,18 +189,14 @@ dependencies {
     // adaptive HLS/DASH logic is genuinely better than libVLC's for
     // HTTP CDN streams.  Requires minSdk 21 (already bumped above).
     // Total extra APK weight: ~3 MB.
-    // v2.16.42 — Bumped 1.4.1 → 1.5.0 so the Jellyfin FFmpeg audio
-    // decoder extension (1.5.0+1) — which Jellyfin only publishes
-    // for specific Media3 minor versions and SKIPPED the 1.4 line
-    // entirely — can attach cleanly.
-    implementation("androidx.media3:media3-exoplayer:1.5.0")
-    implementation("androidx.media3:media3-exoplayer-hls:1.5.0")
-    implementation("androidx.media3:media3-exoplayer-dash:1.5.0")
-    implementation("androidx.media3:media3-ui:1.5.0")
+    implementation("androidx.media3:media3-exoplayer:1.4.1")
+    implementation("androidx.media3:media3-exoplayer-hls:1.4.1")
+    implementation("androidx.media3:media3-exoplayer-dash:1.4.1")
+    implementation("androidx.media3:media3-ui:1.4.1")
     // v2.7.43 — OkHttp datasource for ExoPlayer.  HTTP/2 multiplexing,
     // smarter connection pooling, better timeout/retry on flaky Wi-Fi.
     // Same library Stremio's Android client uses.
-    implementation("androidx.media3:media3-datasource-okhttp:1.5.0")
+    implementation("androidx.media3:media3-datasource-okhttp:1.4.1")
 
     // OkHttp — minimal HTTP + WebSocket client (~600 KB).
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
