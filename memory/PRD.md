@@ -11204,3 +11204,35 @@ Vesper's `build.gradle.kts` telling Gradle to pick the first
 `libc++_shared.so` (and same for libssl.so / libcrypto.so, since
 OkHttp's conscrypt can collide too) and drop the duplicate.  Both
 libraries ship ABI-compatible libc++ runtimes so this is safe.
+
+## v2.16.42 build fix #5 — Kotlin compile errors (June 2026)
+
+> CI: `VesperMpvEngine.kt: Unresolved reference: MPVLib` (×3) and
+> `VesperVlcEngine.kt:147:48 Unresolved reference: onVlcContentFps`.
+
+### Root causes
+1. Used the wrong MPV package.  `is.xyz.mpv.MPVLib` is aniyomi's
+   fork; `dev.jdtech.mpv:libmpv:0.5.1` ships the class under
+   `dev.jdtech.mpv.MPVLib`.  Verified by downloading the sources
+   jar from Maven Central.
+2. `VesperVlcEngine.Listener.onVlcContentFps()` was called from the
+   engine but never actually added to the interface (an earlier
+   search_replace to insert the default method didn't apply).
+
+### Fixes
+- Import switched to `dev.jdtech.mpv.MPVLib`.
+- Removed hand-rolled `MPV_FORMAT_*` / `MPV_EVENT_*` const ints —
+  the jdtech fork exposes them as flat public static fields on the
+  MPVLib class (no nested `mpvFormat` / `mpvEventId` class), so use
+  `MPVLib.MPV_FORMAT_DOUBLE` / `MPVLib.MPV_EVENT_PLAYBACK_RESTART`.
+- Removed `override fun efEvent(err: String?)` — that method doesn't
+  exist on the jdtech `EventObserver` interface.
+- Added `fun onVlcContentFps(fps: Float) {}` default method to
+  `VesperVlcEngine.Listener` (this time it actually landed).
+
+### Verification
+- Brace check clean on all Vesper engine files.
+- Sources-jar API compared against Kotlin usage — every MPVLib call
+  matches a real signature on `dev.jdtech.mpv.MPVLib`.
+- Confirmed `androidx.media3.decoder.ffmpeg.FfmpegAudioRenderer` is
+  present in `org.jellyfin.media3:media3-ffmpeg-decoder:1.3.1+2` AAR.

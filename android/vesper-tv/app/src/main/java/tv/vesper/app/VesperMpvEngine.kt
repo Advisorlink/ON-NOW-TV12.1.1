@@ -6,7 +6,7 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import `is`.xyz.mpv.MPVLib
+import `dev`.jdtech.mpv.MPVLib
 import java.io.File
 
 /**
@@ -75,12 +75,12 @@ class VesperMpvEngine(
         // forks all name the inner class slightly differently, but
         // the wire format values are stable across libmpv releases.
         try {
-            MPVLib.observeProperty("time-pos",          MPV_FORMAT_DOUBLE)
-            MPVLib.observeProperty("duration",          MPV_FORMAT_DOUBLE)
-            MPVLib.observeProperty("pause",             MPV_FORMAT_FLAG)
-            MPVLib.observeProperty("paused-for-cache",  MPV_FORMAT_FLAG)
-            MPVLib.observeProperty("eof-reached",       MPV_FORMAT_FLAG)
-            MPVLib.observeProperty("estimated-vf-fps",  MPV_FORMAT_DOUBLE)
+            MPVLib.observeProperty("time-pos",          MPVLib.MPV_FORMAT_DOUBLE)
+            MPVLib.observeProperty("duration",          MPVLib.MPV_FORMAT_DOUBLE)
+            MPVLib.observeProperty("pause",             MPVLib.MPV_FORMAT_FLAG)
+            MPVLib.observeProperty("paused-for-cache",  MPVLib.MPV_FORMAT_FLAG)
+            MPVLib.observeProperty("eof-reached",       MPVLib.MPV_FORMAT_FLAG)
+            MPVLib.observeProperty("estimated-vf-fps",  MPVLib.MPV_FORMAT_DOUBLE)
         } catch (t: Throwable) {
             Log.w(TAG, "observeProperty failed", t)
         }
@@ -210,17 +210,13 @@ class VesperMpvEngine(
         }
         override fun event(eventId: Int) {
             when (eventId) {
-                MPV_EVENT_PLAYBACK_RESTART -> handler.post {
+                MPVLib.MPV_EVENT_PLAYBACK_RESTART -> handler.post {
                     listener.onMpvBuffering(false)
                     listener.onMpvPlaying()
                 }
-                MPV_EVENT_END_FILE -> { /* eof-reached distinguishes */ }
-                MPV_EVENT_SHUTDOWN -> { /* release path */ }
+                MPVLib.MPV_EVENT_END_FILE -> { /* eof-reached distinguishes */ }
+                MPVLib.MPV_EVENT_SHUTDOWN -> { /* release path */ }
             }
-        }
-        override fun efEvent(err: String?) {
-            Log.w(TAG, "MPV efEvent: $err")
-            handler.post { listener.onMpvError() }
         }
     }
 

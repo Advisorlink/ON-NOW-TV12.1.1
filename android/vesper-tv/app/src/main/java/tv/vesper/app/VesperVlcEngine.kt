@@ -37,6 +37,11 @@ class VesperVlcEngine(
         fun onVlcBuffering(buffering: Boolean)
         fun onVlcEnded()
         fun onVlcError()
+        /** v2.16.41 — Detected content frame rate for display-mode
+         *  matching.  Fires once, on the first Playing event of
+         *  each media.  Activity uses it to call
+         *  `Window.attributes.preferredDisplayModeId`. */
+        fun onVlcContentFps(fps: Float) {}
     }
 
     companion object {
