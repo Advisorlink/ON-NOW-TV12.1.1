@@ -11406,3 +11406,25 @@ in the legacy XML overlay.
   PlayerOverlay.kt, PlayerEngine.kt.
 - Trimmed accidentally-duplicated function body that had accumulated
   in ExoPlayerActivity.kt during earlier iterations.
+
+## v2.16.45 build fix — Missing onBackFromPlayer definition (June 2026)
+
+> CI compile error caught via local kotlinc re-run against real jars.
+
+Cause: my `del lines[2686:]` trim to remove trailing garbage in
+ExoPlayerActivity.kt over-cut and deleted the `private fun
+onBackFromPlayer()` function body along with the trailing junk.  The
+function was still referenced in 3 places (BACK/ESC key handler,
+PlayerOverlay onClose lambda, another dead branch), so the compile
+failed with "Unresolved reference: onBackFromPlayer".
+
+Fix: re-inserted the function definition just above the class close.
+Now confirmed present at line 2691, with references at lines 1332 and
+1946.  Brace check clean.  kotlinc against real MPV/VLC/Media3/
+Jellyfin-FFmpeg jars: zero errors on all four engine files
+(PlayerEngine.kt, VesperMpvEngine.kt, VesperVlcEngine.kt,
+VesperExoFfmpegRenderersFactory.kt).
+
+Everything from v2.16.45 (EXO_FFMPEG default + swap-stream always
+visible + CW back-to-details) is still in place — the trim only
+removed the callback definition, not the wiring.

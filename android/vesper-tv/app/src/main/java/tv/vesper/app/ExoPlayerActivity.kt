@@ -2683,4 +2683,25 @@ class ExoPlayerActivity : ComponentActivity(),
         startActivity(relaunch)
         finish()
     }
+
+    /** v2.16.45 — Route BACK press: if launch came from a Continue
+     *  Watching row, save a nav intent so MainActivity re-enters the
+     *  details page for this title (movie details for movies, series
+     *  episode picker focused on the current episode for TV shows). */
+    private fun onBackFromPlayer() {
+        try {
+            val cwId = intent.getStringExtra(VlcPlayerActivity.EXTRA_CW_ID)?.trim().orEmpty()
+            val type = intent.getStringExtra(VlcPlayerActivity.EXTRA_TYPE)?.trim().orEmpty()
+            if (cwId.isNotBlank()) {
+                val sp = getSharedPreferences("onnowtv_back_to_details", MODE_PRIVATE)
+                sp.edit()
+                    .putString("cw_id", cwId)
+                    .putString("type", type)
+                    .putLong("ts", System.currentTimeMillis())
+                    .apply()
+                Log.i(TAG, "onBackFromPlayer: saved back-to-details ($type, $cwId)")
+            }
+        } catch (_: Throwable) {}
+        finish()
+    }
 }
