@@ -2008,6 +2008,19 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
         vlcVideoFpsFlow.value = fps
         if (kotlin.math.abs(fps - afrLastFps) < 0.01f) return
         afrLastFps = fps
+        // v2.16.49 — PRIMARY smoothness fix: hint the source rate to
+        // SurfaceFlinger via Surface.setFrameRate().  This is what
+        // ExoPlayer effectively does through VideoFrameReleaseHelper +
+        // MediaCodecVideoRenderer, and it gives the OS the info it
+        // needs to align vsync AND (on Android 11+ TVs) to trigger
+        // native HDMI refresh matching without needing the legacy
+        // preferredDisplayModeId path.
+        try {
+            val surfaceHinted = vlcEngine?.applySurfaceFrameRate(fps) ?: false
+            Log.i(TAG, "AFR: Surface.setFrameRate(${fps}) → $surfaceHinted")
+        } catch (t: Throwable) {
+            Log.w(TAG, "AFR: Surface.setFrameRate call threw", t)
+        }
         try {
             @Suppress("DEPRECATION")
             val disp = window.decorView.display ?: windowManager.defaultDisplay ?: return

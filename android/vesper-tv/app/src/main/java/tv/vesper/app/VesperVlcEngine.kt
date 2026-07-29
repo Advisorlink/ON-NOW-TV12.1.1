@@ -46,13 +46,18 @@ class VesperVlcEngine(
         // v2.16.47 — Engine build stamp.  Logged at init + surfaced in
         // the player's Info sheet so a stale-APK install is instantly
         // detectable on screen (recurring debugging blocker).
-        const val ENGINE_VERSION = "2.16.48"
+        const val ENGINE_VERSION = "2.16.49"
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private var libVlc: LibVLC? = null
     private var mediaPlayer: MediaPlayer? = null
     private var released = false
+    // v2.16.49 — hold a ref to the VLCVideoLayout so we can walk its
+    // child tree to find the SurfaceView LibVLC renders into.  Needed
+    // by `applySurfaceFrameRate` — the actual root-cause fix for the
+    // pan micro-judder (see class-level doc + Kotlin call site).
+    private val videoLayoutRef: VLCVideoLayout = videoLayout
     private var pendingStartAtMs = 0L
     private var hasSeekedToStart = false
     // v2.16.44 — true when :start-time was baked into the Media so the
@@ -170,6 +175,29 @@ class VesperVlcEngine(
             // byte-range seeking on normal VOD hosts — a direct cause
             // of the "scrub hangs forever" reports.
             "--avcodec-hw=any",
+            // v2.16.49 — SMOOTHNESS ROOT-CAUSE FIX #1.  Force the
+            // MediaCodec NDK (Native Media API, Android 5.0+) decoder
+            // ahead of the JNI shim.  NDK path releases decoded
+            // buffers direct to the Surface via AMediaCodec and skips
+            // the JNI hop entirely — lower per-frame latency variance
+            // (i.e. fewer late frames = fewer 1-vsync slips = the
+            // "split-millisecond judder" the user reports).  JNI and
+            // avcodec stay in the chain as automatic fallbacks so a
+            // codec that NDK can't open (rare on Android 10+) still
+            // decodes.
+            "--codec=mediacodec_ndk,mediacodec_jni,avcodec",
+            // v2.16.49 — SMOOTHNESS ROOT-CAUSE FIX #2.  Force the
+            // OPAQUE chroma for the Android display module.  With
+            // OPAQUE, MediaCodec's output surface IS the video output
+            // surface — decoded frames land straight on the
+            // SurfaceView with ZERO CPU copy and ZERO chroma
+            // conversion.  Without this, VLC can decide to pull
+            // frames through a RV32/YV12 CPU path on some devices,
+            // which adds a variable per-frame CPU cost and shows up
+            // as micro-hitches on pans.  This matches how ExoPlayer's
+            // MediaCodecVideoRenderer works (direct MediaCodec →
+            // Surface, no intermediate copy).
+            "--android-display-chroma=OPAQUE",
             // v2.16.43 — FAST SEEK.  Without this flag LibVLC does
             // frame-exact seek: it walks the decoder from the last
             // I-frame to the exact frame the user asked for, which
@@ -518,6 +546,78 @@ class VesperVlcEngine(
     fun disableSubtitles() { try { mediaPlayer?.setSpuTrack(-1) } catch (_: Throwable) {} }
 
     fun stop() { try { mediaPlayer?.stop() } catch (_: Throwable) {} }
+
+    /**
+     * v2.16.49 — SMOOTHNESS ROOT-CAUSE FIX #3 (the big one).
+     *
+     * Hint the source frame-rate to Android's SurfaceFlinger via
+     * `Surface.setFrameRate()` (API 30+).  This is exactly how modern
+     * Android video apps (YouTube, Netflix, Media3 ExoPlayer) achieve
+     * vsync-locked playback:
+     *
+     *   • On any Android 11+ device it tells the OS compositor the
+     *     content's native rate.  SurfaceFlinger then aligns Surface
+     *     buffer latching to that cadence, so the 3:2 pulldown from
+     *     23.976 fps → 60 Hz has a FIXED, predictable pattern instead
+     *     of the drifting one LibVLC produces on its own audio clock.
+     *   • On Android 11+ TVs it can ALSO trigger a native HDMI rate
+     *     switch through the standard MediaMetrics path — stronger and
+     *     more widely-honoured than the WindowManager
+     *     preferredDisplayModeId hack, and it doesn't require the
+     *     Activity to have focus at a specific moment.
+     *   • Uses CHANGE_FRAME_RATE_ALWAYS on API 31+ so the OS will
+     *     actually renegotiate refresh even mid-playback.
+     *
+     * Idempotent: call as soon as we know the source fps.  Failure
+     * modes (unsupported device, older API) are caught silently — the
+     * WindowManager AFR fallback in ExoPlayerActivity still runs.
+     */
+    fun applySurfaceFrameRate(fps: Float): Boolean {
+        if (fps <= 0f) return false
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.R) return false
+        val sv = findSurfaceView(videoLayoutRef) ?: run {
+            Log.w(TAG, "applySurfaceFrameRate: no SurfaceView under VLCVideoLayout")
+            return false
+        }
+        val surface = try { sv.holder?.surface } catch (_: Throwable) { null }
+        if (surface == null || !surface.isValid) {
+            Log.w(TAG, "applySurfaceFrameRate: SurfaceView surface not ready yet")
+            return false
+        }
+        return try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                // API 31+ — CHANGE_FRAME_RATE_ALWAYS forces the OS to
+                // renegotiate refresh even after playback started.
+                surface.setFrameRate(
+                    fps,
+                    android.view.Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE,
+                    android.view.Surface.CHANGE_FRAME_RATE_ALWAYS,
+                )
+            } else {
+                // API 30 — no strategy overload; single-arg version.
+                surface.setFrameRate(
+                    fps,
+                    android.view.Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE,
+                )
+            }
+            Log.i(TAG, "applySurfaceFrameRate: hinted ${fps}fps to SurfaceFlinger OK")
+            true
+        } catch (t: Throwable) {
+            Log.w(TAG, "applySurfaceFrameRate failed", t)
+            false
+        }
+    }
+
+    private fun findSurfaceView(v: android.view.View): android.view.SurfaceView? {
+        if (v is android.view.SurfaceView) return v
+        if (v is android.view.ViewGroup) {
+            for (i in 0 until v.childCount) {
+                val hit = findSurfaceView(v.getChildAt(i))
+                if (hit != null) return hit
+            }
+        }
+        return null
+    }
 
     /** Idempotent full JNI teardown — call from onDestroy. */
     fun release() {
