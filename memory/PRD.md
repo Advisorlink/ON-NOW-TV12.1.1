@@ -11101,3 +11101,28 @@ Root cause: live-stream anti-latency hacks polluting the VOD path.
   on-screen First frame stat + `adb logcat -s VesperVlcEngine:V`
   OPEN trail to see exactly which phase eats the 20s (connect/probe
   vs cache fill). Judder verdict also only valid on v2.16.47+.
+
+### v2.16.48 — AUTO FRAME RATE (AFR): the real judder fix (June 2026)
+> User: judder persists on new build (Info sheet shows "LibVLC").
+> Root truth: LibVLC 3.x releases MediaCodec buffers on its own
+> audio-master clock with NO vsync alignment (Exo schedules every
+> frame onto vsync via VideoFrameReleaseHelper). At 60Hz a 23.976fps
+> movie gets an IRREGULAR 2/3/2/4 pulldown = pan judder. Option
+> tweaks can't fix that; display-rate matching can.
+1. VesperVlcEngine.videoFrameRate(): reads native fps from
+   IMedia.VideoTrack frameRateNum/Den (verified in 3.6.0 AAR).
+   ENGINE_VERSION bumped to 2.16.48. VOD adds :audio-time-stretch.
+2. ExoPlayerActivity.maybeMatchDisplayToVideoFps(): on first VLC
+   Playing (3 retries @1.5s if fps unparsed), finds a supported
+   display mode at same resolution whose refresh is an exact
+   multiple of fps (lowest wins → 23.976/24Hz for movies) and sets
+   window.attributes.preferredDisplayModeId. Per-window: system
+   reverts on player exit. SDK>=23 guard. Logs "AFR: switching…".
+3. Info sheet gains "Cadence: 23.98 fps · 24.00 Hz" stat. If the
+   ratio is non-integer after AFR (e.g. 23.98 @ 60), the box exposes
+   no matching mode — judder unavoidable on VLC path; would need
+   HDMI mode whitelist in box settings.
+- KNOWN UX: mode switch = brief black screen once at playback start
+  (same as Netflix/Kodi AFR).
+- Verified: brace check ×3, 14/14 assertions. NEEDS USER CI REBUILD;
+  Info sheet must read "LibVLC v2.16.48" to be the real build.

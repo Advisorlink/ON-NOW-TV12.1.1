@@ -46,7 +46,7 @@ class VesperVlcEngine(
         // v2.16.47 — Engine build stamp.  Logged at init + surfaced in
         // the player's Info sheet so a stale-APK install is instantly
         // detectable on screen (recurring debugging blocker).
-        const val ENGINE_VERSION = "2.16.47"
+        const val ENGINE_VERSION = "2.16.48"
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -90,6 +90,25 @@ class VesperVlcEngine(
     /** Milliseconds from setMedia() to the first Playing event of the
      *  current stream, or -1 while still opening. */
     fun timeToFirstFrameMs(): Long = firstFrameMs
+
+    /** Native frame rate of the current video track (0f if unknown /
+     *  not yet parsed).  Used by the activity's Auto-Frame-Rate
+     *  display-mode matcher (v2.16.48). */
+    fun videoFrameRate(): Float = try {
+        val m = mediaPlayer?.media
+        var fps = 0f
+        if (m != null) {
+            for (i in 0 until m.trackCount) {
+                val t = m.getTrack(i)
+                if (t is IMedia.VideoTrack && t.frameRateDen > 0 && t.frameRateNum > 0) {
+                    fps = t.frameRateNum.toFloat() / t.frameRateDen.toFloat()
+                    break
+                }
+            }
+            m.release()
+        }
+        fps
+    } catch (_: Throwable) { 0f }
 
     init {
         // ─── v2.16.41 — Buffer model mapped 1:1 onto buildExoEngine() ───
@@ -299,6 +318,11 @@ class VesperVlcEngine(
                 // master-clock resync + audio stretch) is exactly what
                 // makes desktop VLC file playback butter-smooth.
                 media.addOption(":network-timeout=600")
+                // v2.16.48 — EXPLICITLY enable audio time-stretch on
+                // VOD.  With stretch active, AV-clock corrections are
+                // absorbed as inaudible tempo micro-adjustments instead
+                // of hard sample drops that jolt the video clock.
+                media.addOption(":audio-time-stretch")
                 // Per-media parity with the global --input-fast-seek
                 // arg in case a future libVLC binding decides the
                 // global flag no longer applies to on-the-fly opens.

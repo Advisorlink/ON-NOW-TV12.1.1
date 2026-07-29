@@ -173,6 +173,10 @@ fun PlayerOverlay(
     // v2.16.47 — measured setMedia→first-frame ms, shown in the Info
     // sheet so slow opens can be diagnosed on screen without adb.
     vlcFirstFrameMs: StateFlow<Long> = MutableStateFlow(-1L).asStateFlow(),
+    // v2.16.48 — AFR diagnostics: native video fps + active display Hz
+    // shown as a "Cadence" stat in the Info sheet.
+    vlcVideoFps: StateFlow<Float> = MutableStateFlow(0f).asStateFlow(),
+    vlcDisplayHz: StateFlow<Float> = MutableStateFlow(0f).asStateFlow(),
     userActivity: StateFlow<Long>,
     // v2.7.60 — Native Watch Together voice dock.  Null when not in a
     // party (or when party_code wasn't supplied via intent extras).
@@ -222,6 +226,8 @@ fun PlayerOverlay(
     val bufferedPercentValue by collectAsStateSafe(bufferedPercent, 0)
     val bitrate by collectAsStateSafe(bitrateKbps, 0L)
     val firstFrameMsValue by collectAsStateSafe(vlcFirstFrameMs, -1L)
+    val videoFpsValue by collectAsStateSafe(vlcVideoFps, 0f)
+    val displayHzValue by collectAsStateSafe(vlcDisplayHz, 0f)
     val loading by collectAsStateSafe(isLoading, true)
     val error by collectAsStateSafe(errorMessage, null)
     val audios by collectAsStateSafe(audioTracks, emptyList())
@@ -380,6 +386,8 @@ fun PlayerOverlay(
                     bitrateKbps = bitrate,
                     isVlc = isVlcEngine,
                     firstFrameMs = firstFrameMsValue,
+                    videoFps = videoFpsValue,
+                    displayHz = displayHzValue,
                     onDismiss = { sheet = SheetKind.None; bump() },
                 )
                 SheetKind.None -> Unit
@@ -1446,6 +1454,8 @@ private fun BufferingInfoSheet(
     bitrateKbps: Long,
     isVlc: Boolean = false,
     firstFrameMs: Long = -1L,
+    videoFps: Float = 0f,
+    displayHz: Float = 0f,
     onDismiss: () -> Unit,
 ) {
     val dismissFocus = remember { FocusRequester() }
@@ -1570,6 +1580,16 @@ private fun BufferingInfoSheet(
                         BufferingStat(
                             label = "First frame",
                             value = "%.1f s".format(firstFrameMs / 1000f),
+                        )
+                    }
+                    // Cadence: native video fps vs active display Hz.
+                    // A non-integer ratio (e.g. 23.98 fps @ 60 Hz) means
+                    // the box has no matching display mode and pulldown
+                    // judder is physically unavoidable on this engine.
+                    if (videoFps > 0f) {
+                        BufferingStat(
+                            label = "Cadence",
+                            value = "%.2f fps · %.2f Hz".format(videoFps, displayHz),
                         )
                     }
                 } else {

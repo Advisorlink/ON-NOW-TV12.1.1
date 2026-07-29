@@ -423,6 +423,9 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
     private val bitrateKbpsFlow = MutableStateFlow(0L)
     // v2.16.47 — measured setMedia→first-frame ms (VLC engine only).
     private val vlcFirstFrameMsFlow = MutableStateFlow(-1L)
+    // v2.16.48 — AFR diagnostics: native video fps + active display Hz.
+    private val vlcVideoFpsFlow = MutableStateFlow(0f)
+    private val vlcDisplayHzFlow = MutableStateFlow(0f)
     private val isLoadingFlow = MutableStateFlow(true)
     private val errorMessageFlow = MutableStateFlow<String?>(null)
     private val audioTracksFlow = MutableStateFlow<List<TrackOption>>(emptyList())
@@ -1185,6 +1188,8 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
                     // readout when LibVLC is the engine.
                     isVlcEngine     = useVlc,
                     vlcFirstFrameMs = vlcFirstFrameMsFlow.asStateFlow(),
+                    vlcVideoFps     = vlcVideoFpsFlow.asStateFlow(),
+                    vlcDisplayHz    = vlcDisplayHzFlow.asStateFlow(),
                     // v2.7.54 — pump activity from Activity.dispatchKeyEvent
                     userActivity    = userActivityFlow.asStateFlow(),
                     // v2.7.60 — native Watch Together voice dock
@@ -1961,6 +1966,78 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
             errorMessageFlow.value = null
             if (isSwappingEpisodeFlow.value) isSwappingEpisodeFlow.value = false
             refreshVlcTracks()
+            // v2.16.48 — Auto Frame Rate: lock the display to an exact
+            // multiple of the video's native fps (see function docs).
+            maybeMatchDisplayToVideoFps()
+        }
+    }
+
+    /**
+     * v2.16.48 — AUTO FRAME RATE (AFR) matching, the actual fix for
+     * LibVLC's pan judder.
+     *
+     * ExoPlayer schedules every frame onto the display's vsync
+     * (VideoFrameReleaseHelper), so its 3:2 pulldown at 60 Hz has a
+     * FIXED cadence — perceived as smooth.  LibVLC 3.x releases
+     * MediaCodec buffers on its own audio-master clock with no vsync
+     * alignment, so at 60 Hz a 23.976 fps movie gets an IRREGULAR
+     * 2/3/2/4… pulldown — the split-millisecond judder on pans the
+     * user reported.  Switching the display to the content's native
+     * rate (23.976/24 Hz — what Netflix, Kodi and every AFR-capable
+     * player does) gives every frame exactly one vsync, making the
+     * cadence perfect regardless of VLC's release timing.
+     *
+     * The preferred mode is per-window: Android reverts automatically
+     * when the player activity finishes.  Retries a few times because
+     * the fps may not be parsed at the very first Playing event.
+     */
+    private var afrLastFps = 0f
+    private fun maybeMatchDisplayToVideoFps(attempt: Int = 0) {
+        if (!useVlc) return
+        if (android.os.Build.VERSION.SDK_INT < 23) return
+        val fps = vlcEngine?.videoFrameRate() ?: 0f
+        if (fps < 10f || fps > 121f) {
+            if (attempt < 3) {
+                lifecycleScope.launch {
+                    delay(1_500)
+                    maybeMatchDisplayToVideoFps(attempt + 1)
+                }
+            }
+            return
+        }
+        vlcVideoFpsFlow.value = fps
+        if (kotlin.math.abs(fps - afrLastFps) < 0.01f) return
+        afrLastFps = fps
+        try {
+            @Suppress("DEPRECATION")
+            val disp = window.decorView.display ?: windowManager.defaultDisplay ?: return
+            val cur = disp.mode
+            vlcDisplayHzFlow.value = cur.refreshRate
+            val curRatio = cur.refreshRate / fps
+            if (kotlin.math.abs(curRatio - kotlin.math.round(curRatio)) < 0.02f) {
+                Log.i(TAG, "AFR: ${cur.refreshRate}Hz already an exact multiple of ${fps}fps — no switch")
+                return
+            }
+            var best: android.view.Display.Mode? = null
+            for (m in disp.supportedModes) {
+                if (m.physicalWidth != cur.physicalWidth || m.physicalHeight != cur.physicalHeight) continue
+                val ratio = m.refreshRate / fps
+                val mult = kotlin.math.round(ratio)
+                if (mult < 1f || kotlin.math.abs(ratio - mult) > 0.02f) continue
+                if (best == null || m.refreshRate < best!!.refreshRate) best = m
+            }
+            val target = best
+            if (target != null && target.modeId != cur.modeId) {
+                Log.i(TAG, "AFR: switching display ${cur.refreshRate}Hz → ${target.refreshRate}Hz for ${fps}fps video")
+                val lp = window.attributes
+                lp.preferredDisplayModeId = target.modeId
+                window.attributes = lp
+                vlcDisplayHzFlow.value = target.refreshRate
+            } else {
+                Log.i(TAG, "AFR: no ${fps}fps-multiple mode at ${cur.physicalWidth}x${cur.physicalHeight} — staying at ${cur.refreshRate}Hz")
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "AFR failed", t)
         }
     }
 
