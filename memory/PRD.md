@@ -11180,3 +11180,15 @@ be a much larger, unrelated change to land under time pressure.
 - Bump AGP 8.4.0 → 8.7.x + compileSdk 34 → 35 in a dedicated pass so
   we can adopt the newest Media3 / Jellyfin releases.  Not urgent —
   1.3.1+2 covers the same codecs (DTS / TrueHD / EAC3-JOC / Vorbis).
+
+## v2.16.42 build fix #3 — MPV needs minSdk 26 (June 2026)
+
+> CI: `Manifest merger failed with multiple errors ... or increase this
+> project's minSdk version to at least 26, or use tools:overrideLibrary
+> ="dev.jdtech.mpv" to force usage`
+
+Fix: bumped Vesper's `minSdk` 21 → 26 (Android 8.0 Oreo, 2017).  Every
+deployed Android TV box (HK1 / RK / S905 / NVIDIA Shield / etc.)
+ships with Android 9+ (API 28+), so zero real-world coverage loss.
+Live TV, Tunes, Launcher, Kids, FTA apps are unchanged (they don't
+ship MPV).

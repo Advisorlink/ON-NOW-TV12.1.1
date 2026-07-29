@@ -16,7 +16,11 @@ android {
         // Android 7+ these days.  The previous floor of 19 (KitKat)
         // was set when those boxes were brand new in 2014, but the
         // hardware has long since cycled.
-        minSdk = 21
+        // v2.16.42 — Bumped 21 → 26 (Android 8.0 Oreo, 2017) because
+        // libmpv (dev.jdtech.mpv:libmpv:0.5.1) requires minSdk 26.
+        // Same real-world story — every Android TV box on the market
+        // ships Android 9+, so this loses zero deployed devices.
+        minSdk = 26
         targetSdk = 34
         // versionCode + versionName are normally driven by CI from
         // CHANGELOG.md (see .github/workflows/build-apk.yml — the
