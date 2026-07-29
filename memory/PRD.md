@@ -11061,3 +11061,21 @@ Root causes found (v2.16.43 fixed the WRONG knob):
 - Verified: kt_brace_check OK (engine/exo/overlay), eslint clean,
   webpack compiled, home smoke screenshot OK. Kotlin bits need USER
   CI REBUILD. kt_brace_check.py now also at /app/memory/tools/.
+
+### v2.16.46 — LibVLC VOD micro-judder fix (June 2026)
+> User: "split-millisecond judder on camera pans in LibVLC; ExoPlayer
+> is perfectly smooth. Needs to match. Dig deep."
+Root cause: live-stream anti-latency hacks polluting the VOD path.
+1. Removed GLOBAL --no-drop-late-frames / --no-skip-frames instance
+   args. They forced VLC to DISPLAY late frames, shifting cadence of
+   every following frame = periodic pan judder. Exo drops late frames
+   and stays vsync-locked; VLC defaults (drop+skip enabled) match.
+   Live profile re-adds :drop-late-frames/:skip-frames per-media so
+   zapping unaffected.
+2. Removed :clock-jitter=0, :clock-synchro=0, :no-audio-time-stretch
+   from VOD per-media options (kept in LIVE profile). They disable
+   VLC's clock drift compensation + audio stretch; on VOD tiny AV
+   corrections became hard video nudges. Web research confirms these
+   are RTSP/live-only tweaks, not for file/VOD playback.
+- Verified: kt_brace_check OK; live block confirmed intact (grep).
+  NEEDS USER CI REBUILD to feel on box.

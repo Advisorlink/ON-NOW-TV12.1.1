@@ -98,8 +98,17 @@ class VesperVlcEngine(
         //    shared at the ExoPlayerActivity level, fed by onVlcPlaying /
         //    onVlcError — identical hop behaviour on both engines.
         val args = arrayListOf(
-            "--no-drop-late-frames",
-            "--no-skip-frames",
+            // v2.16.46 — SMOOTHNESS FIX.  Removed the global
+            // --no-drop-late-frames / --no-skip-frames flags.  They
+            // forced VLC to DISPLAY every late frame, shifting the
+            // presentation cadence of every frame after it — visible
+            // as a split-millisecond judder on camera pans "every now
+            // and then".  ExoPlayer (which the user reports as
+            // perfectly smooth on the same box) silently drops a late
+            // frame and stays vsync-locked; VLC's defaults
+            // (drop-late-frames + skip-frames ENABLED) do the same.
+            // The live profile re-adds :drop-late-frames/:skip-frames
+            // per-media so live zapping is unaffected.
             "--rtsp-tcp",
             "--network-caching=6000",           // instance default; VOD/live override per-media
             "--prefetch-buffer-size=65536",     // KiB → 64 MiB ≈ Exo 50 s target
@@ -247,9 +256,18 @@ class VesperVlcEngine(
                     media.addOption(":start-time=${startAtMs / 1000L}")
                     resumeViaStartTime = true
                 }
-                media.addOption(":clock-jitter=0")
-                media.addOption(":clock-synchro=0")
-                media.addOption(":no-audio-time-stretch")
+                // v2.16.46 — SMOOTHNESS FIX.  Removed :clock-jitter=0,
+                // :clock-synchro=0 and :no-audio-time-stretch from the
+                // VOD profile.  All three were copied verbatim from the
+                // live fast-zap profile where they belong (RTSP/IPTV
+                // anti-latency hacks).  On VOD they DISABLE VLC's clock
+                // drift compensation and audio time-stretching, so tiny
+                // AV-clock corrections land as hard video nudges instead
+                // of inaudible audio stretch — the "slight judder on
+                // camera pans" the user compared against ExoPlayer.
+                // VLC's default timing machinery (jitter compensation +
+                // master-clock resync + audio stretch) is exactly what
+                // makes desktop VLC file playback butter-smooth.
                 media.addOption(":network-timeout=600")
                 // Per-media parity with the global --input-fast-seek
                 // arg in case a future libVLC binding decides the
