@@ -11368,3 +11368,41 @@ in the legacy XML overlay.
 - `kotlinc 1.9.23` against the real MPV/VLC/Media3/Android jars —
   ZERO errors on all four engine files after this change.
 - Brace check clean on ExoPlayerActivity.kt and PlayerOverlay.kt.
+
+## v2.16.45 — ExoPlayer + FFmpeg default + CW back-nav + Swap Stream always visible (June 2026)
+
+> Operator: "ExoPlayer + FFmpeg is the one that works best.  Default
+> needs to be ExoPlus FFmpeg, no questions.  Swap Stream needs to be
+> visible even in Continue Watching.  Back from a Continue-Watching
+> playback needs to go to the movie details page, or for a TV show
+> the show detail page of the episode you're up to."
+
+### Changes
+1. `PlayerEngine.DEFAULT` = MPV → **EXO_FFMPEG**.  Reordered enum so
+   the cog picker shows ExoPlayer+FFmpeg first.  MainActivity
+   migration `force_exo_ffmpeg_engine_v2_16_45` force-writes the
+   pref on every launch until the key flips (upgrades boxes that
+   were previously on MPV or LibVLC).
+2. `hasStreams` gate in ControlDock: `streamList.size > 1` →
+   `streamList.isNotEmpty()`.  The swap-stream chip now renders any
+   time there's at least one alternate stream — including single-
+   stream CW resumes (previously the chip vanished the moment we
+   were down to one stream).
+3. `onBackFromPlayer()` helper in ExoPlayerActivity: when the launch
+   carried `EXTRA_CW_ID`, save a nav-to-details intent
+   (`SharedPreferences: onnowtv_back_to_details`) with cw_id + type,
+   then finish.  Wired to the D-pad BACK/ESC path AND the overlay
+   close callback.
+4. `MainActivity.consumeBackToDetailsIntent()` runs on onResume: reads
+   the SharedPreferences intent (30 s stale window), builds a hash
+   URL:
+   - series (id contains `:`): `#/title/series/{imdb}?focusSeason=
+     {s}&focusEpisode={e}`
+   - movie: `#/title/movie/{imdb}`
+   and evaluates `window.location.hash = '<hash>'` in the WebView.
+
+### Verified
+- Brace check clean on ExoPlayerActivity.kt, MainActivity.kt,
+  PlayerOverlay.kt, PlayerEngine.kt.
+- Trimmed accidentally-duplicated function body that had accumulated
+  in ExoPlayerActivity.kt during earlier iterations.

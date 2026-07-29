@@ -318,7 +318,7 @@ fun PlayerOverlay(
                 bufferedMs  = pos + bufAhead,
                 hasAudio    = audios.size > 1,
                 hasSubs     = subs.isNotEmpty(),
-                hasStreams  = streamList.size > 1,
+                hasStreams  = streamList.isNotEmpty(),
                 streamCount = streamList.size,
                 hasNextEp   = hasNext,
                 nextEpThumbnailUrl = nextEpThumb,

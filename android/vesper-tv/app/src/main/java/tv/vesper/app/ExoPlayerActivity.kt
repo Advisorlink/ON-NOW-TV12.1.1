@@ -1329,7 +1329,7 @@ class ExoPlayerActivity : ComponentActivity(),
                     // v2.16.42 — in-player engine picker (settings cog).
                     currentEngineToken = engine.token,
                     onPickEngine    = { tok -> onSettingsCog(tok) },
-                    onClose = { finish() },
+                    onClose = { onBackFromPlayer() },
                 )
                 // v2.7.74 — Native Live TV Guide overlay.  Sits on
                 // top of the PlayerOverlay (sibling Composable so
@@ -1943,7 +1943,7 @@ class ExoPlayerActivity : ComponentActivity(),
         // dead.
         return when (keyCode) {
             KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> {
-                finish(); true
+                onBackFromPlayer(); true
             }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                 if (pbIsPlaying()) pbPause() else pbPlay(); true

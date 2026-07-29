@@ -296,25 +296,25 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        /* v2.16.42 — MPV is the new MAIN engine (best pan-smoothness,
-           interpolation + display-resample).  Clears any older forced
-           value from the v2.7.86 / v2.16.40 migrations so the new
-           default takes effect; the user can still pick VLC /
-           ExoPlayer / ExoPlayer+FFmpeg from the in-player cog. */
+        /* v2.16.45 — Operator: "the ExoPlayer + FFmpeg is the one
+           that works the best.  Default needs to be ExoPlus FFmpeg,
+           no questions."  Migration force-writes it on every launch
+           until the key flips, replacing the earlier MPV default
+           from v2.16.42. */
         run {
             val mig = getSharedPreferences("onnowtv-migrations", MODE_PRIVATE)
-            val key = "force_mpv_engine_v2_16_42"
+            val key = "force_exo_ffmpeg_engine_v2_16_45"
             if (!mig.getBoolean(key, false)) {
-                PlayerEngine.write(this, PlayerEngine.MPV)
+                PlayerEngine.write(this, PlayerEngine.EXO_FFMPEG)
                 mig.edit().putBoolean(key, true).apply()
                 android.util.Log.i(
                     "VesperMain",
-                    "v2.16.42 migration: player engine → MPV (once)"
+                    "v2.16.45 migration: player engine → ExoPlayer + FFmpeg (once)"
                 )
             }
         }
 
-        /* v2.16.40 — One-time migration: LibVLC is the MAIN engine
+        /* v2.16.42 — One-time migration: LibVLC is the MAIN engine
            again — now embedded inside ExoPlayerActivity with the
            identical Compose overlay.  Clears the v2.7.86 forced
            `use_exoplayer_backend=true` so the new default (VLC)
@@ -741,6 +741,43 @@ class MainActivity : AppCompatActivity() {
         applyImmersiveMode()
         if (webViewReady) webView.onResume()
         consumeNextEpisodeIntent()
+        consumeBackToDetailsIntent()
+    }
+
+    /**
+     * v2.16.45 — When the player exits via BACK on a launch that
+     * originated from a Continue Watching row, ExoPlayerActivity
+     * drops a SharedPreferences intent describing the title.  This
+     * consumer reads it and hash-navigates the WebView to the
+     * matching details page (movie or series episode picker).  Same
+     * one-shot / 30-second-stale pattern as the next-episode intent.
+     */
+    private fun consumeBackToDetailsIntent() {
+        if (!webViewReady) return
+        val sp = getSharedPreferences("onnowtv_back_to_details", MODE_PRIVATE)
+        val ts = sp.getLong("ts", 0L)
+        if (ts == 0L) return
+        val cwId = sp.getString("cw_id", null)
+        val type = sp.getString("type", null).orEmpty()
+        sp.edit().clear().apply()
+        if (cwId.isNullOrBlank()) return
+        if (System.currentTimeMillis() - ts > 30_000L) return
+        // cwId is a Stremio-style id: "tt1234567" (movie) or
+        // "tt1234567:1:2" (series episode).  Route accordingly.
+        val hash = if (type == "series" || cwId.contains(":")) {
+            val parts = cwId.split(":")
+            val imdb = parts.getOrNull(0).orEmpty()
+            val s = parts.getOrNull(1)?.toIntOrNull() ?: 0
+            val e = parts.getOrNull(2)?.toIntOrNull() ?: 0
+            if (imdb.isBlank()) return
+            "#/title/series/${imdb}?focusSeason=${s}&focusEpisode=${e}"
+        } else {
+            "#/title/movie/${cwId}"
+        }
+        val js = "window.location.hash = '${hash}';"
+        webView.post {
+            try { webView.evaluateJavascript(js, null) } catch (_: Throwable) {}
+        }
     }
 
     /**

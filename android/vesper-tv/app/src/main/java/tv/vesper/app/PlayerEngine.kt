@@ -11,15 +11,15 @@ import android.content.Context
  * preference — best pan-smoothness / frame pacing).
  */
 enum class PlayerEngine(val token: String, val label: String) {
-    MPV("mpv", "MPV (recommended)"),
+    EXO_FFMPEG("exo_ffmpeg", "ExoPlayer + FFmpeg audio"),
+    MPV("mpv", "MPV"),
     VLC("vlc", "LibVLC"),
-    EXO("exo", "ExoPlayer"),
-    EXO_FFMPEG("exo_ffmpeg", "ExoPlayer + FFmpeg audio");
+    EXO("exo", "ExoPlayer");
 
     companion object {
         const val PREF_KEY = "player_engine_v2_16_42"
         const val PREFS_NAME = "vesper_player"
-        val DEFAULT = MPV
+        val DEFAULT = EXO_FFMPEG
 
         fun fromToken(tok: String?): PlayerEngine =
             values().firstOrNull { it.token == tok } ?: DEFAULT
