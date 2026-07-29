@@ -236,15 +236,19 @@ class ExoPlayerActivity : ComponentActivity(),
         PlayerEngine.VLC -> vlcEngine?.isPlaying() == true
         else -> ::player.isInitialized && player.isPlaying
     }
-    private fun pbPlay() = when (engine) {
-        PlayerEngine.MPV -> mpvEngine?.play() ?: Unit
-        PlayerEngine.VLC -> vlcEngine?.play() ?: Unit
-        else -> if (::player.isInitialized) player.play() else Unit
+    private fun pbPlay() {
+        when (engine) {
+            PlayerEngine.MPV -> mpvEngine?.play()
+            PlayerEngine.VLC -> vlcEngine?.play()
+            else -> if (::player.isInitialized) player.play()
+        }
     }
-    private fun pbPause() = when (engine) {
-        PlayerEngine.MPV -> mpvEngine?.pause() ?: Unit
-        PlayerEngine.VLC -> vlcEngine?.pause() ?: Unit
-        else -> if (::player.isInitialized) player.pause() else Unit
+    private fun pbPause() {
+        when (engine) {
+            PlayerEngine.MPV -> mpvEngine?.pause()
+            PlayerEngine.VLC -> vlcEngine?.pause()
+            else -> if (::player.isInitialized) player.pause()
+        }
     }
     private fun pbPositionMs(): Long = when (engine) {
         PlayerEngine.MPV -> mpvEngine?.positionMs() ?: 0L
@@ -1260,9 +1264,10 @@ class ExoPlayerActivity : ComponentActivity(),
                     partyRole       = partyRole,
                     onPlayPause = {
                         if (pbIsPlaying()) pbPause() else pbPlay()
-                        // VLC has no onIsPlayingChanged equivalent for
-                        // the pause() call itself — sync the flow here.
-                        if (useVlc) isPlayingFlow.value = pbIsPlaying()
+                        // VLC/MPV have no onIsPlayingChanged equivalent
+                        // for the pause() call itself — sync the flow
+                        // here so the icon glyph flips immediately.
+                        if (useVlc || useMpv) isPlayingFlow.value = pbIsPlaying()
                     },
                     onSeekBy = { deltaMs ->
                         pbSeekTo(pbPositionMs() + deltaMs)
@@ -1986,6 +1991,8 @@ class ExoPlayerActivity : ComponentActivity(),
             liveStreamId = ch.streamId
             if (useVlc) {
                 vlcEngine?.setMedia(ch.streamUrl, 0L, live = true)
+            } else if (useMpv) {
+                mpvEngine?.setMedia(ch.streamUrl, 0L, live = true)
             } else {
                 val item = MediaItem.fromUri(ch.streamUrl)
                 player.setMediaItem(item, /* resetPosition */ true)

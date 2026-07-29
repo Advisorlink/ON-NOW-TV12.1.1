@@ -6,7 +6,7 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import `dev`.jdtech.mpv.MPVLib
+import dev.jdtech.mpv.MPVLib
 import java.io.File
 
 /**
@@ -65,6 +65,13 @@ class VesperMpvEngine(
     init {
         ensureLibsLoaded()
         seedConfigDir()
+        // v2.16.42 — Defensive destroy-before-create.  MPVLib is a
+        // process singleton; if a previous engine instance didn't
+        // fully tear down (rapid engine switch, abrupt onDestroy),
+        // the old libmpv state can leak and the second `create()`
+        // segfaults on some devices.  Destroying an uninitialised
+        // core is a no-op.
+        try { MPVLib.destroy() } catch (_: Throwable) {}
         MPVLib.create(ctx.applicationContext)
         applyBaseOptions(interpolation)
         MPVLib.init()

@@ -11236,3 +11236,52 @@ libraries ship ABI-compatible libc++ runtimes so this is safe.
   matches a real signature on `dev.jdtech.mpv.MPVLib`.
 - Confirmed `androidx.media3.decoder.ffmpeg.FfmpegAudioRenderer` is
   present in `org.jellyfin.media3:media3-ffmpeg-decoder:1.3.1+2` AAR.
+
+## v2.16.42 build fix #6 — Comprehensive Vesper compile audit (June 2026)
+
+> Operator: "FIX IT ALL DIG DEEP AND FIND ALL THE ISSUES"
+
+Downloaded actual AARs / sources jars from Maven Central and verified
+every 3rd-party API call against the real class definitions, not
+memory / web speculation:
+- `dev.jdtech.mpv:libmpv:0.5.1` sources → `dev.jdtech.mpv.MPVLib`
+  package + flat `MPV_FORMAT_*` / `MPV_EVENT_*` public statics + 6-
+  method `EventObserver` (no `efEvent`).
+- `org.videolan.android:libvlc-all:3.6.0` sources → `IMedia.Track.
+  Type.Video=1`, `getTrackCount()`/`getTrack(int)`, `TrackDescription`
+  public fields id/name, MediaPlayer getAudioTracks / getSpuTracks /
+  setAudioTrack(int) / setSpuTrack(int).
+- `org.jellyfin.media3:media3-ffmpeg-decoder:1.3.1+2` AAR classes.jar
+  → `androidx.media3.decoder.ffmpeg.FfmpegAudioRenderer(Handler,
+  AudioRendererEventListener, AudioSink)`.
+
+### Fixes rolled up in this pass
+1. Corrected MPV package import (`is.xyz.mpv` → `dev.jdtech.mpv`).
+2. Corrected MPV format/event constants to flat static access.
+3. Removed non-existent `efEvent()` override from EventObserver.
+4. Added missing `onVlcContentFps` default method to
+   VesperVlcEngine.Listener (an earlier search_replace had silently
+   failed to land it).
+5. Added missing MPV branch to `tuneToLiveChannel`.
+6. Made `onPlayPause` sync `isPlayingFlow` for MPV as well as VLC.
+7. Converted `pbPlay()`/`pbPause()` from `when {...} ?: Unit` expression
+   bodies to statement bodies — same behaviour, no Kotlin
+   "expression-body-of-Unit" warnings that could escalate to errors
+   under strict CI.
+8. Defensive `MPVLib.destroy()` before every `MPVLib.create()` to
+   handle a rapid engine-switch race where the previous singleton
+   state hadn't been torn down.
+
+### Verification
+- Every Vesper .kt file passes brace/paren check.
+- Every MPVLib call in VesperMpvEngine maps 1:1 to a real signature
+  in the downloaded sources.jar.
+- Every VLC call in VesperVlcEngine maps 1:1 to a real signature in
+  the downloaded libvlc-all sources.
+- FfmpegAudioRenderer constructor arg order matches Google's
+  documented usage.
+- All 4 engines covered in EVERY playback touchpoint
+  (buildUi, buildExoEngine, setMedia, tuneToLiveChannel,
+  switchStream, jumpToPrimedNextEpisode, position polling, track
+  refresh, track select, lazy-subs, error fallback cascade, dock
+  onPlayPause sync, onDestroy release).
