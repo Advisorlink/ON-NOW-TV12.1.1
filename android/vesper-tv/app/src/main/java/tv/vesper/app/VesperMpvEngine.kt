@@ -62,6 +62,72 @@ class VesperMpvEngine(
     private var pendingSubUrl = ""
     private var fpsFired = false
 
+    // Declared BEFORE the init block so `MPVLib.addObserver(mpvObserver)`
+    // and `holder.addCallback(surfaceCallback)` in init don't trip the
+    // "variable must be initialized" error.
+    private val surfaceCallback = object : SurfaceHolder.Callback {
+        override fun surfaceCreated(holder: SurfaceHolder) {
+            try {
+                MPVLib.attachSurface(holder.surface)
+                MPVLib.setPropertyString("vid", "auto")
+                val url = pendingUrl
+                if (url != null) {
+                    loadInternal(url, pendingStartAtMs, pendingSubUrl)
+                    pendingUrl = null
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "attachSurface failed", t)
+                listener.onMpvError()
+            }
+        }
+
+        override fun surfaceChanged(
+            holder: SurfaceHolder, format: Int, width: Int, height: Int,
+        ) { /* no-op — MPV auto-detects size */ }
+
+        override fun surfaceDestroyed(holder: SurfaceHolder) {
+            try {
+                MPVLib.setPropertyString("vid", "no")
+                MPVLib.detachSurface()
+            } catch (t: Throwable) {
+                Log.w(TAG, "detachSurface failed", t)
+            }
+        }
+    }
+
+    private val mpvObserver = object : MPVLib.EventObserver {
+        override fun eventProperty(property: String) { /* strings only */ }
+        override fun eventProperty(property: String, value: Long) { /* ints */ }
+        override fun eventProperty(property: String, value: Boolean) {
+            handler.post {
+                when (property) {
+                    "pause" -> {
+                        if (value) listener.onMpvPaused() else listener.onMpvPlaying()
+                    }
+                    "paused-for-cache" -> listener.onMpvBuffering(value)
+                    "eof-reached" -> if (value) listener.onMpvEnded()
+                }
+            }
+        }
+        override fun eventProperty(property: String, value: String) { /* strings */ }
+        override fun eventProperty(property: String, value: Double) {
+            if (property == "estimated-vf-fps" && !fpsFired && value > 0.5) {
+                fpsFired = true
+                handler.post { listener.onMpvContentFps(value.toFloat()) }
+            }
+        }
+        override fun event(eventId: Int) {
+            when (eventId) {
+                MPVLib.MPV_EVENT_PLAYBACK_RESTART -> handler.post {
+                    listener.onMpvBuffering(false)
+                    listener.onMpvPlaying()
+                }
+                MPVLib.MPV_EVENT_END_FILE -> { /* eof-reached distinguishes */ }
+                MPVLib.MPV_EVENT_SHUTDOWN -> { /* release path */ }
+            }
+        }
+    }
+
     init {
         ensureLibsLoaded()
         seedConfigDir()
@@ -161,69 +227,6 @@ class VesperMpvEngine(
             MPVLib.setOptionString("framedrop", "no")
         } catch (t: Throwable) {
             Log.w(TAG, "applyBaseOptions failed", t)
-        }
-    }
-
-    private val surfaceCallback = object : SurfaceHolder.Callback {
-        override fun surfaceCreated(holder: SurfaceHolder) {
-            try {
-                MPVLib.attachSurface(holder.surface)
-                MPVLib.setPropertyString("vid", "auto")
-                val url = pendingUrl
-                if (url != null) {
-                    loadInternal(url, pendingStartAtMs, pendingSubUrl)
-                    pendingUrl = null
-                }
-            } catch (t: Throwable) {
-                Log.w(TAG, "attachSurface failed", t)
-                listener.onMpvError()
-            }
-        }
-
-        override fun surfaceChanged(
-            holder: SurfaceHolder, format: Int, width: Int, height: Int,
-        ) { /* no-op — MPV auto-detects size */ }
-
-        override fun surfaceDestroyed(holder: SurfaceHolder) {
-            try {
-                MPVLib.setPropertyString("vid", "no")
-                MPVLib.detachSurface()
-            } catch (t: Throwable) {
-                Log.w(TAG, "detachSurface failed", t)
-            }
-        }
-    }
-
-    private val mpvObserver = object : MPVLib.EventObserver {
-        override fun eventProperty(property: String) { /* strings only */ }
-        override fun eventProperty(property: String, value: Long) { /* ints */ }
-        override fun eventProperty(property: String, value: Boolean) {
-            handler.post {
-                when (property) {
-                    "pause" -> {
-                        if (value) listener.onMpvPaused() else listener.onMpvPlaying()
-                    }
-                    "paused-for-cache" -> listener.onMpvBuffering(value)
-                    "eof-reached" -> if (value) listener.onMpvEnded()
-                }
-            }
-        }
-        override fun eventProperty(property: String, value: String) { /* strings */ }
-        override fun eventProperty(property: String, value: Double) {
-            if (property == "estimated-vf-fps" && !fpsFired && value > 0.5) {
-                fpsFired = true
-                handler.post { listener.onMpvContentFps(value.toFloat()) }
-            }
-        }
-        override fun event(eventId: Int) {
-            when (eventId) {
-                MPVLib.MPV_EVENT_PLAYBACK_RESTART -> handler.post {
-                    listener.onMpvBuffering(false)
-                    listener.onMpvPlaying()
-                }
-                MPVLib.MPV_EVENT_END_FILE -> { /* eof-reached distinguishes */ }
-                MPVLib.MPV_EVENT_SHUTDOWN -> { /* release path */ }
-            }
         }
     }
 

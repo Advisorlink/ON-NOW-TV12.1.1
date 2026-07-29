@@ -11285,3 +11285,30 @@ memory / web speculation:
   switchStream, jumpToPrimedNextEpisode, position polling, track
   refresh, track select, lazy-subs, error fallback cascade, dock
   onPlayPause sync, onDestroy release).
+
+## v2.16.42 build fix #7 — Kotlin init-order bug (June 2026)
+
+> CI Kotlin compile error found and fixed by **actually running kotlinc
+> 1.9.23 locally against the downloaded MPV + VLC + Android SDK jars**.
+
+### Real error
+`VesperMpvEngine.kt:79:28: error: variable 'mpvObserver' must be initialized`
+
+Cause: my `init { }` block called `MPVLib.addObserver(mpvObserver)` and
+`holder.addCallback(surfaceCallback)` — but both `val mpvObserver` and
+`val surfaceCallback` were declared BELOW the init block.  Kotlin
+requires forward-referenced properties to be initialized before use.
+
+### Fix
+Moved both anonymous-object `val` declarations ABOVE the init block.
+Init now reads them cleanly.
+
+### Verified locally
+- Downloaded `kotlin-compiler-1.9.23.zip` from JetBrains, plus real
+  AARs for MPV (`dev.jdtech.mpv:libmpv:0.5.1`), libVLC
+  (`org.videolan.android:libvlc-all:3.6.0`), Media3 1.4.1, Jellyfin
+  FFmpeg decoder 1.3.1+2, activity 1.9.2, lifecycle 2.8.6, and the
+  android-34 SDK jar.
+- `kotlinc -cp "<all jars>"` on the 4 engine files:
+  `PlayerEngine.kt`, `VesperMpvEngine.kt`, `VesperVlcEngine.kt`,
+  `VesperExoFfmpegRenderersFactory.kt` → ZERO errors, zero warnings.
