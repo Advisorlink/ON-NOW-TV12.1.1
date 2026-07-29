@@ -657,10 +657,23 @@ class ExoPlayerActivity : ComponentActivity(),
         try {
             initExoPlayerActivity(savedInstanceState)
         } catch (t: Throwable) {
-            Log.e(TAG, "ExoPlayer init failed — falling back to LibVLC", t)
+            // v2.16.44 — CRITICAL FIX: init failure (usually MPV JNI
+            // load / init) MUST NOT fall through to the legacy
+            // VlcPlayerActivity — that's the OLD XML overlay we
+            // deliberately abandoned.  Instead, retry THIS activity
+            // with the engine forced to VLC (proven, safe) so the
+            // user still gets the modern Compose overlay.
+            Log.e(TAG, "ExoPlayer init failed — relaunching with VLC engine", t)
             try {
-                val fallback = Intent(this, VlcPlayerActivity::class.java)
-                fallback.putExtras(intent)
+                val comingFrom = intent.getStringExtra(EXTRA_FORCE_ENGINE)
+                val nextEngine = when (comingFrom) {
+                    PlayerEngine.MPV.token -> PlayerEngine.VLC.token
+                    PlayerEngine.VLC.token -> PlayerEngine.EXO.token
+                    else -> PlayerEngine.VLC.token
+                }
+                val fallback = Intent(intent)
+                fallback.setClass(this, ExoPlayerActivity::class.java)
+                fallback.putExtra(EXTRA_FORCE_ENGINE, nextEngine)
                 fallback.flags = (
                     Intent.FLAG_ACTIVITY_NO_ANIMATION
                             or Intent.FLAG_ACTIVITY_NO_HISTORY
@@ -1188,8 +1201,31 @@ class ExoPlayerActivity : ComponentActivity(),
                     isFocusableInTouchMode = false
                     descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
                 }
-                mpvEngine = VesperMpvEngine(this, container, this)
-                container
+                // v2.16.44 — Any MPV construction failure (JNI load,
+                // create/init, config seed) MUST NOT propagate — the
+                // outer initExoPlayerActivity catch would otherwise
+                // dump us into the legacy VlcPlayerActivity.  Instead
+                // silently fall back to VLC engine, in the same
+                // activity, with the same Compose overlay.
+                try {
+                    mpvEngine = VesperMpvEngine(this, container, this)
+                    container
+                } catch (t: Throwable) {
+                    Log.w(TAG, "MPV engine construction failed — falling back to VLC engine", t)
+                    engine = PlayerEngine.VLC
+                    org.videolan.libvlc.util.VLCVideoLayout(this).apply {
+                        setBackgroundColor(0xFF000000.toInt())
+                        layoutParams = FrameLayout.LayoutParams(
+                            FrameLayout.LayoutParams.MATCH_PARENT,
+                            FrameLayout.LayoutParams.MATCH_PARENT,
+                        )
+                        isFocusable = false
+                        isFocusableInTouchMode = false
+                        descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+                    }.also { vl ->
+                        vlcEngine = VesperVlcEngine(this, vl, this)
+                    }
+                }
             }
             PlayerEngine.VLC -> {
                 org.videolan.libvlc.util.VLCVideoLayout(this).apply {

@@ -11335,3 +11335,36 @@ Init now reads them cleanly.
   button on the dock immediately reveals which engine is drawing
   the picture.
 - Info-sheet call-site updated to pass `currentEngineToken` through.
+
+## v2.16.44 — CRITICAL: Legacy VlcPlayerActivity fallback removed (June 2026)
+
+> Operator seeing the OLD legacy XML overlay (VlcPlayerActivity) on the
+> deployed build, NOT the modern Compose overlay.  Confirmed: what the
+> AI video analyzer called "modern Compose UI" was actually the
+> VlcPlayerActivity XML dock — visually similar bottom-bar layout, but
+> a completely different code path.
+
+### Root cause
+`ExoPlayerActivity.onCreate` wrapped its entire init in a try/catch
+that, on ANY throwable during init, launched `VlcPlayerActivity` and
+finished self.  Something (very likely MPV JNI init on the first
+launch: `MPVLib.destroy()` on an uninitialised core, or a config-dir
+seed error, or a surface race) was throwing → every playback landed
+in the legacy XML overlay.
+
+### Fixes
+1. Removed the `→ VlcPlayerActivity` fallback in the outer catch.
+   Init failure now RELAUNCHES `ExoPlayerActivity` itself with
+   `EXTRA_FORCE_ENGINE` bumped to the next engine (MPV → VLC → EXO
+   cascade).  Operator gets the modern overlay on EVERY launch,
+   regardless of which underlying engine survives.
+2. Wrapped MPV engine construction specifically in a try/catch inside
+   `buildUiAndStart`: if `VesperMpvEngine(...)` throws (JNI load,
+   create/init, seed conf), we silently swap to `PlayerEngine.VLC`
+   in-place and use `VLCVideoLayout` — same activity, same Compose
+   overlay, no interruption.
+
+### Verified locally
+- `kotlinc 1.9.23` against the real MPV/VLC/Media3/Android jars —
+  ZERO errors on all four engine files after this change.
+- Brace check clean on ExoPlayerActivity.kt and PlayerOverlay.kt.
