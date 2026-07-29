@@ -168,11 +168,7 @@ class WebAppInterface(private val activity: Activity) {
         // v2.7.87 — Mirror the new shouldUseExoPlayer() logic so the
         // Settings UI shows the correct active backend after the
         // bulletproof default rolled out.
-        return if (ExoPlayerActivity.useVlcEngine(activity)) {
-            "libvlc"
-        } else {
-            "exoplayer"
-        }
+        return PlayerEngine.read(activity).token
     }
 
     /** Set the backend.  Pass "exoplayer" or "libvlc". */

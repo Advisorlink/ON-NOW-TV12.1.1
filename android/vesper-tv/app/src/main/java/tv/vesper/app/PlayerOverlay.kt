@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -189,6 +190,13 @@ fun PlayerOverlay(
     nextEpisodeThumbnailUrl: StateFlow<String> = MutableStateFlow("").asStateFlow(),
     logoUrl: StateFlow<String> = MutableStateFlow("").asStateFlow(),
     onNextEpisode: () -> Unit = {},
+    // v2.16.42 — In-player engine picker (settings-cog top-right).
+    // `currentEngineToken` matches PlayerEngine.token ("mpv" | "vlc" |
+    // "exo" | "exo_ffmpeg"); onPickEngine persists the choice and
+    // relaunches the activity on the new engine with the same
+    // playback position.
+    currentEngineToken: String = "mpv",
+    onPickEngine: (String) -> Unit = {},
     onClose: () -> Unit,
 ) {
     // v2.10.40 — Reactive PlayerInfo so the title / poster / logo
@@ -370,7 +378,53 @@ fun PlayerOverlay(
                     bitrateKbps = bitrate,
                     onDismiss = { sheet = SheetKind.None; bump() },
                 )
+                SheetKind.Engine -> EnginePickerSheet(
+                    currentToken = currentEngineToken,
+                    onPick = { tok ->
+                        sheet = SheetKind.None
+                        bump()
+                        onPickEngine(tok)
+                    },
+                    onDismiss = { sheet = SheetKind.None; bump() },
+                )
                 SheetKind.None -> Unit
+            }
+        }
+
+        // v2.16.42 — Settings cog (top-right).  Rides in/out with the
+        // rest of the overlay (`dockVisible`), stays focus-reachable
+        // from the dock via D-pad UP.
+        AnimatedVisibility(
+            visible  = !inParty && !showFullLoader && dockVisible && sheet == SheetKind.None,
+            enter    = fadeIn(tween(220)),
+            exit     = fadeOut(tween(280)),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 40.dp, end = 48.dp)
+                .zIndex(3f),
+        ) {
+            val cogFocus = remember { FocusRequester() }
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xCC020610))
+                    .border(1.dp, Color(0x33FFFFFF), CircleShape)
+                    .focusRequester(cogFocus)
+                    .focusable()
+                    .onFocusChanged { if (it.isFocused) bump() }
+                    .clickable {
+                        bump()
+                        sheet = SheetKind.Engine
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Settings,
+                    contentDescription = "Player settings",
+                    tint = Color(0xFFE8F3FF),
+                    modifier = Modifier.size(26.dp),
+                )
             }
         }
 
@@ -402,7 +456,7 @@ fun PlayerOverlay(
     }
 }
 
-private enum class SheetKind { None, Audio, Subs, Stream, Info }
+private enum class SheetKind { None, Audio, Subs, Stream, Info, Engine }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Full loading screen (first play only)

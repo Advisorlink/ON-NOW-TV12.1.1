@@ -11042,3 +11042,86 @@ both engines — Live TV pattern.
 - To try gles2 on a specific box, drop `vlc_vout=gles2` into
   `vesper_player` prefs (or we can wire a Settings toggle if you want)
   and relaunch the player. Same overlay; only the video path changes.
+
+---
+
+## v2.16.42 — Vesper: 4-engine player + in-player cog toggle (June 2026)
+
+> Operator: "Any other players better than LibVLC and ExoPlayer with
+> every codec + smooth playback? Add them and put it as a settings
+> toggle on the actual player itself so we can swap between them like
+> the Live TV cog."
+> Chosen: 1b (MPV + ExoPlayer+FFmpeg), 2a (in-player cog), 3b (MPV
+> default), 4a (interpolation on by default), 5a (ship in base APK).
+
+### Realistic engine landscape (documented honestly)
+- **ExoPlayer / Media3** — Google, HW-first, best Media3 features
+  (adaptive HLS/DASH, Media3 seek).
+- **LibVLC** — mature, deep-buffer, widest live-TV codec coverage.
+- **MPV / libmpv** — NEW.  Kodi/Jellyfin-class frame pacing via
+  interpolation + display-resample.  Only credible third engine.
+- **ExoPlayer + FFmpeg audio** — NEW.  Same ExoPlayer with Jellyfin's
+  `FfmpegAudioRenderer` inserted so DTS/DTS-HD/TrueHD/EAC3-JOC/Vorbis
+  decode when Android's HAL refuses.
+- **Ruled out:** ijkPlayer (dead 2020, no HDR), Vitamio/GStreamer
+  (abandoned/non-embeddable), MX/nPlayer/AVPlayer (closed-source).
+
+### Files created
+- `PlayerEngine.kt` — 4-way enum (MPV/VLC/EXO/EXO_FFMPEG) + prefs
+  (`vesper_player`/`player_engine_v2_16_42`, DEFAULT = MPV).
+- `VesperMpvEngine.kt` — libmpv wrapper.  SurfaceView + JNI init.
+  Frame-pacing profile on by default (interpolation=yes,
+  video-sync=display-resample, tscale=oversample, framedrop=no),
+  hwdec=mediacodec-copy, vo=gpu, cache-secs=30 (VOD) / 3 (live).
+  Auto-seeds `filesDir/mpv/mpv.conf` on first run.  Track pickers,
+  slave subtitle attach, resume-seek, English audio/sub language
+  preference, live-vs-VOD cache profile switch.  Uses raw
+  MPV_FORMAT_/MPV_EVENT_ ints defensively (jdtech/aniyomi/is.xyz
+  forks name the inner class differently).
+- `VesperExoFfmpegRenderersFactory.kt` — subclasses
+  DefaultRenderersFactory, inserts FfmpegAudioRenderer BEFORE the
+  platform MediaCodec renderers.  Only used when engine is EXO_FFMPEG.
+- `EnginePickerSheet.kt` — Compose sheet mirroring TrackPickerSheet.
+  4 rows with human descriptions, initial focus on active engine,
+  BACK dismisses.
+
+### Files modified
+- `build.gradle.kts` — add `dev.jdtech.mpv:libmpv:0.5.1`
+  (~30MB arm64) + `org.jellyfin.media3:media3-ffmpeg-decoder:1.4.1+1`
+  (~7MB arm64).
+- `ExoPlayerActivity.kt` — `useVlc:Boolean` → `engine:PlayerEngine`
+  everywhere.  `pb*()` helpers now `when(engine)`.  Surface picker
+  branches 3 ways (SurfaceView for MPV, VLCVideoLayout for VLC,
+  PlayerView for both Exo variants).  buildExoEngine() picks
+  DefaultRenderersFactory or VesperExoFfmpegRenderersFactory.
+  MPV listener + refreshMpvTracks + onSettingsCog (persists +
+  relaunches with EXTRA_FORCE_ENGINE + resume position).  Fatal-
+  error cascade now MPV → VLC → EXO (was VLC → EXO only).
+- `PlayerOverlay.kt` — added `currentEngineToken` / `onPickEngine`
+  params + SheetKind.Engine + top-right settings cog (fades in/out
+  with the dock, D-pad reachable).
+- `MainActivity.kt` — one-time migration `force_mpv_engine_v2_16_42`
+  sets MPV as default (clears older forced values).
+- `WebAppInterface.kt` — `getPlayerBackend()` now reports the
+  PlayerEngine token to the WebView.
+
+### Frame-pacing config that ships in mpv.conf
+```
+vo=gpu
+hwdec=mediacodec-copy
+interpolation=yes
+video-sync=display-resample
+tscale=oversample
+framedrop=no
+```
+
+### Verification
+- Brace check clean on all 8 modified/new .kt files. Compile in CI
+  (`build-vesper.yml`).
+- MPV JNI: raw MPV_FORMAT_/MPV_EVENT_ constants used instead of
+  binding-specific inner class names (defensive).
+- APK bump: ~37 MB (30 MPV + 7 FFmpeg-audio, arm64 only).
+
+### PENDING (not yet built)
+- Xtream VOD in Vesper (still awaiting operator answers).
+- FTA "What's On" UP NEXT UI (still deferred).

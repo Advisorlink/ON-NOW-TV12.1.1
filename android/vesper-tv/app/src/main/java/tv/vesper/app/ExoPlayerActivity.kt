@@ -73,15 +73,24 @@ private const val REMOTE_NOW_PLAYING_ACTION = "tv.onnow.remote.NOW_PLAYING"
 private const val REMOTE_CMD_ACTION = "tv.onnow.remote.CMD"
 
 @UnstableApi
-class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
+class ExoPlayerActivity : ComponentActivity(),
+    VesperVlcEngine.Listener,
+    VesperMpvEngine.Listener {
 
     private lateinit var player: ExoPlayer
-    // v2.16.40 — LibVLC engine (MAIN by default) rendered inside this
-    // same activity + Compose overlay.  `player` stays uninitialised
-    // when useVlc is true; every playback touchpoint goes through the
-    // pb*() helpers which branch per engine.
-    private var useVlc: Boolean = false
+    // v2.16.42 — Active playback engine (persisted via [PlayerEngine]).
+    //   MPV      → VesperMpvEngine + SurfaceView (default)
+    //   VLC      → VesperVlcEngine + VLCVideoLayout
+    //   EXO      → ExoPlayer + PlayerView
+    //   EXO_FFMPEG → same as EXO but built with NextRenderersFactory
+    // Every playback touchpoint routes through pb*() helpers so the
+    // Compose overlay never has to know which engine is running.
+    private var engine: PlayerEngine = PlayerEngine.DEFAULT
+    private val useVlc: Boolean get() = engine == PlayerEngine.VLC
+    private val useMpv: Boolean get() = engine == PlayerEngine.MPV
+    private val useExo: Boolean get() = engine == PlayerEngine.EXO || engine == PlayerEngine.EXO_FFMPEG
     private var vlcEngine: VesperVlcEngine? = null
+    private var mpvEngine: VesperMpvEngine? = null
     private var streamUrl: String = ""
     private var streamTitle: String = ""
     /** v2.12.1 — YouTube DASH audio-only slave for HD trailers.  See
@@ -222,26 +231,51 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
     }
 
     /* ─── v2.16.40 — engine-agnostic playback helpers ───────────── */
-    private fun pbIsPlaying(): Boolean =
-        if (useVlc) vlcEngine?.isPlaying() == true
-        else ::player.isInitialized && player.isPlaying
-    private fun pbPlay() {
-        if (useVlc) vlcEngine?.play()
-        else if (::player.isInitialized) player.play()
+    private fun pbIsPlaying(): Boolean = when (engine) {
+        PlayerEngine.MPV -> mpvEngine?.isPlaying() == true
+        PlayerEngine.VLC -> vlcEngine?.isPlaying() == true
+        else -> ::player.isInitialized && player.isPlaying
     }
-    private fun pbPause() {
-        if (useVlc) vlcEngine?.pause()
-        else if (::player.isInitialized) player.pause()
+    private fun pbPlay() = when (engine) {
+        PlayerEngine.MPV -> mpvEngine?.play() ?: Unit
+        PlayerEngine.VLC -> vlcEngine?.play() ?: Unit
+        else -> if (::player.isInitialized) player.play() else Unit
     }
-    private fun pbPositionMs(): Long =
-        if (useVlc) vlcEngine?.positionMs() ?: 0L
-        else if (::player.isInitialized) player.currentPosition else 0L
-    private fun pbDurationMs(): Long =
-        if (useVlc) vlcEngine?.durationMs() ?: 0L
-        else if (::player.isInitialized) player.duration else 0L
+    private fun pbPause() = when (engine) {
+        PlayerEngine.MPV -> mpvEngine?.pause() ?: Unit
+        PlayerEngine.VLC -> vlcEngine?.pause() ?: Unit
+        else -> if (::player.isInitialized) player.pause() else Unit
+    }
+    private fun pbPositionMs(): Long = when (engine) {
+        PlayerEngine.MPV -> mpvEngine?.positionMs() ?: 0L
+        PlayerEngine.VLC -> vlcEngine?.positionMs() ?: 0L
+        else -> if (::player.isInitialized) player.currentPosition else 0L
+    }
+    private fun pbDurationMs(): Long = when (engine) {
+        PlayerEngine.MPV -> mpvEngine?.durationMs() ?: 0L
+        PlayerEngine.VLC -> vlcEngine?.durationMs() ?: 0L
+        else -> if (::player.isInitialized) player.duration else 0L
+    }
     private fun pbSeekTo(ms: Long) {
-        if (useVlc) vlcEngine?.seekTo(ms.coerceAtLeast(0L))
-        else if (::player.isInitialized) player.seekTo(ms.coerceAtLeast(0L))
+        val target = ms.coerceAtLeast(0L)
+        when (engine) {
+            PlayerEngine.MPV -> mpvEngine?.seekTo(target)
+            PlayerEngine.VLC -> vlcEngine?.seekTo(target)
+            else -> if (::player.isInitialized) player.seekTo(target)
+        }
+    }
+    private fun pbSetMedia(url: String, startAtMs: Long = 0L, live: Boolean = false) {
+        when (engine) {
+            PlayerEngine.MPV -> mpvEngine?.setMedia(url, startAtMs, live = live)
+            PlayerEngine.VLC -> vlcEngine?.setMedia(url, startAtMs, live = live)
+            else -> {
+                if (!::player.isInitialized) return
+                val item = MediaItem.Builder().setUri(url).setMediaId(url).build()
+                player.setMediaItem(item, startAtMs.coerceAtLeast(0L))
+                player.prepare()
+                player.playWhenReady = true
+            }
+        }
     }
 
     /**
@@ -278,8 +312,11 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
         softVolumeStepIdx = (softVolumeStepIdx + if (raise) 1 else -1).coerceIn(0, 15)
         val pct = softVolumeStepIdx * 100 / 15
         try {
-            if (useVlc) vlcEngine?.setVolume(pct)
-            else if (this::player.isInitialized) player.volume = softVolumeStepIdx / 15f
+            when (engine) {
+                PlayerEngine.MPV -> mpvEngine?.setVolume(pct)
+                PlayerEngine.VLC -> vlcEngine?.setVolume(pct)
+                else -> if (this::player.isInitialized) player.volume = softVolumeStepIdx / 15f
+            }
         } catch (_: Throwable) { /* never crash playback */ }
         return pct
     }
@@ -831,20 +868,22 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
 
         if (streamUrl.isBlank()) { finish(); return }
 
-        // ─── v2.16.40 — pick the playback engine ─────────────────
-        // LibVLC is the MAIN engine (user demand).  ExoPlayer stays
-        // available via Settings → Player Backend, via the trailer
-        // HD-pair path (MergingMediaSource is Exo-only), and via the
-        // per-launch force extra used by the engine-fallback paths.
+        // ─── v2.16.42 — pick the playback engine ────────────────
+        // 4-way selection: MPV (default) / VLC / ExoPlayer /
+        // ExoPlayer+FFmpeg (extended audio codec support).  MPV is
+        // rendered on a SurfaceView, VLC on a VLCVideoLayout, both
+        // Exo variants on the standard Media3 PlayerView.  Overlay
+        // is identical on all four.
         val forcedEngine = intent.getStringExtra(EXTRA_FORCE_ENGINE)
-        useVlc = when {
-            forcedEngine == "exo" -> false
-            forcedEngine == "vlc" -> true
-            trailerAudioUrl.isNotBlank() -> false
-            else -> useVlcEngine(this)
+        engine = when {
+            forcedEngine != null -> PlayerEngine.fromToken(forcedEngine)
+            // Trailer path needs Exo's MergingMediaSource (HD-video +
+            // separate audio).  MPV/VLC have no direct equivalent.
+            trailerAudioUrl.isNotBlank() -> PlayerEngine.EXO
+            else -> PlayerEngine.read(this)
         }
-        Log.i(TAG, "playback engine: ${if (useVlc) "LibVLC" else "ExoPlayer"} (forced=$forcedEngine)")
-        if (!useVlc) {
+        Log.i(TAG, "playback engine: ${engine.label} (forced=$forcedEngine)")
+        if (engine == PlayerEngine.EXO || engine == PlayerEngine.EXO_FFMPEG) {
             buildExoEngine()
         }
         buildUiAndStart()
@@ -932,8 +971,20 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
         // does NOT bitstream, and `setEnableDecoderFallback(true)`
         // still catches genuine decoder init failures via the
         // existing onPlayerError → VLC route.
-        val renderersFactory = androidx.media3.exoplayer.DefaultRenderersFactory(this)
-            .setEnableDecoderFallback(true)
+        // v2.16.42 — When engine == EXO_FFMPEG, use Jellyfin's
+        // NextRenderersFactory which adds the FFmpeg audio-decoder
+        // extension so ExoPlayer can decode DTS, DTS-HD, TrueHD,
+        // EAC3-JOC and Vorbis — codecs Android's stock decoder
+        // stack refuses.  Same class name / API as
+        // DefaultRenderersFactory; the swap is transparent to
+        // everything downstream.
+        val renderersFactory: androidx.media3.exoplayer.RenderersFactory =
+            if (engine == PlayerEngine.EXO_FFMPEG) {
+                VesperExoFfmpegRenderersFactory(this)
+            } else {
+                androidx.media3.exoplayer.DefaultRenderersFactory(this)
+                    .setEnableDecoderFallback(true)
+            }
         player = ExoPlayer.Builder(this, renderersFactory)
             .setBandwidthMeter(bandwidth)
             .setLoadControl(loadControl)
@@ -1009,10 +1060,12 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
                     // restart THIS activity with the embedded LibVLC
                     // engine forced (same overlay), instead of the
                     // legacy VlcPlayerActivity with its old UI.
+                    // v2.16.42 — Prefer MPV first, which has the
+                    // widest codec coverage of the three engines.
                     try {
                         val fallback = Intent(intent)
                         fallback.setClass(this@ExoPlayerActivity, ExoPlayerActivity::class.java)
-                        fallback.putExtra(EXTRA_FORCE_ENGINE, "vlc")
+                        fallback.putExtra(EXTRA_FORCE_ENGINE, PlayerEngine.MPV.token)
                         fallback.putExtra(VlcPlayerActivity.EXTRA_START_AT_MS, pbPositionMs())
                         startActivity(fallback)
                     } catch (_: Throwable) { /* */ }
@@ -1114,38 +1167,58 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
         }
 
         // Video surface — controls OFF; we render our own overlay.
-        // v2.16.40 — VLC engine gets a VLCVideoLayout instead of the
-        // Media3 PlayerView; everything above/around it is identical.
-        val videoSurface: View = if (useVlc) {
-            org.videolan.libvlc.util.VLCVideoLayout(this).apply {
-                setBackgroundColor(0xFF000000.toInt())
-                layoutParams = FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                )
-                isFocusable = false
-                isFocusableInTouchMode = false
-                descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
-            }.also { vl ->
-                vlcEngine = VesperVlcEngine(this, vl, this)
+        // v2.16.42 — Three engines, three surface types; overlay is
+        // identical.
+        val videoSurface: View = when (engine) {
+            PlayerEngine.MPV -> {
+                // MPV creates its own SurfaceView and drives attach/
+                // detach through the SurfaceHolder callback — we hand
+                // it a FrameLayout container so it can add its child.
+                val container = FrameLayout(this).apply {
+                    setBackgroundColor(0xFF000000.toInt())
+                    layoutParams = FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                    )
+                    isFocusable = false
+                    isFocusableInTouchMode = false
+                    descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+                }
+                mpvEngine = VesperMpvEngine(this, container, this)
+                container
             }
-        } else {
-            PlayerView(this).apply {
-                useController = false
-                this.player = this@ExoPlayerActivity.player
-                setBackgroundColor(0xFF000000.toInt())
-                setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
-                resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
-                layoutParams = FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                )
-                // v2.7.52 — make PlayerView totally non-focusable so D-pad
-                // events never land here.  Compose overlay handles all
-                // remote input.
-                isFocusable = false
-                isFocusableInTouchMode = false
-                descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+            PlayerEngine.VLC -> {
+                org.videolan.libvlc.util.VLCVideoLayout(this).apply {
+                    setBackgroundColor(0xFF000000.toInt())
+                    layoutParams = FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                    )
+                    isFocusable = false
+                    isFocusableInTouchMode = false
+                    descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+                }.also { vl ->
+                    vlcEngine = VesperVlcEngine(this, vl, this)
+                }
+            }
+            else -> {
+                PlayerView(this).apply {
+                    useController = false
+                    this.player = this@ExoPlayerActivity.player
+                    setBackgroundColor(0xFF000000.toInt())
+                    setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
+                    resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    layoutParams = FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                    )
+                    // v2.7.52 — make PlayerView totally non-focusable so D-pad
+                    // events never land here.  Compose overlay handles all
+                    // remote input.
+                    isFocusable = false
+                    isFocusableInTouchMode = false
+                    descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+                }
             }
         }
         root.addView(videoSurface)
@@ -1212,6 +1285,9 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
                     nextEpisodeThumbnailUrl = nextEpThumbnailFlow.asStateFlow(),
                     logoUrl         = logoUrlFlow.asStateFlow(),
                     onNextEpisode   = { jumpToPrimedNextEpisode() },
+                    // v2.16.42 — in-player engine picker (settings cog).
+                    currentEngineToken = engine.token,
+                    onPickEngine    = { tok -> onSettingsCog(tok) },
                     onClose = { finish() },
                 )
                 // v2.7.74 — Native Live TV Guide overlay.  Sits on
@@ -1241,11 +1317,16 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
 
         // v2.16.40 — VLC engine starts AFTER the surface is attached
         // to the window so the first frame lands on screen.
-        if (useVlc) {
+        // v2.16.42 — Same for MPV.
+        if (useVlc || useMpv) {
             val subUrl = intent.getStringExtra(VlcPlayerActivity.EXTRA_SUB_URL) ?: ""
             val startPos = if (startAtMs > 5_000L) startAtMs else 0L
             composeView.post {
-                vlcEngine?.setMedia(streamUrl, startPos, subUrl, live = isLive)
+                if (useVlc) {
+                    vlcEngine?.setMedia(streamUrl, startPos, subUrl, live = isLive)
+                } else {
+                    mpvEngine?.setMedia(streamUrl, startPos, subUrl, live = isLive)
+                }
                 if (altStreams.size > 1) armBufferStallWatchdog()
             }
         }
@@ -1272,37 +1353,46 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
         pollJob?.cancel()
         pollJob = pollScope.launch {
             while (isActive) {
-                if (useVlc) {
-                    val eng = vlcEngine
-                    if (eng != null) {
-                        val pos = eng.positionMs().coerceAtLeast(0L)
-                        val dur = eng.durationMs().coerceAtLeast(0L)
-                        positionMsFlow.value = pos
-                        durationMsFlow.value = dur
-                        maybeBroadcastNowPlaying(pos, dur)
-                        if (eng.isPlaying() && pos > 0L) {
-                            maybePersistProgress(pos, dur)
+                when (engine) {
+                    PlayerEngine.MPV -> {
+                        val eng = mpvEngine
+                        if (eng != null) {
+                            val pos = eng.positionMs().coerceAtLeast(0L)
+                            val dur = eng.durationMs().coerceAtLeast(0L)
+                            positionMsFlow.value = pos
+                            durationMsFlow.value = dur
+                            maybeBroadcastNowPlaying(pos, dur)
+                            if (eng.isPlaying() && pos > 0L) {
+                                maybePersistProgress(pos, dur)
+                            }
                         }
                     }
-                } else if (::player.isInitialized) {
-                    val pos = player.currentPosition.coerceAtLeast(0L)
-                    val dur = player.duration.coerceAtLeast(0L)
-                    positionMsFlow.value = pos
-                    durationMsFlow.value = dur
-                    bufferedPercentFlow.value = player.bufferedPercentage
-                    bufferAheadMsFlow.value =
-                        (player.bufferedPosition - player.currentPosition)
-                            .coerceAtLeast(0L)
-                    maybeBroadcastNowPlaying(pos, dur)
-                    // v2.8.125 — Persist the live position so the
-                    // Continue Watching shelf can resume from where
-                    // the user actually is, not from whatever stale
-                    // value the JS side last wrote.  Only writes
-                    // while playback is healthy (pos > 0 + duration
-                    // known) so we don't clobber existing CW state
-                    // during the IDLE→READY transition.
-                    if (player.isPlaying && pos > 0L) {
-                        maybePersistProgress(pos, dur)
+                    PlayerEngine.VLC -> {
+                        val eng = vlcEngine
+                        if (eng != null) {
+                            val pos = eng.positionMs().coerceAtLeast(0L)
+                            val dur = eng.durationMs().coerceAtLeast(0L)
+                            positionMsFlow.value = pos
+                            durationMsFlow.value = dur
+                            maybeBroadcastNowPlaying(pos, dur)
+                            if (eng.isPlaying() && pos > 0L) {
+                                maybePersistProgress(pos, dur)
+                            }
+                        }
+                    }
+                    else -> if (::player.isInitialized) {
+                        val pos = player.currentPosition.coerceAtLeast(0L)
+                        val dur = player.duration.coerceAtLeast(0L)
+                        positionMsFlow.value = pos
+                        durationMsFlow.value = dur
+                        bufferedPercentFlow.value = player.bufferedPercentage
+                        bufferAheadMsFlow.value =
+                            (player.bufferedPosition - player.currentPosition)
+                                .coerceAtLeast(0L)
+                        maybeBroadcastNowPlaying(pos, dur)
+                        if (player.isPlaying && pos > 0L) {
+                            maybePersistProgress(pos, dur)
+                        }
                     }
                 }
                 delay(250)
@@ -1847,6 +1937,8 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
         try { cancelBufferStallWatchdog() } catch (_: Exception) {}
         try { vlcEngine?.release() } catch (_: Exception) {}
         vlcEngine = null
+        try { mpvEngine?.release() } catch (_: Exception) {}
+        mpvEngine = null
         try { if (::player.isInitialized) player.release() } catch (_: Exception) {}
     }
 
@@ -1975,7 +2067,7 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
                 if (altStreams.size > 1 && nextAdvanceIndexAfter(currentStreamIdx) != null) {
                     scheduleErrorAdvance()
                 } else {
-                    fallbackToExoEngine()
+                    fallbackToOtherEngine(from = PlayerEngine.VLC)
                 }
             } else {
                 isLoadingFlow.value = false
@@ -2040,15 +2132,21 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
         }
     }
 
-    /** VLC failed before the first frame with nothing left to try —
-     *  restart this activity with the ExoPlayer engine forced so the
-     *  title still gets a second chance on the other decoder stack. */
-    private fun fallbackToExoEngine() {
-        Log.w(TAG, "VLC failed before first frame — restarting with ExoPlayer engine")
+    /** Engine failed before the first frame with nothing left to
+     *  try — restart this activity with a different engine forced so
+     *  the title still gets a second chance on the other decoder
+     *  stack.  MPV → VLC → ExoPlayer cascade. */
+    private fun fallbackToOtherEngine(from: PlayerEngine) {
+        val next = when (from) {
+            PlayerEngine.MPV -> PlayerEngine.VLC
+            PlayerEngine.VLC -> PlayerEngine.EXO
+            else -> PlayerEngine.VLC
+        }
+        Log.w(TAG, "${from.label} failed before first frame — restarting with ${next.label}")
         try {
             val restart = Intent(intent)
             restart.setClass(this, ExoPlayerActivity::class.java)
-            restart.putExtra(EXTRA_FORCE_ENGINE, "exo")
+            restart.putExtra(EXTRA_FORCE_ENGINE, next.token)
             startActivity(restart)
         } catch (_: Throwable) { /* nothing more to try */ }
         finish()
@@ -2056,8 +2154,11 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
 
     /** Engine-agnostic track-list refresh for the picker sheets. */
     private fun refreshTracksUi() {
-        if (useVlc) refreshVlcTracks()
-        else if (::player.isInitialized) refreshTrackLists(player.currentTracks)
+        when (engine) {
+            PlayerEngine.MPV -> refreshMpvTracks()
+            PlayerEngine.VLC -> refreshVlcTracks()
+            else -> if (::player.isInitialized) refreshTrackLists(player.currentTracks)
+        }
     }
 
     /** Populate the audio/subtitle picker flows from VLC's track
@@ -2184,12 +2285,22 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
             }
             // v2.16.40 — VLC engine: attach as a slave track (native
             // SRT/VTT support), no media re-prepare needed.
+            // v2.16.42 — MPV: same idea via `sub-add`.
             if (useVlc) {
                 lazySubsFetched = true
                 vlcEngine?.addSubtitleSlave(subUrl)
                 lifecycleScope.launch {
                     delay(2_500)
                     refreshVlcTracks()
+                }
+                return@launch
+            }
+            if (useMpv) {
+                lazySubsFetched = true
+                mpvEngine?.addSubtitleSlave(subUrl)
+                lifecycleScope.launch {
+                    delay(2_500)
+                    refreshMpvTracks()
                 }
                 return@launch
             }
@@ -2239,6 +2350,7 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
             return
         }
         // v2.16.40 — VLC engine track selection.
+        // v2.16.42 — MPV routes via "mpv|<id>" prefix.
         if (useVlc) {
             val eng = vlcEngine ?: return
             if (trackType == C.TRACK_TYPE_TEXT && id == "off") {
@@ -2249,6 +2361,18 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
                 else eng.selectSpuTrack(vid)
             }
             refreshVlcTracks()
+            return
+        }
+        if (useMpv) {
+            val eng = mpvEngine ?: return
+            if (trackType == C.TRACK_TYPE_TEXT && id == "off") {
+                eng.disableSubtitles()
+            } else {
+                val vid = id.removePrefix("mpv|").toIntOrNull() ?: return
+                if (trackType == C.TRACK_TYPE_AUDIO) eng.selectAudioTrack(vid)
+                else eng.selectSpuTrack(vid)
+            }
+            refreshMpvTracks()
             return
         }
         try {
@@ -2342,6 +2466,9 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
             if (useVlc) {
                 isLoadingFlow.value = true
                 vlcEngine?.setMedia(entry.url, resumePos)
+            } else if (useMpv) {
+                isLoadingFlow.value = true
+                mpvEngine?.setMedia(entry.url, resumePos)
             } else {
                 val item = MediaItem.Builder()
                     .setUri(entry.url)
@@ -2413,5 +2540,104 @@ class ExoPlayerActivity : ComponentActivity(), VesperVlcEngine.Listener {
             )
             return true
         }
+    }
+
+    /* ─── v2.16.42 — MPV engine listener + track plumbing ────────── */
+
+    override fun onMpvPlaying() {
+        runOnUiThread {
+            isLoadingFlow.value = false
+            isPlayingFlow.value = true
+            durationMsFlow.value = (mpvEngine?.durationMs() ?: 0L).coerceAtLeast(0L)
+            firstReadyReachedForCurrentStream = true
+            cancelBufferStallWatchdog()
+            errorAdvanceJob?.cancel()
+            errorAdvanceCount = 0
+            errorMessageFlow.value = null
+            if (isSwappingEpisodeFlow.value) isSwappingEpisodeFlow.value = false
+            refreshMpvTracks()
+        }
+    }
+
+    override fun onMpvPaused() {
+        runOnUiThread { isPlayingFlow.value = false }
+    }
+
+    override fun onMpvBuffering(buffering: Boolean) {
+        runOnUiThread { isLoadingFlow.value = buffering }
+    }
+
+    override fun onMpvEnded() {
+        runOnUiThread {
+            isPlayingFlow.value = false
+            if (isSeriesEpisode) saveNextEpisodeIntent(autoplay = false)
+            finish()
+        }
+    }
+
+    override fun onMpvError() {
+        runOnUiThread {
+            Log.e(TAG, "MPV engine error (firstReady=$firstReadyReachedForCurrentStream)")
+            if (!firstReadyReachedForCurrentStream) {
+                if (altStreams.size > 1 && nextAdvanceIndexAfter(currentStreamIdx) != null) {
+                    scheduleErrorAdvance()
+                } else {
+                    fallbackToOtherEngine(from = PlayerEngine.MPV)
+                }
+            } else {
+                isLoadingFlow.value = false
+                errorMessageFlow.value = "Playback error — open the stream picker to try another."
+            }
+        }
+    }
+
+    /** MPV also drives the display-refresh matcher. */
+    override fun onMpvContentFps(fps: Float) {
+        if (fps <= 0f) return
+        runOnUiThread { applyPreferredDisplayModeForFps(fps) }
+    }
+
+    /** Populate the audio/subtitle picker flows from MPV's track list. */
+    private fun refreshMpvTracks() {
+        val eng = mpvEngine ?: return
+        val curAudio = eng.currentAudioTrack()
+        val curSpu = eng.currentSpuTrack()
+        val audio = eng.audioTrackList().map { (id, name) ->
+            TrackOption(id = "mpv|$id", label = name, selected = id == curAudio)
+        }
+        val text = eng.spuTrackList().map { (id, name) ->
+            TrackOption(id = "mpv|$id", label = name, selected = id == curSpu)
+        }.toMutableList()
+        if (!lazySubsFetched && canFetchLazySubs()) {
+            text.add(
+                TrackOption(
+                    id = LAZY_SUBS_ID,
+                    label = if (lazySubsLoading) "Finding subtitles…"
+                            else "Find subtitles (English)",
+                    selected = false,
+                )
+            )
+        }
+        audioTracksFlow.value = audio
+        subtitleTracksFlow.value = text
+    }
+
+    /** In-player settings-cog callback — pops the engine picker and
+     *  switches the current playback to the chosen engine. */
+    private fun onSettingsCog(engineToken: String) {
+        val chosen = PlayerEngine.fromToken(engineToken)
+        if (chosen == engine) return
+        // Persist + relaunch — the surface + engine both need to be
+        // recreated fresh, and Compose overlay state is preserved by
+        // finish/startActivity(intent) with the same extras.
+        PlayerEngine.write(this, chosen)
+        val pos = pbPositionMs().coerceAtLeast(0L)
+        val relaunch = Intent(intent)
+        relaunch.setClass(this, ExoPlayerActivity::class.java)
+        relaunch.putExtra(EXTRA_FORCE_ENGINE, chosen.token)
+        relaunch.putExtra(VlcPlayerActivity.EXTRA_START_AT_MS, pos)
+        Log.i(TAG, "onSettingsCog: switching engine ${engine.label} → ${chosen.label} @ ${pos}ms")
+        startActivity(relaunch)
+        finish()
     }
 }

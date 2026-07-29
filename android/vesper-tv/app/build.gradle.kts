@@ -162,6 +162,19 @@ dependencies {
     // HK1/RK/S905 box is arm64-v8a.
     implementation("org.videolan.android:libvlc-all:3.6.0")
 
+    // v2.16.42 — MPV (libmpv) as a THIRD engine.  Best-in-class frame
+    // pacing (interpolation + display-resample), FFmpeg-based codec
+    // support, HW decode via MediaCodec.  ~30 MB per ABI (arm64 only).
+    // MAIN ENGINE by default from this build forward.
+    implementation("dev.jdtech.mpv:libmpv:0.5.1")
+
+    // v2.16.42 — Jellyfin's prebuilt Media3 FFmpeg audio decoder
+    // extension.  Enables ExoPlayer to decode audio codecs Android's
+    // hardware refuses (DTS, DTS-HD, TrueHD, EAC3-JOC, Vorbis).
+    // Registered via NextRenderersFactory when the "ExoPlayer + FFmpeg"
+    // engine is selected.  ~7 MB per ABI.
+    implementation("org.jellyfin.media3:media3-ffmpeg-decoder:1.4.1+1")
+
     // v2.7.39 — Media3 ExoPlayer as a SECOND player backend so the
     // user can A/B test which one streams better on their HK1 box.
     // ExoPlayer is what Stremio / YouTube / Netflix use, and its

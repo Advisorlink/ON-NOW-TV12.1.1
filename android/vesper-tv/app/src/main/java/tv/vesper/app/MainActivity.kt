@@ -296,6 +296,24 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        /* v2.16.42 — MPV is the new MAIN engine (best pan-smoothness,
+           interpolation + display-resample).  Clears any older forced
+           value from the v2.7.86 / v2.16.40 migrations so the new
+           default takes effect; the user can still pick VLC /
+           ExoPlayer / ExoPlayer+FFmpeg from the in-player cog. */
+        run {
+            val mig = getSharedPreferences("onnowtv-migrations", MODE_PRIVATE)
+            val key = "force_mpv_engine_v2_16_42"
+            if (!mig.getBoolean(key, false)) {
+                PlayerEngine.write(this, PlayerEngine.MPV)
+                mig.edit().putBoolean(key, true).apply()
+                android.util.Log.i(
+                    "VesperMain",
+                    "v2.16.42 migration: player engine → MPV (once)"
+                )
+            }
+        }
+
         /* v2.16.40 — One-time migration: LibVLC is the MAIN engine
            again — now embedded inside ExoPlayerActivity with the
            identical Compose overlay.  Clears the v2.7.86 forced
