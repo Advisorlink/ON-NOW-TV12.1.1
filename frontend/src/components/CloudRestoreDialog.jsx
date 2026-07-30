@@ -45,12 +45,72 @@ export default function CloudRestoreDialog({ snapshot, onDismiss }) {
     const [closing, setClosing] = useState(false);
     const [busy, setBusy] = useState(false);
     const restoreBtnRef = useRef(null);
+    const dismissBtnRef = useRef(null);
+    const dialogRef = useRef(null);
 
     // Land focus on the primary CTA so a TV remote or keyboard Enter
     // just works.
     useEffect(() => {
         const t = setTimeout(() => restoreBtnRef.current?.focus(), 260);
         return () => clearTimeout(t);
+    }, []);
+
+    // v2.16.46 — Focus trap.  Operator: "The focus MUST be inside
+    // the box.  Can't get out of it until you click a button."
+    // Cycles Tab / Shift+Tab / arrow keys among the two CTA buttons
+    // and snaps focus back if anything outside the dialog steals it.
+    useEffect(() => {
+        const dialog = dialogRef.current;
+        if (!dialog) return;
+
+        const focusables = () => [restoreBtnRef.current, dismissBtnRef.current].filter(Boolean);
+
+        const onKeyDown = (e) => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const f = focusables();
+                if (!f.length) return;
+                const idx = f.indexOf(document.activeElement);
+                const next = e.shiftKey
+                    ? f[(idx <= 0 ? f.length : idx) - 1]
+                    : f[(idx + 1) % f.length];
+                next?.focus();
+                return;
+            }
+            // D-pad LEFT / RIGHT between the two buttons.
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' ||
+                e.key === 'ArrowUp'   || e.key === 'ArrowDown') {
+                const f = focusables();
+                if (f.length < 2) return;
+                e.preventDefault();
+                const idx = f.indexOf(document.activeElement);
+                const goPrev = e.key === 'ArrowLeft' || e.key === 'ArrowUp';
+                const next = goPrev
+                    ? f[(idx <= 0 ? f.length : idx) - 1]
+                    : f[(idx + 1) % f.length];
+                next?.focus();
+                return;
+            }
+            // Swallow BACK so the dialog can't be dismissed accidentally
+            // — user must click Restore or Start Fresh.
+            if (e.key === 'Escape' || e.key === 'GoBack' ||
+                e.key === 'BrowserBack' || e.keyCode === 4) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        };
+        const onFocusIn = (ev) => {
+            if (!dialog.contains(ev.target)) {
+                ev.stopPropagation();
+                (restoreBtnRef.current || dismissBtnRef.current)?.focus();
+            }
+        };
+        dialog.addEventListener('keydown', onKeyDown, true);
+        document.addEventListener('focusin', onFocusIn, true);
+        return () => {
+            dialog.removeEventListener('keydown', onKeyDown, true);
+            document.removeEventListener('focusin', onFocusIn, true);
+        };
     }, []);
 
     // Prevent background scroll while open.
@@ -140,7 +200,10 @@ export default function CloudRestoreDialog({ snapshot, onDismiss }) {
 
     return (
         <div
+            ref={dialogRef}
             data-testid="cloud-restore-dialog"
+            role="dialog"
+            aria-modal="true"
             style={{
                 position: 'fixed',
                 inset: 0,
@@ -319,6 +382,7 @@ export default function CloudRestoreDialog({ snapshot, onDismiss }) {
                         )}
                     </button>
                     <button
+                        ref={dismissBtnRef}
                         onClick={handleStartFresh}
                         disabled={busy}
                         data-testid="cloud-restore-dismiss"

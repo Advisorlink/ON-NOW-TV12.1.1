@@ -11428,3 +11428,42 @@ VesperExoFfmpegRenderersFactory.kt).
 Everything from v2.16.45 (EXO_FFMPEG default + swap-stream always
 visible + CW back-to-details) is still in place — the trim only
 removed the callback definition, not the wiring.
+
+## v2.16.46 — CW Swap-Stream chip + Cloud-Restore focus trap (June 2026)
+
+> Operator: "Continue Watching player isn't showing the Swap Stream
+> button.  Also, the 'we found profiles' popup needs the focus INSIDE
+> the box — remote can't escape until you click a button."
+
+### 1. CW Swap-Stream chip (Android)
+Continue Watching resumes carry a single stream URL and no
+`EXTRA_STREAMS_JSON`, so `altStreams` stayed empty and the chip never
+rendered.  Fix: after JSON parsing, if `streamsFlow` is still empty
+and `streamUrl` is set, seed a single-entry list ("Stream 1") in both
+`altStreams` and `streamsFlow`.  The chip now renders on every CW
+resume — clicking it opens the picker with the current stream
+selected so the operator can navigate back to the details page (or
+we'll wire a "Rescrape links" button next iteration).
+
+### 2. Cloud-Restore focus trap (React/frontend)
+`components/CloudRestoreDialog.jsx` — the "We found your profiles in
+the cloud" modal.  Was landing initial focus on the primary CTA but
+didn't stop D-pad from escaping to the dimmed background page behind.
+Added:
+- `dialogRef` on the outer container.
+- `useEffect` install of a keydown handler at capture phase:
+  - Tab / Shift+Tab: cycles focus between Restore + Start Fresh
+    buttons only.
+  - Arrow keys (L/R/U/D): same cycle — for TV remote D-pad.
+  - Escape / GoBack / BrowserBack / keyCode 4: swallowed
+    (`preventDefault + stopPropagation`) so BACK cannot dismiss —
+    dialog only closes via one of the two buttons.
+- `focusin` document listener: if anything outside the dialog steals
+  focus, snap it back to the Restore button.
+- `role="dialog"` + `aria-modal="true"` on the container.
+- Wired `dismissBtnRef` to the Start Fresh button.
+
+### Verified
+- Brace check clean on ExoPlayerActivity.kt.
+- Engine files still compile-verified with real jars from prior pass.
+- StreamEntry / StreamOption field names all match on the CW seed.

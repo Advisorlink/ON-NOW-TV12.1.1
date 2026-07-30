@@ -883,6 +883,42 @@ class ExoPlayerActivity : ComponentActivity(),
             }
         }
 
+        // v2.16.46 — Continue Watching resumes carry a single stream
+        // URL (no EXTRA_STREAMS_JSON), so altStreams stays empty and
+        // the Swap Stream chip never renders — operator needs to see
+        // it even on CW so they can visit the picker.  Seed a single
+        // entry pointing at the current stream URL when the intent
+        // carries no alt-streams payload; the chip then always shows.
+        if (streamsFlow.value.isEmpty() && streamUrl.isNotBlank()) {
+            val singleLabel = "Stream 1"
+            altStreams = mutableListOf(
+                StreamEntry(
+                    url         = streamUrl,
+                    label       = singleLabel,
+                    addonSource = "",
+                    quality     = "",
+                    pmCached    = false,
+                    isEnglish   = false,
+                    sizeChip    = "",
+                    seeds       = 0,
+                )
+            )
+            currentStreamIdx = 0
+            streamsFlow.value = listOf(
+                StreamOption(
+                    idx         = 0,
+                    label       = singleLabel,
+                    selected    = true,
+                    addonSource = "",
+                    quality     = "",
+                    pmCached    = false,
+                    isEnglish   = false,
+                    sizeChip    = "",
+                    seeds       = 0,
+                )
+            )
+        }
+
         if (streamUrl.isBlank()) { finish(); return }
 
         // ─── v2.16.42 — pick the playback engine ────────────────
