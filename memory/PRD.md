@@ -11467,3 +11467,24 @@ Added:
 - Brace check clean on ExoPlayerActivity.kt.
 - Engine files still compile-verified with real jars from prior pass.
 - StreamEntry / StreamOption field names all match on the CW seed.
+
+## v2.16.47 — "Only 1-2 links showing" — torrents filtered out (June 2026)
+
+> Operator: "It's only showing 1 or 2 links."
+
+### Root cause
+`Detail.jsx` line 1844: `playable` filtered streams down to
+`streamMode(s) === 'direct' || 'external'`.  When Real-Debrid /
+AllDebrid / Premiumize doesn't resolve a torrent into a direct URL
+in time (token expired, RD/AD server slow, resolver flake), every
+torrent stream is left with `infoHash` set but no direct `url` —
+hidden from the picker.  User sees only the handful of pre-cached
+direct links (EasyNews et al.) instead of the 30+ that came back from
+Torrentio / Comet / MediaFusion.
+
+### Fix
+`playable` now also includes `streamMode === 'torrent'`.  The magnet
+path via `VlcPlayerActivity` (libtorrent demuxer) is already wired
+and used by the fallback pick chain a few lines above, so surfacing
+these entries in the streams sheet is just consistent behaviour.
+Backend was healthy the whole time — no server-side change needed.

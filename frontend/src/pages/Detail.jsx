@@ -1841,8 +1841,19 @@ export default function Detail() {
         );
     }
 
+    // v2.16.47 — Operator: "only showing 1 or 2 links".
+    // Root cause: `playable` used to be `direct || external` only, so
+    // when the debrid resolver (RD / AD / PM) hasn't finished resolving
+    // torrents into direct URLs — or the token has expired — every
+    // torrent stream was hidden from the picker.  Result: the user
+    // sees only the handful of pre-cached direct links (EasyNews et
+    // al.) even though 30+ streams came back from Torrentio/Comet/etc.
+    // Torrents ARE playable via the magnet path (VlcPlayerActivity
+    // demuxer + libtorrent), so surface them here too.
     const playable = streams.filter(
-        (s) => streamMode(s) === 'direct' || streamMode(s) === 'external'
+        (s) => streamMode(s) === 'direct'
+            || streamMode(s) === 'external'
+            || streamMode(s) === 'torrent'
     );
     const torrentCount = streams.filter(
         (s) => streamMode(s) === 'torrent'
