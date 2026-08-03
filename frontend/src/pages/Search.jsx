@@ -12,6 +12,7 @@ import KidsBlockedMessage from '@/components/KidsBlockedMessage';
 import { API, Vesper } from '@/lib/api';
 import { isKidsActive } from '@/lib/profiles';
 import Host from '@/lib/host';
+import useIsMobile from '@/lib/useIsMobile';
 
 /**
  * Single native text input + a Search button.  We deliberately do NOT
@@ -37,6 +38,7 @@ export default function Search() {
     const [voiceError, setVoiceError] = useState('');
     const inputRef = useRef(null);
     const voiceAvailable = Host.isVoiceSearchAvailable();
+    const isMobile = useIsMobile();
 
     // Live refs so the phone-remote keydown bridge below never acts
     // on stale state.
@@ -456,6 +458,48 @@ export default function Search() {
                                     strokeWidth={2}
                                     color="var(--vesper-blue-bright)"
                                 />
+                                {isMobile ? (
+                                    /* Phone: the pill IS the input — native
+                                       keyboard, search-as-you-type feel. */
+                                    <input
+                                        data-testid="search-input"
+                                        ref={inputRef}
+                                        className="vesper-display"
+                                        value={q}
+                                        onChange={(e) => {
+                                            setQ(e.target.value.slice(0, 60));
+                                            if (searched) setSearched(false);
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && q.trim().length >= 2) {
+                                                e.preventDefault();
+                                                doSearch();
+                                            }
+                                        }}
+                                        placeholder={
+                                            listening
+                                                ? 'Listening…'
+                                                : kids
+                                                ? 'Try "Bluey" or "Mario"…'
+                                                : 'Title, actor, keyword…'
+                                        }
+                                        enterKeyHint="search"
+                                        autoCorrect="off"
+                                        spellCheck={false}
+                                        style={{
+                                            flex: 1,
+                                            minWidth: 0,
+                                            fontSize: 18,
+                                            fontWeight: 500,
+                                            letterSpacing: '-0.01em',
+                                            color: 'var(--vesper-text)',
+                                            background: 'transparent',
+                                            border: 'none',
+                                            outline: 'none',
+                                            WebkitTapHighlightColor: 'transparent',
+                                        }}
+                                    />
+                                ) : (
                                 <div
                                     data-testid="search-input"
                                     ref={inputRef}
@@ -493,6 +537,7 @@ export default function Search() {
                                         }}
                                     />
                                 </div>
+                                )}
                                 {voiceAvailable && (
                                     <button
                                         data-testid="search-mic"
@@ -570,9 +615,10 @@ export default function Search() {
                                 </div>
                             )}
 
-                            {/* Themed on-screen keyboard — same
-                                component used on the profile name
-                                step.  Replaces the Android IME. */}
+                            {/* Themed on-screen keyboard — TV only.
+                                Phones type directly in the pill via
+                                the native IME. */}
+                            {!isMobile && (
                             <div style={{ marginTop: 4, width: '100%', maxWidth: 720 }}>
                                 <TVKeyboard
                                     value={q}
@@ -587,6 +633,7 @@ export default function Search() {
                                     variant="name"
                                 />
                             </div>
+                            )}
 
                             <button
                                 data-testid="search-submit"

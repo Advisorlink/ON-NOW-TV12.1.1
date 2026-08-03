@@ -493,7 +493,16 @@ class EpgActivity : AppCompatActivity() {
             // action-sheet with bulk channel-to-collection ops.
             onLongPick = { c -> showCategoryActionsMenu(c) },
         )
-        categoriesList.layoutManager = LinearLayoutManager(this)
+        // v2.17.0 — Phone portrait mode lays the category strip out
+        // horizontally under the hero; TV / landscape keeps the
+        // classic vertical sidebar.
+        val portraitPhone = resources.configuration.orientation ==
+            android.content.res.Configuration.ORIENTATION_PORTRAIT
+        categoriesList.layoutManager = if (portraitPhone) {
+            LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        } else {
+            LinearLayoutManager(this)
+        }
         categoriesList.adapter = categoryAdapter
         categoriesList.itemAnimator = null
         categoryAdapter.submit(visibleCategoriesForSidebar(), currentCategoryId)

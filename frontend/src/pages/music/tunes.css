@@ -3062,3 +3062,183 @@
     .tunes-fullplayer__vocals-btn { padding: 0 10px; width: auto; }
 }
 
+
+/* ============================================================
+   v2.17.0 — PHONE POLISH PASS (portrait touch layout)
+   ----------------------------------------------------------
+   Appended LAST so these rules win over the earlier mobile
+   block at equal specificity.  Everything here targets phones
+   only (max-width 768px) — TV layout untouched.
+============================================================ */
+
+/* TV rule for the search result row (was an inline style). */
+.tunes-track-row--search { grid-template-columns: 28px 64px 1fr auto auto auto; }
+
+@media (max-width: 768px) {
+    /* -- Page headers: safe-area top + edge padding ---------- */
+    .tunes-page-title {
+        padding: calc(18px + env(safe-area-inset-top, 0px)) 16px 0;
+        font-size: 30px;
+    }
+    .tunes-page-subtitle {
+        padding: 0 16px;
+        font-size: 11px;
+        letter-spacing: 0.12em;
+    }
+    .tunes-section__title {
+        padding-left: 16px;
+        padding-right: 16px;
+        font-size: 20px;
+    }
+    .tunes-empty { padding: 32px 16px; }
+
+    /* -- Chip rows: single swipeable line -------------------- */
+    .tunes-chips {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        touch-action: pan-x pan-y;
+        padding: 10px 16px 18px;
+    }
+    .tunes-chips::-webkit-scrollbar { display: none; }
+    .tunes-chip {
+        flex: 0 0 auto;
+        padding: 10px 16px;
+        font-size: 13px;
+        min-height: 40px;
+    }
+
+    /* -- Card grids: 3-across on phones ----------------------- */
+    .tunes-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px 10px;
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+    .tunes-grid > div { min-width: 0; }
+    .tunes-card { width: 100%; gap: 8px; }
+    .tunes-card__title { font-size: 12.5px; }
+    .tunes-card__subtitle { font-size: 10.5px; }
+
+    /* -- Hero: cover pinned top-centre, text at the bottom ---- */
+    .tunes-hero { height: clamp(430px, 70vh, 580px); }
+    .tunes-hero__cover {
+        right: 50%;
+        top: calc(30px + env(safe-area-inset-top, 0px));
+        transform: translateX(50%);
+        width: min(44vw, 185px);
+        border-radius: 14px;
+    }
+    .tunes-hero__title { font-size: clamp(26px, 7.5vw, 40px); }
+    .tunes-hero__meta { font-size: 12px; flex-wrap: wrap; }
+    .tunes-hero__eyebrow { margin: 0 0 8px; font-size: 10px; }
+
+    /* -- Bottom tab bar: drop the Full Screen tab (the mini
+          player itself opens the now-playing screen on tap) ---- */
+    .tunes-nav [data-testid="tunes-nav-fullscreen"] { display: none !important; }
+    .tunes-nav {
+        height: calc(64px + env(safe-area-inset-bottom, 0px));
+        padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+    }
+    .tunes-mini { bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+    .tunes-shell { padding-bottom: calc(132px + env(safe-area-inset-bottom, 0px)); }
+
+    /* -- Track rows: flex so every page's row shape works.
+          (Grid columns differ per page on TV; on the phone one
+          flexible row layout covers album / chart / search /
+          library / playlist rows alike.) -------------------- */
+    .tunes-track-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-height: 56px;
+        padding: 8px 16px;
+    }
+    .tunes-track-row > * { flex: 0 0 auto; min-width: 0; }
+    .tunes-track-row > div:has(.tunes-track-row__title) {
+        flex: 1 1 auto;
+        overflow: hidden;
+    }
+    .tunes-track-row__title,
+    .tunes-track-row__artist {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .tunes-track-row__num { width: 22px; text-align: center; }
+    .tunes-track-row__art { width: 44px; height: 44px; border-radius: 8px; }
+    .tunes-track-row--search .tunes-track-row__num { display: none; }
+    .tunes-track-row--search .tunes-track-row__duration { display: none; }
+
+    /* -- Album / Chart detail: single column, natural flow ---- */
+    .tunes-album__layout {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 8px;
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+    /* Chrome computes the min-content of a wrappable flex row as if
+       it never wraps — clamp the whole chain so the grid column can
+       never balloon past the viewport. */
+    .tunes-album__head,
+    .tunes-album__info,
+    .tunes-album__actions,
+    .tunes-album__meta {
+        min-width: 0;
+        max-width: 100%;
+    }
+    .tunes-album__head {
+        position: static;
+        padding-top: calc(16px + env(safe-area-inset-top, 0px));
+        gap: 14px;
+    }
+    .tunes-album__cover { max-width: 200px; margin: 0 auto; width: 100%; }
+    .tunes-album__info { text-align: center; align-items: center; }
+    .tunes-album__title { font-size: clamp(24px, 6.6vw, 34px); }
+    .tunes-album__meta { justify-content: center; }
+    .tunes-album__actions { justify-content: center; flex-wrap: wrap; }
+    .tunes-track-list { margin-bottom: 40px; }
+
+    /* -- Artist page: tighter side padding -------------------- */
+    .tunes-artist-page {
+        padding-left: 16px;
+        padding-right: 16px;
+        padding-top: calc(16px + env(safe-area-inset-top, 0px));
+    }
+}
+
+/* -- Podcast detail header (was inline styles; class-based so the
+      phone layout can restack it) ------------------------------- */
+.tunes-podcast-head {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 36px;
+    align-items: end;
+    margin-bottom: 32px;
+}
+.tunes-podcast-head__art {
+    width: 280px;
+    height: 280px;
+    object-fit: cover;
+    border-radius: 18px;
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.55);
+}
+.tunes-podcast-head__title {
+    font-size: 48px;
+    margin: 6px 0 14px;
+}
+
+@media (max-width: 768px) {
+    .tunes-podcast-head {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 14px;
+        justify-items: center;
+        text-align: center;
+        padding: calc(16px + env(safe-area-inset-top, 0px)) 16px 0;
+        margin-bottom: 12px;
+    }
+    .tunes-podcast-head__art { width: 180px; height: 180px; }
+    .tunes-podcast-head__title { font-size: 24px; padding: 0; }
+    .tunes-podcast-head .tunes-page-subtitle { padding: 0; }
+}

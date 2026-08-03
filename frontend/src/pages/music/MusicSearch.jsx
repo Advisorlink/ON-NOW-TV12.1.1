@@ -111,14 +111,13 @@ export default function MusicSearch() {
                                 {results.tracks.slice(0, 10).map((t, i) => (
                                     <div
                                         key={t.id}
-                                        className="tunes-track-row"
+                                        className="tunes-track-row tunes-track-row--search"
                                         data-focusable="true"
                                         data-focus-style="tile"
                                         tabIndex={0}
                                         onClick={() => controls.playTrack(t, results.tracks)}
                                         onKeyDown={(e) => { if (e.key === 'Enter') controls.playTrack(t, results.tracks); }}
                                         data-testid={`tunes-result-track-${t.id}`}
-                                        style={{ gridTemplateColumns: '28px 64px 1fr auto auto auto' }}
                                     >
                                         <div className="tunes-track-row__num">{i + 1}</div>
                                         <img src={t.album?.cover || ''} alt="" className="tunes-track-row__art" loading="lazy" />

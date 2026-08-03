@@ -1,0 +1,22 @@
+{
+  "summary": "V2.17.0 phone polish + touch sweep frontend regression. Music mobile (390x844): home hero cover top-centre with no text overlap, bottom tab bar shows Home/Search/Radio/Australia/Podcasts/Library with Full Screen tab HIDDEN on mobile, no horizontal overflow. Search page: padded title, artists grid 3-across, songs use tunes-track-row--search class, tapping song starts playback and mini-player appears with NO runtime error overlay. Full-screen player opens at 390 width with no overflow. Radio: title padded, chips horizontally swipeable (scrollWidth 1916 > clientWidth 390), stations 3-across, tapping station starts playback. Podcasts: 49 cards 3-across, country chips swipeable, tapping card opens PodcastDetail with .tunes-podcast-head class, cover 180x180 centered at x=105, no overflow. Album detail: single-column, 200px cover, action buttons wrapped, 18 track rows fully contained (row scrollWidth=clientWidth=356). Music TV regression (1920x1080): hero cover on RIGHT (image), left icon rail visible with Full Screen icon shown, search rows use 6-column grid '28px 64px 1526.44px 31.5625px 34px 36px' as expected. Vesper mobile: With ?mobile=1 URL override applied (needed because useIsMobile in headless Chromium falls back to non-Mobile UA), home renders mobile bottom-nav Home/Search/Live/Library/More correctly, /search shows exactly ONE input [data-testid=search-input] with placeholder 'Title, actor, keyword...' and NO TVKeyboard, searching 'batman' yields a 2-across poster grid (Batman: Caped Crusader, Batman 1966, Batman: The Animated Series, Batman Beyond, The Batman, Batman Unlimited, etc.). More sheet opens showing Sports Guide/TV Shows/Movies/Watch Together/Sources/Settings. Vesper TV regression (1920x1080, ?mobile=0): /search shows TVKeyboard grid, Search submit button, and pill display simultaneously — desktop layout intact.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "useIsMobile.js relies primarily on the UA string containing 'Mobile' (or iPhone/iPad). Playwright/Chromium headless does NOT include 'Mobile' in its UA even when the viewport is a phone size — so automated tests must pass ?mobile=1 to force the mobile layout. Consider a stronger fallback that also treats (pointer:coarse && innerWidth < 900) as mobile without requiring a touch primary check that fails in headless. Not a bug for real users, but a testability concern; recommend documenting the override in the test docs or making the 'narrow + coarse OR touch' branch (rule 3) more permissive."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (skipped)", "frontend": "100%" },
+  "test_credentials": "testuser / testpass123 (Vesper + Music LoginGate)",
+  "seed_data_creation": "Vesper profile seeded via localStorage keys onnowtv-profiles-v1:testuser and onnowtv-active-profile-v1:testuser (profile id p-test-1).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "For Vesper mobile testing in headless Chromium, ALWAYS append ?mobile=1 to the URL — useIsMobile is user-agent based and Chromium's headless UA does not contain 'Mobile'. The Music app is CSS-media-query responsive so it works without any override. Mobile bottom-nav testids are mobile-nav-{home|search|live|library|more} (from MobileBottomNav.jsx); the SideNav's nav-{search|home|...} testids exist in the DOM even on mobile but are hidden via CSS, so tests targeting them will time out. Use force=True or dismiss the 'A Quick Tip' bookmark popup (button 'Maybe later') before clicking bottom-nav items — it can overlay and intercept clicks. Track row overflow check on album pages passed (scrollWidth==clientWidth==356 at 390px viewport). Music search song rows successfully use extracted class .tunes-track-row--search on both mobile (flex-ish rendering) and desktop (6-column grid).",
+  "rca of the issue": "No functional bugs. Only a testing-environment nuance around useIsMobile UA detection in headless browsers — documented above."
+}

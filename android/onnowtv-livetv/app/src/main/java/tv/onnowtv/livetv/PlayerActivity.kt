@@ -1084,6 +1084,18 @@ class PlayerActivity : AppCompatActivity() {
         ).forEach { b ->
             b.setOnFocusChangeListener { _, hasFocus -> if (hasFocus) bumpControlsHide() }
         }
+
+        // v2.17.0 — TOUCH: tapping the bare player surface toggles
+        // the control overlay (phones have no D-pad).  Buttons keep
+        // their own click handlers; this only fires for taps that
+        // land on the content view itself.
+        findViewById<View>(android.R.id.content).setOnClickListener {
+            if (playerOverlay.visibility == View.VISIBLE) {
+                hideControlsBar()
+            } else {
+                showControlsBar()
+            }
+        }
     }
 
     private fun showControlsBar() {

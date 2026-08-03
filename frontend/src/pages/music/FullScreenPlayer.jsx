@@ -30,7 +30,17 @@ function requestFs(el) {
         || el?.webkitRequestFullscreen
         || el?.mozRequestFullScreen
         || el?.msRequestFullscreen;
-    if (r) { try { return r.call(el); } catch { /* ignore */ } }
+    if (r) {
+        try {
+            const p = r.call(el);
+            // requestFullscreen rejects ASYNCHRONOUSLY (e.g. "Permissions
+            // check failed" without user activation, "Element is not
+            // connected" mid-unmount) — swallow it or it surfaces as an
+            // unhandled rejection in the ErrorBoundary.
+            if (p && typeof p.catch === 'function') p.catch(() => {});
+            return p;
+        } catch { /* ignore */ }
+    }
     return null;
 }
 function exitFs() {
@@ -40,7 +50,11 @@ function exitFs() {
         || d.mozCancelFullScreen
         || d.msExitFullscreen;
     if (e && (d.fullscreenElement || d.webkitFullscreenElement)) {
-        try { return e.call(d); } catch { /* ignore */ }
+        try {
+            const p = e.call(d);
+            if (p && typeof p.catch === 'function') p.catch(() => {});
+            return p;
+        } catch { /* ignore */ }
     }
     return null;
 }

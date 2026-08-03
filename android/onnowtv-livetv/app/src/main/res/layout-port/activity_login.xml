@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- PORTRAIT (phone) login — v2.17.0.  Same six IDs LoginActivity
+     binds (login_username / login_password / login_show_pass /
+     login_submit / login_submit_label / login_status); the 900dp
+     TV card is replaced by a full-width phone card. -->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/login_bg_gradient">
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#7305080F" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center_horizontal"
+            android:paddingStart="24dp"
+            android:paddingEnd="24dp"
+            android:paddingTop="64dp"
+            android:paddingBottom="40dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="V2"
+                android:textColor="@color/livetv_accent_red"
+                android:textSize="44sp"
+                android:textStyle="bold"
+                android:fontFamily="sans-serif-black"
+                android:letterSpacing="-0.04"
+                android:shadowColor="#80FF2535"
+                android:shadowDx="0"
+                android:shadowDy="0"
+                android:shadowRadius="18" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:fontFamily="monospace"
+                android:text="ON NOW TV · LIVE"
+                android:textColor="@color/livetv_fg_dim"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.30" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="36dp"
+                android:orientation="vertical"
+                android:padding="22dp"
+                android:background="@drawable/login_card_bg">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Sign in"
+                    android:textColor="@color/livetv_fg"
+                    android:textSize="24sp"
+                    android:textStyle="bold"
+                    android:fontFamily="sans-serif-black" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Enter your Live TV account details."
+                    android:textColor="@color/livetv_fg_dim"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:fontFamily="monospace"
+                    android:text="USERNAME"
+                    android:textColor="@color/livetv_fg_dimmer"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.24" />
+
+                <EditText
+                    android:id="@+id/login_username"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/login_input_bg"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:hint="Username"
+                    android:textColorHint="@color/livetv_fg_dimmer"
+                    android:inputType="text"
+                    android:singleLine="true"
+                    android:imeOptions="actionNext"
+                    android:textColor="@color/livetv_fg"
+                    android:textSize="16sp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:fontFamily="monospace"
+                        android:text="PASSWORD"
+                        android:textColor="@color/livetv_fg_dimmer"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.24" />
+
+                    <TextView
+                        android:id="@+id/login_show_pass"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:padding="6dp"
+                        android:fontFamily="monospace"
+                        android:text="SHOW"
+                        android:textColor="@color/livetv_accent"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.20"
+                        android:focusable="true"
+                        android:clickable="true"
+                        android:background="?android:attr/selectableItemBackground" />
+                </LinearLayout>
+
+                <EditText
+                    android:id="@+id/login_password"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/login_input_bg"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:hint="Your password"
+                    android:textColorHint="@color/livetv_fg_dimmer"
+                    android:inputType="textPassword"
+                    android:singleLine="true"
+                    android:imeOptions="actionDone"
+                    android:textColor="@color/livetv_fg"
+                    android:textSize="16sp" />
+
+                <FrameLayout
+                    android:id="@+id/login_submit"
+                    android:layout_width="match_parent"
+                    android:layout_height="54dp"
+                    android:layout_marginTop="24dp"
+                    android:background="@drawable/login_btn_bg"
+                    android:focusable="true"
+                    android:clickable="true">
+
+                    <TextView
+                        android:id="@+id/login_submit_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:text="SIGN IN"
+                        android:textColor="#FFFFFF"
+                        android:textSize="15sp"
+                        android:textStyle="bold"
+                        android:fontFamily="sans-serif-black"
+                        android:letterSpacing="0.12" />
+                </FrameLayout>
+
+                <TextView
+                    android:id="@+id/login_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:gravity="center"
+                    android:fontFamily="monospace"
+                    android:textColor="@color/livetv_fg_dim"
+                    android:textSize="12sp"
+                    android:text="" />
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+</FrameLayout>

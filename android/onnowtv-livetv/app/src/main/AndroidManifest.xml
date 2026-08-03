@@ -48,7 +48,7 @@
         <activity
             android:name=".EpgActivity"
             android:exported="false"
-            android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale"
+            android:configChanges="keyboardHidden|layoutDirection|locale"
             android:launchMode="singleTop"
             android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
 
@@ -59,7 +59,7 @@
         <activity
             android:name=".LoginActivity"
             android:exported="false"
-            android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale"
+            android:configChanges="keyboardHidden|layoutDirection|locale"
             android:launchMode="singleTask"
             android:theme="@style/Theme.OnNowLiveTV.Splash" />
 
@@ -67,6 +67,7 @@
             android:name=".PlayerActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale|smallestScreenSize|screenLayout|uiMode"
+            android:screenOrientation="sensorLandscape"
             android:launchMode="singleTask"
             android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
 
@@ -76,6 +77,7 @@
             android:name=".StatsPlayerActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale|smallestScreenSize|screenLayout|uiMode"
+            android:screenOrientation="sensorLandscape"
             android:launchMode="singleTop"
             android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
 

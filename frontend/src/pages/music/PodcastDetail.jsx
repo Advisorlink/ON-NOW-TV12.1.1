@@ -23,11 +23,11 @@ export default function PodcastDetail() {
 
     return (
         <div data-testid="music-podcast-detail">
-            <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 36, alignItems: 'end', marginBottom: 32 }}>
-                <img src={podcast?.artwork || ''} alt={podcast?.title} style={{ width: 280, height: 280, objectFit: 'cover', borderRadius: 18, boxShadow: '0 30px 60px rgba(0,0,0,0.55)' }} />
+            <div className="tunes-podcast-head">
+                <img src={podcast?.artwork || ''} alt={podcast?.title} className="tunes-podcast-head__art" />
                 <div>
                     <p style={{ fontSize: 12, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#fed7aa', margin: 0 }}>Podcast</p>
-                    <h1 className="tunes-page-title" style={{ fontSize: 48, margin: '6px 0 14px' }}>{podcast?.title}</h1>
+                    <h1 className="tunes-page-title tunes-podcast-head__title">{podcast?.title}</h1>
                     <p className="tunes-page-subtitle" style={{ maxWidth: 720 }}>
                         {(podcast?.description || '').replace(/<[^>]+>/g, '').slice(0, 280)}
                         {(podcast?.description || '').length > 280 ? '…' : ''}
