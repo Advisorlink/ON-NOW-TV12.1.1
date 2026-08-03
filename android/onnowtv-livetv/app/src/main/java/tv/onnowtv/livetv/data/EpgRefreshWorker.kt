@@ -2,6 +2,7 @@ package tv.onnowtv.livetv.data
 
 import android.content.Context
 import android.util.Log
+import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -10,6 +11,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import androidx.work.WorkRequest
 import androidx.work.WorkerParameters
 import java.util.concurrent.TimeUnit
 
@@ -119,48 +121,84 @@ class EpgRefreshWorker(
         const val TAG_WORK = "onnowtv-epg-refresh"
 
         /**
+         * v2.16.50 — Reliable silent background refresh.
+         *
          * Idempotently enqueue the periodic refresh.  Called from
          * MainActivity once the first foreground bundle hand-off
-         * is complete.  WorkManager's KEEP policy ensures
-         * re-enqueuing on each cold boot is a no-op.
+         * is complete AND from LiveTVApp.onCreate at every process
+         * start.
+         *
+         * Cadence: every 6 h (was 12 h) with a 1 h flex window.
+         * NO initial delay — a freshly-enqueued worker fires as
+         * soon as network constraints are satisfied.  The old
+         * 12 h schedule with a 12 h initial delay was the direct
+         * cause of the operator's "guide disappears after a few
+         * days" complaint: XMLTV covers 3-7 days, so missing a
+         * couple of WorkManager cycles (Doze / battery-idle on
+         * always-on TV boxes) quietly runs the cache off a cliff.
+         * 6 h gives 4 windows/day of headroom.
+         *
+         * Backoff: linear 15 min on transient failure so a
+         * temporarily-offline box keeps retrying without
+         * hammering the provider.
+         *
+         * Policy: UPDATE (was KEEP) so cadence/constraint tweaks
+         * from a new build actually replace the old schedule
+         * instead of being ignored — the previous 12 h + 12 h
+         * initial delay schedule was stuck on many boxes because
+         * KEEP never let a new version's params take effect.
          */
         fun schedulePeriodic(ctx: Context) {
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
+                .setRequiresBatteryNotLow(false)
+                .setRequiresDeviceIdle(false)
+                .setRequiresCharging(false)
                 .build()
             val request = PeriodicWorkRequestBuilder<EpgRefreshWorker>(
-                12, TimeUnit.HOURS,
-                // 1-hour flex window — WorkManager will fire any
-                // time within the last hour of each 12-hour cycle.
+                6, TimeUnit.HOURS,
                 1, TimeUnit.HOURS,
             )
                 .setConstraints(constraints)
                 .addTag(TAG_WORK)
-                .setInitialDelay(12, TimeUnit.HOURS)
+                .setBackoffCriteria(
+                    BackoffPolicy.LINEAR,
+                    15, TimeUnit.MINUTES,
+                )
                 .build()
             WorkManager.getInstance(ctx).enqueueUniquePeriodicWork(
                 UNIQUE_NAME,
-                ExistingPeriodicWorkPolicy.KEEP,
+                ExistingPeriodicWorkPolicy.UPDATE,
                 request,
             )
         }
 
         /**
-         * v2.16.39 — Fire a one-time refresh immediately.  Used as
-         * a staleness safety net at boot: if the on-disk cache is
-         * >24 h old the periodic worker clearly missed its window
-         * (box powered off overnight, app force-stopped — Android
-         * TV launchers do this a lot), so we top the guide up right
-         * away instead of waiting up to 12 more hours.  KEEP policy
-         * — a refresh already in flight is never duplicated.
+         * Fire a one-time refresh immediately.  Silent: the
+         * writer targets a staging dir and the live cache stays
+         * intact until the atomic swap.  Safe to call on every
+         * app open — KEEP policy de-duplicates concurrent kicks.
+         *
+         * This is the "always warm" safety net that MakesSure a
+         * box which just came out of a long Doze / power-off
+         * catches up right away instead of waiting up to 6 more
+         * hours for the periodic worker's next window.
          */
         fun refreshNow(ctx: Context) {
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
+                .setRequiresBatteryNotLow(false)
+                .setRequiresDeviceIdle(false)
+                .setRequiresCharging(false)
                 .build()
             val request = OneTimeWorkRequestBuilder<EpgRefreshWorker>()
                 .setConstraints(constraints)
                 .addTag(TAG_WORK)
+                .setBackoffCriteria(
+                    BackoffPolicy.LINEAR,
+                    WorkRequest.MIN_BACKOFF_MILLIS,
+                    TimeUnit.MILLISECONDS,
+                )
                 .build()
             WorkManager.getInstance(ctx).enqueueUniqueWork(
                 UNIQUE_NAME_ONESHOT,

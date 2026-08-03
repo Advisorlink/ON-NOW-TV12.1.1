@@ -1,4 +1,45 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.16.50 — Live TV EPG always-warm background refresh (Feb 2026).**
+>
+> ### Operator complaint
+> "The guide stops showing after a few days — I have to sign out/in to get it back. It should refresh automatically in the background so it's always there instantly when I open the app, even after 10 days."
+>
+> ### Root cause
+> `EpgRefreshWorker.schedulePeriodic` used `setInitialDelay(12h)` + 12 h period + KEEP policy.  A box that was Doze-throttled or powered off during any 12 h window quietly missed the refresh; because XMLTV covers 3-7 days, missing two cycles ran the on-disk cache off a cliff.  The KEEP policy also meant new build tweaks never replaced the stuck old schedule.  Previous session's `MainActivity.onResume` refresh was misplaced (MainActivity doesn't resume from EpgActivity) and was rejected for creating the perception of a load state.
+>
+> ### Fix
+> **`data/EpgRefreshWorker.kt`**
+>  • Removed 12 h `setInitialDelay` — first fire happens as soon as network constraints are satisfied.
+>  • Cadence 12 h → **6 h** with 1 h flex window (4 refresh windows/day of headroom).
+>  • Policy `KEEP` → `UPDATE` so cadence/constraint tweaks from a new build actually replace the stuck old schedule.
+>  • Added linear backoff (15 min) for transient failure retries.
+>  • Explicit `setRequiresBatteryNotLow(false)` / `setRequiresDeviceIdle(false)` / `setRequiresCharging(false)` on both the periodic and the one-shot builds so operator boxes never skip a cycle for battery reasons.
+>
+> **`data/EpgBootReceiver.kt` (new)**
+>  • `BOOT_COMPLETED` / `QUICKBOOT_POWERON` / `MY_PACKAGE_REPLACED` handler that re-establishes the periodic schedule + fires an immediate one-shot the moment the TV box finishes booting.  Guide is warm before the operator ever opens the app.
+>
+> **`AndroidManifest.xml`**
+>  • Added `RECEIVE_BOOT_COMPLETED` permission and registered `EpgBootReceiver`.
+>
+> **`LiveTVApp.kt`**
+>  • On every process start: `EpgRefreshWorker.schedulePeriodic(applicationContext)` + (if `EpgCache.ageMs > 6h`) a silent `refreshNow(applicationContext)`.  All work is WorkManager-enqueued — never blocks the UI.  The writer targets a staging dir and atomically swaps into place, so the fast path continues to show the currently-persisted guide instantly and the fresh guide slides in behind the scenes.
+>
+> **`MainActivity.kt`**
+>  • Removed the rejected `onResume` refresh.  All refresh work is now driven from LiveTVApp + EpgBootReceiver — the loader screen NEVER waits for a refresh.
+>
+> ### Verification
+> - Brace/syntax check clean on `EpgRefreshWorker.kt`, `EpgBootReceiver.kt`, `LiveTVApp.kt`, `MainActivity.kt` via `python3 /tmp/kt_brace_check.py`.
+> - Silent refresh path is non-blocking by construction: `WorkManager.enqueueUniqueWork` returns immediately, all writes go to a staging dir, and `EpgCache.promote()` only swaps into place after a full successful parse.
+>
+> ### Files touched
+> - `android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/data/EpgRefreshWorker.kt`
+> - `android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/data/EpgBootReceiver.kt` (new)
+> - `android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/LiveTVApp.kt`
+> - `android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/MainActivity.kt`
+> - `android/onnowtv-livetv/app/src/main/AndroidManifest.xml`
+>
+
+
 > **🟢 v2.7.4 / v2.8.67 — FTA player upgrade + Podcast navigation polish (Feb 2026).**
 >
 > ### FTA player (v2.7.4)

@@ -5,6 +5,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- v2.16.50 — required for EpgBootReceiver to keep the
+         guide warm after a full TV-box power cycle. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
@@ -89,5 +92,20 @@
             android:theme="@style/Theme.OnNowLiveTV.NoActionBar"
             android:launchMode="singleTask"
             android:process=":crash" />
+
+        <!-- v2.16.50 — Boot-time EPG refresh kick.  Fires the
+             moment the TV box finishes booting so the guide is
+             warm before the operator ever opens the app. -->
+        <receiver
+            android:name=".data.EpgBootReceiver"
+            android:enabled="true"
+            android:exported="true"
+            android:directBootAware="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

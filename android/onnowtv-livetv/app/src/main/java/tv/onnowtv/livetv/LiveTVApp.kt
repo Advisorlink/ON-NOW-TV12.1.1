@@ -73,5 +73,42 @@ class LiveTVApp : Application() {
                 }
             }
         )
+
+        // ─────────────────────────────────────────────────────────
+        // v2.16.50 — Always-warm EPG.  Kick the periodic refresh
+        // worker (UPDATE policy) and, if the cache is older than
+        // 6 h, fire a one-shot refresh right away.  Both calls
+        // are silent WorkManager enqueues — the UI is never
+        // blocked.  The writer targets a staging dir and only
+        // atomically swaps into place on success, so a foreground
+        // fast-path load ALWAYS shows the previously-persisted
+        // guide instantly and the new guide slides in behind the
+        // scenes.
+        //
+        // This is the operator's #1 complaint fix: "the guide
+        // stops showing after a few days".  Running this at
+        // every process start means any box that comes out of a
+        // long Doze / power-off catches up in the background
+        // BEFORE the user has finished navigating to a channel.
+        // ─────────────────────────────────────────────────────────
+        try {
+            if (tv.onnowtv.livetv.data.AuthStore.isSignedIn(this)) {
+                tv.onnowtv.livetv.data.EpgRefreshWorker
+                    .schedulePeriodic(applicationContext)
+                val ageMs = tv.onnowtv.livetv.data.EpgCache.ageMs(applicationContext)
+                // Kick a one-shot when the cache is empty (ageMs
+                // returns Long.MAX_VALUE) OR older than 6 h.
+                if (ageMs > 6L * 60L * 60L * 1000L) {
+                    Log.i(
+                        "LiveTVApp",
+                        "EPG age=${ageMs / 3_600_000}h — silent refreshNow on app start",
+                    )
+                    tv.onnowtv.livetv.data.EpgRefreshWorker
+                        .refreshNow(applicationContext)
+                }
+            }
+        } catch (t: Throwable) {
+            Log.w("LiveTVApp", "EPG warmup on app start failed", t)
+        }
     }
 }
