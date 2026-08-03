@@ -11680,3 +11680,22 @@ favourites from cloud sync; profile changeable in app; V2 dark look.
 - Register fake box: POST {API}/api/launcher-admin/api/remote/host/register
   {"device_id":"testbox1","token":"testtoken123456"} → sid devtestbox1.
 - Companion page: {API}/api/launcher-admin/remote?s=devtestbox1&c=testtoken123456
+
+---
+
+## v2.18.2 — Companion App polish round (June 2026)
+
+**User feedback addressed:**
+1. **Home redesign** — header section (greeting eyebrow + "What app do you want to use today?" heading + sub-line), 6 launcher tiles (Movies, Live TV, Music, Kids, Sports, FTA) in a 2-column grid instead of full-width stacked rectangles. `companion_page.html`.
+2. **Speed restored (LAN fast path)** — `handlePaired()` now mirrors the classic remote: after pairing, if `same_network && local_ip && local_port`, the phone redirects to `http://<box-ip>:<port>/remote?local=1&s=&c=&cloud=` (same-origin WS, ~5-20 ms). 20 s `sessionStorage` guard (`onnow_remote_local_try`) prevents redirect loops.
+3. **QR auto-connect fixed** — `autoConnect()` now retries every 4 s indefinitely with "Connecting to your TV… / Waiting for your TV box…" UI (was giving up after ONE retry and dumping to code entry). 403 → "This link is out of date" + manual code fallback.
+4. **Fullscreen** — ported the classic one-tap fs-gate (`companion-fs-gate`) + re-enter-fullscreen-on-tap (also in standalone PWA mode).
+5. **Profile picker** — Settings has "Movies account username" field; typing it loads profile chips from NEW endpoint `GET /api/companion/vesper/profiles?u=<username>` (backend/companion.py, reads `vesper_sync` snapshot `onnowtv-profiles-v1*` keys, case-insensitive username). Chip tap fills profile input. cfg keys: `vesperUser`, `profileName`, `livetvUser`.
+6. **App-not-installed guard** — launcher `RemoteControlService` now sends `apps:{vesper,tunes,livetv,kids,fta:bool}` in host/register and every state push (`installedAppsJson()`); phone_remote.py stores/sanitizes it (`RemoteSession.apps`, `_sanitize_apps`) and returns it in pair/state/get_state. Phone `appReady(target)` blocks commands + toasts "The X app isn't installed…". Box also pushes one-shot toasts: Kotlin `pushToast()` → LAN `broadcastTransient()` (LocalRemoteServer, doesn't pollute lastState) / cloud WS `{"type":"toast"}` / HTTP `host/state {toast}`; phone WS handler shows them.
+7. **Preview-only passthrough** — launcher-backend main.py catch-all `GET /api/{path}` forwards allowlisted read-only paths (companion/, music/home|search, xtream/epg/, livetv/sync/pull) to VESPER_BACKEND_URL so the companion page works when launcher-backend runs standalone (preview). Production (shared domain) unaffected.
+
+**Testing:** iteration_80.json — 15/15 pass (backend 100%, frontend 100%). Test box: device_id=testbox1 token=tok123456 session=devtestbox1; vesper_sync user "testuser" (profile "Dad").
+
+**IMPORTANT for user:** the box-side pieces (installed-app reporting, not-installed toasts, launcher search dispatch) require rebuilding + installing the **launcher APK**; the web page updates itself (box re-caches /remote on service restart/reboot).
+
+**Lesson learned (agent):** NEVER run parallel search_replace calls against the SAME file — edits clobber each other (lost homeSetup + _state_message edits this session; had to re-apply).
