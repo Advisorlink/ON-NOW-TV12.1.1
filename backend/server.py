@@ -4784,6 +4784,10 @@ async def admin_addons_page(token: Optional[str] = None):
 from xtream import router as xtream_router  # noqa: E402
 app.include_router(xtream_router)
 
+# v2.18.0 — Phone Companion app (slim Live TV channel list)
+from companion import router as companion_router  # noqa: E402
+app.include_router(companion_router)
+
 from watch_party import router as watch_party_router  # noqa: E402
 app.include_router(watch_party_router)
 from stt import router as stt_router  # noqa: E402

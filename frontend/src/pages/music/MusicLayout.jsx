@@ -19,6 +19,7 @@ import {
     Maximize2,
 } from 'lucide-react';
 import { MiniPlayer } from '../../components/music/MiniPlayer';
+import { CompanionBridge } from '../../components/music/CompanionBridge';
 import useSpatialFocus from '../../hooks/useSpatialFocus';
 import { useMusicPlayer } from '../../hooks/useMusicPlayer';
 import './tunes.css';
@@ -276,6 +277,7 @@ export default function MusicLayout() {
                 </main>
             </div>
             <MiniPlayer />
+            <CompanionBridge />
             {/* v2.8.85 — KaraokeMicReceiver is now mounted ONLY on
                 KaraokeStage so we don't accidentally open multiple
                 peer connections.  See /pages/music/KaraokeStage.jsx. */}

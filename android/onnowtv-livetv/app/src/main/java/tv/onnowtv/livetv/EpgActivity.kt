@@ -245,6 +245,16 @@ class EpgActivity : AppCompatActivity() {
         startClock()
         startWhatsOnPulse()
 
+        // v2.18.0 — Companion deep-link: the phone asked for a specific
+        // channel.  Tune it the moment the guide is wired up.
+        intent?.getStringExtra("companion_stream_id")?.let { sid ->
+            intent.removeExtra("companion_stream_id")
+            val ch = bundle.channels.firstOrNull { it.id == sid }
+            if (ch != null) {
+                window.decorView.post { launchPlayer(ch) }
+            }
+        }
+
         // Background refresh: if MainActivity took the fast disk-
         // cache path, ask for a fresh bundle now and persist it so
         // the NEXT launch reads the latest channel list on disk.

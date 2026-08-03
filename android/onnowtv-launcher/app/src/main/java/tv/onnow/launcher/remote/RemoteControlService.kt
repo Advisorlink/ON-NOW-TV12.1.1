@@ -141,6 +141,11 @@ class RemoteControlService : Service() {
                 put("duration_ms", intent.getLongExtra("duration_ms", 0L))
                 put("playing", intent.getBooleanExtra("playing", true))
                 put("has_next", intent.getBooleanExtra("has_next", false))
+                // v2.18.0 — Companion context (music / live TV).
+                put("source", intent.getStringExtra("source") ?: "vesper")
+                put("artist", intent.getStringExtra("artist") ?: "")
+                put("channel", intent.getStringExtra("channel") ?: "")
+                put("live", intent.getBooleanExtra("live", false))
             }
             pushState(includeNowPlaying = true, includeKeyboard = false)
         }
@@ -260,7 +265,71 @@ class RemoteControlService : Service() {
                     Log.w(TAG, "next-episode broadcast failed", t)
                 }
             }
+            // v2.18.0 — Companion app: play / open content on the box.
+            "companion_play", "companion_open" -> handleCompanion(payload)
             else -> RootInputDispatcher.handle(this, payload)
+        }
+    }
+
+    /** v2.18.0 — Launch the right app with a deep-link built from a
+     *  Companion phone command.  Mirrors the V2 AI voice assistant's
+     *  battle-tested `vesper_route` contract for Vesper; Tunes and
+     *  Live TV get simple extras their MainActivities understand. */
+    private fun handleCompanion(payload: JSONObject) {
+        val target = payload.optString("target")
+        val action = payload.optString("action")
+        try {
+            val pkg = when (target) {
+                "vesper" -> tv.onnow.launcher.AppPackages.VESPER
+                "tunes"  -> tv.onnow.launcher.AppPackages.TUNES
+                "livetv" -> tv.onnow.launcher.AppPackages.LIVETV
+                else -> return
+            }
+            val launch = packageManager.getLaunchIntentForPackage(pkg) ?: run {
+                Log.w(TAG, "companion: $pkg not installed")
+                return
+            }
+            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            if (action == "companion_play") {
+                when (target) {
+                    "vesper" -> {
+                        val title = payload.optString("title")
+                        if (title.isBlank()) return
+                        val enc = java.net.URLEncoder.encode(title, "UTF-8")
+                        val type = if (payload.optString("media_type") == "series") "series" else "movie"
+                        var route = "/?v2ai=$enc&type=$type&autoplay=1"
+                        val imdb = payload.optString("imdb")
+                        if (imdb.isNotBlank()) {
+                            route += "&imdb=" + java.net.URLEncoder.encode(imdb, "UTF-8")
+                        }
+                        val profile = payload.optString("profile")
+                        if (profile.isNotBlank()) {
+                            route += "&companionProfile=" + java.net.URLEncoder.encode(profile, "UTF-8")
+                        }
+                        launch.putExtra("vesper_route", route)
+                        launch.data = android.net.Uri.parse("onnowtv://launch$route")
+                    }
+                    "tunes" -> {
+                        val trackId = payload.optString("track_id")
+                        val route = if (trackId.isNotBlank()) {
+                            "/music?companionPlayTrack=$trackId"
+                        } else {
+                            payload.optString("route").ifBlank { return }
+                        }
+                        launch.putExtra("tunes_route", route)
+                    }
+                    "livetv" -> {
+                        val sid = payload.optString("stream_id")
+                        if (sid.isBlank()) return
+                        launch.putExtra("companion_stream_id", sid)
+                        launch.putExtra("companion_stream_name", payload.optString("name"))
+                    }
+                }
+            }
+            startActivity(launch)
+            Log.i(TAG, "companion: launched $target ($action)")
+        } catch (t: Throwable) {
+            Log.w(TAG, "companion launch failed", t)
         }
     }
 

@@ -11611,3 +11611,72 @@ Live TV = touch + NEW portrait phone layout; Vesper = general touch sweep.
   TV regression (1920x1080), zero issues found.
 - Headless note: Vesper needs `?mobile=1` (UA-based useIsMobile);
   Music app is pure CSS media queries so no override needed.
+
+## v2.18.0 — V2 Companion App + Vesper phone nav fix (June 2026)
+
+User asked: (1) remove Live TV from the Vesper PHONE app entirely;
+(2) build a beautiful phone Companion app that works with the box —
+browse/search movies, music, live TV on the phone, tap → plays on the
+box, with a gorgeous now-playing player (art, scrubber, controls),
+favourites for live TV, and a Vesper profile chosen in-app.
+Choices: web app via existing QR pairing; straight-to-playback;
+favourites from cloud sync; profile changeable in app; V2 dark look.
+
+### 1. Vesper phone nav (TESTED)
+- `MobileBottomNav.jsx`: Live tab removed → Home/Search/Library/More.
+
+### 2. Companion phone web app (TESTED via screenshots + curl)
+- NEW `/app/launcher-backend/companion_page.html` (~1100 lines,
+  single-file vanilla JS) served at `/remote` (same QR/pairing/LAN
+  flow as before; classic remote moved to `/remote-classic`).
+  PWA manifest renamed "V2 Companion".
+- Tabs: Remote (D-pad/rockers/media/trackpad/keyboard — full port),
+  Movies (Cinemeta search + popular, detail sheet, Play on TV),
+  Music (backend /music/home shelves + search, tap-to-play),
+  Live TV (slim channel list + category chips + search + favourites
+  via livetv_sync user_key = sha256("njala.ddns.me|"+username),
+  channel sheet with NOW/NEXT from /api/xtream/epg/{id}).
+- Now-playing mini bar + full-screen sheet: blurred backdrop, art,
+  scrubber (seek), play/pause + context controls (tunes: prev/next,
+  livetv: CH up/down + LIVE badge, vesper: rew/ffwd + next episode).
+- Settings sheet: TV profile name, Live TV username, unpair.
+- MAIN_API derived from cloud origin root + /api (works in preview,
+  prod nginx, and LAN-served copies; backend CORS is *).
+
+### 3. Backend (TESTED via curl)
+- NEW `/app/backend/companion.py`: GET /api/companion/livetv/channels
+  (slim gzip ~191KB from instant_bundle._state, cached per generation).
+- `music_api.py`: GET /api/music/track/{id} (Deezer proxy, _shape_track).
+- `launcher-backend/phone_remote.py`: new actions companion_play /
+  companion_open with strict validation; now_playing sanitize adds
+  source/artist/channel/live.
+
+### 4. Box side (Kotlin — brace-verified, needs CI build)
+- Launcher `RemoteControlService.kt`: handleCompanion() launches apps:
+  vesper → launch intent + vesper_route "/?v2ai=<title>&type=..&autoplay=1
+  [&imdb=tt..][&companionProfile=..]" (same contract as V2 AI voice);
+  tunes → `tunes_route` extra; livetv → `companion_stream_id` extra.
+  nowPlayingReceiver forwards source/artist/channel/live extras.
+- Tunes `MainActivity.kt`: tunes_route on create/onNewIntent (hash
+  route into bundled SPA); media keys → JS 'onnow-companion-cmd'.
+- Tunes `OnNowTvBridge.kt`: @JavascriptInterface nowPlaying(json) →
+  broadcasts tv.onnow.remote.NOW_PLAYING (source=tunes).
+- LiveTV: MainActivity forwards companion_stream_id → EpgActivity
+  auto-tunes via launchPlayer(ch) after boot; PlayerActivity
+  broadcasts NOW_PLAYING (live=true, channel name/logo) on tune +
+  cleared on destroy.
+
+### 5. Web app deep-link handling (TESTED e2e)
+- Vesper `App.js`: v2ai reader forwards imdb + activates profile by
+  name (listProfiles/setActiveProfile); `V2AIResolve.jsx` imdb
+  fast-path → /title/{type}/{tt}?autoplay=1 (verified: lands exactly).
+- Music: NEW `components/music/CompanionBridge.jsx` mounted in
+  MusicLayout — companionPlayTrack deep-link (verified: auto-plays),
+  onnow-companion-cmd listener (toggle/next/prev), now-playing
+  reporting to window.OnNowTV.nowPlaying every 5s + on change.
+- `MusicAlbum.jsx`: ?companionPlay=1 auto-plays album.
+
+### Test session for preview
+- Register fake box: POST {API}/api/launcher-admin/api/remote/host/register
+  {"device_id":"testbox1","token":"testtoken123456"} → sid devtestbox1.
+- Companion page: {API}/api/launcher-admin/remote?s=devtestbox1&c=testtoken123456

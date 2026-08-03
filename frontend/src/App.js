@@ -42,7 +42,7 @@ import FeatureNudge from '@/components/FeatureNudge';
 import NotifyHitWatcher from '@/components/NotifyHitWatcher';
 import DeepLinkHandler from '@/components/DeepLinkHandler';
 import { ThemeProvider } from '@/themes/ThemeProvider';
-import { getActiveProfile, isKidsActive, getKidsConfig, isKidsApp } from '@/lib/profiles';
+import { getActiveProfile, isKidsActive, getKidsConfig, isKidsApp, listProfiles, setActiveProfile } from '@/lib/profiles';
 import { AVATARS } from '@/lib/avatars';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import MobileBottomNav from '@/components/MobileBottomNav';
@@ -310,9 +310,23 @@ if (typeof window !== 'undefined') {
         const v2aiTitle = params.get('v2ai');
         if (v2aiTitle) {
             const v2aiType = (params.get('type') || 'movie').toLowerCase();
+            // v2.18.0 — Companion app extras: exact imdb id (skips the
+            // fuzzy TMDB search) + optional profile-by-name switch.
+            const v2aiImdb = params.get('imdb') || '';
+            const companionProfile = params.get('companionProfile') || '';
+            if (companionProfile) {
+                try {
+                    const match = (listProfiles() || []).find(
+                        (p) => (p.name || '').trim().toLowerCase() ===
+                               companionProfile.trim().toLowerCase(),
+                    );
+                    if (match) setActiveProfile(match.id);
+                } catch { /* best-effort */ }
+            }
             const target =
                 `/v2ai-play?title=${encodeURIComponent(v2aiTitle)}` +
-                `&type=${encodeURIComponent(v2aiType)}`;
+                `&type=${encodeURIComponent(v2aiType)}` +
+                (v2aiImdb ? `&imdb=${encodeURIComponent(v2aiImdb)}` : '');
             // HashRouter detection — same logic as everywhere else
             // in this file: under `file://` we run hash routing.
             const isFile = window.location.protocol === 'file:';

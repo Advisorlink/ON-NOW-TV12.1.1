@@ -23,9 +23,17 @@ export default function V2AIResolve() {
     const navigate = useNavigate();
     const title = (params.get('title') || '').trim();
     const requestedType = (params.get('type') || 'movie').toLowerCase();
+    const imdb = (params.get('imdb') || '').trim();
     const [error, setError] = useState('');
 
     useEffect(() => {
+        // v2.18.0 — Companion fast-path: exact IMDB id from the phone
+        // skips the fuzzy title search entirely.
+        if (imdb && /^tt\d+$/.test(imdb)) {
+            const t = requestedType === 'series' ? 'series' : 'movie';
+            navigate(`/title/${t}/${imdb}?autoplay=1`, { replace: true });
+            return;
+        }
         if (!title) {
             setError('No title provided.');
             return;
@@ -65,7 +73,7 @@ export default function V2AIResolve() {
             }
         })();
         return () => { cancelled = true; };
-    }, [title, requestedType, navigate]);
+    }, [title, requestedType, imdb, navigate]);
 
     return (
         <div

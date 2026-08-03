@@ -104,9 +104,46 @@ class MainActivity : AppCompatActivity() {
         webView = web
         webView.webViewClient = AssetLoaderClient(assetLoader)
         // Load the bundled React SPA directly — no sign-in gate.
+        // v2.18.0 — Companion deep-link: the launcher passes a
+        // `tunes_route` extra (e.g. "/music/album/123?companionPlay=1")
+        // when the phone Companion app asks the box to play music.
+        val route = intent?.getStringExtra("tunes_route") ?: "/music"
         webView.loadUrl(
-            "https://appassets.androidplatform.net/assets/web/index.html?box=1&yt=1#/music",
+            "https://appassets.androidplatform.net/assets/web/index.html?box=1&yt=1#$route",
         )
+    }
+
+    override fun onNewIntent(intent: android.content.Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val route = intent?.getStringExtra("tunes_route") ?: return
+        if (::webView.isInitialized) {
+            webView.loadUrl(
+                "https://appassets.androidplatform.net/assets/web/index.html?box=1&yt=1#$route",
+            )
+        }
+    }
+
+    /** v2.18.0 — Media keys (injected by the phone Companion via the
+     *  launcher's remote service, or a real remote) → the React music
+     *  engine, which has no native media-session hookup. */
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
+        val cmd = when (keyCode) {
+            android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> "play_pause"
+            android.view.KeyEvent.KEYCODE_MEDIA_PLAY       -> "play"
+            android.view.KeyEvent.KEYCODE_MEDIA_PAUSE      -> "pause"
+            android.view.KeyEvent.KEYCODE_MEDIA_NEXT       -> "next"
+            android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS   -> "prev"
+            else -> null
+        }
+        if (cmd != null && ::webView.isInitialized) {
+            webView.evaluateJavascript(
+                "window.dispatchEvent(new CustomEvent('onnow-companion-cmd',{detail:{cmd:'$cmd'}}))",
+                null,
+            )
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
     }
 
     /** WebViewClient that routes every request through the asset

@@ -626,6 +626,9 @@ phone_remote.register_admin(Depends(require_admin))
 app.include_router(phone_remote.router)
 
 _REMOTE_PAGE_PATH = Path(__file__).parent / "remote_page.html"
+# v2.18.0 — The Companion app supersedes the classic remote at /remote;
+# the old page stays reachable at /remote-classic.
+_COMPANION_PAGE_PATH = Path(__file__).parent / "companion_page.html"
 
 
 @app.get("/remote")
@@ -643,6 +646,29 @@ def phone_remote_page():
     caches (Cloudflare in front of onnowhub.com) don't serve a
     stale copy either.
     """
+    from fastapi.responses import HTMLResponse
+    try:
+        html = _COMPANION_PAGE_PATH.read_text(encoding="utf-8")
+    except Exception:
+        try:
+            html = _REMOTE_PAGE_PATH.read_text(encoding="utf-8")
+        except Exception:
+            raise HTTPException(404, "remote_page_missing")
+    return HTMLResponse(
+        content=html,
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma":        "no-cache",
+            "Expires":       "0",
+            "Vary":          "*",
+        },
+    )
+
+
+@app.get("/remote-classic")
+def phone_remote_classic_page():
+    """The original D-pad-only remote, kept as a fallback link from
+    the Companion app's settings sheet."""
     from fastapi.responses import HTMLResponse
     try:
         html = _REMOTE_PAGE_PATH.read_text(encoding="utf-8")
@@ -686,9 +712,9 @@ def phone_remote_manifest():
             # whether the backend is served at `/` or under a path
             # prefix like `/launcher/`.  Matches `start_url` exactly.
             "id": "remote",
-            "name": "ON NOW Remote",
-            "short_name": "ON NOW",
-            "description": "Use your phone as the remote for your ON NOW TV box.",
+            "name": "V2 Companion",
+            "short_name": "V2 Companion",
+            "description": "Browse, search and control your ON NOW TV box from your phone.",
             "display": "standalone",
             "display_override": ["fullscreen", "standalone", "minimal-ui"],
             "orientation": "any",
@@ -774,7 +800,7 @@ def phone_remote_version() -> dict:
     /remote."""
     import os
     try:
-        mtime = int(os.path.getmtime(_REMOTE_PAGE_PATH))
+        mtime = int(os.path.getmtime(_COMPANION_PAGE_PATH))
     except Exception:
         mtime = 0
     return {"version": REMOTE_PAGE_VERSION, "mtime": mtime}

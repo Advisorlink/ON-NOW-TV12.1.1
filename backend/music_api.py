@@ -637,6 +637,23 @@ async def music_chart_preset(preset_id: str):
     return {"cached": False, "data": data}
 
 
+@music_api.get("/track/{track_id}")
+async def music_track(track_id: str):
+    """Single-track lookup (Deezer proxy) — used by the phone
+    Companion app's play-on-TV flow: the Tunes box app receives a
+    bare track id and fetches full metadata here before playing."""
+    tid = track_id.strip()
+    if not tid.isdigit():
+        raise HTTPException(status_code=400, detail="bad track id")
+    try:
+        d = await _deezer_get(f"/track/{tid}")
+    except Exception:
+        raise HTTPException(status_code=502, detail="track lookup failed")
+    if not d or d.get("error") or not d.get("id"):
+        raise HTTPException(status_code=404, detail="track not found")
+    return {"track": _shape_track(d)}
+
+
 @music_api.get("/search")
 async def music_search(q: str = Query(..., min_length=1, max_length=120)):
     """Fan-out search: hits Deezer (tracks/albums/artists) + Radio

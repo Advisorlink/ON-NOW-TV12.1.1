@@ -1,5 +1,6 @@
 package tv.onnowtv.livetv
 
+import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -332,6 +333,8 @@ class PlayerActivity : AppCompatActivity() {
 
         // v2.16.29 — Announce presence to the launcher-admin Live tab.
         currentChannel?.let { tv.onnowtv.livetv.data.PresenceReporter.start(this, it) }
+        // v2.18.0 — Tell the phone Companion app what we're watching.
+        currentChannel?.let { broadcastNowPlaying(it) }
 
         // Attach the reminder watcher so a programme that's about
         // to start can pop a banner at the top-right of the player.
@@ -694,6 +697,8 @@ class PlayerActivity : AppCompatActivity() {
      * new one opens — no double-stream condition.
      */
     private fun tuneTo(channel: Channel, initial: Boolean = false) {
+        // v2.18.0 — Companion now-playing refresh on every zap.
+        if (!initial) broadcastNowPlaying(channel)
         // v2.16.9 — SWAP BACK memory lives in a process-scoped
         // singleton (PreviousChannelMemory) so the ping-pong keeps
         // working across Activity restarts.  Every tune records the
@@ -1614,7 +1619,29 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    /** v2.18.0 — Broadcast the live channel to the launcher's
+     *  RemoteControlService so the paired phone Companion app shows a
+     *  live now-playing card (channel name + logo, LIVE badge). */
+    private fun broadcastNowPlaying(channel: Channel) {
+        try {
+            sendBroadcast(Intent("tv.onnow.remote.NOW_PLAYING").apply {
+                putExtra("title", channel.name)
+                putExtra("channel", channel.name)
+                putExtra("poster", channel.logoUrl ?: "")
+                putExtra("playing", true)
+                putExtra("live", true)
+                putExtra("source", "livetv")
+            })
+        } catch (_: Throwable) { /* best-effort */ }
+    }
+
     override fun onDestroy() {
+        // v2.18.0 — Clear the phone Companion now-playing card.
+        try {
+            sendBroadcast(Intent("tv.onnow.remote.NOW_PLAYING").apply {
+                putExtra("cleared", true)
+            })
+        } catch (_: Throwable) { /* best-effort */ }
         hideHandler.removeCallbacksAndMessages(null)
         numberHandler.removeCallbacksAndMessages(null)
         progressHandler.removeCallbacksAndMessages(null)

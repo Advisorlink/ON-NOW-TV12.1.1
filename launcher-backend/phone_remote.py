@@ -65,7 +65,12 @@ ALLOWED_ACTIONS = {
     "mouse_move", "mouse_tap", "mouse_longpress",
     # v2.14.4 — Two-finger scroll on the trackpad = mouse wheel.
     "mouse_scroll",
+    # v2.18.0 — Companion app: play/open content on the box.
+    "companion_play", "companion_open",
 }
+
+# Companion targets the box knows how to launch.
+COMPANION_TARGETS = {"vesper", "tunes", "livetv"}
 
 
 @dataclass
@@ -243,6 +248,51 @@ def _validate_input(body: dict) -> dict:
         return {"action": "mouse_move", "x": x, "y": y}
     if action in ("mouse_tap", "mouse_longpress"):
         return {"action": action}
+    if action == "companion_open":
+        target = str(body.get("target") or "").lower()
+        if target not in COMPANION_TARGETS:
+            raise HTTPException(400, "bad_target")
+        return {"action": "companion_open", "target": target}
+    if action == "companion_play":
+        target = str(body.get("target") or "").lower()
+        if target not in COMPANION_TARGETS:
+            raise HTTPException(400, "bad_target")
+        out = {"action": "companion_play", "target": target}
+        if target == "vesper":
+            title = str(body.get("title") or "").strip()[:200]
+            if not title:
+                raise HTTPException(400, "missing_title")
+            mt = str(body.get("media_type") or "movie").lower()
+            out["title"] = title
+            out["media_type"] = "series" if mt in ("series", "tv") else "movie"
+            imdb = str(body.get("imdb") or "").strip()[:24]
+            if imdb:
+                out["imdb"] = imdb
+            profile = str(body.get("profile") or "").strip()[:64]
+            if profile:
+                out["profile"] = profile
+        elif target == "tunes":
+            route = str(body.get("route") or "").strip()[:400]
+            track_id = str(body.get("track_id") or "").strip()[:32]
+            if track_id and not track_id.isdigit():
+                raise HTTPException(400, "bad_track_id")
+            if not route and not track_id:
+                raise HTTPException(400, "missing_route")
+            if route and not route.startswith("/music"):
+                raise HTTPException(400, "bad_route")
+            if route:
+                out["route"] = route
+            if track_id:
+                out["track_id"] = track_id
+        else:  # livetv
+            stream_id = str(body.get("stream_id") or "").strip()[:32]
+            if not stream_id.isdigit():
+                raise HTTPException(400, "bad_stream_id")
+            out["stream_id"] = stream_id
+            name = str(body.get("name") or "").strip()[:120]
+            if name:
+                out["name"] = name
+        return out
     if action == "mouse_scroll":
         # v2.14.4 — Two-finger scroll payload: {dx, dy} in scroll
         # STEPS (not pixels).  Positive dy = scroll down.  Clamp to a
@@ -275,6 +325,13 @@ def _sanitize_now_playing(np: dict) -> dict:
         "duration_ms": int(np.get("duration_ms", 0) or 0),
         "playing": bool(np.get("playing", True)),
         "has_next": bool(np.get("has_next", False)),
+        # v2.18.0 — Companion context: which app is playing (vesper /
+        # tunes / livetv) + music artist / live channel labels so the
+        # phone renders the right controls.
+        "source": str(np.get("source", ""))[:16],
+        "artist": str(np.get("artist", ""))[:160],
+        "channel": str(np.get("channel", ""))[:120],
+        "live": bool(np.get("live", False)),
     }
 
 

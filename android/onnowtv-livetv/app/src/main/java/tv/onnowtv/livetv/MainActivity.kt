@@ -247,7 +247,11 @@ class MainActivity : AppCompatActivity() {
                                     "fast-path epg worker enqueue failed: ${t.message}",
                                 )
                             }
-                            startActivity(Intent(this, EpgActivity::class.java))
+                            startActivity(Intent(this, EpgActivity::class.java).apply {
+                                intent?.getStringExtra("companion_stream_id")?.let {
+                                    putExtra("companion_stream_id", it)
+                                }
+                            })
                             overridePendingTransition(0, 0)
                             finish()
                             return

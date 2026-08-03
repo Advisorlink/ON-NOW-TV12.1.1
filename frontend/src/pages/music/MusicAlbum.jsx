@@ -6,7 +6,7 @@
 //   - Short synopsis
 //   - Play Album (white pill) / Shuffle / Add to Library / ⋯
 //   - Track list with cyan-highlighted current row
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
     Play, Pause, Plus, Shuffle, MoreHorizontal, Check,
@@ -52,6 +52,20 @@ export default function MusicAlbum() {
         update();
         return subscribeMusicLibrary(update);
     }, [data]);
+
+    // v2.18.0 — Companion deep-link: ?companionPlay=1 auto-plays the
+    // whole album the moment tracks arrive (box launched from phone).
+    const companionPlayed = useRef(false);
+    useEffect(() => {
+        if (!data || companionPlayed.current) return;
+        const params = new URLSearchParams(window.location.hash.split('?')[1] || window.location.search);
+        if (params.get('companionPlay') !== '1') return;
+        const list = data.tracks || [];
+        if (list.length) {
+            companionPlayed.current = true;
+            controls.playTrack(list[0], list);
+        }
+    }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
 
     if (err) return <div className="tunes-empty">Couldn&apos;t load album — {err}</div>;
     if (!data) {

@@ -33,6 +33,36 @@ import tv.onnowtv.tunes.youtube.YouTubeResolver
  */
 class OnNowTvBridge(private val webView: WebView) {
 
+    /** v2.18.0 — Now-playing reporting for the phone Companion app.
+     *  The React music engine calls `OnNowTV.nowPlaying(json)` on
+     *  track / play-state changes; we re-broadcast it on the same
+     *  intent the launcher's RemoteControlService already listens
+     *  to for Vesper, tagged `source=tunes`. */
+    @JavascriptInterface
+    fun nowPlaying(json: String) {
+        try {
+            val ctx = webView.context.applicationContext
+            val o = JSONObject(json)
+            val intent = android.content.Intent("tv.onnow.remote.NOW_PLAYING")
+            if (o.optBoolean("cleared", false)) {
+                intent.putExtra("cleared", true)
+            } else {
+                intent.putExtra("title", o.optString("title"))
+                intent.putExtra("artist", o.optString("artist"))
+                intent.putExtra("poster", o.optString("poster"))
+                intent.putExtra("backdrop", o.optString("poster"))
+                intent.putExtra("position_ms", o.optLong("position_ms", 0L))
+                intent.putExtra("duration_ms", o.optLong("duration_ms", 0L))
+                intent.putExtra("playing", o.optBoolean("playing", true))
+                intent.putExtra("live", o.optBoolean("live", false))
+                intent.putExtra("source", "tunes")
+            }
+            ctx.sendBroadcast(intent)
+        } catch (t: Throwable) {
+            Log.w("OnNowTvBridge", "nowPlaying broadcast failed: ${t.message}")
+        }
+    }
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /** Always-true flag JS can read to detect the native bridge is up. */
