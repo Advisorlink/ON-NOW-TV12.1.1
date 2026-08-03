@@ -24,6 +24,8 @@ export default function V2AIResolve() {
     const title = (params.get('title') || '').trim();
     const requestedType = (params.get('type') || 'movie').toLowerCase();
     const imdb = (params.get('imdb') || '').trim();
+    const season = (params.get('season') || '').trim();
+    const episode = (params.get('episode') || '').trim();
     const [error, setError] = useState('');
 
     useEffect(() => {
@@ -31,6 +33,15 @@ export default function V2AIResolve() {
         // skips the fuzzy title search entirely.
         if (imdb && /^tt\d+$/.test(imdb)) {
             const t = requestedType === 'series' ? 'series' : 'movie';
+            // v2.18.3 — Episode deep-link: land on the series detail
+            // page with the exact episode pre-picked and auto-playing.
+            if (t === 'series' && /^\d+$/.test(season) && /^\d+$/.test(episode)) {
+                navigate(
+                    `/title/series/${imdb}?season=${season}&episode=${episode}&episodeAutoplay=1`,
+                    { replace: true },
+                );
+                return;
+            }
             navigate(`/title/${t}/${imdb}?autoplay=1`, { replace: true });
             return;
         }

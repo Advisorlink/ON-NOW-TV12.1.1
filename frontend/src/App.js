@@ -313,6 +313,9 @@ if (typeof window !== 'undefined') {
             // v2.18.0 — Companion app extras: exact imdb id (skips the
             // fuzzy TMDB search) + optional profile-by-name switch.
             const v2aiImdb = params.get('imdb') || '';
+            // v2.18.3 — Companion episode deep-link (series).
+            const v2aiSeason = params.get('season') || '';
+            const v2aiEpisode = params.get('episode') || '';
             const companionProfile = params.get('companionProfile') || '';
             if (companionProfile) {
                 try {
@@ -326,7 +329,10 @@ if (typeof window !== 'undefined') {
             const target =
                 `/v2ai-play?title=${encodeURIComponent(v2aiTitle)}` +
                 `&type=${encodeURIComponent(v2aiType)}` +
-                (v2aiImdb ? `&imdb=${encodeURIComponent(v2aiImdb)}` : '');
+                (v2aiImdb ? `&imdb=${encodeURIComponent(v2aiImdb)}` : '') +
+                (v2aiSeason && v2aiEpisode
+                    ? `&season=${encodeURIComponent(v2aiSeason)}&episode=${encodeURIComponent(v2aiEpisode)}`
+                    : '');
             // HashRouter detection — same logic as everywhere else
             // in this file: under `file://` we run hash routing.
             const isFile = window.location.protocol === 'file:';

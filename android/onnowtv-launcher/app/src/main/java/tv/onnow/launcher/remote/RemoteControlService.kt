@@ -268,6 +268,17 @@ class RemoteControlService : Service() {
             }
             // v2.18.0 — Companion app: play / open content on the box.
             "companion_play", "companion_open" -> handleCompanion(payload)
+            // v2.18.3 — Player extras from the phone's now-playing
+            // sheet: cycle stream source / kill subtitles.
+            "swap_stream", "subtitles_off" -> {
+                try {
+                    sendBroadcast(Intent(ACTION_PLAYER_CMD).apply {
+                        putExtra("cmd", payload.optString("action"))
+                    })
+                } catch (t: Throwable) {
+                    Log.w(TAG, "player-cmd broadcast failed", t)
+                }
+            }
             else -> RootInputDispatcher.handle(this, payload)
         }
     }
@@ -309,6 +320,13 @@ class RemoteControlService : Service() {
                         val profile = payload.optString("profile")
                         if (profile.isNotBlank()) {
                             route += "&companionProfile=" + java.net.URLEncoder.encode(profile, "UTF-8")
+                        }
+                        // v2.18.3 — Exact-episode deep-link from the
+                        // phone's series page.
+                        val season = payload.optInt("season", 0)
+                        val episode = payload.optInt("episode", 0)
+                        if (season > 0 && episode > 0) {
+                            route += "&season=$season&episode=$episode"
                         }
                         launch.putExtra("vesper_route", route)
                         launch.data = android.net.Uri.parse("onnowtv://launch$route")

@@ -67,6 +67,9 @@ ALLOWED_ACTIONS = {
     "mouse_scroll",
     # v2.18.0 — Companion app: play/open content on the box.
     "companion_play", "companion_open",
+    # v2.18.3 — Now-playing extras: cycle to another stream source,
+    # turn subtitles off (relayed to the active player on the box).
+    "swap_stream", "subtitles_off",
 }
 
 # Companion targets the box knows how to launch.
@@ -223,6 +226,8 @@ def _validate_input(body: dict) -> dict:
         return {"action": "seek", "position_ms": pos}
     if action == "next_episode":
         return {"action": "next_episode"}
+    if action in ("swap_stream", "subtitles_off"):
+        return {"action": action}
     if action == "mouse_move":
         # v2.13.22 — Trackpad payload has two shapes:
         #   • {dx, dy}         — relative motion (preferred, HID-mouse
@@ -274,6 +279,17 @@ def _validate_input(body: dict) -> dict:
             profile = str(body.get("profile") or "").strip()[:64]
             if profile:
                 out["profile"] = profile
+            # v2.18.3 — Exact-episode deep-link from the phone.
+            for k in ("season", "episode"):
+                v = body.get(k)
+                if v is None or str(v).strip() == "":
+                    continue
+                try:
+                    iv = int(v)
+                except (TypeError, ValueError):
+                    raise HTTPException(400, f"bad_{k}")
+                if 0 < iv < 1000:
+                    out[k] = iv
         elif target == "tunes":
             route = str(body.get("route") or "").strip()[:400]
             track_id = str(body.get("track_id") or "").strip()[:32]

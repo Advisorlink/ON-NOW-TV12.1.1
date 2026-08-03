@@ -1,0 +1,28 @@
+{
+  "summary": "Regression test of ON NOW TV V2 Companion phone-app v2.18.3. All 13 backend/frontend flows in the review request PASS. Verified: blue V2 brand (rgb 92,156,255), 6 home tiles, Continue Watching rail with Breaking Bad + Inception, MOVIE tap plays instantly (no sheet), SERIES tap opens series page with 4 season chips + 10 episode rows, season chip switch re-renders (10→8 eps), episode tap sends S/E integers, Live TV Guide segment with UK|Sky Sports chip renders 35 g-row rows with NOW title + progress + LIVE pill + NEXT and tap sends companion_play target=livetv (no confirmation sheet), Sports/PPV segments load their chips, Music has 10 tracks/14 artists/14 albums, track tap sends track_id, artist tap sends /music/artist/<id>, kids tile shows 'installed' toast (kids registered false), Settings profile chips include 'Dad'. Backend endpoints: /vesper/continue returns 2 items with correct S/E, /livetv/sections returns 53 sports + 16 ppv, /livetv/guide?cat=49 & ?ids=1,2 both return channels with no superscript in titles (0/35 bad), no-param guide=400, /api/remote/input companion_play persists integer season/episode in host/poll, swap_stream + subtitles_off accepted, season='abc' → 400 bad_season.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "movie poster tap handler (companion-movie-tile mtype=movie)", "issue": "Tapping a movie poster fires the click handler twice — poll receives two identical companion_play payloads for the same imdb. Confirms play works, but the box will get a duplicate command.", "selector": "[data-testid='companion-movie-tile'][data-mtype='movie']", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "OPTIONAL: dedupe/debounce movie poster clicks so tapping a movie only sends one companion_play (currently sends 2 identical events). Series/episode/track/channel taps do NOT have this issue."
+  ],
+  "critical_code_review_comments": [
+    "companion_page.html is ~1932 lines and mixes styles, template, and all JS controllers in a single file — consider splitting per-view controllers (movies/livetv/music) for maintainability.",
+    "Review request references some data-testids that don't match the actual DOM (e.g. companion-home-tile-<n>, companion-cat-chip-*, g-row as a testid). Real testids are companion-home-<movies|livetv|music|kids|sports|fta>, category chips are class .chip inside #tvChips with data-cat only (no testid), guide rows use data-testid=companion-livetv-channel plus class .g-row. Consider adding companion-cat-chip-<id> / companion-home-tile alias testids to match documented contracts.",
+    "phone_remote input validator returns 'missing_title' before 'bad_season' when title is absent; the review expected 'bad_season' first. Ordering is fine as long as callers always send title, which the phone app does."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "device_id=testbox1, token=tok123456, session=devtestbox1, vesper user=testuser (profile Dad)",
+  "seed_data_creation": "Re-registered box session via POST /api/remote/host/register (in-memory, dies on backend restart).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Test URL is http://localhost:8002/remote?s=devtestbox1&c=tok123456 (external preview URL doesn't serve /remote). Before UI tests: (1) POST /api/remote/host/register to (re)create session, (2) dismiss [data-testid=companion-fs-gate] with a click, (3) page.evaluate(localStorage.setItem('onnow_companion_cfg', JSON.stringify({vesperUser:'testuser'}))) then reload so CW rail populates. Use short --max-time 2 on GET /api/remote/host/poll/<sid> because it's a long-poll. Correct testids: Home tiles = companion-home-{movies,livetv,music,kids,sports,fta} (NOT companion-home-tile-*). Live TV chips are .chip inside #tvChips (no testid, use data-cat). Guide rows: [data-testid=companion-livetv-channel] (class .g-row). NP pills: companion-np-swap-stream, companion-np-subs-off. Settings is opened via [data-testid=companion-settings-btn] gear icon, not a bottom tab.",
+  "rca of the issue": "Only finding is a double-fire on movie poster tap — likely both click and possibly a touchend/synthetic-click firing on the same button, resulting in two send() calls. Fix: attach handler once and gate with a short debounce or use pointerup only. Not a blocker."
+}

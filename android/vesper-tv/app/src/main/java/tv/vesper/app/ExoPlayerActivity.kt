@@ -206,6 +206,24 @@ class ExoPlayerActivity : ComponentActivity(),
                         try { jumpToPrimedNextEpisode() } catch (_: Exception) {}
                     }
                 }
+                // v2.18.3 — Companion phone: cycle to the next stream
+                // source (same list the in-player picker shows).
+                "swap_stream" -> {
+                    runOnUiThread {
+                        try {
+                            if (altStreams.size > 1) {
+                                val next = (currentStreamIdx + 1 + altStreams.size) % altStreams.size
+                                switchStream(next)
+                            }
+                        } catch (_: Exception) {}
+                    }
+                }
+                // v2.18.3 — Companion phone: turn subtitles off.
+                "subtitles_off" -> {
+                    runOnUiThread {
+                        try { selectTrack(C.TRACK_TYPE_TEXT, "off") } catch (_: Exception) {}
+                    }
+                }
             }
         }
     }
