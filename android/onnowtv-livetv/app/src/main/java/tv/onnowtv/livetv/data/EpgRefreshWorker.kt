@@ -107,6 +107,30 @@ class EpgRefreshWorker(
                     "(${parsed.displayNameToEpgId.size} xmltv display names seen, " +
                     "${parsed.totalProgrammes} programmes total)",
             )
+            // v2.16.51 — Also refresh the near-term (8 h) EPG window
+            // from the backend's epg-only endpoint.  This keeps the
+            // channels that XMLTV does NOT cover (provider quality
+            // variants, docu/entertainment channels whose guide only
+            // arrives via the lazy per-channel fetch) warm on disk, so
+            // the What's On hub and channel rows are fully populated
+            // the instant the app opens — with no network wait.
+            // mergeChannel() UNION-merges, so multi-day XMLTV guides
+            // are never truncated by this window.
+            try {
+                val epgOnly = XtreamRepository.fetchEpgOnlyMap(
+                    windowHours = 8,
+                    keepIds = wantedIds,
+                )
+                var merged = 0
+                for ((sid, progs) in epgOnly) {
+                    if (progs.isEmpty()) continue
+                    EpgCache.mergeChannel(ctx, sid, progs)
+                    merged++
+                }
+                Log.i(TAG, "epg-only merge: refreshed $merged channels")
+            } catch (t: Throwable) {
+                Log.w(TAG, "epg-only merge failed (non-fatal): ${t.message}")
+            }
             Result.success()
         } catch (t: Throwable) {
             Log.w(TAG, "refresh failed: ${t.message}")

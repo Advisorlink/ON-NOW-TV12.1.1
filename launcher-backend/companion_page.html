@@ -450,6 +450,23 @@
   .whatson-banner .wb-s{font-size:9px;font-weight:700;letter-spacing:.24em;margin-top:3px;opacity:.9}
   .whatson-banner .wb-n{font-size:22px;font-weight:800;flex:0 0 auto}
   .whatson-banner:active{transform:scale(.985)}
+  /* v2.18.6 — What's On Live sports hub (phone mirror of the TV hub) */
+  .chip-row.wo{padding:6px 0 14px;gap:4px}
+  .wo-chip{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:6px;background:none;border:none;
+    cursor:pointer;padding:4px 7px;min-width:66px;color:var(--txt-dim);transition:color .15s ease}
+  .wo-chip .wo-disc{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    background:var(--wo,#8FA1BF);box-shadow:0 5px 16px rgba(0,0,0,.38);transition:transform .12s ease}
+  .wo-chip .wo-disc svg{width:24px;height:24px;stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .wo-chip .wo-lb{font-size:10px;font-weight:700;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .wo-chip .wo-n{font-size:9px;font-weight:800;letter-spacing:.08em;color:var(--txt-faint)}
+  .wo-chip.active{color:var(--txt)}
+  .wo-chip.active .wo-disc{outline:2.5px solid #fff;outline-offset:2.5px}
+  .wo-chip.active .wo-n{color:var(--accent)}
+  .wo-chip:active .wo-disc{transform:scale(.9)}
+  .wo-head{display:flex;align-items:center;gap:8px;margin:16px 0 8px}
+  .wo-head .wo-dot{width:8px;height:8px;border-radius:50%;background:var(--red);animation:woPulse 1.2s ease-in-out infinite}
+  @keyframes woPulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .wo-head .rail-title{margin:0}
   .g-nowpill{display:inline-block;font-size:8.5px;font-weight:800;letter-spacing:.1em;color:#fff;
     background:var(--red);border-radius:4px;padding:2px 6px;margin-right:7px;vertical-align:1px}
   .chip .chip-n{opacity:.5;margin-left:6px;font-weight:600;font-size:10px}
@@ -1753,10 +1770,107 @@
       body.innerHTML = '<div class="empty-note">Couldn\u2019t load channels — check your connection.</div>';
     });
   }
-  $("whatsOnBanner").addEventListener("click", function(){
-    var sg = document.querySelector('#tvSegs .seg[data-seg="sports"]');
-    if (sg) sg.click();
-  });
+  /* v2.18.6 — What's On Live hub: sport icon chips + live channels per
+     sport, exactly like the TV app.  Tap a channel = instant tune. */
+  var woData = null, woSport = "__all__", woAt = 0;
+  var WO_ICONS = {
+    soccer: '<circle cx="12" cy="12" r="9"/><path d="M12 8.2l3.6 2.6-1.4 4.3H9.8l-1.4-4.3z"/><path d="M12 3v5.2M4.5 15.1l4-.1M19.5 15.1l-4-.1"/>',
+    f1: '<path d="M5 21V3"/><path d="M5 4h13l-2.6 4L18 12H5"/>',
+    motorsport: '<circle cx="12" cy="13" r="8"/><path d="M12 13l4.2-4.2"/><path d="M12 5v2M5 13H7M17 13h2"/>',
+    golf: '<path d="M8 21V3"/><path d="M8 4l7.5 2.6L8 9.4"/><circle cx="14" cy="19" r="2.2"/>',
+    cricket: '<path d="M5 21l1.5-1.5"/><path d="M6.5 19.5L15 11l3-6-2-2-6 3-8.5 8.5z" transform="translate(2,-1) scale(.9)"/><circle cx="18.5" cy="18" r="2.2"/>',
+    tennis: '<circle cx="12" cy="12" r="9"/><path d="M4.2 7.5c4.2 2 4.2 7 0 9M19.8 7.5c-4.2 2-4.2 7 0 9"/>',
+    rugby: '<ellipse cx="12" cy="12" rx="9.2" ry="5.6" transform="rotate(-35 12 12)"/><path d="M9.2 12h5.6M10.6 10.4v3.2M13.4 10.4v3.2" transform="rotate(-35 12 12)"/>',
+    nrl: '<ellipse cx="12" cy="12" rx="9.2" ry="5.6" transform="rotate(-35 12 12)"/><path d="M9.2 12h5.6M10.6 10.4v3.2M13.4 10.4v3.2" transform="rotate(-35 12 12)"/>',
+    afl: '<ellipse cx="12" cy="12" rx="9.2" ry="5.6" transform="rotate(-55 12 12)"/><path d="M9.5 12h5M11 10.6v2.8M13 10.6v2.8" transform="rotate(-55 12 12)"/>',
+    nfl: '<ellipse cx="12" cy="12" rx="9.2" ry="5.6" transform="rotate(-35 12 12)"/><path d="M9.2 12h5.6M10.6 10.4v3.2M13.4 10.4v3.2" transform="rotate(-35 12 12)"/>',
+    nba: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3v18M5.6 5.6c3 3 3 9.8 0 12.8M18.4 5.6c-3 3-3 9.8 0 12.8"/>',
+    nhl: '<path d="M6 3l5.6 11.4c.8 1.6 2 2.1 3.7 2.1H19"/><ellipse cx="8" cy="19.5" rx="3.6" ry="1.9"/>',
+    mlb: '<circle cx="12" cy="12" r="9"/><path d="M6 5.4c2.7 3.9 2.7 9.3 0 13.2M18 5.4c-2.7 3.9-2.7 9.3 0 13.2"/>',
+    mma: '<path d="M7 11V8a5 5 0 0 1 10 0v3.2a5 5 0 0 1-2.8 4.5V18h-4.4v-2.3A5 5 0 0 1 7 11z"/><path d="M7 10.2h4.2"/>',
+    cycling: '<circle cx="6" cy="17" r="4"/><circle cx="18" cy="17" r="4"/><path d="M6 17l4.2-8h4.6l3.2 8M10.2 9l2.2 8"/><path d="M9 6h3.5"/>',
+    athletics: '<circle cx="15" cy="4.6" r="2"/><path d="M5.5 20.5l4-5.6 3.2 2 1.8 3.6M8 12.4l4.4-3 3 2.2 3.8-1.2"/>',
+    wwe: '<circle cx="12" cy="12" r="4.6"/><path d="M7.4 10H3v4h4.4M16.6 10H21v4h-4.4"/><path d="M12 9.8v4.4"/>',
+    other: '<path d="M7 4h10v4.2a5 5 0 0 1-10 0z"/><path d="M7 5H4v1.6A3.4 3.4 0 0 0 7.4 10M17 5h3v1.6A3.4 3.4 0 0 1 16.6 10"/><path d="M12 13.2V17M8 20.5h8"/>',
+  };
+  function woIcon(id){ return WO_ICONS[id] || WO_ICONS.other; }
+  function openWhatsOn(){
+    haptic(10);
+    tvSection = "whatson"; woSport = "__all__";
+    document.querySelectorAll("#tvSegs .seg").forEach(function(x){ x.classList.remove("active"); });
+    hideTvHero();
+    $("whatsOnBanner").classList.remove("show");
+    var body = $("tvBody");
+    if (woData && Date.now() - woAt < 60000){ renderWoChips(); renderWoList(); return; }
+    $("tvChips").innerHTML = "";
+    body.innerHTML = '<div class="spin"></div>';
+    fetch(MAIN_API + "/companion/livetv/whatson")
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if (tvSection !== "whatson") return;
+        woData = d; woAt = Date.now();
+        if (!d || !d.sports || !d.sports.length){
+          body.innerHTML = '<div class="empty-note">No live sport airing right now — check back soon.</div>'; return;
+        }
+        renderWoChips(); renderWoList();
+      })
+      .catch(function(){
+        if (tvSection === "whatson")
+          body.innerHTML = '<div class="empty-note">Couldn\u2019t load live sports — try again.</div>';
+      });
+  }
+  function renderWoChips(){
+    var wrap = $("tvChips");
+    wrap.classList.add("wo");
+    if (!woData || !woData.sports){ wrap.innerHTML = ""; return; }
+    var html = '<button class="wo-chip' + (woSport === "__all__" ? " active" : "") + '" data-wo="__all__" style="--wo:#2E6BFF" data-testid="companion-wo-sport-all">' +
+      '<span class="wo-disc"><svg viewBox="0 0 24 24">' + WO_ICONS.other + '</svg></span>' +
+      '<span class="wo-lb">All Sport</span><span class="wo-n">' + (woData.total || 0) + ' LIVE</span></button>';
+    woData.sports.forEach(function(s){
+      html += '<button class="wo-chip' + (woSport === s.id ? " active" : "") + '" data-wo="' + esc(s.id) + '" style="--wo:' + esc(s.color) + '" data-testid="companion-wo-sport-' + esc(s.id) + '">' +
+        '<span class="wo-disc"><svg viewBox="0 0 24 24">' + woIcon(s.id) + '</svg></span>' +
+        '<span class="wo-lb">' + esc(s.label) + '</span><span class="wo-n">' + s.count + ' LIVE</span></button>';
+    });
+    wrap.innerHTML = html;
+    wrap.querySelectorAll(".wo-chip").forEach(function(ch){
+      ch.addEventListener("click", function(){
+        haptic(8); woSport = ch.getAttribute("data-wo");
+        wrap.querySelectorAll(".wo-chip").forEach(function(x){ x.classList.toggle("active", x === ch); });
+        renderWoList();
+      });
+    });
+  }
+  function woRow(c, color){
+    var now = Date.now() / 1000;
+    var pct = c.stop > c.start
+      ? Math.min(100, Math.max(0, (now - c.start) / (c.stop - c.start) * 100)) : 0;
+    return '<button class="g-row" data-stream="' + esc(c.stream_id) + '" data-cname="' + esc(c.name) + '" data-testid="companion-wo-channel">' +
+      '<img loading="lazy" src="' + esc(c.logo || "") + '" alt="" onerror="this.style.visibility=\'hidden\'">' +
+      '<div class="g-main">' +
+        '<div class="g-ch">' + esc(c.title) + '</div>' +
+        '<div class="g-now">' + esc(c.name) + '</div>' +
+        '<div class="g-next">' + tvTm(c.start) + ' \u2013 ' + tvTm(c.stop) + '</div>' +
+        '<div class="g-prog"><i style="width:' + pct + '%;background:' + esc(color) + '"></i></div>' +
+      '</div><span class="g-live">LIVE</span></button>';
+  }
+  function renderWoList(){
+    var body = $("tvBody");
+    var sports = (woData && woData.sports) || [];
+    var html = "";
+    if (woSport === "__all__"){
+      sports.forEach(function(s){
+        html += '<div class="wo-head"><span class="wo-dot"></span><div class="rail-title" style="color:' + esc(s.color) + '">' + esc(s.label) + ' \u00B7 ' + s.count + ' LIVE</div></div>';
+        html += s.channels.map(function(c){ return woRow(c, s.color); }).join("");
+      });
+    } else {
+      var s = null;
+      sports.forEach(function(x){ if (x.id === woSport) s = x; });
+      if (s) html = s.channels.map(function(c){ return woRow(c, s.color); }).join("");
+    }
+    body.innerHTML = html || '<div class="empty-note">No live games in this sport right now.</div>';
+    wireTvRows(body);
+  }
+  $("whatsOnBanner").addEventListener("click", openWhatsOn);
   (function segSetup(){
     document.querySelectorAll("#tvSegs .seg").forEach(function(sg){
       sg.addEventListener("click", function(){
@@ -1776,7 +1890,9 @@
     });
   })();
   function renderTvChips(){
+    if (tvSection === "whatson"){ renderWoChips(); return; }
     var wrap = $("tvChips");
+    wrap.classList.remove("wo");
     var html = "";
     function n(v){ return v ? ' <span class="chip-n">' + v + '</span>' : ""; }
     if (tvSection === "guide"){
@@ -1889,6 +2005,7 @@
   }
   function renderTvList(){
     var body = $("tvBody");
+    if (tvSection === "whatson" && !tvQuery){ renderWoList(); return; }
     var favSet = {};
     tvFavs.forEach(function(id){ favSet[id] = true; });
     $("whatsOnBanner").classList.toggle("show",

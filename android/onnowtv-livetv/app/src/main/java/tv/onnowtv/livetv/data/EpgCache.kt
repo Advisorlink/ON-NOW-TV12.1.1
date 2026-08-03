@@ -304,6 +304,22 @@ object EpgCache {
             if (live.exists() && !live.renameTo(old)) {
                 live.deleteRecursively()
             }
+            // v2.16.51 — CARRY-OVER: the fresh XMLTV parse only writes
+            // files for channels the XMLTV feed covers.  Channels whose
+            // EPG arrived via the lazy /epg/{id} fetch or the epg-only
+            // prewarm (e.g. UK DOCUMENTARIES variants) previously lost
+            // their guide on EVERY 6 h background refresh because the
+            // old dir was deleted wholesale.  Move any per-channel file
+            // the new parse didn't produce into the staging dir before
+            // the swap so lazily-fetched guides survive refresh cycles.
+            try {
+                if (old.isDirectory) {
+                    old.listFiles { f -> f.name.endsWith(".jsonl.gz") }?.forEach { f ->
+                        val target = File(staging, f.name)
+                        if (!target.exists()) f.renameTo(target)
+                    }
+                }
+            } catch (_: Throwable) {}
             val ok = staging.renameTo(live)
             old.deleteRecursively()
             if (!ok) Log.w(TAG, "promote: rename staging→live failed")
@@ -525,7 +541,20 @@ object EpgCache {
         // user has only ever fetched a handful of channels via
         // the lazy network path.
         cacheDir(ctx).mkdirs()
-        saveChannel(ctx, channelId, programmes)
+        // v2.16.51 — TRUE union merge.  Previously this OVERWROTE the
+        // channel's file, so an 8 h epg-only window could clobber a
+        // 3-day XMLTV guide (killing the "up next" column).  Now the
+        // existing programmes are kept, incoming ones replace
+        // same-start entries, and anything that ended >12 h ago is
+        // pruned so files never grow unbounded.
+        val existing = loadChannel(ctx, channelId) ?: emptyList()
+        val byStart = java.util.TreeMap<Long, Programme>()
+        for (p in existing) byStart[p.startMs] = p
+        for (p in programmes) byStart[p.startMs] = p
+        val cutoff = System.currentTimeMillis() - 12L * 60 * 60 * 1000
+        val merged = byStart.values.filter { it.stopMs >= cutoff }
+        if (merged.isEmpty()) return
+        saveChannel(ctx, channelId, merged)
         try {
             if (!schemaFile(ctx).exists()) {
                 schemaFile(ctx).writeText(CURRENT_SCHEMA_VERSION.toString())

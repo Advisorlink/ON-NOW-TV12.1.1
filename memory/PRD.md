@@ -1,4 +1,35 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.18.6 / v2.16.51 — EPG survives background refresh + Companion "What's On Live" sports hub (Jun 2026).**
+>
+> ### User complaints
+> 1. "UK Documentaries EPG is gone after 5-6 hours, but other channels still have data — and all the upcoming next is gone too."
+> 2. "The Live TV app is meant to load What's On first so it's already there when it opens — every single time."
+> 3. "The Companion app's What's On Live needs to show the sport icons so we can choose one, and show which channels have the live game — tap to play on the TV."
+>
+> ### Root cause (complaint 1+2)
+> `EpgRefreshWorker` (every 6 h) parses XMLTV into a staging dir and `EpgCache.promote()` swapped it in by DELETING the old live dir wholesale.  The staging dir only contains XMLTV-matched channels, so every channel whose EPG arrived via the lazy `/api/xtream/epg/{id}` fetch or the epg-only prewarm (UK DOCUMENTARIES etc.) lost its per-channel gz file on EVERY refresh cycle.  Separately, `EpgCache.mergeChannel()` OVERWROTE the channel file, so an 8 h epg-only window could clobber a 3-day XMLTV guide (killing "up next").
+>
+> ### Fixes (Kotlin, `onnowtv-livetv`)
+> - **`EpgCache.promote()`** — carry-over: any `.jsonl.gz` present in the old live dir but missing from staging is moved into staging before the swap.  Lazily-fetched guides now survive every refresh.
+> - **`EpgCache.mergeChannel()`** — TRUE union merge: existing programmes kept, incoming replace same-start entries, entries ended >12 h ago pruned.
+> - **`EpgRefreshWorker.doWork()`** — after the XMLTV commit, also fetches `/instant-bundle/epg-only?window_hours=8` (keepIds = bundle channel ids) and union-merges every bucket to disk.  Non-XMLTV channels stay warm on disk, so the boot-time `loadAllChannels` hydrate paints a FULL What's On hub + channel pills the instant the app opens — no network wait.
+>
+> ### Companion "What's On Live" hub (backend + phone UI)
+> - **`backend/companion.py`** — new `GET /api/companion/livetv/whatson` (cached 60 s): full Python port of `LiveSportsClassifier` (18 sport buckets, same rules/order, superscript-ᴸᶦᵛᵉ + " live " word gate, non-live marker suppression, sports-channel-name fallback → other).  Returns `{total, sports: [{id, label, color, count, channels: [{stream_id, name, logo, title, start, stop}]}]}`.
+> - **`launcher-backend/companion_page.html`** — tapping the WHAT'S ON LIVE banner now opens a sports hub view (not the sports-categories seg): horizontal row of colored sport icon discs (inline SVGs matching the TV app's bucket colors) with per-sport LIVE counts, "All Sport" first; below, live channel rows grouped by sport (programme title, channel, time range, colored progress bar, red LIVE pill).  Tapping a sport filters; tapping a channel fires the existing `tuneChannel` → instant full-screen tune on the box.  Segs (TV Guide / Live Sports / PPV) exit the hub.  data-testids: `companion-wo-sport-{id}`, `companion-wo-channel`.
+>
+> ### Verification
+> - Curl e2e (preview URL): `/api/companion/livetv/whatson` → 200 in 320 ms, 63 live channels across 7 buckets (Football, Golf 14, Cricket 13, Tennis, Baseball 5, Cycling 6, Other 22) with real programmes ("The Hundred: Welsh Fire v Southern", "Tour de France Femmes: Stage 3").
+> - Playwright phone-viewport screenshots: banner (44 count) → hub renders 8 sport chips + 63 rows; Golf chip filters to 14 rows with active ring; TV Guide seg restores 162 normal category chips, zero leftover wo-chips.
+> - `python3 /tmp/kt_brace_check.py` on `EpgCache.kt` + `EpgRefreshWorker.kt`: brace=paren=brack=0 OK.  (Pod kotlinc is 1.3 — flags pre-existing Kotlin-1.4 trailing commas, false positives; project CI builds with Kotlin 1.9.22.)
+>
+> ### Files touched
+> - `android/onnowtv-livetv/.../data/EpgCache.kt` (promote carry-over, union mergeChannel)
+> - `android/onnowtv-livetv/.../data/EpgRefreshWorker.kt` (post-commit epg-only merge)
+> - `backend/companion.py` (classifier port + `/livetv/whatson`)
+> - `launcher-backend/companion_page.html` (whatson hub UI + CSS + seg/search integration)
+>
+
 > **🟢 v2.16.50 — Live TV EPG always-warm background refresh (Feb 2026).**
 >
 > ### Operator complaint
