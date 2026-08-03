@@ -272,6 +272,27 @@ class VesperVlcEngine(
 
     fun stop() { try { mediaPlayer?.stop() } catch (_: Throwable) {} }
 
+    /** v2.16.48 — Apply an aspect token to the VLC surface. */
+    fun setSurfaceAspect(token: String) {
+        val mp = mediaPlayer ?: return
+        try {
+            when (token) {
+                "fill", "zoom" -> {
+                    mp.setAspectRatio("16:9")
+                    mp.scale = if (token == "zoom") 1.15f else 0f
+                }
+                "stretch" -> {
+                    mp.setAspectRatio("16:9")
+                    mp.scale = 0f
+                }
+                else -> {
+                    mp.setAspectRatio(null)
+                    mp.scale = 0f
+                }
+            }
+        } catch (_: Throwable) {}
+    }
+
     /** Idempotent full JNI teardown — call from onDestroy. */
     fun release() {
         if (released) return

@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material3.CircularProgressIndicator
@@ -197,6 +198,11 @@ fun PlayerOverlay(
     // playback position.
     currentEngineToken: String = "mpv",
     onPickEngine: (String) -> Unit = {},
+    // v2.16.48 — In-player aspect-ratio cog (top-right).  Callback
+    // gets one of "fit", "fill", "zoom", "stretch"; hosting activity
+    // applies it to the active engine's video surface.
+    currentAspect: String = "fit",
+    onPickAspect: (String) -> Unit = {},
     onClose: () -> Unit,
 ) {
     // v2.10.40 — Reactive PlayerInfo so the title / poster / logo
@@ -387,6 +393,15 @@ fun PlayerOverlay(
                     },
                     onDismiss = { sheet = SheetKind.None; bump() },
                 )
+                SheetKind.Aspect -> AspectPickerSheet(
+                    currentToken = currentAspect,
+                    onPick = { tok ->
+                        sheet = SheetKind.None
+                        bump()
+                        onPickAspect(tok)
+                    },
+                    onDismiss = { sheet = SheetKind.None; bump() },
+                )
                 SheetKind.None -> Unit
             }
         }
@@ -428,6 +443,44 @@ fun PlayerOverlay(
             }
         }
 
+        // v2.16.48 — Aspect-ratio cog (top-RIGHT), mirrors the
+        // settings cog top-left.  Same visibility gate, cycles the
+        // active engine's video-surface aspect between Fit / Fill /
+        // Zoom / Stretch through the AspectPickerSheet.
+        AnimatedVisibility(
+            visible  = !inParty && !showFullLoader && dockVisible && sheet == SheetKind.None,
+            enter    = fadeIn(tween(220)),
+            exit     = fadeOut(tween(280)),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 40.dp, end = 48.dp)
+                .zIndex(3f),
+        ) {
+            val aspectFocus = remember { FocusRequester() }
+            Box(
+                modifier = Modifier
+                    .size(58.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xEE020610))
+                    .border(1.5.dp, Color(0x66FFFFFF), CircleShape)
+                    .focusRequester(aspectFocus)
+                    .focusable()
+                    .onFocusChanged { if (it.isFocused) bump() }
+                    .clickable {
+                        bump()
+                        sheet = SheetKind.Aspect
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.AspectRatio,
+                    contentDescription = "Aspect ratio",
+                    tint = Color(0xFFE8F3FF),
+                    modifier = Modifier.size(30.dp),
+                )
+            }
+        }
+
         // v2.7.60 — Watch Together voice dock + voice bubbles overlay.
         // Renders only when partyVoice != null (i.e. an active party).
         if (partyVoice != null) {
@@ -456,7 +509,7 @@ fun PlayerOverlay(
     }
 }
 
-private enum class SheetKind { None, Audio, Subs, Stream, Info, Engine }
+private enum class SheetKind { None, Audio, Subs, Stream, Info, Engine, Aspect }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Full loading screen (first play only)

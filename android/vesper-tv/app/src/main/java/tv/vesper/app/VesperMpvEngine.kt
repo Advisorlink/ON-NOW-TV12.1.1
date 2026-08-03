@@ -346,6 +346,27 @@ class VesperMpvEngine(
         try { MPVLib.command(arrayOf("stop")) } catch (_: Throwable) {}
     }
 
+    /** v2.16.48 — Aspect token → MPV properties.  Fit clears any
+     *  override; fill/stretch force 16:9; zoom uses panscan. */
+    fun setSurfaceAspect(token: String) {
+        try {
+            when (token) {
+                "fill", "stretch" -> {
+                    MPVLib.setPropertyString("video-aspect-override", "16:9")
+                    MPVLib.setPropertyString("panscan", "0")
+                }
+                "zoom" -> {
+                    MPVLib.setPropertyString("video-aspect-override", "-1")
+                    MPVLib.setPropertyString("panscan", "1")
+                }
+                else -> {  // "fit"
+                    MPVLib.setPropertyString("video-aspect-override", "-1")
+                    MPVLib.setPropertyString("panscan", "0")
+                }
+            }
+        } catch (_: Throwable) {}
+    }
+
     fun release() {
         if (released) return
         released = true

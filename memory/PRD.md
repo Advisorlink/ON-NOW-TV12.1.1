@@ -11488,3 +11488,28 @@ path via `VlcPlayerActivity` (libtorrent demuxer) is already wired
 and used by the fallback pick chain a few lines above, so surfacing
 these entries in the streams sheet is just consistent behaviour.
 Backend was healthy the whole time — no server-side change needed.
+
+## v2.16.48 — Aspect-ratio cog + Live TV guide onResume refresh (June 2026)
+
+### 1. Vesper aspect-ratio cog (top-right)
+Mirror of the settings cog top-left.  Same visibility gate (fades
+in/out with the dock), D-pad reachable.  Opens a full-screen
+`AspectPickerSheet` (new file) with 4 rows: Fit / Fill / Zoom /
+Stretch.  Choice applies to the ACTIVE engine's video surface via a
+new `onPickAspect` callback + per-engine helper:
+- Exo/Exo+FFmpeg: `PlayerView.resizeMode` (FIT/ZOOM/FILL).
+- VLC: `MediaPlayer.setAspectRatio(...)` + `MediaPlayer.scale` in
+  `VesperVlcEngine.setSurfaceAspect(token)`.
+- MPV: `video-aspect-override` + `panscan` properties in
+  `VesperMpvEngine.setSurfaceAspect(token)`.
+Not persisted — resets to Fit at every launch (per-title choice).
+
+### 2. Live TV: guide onResume staleness kick
+`onnowtv-livetv/MainActivity.onResume()` now checks
+`EpgCache.ageMs()`: if the cache is >12 h old on activity resume, it
+kicks a one-time `EpgRefreshWorker.refreshNow` (staging + atomic
+swap already keeps the current guide fully intact during the refresh
+attempt).  The periodic 12 h WorkManager job alone was getting
+throttled on always-on TV boxes → guide going stale after a couple of
+days.  Now every time the operator opens Live TV, a stale cache
+triggers an immediate refresh.

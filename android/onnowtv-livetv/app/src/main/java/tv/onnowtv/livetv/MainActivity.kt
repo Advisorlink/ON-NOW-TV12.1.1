@@ -1052,6 +1052,36 @@ class MainActivity : AppCompatActivity() {
 
     private fun fmt(n: Int): String = "%,d".format(n)
 
+    /**
+     * v2.16.48 — Operator: "The guide stops showing up after a couple
+     * of days, have to sign out and back in to get it back — it needs
+     * to refresh automatically in the background."
+     *
+     * The periodic 12 h `EpgRefreshWorker` alone isn't reliable
+     * enough: WorkManager throttles heavily on Android TV boxes that
+     * are always-on, and the boot-time staleness check only fires
+     * when the box actually reboots.  On operator boxes that stay
+     * powered on for a week, neither path guarantees a fresh guide.
+     *
+     * Fix: check cache age on every resume too.  If it's older than
+     * 12 h, kick a one-time refresh right away (staging + atomic
+     * swap keeps the current guide fully intact until the new one
+     * lands).  Cheap: one shared-prefs read + a WorkManager KEEP.
+     */
+    override fun onResume() {
+        super.onResume()
+        try {
+            val ageMs = tv.onnowtv.livetv.data.EpgCache.ageMs(applicationContext)
+            if (ageMs in 1..Long.MAX_VALUE && ageMs > 12 * 60 * 60 * 1000L) {
+                android.util.Log.i(
+                    "MainActivity",
+                    "onResume EPG staleness: ${ageMs / 3_600_000}h → refreshNow",
+                )
+                tv.onnowtv.livetv.data.EpgRefreshWorker.refreshNow(applicationContext)
+            }
+        } catch (_: Throwable) {}
+    }
+
     override fun onDestroy() {
         bundleKick?.cancel()
         tipHandler.removeCallbacksAndMessages(null)

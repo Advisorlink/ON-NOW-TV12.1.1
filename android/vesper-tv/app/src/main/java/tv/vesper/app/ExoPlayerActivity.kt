@@ -91,6 +91,12 @@ class ExoPlayerActivity : ComponentActivity(),
     private val useExo: Boolean get() = engine == PlayerEngine.EXO || engine == PlayerEngine.EXO_FFMPEG
     private var vlcEngine: VesperVlcEngine? = null
     private var mpvEngine: VesperMpvEngine? = null
+    // v2.16.48 — Current aspect-ratio token ("fit" | "fill" | "zoom"
+    // | "stretch") picked by the top-right cog.  Applied per-engine
+    // in onPickAspect(); reset to "fit" every activity launch (not
+    // persisted — user request: "Applies to the current stream only").
+    private var currentAspectToken: String = "fit"
+    private var videoSurfaceRef: android.view.View? = null
     private var streamUrl: String = ""
     private var streamTitle: String = ""
     /** v2.12.1 — YouTube DASH audio-only slave for HD trailers.  See
@@ -1298,6 +1304,7 @@ class ExoPlayerActivity : ComponentActivity(),
             }
         }
         root.addView(videoSurface)
+        videoSurfaceRef = videoSurface
 
         // Compose overlay on top
         val composeView = androidx.compose.ui.platform.ComposeView(this).apply {
@@ -1365,6 +1372,9 @@ class ExoPlayerActivity : ComponentActivity(),
                     // v2.16.42 — in-player engine picker (settings cog).
                     currentEngineToken = engine.token,
                     onPickEngine    = { tok -> onSettingsCog(tok) },
+                    // v2.16.48 — in-player aspect-ratio cog.
+                    currentAspect   = currentAspectToken,
+                    onPickAspect    = { tok -> onPickAspect(tok) },
                     onClose = { onBackFromPlayer() },
                 )
                 // v2.7.74 — Native Live TV Guide overlay.  Sits on
@@ -2724,6 +2734,41 @@ class ExoPlayerActivity : ComponentActivity(),
      *  Watching row, save a nav intent so MainActivity re-enters the
      *  details page for this title (movie details for movies, series
      *  episode picker focused on the current episode for TV shows). */
+    /** v2.16.48 — Apply the picked aspect ratio to the ACTIVE engine's
+     *  video surface.  Idempotent; safe to call from the Aspect
+     *  picker at any point during playback. */
+    private fun onPickAspect(token: String) {
+        currentAspectToken = token
+        try {
+            when (engine) {
+                PlayerEngine.EXO, PlayerEngine.EXO_FFMPEG -> {
+                    val pv = videoSurfaceRef as? androidx.media3.ui.PlayerView ?: return
+                    pv.resizeMode = when (token) {
+                        "fill"    -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        "zoom"    -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        "stretch" -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL
+                        else      -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    }
+                }
+                PlayerEngine.VLC -> {
+                    // libVLC has no per-token API; drive the surface
+                    // scale directly.  0f = auto-fit; positive = manual.
+                    // Users of VesperVlcEngine can call the wrapper we
+                    // expose here to route through mediaPlayer.
+                    vlcEngine?.setSurfaceAspect(token)
+                }
+                PlayerEngine.MPV -> {
+                    // MPV: video-unscaled=no (default), video-aspect-
+                    // override / panscan for zoom.
+                    val mp = mpvEngine ?: return
+                    mp.setSurfaceAspect(token)
+                }
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "onPickAspect failed", t)
+        }
+    }
+
     private fun onBackFromPlayer() {
         try {
             val cwId = intent.getStringExtra(VlcPlayerActivity.EXTRA_CW_ID)?.trim().orEmpty()
