@@ -11554,3 +11554,60 @@ attempt).  The periodic 12 h WorkManager job alone was getting
 throttled on always-on TV boxes → guide going stale after a couple of
 days.  Now every time the operator opens Live TV, a stale cache
 triggers an immediate refresh.
+
+## v2.17.0 — Phone touch & responsive pass: Music, Live TV, Vesper (June 2026)
+
+User: "Music app must work on the phone — fully responsive, 100% touch,
+finger-swipe scroll is most important. Same for Live TV app and Vesper."
+Choices: Music = full mobile redesign (portrait stack, bottom mini-player);
+Live TV = touch + NEW portrait phone layout; Vesper = general touch sweep.
+
+### 1. Music (Tunes web app) — phone polish  [TESTED 100% — iteration_78.json]
+- `tunes.css`: appended "v2.17.0 — PHONE POLISH PASS" block (last in file):
+  padded page titles w/ safe-area, chips → single swipeable row, card grids
+  3-across, hero cover pinned top-centre (no text overlap), Full Screen tab
+  hidden on mobile (mini-player tap opens it), track rows switched to flex
+  (works for album/chart/search/library row shapes), album layout
+  `minmax(0,1fr)` + min-width:0 chain (fixes Chrome flex-wrap intrinsic
+  width overflow that pushed durations off-screen).
+- `MusicSearch.jsx`: song rows use class `tunes-track-row--search` (was
+  inline gridTemplateColumns → un-overridable by media queries).
+- `PodcastDetail.jsx`: header → `.tunes-podcast-head` classes, stacks
+  centered on phone (was fixed 280px grid overflowing).
+- `FullScreenPlayer.jsx`: requestFs/exitFs swallow async promise
+  rejections ("Permissions check failed" / "Element is not connected"
+  unhandled-rejection overlay when tapping play).
+
+### 2. Live TV (native Kotlin) — touch + portrait  [SYNTAX/ID VERIFIED, needs APK build to user-test]
+- NEW `res/layout-port/activity_epg.xml`: portrait phone EPG — top icon
+  bar (was left rail), compact 190dp hero with small preview card
+  top-right, What's On pill + horizontal category strip, full-width
+  channel list, 168dp COMING UP NEXT guide docked at bottom, phone-padded
+  search overlay. ID-complete vs EpgActivity/LivePreviewSession bindings
+  (verified by script: 0 missing).
+- NEW `res/layout-port/item_category_pill.xml` (wrap-content chip).
+- NEW `res/layout-port/activity_login.xml` (full-width phone card, same 6 IDs).
+- `EpgActivity.kt`: categories LayoutManager HORIZONTAL when portrait.
+- `PlayerActivity.kt`: tap on player surface toggles the control overlay
+  (android.R.id.content click listener in wirePlayerControls).
+- `AndroidManifest.xml`: EpgActivity + LoginActivity no longer swallow
+  orientation/screenSize config changes (rotation re-inflates the right
+  layout; TVs never rotate so zero TV impact). PlayerActivity +
+  StatsPlayerActivity pinned `screenOrientation="sensorLandscape"`
+  (fullscreen landscape playback on phones; ignored on TV).
+- All adapters already use setOnClickListener → taps work; RecyclerViews
+  scroll natively by touch.
+
+### 3. Vesper (web) — touch sweep  [TESTED 100% — iteration_78.json]
+- `Search.jsx`: on mobile the search pill is now a REAL native input
+  (search-as-you-type, Enter submits) and the TV on-screen keyboard grid
+  + its duplicate "Type here" input are hidden. Desktop/TV unchanged
+  (TVKeyboard grid verified intact at 1920px).
+- Everything else already touch-clean: profiles, cloud-restore modal,
+  welcome tour, home rails, details page, More sheet, bottom nav.
+
+### Testing
+- testing_agent iteration_78: frontend 100% pass, phone (390x844) +
+  TV regression (1920x1080), zero issues found.
+- Headless note: Vesper needs `?mobile=1` (UA-based useIsMobile);
+  Music app is pure CSS media queries so no override needed.
