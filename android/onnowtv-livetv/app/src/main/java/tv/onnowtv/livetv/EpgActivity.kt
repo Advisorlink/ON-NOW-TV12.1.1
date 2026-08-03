@@ -2347,6 +2347,18 @@ class EpgActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        // v2.18.5 — Companion warm tune: the phone picked a channel
+        // while the guide (or player) was already open.
+        intent.getStringExtra("companion_stream_id")?.let { sid ->
+            intent.removeExtra("companion_stream_id")
+            if (::bundle.isInitialized) {
+                val ch = bundle.channels.firstOrNull { it.id == sid }
+                if (ch != null) {
+                    window.decorView.post { launchPlayer(ch) }
+                    return
+                }
+            }
+        }
         intent.getStringExtra(EXTRA_INITIAL_COLLECTION_ID)?.takeIf { it.isNotBlank() }?.let { id ->
             val coll = tv.onnowtv.livetv.data.CollectionsStore.load(this)
                 .firstOrNull { it.id == id }

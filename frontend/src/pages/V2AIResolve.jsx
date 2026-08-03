@@ -75,8 +75,15 @@ export default function V2AIResolve() {
                 }
                 const tmdbType = (pick.type === 'tv' || pick.type === 'series') ? 'tv' : 'movie';
                 const tmdbId   = pick.tmdb_id || pick.id;
+                // v2.18.5 — ALWAYS carry the autoplay intent through the
+                // resolve hop.  Without it the box landed on the Detail
+                // page and never started playback (the companion-phone
+                // "opens details instead of playing" bug).
+                const qs = (requestedType === 'series' && /^\d+$/.test(season) && /^\d+$/.test(episode))
+                    ? `?season=${season}&episode=${episode}&episodeAutoplay=1`
+                    : '?autoplay=1';
                 navigate(
-                    `/resolve/${tmdbType}/${tmdbId}`,
+                    `/resolve/${tmdbType}/${tmdbId}${qs}`,
                     { replace: true },
                 );
             } catch {

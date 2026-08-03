@@ -808,7 +808,7 @@
     if (IS_LOCAL && !localFailTimer){
       localFailTimer = setTimeout(function(){
         if (!wsOk) location.href = CLOUD_ORIGIN + "/remote";
-      }, 5000);
+      }, 2500);
     }
     thisWs.onopen = function(){
       if (ws !== thisWs) return;
@@ -915,18 +915,23 @@
      server is unreachable. */
   function handlePaired(d, typedCode){
     sid = d.session_id; code = d.code || typedCode || code;
-    save({ sid: sid, code: code, cloud: CLOUD_ORIGIN, ts: Date.now() });
+    var blob = { sid: sid, code: code, cloud: CLOUD_ORIGIN, ts: Date.now() };
     if (d.now_playing) state.now_playing = d.now_playing;
     if (d.apps) state.apps = d.apps;
     var recentlyFailed = false;
     try { recentlyFailed = (Date.now() - (parseInt(sessionStorage.getItem(LOCAL_TRY_KEY) || "0", 10))) < 20000; } catch(e){}
     if (!IS_LOCAL && d.same_network && d.local_ip && d.local_port && !recentlyFailed){
+      // v2.18.5 — Remember the box's LAN endpoint so the NEXT launch
+      // goes WiFi-direct instantly, before any cloud round-trip.
+      blob.lan = { ip: d.local_ip, port: d.local_port, at: Date.now() };
+      save(blob);
       try { sessionStorage.setItem(LOCAL_TRY_KEY, String(Date.now())); } catch(e){}
       location.href = "http://" + d.local_ip + ":" + d.local_port +
         "/remote?local=1&s=" + encodeURIComponent(sid) + "&c=" + encodeURIComponent(code) +
         "&cloud=" + encodeURIComponent(CLOUD_ORIGIN);
       return;
     }
+    save(blob);
     startApp();
   }
   function doPair(c){
@@ -1359,8 +1364,16 @@
         if (hero){
           $("mhPlay").addEventListener("click", function(ev){
             ev.stopPropagation();
-            if ((hero.type || "movie") === "series") openSeries(hero.id, hero.name);
-            else playMovieOnTv(hero.name, hero.id);
+            haptic(8);
+            openPlaySheet({
+              name: hero.name, poster: hero.poster || hero.background || "",
+              metaType: hero.type || "movie", metaId: hero.id,
+              onPlay: function(){
+                if ((hero.type || "movie") === "series") playEpisodeOnTv(hero.name, hero.id, 1, 1);
+                else playMovieOnTv(hero.name, hero.id);
+              },
+              onBrowse: (hero.type === "series") ? function(){ openSeries(hero.id, hero.name); } : null
+            });
           });
           // Fill runtime/synopsis from the full meta if the catalog
           // entry didn't carry them.
@@ -1395,24 +1408,83 @@
       wireMovieTiles(body);
     }).catch(function(){ body.innerHTML = '<div class="empty-note">Search failed — try again.</div>'; });
   }
+  /* v2.18.5 — "Play on TV" confirmation sheet (user request): tapping
+     any movie / show pops this sheet; hitting PLAY beams it to the box
+     which starts the stream FULL SCREEN immediately. */
+  function openPlaySheet(o){
+    var body = $("ctBody");
+    body.innerHTML =
+      '<div class="sheet-hero">' +
+        (o.poster ? '<img class="sh-poster" src="' + esc(o.poster) + '" alt="">' : "") +
+        '<div style="flex:1;min-width:0">' +
+          '<div class="sh-title">' + esc(o.name) + '</div>' +
+          '<div class="sh-meta" id="ctMeta"></div>' +
+        '</div></div>' +
+      '<div class="sh-syn" id="ctSyn"></div>' +
+      '<button class="play-btn" id="ctPlay" data-testid="companion-play-on-tv">' +
+        '<svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg> ' + esc(o.playLabel || "Play on TV") + '</button>' +
+      (o.onBrowse ? '<button class="ghost-btn" id="ctEpisodes" data-testid="companion-browse-episodes">Seasons &amp; episodes</button>' : "");
+    openSheet($("ctSheet"));
+    if (o.metaType && o.metaId){
+      cineFetch("/meta/" + encodeURIComponent(o.metaType) + "/" + encodeURIComponent(o.metaId) + ".json")
+        .then(function(d){
+          var m = d && d.meta || {};
+          var meta = [];
+          if (m.year || m.releaseInfo) meta.push('<span class="badge">' + esc(m.year || m.releaseInfo) + '</span>');
+          if (m.imdbRating) meta.push('<span class="badge">\u2605 ' + esc(m.imdbRating) + '</span>');
+          if (m.runtime) meta.push('<span class="badge">' + esc(m.runtime) + '</span>');
+          if (m.genres && m.genres.length) meta.push('<span>' + esc(m.genres.slice(0, 3).join(" \u00B7 ")) + '</span>');
+          var el = $("ctMeta"); if (el) el.innerHTML = meta.join("");
+          var syn = $("ctSyn"); if (syn && m.description) syn.textContent = m.description;
+        }).catch(function(){});
+    }
+    $("ctPlay").addEventListener("click", function(){
+      closeSheets();
+      o.onPlay();
+    });
+    if (o.onBrowse){
+      $("ctEpisodes").addEventListener("click", function(){ haptic(8); closeSheets(); o.onBrowse(); });
+    }
+  }
   function wireMovieTiles(root){
     root.querySelectorAll(".poster-tile, .rail-poster").forEach(function(t){
       t.addEventListener("click", function(){
         haptic(8);
         var type = t.getAttribute("data-mtype"), id = t.getAttribute("data-mid"), name = t.getAttribute("data-mname");
-        if (type === "series") openSeries(id, name);
-        else playMovieOnTv(name, id);
+        var img = t.querySelector("img");
+        var poster = img ? img.src : "";
+        if (type === "series"){
+          openPlaySheet({
+            name: name, poster: poster, metaType: "series", metaId: id,
+            onPlay: function(){ playEpisodeOnTv(name, id, 1, 1); },
+            onBrowse: function(){ openSeries(id, name); }
+          });
+        } else {
+          openPlaySheet({
+            name: name, poster: poster, metaType: "movie", metaId: id,
+            onPlay: function(){ playMovieOnTv(name, id); }
+          });
+        }
       });
     });
   }
   function wireCwCards(root){
     root.querySelectorAll("[data-cw]").forEach(function(el){
       el.addEventListener("click", function(){
+        haptic(8);
         var s = parseInt(el.getAttribute("data-season") || "0", 10);
         var ep = parseInt(el.getAttribute("data-episode") || "0", 10);
         var name = el.getAttribute("data-mname"), imdb = el.getAttribute("data-imdb");
-        if (s && ep) playEpisodeOnTv(name, imdb, s, ep);
-        else playMovieOnTv(name, imdb);
+        var img = el.querySelector("img");
+        openPlaySheet({
+          name: name, poster: img ? img.src : "",
+          metaType: s && ep ? "series" : "movie", metaId: imdb,
+          playLabel: "Resume on TV",
+          onPlay: function(){
+            if (s && ep) playEpisodeOnTv(name, imdb, s, ep);
+            else playMovieOnTv(name, imdb);
+          }
+        });
       });
     });
   }
@@ -2077,11 +2149,29 @@
   (function boot(){
     if (IS_LOCAL && sid && code){
       try { sessionStorage.removeItem(LOCAL_TRY_KEY); } catch(e){}
-      save({ sid: sid, code: code, cloud: CLOUD_ORIGIN, ts: Date.now() });
+      var pre = saved() || {};
+      save({ sid: sid, code: code, cloud: CLOUD_ORIGIN, ts: Date.now(), lan: pre.lan });
       startApp(); return;
     }
-    if (sid && code){ autoConnect(sid, code, 0); return; }
+    /* v2.18.5 — WiFi-direct FIRST: if a recent pair (<12 h) found the
+       box on this network, jump straight to its LAN server before any
+       cloud round-trip — connection is near-instant.  A failed jump
+       bounces back within seconds and the 20 s guard keeps the next
+       attempt on the cloud path. */
     var s = saved();
+    var recentlyFailed = false;
+    try { recentlyFailed = (Date.now() - (parseInt(sessionStorage.getItem(LOCAL_TRY_KEY) || "0", 10))) < 20000; } catch(e){}
+    var effSid = sid || (s && s.sid) || "";
+    var effCode = code || (s && s.code) || "";
+    if (effSid && effCode && s && s.lan && s.lan.ip && s.lan.port &&
+        Date.now() - (s.lan.at || 0) < 12 * 3600 * 1000 && !recentlyFailed){
+      try { sessionStorage.setItem(LOCAL_TRY_KEY, String(Date.now())); } catch(e){}
+      location.href = "http://" + s.lan.ip + ":" + s.lan.port +
+        "/remote?local=1&s=" + encodeURIComponent(effSid) + "&c=" + encodeURIComponent(effCode) +
+        "&cloud=" + encodeURIComponent(CLOUD_ORIGIN);
+      return;
+    }
+    if (sid && code){ autoConnect(sid, code, 0); return; }
     if (s && s.sid && s.code){ autoConnect(s.sid, s.code, 0); return; }
     showPair("");
   })();

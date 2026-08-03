@@ -248,6 +248,7 @@ class MainActivity : AppCompatActivity() {
                                 )
                             }
                             startActivity(Intent(this, EpgActivity::class.java).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                                 intent?.getStringExtra("companion_stream_id")?.let {
                                     putExtra("companion_stream_id", it)
                                 }
@@ -875,7 +876,14 @@ class MainActivity : AppCompatActivity() {
         BundleHolder.current = mergedBundle
         progress.progress = 1000
 
-        startActivity(Intent(this@MainActivity, EpgActivity::class.java))
+        // v2.18.5 — Slow loader path must ALSO forward the phone's
+        // companion channel pick, or the app opens without tuning.
+        startActivity(Intent(this@MainActivity, EpgActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            this@MainActivity.intent?.getStringExtra("companion_stream_id")?.let {
+                putExtra("companion_stream_id", it)
+            }
+        })
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
         finish()
     }

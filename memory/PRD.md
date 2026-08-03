@@ -11733,3 +11733,19 @@ User sent reference screenshots (Vesper mobile Home + Live TV portrait app). Imp
 6. Hero/banner hidden on search/plain lists; hero shows in any segment when guide data paints.
 
 All flows self-tested: hero play toast, banner→sports segment switch, row tune toast.
+
+---
+
+## v2.18.5 — Play-on-TV popup restored + real playback fixes + WiFi-direct (June 2026)
+
+User feedback: popup gone, box opens apps without PLAYING, connection slow (no WiFi direct).
+
+**Root causes found & fixed:**
+1. **Movies landed on details page on TV** — `V2AIResolve.jsx` fuzzy path navigated to `/resolve/{type}/{id}` WITHOUT `?autoplay=1`. Fixed: always appends `?autoplay=1` (or `?season&episode&episodeAutoplay=1`). Requires FRONTEND redeploy to user's production.
+2. **Live TV opened but never tuned** — livetv `MainActivity` slow loader path (line ~880) started EpgActivity WITHOUT forwarding `companion_stream_id`; also warm relaunches lost it. Fixed: slow path forwards the extra + CLEAR_TOP|SINGLE_TOP flags on both paths; merged companion tune into EpgActivity's EXISTING `onNewIntent` (watch out: EpgActivity already had onNewIntent for collections — do NOT add a second one). Requires LIVETV APK rebuild+install.
+3. **Play-on-TV popup restored** — `openPlaySheet()` in companion_page.html: poster/title/meta/synopsis + blue "Play on TV" (movies play instantly; series play S1E1 or open "Seasons & episodes" → episode picker). CW cards show "Resume on TV". Channels stay DIRECT tune (user wants no popup for channels).
+4. **WiFi-direct instant connect** — `handlePaired` saves `lan:{ip,port,at}` in the cloud-origin localStorage blob; `boot()` jumps STRAIGHT to `http://<box>:<port>/remote` when lan info <12h old (before any cloud round-trip), guarded by the 20s LOCAL_TRY sessionStorage stamp. LAN fail bounce reduced 5s→2.5s. Launcher `RemoteControlService.startLocalServer` now re-downloads the cached page every 6h (was only on service start). Requires LAUNCHER APK rebuild for the refresh; page changes live via cloud + next box cache refresh.
+
+**User must:** redeploy launcher-backend (VPS) + frontend, rebuild/install Live TV APK and Launcher APK (Vesper APK also pending from v2.18.3 for swap-stream/subtitles).
+
+Self-tested: movie sheet → Play on TV → toast; series sheet → Seasons & episodes → series page. JS/JSX/Kotlin syntax verified.

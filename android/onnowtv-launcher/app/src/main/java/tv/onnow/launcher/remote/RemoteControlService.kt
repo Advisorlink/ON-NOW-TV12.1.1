@@ -420,6 +420,14 @@ class RemoteControlService : Service() {
                 Log.w(TAG, "local server failed on all ports — cloud only")
                 return@Thread
             }
+            // v2.18.5 — Keep the LAN-served page fresh without waiting
+            // for a reboot: re-download it every 6 h.
+            Thread {
+                while (true) {
+                    try { Thread.sleep(6 * 60 * 60 * 1000L) } catch (_: InterruptedException) { return@Thread }
+                    refreshCachedPage(pageFile)
+                }
+            }.also { it.isDaemon = true }.start()
             val ip = localIpv4()
             localIp = ip
             Log.i(TAG, "local remote server on $ip:${server.listeningPort}")
