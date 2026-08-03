@@ -11699,3 +11699,23 @@ favourites from cloud sync; profile changeable in app; V2 dark look.
 **IMPORTANT for user:** the box-side pieces (installed-app reporting, not-installed toasts, launcher search dispatch) require rebuilding + installing the **launcher APK**; the web page updates itself (box re-caches /remote on service restart/reboot).
 
 **Lesson learned (agent):** NEVER run parallel search_replace calls against the SAME file — edits clobber each other (lost homeSetup + _state_message edits this session; had to re-apply).
+
+---
+
+## v2.18.3 — Companion App full redesign (June 2026)
+
+**User requests implemented (tested 13/13 pass, iteration_81):**
+1. **Blue V2 branding** — `.brand b` / `.pair-word b` now accent blue (LIVE pills/errors stay red as semantics).
+2. **Home tiles use the TV's real artwork** — homeSetup fetches `GET /api/launcher/config` dock_tiles, matches by `target_package` (tv.onnowtv.app/livetv/tunes/kids/fta.recycler) then by label keywords (live tv/sport/movie/music/kid/fta); builtin webps are fallback only. On the user's production launcher backend this shows the EXACT tiles the TV shows (fixes "wrong Live TV icon").
+3. **Movies tab = mobile-app style** — Continue Watching rail (`GET /api/companion/vesper/continue?u=` reads `onnowtv-continue-watching-v1*` from vesper_sync; entries parse `tt123:5:14` into season/episode), horizontal poster rails, MOVIE tap = INSTANT play on TV (no detail sheet), SERIES tap = full-screen series page (`#serSheet`): backdrop hero, synopsis, season chips, episode rows (thumb/name/date/overview) from Cinemeta meta videos[]. Episode tap plays exact episode.
+4. **Episode deep-link chain** — phone sends `companion_play vesper {season, episode}` → phone_remote validates ints (1-999) → launcher RemoteControlService appends `&season=&episode=` to vesper_route → App.js v2ai passthrough → V2AIResolve → `/title/series/{imdb}?season=&episode=&episodeAutoplay=1` (Detail.jsx already supports it).
+5. **Live TV = TV-like guide** — segments TV Guide / Live Sports / PPV (`GET /api/companion/livetv/sections` regex-classifies category names), guide rows show NOW + progress + NEXT + LIVE pill (`GET /api/companion/livetv/guide?cat=|ids=` from instant_bundle in-memory EPG, strips ᴸᶦᵛᵉ superscript), channel tap tunes INSTANTLY full screen (EpgActivity companion_stream_id → launchPlayer, already fullscreen). Client guide cache 2 min.
+6. **Music redesign** — artist circles + album h-rails + track rows; artist tap opens `/music/artist/<id>` on TV.
+7. **NP sheet extras** — "Swap stream" / "Subtitles off" pills (vesper source only) → new remote actions `swap_stream`/`subtitles_off` → launcher broadcasts ACTION_PLAYER_CMD → Vesper ExoPlayerActivity: swap = switchStream(next of altStreams), subs = selectTrack(TEXT,"off").
+8. **Double-send guard** — playGuard() dedupes identical play commands within 1200ms (movie/episode/channel).
+
+**APK rebuilds required for box-side bits:** launcher (player cmd dispatch + season/episode route + apps reporting) and Vesper (swap_stream/subtitles_off receiver + episode deep-link React build). Live TV app needs NO change (already tunes fullscreen).
+
+**Seeded test data:** vesper_sync testuser has 2 CW entries (Breaking Bad S5E14 68%, Inception 41%).
+
+**Lesson reaffirmed:** one search_replace per file per batch — parallel edits to the same file clobber each other.

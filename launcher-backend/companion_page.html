@@ -1219,8 +1219,15 @@
   }
   /* v2.18.3 — Movies play INSTANTLY on the TV (no detail sheet);
      series open the episode picker page instead. */
+  var lastPlayKey = "", lastPlayAt = 0;
+  function playGuard(key){
+    var now = Date.now();
+    if (key === lastPlayKey && now - lastPlayAt < 1200) return false;
+    lastPlayKey = key; lastPlayAt = now;
+    return true;
+  }
   function playMovieOnTv(name, imdb){
-    if (!appReady("vesper")) return;
+    if (!appReady("vesper") || !playGuard("m:" + imdb)) return;
     haptic(20);
     var payload = { action: "companion_play", target: "vesper", title: name, media_type: "movie", imdb: imdb };
     var profile = (cfg().profileName || "").trim();
@@ -1229,7 +1236,7 @@
     toast("\u25B6 Playing \u201C" + name + "\u201D on your TV");
   }
   function playEpisodeOnTv(name, imdb, season, episode){
-    if (!appReady("vesper")) return;
+    if (!appReady("vesper") || !playGuard("e:" + imdb + ":" + season + ":" + episode)) return;
     haptic(20);
     var payload = { action: "companion_play", target: "vesper", title: name, media_type: "series",
       imdb: imdb, season: season, episode: episode };
@@ -1636,7 +1643,7 @@
       '<div class="ri-play"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg></div></button>';
   }
   function tuneChannel(streamId, name){
-    if (!appReady("livetv")) return;
+    if (!appReady("livetv") || !playGuard("c:" + streamId)) return;
     haptic(20);
     send({ action: "companion_play", target: "livetv", stream_id: streamId, name: name });
     toast("\uD83D\uDCFA Tuning \u201C" + name + "\u201D \u2014 full screen on your TV");
