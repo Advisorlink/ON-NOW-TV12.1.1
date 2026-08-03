@@ -16,6 +16,7 @@ from __future__ import annotations
 import gzip
 import json
 import logging
+import re
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
@@ -25,6 +26,14 @@ from instant_bundle import _state as _bundle_state
 log = logging.getLogger("companion")
 
 router = APIRouter(prefix="/api/companion", tags=["companion"])
+
+# Bound at boot from server.py (same pattern as vesper_sync).
+_db = None
+
+
+def configure_companion(db) -> None:
+    global _db
+    _db = db
 
 # Cache the gzipped slim payload per bundle generation.
 _slim_cache: dict = {"key": None, "gz": None}
@@ -62,3 +71,42 @@ async def companion_livetv_channels() -> Response:
             "Cache-Control": "public, max-age=300",
         },
     )
+
+
+@router.get("/vesper/profiles")
+async def companion_vesper_profiles(u: str = "") -> dict:
+    """Profile names on a Vesper account — powers the Companion app's
+    settings profile picker.  Reads the account's silent cloud-sync
+    snapshot (`vesper_sync`), which mirrors the TV's localStorage
+    (`onnowtv-profiles-v1*` keys)."""
+    u = (u or "").strip()
+    if not u:
+        raise HTTPException(400, "missing_username")
+    if _db is None:
+        raise HTTPException(503, "profiles store not ready")
+    doc = await _db.vesper_sync.find_one(
+        {"username": {"$regex": f"^{re.escape(u)}$", "$options": "i"}},
+        {"_id": 0, "data": 1},
+    )
+    if not doc:
+        return {"found": False, "profiles": []}
+    names: list = []
+    seen: set = set()
+    for key, raw in (doc.get("data") or {}).items():
+        if not str(key).startswith("onnowtv-profiles-v1"):
+            continue
+        try:
+            arr = json.loads(raw) if isinstance(raw, str) else raw
+        except Exception:
+            continue
+        if not isinstance(arr, list):
+            continue
+        for p in arr:
+            if not isinstance(p, dict):
+                continue
+            name = str(p.get("name") or "").strip()
+            pid = str(p.get("id") or name)
+            if name and pid not in seen:
+                seen.add(pid)
+                names.append(name)
+    return {"found": True, "profiles": names}

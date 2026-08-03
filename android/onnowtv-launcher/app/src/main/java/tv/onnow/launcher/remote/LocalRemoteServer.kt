@@ -73,6 +73,15 @@ class LocalRemoteServer(
 
     fun hasClients(): Boolean = clients.isNotEmpty()
 
+    /** v2.18.2 — Push a one-shot message (toast) WITHOUT caching it as
+     *  lastState, so newly connecting phones never replay a stale toast. */
+    fun broadcastTransient(json: String) {
+        val snapshot = synchronized(clients) { clients.toList() }
+        for (c in snapshot) {
+            try { c.send(json) } catch (_: Throwable) { clients.remove(c) }
+        }
+    }
+
     inner class PhoneSocket(handshake: IHTTPSession) : WebSocket(handshake) {
         private val authed: Boolean =
             handshake.parameters["code"]?.firstOrNull() == expectedCode

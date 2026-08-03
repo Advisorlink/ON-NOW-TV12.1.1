@@ -569,6 +569,9 @@ app.add_middleware(
 
 # Static asset routes
 app.mount("/assets/icons",       StaticFiles(directory=str(DATA_DIR / "icons")),       name="icons")
+# v2.18.1 — Launcher tile artwork reused by the phone Companion app's
+# home screen (same rectangles as the TV launcher).
+app.mount("/assets/companion_tiles", StaticFiles(directory=str(Path(__file__).parent / "companion_tiles")), name="companion-tiles")
 app.mount("/assets/wallpapers",  StaticFiles(directory=str(DATA_DIR / "wallpapers")),  name="wallpapers")
 app.mount("/assets/tile_images", StaticFiles(directory=str(DATA_DIR / "tile_images")), name="tile-images")
 app.mount("/assets/tile_apks",   StaticFiles(directory=str(DATA_DIR / "tile_apks")),   name="tile-apks")
@@ -5223,3 +5226,39 @@ a{{color:#2BB6FF;}}h1{{font-size:36px;margin-bottom:8px;}}code{{background:#0E1A
   <li><a href="/docs">/docs</a> — full OpenAPI reference</li>
 </ul>
 </body></html>""")
+
+
+# ════════════════════════════════════════════════════════════════════
+#  v2.18.2 — Companion read-only passthrough to the MAIN backend.
+#
+#  The Companion page computes MAIN_API as "<cloud origin>/api".  In
+#  production a shared domain routes that straight to the main Vesper
+#  backend; when the launcher backend runs standalone (preview / dev)
+#  those calls land HERE instead.  This catch-all (registered last, so
+#  it only sees paths no other route claimed) forwards the small
+#  read-only set of endpoints the Companion page needs.
+# ════════════════════════════════════════════════════════════════════
+_MAIN_API_PASSTHROUGH_PREFIXES = (
+    "companion/",
+    "music/home",
+    "music/search",
+    "xtream/epg/",
+    "livetv/sync/pull",
+)
+
+
+@app.get("/api/{main_path:path}")
+async def companion_main_api_passthrough(main_path: str, request: Request):
+    if not main_path.startswith(_MAIN_API_PASSTHROUGH_PREFIXES):
+        raise HTTPException(404, "not_found")
+    import httpx
+    from fastapi.responses import Response as _RawResponse
+    qs = str(request.url.query)
+    url = f"{VESPER_BACKEND_URL}/api/{main_path}" + (f"?{qs}" if qs else "")
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.get(url)
+    except httpx.HTTPError as exc:
+        return JSONResponse(status_code=502, content={"ok": False, "error": f"main backend unreachable: {exc}"})
+    media = r.headers.get("content-type", "application/json")
+    return _RawResponse(content=r.content, status_code=r.status_code, media_type=media)

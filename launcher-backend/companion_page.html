@@ -282,6 +282,57 @@
   .fav-star{background:none;border:none;cursor:pointer;padding:8px;flex:0 0 auto}
   .fav-star svg{width:18px;height:18px;stroke:var(--txt-faint);fill:none;stroke-width:2}
   .fav-star.on svg{stroke:#FFC64B;fill:#FFC64B}
+
+  /* ───────── home screen ───────── */
+  .home-head{padding:16px 2px 22px}
+  .home-hello{display:flex;align-items:center;gap:9px;font-size:11px;font-weight:700;letter-spacing:.26em;
+    text-transform:uppercase;color:var(--accent);margin:0 0 12px}
+  .home-hello::before{content:"";width:20px;height:2px;border-radius:99px;background:var(--accent);opacity:.7}
+  .home-ask{font-size:29px;font-weight:800;letter-spacing:-.03em;line-height:1.14;margin:0;
+    background:linear-gradient(115deg,#FFFFFF 30%,#8FB6FF);-webkit-background-clip:text;
+    background-clip:text;-webkit-text-fill-color:transparent}
+  .home-sub{font-size:12.5px;color:var(--txt-dim);margin:11px 0 0}
+  .home-banners{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .home-banner{position:relative;display:block;width:100%;padding:0;border:1px solid var(--edge);
+    border-radius:16px;overflow:hidden;background:var(--card);cursor:pointer;
+    box-shadow:0 10px 24px rgba(0,0,0,.35);
+    transition:transform .16s ease,border-color .16s ease;
+    opacity:0;transform:translateY(14px);animation:bannerIn .5s cubic-bezier(.22,.9,.3,1) forwards}
+  .home-banner:nth-child(1){animation-delay:.03s}
+  .home-banner:nth-child(2){animation-delay:.09s}
+  .home-banner:nth-child(3){animation-delay:.15s}
+  .home-banner:nth-child(4){animation-delay:.21s}
+  .home-banner:nth-child(5){animation-delay:.27s}
+  .home-banner:nth-child(6){animation-delay:.33s}
+  @keyframes bannerIn{to{opacity:1;transform:translateY(0)}}
+  .home-banner:active{transform:scale(.965);border-color:var(--edge-hi)}
+  .home-banner img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover}
+  .home-banner .hb-scrim{position:absolute;inset:0;
+    background:linear-gradient(180deg,rgba(5,8,15,0) 50%,rgba(5,8,15,.78))}
+  .home-banner .hb-row{position:absolute;left:11px;right:9px;bottom:9px;display:flex;
+    align-items:center;justify-content:space-between}
+  .home-banner .hb-hint{font-size:9.5px;font-weight:700;letter-spacing:.14em;
+    text-transform:uppercase;color:rgba(230,234,242,.9);text-shadow:0 1px 4px rgba(0,0,0,.7)}
+  .home-banner .hb-go{width:26px;height:26px;border-radius:50%;flex:0 0 auto;
+    background:rgba(92,156,255,.22);border:1px solid var(--edge-hi);backdrop-filter:blur(6px);
+    display:flex;align-items:center;justify-content:center}
+  .home-banner .hb-go svg{width:11px;height:11px;stroke:var(--accent);fill:none;
+    stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+  .home-banner .hb-tv-badge{position:absolute;top:8px;right:8px;padding:3px 8px;border-radius:999px;
+    background:rgba(5,8,15,.62);border:1px solid var(--edge);backdrop-filter:blur(8px);
+    font-size:8px;font-weight:800;letter-spacing:.16em;color:var(--txt-dim)}
+
+  /* ───────── fullscreen gate ───────── */
+  .fs-gate{position:fixed;inset:0;z-index:120;display:none;flex-direction:column;align-items:center;
+    justify-content:center;gap:20px;
+    background:radial-gradient(120% 90% at 50% 0%,#0E1830 0%,var(--bg) 58%)}
+  .fs-gate.show{display:flex}
+  .fs-tap{font-size:11px;font-weight:700;letter-spacing:.3em;text-transform:uppercase;color:var(--txt-dim);
+    animation:fsPulse 1.6s ease-in-out infinite}
+  @keyframes fsPulse{0%,100%{opacity:.45}50%{opacity:1}}
+
+  /* ───────── settings profile picker ───────── */
+  .prof-chips{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 10px}
 </style>
 </head>
 <body>
@@ -290,7 +341,7 @@
 <div class="pair" id="pairScreen" data-testid="companion-pair-screen">
   <div class="pair-word">ON NOW <b>V2</b></div>
   <div class="pair-eyebrow">Companion</div>
-  <p>Point your phone camera at the QR code on your TV box, or type the 6-digit code from the launcher.</p>
+  <p id="pairMsg">Point your phone camera at the QR code on your TV box, or type the 6-digit code from the launcher.</p>
   <div class="code-boxes" id="codeBoxes"></div>
   <input class="code-hidden" id="codeInput" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code">
   <div class="pair-err" id="pairErr"></div>
@@ -308,8 +359,18 @@
     </button>
   </div>
 
+  <!-- ── HOME VIEW ── -->
+  <div class="view active" id="view-home" data-testid="companion-view-home">
+    <div class="home-head">
+      <div class="home-hello" id="homeHello">Good evening</div>
+      <h1 class="home-ask">What app do you<br>want to use today?</h1>
+      <p class="home-sub">Tap a tile — it opens straight on your TV.</p>
+    </div>
+    <div class="home-banners" id="homeBanners"></div>
+  </div>
+
   <!-- ── REMOTE VIEW ── -->
-  <div class="view active" id="view-remote" data-testid="companion-view-remote">
+  <div class="view" id="view-remote" data-testid="companion-view-remote">
     <div class="cluster">
       <div class="side-rocker">
         <button data-key="VOL_UP" data-repeat="1">+</button>
@@ -401,7 +462,10 @@
 
   <!-- bottom tabs -->
   <div class="tabbar" data-testid="companion-tabbar">
-    <button class="tab active" data-tab="remote" data-testid="companion-tab-remote">
+    <button class="tab active" data-tab="home" data-testid="companion-tab-home">
+      <svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
+      Home</button>
+    <button class="tab" data-tab="remote" data-testid="companion-tab-remote">
       <svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="3"/><circle cx="12" cy="8" r="1.6"/><line x1="10" y1="16" x2="14" y2="16"/></svg>
       Remote</button>
     <button class="tab" data-tab="movies" data-testid="companion-tab-movies">
@@ -461,8 +525,12 @@
 <div class="sheet" id="setSheet" data-testid="companion-settings-sheet">
   <div class="sheet-grip"></div>
   <div class="sh-title">Settings</div>
-  <div class="field-label">TV profile for Vesper</div>
-  <input class="field-input" id="setProfile" placeholder="e.g. Dad" data-testid="companion-settings-profile">
+  <div class="field-label">Movies account username</div>
+  <input class="field-input" id="setVesperUser" placeholder="Your Movies sign-in name" autocapitalize="none" data-testid="companion-settings-vesperuser">
+  <div class="field-hint">Used to list the TV profiles on your account below.</div>
+  <div class="field-label">TV profile for movies</div>
+  <div class="prof-chips" id="profChips" data-testid="companion-settings-profile-chips"></div>
+  <input class="field-input" id="setProfile" placeholder="Or type a profile name, e.g. Dad" data-testid="companion-settings-profile">
   <div class="field-hint">Movies you start from the phone use this profile on the TV automatically. Leave blank to use whichever profile the TV last used.</div>
   <div class="field-label">Live TV username</div>
   <input class="field-input" id="setLivetvUser" placeholder="Your Live TV sign-in name" autocapitalize="none" data-testid="companion-settings-livetvuser">
@@ -484,6 +552,13 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- ═════════ FULLSCREEN GATE (one tap → true fullscreen) ═════════ -->
+<div class="fs-gate" id="fsGate" data-testid="companion-fs-gate">
+  <div class="pair-word">ON NOW <b>V2</b></div>
+  <div class="pair-eyebrow">Companion</div>
+  <div class="fs-tap">Tap to open full screen</div>
+</div>
 
 <script>
 (function(){
@@ -510,7 +585,7 @@
   var sid = qs.get("s") || "", code = qs.get("c") || "";
   var ws = null, wsOk = false, httpFallback = false, pollTimer = null, reconnectTimer = null, reconnectDelay = 400;
   var latencyMs = null, localFailTimer = null;
-  var state = { now_playing: null, keyboard: false };
+  var state = { now_playing: null, keyboard: false, apps: null };
   var seekDragging = false, localTick = null;
   var $ = function(id){ return document.getElementById(id); };
 
@@ -526,6 +601,46 @@
   }
   function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+
+  /* ═════════ fullscreen (v2.18.2 — same gate as the classic remote) ═════════
+     Browsers refuse requestFullscreen without a user gesture, so a
+     branded one-tap gate covers the page on load; the connection is
+     already being made underneath.  Installed/standalone launches
+     skip the gate but still re-enter fullscreen on any tap. */
+  (function fullscreenSetup(){
+    var standalone = false;
+    try {
+      standalone = (window.matchMedia &&
+        (matchMedia("(display-mode: standalone)").matches ||
+         matchMedia("(display-mode: fullscreen)").matches)) ||
+        window.navigator.standalone === true;
+    } catch(e){}
+    var el = document.documentElement;
+    var fsFn = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!fsFn) return;
+    function goFs(){
+      if (document.fullscreenElement) return;
+      try {
+        var p = fsFn.call(el, { navigationUI: "hide" });
+        if (p && p.catch) p.catch(function(){});
+      } catch(e){}
+    }
+    // Re-enter fullscreen on any later tap (swiping down for
+    // notifications drops it on Android).
+    document.addEventListener("click", goFs, true);
+    if (standalone) return;
+    var gate = $("fsGate");
+    gate.classList.add("show");
+    var goneFs = false;
+    function gateTap(){
+      if (goneFs) return;
+      goneFs = true;
+      goFs();
+      gate.classList.remove("show");
+    }
+    gate.addEventListener("click", gateTap);
+    gate.addEventListener("pointerup", gateTap);
+  })();
 
   /* ═════════ transport (pair / WS / send) ═════════ */
   function wsUrl(){
@@ -558,6 +673,7 @@
         if (msg.t) latencyMs = Math.max(1, Math.round(performance.now() - msg.t));
         setConn(true); return;
       }
+      if (msg.type === "toast"){ if (msg.text) toast(msg.text); return; }
       if (msg.type === "state") applyState(msg);
     };
     var closed = false;
@@ -630,6 +746,10 @@
   function showPair(err){
     $("pairScreen").classList.remove("hidden");
     $("appShell").classList.remove("show");
+    $("pairMsg").textContent = "Point your phone camera at the QR code on your TV box, or type the 6-digit code from the launcher.";
+    $("codeBoxes").style.display = "";
+    pairBtn.style.display = "";
+    pairErr.style.color = "";
     pairErr.textContent = err || "";
     pairSpin.style.display = "none";
   }
@@ -637,35 +757,70 @@
     $("pairScreen").classList.add("hidden");
     $("appShell").classList.add("show");
   }
+  /* v2.18.2 — Shared pair-success handler.  Restores the classic
+     remote's LAN fast path: same WiFi + box local server up → jump to
+     `http://<box-ip>:<port>/remote` where the SAME page is served off
+     the box and every press rides a same-origin WebSocket (~5-20 ms).
+     A 20 s sessionStorage guard stops redirect loops when the LAN
+     server is unreachable. */
+  function handlePaired(d, typedCode){
+    sid = d.session_id; code = d.code || typedCode || code;
+    save({ sid: sid, code: code, cloud: CLOUD_ORIGIN, ts: Date.now() });
+    if (d.now_playing) state.now_playing = d.now_playing;
+    if (d.apps) state.apps = d.apps;
+    var recentlyFailed = false;
+    try { recentlyFailed = (Date.now() - (parseInt(sessionStorage.getItem(LOCAL_TRY_KEY) || "0", 10))) < 20000; } catch(e){}
+    if (!IS_LOCAL && d.same_network && d.local_ip && d.local_port && !recentlyFailed){
+      try { sessionStorage.setItem(LOCAL_TRY_KEY, String(Date.now())); } catch(e){}
+      location.href = "http://" + d.local_ip + ":" + d.local_port +
+        "/remote?local=1&s=" + encodeURIComponent(sid) + "&c=" + encodeURIComponent(code) +
+        "&cloud=" + encodeURIComponent(CLOUD_ORIGIN);
+      return;
+    }
+    startApp();
+  }
   function doPair(c){
     pairSpin.style.display = "block"; pairErr.textContent = "";
     fetch(CLOUD_ORIGIN + "/api/remote/pair", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code: c, session_id: sid || undefined })
     }).then(function(r){ if (!r.ok) throw new Error("bad"); return r.json(); })
-      .then(function(d){
-        sid = d.session_id; code = d.code;
-        save({ sid: sid, code: code, cloud: CLOUD_ORIGIN, ts: Date.now() });
-        if (d.now_playing) { state.now_playing = d.now_playing; }
-        startApp();
-      })
+      .then(function(d){ handlePaired(d, c); })
       .catch(function(){ showPair("That code didn't match — check the TV screen."); });
   }
+  /* v2.18.2 — QR / saved-shortcut auto-connect: no code entry at all.
+     If the box is offline (or the backend restarted) we quietly retry
+     every 4 s until it re-registers — the session id is device-stable.
+     Previously this gave up after ONE retry and dumped the user on the
+     code screen, which looked like "the QR doesn't connect". */
   function autoConnect(s, c, attempt){
+    attempt = attempt || 0;
     sid = s; code = c;
+    $("pairScreen").classList.remove("hidden");
+    $("appShell").classList.remove("show");
+    $("pairMsg").textContent = "Connecting to your TV\u2026";
+    $("codeBoxes").style.display = "none";
+    pairBtn.style.display = "none";
+    pairSpin.style.display = "block";
+    pairErr.style.color = attempt === 0 ? "" : "var(--txt-dim)";
+    pairErr.textContent = attempt === 0 ? ""
+      : "Waiting for your TV box\u2026 make sure it's powered on.";
     fetch(CLOUD_ORIGIN + "/api/remote/pair", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code: c, session_id: s })
-    }).then(function(r){ if (!r.ok) throw new Error("bad"); return r.json(); })
-      .then(function(d){
-        sid = d.session_id; code = d.code;
-        save({ sid: sid, code: code, cloud: CLOUD_ORIGIN, ts: Date.now() });
-        if (d.now_playing) state.now_playing = d.now_playing;
-        startApp();
+    }).then(function(r){
+        if (r.status === 403) throw new Error("stale");
+        if (!r.ok) throw new Error("retry");
+        return r.json();
       })
-      .catch(function(){
-        if (attempt < 1) setTimeout(function(){ autoConnect(s, c, attempt + 1); }, 900);
-        else showPair("");
+      .then(function(d){ handlePaired(d, c); })
+      .catch(function(err){
+        if (err && err.message === "stale"){
+          // Token rotated on the box — fall back to manual code entry.
+          showPair("This link is out of date — enter the code shown on the TV.");
+          return;
+        }
+        setTimeout(function(){ autoConnect(s, c, attempt + 1); }, 4000);
       });
   }
   function startApp(){
@@ -676,22 +831,73 @@
   }
 
   /* ═════════ tabs ═════════ */
-  var curTab = "remote";
+  var curTab = "home";
   var tabLoaded = { movies: false, music: false, livetv: false };
+  function switchTab(name){
+    if (name === curTab) return;
+    curTab = name;
+    document.querySelectorAll(".tab").forEach(function(x){ x.classList.toggle("active", x.getAttribute("data-tab") === name); });
+    document.querySelectorAll(".view").forEach(function(v){ v.classList.toggle("active", v.id === "view-" + name); });
+    if (name === "movies" && !tabLoaded.movies){ tabLoaded.movies = true; loadMoviesHome(); }
+    if (name === "music"  && !tabLoaded.music){ tabLoaded.music  = true; loadMusicHome(); }
+    if (name === "livetv" && !tabLoaded.livetv){ tabLoaded.livetv = true; loadLiveTV(); }
+    window.scrollTo(0, 0);
+  }
   document.querySelectorAll(".tab").forEach(function(t){
     t.addEventListener("click", function(){
-      var name = t.getAttribute("data-tab");
-      if (name === curTab) return;
       haptic(8);
-      curTab = name;
-      document.querySelectorAll(".tab").forEach(function(x){ x.classList.toggle("active", x === t); });
-      document.querySelectorAll(".view").forEach(function(v){ v.classList.toggle("active", v.id === "view-" + name); });
-      if (name === "movies" && !tabLoaded.movies){ tabLoaded.movies = true; loadMoviesHome(); }
-      if (name === "music"  && !tabLoaded.music){ tabLoaded.music  = true; loadMusicHome(); }
-      if (name === "livetv" && !tabLoaded.livetv){ tabLoaded.livetv = true; loadLiveTV(); }
-      window.scrollTo(0, 0);
+      switchTab(t.getAttribute("data-tab"));
     });
   });
+
+  /* ═════════ HOME screen ═════════ */
+  var APP_LABEL = { vesper: "Movies", tunes: "Music", livetv: "Live TV", kids: "Kids", fta: "Free-to-Air" };
+  /* v2.18.2 — Guard: the box reports which suite apps are installed;
+     block the command with a clear message instead of silently failing. */
+  function appReady(target){
+    if (state.apps && state.apps[target] === false){
+      haptic(30);
+      toast("The " + (APP_LABEL[target] || target) + " app isn't installed on your TV box yet — install it there first.");
+      return false;
+    }
+    return true;
+  }
+  (function homeSetup(){
+    var h = new Date().getHours();
+    $("homeHello").textContent = h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+    var TILE = CLOUD_ORIGIN + "/assets/companion_tiles/";
+    var GO = '<svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg>';
+    function banner(img, hint, testid, onTv){
+      return '<button class="home-banner" data-testid="' + testid + '">' +
+        '<img src="' + TILE + img + '" alt="">' +
+        '<div class="hb-scrim"></div>' +
+        (onTv ? '<div class="hb-tv-badge">OPENS ON TV</div>' : "") +
+        '<div class="hb-row"><span class="hb-hint">' + hint + '</span>' +
+        '<span class="hb-go">' + GO + '</span></div></button>';
+    }
+    $("homeBanners").innerHTML =
+      banner("builtin_tile_movies.webp",      "Movies &amp; Shows", "companion-home-movies") +
+      banner("builtin_tile_live_tv2.webp",    "Live TV",            "companion-home-livetv") +
+      banner("builtin_tile_music.webp",       "Music",              "companion-home-music") +
+      banner("builtin_tile_kids.webp",        "Kids",               "companion-home-kids", true) +
+      banner("builtin_tile_sports.webp",      "Sports",             "companion-home-sports") +
+      banner("builtin_tile_free_to_air.webp", "Free-to-Air",        "companion-home-fta", true);
+    function wire(id, fn){ document.querySelector('[data-testid="' + id + '"]').addEventListener("click", function(){ haptic(10); fn(); }); }
+    wire("companion-home-movies", function(){ switchTab("movies"); });
+    wire("companion-home-livetv", function(){ switchTab("livetv"); });
+    wire("companion-home-music",  function(){ switchTab("music"); });
+    wire("companion-home-sports", function(){ switchTab("livetv"); });
+    wire("companion-home-kids", function(){
+      if (!appReady("kids")) return;
+      send({ action: "companion_open", target: "kids" });
+      toast("Opening the Kids app on your TV");
+    });
+    wire("companion-home-fta", function(){
+      if (!appReady("fta")) return;
+      send({ action: "companion_open", target: "fta" });
+      toast("Opening Free-to-Air on your TV");
+    });
+  })();
 
   /* ═════════ remote controls ═════════ */
   var REPEAT_DELAY = 340, REPEAT_EVERY = 120, LONG_MS = 550;
@@ -926,6 +1132,7 @@
         $("ctSyn").textContent = m.description || "";
       }).catch(function(){});
     $("ctPlay").addEventListener("click", function(){
+      if (!appReady("vesper")) return;
       haptic(20);
       var payload = { action: "companion_play", target: "vesper", title: name, media_type: type, imdb: id };
       var profile = (cfg().profileName || "").trim();
@@ -1003,6 +1210,7 @@
   function wireMusic(root){
     root.querySelectorAll("[data-track]").forEach(function(el){
       el.addEventListener("click", function(){
+        if (!appReady("tunes")) return;
         haptic(15);
         send({ action: "companion_play", target: "tunes", track_id: el.getAttribute("data-track") });
         toast("\u266A Playing \u201C" + el.getAttribute("data-tname") + "\u201D on your TV");
@@ -1010,6 +1218,7 @@
     });
     root.querySelectorAll("[data-album]").forEach(function(el){
       el.addEventListener("click", function(){
+        if (!appReady("tunes")) return;
         haptic(15);
         send({ action: "companion_play", target: "tunes",
           route: "/music/album/" + el.getAttribute("data-album") + "?companionPlay=1" });
@@ -1155,6 +1364,7 @@
         $("ctSyn").innerHTML = html || "No guide data for this channel.";
       }).catch(function(){ $("ctSyn").textContent = "No guide data for this channel."; });
     $("ctPlay").addEventListener("click", function(){
+      if (!appReady("livetv")) return;
       haptic(20);
       send({ action: "companion_play", target: "livetv", stream_id: streamId, name: name });
       closeSheets();
@@ -1183,6 +1393,7 @@
   }
   function applyState(msg){
     if ("keyboard" in msg) state.keyboard = !!msg.keyboard;
+    if ("apps" in msg && msg.apps) state.apps = msg.apps;
     if ("now_playing" in msg){
       state.now_playing = msg.now_playing || null;
       if (state.now_playing){
@@ -1298,15 +1509,62 @@
   $("npNextEp").addEventListener("click", function(){ haptic(18); send({ action: "next_episode" }); toast("Skipping to the next episode…"); });
 
   /* ═════════ settings ═════════ */
+  /* v2.18.2 — Profile picker: type your Movies account username and
+     the profiles already on that account load as tappable chips
+     (pulled from the account's cloud-sync snapshot). */
+  var profTimer = null;
+  function renderProfHint(text){
+    $("profChips").innerHTML = '<div class="field-hint" style="margin:0">' + esc(text) + '</div>';
+  }
+  function loadProfiles(){
+    var u = $("setVesperUser").value.trim();
+    if (!u){ renderProfHint("Enter your Movies account username above to load its profiles."); return; }
+    $("profChips").innerHTML = '<div class="spin" style="margin:6px auto;width:18px;height:18px;border-width:2px"></div>';
+    fetch(MAIN_API + "/companion/vesper/profiles?u=" + encodeURIComponent(u))
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        var names = (d && d.profiles) || [];
+        if (!names.length){
+          renderProfHint(d && d.found === false
+            ? "No account found with that username — check the spelling."
+            : "No profiles found on that account yet.");
+          return;
+        }
+        var sel = $("setProfile").value.trim().toLowerCase();
+        var wrap = $("profChips");
+        wrap.innerHTML = names.map(function(n){
+          return '<button type="button" class="chip' + (n.toLowerCase() === sel ? " active" : "") +
+            '" data-prof="' + esc(n) + '" data-testid="companion-settings-profile-chip">' + esc(n) + '</button>';
+        }).join("");
+        wrap.querySelectorAll(".chip").forEach(function(ch){
+          ch.addEventListener("click", function(){
+            haptic(8);
+            $("setProfile").value = ch.getAttribute("data-prof");
+            wrap.querySelectorAll(".chip").forEach(function(x){ x.classList.toggle("active", x === ch); });
+          });
+        });
+      })
+      .catch(function(){ renderProfHint("Couldn\u2019t load profiles — check your connection and try again."); });
+  }
+  $("setVesperUser").addEventListener("input", function(){
+    clearTimeout(profTimer);
+    profTimer = setTimeout(loadProfiles, 600);
+  });
   $("cogBtn").addEventListener("click", function(){
     haptic(8);
     var c = cfg();
+    $("setVesperUser").value = c.vesperUser || "";
     $("setProfile").value = c.profileName || "";
     $("setLivetvUser").value = c.livetvUser || "";
+    loadProfiles();
     openSheet($("setSheet"));
   });
   $("setSave").addEventListener("click", function(){
-    saveCfg({ profileName: $("setProfile").value.trim(), livetvUser: $("setLivetvUser").value.trim() });
+    saveCfg({
+      vesperUser: $("setVesperUser").value.trim(),
+      profileName: $("setProfile").value.trim(),
+      livetvUser: $("setLivetvUser").value.trim()
+    });
     closeSheets(); toast("Saved");
     if (tabLoaded.livetv) loadLiveTV();
   });

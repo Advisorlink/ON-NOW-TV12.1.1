@@ -4785,8 +4785,9 @@ from xtream import router as xtream_router  # noqa: E402
 app.include_router(xtream_router)
 
 # v2.18.0 — Phone Companion app (slim Live TV channel list)
-from companion import router as companion_router  # noqa: E402
+from companion import router as companion_router, configure_companion  # noqa: E402
 app.include_router(companion_router)
+configure_companion(db)
 
 from watch_party import router as watch_party_router  # noqa: E402
 app.include_router(watch_party_router)

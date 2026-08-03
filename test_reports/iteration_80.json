@@ -1,0 +1,18 @@
+{
+  "summary": "Full backend + frontend testing of ON NOW TV V2 Companion App phone remote (served at :8002/remote). All specified backend endpoints (host/register, pair, vesper/profiles, allowlist) returned expected data. Frontend Home view renders 6 tiles in 2-col grid with correct heading; Kids/FTA show OPENS ON TV badge and 'not installed' toast; Movies posters load (Cinemeta), Play on TV closes sheet + shows Playing toast; Music tracks and toast work; Live TV channels + Watch on TV toast work; Sports tile routes to Live TV; Settings loads Dad chip from vesper_sync, chip fills profile field, Save toast fires and values persist on reopen; toast relay from host/state endpoint appears within ~2s; stale link with WRONGCODE falls back to manual code entry with correct message; Remote tab renders D-pad, media controls, trackpad. Fullscreen gate shows on load and is dismissed by tap.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": [
+    {"screen": "Home heading", "issues": ["Minor: heading renders as 'What app do youwant to use today?' with no space between 'you' and 'want' (likely a <br/> or span collapse — check rendering)"]}
+  ]},
+  "test_report_links": [],
+  "action_items": ["Investigate missing space in Home heading text 'What app do youwant to use today?' (cosmetic only)"],
+  "critical_code_review_comments": [],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "device_id=testbox1, token=tok123456, session=devtestbox1, vesper_sync user=testuser (profile Dad)",
+  "seed_data_creation": "Registered fake box via /api/remote/host/register",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All 15 requested checks pass. Only cosmetic finding: Home heading rendered as 'youwant' (missing whitespace). Test against http://localhost:8002/remote directly. If session reaped, re-run host/register.",
+  "rca of the issue": "N/A — no functional bugs found."
+}

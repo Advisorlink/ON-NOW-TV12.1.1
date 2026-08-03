@@ -70,7 +70,7 @@ ALLOWED_ACTIONS = {
 }
 
 # Companion targets the box knows how to launch.
-COMPANION_TARGETS = {"vesper", "tunes", "livetv"}
+COMPANION_TARGETS = {"vesper", "tunes", "livetv", "kids", "fta"}
 
 
 @dataclass
@@ -92,6 +92,9 @@ class RemoteSession:
     now_playing: dict | None = None
     now_playing_at: Optional[float] = None
     keyboard: bool = False
+    # v2.18.2 — Which suite apps the box reports as installed
+    # ({"vesper": true, ...}); the phone guards its tiles with this.
+    apps: dict = field(default_factory=dict)
     local_ip: Optional[str] = None
     local_port: Optional[int] = None
     host_public_ip: Optional[str] = None
@@ -312,6 +315,12 @@ def _validate_input(body: dict) -> dict:
     return {"action": "text", "chars": chars}
 
 
+def _sanitize_apps(v) -> dict:
+    if not isinstance(v, dict):
+        return {}
+    return {k: bool(v[k]) for k in COMPANION_TARGETS if k in v}
+
+
 def _sanitize_now_playing(np: dict) -> dict:
     return {
         "title": str(np.get("title", ""))[:200],
@@ -340,19 +349,24 @@ def _state_message(sess: RemoteSession) -> dict:
         "type": "state",
         "now_playing": sess.now_playing,
         "keyboard": sess.keyboard,
+        "apps": sess.apps or None,
         "paired": sess.paired_at is not None,
     }
 
 
-async def _push_phone_state(sess: RemoteSession) -> None:
+async def _push_phone_message(sess: RemoteSession, obj: dict) -> None:
     dead = []
     for ws in list(sess.phone_ws):
         try:
-            await ws.send_json(_state_message(sess))
+            await ws.send_json(obj)
         except Exception:
             dead.append(ws)
     for ws in dead:
         sess.phone_ws.discard(ws)
+
+
+async def _push_phone_state(sess: RemoteSession) -> None:
+    await _push_phone_message(sess, _state_message(sess))
 
 
 async def _deliver_input(sess: RemoteSession, payload: dict) -> None:
@@ -416,6 +430,10 @@ def _apply_host_state(sess: RemoteSession, body: dict) -> None:
         sess.now_playing_at = time.time()
     if "keyboard" in body:
         sess.keyboard = bool(body.get("keyboard"))
+    if "apps" in body:
+        apps = _sanitize_apps(body.get("apps"))
+        if apps:
+            sess.apps = apps
 
 
 # ─────────────────────────  Box (host) side  ──────────────────────
@@ -463,6 +481,9 @@ async def host_register(request: Request, payload: dict = None):
                     sess.paired_at = time.time()
             sess.host_public_ip = _client_ip(request)
             sess.last_host_poll_at = time.time()
+            apps = _sanitize_apps(body.get("apps"))
+            if apps:
+                sess.apps = apps
             lip = str(body.get("local_ip") or "").strip()
             if lip:
                 sess.local_ip = lip[:64]
@@ -599,8 +620,12 @@ async def host_poll(session_id: str, since: int = 0, wait: float = 25.0):
 async def host_state(session_id: str, payload: dict = None):
     """The box pushes a now-playing card and/or a keyboard flag."""
     sess = _require(session_id)
-    _apply_host_state(sess, payload or {})
+    body = payload or {}
+    _apply_host_state(sess, body)
     await _push_phone_state(sess)
+    text = str(body.get("toast") or "").strip()[:200]
+    if text:
+        await _push_phone_message(sess, {"type": "toast", "text": text})
     return {"ok": True}
 
 
@@ -622,6 +647,10 @@ async def ws_host(ws: WebSocket, session_id: str):
             if t == "state":
                 _apply_host_state(sess, msg)
                 await _push_phone_state(sess)
+            elif t == "toast":
+                text = str(msg.get("text") or "").strip()[:200]
+                if text:
+                    await _push_phone_message(sess, {"type": "toast", "text": text})
             elif t == "ping":
                 sess.last_host_poll_at = time.time()
                 await ws.send_json({"type": "pong"})
@@ -662,6 +691,7 @@ async def pair(request: Request, payload: dict = None):
         "device_id": sess.device_id,
         "now_playing": sess.now_playing,
         "keyboard": sess.keyboard,
+        "apps": sess.apps or None,
         "local_ip": sess.local_ip,
         "local_port": sess.local_port,
         "same_network": same_network,
@@ -692,6 +722,7 @@ async def get_state(session_id: str, code: str = "", since: float = 0.0):
         "now_playing": sess.now_playing,
         "now_playing_at": sess.now_playing_at,
         "keyboard": sess.keyboard,
+        "apps": sess.apps or None,
         "host_online": sess.host_ws is not None
         or (
             sess.last_host_poll_at is not None

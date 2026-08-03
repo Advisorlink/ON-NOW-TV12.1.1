@@ -189,6 +189,7 @@ class RemoteControlService : Service() {
             val body = JSONObject().apply {
                 put("device_id", deviceId())
                 put("token", code ?: "")
+                put("apps", installedAppsJson())
                 localIp?.let {
                     put("local_ip", it)
                     put("local_port", localServer?.listeningPort ?: 0)
@@ -283,10 +284,13 @@ class RemoteControlService : Service() {
                 "vesper" -> tv.onnow.launcher.AppPackages.VESPER
                 "tunes"  -> tv.onnow.launcher.AppPackages.TUNES
                 "livetv" -> tv.onnow.launcher.AppPackages.LIVETV
+                "kids"   -> tv.onnow.launcher.AppPackages.KIDS
+                "fta"    -> "tv.onnowtv.fta.recycler"
                 else -> return
             }
             val launch = packageManager.getLaunchIntentForPackage(pkg) ?: run {
                 Log.w(TAG, "companion: $pkg not installed")
+                pushToast("The ${companionLabel(target)} app isn't installed on this box yet — install it on the TV first.")
                 return
             }
             launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -331,6 +335,47 @@ class RemoteControlService : Service() {
         } catch (t: Throwable) {
             Log.w(TAG, "companion launch failed", t)
         }
+    }
+
+    private fun companionLabel(target: String): String = when (target) {
+        "vesper" -> "Movies"
+        "tunes"  -> "Music"
+        "livetv" -> "Live TV"
+        "kids"   -> "Kids"
+        "fta"    -> "Free-to-Air"
+        else     -> target
+    }
+
+    /** v2.18.2 — Which suite apps are installed on this box; the phone
+     *  Companion greys out / guards tiles for the missing ones. */
+    private fun installedAppsJson(): JSONObject = JSONObject().apply {
+        val map = mapOf(
+            "vesper" to tv.onnow.launcher.AppPackages.VESPER,
+            "tunes"  to tv.onnow.launcher.AppPackages.TUNES,
+            "livetv" to tv.onnow.launcher.AppPackages.LIVETV,
+            "kids"   to tv.onnow.launcher.AppPackages.KIDS,
+            "fta"    to "tv.onnowtv.fta.recycler",
+        )
+        for ((k, pkg) in map) put(k, packageManager.getLaunchIntentForPackage(pkg) != null)
+    }
+
+    /** v2.18.2 — One-shot toast on the phone (e.g. "app not installed").
+     *  Fastest transport first: LAN socket, cloud WS, then HTTP state. */
+    private fun pushToast(text: String) {
+        val json = JSONObject().put("type", "toast").put("text", text).toString()
+        try { localServer?.broadcastTransient(json) } catch (_: Throwable) {}
+        if (cloudWsOpen) {
+            try { cloudWs?.send(json); return } catch (_: Throwable) {}
+        }
+        val sid = sessionId ?: return
+        Thread {
+            try {
+                val body = JSONObject().put("toast", text).toString().toRequestBody(jsonType)
+                ResilientHttp.client.newCall(
+                    Request.Builder().url("${baseUrl}/api/remote/host/state/$sid").post(body).build()
+                ).execute().close()
+            } catch (_: Throwable) {}
+        }.also { it.isDaemon = true }.start()
     }
 
     // ─────────────────────── LAN direct server ────────────────────
@@ -548,6 +593,7 @@ class RemoteControlService : Service() {
 
     private fun pushState(includeNowPlaying: Boolean, includeKeyboard: Boolean) {
         val msg = JSONObject().put("type", "state")
+        try { msg.put("apps", installedAppsJson()) } catch (_: Throwable) {}
         if (includeNowPlaying) msg.put("now_playing", curNowPlaying ?: JSONObject.NULL)
         if (includeKeyboard || includeNowPlaying) msg.put("keyboard", curKeyboard)
         val json = msg.toString()
