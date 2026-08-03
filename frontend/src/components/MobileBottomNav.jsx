@@ -1,7 +1,8 @@
 /**
  * <MobileBottomNav/> — mobile-mode bottom tab bar that replaces the
- * desktop / TV <SideNav/>.  Sticky, 5 primary destinations:
- *   Home · Search · Live TV · Library · More
+ * desktop / TV <SideNav/>.  Sticky, 4 primary destinations:
+ *   Home · Search · Library · More
+ * (Live TV is a TV-box-only feature — deliberately absent on phones.)
  *
  * The "More" tab opens a full-width bottom sheet that surfaces every
  * secondary destination from the desktop side rail — Sports, TV
@@ -21,7 +22,6 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
     Home as HomeIcon,
     Search as SearchIcon,
-    Tv,
     BookOpen,
     Menu,
     Trophy,
@@ -37,7 +37,6 @@ import {
 const TABS = [
     { path: '/',        label: 'Home',    Icon: HomeIcon },
     { path: '/search',  label: 'Search',  Icon: SearchIcon },
-    { path: '/live-tv', label: 'Live',    Icon: Tv },
     { path: '/library', label: 'Library', Icon: BookOpen },
     { path: '__more__', label: 'More',    Icon: Menu },
 ];
