@@ -118,12 +118,18 @@ _SPORT_RE = re.compile(
     re.I,
 )
 _PPV_RE = re.compile(r"ppv|pay[\s.\-]?per[\s.\-]?view|\bevents?\b", re.I)
+_EVENT_RE = re.compile(
+    r"\bvs?\.?\s|\bv\b| @ |derby|grand prix|gp\b|final|cup|championship|round \d|race|match|test\b|open\b",
+    re.I,
+)
+_whatson_cache = {"at": 0.0, "count": 0}
 
 
 @router.get("/livetv/sections")
 async def companion_livetv_sections() -> dict:
     """Category ids classified into Sports / PPV buckets for the
-    Companion app's Live TV section tabs."""
+    Companion app's Live TV section tabs, plus an approximate count of
+    live sport events airing right now (cached 120 s)."""
     cats = _bundle_state.get("categories") or []
     sports, ppv = [], []
     for c in cats:
@@ -135,7 +141,25 @@ async def companion_livetv_sections() -> dict:
             ppv.append({"id": cid, "name": name})
         elif _SPORT_RE.search(name):
             sports.append({"id": cid, "name": name})
-    return {"sports": sports, "ppv": ppv}
+    now = time.time()
+    if now - _whatson_cache["at"] > 120:
+        sport_ids = {c["id"] for c in sports}
+        channels = _bundle_state.get("channels") or []
+        epg = _bundle_state.get("epg") or {}
+        seen: set = set()
+        for c in channels:
+            if str(c.get("category_id")) not in sport_ids:
+                continue
+            progs = epg.get(str(c.get("stream_id") or "")) or []
+            for p in progs:
+                if p.get("startTimestamp", 0) <= now < p.get("stopTimestamp", 0):
+                    t = str(p.get("title") or "")
+                    if _EVENT_RE.search(t):
+                        seen.add(t.strip().lower())
+                    break
+        _whatson_cache["at"] = now
+        _whatson_cache["count"] = len(seen)
+    return {"sports": sports, "ppv": ppv, "whats_on_live": _whatson_cache["count"]}
 
 
 def _slim_prog(p) -> dict | None:

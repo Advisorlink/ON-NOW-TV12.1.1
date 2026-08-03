@@ -404,6 +404,55 @@
     background:rgba(255,255,255,.06);border:1px solid var(--edge);color:var(--txt-dim);font-size:11.5px;font-weight:700}
   .np-pill svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
   .np-pill:active{background:var(--accent-soft);color:var(--accent)}
+
+  /* ───────── v2.18.4 — hero sections (match the mobile apps) ───────── */
+  .mv-hero{position:relative;overflow:hidden;margin:2px -16px 18px}
+  .mv-hero .mh-img{width:100%;aspect-ratio:4/5;object-fit:cover;object-position:center top;display:block;background:var(--card)}
+  .mv-hero .mh-grad{position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,8,15,.1) 28%,var(--bg) 97%)}
+  .mv-hero .mh-body{position:absolute;left:16px;right:16px;bottom:12px}
+  .mh-eyebrow{font-size:10.5px;font-weight:700;letter-spacing:.28em;text-transform:uppercase;color:var(--accent);margin-bottom:8px}
+  .mh-title{font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1.08;text-shadow:0 2px 12px rgba(0,0,0,.5)}
+  .mh-meta{font-size:13px;font-weight:600;color:var(--accent);margin-top:7px}
+  .mh-genres{font-size:12.5px;color:var(--txt-dim);margin-top:3px}
+  .mh-syn{font-size:12px;color:var(--txt-dim);line-height:1.55;margin-top:7px;
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .mh-play{display:inline-flex;align-items:center;gap:9px;margin-top:13px;padding:12px 28px;border-radius:999px;
+    border:none;background:#fff;color:#0A0F1A;font-size:14px;font-weight:800;cursor:pointer;
+    box-shadow:0 8px 22px rgba(0,0,0,.4);transition:transform .12s ease}
+  .mh-play svg{width:13px;height:13px;fill:#0A0F1A;stroke:none}
+  .mh-play:active{transform:scale(.95)}
+  .cw-card .cw-name{position:absolute;left:11px;right:10px;bottom:11px;display:flex;align-items:center;gap:9px}
+  .cw-card .cw-name .cw-pl{width:30px;height:30px;flex:0 0 auto;border-radius:50%;
+    background:rgba(10,15,26,.55);border:1px solid rgba(255,255,255,.3);backdrop-filter:blur(6px);
+    display:flex;align-items:center;justify-content:center}
+  .cw-card .cw-name .cw-pl svg{width:11px;height:11px;fill:#fff;stroke:none}
+  .cw-card .cw-name span{font-size:12.5px;font-weight:700;color:#fff;text-shadow:0 1px 5px rgba(0,0,0,.85);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tv-hero{display:none;margin:4px 2px 16px;cursor:pointer}
+  .tv-hero.show{display:block}
+  .tv-hero .th-eyebrow{font-size:10px;font-weight:700;letter-spacing:.26em;color:var(--accent);text-transform:uppercase;margin-bottom:6px}
+  .tv-hero .th-row{display:flex;gap:14px;align-items:flex-start}
+  .tv-hero .th-name{font-size:21px;font-weight:800;letter-spacing:-.01em;line-height:1.12;flex:1;min-width:0}
+  .tv-hero .th-logo{flex:0 0 76px;height:54px;border-radius:10px;background:var(--card);border:1px solid var(--edge);object-fit:contain;padding:6px}
+  .tv-hero .th-now{font-size:12.5px;margin-top:8px;color:var(--txt)}
+  .tv-hero .th-now b{color:var(--accent);font-weight:800;letter-spacing:.08em}
+  .tv-hero .th-desc{font-size:11.5px;color:var(--txt-dim);line-height:1.5;margin-top:4px;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .tv-hero .th-prog{height:3px;border-radius:99px;background:rgba(255,255,255,.1);margin-top:9px;overflow:hidden}
+  .tv-hero .th-prog i{display:block;height:100%;background:var(--accent)}
+  .tv-hero .th-next{font-size:10.5px;letter-spacing:.1em;color:var(--txt-faint);margin-top:7px;text-transform:uppercase}
+  .whatson-banner{display:none;width:100%;border:none;border-radius:16px;padding:13px 16px;margin:0 0 14px;cursor:pointer;
+    background:linear-gradient(90deg,#FF4E3A,#FF9A2E);color:#fff;text-align:left;
+    align-items:center;justify-content:space-between;box-shadow:0 8px 22px rgba(255,90,40,.25);
+    transition:transform .12s ease}
+  .whatson-banner.show{display:flex}
+  .whatson-banner .wb-t{font-size:14.5px;font-weight:800;letter-spacing:.04em}
+  .whatson-banner .wb-s{font-size:9px;font-weight:700;letter-spacing:.24em;margin-top:3px;opacity:.9}
+  .whatson-banner .wb-n{font-size:22px;font-weight:800;flex:0 0 auto}
+  .whatson-banner:active{transform:scale(.985)}
+  .g-nowpill{display:inline-block;font-size:8.5px;font-weight:800;letter-spacing:.1em;color:#fff;
+    background:var(--red);border-radius:4px;padding:2px 6px;margin-right:7px;vertical-align:1px}
+  .chip .chip-n{opacity:.5;margin-left:6px;font-weight:600;font-size:10px}
 </style>
 </head>
 <body>
@@ -516,6 +565,11 @@
       <input id="tvSearch" placeholder="Search channels…" enterkeyhint="search" autocomplete="off" data-testid="companion-livetv-search">
       <button class="search-clear" id="tvClear">✕</button>
     </div>
+    <div class="tv-hero" id="tvHero" data-testid="companion-livetv-hero"></div>
+    <button class="whatson-banner" id="whatsOnBanner" data-testid="companion-whatson-banner">
+      <span><span class="wb-t">WHAT'S ON LIVE</span><br><span class="wb-s">SPORTS &middot; RIGHT NOW</span></span>
+      <span class="wb-n" id="wbCount"></span>
+    </button>
     <div class="seg-row" id="tvSegs">
       <button class="seg active" data-seg="guide" data-testid="companion-livetv-seg-guide">TV Guide</button>
       <button class="seg" data-seg="sports" data-testid="companion-livetv-seg-sports">Live Sports</button>
@@ -1252,10 +1306,30 @@
     return '<button class="cw-card" data-cw="' + esc(e.id) + '" data-imdb="' + esc(e.imdb) + '" data-season="' + (e.season || "") + '" data-episode="' + (e.episode || "") + '" data-mname="' + esc(e.title) + '" data-testid="companion-cw-card">' +
       '<div class="cw-img"><img loading="lazy" src="' + esc(img) + '" alt="">' +
       '<div class="cw-scrim"></div>' +
-      '<div class="cw-play"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg></div>' +
+      '<div class="cw-name"><span class="cw-pl"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg></span>' +
+      '<span>' + esc(e.title) + '</span></div>' +
       '<div class="cw-prog"><i style="width:' + pct + '%"></i></div></div>' +
-      '<div class="cw-title">' + esc(e.title) + '</div>' +
       '<div class="cw-sub">' + esc(sub) + (pct ? " \u00B7 " + pct + "% watched" : "") + '</div></button>';
+  }
+  /* v2.18.4 — Featured hero, matching the mobile app's home. */
+  function movieHero(m){
+    var img = m.background || m.poster || "";
+    var genres = (m.genres || []).slice(0, 3);
+    var bits = [];
+    if (m.releaseInfo || m.year) bits.push(esc(m.releaseInfo || m.year));
+    if (m.runtime) bits.push(esc(m.runtime));
+    return '<div class="mv-hero" data-testid="companion-movie-hero">' +
+      '<img class="mh-img" src="' + esc(img) + '" alt="">' +
+      '<div class="mh-grad"></div>' +
+      '<div class="mh-body">' +
+        '<div class="mh-eyebrow">Featured' + (genres[0] ? ' \u00B7 ' + esc(genres[0]) : "") + '</div>' +
+        '<div class="mh-title">' + esc(m.name) + '</div>' +
+        (bits.length ? '<div class="mh-meta">' + bits.join(" \u00B7 ") + '</div>' : "") +
+        (genres.length ? '<div class="mh-genres">' + esc(genres.join(" \u00B7 ")) + '</div>' : "") +
+        '<div class="mh-syn" id="mhSyn">' + esc(m.description || "") + '</div>' +
+        '<button class="mh-play" id="mhPlay" data-testid="companion-hero-play" data-mid="' + esc(m.id) + '" data-mtype="' + esc(m.type || "movie") + '" data-mname="' + esc(m.name) + '">' +
+          '<svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg> Play</button>' +
+      '</div></div>';
   }
   function loadMoviesHome(){
     var body = $("mvBody");
@@ -1271,12 +1345,34 @@
         var movies = (res[0] && res[0].metas || []).slice(0, 18);
         var series = (res[1] && res[1].metas || []).slice(0, 18);
         var cw = ((res[2] && res[2].items) || []).filter(function(e){ return e.imdb; }).slice(0, 12);
+        var hero = null;
+        for (var i = 0; i < movies.length; i++){
+          if (movies[i] && (movies[i].background || movies[i].poster)){ hero = movies[i]; break; }
+        }
         body.innerHTML =
+          (hero ? movieHero(hero) : "") +
           (cw.length ? '<div class="rail-title">Continue watching</div><div class="h-rail">' + cw.map(cwCard).join("") + '</div>' : "") +
           '<div class="rail-title">Popular movies</div>' + posterRail(movies, "movie") +
           '<div class="rail-title">Popular shows</div>' + posterRail(series, "series");
         wireMovieTiles(body);
         wireCwCards(body);
+        if (hero){
+          $("mhPlay").addEventListener("click", function(ev){
+            ev.stopPropagation();
+            if ((hero.type || "movie") === "series") openSeries(hero.id, hero.name);
+            else playMovieOnTv(hero.name, hero.id);
+          });
+          // Fill runtime/synopsis from the full meta if the catalog
+          // entry didn't carry them.
+          if (!hero.description || !hero.runtime){
+            cineFetch("/meta/" + encodeURIComponent(hero.type || "movie") + "/" + encodeURIComponent(hero.id) + ".json")
+              .then(function(d){
+                var m = d && d.meta || {};
+                var syn = $("mhSyn");
+                if (syn && !syn.textContent && m.description) syn.textContent = m.description;
+              }).catch(function(){});
+          }
+        }
       })
       .catch(function(){ body.innerHTML = '<div class="empty-note">Couldn\u2019t load the catalogue — check your connection.</div>'; });
   }
@@ -1537,6 +1633,7 @@
   var tvQuery = "";
   var tvSecs = { sports: [], ppv: [] };
   var guideCache = {};       // key -> { at, channels }
+  var catCounts = {};        // category_id -> channel count
   function sha256Hex(str){
     if (!(window.crypto && crypto.subtle)) return Promise.resolve(null);
     return crypto.subtle.digest("SHA-256", new TextEncoder().encode(str)).then(function(buf){
@@ -1570,6 +1667,13 @@
       if (!tvData || !tvData.channels || !tvData.channels.length){
         body.innerHTML = '<div class="empty-note">Channel guide is warming up — try again in a minute.</div>'; return;
       }
+      catCounts = {};
+      tvData.channels.forEach(function(c){
+        var k = String(c.category_id);
+        catCounts[k] = (catCounts[k] || 0) + 1;
+      });
+      var liveN = (res[1] && res[1].whats_on_live) || 0;
+      if (liveN > 0) $("wbCount").textContent = liveN;
       if (tvSection === "guide") tvCat = tvFavs.length ? "__favs__" : "__all__";
       renderTvChips();
       renderTvList();
@@ -1577,6 +1681,10 @@
       body.innerHTML = '<div class="empty-note">Couldn\u2019t load channels — check your connection.</div>';
     });
   }
+  $("whatsOnBanner").addEventListener("click", function(){
+    var sg = document.querySelector('#tvSegs .seg[data-seg="sports"]');
+    if (sg) sg.click();
+  });
   (function segSetup(){
     document.querySelectorAll("#tvSegs .seg").forEach(function(sg){
       sg.addEventListener("click", function(){
@@ -1598,15 +1706,16 @@
   function renderTvChips(){
     var wrap = $("tvChips");
     var html = "";
+    function n(v){ return v ? ' <span class="chip-n">' + v + '</span>' : ""; }
     if (tvSection === "guide"){
-      html += '<button class="chip' + (tvCat === "__favs__" ? " active" : "") + '" data-cat="__favs__">\u2605 Favourites</button>';
-      html += '<button class="chip' + (tvCat === "__all__" ? " active" : "") + '" data-cat="__all__">All</button>';
+      html += '<button class="chip' + (tvCat === "__favs__" ? " active" : "") + '" data-cat="__favs__">\u2605 Favourites' + n(tvFavs.length) + '</button>';
+      html += '<button class="chip' + (tvCat === "__all__" ? " active" : "") + '" data-cat="__all__">All' + n(tvData.channels.length) + '</button>';
       (tvData.categories || []).forEach(function(c){
-        html += '<button class="chip' + (tvCat === String(c.id) ? " active" : "") + '" data-cat="' + esc(c.id) + '">' + esc(c.name) + '</button>';
+        html += '<button class="chip' + (tvCat === String(c.id) ? " active" : "") + '" data-cat="' + esc(c.id) + '">' + esc(c.name) + n(catCounts[String(c.id)]) + '</button>';
       });
     } else {
       (tvSecs[tvSection] || []).forEach(function(c){
-        html += '<button class="chip' + (tvCat === String(c.id) ? " active" : "") + '" data-cat="' + esc(c.id) + '">' + esc(c.name) + '</button>';
+        html += '<button class="chip' + (tvCat === String(c.id) ? " active" : "") + '" data-cat="' + esc(c.id) + '">' + esc(c.name) + n(catCounts[String(c.id)]) + '</button>';
       });
     }
     wrap.innerHTML = html;
@@ -1628,13 +1737,50 @@
       '<img loading="lazy" src="' + esc(c.logo || "") + '" alt="" onerror="this.style.visibility=\'hidden\'">' +
       '<div class="g-main">' +
         '<div class="g-ch">' + esc(c.name) + (isFav ? ' <span style="color:#FFC64B">\u2605</span>' : "") + '</div>' +
-        (nowP ? '<div class="g-now">' + tvTm(nowP.start) + " \u00B7 " + esc(nowP.title) + '</div>' +
+        (nowP ? '<div class="g-now"><span class="g-nowpill">NOW</span>' + esc(nowP.title) + '</div>' +
                 '<div class="g-prog"><i style="width:' + pct + '%"></i></div>' : "") +
         (nextP ? '<div class="g-next">Next ' + tvTm(nextP.start) + " \u00B7 " + esc(nextP.title) + '</div>' : "") +
       '</div>' +
-      (nowP ? '<span class="g-live">LIVE</span>' : "") +
       '</button>';
   }
+  /* v2.18.4 — Featured channel hero (matches the Live TV app). */
+  function renderTvHero(chans){
+    var hero = null;
+    for (var i = 0; i < chans.length; i++){
+      if (chans[i] && chans[i].now){ hero = chans[i]; break; }
+    }
+    var el = $("tvHero");
+    if (!hero){ el.classList.remove("show"); return; }
+    var now = Date.now() / 1000;
+    var pct = hero.now.stop > hero.now.start
+      ? Math.min(100, Math.max(0, (now - hero.now.start) / (hero.now.stop - hero.now.start) * 100)) : 0;
+    el.innerHTML =
+      '<div class="th-eyebrow">Live TV</div>' +
+      '<div class="th-row">' +
+        '<div class="th-name">' + esc(hero.name) + '</div>' +
+        (hero.logo ? '<img class="th-logo" src="' + esc(hero.logo) + '" alt="" onerror="this.style.display=\'none\'">' : "") +
+      '</div>' +
+      '<div class="th-now"><b>NOW ' + tvTm(hero.now.start) + '</b> &nbsp;' + esc(hero.now.title) + '</div>' +
+      '<div class="th-desc" id="thDesc"></div>' +
+      '<div class="th-prog"><i style="width:' + pct + '%"></i></div>' +
+      (hero.next ? '<div class="th-next">Up next \u00B7 ' + tvTm(hero.next.start) + ' \u00B7 ' + esc(hero.next.title) + '</div>' : "");
+    el.classList.add("show");
+    el.onclick = function(){ tuneChannel(hero.stream_id, hero.name); };
+    fetch(MAIN_API + "/xtream/epg/" + encodeURIComponent(hero.stream_id))
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        var progs = (d && d.programmes) || [];
+        var t = Date.now() / 1000;
+        for (var i = 0; i < progs.length; i++){
+          if (progs[i].start <= t && t < progs[i].stop){
+            var dsc = $("thDesc");
+            if (dsc && progs[i].description) dsc.textContent = progs[i].description;
+            break;
+          }
+        }
+      }).catch(function(){});
+  }
+  function hideTvHero(){ $("tvHero").classList.remove("show"); }
   function plainRow(c, isFav){
     return '<button class="row-item" data-stream="' + esc(c.stream_id) + '" data-cname="' + esc(c.name) + '" data-testid="companion-livetv-channel">' +
       '<img loading="lazy" src="' + esc(c.logo || "") + '" alt="" onerror="this.style.visibility=\'hidden\'">' +
@@ -1659,10 +1805,12 @@
     var body = $("tvBody");
     body.innerHTML = chans.map(function(c){ return gRow(c, !!favSet[c.stream_id]); }).join("") ||
       '<div class="empty-note">No channels here.</div>';
+    renderTvHero(chans);
     wireTvRows(body);
   }
   function paintPlain(list, favSet, emptyMsg){
     var body = $("tvBody");
+    hideTvHero();
     body.innerHTML = list.map(function(c){ return plainRow(c, !!favSet[c.stream_id]); }).join("") ||
       '<div class="empty-note">' + emptyMsg + '</div>';
     wireTvRows(body);
@@ -1671,13 +1819,17 @@
     var body = $("tvBody");
     var favSet = {};
     tvFavs.forEach(function(id){ favSet[id] = true; });
+    $("whatsOnBanner").classList.toggle("show",
+      tvSection === "guide" && !tvQuery && !!$("wbCount").textContent);
     if (tvQuery){
+      hideTvHero();
       var q = tvQuery.toLowerCase();
       var list = tvData.channels.filter(function(c){ return (c.name || "").toLowerCase().indexOf(q) !== -1; }).slice(0, 120);
       paintPlain(list, favSet, "No channels match \u201C" + esc(tvQuery) + "\u201D.");
       return;
     }
     if (tvSection !== "guide" && tvCat === "__none__"){
+      hideTvHero();
       body.innerHTML = '<div class="empty-note">No ' + (tvSection === "ppv" ? "pay-per-view" : "live sports") +
         ' categories found on this playlist.</div>';
       return;
@@ -1687,6 +1839,7 @@
       return;
     }
     if (tvCat === "__favs__" && !tvFavs.length){
+      hideTvHero();
       body.innerHTML = '<div class="empty-note">No favourites yet.<br>Add your Live TV username in Settings, or star channels on the box first.</div>';
       return;
     }

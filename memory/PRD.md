@@ -11719,3 +11719,17 @@ favourites from cloud sync; profile changeable in app; V2 dark look.
 **Seeded test data:** vesper_sync testuser has 2 CW entries (Breaking Bad S5E14 68%, Inception 41%).
 
 **Lesson reaffirmed:** one search_replace per file per batch — parallel edits to the same file clobber each other.
+
+---
+
+## v2.18.4 — Companion heroes to match the mobile apps (June 2026)
+
+User sent reference screenshots (Vesper mobile Home + Live TV portrait app). Implemented in companion_page.html + backend/companion.py, self-tested via screenshots:
+1. **Movies featured hero** — full-bleed backdrop (first Cinemeta top movie with background), FEATURED · genre eyebrow, big title, blue year·runtime, genres, 3-line synopsis, white Play pill (`companion-hero-play`; movie=instant play, series=episode page). Meta enrichment fetch if catalog lacks description.
+2. **CW cards restyled** — play circle + title INSIDE the card bottom (like the app), progress bar, sub-line below.
+3. **Live TV hero** (`#tvHero`) — featured channel (first with now-data of painted guide list): name + logo, "NOW hh:mm · programme", 2-line description (fetched from /api/xtream/epg/{sid}), progress bar, "UP NEXT · hh:mm · title"; tap = tune.
+4. **WHAT'S ON LIVE banner** (`#whatsOnBanner`, orange gradient) — shows live sports event count from extended `GET /api/companion/livetv/sections` (`whats_on_live`, _EVENT_RE title heuristic over sports categories, 120 s cache; preview shows 48 vs TV's 44). Tap jumps to Live Sports segment. Guide segment only.
+5. **Guide rows** — red NOW pill inline before programme title (matches TV app), removed right-side LIVE chip; category chips show channel counts (`chip-n`).
+6. Hero/banner hidden on search/plain lists; hero shows in any segment when guide data paints.
+
+All flows self-tested: hero play toast, banner→sports segment switch, row tune toast.
