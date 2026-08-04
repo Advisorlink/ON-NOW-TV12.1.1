@@ -252,6 +252,9 @@ class MainActivity : AppCompatActivity() {
                                 intent?.getStringExtra("companion_stream_id")?.let {
                                     putExtra("companion_stream_id", it)
                                 }
+                                intent?.getStringExtra("companion_stream_name")?.let {
+                                    putExtra("companion_stream_name", it)
+                                }
                             })
                             overridePendingTransition(0, 0)
                             finish()
@@ -882,6 +885,9 @@ class MainActivity : AppCompatActivity() {
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             this@MainActivity.intent?.getStringExtra("companion_stream_id")?.let {
                 putExtra("companion_stream_id", it)
+            }
+            this@MainActivity.intent?.getStringExtra("companion_stream_name")?.let {
+                putExtra("companion_stream_name", it)
             }
         })
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)

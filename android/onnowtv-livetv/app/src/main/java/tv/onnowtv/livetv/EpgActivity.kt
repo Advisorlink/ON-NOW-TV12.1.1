@@ -247,11 +247,14 @@ class EpgActivity : AppCompatActivity() {
 
         // v2.18.0 — Companion deep-link: the phone asked for a specific
         // channel.  Tune it the moment the guide is wired up.
+        // v2.18.8 — INSTANT FULL SCREEN (launchPlayer's first tap only
+        // starts the small preview) + never dead-end on unknown ids.
         intent?.getStringExtra("companion_stream_id")?.let { sid ->
+            val nm = intent.getStringExtra("companion_stream_name")
             intent.removeExtra("companion_stream_id")
-            val ch = bundle.channels.firstOrNull { it.id == sid }
-            if (ch != null) {
-                window.decorView.post { launchPlayer(ch) }
+            intent.removeExtra("companion_stream_name")
+            companionChannelFor(sid, nm)?.let { ch ->
+                window.decorView.post { companionTune(ch) }
             }
         }
 
@@ -2338,6 +2341,40 @@ class EpgActivity : AppCompatActivity() {
         previewWatchdogHandler.postDelayed(previewWatchdogRetry, 900L)
     }
 
+    /** v2.18.8 — Resolve a Companion-phone stream id to a playable
+     *  channel.  The box's cached channel list can lag behind the
+     *  backend list the phone browses, so when the id is missing we
+     *  SYNTHESIZE a channel by re-using another channel's pre-built
+     *  stream URL as a template (same host/user/pass — only the
+     *  stream id path segment differs).  A phone tap must never
+     *  silently dead-end on the guide. */
+    private fun companionChannelFor(sid: String, name: String?): Channel? {
+        bundle.channels.firstOrNull { it.id == sid }?.let { return it }
+        val template = bundle.channels.firstOrNull() ?: return null
+        val url = template.streamUrl.replace(
+            Regex("/" + Regex.escape(template.id) + "(\\.[A-Za-z0-9]+)?$"),
+            Regex.escapeReplacement("/$sid") + "$1",
+        )
+        if (!url.contains("/$sid")) return null
+        return Channel(
+            id = sid,
+            name = name?.takeIf { it.isNotBlank() } ?: "Channel $sid",
+            lcn = null,
+            logoUrl = null,
+            categoryId = null,
+            streamUrl = url,
+            epgChannelId = sid,
+        )
+    }
+
+    /** v2.18.8 — Companion tap = INSTANT full screen.  The regular
+     *  launchPlayer() intentionally previews on the first activation;
+     *  the phone contract is play-immediately-full-screen. */
+    private fun companionTune(ch: Channel) {
+        startPreview(ch)
+        openFullscreen(ch)
+    }
+
     /**
      * Honour deep-link intents fired by LibraryActivity (or any
      * other future "open this category" entry point) when this
@@ -2349,12 +2386,14 @@ class EpgActivity : AppCompatActivity() {
         setIntent(intent)
         // v2.18.5 — Companion warm tune: the phone picked a channel
         // while the guide (or player) was already open.
+        // v2.18.8 — full screen + synthesized-channel fallback.
         intent.getStringExtra("companion_stream_id")?.let { sid ->
+            val nm = intent.getStringExtra("companion_stream_name")
             intent.removeExtra("companion_stream_id")
+            intent.removeExtra("companion_stream_name")
             if (::bundle.isInitialized) {
-                val ch = bundle.channels.firstOrNull { it.id == sid }
-                if (ch != null) {
-                    window.decorView.post { launchPlayer(ch) }
+                companionChannelFor(sid, nm)?.let { ch ->
+                    window.decorView.post { companionTune(ch) }
                     return
                 }
             }

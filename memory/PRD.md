@@ -1,4 +1,27 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.18.9 — Instant-play guarantees extended to Live TV + Music (companion audit of every app) (Jun 2026).**
+>
+> ### User request
+> "Do the same for the Live TV app and every other app in there as well so it works for all of them."
+>
+> ### Audit results & fixes per app
+> - **Live TV (`onnowtv-livetv`) — 2 real bugs FIXED (needs Live TV APK rebuild):**
+>   1. Companion tap called `launchPlayer()`, whose FIRST activation only starts the small PREVIEW (second tap goes full-screen).  Phone taps therefore landed in preview mode, not full screen.  New `companionTune()` = `startPreview()` + `openFullscreen()` (the same sanctioned combo the "Watch Fullscreen" sheet uses) on BOTH cold (`onCreate`) and warm (`onNewIntent`) paths.
+>   2. Unknown stream id (box's cached channel list lags the backend list the phone browses) silently no-op'd.  New `companionChannelFor()` synthesizes a playable Channel by templating another channel's pre-built stream URL (same host/user/pass, swapped id segment) — a phone tap can never dead-end on the guide.  `companion_stream_name` now forwarded through BOTH MainActivity loader paths so the synthesized channel is properly named.
+> - **Tunes/Music — audited, WORKING, no changes:** `tunes_route` → `#/music?companionPlayTrack=<id>` (cold + warm both reload with the hash); `CompanionBridge` fetches `/api/music/track/{id}` and plays; WebView already has `mediaPlaybackRequiresUserGesture=false` so audio autostarts on the box.  Verified in browser: deep link loads "Radio Ga Ga (Queen)" straight into the player bar (desktop-browser autoplay policy is the only blocker there, not present in the box shell).  `/music` routes are NOT profile-gated → no Vesper-class gate bugs.
+> - **Vesper** — fixed in v2.18.8 (playable-stream candidate + profile gate).
+> - **Kids / FTA** — companion only OPENS these apps (no play deep-link contract exists on the phone yet); nothing to fix, future feature if wanted.
+>
+> ### Verification
+> - Kotlin brace check clean (`EpgActivity.kt`, `MainActivity.kt` livetv).
+> - Music deep-link browser e2e: track loaded into player from `?companionPlayTrack=4164561612`.
+> - Phone→launcher payload chain re-checked: `tuneChannel` sends `stream_id` + `name`; launcher puts `companion_stream_id`/`companion_stream_name` extras; both livetv loader paths forward both.
+>
+> ### Files touched
+> - `android/onnowtv-livetv/.../EpgActivity.kt` (`companionChannelFor`, `companionTune`, cold+warm handlers)
+> - `android/onnowtv-livetv/.../MainActivity.kt` (forward `companion_stream_name` on both paths)
+>
+
 > **🟢 v2.18.8 — "Play on TV lands on details, never plays" — ROOT CAUSES FOUND & FIXED (Jun 2026).**
 >
 > ### User complaint
