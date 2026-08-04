@@ -401,7 +401,6 @@ class RemoteControlService : Service() {
     private fun startLocalServer() {
         Thread {
             val pageFile = File(filesDir, "remote_page.html")
-            refreshCachedPage(pageFile)
             var server: LocalRemoteServer? = null
             for (port in LOCAL_PORTS) {
                 try {
@@ -420,6 +419,39 @@ class RemoteControlService : Service() {
                 Log.w(TAG, "local server failed on all ports — cloud only")
                 return@Thread
             }
+            // v2.18.7 — Server FIRST, page download SECOND.  The page
+            // fetch is a slow network call; running it before the
+            // server start left `localIp` unset while registration
+            // completed, so the session reached the cloud with NO LAN
+            // endpoint and the phone silently used the slow cloud
+            // path.  The server serves the cached page from the
+            // previous boot (or redirects to the cloud on a first-ever
+            // boot) until the fresh copy lands.
+            val ip = localIpv4()
+            localIp = ip
+            Log.i(TAG, "local remote server on $ip:${server.listeningPort}")
+            if (ip != null) {
+                // v2.18.7 — Report the LAN endpoint as soon as a
+                // session exists.  The old one-shot `if (sessionId !=
+                // null)` check silently SKIPPED the report whenever the
+                // server won the boot race against registration — the
+                // backend then never learned the LAN address and
+                // WiFi-direct was dead until a cloud-WS drop forced a
+                // re-register.  Retry loop closes the race for good.
+                val port = server.listeningPort
+                Thread {
+                    var tries = 0
+                    while (active && tries < 60) {
+                        if (sessionId != null) {
+                            reportLocalEndpoint(ip, port)
+                            return@Thread
+                        }
+                        try { Thread.sleep(2_000) } catch (_: InterruptedException) { return@Thread }
+                        tries++
+                    }
+                }.also { it.isDaemon = true }.start()
+            }
+            refreshCachedPage(pageFile)
             // v2.18.5 — Keep the LAN-served page fresh without waiting
             // for a reboot: re-download it every 6 h.
             Thread {
@@ -428,10 +460,6 @@ class RemoteControlService : Service() {
                     refreshCachedPage(pageFile)
                 }
             }.also { it.isDaemon = true }.start()
-            val ip = localIpv4()
-            localIp = ip
-            Log.i(TAG, "local remote server on $ip:${server.listeningPort}")
-            if (ip != null && sessionId != null) reportLocalEndpoint(ip, server.listeningPort)
         }.also { it.isDaemon = true }.start()
     }
 

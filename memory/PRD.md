@@ -1,4 +1,31 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.18.7 — WiFi-direct fast connection restored: dual-stack same-network detection + box LAN-report race fix (Jun 2026).**
+>
+> ### User complaint
+> "It's not doing the Wi-Fi direct thing — not connecting how it used to, not fast at all. Scan the QR and it must connect the fastest possible way so the mouse/trackpad all work."
+>
+> ### Root causes found
+> 1. **`phone_remote.py` same_network check** used strict `phone_ip == host_public_ip` string equality.  On a dual-stack home network the phone reaches the cloud over IPv6 while the box registers over IPv4 (or vice versa) — the strings never match, `same_network` was always false, and the phone silently stayed on the slow cloud relay FOREVER.  (Most likely field cause: ISPs increasingly default to dual-stack.)
+> 2. **`RemoteControlService.startLocalServer()` boot race**: it downloaded the remote page over the network FIRST (slow), started NanoHTTPD second, set `localIp` third, then reported the LAN endpoint only `if (sessionId != null)` — a ONE-SHOT check.  If the server thread won the race against registration, the report was skipped forever and the backend never learned the LAN address.
+> 3. Phone page only SAVED the LAN endpoint when the jump actually fired, so a cloud-pair never armed the next-launch WiFi-direct-first path.  The LAN-ws failure bounce also dropped `s`/`c` params.
+>
+> ### Fixes
+> - **`phone_remote.py`** — new `_same_network()`: both-IPv4 → exact match; both-IPv6 → same /64 prefix; MIXED v4/v6 → optimistic True (attempt LAN; a wrong guess costs one bounced navigation guarded by the phone's 20 s retry lock).  Unit-tested 8/8 cases.
+> - **`RemoteControlService.kt`** — server starts FIRST (serves the previous boot's cached page; cloud-redirect fallback on first-ever boot), `localIp` is set within ms so `registerOnce()` includes the LAN endpoint; a retry thread (every 2 s, up to 2 min) reports `/host/local/{sid}` as soon as sessionId exists — race closed for good.  Page download + 6 h refresher moved after.
+> - **`companion_page.html`** — `handlePaired` always saves `blob.lan` whenever the pair response carries `local_ip`/`local_port` (arms WiFi-direct-first on next open even when this pair stayed on cloud); LAN-ws failure bounce now carries `?s=&c=` back to the cloud page.
+>
+> ### Verification
+> - Unit: `_same_network` 8/8 (same v4 ✓, cellular v4 ✗, same v6 /64 ✓, diff v6 ✗, mixed families ✓, blanks/garbage ✗).
+> - Curl e2e on :8002 with spoofed XFF: box register with LAN endpoint → pair from same v4 → `same_network=true + local`; from IPv6 phone → true (dual-stack fixed); from different v4 (cellular) → false; late `/host/local` report updates the session.
+> - Browser e2e via preview: registered a box from the SAME browser IP → loading `/remote?s&c` auto-paired and ATTEMPTED the LAN jump (navigation to the LAN URL observed); cloud path regression OK (app shell + trackpad tab render for a session without LAN info).
+> - Kotlin brace check clean on `RemoteControlService.kt` (Launcher APK rebuild required for box-side fix).
+>
+> ### Files touched
+> - `launcher-backend/phone_remote.py` (`_same_network`, pair uses it, `ipaddress` import)
+> - `launcher-backend/companion_page.html` (lan hint always saved, bounce with s&c)
+> - `android/onnowtv-launcher/.../remote/RemoteControlService.kt` (server-first + LAN report retry)
+>
+
 > **🟢 v2.18.6 / v2.16.51 — EPG survives background refresh + Companion "What's On Live" sports hub (Jun 2026).**
 >
 > ### User complaints

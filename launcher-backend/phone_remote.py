@@ -33,6 +33,7 @@ Everything is in-memory + single process, mirroring support_session.py.
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import secrets
 import time
 import uuid
@@ -155,6 +156,36 @@ def _client_ip(request: Request) -> str:
     if fwd:
         return fwd.split(",")[0].strip()
     return request.client.host if request.client else ""
+
+
+def _same_network(phone_ip: str, host_ip: str) -> bool:
+    """True when the phone and the box look like they're on the same
+    home network.
+
+    v2.18.7 — the old strict `phone_ip == host_ip` equality permanently
+    disabled WiFi-direct on dual-stack homes: the phone reaches the
+    cloud over IPv6 while the box registers over IPv4 (or vice versa),
+    the strings never match, and every session silently used the slow
+    cloud relay.  New rules:
+      • both IPv4  → exact match (cellular vs home is correctly split)
+      • both IPv6  → same /64 prefix (home networks share it)
+      • mixed v4/v6 → unknowable from here — return True optimistically
+        so the phone ATTEMPTS the LAN fast path.  A wrong guess costs
+        one bounced navigation (guarded by the phone's 20 s retry
+        lock); the old behaviour cost WiFi-direct forever."""
+    if not phone_ip or not host_ip:
+        return False
+    p6, h6 = ":" in phone_ip, ":" in host_ip
+    if p6 != h6:
+        return True
+    if not p6:
+        return phone_ip == host_ip
+    try:
+        pn = int(ipaddress.ip_address(phone_ip.split("%")[0]))
+        hn = int(ipaddress.ip_address(host_ip.split("%")[0]))
+        return (pn >> 64) == (hn >> 64)
+    except ValueError:
+        return phone_ip == host_ip
 
 
 async def _reap_expired() -> None:
@@ -695,9 +726,7 @@ async def pair(request: Request, payload: dict = None):
     if sess.paired_at is None:
         sess.paired_at = time.time()
     phone_ip = _client_ip(request)
-    same_network = bool(
-        phone_ip and sess.host_public_ip and phone_ip == sess.host_public_ip
-    )
+    same_network = _same_network(phone_ip, sess.host_public_ip or "")
     return {
         "ok": True,
         "session_id": sid,

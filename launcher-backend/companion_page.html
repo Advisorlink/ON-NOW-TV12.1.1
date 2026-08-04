@@ -824,7 +824,8 @@
     ws = thisWs;
     if (IS_LOCAL && !localFailTimer){
       localFailTimer = setTimeout(function(){
-        if (!wsOk) location.href = CLOUD_ORIGIN + "/remote";
+        if (!wsOk) location.href = CLOUD_ORIGIN + "/remote?s=" +
+          encodeURIComponent(sid) + "&c=" + encodeURIComponent(code);
       }, 2500);
     }
     thisWs.onopen = function(){
@@ -935,12 +936,15 @@
     var blob = { sid: sid, code: code, cloud: CLOUD_ORIGIN, ts: Date.now() };
     if (d.now_playing) state.now_playing = d.now_playing;
     if (d.apps) state.apps = d.apps;
+    // v2.18.7 — ALWAYS remember the box's LAN endpoint when the cloud
+    // knows it (previously only saved when the jump fired) so the next
+    // launch can go WiFi-direct first even if this pair stays on cloud.
+    if (d.local_ip && d.local_port){
+      blob.lan = { ip: d.local_ip, port: d.local_port, at: Date.now() };
+    }
     var recentlyFailed = false;
     try { recentlyFailed = (Date.now() - (parseInt(sessionStorage.getItem(LOCAL_TRY_KEY) || "0", 10))) < 20000; } catch(e){}
     if (!IS_LOCAL && d.same_network && d.local_ip && d.local_port && !recentlyFailed){
-      // v2.18.5 — Remember the box's LAN endpoint so the NEXT launch
-      // goes WiFi-direct instantly, before any cloud round-trip.
-      blob.lan = { ip: d.local_ip, port: d.local_port, at: Date.now() };
       save(blob);
       try { sessionStorage.setItem(LOCAL_TRY_KEY, String(Date.now())); } catch(e){}
       location.href = "http://" + d.local_ip + ":" + d.local_port +
