@@ -467,14 +467,32 @@ const NO_PROFILE_REQUIRED = [
     '/profiles/load',
     '/profiles/backup',
     '/kids/exit-pin',
+    // v2.18.8 — Companion/V2AI deep-link entry: the resolver itself
+    // guarantees an active profile (companionProfile match → first
+    // adult profile) before hopping to the gated /title route.
+    // Without this exemption a "Play on TV" tap arriving while
+    // Vesper rests on the profile picker bounced straight back to
+    // /profiles and nothing played.
+    '/v2ai-play',
 ];
 
 function RequireProfile({ children }) {
     const location = useLocation();
-    const [active, setActive] = useState(getActiveProfile());
+    // v2.18.8 — Read the active profile FRESH on every render.  The
+    // old `useState(getActiveProfile())` cached the value in
+    // component state, and because React re-uses the same
+    // <RequireProfile> instance across route changes (same element
+    // type, same position in <Routes>), a profile set DURING a child
+    // effect (V2AIResolve's companion auto-pick) was missed: the
+    // change event fired before this component's listener effect ran,
+    // so `active` stayed null and the /title hop bounced to
+    // /profiles instead of playing.  A fresh read per render is
+    // cheap (tiny JSON parse) and kills the whole class of races.
+    const [, forceRender] = useState(0);
+    const active = getActiveProfile();
 
     useEffect(() => {
-        const sync = () => setActive(getActiveProfile());
+        const sync = () => forceRender((t) => t + 1);
         window.addEventListener('vesper:profile-change', sync);
         window.addEventListener('storage', sync);
         return () => {

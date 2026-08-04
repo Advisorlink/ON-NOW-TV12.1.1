@@ -1,4 +1,28 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.18.8 — "Play on TV lands on details, never plays" — ROOT CAUSES FOUND & FIXED (Jun 2026).**
+>
+> ### User complaint
+> "It's not playing the stream when I say Play on TV — it goes to the details page and I need it to play the stream."
+>
+> ### Reproduced in-browser and traced to THREE stacked frontend bugs (all in the React bundle → NEEDS VESPER APK REBUILD):
+> 1. **`Detail.jsx` autoplay candidate could be an unplayable "where to watch" entry.**  Stream lists for popular titles lead with JustWatch entries (Netflix "Subscription", Amazon "Rent, Buy" — `externalUrl` only, NO `url`/`infoHash`).  The FIRST partial batch from the backend is frequently externals-only, so the early-launch path fired `playStream()` on one → `if (!playUrl) return` bailed silently with `autoplayFiredRef` already latched → never retried when real streams arrived → detail page sat inert.  Repro: The Dark Knight (tt0468569) stuck forever; after fix plays in 2 s.  FIX: `isPlayableStream` (url ∥ infoHash) filter on `autoplayCandidate`, the explicit-autoplay fallback, `partyAutoplayCandidate`, and the series episode `pick`.
+> 2. **`RequireProfile` cached the active profile in `useState`.**  React re-uses the same instance across route hops (`/v2ai-play` → `/title/...`), and V2AIResolve's profile write fired the change event BEFORE the gate's listener effect registered → stale `null` → bounced to /profiles.  FIX: fresh `getActiveProfile()` read on every render (event listener now only forces re-render).
+> 3. **The v2.8.5 "always show picker on boot" rule made /profiles Vesper's RESTING state**, so a companion deep-link usually arrives with NO active profile and died at the gate.  FIX: `/v2ai-play` added to `NO_PROFILE_REQUIRED`; `V2AIResolve` now guarantees a profile before hopping to the gated route — honours the phone's `companionProfile` name, else first adult profile, else first.
+>
+> ### Verification (browser e2e on preview, testuser/testpass123)
+> - The Dark Knight via `/v2ai-play` (warm-start contract, NO active profile, companionProfile param) → PLAYED t=2 s (was stuck ∞).
+> - Inception via cold `/?v2ai=...&autoplay=1&imdb=` → PLAYED.  Breaking Bad S1E1 via `?season=1&episode=1` → PLAYED.
+> - Normal flow regression: login → cloud-restore prompt → profile pick → Home → Netflix network catalogue renders; no gate bounces.
+> - Node harness on real payload confirmed `orderStreams` ranks EP-STREM above JustWatch entries (ordering was correct; the partial-batch race was the killer).
+>
+> ### ⚠️ USER ACTION: rebuild the **VESPER (Movies/TV) APK** — the React bundle ships inside it (CI copies build → assets/web).  Earlier advice only said Live TV + Launcher; that's why the user still saw the bug.
+>
+> ### Files touched
+> - `frontend/src/pages/Detail.jsx` (isPlayableStream + 4 candidate paths)
+> - `frontend/src/App.js` (RequireProfile fresh-read; /v2ai-play exemption)
+> - `frontend/src/pages/V2AIResolve.jsx` (profile guarantee before gated hop)
+>
+
 > **🟢 v2.18.7 — WiFi-direct fast connection restored: dual-stack same-network detection + box LAN-report race fix (Jun 2026).**
 >
 > ### User complaint

@@ -950,6 +950,18 @@ export default function Detail() {
     // USER SPEC — movie autoplay simply plays the FIRST link in the
     // (cascade-ordered) stream list.  No tier searching.
 
+    // v2.18.8 — A stream is only autoplay-able when it carries a real
+    // playable source (direct url or torrent infoHash).  Stream lists
+    // for popular titles often LEAD with JustWatch-style "where to
+    // watch" entries (Netflix / Prime "Subscription", "Rent, Buy" —
+    // externalUrl only).  The old `ordered[0]` pick could select one
+    // of those (especially from the FIRST partial batch, which is
+    // frequently externals-only), playStream() hit `if (!playUrl)
+    // return` and silently dead-ended on the Detail page with the
+    // fired-ref already latched — the exact "Play on TV lands on the
+    // details page and never plays" bug.
+    const isPlayableStream = (s) => !!(s && (s.url || s.infoHash));
+
     const autoplayCandidate = useMemo(() => {
         if (type !== 'movie') return null;
         // USER SPEC — "just literally play the first link that's
@@ -958,7 +970,8 @@ export default function Detail() {
         // ordered one, so autoplay fires its top entry.  If it stalls,
         // the native 30 s buffer watchdog walks to the next link.
         const ordered = orderStreams(streams);
-        return (Array.isArray(ordered) && ordered[0]) || null;
+        if (!Array.isArray(ordered)) return null;
+        return ordered.find(isPlayableStream) || null;
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [streams, type]);
 
@@ -1000,7 +1013,10 @@ export default function Detail() {
             streams.find((s) => streamMode(s) === 'direct') ||
             streams.find((s) => streamMode(s) === 'torrent' && english(s)) ||
             streams.find((s) => streamMode(s) === 'torrent') ||
-            streams[0] ||
+            // v2.18.8 — playable-only: a JustWatch "where to watch"
+            // entry (externalUrl, no url/infoHash) would dead-end
+            // playStream and desync the party.
+            streams.find(isPlayableStream) ||
             null
         );
     }, [streams, type, partyCode, autoplayCandidate]);
@@ -1444,12 +1460,15 @@ export default function Detail() {
                     return;
                 }
                 const pool = non4k;
+                // v2.18.8 — playable-only (url/infoHash): never pick a
+                // JustWatch "where to watch" entry — playStream would
+                // silently bail and strand the user on the detail page.
                 const pick =
                     pool.find((s) => streamMode(s) === 'direct' && is1080p(s)) ||
-                    pool.find((s) => is1080p(s)) ||
+                    pool.find((s) => is1080p(s) && isPlayableStream(s)) ||
                     pool.find((s) => streamMode(s) === 'direct') ||
                     pool.find((s) => streamMode(s) === 'torrent') ||
-                    pool[0];
+                    pool.find(isPlayableStream);
                 if (!pick) {
                     seriesPartyFiredRef.current = false;
                     autoplayFiredRef.current = false;

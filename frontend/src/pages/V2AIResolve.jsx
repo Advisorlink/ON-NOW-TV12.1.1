@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { API } from '@/lib/api';
+import { getActiveProfile, listProfiles, setActiveProfile } from '@/lib/profiles';
 
 /**
  * /v2ai-play?title=The%20Matrix&type=movie  →  /resolve/movie/603?autoplay=1
@@ -29,6 +30,27 @@ export default function V2AIResolve() {
     const [error, setError] = useState('');
 
     useEffect(() => {
+        // v2.18.8 — GUARANTEED playback: a "Play on TV" tap from the
+        // Companion phone must NEVER die on the profile picker.  The
+        // v2.8.5 boot rule clears the active profile on every normal
+        // launch, so the picker is Vesper's RESTING state — meaning a
+        // companion deep-link usually arrives with NO active profile
+        // and the RequireProfile gate on /title bounced it to
+        // /profiles instead of playing.  Ensure a profile here, BEFORE
+        // hopping to the gated detail route: honour the phone's
+        // `companionProfile` name first, else the first adult profile.
+        try {
+            if (!getActiveProfile()) {
+                const all = listProfiles() || [];
+                const wanted = (params.get('companionProfile') || '')
+                    .trim().toLowerCase();
+                const match = wanted
+                    ? all.find((p) => (p.name || '').trim().toLowerCase() === wanted)
+                    : null;
+                const pick = match || all.find((p) => !p.kids) || all[0] || null;
+                if (pick) setActiveProfile(pick.id);
+            }
+        } catch { /* best-effort */ }
         // v2.18.0 — Companion fast-path: exact IMDB id from the phone
         // skips the fuzzy title search entirely.
         if (imdb && /^tt\d+$/.test(imdb)) {
