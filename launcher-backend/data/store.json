@@ -1,5 +1,5 @@
 {
-  "generation": 1002,
+  "generation": 1004,
   "dock_tiles": [
     {
       "key": "movies",
@@ -165,7 +165,28 @@
       "cta_label": null
     }
   ],
-  "apks": [],
+  "apks": [
+    {
+      "id": "5b9ba7aa79ff",
+      "name": "UploadTest",
+      "package_id": null,
+      "version_name": null,
+      "icon_url": null,
+      "apk_url": "/assets/apks/5b9ba7aa79ff_test_upload.apk",
+      "description": null,
+      "added_at": 1786001192
+    },
+    {
+      "id": "326c59fcfab6",
+      "name": "UploadTest2",
+      "package_id": null,
+      "version_name": null,
+      "icon_url": null,
+      "apk_url": "/assets/apks/326c59fcfab6_test_upload2.apk",
+      "description": null,
+      "added_at": 1786001193
+    }
+  ],
   "notifications": [],
   "devices": {
     "e94aa7c6-d9b1-4cbd-a4fb-89c4aebdb0d1": {
