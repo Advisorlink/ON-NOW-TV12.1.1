@@ -777,6 +777,77 @@ class PlayerActivity : AppCompatActivity() {
         }, delayMs)
     }
 
+    /* ─────────── v2.18.9 — Frozen-frame stall watchdog ───────────
+     * Live TS/HLS sources occasionally stall WITHOUT raising a
+     * player error: the picture freezes on one frame and sits there
+     * for hours unless the user manually re-tunes.  Poll the
+     * playback position every 5 s — if it hasn't advanced for ≥15 s
+     * while playback is supposed to be running, kill the upstream
+     * socket and force a full re-tune of the current channel (same
+     * path as the 503 retry).  Covers BOTH backends. */
+    private val stallHandler = Handler(Looper.getMainLooper())
+    private var stallLastPos = Long.MIN_VALUE
+    private var stallSinceMs = 0L
+    private var lastStallRecoveryMs = 0L
+
+    private fun startStallWatchdog() {
+        stallHandler.removeCallbacksAndMessages(null)
+        stallLastPos = Long.MIN_VALUE
+        stallSinceMs = 0L
+        stallHandler.postDelayed(object : Runnable {
+            override fun run() {
+                try { checkForStall() } catch (_: Throwable) {}
+                stallHandler.postDelayed(this, 5_000L)
+            }
+        }, 5_000L)
+    }
+
+    private fun checkForStall() {
+        // Only police playback while this activity is front-most —
+        // backgrounded playback is torn down by onStop anyway.
+        if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+            stallLastPos = Long.MIN_VALUE
+            stallSinceMs = 0L
+            return
+        }
+        val now = android.os.SystemClock.elapsedRealtime()
+        val pos: Long
+        val shouldBePlaying: Boolean
+        if (backend == PlayerPrefs.Backend.VLC) {
+            val vlc = vlcController ?: return
+            pos = vlc.positionMs()
+            shouldBePlaying = vlc.isPlaying()
+        } else {
+            val p = player ?: return
+            pos = p.currentPosition
+            shouldBePlaying = p.playWhenReady &&
+                (p.playbackState == Player.STATE_READY ||
+                 p.playbackState == Player.STATE_BUFFERING)
+        }
+        if (!shouldBePlaying || pos < 0) {
+            stallLastPos = Long.MIN_VALUE
+            stallSinceMs = 0L
+            return
+        }
+        if (pos != stallLastPos) {
+            stallLastPos = pos
+            stallSinceMs = now
+            return
+        }
+        if (stallSinceMs == 0L) { stallSinceMs = now; return }
+        if (now - stallSinceMs < 15_000L) return
+        if (now - lastStallRecoveryMs < 20_000L) return  // never hammer
+        lastStallRecoveryMs = now
+        stallSinceMs = 0L
+        stallLastPos = Long.MIN_VALUE
+        Log.w("PlayerActivity", "stall watchdog: position frozen ≥15 s — re-tuning")
+        status.text = "Stream stalled — reconnecting…"
+        // Kill the dead upstream socket first so the provider frees
+        // our single-stream slot, then re-tune fresh.
+        releaseUpstream()
+        scheduleRetry(400L)
+    }
+
     /* ─────────────────── Channel info overlay ─────────────────── */
 
     private fun renderInfoCard(channel: Channel) {
@@ -1568,6 +1639,9 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // v2.18.9 — (re)arm the frozen-frame watchdog every time we
+        // come to the foreground.
+        startStallWatchdog()
         // v2.9.11 — If the user signed out while this activity was
         // backgrounded, tear it down immediately.  Otherwise the
         // stream keeps playing under the LoginActivity.
@@ -1646,6 +1720,7 @@ class PlayerActivity : AppCompatActivity() {
         numberHandler.removeCallbacksAndMessages(null)
         progressHandler.removeCallbacksAndMessages(null)
         retryHandler.removeCallbacksAndMessages(null)
+        stallHandler.removeCallbacksAndMessages(null)
         controlsHideHandler.removeCallbacksAndMessages(null)
         clockHandler.removeCallbacksAndMessages(null)
         ReminderWatcher.detach(this)

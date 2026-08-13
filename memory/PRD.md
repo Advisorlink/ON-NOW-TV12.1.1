@@ -1,4 +1,32 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.18.10 — FTA settings cog (default location + subtitles) & Live TV frozen-frame watchdog (Jun 2026).**
+>
+> ### User asks
+> 1. FTA: settings cog on the side rail → choose location (Melbourne/Brisbane/…) and SET AS DEFAULT.
+> 2. FTA: subtitles still show even when turned off.
+> 3. Live TV: EPG gone after a few days — "just showing loading data".
+> 4. Live TV: channels freeze on a frame after a while and stay frozen until manual re-tune.
+>
+> ### Fixes
+> - **FTA (`onnowtv-fta-native`) — needs FTA APK rebuild:**
+>   - New `FtaSettings` (SharedPreferences): `default_city_v1` + `subtitles_enabled_v1` (default OFF).
+>   - Side rail: "City" item replaced with a **Settings cog** (`ic_settings.xml` new drawable, `nav_settings` string) → dialog with "Location — <CITY>" (opens picker) and "Subtitles — ON/OFF" toggle.
+>   - City picker now PERSISTS the choice ("Melbourne set as your default location" toast) and `EpgActivity.onCreate` restores it — the guide opens on the user's city every launch (was hard-reset to Brisbane).
+>   - Subtitle root cause: `PlayerActivity` force-selected an English text track on EVERY stream (`setPreferredTextLanguage("en") + setSelectUndeterminedTextLanguage(true)`), so captions returned after every channel change.  Now the persisted pref drives `setTrackTypeDisabled(TRACK_TYPE_TEXT, !subsOn)`; the CC button's choice is persisted via `onTrackSelectionParametersChanged`, so OFF stays OFF across channels and restarts.  The muted EPG preview player also has text tracks permanently disabled.
+> - **Live TV (`onnowtv-livetv`) — needs Live TV APK rebuild:**
+>   - **Frozen-frame stall watchdog** in `PlayerActivity`: polls playback position every 5 s; if it hasn't advanced for ≥15 s while playback should be running (READY/BUFFERING + playWhenReady, both Exo AND VLC backends via new `VlcPlayerController.positionMs()`), it kills the upstream socket (`releaseUpstream()` — frees the single-stream slot) and re-tunes via the existing retry path.  20 s cool-down between recoveries; lifecycle-guarded (RESUMED only); armed in `onResume`, cleared in `onDestroy`.
+>   - EPG "loading data" after days: root cause already fixed in v2.16.51 (promote carry-over + worker epg-only merge) — the box still runs APK 2.10.75 because uploads were failing (see v2.18.9 upload investigation); backend verified healthy (3,181 warm channels).  Fix ships with the Live TV APK rebuild.
+>
+> ### Verification
+> - Kotlin brace check: Live TV PlayerActivity + VlcPlayerController + FTA PlayerActivity + FtaSettings all OK.  FTA EpgActivity shows the same pre-existing checker false-positive as HEAD (net-zero delta from edits; file builds in CI).
+> - `ic_settings.xml` XML-validated.  media3 1.4.1 confirmed for `setTrackTypeDisabled`/`onTrackSelectionParametersChanged`/`disabledTrackTypes`.
+> - Prod backend EPG probed healthy: epg-only 16.2 MB / 3,181 buckets / 69,676 programmes.
+>
+> ### Files touched
+> - `onnowtv-fta-native`: `data/FtaSettings.kt` (new), `drawable/ic_settings.xml` (new), `values/strings.xml`, `EpgActivity.kt`, `PlayerActivity.kt`
+> - `onnowtv-livetv`: `PlayerActivity.kt` (watchdog), `data/VlcPlayerController.kt` (`positionMs()`)
+>
+
 > **🟢 v2.18.9 — Instant-play guarantees extended to Live TV + Music (companion audit of every app) (Jun 2026).**
 >
 > ### User request

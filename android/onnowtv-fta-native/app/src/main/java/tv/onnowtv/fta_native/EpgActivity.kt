@@ -38,6 +38,7 @@ import tv.onnowtv.fta_native.data.FtaChannel
 import tv.onnowtv.fta_native.data.FtaFavouritesStore
 import tv.onnowtv.fta_native.data.FtaProgramme
 import tv.onnowtv.fta_native.data.FtaRepository
+import tv.onnowtv.fta_native.data.FtaSettings
 import tv.onnowtv.fta_native.data.FtaSideNavItem
 import tv.onnowtv.fta_native.ui.CategoryListAdapter
 import tv.onnowtv.fta_native.ui.EpgGridAdapter
@@ -167,6 +168,9 @@ class EpgActivity : AppCompatActivity() {
         upnextDesc     = findViewById(R.id.upnext_desc)
 
         favourites.addAll(FtaFavouritesStore.load(this))
+        // v2.18.9 — Restore the user's saved default location so the
+        // guide opens on THEIR city (Melbourne, Brisbane, …) every time.
+        currentCity = FtaSettings.city(this)
 
         setupSideNav()
         setupTabs()
@@ -196,19 +200,19 @@ class EpgActivity : AppCompatActivity() {
     // ─────────────────────────────────────────── side nav
     private fun setupSideNav() {
         val items = listOf(
-            FtaSideNavItem("cats",    getString(R.string.nav_cats),    R.drawable.ic_grid),
-            FtaSideNavItem("favs",    getString(R.string.nav_favs),    R.drawable.ic_star),
-            FtaSideNavItem("city",    getString(R.string.nav_city),    R.drawable.ic_location),
-            FtaSideNavItem("refresh", getString(R.string.nav_refresh), R.drawable.ic_refresh),
+            FtaSideNavItem("cats",     getString(R.string.nav_cats),     R.drawable.ic_grid),
+            FtaSideNavItem("favs",     getString(R.string.nav_favs),     R.drawable.ic_star),
+            FtaSideNavItem("settings", getString(R.string.nav_settings), R.drawable.ic_settings),
+            FtaSideNavItem("refresh",  getString(R.string.nav_refresh),  R.drawable.ic_refresh),
         )
         sideNav.layoutManager = LinearLayoutManager(this)
         sideNav.adapter = FtaSideNavAdapter(items) { picked ->
             when (picked.id) {
                 "cats" -> toggleCategoriesPanel()
                 "favs" -> setTab(if (currentTab == "favs") "live" else "favs")
-                // USER SPEC — topbar hidden; the city picker moved to
-                // the side rail so region switching stays reachable.
-                "city" -> showCityPicker()
+                // v2.18.9 — USER SPEC: settings cog on the side rail —
+                // location (persisted default) + subtitles toggle.
+                "settings" -> showSettingsDialog()
                 "refresh" -> {
                     Toast.makeText(this, "Refreshing EPG…", Toast.LENGTH_SHORT).show()
                     load()
@@ -297,6 +301,37 @@ class EpgActivity : AppCompatActivity() {
         cityChip.setOnClickListener { showCityPicker() }
     }
 
+    // ─────────────────────────────────────────── settings cog dialog
+    /** v2.18.9 — Side-rail settings: default location (persisted so
+     *  the app always opens on the user's city) + subtitles on/off
+     *  (persisted — the full-screen player reads it every launch). */
+    private fun showSettingsDialog() {
+        val subsOn = FtaSettings.subtitlesEnabled(this)
+        val rows = arrayOf(
+            "Location  —  ${currentCity.uppercase(Locale.UK)}",
+            "Subtitles  —  ${if (subsOn) "ON" else "OFF"}",
+        )
+        AlertDialog.Builder(this)
+            .setTitle("Settings")
+            .setItems(rows) { dialog, which ->
+                dialog.dismiss()
+                when (which) {
+                    0 -> showCityPicker()
+                    1 -> {
+                        val now = !subsOn
+                        FtaSettings.setSubtitlesEnabled(this, now)
+                        Toast.makeText(
+                            this,
+                            if (now) "Subtitles ON" else "Subtitles OFF",
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+                }
+            }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
     private fun showCityPicker() {
         lifecycleScope.launch {
             val cities = withContext(Dispatchers.IO) {
@@ -305,13 +340,21 @@ class EpgActivity : AppCompatActivity() {
             if (cities.isEmpty()) return@launch
             val current = cities.indexOf(currentCity).coerceAtLeast(0)
             AlertDialog.Builder(this@EpgActivity)
-                .setTitle("Choose your city")
+                .setTitle("Choose your location")
                 .setSingleChoiceItems(cities.toTypedArray(), current) { dialog, idx ->
                     val picked = cities[idx]
                     dialog.dismiss()
                     if (picked != currentCity) {
                         currentCity = picked
+                        // v2.18.9 — persist as the DEFAULT so every
+                        // future launch opens on this city.
+                        FtaSettings.setCity(this@EpgActivity, picked)
                         cityChip.text = picked.uppercase(Locale.UK)
+                        Toast.makeText(
+                            this@EpgActivity,
+                            "$picked set as your default location",
+                            Toast.LENGTH_SHORT,
+                        ).show()
                         // Tear the preview player down — different
                         // city = different stream URLs.
                         disarmPreview()
@@ -653,6 +696,10 @@ class EpgActivity : AppCompatActivity() {
                 .build()
                 .apply {
                     volume = 0f  // muted — the EPG keeps focus
+                    // v2.18.9 — never render captions on the muted preview.
+                    trackSelectionParameters = trackSelectionParameters.buildUpon()
+                        .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true)
+                        .build()
                     previewPlayerView.player = this
                 }
             previewPlayerView.useController = false

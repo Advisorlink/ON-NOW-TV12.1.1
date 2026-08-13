@@ -115,17 +115,19 @@ class PlayerActivity : AppCompatActivity() {
             .setMediaSourceFactory(mediaSourceFactory)
             .build()
 
-        // v2.7.4 — Enable text-track selection so the built-in
-        // subtitle button (see `show_subtitle_button` in the XML)
-        // can pull in the stream's TTML/WebVTT tracks.  Media3
-        // discovers them from the HLS manifest automatically —
-        // this parameter just tells the selector we're willing
-        // to render them.  Defaults to English but the user can
-        // override via the CC menu.
+        // v2.18.9 — Subtitles honour the PERSISTED setting.  The old
+        // code force-selected an English text track on EVERY stream,
+        // so captions came back even after the user turned them off.
+        // Now: pref OFF (default) → text renderer fully disabled;
+        // pref ON → auto-select English.  Toggling via the player's
+        // CC button persists below, so the choice STICKS across
+        // channels and app restarts.
+        val subsOn = tv.onnowtv.fta_native.data.FtaSettings.subtitlesEnabled(this)
         p.trackSelectionParameters = p.trackSelectionParameters
             .buildUpon()
-            .setPreferredTextLanguage("en")
-            .setSelectUndeterminedTextLanguage(true)
+            .setPreferredTextLanguage(if (subsOn) "en" else null)
+            .setSelectUndeterminedTextLanguage(subsOn)
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !subsOn)
             .build()
 
         view.player = p
@@ -163,6 +165,15 @@ class PlayerActivity : AppCompatActivity() {
             override fun onPlayerError(error: PlaybackException) {
                 Log.w("FtaPlayer", "playback error: ${error.errorCodeName}", error)
                 status.text = "Playback failed — ${error.errorCodeName}"
+            }
+            // v2.18.9 — Persist the CC button's choice so turning
+            // subtitles off STAYS off on the next channel / launch.
+            override fun onTrackSelectionParametersChanged(
+                parameters: androidx.media3.common.TrackSelectionParameters,
+            ) {
+                val off = parameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT)
+                tv.onnowtv.fta_native.data.FtaSettings
+                    .setSubtitlesEnabled(this@PlayerActivity, !off)
             }
         })
 

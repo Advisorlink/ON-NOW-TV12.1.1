@@ -120,6 +120,10 @@ class VlcPlayerController(
 
     fun isPlaying(): Boolean = try { mediaPlayer?.isPlaying == true } catch (_: Throwable) { false }
 
+    /** v2.18.9 — Current playback position in ms (−1 when unknown).
+     *  Used by PlayerActivity's frozen-frame stall watchdog. */
+    fun positionMs(): Long = try { mediaPlayer?.time ?: -1L } catch (_: Throwable) { -1L }
+
     fun stop() {
         try { mediaPlayer?.stop() } catch (_: Throwable) {}
     }
