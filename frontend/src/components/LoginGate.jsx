@@ -16,8 +16,9 @@
  */
 import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import LoginScreen from '@/components/LoginScreen';
 import { isKidsApp } from '@/lib/profiles';
+import LoginScreen from '@/components/LoginScreen';
+import { isTriviaApp } from '@/lib/profiles';
 
 export default function LoginGate({ children }) {
     const { status } = useAuth();
@@ -26,7 +27,12 @@ export default function LoginGate({ children }) {
     // v2.19.0 — ON NOW Trivia is a PUBLIC party game: the TV host
     // screen and the phone controllers (guests who scanned the QR)
     // must never see the Vesper login.
-    if (window.location.pathname.startsWith('/trivia')) return children;
+    // v2.19.2 — hash-aware check (isTriviaApp).  The standalone
+    // Trivia APK boots the SPA at `index.html#/trivia`, so the old
+    // pathname-only check missed it and the APK showed the full
+    // Vesper login + profile restore flow.  Trivia is not a movie
+    // app — no login, no profiles, ever.
+    if (isTriviaApp()) return children;
     if (status === 'guest') {
         return <LoginScreen />;
     }

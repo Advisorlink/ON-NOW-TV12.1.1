@@ -1,4 +1,10 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.19.2 — TRIVIA: no Vesper login / profiles / restore inside the Trivia app (Jun 2026).  VERIFIED (both routes render clean, 0 login/restore elements).**
+> - **Root cause:** LoginGate's trivia bypass checked `window.location.pathname` only — the standalone Trivia APK boots the SPA at `index.html#/trivia` (HashRouter), so the bypass missed it → APK showed the full Vesper login, then the account's cloud profile-restore dialog (`CloudRestoreMount` sits OUTSIDE LoginGate and mounted on every route).
+> - **Fixes (all via the hash-aware `isTriviaApp()` in profiles.js):** LoginGate bypass (no login ever in Trivia), `CloudRestoreMount` returns null (no "Restore profiles" dialog), `OnboardingGate.check()` bails (no Vesper feature tour), `VesperOnlyChrome` returns null (no Vesper toasts/reminders/nudges).  Trivia routes were already outside `RequireProfile` so the profile picker never applied.
+> - Per user: Trivia is a party game, not a movie/TV product — no profiles, no restore, ever.  Rebuild the APK (push → `build-trivia.yml`) to get the fix on boxes.
+>
+
 > **🟢 v2.19.1 — TRIVIA: standalone Android TV APK + picture rounds + Puzzle Party + full sound pack (Jun 2026).  FULLY TESTED (iteration_83: backend 12/12, frontend 100%).**
 >
 > ### Standalone Android TV app — `android/onnowtv-trivia/`

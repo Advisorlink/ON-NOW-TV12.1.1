@@ -59,7 +59,8 @@ export default function TriviaPlay() {
 
     const phase = state?.phase || 'lobby';
     const q = state?.q;
-    useEffect(() => { setPicked(null); }, [q?.index, phase === 'question']);
+    const inQuestion = phase === 'question';
+    useEffect(() => { setPicked(null); }, [q?.index, inQuestion]);
 
     // correct/wrong sting when private reveal feedback lands
     const lastMsgRef = useRef(null);

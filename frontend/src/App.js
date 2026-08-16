@@ -44,7 +44,7 @@ import DeepLinkHandler from '@/components/DeepLinkHandler';
 import TriviaTV from '@/pages/trivia/TriviaTV';
 import TriviaPlay from '@/pages/trivia/TriviaPlay';
 import { ThemeProvider } from '@/themes/ThemeProvider';
-import { getActiveProfile, isKidsActive, getKidsConfig, isKidsApp, listProfiles, setActiveProfile } from '@/lib/profiles';
+import { getActiveProfile, isKidsActive, getKidsConfig, isKidsApp, isTriviaApp, listProfiles, setActiveProfile } from '@/lib/profiles';
 import { AVATARS } from '@/lib/avatars';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import MobileBottomNav from '@/components/MobileBottomNav';
@@ -715,6 +715,9 @@ function OnboardingGate() {
 
     React.useEffect(() => {
         const check = () => {
+            // v2.19.2 — Trivia app never shows the Vesper feature
+            // tour (it has no profiles / no movie features).
+            if (isTriviaApp()) return;
             const profile = getActiveProfile();
             // Don't run on the profile picker / edit screens — wait
             // until the user has actually entered the app.  Kids
@@ -753,6 +756,9 @@ function VesperOnlyChrome() {
     // it feel like one half-broken app instead of two clean ones.
     const location = useLocation();
     if (location.pathname.startsWith('/music')) return null;
+    // v2.19.2 — Trivia app (browser route OR standalone APK booting
+    // at #/trivia): no Vesper chrome — no toasts, reminders, nudges.
+    if (isTriviaApp()) return null;
     // v2.10.69 — Kids APK is a separate product too — no Vesper
     // chrome at all (no toasts, no nudges, no reminders, no dev
     // badge).  The user explicitly said "the Kids section is the
