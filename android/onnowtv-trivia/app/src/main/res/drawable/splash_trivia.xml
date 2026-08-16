@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Trivia cold-start splash background.
+
+    Painted by the OS the instant the launcher hands control to the
+    app — prevents the ~1s black flash while the WebView cold-boots.
+    Palette matches the Trivia lobby (near-black + cyan/pink glows)
+    so splash → first WebView paint is seamless.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/trivia_bg" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="700dp"
+                android:centerX="0.85"
+                android:centerY="0.1"
+                android:startColor="#3300F0FF"
+                android:centerColor="#1A00F0FF"
+                android:endColor="#000A0A0A" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="600dp"
+                android:centerX="0.05"
+                android:centerY="0.95"
+                android:startColor="#2BFF007A"
+                android:centerColor="#14FF007A"
+                android:endColor="#000A0A0A" />
+        </shape>
+    </item>
+</layer-list>

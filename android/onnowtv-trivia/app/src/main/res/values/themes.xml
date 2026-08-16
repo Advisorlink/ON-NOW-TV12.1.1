@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.OnNowTrivia" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@color/trivia_bg</item>
+        <item name="android:statusBarColor">@color/trivia_bg</item>
+        <item name="android:navigationBarColor">@color/trivia_bg</item>
+        <item name="colorPrimary">@color/trivia_accent</item>
+        <item name="colorPrimaryDark">@color/trivia_bg_dark</item>
+        <item name="colorAccent">@color/trivia_accent</item>
+    </style>
+    <style name="Theme.OnNowTrivia.NoActionBar" parent="Theme.OnNowTrivia">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+    </style>
+
+    <!-- Cold-start splash: painted by the OS before the WebView boots,
+         masking the ~1s cold-boot black flash behind the Trivia brand
+         backdrop.  MainActivity swaps back to NoActionBar before
+         super.onCreate. -->
+    <style name="Theme.OnNowTrivia.Splash" parent="Theme.OnNowTrivia.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash_trivia</item>
+    </style>
+</resources>

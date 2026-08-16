@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="trivia_bg">#0A0A0A</color>
+    <color name="trivia_bg_dark">#060606</color>
+    <color name="trivia_accent">#00F0FF</color>
+    <color name="trivia_accent_2">#FF007A</color>
+    <color name="trivia_lime">#E1FF00</color>
+    <color name="trivia_green">#00FF66</color>
+</resources>

@@ -140,3 +140,40 @@
     radial-gradient(900px 500px at 85% -10%, rgba(0, 240, 255, 0.14), transparent 60%),
     radial-gradient(800px 500px at 0% 110%, rgba(255, 0, 122, 0.12), transparent 60%);
 }
+
+/* picture rounds */
+.tri-picture {
+  max-height: 42vh;
+  max-width: 70vw;
+  object-fit: contain;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.65);
+  background: rgba(255, 255, 255, 0.03);
+}
+@keyframes triUnblur {
+  from { filter: blur(20px); }
+  to   { filter: blur(2px); }
+}
+.tri-unblur {
+  animation-name: triUnblur;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+
+/* anagram letter tiles */
+.tri-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 76px;
+  height: 88px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 3rem;
+  font-weight: 800;
+  color: #00F0FF;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}

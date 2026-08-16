@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Game-show buzzer glyph on the adaptive-icon canvas: red dome on a
+     cyan base with a pink "answer" spark.  Rendered on top of the
+     @color/trivia_bg background from the adaptive-icon XML. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- buzzer dome -->
+    <path
+        android:pathData="M 54 32 A 22 22 0 0 1 76 54 L 32 54 A 22 22 0 0 1 54 32 Z"
+        android:fillColor="#FF3B30" />
+    <path
+        android:pathData="M 54 32 A 22 22 0 0 1 76 54 L 32 54 A 22 22 0 0 1 54 32 Z"
+        android:fillColor="#FF6A5F"
+        android:fillAlpha="0.35" />
+    <!-- base -->
+    <path
+        android:pathData="M 27 54 L 81 54 L 81 66 A 5 5 0 0 1 76 71 L 32 71 A 5 5 0 0 1 27 66 Z"
+        android:fillColor="#00F0FF" />
+    <!-- spark lines -->
+    <path
+        android:pathData="M 54 18 L 54 26 M 36 22 L 40 29 M 72 22 L 68 29"
+        android:strokeColor="#E1FF00"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+</vector>

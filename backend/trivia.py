@@ -19,13 +19,20 @@ import asyncio
 import html
 import json
 import logging
+import os
 import random
+import re
 import string
 import time
 import uuid
+from urllib.parse import quote
 
 import httpx
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+
+from trivia_banks import (
+    ANAGRAM_BANK, ANIMAL_BANK, EMOJI_BANK, FLAG_BANK, LANDMARK_BANK, NUMBER_BANK,
+)
 
 log = logging.getLogger("trivia")
 
@@ -44,10 +51,23 @@ CATEGORIES = [
     {"id": 27, "name": "Animals",         "tag": "animals"},
 ]
 
+# Picture rounds — image-based multiple choice.  Flags render straight
+# from flagcdn; movies come from TMDB posters; animals/landmarks from
+# Wikipedia lead images (resolved + cached at game start).
+PICTURE_CATEGORIES = [
+    {"id": "pic_flags",     "name": "Flags of the World", "tag": "picture", "picture": True},
+    {"id": "pic_movies",    "name": "Movie Posters",      "tag": "picture", "picture": True},
+    {"id": "pic_animals",   "name": "Animal Pics",        "tag": "picture", "picture": True},
+    {"id": "pic_landmarks", "name": "Landmarks",          "tag": "picture", "picture": True},
+]
+PICTURE_IDS = {c["id"] for c in PICTURE_CATEGORIES}
+CATEGORIES = CATEGORIES + PICTURE_CATEGORIES
+
 MODES = {
     "classic": {"label": "Classic Quiz", "seconds": 20},
     "blitz":   {"label": "True/False Blitz", "seconds": 8},
     "buzzer":  {"label": "Fastest Finger", "seconds": 25},
+    "puzzle":  {"label": "Puzzle Party", "seconds": 20},
 }
 
 AVATAR_COLORS = [
@@ -138,7 +158,12 @@ class Room:
             "mode": self.settings["mode"],
             "deadline": self.deadline,
             "duration": MODES[self.settings["mode"]]["seconds"],
+            "kind": q.get("kind", "text"),
+            "qtype": q.get("qtype", "mc"),
         }
+        for extra in ("image", "hint", "unit", "blur"):
+            if q.get(extra) is not None:
+                out[extra] = q[extra]
         if self.settings["mode"] == "buzzer":
             holder = self.players.get(self.buzz_holder or "")
             out["buzz"] = {
@@ -266,6 +291,154 @@ async def _fetch_questions(category: int, mode: str, count: int) -> list[dict]:
     return out
 
 
+# ─────────────────────────────── picture rounds
+
+def _mc(text: str, correct: str, wrongs: list[str], **extra) -> dict:
+    options = list(wrongs) + [correct]
+    random.shuffle(options)
+    return {"text": text, "options": options, "correct": options.index(correct), **extra}
+
+
+def _flag_questions(count: int) -> list[dict]:
+    pool = random.sample(FLAG_BANK, min(count, len(FLAG_BANK)))
+    out = []
+    for name, iso in pool:
+        wrongs = random.sample([n for n, _ in FLAG_BANK if n != name], 3)
+        out.append(_mc("Which country does this flag belong to?", name, wrongs,
+                       kind="picture", image=f"https://flagcdn.com/w640/{iso}.png"))
+    return out
+
+
+_TMDB_CACHE: dict = {"ts": 0.0, "pool": []}
+
+
+async def _tmdb_pool() -> list[dict]:
+    if _TMDB_CACHE["pool"] and time.time() - _TMDB_CACHE["ts"] < 6 * 3600:
+        return _TMDB_CACHE["pool"]
+    token = os.environ.get("TMDB_BEARER_TOKEN")
+    if not token:
+        return _TMDB_CACHE["pool"]
+    urls = [f"https://api.themoviedb.org/3/movie/popular?page={p}" for p in (1, 2)] + \
+           [f"https://api.themoviedb.org/3/movie/top_rated?page={p}" for p in (1, 2)]
+    pool: dict[str, str] = {}
+    try:
+        async with httpx.AsyncClient(
+                timeout=10, headers={"Authorization": f"Bearer {token}"}) as cli:
+            for r in await asyncio.gather(*(cli.get(u) for u in urls), return_exceptions=True):
+                if isinstance(r, Exception) or r.status_code != 200:
+                    continue
+                for m in r.json().get("results") or []:
+                    title, poster = m.get("title"), m.get("poster_path")
+                    if title and poster and title not in pool:
+                        pool[title] = f"https://image.tmdb.org/t/p/w780{poster}"
+    except Exception as t:  # noqa: BLE001
+        log.warning("tmdb pool fetch failed: %s", t)
+    if len(pool) >= 12:
+        _TMDB_CACHE["pool"] = [{"title": k, "poster": v} for k, v in pool.items()]
+        _TMDB_CACHE["ts"] = time.time()
+    return _TMDB_CACHE["pool"]
+
+
+async def _movie_questions(count: int) -> list[dict]:
+    pool = await _tmdb_pool()
+    if len(pool) < 8:
+        return []
+    picks = random.sample(pool, min(count, len(pool)))
+    out = []
+    for m in picks:
+        wrongs = random.sample([x["title"] for x in pool if x["title"] != m["title"]], 3)
+        out.append(_mc("Which movie is this poster from?", m["title"], wrongs,
+                       kind="picture", image=m["poster"], blur=True))
+    return out
+
+
+_WIKI_CACHE: dict[str, str | None] = {}
+
+
+async def _wiki_thumb(cli: httpx.AsyncClient, title: str) -> str | None:
+    if title in _WIKI_CACHE:
+        return _WIKI_CACHE[title]
+    url = None
+    try:
+        r = await cli.get(
+            f"https://en.wikipedia.org/api/rest_v1/page/summary/{quote(title)}",
+            headers={"User-Agent": "OnNowTrivia/1.0 (https://onnowhub.com; contact@onnowhub.com) httpx"},
+            follow_redirects=True)
+        if r.status_code == 200:
+            j = r.json()
+            orig = j.get("originalimage") or {}
+            th = (j.get("thumbnail") or {}).get("source")
+            if orig.get("source") and (orig.get("width") or 0) and orig["width"] <= 1800:
+                url = orig["source"]
+            elif th:
+                if (orig.get("width") or 0) > 640:
+                    url = re.sub(r"/(\d+)px-", "/640px-", th, count=1)
+                else:
+                    url = th
+    except Exception:  # noqa: BLE001
+        pass
+    _WIKI_CACHE[title] = url
+    return url
+
+
+async def _wiki_questions(bank: list[dict], count: int, text: str) -> list[dict]:
+    picks = random.sample(bank, min(count + 5, len(bank)))
+    async with httpx.AsyncClient(timeout=8) as cli:
+        thumbs = await asyncio.gather(*(_wiki_thumb(cli, e["title"]) for e in picks))
+    answers = [e["answer"] for e in bank]
+    out = []
+    for e, img in zip(picks, thumbs):
+        if not img or len(out) >= count:
+            continue
+        wrongs = random.sample([a for a in answers if a != e["answer"]], 3)
+        out.append(_mc(text, e["answer"], wrongs, kind="picture", image=img))
+    return out
+
+
+async def _picture_questions(cat: str, count: int) -> list[dict]:
+    if cat == "pic_flags":
+        out = _flag_questions(count)
+    elif cat == "pic_movies":
+        out = await _movie_questions(count)
+    elif cat == "pic_animals":
+        out = await _wiki_questions(ANIMAL_BANK, count, "What animal is this?")
+    elif cat == "pic_landmarks":
+        out = await _wiki_questions(LANDMARK_BANK, count, "Where in the world is this landmark?")
+    else:
+        out = []
+    if len(out) < count:
+        # Flags never need the network — always able to top up.
+        out.extend(_flag_questions(count - len(out)))
+    random.shuffle(out)
+    return out[:count]
+
+
+# ─────────────────────────────── Puzzle Party
+
+def _puzzle_questions(count: int) -> list[dict]:
+    per = max(1, count // 3)
+    out: list[dict] = []
+    for e in random.sample(ANAGRAM_BANK, min(per, len(ANAGRAM_BANK))):
+        word = e["word"].upper()
+        letters = list(word)
+        for _ in range(24):
+            random.shuffle(letters)
+            if "".join(letters) != word:
+                break
+        out.append(_mc("".join(letters), word, [w.upper() for w in e["wrong"]],
+                       kind="anagram", hint=e["hint"]))
+    for e in random.sample(EMOJI_BANK, min(per, len(EMOJI_BANK))):
+        out.append(_mc(e["emoji"], e["answer"], e["wrong"], kind="emoji", hint=e["hint"]))
+    n_num = max(0, count - len(out))
+    for e in random.sample(NUMBER_BANK, min(n_num, len(NUMBER_BANK))):
+        out.append({
+            "text": e["q"], "options": [], "correct": e["answer"],
+            "kind": "number", "qtype": "number", "unit": e.get("unit", ""),
+        })
+    random.shuffle(out)
+    return out[:count]
+
+
 # ─────────────────────────────── game loop
 
 def _mode_seconds(room: Room) -> int:
@@ -333,28 +506,63 @@ async def _reveal(room: Room):
     mode = room.settings["mode"]
     seconds = _mode_seconds(room)
     results = []
-    for pid, p in room.players.items():
-        a = room.answers.get(pid)
-        correct = a is not None and a["answer"] == q["correct"]
-        gained = 0
-        if correct:
-            if mode == "buzzer":
-                gained = 800
-            else:
-                base = 400 if mode == "blitz" else 500
-                remain = max(0.0, room.deadline - a["at"])
-                gained = int(base + base * min(1.0, remain / seconds))
-        elif mode == "buzzer" and a is not None:
-            gained = -200
-        p["score"] = max(0, p["score"] + gained)
-        results.append({
-            "id": pid,
-            "name": p["name"],
-            "color": p["color"],
-            "correct": correct,
-            "gained": gained,
-            "answer": a["answer"] if a else None,
-        })
+    if q.get("qtype") == "number":
+        # Closest-number showdown: rank every guess by distance from
+        # the target; ties share the same rung of the points ladder.
+        target = float(q["correct"])
+        ordered = sorted(
+            ((pid, float(a["answer"])) for pid, a in room.answers.items()
+             if pid in room.players),
+            key=lambda kv: abs(kv[1] - target),
+        )
+        ladder = [1000, 750, 550, 425, 325, 250, 200, 160, 130, 100]
+        gains: dict[str, int] = {}
+        winners: set[str] = set()
+        prev_diff: float | None = None
+        rank_idx = 0
+        for i, (apid, val) in enumerate(ordered):
+            diff = abs(val - target)
+            if prev_diff is not None and diff > prev_diff:
+                rank_idx = i
+            prev_diff = diff
+            gains[apid] = ladder[min(rank_idx, len(ladder) - 1)]
+            if rank_idx == 0:
+                winners.add(apid)
+        for pid, p in room.players.items():
+            a = room.answers.get(pid)
+            gained = gains.get(pid, 0)
+            p["score"] = max(0, p["score"] + gained)
+            results.append({
+                "id": pid,
+                "name": p["name"],
+                "color": p["color"],
+                "correct": pid in winners,
+                "gained": gained,
+                "answer": a["answer"] if a else None,
+            })
+    else:
+        for pid, p in room.players.items():
+            a = room.answers.get(pid)
+            correct = a is not None and a["answer"] == q["correct"]
+            gained = 0
+            if correct:
+                if mode == "buzzer":
+                    gained = 800
+                else:
+                    base = 400 if mode == "blitz" else 500
+                    remain = max(0.0, room.deadline - a["at"])
+                    gained = int(base + base * min(1.0, remain / seconds))
+            elif mode == "buzzer" and a is not None:
+                gained = -200
+            p["score"] = max(0, p["score"] + gained)
+            results.append({
+                "id": pid,
+                "name": p["name"],
+                "color": p["color"],
+                "correct": correct,
+                "gained": gained,
+                "answer": a["answer"] if a else None,
+            })
     room.reveal = {"results": results, "done": True}
     room.phase = "reveal"
     await room.broadcast()
@@ -442,20 +650,30 @@ async def trivia_ws(ws: WebSocket, code: str):
 
             if role == "tv":
                 if mtype == "start" and room.phase in ("lobby", "podium"):
-                    room.settings["category"] = int(msg.get("category", 0))
+                    cat = msg.get("category", 0)
+                    if not (isinstance(cat, str) and cat in PICTURE_IDS):
+                        try:
+                            cat = int(cat)
+                        except (TypeError, ValueError):
+                            cat = 0
                     mode = msg.get("mode", "classic")
-                    room.settings["mode"] = mode if mode in MODES else "classic"
+                    mode = mode if mode in MODES else "classic"
+                    if isinstance(cat, str) and mode == "blitz":
+                        mode = "classic"  # picture rounds are multiple-choice
+                    room.settings["category"] = cat
+                    room.settings["mode"] = mode
                     room.settings["rounds"] = max(3, min(20, int(msg.get("rounds", 10))))
                     for p in room.players.values():
                         p["score"] = 0
                     room.podium = []
                     room.phase = "loading"
                     await room.broadcast()
-                    room.questions = await _fetch_questions(
-                        room.settings["category"],
-                        room.settings["mode"],
-                        room.settings["rounds"],
-                    )
+                    if mode == "puzzle":
+                        room.questions = _puzzle_questions(room.settings["rounds"])
+                    elif isinstance(cat, str):
+                        room.questions = await _picture_questions(cat, room.settings["rounds"])
+                    else:
+                        room.questions = await _fetch_questions(cat, mode, room.settings["rounds"])
                     if room.loop_task:
                         room.loop_task.cancel()
                     room.loop_task = asyncio.create_task(_run_game(room))
@@ -472,7 +690,12 @@ async def trivia_ws(ws: WebSocket, code: str):
                 if mtype == "answer" and room.phase == "question" and pid:
                     mode = room.settings["mode"]
                     idx = msg.get("answer")
-                    if not isinstance(idx, int):
+                    qcur = (room.questions[room.qindex]
+                            if 0 <= room.qindex < len(room.questions) else None)
+                    if qcur is not None and qcur.get("qtype") == "number":
+                        if isinstance(idx, bool) or not isinstance(idx, (int, float)):
+                            continue
+                    elif isinstance(idx, bool) or not isinstance(idx, int):
                         continue
                     if mode == "buzzer":
                         # Only the buzz holder may answer.

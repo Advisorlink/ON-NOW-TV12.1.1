@@ -1,0 +1,240 @@
+name: Build ON NOW Trivia APK
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - 'android/onnowtv-trivia/**'
+      - 'frontend/**'
+      - 'CHANGELOG.md'
+      - '.github/workflows/build-trivia.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  # REACT_APP_BACKEND_URL baked into the bundled JS.  The APK ships the
+  # React app offline (assets/web/) and only API + WebSocket calls
+  # reach out to the live VPS.
+  REACT_APP_BACKEND_URL: https://onnowhub.com
+
+jobs:
+  build:
+    name: Build & sign Trivia APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Yarn deps
+        working-directory: frontend
+        run: yarn install --network-timeout 600000
+
+      - name: Build React app (production)
+        working-directory: frontend
+        env:
+          CI: 'false'
+          GENERATE_SOURCEMAP: 'false'
+          DISABLE_ESLINT_PLUGIN: 'true'
+        run: |
+          yarn build
+          ls -la build/
+
+      - name: Bundle React build into Trivia Android assets
+        run: |
+          set -euo pipefail
+          rm -rf android/onnowtv-trivia/app/src/main/assets/web
+          mkdir -p android/onnowtv-trivia/app/src/main/assets/web
+          cp -r frontend/build/. android/onnowtv-trivia/app/src/main/assets/web/
+
+          # Strip Emergent preview / PostHog telemetry from the
+          # bundled index.html — same as the other app builds.
+          python3 - <<'PY'
+          import re, pathlib
+          p = pathlib.Path('android/onnowtv-trivia/app/src/main/assets/web/index.html')
+          html = p.read_text(encoding='utf-8')
+          html = re.sub(
+              r'<script[^>]*assets\.emergent\.sh[^>]*></script>\s*',
+              '', html, flags=re.IGNORECASE)
+          html = re.sub(
+              r'<a\s+id="emergent-badge"[\s\S]*?</a>\s*',
+              '', html, flags=re.IGNORECASE)
+          html = re.sub(
+              r'<script>\s*!\(function\s*\([^)]*\)\s*\{[\s\S]*?posthog\.init\([\s\S]*?\}\);?\s*</script>\s*',
+              '', html, flags=re.IGNORECASE)
+          p.write_text(html, encoding='utf-8')
+          print('=== index.html cleaned ===')
+          PY
+
+          # Rewrite absolute asset paths to relative so they resolve
+          # under the WebViewAssetLoader path prefix.
+          python3 - <<'PY'
+          import re, pathlib
+          p = pathlib.Path('android/onnowtv-trivia/app/src/main/assets/web/index.html')
+          html = p.read_text(encoding='utf-8')
+          before = html.count('="/')
+          html = re.sub(
+              r'(\b(?:src|href|content)=)"/(?!/)([^"\s]*)"',
+              r'\1"./\2"',
+              html,
+          )
+          after = html.count('="/')
+          p.write_text(html, encoding='utf-8')
+          print(f'=== index.html absolute->relative paths: {before} → {after} ===')
+          PY
+
+          FILES=$(find android/onnowtv-trivia/app/src/main/assets/web/ -type f | wc -l)
+          echo "Total bundled files: $FILES"
+          if [ "$FILES" -lt 5 ]; then
+            echo "❌ Trivia assets folder has <5 files — React build likely failed!"
+            exit 1
+          fi
+          if [ ! -f android/onnowtv-trivia/app/src/main/assets/web/index.html ]; then
+            echo "❌ index.html missing from Trivia bundled assets!"
+            exit 1
+          fi
+          if [ ! -f android/onnowtv-trivia/app/src/main/assets/web/sounds/trivia/buzz.wav ]; then
+            echo "❌ Trivia sound pack missing from bundled assets!"
+            exit 1
+          fi
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Cache Gradle 8.7 distribution
+        uses: actions/cache@v4
+        with:
+          path: ~/gradle-8.7
+          key: gradle-dist-8.7-v1
+
+      - name: Install Gradle 8.7 (with retries)
+        shell: bash
+        run: |
+          set -euo pipefail
+          GRADLE_DIR="$HOME/gradle-8.7"
+          if [ ! -x "$GRADLE_DIR/bin/gradle" ]; then
+            cd "$HOME"
+            curl -fL --retry 6 --retry-delay 10 --retry-all-errors \
+              -o gradle.zip \
+              "https://services.gradle.org/distributions/gradle-8.7-bin.zip"
+            unzip -q gradle.zip
+            rm gradle.zip
+          fi
+          echo "$GRADLE_DIR/bin" >> "$GITHUB_PATH"
+          "$GRADLE_DIR/bin/gradle" --version
+
+      - name: Derive versionCode + versionName
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VC=$(( 1 + $(git rev-list --count HEAD -- android/onnowtv-trivia/ || echo 0) ))
+          VN=$(grep -m1 -E '^## v[0-9]+\.[0-9]+\.[0-9]+' CHANGELOG.md | sed -E 's/^## v([0-9]+\.[0-9]+\.[0-9]+).*/\1/' || true)
+          [ -z "$VN" ] && VN="1.0.0"
+          echo "VC=$VC" >> $GITHUB_OUTPUT
+          echo "VN=$VN" >> $GITHUB_OUTPUT
+          echo "versionCode=$VC versionName=$VN"
+
+      - name: Set up keystore (reuse launcher's, same dev signing chain)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.LAUNCHER_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.LAUNCHER_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.LAUNCHER_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.LAUNCHER_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          ANDROID_KS_DIR="${RUNNER_TEMP}/ks"
+          mkdir -p "$ANDROID_KS_DIR"
+          if [ -n "${KEYSTORE_BASE64:-}" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$ANDROID_KS_DIR/release.jks"
+            echo "RELEASE_STORE_FILE=$ANDROID_KS_DIR/release.jks"      >> $GITHUB_ENV
+            echo "RELEASE_STORE_PASSWORD=$KEYSTORE_PASSWORD"           >> $GITHUB_ENV
+            echo "RELEASE_KEY_ALIAS=$KEY_ALIAS"                        >> $GITHUB_ENV
+            echo "RELEASE_KEY_PASSWORD=$KEY_PASSWORD"                  >> $GITHUB_ENV
+          else
+            echo "No release keystore — debug APK will still build."
+          fi
+
+      - name: Bootstrap gradle wrapper (no wrapper jar in repo)
+        working-directory: android/onnowtv-trivia
+        run: |
+          set -euo pipefail
+          if [ ! -f gradlew ]; then
+            gradle wrapper --gradle-version 8.7
+          fi
+          chmod +x ./gradlew
+          ./gradlew --version
+
+      - name: Build debug + release APKs
+        working-directory: android/onnowtv-trivia
+        env:
+          VERSION_CODE: ${{ steps.version.outputs.VC }}
+          VERSION_NAME: ${{ steps.version.outputs.VN }}
+        run: |
+          set -euo pipefail
+          ./gradlew :app:assembleDebug :app:assembleRelease \
+            -PversionCode=$VERSION_CODE \
+            -PversionName=$VERSION_NAME \
+            --no-daemon \
+            --warning-mode summary
+
+      - name: Locate + rename APKs (debug always, release if present)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "=== all APKs produced ==="
+          find android/onnowtv-trivia/app/build/outputs/apk -name "*.apk" -type f -ls || true
+
+          DBG=$(find android/onnowtv-trivia/app/build/outputs/apk -name "*-debug.apk" -type f | head -n1)
+          if [ -z "$DBG" ]; then
+            echo "::error::No debug APK produced"
+            exit 1
+          fi
+          cp "$DBG" "$GITHUB_WORKSPACE/onnowtv-trivia-debug.apk"
+          echo "DEBUG APK: $(ls -la $GITHUB_WORKSPACE/onnowtv-trivia-debug.apk)"
+
+          REL=$(find android/onnowtv-trivia/app/build/outputs/apk -name "*-release.apk" -type f | head -n1)
+          if [ -z "$REL" ]; then
+            REL=$(find android/onnowtv-trivia/app/build/outputs/apk -name "*-release-unsigned.apk" -type f | head -n1)
+          fi
+          if [ -n "$REL" ]; then
+            cp "$REL" "$GITHUB_WORKSPACE/onnowtv-trivia-release.apk"
+            echo "RELEASE APK: $(ls -la $GITHUB_WORKSPACE/onnowtv-trivia-release.apk)"
+          else
+            echo "No release APK produced — only debug will be published."
+          fi
+
+      - name: Publish to GitHub Releases (trivia-latest)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: trivia-latest
+          name: "ON NOW Trivia ${{ steps.version.outputs.VN }} (build ${{ steps.version.outputs.VC }})"
+          body: |
+            **ON NOW Trivia — party game show for the TV.**
+
+            Install:
+            1. Download `onnowtv-trivia-debug.apk` (or `-release.apk`) below.
+            2. Sideload onto your box via `adb install` or a file-explorer app.
+            3. Launch — the TV shows a QR code; everyone scans it with their
+               phone to join as a buzzer.  Pick a category (incl. picture
+               rounds), a mode (Classic / Blitz / Fastest Finger / Puzzle
+               Party) and hit Start.
+          files: |
+            onnowtv-trivia-debug.apk
+            onnowtv-trivia-release.apk
+          fail_on_unmatched_files: false
+          prerelease: true
+          make_latest: 'false'

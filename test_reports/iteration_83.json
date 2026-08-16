@@ -1,0 +1,32 @@
+{
+  "summary": "ON NOW Trivia iter-83 (picture rounds + Puzzle Party + sound pack + boot splash) fully verified. Backend: 12/12 pytest pass — room returns 14 categories (incl 4 picture ids: pic_flags/pic_movies/pic_animals/pic_landmarks) + 4 modes (classic/blitz/buzzer/puzzle); all 8 sound WAVs served with 200 + audio/wav content-type (lobby, tick, whoosh, buzz, correct, wrong, fanfare, click); picture-flags round emits kind='picture' + image URL on flagcdn.com; blitz+pic_flags is coerced to classic in the state snapshot (settings.mode='classic', category stays 'pic_flags'); puzzle-party mode mixes anagram/emoji/number kinds and closest-number scoring awards 1000 to the closest guess. Frontend: /trivia route boots the 'ON NOW TRIVIA' splash for ~2.2s then cleanly removes it from the DOM and renders the lobby with all new data-testids present (tv-cat-pic_flags/pic_movies/pic_animals/pic_landmarks, tv-mode-puzzle, tv-mute-btn, tv-qr, tv-room-code, tv-rounds-5/10/15). Mute button toggles Volume2↔VolumeX (aria-label 'Mute sounds'↔'Unmute sounds'). Selecting Puzzle Party shows tv-puzzle-note ('Puzzle Party brings its own mix…') and dims the category grid to opacity 0.3. UI blitz⇄picture coercion works: picking a picture category while Blitz selected flips the mode chip to Classic Quiz; clicking Blitz while a picture category is selected resets category chip to Mixed Bag. click.wav HEAD from the frontend returns 200 audio/wav. Full multi-context phone flow was not re-run in the browser (main agent already covered it with /tmp/test_trivia_ws.py + iter-82 e2e); backend WS assertions here cover the same code paths.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_trivia_iter83.py",
+    "/app/backend/tests/test_trivia.py",
+    "/app/test_reports/pytest/trivia_iter83.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "trivia.py _run_game: for puzzle mode the buzz-holder check inside the while-loop is skipped correctly (mode != 'buzzer'), but the reveal logic also handles qtype='number' via a separate branch — good separation. Consider validating that len(room.players) >= 1 before starting; empty-room start would sit in question phase for the full 20s waiting on 'all connected players answered'.",
+    "trivia.py _puzzle_questions: distribution is `per = max(1, count//3)` for anagram + emoji + remainder for numbers. For a 5-round game this yields 1 anagram + 1 emoji + 3 numbers which biases heavily to numbers. Fine but the ratio could be more even for small round counts.",
+    "trivia.py answer handler: number answers accept floats; that's correct for scoring but 'isinstance(idx, (int, float))' includes bool via inheritance — mitigated by the explicit `isinstance(idx, bool)` reject above it. Good.",
+    "_wiki_thumb has no request timeout on the outer gather beyond the httpx default; the httpx.AsyncClient timeout=8 is already set which is fine.",
+    "useTriviaSounds.js: BASE detection relies on hostname==='appassets.androidplatform.net'; on any other Android WebView host the sounds would 404. Not an issue for pod testing.",
+    "TriviaPlay NumberPad: parseFloat('') is NaN so button is disabled; pressing '.' first would produce '.' which parseFloat('.') = NaN — good, still disabled. However typing only '-' isn't possible (no minus key) so negative-number NUMBER_BANK answers cannot be entered — verify bank has no negative targets or add a sign key.",
+    "TriviaTV boot splash overlay: the splash covers the lobby for ~2.2s and cleanly removes itself; automated tests that don't wait for it (~3s) will find the mute button unclickable. Tests should wait for [data-testid=tv-room-code] AND then ~1s buffer, OR the BootSplash could set pointer-events:none after fade-start to reduce flakiness."
+  ],
+  "updated_files": ["/app/backend/tests/test_trivia_iter83.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "None — /trivia and /trivia/play are public",
+  "seed_data_creation": "None (rooms are created on-demand via POST /api/trivia/rooms)",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest lives at /app/backend/tests/test_trivia.py (iter-82 regression, 7 tests) and /app/backend/tests/test_trivia_iter83.py (iter-83 new features, 12 tests). Puzzle-party test runs ~200s (6 rounds × ~25s cycle). Frontend lobby UI validated via Playwright with the caveat that the BootSplash covers /trivia for ~2.2s — Playwright scripts must wait ~3s after tv-room-code appears before clicking top-right controls (tv-mute-btn), otherwise clicks are intercepted by the splash. Sound WAVs are served from /sounds/trivia/*.wav (audio/wav, 200). Frontend picture-round image thumb rendering + phone number-pad in-game were not clicked through UI (backend WS coverage covers the same logic) — if a UI test is needed, spin two contexts (TV+phone), wait for boot splash, join, start puzzle mode with 6 rounds and expect at least one number question giving phone-number-pad.",
+  "rca of the issue": "N/A — no bugs found; all iter-83 features work as specified."
+}

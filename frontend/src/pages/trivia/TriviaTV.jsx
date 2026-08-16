@@ -1,22 +1,31 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import { Camera, Volume2, VolumeX } from 'lucide-react';
 import useTriviaSocket from './useTriviaSocket';
+import useTriviaSounds from './useTriviaSounds';
 import './trivia.css';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 const OPT_COLORS = ['#FF007A', '#E1FF00', '#00F0FF', '#00FF66'];
 const OPT_KEYS = ['A', 'B', 'C', 'D'];
 
-function TimerBar({ q }) {
+function TimerBar({ q, sounds }) {
     const [pct, setPct] = useState(100);
+    const lastSec = useRef(null);
     useEffect(() => {
         if (!q?.deadline) return undefined;
         const t = setInterval(() => {
             const remain = Math.max(0, q.deadline * 1000 - Date.now());
-            setPct(Math.min(100, (remain / (q.duration * 1000)) * 100));
+            const p = Math.min(100, (remain / (q.duration * 1000)) * 100);
+            setPct(p);
+            const sec = Math.ceil(remain / 1000);
+            if (p < 30 && p > 0 && sec !== lastSec.current && sec > 0) {
+                lastSec.current = sec;
+                sounds?.play('tick', 0.4);
+            }
         }, 200);
         return () => clearInterval(t);
-    }, [q?.deadline, q?.duration]);
+    }, [q?.deadline, q?.duration, sounds]);
     const color = pct > 50 ? '#00F0FF' : pct > 22 ? '#E1FF00' : '#FF3B30';
     return (
         <div className="tri-timer w-full" data-testid="tv-timer-bar">
@@ -37,10 +46,111 @@ function Chip({ p, i }) {
     );
 }
 
+function QuestionStage({ q, phase }) {
+    const kind = q.kind || 'text';
+    if (kind === 'picture') {
+        return (
+            <div className="flex-1 flex flex-col items-center justify-center gap-5 min-h-0">
+                <h1 className="text-3xl lg:text-4xl font-black tracking-tight text-center"
+                    data-testid="tv-question-text">{q.text}</h1>
+                <img src={q.image} alt=""
+                    data-testid="tv-question-image"
+                    className={`tri-picture ${q.blur && phase === 'question' ? 'tri-unblur' : ''}`}
+                    style={q.blur && phase === 'question'
+                        ? { animationDuration: `${q.duration || 20}s` }
+                        : { filter: 'none' }} />
+            </div>
+        );
+    }
+    if (kind === 'anagram') {
+        return (
+            <div className="flex-1 flex flex-col items-center justify-center gap-6">
+                <p className="text-zinc-400 font-bold text-2xl uppercase tracking-[0.3em]">Unscramble the word</p>
+                <div className="flex gap-3 flex-wrap justify-center" data-testid="tv-question-text">
+                    {q.text.split('').map((ch, i) => (
+                        <span key={i} className="tri-tile tri-pop"
+                            style={{ animationDelay: `${i * 60}ms` }}>{ch}</span>
+                    ))}
+                </div>
+                {q.hint && <p className="text-2xl font-bold" style={{ color: '#E1FF00' }}>Hint: {q.hint}</p>}
+            </div>
+        );
+    }
+    if (kind === 'emoji') {
+        return (
+            <div className="flex-1 flex flex-col items-center justify-center gap-6">
+                <p className="text-zinc-400 font-bold text-2xl uppercase tracking-[0.3em]">Crack the emoji code</p>
+                <div className="text-[7rem] leading-none tri-pop" data-testid="tv-question-text">{q.text}</div>
+                {q.hint && <p className="text-2xl font-bold" style={{ color: '#E1FF00' }}>Hint: {q.hint}</p>}
+            </div>
+        );
+    }
+    if (kind === 'number') {
+        return (
+            <div className="flex-1 flex flex-col items-center justify-center gap-6">
+                <p className="text-zinc-400 font-bold text-2xl uppercase tracking-[0.3em]">Closest number wins</p>
+                <h1 className="text-5xl lg:text-6xl font-black tracking-tight text-center"
+                    data-testid="tv-question-text">{q.text}</h1>
+                {phase === 'question' && (
+                    <p className="text-3xl font-black tri-pulse" style={{ color: '#00F0FF' }}>
+                        Punch your best guess into your phone!
+                    </p>
+                )}
+            </div>
+        );
+    }
+    return (
+        <h1 className={`text-5xl lg:text-6xl font-black tracking-tight leading-tight text-center my-auto ${phase === 'reveal' ? '' : 'tri-rise'}`}
+            data-testid="tv-question-text">{q.text}</h1>
+    );
+}
+
+function NumberReveal({ q }) {
+    const guesses = [...(q.results || [])]
+        .filter((r) => r.answer !== null && r.answer !== undefined)
+        .sort((a, b) => Math.abs(a.answer - q.correct) - Math.abs(b.answer - q.correct));
+    return (
+        <div className="flex flex-col items-center gap-5" data-testid="tv-number-reveal">
+            <div className="tri-glass px-10 py-5 text-center tri-pop">
+                <p className="text-zinc-400 font-bold uppercase tracking-widest">The answer was</p>
+                <p className="tri-mono text-6xl font-extrabold" style={{ color: '#00FF66' }}>
+                    {Number(q.correct).toLocaleString()}{q.unit ? ` ${q.unit}` : ''}
+                </p>
+            </div>
+            <div className="flex gap-3 flex-wrap justify-center">
+                {guesses.map((r, i) => (
+                    <span key={r.id} className="tri-glass px-4 py-2 font-bold tri-pop"
+                        style={{ color: i === 0 ? '#00FF66' : '#fff', animationDelay: `${i * 80}ms` }}>
+                        {r.name}: <span className="tri-mono">{Number(r.answer).toLocaleString()}</span> +{r.gained}
+                    </span>
+                ))}
+                {!guesses.length && <span className="text-zinc-500 font-bold">Nobody dared to guess…</span>}
+            </div>
+        </div>
+    );
+}
+
+function ResultChips({ q }) {
+    return (
+        <div className="flex gap-3 flex-wrap justify-center" data-testid="tv-reveal-results">
+            {(q.results || []).map((r) => (
+                <span key={r.id} className="tri-glass px-4 py-2 font-bold tri-pop"
+                    style={{ color: r.correct ? '#00FF66' : '#FF3B30' }}>
+                    {r.name} {r.correct ? `+${r.gained}` : r.gained < 0 ? r.gained : '✗'}
+                </span>
+            ))}
+        </div>
+    );
+}
+
 export default function TriviaTV() {
     const [code, setCode] = useState(null);
     const { state, send } = useTriviaSocket(code, 'tv');
     const [sel, setSel] = useState({ category: 0, mode: 'classic', rounds: 10 });
+    const [muted, setMuted] = useState(() => {
+        try { return localStorage.getItem('trivia-muted') === '1'; } catch { return false; }
+    });
+    const sounds = useTriviaSounds(muted);
     const rootRef = useRef(null);
 
     useEffect(() => {
@@ -68,12 +178,55 @@ export default function TriviaTV() {
     const phase = state?.phase || 'lobby';
     const players = state?.players || [];
     const q = state?.q;
+    const isPicCat = typeof sel.category === 'string';
+    const isPuzzle = sel.mode === 'puzzle';
+
+    // ── phase-driven soundtrack ──
+    const prevPhase = useRef(null);
+    useEffect(() => {
+        if (phase === 'lobby' && !muted) sounds.loop('lobby', 0.28);
+        else sounds.stop('lobby');
+        if (prevPhase.current === phase) return;
+        prevPhase.current = phase;
+        if (phase === 'question') sounds.play('whoosh', 0.6);
+        else if (phase === 'reveal') {
+            if (q?.qtype === 'number') sounds.play('correct', 0.85);
+            else sounds.play((q?.results || []).some((r) => r.correct) ? 'correct' : 'wrong', 0.85);
+        } else if (phase === 'leaderboard') sounds.play('whoosh', 0.45);
+        else if (phase === 'podium') sounds.play('fanfare', 1);
+    }, [phase, muted, q, sounds]);
+
+    const buzzHolder = q?.buzz?.holder || null;
+    useEffect(() => { if (buzzHolder) sounds.play('buzz', 0.85); }, [buzzHolder, sounds]);
 
     const start = () => send({ type: 'start', ...sel });
+    const toggleMute = () => setMuted((m) => {
+        const n = !m;
+        try { localStorage.setItem('trivia-muted', n ? '1' : '0'); } catch { /* ignore */ }
+        return n;
+    });
+
+    const pickCategory = (c) => setSel((s) => ({
+        ...s,
+        category: c.id,
+        mode: c.picture && s.mode === 'blitz' ? 'classic' : s.mode,
+    }));
+    const pickMode = (m) => setSel((s) => ({
+        ...s,
+        mode: m.id,
+        category: m.id === 'blitz' && typeof s.category === 'string' ? 0 : s.category,
+    }));
 
     return (
         <div ref={rootRef} className="trivia-root relative overflow-hidden" data-testid="trivia-tv-root">
             <div className="tri-bgfx" />
+            <button onClick={toggleMute} data-tvfocus tabIndex={0} data-testid="tv-mute-btn"
+                className="tri-glass fixed top-5 right-5 z-20 p-3 flex items-center justify-center"
+                style={{ color: muted ? '#FF3B30' : '#00F0FF' }}
+                aria-label={muted ? 'Unmute sounds' : 'Mute sounds'}>
+                {muted ? <VolumeX size={26} /> : <Volume2 size={26} />}
+            </button>
+
             {phase === 'lobby' && (
                 <div className="grid grid-cols-12 gap-8 p-10 min-h-screen relative">
                     <div className="col-span-4 tri-glass p-8 flex flex-col items-center gap-5 self-start">
@@ -91,31 +244,46 @@ export default function TriviaTV() {
                     <div className="col-span-8 flex flex-col gap-6">
                         <div className="tri-glass p-6">
                             <h2 className="tri-head text-2xl font-bold mb-3">Category</h2>
-                            <div className="flex flex-wrap gap-3">
+                            {isPuzzle && (
+                                <p className="text-zinc-400 mb-3" data-testid="tv-puzzle-note">
+                                    Puzzle Party brings its own mix — anagrams, emoji riddles and closest-number showdowns.
+                                </p>
+                            )}
+                            <div className="flex flex-wrap gap-3"
+                                style={isPuzzle ? { opacity: 0.3, pointerEvents: 'none' } : undefined}>
                                 {(state?.categories || []).map((c) => (
                                     <button key={c.id} data-tvfocus tabIndex={0}
                                         data-testid={`tv-cat-${c.id}`}
-                                        onClick={() => setSel((s) => ({ ...s, category: c.id }))}
-                                        className="px-5 py-3 rounded-xl font-bold text-lg transition-colors"
+                                        onClick={() => pickCategory(c)}
+                                        className="px-5 py-3 rounded-xl font-bold text-lg transition-colors flex items-center gap-2"
                                         style={{
                                             backgroundColor: sel.category === c.id ? '#00F0FF' : 'rgba(255,255,255,0.06)',
                                             color: sel.category === c.id ? '#000' : '#fff',
-                                        }}>{c.name}</button>
+                                            border: c.picture ? '1px dashed rgba(0,240,255,0.45)' : '1px solid transparent',
+                                        }}>
+                                        {c.picture && <Camera size={18} />}
+                                        {c.name}
+                                    </button>
                                 ))}
                             </div>
                             <h2 className="tri-head text-2xl font-bold mt-6 mb-3">Game mode</h2>
                             <div className="flex flex-wrap gap-3">
-                                {(state?.modes || []).map((m) => (
-                                    <button key={m.id} data-tvfocus tabIndex={0}
-                                        data-testid={`tv-mode-${m.id}`}
-                                        onClick={() => setSel((s) => ({ ...s, mode: m.id }))}
-                                        className="px-5 py-3 rounded-xl font-bold text-lg"
-                                        style={{
-                                            backgroundColor: sel.mode === m.id ? '#FF007A' : 'rgba(255,255,255,0.06)',
-                                            color: sel.mode === m.id ? '#fff' : '#fff',
-                                            boxShadow: sel.mode === m.id ? '0 0 22px rgba(255,0,122,0.5)' : 'none',
-                                        }}>{m.label}</button>
-                                ))}
+                                {(state?.modes || []).map((m) => {
+                                    const blocked = m.id === 'blitz' && isPicCat;
+                                    return (
+                                        <button key={m.id} data-tvfocus tabIndex={0}
+                                            data-testid={`tv-mode-${m.id}`}
+                                            onClick={() => pickMode(m)}
+                                            className="px-5 py-3 rounded-xl font-bold text-lg"
+                                            title={blocked ? 'Picture rounds are multiple-choice — blitz swaps back to Mixed Bag' : undefined}
+                                            style={{
+                                                backgroundColor: sel.mode === m.id ? '#FF007A' : 'rgba(255,255,255,0.06)',
+                                                color: '#fff',
+                                                opacity: blocked ? 0.45 : 1,
+                                                boxShadow: sel.mode === m.id ? '0 0 22px rgba(255,0,122,0.5)' : 'none',
+                                            }}>{m.label}</button>
+                                    );
+                                })}
                                 {[5, 10, 15].map((n) => (
                                     <button key={n} data-tvfocus tabIndex={0}
                                         data-testid={`tv-rounds-${n}`}
@@ -156,17 +324,16 @@ export default function TriviaTV() {
             )}
 
             {phase === 'countdown' && (
-                <Count deadline={q?.deadline || state?.now} />
+                <Count deadline={q?.deadline || state?.now} sounds={sounds} />
             )}
 
             {(phase === 'question' || phase === 'reveal') && q && (
-                <div className="min-h-screen flex flex-col p-10 gap-8 relative">
+                <div className="min-h-screen flex flex-col p-10 gap-6 relative">
                     <div className="flex items-center justify-between text-zinc-400 font-bold text-xl">
                         <span>Question {q.index} / {q.total}</span>
                         <span>{players.filter((p) => p.answered).length} / {players.length} answered</span>
                     </div>
-                    <h1 className={`text-5xl lg:text-6xl font-black tracking-tight leading-tight text-center my-auto ${phase === 'reveal' ? '' : 'tri-rise'}`}
-                        data-testid="tv-question-text">{q.text}</h1>
+                    <QuestionStage q={q} phase={phase} />
                     {q.mode === 'buzzer' && phase === 'question' && (
                         <div className="text-center text-3xl font-black" style={{ color: '#FF3B30' }}>
                             {q.buzz?.holder_name
@@ -174,40 +341,40 @@ export default function TriviaTV() {
                                 : 'BUZZ IN on your phone to answer!'}
                         </div>
                     )}
-                    <div className="grid grid-cols-2 gap-5">
-                        {q.options.map((opt, i) => {
-                            const isCorrect = phase === 'reveal' && i === q.correct;
-                            const dim = phase === 'reveal' && i !== q.correct;
-                            return (
-                                <div key={i}
-                                    className={`rounded-2xl px-8 py-7 flex items-center gap-5 ${isCorrect ? 'tri-pop' : ''}`}
-                                    data-testid={`tv-option-${i}`}
-                                    style={{
-                                        backgroundColor: OPT_COLORS[i % 4],
-                                        color: i === 1 ? '#000' : i === 3 ? '#000' : '#fff',
-                                        opacity: dim ? 0.18 : 1,
-                                        boxShadow: isCorrect ? '0 0 40px rgba(0,255,102,0.8)' : 'none',
-                                        transition: 'opacity 0.3s ease',
-                                    }}>
-                                    <span className="tri-mono text-3xl font-extrabold">{OPT_KEYS[i]}</span>
-                                    <span className="text-3xl font-bold">{opt}</span>
-                                    {isCorrect && <span className="ml-auto text-3xl">✓</span>}
-                                </div>
-                            );
-                        })}
-                    </div>
-                    {phase === 'question'
-                        ? <TimerBar q={q} />
-                        : (
-                            <div className="flex gap-3 flex-wrap justify-center" data-testid="tv-reveal-results">
-                                {(q.results || []).map((r) => (
-                                    <span key={r.id} className="tri-glass px-4 py-2 font-bold tri-pop"
-                                        style={{ color: r.correct ? '#00FF66' : '#FF3B30' }}>
-                                        {r.name} {r.correct ? `+${r.gained}` : r.gained < 0 ? r.gained : '✗'}
-                                    </span>
-                                ))}
+                    {q.qtype === 'number' ? (
+                        phase === 'question'
+                            ? <TimerBar q={q} sounds={sounds} />
+                            : <NumberReveal q={q} />
+                    ) : (
+                        <>
+                            <div className="grid grid-cols-2 gap-5">
+                                {q.options.map((opt, i) => {
+                                    const isCorrect = phase === 'reveal' && i === q.correct;
+                                    const dim = phase === 'reveal' && i !== q.correct;
+                                    const compact = q.kind === 'picture';
+                                    return (
+                                        <div key={i}
+                                            className={`rounded-2xl flex items-center gap-5 ${compact ? 'px-6 py-4' : 'px-8 py-7'} ${isCorrect ? 'tri-pop' : ''}`}
+                                            data-testid={`tv-option-${i}`}
+                                            style={{
+                                                backgroundColor: OPT_COLORS[i % 4],
+                                                color: i === 1 ? '#000' : i === 3 ? '#000' : '#fff',
+                                                opacity: dim ? 0.18 : 1,
+                                                boxShadow: isCorrect ? '0 0 40px rgba(0,255,102,0.8)' : 'none',
+                                                transition: 'opacity 0.3s ease',
+                                            }}>
+                                            <span className={`tri-mono font-extrabold ${compact ? 'text-2xl' : 'text-3xl'}`}>{OPT_KEYS[i]}</span>
+                                            <span className={`font-bold ${compact ? 'text-2xl' : 'text-3xl'}`}>{opt}</span>
+                                            {isCorrect && <span className="ml-auto text-3xl">✓</span>}
+                                        </div>
+                                    );
+                                })}
                             </div>
-                        )}
+                            {phase === 'question'
+                                ? <TimerBar q={q} sounds={sounds} />
+                                : <ResultChips q={q} />}
+                        </>
+                    )}
                 </div>
             )}
 
@@ -262,7 +429,7 @@ export default function TriviaTV() {
     );
 }
 
-function Count({ deadline }) {
+function Count({ deadline, sounds }) {
     const [n, setN] = useState(3);
     useEffect(() => {
         const t = setInterval(() => {
@@ -270,6 +437,7 @@ function Count({ deadline }) {
         }, 150);
         return () => clearInterval(t);
     }, [deadline]);
+    useEffect(() => { sounds?.play('tick', 0.7); }, [n, sounds]);
     return (
         <div className="min-h-screen flex items-center justify-center">
             <span key={n} className="tri-big-in text-[16rem] font-black" style={{ color: '#00F0FF' }}>{n}</span>

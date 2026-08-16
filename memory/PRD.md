@@ -1,4 +1,28 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.19.1 — TRIVIA: standalone Android TV APK + picture rounds + Puzzle Party + full sound pack (Jun 2026).  FULLY TESTED (iteration_83: backend 12/12, frontend 100%).**
+>
+> ### Standalone Android TV app — `android/onnowtv-trivia/`
+> - Cloned the Tunes kiosk-WebView architecture (AGP 8.4 / Kotlin 1.9.22, package `tv.onnowtv.trivia`, "ON NOW Trivia" label, buzzer-glyph adaptive icon, cyan/pink splash drawable).  `MainActivity` boots the bundled React SPA at `#/trivia?box=1` via WebViewAssetLoader; `mediaPlaybackRequiresUserGesture=false` so the sound pack autoplays; `onStop` pauses all audio/timers so the lobby jingle never plays behind the launcher.  Kotlin brace-check + XML validation clean.
+> - CI: `.github/workflows/build-trivia.yml` (clone of build-tunes) → GitHub release tag **`trivia-latest`** (`onnowtv-trivia-debug.apk` / `-release.apk`), REACT_APP_BACKEND_URL=https://onnowhub.com baked in, verifies the sound pack made it into assets.  **Launcher store tile deliberately NOT added yet (user: "Just the APK for now").**
+> - Boot splash is now host-aware for Trivia: "ON NOW TRIVIA" wordmark + "Phones ready — it's game time" (`isTriviaApp()` in profiles.js, BootSplash.jsx).
+>
+> ### Picture rounds (4 new categories, string ids)
+> - `pic_flags` (flagcdn.com w640 images, 51-country bank), `pic_movies` (TMDB popular+top-rated posters via TMDB_BEARER_TOKEN, 6h cache, **blur:true** → TV poster starts blur(20px) and linearly unblurs over the question duration), `pic_animals` + `pic_landmarks` (curated banks in `trivia_banks.py`, lead images resolved at game start from the Wikipedia REST summary API — REQUIRES the compliant User-Agent `OnNowTrivia/1.0 (…contact…)` or Wikimedia 403s; results cached in-process; flag questions top up any shortfall).
+> - Picture questions are MC: work in Classic + Fastest Finger; **Blitz+picture coerces to classic** (backend) and the lobby UI swaps chips proactively.  Phones show a small image thumb above the answer grid.
+>
+> ### Puzzle Party (4th game mode)
+> - Mixes three curated banks: **anagrams** (scrambled word rendered as letter tiles + category hint), **emoji riddles** (giant emoji + hint), **closest-number showdowns** (`qtype:"number"` — no options; phones get a NumberPad (digits/dot/backspace/Lock-it-in), closest guess wins 1000 pts on a ladder [1000,750,550,425,…,100], ties share rungs, reveal shows target + sorted guesses on TV, phones get CLOSEST!/NICE TRY private feedback).  Category picker dims with an explainer note when Puzzle Party selected.
+>
+> ### Sound pack
+> - 8 numpy-synthesized WAVs at `frontend/public/sounds/trivia/` (lobby 8.5s loop, tick, whoosh, buzz, correct, wrong, fanfare, click).  `useTriviaSounds.js` hook (APK-aware `/assets/web` base path).  TV: lobby loop, countdown+low-timer ticks, question whoosh, buzz slam, reveal stings, podium fanfare, **mute toggle top-right (persisted, `tv-mute-btn`)**.  Phone: tap clicks + correct/wrong stings + existing haptics.
+>
+> ### Testing — iteration_83 ALL PASS (backend pytest 12/12 incl. closest-number scoring + blitz coercion + WAV serving; frontend lobby/testids/mute/puzzle-note/chip-coercion verified; full WS game e2e in /tmp/test_trivia_ws.py).  Backend tests live at `backend/tests/test_trivia.py` + `test_trivia_iter83.py`.
+>
+> ### Next for Trivia (backlog)
+> - Launcher store tile for the Trivia APK (user deferred).
+> - Host controls on first phone; closest-number wagers; team mode.
+>
+
 > **🟢 v2.19.0 — ON NOW TRIVIA: new real-time party trivia app (TV + phone buzzers) (Aug 2026).  FULLY TESTED (iteration_82: all pass).**
 >
 > ### What it is

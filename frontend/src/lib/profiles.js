@@ -310,6 +310,21 @@ export function isMusicApp() {
     return false;
 }
 
+/**
+ * v2.19.1 — True when running inside the ON NOW Trivia context:
+ * either the standalone Trivia APK (boots the SPA at `#/trivia`) or a
+ * browser sitting on a `/trivia` route.  Used for the Trivia-branded
+ * boot splash.
+ */
+export function isTriviaApp() {
+    if (typeof window === 'undefined') return false;
+    try {
+        if (window.location.hash.startsWith('#/trivia')) return true;
+        if (window.location.pathname.startsWith('/trivia')) return true;
+    } catch { /* ignore */ }
+    return false;
+}
+
 /** True if this profile requires a PIN before it can be made active. */
 export function profileHasPin(p) {
     return !!(p && p.pin && p.pin.length === 4);
