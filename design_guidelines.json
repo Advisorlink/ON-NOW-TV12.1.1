@@ -1,72 +1,146 @@
 {
-  "theme": "DARK",
-  "archetype": "5",
-  "archetype_name": "Jewel & Luxury",
-  "reasoning": "The user demanded 'very, very high end and look good' mockups with distinct cinematic moods. These require dark, moody, theatrical environments, heavy reliance on sophisticated typography, intense gradients, and glassmorphism. It strictly rejects flat templated designs.",
-  "colors": {
-    "background": "#000000",
-    "surface": "rgba(20,20,20,0.6)",
-    "surface_light": "rgba(255,255,255,0.05)",
-    "text_primary": "#ffffff",
-    "text_secondary": "rgba(255,255,255,0.7)",
-    "border": "rgba(255,255,255,0.1)",
-    "accents": {
-      "pacific_rim": "#00F0FF",
-      "blade_runner": "#f97316",
-      "batman": "#dc2626",
-      "mad_max": "#FF8C00",
-      "oppenheimer": "#ffffff",
-      "top_gun": "#00FF00",
-      "inception": "#d1d5db",
-      "interstellar": "#bfdbfe",
-      "john_wick": "#eab308",
-      "avatar": "#67e8f9"
+  "project_name": "On Now Trivia (ON NOW TV V2)",
+  "app_type": "hybrid_fullstack (TV Display + Mobile Controller)",
+  "theme_archetype": "Electric & Neon + The Performance Pro",
+  "design_philosophy": "A high-tension, premium game-show experience. The TV is a cinematic, data-rich stage. The mobile phone is a tactile, zero-friction arcade controller. Do not mix their paradigms. TV = 10-foot UI with deep space and massive typography. Phone = Thumb-first, giant hit areas, physical-feeling haptics.",
+  "color_palette": {
+    "background": {
+      "base": "#0A0A0A",
+      "surface_tv": "rgba(255,255,255,0.03)",
+      "surface_phone": "#121212"
+    },
+    "brand": {
+      "primary": "#00F0FF",
+      "primary_hover": "#33F3FF",
+      "text_on_primary": "#000000"
+    },
+    "game_actions": {
+      "option_a": "#FF007A",
+      "option_b": "#E1FF00",
+      "option_c": "#00F0FF",
+      "option_d": "#00FF66",
+      "buzzer": "#FF3B30",
+      "correct": "#00FF66",
+      "incorrect": "#FF3B30"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#A1A1AA",
+      "tertiary": "#52525B"
     }
   },
   "typography": {
-    "fonts": [
-      "Anton",
-      "Bebas Neue",
-      "Cinzel",
-      "Cormorant Garamond",
-      "JetBrains Mono",
-      "Manrope",
-      "Outfit",
-      "Playfair Display",
-      "Unbounded"
-    ],
-    "headings": {
-      "family": "Contextual per movie (e.g., Anton for Mecha, Cinzel for Gothic)",
-      "weight": "font-black or font-light depending on archetype",
-      "tracking": "Extremely tight or wide depending on cinematic style (tracking-widest vs tracking-tight)"
+    "font_families": {
+      "headings": "Outfit, sans-serif",
+      "body": "DM Sans, sans-serif",
+      "mono": "JetBrains Mono, monospace"
     },
-    "body": {
-      "family": "Manrope, JetBrains Mono, Outfit",
-      "size": "text-lg to text-2xl for synopsis due to 1080p resolution",
-      "weight": "font-light to font-normal"
+    "rules": {
+      "tv_h1": "text-7xl lg:text-8xl font-black tracking-tighter leading-none (Override text limit only for TV game show timer/massive states)",
+      "tv_h2": "text-5xl lg:text-6xl font-bold tracking-tight",
+      "phone_h1": "text-3xl font-bold tracking-tight",
+      "phone_buttons": "text-2xl font-black uppercase tracking-widest",
+      "body": "text-lg lg:text-xl leading-relaxed"
     }
   },
   "surfaces_and_effects": {
-    "glassmorphism": "Heavy blur (backdrop-blur-xl), dark translucent backgrounds (bg-black/60), subtle white borders (border border-white/10)",
-    "shadows": "Deep cinematic glow (drop-shadow-2xl, shadow-[0_0_20px_rgba...]) to ensure text readability against complex image backgrounds",
-    "gradients": "Asymmetric fading to allow text to breathe (e.g., bg-gradient-to-r from-black/95 via-black/70 to-transparent)"
+    "tv_glass": "backdrop-blur-2xl bg-white/5 border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5)] rounded-3xl",
+    "phone_tactile_button": "relative overflow-hidden rounded-2xl border-b-8 active:border-b-0 active:translate-y-2 transition-all duration-75 shadow-lg",
+    "neon_glow": "drop-shadow-[0_0_15px_rgba(0,240,255,0.5)]",
+    "progress_bar": "h-4 bg-white/10 rounded-full overflow-hidden"
   },
-  "layout_and_spacing": {
-    "grid": "Absolute positioning for overlays. Controls dock bottom-anchored.",
-    "padding": "Generous spacing. Overlays use p-20 equivalent. Controls dock uses p-10.",
-    "resolution": "Fixed to 1920x1080 for exact fidelity representation."
+  "layouts": {
+    "tv_lobby": "grid grid-cols-12 gap-8 p-12 h-screen. Left col-span-4 (QR Code, Room Code, Join URL) tv_glass. Right col-span-8 (Dynamic grid of joining players). Asymmetrical, high tension.",
+    "tv_question": "Flex column, centered vertically. Massive question text at top. 2x2 grid of answer options below. Giant horizontal timer bar at the very bottom spanning width.",
+    "phone_controller": "Flex column, h-screen w-screen, overflow-hidden p-4. No scrolling. 100% viewport height.",
+    "phone_answers": "Grid 2x2 gap-4 h-full pt-4. 4 massive buttons filling the screen height."
   },
-  "instructions_to_main_agent": "The HTML files have been successfully crafted and written via python script at /app/frontend/public/design_mockups. They overwrite the templated versions. Do not modify these HTML files further, as they perfectly execute the hand-crafted premium requirement.",
+  "components_to_build": {
+    "TV_Components": [
+      {
+        "name": "QRJoinPanel",
+        "description": "Massive QR Code (use qrcode.react), 4-letter room code in JetBrains Mono.",
+        "path": "src/components/tv/QRJoinPanel.js"
+      },
+      {
+        "name": "PlayerChip",
+        "description": "Avatar + Username. Animates in with scale/spring. TV surface.",
+        "path": "src/components/tv/PlayerChip.js"
+      },
+      {
+        "name": "CountdownTimer",
+        "description": "Shrinking horizontal bar. Changes color from Brand -> Yellow -> Red as time drops.",
+        "path": "src/components/tv/CountdownTimer.js"
+      },
+      {
+        "name": "LeaderboardRow",
+        "description": "Flex row showing Rank, Avatar, Name, Score. Use framer-motion layout for rank swapping.",
+        "path": "src/components/tv/LeaderboardRow.js"
+      }
+    ],
+    "Phone_Components": [
+      {
+        "name": "TactileAnswerPad",
+        "description": "4 massive colored buttons. Uses phone_tactile_button styling.",
+        "path": "src/components/phone/TactileAnswerPad.js"
+      },
+      {
+        "name": "GiantBuzzer",
+        "description": "Massive circular red button taking up 80% of the screen. Deep shadow, heavy press depression.",
+        "path": "src/components/phone/GiantBuzzer.js"
+      },
+      {
+        "name": "StatusWaiting",
+        "description": "Simple screen. 'Look at the TV' pulsing text.",
+        "path": "src/components/phone/StatusWaiting.js"
+      }
+    ]
+  },
+  "animation_motion": {
+    "rules": "High energy. Fast entrances, bouncy springs. No slow fades.",
+    "player_join": "Spring scale-in (stiffness: 300, damping: 20)",
+    "time_up": "Screen shake effect on TV. Red flash.",
+    "button_press": "Zero-latency active state. Transform translate-y-2 on mobile immediately. Do not use generic 'transition-all' on transforms.",
+    "score_count": "Count up animation for points."
+  },
   "image_urls": {
-    "pacific_rim": "https://images.unsplash.com/photo-1770742447743-198d97cc340b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2ODl8MHwxfHNlYXJjaHwxfHxvY2VhbiUyMHN0b3JtJTIwZGFyayUyMG5pZ2h0fGVufDB8fHx8MTc3OTM1NDI3OHww&ixlib=rb-4.1.0&q=85",
-    "blade_runner": "https://images.pexels.com/photos/17195067/pexels-photo-17195067.jpeg",
-    "batman": "https://images.unsplash.com/photo-1757942410771-f53048100e3a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2OTV8MHwxfHNlYXJjaHwxfHxkYXJrJTIwZ290aGljJTIwY2l0eSUyMG5pZ2h0fGVufDB8fHx8MTc3OTM1NDI3OHww&ixlib=rb-4.1.0&q=85",
-    "mad_max": "https://images.pexels.com/photos/31415633/pexels-photo-31415633.jpeg",
-    "oppenheimer": "https://images.pexels.com/photos/35982145/pexels-photo-35982145.jpeg",
-    "top_gun": "https://images.unsplash.com/photo-1756630645698-3f03d728393c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzV8MHwxfHNlYXJjaHwxfHxmaWdodGVyJTIwamV0JTIwZmx5aW5nJTIwc3Vuc2V0fGVufDB8fHx8MTc3OTM1NDI3OHww&ixlib=rb-4.1.0&q=85",
-    "inception": "https://images.unsplash.com/photo-1687637161528-5c7055db0bae?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzOTB8MHwxfHNlYXJjaHwxfHxzdXJyZWFsJTIwY2l0eSUyMGFyY2hpdGVjdHVyZXxlbnwwfHx8fDE3NzkzNTQyNzh8MA&ixlib=rb-4.1.0&q=85",
-    "interstellar": "https://images.pexels.com/photos/27730387/pexels-photo-27730387.jpeg",
-    "john_wick": "https://images.pexels.com/photos/18867525/pexels-photo-18867525.jpeg",
-    "avatar": "https://images.unsplash.com/photo-1744366071461-983202aa41c5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxNzV8MHwxfHNlYXJjaHwxfHxiaW9sdW1pbmVzY2VudCUyMHVuZGVyd2F0ZXIlMjBibHVlfGVufDB8fHx8MTc3OTM1NDI3OHww&ixlib=rb-4.1.0&q=85"
-  }
+    "tv_background": {
+      "url": "https://images.unsplash.com/photo-1620641788421-7a1c342ea42e",
+      "description": "Abstract purple/pink dark energy background. Place as fixed background with mix-blend-screen and opacity-30 behind a solid #0A0A0A base."
+    },
+    "avatar_1": {
+      "url": "https://images.unsplash.com/photo-1740252117070-7aa2955b25f8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTZ8MHwxfHNlYXJjaHwxfHwzZCUyMGNhcnRvb24lMjBjaGFyYWN0ZXIlMjBhdmF0YXIlMjBmYWNlfGVufDB8fHx8MTc4NjcyNzEwOHww&ixlib=rb-4.1.0&q=85",
+      "description": "Player Avatar Option A"
+    },
+    "avatar_2": {
+      "url": "https://images.unsplash.com/photo-1740252117027-4275d3f84385?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTZ8MHwxfHNlYXJjaHwyfHwzZCUyMGNhcnRvb24lMjBjaGFyYWN0ZXIlMjBhdmF0YXIlMjBmYWNlfGVufDB8fHx8MTc4NjcyNzEwOHww&ixlib=rb-4.1.0&q=85",
+      "description": "Player Avatar Option B"
+    }
+  },
+  "third_party_libraries": [
+    "framer-motion",
+    "lucide-react",
+    "react-confetti",
+    "qrcode.react",
+    "sonner"
+  ],
+  "accessibility_and_testing": {
+    "data_testid_rule": "ALL interactive elements MUST have data-testid attributes (e.g., data-testid='answer-btn-a', data-testid='join-game-btn').",
+    "color_contrast": "White text over neon answer buttons is guaranteed passing. Black text on primary cyan.",
+    "focus_states": "Focus states must be explicitly styled ring-4 ring-white/50."
+  },
+  "instructions_to_main_agent": [
+    "Build the app with standard React (.js). DO NOT USE .tsx",
+    "Simulate the Real-time WebSockets logic using a shared React Context or Mock State provider if actual websockets are out of scope. The TV and Phone views should toggleable or routed (e.g. /tv vs /play).",
+    "NEVER use generic placeholder images. Use the provided Unsplash URLs.",
+    "Implement the 'Two-Screen' architecture purely in the UI: Create a TV View layout and a Phone View layout. Do not mix them on the same screen.",
+    "For the phone controller, do not use Shadcn Cards. Use raw HTML/Tailwind to create the tactile, physical-feeling buttons (border-b-8 hack for depth).",
+    "Ensure 'Outfit' and 'DM Sans' are imported via Google Fonts."
+  ],
+  "universal_guidelines": [
+    "Do not center-align everything by default. Use asymmetrical grids (e.g., TV Lobby).",
+    "Do not apply `transition: all` globally. Apply targeted transitions.",
+    "Create depth using z-index, large drop-shadows, and glassmorphism (backdrop-blur-2xl) specifically on the TV UI.",
+    "No emojis for icons. Use lucide-react."
+  ]
 }

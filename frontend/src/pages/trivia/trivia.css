@@ -1,0 +1,142 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@600;800&display=swap');
+
+.trivia-root {
+  --tv-bg: #0A0A0A;
+  --brand: #00F0FF;
+  --opt-a: #FF007A;
+  --opt-b: #E1FF00;
+  --opt-c: #00F0FF;
+  --opt-d: #00FF66;
+  --buzz: #FF3B30;
+  --good: #00FF66;
+  --bad: #FF3B30;
+  font-family: 'DM Sans', sans-serif;
+  background: var(--tv-bg);
+  color: #fff;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+.trivia-root h1, .trivia-root h2, .trivia-root .tri-head {
+  font-family: 'Outfit', sans-serif;
+}
+.tri-mono { font-family: 'JetBrains Mono', monospace; }
+
+.tri-glass {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  border-radius: 24px;
+  backdrop-filter: blur(20px);
+}
+
+@keyframes triPop {
+  0%   { transform: scale(0.4); opacity: 0; }
+  70%  { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.tri-pop { animation: triPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+@keyframes triRise {
+  from { transform: translateY(24px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+.tri-rise { animation: triRise 0.3s ease-out both; }
+
+@keyframes triPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+.tri-pulse { animation: triPulse 1.4s ease-in-out infinite; }
+
+@keyframes triShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-10px); }
+  40% { transform: translateX(10px); }
+  60% { transform: translateX(-6px); }
+  80% { transform: translateX(6px); }
+}
+.tri-shake { animation: triShake 0.45s ease-in-out both; }
+
+@keyframes triBigIn {
+  0%   { transform: scale(2.4); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.tri-big-in { animation: triBigIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* countdown timer bar */
+.tri-timer {
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.tri-timer > i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.24s linear, background-color 0.4s ease;
+}
+
+/* phone tactile answer buttons */
+.tri-tactile {
+  position: relative;
+  border: none;
+  border-radius: 20px;
+  border-bottom: 8px solid rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  transition: transform 75ms ease, border-bottom-width 75ms ease, filter 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.tri-tactile:active,
+.tri-tactile.pressed {
+  transform: translateY(6px);
+  border-bottom-width: 2px;
+}
+.tri-tactile:disabled { filter: grayscale(0.7) brightness(0.5); }
+
+/* giant buzzer */
+.tri-buzzer {
+  width: min(78vw, 340px);
+  height: min(78vw, 340px);
+  border-radius: 50%;
+  border: none;
+  border-bottom: 14px solid #8f120c;
+  background: radial-gradient(circle at 35% 30%, #ff6a5f, #FF3B30 60%, #c9241a);
+  box-shadow: 0 24px 60px rgba(255, 59, 48, 0.45);
+  transition: transform 70ms ease, border-bottom-width 70ms ease;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.tri-buzzer:active { transform: translateY(10px); border-bottom-width: 4px; }
+.tri-buzzer:disabled { filter: grayscale(0.85) brightness(0.45); }
+
+/* d-pad focus */
+.trivia-root [data-tvfocus]:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.85), 0 0 26px rgba(0, 240, 255, 0.55);
+  z-index: 2;
+}
+
+/* confetti */
+@keyframes triConfetti {
+  0%   { transform: translateY(-8vh) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(110vh) rotate(720deg); opacity: 0.9; }
+}
+.tri-confetti {
+  position: absolute;
+  top: 0;
+  width: 12px;
+  height: 18px;
+  border-radius: 3px;
+  animation: triConfetti linear infinite;
+}
+
+.tri-bgfx {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(900px 500px at 85% -10%, rgba(0, 240, 255, 0.14), transparent 60%),
+    radial-gradient(800px 500px at 0% 110%, rgba(255, 0, 122, 0.12), transparent 60%);
+}

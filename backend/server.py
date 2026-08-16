@@ -4806,6 +4806,10 @@ app.include_router(sportsdb_router)
 from livestats import router as livestats_router  # noqa: E402
 app.include_router(livestats_router)
 
+# v2.19.0 — ON NOW Trivia: real-time party trivia (TV + phone pads).
+from trivia import router as trivia_router  # noqa: E402
+app.include_router(trivia_router)
+
 # v2.16.12 — Live TV user-data sync (favourites / collections /
 # reminders backed up per Xtream login).  Router needs the Mongo db
 # handle so we bind it after include_router.

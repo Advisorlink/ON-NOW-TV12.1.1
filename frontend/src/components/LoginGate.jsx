@@ -23,6 +23,10 @@ export default function LoginGate({ children }) {
     const { status } = useAuth();
     // Kids APK: skip the gate entirely.
     if (isKidsApp()) return children;
+    // v2.19.0 — ON NOW Trivia is a PUBLIC party game: the TV host
+    // screen and the phone controllers (guests who scanned the QR)
+    // must never see the Vesper login.
+    if (window.location.pathname.startsWith('/trivia')) return children;
     if (status === 'guest') {
         return <LoginScreen />;
     }

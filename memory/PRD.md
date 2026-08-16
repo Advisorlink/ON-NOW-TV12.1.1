@@ -1,4 +1,21 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.19.0 — ON NOW TRIVIA: new real-time party trivia app (TV + phone buzzers) (Aug 2026).  FULLY TESTED (iteration_82: all pass).**
+>
+> ### What it is
+> New app per user spec: TV screen at **`/trivia`** creates a room (QR + 4-letter code, e.g. UBJR); unlimited phones scan → **`/trivia/play?room=CODE`** → enter username → Save & Join (requests fullscreen, vibrates) → chip pops onto the TV lobby.  TV host picks **category** (Mixed/General/Movies/Music/TV/Science/Sport/Geography/History/Animals), **mode** (Classic Quiz 20 s MC · True/False Blitz 8 s · Fastest Finger buzzer with 6 s exclusive answer window + lockouts) and rounds (5/10/15) → automatic game loop: countdown → question (ends early when all answered) → reveal (+speed scoring 500–1000, buzzer +800/−200) → leaderboard → … → podium (top 3, confetti) → Play Again.  Phones get private correct/wrong/points/rank feedback each reveal.
+>
+> ### Architecture
+> - **`backend/trivia.py`** — `POST /api/trivia/rooms`, `GET /api/trivia/rooms/{code}`, WS `/api/trivia/ws/{code}?role=tv|player&name&pid` (reconnect-safe via pid), in-memory Room registry (3 h idle cleanup), asyncio game loop, questions from OpenTDB (html-unescaped, shuffled) with local fallback bank.  Wired in server.py.
+> - **Frontend** — `pages/trivia/TriviaTV.jsx` (10-foot UI, D-pad linear focus nav, timer bar, animated chips/leaderboard/podium), `TriviaPlay.jsx` (thumb-first tactile pads, giant buzzer, haptics), `useTriviaSocket.js`, `trivia.css` (Outfit/DM Sans/JetBrains Mono, glass, neon palette per design_guidelines.json).
+> - **Gating** — `/trivia*` bypasses LoginGate (public party guests) and is outside RequireProfile.
+>
+> ### Testing — iteration_82 ALL PASS (backend 7/7 pytest + Playwright e2e incl. full 5-question game via two browsers).
+>
+> ### Next for Trivia (backlog)
+> - Kotlin TV shell APK (clone Tunes WebView shell → `{host}/trivia?box=1`) + CI workflow + launcher tile.
+> - More party modes (picture rounds, closest-number wagers), sounds, host controls on first phone.
+>
+
 > **🟢 v2.18.10 — FTA settings cog (default location + subtitles) & Live TV frozen-frame watchdog (Jun 2026).**
 >
 > ### User asks

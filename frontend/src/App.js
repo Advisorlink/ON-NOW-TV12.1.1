@@ -41,6 +41,8 @@ import FeatureNudge from '@/components/FeatureNudge';
 // touch issues.
 import NotifyHitWatcher from '@/components/NotifyHitWatcher';
 import DeepLinkHandler from '@/components/DeepLinkHandler';
+import TriviaTV from '@/pages/trivia/TriviaTV';
+import TriviaPlay from '@/pages/trivia/TriviaPlay';
 import { ThemeProvider } from '@/themes/ThemeProvider';
 import { getActiveProfile, isKidsActive, getKidsConfig, isKidsApp, listProfiles, setActiveProfile } from '@/lib/profiles';
 import { AVATARS } from '@/lib/avatars';
@@ -989,6 +991,11 @@ function App() {
                                     to: `https://onnowtv.duckdns.org/karaoke/
                                     join/KARAOKE-1234`. */}
                                 <Route path="/karaoke/join/:code" element={<KaraokeGuestJoin />} />
+                                {/* v2.19.0 — ON NOW TRIVIA: TV game screen +
+                                    phone controller (QR-joined guests).  Public
+                                    routes — no login, no profile gate. */}
+                                <Route path="/trivia" element={<TriviaTV />} />
+                                <Route path="/trivia/play" element={<TriviaPlay />} />
                                 {/* v2.8.60 — Legacy karaoke deep link.  Still
                                     resolves so external links from older
                                     versions of the app keep working — the
