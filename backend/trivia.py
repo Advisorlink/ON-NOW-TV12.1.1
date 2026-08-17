@@ -237,14 +237,20 @@ def _new_code() -> str:
 
 async def _fetch_questions(category: int, mode: str, count: int) -> list[dict]:
     qtype = "boolean" if mode == "blitz" else "multiple"
-    url = f"https://opentdb.com/api.php?amount={count}&type={qtype}"
+    base = f"https://opentdb.com/api.php?amount={count}&type={qtype}"
     if category:
-        url += f"&category={category}"
+        base += f"&category={category}"
     out: list[dict] = []
     try:
         async with httpx.AsyncClient(timeout=12) as cli:
-            r = await cli.get(url)
+            # v2.19.4 — user spec: "questions a little bit easier so
+            # more people know them" → ask for the easy pool first and
+            # only fall back to mixed difficulty if OpenTDB is short.
+            r = await cli.get(base + "&difficulty=easy")
             data = r.json()
+            if len(data.get("results") or []) < max(3, count // 2):
+                r = await cli.get(base)
+                data = r.json()
         for it in data.get("results") or []:
             text = html.unescape(it.get("question") or "")
             correct = html.unescape(it.get("correct_answer") or "")
@@ -318,8 +324,9 @@ async def _tmdb_pool() -> list[dict]:
     token = os.environ.get("TMDB_BEARER_TOKEN")
     if not token:
         return _TMDB_CACHE["pool"]
-    urls = [f"https://api.themoviedb.org/3/movie/popular?page={p}" for p in (1, 2)] + \
-           [f"https://api.themoviedb.org/3/movie/top_rated?page={p}" for p in (1, 2)]
+    urls = [f"https://api.themoviedb.org/3/movie/popular?page={p}" for p in (1, 2, 3)] + \
+           [f"https://api.themoviedb.org/3/movie/top_rated?page={p}" for p in (1, 2, 3)] + \
+           [f"https://api.themoviedb.org/3/movie/now_playing?page={p}" for p in (1, 2)]
     pool: dict[str, str] = {}
     try:
         async with httpx.AsyncClient(
@@ -339,11 +346,22 @@ async def _tmdb_pool() -> list[dict]:
     return _TMDB_CACHE["pool"]
 
 
+_RECENT_POSTERS: list[str] = []  # titles used in recent games — rotate covers
+
+
 async def _movie_questions(count: int) -> list[dict]:
     pool = await _tmdb_pool()
     if len(pool) < 8:
         return []
-    picks = random.sample(pool, min(count, len(pool)))
+    # Rotation: exclude titles used in recent games so back-to-back
+    # sessions don't keep showing the same posters (user spec).
+    fresh = [m for m in pool if m["title"] not in _RECENT_POSTERS]
+    if len(fresh) < count + 4:
+        _RECENT_POSTERS.clear()
+        fresh = pool
+    picks = random.sample(fresh, min(count, len(fresh)))
+    _RECENT_POSTERS.extend(m["title"] for m in picks)
+    del _RECENT_POSTERS[:-90]
     out = []
     for m in picks:
         wrongs = random.sample([x["title"] for x in pool if x["title"] != m["title"]], 3)

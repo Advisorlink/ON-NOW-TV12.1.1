@@ -1,4 +1,20 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.19.4 — TRIVIA polish batch + Vesper CINEMA / CAM COPY cover tags (Jun 2026).  FULLY TESTED (iteration_85: backend+frontend 100%; trivia pieces self-tested in browser).**
+>
+> ### Trivia (all user-requested)
+> - **2D D-pad navigation** on the TV lobby: geometric spatial nav (down goes to the row below, not "next in list") — `TriviaTV.jsx` keydown handler scores candidates by primary-axis distance + 2.5× orthogonal penalty.  Verified: category row 1 → row 2 → mode row → back up.
+> - **Questions now show on the PHONE too** (`QuestionPanel` in TriviaPlay: text / scrambled anagram + hint / emoji + hint; testid `phone-question-text`).
+> - **Softer poster blur**: `triUnblur` 56px → 26px start.
+> - **Poster rotation**: TMDB pool widened (popular 1-3 + top_rated 1-3 + now_playing 1-2) and `_RECENT_POSTERS` (last 90 titles) excludes covers used in recent games — verified 0 overlap across consecutive games.
+> - **Easier questions**: OpenTDB fetched with `difficulty=easy` first, mixed-difficulty fallback if the easy pool is short.
+> - **NO sound on the TV** — all TV-side audio removed (mute button, lobby loop, ticks, stings gone; `tv-mute-btn` testid no longer exists).  Sounds live on the phones only (tap clicks, buzz, correct/wrong stings via useTriviaSounds).
+>
+> ### Vesper Movies — release-window cover tags
+> - New `backend/release_status.py` → `GET /api/release-status?ids=tt…` (TMDB release dates, 12h in-process cache): wide-theatrical (type 3, falls back to type 2) ≤28 days + no digital ⇒ **"cinema"**; 29-210 days + no digital ⇒ **"cam"**; digital/physical out or old ⇒ null.
+> - `frontend/src/lib/releaseTags.js`: debounced 300ms batcher (one call per page, sessionStorage 6h cache).  `PosterTile.jsx` shows top-left badge — indigo **Cinema** / amber **Cam Copy** — only for movie tiles with year ≥ currentYear-1.  Testids `poster-tag-cinema` / `poster-tag-cam`.
+> - iteration_85: 8 Cinema + 5 Cam badges on Home, classics untagged, 2 batched calls total, navigation regression clean.  Known minor: `_CACHE` unbounded in-process (fine at current volume).
+>
+
 > **🟢 v2.19.3 — TRIVIA: full "Dark Modern Premium Game Show" redesign + phone fixes + zombie-socket bug (Jun 2026).  FULLY TESTED (iteration_84: frontend 100%, zero issues).**
 > - **Redesign (per design_agent guidelines in /app/design_guidelines.json):** replaced the neon-arcade palette (cyan/pink/lime on black — user: "colors look really out there… not modern") with midnight slate `#0B0E14`, coral primary `#F97316`, indigo secondary `#4F46E5`, emerald/rose feedback; fonts Outfit / Plus Jakarta Sans / Space Mono; glass option cards with watermark A/B/C/D letters + green check reveal; split-screen picture rounds (image left, options right, blur 56px→0 over the timer); dialer-style number pad; tactile coral 3D buzzer; gradient avatars from name-hash; noise-textured backdrop with coral/indigo blooms.  BootSplash trivia variant + APK colors/splash/icon updated to match.  All data-testids unchanged.
 > - **Phone fixes:** `/trivia` added to `MOBILE_NAV_HIDDEN_PREFIXES` (App.js) — Vesper's Movies/TV bottom tabs never show on the phone controller.  **Poster-spoiler fix:** phone hides `q.image` when `q.blur` (movie posters) so guests can't see the sharp poster while the TV unblurs it; flags/animals/landmarks thumbs still show.

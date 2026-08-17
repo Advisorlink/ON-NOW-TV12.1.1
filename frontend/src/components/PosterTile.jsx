@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import * as img from '@/lib/img';
 import { API } from '@/lib/api';
 import useLongPress from '@/hooks/useLongPress';
+import { getReleaseTag } from '@/lib/releaseTags';
 
 /**
  * Poster tile.  Image renders immediately on mount — we don't try
@@ -17,6 +18,21 @@ import useLongPress from '@/hooks/useLongPress';
  */
 export default function PosterTile({ item, onSelect, initialFocus = false }) {
     const navigate = useNavigate();
+
+    // v2.19.4 — CINEMA / CAM COPY tag on recent movie covers.  Only
+    // recent movies can be in a release window, so old titles skip
+    // the lookup entirely (keeps the batch tiny).
+    const [releaseTag, setReleaseTag] = React.useState(null);
+    React.useEffect(() => {
+        const id = item.imdbId;
+        if (!id || !String(id).startsWith('tt')) return undefined;
+        if ((item.type || 'movie') !== 'movie') return undefined;
+        const y = item.year || 0;
+        if (y && y < new Date().getFullYear() - 1) return undefined;
+        let on = true;
+        getReleaseTag(id, (t) => { if (on) setReleaseTag(t); });
+        return () => { on = false; };
+    }, [item.imdbId, item.type, item.year]);
 
     const onTap = () => {
         if (onSelect) {
@@ -148,6 +164,30 @@ export default function PosterTile({ item, onSelect, initialFocus = false }) {
                         {(item.title || '?')[0]}
                     </span>
                 </div>
+            )}
+
+            {releaseTag && (
+                <span
+                    className="vesper-mono absolute z-10 pointer-events-none"
+                    data-testid={`poster-tag-${releaseTag}`}
+                    style={{
+                        top: 8,
+                        left: 8,
+                        fontSize: 9,
+                        fontWeight: 700,
+                        letterSpacing: '0.16em',
+                        textTransform: 'uppercase',
+                        padding: '3px 8px',
+                        borderRadius: 6,
+                        color: '#fff',
+                        background: releaseTag === 'cinema'
+                            ? 'rgba(79, 70, 229, 0.95)'
+                            : 'rgba(202, 96, 8, 0.95)',
+                        boxShadow: '0 2px 12px rgba(0,0,0,0.55)',
+                    }}
+                >
+                    {releaseTag === 'cinema' ? 'Cinema' : 'Cam Copy'}
+                </span>
             )}
 
             <div

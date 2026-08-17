@@ -234,7 +234,7 @@
   background: rgba(255, 255, 255, 0.03);
 }
 @keyframes triUnblur {
-  from { filter: blur(56px); }
+  from { filter: blur(26px); }
   to   { filter: blur(0px); }
 }
 .tri-unblur {

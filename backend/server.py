@@ -4810,6 +4810,10 @@ app.include_router(livestats_router)
 from trivia import router as trivia_router  # noqa: E402
 app.include_router(trivia_router)
 
+# v2.19.4 — CINEMA / CAM COPY release-window tags for movie covers.
+from release_status import router as release_status_router  # noqa: E402
+app.include_router(release_status_router)
+
 # v2.16.12 — Live TV user-data sync (favourites / collections /
 # reminders backed up per Xtream login).  Router needs the Mongo db
 # handle so we bind it after include_router.

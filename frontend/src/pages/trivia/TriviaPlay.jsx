@@ -14,6 +14,33 @@ const avatarGrad = (name) => {
     return `linear-gradient(135deg, hsl(${h} 65% 52%), hsl(${(h + 45) % 360} 65% 40%))`;
 };
 
+// v2.19.4 — user spec: the question must show on the phone too, not
+// just on the TV.
+function QuestionPanel({ q }) {
+    if (!q) return null;
+    const kind = q.kind || 'text';
+    return (
+        <div className="px-4 py-3 rounded-2xl text-center relative shrink-0"
+            data-testid="phone-question-text"
+            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
+            {kind === 'anagram' ? (
+                <>
+                    <p className="text-xs uppercase tracking-[0.25em] mb-1" style={{ color: 'var(--text-muted)' }}>Unscramble</p>
+                    <p className="tri-mono text-2xl font-bold tracking-[0.18em]">{q.text}</p>
+                    {q.hint && <p className="text-sm mt-1 font-semibold" style={{ color: 'var(--primary-soft)' }}>Hint: {q.hint}</p>}
+                </>
+            ) : kind === 'emoji' ? (
+                <>
+                    <p className="text-4xl leading-tight">{q.text}</p>
+                    {q.hint && <p className="text-sm mt-1 font-semibold" style={{ color: 'var(--primary-soft)' }}>Hint: {q.hint}</p>}
+                </>
+            ) : (
+                <p className="text-lg font-semibold leading-snug">{q.text}</p>
+            )}
+        </div>
+    );
+}
+
 function NumberPad({ onLock, unit, sounds }) {
     const [val, setVal] = useState('');
     const tap = (k) => {
@@ -150,6 +177,8 @@ export default function TriviaPlay() {
                 </span>
                 <span className="tri-mono" style={{ color: 'var(--primary)' }} data-testid="phone-score">{me?.score ?? 0} pts</span>
             </div>
+
+            {phase === 'question' && q && <QuestionPanel q={q} />}
 
             {(phase === 'lobby' || phase === 'loading') && (
                 <div className="flex-1 flex flex-col items-center justify-center gap-4 relative" data-testid="phone-waiting">

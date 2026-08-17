@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Camera, Check, Play, Volume2, VolumeX, X } from 'lucide-react';
+import { Camera, Check, Play, X } from 'lucide-react';
 import useTriviaSocket from './useTriviaSocket';
-import useTriviaSounds from './useTriviaSounds';
 import './trivia.css';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -15,23 +14,16 @@ const avatarGrad = (name) => {
     return `linear-gradient(135deg, hsl(${h} 65% 52%), hsl(${(h + 45) % 360} 65% 40%))`;
 };
 
-function TimerBar({ q, sounds }) {
+function TimerBar({ q }) {
     const [pct, setPct] = useState(100);
-    const lastSec = useRef(null);
     useEffect(() => {
         if (!q?.deadline) return undefined;
         const t = setInterval(() => {
             const remain = Math.max(0, q.deadline * 1000 - Date.now());
-            const p = Math.min(100, (remain / (q.duration * 1000)) * 100);
-            setPct(p);
-            const sec = Math.ceil(remain / 1000);
-            if (p < 30 && p > 0 && sec !== lastSec.current && sec > 0) {
-                lastSec.current = sec;
-                sounds?.play('tick', 0.4);
-            }
+            setPct(Math.min(100, (remain / (q.duration * 1000)) * 100));
         }, 200);
         return () => clearInterval(t);
-    }, [q?.deadline, q?.duration, sounds]);
+    }, [q?.deadline, q?.duration]);
     return (
         <div className="tri-timer" data-testid="tv-timer-bar">
             <i style={{ width: `${pct}%`, backgroundColor: pct > 20 ? 'var(--text-main)' : 'var(--error)' }} />
@@ -160,10 +152,8 @@ export default function TriviaTV() {
     const [code, setCode] = useState(null);
     const { state, send } = useTriviaSocket(code, 'tv');
     const [sel, setSel] = useState({ category: 0, mode: 'classic', rounds: 10 });
-    const [muted, setMuted] = useState(() => {
-        try { return localStorage.getItem('trivia-muted') === '1'; } catch { return false; }
-    });
-    const sounds = useTriviaSounds(muted);
+    // v2.19.4 — user spec: NO sound on the TV, sound lives on the
+    // phones only.  All TV-side audio wiring removed.
     const rootRef = useRef(null);
     const createdRoomRef = useRef(false);
 
@@ -176,17 +166,38 @@ export default function TriviaTV() {
             .then((r) => r.json()).then((d) => setCode(d.code)).catch(() => {});
     }, []);
 
-    // Simple linear D-pad navigation across focusable controls.
+    // Spatial 2D D-pad navigation: pushing DOWN moves to the control
+    // geometrically below the focused one (not just "next in list").
     useEffect(() => {
+        const DIRS = {
+            ArrowLeft: [-1, 0], ArrowRight: [1, 0],
+            ArrowUp: [0, -1], ArrowDown: [0, 1],
+        };
         const onKey = (e) => {
-            if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+            const dir = DIRS[e.key];
+            if (!dir) return;
             const els = Array.from(rootRef.current?.querySelectorAll('[data-tvfocus]') || []);
             if (!els.length) return;
             e.preventDefault();
-            const idx = els.indexOf(document.activeElement);
-            const fwd = e.key === 'ArrowRight' || e.key === 'ArrowDown';
-            const next = idx < 0 ? 0 : Math.min(els.length - 1, Math.max(0, idx + (fwd ? 1 : -1)));
-            els[next].focus();
+            const cur = document.activeElement;
+            if (!els.includes(cur)) { els[0].focus(); return; }
+            const cr = cur.getBoundingClientRect();
+            const cx = cr.left + cr.width / 2;
+            const cy = cr.top + cr.height / 2;
+            let best = null;
+            let bestScore = Infinity;
+            els.forEach((el) => {
+                if (el === cur) return;
+                const r = el.getBoundingClientRect();
+                const dx = (r.left + r.width / 2) - cx;
+                const dy = (r.top + r.height / 2) - cy;
+                const primary = dir[0] !== 0 ? dx * dir[0] : dy * dir[1];
+                const ortho = dir[0] !== 0 ? Math.abs(dy) : Math.abs(dx);
+                if (primary <= 4) return; // must actually be in that direction
+                const score = primary + ortho * 2.5;
+                if (score < bestScore) { bestScore = score; best = el; }
+            });
+            if (best) best.focus();
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
@@ -199,30 +210,7 @@ export default function TriviaTV() {
     const isPicCat = typeof sel.category === 'string';
     const isPuzzle = sel.mode === 'puzzle';
 
-    // ── phase-driven soundtrack ──
-    const prevPhase = useRef(null);
-    useEffect(() => {
-        if (phase === 'lobby' && !muted) sounds.loop('lobby', 0.28);
-        else sounds.stop('lobby');
-        if (prevPhase.current === phase) return;
-        prevPhase.current = phase;
-        if (phase === 'question') sounds.play('whoosh', 0.6);
-        else if (phase === 'reveal') {
-            if (q?.qtype === 'number') sounds.play('correct', 0.85);
-            else sounds.play((q?.results || []).some((r) => r.correct) ? 'correct' : 'wrong', 0.85);
-        } else if (phase === 'leaderboard') sounds.play('whoosh', 0.45);
-        else if (phase === 'podium') sounds.play('fanfare', 1);
-    }, [phase, muted, q, sounds]);
-
-    const buzzHolder = q?.buzz?.holder || null;
-    useEffect(() => { if (buzzHolder) sounds.play('buzz', 0.85); }, [buzzHolder, sounds]);
-
     const start = () => send({ type: 'start', ...sel });
-    const toggleMute = () => setMuted((m) => {
-        const n = !m;
-        try { localStorage.setItem('trivia-muted', n ? '1' : '0'); } catch { /* ignore */ }
-        return n;
-    });
 
     const pickCategory = (c) => setSel((s) => ({
         ...s,
@@ -240,12 +228,6 @@ export default function TriviaTV() {
     return (
         <div ref={rootRef} className="trivia-root relative overflow-hidden" data-testid="trivia-tv-root">
             <div className="tri-bgfx" />
-            <button onClick={toggleMute} data-tvfocus tabIndex={0} data-testid="tv-mute-btn"
-                className="tri-glass fixed top-6 right-6 z-20 p-3.5 flex items-center justify-center"
-                style={{ color: muted ? 'var(--text-muted)' : 'var(--primary)' }}
-                aria-label={muted ? 'Unmute sounds' : 'Mute sounds'}>
-                {muted ? <VolumeX size={26} /> : <Volume2 size={26} />}
-            </button>
 
             {phase === 'lobby' && (
                 <div className="grid grid-cols-12 gap-8 p-12 min-h-screen relative">
@@ -338,12 +320,12 @@ export default function TriviaTV() {
             )}
 
             {phase === 'countdown' && (
-                <Count deadline={q?.deadline || state?.now} sounds={sounds} />
+                <Count deadline={q?.deadline || state?.now} />
             )}
 
             {(phase === 'question' || phase === 'reveal') && q && (
                 <div className="min-h-screen flex flex-col p-12 gap-7 relative">
-                    <div className="flex items-center justify-between font-semibold text-2xl pr-20" style={{ color: 'var(--text-muted)' }}>
+                    <div className="flex items-center justify-between font-semibold text-2xl" style={{ color: 'var(--text-muted)' }}>
                         <span>Question <span style={{ color: 'var(--text-main)' }}>{q.index}</span> / {q.total}</span>
                         <span>{players.filter((p) => p.answered).length} / {players.length} answered</span>
                     </div>
@@ -374,13 +356,13 @@ export default function TriviaTV() {
                                     ))}
                                 </div>
                             </div>
-                            {phase === 'question' ? <TimerBar q={q} sounds={sounds} /> : <ResultChips q={q} />}
+                            {phase === 'question' ? <TimerBar q={q} /> : <ResultChips q={q} />}
                         </>
                     ) : q.qtype === 'number' ? (
                         <>
                             <QuestionStage q={q} phase={phase} />
                             {phase === 'question'
-                                ? <TimerBar q={q} sounds={sounds} />
+                                ? <TimerBar q={q} />
                                 : <NumberReveal q={q} />}
                         </>
                     ) : (
@@ -391,7 +373,7 @@ export default function TriviaTV() {
                                     <OptionCard key={i} opt={opt} i={i} phase={phase} q={q} size="lg" />
                                 ))}
                             </div>
-                            {phase === 'question' ? <TimerBar q={q} sounds={sounds} /> : <ResultChips q={q} />}
+                            {phase === 'question' ? <TimerBar q={q} /> : <ResultChips q={q} />}
                         </>
                     )}
                 </div>
@@ -454,7 +436,7 @@ export default function TriviaTV() {
     );
 }
 
-function Count({ deadline, sounds }) {
+function Count({ deadline }) {
     const [n, setN] = useState(3);
     useEffect(() => {
         const t = setInterval(() => {
@@ -462,7 +444,6 @@ function Count({ deadline, sounds }) {
         }, 150);
         return () => clearInterval(t);
     }, [deadline]);
-    useEffect(() => { sounds?.play('tick', 0.7); }, [n, sounds]);
     return (
         <div className="min-h-screen flex items-center justify-center">
             <span key={n} className="tri-big-in tri-mono text-[15rem] font-bold" style={{ color: 'var(--primary)' }}>{n}</span>

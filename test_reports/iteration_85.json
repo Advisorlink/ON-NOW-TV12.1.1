@@ -1,0 +1,21 @@
+{
+  "summary": "v2.19.4 Cinema/Cam Copy release-tag badges — backend + frontend E2E fully verified. Backend /api/release-status returns correct tags for a live 3-id curl (tt22084616=cinema, tt33764258=cam, tt0111161=null). Frontend Home renders 8 'Cinema' and 5 'Cam Copy' badges on recent movie posters (top-left), old classics have none, and only 2 batched /api/release-status calls fire for the entire home page (~50 ids each). Poster click still navigates to the detail page. No badge-related console errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "release_status.py: theatrical min() picks the WORLD-earliest limited/theatrical date across all countries (incl. festival premieres via type=2). A film that had a festival release 6 months ago in one country and hits wide cinemas today would already be past the 28-day 'cinema' window. Consider filtering to a specific region (US/GB) or using max(theatrical) for wide release. Not blocking, but may produce off-by-months tags on award-season titles.",
+    "release_status.py: no upper bound on `ids` split (only `todo` capped at 60) — a caller could pass thousands of ids and each cache-hit still goes through the loop. Minor.",
+    "release_status.py: `_CACHE` is unbounded in-process dict — fine at typical volumes but could grow if many unique ids queried over process lifetime.",
+    "releaseTags.js: sessionStorage persist writes the FULL mem map on every batch flush; harmless at current scale but O(n) grows with browsing session length."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "testuser / testpass123 (Vesper JWT login) — worked as documented.",
+  "seed_data_creation": "Seeded localStorage profile p-test-1 for both plain and :testuser-suffixed keys to bypass the profile picker.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login form has 2 inputs (username, password) — submit via button[type=submit] or Enter. After login, app lands on /profiles; seed both `onnowtv-profiles-v1` and `onnowtv-profiles-v1:testuser` (same for active-profile) then click [data-testid=profile-p-test-1]. Home renders ~198 poster tiles in under 1s. The v2.19.4 badges appear ~1-3s later after the batched /api/release-status calls resolve.",
+  "rca of the issue": "N/A — no bugs found."
+}
