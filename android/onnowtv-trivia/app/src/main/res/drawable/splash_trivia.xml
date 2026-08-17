@@ -4,8 +4,8 @@
 
     Painted by the OS the instant the launcher hands control to the
     app — prevents the ~1s black flash while the WebView cold-boots.
-    Palette matches the Trivia lobby (near-black + cyan/pink glows)
-    so splash → first WebView paint is seamless.
+    Palette matches the Trivia lobby (midnight slate + warm coral /
+    indigo blooms) so splash → first WebView paint is seamless.
 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
@@ -18,11 +18,11 @@
             <gradient
                 android:type="radial"
                 android:gradientRadius="700dp"
-                android:centerX="0.85"
-                android:centerY="0.1"
-                android:startColor="#3300F0FF"
-                android:centerColor="#1A00F0FF"
-                android:endColor="#000A0A0A" />
+                android:centerX="0.88"
+                android:centerY="0.08"
+                android:startColor="#2EF97316"
+                android:centerColor="#14F97316"
+                android:endColor="#000B0E14" />
         </shape>
     </item>
     <item>
@@ -32,9 +32,9 @@
                 android:gradientRadius="600dp"
                 android:centerX="0.05"
                 android:centerY="0.95"
-                android:startColor="#2BFF007A"
-                android:centerColor="#14FF007A"
-                android:endColor="#000A0A0A" />
+                android:startColor="#2E4F46E5"
+                android:centerColor="#144F46E5"
+                android:endColor="#000B0E14" />
         </shape>
     </item>
 </layer-list>

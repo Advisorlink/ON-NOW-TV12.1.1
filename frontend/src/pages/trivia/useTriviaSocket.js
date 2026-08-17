@@ -7,16 +7,22 @@ export default function useTriviaSocket(code, role, name, pid) {
     const [connected, setConnected] = useState(false);
     const [privateMsg, setPrivateMsg] = useState(null);
     const wsRef = useRef(null);
-    const aliveRef = useRef(true);
     const pidRef = useRef(pid || null);
 
     useEffect(() => {
         if (!code) return undefined;
-        aliveRef.current = true;
+        // `alive`/`retry`/`timer` are LOCAL to this effect generation.
+        // A shared ref here caused a zombie-socket bug: when `code`
+        // changed (or StrictMode re-ran the effect), the OLD socket's
+        // async onclose saw the ref flipped back to true by the new
+        // run and silently reconnected to the STALE room, overwriting
+        // wsRef — so sends went to an empty room nobody was watching.
+        let alive = true;
         let retry = 0;
+        let timer = null;
 
         const open = () => {
-            if (!aliveRef.current) return;
+            if (!alive) return;
             const params = new URLSearchParams({ role });
             if (role === 'player') {
                 params.set('name', name || 'Player');
@@ -37,16 +43,17 @@ export default function useTriviaSocket(code, role, name, pid) {
             };
             ws.onclose = () => {
                 setConnected(false);
-                if (aliveRef.current) {
+                if (alive) {
                     retry += 1;
-                    setTimeout(open, Math.min(5000, 400 * retry));
+                    timer = setTimeout(open, Math.min(5000, 400 * retry));
                 }
             };
             ws.onerror = () => { try { ws.close(); } catch { /* ignore */ } };
         };
         open();
         return () => {
-            aliveRef.current = false;
+            alive = false;
+            if (timer) clearTimeout(timer);
             try { wsRef.current?.close(); } catch { /* ignore */ }
         };
     }, [code, role, name]);

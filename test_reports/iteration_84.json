@@ -1,0 +1,25 @@
+{
+  "summary": "Frontend-only regression for the ON NOW Trivia redesign + zombie-socket + spoiler fixes. Executed full multi-page e2e (TV desktop + phone mobile in same browser context) for: classic 5Q game to podium, pic_movies (poster spoiler), pic_flags (thumb visible on phone), puzzle party (number pad + anagram + emoji + number reveal + CLOSEST/NICE TRY feedback), buzzer smoke, lobby UI (mute, puzzle note, category chips, blitz->picture flip), no mobile bottom nav on /trivia/play, Play Again -> lobby loop. ALL CRITICAL FLOWS PASS.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_84.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "TriviaTV.jsx OptionCard passes an id-less key (i) inside q.options.map; harmless but React keys should ideally be stable if options ever reorder.",
+    "TriviaPlay.jsx line 197: `q.image && !q.blur` correctly hides poster on blurred picture rounds — verified behaviour on pic_movies (blur=true) and pic_flags (blur=false).",
+    "TriviaTV.jsx createdRoomRef guard works — a single room code is produced under StrictMode double-invoke and the phone-joined room matches the started game (verified via '1 / 1 answered' header every question).",
+    "useTriviaSocket zombie reconnect fix confirmed working — across 5 consecutive questions the answered counter denominator stayed at 1 (the joined player), never 0."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100%"},
+  "test_credentials": "none — /trivia is public",
+  "seed_data_creation": "none — rooms are ephemeral in-memory",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Verified in iter84: (1) TV boot -> lobby -> QR + room code visible, (2) phone at /trivia/play?room=CODE joins, no mobile-bottom-nav present on join screen or in-game, (3) classic 5Q game reaches podium, Play Again returns to lobby, (4) zombie-socket fix: header shows '1/1 answered' immediately after phone taps, denominator matches joined-player count all 5 questions, (5) pic_movies: TV tv-question-image renders with tri-picture tri-unblur (split-screen with options on right), phone has NO phone-question-image (spoiler fixed), (6) pic_flags: phone DOES show small phone-question-image thumb (blur=false path), (7) Puzzle Party: phone-number-pad + phone-num-1..9/dot/del + phone-num-lock work, TV tv-number-reveal shows correct value, phone shows CLOSEST!/NICE TRY sting, TV also shows anagram tiles and emoji questions, (8) Buzzer mode: phone-buzzer visible, tap causes TV to show '<name> buzzed in — answering…' and phone-buzz-answers grid to appear, (9) Lobby UI: 4 picture categories with camera icons (pic_movies/pic_flags/pic_animals/pic_landmarks — note: pic_logos is NOT in the current category set, main agent should not expect it), tv-puzzle-note appears when Puzzle selected and category chips dim (opacity 0.3, pointerEvents none), selecting a picture category while Blitz is active correctly flips mode chip to Classic, tv-mute-btn toggles.",
+  "rca of the issue": "Not applicable — no bugs found this iteration. The prior zombie-socket race and StrictMode double-room-creation fixes are confirmed effective in the browser."
+}

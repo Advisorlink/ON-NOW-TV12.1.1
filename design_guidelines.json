@@ -1,146 +1,119 @@
 {
-  "project_name": "On Now Trivia (ON NOW TV V2)",
-  "app_type": "hybrid_fullstack (TV Display + Mobile Controller)",
-  "theme_archetype": "Electric & Neon + The Performance Pro",
-  "design_philosophy": "A high-tension, premium game-show experience. The TV is a cinematic, data-rich stage. The mobile phone is a tactile, zero-friction arcade controller. Do not mix their paradigms. TV = 10-foot UI with deep space and massive typography. Phone = Thumb-first, giant hit areas, physical-feeling haptics.",
-  "color_palette": {
-    "background": {
-      "base": "#0A0A0A",
-      "surface_tv": "rgba(255,255,255,0.03)",
-      "surface_phone": "#121212"
-    },
-    "brand": {
-      "primary": "#00F0FF",
-      "primary_hover": "#33F3FF",
-      "text_on_primary": "#000000"
-    },
-    "game_actions": {
-      "option_a": "#FF007A",
-      "option_b": "#E1FF00",
-      "option_c": "#00F0FF",
-      "option_d": "#00FF66",
-      "buzzer": "#FF3B30",
-      "correct": "#00FF66",
-      "incorrect": "#FF3B30"
-    },
-    "text": {
-      "primary": "#FFFFFF",
-      "secondary": "#A1A1AA",
-      "tertiary": "#52525B"
-    }
+  "theme_strategy": {
+    "archetype": "Dark Modern / Premium Game Show",
+    "description": "A sophisticated, high-energy aesthetic that replaces the dated 'arcade neon' with a modern streaming-service UI feel (e.g., Apple TV+ meets Jackbox). It relies on deep midnight backgrounds, tactile components with colored shadows, and smooth glassmorphism rather than flat glowing boxes.",
+    "tv_specifics": "10-foot UI optimized. Requires 5% safe zone padding around the screen. Avoids pure black to prevent OLED smearing; uses rich dark slate. D-pad focus states must be unmissable.",
+    "phone_specifics": "High-contrast, large tap targets, tactile feedback. Must feel like a premium remote control."
   },
   "typography": {
-    "font_families": {
-      "headings": "Outfit, sans-serif",
-      "body": "DM Sans, sans-serif",
-      "mono": "JetBrains Mono, monospace"
+    "fonts": {
+      "heading": "Outfit",
+      "body": "Plus Jakarta Sans",
+      "mono": "Space Mono"
     },
-    "rules": {
-      "tv_h1": "text-7xl lg:text-8xl font-black tracking-tighter leading-none (Override text limit only for TV game show timer/massive states)",
-      "tv_h2": "text-5xl lg:text-6xl font-bold tracking-tight",
-      "phone_h1": "text-3xl font-bold tracking-tight",
-      "phone_buttons": "text-2xl font-black uppercase tracking-widest",
-      "body": "text-lg lg:text-xl leading-relaxed"
-    }
-  },
-  "surfaces_and_effects": {
-    "tv_glass": "backdrop-blur-2xl bg-white/5 border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5)] rounded-3xl",
-    "phone_tactile_button": "relative overflow-hidden rounded-2xl border-b-8 active:border-b-0 active:translate-y-2 transition-all duration-75 shadow-lg",
-    "neon_glow": "drop-shadow-[0_0_15px_rgba(0,240,255,0.5)]",
-    "progress_bar": "h-4 bg-white/10 rounded-full overflow-hidden"
-  },
-  "layouts": {
-    "tv_lobby": "grid grid-cols-12 gap-8 p-12 h-screen. Left col-span-4 (QR Code, Room Code, Join URL) tv_glass. Right col-span-8 (Dynamic grid of joining players). Asymmetrical, high tension.",
-    "tv_question": "Flex column, centered vertically. Massive question text at top. 2x2 grid of answer options below. Giant horizontal timer bar at the very bottom spanning width.",
-    "phone_controller": "Flex column, h-screen w-screen, overflow-hidden p-4. No scrolling. 100% viewport height.",
-    "phone_answers": "Grid 2x2 gap-4 h-full pt-4. 4 massive buttons filling the screen height."
-  },
-  "components_to_build": {
-    "TV_Components": [
-      {
-        "name": "QRJoinPanel",
-        "description": "Massive QR Code (use qrcode.react), 4-letter room code in JetBrains Mono.",
-        "path": "src/components/tv/QRJoinPanel.js"
-      },
-      {
-        "name": "PlayerChip",
-        "description": "Avatar + Username. Animates in with scale/spring. TV surface.",
-        "path": "src/components/tv/PlayerChip.js"
-      },
-      {
-        "name": "CountdownTimer",
-        "description": "Shrinking horizontal bar. Changes color from Brand -> Yellow -> Red as time drops.",
-        "path": "src/components/tv/CountdownTimer.js"
-      },
-      {
-        "name": "LeaderboardRow",
-        "description": "Flex row showing Rank, Avatar, Name, Score. Use framer-motion layout for rank swapping.",
-        "path": "src/components/tv/LeaderboardRow.js"
-      }
-    ],
-    "Phone_Components": [
-      {
-        "name": "TactileAnswerPad",
-        "description": "4 massive colored buttons. Uses phone_tactile_button styling.",
-        "path": "src/components/phone/TactileAnswerPad.js"
-      },
-      {
-        "name": "GiantBuzzer",
-        "description": "Massive circular red button taking up 80% of the screen. Deep shadow, heavy press depression.",
-        "path": "src/components/phone/GiantBuzzer.js"
-      },
-      {
-        "name": "StatusWaiting",
-        "description": "Simple screen. 'Look at the TV' pulsing text.",
-        "path": "src/components/phone/StatusWaiting.js"
-      }
+    "scale_tv": {
+      "h1_hero": "text-7xl tracking-tight font-bold",
+      "h2_section": "text-5xl tracking-tight font-semibold",
+      "body_large": "text-3xl leading-relaxed",
+      "body_base": "text-2xl leading-relaxed"
+    },
+    "scale_phone": {
+      "h1_hero": "text-4xl tracking-tight font-bold",
+      "body_base": "text-base leading-relaxed"
+    },
+    "rules": [
+      "TV minimum font size is 24px (text-2xl). Never use smaller text.",
+      "Use 'Space Mono' for Room Codes and the Phone Number Pad to retain a game-show vibe without the harshness of JetBrains Mono.",
+      "Apply 'tracking-widest' to the Room Code for legibility."
     ]
   },
-  "animation_motion": {
-    "rules": "High energy. Fast entrances, bouncy springs. No slow fades.",
-    "player_join": "Spring scale-in (stiffness: 300, damping: 20)",
-    "time_up": "Screen shake effect on TV. Red flash.",
-    "button_press": "Zero-latency active state. Transform translate-y-2 on mobile immediately. Do not use generic 'transition-all' on transforms.",
-    "score_count": "Count up animation for points."
+  "colors": {
+    "css_variables": {
+      "--bg-base": "#0B0E14",
+      "--bg-surface": "#1A202C",
+      "--bg-glass": "rgba(26, 32, 44, 0.6)",
+      "--primary": "#F97316",
+      "--primary-glow": "rgba(249, 115, 22, 0.4)",
+      "--secondary": "#4F46E5",
+      "--success": "#10B981",
+      "--success-bg": "rgba(16, 185, 129, 0.15)",
+      "--error": "#E11D48",
+      "--error-bg": "rgba(225, 29, 72, 0.15)",
+      "--text-main": "#F8F9FA",
+      "--text-muted": "#9CA3AF",
+      "--border-subtle": "rgba(255,255,255,0.08)",
+      "--border-focus": "#F8F9FA"
+    },
+    "rules": [
+      "Replace electric cyan and hot pink with rich Luminous Coral (--primary) and Deep Indigo (--secondary).",
+      "Never use pure black (#000000). Use --bg-base.",
+      "Use gradients sparingly, primarily on the Buzzer or Podiums."
+    ]
   },
-  "image_urls": {
-    "tv_background": {
-      "url": "https://images.unsplash.com/photo-1620641788421-7a1c342ea42e",
-      "description": "Abstract purple/pink dark energy background. Place as fixed background with mix-blend-screen and opacity-30 behind a solid #0A0A0A base."
+  "visual_enhancers": {
+    "glassmorphism": "Use 'backdrop-blur-xl bg-white/5 border border-white/10' for TV panels, option cards, and floating UI. This creates depth against the dark background.",
+    "tactile_shadows": "Instead of black drop shadows, use colored ambient shadows for active states (e.g., 'shadow-[0_0_40px_var(--primary-glow)]').",
+    "noise_texture": "Apply a very subtle 2-3% opacity white noise overlay to the TV background to eliminate banding on large screens and add a premium studio feel."
+  },
+  "layouts_and_grids": {
+    "tv_lobby": "Use Mode A 'Bento Grid Protocol'. Asymmetrical. QR Code + Room Code in a large 'Hero' block (col-span-4). Game modes and categories in smaller interlocking blocks.",
+    "tv_question_phase": "Use a focused layout. Top: Question + Timer pill. Center: 2x2 grid for Option Cards. For Picture rounds: Split screen (Left: Image, Right: vertical stack of options).",
+    "phone_answer_grid": "Full-height 2x2 grid taking up the entire screen below the header for multiple choice. Massive tap areas.",
+    "phone_number_pad": "Standard 3x4 dialer grid, no gaps, subtle borders."
+  },
+  "component_guidelines": {
+    "tv_dpad_focus": {
+      "description": "CRITICAL: TV UI must clearly show what is focused.",
+      "styles": "scale-105 ring-4 ring-white ring-offset-4 ring-offset-[#0B0E14] z-50 transition-all duration-200"
     },
-    "avatar_1": {
-      "url": "https://images.unsplash.com/photo-1740252117070-7aa2955b25f8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTZ8MHwxfHNlYXJjaHwxfHwzZCUyMGNhcnRvb24lMjBjaGFyYWN0ZXIlMjBhdmF0YXIlMjBmYWNlfGVufDB8fHx8MTc4NjcyNzEwOHww&ixlib=rb-4.1.0&q=85",
-      "description": "Player Avatar Option A"
+    "option_cards": {
+      "tv": "Glassmorphism base. A/B/C/D labels are large, absolute positioned, text-white/20 font-mono.",
+      "phone": "Solid #1A202C base. Active/Selected state inverts to Solid --primary. Correct state flashes --success.",
+      "reveal": "Correct option scales up 1.05 and turns --success green. Wrong options dim to opacity-30 and scale down 0.95."
     },
-    "avatar_2": {
-      "url": "https://images.unsplash.com/photo-1740252117027-4275d3f84385?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTZ8MHwxfHNlYXJjaHwyfHwzZCUyMGNhcnRvb24lMjBjaGFyYWN0ZXIlMjBhdmF0YXIlMjBmYWNlfGVufDB8fHx8MTc4NjcyNzEwOHww&ixlib=rb-4.1.0&q=85",
-      "description": "Player Avatar Option B"
+    "phone_buzzer": {
+      "concept": "Tactile Physical Button",
+      "styles": "rounded-full aspect-square w-64 mx-auto bg-gradient-to-b from-orange-400 to-orange-600 shadow-[0_12px_0_#C2410C,0_20px_40px_rgba(249,115,22,0.4)] active:translate-y-3 active:shadow-[0_0px_0_#C2410C,0_0px_0px_rgba(249,115,22,0)] transition-all"
+    },
+    "player_chips": {
+      "styles": "rounded-full bg-white/10 border border-white/20 pl-1 pr-4 py-1 flex items-center gap-3",
+      "avatar": "Small circle with a generated gradient background based on player name."
+    },
+    "timer_bar": {
+      "styles": "h-3 rounded-full bg-white/10 overflow-hidden w-full max-w-3xl mx-auto",
+      "fill": "h-full bg-white transition-all duration-1000 linear. Change color to --error when under 20%."
+    },
+    "picture_round": {
+      "animation": "Image starts with 'filter: blur(60px)' and interpolates to 'blur(0px)' over the round timer using Framer Motion."
+    },
+    "podium": {
+      "layout": "3 columns, middle column (1st place) is tallest. Use --primary for 1st, --secondary for 2nd, and white/20 for 3rd."
     }
   },
-  "third_party_libraries": [
-    "framer-motion",
-    "lucide-react",
-    "react-confetti",
-    "qrcode.react",
-    "sonner"
-  ],
-  "accessibility_and_testing": {
-    "data_testid_rule": "ALL interactive elements MUST have data-testid attributes (e.g., data-testid='answer-btn-a', data-testid='join-game-btn').",
-    "color_contrast": "White text over neon answer buttons is guaranteed passing. Black text on primary cyan.",
-    "focus_states": "Focus states must be explicitly styled ring-4 ring-white/50."
+  "motion": {
+    "library": "framer-motion",
+    "rules": [
+      "Use 'spring' physics for all reveals and UI pop-ins to give an energetic game-show feel (e.g., stiffness: 300, damping: 25).",
+      "Stagger list animations (like leaderboards or player joined chips) using 'delayChildren' and 'staggerChildren'.",
+      "Number counting: Use Framer Motion to smoothly animate scores ticking up from X to Y."
+    ]
   },
-  "instructions_to_main_agent": [
-    "Build the app with standard React (.js). DO NOT USE .tsx",
-    "Simulate the Real-time WebSockets logic using a shared React Context or Mock State provider if actual websockets are out of scope. The TV and Phone views should toggleable or routed (e.g. /tv vs /play).",
-    "NEVER use generic placeholder images. Use the provided Unsplash URLs.",
-    "Implement the 'Two-Screen' architecture purely in the UI: Create a TV View layout and a Phone View layout. Do not mix them on the same screen.",
-    "For the phone controller, do not use Shadcn Cards. Use raw HTML/Tailwind to create the tactile, physical-feeling buttons (border-b-8 hack for depth).",
-    "Ensure 'Outfit' and 'DM Sans' are imported via Google Fonts."
-  ],
-  "universal_guidelines": [
-    "Do not center-align everything by default. Use asymmetrical grids (e.g., TV Lobby).",
-    "Do not apply `transition: all` globally. Apply targeted transitions.",
-    "Create depth using z-index, large drop-shadows, and glassmorphism (backdrop-blur-2xl) specifically on the TV UI.",
-    "No emojis for icons. Use lucide-react."
+  "accessibility": {
+    "contrast": "Ensure all text on TV achieves a minimum 4.5:1 ratio against the dark background. Do not use pure transparent overlays over images.",
+    "testing": "All interactive elements (modes, start buttons, answer options, buzzer) MUST have a 'data-testid' attribute (e.g., 'data-testid=\"answer-option-a\"').",
+    "visual_cues": "Do not rely on color alone for correct/incorrect. Always include an icon (Check/X) alongside the color change."
+  },
+  "instructions_to_main_agent": {
+    "html_elements": "Do not use native HTML form elements (like <select>). Use custom React/Tailwind components to ensure consistent TV and Mobile styling.",
+    "tv_safe_zones": "Wrap the main TV application in a container with 'p-8 md:p-12 lg:p-16' to prevent UI elements from being cut off by TV screen bezels (overscan).",
+    "component_files": "Create dedicated files for complex components: 'Buzzer.js', 'FocusableCard.js', 'NumberPad.js'. Note: The project uses .js files, not .tsx.",
+    "testing_attributes": "Add data-testid to every clickable element and state container (e.g. data-testid='tv-lobby', data-testid='phone-buzzer')."
+  },
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "You tend to converge toward generic outputs. Break that habit: make the UI feel like a premium Apple TV app combined with the energy of Jackbox Games.",
+    "Never center-align the whole app container. Use distinct grids and purposeful asymmetrical alignments.",
+    "Do not use dark colors as linear gradients. Use them as solid backgrounds or subtle radial blooms.",
+    "Create depth with layered elements (z-index) and glass-morphism (12-24px blur).",
+    "Ensure every state transition (Idle -> Answering -> Locked In -> Reveal) is animated."
   ]
 }

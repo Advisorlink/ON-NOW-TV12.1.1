@@ -589,6 +589,9 @@ const MOBILE_NAV_HIDDEN_PREFIXES = [
     '/watch-together',
     '/resolve/',
     '/music',
+    // v2.19.3 — Trivia is a standalone party game: the phone
+    // controller must never show Vesper's Movies/TV bottom tabs.
+    '/trivia',
 ];
 
 function MobilePlatformRoot({ children }) {
