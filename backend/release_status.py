@@ -23,7 +23,7 @@ router = APIRouter(prefix="/api")
 
 _TMDB = "https://api.themoviedb.org/3"
 _CACHE: dict[str, tuple[float, dict | None]] = {}
-_TTL = 12 * 3600
+_TTL = 6 * 3600
 
 
 async def _status_for(cli: httpx.AsyncClient, imdb_id: str) -> dict | None:
@@ -36,8 +36,12 @@ async def _status_for(cli: httpx.AsyncClient, imdb_id: str) -> dict | None:
     r2 = await cli.get(f"{_TMDB}/movie/{movie['id']}/release_dates")
     if r2.status_code != 200:
         return None
+    # v2.19.7 — accuracy pass (user: some tags were wrong):
+    #   • only WIDE theatrical (type 3) counts as "in cinema" — festival
+    #     / limited premieres no longer trigger the tag.
+    #   • streaming/rent/buy availability (TMDB watch providers) counts
+    #     as a good HD copy even when the digital date is missing.
     theatrical = None
-    limited = None
     digital = None
     for country in r2.json().get("results") or []:
         for rd in country.get("release_dates") or []:
@@ -49,25 +53,26 @@ async def _status_for(cli: httpx.AsyncClient, imdb_id: str) -> dict | None:
             except ValueError:
                 continue
             t = rd.get("type")
-            if t == 3:  # wide theatrical
+            if t == 3:
                 theatrical = min(theatrical, dt) if theatrical else dt
-            elif t == 2:  # limited / festival — fallback only
-                limited = min(limited, dt) if limited else dt
-            elif t in (4, 5):  # digital / physical
+            elif t in (4, 5):
                 digital = min(digital, dt) if digital else dt
-    # Prefer the wide-theatrical date: festival premieres (type 2) can
-    # be months before general release and would mis-age the window.
-    if theatrical is None:
-        theatrical = limited
     now = datetime.now(timezone.utc)
     if not theatrical or theatrical > now:
         return None
     days = (now - theatrical).days
-    in_cinema = days <= 60  # typical theatrical run
-    hd = bool(digital and digital <= now)  # a good copy exists
-    if in_cinema:
-        # v2.19.5 — stacked tag: CINEMA + the copy quality underneath
-        # ("HD" once a digital release exists, else "CAM").
+    hd = bool(digital and digital <= now)
+    if not hd:
+        try:
+            r3 = await cli.get(f"{_TMDB}/movie/{movie['id']}/watch/providers")
+            if r3.status_code == 200:
+                for region in (r3.json().get("results") or {}).values():
+                    if any(region.get(k) for k in ("flatrate", "rent", "buy", "free", "ads")):
+                        hd = True
+                        break
+        except Exception:  # noqa: BLE001
+            pass
+    if days <= 45:
         return {"cinema": True, "quality": "hd" if hd else "cam"}
     if not hd and days <= 210:
         return {"cinema": False, "quality": "cam"}

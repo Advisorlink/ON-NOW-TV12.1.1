@@ -20,9 +20,9 @@
                 android:gradientRadius="700dp"
                 android:centerX="0.88"
                 android:centerY="0.08"
-                android:startColor="#2EF97316"
-                android:centerColor="#14F97316"
-                android:endColor="#000B0E14" />
+                android:startColor="#2E5DC8FF"
+                android:centerColor="#145DC8FF"
+                android:endColor="#0006080F" />
         </shape>
     </item>
     <item>
@@ -32,9 +32,9 @@
                 android:gradientRadius="600dp"
                 android:centerX="0.05"
                 android:centerY="0.95"
-                android:startColor="#2E4F46E5"
-                android:centerColor="#144F46E5"
-                android:endColor="#000B0E14" />
+                android:startColor="#2E2A82B8"
+                android:centerColor="#142A82B8"
+                android:endColor="#0006080F" />
         </shape>
     </item>
 </layer-list>

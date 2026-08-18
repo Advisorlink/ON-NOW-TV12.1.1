@@ -1,0 +1,48 @@
+{
+  "summary": "Tested v2.19.7 release: (1) 'In Cinema' movie chip backed by TMDB now_playing (-4 sentinel), (2) Continue Watching tombstone-based delete, (3) release-status accuracy. Backend endpoints VERIFIED via curl. Frontend code review + localStorage-level simulation confirms tombstone logic correct. Full browser UI flow into Home was blocked by the 6-step profile-creation wizard (on-screen keyboard) — the pre-seeded profile flow that worked in prior iterations no longer restores because the cloud backup did not survive between test sessions. Loop-prevention triggered after 3 failed attempts to reach Home.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Test harness: initial profile seeding",
+        "issue": "Cannot easily seed a profile via localStorage because RequireProfile bounces to /profiles unless an active-profile row exists AND the profile row was written before the AuthProvider hydrated vesper-auth-account-v1. Suggest exposing a data-testid on the 'Test' profile card and a URL-param bypass for automated testing, OR keep a static test-user backup on the cloud sync so the 'Restore my profiles' dialog is always reachable.",
+        "affected_selectors": ["button[data-testid^='profile-']"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "MAIN AGENT: Please self-verify the in-browser flow interactively — In Cinema chip should appear first in the movie GenreChips row, tapping it must render the ~20 tiles from /api/tmdb/by-genres/movie?genre_ids=-4, and long-press remove on Continue Watching must survive a full page reload with an entry in onnowtv-cw-removed-v1:<profileId>.",
+    "OPTIONAL DX: add data-testid='in-cinema-chip' + data-testid='cw-tile-<id>' + data-testid='cw-remove-<id>' so future automation can drive these flows without long-press mouse events."
+  ],
+  "critical_code_review_comments": [
+    "continueWatching.js remove() — CORRECT: showPrefixOf(id) strips ':sxxexx', filters ALL sibling episodes, writes tombstone {prefix: Date.now()} at scoped REMOVED_KEY. syncFromNative Pass 1 & Pass 2 both call isTombstoned(id, p.updatedAt) which returns true unless native updatedAt > tombstone — matches the stated design. upsert() calls clearTombstone(partial.id) on the very first line — fresh playback un-tombstones as required.",
+    "release_status.py — CORRECT: only TMDB release type 3 (wide theatrical) sets `theatrical`; types 4/5 (digital/physical) set `digital`; watch-providers check flips hd=True even when digital date missing; cinema window is <=45 days; TTL 6h. Matches the spec (`≤45 days = cinema`, providers → HD).",
+    "TabGridView.jsx (~L305) — CORRECT: GenreChips receives ['In Cinema', 'Christmas', ...genreList] for movies, so 'In Cinema' will always render as the FIRST chip. isCinema block (~L70) triggers /api/tmdb/by-genres/movie?genre_ids=-4 when chip selected.",
+    "releaseTags.js — CORRECT: in-memory-only cache (no sessionStorage), so tags refresh on every app open as intended.",
+    "NIT: releaseTags.js batches 60 ids per flush but doesn't cap total pending — a very tall shelf could accumulate >60 and silently drop the tail. Consider slicing and re-scheduling."
+  ],
+  "backend_verifications": {
+    "GET /api/release-status?ids=tt22084616,tt33764258,tt0111161": "{'tt22084616': {'cinema': true, 'quality': 'cam'}, 'tt33764258': {'cinema': true, 'quality': 'cam'}, 'tt0111161': null} — Spider-Man: Brand New Day + The Odyssey both cinema+cam (both released Dec 2025, no digital yet). Shawshank correctly null (old title, out of window). MATCHES SPEC.",
+    "GET /api/release-status streaming-provider spot-check (tt5763664 Deadpool&Wolverine, tt18412256 Alien: Romulus, tt13622970)": "All null — outside 45-day cinema window so no tag, correct.",
+    "GET /api/tmdb/by-genres/movie?genre_ids=-4&limit=20": "Returns {'cached': true, 'data': [...]} with 20 now-playing titles led by Spider-Man: Brand New Day (tmdb 969681) and The Odyssey (tmdb 1368337). MATCHES SPEC."
+  },
+  "frontend_verifications": {
+    "code_review_in_cinema_chip": "GenreChips genres prop = ['In Cinema', 'Christmas', ...genreList] for type==='movie' — 'In Cinema' is the FIRST chip.",
+    "code_review_isCinema_fetch": "TabGridView.jsx L70 isCinema branch hits /api/tmdb/by-genres/movie?genre_ids=-4 and maps items to tiles with routePath=/resolve/movie/<tmdb_id>.",
+    "localstorage_tombstone_semantics": "Directly simulated remove('tt_cwseed'): filtered CW list and wrote {'tt_cwseed': <now>} to onnowtv-cw-removed-v1:<profileId>. After reload, entry stayed gone and tombstone key persisted."
+  },
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "N/A (blocked at profile-picker; code review + storage simulation only)"},
+  "test_credentials": "testuser/testpass123 (per /app/memory/test_credentials.md). Login form works. Restore dialog only appears on very first login per browser session; subsequent sessions land on empty profile picker.",
+  "seed_data_creation": "None persisted server-side. LocalStorage seeds attempted at onnowtv-continue-watching-v1[:testuser][:p-test-1] variants — did not survive because RequireProfile insisted on an active profile with fully hydrated auth suffix.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend verified. Frontend needs an interactive human/self-test — automated profile creation via the 6-step avatar/keyboard wizard is not feasible in Playwright. If a test-only data-testid is added to the 'Restore my profiles' bypass or a stable seeded testuser cloud backup is guaranteed, the In-Cinema chip + CW long-press flow can be fully automated in the next iteration. Backend confirmed working via curl on: /api/release-status (cinema+cam for tt22084616 & tt33764258, null for tt0111161) and /api/tmdb/by-genres/movie?genre_ids=-4 (20 titles led by Spider-Man BND & Odyssey).",
+  "rca of the issue": "N/A — no bug found in the code under review. Only test harness limitation (profile-creation wizard is not automatable without new data-testids on the on-screen keyboard or the profile-picker cards)."
+}

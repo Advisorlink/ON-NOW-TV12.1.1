@@ -1,4 +1,12 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.19.7 — Trivia Vesper reskin + CW delete fix + tag accuracy + "In Cinema" category (Jun 2026).  TESTED (iteration_86 backend 100% + code review; UI flows self-verified via screenshots).**
+> - **Trivia = Vesper look:** trivia.css tokens swapped to the Vesper system (navy radial `#0e2548→#02030a`, signal blue `#5dc8ff`, Geist/Geist Mono, `--on-primary #04121f`); lobby got mono eyebrows (PARTY GAME / ROOM CODE / STEP 01-03), lucide icons on every category+mode chip (CAT_ICONS/MODE_ICONS by tag), bigger glowing QR (256px, blue ring), glowing room code.  BootSplash trivia variant + APK colors/splash/icon → vesper blues.
+> - **Continue Watching delete is now permanent:** `remove()` deletes ALL entries of the show prefix + writes tombstone `onnowtv-cw-removed-v1` (scoped); `syncFromNative()` Pass 1/2 skip tombstoned ids unless native `updatedAt` is newer; `upsert()` clears the tombstone on fresh playback.  (Root cause of resurrection: native progress map re-cloning on Home mount.)
+> - **Tag accuracy:** release_status.py now: type-3 wide theatrical ONLY (no festival dates), TMDB watch-providers (flatrate/rent/buy/free/ads) count as HD even without a digital date, cinema window ≤45 days, TTL 6h; frontend releaseTags.js cache is in-memory only → re-checked every app open; batch flush drains >60-id tails.
+> - **"In Cinema" category** in the Movies tab: first chip before Christmas (TabGridView `isCinema`), backed by synthetic genre `-4` → TMDB `/movie/now_playing` region AU (server.py by-genres handler).  Verified in-browser: 48 titles grid.
+> - Testing note: automated profile-picker flows are flaky (welcome tour/wizard); iteration_86 suggests adding test ids to CW tiles + in-cinema chip for future automation.
+>
+
 > **🟢 v2.19.6 — Cover tags restyled to premium frosted-glass badge (Jun 2026).  VERIFIED in-browser on Home.**
 > - User: solid pills looked "cheap and nasty" — replaced with ONE glass badge per cover (top-left): dark blur `rgba(8,12,18,0.58)` + `backdrop-filter: blur(14px)`, hairline white border, inset top highlight.  Line 1 "CINEMA" in `var(--vesper-blue)`; line 2 a glowing status dot + "HD" (#4ADE80) or "CAM" (#FBBF24) as coloured TEXT (no colour blocks).  Testids unchanged (`poster-tag-cinema/hd/cam`).
 >

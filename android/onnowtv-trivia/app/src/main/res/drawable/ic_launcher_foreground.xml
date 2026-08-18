@@ -10,15 +10,15 @@
     <!-- buzzer dome -->
     <path
         android:pathData="M 54 32 A 22 22 0 0 1 76 54 L 32 54 A 22 22 0 0 1 54 32 Z"
-        android:fillColor="#F97316" />
+        android:fillColor="#5DC8FF" />
     <path
         android:pathData="M 54 32 A 22 22 0 0 1 76 54 L 32 54 A 22 22 0 0 1 54 32 Z"
-        android:fillColor="#FB923C"
+        android:fillColor="#8DE0FF"
         android:fillAlpha="0.4" />
     <!-- base -->
     <path
         android:pathData="M 27 54 L 81 54 L 81 66 A 5 5 0 0 1 76 71 L 32 71 A 5 5 0 0 1 27 66 Z"
-        android:fillColor="#4F46E5" />
+        android:fillColor="#1A2238" />
     <!-- spark lines -->
     <path
         android:pathData="M 54 18 L 54 26 M 36 22 L 40 29 M 72 22 L 68 29"

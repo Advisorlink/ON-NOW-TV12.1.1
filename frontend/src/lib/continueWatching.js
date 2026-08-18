@@ -27,6 +27,7 @@
 
 const STORAGE_KEY = 'onnowtv-continue-watching-v1';
 const WATCHED_KEY = 'onnowtv-watched-v1';
+const REMOVED_KEY = 'onnowtv-cw-removed-v1';
 const MAX_ENTRIES = 30;
 
 // All reads / writes go through profile-scoped helpers so each
@@ -134,6 +135,7 @@ export function getEntry(id) {
 
 export function upsert(partial) {
     if (!partial?.id) return;
+    clearTombstone(partial.id); // fresh playback = user wants it back
     const list = readAll();
     const i = list.findIndex((e) => e.id === partial.id);
     const now = Date.now();
@@ -147,8 +149,57 @@ export function upsert(partial) {
 }
 
 export function remove(id) {
-    const list = readAll().filter((e) => e.id !== id);
+    // v2.19.7 — removal must be PERMANENT.  Previously
+    // syncFromNative() (which runs on every Home mount) re-cloned /
+    // re-surfaced removed rows from the native player's progress map
+    // a couple of minutes later.  Two changes:
+    //   1) removing an entry removes EVERY entry of the same show
+    //      (series rows are keyed per-episode).
+    //   2) a tombstone {showPrefix: removedAt} is recorded; native
+    //      progress older than the tombstone is ignored.  A newer
+    //      genuine playback clears the tombstone (see upsert()).
+    const prefix = showPrefixOf(id) || id;
+    const list = readAll().filter(
+        (e) => (showPrefixOf(e.id) || e.id) !== prefix,
+    );
     writeAll(list);
+    const tombs = readTombstones();
+    tombs[prefix] = Date.now();
+    writeTombstones(tombs);
+}
+
+function readTombstones() {
+    try {
+        const raw = readScopedString(REMOVED_KEY);
+        const obj = raw ? JSON.parse(raw) : {};
+        return obj && typeof obj === 'object' ? obj : {};
+    } catch {
+        return {};
+    }
+}
+
+function writeTombstones(obj) {
+    try {
+        writeScopedString(REMOVED_KEY, JSON.stringify(obj));
+    } catch { /* ignore */ }
+}
+
+function isTombstoned(id, sinceTs) {
+    const prefix = showPrefixOf(id) || id;
+    const at = readTombstones()[prefix];
+    if (!at) return false;
+    // Native/incoming updates NEWER than the removal are legitimate
+    // (the user started watching again) — those un-tombstone.
+    return !(sinceTs && sinceTs > at);
+}
+
+function clearTombstone(id) {
+    const prefix = showPrefixOf(id) || id;
+    const tombs = readTombstones();
+    if (prefix in tombs) {
+        delete tombs[prefix];
+        writeTombstones(tombs);
+    }
 }
 
 /**
@@ -213,6 +264,7 @@ export function syncFromNative() {
             if (list.findIndex((e) => e.id === id) >= 0) continue;
             const p = map[id];
             if (!p || typeof p.positionMs !== 'number') continue;
+            if (isTombstoned(id, p.updatedAt)) continue; // user removed it
             const prefix = showPrefixOf(id);
             if (!prefix) continue;
             const sibling = list.find(
@@ -250,6 +302,7 @@ export function syncFromNative() {
             if (i < 0) continue;
             const p = map[id];
             if (!p || typeof p.positionMs !== 'number') continue;
+            if (isTombstoned(id, p.updatedAt)) continue; // user removed it
             const oldUpdated = list[i].updatedAt || 0;
             const newUpdated = p.updatedAt || Date.now();
             if (

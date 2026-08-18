@@ -36,12 +36,12 @@ export default function BootSplash({ minDurationMs = 1800, hardCapMs = 2200 }) {
         : 'Welcome to ON\u00A0NOW\u00A0V2';
     // Sunshine-yellow accent for Kids, hot pink for the Music app,
     // electric cyan for Trivia, the existing cyan for V2.
-    const accentColor       = kids ? '#FFD24A' : music ? '#FF5CA8' : trivia ? '#F97316' : 'var(--vesper-blue-bright, #5DC8FF)';
-    const accentGlow24      = kids ? 'rgba(255,210,74,0.55)' : music ? 'rgba(255,92,168,0.55)' : trivia ? 'rgba(249,115,22,0.55)' : 'rgba(93,200,255,0.55)';
-    const accentGlow60      = kids ? 'rgba(255,210,74,0.25)' : music ? 'rgba(255,92,168,0.25)' : trivia ? 'rgba(249,115,22,0.25)' : 'rgba(93,200,255,0.25)';
-    const wordmarkShadow    = kids ? '0 8px 60px rgba(255,210,74,0.28)' : music ? '0 8px 60px rgba(255,92,168,0.28)' : trivia ? '0 8px 60px rgba(249,115,22,0.28)' : '0 8px 60px rgba(93,200,255,0.28)';
-    const sweepColor        = kids ? 'rgba(255,210,74,0.85)' : music ? 'rgba(255,122,184,0.85)' : trivia ? 'rgba(251,146,60,0.85)' : 'rgba(93,200,255,0.85)';
-    const sweepShadow       = kids ? '0 0 12px rgba(255,210,74,0.45)' : music ? '0 0 12px rgba(255,92,168,0.45)' : trivia ? '0 0 12px rgba(249,115,22,0.45)' : '0 0 12px rgba(93,200,255,0.45)';
+    const accentColor       = kids ? '#FFD24A' : music ? '#FF5CA8' : trivia ? 'var(--vesper-blue, #5DC8FF)' : 'var(--vesper-blue-bright, #5DC8FF)';
+    const accentGlow24      = kids ? 'rgba(255,210,74,0.55)' : music ? 'rgba(255,92,168,0.55)' : trivia ? 'rgba(93,200,255,0.55)' : 'rgba(93,200,255,0.55)';
+    const accentGlow60      = kids ? 'rgba(255,210,74,0.25)' : music ? 'rgba(255,92,168,0.25)' : trivia ? 'rgba(93,200,255,0.25)' : 'rgba(93,200,255,0.25)';
+    const wordmarkShadow    = kids ? '0 8px 60px rgba(255,210,74,0.28)' : music ? '0 8px 60px rgba(255,92,168,0.28)' : trivia ? '0 8px 60px rgba(93,200,255,0.28)' : '0 8px 60px rgba(93,200,255,0.28)';
+    const sweepColor        = kids ? 'rgba(255,210,74,0.85)' : music ? 'rgba(255,122,184,0.85)' : trivia ? 'rgba(93,200,255,0.85)' : 'rgba(93,200,255,0.85)';
+    const sweepShadow       = kids ? '0 0 12px rgba(255,210,74,0.45)' : music ? '0 0 12px rgba(255,92,168,0.45)' : trivia ? '0 0 12px rgba(93,200,255,0.45)' : '0 0 12px rgba(93,200,255,0.45)';
     // Warmer backdrop for Kids so the splash matches the rest of
     // the kid-safe theme (grape/berry rather than blue navy).
     // v2.13.0 — Music gets a pink-tinted backdrop per user spec:
@@ -51,7 +51,7 @@ export default function BootSplash({ minDurationMs = 1800, hardCapMs = 2200 }) {
         : music
         ? 'radial-gradient(ellipse at 50% 35%, #47102e 0%, #170313 65%, #08020a 100%)'
         : trivia
-        ? 'radial-gradient(ellipse at 50% 35%, #2b1a10 0%, #0b0e14 65%, #060709 100%)'
+        ? 'radial-gradient(ellipse at 50% 35%, #0e2548 0%, #050912 65%, #02030A 100%)'
         : 'radial-gradient(ellipse at 50% 35%, #0e2548 0%, #050912 65%, #02030A 100%)';
 
     const [open, setOpen] = useState(true);

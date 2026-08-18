@@ -215,7 +215,7 @@ export default function TriviaPlay() {
                 iAnswered ? (
                     <div className="flex-1 flex flex-col items-center justify-center gap-3 relative" data-testid="phone-locked-in">
                         <span className="w-20 h-20 rounded-2xl flex items-center justify-center tri-mono text-4xl font-bold tri-pop"
-                            style={{ backgroundColor: 'var(--primary)', color: '#fff', boxShadow: '0 14px 40px var(--primary-glow)' }}>
+                            style={{ backgroundColor: 'var(--primary)', color: 'var(--on-primary)', boxShadow: '0 14px 40px var(--primary-glow)' }}>
                             {OPT_KEYS[picked]}
                         </span>
                         <h2 className="text-2xl font-bold">Locked in!</h2>

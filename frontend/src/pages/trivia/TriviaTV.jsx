@@ -1,8 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Camera, Check, Play, X } from 'lucide-react';
+import { Brain, Camera, Check, Clapperboard, FlaskConical, Globe2, Hand, Landmark, Music2, PawPrint, Play, Puzzle, Sparkles, Trophy, Tv, X, Zap } from 'lucide-react';
 import useTriviaSocket from './useTriviaSocket';
 import './trivia.css';
+
+const CAT_ICONS = {
+    everything: Sparkles, knowledge: Brain, film: Clapperboard, music: Music2,
+    tv: Tv, nature: FlaskConical, sport: Trophy, world: Globe2,
+    history: Landmark, animals: PawPrint, picture: Camera,
+};
+const MODE_ICONS = { classic: Brain, blitz: Zap, buzzer: Hand, puzzle: Puzzle };
 
 const API = process.env.REACT_APP_BACKEND_URL;
 const OPT_KEYS = ['A', 'B', 'C', 'D'];
@@ -231,23 +238,27 @@ export default function TriviaTV() {
 
             {phase === 'lobby' && (
                 <div className="grid grid-cols-12 gap-8 p-12 min-h-screen relative">
-                    <div className="col-span-4 tri-glass p-9 flex flex-col items-center gap-6 self-start">
-                        <h1 className="text-4xl font-bold tracking-tight">
+                    <div className="col-span-4 tri-glass p-9 flex flex-col items-center gap-5 self-start">
+                        <p className="tri-eyebrow">Party Game · Grab your phones</p>
+                        <h1 className="text-5xl font-bold tracking-tight">
                             ON NOW <span style={{ color: 'var(--primary)' }}>TRIVIA</span>
                         </h1>
-                        <p className="text-center text-xl leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                            Scan with your phone to join — it becomes your buzzer
+                        <p className="text-center text-lg leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                            Scan the code — your phone becomes the buzzer
                         </p>
-                        <div className="bg-white p-4 rounded-2xl shadow-2xl">
-                            {code && <QRCodeSVG value={joinUrl} size={216} data-testid="tv-qr" />}
+                        <div className="bg-white rounded-3xl" style={{ padding: 18, boxShadow: '0 0 0 6px rgba(93,200,255,0.25), 0 24px 60px rgba(0,0,0,0.5)' }}>
+                            {code && <QRCodeSVG value={joinUrl} size={256} data-testid="tv-qr" />}
                         </div>
-                        <div className="tri-mono text-6xl font-bold tracking-[0.25em] pl-2"
-                            style={{ color: 'var(--primary)' }} data-testid="tv-room-code">{code || '····'}</div>
+                        <p className="tri-eyebrow" style={{ letterSpacing: '0.4em' }}>Room code</p>
+                        <div className="tri-mono text-7xl font-bold tracking-[0.25em] pl-2 -mt-3"
+                            style={{ color: 'var(--primary)', textShadow: '0 0 40px var(--primary-glow)' }}
+                            data-testid="tv-room-code">{code || '····'}</div>
                         <p className="text-sm break-all text-center" style={{ color: 'var(--text-muted)' }}>{joinUrl}</p>
                     </div>
                     <div className="col-span-8 flex flex-col gap-7">
                         <div className="tri-glass p-7">
-                            <h2 className="tri-head text-3xl font-semibold mb-4">Category</h2>
+                            <p className="tri-eyebrow mb-1.5">Step 01</p>
+                            <h2 className="tri-head text-3xl font-semibold mb-4">Pick a category</h2>
                             {isPuzzle && (
                                 <p className="mb-4 text-xl" style={{ color: 'var(--text-muted)' }} data-testid="tv-puzzle-note">
                                     Puzzle Party brings its own mix — anagrams, emoji riddles and closest-number showdowns.
@@ -255,27 +266,35 @@ export default function TriviaTV() {
                             )}
                             <div className="flex flex-wrap gap-3"
                                 style={isPuzzle ? { opacity: 0.3, pointerEvents: 'none' } : undefined}>
-                                {(state?.categories || []).map((c) => (
-                                    <button key={c.id} data-tvfocus tabIndex={0}
-                                        data-testid={`tv-cat-${c.id}`}
-                                        onClick={() => pickCategory(c)}
-                                        className={`tri-chip px-5 py-3 font-semibold text-xl flex items-center gap-2.5 ${sel.category === c.id ? 'tri-chip-on' : ''}`}>
-                                        {c.picture && <Camera size={19} style={{ color: sel.category === c.id ? '#fff' : 'var(--secondary)' }} />}
-                                        {c.name}
-                                    </button>
-                                ))}
+                                {(state?.categories || []).map((c) => {
+                                    const Icon = CAT_ICONS[c.tag] || Sparkles;
+                                    return (
+                                        <button key={c.id} data-tvfocus tabIndex={0}
+                                            data-testid={`tv-cat-${c.id}`}
+                                            onClick={() => pickCategory(c)}
+                                            className={`tri-chip px-5 py-3 font-semibold text-xl flex items-center gap-2.5 ${sel.category === c.id ? 'tri-chip-on' : ''}`}>
+                                            <Icon size={19} style={{ color: sel.category === c.id ? 'var(--on-primary)' : 'var(--primary)' }} />
+                                            {c.name}
+                                        </button>
+                                    );
+                                })}
                             </div>
-                            <h2 className="tri-head text-3xl font-semibold mt-8 mb-4">Game mode</h2>
+                            <p className="tri-eyebrow mt-8 mb-1.5">Step 02</p>
+                            <h2 className="tri-head text-3xl font-semibold mb-4">Choose how you play</h2>
                             <div className="flex flex-wrap gap-3 items-center">
                                 {(state?.modes || []).map((m) => {
                                     const blocked = m.id === 'blitz' && isPicCat;
+                                    const MIcon = MODE_ICONS[m.id] || Brain;
                                     return (
                                         <button key={m.id} data-tvfocus tabIndex={0}
                                             data-testid={`tv-mode-${m.id}`}
                                             onClick={() => pickMode(m)}
-                                            className={`tri-chip tri-chip-alt px-5 py-3 font-semibold text-xl ${sel.mode === m.id ? 'tri-chip-on' : ''}`}
+                                            className={`tri-chip tri-chip-alt px-5 py-3 font-semibold text-xl flex items-center gap-2.5 ${sel.mode === m.id ? 'tri-chip-on' : ''}`}
                                             title={blocked ? 'Picture rounds are multiple-choice — blitz swaps back to Mixed Bag' : undefined}
-                                            style={{ opacity: blocked ? 0.45 : 1 }}>{m.label}</button>
+                                            style={{ opacity: blocked ? 0.45 : 1 }}>
+                                            <MIcon size={19} style={{ color: sel.mode === m.id ? 'var(--on-primary)' : 'var(--primary)' }} />
+                                            {m.label}
+                                        </button>
                                     );
                                 })}
                                 <span className="w-px h-9 mx-1" style={{ background: 'var(--border-subtle)' }} />
@@ -291,12 +310,13 @@ export default function TriviaTV() {
                                     disabled={!players.length}
                                     data-testid="tv-start-btn"
                                     className="ml-auto px-10 py-3.5 rounded-2xl font-bold text-2xl flex items-center gap-3 disabled:opacity-30 transition-transform hover:scale-[1.03]"
-                                    style={{ backgroundColor: 'var(--primary)', color: '#fff', boxShadow: '0 14px 40px var(--primary-glow)' }}>
-                                    <Play size={24} fill="#fff" /> Start
+                                    style={{ backgroundColor: 'var(--primary)', color: 'var(--on-primary)', boxShadow: '0 14px 40px var(--primary-glow)' }}>
+                                    <Play size={24} fill="currentColor" /> Start
                                 </button>
                             </div>
                         </div>
                         <div>
+                            <p className="tri-eyebrow mb-1.5">Step 03</p>
                             <h2 className="tri-head text-3xl font-semibold mb-4">
                                 Players <span style={{ color: 'var(--primary)' }}>{players.length}</span>
                             </h2>
@@ -427,7 +447,7 @@ export default function TriviaTV() {
                     <button data-tvfocus tabIndex={0} onClick={() => send({ type: 'back_to_lobby' })}
                         data-testid="tv-play-again-btn"
                         className="px-12 py-4 rounded-2xl font-bold text-2xl transition-transform hover:scale-[1.03]"
-                        style={{ backgroundColor: 'var(--primary)', color: '#fff', boxShadow: '0 14px 40px var(--primary-glow)' }}>
+                        style={{ backgroundColor: 'var(--primary)', color: 'var(--on-primary)', boxShadow: '0 14px 40px var(--primary-glow)' }}>
                         Play again
                     </button>
                 </div>

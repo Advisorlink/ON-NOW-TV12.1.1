@@ -3644,6 +3644,13 @@ async def tmdb_by_genres(
         for p in range(1, pages_per_genre + 1):
             tasks.append(_pull_genre(gid, p))
     for nid in neg_ids:
+        if nid == "-4":
+            # v2.19.7 — "In Cinema" synthetic genre: TMDB now-playing
+            # (AU region) instead of a keyword discover.
+            for p in range(1, pages_per_genre + 1):
+                tasks.append(_tmdb_get(
+                    f"/{media}/now_playing", {"page": str(p), "region": "AU"}))
+            continue
         kw = SYNTHETIC_KEYWORDS.get(nid)
         if not kw:
             continue

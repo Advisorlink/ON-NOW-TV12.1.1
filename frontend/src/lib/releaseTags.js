@@ -1,41 +1,22 @@
 import { API } from '@/lib/api';
 
 /**
- * v2.19.4 — Batched lookup of CINEMA / CAM COPY release tags for
+ * v2.19.4 — Batched lookup of CINEMA / HD / CAM release tags for
  * movie posters.  Tiles register their imdb id; a debounced batcher
  * fires ONE `/api/release-status?ids=...` call for the whole shelf.
- * Results cached in memory + sessionStorage (6h).
+ * v2.19.7 — in-memory cache ONLY (no sessionStorage): the user wants
+ * tags re-checked every time the app is opened.
  */
-const SS_KEY = 'vesper-release-tags-v2';
-const TTL_MS = 6 * 60 * 60 * 1000;
-
 const mem = new Map(); // imdbId -> { cinema: bool, quality: 'hd'|'cam' } | null
 const pending = new Map(); // imdbId -> [callbacks]
 let timer = null;
 
-(() => {
-    try {
-        const raw = JSON.parse(sessionStorage.getItem(SS_KEY) || 'null');
-        if (raw && Date.now() - raw.ts < TTL_MS) {
-            Object.entries(raw.map || {}).forEach(([k, v]) => mem.set(k, v));
-        }
-    } catch { /* ignore */ }
-})();
-
-function persist() {
-    try {
-        sessionStorage.setItem(SS_KEY, JSON.stringify({
-            ts: Date.now(),
-            map: Object.fromEntries(mem),
-        }));
-    } catch { /* ignore */ }
-}
-
 async function flush() {
     timer = null;
-    const batch = new Map(pending);
-    pending.clear();
-    const ids = [...batch.keys()].slice(0, 60);
+    const ids = [...pending.keys()].slice(0, 60);
+    const batch = new Map(ids.map((id) => [id, pending.get(id)]));
+    ids.forEach((id) => pending.delete(id));
+    if (pending.size) timer = setTimeout(flush, 200); // drain the tail
     if (!ids.length) return;
     let data = {};
     try {
@@ -47,7 +28,6 @@ async function flush() {
         mem.set(id, tag);
         cbs.forEach((cb) => { try { cb(tag); } catch { /* ignore */ } });
     });
-    persist();
 }
 
 export function getReleaseTag(imdbId, cb) {
