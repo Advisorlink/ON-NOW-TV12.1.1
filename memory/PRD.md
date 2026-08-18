@@ -1,4 +1,10 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.19.9 — FIXED: Live TV EPG dying after ~24 h (recurring, user-critical) (Jun 2026).**
+> - **Root cause (instant_bundle.py):** the 2-hourly XMLTV refresh published its result UNCONDITIONALLY — a timed-out / truncated / empty provider download replaced the good guide with an EMPTY EPG and still stamped `epg_fetched_at`, so the next attempt was 2 h away (and repeated provider flakiness kept the guide dead → the "EPG gone after 24 h" pattern).  Secondary finding: the legacy `epg_cache` scheduler is idle because every registered provider aged past its 30-day `last_seen` cutoff — harmless, since the native Live TV app uses `/api/xtream/instant-bundle`, but noted.
+> - **Fixes:** (1) sanity guard before publish — if a refresh parses < max(10, 25% of previous channel count), the OLD EPG is kept, a loud warning is logged, and the refresh raises; (2) failed refreshes now retry on a 5-minute backoff (`epg_retry_after`) instead of waiting 2 h, so a transient provider wobble self-heals within minutes.
+> - Verified: backend restart clean, bundle warm (13,904 channels / 3,207 EPG buckets, last_error null).  **Must be deployed to the production VPS (onnowhub.com) to take effect on the boxes.**
+>
+
 > **🟢 v2.19.8 — CINEMA/HD/CAM badges inside the "In Cinema" grid (and all tab grids) (Jun 2026).  VERIFIED in-browser (26 cinema / 6 HD / 23 cam in the grid).**
 > - Badge extracted to shared `components/ReleaseTagBadge.jsx` (`ReleaseTagBadge` + `useReleaseTag` + `releaseTagKey`); PosterTile refactored to use it; `MorphTileImpl` in TabGridView now renders it too.
 > - Backend `/api/release-status` accepts `tmdb:<id>` keys (skips the imdb find step) — the In Cinema synthetic catalog has no imdb ids; `releaseTagKey` derives `tmdb:` keys from `routePath /resolve/movie/<id>` or `cin-<id>`.

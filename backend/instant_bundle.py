@@ -663,6 +663,24 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
     # stale) restored copy for the entire warm-up window, so any
     # client that downloaded the bundle during that window got
     # nothing usable for its NOW-PLAYING pills.
+    # v2.19.9 — NEVER let a bad provider response wipe a good guide.
+    # A timed-out / truncated / empty XMLTV download used to publish
+    # an EMPTY EPG and stamp `epg_fetched_at`, killing the guide for
+    # hours (the "EPG gone after 24 h" bug).  If this refresh parsed
+    # drastically fewer channels than we already have, keep the old
+    # data and raise — the scheduler retries on a short backoff.
+    prev_epg = _state.get("epg") or {}
+    if len(by_stream_id) < max(10, len(prev_epg) // 4):
+        _state["last_error"] = (
+            f"epg: refresh parsed only {len(by_stream_id)} channels "
+            f"(previous {len(prev_epg)}) — kept previous EPG"
+        )
+        log.warning(
+            "instant_bundle: XMLTV refresh looks BROKEN (%d channels vs previous %d) — keeping old EPG, will retry",
+            len(by_stream_id), len(prev_epg),
+        )
+        raise RuntimeError(_state["last_error"])
+
     async with _state_lock:
         _state["epg"] = by_stream_id
         _state["epg_fetched_at"] = int(time.time())
@@ -874,13 +892,18 @@ async def _scheduler_loop() -> None:
                     except Exception as exc:  # noqa: BLE001
                         log.warning("instant_bundle: channels refresh failed: %s", exc)
                         _state["last_error"] = f"channels: {exc}"
-                # EPG stale → refresh EPG.
-                if now_sec - _state["epg_fetched_at"] >= EPG_REFRESH_SECS:
+                # EPG stale → refresh EPG (with a short backoff after
+                # failures so a flaky provider is retried within
+                # minutes, not hours — v2.19.9).
+                if (now_sec - _state["epg_fetched_at"] >= EPG_REFRESH_SECS
+                        and now_sec >= _state.get("epg_retry_after", 0)):
                     try:
                         await _refresh_epg(p)
+                        _state["epg_retry_after"] = 0
                     except Exception as exc:  # noqa: BLE001
                         log.warning("instant_bundle: EPG refresh failed: %s", exc)
                         _state["last_error"] = f"epg: {exc}"
+                        _state["epg_retry_after"] = now_sec + 300
         except Exception as exc:  # noqa: BLE001
             log.warning("instant_bundle: scheduler tick failed: %s", exc)
         await asyncio.sleep(TICK_SECS)
