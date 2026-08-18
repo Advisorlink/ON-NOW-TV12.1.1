@@ -1,4 +1,9 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.19.8 — CINEMA/HD/CAM badges inside the "In Cinema" grid (and all tab grids) (Jun 2026).  VERIFIED in-browser (26 cinema / 6 HD / 23 cam in the grid).**
+> - Badge extracted to shared `components/ReleaseTagBadge.jsx` (`ReleaseTagBadge` + `useReleaseTag` + `releaseTagKey`); PosterTile refactored to use it; `MorphTileImpl` in TabGridView now renders it too.
+> - Backend `/api/release-status` accepts `tmdb:<id>` keys (skips the imdb find step) — the In Cinema synthetic catalog has no imdb ids; `releaseTagKey` derives `tmdb:` keys from `routePath /resolve/movie/<id>` or `cin-<id>`.
+>
+
 > **🟢 v2.19.7 — Trivia Vesper reskin + CW delete fix + tag accuracy + "In Cinema" category (Jun 2026).  TESTED (iteration_86 backend 100% + code review; UI flows self-verified via screenshots).**
 > - **Trivia = Vesper look:** trivia.css tokens swapped to the Vesper system (navy radial `#0e2548→#02030a`, signal blue `#5dc8ff`, Geist/Geist Mono, `--on-primary #04121f`); lobby got mono eyebrows (PARTY GAME / ROOM CODE / STEP 01-03), lucide icons on every category+mode chip (CAT_ICONS/MODE_ICONS by tag), bigger glowing QR (256px, blue ring), glowing room code.  BootSplash trivia variant + APK colors/splash/icon → vesper blues.
 > - **Continue Watching delete is now permanent:** `remove()` deletes ALL entries of the show prefix + writes tombstone `onnowtv-cw-removed-v1` (scoped); `syncFromNative()` Pass 1/2 skip tombstoned ids unless native `updatedAt` is newer; `upsert()` clears the tombstone on fresh playback.  (Root cause of resurrection: native progress map re-cloning on Home mount.)

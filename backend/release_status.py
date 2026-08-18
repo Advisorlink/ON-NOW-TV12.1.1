@@ -26,14 +26,18 @@ _CACHE: dict[str, tuple[float, dict | None]] = {}
 _TTL = 6 * 3600
 
 
-async def _status_for(cli: httpx.AsyncClient, imdb_id: str) -> dict | None:
-    r = await cli.get(f"{_TMDB}/find/{imdb_id}", params={"external_source": "imdb_id"})
-    if r.status_code != 200:
-        return None
-    movie = (r.json().get("movie_results") or [None])[0]
-    if not movie:
-        return None
-    r2 = await cli.get(f"{_TMDB}/movie/{movie['id']}/release_dates")
+async def _status_for(cli: httpx.AsyncClient, key: str) -> dict | None:
+    if key.startswith("tmdb:"):
+        mid = key.split(":", 1)[1]
+    else:
+        r = await cli.get(f"{_TMDB}/find/{key}", params={"external_source": "imdb_id"})
+        if r.status_code != 200:
+            return None
+        movie = (r.json().get("movie_results") or [None])[0]
+        if not movie:
+            return None
+        mid = movie["id"]
+    r2 = await cli.get(f"{_TMDB}/movie/{mid}/release_dates")
     if r2.status_code != 200:
         return None
     # v2.19.7 — accuracy pass (user: some tags were wrong):
@@ -64,7 +68,7 @@ async def _status_for(cli: httpx.AsyncClient, imdb_id: str) -> dict | None:
     hd = bool(digital and digital <= now)
     if not hd:
         try:
-            r3 = await cli.get(f"{_TMDB}/movie/{movie['id']}/watch/providers")
+            r3 = await cli.get(f"{_TMDB}/movie/{mid}/watch/providers")
             if r3.status_code == 200:
                 for region in (r3.json().get("results") or {}).values():
                     if any(region.get(k) for k in ("flatrate", "rent", "buy", "free", "ads")):
@@ -86,7 +90,7 @@ async def release_status(ids: str = Query("")):
     todo: list[str] = []
     for raw in ids.split(","):
         i = raw.strip()
-        if not i.startswith("tt"):
+        if not (i.startswith("tt") or i.startswith("tmdb:")):
             continue
         hit = _CACHE.get(i)
         if hit and now - hit[0] < _TTL:

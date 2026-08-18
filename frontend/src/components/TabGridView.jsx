@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import * as img from '@/lib/img';
 import useLongPress from '@/hooks/useLongPress';
+import ReleaseTagBadge, { releaseTagKey, useReleaseTag } from '@/components/ReleaseTagBadge';
 import { useAddons } from '@/hooks/useAddons';
 import { useTabCatalog } from '@/hooks/useTabCatalog';
 import { useTabGenreCatalog } from '@/hooks/useTabGenreCatalog';
@@ -529,6 +530,9 @@ function LoadingOverlay({ type, testId, progress }) {
  * filled in once results stream in from useLiveShelves.
  */
 function MorphTileImpl({ item, navigate, onTapRecord }) {
+    // v2.19.8 — same CINEMA / HD / CAM glass badge as the home
+    // shelves, incl. the "In Cinema" synthetic catalog (tmdb: keys).
+    const releaseTag = useReleaseTag(releaseTagKey(item));
     const onTap = () => {
         if (!item) return;
         if (onTapRecord) onTapRecord(item);
@@ -583,6 +587,7 @@ function MorphTileImpl({ item, navigate, onTapRecord }) {
                 border: '1px solid rgba(255,255,255,0.05)',
             }}
         >
+            <ReleaseTagBadge tag={releaseTag} />
             {isReady && item.poster ? (
                 <img
                     src={img.poster(item.poster)}

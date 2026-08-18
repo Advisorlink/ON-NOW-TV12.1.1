@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import * as img from '@/lib/img';
 import { API } from '@/lib/api';
 import useLongPress from '@/hooks/useLongPress';
-import { getReleaseTag } from '@/lib/releaseTags';
+import ReleaseTagBadge, { releaseTagKey, useReleaseTag } from '@/components/ReleaseTagBadge';
 
 /**
  * Poster tile.  Image renders immediately on mount — we don't try
@@ -19,20 +19,8 @@ import { getReleaseTag } from '@/lib/releaseTags';
 export default function PosterTile({ item, onSelect, initialFocus = false }) {
     const navigate = useNavigate();
 
-    // v2.19.4 — CINEMA / CAM COPY tag on recent movie covers.  Only
-    // recent movies can be in a release window, so old titles skip
-    // the lookup entirely (keeps the batch tiny).
-    const [releaseTag, setReleaseTag] = React.useState(null);
-    React.useEffect(() => {
-        const id = item.imdbId;
-        if (!id || !String(id).startsWith('tt')) return undefined;
-        if ((item.type || 'movie') !== 'movie') return undefined;
-        const y = item.year || 0;
-        if (y && y < new Date().getFullYear() - 1) return undefined;
-        let on = true;
-        getReleaseTag(id, (t) => { if (on) setReleaseTag(t); });
-        return () => { on = false; };
-    }, [item.imdbId, item.type, item.year]);
+    // v2.19.4 — CINEMA / HD / CAM tag on recent movie covers.
+    const releaseTag = useReleaseTag(releaseTagKey(item));
 
     const onTap = () => {
         if (onSelect) {
@@ -166,55 +154,7 @@ export default function PosterTile({ item, onSelect, initialFocus = false }) {
                 </div>
             )}
 
-            {releaseTag && (releaseTag.cinema || releaseTag.quality) && (
-                <span
-                    className="vesper-mono absolute z-10 pointer-events-none flex flex-col items-start"
-                    style={{
-                        top: 8,
-                        left: 8,
-                        gap: 3,
-                        padding: '5px 10px',
-                        borderRadius: 10,
-                        background: 'rgba(8, 12, 18, 0.58)',
-                        backdropFilter: 'blur(14px)',
-                        WebkitBackdropFilter: 'blur(14px)',
-                        border: '1px solid rgba(255, 255, 255, 0.14)',
-                        boxShadow: '0 4px 18px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.08)',
-                        fontSize: 9,
-                        fontWeight: 700,
-                        letterSpacing: '0.15em',
-                        textTransform: 'uppercase',
-                        lineHeight: 1,
-                    }}
-                >
-                    {releaseTag.cinema && (
-                        <span data-testid="poster-tag-cinema" style={{ color: 'var(--vesper-blue)' }}>
-                            Cinema
-                        </span>
-                    )}
-                    {releaseTag.quality && (
-                        <span
-                            data-testid={`poster-tag-${releaseTag.quality}`}
-                            className="flex items-center"
-                            style={{
-                                gap: 5,
-                                color: releaseTag.quality === 'hd' ? '#4ADE80' : '#FBBF24',
-                            }}
-                        >
-                            <i
-                                style={{
-                                    width: 4,
-                                    height: 4,
-                                    borderRadius: 99,
-                                    background: 'currentColor',
-                                    boxShadow: '0 0 6px currentColor',
-                                }}
-                            />
-                            {releaseTag.quality === 'hd' ? 'HD' : 'Cam'}
-                        </span>
-                    )}
-                </span>
-            )}
+            <ReleaseTagBadge tag={releaseTag} />
 
             <div
                 className="absolute inset-x-0 bottom-0 h-2/5 pointer-events-none"
