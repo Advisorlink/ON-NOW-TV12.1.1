@@ -1,4 +1,8 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.19.6 — Cover tags restyled to premium frosted-glass badge (Jun 2026).  VERIFIED in-browser on Home.**
+> - User: solid pills looked "cheap and nasty" — replaced with ONE glass badge per cover (top-left): dark blur `rgba(8,12,18,0.58)` + `backdrop-filter: blur(14px)`, hairline white border, inset top highlight.  Line 1 "CINEMA" in `var(--vesper-blue)`; line 2 a glowing status dot + "HD" (#4ADE80) or "CAM" (#FBBF24) as coloured TEXT (no colour blocks).  Testids unchanged (`poster-tag-cinema/hd/cam`).
+>
+
 > **🟢 v2.19.5 — Movies cover tags upgraded to stacked CINEMA + HD/CAM (Jun 2026).  VERIFIED in-browser (28 cinema / 16 HD / 12 cam tags on Home).**
 > - Per user: the tag must say whether it's in the cinema, and UNDERNEATH say **HD** or **CAM** so the copy quality is obvious; cinema pill = the profile-selection accent colour; quality pill in different colours.
 > - Backend `release_status.py` now returns objects: `{"cinema": bool, "quality": "hd"|"cam"}` — in-cinema window widened to ≤60 days since wide theatrical (regardless of digital), `quality: "hd"` once a digital/physical release exists else `"cam"`; standalone `{"cinema": false, "quality": "cam"}` for 61-210-day no-digital titles; null otherwise.
