@@ -11980,3 +11980,21 @@ User feedback: popup gone, box opens apps without PLAYING, connection slow (no W
 **User must:** redeploy launcher-backend (VPS) + frontend, rebuild/install Live TV APK and Launcher APK (Vesper APK also pending from v2.18.3 for swap-stream/subtitles).
 
 Self-tested: movie sheet → Play on TV → toast; series sheet → Seasons & episodes → series page. JS/JSX/Kotlin syntax verified.
+
+---
+
+## v2.19.8 — Movie release-tag accuracy rewrite (Aug 2026)
+
+User: tags hallucinating ("The End of Oak Street" = Cinema?, "One Night Only" = HD while unreleased). User spec: "check the LINK to know if the cover is HD or not."
+
+**Rewrote /app/backend/release_status.py:**
+1. **CINEMA** = movie id is on TMDB `now_playing` (region AU+US, 3 pages each, cached 12h in `_NP`). Same source as the "In Cinema" shelf → shelf & tags always agree. No more type-3-date guessing.
+2. **HD/CAM** = from the REAL stream links: lazy `import server` → `server.streams_aggregate("movie", imdb)` (25s cap), classify each playable stream (url/infoHash only — watchhub rent/buy externalUrl excluded) by release-name tokens: `_CAM_RE` (cam/hdts/telesync/dvdscr…) vs `_HD_RE` (web-dl/bluray/1080p…). Streams from Torrentio/EasyNews with no token = HD (user's Torrentio URL config already has `qualityfilter=scr,cam,unknown,480p,720p`). Any HD stream beats stray cams.
+3. **Unreleased** (no past theatrical + not now-playing) → null, ALWAYS. Old titles (theatrical >240d) / digital out >45d → null. Recent non-cinema title only tagged when ONLY cams exist → `{"cinema":false,"quality":"cam"}`. In-cinema + no streams → `{"cinema":true,"quality":null}` (badge renders CINEMA only — frontend already handles null quality).
+4. Removed the watch-providers "HD" hack (source of the One Night Only false HD).
+
+**Verified:** unreleased (Avengers Doomsday, Dune 3) → null; digital-out recent (Project Hail Mary, Michael) → null; old (Inception) → null; both user-named titles → `{"cinema":true}` (both ARE in cinemas since Aug 12-14 per TMDB). Token classifier unit-tested (8/8). UI screenshot: 48/48 In-Cinema tiles show CINEMA chip, 0 false HD/CAM.
+
+**Preview limitation:** torrentio.strem.fun returns 403 (Cloudflare) from this pod → quality is null in preview; HD/CAM resolves in the user's production deployment where Torrentio is reachable.
+
+**Testing-flow note:** profiles are cloud-synced; locally seeded localStorage profiles get wiped on reload. To reach gated routes in playwright: login → create profile via 6-step wizard (`profile-name-next`, `avatar-pick-*`, "Yes, save", `profile-theme-next`, `viewing-style-skip`) → click profile tile → skip Welcome Tour (SKIP btn) → client-side navigate (NO page.goto reloads).
