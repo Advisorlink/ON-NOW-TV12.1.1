@@ -6,10 +6,10 @@ import { API } from '@/lib/api';
  * fires ONE `/api/release-status?ids=...` call for the whole shelf.
  * Results cached in memory + sessionStorage (6h).
  */
-const SS_KEY = 'vesper-release-tags-v1';
+const SS_KEY = 'vesper-release-tags-v2';
 const TTL_MS = 6 * 60 * 60 * 1000;
 
-const mem = new Map(); // imdbId -> 'cinema' | 'cam' | null
+const mem = new Map(); // imdbId -> { cinema: bool, quality: 'hd'|'cam' } | null
 const pending = new Map(); // imdbId -> [callbacks]
 let timer = null;
 

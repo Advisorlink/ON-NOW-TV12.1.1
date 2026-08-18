@@ -22,11 +22,11 @@ log = logging.getLogger("release_status")
 router = APIRouter(prefix="/api")
 
 _TMDB = "https://api.themoviedb.org/3"
-_CACHE: dict[str, tuple[float, str | None]] = {}
+_CACHE: dict[str, tuple[float, dict | None]] = {}
 _TTL = 12 * 3600
 
 
-async def _status_for(cli: httpx.AsyncClient, imdb_id: str) -> str | None:
+async def _status_for(cli: httpx.AsyncClient, imdb_id: str) -> dict | None:
     r = await cli.get(f"{_TMDB}/find/{imdb_id}", params={"external_source": "imdb_id"})
     if r.status_code != 200:
         return None
@@ -62,20 +62,22 @@ async def _status_for(cli: httpx.AsyncClient, imdb_id: str) -> str | None:
     now = datetime.now(timezone.utc)
     if not theatrical or theatrical > now:
         return None
-    if digital and digital <= now:
-        return None  # good copy exists
     days = (now - theatrical).days
-    if days <= 28:
-        return "cinema"
-    if days <= 210:
-        return "cam"
-    return None  # old title with incomplete TMDB data — don't tag
+    in_cinema = days <= 60  # typical theatrical run
+    hd = bool(digital and digital <= now)  # a good copy exists
+    if in_cinema:
+        # v2.19.5 — stacked tag: CINEMA + the copy quality underneath
+        # ("HD" once a digital release exists, else "CAM").
+        return {"cinema": True, "quality": "hd" if hd else "cam"}
+    if not hd and days <= 210:
+        return {"cinema": False, "quality": "cam"}
+    return None  # good copy out / old title — no tag
 
 
 @router.get("/release-status")
 async def release_status(ids: str = Query("")):
     now = time.time()
-    out: dict[str, str | None] = {}
+    out: dict[str, dict | None] = {}
     todo: list[str] = []
     for raw in ids.split(","):
         i = raw.strip()

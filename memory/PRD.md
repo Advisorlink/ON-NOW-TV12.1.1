@@ -1,4 +1,10 @@
 # ON NOW TV V2 — PRD
+> **🟢 v2.19.5 — Movies cover tags upgraded to stacked CINEMA + HD/CAM (Jun 2026).  VERIFIED in-browser (28 cinema / 16 HD / 12 cam tags on Home).**
+> - Per user: the tag must say whether it's in the cinema, and UNDERNEATH say **HD** or **CAM** so the copy quality is obvious; cinema pill = the profile-selection accent colour; quality pill in different colours.
+> - Backend `release_status.py` now returns objects: `{"cinema": bool, "quality": "hd"|"cam"}` — in-cinema window widened to ≤60 days since wide theatrical (regardless of digital), `quality: "hd"` once a digital/physical release exists else `"cam"`; standalone `{"cinema": false, "quality": "cam"}` for 61-210-day no-digital titles; null otherwise.
+> - `PosterTile.jsx` renders a stacked column top-left: **CINEMA** pill in `var(--vesper-blue)` (#5DC8FF — same as profile picker) with dark text, then **HD** (green #22C55E) or **CAM** (amber) beneath.  Testids: `poster-tag-cinema`, `poster-tag-hd`, `poster-tag-cam`.  `releaseTags.js` cache key bumped to v2 for the new shape.
+>
+
 > **🟢 v2.19.4 — TRIVIA polish batch + Vesper CINEMA / CAM COPY cover tags (Jun 2026).  FULLY TESTED (iteration_85: backend+frontend 100%; trivia pieces self-tested in browser).**
 >
 > ### Trivia (all user-requested)

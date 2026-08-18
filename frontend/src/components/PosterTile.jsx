@@ -166,27 +166,52 @@ export default function PosterTile({ item, onSelect, initialFocus = false }) {
                 </div>
             )}
 
-            {releaseTag && (
+            {releaseTag && (releaseTag.cinema || releaseTag.quality) && (
                 <span
-                    className="vesper-mono absolute z-10 pointer-events-none"
-                    data-testid={`poster-tag-${releaseTag}`}
-                    style={{
-                        top: 8,
-                        left: 8,
-                        fontSize: 9,
-                        fontWeight: 700,
-                        letterSpacing: '0.16em',
-                        textTransform: 'uppercase',
-                        padding: '3px 8px',
-                        borderRadius: 6,
-                        color: '#fff',
-                        background: releaseTag === 'cinema'
-                            ? 'rgba(79, 70, 229, 0.95)'
-                            : 'rgba(202, 96, 8, 0.95)',
-                        boxShadow: '0 2px 12px rgba(0,0,0,0.55)',
-                    }}
+                    className="absolute z-10 pointer-events-none flex flex-col items-start gap-1"
+                    style={{ top: 8, left: 8 }}
                 >
-                    {releaseTag === 'cinema' ? 'Cinema' : 'Cam Copy'}
+                    {releaseTag.cinema && (
+                        <span
+                            className="vesper-mono"
+                            data-testid="poster-tag-cinema"
+                            style={{
+                                fontSize: 9,
+                                fontWeight: 700,
+                                letterSpacing: '0.16em',
+                                textTransform: 'uppercase',
+                                padding: '3px 8px',
+                                borderRadius: 6,
+                                // Same accent as the profile-selection screen.
+                                background: 'var(--vesper-blue)',
+                                color: '#06121c',
+                                boxShadow: '0 2px 12px rgba(0,0,0,0.55)',
+                            }}
+                        >
+                            Cinema
+                        </span>
+                    )}
+                    {releaseTag.quality && (
+                        <span
+                            className="vesper-mono"
+                            data-testid={`poster-tag-${releaseTag.quality}`}
+                            style={{
+                                fontSize: 9,
+                                fontWeight: 700,
+                                letterSpacing: '0.16em',
+                                textTransform: 'uppercase',
+                                padding: '3px 8px',
+                                borderRadius: 6,
+                                background: releaseTag.quality === 'hd'
+                                    ? 'rgba(34, 197, 94, 0.95)'
+                                    : 'rgba(202, 96, 8, 0.95)',
+                                color: '#fff',
+                                boxShadow: '0 2px 12px rgba(0,0,0,0.55)',
+                            }}
+                        >
+                            {releaseTag.quality === 'hd' ? 'HD' : 'Cam'}
+                        </span>
+                    )}
                 </span>
             )}
 
