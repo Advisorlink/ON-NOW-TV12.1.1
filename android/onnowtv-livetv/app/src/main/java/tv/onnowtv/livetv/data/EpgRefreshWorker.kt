@@ -88,13 +88,26 @@ class EpgRefreshWorker(
                 ) { _, _ -> /* no UI to drive — silent worker */ }
             } catch (t: Throwable) {
                 writer.abort()
-                throw t
+                Log.w(TAG, "XMLTV direct fetch failed: ${t.message} — trying backend EPG fallback")
+                null
             }
 
-            if (parsed.totalProgrammes == 0) {
-                writer.abort()
-                Log.w(TAG, "refresh returned 0 programmes — keeping previous cache")
-                return Result.retry()
+            if (parsed == null || parsed.totalProgrammes == 0) {
+                if (parsed != null) {
+                    writer.abort()
+                    Log.w(TAG, "refresh returned 0 programmes — trying backend EPG fallback")
+                }
+                // v2.19.10 — THE GUIDE MUST NEVER DIE.  The direct
+                // xmltv.php download (145 MB from the provider) is the
+                // fragile link: when the provider throttles/firewalls
+                // it, this worker used to just Result.retry() the same
+                // dead path forever while the disk cache aged out —
+                // the "EPG gone after 24 h" blackout.  The backend
+                // keeps its own pre-warmed, gzip-cached EPG (refreshed
+                // server-side every 2 h with wipe guards), so merge its
+                // window instead and stamp the cache fresh.
+                val merged = mergeBackendEpg(ctx, wantedIds)
+                return if (merged >= MIN_FALLBACK_CHANNELS) Result.success() else Result.retry()
             }
 
             // Commit the new cache to disk.  EpgActivity will pick
@@ -116,21 +129,7 @@ class EpgRefreshWorker(
             // the instant the app opens — with no network wait.
             // mergeChannel() UNION-merges, so multi-day XMLTV guides
             // are never truncated by this window.
-            try {
-                val epgOnly = XtreamRepository.fetchEpgOnlyMap(
-                    windowHours = 8,
-                    keepIds = wantedIds,
-                )
-                var merged = 0
-                for ((sid, progs) in epgOnly) {
-                    if (progs.isEmpty()) continue
-                    EpgCache.mergeChannel(ctx, sid, progs)
-                    merged++
-                }
-                Log.i(TAG, "epg-only merge: refreshed $merged channels")
-            } catch (t: Throwable) {
-                Log.w(TAG, "epg-only merge failed (non-fatal): ${t.message}")
-            }
+            mergeBackendEpg(ctx, wantedIds)
             Result.success()
         } catch (t: Throwable) {
             Log.w(TAG, "refresh failed: ${t.message}")
@@ -138,8 +137,38 @@ class EpgRefreshWorker(
         }
     }
 
+    /** v2.19.10 — Merge the backend's pre-warmed 8 h EPG window into
+     *  the on-disk cache (union merge — never truncates multi-day
+     *  XMLTV guides).  Returns the number of channels merged (0 on
+     *  failure).  Stamps the cache timestamp fresh when the merge is
+     *  substantial so the boot staleness check passes. */
+    private suspend fun mergeBackendEpg(ctx: Context, wantedIds: Set<String>): Int {
+        return try {
+            val epgOnly = XtreamRepository.fetchEpgOnlyMap(
+                windowHours = 8,
+                keepIds = wantedIds,
+            )
+            var merged = 0
+            for ((sid, progs) in epgOnly) {
+                if (progs.isEmpty()) continue
+                EpgCache.mergeChannel(ctx, sid, progs)
+                merged++
+            }
+            if (merged >= MIN_FALLBACK_CHANNELS) EpgCache.touchTimestamp(ctx)
+            Log.i(TAG, "backend epg-only merge: refreshed $merged channels")
+            merged
+        } catch (t: Throwable) {
+            Log.w(TAG, "backend epg-only merge failed: ${t.message}")
+            0
+        }
+    }
+
     companion object {
         private const val TAG = "EpgRefreshWorker"
+
+        /** Minimum channels a backend epg-only merge must produce to
+         *  count as a SUCCESSFUL refresh (stamps the cache fresh). */
+        private const val MIN_FALLBACK_CHANNELS = 100
         const val UNIQUE_NAME = "onnowtv.livetv.epg-refresh"
         const val UNIQUE_NAME_ONESHOT = "onnowtv.livetv.epg-refresh-now"
         const val TAG_WORK = "onnowtv-epg-refresh"

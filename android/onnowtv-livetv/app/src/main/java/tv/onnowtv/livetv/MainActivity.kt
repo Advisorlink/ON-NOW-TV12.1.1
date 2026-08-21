@@ -826,6 +826,29 @@ class MainActivity : AppCompatActivity() {
                     channels = patchedChannels,
                     epg = emptyMap(),
                 )
+            } else {
+                // v2.19.10 — XMLTV direct download failed on first
+                // launch: fill the guide from the backend's pre-warmed
+                // gzip EPG cache instead of leaving every row stuck on
+                // "Loading guide…" with an empty What's On hub.
+                try {
+                    headline.text = "Loading guide from server…"
+                    substatus.text = "Provider guide unavailable — using cached server guide"
+                    val epgOnly = tv.onnowtv.livetv.data.XtreamRepository.fetchEpgOnlyMap(
+                        windowHours = 8,
+                        keepIds = wantedChannelIds,
+                    )
+                    var merged = 0
+                    for ((sid, progs) in epgOnly) {
+                        if (progs.isEmpty()) continue
+                        EpgCache.mergeChannel(applicationContext, sid, progs)
+                        merged++
+                    }
+                    if (merged > 0) EpgCache.touchTimestamp(applicationContext)
+                    Log.i("MainActivity", "backend EPG fallback: $merged channels merged")
+                } catch (t: Throwable) {
+                    Log.w("MainActivity", "backend EPG fallback failed: ${t.message}")
+                }
             }
         }
 

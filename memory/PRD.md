@@ -11998,3 +11998,23 @@ User: tags hallucinating ("The End of Oak Street" = Cinema?, "One Night Only" = 
 **Preview limitation:** torrentio.strem.fun returns 403 (Cloudflare) from this pod → quality is null in preview; HD/CAM resolves in the user's production deployment where Torrentio is reachable.
 
 **Testing-flow note:** profiles are cloud-synced; locally seeded localStorage profiles get wiped on reload. To reach gated routes in playwright: login → create profile via 6-step wizard (`profile-name-next`, `avatar-pick-*`, "Yes, save", `profile-theme-next`, `viewing-style-skip`) → click profile tile → skip Welcome Tour (SKIP btn) → client-side navigate (NO page.goto reloads).
+
+---
+
+## v2.19.10 — EPG "dies after 24h" ROOT CAUSE + PERMANENT FIX (Aug 2026)
+
+**Smoking gun (verified live):** the provider's `xmltv.php` (njala.ddns.me:8443) returns **404 from non-whitelisted IPs** (confirmed from preview pod; the onnowhub VPS still succeeds). The Android box's ONLY bulk EPG refresh was that direct 145 MB XMLTV download → when it fails, `EpgRefreshWorker` just `Result.retry()`'d the same dead path forever, disk cache aged out → after ~24 h every row = "Loading guide…", What's On empty. The >24 h boot safety net re-kicked the SAME failing path, so it never self-healed.
+
+**Client fixes (onnowtv-livetv):**
+1. `EpgRefreshWorker`: XMLTV failure/0-programmes now falls back to `mergeBackendEpg()` → backend `/api/xtream/instant-bundle/epg-only?window_hours=8` (1.3 MB gz), union-merged per channel; `EpgCache.touchTimestamp()` stamps cache fresh when ≥100 channels merged (MIN_FALLBACK_CHANNELS) so the staleness loop stops spinning. Success-path 8 h merge refactored into the same helper.
+2. `MainActivity` slow path: `parseResult == null` (first-install XMLTV failure) now fills the guide from the same backend fallback instead of leaving it blank.
+3. `EpgCache.touchTimestamp()` added. Client `epgChannelId` = stream_id = backend epg map key (verified XtreamRepository line 211).
+
+**Backend hardening (instant_bundle.py):**
+1. Channels wipe guard: refuse to publish/persist < max(50, prev/4) channels (empty/auth-hiccup response used to persist an EMPTY bundle) + 300 s channels retry backoff.
+2. Scheduler task now held in module-level strong ref (`_scheduler_task`) + 5-min watchdog restarts it if it dies (bare create_task GC footgun).
+3. Mongo persist: EPG blob now chunked into `v1:epg:N` side-docs of ≤10 MB (`_EPG_CHUNK_BYTES`) — single doc used to flirt with the 16 MB cap; oversize persist failed silently → cold boots. Restore reassembles chunks, legacy single-doc path kept.
+
+**Verified:** py syntax + boot + meta healthy (13991 ch / 3241 epg), chunked persist+restore round-trip PASS (7 chunks, byte-identical) + legacy restore PASS, kt brace checks pass (kotlinc 1.3 on pod false-positives on trailing commas — ignore; CI uses modern Kotlin), epg-only endpoint 200/1.3 MB gz.
+
+**Deploy note:** user must REBUILD the Live TV APK (CI) and redeploy the VPS backend to get these fixes.

@@ -330,6 +330,23 @@ object EpgCache {
         }
     }
 
+    /** v2.19.10 — Stamp the cache fresh after a successful
+     *  BACKEND-sourced refresh (epg-only merge).  Without this the
+     *  boot staleness check kept seeing a >24 h-old timestamp and
+     *  re-kicked the (failing) direct XMLTV path forever. */
+    fun touchTimestamp(ctx: Context) {
+        try {
+            cacheDir(ctx).mkdirs()
+            if (!schemaFile(ctx).exists()) {
+                schemaFile(ctx).writeText(CURRENT_SCHEMA_VERSION.toString())
+            }
+            tsFile(ctx).writeText(System.currentTimeMillis().toString())
+            doneFile(ctx).writeText(System.currentTimeMillis().toString())
+        } catch (t: Throwable) {
+            Log.w(TAG, "touchTimestamp failed: ${t.message}")
+        }
+    }
+
     /** v2.9.11 — Wipe the cache (used on sign-out). */
     fun delete(ctx: Context) {
         val dir = cacheDir(ctx)

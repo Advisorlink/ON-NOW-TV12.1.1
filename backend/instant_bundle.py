@@ -52,6 +52,7 @@ EPG_REFRESH_SECS      = 2 * 3600   # 2 hours
 TICK_SECS             = 60         # how often the scheduler wakes up
 HTTP_TIMEOUT          = httpx.Timeout(connect=8.0, read=60.0, write=10.0, pool=10.0)
 EPG_HORIZON_SECS      = 72 * 3600  # 3 days of EPG so users can browse "what's on Saturday"
+_EPG_CHUNK_BYTES      = 10 * 1024 * 1024  # Mongo side-doc chunk size (16 MB cap headroom)
 
 # ---------------------------------------------------------------------------
 # Module-level state
@@ -96,6 +97,9 @@ PRIORITY_REGION_TOKENS = (
 _state_lock = asyncio.Lock()
 _collection: Optional[AsyncIOMotorCollection] = None
 _admin_token: str = ""
+# v2.19.10 — strong refs so the scheduler task can't be GC'd.
+_scheduler_task: Optional[asyncio.Task] = None
+_watchdog_task: Optional[asyncio.Task] = None
 
 router = APIRouter(prefix="/api/xtream", tags=["xtream-bundle"])
 
@@ -308,11 +312,12 @@ async def _rebuild_cached_payload() -> None:
 async def _persist() -> None:
     """Persist the current bundle to MongoDB.
 
-    Channels + EPG together can be > 16 MB raw (the MongoDB single-
-    document hard cap), so we gzip the heavy payload columns
-    individually.  Compression ratio on schedule/JSON data is
-    typically 5-10x so the on-disk doc lands comfortably under
-    the limit.
+    v2.19.10 — The EPG blob is stored in SIDE-DOCUMENTS of ≤10 MB
+    each.  Channels + EPG in one doc used to flirt with the 16 MB
+    MongoDB single-document hard cap; a weekend-sport EPG pushing
+    the doc over the limit made `replace_one` fail (a one-line
+    warning nobody sees), so every restart after that booted COLD —
+    another path to the "guide blank after 24 h" blackout.
     """
     if _collection is None:
         return
@@ -328,12 +333,15 @@ async def _persist() -> None:
         json.dumps(_state["categories"], separators=(",", ":")).encode("utf-8"),
         compresslevel=6,
     )
+    chunks = [epg_blob[i:i + _EPG_CHUNK_BYTES]
+              for i in range(0, len(epg_blob), _EPG_CHUNK_BYTES)] or [b""]
     doc = {
         "_id":                  "v1",
-        # Gzipped columns (the new path).
         "categories_gz":        cats_blob,
         "channels_gz":          chans_blob,
-        "epg_gz":               epg_blob,
+        # EPG lives in v1:epg:N side-docs now (see epg_chunks).
+        "epg_gz":               None,
+        "epg_chunks":           len(chunks),
         # Legacy keys cleared so old readers fall through to the
         # _gz path.  We don't write the plain dicts any more.
         "categories":           [],
@@ -344,7 +352,21 @@ async def _persist() -> None:
         "epg_fetched_at":       _state["epg_fetched_at"],
     }
     try:
+        for i, chunk in enumerate(chunks):
+            await _collection.replace_one(
+                {"_id": f"v1:epg:{i}"},
+                {"_id": f"v1:epg:{i}", "blob": chunk},
+                upsert=True,
+            )
+        # Sweep stale higher-numbered chunks from a previous larger EPG.
+        await _collection.delete_many(
+            {"_id": {"$in": [f"v1:epg:{i}" for i in range(len(chunks), 64)]}}
+        )
         await _collection.replace_one({"_id": "v1"}, doc, upsert=True)
+        log.info(
+            "instant_bundle: persisted (chans_gz=%dKB epg_gz=%dKB in %d chunks)",
+            len(chans_blob) // 1024, len(epg_blob) // 1024, len(chunks),
+        )
     except Exception as exc:  # noqa: BLE001
         log.warning(
             "instant_bundle: persist failed (cats_gz=%dKB chans_gz=%dKB epg_gz=%dKB): %s",
@@ -373,10 +395,29 @@ async def _restore_from_db() -> None:
         return
     if not doc:
         return
+    # v2.19.10 — Reassemble the chunked EPG side-docs when present;
+    # fall back to the legacy single-doc `epg_gz` / `epg` fields.
+    epg_restored: Any = None
+    n_chunks = int(doc.get("epg_chunks") or 0)
+    if n_chunks > 0:
+        try:
+            parts: List[bytes] = []
+            for i in range(n_chunks):
+                cd = await _collection.find_one({"_id": f"v1:epg:{i}"})
+                if not cd or cd.get("blob") is None:
+                    raise RuntimeError(f"missing epg chunk {i}/{n_chunks}")
+                parts.append(bytes(cd["blob"]))
+            blob = b"".join(parts)
+            if blob:
+                epg_restored = json.loads(gzip.decompress(blob).decode("utf-8"))
+        except Exception as exc:  # noqa: BLE001
+            log.warning("instant_bundle: epg chunk restore failed: %s", exc)
+            epg_restored = None
     async with _state_lock:
         _state["categories"]          = _maybe_decode(doc, "categories", [])
         _state["channels"]            = _maybe_decode(doc, "channels",   [])
-        _state["epg"]                 = _maybe_decode(doc, "epg",        {})
+        _state["epg"]                 = (epg_restored if epg_restored is not None
+                                         else _maybe_decode(doc, "epg", {}))
         _state["generated_at"]        = int(doc.get("generated_at")        or 0)
         _state["channels_fetched_at"] = int(doc.get("channels_fetched_at") or 0)
         _state["epg_fetched_at"]      = int(doc.get("epg_fetched_at")      or 0)
@@ -457,7 +498,7 @@ async def _refresh_channels(p: Dict[str, Any]) -> None:
     ]
     channels = []
     for s in (streams_raw or []):
-        if not s or s.get("stream_id") is None:
+        if not isinstance(s, dict) or s.get("stream_id") is None:
             continue
         sid = str(s.get("stream_id"))
         channels.append({
@@ -469,6 +510,22 @@ async def _refresh_channels(p: Dict[str, Any]) -> None:
             "tv_archive":     int(s.get("tv_archive") or 0),
             "stream_url":     _build_stream_url(p, sid, ext="ts"),
         })
+
+    # v2.19.10 — NEVER let a bad provider response wipe the channel
+    # list.  An auth hiccup / empty / truncated get_live_streams used
+    # to publish (and PERSIST!) an empty bundle — killing the whole
+    # guide ("Loading channels…") until the next successful refresh.
+    prev_channels = _state.get("channels") or []
+    if len(channels) < max(50, len(prev_channels) // 4):
+        _state["last_error"] = (
+            f"channels: refresh returned only {len(channels)} channels "
+            f"(previous {len(prev_channels)}) — kept previous list"
+        )
+        log.warning(
+            "instant_bundle: channels refresh looks BROKEN (%d vs previous %d) — keeping old list, will retry",
+            len(channels), len(prev_channels),
+        )
+        raise RuntimeError(_state["last_error"])
 
     async with _state_lock:
         _state["categories"]          = categories
@@ -885,13 +942,17 @@ async def _scheduler_loop() -> None:
             p = _provider_from_env()
             if p:
                 now_sec = int(time.time())
-                # First-run / channels stale → refresh channels.
-                if now_sec - _state["channels_fetched_at"] >= CHANNELS_REFRESH_SECS:
+                # First-run / channels stale → refresh channels (with
+                # a short backoff after failures — v2.19.10).
+                if (now_sec - _state["channels_fetched_at"] >= CHANNELS_REFRESH_SECS
+                        and now_sec >= _state.get("channels_retry_after", 0)):
                     try:
                         await _refresh_channels(p)
+                        _state["channels_retry_after"] = 0
                     except Exception as exc:  # noqa: BLE001
                         log.warning("instant_bundle: channels refresh failed: %s", exc)
                         _state["last_error"] = f"channels: {exc}"
+                        _state["channels_retry_after"] = now_sec + 300
                 # EPG stale → refresh EPG (with a short backoff after
                 # failures so a flaky provider is retried within
                 # minutes, not hours — v2.19.9).
@@ -910,8 +971,16 @@ async def _scheduler_loop() -> None:
 
 
 def start_scheduler(admin_token: str = "") -> None:
-    """Kick off the background scheduler.  Called from FastAPI startup."""
-    global _admin_token
+    """Kick off the background scheduler.  Called from FastAPI startup.
+
+    v2.19.10 — The scheduler task is now held in a MODULE-LEVEL strong
+    reference (bare `asyncio.create_task` results can be garbage-
+    collected mid-run — a classic asyncio footgun that silently kills
+    the refresh loop) AND babysat by a watchdog that restarts it if it
+    ever dies for any reason.  A dead scheduler was one path to the
+    "EPG gone after 24 h" blackout: refreshes stop, the cached guide
+    ages out, and nothing ever heals it until a process restart."""
+    global _admin_token, _scheduler_task, _watchdog_task
     _admin_token = admin_token or os.environ.get("XTREAM_ADMIN_TOKEN", "")
 
     async def _boot() -> None:
@@ -931,7 +1000,27 @@ def start_scheduler(admin_token: str = "") -> None:
                 _state["last_error"] = f"startup-channels: {exc}"
         await _scheduler_loop()
 
-    asyncio.create_task(_boot())
+    def _spawn() -> None:
+        global _scheduler_task
+        _scheduler_task = asyncio.create_task(_boot())
+
+    async def _watchdog() -> None:
+        while True:
+            await asyncio.sleep(300)
+            t = _scheduler_task
+            if t is not None and not t.done():
+                continue
+            exc: Any = None
+            if t is not None and t.done() and not t.cancelled():
+                try:
+                    exc = t.exception()
+                except Exception:  # noqa: BLE001
+                    pass
+            log.error("instant_bundle: scheduler task DIED (%s) — restarting", exc)
+            _spawn()
+
+    _spawn()
+    _watchdog_task = asyncio.create_task(_watchdog())
     log.info("instant_bundle: scheduler started")
 
 
