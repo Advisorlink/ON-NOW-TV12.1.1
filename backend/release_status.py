@@ -68,60 +68,13 @@ async def _now_playing_ids(cli: httpx.AsyncClient) -> set:
     return _NP["ids"]
 
 
-async def _stream_quality(cli: httpx.AsyncClient, mid: int,
-                          imdb: str | None) -> str | None:
-    """Check the REAL stream links for the title — 'hd' when a proper
-    web/bluray copy exists, 'cam' when only cam copies are out there,
-    None when nothing playable is found."""
-    if not imdb:
-        try:
-            r = await cli.get(f"{_TMDB}/movie/{mid}/external_ids")
-            if r.status_code == 200:
-                imdb = r.json().get("imdb_id") or None
-        except Exception:  # noqa: BLE001
-            return None
-    if not imdb or not imdb.startswith("tt"):
-        return None
-    import server  # lazy — avoids circular import at module load
-    try:
-        data = await asyncio.wait_for(
-            server.streams_aggregate("movie", imdb), timeout=25)
-    except Exception:  # noqa: BLE001
-        return None
-    hd = cam = False
-    for s in (data or {}).get("streams") or []:
-        if not isinstance(s, dict):
-            continue
-        if not (s.get("url") or s.get("infoHash")):
-            continue  # rent/buy junk — not a real copy
-        bh = s.get("behaviorHints") or {}
-        txt = " ".join([
-            str(s.get("title") or ""), str(s.get("name") or ""),
-            str(s.get("description") or ""),
-            str(bh.get("filename") or "") if isinstance(bh, dict) else "",
-        ]).lower().replace(".", " ").replace("_", " ").replace("-", " ")
-        if _CAM_RE.search(txt):
-            cam = True
-        elif _HD_RE.search(txt):
-            hd = True
-        elif s.get("_addon_source") == "EASYNEWS" or \
-                s.get("_addon_id") == "com.stremio.torrentio.addon":
-            # the user's Torrentio config already filters cam/scr
-            # qualities out — any playable link from it is a good copy
-            hd = True
-    if hd:
-        return "hd"  # any good copy beats stray cam rips
-    if cam:
-        return "cam"
-    return None
-
-
 async def _status_for(cli: httpx.AsyncClient, key: str) -> dict | None:
-    imdb: str | None = None
+    """Only tag whether the title is currently showing in cinemas
+    (TMDB now_playing AU/US) — per user spec the poster cover shows
+    nothing else.  No stream-quality / HD / CAM work is done."""
     if key.startswith("tmdb:"):
         mid = int(key.split(":", 1)[1])
     else:
-        imdb = key
         r = await cli.get(f"{_TMDB}/find/{key}",
                           params={"external_source": "imdb_id"})
         if r.status_code != 200:
@@ -131,40 +84,9 @@ async def _status_for(cli: httpx.AsyncClient, key: str) -> dict | None:
             return None
         mid = int(movie["id"])
 
-    cinema = mid in await _now_playing_ids(cli)
-
-    r2 = await cli.get(f"{_TMDB}/movie/{mid}/release_dates")
-    theatrical = None
-    digital = None
-    if r2.status_code == 200:
-        for country in r2.json().get("results") or []:
-            for rd in country.get("release_dates") or []:
-                raw = rd.get("release_date")
-                if not raw:
-                    continue
-                try:
-                    dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-                except ValueError:
-                    continue
-                t = rd.get("type")
-                if t == 3:
-                    theatrical = min(theatrical, dt) if theatrical else dt
-                elif t in (4, 5):
-                    digital = min(digital, dt) if digital else dt
-
-    now = datetime.now(timezone.utc)
-    if not cinema:
-        if not theatrical or theatrical > now:
-            return None  # unreleased — never tag
-        if (now - theatrical).days > 240:
-            return None  # old title
-        if digital and (now - digital).days > 45:
-            return None  # good copy long out — normal catalogue title
-
-    quality = await _stream_quality(cli, mid, imdb)
-    if cinema:
-        return {"cinema": True, "quality": quality}
-    return {"cinema": False, "quality": "cam"} if quality == "cam" else None
+    if mid in await _now_playing_ids(cli):
+        return {"cinema": True}
+    return None
 
 
 @router.get("/release-status")

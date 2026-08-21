@@ -3573,6 +3573,7 @@ async def tmdb_by_genres(
     media: str,
     genre_ids: str = Query("", description="Comma-separated TMDB genre IDs"),
     limit: int = Query(50, ge=1, le=100),
+    page: int = Query(1, ge=1, description="Result page for deep-scroll categories"),
 ):
     """Combined top popular titles across MULTIPLE genres.  Used
     by the viewing-style picker once the user has selected a set
@@ -3602,7 +3603,7 @@ async def tmdb_by_genres(
     # Cache key includes both buckets, sorted, so different
     # orderings of the same selection hit the same cache entry.
     key = ",".join(sorted(pos_ids + neg_ids))
-    cache_key = f"tmdb_by_genres:{media}:{key}:{limit}:v2"
+    cache_key = f"tmdb_by_genres:{media}:{key}:{limit}:p{page}:v2"
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, "data": cached}
@@ -3632,29 +3633,53 @@ async def tmdb_by_genres(
             params.update(extra)
         return await _tmdb_get(f"/discover/{media}", params)
 
+    async def _pull_discover(extra: dict, page: int):
+        params = {
+            "sort_by": "popularity.desc",
+            "include_adult": "false",
+            "page": str(page),
+        }
+        params.update(extra)
+        return await _tmdb_get(f"/discover/{media}", params)
+
     # Christmas (-3): the bare 'christmas' keyword is noisy — TMDB
     # tags anything with a christmas SCENE (all 8 Harry Potters…).
     # Intersecting with Family/Comedy/Romance/Animation genres keeps
     # the list looking like an actual Christmas category.
     KEYWORD_EXTRA = {"-3": {"with_genres": "10751|35|10749|16"}}
 
+    # Origin/language discover categories (deep-scrollable — thousands
+    # of titles on TMDB):
+    #   • -5 → Indian    (any movie produced in India, all languages)
+    #   • -6 → Bollywood (Hindi-language movies)
+    SYNTHETIC_DISCOVER = {
+        "-5": {"with_origin_country": "IN", "vote_count.gte": "20"},
+        "-6": {"with_original_language": "hi", "vote_count.gte": "10"},
+    }
+
     pages_per_genre = max(1, math.ceil(limit / 20))
+    start_page = (page - 1) * pages_per_genre + 1
+    page_range = range(start_page, start_page + pages_per_genre)
     tasks = []
     for gid in pos_ids:
-        for p in range(1, pages_per_genre + 1):
+        for p in page_range:
             tasks.append(_pull_genre(gid, p))
     for nid in neg_ids:
         if nid == "-4":
             # v2.19.7 — "In Cinema" synthetic genre: TMDB now-playing
             # (AU region) instead of a keyword discover.
-            for p in range(1, pages_per_genre + 1):
+            for p in page_range:
                 tasks.append(_tmdb_get(
                     f"/{media}/now_playing", {"page": str(p), "region": "AU"}))
+            continue
+        if nid in SYNTHETIC_DISCOVER:
+            for p in page_range:
+                tasks.append(_pull_discover(SYNTHETIC_DISCOVER[nid], p))
             continue
         kw = SYNTHETIC_KEYWORDS.get(nid)
         if not kw:
             continue
-        for p in range(1, pages_per_genre + 1):
+        for p in page_range:
             tasks.append(_pull_keyword(kw, p, KEYWORD_EXTRA.get(nid)))
     pages = await asyncio.gather(*tasks, return_exceptions=True)
     for resp in pages:

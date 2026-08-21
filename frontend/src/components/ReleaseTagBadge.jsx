@@ -27,16 +27,18 @@ export function useReleaseTag(key) {
     return tag;
 }
 
-/** Frosted-glass CINEMA + HD/CAM badge (top-left of a poster). */
+/** Frosted-glass CINEMA badge (top-left of a poster).  Per user
+ *  spec the cover only ever advertises whether a title is showing
+ *  in cinemas — no HD/CAM copy-quality tag. */
 export default function ReleaseTagBadge({ tag }) {
-    if (!tag || (!tag.cinema && !tag.quality)) return null;
+    if (!tag || !tag.cinema) return null;
     return (
         <span
-            className="vesper-mono absolute z-10 pointer-events-none flex flex-col items-start"
+            className="vesper-mono absolute z-10 pointer-events-none flex items-center"
             style={{
                 top: 8,
                 left: 8,
-                gap: 3,
+                gap: 5,
                 padding: '5px 10px',
                 borderRadius: 10,
                 background: 'rgba(8, 12, 18, 0.58)',
@@ -51,32 +53,9 @@ export default function ReleaseTagBadge({ tag }) {
                 lineHeight: 1,
             }}
         >
-            {tag.cinema && (
-                <span data-testid="poster-tag-cinema" style={{ color: 'var(--vesper-blue)' }}>
-                    Cinema
-                </span>
-            )}
-            {tag.quality && (
-                <span
-                    data-testid={`poster-tag-${tag.quality}`}
-                    className="flex items-center"
-                    style={{
-                        gap: 5,
-                        color: tag.quality === 'hd' ? '#4ADE80' : '#FBBF24',
-                    }}
-                >
-                    <i
-                        style={{
-                            width: 4,
-                            height: 4,
-                            borderRadius: 99,
-                            background: 'currentColor',
-                            boxShadow: '0 0 6px currentColor',
-                        }}
-                    />
-                    {tag.quality === 'hd' ? 'HD' : 'Cam'}
-                </span>
-            )}
+            <span data-testid="poster-tag-cinema" style={{ color: 'var(--vesper-blue)' }}>
+                Cinema
+            </span>
         </span>
     );
 }
