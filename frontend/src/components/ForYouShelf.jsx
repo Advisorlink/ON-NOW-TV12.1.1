@@ -20,11 +20,12 @@ import Shelf from '@/components/Shelf';
  * (the `vesper:profile-change` event) or when the viewing-style
  * record is rewritten.
  */
-export default function ForYouShelf() {
+export default function ForYouShelf({ region = 'english' } = {}) {
     const [shelf, setShelf] = useState(null);
 
     useEffect(() => {
         let cancel = false;
+        const regionParam = region && region !== 'english' ? region : '';
 
         const refresh = async () => {
             const vs = getViewingStyle();
@@ -39,9 +40,11 @@ export default function ForYouShelf() {
             // (NOT the picks themselves — user explicitly asked we
             // never surface their own selections back at them).
             // Backend dedupes against the picks and caches for 24h
-            // so the rail refreshes daily.
+            // so the rail refreshes daily.  Skipped in a regional
+            // (Indian/Bollywood) feed since those picks aren't
+            // region-filtered — the rail stays fully dedicated.
             let similarTiles = [];
-            if (hasItems) {
+            if (hasItems && !regionParam) {
                 try {
                     const picksParam = vs.items
                         .map((it) => `${it.type === 'series' ? 'tv' : 'movie'}:${it.tmdb_id}`)
@@ -79,6 +82,7 @@ export default function ForYouShelf() {
                         movie_genres: vs.movieGenres.join(','),
                         tv_genres: vs.tvGenres.join(','),
                         limit: '20',
+                        ...(regionParam ? { region: regionParam } : {}),
                     }).toString();
                     const r = await fetch(`${API}/tmdb/for-you?${q}`);
                     if (r.ok) {
@@ -141,7 +145,7 @@ export default function ForYouShelf() {
             window.removeEventListener('vesper:profile-change', onChange);
             window.removeEventListener('vesper:viewing-style-change', onChange);
         };
-    }, []);
+    }, [region]);
 
     if (!shelf) return null;
     return (

@@ -18,8 +18,9 @@ import { useLiveShelves } from '@/hooks/useLiveShelves';
 import { useLiveHeroes } from '@/hooks/useLiveHeroes';
 import Lazy from '@/components/Lazy';
 import { getEntries as listContinueWatching, hydrateMissingArt as hydrateCwArt } from '@/lib/continueWatching';
-import { Vesper } from '@/lib/api';
+import { Vesper, API } from '@/lib/api';
 import { getViewingStyle } from '@/lib/viewingStyle';
+import { getFeedRegion } from '@/lib/feedRegion';
 import useIsMobile from '@/lib/useIsMobile';
 import { paceDpad } from '@/lib/dpadPacer';
 
@@ -42,6 +43,40 @@ export default function Home() {
     // duplicate fetch that was making the box load slowly.
     const shelfFilter = isFilterView ? null : null;
     const heroType = filter === 'movie' ? 'movie' : 'series';
+
+    // Per-profile Home feed region (English / Indian / Bollywood).
+    // When not English we swap the hero + the 4 essential shelves +
+    // For You for a fully-dedicated regional feed from the backend.
+    const [feedRegion, setFeedRegionState] = useState(() => {
+        try { return getFeedRegion(); } catch { return 'english'; }
+    });
+    const [regionFeed, setRegionFeed] = useState(null); // {heroes, shelves}
+    useEffect(() => {
+        const sync = () => {
+            try { setFeedRegionState(getFeedRegion()); }
+            catch { setFeedRegionState('english'); }
+        };
+        sync();
+        window.addEventListener('vesper:feed-region-change', sync);
+        window.addEventListener('vesper:profile-change', sync);
+        return () => {
+            window.removeEventListener('vesper:feed-region-change', sync);
+            window.removeEventListener('vesper:profile-change', sync);
+        };
+    }, []);
+    useEffect(() => {
+        if (feedRegion === 'english') { setRegionFeed(null); return undefined; }
+        let cancel = false;
+        (async () => {
+            try {
+                const r = await fetch(`${API}/tmdb/region-feed?region=${feedRegion}`);
+                const j = await r.json();
+                if (!cancel) setRegionFeed({ heroes: j.heroes || [], shelves: j.shelves || [] });
+            } catch { if (!cancel) setRegionFeed(null); }
+        })();
+        return () => { cancel = true; };
+    }, [feedRegion]);
+    const isRegional = feedRegion !== 'english';
 
     // Stable empty-array reference.  CRITICAL: a fresh `[]` on
     // every render would invalidate the `addons` dep of the live
@@ -470,7 +505,7 @@ export default function Home() {
                     className="absolute inset-0 flex flex-col"
                 >
                     <div className="shrink-0">
-                        <HeroBillboard heroes={liveHeroes} />
+                        <HeroBillboard heroes={(isRegional && regionFeed?.heroes?.length) ? regionFeed.heroes : liveHeroes} />
                     </div>
 
                     <div
@@ -512,13 +547,15 @@ export default function Home() {
                             <ShelfPage height={shelfPageHeight} isMobile={isMobile}><ContinueWatchingShelf /></ShelfPage>
                         )}
                         {hasViewingStyle && (
-                            <ShelfPage height={shelfPageHeight} isMobile={isMobile}><ForYouShelf /></ShelfPage>
+                            <ShelfPage height={shelfPageHeight} isMobile={isMobile}><ForYouShelf region={feedRegion} /></ShelfPage>
                         )}
-                        <ShelfPage height={shelfPageHeight} isMobile={isMobile}><NetworksShelf /></ShelfPage>
+                        {!isRegional && (
+                            <ShelfPage height={shelfPageHeight} isMobile={isMobile}><NetworksShelf /></ShelfPage>
+                        )}
                         {addons.length === 0 && (
                             <ShelfPage height={shelfPageHeight} isMobile={isMobile}><EmptyAddonsBanner /></ShelfPage>
                         )}
-                        {shelves.map((shelf, i) => (
+                        {(isRegional && regionFeed?.shelves?.length ? regionFeed.shelves : shelves).map((shelf, i) => (
                             <ShelfPage key={shelf.id} height={shelfPageHeight} isMobile={isMobile}>
                                 <Lazy minHeight={340} eager={i < 3}>
                                     <Shelf shelf={shelf} />
@@ -530,12 +567,15 @@ export default function Home() {
                             Home.  Pulls TMDB's next-60-day window via
                             /api/tmdb/upcoming-movies.  Clicking a tile
                             opens Detail (which renders the trailer +
-                            "Notify me" CTA when no streams exist). */}
-                        <ShelfPage height={shelfPageHeight} isMobile={isMobile}>
-                            <Lazy minHeight={340} eager={false}>
-                                <UpcomingMoviesShelf />
-                            </Lazy>
-                        </ShelfPage>
+                            "Notify me" CTA when no streams exist).
+                            Hidden in a regional feed (global-only). */}
+                        {!isRegional && (
+                            <ShelfPage height={shelfPageHeight} isMobile={isMobile}>
+                                <Lazy minHeight={340} eager={false}>
+                                    <UpcomingMoviesShelf />
+                                </Lazy>
+                            </ShelfPage>
+                        )}
 
                         <footer
                             className="flex items-center justify-between"

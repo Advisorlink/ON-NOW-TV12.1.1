@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, Check, ShieldCheck,
     Cloud, Download, Upload, Copy, Loader2, KeyRound, AlertTriangle,
-    Sparkles, Lightbulb, LogOut, Heart,
+    Sparkles, Lightbulb, LogOut, Heart, Globe,
 } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useBackHandler from '@/hooks/useBackHandler';
@@ -15,6 +15,7 @@ import { clearActiveProfile, getActiveProfile } from '@/lib/profiles';
 import { useAuth } from '@/contexts/AuthContext';
 import { collectBackupPayload, applyBackupPayload, summarizeBackupPayload, fmtBytes } from '@/lib/profileBackup';
 import { replayOnboarding } from '@/components/Onboarding';
+import { getFeedRegion, setFeedRegion, FEED_REGIONS } from '@/lib/feedRegion';
 import {
     NUDGE_FEATURES,
     getEngagementState,
@@ -33,6 +34,12 @@ export default function Settings() {
     const navigate = useNavigate();
     const { themeId, setThemeId } = useTheme();
     const [autoplay, setAutoplay] = React.useState(getAutoplay1080p());
+    const [feedRegion, setFeedRegionState] = React.useState(() => {
+        try { return getFeedRegion(); } catch { return 'english'; }
+    });
+    const pickFeedRegion = React.useCallback((id) => {
+        setFeedRegionState(setFeedRegion(id));
+    }, []);
 
     /* v2.7.17 — Force-SDR playback toggle.  Persisted on the native
      * side via WebAppInterface.setForceSdr (SharedPreferences).
@@ -400,6 +407,89 @@ export default function Settings() {
                     <Heart size={15} />
                     Choose
                 </button>
+            </div>
+            </div>
+
+            {/* ---- FOR YOU FEED REGION ---- */}
+            <div data-testid="shelf-page" data-settings-section="feed-region">
+            <SectionHeader
+                eyebrow="Settings · Personalise"
+                title="For You feed"
+                icon={Globe}
+            />
+            <div
+                data-testid="feed-region-row"
+                className="vesper-glass rounded-2xl"
+                style={{ padding: '18px 22px', marginBottom: 18 }}
+            >
+                <div className="flex items-center gap-4" style={{ marginBottom: 16 }}>
+                    <div
+                        className="flex items-center justify-center shrink-0"
+                        style={{
+                            width: 44, height: 44, borderRadius: '50%',
+                            background:
+                                'linear-gradient(135deg, rgba(93,200,255,0.28) 0%, rgba(93,200,255,0.06) 100%)',
+                            border: '1px solid rgba(93,200,255,0.45)',
+                        }}
+                    >
+                        <Globe size={20} style={{ color: 'var(--vesper-blue-bright)' }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--vesper-text)' }}>
+                            Choose your home feed
+                        </div>
+                        <div style={{ fontSize: 13, color: 'var(--vesper-text-2)', marginTop: 2 }}>
+                            Switch your whole Home page — hero, New &amp; Popular rails and For You — to a fully-dedicated region.
+                        </div>
+                    </div>
+                </div>
+                <div className="flex" style={{ gap: 12, flexWrap: 'wrap' }}>
+                    {FEED_REGIONS.map((r) => {
+                        const active = feedRegion === r.id;
+                        return (
+                            <button
+                                key={r.id}
+                                data-testid={`feed-region-${r.id}`}
+                                data-focusable="true"
+                                data-focus-style="pill"
+                                tabIndex={0}
+                                onClick={() => pickFeedRegion(r.id)}
+                                className="text-left rounded-2xl font-sans"
+                                style={{
+                                    flex: '1 1 200px',
+                                    minWidth: 180,
+                                    padding: '14px 18px',
+                                    background: active
+                                        ? 'linear-gradient(135deg, var(--vesper-blue) 0%, #4FB8F0 100%)'
+                                        : 'rgba(255,255,255,0.05)',
+                                    color: active ? '#06080F' : 'var(--vesper-text)',
+                                    border: active
+                                        ? '1px solid transparent'
+                                        : '1px solid rgba(255,255,255,0.12)',
+                                    cursor: 'pointer',
+                                    boxShadow: active
+                                        ? '0 6px 18px rgba(93,200,255,0.35)'
+                                        : 'none',
+                                    transition: 'background-color 160ms ease, color 160ms ease',
+                                }}
+                            >
+                                <div className="flex items-center gap-2" style={{ fontSize: 15, fontWeight: 700 }}>
+                                    {active && <Check size={15} />}
+                                    {r.label}
+                                </div>
+                                <div
+                                    style={{
+                                        fontSize: 12,
+                                        marginTop: 4,
+                                        color: active ? 'rgba(6,8,15,0.72)' : 'var(--vesper-text-2)',
+                                    }}
+                                >
+                                    {r.note}
+                                </div>
+                            </button>
+                        );
+                    })}
+                </div>
             </div>
             </div>
 

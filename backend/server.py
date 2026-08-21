@@ -3705,18 +3705,30 @@ async def tmdb_for_you(
     movie_genres: str = Query("", description="Comma-separated TMDB movie genre IDs"),
     tv_genres: str = Query("", description="Comma-separated TMDB TV genre IDs"),
     limit: int = Query(20, ge=1, le=60),
+    region: str = Query("", description="'indian' or 'bollywood' to restrict origin/language"),
 ):
     """For-You feed — newest popular titles matching the user's
     liked genres.  Movies and TV are pulled in parallel, mixed
     with movies first, and deduped by (type, tmdb_id).  Empty
     genre params return an empty list so the Home shelf can hide
-    itself cleanly."""
+    itself cleanly.  `region` optionally locks the feed to Indian
+    (all languages) or Bollywood (Hindi) content."""
     m_ids = [g.strip() for g in (movie_genres or "").split(",") if g.strip().isdigit()]
     t_ids = [g.strip() for g in (tv_genres or "").split(",") if g.strip().isdigit()]
     if not m_ids and not t_ids:
         return {"cached": False, "data": []}
 
-    cache_key = f"tmdb_for_you:m={','.join(sorted(m_ids))}:t={','.join(sorted(t_ids))}:{limit}"
+    region = (region or "").lower()
+    region_extra = {}
+    if region == "indian":
+        region_extra = {"with_origin_country": "IN"}
+    elif region == "bollywood":
+        region_extra = {"with_original_language": "hi"}
+
+    cache_key = (
+        f"tmdb_for_you:m={','.join(sorted(m_ids))}:t={','.join(sorted(t_ids))}"
+        f":{limit}:r={region or 'en'}"
+    )
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, "data": cached}
@@ -3728,9 +3740,10 @@ async def tmdb_for_you(
             "with_genres": "|".join(ids),
             "sort_by": "popularity.desc",
             "include_adult": "false",
-            "vote_count.gte": "100",
+            "vote_count.gte": "20" if region_extra else "100",
             "page": "1",
         }
+        params.update(region_extra)
         try:
             data = await _tmdb_get(f"/discover/{media}", params)
         except Exception:
@@ -3756,6 +3769,115 @@ async def tmdb_for_you(
 
     await cache.set(cache_key, mixed, 60 * 60 * 24)  # 24h — refreshes daily
     return {"cached": False, "data": mixed}
+
+
+@api.get("/tmdb/region-feed")
+async def tmdb_region_feed(region: str = Query("indian")):
+    """Full "Indian mode" Home feed — a regional mirror of the
+    English home rails.  Returns 4 shelves (New/Popular Movies,
+    New/Popular Series) plus a heroes list, all dedicated to the
+    chosen region.  `region` is 'indian' (any movie made in India,
+    all languages) or 'bollywood' (Hindi-language only).  Cached 6h.
+    """
+    region = (region or "").lower()
+    if region not in ("indian", "bollywood"):
+        raise HTTPException(400, "region must be 'indian' or 'bollywood'")
+    cache_key = f"tmdb_region_feed:{region}:v1"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, **cached}
+
+    today = datetime.now(timezone.utc).date().isoformat()
+    label = "Indian" if region == "indian" else "Bollywood"
+    if region == "indian":
+        base = {"with_origin_country": "IN"}
+    else:
+        base = {"with_original_language": "hi"}
+
+    async def discover(media: str, extra: dict, pages: int = 2):
+        tasks = []
+        for p in range(1, pages + 1):
+            params = {"include_adult": "false", "page": str(p)}
+            params.update(base)
+            params.update(extra)
+            tasks.append(_tmdb_get(f"/discover/{media}", params))
+        out: List[Dict[str, Any]] = []
+        seen = set()
+        for resp in await asyncio.gather(*tasks, return_exceptions=True):
+            if isinstance(resp, Exception) or not resp:
+                continue
+            for it in (resp.get("results") or []):
+                shaped = _shape_tmdb_item(it, media)
+                if not shaped:
+                    continue
+                k = (shaped["type"], shaped["tmdb_id"])
+                if k in seen:
+                    continue
+                seen.add(k)
+                out.append(shaped)
+        return out
+
+    new_movies, pop_movies, new_series, pop_series = await asyncio.gather(
+        discover("movie", {"sort_by": "primary_release_date.desc",
+                           "primary_release_date.lte": today,
+                           "vote_count.gte": "5"}),
+        discover("movie", {"sort_by": "popularity.desc",
+                           "vote_count.gte": "40"}),
+        discover("tv", {"sort_by": "first_air_date.desc",
+                        "first_air_date.lte": today,
+                        "vote_count.gte": "3"}),
+        discover("tv", {"sort_by": "popularity.desc",
+                        "vote_count.gte": "15"}),
+    )
+
+    def tiles(items):
+        rows = []
+        for it in items[:20]:
+            sub = " · ".join(
+                x for x in [it["year"],
+                            f"★ {it['rating']}" if it["rating"] else None] if x)
+            rows.append({
+                "id": f"rf-{it['type']}-{it['tmdb_id']}",
+                "type": it["type"],
+                "title": it["title"],
+                "sub": sub,
+                "poster": it["poster"],
+                "background": it["backdrop"],
+                "routePath": f"/resolve/{'tv' if it['type'] == 'series' else 'movie'}/{it['tmdb_id']}",
+            })
+        return rows
+
+    shelves = [
+        {"id": "rf-movie-year", "eyebrow": "MOVIES", "title": f"New {label} movies", "items": tiles(new_movies)},
+        {"id": "rf-series-year", "eyebrow": "SERIES", "title": f"New {label} series", "items": tiles(new_series)},
+        {"id": "rf-movie-top", "eyebrow": "MOVIES", "title": f"Popular {label} movies", "items": tiles(pop_movies)},
+        {"id": "rf-series-top", "eyebrow": "SERIES", "title": f"Popular {label} series", "items": tiles(pop_series)},
+    ]
+    shelves = [s for s in shelves if s["items"]]
+
+    heroes = []
+    for it in pop_movies:
+        if it["backdrop"] and it["synopsis"] and len(it["synopsis"]) > 40:
+            heroes.append({
+                "id": f"tmdb-{it['tmdb_id']}",
+                "title": it["title"],
+                "eyebrow": f"Featured · {label} Film",
+                "year": it["year"],
+                "runtime": "",
+                "rating": f"★ {it['rating']}" if it["rating"] else "",
+                "genres": [],
+                "synopsis": it["synopsis"],
+                "backdrop": it["backdrop"],
+                "sources": ["TMDB"],
+                "routePath": f"/resolve/movie/{it['tmdb_id']}",
+            })
+        if len(heroes) >= 6:
+            break
+
+    payload = {"region": region, "heroes": heroes, "shelves": shelves}
+    await cache.set(cache_key, payload, 60 * 60 * 6)
+    return {"cached": False, **payload}
+
 
 
 # ─── EPG programme art lookup (used by native Live Guide overlay) ─────────────
