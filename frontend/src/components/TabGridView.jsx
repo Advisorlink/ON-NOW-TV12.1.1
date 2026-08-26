@@ -101,57 +101,6 @@ export default function TabGridView({ type }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isCinema]);
 
-    // "Indian" (-5) and "Bollywood" (-6) synthetic genres — deep
-    // TMDB origin/language discover, paginated so the grid scrolls
-    // through hundreds of titles just like a real genre chip.
-    const SYN_GENRE_IDS = { Indian: -5, Bollywood: -6 };
-    const synId = type === 'movie' ? SYN_GENRE_IDS[genre] : undefined;
-    const isSyn = synId !== undefined;
-    const [synItems, setSynItems] = React.useState([]);
-    const [synPage, setSynPage] = React.useState(1);
-    const [synLoading, setSynLoading] = React.useState(false);
-    const [synHasMore, setSynHasMore] = React.useState(true);
-    // Reset the paginated buffer whenever the selected chip changes.
-    React.useEffect(() => {
-        setSynItems([]);
-        setSynPage(1);
-        setSynHasMore(true);
-    }, [genre]);
-    React.useEffect(() => {
-        if (!isSyn) return undefined;
-        let cancel = false;
-        setSynLoading(true);
-        (async () => {
-            try {
-                const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
-                const r = await fetch(
-                    `${API}/tmdb/by-genres/movie?genre_ids=${synId}&limit=60&page=${synPage}`);
-                const j = await r.json();
-                if (cancel) return;
-                const mapped = (j?.data || []).map((it) => ({
-                    id: `syn${synId}-${it.tmdb_id}`,
-                    type: it.type,
-                    title: it.title,
-                    poster: it.poster,
-                    background: it.backdrop,
-                    genres: [genre],
-                    year: it.year,
-                    sub: [it.year, it.rating ? `★ ${it.rating}` : null]
-                        .filter(Boolean)
-                        .join(' · '),
-                    routePath: `/resolve/movie/${it.tmdb_id}`,
-                }));
-                setSynItems((prev) => {
-                    const have = new Set(prev.map((p) => p.id));
-                    return [...prev, ...mapped.filter((m) => !have.has(m.id))];
-                });
-                setSynHasMore(mapped.length >= 40);
-            } catch { setSynHasMore(false); }
-            finally { if (!cancel) setSynLoading(false); }
-        })();
-        return () => { cancel = true; };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isSyn, synId, synPage]);
     const [xmasItems, setXmasItems] = React.useState([]);
     const [xmasLoading, setXmasLoading] = React.useState(false);
     React.useEffect(() => {
@@ -197,7 +146,7 @@ export default function TabGridView({ type }) {
         totalLoaded: genreTotalLoaded,
         hasMore: genreHasMore,
         loadMore: genreLoadMore,
-    } = useTabGenreCatalog(addons, type, (isXmas || isCinema || isSyn) ? '' : genre, allItems);
+    } = useTabGenreCatalog(addons, type, (isXmas || isCinema) ? '' : genre, allItems);
 
     // v2.1 — IntersectionObserver sentinel.  When the sentinel
     // (rendered ~6 rows from the bottom of the grid) enters the
@@ -205,39 +154,33 @@ export default function TabGridView({ type }) {
     // in seamlessly.  Disconnects when there's no more to load.
     const loadMoreSentinelRef = React.useRef(null);
     React.useEffect(() => {
-        const wantSyn = isSyn && synHasMore && !synLoading;
-        const wantGenre = genre && genreHasMore && !isSyn;
-        if (!wantSyn && !wantGenre) return;
+        if (!genre || !genreHasMore) return;
         const node = loadMoreSentinelRef.current;
         if (!node) return;
         const io = new IntersectionObserver((entries) => {
             for (const e of entries) {
                 if (e.isIntersecting) {
-                    if (wantSyn) setSynPage((p) => p + 1);
-                    else genreLoadMore();
+                    genreLoadMore();
                 }
             }
         }, { rootMargin: '600px' });   // pre-fetch before user hits bottom
         io.observe(node);
         return () => io.disconnect();
-    }, [genre, genreHasMore, genreLoadMore, isSyn, synHasMore, synLoading]);
+    }, [genre, genreHasMore, genreLoadMore]);
 
     // What we actually paint:
     // - No genre selected → top 100 newest releases (capped for
     //   speed per user spec).
     // - A genre selected → every title in that genre, deep-paged.
     const items = React.useMemo(() => {
-        if (isSyn) return synItems;
         if (isCinema) return cinemaItems;
         if (isXmas) return xmasItems;
         if (!genre) return allItems.slice(0, 100);
         return genreItems;
-    }, [allItems, genre, genreItems, isXmas, xmasItems, isCinema, cinemaItems, isSyn, synItems]);
+    }, [allItems, genre, genreItems, isXmas, xmasItems, isCinema, cinemaItems]);
 
-    const showLoading = isSyn
-        ? (synLoading && synItems.length === 0)
-        : isCinema ? cinemaLoading : isXmas ? xmasLoading : genre ? genreLoading : loading;
-    const showProgress = (isXmas || isCinema || isSyn) ? 0 : genre ? genreProgress : progress;
+    const showLoading = isCinema ? cinemaLoading : isXmas ? xmasLoading : genre ? genreLoading : loading;
+    const showProgress = (isXmas || isCinema) ? 0 : genre ? genreProgress : progress;
 
     // Save the click target so we can re-focus it when the user
     // returns from Detail.  Stored as the title's IMDb id; the
@@ -361,7 +304,7 @@ export default function TabGridView({ type }) {
 
             {(genreList.length > 0 || type === 'movie') && (
                 <GenreChips
-                    genres={type === 'movie' ? ['In Cinema', 'Indian', 'Bollywood', 'Christmas', ...genreList] : genreList}
+                    genres={type === 'movie' ? ['In Cinema', 'Christmas', ...genreList] : genreList}
                     selected={genre}
                     onSelect={(g) => setGenre(g)}
                 />
@@ -425,7 +368,7 @@ export default function TabGridView({ type }) {
                         `loadMore()` so the next 400-item batch
                         streams in seamlessly.  Mounted only while
                         there's more to load. */}
-                    {((genre && genreHasMore && !isSyn) || (isSyn && synHasMore)) && !showLoading && (
+                    {genre && genreHasMore && !showLoading && (
                         <div
                             ref={loadMoreSentinelRef}
                             data-testid={`tab-grid-load-more-sentinel-${type}`}
@@ -436,24 +379,7 @@ export default function TabGridView({ type }) {
                     {/* "Loading more" footer — appears while the
                         next batch is being fetched.  Also shows the
                         live total so users see the library growing. */}
-                    {isSyn && !showLoading && (synLoading || synHasMore) && (
-                        <div
-                            data-testid={`tab-grid-loading-more-${type}`}
-                            style={{
-                                marginTop: 16,
-                                padding: '14px 18px',
-                                textAlign: 'center',
-                                fontSize: 14,
-                                color: 'rgba(255,255,255,0.55)',
-                                letterSpacing: 0.4,
-                            }}
-                        >
-                            {synLoading
-                                ? `Loading more · ${items.length.toLocaleString()} titles so far…`
-                                : `Scroll down for more · ${items.length.toLocaleString()} titles loaded`}
-                        </div>
-                    )}
-                    {genre && !isSyn && !showLoading && (genreLoadingMore || genreHasMore) && (
+                    {genre && !showLoading && (genreLoadingMore || genreHasMore) && (
                         <div
                             data-testid={`tab-grid-loading-more-${type}`}
                             style={{

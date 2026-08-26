@@ -182,6 +182,12 @@ fun PlayerOverlay(
     onPickAudio: (String) -> Unit,
     onPickSubtitle: (String) -> Unit,
     onPickStream: (Int) -> Unit,
+    // v1.1.0 — BACK-to-hide-controls bridge.  `hideControlsSignal`
+    // bumps when the user hits BACK while the dock is showing;
+    // `onControlsVisibilityChanged` reports dock visibility back so
+    // the Activity knows whether BACK should hide or exit.
+    hideControlsSignal: StateFlow<Long> = MutableStateFlow(0L).asStateFlow(),
+    onControlsVisibilityChanged: (Boolean) -> Unit = {},
     // v2.10.24 — Skip-Next-Episode dock button (TV shows only).
     // `hasNextEpisode` flips true ~60s before the credits when we
     // know there IS a next episode to jump to.  `onNextEpisode`
@@ -268,6 +274,14 @@ fun PlayerOverlay(
 
     // Track picker sheet state
     var sheet by remember { mutableStateOf<SheetKind>(SheetKind.None) }
+
+    // v1.1.0 — report dock visibility to the Activity + let BACK hide
+    // the dock instantly (a second BACK then exits the player).
+    LaunchedEffect(dockVisible) { onControlsVisibilityChanged(dockVisible) }
+    val hideCtrlTs by collectAsStateSafe(hideControlsSignal, 0L)
+    LaunchedEffect(hideCtrlTs) {
+        if (hideCtrlTs > 0L) { dockVisible = false; sheet = SheetKind.None }
+    }
 
     Box(modifier = Modifier
         .fillMaxSize()
@@ -363,11 +377,30 @@ fun PlayerOverlay(
                     options = if (subs.any { it.id == "off" }) subs
                               else listOf(TrackOption("off", "Off", subs.none { it.selected })) + subs,
                     onPick = { id ->
+                        if (id == "off") {
+                            // Ask whether to disable permanently or once.
+                            sheet = SheetKind.SubsOff
+                            bump()
+                        } else {
+                            onPickSubtitle(id)
+                            sheet = SheetKind.None
+                            bump()
+                        }
+                    },
+                    onDismiss = { sheet = SheetKind.None; bump() },
+                )
+                SheetKind.SubsOff -> TrackPickerSheet(
+                    title = "Turn subtitles off",
+                    options = listOf(
+                        TrackOption("off_permanent", "Turn off permanently", false),
+                        TrackOption("off", "Just this once", false),
+                    ),
+                    onPick = { id ->
                         onPickSubtitle(id)
                         sheet = SheetKind.None
                         bump()
                     },
-                    onDismiss = { sheet = SheetKind.None; bump() },
+                    onDismiss = { sheet = SheetKind.Subs; bump() },
                 )
                 SheetKind.Stream -> StreamPickerSheet(
                     streams = streamList,
@@ -509,7 +542,7 @@ fun PlayerOverlay(
     }
 }
 
-private enum class SheetKind { None, Audio, Subs, Stream, Info, Engine, Aspect }
+private enum class SheetKind { None, Audio, Subs, SubsOff, Stream, Info, Engine, Aspect }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Full loading screen (first play only)

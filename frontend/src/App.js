@@ -53,6 +53,7 @@ import { GlobalFocusRestore } from '@/hooks/useFocusRestore';
 // at user request, updates now flow ONLY through the Launcher.
 import Onboarding, { hasSeenOnboarding } from '@/components/Onboarding';
 import BootSplash from '@/components/BootSplash';
+import WhatsNewModal from '@/components/WhatsNewModal';
 import { AuthProvider } from '@/contexts/AuthContext';
 import LoginGate from '@/components/LoginGate';
 import CloudRestoreMount from '@/components/CloudRestoreMount';
@@ -1033,6 +1034,7 @@ function App() {
                                 flow), but no longer mounted in the
                                 React tree. */}
                             <OnboardingGate />
+                            <WhatsNewModal />
                             <BootSplash />
                                 </LoginGate>
                             </MobilePlatformRoot>

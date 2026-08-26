@@ -183,6 +183,14 @@ class ExoPlayerActivity : ComponentActivity(),
     // child to catch anything.
     private val userActivityFlow = MutableStateFlow(System.currentTimeMillis())
 
+    // v1.1.0 — BACK dismisses the on-screen controls instantly (no
+    // 5 s wait).  `controlsVisibleFlow` mirrors the overlay dock
+    // visibility; bumping `hideControlsFlow` asks the overlay to hide
+    // the dock right now.  BACK only exits the player once the dock
+    // is already hidden.
+    private val controlsVisibleFlow = MutableStateFlow(true)
+    private val hideControlsFlow = MutableStateFlow(0L)
+
     // ── Phone-remote bridge ──────────────────────────────────────
     // The launcher's RemoteControlService listens for NOW_PLAYING
     // broadcasts (poster/progress for the phone's remote card) and
@@ -1071,6 +1079,7 @@ class ExoPlayerActivity : ComponentActivity(),
                 trackSelectionParameters = trackSelectionParameters.buildUpon()
                     .setPreferredAudioLanguages("eng", "en", "english")
                     .setPreferredTextLanguages("eng", "en", "english")
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, subsOffPermanent())
                     .build()
                 // v2.10.38 — Tried `setSeekParameters(CLOSEST_SYNC)`
                 // as a scrub-speed optimisation but it's annotated
@@ -1187,6 +1196,18 @@ class ExoPlayerActivity : ComponentActivity(),
                 lastNpBroadcastAt = 0L
             }
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                // Keep subtitles off across episode/stream swaps when
+                // the user chose "turn off permanently".
+                if (subsOffPermanent()) {
+                    try {
+                        val p = player.trackSelectionParameters
+                        if (!p.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT)) {
+                            player.trackSelectionParameters = p.buildUpon()
+                                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                                .build()
+                        }
+                    } catch (_: Exception) {}
+                }
                 refreshTrackLists(tracks)
             }
         })
@@ -1354,6 +1375,11 @@ class ExoPlayerActivity : ComponentActivity(),
                     streams         = streamsFlow.asStateFlow(),
                     // v2.7.54 — pump activity from Activity.dispatchKeyEvent
                     userActivity    = userActivityFlow.asStateFlow(),
+                    // v1.1.0 — BACK-to-hide-controls bridge.
+                    hideControlsSignal = hideControlsFlow.asStateFlow(),
+                    onControlsVisibilityChanged = { visible ->
+                        controlsVisibleFlow.value = visible
+                    },
                     // v2.7.60 — native Watch Together voice dock
                     partyVoice      = partyVoice,
                     // v2.7.73 — left-side drawer state + role.
@@ -2007,7 +2033,14 @@ class ExoPlayerActivity : ComponentActivity(),
         // dead.
         return when (keyCode) {
             KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> {
-                onBackFromPlayer(); true
+                // v1.1.0 — first BACK just hides the controls (instant,
+                // no 5 s auto-hide wait); a second BACK exits.
+                if (controlsVisibleFlow.value) {
+                    hideControlsFlow.value = System.currentTimeMillis()
+                } else {
+                    onBackFromPlayer()
+                }
+                true
             }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                 if (pbIsPlaying()) pbPause() else pbPlay(); true
@@ -2453,43 +2486,47 @@ class ExoPlayerActivity : ComponentActivity(),
     private fun selectTrack(trackType: Int, id: String) {
         // v2.13.9 — "Find subtitles" pseudo-row → lazy fetch+attach.
         if (trackType == C.TRACK_TYPE_TEXT && id == LAZY_SUBS_ID) {
+            setSubsOffPermanent(false)  // turning subs ON clears the permanent-off
             fetchAndAttachLazySubs()
             return
         }
+        // Subtitles OFF — "off" = just this once, "off_permanent" =
+        // stay off on every stream/episode until the user turns them
+        // back on (v1.1.0 user request).
+        if (trackType == C.TRACK_TYPE_TEXT && (id == "off" || id == "off_permanent")) {
+            if (id == "off_permanent") setSubsOffPermanent(true)
+            if (useVlc) { vlcEngine?.disableSubtitles(); refreshVlcTracks(); return }
+            if (useMpv) { mpvEngine?.disableSubtitles(); refreshMpvTracks(); return }
+            try {
+                player.trackSelectionParameters = player.trackSelectionParameters
+                    .buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                    .build()
+            } catch (e: Exception) { Log.w(TAG, "subtitle off failed", e) }
+            return
+        }
+        // Any explicit subtitle pick turns subtitles ON → clear the
+        // permanent-off flag so the choice sticks.
+        if (trackType == C.TRACK_TYPE_TEXT) setSubsOffPermanent(false)
         // v2.16.40 — VLC engine track selection.
         // v2.16.42 — MPV routes via "mpv|<id>" prefix.
         if (useVlc) {
             val eng = vlcEngine ?: return
-            if (trackType == C.TRACK_TYPE_TEXT && id == "off") {
-                eng.disableSubtitles()
-            } else {
-                val vid = id.removePrefix("vlc|").toIntOrNull() ?: return
-                if (trackType == C.TRACK_TYPE_AUDIO) eng.selectAudioTrack(vid)
-                else eng.selectSpuTrack(vid)
-            }
+            val vid = id.removePrefix("vlc|").toIntOrNull() ?: return
+            if (trackType == C.TRACK_TYPE_AUDIO) eng.selectAudioTrack(vid)
+            else eng.selectSpuTrack(vid)
             refreshVlcTracks()
             return
         }
         if (useMpv) {
             val eng = mpvEngine ?: return
-            if (trackType == C.TRACK_TYPE_TEXT && id == "off") {
-                eng.disableSubtitles()
-            } else {
-                val vid = id.removePrefix("mpv|").toIntOrNull() ?: return
-                if (trackType == C.TRACK_TYPE_AUDIO) eng.selectAudioTrack(vid)
-                else eng.selectSpuTrack(vid)
-            }
+            val vid = id.removePrefix("mpv|").toIntOrNull() ?: return
+            if (trackType == C.TRACK_TYPE_AUDIO) eng.selectAudioTrack(vid)
+            else eng.selectSpuTrack(vid)
             refreshMpvTracks()
             return
         }
         try {
-            if (id == "off" && trackType == C.TRACK_TYPE_TEXT) {
-                player.trackSelectionParameters = player.trackSelectionParameters
-                    .buildUpon()
-                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-                    .build()
-                return
-            }
             val (_, groupId, indexStr) = id.split("|", limit = 3)
             val idx = indexStr.toInt()
             val targetGroup = player.currentTracks.groups
@@ -2507,6 +2544,15 @@ class ExoPlayerActivity : ComponentActivity(),
         } catch (e: Exception) {
             Log.w(TAG, "selectTrack failed for $id", e)
         }
+    }
+
+    private fun subsOffPermanent(): Boolean =
+        getSharedPreferences("onnowtv_prefs", MODE_PRIVATE)
+            .getBoolean("subs_off_permanent", false)
+
+    private fun setSubsOffPermanent(on: Boolean) {
+        getSharedPreferences("onnowtv_prefs", MODE_PRIVATE)
+            .edit().putBoolean("subs_off_permanent", on).apply()
     }
 
     /** Switch to one of the alternate streams parsed at startup. */
