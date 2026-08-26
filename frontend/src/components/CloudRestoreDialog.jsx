@@ -202,6 +202,7 @@ export default function CloudRestoreDialog({ snapshot, onDismiss }) {
         <div
             ref={dialogRef}
             data-testid="cloud-restore-dialog"
+            data-focus-trap="true"
             role="dialog"
             aria-modal="true"
             style={{
@@ -340,6 +341,10 @@ export default function CloudRestoreDialog({ snapshot, onDismiss }) {
                         onClick={handleRestore}
                         disabled={busy || rows.length === 0}
                         data-testid="cloud-restore-confirm"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        data-initial-focus="true"
+                        tabIndex={0}
                         style={{
                             flex: '1 1 260px',
                             minHeight: 54,
@@ -386,6 +391,9 @@ export default function CloudRestoreDialog({ snapshot, onDismiss }) {
                         onClick={handleStartFresh}
                         disabled={busy}
                         data-testid="cloud-restore-dismiss"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
                         style={{
                             flex: '0 1 180px',
                             minHeight: 54,

@@ -1,4 +1,10 @@
 # ON NOW TV V2 — PRD
+> **🟢 v1.1.1 — Cloud "restore profiles" dialog focus-trapped (Jun 2026).  VERIFIED live.**
+> - **User issue:** on the "We found your profiles in the cloud" popup, D-pad/OK could still reach elements BEHIND the modal and open them.
+> - **Root cause:** the dialog used its own element-level keydown handler but was NOT registered with the global spatial-navigation trap (`data-focus-trap="true"`), and its buttons weren't `data-focusable`, so the window-level spatial-nav (which fires first) navigated to background tiles.
+> - **Fix** (`components/CloudRestoreDialog.jsx`): added `data-focus-trap="true"` to the dialog root and `data-focusable="true"` + `data-initial-focus="true"` to the Restore / Start-fresh buttons.  Now the spatial-nav candidate set is confined to the two buttons.  Verified live: 12 D-pad presses in every direction kept focus locked inside the dialog; backdrop clicks can't pass through.
+>
+
 > **🟢 v1.1.0 — Subtitle-off-permanent + What's New popup + version badge + CW verified + Indian/Bollywood removed (Jun 2026).**
 > - **User-facing app version is now `1.1.0`** (`frontend/src/lib/appVersion.js`, single source of truth).  Shown in the Home footer and the What's New popup header.
 > - **What's New popup** (`components/WhatsNewModal.jsx`, mounted in `App.js` inside LoginGate): shows once per `APP_VERSION` on app open (localStorage `onnowtv-whatsnew-seen-v1`), Vesper-only (skips /trivia,/music,/kids,/karaoke,/login,/profiles).  This release lists: Continue Watching fixed · Turn subtitles off permanently · Cinema tags.  VERIFIED in-browser.
