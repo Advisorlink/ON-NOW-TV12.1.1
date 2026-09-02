@@ -594,6 +594,23 @@ class ExoPlayerActivity : ComponentActivity(),
         return if (next in altStreams.indices) next else null
     }
 
+    /** Dig the real HTTP status out of a PlaybackException cause
+     *  chain.  403/404/410 etc. mean the link is genuinely DEAD
+     *  (common with expired EasyNews++ / debrid URLs) — worth
+     *  skipping fast rather than waiting on the 30 s stall watchdog. */
+    private fun httpStatusOf(error: PlaybackException): Int {
+        var c: Throwable? = error
+        var depth = 0
+        while (c != null && depth < 8) {
+            if (c is androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException) {
+                return c.responseCode
+            }
+            c = c.cause
+            depth += 1
+        }
+        return 0
+    }
+
     /** Hop to the next stream the moment the current one throws a
      *  player error before its first READY — no 8 s watchdog wait.
      *  First hop is near-instant; later hops back off 2.5 s so a
@@ -1166,7 +1183,24 @@ class ExoPlayerActivity : ComponentActivity(),
                     // Let the 10 s buffer-stall watchdog handle it
                     // instead: it only hops if the stream genuinely
                     // never produced a frame in 10 s.
-                    Log.w(TAG, "Non-fatal error: waiting for watchdog (${error.errorCodeName})")
+                    //
+                    // v1.1.2 — EXCEPTION: a hard HTTP dead-link status
+                    // (401/403/404/410/451) is NOT a transient blip —
+                    // the URL is gone (expired EasyNews++/debrid link).
+                    // These are exactly the "EasyNews++ links that just
+                    // don't play anymore" the user reported.  Skip them
+                    // fast via scheduleErrorAdvance() (which still
+                    // respects user-picked streams + backoff) instead
+                    // of stalling 30 s on the watchdog.
+                    val http = httpStatusOf(error)
+                    val deadLink = http == 401 || http == 403 ||
+                        http == 404 || http == 410 || http == 451
+                    if (deadLink) {
+                        Log.w(TAG, "Dead link (HTTP $http) on stream $currentStreamIdx — fast-advancing")
+                        scheduleErrorAdvance()
+                    } else {
+                        Log.w(TAG, "Non-fatal error: waiting for watchdog (${error.errorCodeName})")
+                    }
                 }
             }
             override fun onPlaybackStateChanged(state: Int) {

@@ -1,4 +1,13 @@
 # ON NOW TV V2 — PRD
+> **🟢 v1.1.2 — Bottom tip popups removed · EasyNews++ dead-link fast-skip · CW/swap-stream diagnosis (Jun 2026).**
+> - **Bottom "how to use it" tip popups REMOVED completely** (user: annoying/too hard).  Deleted `<FeatureNudge />` mount + import from `App.js`.  Component file left in tree (unused).  VERIFIED: app compiles clean, nudge no longer renders.  LIVE now (web bundle).
+> - **Continue Watching cross-profile leak** — user confirms it's **no longer happening**.  Web code is strictly per-profile (verified earlier).  No change needed.
+> - **EasyNews++ "links show but often don't play"** — root cause: a DEAD link (expired EasyNews++/debrid URL → HTTP 401/403/404/410/451) was handled like a transient blip, so the player waited ~30 s on the buffer-stall watchdog before hopping.  **Fix** (`ExoPlayerActivity.kt`): new `httpStatusOf()` pulls the real HTTP status from the `PlaybackException` cause chain; in `onPlayerError`'s non-fatal branch, a hard dead-link status now calls the existing `scheduleErrorAdvance()` for a near-instant hop to the next candidate — while still letting the watchdog handle genuine 5xx/socket/slow-start blips (so good debrid links aren't abandoned) and still honouring user-picked streams (autoAdvanceMode=false).  Brace-checked.  Exo engine only (default); VLC/MPV not yet wired.
+> - **Swap-stream "nothing to swap to" after a MANUAL link pick** — diagnosed: BOTH autoplay (`playStream(autoplayCandidate)`) and manual pick (`handleStreamPick → playStream(stream)`, and the link-row `playStream(s)`) pass the SAME full ordered list (`orderedStreams`) as `streamsList` to `Host.playVideo`, so the current code populates the in-player swap picker identically either way.  Conclusion: the box is on an older APK; will resolve on rebuild.  If it still fails after a fresh APK, investigate the native `EXTRA_STREAMS_JSON` parse (ExoPlayerActivity ~880-935).
+> - ⚠️ The two player fixes (EasyNews++ dead-link skip) are Android/Kotlin → **need an APK rebuild** to reach the box (user deferred: "not yet").  Tip-popup removal is live in the web bundle.
+> - Files: `frontend/src/App.js`, `android/vesper-tv/.../ExoPlayerActivity.kt`.
+>
+
 > **🟢 v1.1.1 — Cloud "restore profiles" dialog focus-trapped (Jun 2026).  VERIFIED live.**
 > - **User issue:** on the "We found your profiles in the cloud" popup, D-pad/OK could still reach elements BEHIND the modal and open them.
 > - **Root cause:** the dialog used its own element-level keydown handler but was NOT registered with the global spatial-navigation trap (`data-focus-trap="true"`), and its buttons weren't `data-focusable`, so the window-level spatial-nav (which fires first) navigated to background tiles.
