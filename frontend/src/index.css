@@ -435,7 +435,15 @@ body {
 [data-focus-style='tile']:focus-visible,
 [data-focus-style='tile'][data-focused='true'] {
     transform: scale(1.08) translateY(-2px);
-    box-shadow: 0 0 0 1.5px var(--vesper-blue-bright);
+    /* v1.1.3 — Music-app sign-in glow, ported to the movie-app focus
+       highlight.  A crisp accent ring wrapped in a soft two-layer
+       bloom in the CHOSEN theme colour (via --vesper-blue-rgb), so
+       the highlighted poster reads as a real glow — not just a
+       coloured border. */
+    box-shadow:
+        0 0 0 1.5px var(--vesper-blue-bright),
+        0 0 24px 4px rgba(var(--vesper-blue-rgb), 0.42),
+        0 0 48px 12px rgba(var(--vesper-blue-rgb), 0.20);
     z-index: 5;
 }
 
@@ -715,12 +723,21 @@ body {
 .vesper-host-android [data-focusable='true'][data-focus-style='tile']:focus-visible {
     transform: scale(1.07) translateZ(0) !important;
     z-index: 5 !important;
-    box-shadow: 0 0 0 3px var(--vesper-blue) !important;
+    /* v1.1.3 — Same music-style glow on the TV box.  Focus snaps
+       instantly here (transition:none above) so the soft bloom can
+       never smear into a "ghost glow" under the next tile. */
+    box-shadow:
+        0 0 0 1.5px var(--vesper-blue-bright),
+        0 0 24px 4px rgba(var(--vesper-blue-rgb), 0.42),
+        0 0 48px 12px rgba(var(--vesper-blue-rgb), 0.20) !important;
 }
 .vesper-low-end [data-focusable='true'][data-focus-style='pill']:focus-visible,
 .vesper-host-android [data-focusable='true'][data-focus-style='pill']:focus-visible {
     transform: scale(1.04) translateZ(0) !important;
-    box-shadow: 0 0 0 3px rgba(93, 200, 255, 0.85) !important;
+    box-shadow:
+        0 0 0 2px var(--vesper-blue-bright),
+        0 0 20px 4px rgba(var(--vesper-blue-rgb), 0.42),
+        0 0 40px 10px rgba(var(--vesper-blue-rgb), 0.18) !important;
 }
 .vesper-low-end [data-focusable='true'][data-focus-style='quiet']:focus-visible,
 .vesper-host-android [data-focusable='true'][data-focus-style='quiet']:focus-visible {

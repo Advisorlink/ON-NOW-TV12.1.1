@@ -17,14 +17,16 @@ export default function WhatsNewModal() {
 
     React.useEffect(() => {
         const path = location.pathname || '/';
-        const excluded =
+        // v1.1.3 — Show ONLY on the profile-selection screen (right
+        // after the user signs in and lands on profile picker), per
+        // user request.  Never on the media surfaces or login page.
+        const onProfiles = path.startsWith('/profiles');
+        const blocked =
             path.startsWith('/trivia') ||
             path.startsWith('/music') ||
             path.startsWith('/kids') ||
-            path.startsWith('/karaoke') ||
-            path.startsWith('/profiles') ||
-            path.startsWith('/login');
-        if (excluded) return undefined;
+            path.startsWith('/karaoke');
+        if (!onProfiles || blocked) return undefined;
         let seen = '';
         try { seen = localStorage.getItem(SEEN_KEY) || ''; } catch { /* ignore */ }
         if (seen === APP_VERSION) return undefined;

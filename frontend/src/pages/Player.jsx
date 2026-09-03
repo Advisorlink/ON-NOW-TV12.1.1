@@ -720,6 +720,7 @@ export default function Player() {
     const [partyRoleState, setPartyRoleState] = useState('guest');
     const partyMemberIdRef = useRef('');
     const partyWsRef = useRef(null);
+    const partyStateRef = useRef(null);   // latest authoritative 'state' msg
     const partyArmedRef = useRef(false);   // ignore the first 'play' that we
                                             // trigger on countdown so we don't
                                             // echo it back as a 'resume'.
@@ -917,6 +918,11 @@ export default function Player() {
             }
             if (msg.type !== 'state') return;
             if (!v) return;
+
+            // Latest authoritative party state (carries position_ms /
+            // status) — used by the guest "Catch Up" button to snap to
+            // the host's position.
+            partyStateRef.current = msg;
 
             const rosterFromServer = Array.isArray(msg.members)
                 ? msg.members

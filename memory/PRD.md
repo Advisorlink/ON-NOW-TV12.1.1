@@ -1,4 +1,10 @@
 # ON NOW TV V2 — PRD
+> **🟢 v1.1.3 — Music-style focus glow ported to Vesper + What's New popup moved to profile screen (Jun 2026).  VERIFIED in-browser.**
+> - **Focus glow:** the Tunes/music sign-in pink glow (a crisp accent ring wrapped in a soft two-layer bloom) is now the Vesper focus highlight.  Applied to `[data-focus-style='tile']` (posters/cards — the "highlighted box") and the on-box override `.vesper-host-android/.vesper-low-end` tile+pill rules (which previously forced a FLAT solid ring — the "looks like just a colour" complaint).  Theme-aware via `rgba(var(--vesper-blue-rgb), …)` so it glows in whatever colour the user picked.  Glow spec: `0 0 0 1.5px var(--vesper-blue-bright), 0 0 24px 4px rgba(accent,0.42), 0 0 48px 12px rgba(accent,0.20)`.  On the box, focus snaps instantly (`transition:none`) so the bloom never smears into a ghost trail.  File: `frontend/src/index.css` (~435, ~714).  Source of the look: `components/LoginScreen.jsx` music focus-ring (lines ~506-513).
+> - **What's New popup timing:** now shows ONLY on the profile-selection screen (`/profiles`), right after sign-in — was previously on Home.  File: `components/WhatsNewModal.jsx`.  VERIFIED: popup renders over the "Who's ready to watch?" picker.
+> - Both are web-bundle changes (live now); they also ship in the APK on next rebuild.
+>
+
 > **🟢 v1.1.2 — Bottom tip popups removed · EasyNews++ dead-link fast-skip · CW/swap-stream diagnosis (Jun 2026).**
 > - **Bottom "how to use it" tip popups REMOVED completely** (user: annoying/too hard).  Deleted `<FeatureNudge />` mount + import from `App.js`.  Component file left in tree (unused).  VERIFIED: app compiles clean, nudge no longer renders.  LIVE now (web bundle).
 > - **Continue Watching cross-profile leak** — user confirms it's **no longer happening**.  Web code is strictly per-profile (verified earlier).  No change needed.
