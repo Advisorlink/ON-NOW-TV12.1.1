@@ -507,7 +507,12 @@ export default function useSpatialFocus() {
                     el.scrollBy({
                         left: p.x || 0,
                         top: p.y || 0,
-                        behavior: 'auto',
+                        // v1.1.5 — glide the list as focus moves between
+                        // rows/tiles instead of an instant jump.  Held-key
+                        // repeats are already frame-paced (dpadPacer) and
+                        // same-frame scrolls coalesced above, so smooth
+                        // stays fluid here without thrashing on weak boxes.
+                        behavior: 'smooth',
                     });
                 }
             }

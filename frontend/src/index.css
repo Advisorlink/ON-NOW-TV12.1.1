@@ -710,11 +710,16 @@ body {
 }
 .vesper-low-end [data-focusable='true'],
 .vesper-host-android [data-focusable='true'] {
-    /* Override: snap focus instantly on the TV box.  The 200 ms
-       transition was the biggest source of the "ghost glow under
-       the next tile" the user kept reporting — the previous tile's
-       scale-out was still in flight while the new tile scaled in. */
-    transition: none !important;
+    /* v1.1.5 — Fluid-but-cheap focus motion on the TV box.  We
+       animate ONLY `transform` (the scale pop) — a compositor-only
+       property, so even weak boxes glide at 60fps with no layout or
+       paint cost.  The glow (box-shadow) is deliberately NOT
+       transitioned: it snaps on/off instantly with focus, which is
+       what kills the old "ghost glow under the next tile" (the
+       previous tile's scale-out is no longer dragging a blurred
+       shadow along with it).  Net result: smooth up/down movement,
+       no smear. */
+    transition: transform 130ms cubic-bezier(0.22, 1, 0.36, 1) !important;
 }
 /* Pop-out effect on focused tiles + pills — kept enabled even in
    perf mode because it's the single most "alive" feedback users get

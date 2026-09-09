@@ -237,28 +237,74 @@ object ApkInstaller {
     private fun detectSignatureConflict(ctx: Context, apk: File): String? {
         return try {
             val pm = ctx.packageManager
-            val apkInfo = pm.getPackageArchiveInfo(
-                apk.absolutePath,
-                android.content.pm.PackageManager.GET_SIGNATURES,
-            ) ?: return null
-            val apkPkg = apkInfo.packageName ?: return null
-            // Walk to the installed app's signatures.
-            val installed = try {
-                pm.getPackageInfo(
-                    apkPkg,
-                    android.content.pm.PackageManager.GET_SIGNATURES,
-                )
+            val apkPkg = pm.getPackageArchiveInfo(apk.absolutePath, 0)?.packageName
+                ?: return null
+            // Not installed → no possible conflict (fresh install).
+            try {
+                pm.getPackageInfo(apkPkg, 0)
             } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
-                return null    // not installed → no conflict
+                return null
             }
-            val apkSigs = apkInfo.signatures?.map { it.toCharsString() }?.toSet().orEmpty()
-            val instSigs = installed.signatures?.map { it.toCharsString() }?.toSet().orEmpty()
+            val apkSigs = archiveSignatures(pm, apk.absolutePath)
+            val instSigs = installedSignatures(pm, apkPkg)
+            // If we genuinely can't read either side's signatures we
+            // stay permissive and let Android's own installer decide.
             if (apkSigs.isEmpty() || instSigs.isEmpty()) return null
             if (apkSigs == instSigs) null else apkPkg
         } catch (t: Throwable) {
             Log.w(TAG, "signature check failed", t)
-            null   // be permissive — let Android's own error UI handle it
+            null
         }
+    }
+
+    /** v1.1.4 — Read an APK archive's signing certs using the modern
+     *  GET_SIGNING_CERTIFICATES (API 28+) and only fall back to the
+     *  deprecated GET_SIGNATURES on older devices.  The old code used
+     *  GET_SIGNATURES on ALL versions; on Android 9+ that returns an
+     *  empty/misleading set, so the conflict guard silently missed and
+     *  the box hit the dead-end "App not installed" instead of the
+     *  auto-uninstall path. */
+    @Suppress("DEPRECATION")
+    private fun archiveSignatures(
+        pm: android.content.pm.PackageManager,
+        path: String,
+    ): Set<String> = try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val info = pm.getPackageArchiveInfo(
+                path, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES)
+            signingInfoCerts(info?.signingInfo)
+        } else {
+            val info = pm.getPackageArchiveInfo(
+                path, android.content.pm.PackageManager.GET_SIGNATURES)
+            info?.signatures?.map { it.toCharsString() }?.toSet().orEmpty()
+        }
+    } catch (t: Throwable) {
+        Log.w(TAG, "archiveSignatures failed", t); emptySet()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun installedSignatures(
+        pm: android.content.pm.PackageManager,
+        pkg: String,
+    ): Set<String> = try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val info = pm.getPackageInfo(
+                pkg, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES)
+            signingInfoCerts(info.signingInfo)
+        } else {
+            val info = pm.getPackageInfo(
+                pkg, android.content.pm.PackageManager.GET_SIGNATURES)
+            info.signatures?.map { it.toCharsString() }?.toSet().orEmpty()
+        }
+    } catch (t: Throwable) {
+        Log.w(TAG, "installedSignatures failed", t); emptySet()
+    }
+
+    private fun signingInfoCerts(si: android.content.pm.SigningInfo?): Set<String> {
+        if (si == null) return emptySet()
+        val certs = if (si.hasMultipleSigners()) si.apkContentsSigners
+                    else si.signingCertificateHistory
+        return certs?.map { it.toCharsString() }?.toSet().orEmpty()
     }
 
     /**

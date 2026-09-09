@@ -119,6 +119,7 @@ export default function ReminderWatcher() {
 function ReminderToast({ reminder, channel, provider, onDismiss }) {
     const navigate = useNavigate();
     const dismissRef = useRef(null);
+    const containerRef = useRef(null);
     const watchRef = useRef(null);
 
     /* Auto-focus the Watch button so a quick D-pad press confirms. */
