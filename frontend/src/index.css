@@ -1,4 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,600;0,700;1,700&family=Rajdhani:wght@500;600;700&family=VT323&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=Source+Sans+3:wght@400;500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&family=Inter:wght@400;500;600;700&family=Cinzel:wght@500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;700;800&family=Comfortaa:wght@500;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -269,13 +275,13 @@ body {
 ------------------------------------------------------------------ */
 @layer components {
     .vesper-display {
-        font-family: 'Geist', system-ui, sans-serif;
+        font-family: var(--theme-font-display, 'Geist', system-ui, sans-serif);
         font-weight: 600;
         letter-spacing: -0.025em;
         line-height: 1;
     }
     .vesper-eyebrow {
-        font-family: 'JetBrains Mono', monospace;
+        font-family: var(--theme-font-mono, 'JetBrains Mono', monospace);
         font-weight: 500;
         font-size: 13px;
         letter-spacing: 0.32em;
@@ -283,11 +289,11 @@ body {
         color: var(--vesper-blue);
     }
     .vesper-mono {
-        font-family: 'Geist Mono', 'JetBrains Mono', monospace;
+        font-family: var(--theme-font-mono, 'Geist Mono', 'JetBrains Mono', monospace);
         letter-spacing: 0.04em;
     }
     .vesper-meta {
-        font-family: 'Geist', sans-serif;
+        font-family: var(--theme-font-body, 'Geist', sans-serif);
         font-weight: 400;
         font-size: 22px;
         color: var(--vesper-text-2);
@@ -1691,3 +1697,214 @@ body[data-platform="mobile"] [data-testid^="network-poster-"] {
     color: #FFC8E5;
 }
 
+
+/* ==================================================================
+   THEME SKINS — full-personality reskins (v1.2.0)
+   ------------------------------------------------------------------
+   Each `html[data-theme]` block transforms the shared surfaces far
+   beyond the accent colour: body backdrop + texture, `.vesper-glass`
+   panels, poster-tile shape, and the D-pad focus "feel".  Tokens in
+   themes.js already recolour everything that reads --vesper-* vars;
+   these rules add the shape / texture / focus personality on top.
+   ================================================================== */
+
+/* ---------------- 1 · AURORA GLASS (signature, dark) -------------- */
+html[data-theme='aurora-glass'] body {
+    background:
+        radial-gradient(ellipse 72% 55% at 16% 6%, rgba(14,165,233,0.16) 0%, transparent 55%),
+        radial-gradient(ellipse 60% 55% at 90% 84%, rgba(99,102,241,0.14) 0%, transparent 55%),
+        var(--vesper-bg-0);
+}
+html[data-theme='aurora-glass'] .vesper-glass {
+    background: linear-gradient(180deg, rgba(20,29,48,0.72) 0%, rgba(10,16,28,0.62) 100%);
+    border: 1px solid rgba(255,255,255,0.10);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+}
+
+/* ---------------- 2 · BRUTALIST MONO (dark, sharp) --------------- */
+html[data-theme='brutalist-mono'] body {
+    background:
+        linear-gradient(90deg, rgba(255,255,255,0.045) 1px, transparent 1px) 0 0 / 34px 34px,
+        linear-gradient(0deg, rgba(255,255,255,0.045) 1px, transparent 1px) 0 0 / 34px 34px,
+        #050505;
+}
+/* Kill every rounded corner — brutalism is all hard 90° edges. */
+html[data-theme='brutalist-mono'] [class*='rounded'] { border-radius: 0 !important; }
+html[data-theme='brutalist-mono'] .vesper-glass {
+    background: #0A0A0A;
+    border: 2px solid #FFFFFF;
+    border-radius: 0 !important;
+    box-shadow: 6px 6px 0 0 rgba(255,255,255,0.92);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+html[data-theme='brutalist-mono'] button[data-testid^='poster-'] {
+    border-radius: 0 !important;
+    border: 2px solid #FFFFFF !important;
+}
+/* Hard invert + offset shadow on focus (no glow, no soft scale). */
+html[data-theme='brutalist-mono'] [data-focus-style='tile']:focus-visible,
+html[data-theme='brutalist-mono'] [data-focus-style='tile'][data-focused='true'] {
+    transform: translate(-3px, -3px) !important;
+    outline: 3px solid #FFFFFF !important;
+    outline-offset: 0 !important;
+    box-shadow: 9px 9px 0 0 #FFFFFF !important;
+}
+html[data-theme='brutalist-mono'] [data-focus-style='pill']:focus-visible,
+html[data-theme='brutalist-mono'] [data-focus-style='pill'][data-focused='true'] {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    transform: none !important;
+    outline: 2px solid #FFFFFF !important;
+    outline-offset: 0 !important;
+    box-shadow: 4px 4px 0 0 #FFFFFF !important;
+}
+html[data-theme='brutalist-mono'] [data-focus-style='nav']:focus-visible,
+html[data-theme='brutalist-mono'] [data-focus-style='nav'][data-focused='true'] {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    transform: none !important;
+}
+html[data-theme='brutalist-mono'] [data-focus-style='nav'][data-focused='true']::before {
+    display: none;
+}
+
+/* ---------------- 3 · SYNTHWAVE CRT (dark, neon) ----------------- */
+html[data-theme='synthwave-crt'] body {
+    background:
+        repeating-linear-gradient(0deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 1px, transparent 1px, transparent 3px),
+        radial-gradient(ellipse 80% 60% at 50% 120%, rgba(255,0,127,0.35) 0%, transparent 60%),
+        linear-gradient(180deg, #0A0017 0%, #240038 55%, #4D004D 100%);
+}
+html[data-theme='synthwave-crt'] .vesper-glass {
+    background: rgba(26,0,44,0.82);
+    border: 2px solid rgba(255,0,127,0.85);
+    box-shadow: 0 0 18px rgba(255,0,127,0.35), inset 0 0 20px rgba(0,240,255,0.06);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+html[data-theme='synthwave-crt'] [data-focus-style='tile']:focus-visible,
+html[data-theme='synthwave-crt'] [data-focus-style='tile'][data-focused='true'] {
+    outline: 2px solid #00F0FF !important;
+    outline-offset: 2px !important;
+    box-shadow: 0 0 26px 2px #00F0FF, 0 0 14px 2px #FF007F !important;
+}
+html[data-theme='synthwave-crt'] [data-focus-style='pill']:focus-visible,
+html[data-theme='synthwave-crt'] [data-focus-style='pill'][data-focused='true'] {
+    box-shadow: 0 0 0 2px #00F0FF, 0 0 18px 2px #00F0FF, 0 0 10px 2px #FF007F !important;
+}
+
+/* ---------------- 4 · PAPER EDITORIAL (LIGHT) ------------------- */
+html[data-theme='paper-editorial'] body {
+    background: radial-gradient(circle at 50% -10%, #FFFDF9 0%, #EFE7D8 100%);
+}
+html[data-theme='paper-editorial'] ::selection {
+    background: #991B1B;
+    color: #FFFFFF;
+}
+html[data-theme='paper-editorial'] .vesper-glass {
+    background: #FFFFFF;
+    border: 1px solid #E7E5E4;
+    box-shadow: 0 6px 26px rgba(28,25,23,0.07);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+html[data-theme='paper-editorial'] button[data-testid^='poster-'] {
+    border: 1px solid #E0DACE !important;
+    border-radius: 4px !important;
+}
+/* Poster captions sit on a dark image gradient, so keep them light
+   even though body text is ink on this light skin. */
+html[data-theme='paper-editorial'] button[data-testid^='poster-'] .font-sans,
+html[data-theme='paper-editorial'] button[data-testid^='poster-'] .vesper-mono {
+    color: #FFFFFF !important;
+}
+html[data-theme='paper-editorial'] [data-focus-style='tile']:focus-visible,
+html[data-theme='paper-editorial'] [data-focus-style='tile'][data-focused='true'] {
+    transform: scale(1.03) translateY(-2px) !important;
+    outline: 3px solid #1C1917 !important;
+    outline-offset: 2px !important;
+    box-shadow: 0 0 0 5px rgba(153,27,27,0.28), 0 14px 30px rgba(28,25,23,0.16) !important;
+}
+html[data-theme='paper-editorial'] [data-focus-style='pill']:focus-visible,
+html[data-theme='paper-editorial'] [data-focus-style='pill'][data-focused='true'] {
+    background: #1C1917 !important;
+    color: #FFFFFF !important;
+    outline: none !important;
+    box-shadow: 0 6px 18px rgba(28,25,23,0.28) !important;
+}
+html[data-theme='paper-editorial'] [data-focus-style='nav']:focus-visible,
+html[data-theme='paper-editorial'] [data-focus-style='nav'][data-focused='true'] {
+    background: #F5F1E8 !important;
+    color: #991B1B !important;
+}
+html[data-theme='paper-editorial'] [data-focus-style='nav'][data-focused='true']::before {
+    background: #991B1B;
+    box-shadow: none;
+}
+
+/* ---------------- 5 · CINEMA NOIR (dark, gold) ------------------ */
+html[data-theme='cinema-noir'] body {
+    background:
+        radial-gradient(circle at 50% 24%, rgba(217,119,6,0.13) 0%, transparent 62%),
+        radial-gradient(circle at 50% 120%, rgba(0,0,0,0.6) 0%, transparent 55%),
+        url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.85 0 0 0 0 0.6 0 0 0 0 0.2 0 0 0 0.05 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"),
+        #090807;
+}
+html[data-theme='cinema-noir'] .vesper-glass {
+    background: rgba(20,18,16,0.92);
+    border: 1px solid rgba(217,119,6,0.32);
+    box-shadow: 0 12px 34px rgba(0,0,0,0.8);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+html[data-theme='cinema-noir'] [data-focus-style='tile']:focus-visible,
+html[data-theme='cinema-noir'] [data-focus-style='tile'][data-focused='true'] {
+    outline: 2px solid #F59E0B !important;
+    outline-offset: 2px !important;
+    box-shadow: 0 0 34px 4px rgba(245,158,11,0.42), 0 0 10px 1px rgba(245,158,11,0.6) !important;
+}
+
+/* ---------------- 6 · VAPOR BUBBLE (dark, playful) -------------- */
+html[data-theme='vapor-bubble'] body {
+    background:
+        radial-gradient(circle at 82% 16%, rgba(244,114,182,0.22) 0%, transparent 42%),
+        radial-gradient(circle at 14% 88%, rgba(56,189,248,0.16) 0%, transparent 44%),
+        linear-gradient(135deg, #2E134D 0%, #1A0B2E 52%, #0F081D 100%);
+}
+html[data-theme='vapor-bubble'] .vesper-glass {
+    background: rgba(46,19,77,0.62);
+    border: 2px solid rgba(244,114,182,0.32);
+    border-radius: 24px;
+    box-shadow: 0 10px 28px rgba(244,114,182,0.16);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+}
+html[data-theme='vapor-bubble'] button[data-testid^='poster-'] {
+    border-radius: 22px !important;
+}
+/* Bouncy elastic spring + candy dual-glow ring on focus. */
+html[data-theme='vapor-bubble'] [data-focus-style='tile'] {
+    transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+html[data-theme='vapor-bubble'] [data-focus-style='tile']:focus-visible,
+html[data-theme='vapor-bubble'] [data-focus-style='tile'][data-focused='true'] {
+    transform: scale(1.11) translateY(-2px) !important;
+    outline: 3px solid #F472B6 !important;
+    outline-offset: 3px !important;
+    box-shadow: 0 0 0 6px rgba(56,189,248,0.35), 0 0 30px 6px rgba(244,114,182,0.55) !important;
+}
+html[data-theme='vapor-bubble'] [data-focus-style='pill']:focus-visible,
+html[data-theme='vapor-bubble'] [data-focus-style='pill'][data-focused='true'] {
+    transform: scale(1.06) !important;
+    background: linear-gradient(90deg, #F472B6 0%, #A78BFA 100%) !important;
+    color: #FFFFFF !important;
+    box-shadow: 0 6px 22px rgba(244,114,182,0.5) !important;
+}
+html[data-theme='vapor-bubble'] [data-focus-style='nav']:focus-visible,
+html[data-theme='vapor-bubble'] [data-focus-style='nav'][data-focused='true'] {
+    background: rgba(244,114,182,0.28) !important;
+    border-radius: 999px !important;
+    color: #FFFFFF !important;
+}

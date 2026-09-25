@@ -40,6 +40,8 @@ export function ThemeProvider({ children }) {
         const theme = getTheme(themeId);
         const root = document.documentElement;
         root.setAttribute('data-theme', themeId);
+        root.setAttribute('data-theme-mode', theme.mode || 'dark');
+        root.style.colorScheme = theme.mode === 'light' ? 'light' : 'dark';
         for (const [k, v] of Object.entries(theme.tokens || {})) {
             root.style.setProperty(k, v);
         }

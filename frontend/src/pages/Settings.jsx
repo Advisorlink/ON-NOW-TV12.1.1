@@ -267,9 +267,9 @@ export default function Settings() {
                     marginBottom: 22,
                 }}
             >
-                Pick the colour that suits your room.  Every theme keeps
-                the same cinematic, TV-tuned layout; only the accent
-                changes.  Your choice is saved instantly.
+                Six completely different looks — not just colours, but new
+                fonts, shapes, textures and focus feel.  Same features
+                everywhere; a totally fresh vibe.  Saved instantly.
             </p>
 
             <div
@@ -1339,7 +1339,7 @@ function ThemeCard({ theme, active, initialFocus, onPick }) {
                     ? `2px solid ${p.accent}`
                     : '1px solid rgba(255,255,255,0.08)',
                 padding: 'clamp(12px, 1.1vw, 18px)',
-                color: '#fff',
+                color: p.fg || '#fff',
                 boxShadow: active
                     ? `0 0 0 3px ${p.accent}33, 0 18px 36px rgba(0,0,0,0.4)`
                     : '0 12px 24px rgba(0,0,0,0.3)',
@@ -1360,11 +1360,11 @@ function ThemeCard({ theme, active, initialFocus, onPick }) {
                         marginBottom: 5,
                     }}
                 >
-                    Theme · {theme.layout}
+                    Skin · {theme.mode}
                 </div>
                 <div
                     style={{
-                        fontFamily: `"${p.wordmark.font}", serif`,
+                        fontFamily: `"${p.wordmark.font}", system-ui, sans-serif`,
                         fontSize: 'clamp(18px, 1.6vw, 26px)',
                         fontWeight: p.wordmark.weight,
                         color: p.wordmark.color,
@@ -1380,14 +1380,14 @@ function ThemeCard({ theme, active, initialFocus, onPick }) {
                 style={{
                     fontSize: 11,
                     lineHeight: 1.35,
-                    color: 'rgba(255,255,255,0.78)',
+                    color: p.taglineColor || 'rgba(255,255,255,0.78)',
                     maxWidth: '28ch',
                 }}
             >
                 {theme.tagline}
             </div>
 
-            {/* Faux UI swatches — give a visual sense of the layout */}
+            {/* Faux UI swatches — hint at each skin's shape language */}
             <div className="flex items-end gap-1.5 mt-2">
                 {[1, 2, 3, 4].map((i) => (
                     <div
@@ -1396,16 +1396,8 @@ function ThemeCard({ theme, active, initialFocus, onPick }) {
                             flex: 1,
                             height: 22 + i * 4,
                             background: i === 1 ? p.accent : 'rgba(255,255,255,0.12)',
-                            borderRadius:
-                                theme.id === 'arcade' ? 0 : theme.id === 'paper' ? 3 : 6,
-                            border:
-                                theme.id === 'arcade'
-                                    ? `1px solid ${p.accent}66`
-                                    : 'none',
-                            clipPath:
-                                theme.id === 'arcade'
-                                    ? 'polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%)'
-                                    : 'none',
+                            borderRadius: p.sharp ? 0 : (p.radius ?? 6),
+                            border: p.sharp ? `1px solid ${p.accent}66` : 'none',
                         }}
                     />
                 ))}
