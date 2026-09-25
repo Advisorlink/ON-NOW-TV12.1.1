@@ -150,6 +150,7 @@ export default function HeroBillboard({ heroes }) {
             <div className="absolute inset-0 flex items-end">
                 <div
                     key={hero.id}
+                    data-hero-content="true"
                     className="relative z-10 max-w-[62vw] vesper-fade-up"
                     style={{
                         paddingLeft: 'clamp(92px, 6.5vw, 132px)',

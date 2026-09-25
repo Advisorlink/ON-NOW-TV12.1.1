@@ -1,0 +1,68 @@
+{
+  "summary": "Frontend-only theming test for v1.2.0 six 'skins' (aurora-glass, brutalist-mono, synthwave-crt, paper-editorial, cinema-noir, vapor-bubble). All 6 theme cards render on Settings with correct testids and visibly-different preview panels (different backgrounds, fonts, radii). Selecting each card instantly re-skins the whole app: data-theme attribute flips, localStorage key onnowtv-theme:<profile-id> is written, and body/surface/font-family tokens change across Home, Search, and Settings. Layout stays intact on every skin (no horizontal overflow at 1280px, sidebar+content unbroken, no console errors from the theming code — only unrelated 502s from external addon catalog which are expected). Theme choice persists after a full page reload (paper-editorial survived reload and profile pick). Focus indicator visible on paper-editorial theme grid — activeElement gets a 3px solid ink outline plus a red-tinted 5px box-shadow ring, matching the 'ink frame' focus style described in the spec. ONE READABILITY BUG found in the LIGHT paper-editorial skin: the Home hero 'More Info' pill renders as a solid dark rectangle with its label + icon invisible (black-on-black / dark-on-dark) — see paper-editorial_2_home screenshot.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Home hero 'More Info' button under paper-editorial theme",
+        "issue": "Button renders as an all-dark filled pill with its icon + 'More Info' text invisible (dark-on-dark). Play button and My List button are readable; only the middle 'More Info' pill fails. Reproduce: set theme to paper-editorial in Settings, go to Home (/), inspect the middle button in the hero action row. Likely cause: paper-editorial html[data-theme] block re-skins .vesper-glass / secondary button surfaces to a dark ink fill but leaves the button label using the same dark ink colour token, so foreground == background.",
+        "selector": "hero action button between [data-testid='hero-play'] and 'My List' (the 'More Info' pill)",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Search under paper-editorial",
+        "issues": [
+          "On-screen keyboard keys have very low key-label contrast (light-grey letters on cream/white keys). Readable but borderline for the LIGHT theme.",
+          "Bottom 'Search' submit pill has faded pink label on a very light pill background — low contrast when disabled."
+        ]
+      },
+      {
+        "screen": "Settings under paper-editorial",
+        "issues": [
+          "Force-SDR toggle in OFF state is a nearly invisible white knob on cream (no track visible). Play/Auto toggle in ON state is fine."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/root/.emergent/.screenshots/aurora-glass_1_settings.jpeg",
+    "/root/.emergent/.screenshots/aurora-glass_2_home.jpeg",
+    "/root/.emergent/.screenshots/aurora-glass_3_search.jpeg",
+    "/root/.emergent/.screenshots/brutalist-mono_1_settings.jpeg",
+    "/root/.emergent/.screenshots/brutalist-mono_2_home.jpeg",
+    "/root/.emergent/.screenshots/brutalist-mono_3_search.jpeg",
+    "/root/.emergent/.screenshots/synthwave-crt_1_settings.jpeg",
+    "/root/.emergent/.screenshots/synthwave-crt_2_home.jpeg",
+    "/root/.emergent/.screenshots/synthwave-crt_3_search.jpeg",
+    "/root/.emergent/.screenshots/paper-editorial_1_settings.jpeg",
+    "/root/.emergent/.screenshots/paper-editorial_2_home.jpeg",
+    "/root/.emergent/.screenshots/paper-editorial_3_search.jpeg",
+    "/root/.emergent/.screenshots/cinema-noir_1_settings.jpeg",
+    "/root/.emergent/.screenshots/cinema-noir_2_home.jpeg",
+    "/root/.emergent/.screenshots/cinema-noir_3_search.jpeg",
+    "/root/.emergent/.screenshots/vapor-bubble_1_settings.jpeg",
+    "/root/.emergent/.screenshots/vapor-bubble_2_home.jpeg",
+    "/root/.emergent/.screenshots/vapor-bubble_3_search.jpeg"
+  ],
+  "action_items": [
+    "FIX (HIGH): In the paper-editorial html[data-theme='paper-editorial'] block in src/index.css, override the Home hero 'More Info' secondary/glass button so its background stays light (cream/paper) and its label + icon use dark ink — currently both foreground and background resolve to the same dark ink token, so the pill goes black-on-black. Verify by taking a Home screenshot with paper-editorial active and confirming the label 'More Info' is legible next to Play / My List.",
+    "MINOR (design polish, paper-editorial only): boost on-key label contrast on the on-screen keyboard for /search, and make the disabled 'Search' submit button label darker. Consider giving the OFF-state toggle track a visible border/outline so an OFF switch is discoverable on the cream background."
+  ],
+  "critical_code_review_comments": [
+    "The theme picker correctly writes onnowtv-theme:<profileId> (per-profile scoped) — matches spec, persistence verified via reload.",
+    "Theme switching is CSS-token-based (data-theme attribute on <html>) — instant, no route reload — which is the right approach; no re-render bugs seen.",
+    "Paper-editorial is the ONLY skin flagged data-theme-mode='light'; recommend an automated 'light-mode contrast sweep' snapshot test (Playwright + pixel comparison against expected label bounding boxes) since dark→light mirror bugs like the More Info pill are easy to miss visually.",
+    "External addon catalog fetches from plexio.stream / 502 responses are unrelated to theming and expected in preview; they do not affect skin verification."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only test)", "frontend": "5 of 6 skins fully clean, paper-editorial has 1 HIGH readability bug + 3 minor light-mode contrast polish items — call it ~85%"},
+  "test_credentials": "testuser / testpass123 (per review request); profile seeded via localStorage as p-test-1 (Test).",
+  "seed_data_creation": "In-page localStorage seed: profile p-test-1 written to both onnowtv-profiles-v1 and onnowtv-profiles-v1:testuser; onboarding + whatsnew flags pre-marked so the app boots straight into the profile picker after login.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "IMPORTANT boot quirk: App.js has a module-load IIFE that CLEARS every onnowtv-active-profile-v1* key on any cold page load without a ?profile= query param — so a full page.goto('/settings') after seeding a profile will always bounce back to /profiles. Correct pattern is: (1) navigate to /profiles fresh, (2) click [data-testid='profile-p-test-1'] which triggers SPA navigate('/') and writes active-profile in-memory, (3) reach Settings via the sidebar [data-testid='nav-settings'] click (SPA) — NOT via page.goto('/settings'). All 6 theme card testids are theme-<id> and are on the Settings page under the 'Appearance · Theme' section (visible without scrolling on desktop). Persistence key is onnowtv-theme:<active-profile-id>. Focus style verification: focused theme card gets outline 3px solid + a themed ring (aurora glow, ink frame on paper, etc.) — visible via computed style boxShadow.",
+  "rca of the issue": "Paper-editorial 'More Info' button unreadable: the light-theme CSS block in src/index.css (html[data-theme='paper-editorial']) re-skins .vesper-glass / secondary-button surfaces to a dark ink background to match the editorial aesthetic, but the button label/icon inside continue to inherit the default paper-editorial foreground colour (--vesper-text mapped to dark ink), yielding foreground colour equal to background colour and hiding the label. Mitigation: within the paper-editorial theme block, explicitly override the Home hero secondary button (or any .vesper-glass button variant used in the hero) to use a light paper surface with dark ink foreground, OR keep the dark ink surface but flip the button's label colour to cream. Reproduction: pick paper-editorial in Settings → open Home → observe the pill between Play and My List renders as a solid black rectangle with no visible label."
+}

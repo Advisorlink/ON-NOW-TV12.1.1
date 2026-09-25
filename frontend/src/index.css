@@ -1908,3 +1908,42 @@ html[data-theme='vapor-bubble'] [data-focus-style='nav'][data-focused='true'] {
     border-radius: 999px !important;
     color: #FFFFFF !important;
 }
+
+/* ---------- PAPER EDITORIAL · light-mode contrast patches --------
+   These fix places that assume a DARK backdrop (the cinematic hero
+   sits on a dark movie image; the on-screen keyboard / toggles) —
+   on the one LIGHT skin the default ink tokens turn invisible. */
+/* Hero text lives on a dark backdrop → keep it light on paper too. */
+html[data-theme='paper-editorial'] [data-hero-content] {
+    color: #F6F3EC !important;
+}
+html[data-theme='paper-editorial'] [data-hero-content] p {
+    color: rgba(246,243,236,0.88) !important;
+}
+html[data-theme='paper-editorial'] [data-hero-content] .vesper-meta {
+    color: rgba(246,243,236,0.85) !important;
+}
+html[data-theme='paper-editorial'] [data-testid='hero-info-button'],
+html[data-theme='paper-editorial'] [data-testid='hero-list-button'] {
+    color: #FFFFFF !important;
+    background: rgba(255,255,255,0.16) !important;
+    border-color: rgba(255,255,255,0.42) !important;
+}
+/* On-screen search keyboard: dark keys+labels on the cream page. */
+html[data-theme='paper-editorial'] [data-testid^='tv-key-'] {
+    color: #1C1917 !important;
+    background: #FFFFFF !important;
+    border: 1px solid #E0DACE !important;
+}
+/* Toggle switch: give the track a visible outline so an OFF switch
+   is discoverable on cream (was a white knob on white). */
+html[data-theme='paper-editorial'] [data-testid^='toggle-'] > span {
+    border: 1px solid rgba(28,25,23,0.32) !important;
+}
+/* Disabled Search submit: readable grey pill instead of faint pink. */
+html[data-theme='paper-editorial'] [data-testid='search-submit']:disabled {
+    background: rgba(28,25,23,0.06) !important;
+    color: #57534E !important;
+    border: 1px solid rgba(28,25,23,0.20) !important;
+    opacity: 1 !important;
+}
