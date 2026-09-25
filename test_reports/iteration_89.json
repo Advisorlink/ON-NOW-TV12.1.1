@@ -1,0 +1,37 @@
+{
+  "summary": "Focused frontend re-test of paper-editorial light-skin contrast fixes (post iteration_88). Login → seed profile → SPA-navigate to profile → Settings → pick 'paper-editorial' → Home + Search inspection. All 4 previously-broken spots are now READABLE. No new regressions observed on paper-editorial.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verification_details": {
+    "hero_more_info_button": "PASS — color=rgb(255,255,255) on bg=rgba(255,255,255,0.16), border=rgba(255,255,255,0.42). Label 'More Info' + icon clearly visible over dark hero (see paper_home.jpeg).",
+    "hero_my_list_button": "PASS — same white-on-translucent pill styling, label 'My List' visible.",
+    "hero_title_and_meta": "PASS — [data-hero-content] color=rgb(246,243,236), title 'Monster' + year/runtime meta + synopsis all readable on dark backdrop.",
+    "hero_play_button": "PASS — legible white pill.",
+    "search_keyboard_keys": "PASS — [data-testid^='tv-key-'] color=rgb(28,25,23) on bg=rgb(255,255,255) with border rgb(224,218,206). Dark letters on light keys, high contrast (see paper_search.jpeg).",
+    "search_submit_disabled": "PASS — color=rgb(87,83,78) grey on bg=rgba(28,25,23,0.06) with 1px rgba(28,25,23,0.20) border. Readable grey pill, no faint pink.",
+    "settings_toggle_off_track": "PASS — [data-testid^='toggle-'] > span has border '1px solid rgba(28,25,23,0.32)'. OFF toggle (force-SDR) shows a visible cream track with dark outline (see paper_settings.jpeg).",
+    "settings_headings_and_rows": "PASS — 'SETTINGS · APPEARANCE', 'Theme', 'Streams', 'Auto play', 'Force SDR playback', 'Video player' all render as dark ink on cream. No white-on-white regressions."
+  },
+  "test_report_links": [
+    "/app/.screenshots/paper_settings.jpeg",
+    "/app/.screenshots/paper_home.jpeg",
+    "/app/.screenshots/paper_search.jpeg"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fix implemented cleanly in index.css: uses [data-hero-content] wrapper + specific testids (hero-info-button, hero-list-button, tv-key-*, toggle-*, search-submit:disabled) — minimal blast radius, correctly scoped to html[data-theme='paper-editorial']. Good pattern.",
+    "Minor suggestion (non-blocking): consider adding an automated Playwright visual/computed-style contrast sweep for the light skin so future regressions on paper-editorial are caught in CI."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "100% (4/4 targeted fixes verified, no regressions)"},
+  "test_credentials": "testuser / testpass123",
+  "seed_data_creation": "localStorage seed: profile p-test-1 → 'onnowtv-profiles-v1' + 'onnowtv-profiles-v1:testuser'; onboarding + whatsnew flags; onnowtv-theme:p-test-1='paper-editorial' pre-seeded to accelerate boot into the target skin.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Paper-editorial light-skin contrast fixes are all live and verified via computed styles. The App.js cold-boot quirk (clears active-profile without ?profile=) still holds — always go via /profiles → click [data-testid='profile-p-test-1'] → SPA-navigate via sidebar (nav-settings/nav-home/nav-search testids exist). Sidebar in paper-editorial collapses to icons-only rail; use data-testid clicks (they still work) rather than visible label matches. Persistence key is onnowtv-theme:<profile-id>.",
+  "rca of the issue": "N/A — issue resolved. Previous RCA: paper-editorial theme block re-skinned hero buttons/keys/toggles/submit assuming a dark backdrop, causing foreground==background. Mitigation applied in src/index.css 'PAPER EDITORIAL · light-mode contrast patches' block explicitly overrides color/background/border for the 5 affected element groups scoped under html[data-theme='paper-editorial']."
+}
