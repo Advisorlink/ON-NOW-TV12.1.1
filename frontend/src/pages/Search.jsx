@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Loader2, Search as SearchIcon, Mic, MicOff, ArrowRight } from 'lucide-react';
+import { Loader2, Search as SearchIcon, Mic, MicOff, ArrowRight, History, X } from 'lucide-react';
 import SideNav from '@/components/SideNav';
 import KidsSideNav from '@/components/KidsSideNav';
 import FullscreenButton from '@/components/FullscreenButton';
@@ -11,8 +11,34 @@ import { useAddons } from '@/hooks/useAddons';
 import KidsBlockedMessage from '@/components/KidsBlockedMessage';
 import { API, Vesper } from '@/lib/api';
 import { isKidsActive } from '@/lib/profiles';
+import { readScopedString, writeScopedString } from '@/lib/profileScope';
 import Host from '@/lib/host';
 import useIsMobile from '@/lib/useIsMobile';
+
+// Recent-searches store (per profile, last 8).
+const RECENTS_KEY = 'onnowtv-search-recents-v1';
+const MAX_RECENTS = 8;
+function loadRecents() {
+    try {
+        const raw = readScopedString(RECENTS_KEY);
+        const arr = raw ? JSON.parse(raw) : [];
+        return Array.isArray(arr) ? arr.filter((x) => typeof x === 'string').slice(0, MAX_RECENTS) : [];
+    } catch { return []; }
+}
+function pushRecent(query) {
+    const q = (query || '').trim();
+    if (q.length < 2) return loadRecents();
+    let arr = loadRecents().filter((x) => x.toLowerCase() !== q.toLowerCase());
+    arr.unshift(q);
+    arr = arr.slice(0, MAX_RECENTS);
+    try { writeScopedString(RECENTS_KEY, JSON.stringify(arr)); } catch { /* ignore */ }
+    return arr;
+}
+
+// Module-level session cache — when the user opens a result and then
+// presses BACK, Search remounts and restores the last query + results
+// instead of showing a blank search screen.
+let SEARCH_STATE = null;
 
 /**
  * Single native text input + a Search button.  We deliberately do NOT
@@ -26,19 +52,31 @@ import useIsMobile from '@/lib/useIsMobile';
  */
 export default function Search() {
     useSpatialFocus();
-    useBackHandler('/');
+    useBackHandler();
     const kids = isKidsActive();
     const { addons } = useAddons();
-    const [q, setQ] = useState('');
-    const [results, setResults] = useState([]);
+    const [q, setQ] = useState(() => SEARCH_STATE?.q || '');
+    const [results, setResults] = useState(() => SEARCH_STATE?.results || []);
     const [busy, setBusy] = useState(false);
-    const [searched, setSearched] = useState(false);
-    const [lastQuery, setLastQuery] = useState('');
+    const [searched, setSearched] = useState(() => SEARCH_STATE?.searched || false);
+    const [lastQuery, setLastQuery] = useState(() => SEARCH_STATE?.lastQuery || '');
+    const [recents, setRecents] = useState(() => loadRecents());
     const [listening, setListening] = useState(false);
     const [voiceError, setVoiceError] = useState('');
     const inputRef = useRef(null);
     const voiceAvailable = Host.isVoiceSearchAvailable();
     const isMobile = useIsMobile();
+
+    // Keep the session cache in sync so a BACK from a result page
+    // restores exactly what the user was looking at.
+    useEffect(() => {
+        SEARCH_STATE = { q, results, searched, lastQuery };
+    }, [q, results, searched, lastQuery]);
+
+    const clearRecents = () => {
+        try { writeScopedString(RECENTS_KEY, JSON.stringify([])); } catch { /* ignore */ }
+        setRecents([]);
+    };
 
     // Live refs so the phone-remote keydown bridge below never acts
     // on stale state.
@@ -253,6 +291,7 @@ export default function Search() {
         }
         setResults(out);
         setBusy(false);
+        setRecents(pushRecent(query));
     };
     doSearchRef.current = doSearch;
 
@@ -678,6 +717,84 @@ export default function Search() {
                                 {kids ? 'Find something to watch' : 'Search'}
                                 {!busy && <ArrowRight size={16} strokeWidth={2.5} />}
                             </button>
+
+                            {/* Recent searches — tap to re-run.  Per
+                                profile, last 8.  Hidden in kids mode. */}
+                            {!kids && recents.length > 0 && (
+                                <div
+                                    data-testid="search-recents"
+                                    style={{ marginTop: 22, width: '100%', maxWidth: 560 }}
+                                >
+                                    <div
+                                        className="vesper-mono flex items-center justify-between"
+                                        style={{
+                                            fontSize: 10,
+                                            letterSpacing: '0.28em',
+                                            textTransform: 'uppercase',
+                                            color: 'var(--vesper-text-3)',
+                                            marginBottom: 10,
+                                        }}
+                                    >
+                                        <span className="flex items-center gap-2">
+                                            <History size={13} strokeWidth={2} />
+                                            Recent searches
+                                        </span>
+                                        <button
+                                            data-testid="search-recents-clear"
+                                            data-focusable="true"
+                                            data-focus-style="bare"
+                                            tabIndex={0}
+                                            onClick={clearRecents}
+                                            className="flex items-center gap-1 rounded-full"
+                                            style={{
+                                                fontSize: 10,
+                                                letterSpacing: '0.14em',
+                                                color: 'var(--vesper-text-2)',
+                                                background: 'rgba(255,255,255,0.06)',
+                                                border: '1px solid rgba(255,255,255,0.12)',
+                                                padding: '4px 10px',
+                                                cursor: 'pointer',
+                                            }}
+                                        >
+                                            <X size={11} strokeWidth={2.4} />
+                                            Clear
+                                        </button>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {recents.map((r, i) => (
+                                            <button
+                                                key={r}
+                                                data-testid={`search-recent-${i}`}
+                                                data-focusable="true"
+                                                data-focus-style="pill"
+                                                tabIndex={0}
+                                                onClick={() => {
+                                                    setQ(r);
+                                                    doSearch(r);
+                                                }}
+                                                className="flex items-center gap-2 rounded-full font-sans"
+                                                style={{
+                                                    height: 38,
+                                                    padding: '0 16px',
+                                                    fontSize: 13,
+                                                    fontWeight: 500,
+                                                    color: 'var(--vesper-text)',
+                                                    background: 'rgba(255,255,255,0.06)',
+                                                    border: '1px solid rgba(var(--vesper-blue-rgb),0.28)',
+                                                    cursor: 'pointer',
+                                                }}
+                                            >
+                                                <History
+                                                    size={13}
+                                                    strokeWidth={2}
+                                                    color="var(--vesper-blue-bright)"
+                                                />
+                                                {r}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {!kids && !searchable.length && (
                                 <p

@@ -20,7 +20,7 @@ const SUBTAB_KEY = 'vesper-network-subtab';
 
 export default function Network() {
     useSpatialFocus();
-    useBackHandler('/');
+    useBackHandler();
     const { slug } = useParams();
     const navigate = useNavigate();
     const network = findNetwork(slug);

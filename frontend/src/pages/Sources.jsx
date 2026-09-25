@@ -10,7 +10,7 @@ import { Vesper } from '@/lib/api';
 
 export default function Sources() {
     useSpatialFocus();
-    useBackHandler('/');
+    useBackHandler();
     const { addons, loading, install, remove, refresh } = useAddons();
     const [suggested, setSuggested] = useState([]);
     const [showOSK, setShowOSK] = useState(false);

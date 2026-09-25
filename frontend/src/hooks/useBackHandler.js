@@ -56,8 +56,16 @@ export default function useBackHandler(onBack) {
             } else if (typeof onBack === 'string') {
                 navigate(onBack);
             } else {
-                // Default: pop browser history one step.
-                navigate(-1);
+                // Default: go to the PREVIOUS page (browser history),
+                // falling back to Home only when there's no in-app
+                // history (cold start / deep link).  This is what makes
+                // BACK return to where the user came from instead of
+                // always jumping to Home.
+                if (typeof window !== 'undefined' && window.history.length > 1) {
+                    navigate(-1);
+                } else {
+                    navigate('/');
+                }
             }
         };
         // Use capture phase so this runs BEFORE any page-level handler

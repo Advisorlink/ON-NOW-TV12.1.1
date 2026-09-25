@@ -14,6 +14,7 @@ const SEEN_KEY = 'onnowtv-whatsnew-seen-v1';
 export default function WhatsNewModal() {
     const location = useLocation();
     const [open, setOpen] = React.useState(false);
+    const gotItRef = React.useRef(null);
 
     React.useEffect(() => {
         const path = location.pathname || '/';
@@ -40,6 +41,16 @@ export default function WhatsNewModal() {
         setOpen(false);
     };
 
+    // Land D-pad / keyboard focus on the "Got it" button inside the
+    // box so OK never clicks something behind the modal.
+    React.useEffect(() => {
+        if (!open) return undefined;
+        const t = setTimeout(() => {
+            try { gotItRef.current?.focus(); } catch { /* ignore */ }
+        }, 120);
+        return () => clearTimeout(t);
+    }, [open]);
+
     if (!open) return null;
     const release = WHATS_NEW[APP_VERSION];
 
@@ -58,6 +69,7 @@ export default function WhatsNewModal() {
         >
             <div
                 className="vesper-glass rounded-3xl"
+                data-focus-trap="true"
                 onClick={(e) => e.stopPropagation()}
                 style={{
                     width: 'min(560px, 92vw)',
@@ -71,6 +83,9 @@ export default function WhatsNewModal() {
             >
                 <button
                     data-testid="whats-new-close"
+                    data-focusable="true"
+                    data-focus-style="bare"
+                    tabIndex={0}
                     onClick={dismiss}
                     aria-label="Close"
                     className="absolute flex items-center justify-center rounded-full"
@@ -146,6 +161,8 @@ export default function WhatsNewModal() {
                     data-testid="whats-new-got-it"
                     data-focusable="true"
                     data-focus-style="pill"
+                    data-initial-focus="true"
+                    ref={gotItRef}
                     tabIndex={0}
                     onClick={dismiss}
                     className="font-sans rounded-full"

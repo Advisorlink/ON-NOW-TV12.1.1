@@ -61,12 +61,23 @@ export default function HeroBillboard({ heroes }) {
         const buttons = Array.from(
             container.querySelectorAll('[data-focusable="true"]')
         );
-        const idx = buttons.indexOf(e.currentTarget);
-        if (idx < 0) return;
-        const next = e.key === 'ArrowRight' ? idx + 1 : idx - 1;
-        // Clamp to the row — DON'T let focus escape sideways.
-        const clamped = Math.max(0, Math.min(buttons.length - 1, next));
-        buttons[clamped]?.focus();
+        const cur = buttons.indexOf(e.currentTarget);
+        if (cur < 0) return;
+        const next = e.key === 'ArrowRight' ? cur + 1 : cur - 1;
+        if (next >= 0 && next < buttons.length) {
+            // Move between the hero action buttons.
+            buttons[next]?.focus();
+        } else if (list.length > 1) {
+            // At an end of the button row — flip the billboard to the
+            // previous / next hero so Left/Right keeps doing something
+            // useful instead of dead-ending.  Focus stays on the same
+            // button (the buttons persist across hero changes).
+            setIdx((i) =>
+                e.key === 'ArrowRight'
+                    ? (i + 1) % list.length
+                    : (i - 1 + list.length) % list.length
+            );
+        }
     };
 
     return (

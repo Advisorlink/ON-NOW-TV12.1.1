@@ -92,7 +92,7 @@ function snapTo15(ms) {
 ==================================================================== */
 export default function FreeToAir() {
     useSpatialFocus();
-    useBackHandler('/');
+    useBackHandler();
 
     const [tab, setTab] = useState('live');          // category id
     const [categories, setCategories] = useState([]);

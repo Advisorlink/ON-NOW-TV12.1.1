@@ -1125,6 +1125,10 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                             activeId={null}
                             onOpen={(g) => toggleGenre(g, 'movie')}
                             onToggle={(g) => toggleGenre(g, 'movie')}
+                            onSelectAll={() =>
+                                onChange({ ...value, movieGenres: movieGenres.map((g) => g.id) })
+                            }
+                            onClearAll={() => onChange({ ...value, movieGenres: [] })}
                         />
                     ) : (
                         <GenreSection
@@ -1137,6 +1141,10 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                             activeId={null}
                             onOpen={(g) => toggleGenre(g, 'tv')}
                             onToggle={(g) => toggleGenre(g, 'tv')}
+                            onSelectAll={() =>
+                                onChange({ ...value, tvGenres: tvGenres.map((g) => g.id) })
+                            }
+                            onClearAll={() => onChange({ ...value, tvGenres: [] })}
                         />
                     )}
                 </div>
@@ -1462,20 +1470,57 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
     );
 }
 
-function GenreSection({ label, genres, media, loading, selected, activeId, onOpen, onToggle }) {
+function GenreSection({ label, genres, media, loading, selected, activeId, onOpen, onToggle, onSelectAll, onClearAll }) {
+    const allSelected = !loading && genres.length > 0 && genres.every((g) => selected.includes(g.id));
     return (
         <div>
             <div
-                className="vesper-mono"
-                style={{
-                    fontSize: 10,
-                    letterSpacing: '0.32em',
-                    color: 'var(--vesper-text-3)',
-                    marginBottom: 10,
-                    textTransform: 'uppercase',
-                }}
+                className="flex items-center justify-between"
+                style={{ marginBottom: 10, gap: 12 }}
             >
-                {label}
+                <div
+                    className="vesper-mono"
+                    style={{
+                        fontSize: 10,
+                        letterSpacing: '0.32em',
+                        color: 'var(--vesper-text-3)',
+                        textTransform: 'uppercase',
+                    }}
+                >
+                    {label}
+                </div>
+                {!loading && genres.length > 0 && (
+                    <div className="flex items-center gap-2">
+                        <button
+                            data-testid={`viewing-style-select-all-${media}`}
+                            data-focusable="true"
+                            data-focus-style="pill"
+                            tabIndex={0}
+                            onClick={() => (allSelected ? onClearAll?.() : onSelectAll?.())}
+                            className="rounded-full font-sans"
+                            style={{
+                                height: 30,
+                                padding: '0 14px',
+                                fontSize: 11.5,
+                                fontWeight: 700,
+                                letterSpacing: '0.02em',
+                                background: allSelected
+                                    ? 'rgba(255,255,255,0.06)'
+                                    : 'rgba(var(--vesper-blue-rgb),0.18)',
+                                color: allSelected
+                                    ? 'var(--vesper-text-2)'
+                                    : 'var(--vesper-blue-bright)',
+                                border: allSelected
+                                    ? '1px solid rgba(255,255,255,0.14)'
+                                    : '1px solid rgba(var(--vesper-blue-rgb),0.5)',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                            }}
+                        >
+                            {allSelected ? 'Clear all' : 'Select all'}
+                        </button>
+                    </div>
+                )}
             </div>
             {loading ? (
                 <div

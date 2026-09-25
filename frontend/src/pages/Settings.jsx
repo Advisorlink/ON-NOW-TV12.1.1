@@ -29,7 +29,7 @@ import {
 export default function Settings() {
     useSpatialFocus();
     // BACK from remote → return to Home.
-    useBackHandler('/');
+    useBackHandler();
     const navigate = useNavigate();
     const { themeId, setThemeId } = useTheme();
     const [autoplay, setAutoplay] = React.useState(getAutoplay1080p());
