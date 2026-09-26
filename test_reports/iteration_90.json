@@ -1,0 +1,27 @@
+{
+  "summary": "Frontend testing for v1.3.0: Settings two theme groups (8 colour themes + 6 skins), new toggle-auto-trailer in Playback, and Home Netflix-style trailer hover preview. All core acceptance criteria PASS.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Trailer hover preview initial focus", "issue": "First poster focused after page load did not show [data-testid='trailer-hover-preview'] even after ~5.5s dwell (imdb-only tile via /api/tmdb/find-by-imdb). Preview appeared correctly within ~2s when focus moved to a different tile (posters[3], also imdb-only) and on all subsequent tiles. Likely a first-request cold path in find-by-imdb resolution or dwell timer race on very first focus after route mount. Not a regression on the API itself (subsequent tiles work).", "affected_selectors": ["[data-testid='trailer-hover-preview']", "[data-testid='trailer-hover-iframe']"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Investigate why the very first poster focus after Home mount does not trigger the trailer hover preview (imdb-only tile). Consider warming find-by-imdb resolver or reducing the dwell/loading gate for the first invocation. All subsequent focus swaps work as designed."
+  ],
+  "critical_code_review_comments": [
+    "Settings.jsx is 1614 lines — consider splitting Appearance / Playback / Backup subsections into separate components (>700 line threshold).",
+    "TrailerHoverPreview uses focus dwell of ~550ms; the first cold resolution via /api/tmdb/find-by-imdb can exceed several seconds, so an intermediate 'loading' visual (backdrop only) should be reliably rendered while the trailer resolves — verify it always mounts (was not seen on first tile)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "95%"},
+  "test_credentials": "testuser / testpass123",
+  "seed_data_creation": "localStorage seeded profile p-test-1 and auto-trailer=1, theme=electric",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Confirmed via Playwright: (a) Settings shows 'Colour themes' header with 8 cards (theme-electric, theme-magenta, theme-sunset, theme-amethyst, theme-emerald, theme-ember, theme-gold, theme-mint) and 'Full skins' header with 6 cards (theme-aurora-glass, theme-brutalist-mono, theme-synthwave-crt, theme-paper-editorial, theme-cinema-noir, theme-vapor-bubble). (b) Selecting theme-magenta writes 'magenta' to localStorage onnowtv-theme:p-test-1; theme-paper-editorial writes 'paper-editorial'. (c) [data-testid='toggle-auto-trailer'] toggles onnowtv-auto-trailer:p-test-1 between '0' and '1' correctly. (d) On Home, focusing poster tiles (buttons carry data-preview-type/tmdb/imdb/title/sub/backdrop) with toggle ON shows [data-testid='trailer-hover-preview'] within ~2s and [data-testid='trailer-hover-iframe'] within ~5s once trailer resolves; moving focus to sidebar removes the preview; with toggle OFF no preview appears. First-tile edge case: on very first focus after Home mount, preview did not appear within 5.5s for an imdb-only tile — but appeared on every subsequent tile.",
+  "rca of the issue": "Trailer hover preview 'first-tile miss': hover preview uses focus-dwell (~550ms) then resolves trailer via /api/tmdb/find-by-imdb -> /api/tmdb/trailer. On the very first invocation after page navigation, the preview card itself never mounted, suggesting the dwell timer may be cancelled by an early re-render / focus event during initial Home mount (rail virtualisation or featured-hero rotation stealing focus briefly). Mitigation: (1) ensure dwell timer isn't cancelled by transient blur events on the same node, (2) mount the preview container as soon as data-preview node is focused (show backdrop) without waiting for trailer JSON."
+}

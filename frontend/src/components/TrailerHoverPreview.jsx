@@ -111,6 +111,15 @@ export default function TrailerHoverPreview() {
         document.addEventListener('focusin', onFocusIn);
         document.addEventListener('mouseover', onOver);
         window.addEventListener('vesper:hide-trailer-preview', hide);
+
+        // The Home page auto-focuses a tile on mount, which can fire
+        // BEFORE this listener attaches — so kick off the dwell for a
+        // tile that's already focused right now.
+        const ae = document.activeElement;
+        if (ae && ae.closest && ae.closest('[data-preview="true"]')) {
+            onEnter(ae);
+        }
+
         return () => {
             document.removeEventListener('focusin', onFocusIn);
             document.removeEventListener('mouseover', onOver);
