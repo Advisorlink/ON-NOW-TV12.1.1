@@ -258,4 +258,35 @@ object YouTubeTrailerExtractor {
             return null
         }
     }
+
+    /**
+     * Inline hover-preview variant — MUXED (video+audio in one file)
+     * progressive MP4 only, capped at 720p, so a plain HTML5 <video>
+     * inside the WebView can play it with sound.  Returns null when
+     * no muxed stream is available.
+     */
+    fun extractMuxed(videoId: String): TrailerStreams? {
+        val safe = videoId.filter { it.isLetterOrDigit() || it == '_' || it == '-' }
+        if (safe.isEmpty()) return null
+        try {
+            ensureInit()
+            val extractor = ServiceList.YouTube.getStreamExtractor("https://www.youtube.com/watch?v=$safe")
+            extractor.fetchPage()
+            val muxed = extractor.videoStreams
+                ?.filter { !it.url.isNullOrBlank() && it.height in 1..720 }
+                ?.maxByOrNull { it.height }
+                ?: extractor.videoStreams?.firstOrNull { !it.url.isNullOrBlank() }
+                ?: return null
+            Log.i(TAG, "preview muxed chosen: ${muxed.height}p")
+            return TrailerStreams(
+                videoUrl = muxed.url ?: return null,
+                audioUrl = null,
+                title = extractor.name ?: "Trailer",
+                heightPx = muxed.height.takeIf { it > 0 } ?: 0,
+            )
+        } catch (t: Throwable) {
+            Log.w(TAG, "extractMuxed($safe) failed: ${t.javaClass.simpleName}: ${t.message}")
+            return null
+        }
+    }
 }

@@ -102,14 +102,17 @@ export default function PosterTile({ item, onSelect, initialFocus = false }) {
             data-preview-imdb={item.imdbId || ''}
             data-preview-title={item.title || ''}
             data-preview-sub={item.sub || ''}
-            data-preview-backdrop={previewBackdrop}
+            data-preview-backdrop={previewBackdrop || (item.poster ? img.poster(item.poster) : '')}
             {...(initialFocus ? { 'data-initial-focus': 'true' } : {})}
             tabIndex={0}
             {...press}
             className="group relative shrink-0 overflow-hidden rounded-xl text-left"
             style={{
-                width: 'clamp(132px, 11.5vw, 198px)',
-                aspectRatio: '2 / 3',
+                '--tile-w': 'clamp(132px, 11.5vw, 198px)',
+                width: 'var(--tile-w)',
+                height: 'calc(var(--tile-w) * 1.5)',
+                transition:
+                    'transform 120ms ease-out, width 280ms cubic-bezier(.2,.7,.2,1)',
                 background: 'var(--vesper-bg-2)',
                 border: '1px solid rgba(255,255,255,0.05)',
                 /* v2.7.88 — INLINE touch-action so a finger drag

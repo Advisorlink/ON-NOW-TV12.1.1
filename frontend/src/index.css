@@ -438,6 +438,13 @@ body {
 [data-focus-style='tile'] {
     transition: transform 120ms ease-out;
 }
+
+/* Netflix-style hover preview — the focused poster itself widens
+   into a 16:9 card (same height, ≈2.67× wider) and the trailer plays
+   inside it.  Width is inline (`--tile-w`) so we need !important. */
+[data-preview='true'][data-preview-active='true'] {
+    width: calc(var(--tile-w) * 2.6667) !important;
+}
 [data-focus-style='tile']:focus-visible,
 [data-focus-style='tile'][data-focused='true'] {
     transform: scale(1.06) translateY(-2px);
@@ -784,7 +791,7 @@ body {
 #emergent-badge,
 [class*="emergent-badge"],
 [id*="emergent-badge"],
-iframe[src*="emergent"],
+iframe[src*="emergent.sh"],
 a[href*="emergent.sh"],
 a[href*="app.emergent"],
 [id*="static-preview"],

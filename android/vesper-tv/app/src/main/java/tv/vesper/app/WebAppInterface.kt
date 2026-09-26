@@ -1163,23 +1163,45 @@ class WebAppInterface(private val activity: Activity) {
                 android.util.Log.w("VesperTrailer", "extract threw", t)
                 null
             }
-            val mainAct = activity as? MainActivity ?: return@Thread
-            val js = if (streams != null) {
-                val vUrl = escapeJsString(streams.videoUrl)
-                val aUrl = escapeJsString(streams.audioUrl ?: "")
-                val title = escapeJsString(streams.title)
-                val height = streams.heightPx
-                "window.__trailerReady && window.__trailerReady(" +
-                    "'${escapeJsString(callbackId)}', " +
-                    "{videoUrl:'$vUrl', audioUrl:'$aUrl', title:'$title', height:$height})"
-            } else {
-                "window.__trailerReady && window.__trailerReady(" +
-                    "'${escapeJsString(callbackId)}', null)"
-            }
-            mainAct.runOnUiThread {
-                mainAct.webViewOrNull()?.evaluateJavascript(js, null)
-            }
+            postTrailerResult(callbackId, streams)
         }.start()
+    }
+
+    /**
+     * Inline Home-rail hover preview (TrailerHoverPreview.jsx).  Same
+     * callback contract as [playTrailer] but returns a MUXED ≤720p
+     * stream so the WebView's own <video> can play it with sound.
+     */
+    @JavascriptInterface
+    fun previewTrailer(callbackId: String, videoId: String) {
+        Thread {
+            val streams = try {
+                YouTubeTrailerExtractor.extractMuxed(videoId)
+            } catch (t: Throwable) {
+                android.util.Log.w("VesperTrailer", "extractMuxed threw", t)
+                null
+            }
+            postTrailerResult(callbackId, streams)
+        }.start()
+    }
+
+    private fun postTrailerResult(callbackId: String, streams: YouTubeTrailerExtractor.TrailerStreams?) {
+        val mainAct = activity as? MainActivity ?: return
+        val js = if (streams != null) {
+            val vUrl = escapeJsString(streams.videoUrl)
+            val aUrl = escapeJsString(streams.audioUrl ?: "")
+            val title = escapeJsString(streams.title)
+            val height = streams.heightPx
+            "window.__trailerReady && window.__trailerReady(" +
+                "'${escapeJsString(callbackId)}', " +
+                "{videoUrl:'$vUrl', audioUrl:'$aUrl', title:'$title', height:$height})"
+        } else {
+            "window.__trailerReady && window.__trailerReady(" +
+                "'${escapeJsString(callbackId)}', null)"
+        }
+        mainAct.runOnUiThread {
+            mainAct.webViewOrNull()?.evaluateJavascript(js, null)
+        }
     }
 
     /**

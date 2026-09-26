@@ -3,15 +3,18 @@
  *
  * Mounted once on the Home page.  When a poster tile (any element
  * with `data-preview="true"`) is FOCUSED (D-pad) or HOVERED (mouse)
- * for a short dwell, it expands into a wide 16:9 card anchored over
- * the tile and auto-plays the title's English YouTube trailer.
+ * for a short dwell, the TILE ITSELF widens into a 16:9 card (same
+ * row height, siblings shift right) and the title's English trailer
+ * auto-plays inside it.
  *
- * • Purely visual — `pointer-events:none` so it never steals D-pad
- *   focus; the underlying tile stays focused and OK still navigates.
- * • Sound: unmuted on the TV box (native WebView allows autoplay
- *   with sound), muted in the browser preview (autoplay-with-sound
- *   is blocked) — matches the user's chosen behaviour.
- * • Respects the Settings "Auto-play trailers on Home" toggle.
+ * Playback path:
+ *   • Android TV box → native on-device extractor
+ *     (`OnNowTV.previewTrailer`) hands back a muxed googlevideo URL
+ *     that a plain <video> plays WITH SOUND.  No YouTube iframe, so
+ *     no "Watch on YouTube · Error 153" embed block.
+ *   • Browser preview → YouTube iframe (muted; autoplay-with-sound is
+ *     blocked by browsers) with automatic candidate cycling when a
+ *     video is embed-restricted.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -19,10 +22,64 @@ import { API } from '@/lib/api';
 import { getAutoTrailer } from '@/lib/prefs';
 
 const DWELL_MS = 550;
+const MAX_NATIVE_TRIES = 3;
+
+const bridge = () => (typeof window !== 'undefined' ? window.OnNowTV : null);
+const hasNativePreview = () => typeof bridge()?.previewTrailer === 'function';
+
+/* Chained global callback so we coexist with TrailerModal's hook. */
+const nativeCallbacks = new Map();
+function hookBridgeCallback() {
+    if (window.__vesperPreviewHooked) return;
+    window.__vesperPreviewHooked = true;
+    const prev = window.__trailerReady;
+    window.__trailerReady = (id, result) => {
+        const cb = nativeCallbacks.get(id);
+        if (cb) {
+            nativeCallbacks.delete(id);
+            cb(result);
+            return;
+        }
+        try { prev?.(id, result); } catch { /* ignore */ }
+    };
+}
+
+function nativePreview(videoId) {
+    return new Promise((resolve) => {
+        hookBridgeCallback();
+        const id = 'hp-' + Math.random().toString(36).slice(2, 10);
+        const t = setTimeout(() => {
+            nativeCallbacks.delete(id);
+            resolve(null);
+        }, 12_000);
+        nativeCallbacks.set(id, (r) => {
+            clearTimeout(t);
+            resolve(r);
+        });
+        try {
+            bridge().previewTrailer(id, videoId);
+        } catch {
+            clearTimeout(t);
+            nativeCallbacks.delete(id);
+            resolve(null);
+        }
+    });
+}
+
+/* Keep the widened tile fully visible inside its horizontal shelf. */
+function revealInShelf(tile) {
+    const shelf = tile.closest('.vesper-shelf');
+    if (!shelf) return;
+    const sr = shelf.getBoundingClientRect();
+    const tr = tile.getBoundingClientRect();
+    const pad = 48;
+    const overflow = tr.right + pad - sr.right;
+    if (overflow > 0) shelf.scrollBy({ left: overflow, behavior: 'smooth' });
+}
 
 export default function TrailerHoverPreview() {
     const [enabled, setEnabled] = useState(() => getAutoTrailer());
-    const [preview, setPreview] = useState(null); // {rect,title,sub,backdrop,ytKey}
+    const [preview, setPreview] = useState(null); // {tile,title,sub,backdrop,media}
     const tokenRef = useRef(0);
 
     useEffect(() => {
@@ -43,10 +100,15 @@ export default function TrailerHoverPreview() {
         let dwell = null;
         let activeEl = null;
 
+        const collapse = () => {
+            if (activeEl) activeEl.removeAttribute('data-preview-active');
+            activeEl = null;
+        };
+
         const hide = () => {
             if (dwell) clearTimeout(dwell);
             dwell = null;
-            activeEl = null;
+            collapse();
             tokenRef.current += 1;
             setPreview(null);
         };
@@ -59,15 +121,17 @@ export default function TrailerHoverPreview() {
             const title = tile.getAttribute('data-preview-title') || '';
             const sub = tile.getAttribute('data-preview-sub') || '';
             const backdrop = tile.getAttribute('data-preview-backdrop') || '';
-            const rect = tile.getBoundingClientRect();
 
-            // Nothing to preview (no art, no resolvable id) → skip.
             if (!backdrop && !tmdb && !imdb.startsWith('tt')) return;
-
-            // Show the expanded art card immediately (feels instant),
-            // then swap in the trailer once resolved.
             if (token !== tokenRef.current) return;
-            setPreview({ rect, title, sub, backdrop, ytKey: null });
+
+            // Expand the tile now (feels instant) — art first, trailer
+            // swaps in once resolved.
+            tile.setAttribute('data-preview-active', 'true');
+            setPreview({ tile, title, sub, backdrop, media: null });
+            setTimeout(() => {
+                if (token === tokenRef.current) revealInShelf(tile);
+            }, 300);
 
             try {
                 if (!tmdb && imdb.startsWith('tt')) {
@@ -82,9 +146,25 @@ export default function TrailerHoverPreview() {
                 const tr = await fetch(`${API}/tmdb/trailer/${mediaType}/${tmdb}`);
                 if (!tr.ok) return;
                 const tj = await tr.json();
-                const key = tj?.data?.key || '';
-                if (!key || token !== tokenRef.current) return;
-                setPreview((p) => (p ? { ...p, ytKey: key } : p));
+                const data = tj?.data;
+                const candidates = (data?.candidates?.length
+                    ? data.candidates.map((c) => c.key)
+                    : [data?.key]).filter(Boolean);
+                if (!candidates.length || token !== tokenRef.current) return;
+
+                if (hasNativePreview()) {
+                    for (const key of candidates.slice(0, MAX_NATIVE_TRIES)) {
+                        const r = await nativePreview(key);
+                        if (token !== tokenRef.current) return;
+                        if (r?.videoUrl) {
+                            setPreview((p) => (p ? { ...p, media: { kind: 'video', url: r.videoUrl } } : p));
+                            return;
+                        }
+                    }
+                    return;
+                }
+                if (bridge()) return; // box without the new bridge — art only
+                setPreview((p) => (p ? { ...p, media: { kind: 'yt', candidates } } : p));
             } catch {
                 /* keep the art card; no trailer */
             }
@@ -97,8 +177,9 @@ export default function TrailerHoverPreview() {
                 return;
             }
             if (tile === activeEl) return;
-            activeEl = tile;
             if (dwell) clearTimeout(dwell);
+            collapse();
+            activeEl = tile;
             tokenRef.current += 1;
             setPreview(null);
             const token = tokenRef.current;
@@ -106,15 +187,14 @@ export default function TrailerHoverPreview() {
         };
 
         const onFocusIn = (e) => onEnter(e.target);
-        const onOver = (e) => onEnter(e.target);
+        // mousemove (not mouseover) so layout shifting under a
+        // stationary cursor never hijacks the D-pad focus preview.
+        const onMove = (e) => onEnter(e.target);
 
         document.addEventListener('focusin', onFocusIn);
-        document.addEventListener('mouseover', onOver);
+        document.addEventListener('mousemove', onMove);
         window.addEventListener('vesper:hide-trailer-preview', hide);
 
-        // The Home page auto-focuses a tile on mount, which can fire
-        // BEFORE this listener attaches — so kick off the dwell for a
-        // tile that's already focused right now.
         const ae = document.activeElement;
         if (ae && ae.closest && ae.closest('[data-preview="true"]')) {
             onEnter(ae);
@@ -122,50 +202,30 @@ export default function TrailerHoverPreview() {
 
         return () => {
             document.removeEventListener('focusin', onFocusIn);
-            document.removeEventListener('mouseover', onOver);
+            document.removeEventListener('mousemove', onMove);
             window.removeEventListener('vesper:hide-trailer-preview', hide);
             if (dwell) clearTimeout(dwell);
+            collapse();
         };
     }, [enabled]);
 
     if (!enabled || !preview) return null;
 
-    const { rect, title, sub, backdrop, ytKey } = preview;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const w = Math.min(Math.max(rect.width * 1.95, 320), Math.min(520, vw - 32));
-    const h = w * (9 / 16);
-    const cx = rect.left + rect.width / 2;
-    let left = cx - w / 2;
-    let top = rect.top - (h - rect.height) / 2 - 6;
-    left = Math.max(16, Math.min(left, vw - w - 16));
-    top = Math.max(16, Math.min(top, vh - h - 16));
-
-    const muted = !(typeof window !== 'undefined' && window.OnNowTV);
-    const src = ytKey
-        ? `https://www.youtube.com/embed/${encodeURIComponent(ytKey)}?autoplay=1&mute=${muted ? 1 : 0}&controls=0&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&fs=0&disablekb=1`
-        : null;
+    const { tile, title, sub, backdrop, media } = preview;
 
     return createPortal(
         <div
             data-testid="trailer-hover-preview"
             style={{
-                position: 'fixed',
-                left,
-                top,
-                width: w,
-                height: h,
-                zIndex: 90,
+                position: 'absolute',
+                inset: 0,
+                zIndex: 3,
                 pointerEvents: 'none',
-                borderRadius: 'clamp(10px, 0.9vw, 16px)',
-                overflow: 'hidden',
                 background: '#05070d',
-                boxShadow:
-                    '0 24px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06), 0 0 40px 6px rgba(var(--vesper-blue-rgb),0.28)',
-                animation: 'vesper-hoverprev-in 200ms cubic-bezier(.2,.7,.2,1) both',
+                animation: 'vesper-hoverprev-in 240ms ease-out both',
             }}
         >
-            <style>{`@keyframes vesper-hoverprev-in{from{opacity:0;transform:scale(0.94)}to{opacity:1;transform:scale(1)}}`}</style>
+            <style>{`@keyframes vesper-hoverprev-in{from{opacity:0}to{opacity:1}}`}</style>
             {backdrop && (
                 <img
                     src={backdrop}
@@ -176,29 +236,22 @@ export default function TrailerHoverPreview() {
                         width: '100%',
                         height: '100%',
                         objectFit: 'cover',
-                        opacity: ytKey ? 0 : 1,
-                        transition: 'opacity 400ms ease',
                     }}
                 />
             )}
-            {src && (
-                <iframe
-                    key={ytKey}
-                    data-testid="trailer-hover-iframe"
-                    title={title || 'Trailer'}
-                    src={src}
-                    style={{
-                        position: 'absolute',
-                        inset: 0,
-                        width: '100%',
-                        height: '100%',
-                        border: 0,
-                    }}
-                    allow="autoplay; encrypted-media"
-                    sandbox="allow-scripts allow-same-origin allow-presentation"
+            {media?.kind === 'video' && (
+                <VideoPreview
+                    url={media.url}
+                    onFail={() => setPreview((p) => (p ? { ...p, media: null } : p))}
                 />
             )}
-            {/* Bottom title strip */}
+            {media?.kind === 'yt' && (
+                <YtPreview
+                    candidates={media.candidates}
+                    title={title}
+                    onExhausted={() => setPreview((p) => (p ? { ...p, media: null } : p))}
+                />
+            )}
             <div
                 style={{
                     position: 'absolute',
@@ -239,6 +292,130 @@ export default function TrailerHoverPreview() {
                 )}
             </div>
         </div>,
-        document.body
+        tile
+    );
+}
+
+/* Native (TV box) path — muxed googlevideo URL in a plain <video>,
+ * unmuted.  Fades in over the backdrop once frames are flowing. */
+function VideoPreview({ url, onFail }) {
+    const [playing, setPlaying] = useState(false);
+    return (
+        <video
+            key={url}
+            data-testid="trailer-hover-video"
+            src={url}
+            autoPlay
+            loop
+            playsInline
+            onPlaying={() => setPlaying(true)}
+            onError={onFail}
+            style={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                opacity: playing ? 1 : 0,
+                transition: 'opacity 300ms ease-in',
+            }}
+        />
+    );
+}
+
+/* Browser-only YouTube iframe with embed-block detection: YouTube
+ * sends no IFrame-API events at all for Error-153 videos, so a
+ * ready-timeout (or an explicit onError) advances to the next
+ * candidate. */
+function YtPreview({ candidates, title, onExhausted }) {
+    const [idx, setIdx] = useState(0);
+    const [ready, setReady] = useState(false);
+    const frameRef = useRef(null);
+    const key = candidates[idx];
+
+    useEffect(() => {
+        if (!key) {
+            onExhausted?.();
+            return undefined;
+        }
+        let gotReady = false;
+        let advanced = false;
+        const advance = () => {
+            if (advanced) return;
+            advanced = true;
+            setReady(false);
+            setIdx((i) => i + 1);
+        };
+        const onMsg = (ev) => {
+            if (!/^https?:\/\/(www\.)?youtube(-nocookie)?\.com$/.test(ev.origin || '')) return;
+            let d = ev.data;
+            if (typeof d === 'string') {
+                try { d = JSON.parse(d); } catch { return; }
+            }
+            if (!d || typeof d !== 'object') return;
+            // Only reveal once playback has actually started —
+            // YouTube fires onReady even for embed-blocked videos.
+            if (d.event === 'infoDelivery' && d.info?.playerState === 1) {
+                gotReady = true;
+                setReady(true);
+            }
+            if (d.event === 'onError') advance();
+        };
+        window.addEventListener('message', onMsg);
+        const hs = setInterval(() => {
+            const w = frameRef.current?.contentWindow;
+            if (!w) return;
+            try {
+                w.postMessage(JSON.stringify({ event: 'listening', id: 'vesper-hover', channel: 'widget' }), '*');
+            } catch { /* ignore */ }
+            if (gotReady) clearInterval(hs);
+        }, 250);
+        const t = setTimeout(() => {
+            if (!gotReady) advance();
+        }, 8000);
+        return () => {
+            window.removeEventListener('message', onMsg);
+            clearInterval(hs);
+            clearTimeout(t);
+        };
+    }, [key]);
+
+    if (!key) return null;
+    const origin = window.location.origin;
+    const params = new URLSearchParams({
+        autoplay: '1',
+        mute: '1',
+        controls: '0',
+        rel: '0',
+        modestbranding: '1',
+        playsinline: '1',
+        iv_load_policy: '3',
+        fs: '0',
+        disablekb: '1',
+        loop: '1',
+        playlist: key,
+        enablejsapi: '1',
+        origin,
+    });
+    return (
+        <iframe
+            key={key}
+            ref={frameRef}
+            data-testid="trailer-hover-iframe"
+            data-ready={ready ? 'true' : 'false'}
+            title={title || 'Trailer'}
+            src={`https://www.youtube.com/embed/${encodeURIComponent(key)}?${params}`}
+            style={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                border: 0,
+                opacity: ready ? 1 : 0,
+                transition: 'opacity 240ms ease-in',
+            }}
+            allow="autoplay; encrypted-media"
+            referrerPolicy="strict-origin-when-cross-origin"
+        />
     );
 }
