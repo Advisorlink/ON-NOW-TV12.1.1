@@ -440,16 +440,15 @@ body {
 }
 [data-focus-style='tile']:focus-visible,
 [data-focus-style='tile'][data-focused='true'] {
-    transform: scale(1.08) translateY(-2px);
-    /* v1.1.3 — Music-app sign-in glow, ported to the movie-app focus
-       highlight.  A crisp accent ring wrapped in a soft two-layer
-       bloom in the CHOSEN theme colour (via --vesper-blue-rgb), so
-       the highlighted poster reads as a real glow — not just a
-       coloured border. */
+    transform: scale(1.06) translateY(-2px);
+    /* v1.3.0 — Softer, ring-less bloom that fades fully to
+       transparent (no hard-cut "sharp line" where the shelf clips
+       it), and lighter to paint than the old 3-layer 48px glow so
+       rapid D-pad nav stays smooth on low-end boxes.  The crisp
+       selection ring is the outline rule below. */
     box-shadow:
-        0 0 0 1.5px var(--vesper-blue-bright),
-        0 0 24px 4px rgba(var(--vesper-blue-rgb), 0.42),
-        0 0 48px 12px rgba(var(--vesper-blue-rgb), 0.20);
+        0 8px 24px 2px rgba(var(--vesper-blue-rgb), 0.34),
+        0 0 30px 6px rgba(var(--vesper-blue-rgb), 0.20);
     z-index: 5;
 }
 

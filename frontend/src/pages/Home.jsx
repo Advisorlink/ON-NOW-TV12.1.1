@@ -10,6 +10,7 @@ import ForYouShelf from '@/components/ForYouShelf';
 import UpcomingMoviesShelf from '@/components/UpcomingMoviesShelf';
 import TabGridView from '@/components/TabGridView';
 import FullscreenButton from '@/components/FullscreenButton';
+import TrailerHoverPreview from '@/components/TrailerHoverPreview';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { hasPendingFocusBookmark } from '@/hooks/useFocusRestore';
 import useHomeBackHandler from '@/hooks/useHomeBackHandler';
@@ -449,6 +450,7 @@ export default function Home() {
         >
             <SideNav />
             <FullscreenButton />
+            <TrailerHoverPreview />
 
             {isFilterView ? (
                 <main

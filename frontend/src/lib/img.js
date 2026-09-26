@@ -34,9 +34,10 @@ export function backdrop(url) {
     return url
         .replace('/background/large/', '/background/medium/')
         .replace('/background/original/', '/background/medium/')
-        .replace('image.tmdb.org/t/p/w1280/', 'image.tmdb.org/t/p/w500/')
-        .replace('image.tmdb.org/t/p/w780/', 'image.tmdb.org/t/p/w500/')
-        .replace('image.tmdb.org/t/p/original/', 'image.tmdb.org/t/p/w500/');
+        .replace('image.tmdb.org/t/p/w1280/', 'image.tmdb.org/t/p/w342/')
+        .replace('image.tmdb.org/t/p/w780/', 'image.tmdb.org/t/p/w342/')
+        .replace('image.tmdb.org/t/p/w500/', 'image.tmdb.org/t/p/w342/')
+        .replace('image.tmdb.org/t/p/original/', 'image.tmdb.org/t/p/w342/');
 }
 
 /**

@@ -55,3 +55,28 @@ export function setAutoplayTV(enabled) {
         /* ignore */
     }
 }
+
+/**
+ * Auto-play trailers on the Home rails: focusing/hovering a poster
+ * expands it into a wide preview and starts the (English) trailer.
+ * Defaults ON.
+ */
+const KEY_AUTO_TRAILER = 'onnowtv-auto-trailer';
+
+export function getAutoTrailer() {
+    try {
+        const v = readScopedString(KEY_AUTO_TRAILER);
+        if (v === null || v === undefined) return true; // default ON
+        return v === '1';
+    } catch {
+        return true;
+    }
+}
+
+export function setAutoTrailer(enabled) {
+    try {
+        writeScopedString(KEY_AUTO_TRAILER, enabled ? '1' : '0');
+    } catch {
+        /* ignore */
+    }
+}

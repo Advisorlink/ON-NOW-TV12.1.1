@@ -10,7 +10,7 @@ import useBackHandler from '@/hooks/useBackHandler';
 import FullscreenButton from '@/components/FullscreenButton';
 import { THEMES } from '@/themes/themes';
 import { useTheme } from '@/themes/ThemeProvider';
-import { getAutoplay1080p, setAutoplay1080p } from '@/lib/prefs';
+import { getAutoplay1080p, setAutoplay1080p, getAutoTrailer, setAutoTrailer } from '@/lib/prefs';
 import { clearActiveProfile, getActiveProfile } from '@/lib/profiles';
 import { useAuth } from '@/contexts/AuthContext';
 import { collectBackupPayload, applyBackupPayload, summarizeBackupPayload, fmtBytes } from '@/lib/profileBackup';
@@ -33,6 +33,7 @@ export default function Settings() {
     const navigate = useNavigate();
     const { themeId, setThemeId } = useTheme();
     const [autoplay, setAutoplay] = React.useState(getAutoplay1080p());
+    const [autoTrailer, setAutoTrailerState] = React.useState(getAutoTrailer());
 
     /* v2.7.17 — Force-SDR playback toggle.  Persisted on the native
      * side via WebAppInterface.setForceSdr (SharedPreferences).
@@ -169,6 +170,13 @@ export default function Settings() {
         setAutoplay(next);
     };
 
+    const toggleAutoTrailer = () => {
+        const next = !autoTrailer;
+        setAutoTrailer(next);
+        setAutoTrailerState(next);
+        window.dispatchEvent(new Event('vesper:auto-trailer-change'));
+    };
+
     return (
         <div
             data-testid="settings-page"
@@ -267,11 +275,23 @@ export default function Settings() {
                     marginBottom: 22,
                 }}
             >
-                Six completely different looks — not just colours, but new
-                fonts, shapes, textures and focus feel.  Same features
-                everywhere; a totally fresh vibe.  Saved instantly.
+                Pick a colour, or go bold with a full skin — a complete
+                redesign with its own fonts, shapes and textures.  Same
+                features everywhere; saved instantly.
             </p>
 
+            <div
+                style={{
+                    fontSize: 'clamp(11px, 0.85vw, 13px)',
+                    letterSpacing: '0.28em',
+                    textTransform: 'uppercase',
+                    fontFamily: 'var(--theme-font-mono, monospace)',
+                    color: 'var(--vesper-text-3)',
+                    margin: '4px 0 12px',
+                }}
+            >
+                Colour themes
+            </div>
             <div
                 style={{
                     display: 'grid',
@@ -279,12 +299,54 @@ export default function Settings() {
                     gap: 'clamp(8px, 0.8vw, 14px)',
                 }}
             >
-                {THEMES.map((t, i) => (
+                {THEMES.filter((t) => t.category === 'color').map((t, i) => (
                     <ThemeCard
                         key={t.id}
                         theme={t}
                         active={themeId === t.id}
                         initialFocus={i === 0}
+                        onPick={() => setThemeId(t.id)}
+                    />
+                ))}
+            </div>
+
+            <div
+                style={{
+                    fontSize: 'clamp(11px, 0.85vw, 13px)',
+                    letterSpacing: '0.28em',
+                    textTransform: 'uppercase',
+                    fontFamily: 'var(--theme-font-mono, monospace)',
+                    color: 'var(--vesper-text-3)',
+                    margin: '28px 0 4px',
+                }}
+            >
+                Full skins
+            </div>
+            <p
+                style={{
+                    fontSize: 'clamp(11px, 0.82vw, 13px)',
+                    lineHeight: 1.5,
+                    color: 'var(--vesper-text-2)',
+                    maxWidth: '60ch',
+                    marginBottom: 12,
+                }}
+            >
+                Complete redesigns — different fonts, shapes, textures and
+                focus feel, not just colours.
+            </p>
+            <div
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+                    gap: 'clamp(8px, 0.8vw, 14px)',
+                }}
+            >
+                {THEMES.filter((t) => t.category === 'skin').map((t) => (
+                    <ThemeCard
+                        key={t.id}
+                        theme={t}
+                        active={themeId === t.id}
+                        initialFocus={false}
                         onPick={() => setThemeId(t.id)}
                     />
                 ))}
@@ -325,6 +387,14 @@ export default function Settings() {
                 description="Skip the sources list and instantly play the best available stream when you press Play.  Falls back to the source picker if nothing playable is available."
                 value={autoplay}
                 onToggle={toggleAutoplay}
+            />
+
+            <ToggleRow
+                testid="auto-trailer"
+                title="Auto-play trailers on Home"
+                description="Netflix-style preview: focusing a movie or show on the Home rails expands it and starts its trailer (English).  On your TV box it plays with sound; in the browser preview it starts muted until you press OK once."
+                value={autoTrailer}
+                onToggle={toggleAutoTrailer}
             />
 
             <ToggleRow

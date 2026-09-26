@@ -15,8 +15,8 @@ export default function Shelf({ shelf, onSelect, firstTileInitialFocus = false }
             data-testid={`shelf-${shelf.id}`}
             className="relative w-full vesper-shelf-section"
             style={{
-                paddingTop: 'clamp(14px, 1.4vw, 24px)',
-                paddingBottom: 'clamp(14px, 1.4vw, 24px)',
+                paddingTop: 'clamp(8px, 0.9vw, 14px)',
+                paddingBottom: 'clamp(8px, 0.9vw, 14px)',
             }}
         >
             <header
@@ -63,8 +63,8 @@ export default function Shelf({ shelf, onSelect, firstTileInitialFocus = false }
                     gap: 'clamp(14px, 1.25vw, 24px)',
                     paddingLeft: 'clamp(92px, 6.5vw, 132px)',
                     paddingRight: 'clamp(40px, 4.2vw, 80px)',
-                    paddingTop: 'clamp(14px, 1.4vw, 22px)',
-                    paddingBottom: 'clamp(14px, 1.4vw, 24px)',
+                    paddingTop: 'clamp(26px, 2.4vw, 44px)',
+                    paddingBottom: 'clamp(26px, 2.4vw, 44px)',
                     // GPU-accelerated horizontal scrolling on the
                     // WebView.  NOTE: do NOT add `contain: content`
                     // here — it would clip the focused tile's

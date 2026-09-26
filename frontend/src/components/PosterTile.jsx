@@ -83,11 +83,26 @@ export default function PosterTile({ item, onSelect, initialFocus = false }) {
 
     const press = useLongPress(onLongPress, onTap);
 
+    // Metadata for the Netflix-style hover/focus trailer preview.
+    const routeMatch = /\/resolve\/(tv|movie)\/(\d+)/.exec(item.routePath || '');
+    const previewTmdb = routeMatch ? routeMatch[2] : '';
+    const previewType = routeMatch
+        ? routeMatch[1]
+        : (item.type === 'series' || item.type === 'tv' ? 'tv' : 'movie');
+    const previewBackdrop = item.background ? img.backdrop(item.background) : '';
+
     return (
         <button
             data-testid={`poster-${item.id}`}
             data-focusable="true"
             data-focus-style="tile"
+            data-preview="true"
+            data-preview-type={previewType}
+            data-preview-tmdb={previewTmdb}
+            data-preview-imdb={item.imdbId || ''}
+            data-preview-title={item.title || ''}
+            data-preview-sub={item.sub || ''}
+            data-preview-backdrop={previewBackdrop}
             {...(initialFocus ? { 'data-initial-focus': 'true' } : {})}
             tabIndex={0}
             {...press}
