@@ -443,6 +443,55 @@ def _is_english_stream(s: Dict[str, Any]) -> bool:
     return False
 
 
+_EP_SE_RE = re.compile(
+    r"(?<![a-z0-9])s(\d{1,2})[ ._-]?e(\d{1,3})(?:[ ._-]?(?:e|to|-)[ ._-]?(\d{1,3}))?(?![0-9])",
+    re.IGNORECASE,
+)
+_EP_X_RE = re.compile(r"(?<![\dx])(\d{1,2})x(\d{1,3})(?![\dp])", re.IGNORECASE)
+_SERIES_ID_RE = re.compile(r"^(.+?):(\d+):(\d+)$")
+
+
+def _stream_episode_match(s: Dict[str, Any], season: int, episode: int):
+    """True = release name tags THIS episode, False = tags a different
+    one, None = no SxxEyy / NxNN tag at all (season packs etc.)."""
+    hints = s.get("behaviorHints") if isinstance(s.get("behaviorHints"), dict) else {}
+    text = "\n".join(
+        str(v) for v in (hints.get("filename"), s.get("title"), s.get("description"), s.get("name")) if v
+    )
+    tags = []
+    for m in _EP_SE_RE.finditer(text):
+        frm = int(m.group(2))
+        to = int(m.group(3)) if m.group(3) else frm
+        tags.append((int(m.group(1)), frm, max(frm, to)))
+    for m in _EP_X_RE.finditer(text):
+        ep = int(m.group(2))
+        if ep in (264, 265) or ep > 150:
+            continue
+        tags.append((int(m.group(1)), ep, ep))
+    if not tags:
+        return None
+    return any(se == season and frm <= episode <= to for se, frm, to in tags)
+
+
+def _filter_episode_mismatch(streams: List[Dict[str, Any]], type_: str, item_id: str) -> List[Dict[str, Any]]:
+    """Drop streams whose release name names a DIFFERENT episode than
+    requested (Easynews++ search strays like S03E02 for a S01E03 ask)."""
+    if type_ != "series":
+        return streams
+    m = _SERIES_ID_RE.match(item_id or "")
+    if not m:
+        return streams
+    season, episode = int(m.group(2)), int(m.group(3))
+    out = []
+    for s in streams:
+        match = _stream_episode_match(s, season, episode)
+        if match is False:
+            continue
+        out.append({**s, "_ep_match": match})
+    return out
+
+
+
 def _size_band_easynews(streams: List[Dict[str, Any]], type_: str) -> List[Dict[str, Any]]:
     """USER SPEC — EasyNews++ links must sit inside a size band before
     they reach any client:
@@ -844,7 +893,12 @@ async def streams_aggregate(type_: str, item_id: str):
     if cached:
         # v2.7.33 — apply English filter even to cached payloads so
         # the rollout doesn't have to wait for cache expiry.
-        return {"cached": True, "streams": _size_band_easynews(_filter_and_tag_english(cached), type_)}
+        return {
+            "cached": True,
+            "streams": _filter_episode_mismatch(
+                _size_band_easynews(_filter_and_tag_english(cached), type_), type_, item_id
+            ),
+        }
 
     addons = await db.addons.find(
         {"user_id": DEFAULT_USER, "active": True}, {"_id": 0}
@@ -894,6 +948,8 @@ async def streams_aggregate(type_: str, item_id: str):
     out = _filter_and_tag_english(out)
     # USER SPEC — EasyNews++ size band (movies 1-5 GB, episodes 0.5-5 GB).
     out = _size_band_easynews(out, type_)
+    # Never serve a stream whose release name is a different episode.
+    out = _filter_episode_mismatch(out, type_, item_id)
 
     # v2.13.18 — never cache an aggregate with NO playable stream
     # (url/infoHash).  A single slow/failed Torrentio fetch used to

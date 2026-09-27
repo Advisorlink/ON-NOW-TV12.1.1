@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { tagStreams } from '@/lib/streamTags';
+import { filterEpisodeStreams } from '@/lib/episodeMatch';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -335,7 +336,9 @@ export const Vesper = {
         const assemble = () => {
             const out = [];
             for (const arr of byAddon.values()) out.push(...arr);
-            return out;
+            // Drop streams whose release name names a DIFFERENT
+            // episode (Easynews++ strays) — see lib/episodeMatch.
+            return filterEpisodeStreams(out, type, itemId);
         };
         const emit = () => {
             if (typeof onPartial !== 'function') return;

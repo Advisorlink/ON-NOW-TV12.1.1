@@ -214,6 +214,7 @@ export default function SeriesEpisodes({
      * (b) speculative prefetches are capped at 2 in flight;
      * (c) EVERYTHING aborts the moment the component unmounts. */
     const prefetchTimerRef = useRef(null);
+    const clickSeqRef = useRef(0);
     const mountedRef = useRef(true);
     const speculativeInFlightRef = useRef(0);
     const abortersRef = useRef(new Set());
@@ -398,6 +399,14 @@ export default function SeriesEpisodes({
         // USER SPEC — episodes autoplay only when BOTH the master
         // rail switch AND the TV-shows toggle are on.
         const autoplay = getAutoplay1080p() && getAutoplayTV();
+        // Only the LATEST clicked episode may launch — a slow fetch
+        // for an earlier click must never start the wrong episode.
+        clickSeqRef.current += 1;
+        const seq = clickSeqRef.current;
+        const playStream = (...args) => {
+            if (seq !== clickSeqRef.current) return;
+            playStreamNow(...args);
+        };
         if (openEpisodeId === ep.id && !autoplay) {
             setOpenEpisodeId(null);
             return;
@@ -594,7 +603,7 @@ export default function SeriesEpisodes({
         }
     };
 
-    const playStream = async (stream, ep, streamsOverride = null) => {
+    const playStreamNow = async (stream, ep, streamsOverride = null) => {
         const mode = streamMode(stream);
         if (mode === 'direct' || mode === 'torrent') {
             // Resolve the playable URL — direct streams carry a
@@ -703,6 +712,7 @@ export default function SeriesEpisodes({
             }
         }
     };
+    const playStream = playStreamNow;
 
     const copyMagnet = async (stream, ep) => {
         const magnet = buildMagnet(stream, `${meta?.name || ''} S${ep.season}E${ep.episode}`);
