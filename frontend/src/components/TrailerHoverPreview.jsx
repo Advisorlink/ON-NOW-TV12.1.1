@@ -18,13 +18,13 @@ import { Maximize2, Play } from 'lucide-react';
 import { getAutoTrailer } from '@/lib/prefs';
 import {
     fetchTrailerCandidates,
-    hasNativePreview,
     isBox,
     prefetchTileTrailer,
     resolveMuxedTrailer,
     tileTrailerRequest,
 } from '@/lib/trailerEngine';
 import TrailerModal from '@/components/TrailerModal';
+import { useNativeBackTrap, triggerTrapBack } from '@/hooks/useNativeBackTrap';
 
 const EXPAND_MS = 200;
 
@@ -116,7 +116,7 @@ export default function TrailerHoverPreview() {
                     const candidates = await fetchTrailerCandidates(req);
                     if (stale() || !candidates.length) return;
                     let media = null;
-                    if (hasNativePreview()) {
+                    if (isBox()) {
                         const r = await resolveMuxedTrailer(candidates, stale);
                         if (stale()) return;
                         if (r?.url) media = { kind: 'video', url: r.url, candidates };
@@ -227,13 +227,16 @@ export default function TrailerHoverPreview() {
     };
     const openFullscreen = () => {
         setActions(false);
-        // Stop the in-card trailer; the cover stays after the modal closes.
-        patch((p) => ({ ...p, media: null, playing: false, ended: true }));
+        // Pause the in-card trailer while the fullscreen modal plays;
+        // BACK brings the "little version" back, resumed where it left.
+        const resume = media;
+        patch((p) => ({ ...p, media: null, playing: false }));
         setFullscreen({
             candidates: media?.candidates || [],
             source: media?.kind === 'video' ? { url: media.url } : null,
             title,
             backdrop,
+            resume,
         });
     };
     const openTitle = () => {
@@ -272,6 +275,7 @@ export default function TrailerHoverPreview() {
                     {media?.kind === 'video' && (
                         <VideoPreview
                             url={media.url}
+                            startAt={media.startAt || 0}
                             onPlaying={() => patch((p) => ({ ...p, playing: true }))}
                             onEnded={onEnded}
                             onFail={() => patch((p) => ({ ...p, media: null, playing: false }))}
@@ -343,8 +347,12 @@ export default function TrailerHoverPreview() {
                     initialFullscreen
                     title={fullscreen.title}
                     backdrop={fullscreen.backdrop}
-                    onClose={() => {
+                    onClose={(atSec) => {
+                        const r = fullscreen.resume;
                         setFullscreen(null);
+                        if (r && r.kind === 'video') {
+                            patch((p) => ({ ...p, media: { ...r, startAt: atSec || 0 }, ended: false }));
+                        }
                         try { tile.focus({ preventScroll: true }); } catch { /* ignore */ }
                     }}
                 />
@@ -358,6 +366,8 @@ export default function TrailerHoverPreview() {
 function PreviewActions({ tile, onFullscreen, onOpen, onClose }) {
     const [rect, setRect] = useState(() => tile.getBoundingClientRect());
     const firstRef = useRef(null);
+    // Android BACK closes the actions instead of leaving Home.
+    useNativeBackTrap(true, () => { onClose(); return false; });
 
     useEffect(() => {
         const t = setTimeout(() => firstRef.current?.focus({ preventScroll: true }), 30);
@@ -382,10 +392,16 @@ function PreviewActions({ tile, onFullscreen, onOpen, onClose }) {
             btns[n]?.focus({ preventScroll: true });
             return;
         }
-        if (k === 'ArrowUp' || k === 'ArrowDown' || k === 'Escape' || k === 'Backspace' || k === 'GoBack' || e.keyCode === 27 || e.keyCode === 8) {
+        if (k === 'ArrowUp' || k === 'ArrowDown') {
             e.preventDefault();
             e.stopPropagation();
             onClose();
+            return;
+        }
+        if (k === 'Escape' || k === 'Backspace' || k === 'GoBack' || e.keyCode === 27 || e.keyCode === 8) {
+            e.preventDefault();
+            e.stopPropagation();
+            triggerTrapBack();
         }
     };
 
@@ -458,7 +474,7 @@ const actionBtnStyle = {
 
 /* Native (TV box) path — muxed googlevideo URL in a plain <video>,
  * unmuted, plays ONCE.  Fades in over the backdrop once frames flow. */
-function VideoPreview({ url, onPlaying, onEnded, onFail }) {
+function VideoPreview({ url, startAt = 0, onPlaying, onEnded, onFail }) {
     const [playing, setPlaying] = useState(false);
     return (
         <video
@@ -467,6 +483,11 @@ function VideoPreview({ url, onPlaying, onEnded, onFail }) {
             src={url}
             autoPlay
             playsInline
+            onLoadedMetadata={(e) => {
+                if (startAt > 0) {
+                    try { e.currentTarget.currentTime = startAt; } catch { /* ignore */ }
+                }
+            }}
             onPlaying={() => {
                 setPlaying(true);
                 onPlaying?.();

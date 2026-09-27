@@ -94,12 +94,46 @@ export async function resolveMuxedTrailer(candidates, isStale) {
         .map((c) => (typeof c === 'string' ? c : c?.key))
         .filter(Boolean)
         .slice(0, MAX_NATIVE_TRIES);
-    for (const key of keys) {
-        const r = await resolveNativeTrailer(key);
-        if (isStale?.()) return null;
-        if (r?.url) return { ...r, key };
+    if (hasNativePreview()) {
+        for (const key of keys) {
+            const r = await resolveNativeTrailer(key);
+            if (isStale?.()) return null;
+            if (r?.url) return { ...r, key };
+        }
+    }
+    // Device-side extraction unavailable (older APK) or blocked by
+    // YouTube on this box's IP → let the backend (yt-dlp) resolve a
+    // progressive MP4.  Box only; browsers keep the iframe path.
+    if (isBox()) {
+        for (const key of keys.slice(0, 2)) {
+            const r = await resolveServerTrailer(key);
+            if (isStale?.()) return null;
+            if (r?.url) return { ...r, key };
+        }
     }
     return null;
+}
+
+const serverCache = new Map(); // videoId -> {ts, url, title} | {ts, fail}
+function resolveServerTrailer(videoId) {
+    const hit = serverCache.get(videoId);
+    if (hit && Date.now() - hit.ts < NATIVE_TTL) return Promise.resolve(hit.fail ? null : hit);
+    return dedupe(`s:${videoId}`, async () => {
+        try {
+            const ctl = new AbortController();
+            const t = setTimeout(() => ctl.abort(), 20000);
+            const res = await fetch(`${API}/trailer-stream/${videoId}?combined=1`, { signal: ctl.signal });
+            clearTimeout(t);
+            const j = res.ok ? await res.json() : null;
+            if (j?.url) {
+                const v = { ts: Date.now(), url: j.url, title: j.title || '' };
+                serverCache.set(videoId, v);
+                return v;
+            }
+        } catch { /* fall through */ }
+        serverCache.set(videoId, { ts: Date.now(), fail: true });
+        return null;
+    });
 }
 
 /**
@@ -152,5 +186,5 @@ export async function prefetchTileTrailer(tile) {
     const req = tileTrailerRequest(tile);
     if (!req.tmdbId && !req.imdbId.startsWith('tt')) return;
     const keys = await fetchTrailerCandidates(req);
-    if (keys.length && hasNativePreview()) await resolveMuxedTrailer(keys);
+    if (keys.length && isBox()) await resolveMuxedTrailer(keys);
 }

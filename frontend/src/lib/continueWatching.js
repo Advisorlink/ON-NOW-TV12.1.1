@@ -261,9 +261,15 @@ export function syncFromNative() {
         // completed entries, otherwise the sibling we'd clone
         // from may already be gone.
         for (const id of Object.keys(map)) {
-            if (list.findIndex((e) => e.id === id) >= 0) continue;
             const p = map[id];
             if (!p || typeof p.positionMs !== 'number') continue;
+            // Episodes reached via the in-player "next episode" swap
+            // only ever exist in the native map — flag them watched
+            // here or the episode list never shows the tick.
+            if (!isTombstoned(id, p.updatedAt)) {
+                markWatchedIfDone(id, p.positionMs, p.durationMs);
+            }
+            if (list.findIndex((e) => e.id === id) >= 0) continue;
             if (isTombstoned(id, p.updatedAt)) continue; // user removed it
             const prefix = showPrefixOf(id);
             if (!prefix) continue;

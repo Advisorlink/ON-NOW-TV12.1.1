@@ -85,6 +85,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
@@ -295,6 +302,18 @@ fun PlayerOverlay(
                 bump()
             }
             false
+        }
+        // v2.20 — Mouse / touch: tap the video to reveal the dock,
+        // tap again (with no sheet open) to hide it.  Taps on the
+        // dock's own buttons/scrub bar are consumed by them first.
+        .pointerInput(Unit) {
+            detectTapGestures {
+                if (dockVisible && sheet == SheetKind.None) {
+                    dockVisible = false
+                } else {
+                    bump()
+                }
+            }
         }
     ) {
         // ── Full loading screen (first play only) ──────────────────
@@ -907,35 +926,51 @@ private fun ControlDock(
                     letterSpacing = 1.2.sp,
                     modifier = Modifier.width(96.dp),
                 )
+                // v2.20 — Scrub bar: swells + shows a big glowing
+                // playhead thumb when focused (D-pad UP from the dock)
+                // so the user can SEE they're now controlling the bar.
+                // Mouse / touch: tap anywhere to seek there, drag to
+                // scrub.
+                var barFocused by remember { mutableStateOf(false) }
+                var barWidthPx by remember { mutableStateOf(1) }
+                val trackH by animateDpAsState(if (barFocused) 14.dp else 8.dp, label = "trackH")
+                val thumbD by animateDpAsState(if (barFocused) 26.dp else 12.dp, label = "thumbD")
+                val seekToFrac: (Float) -> Unit = { frac ->
+                    val target = (frac.coerceIn(0f, 1f) * durationMs.coerceAtLeast(1L)).toLong()
+                    pendingScrubMs = null
+                    onSeekTo(target)
+                }
                 Box(
+                    contentAlignment = Alignment.CenterStart,
                     modifier = Modifier
                         .weight(1f)
                         .padding(horizontal = 18.dp)
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0x33FFFFFF))
-                        // v2.10.27 — Make the scrub bar focusable so
-                        // pressing D-pad UP from any dock button
-                        // lands here and LEFT / RIGHT scrubs the
-                        // playhead by 10 s.  The Box swells to 16 dp
-                        // tall + a cyan ring when focused so the
-                        // user gets a clear "I'm now controlling the
-                        // bar" affordance.  DOWN automatically
-                        // returns to the dock via Compose's spatial
-                        // focus.
+                        .height(30.dp)
+                        .onSizeChanged { barWidthPx = it.width.coerceAtLeast(1) }
+                        .onFocusChanged { barFocused = it.isFocused }
                         .focusable()
+                        .pointerInput(durationMs) {
+                            detectTapGestures { off -> seekToFrac(off.x / size.width.toFloat()) }
+                        }
+                        .pointerInput(durationMs) {
+                            var frac = 0f
+                            detectHorizontalDragGestures(
+                                onDragStart = { off ->
+                                    frac = off.x / size.width.toFloat()
+                                    pendingScrubMs = (frac.coerceIn(0f, 1f) * durationMs).toLong()
+                                },
+                                onHorizontalDrag = { change, _ ->
+                                    frac = change.position.x / size.width.toFloat()
+                                    pendingScrubMs = (frac.coerceIn(0f, 1f) * durationMs).toLong()
+                                },
+                                onDragEnd = { seekToFrac(frac) },
+                                onDragCancel = { pendingScrubMs = null },
+                            )
+                        }
                         .onKeyEvent { ev ->
                             if (ev.type != KeyEventType.KeyDown) return@onKeyEvent false
                             when (ev.key) {
                                 Key.DirectionLeft -> {
-                                    // v2.10.34 — Update the pending
-                                    // scrub buffer instead of seeking
-                                    // immediately.  Visual feedback
-                                    // is instant via `playFrac` below;
-                                    // the actual `onSeekTo` commits
-                                    // 500 ms after the LAST keypress
-                                    // (see the LaunchedEffect at the
-                                    // top of ControlDock).
                                     val cur = pendingScrubMs ?: positionMs
                                     pendingScrubMs = (cur - 10_000L).coerceIn(0L, durationMs)
                                     true
@@ -946,9 +981,6 @@ private fun ControlDock(
                                     true
                                 }
                                 Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> {
-                                    // OK while scrubbing commits the
-                                    // current pending position
-                                    // immediately, then toggles play.
                                     pendingScrubMs?.let {
                                         onSeekTo(it)
                                         pendingScrubMs = null
@@ -962,23 +994,46 @@ private fun ControlDock(
                     val total = (durationMs.coerceAtLeast(1L)).toFloat()
                     val bufFrac =
                         (bufferedMs.coerceAtLeast(0L).toFloat() / total).coerceIn(0f, 1f)
-                    // v2.10.34 — Paint from the pending scrub buffer
-                    // when the user is actively pressing left/right,
-                    // so the bar follows their input frame-perfect.
                     val displayPos = pendingScrubMs ?: positionMs
                     val playFrac =
                         (displayPos.coerceAtLeast(0L).toFloat() / total).coerceIn(0f, 1f)
+                    // Track
                     Box(
                         modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(bufFrac)
-                            .background(Color(0x665DC8FF)),
-                    )
+                            .fillMaxWidth()
+                            .height(trackH)
+                            .clip(RoundedCornerShape(7.dp))
+                            .background(if (barFocused) Color(0x55FFFFFF) else Color(0x33FFFFFF))
+                            .then(
+                                if (barFocused) Modifier.border(1.dp, Color(0xCC5DC8FF), RoundedCornerShape(7.dp))
+                                else Modifier
+                            ),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(bufFrac)
+                                .background(Color(0x665DC8FF)),
+                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(playFrac)
+                                .background(if (pendingScrubMs != null) Color(0xFFFFC350) else CyanPrimary),
+                        )
+                    }
+                    // Playhead thumb — big + glowing while focused.
+                    val thumbPx = with(LocalDensity.current) { thumbD.roundToPx() }
+                    val thumbX = ((playFrac * barWidthPx).toInt() - thumbPx / 2)
+                        .coerceIn(0, (barWidthPx - thumbPx).coerceAtLeast(0))
                     Box(
                         modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(playFrac)
-                            .background(CyanPrimary),
+                            .offset { IntOffset(thumbX, 0) }
+                            .size(thumbD)
+                            .then(if (barFocused) Modifier.shadow(12.dp, CircleShape, ambientColor = CyanPrimary, spotColor = CyanPrimary) else Modifier)
+                            .clip(CircleShape)
+                            .background(if (pendingScrubMs != null) Color(0xFFFFC350) else Color.White)
+                            .then(if (barFocused) Modifier.border(3.dp, CyanPrimary, CircleShape) else Modifier),
                     )
                 }
                 Text(

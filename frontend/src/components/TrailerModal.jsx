@@ -16,7 +16,8 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Maximize2, Minimize2, Loader2 } from 'lucide-react';
-import { hasNativePreview, resolveMuxedTrailer } from '@/lib/trailerEngine';
+import { isBox, resolveMuxedTrailer } from '@/lib/trailerEngine';
+import { useNativeBackTrap, triggerTrapBack } from '@/hooks/useNativeBackTrap';
 
 export default function TrailerModal({
     youtubeKey,
@@ -119,7 +120,7 @@ export default function TrailerModal({
             setNativeState('muxed');
             return undefined;
         }
-        if (!hasNativePreview()) {
+        if (!isBox()) {
             setNativeState('failed');
             return undefined;
         }
@@ -250,8 +251,27 @@ export default function TrailerModal({
         };
     }, [currentKey, candidates.length, allExhausted, nativeState]);
 
-    /* Hardware back / Escape → close (fullscreen ↘ windowed; then
-     * windowed ↘ closed). */
+    /* Close → hand the current position back so the caller (hover
+     * card) can resume the "little version" where we left off. */
+    const nativeVideoRef = useRef(null);
+    const close = () => {
+        const t = nativeVideoRef.current?.currentTime;
+        onClose?.(Number.isFinite(t) ? t : 0);
+    };
+
+    /* Hardware BACK (Android goBack → popstate) and Escape/Backspace:
+     * fullscreen ↘ windowed (unless opened fullscreen), then closed.
+     * Returning true from the trap callback re-arms it. */
+    const fsRef = useRef(fullscreen);
+    fsRef.current = fullscreen;
+    useNativeBackTrap(!!youtubeKey, () => {
+        if (fsRef.current && !initialFullscreen) {
+            setFullscreen(false);
+            return true;
+        }
+        close();
+        return false;
+    });
     useEffect(() => {
         if (!youtubeKey) return undefined;
         const onKey = (e) => {
@@ -264,13 +284,12 @@ export default function TrailerModal({
             ) {
                 e.preventDefault();
                 e.stopPropagation();
-                if (fullscreen && !initialFullscreen) setFullscreen(false);
-                else onClose?.();
+                triggerTrapBack();
             }
         };
         window.addEventListener('keydown', onKey, true);
         return () => window.removeEventListener('keydown', onKey, true);
-    }, [youtubeKey, fullscreen, initialFullscreen, onClose]);
+    }, [youtubeKey]);
 
     /* Auto-focus the close button on open so any subsequent OK
      * press dismisses the modal cleanly. */
@@ -365,6 +384,7 @@ export default function TrailerModal({
                   * every iframe embed restriction. */}
                 {nativeState === 'muxed' && nativeUrl && (
                     <video
+                        ref={nativeVideoRef}
                         key={`native-${currentKey}`}
                         data-testid="trailer-video-native"
                         src={nativeUrl}
@@ -379,7 +399,7 @@ export default function TrailerModal({
                         controls
                         autoPlay
                         playsInline
-                        onEnded={() => onClose?.()}
+                        onEnded={() => close()}
                         onError={() => {
                             // Signed URL expired mid-load or a
                             // network hiccup — fall through to
@@ -536,7 +556,7 @@ export default function TrailerModal({
                         </div>
                         <button
                             data-testid="trailer-unavailable-close"
-                            onClick={() => onClose?.()}
+                            onClick={() => close()}
                             style={{
                                 marginTop: 8,
                                 padding: '10px 24px',
@@ -583,7 +603,7 @@ export default function TrailerModal({
                         data-focusable="true"
                         data-focus-style="pill"
                         tabIndex={0}
-                        onClick={onClose}
+                        onClick={() => close()}
                         aria-label="Close trailer"
                         style={pillBtnStyle}
                     >

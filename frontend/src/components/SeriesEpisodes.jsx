@@ -219,6 +219,25 @@ export default function SeriesEpisodes({
     const speculativeInFlightRef = useRef(0);
     const abortersRef = useRef(new Set());
 
+    // Pull the native player's progress (incl. episodes reached via
+    // in-player "next episode") whenever we (re)appear so watched
+    // ticks are current without a trip through Home.
+    const [, setWatchedTick] = useState(0);
+    useEffect(() => {
+        const refresh = () => {
+            cw.syncFromNative();
+            setWatchedTick((t) => t + 1);
+        };
+        refresh();
+        const onVis = () => { if (document.visibilityState === 'visible') refresh(); };
+        window.addEventListener('focus', refresh);
+        document.addEventListener('visibilitychange', onVis);
+        return () => {
+            window.removeEventListener('focus', refresh);
+            document.removeEventListener('visibilitychange', onVis);
+        };
+    }, []);
+
     useEffect(() => () => {
         mountedRef.current = false;
         if (prefetchTimerRef.current) clearTimeout(prefetchTimerRef.current);

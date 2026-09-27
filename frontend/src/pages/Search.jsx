@@ -826,6 +826,61 @@ export default function Search() {
                     </div>
                 ) : searched && results.length > 0 ? (
                     <>
+                        <div
+                            data-testid="search-again-bar"
+                            className="flex flex-wrap items-center gap-3"
+                            style={{ marginTop: 8 }}
+                        >
+                            <button
+                                type="button"
+                                data-focusable="true"
+                                data-focus-style="pill"
+                                data-testid="search-again-btn"
+                                onClick={() => {
+                                    setSearched(false);
+                                    setQ('');
+                                    setTimeout(() => {
+                                        try { inputRef.current?.focus?.(); } catch { /* ignore */ }
+                                    }, 60);
+                                }}
+                                className="vesper-glass flex items-center gap-2 rounded-full"
+                                style={{
+                                    padding: '10px 18px',
+                                    color: 'var(--vesper-text)',
+                                    fontSize: 15,
+                                    fontWeight: 600,
+                                    border: '1px solid var(--vesper-line)',
+                                }}
+                            >
+                                <SearchIcon size={16} /> Search again
+                            </button>
+                            {!kids && recents
+                                .filter((r) => r.toLowerCase() !== (lastQuery || '').toLowerCase())
+                                .slice(0, 6)
+                                .map((r, i) => (
+                                    <button
+                                        key={r}
+                                        type="button"
+                                        data-focusable="true"
+                                        data-focus-style="pill"
+                                        data-testid={`search-again-recent-${i}`}
+                                        onClick={() => {
+                                            setQ(r);
+                                            doSearch(r);
+                                        }}
+                                        className="rounded-full"
+                                        style={{
+                                            padding: '9px 16px',
+                                            color: 'var(--vesper-text-2)',
+                                            fontSize: 14,
+                                            background: 'transparent',
+                                            border: '1px solid var(--vesper-line)',
+                                        }}
+                                    >
+                                        {r}
+                                    </button>
+                                ))}
+                        </div>
                         <h2
                             className="vesper-display mb-5"
                             style={{
