@@ -1,70 +1,32 @@
 /**
  * <TrailerHoverPreview/> — Netflix-style focus/hover preview.
  *
- * Mounted once on the Home page.  When a poster tile (any element
- * with `data-preview="true"`) is FOCUSED (D-pad) or HOVERED (mouse)
- * for a short dwell, the TILE ITSELF widens into a 16:9 card (same
- * row height, siblings shift right) and the title's English trailer
- * auto-plays inside it.
+ * Mounted once on the Home page.  Focusing (D-pad) or hovering a
+ * poster tile (`data-preview="true"`) starts resolving its trailer
+ * IMMEDIATELY; after a short dwell the TILE ITSELF widens into a
+ * 16:9 card (same row height, siblings shift right) and the trailer
+ * plays inside it — once, then the cover art stays.
  *
- * Playback path:
- *   • Android TV box → native on-device extractor
- *     (`OnNowTV.previewTrailer`) hands back a muxed googlevideo URL
- *     that a plain <video> plays WITH SOUND.  No YouTube iframe, so
- *     no "Watch on YouTube · Error 153" embed block.
- *   • Browser preview → YouTube iframe (muted; autoplay-with-sound is
- *     blocked by browsers) with automatic candidate cycling when a
- *     video is embed-restricted.
+ * Playback goes through `lib/trailerEngine` (same engine as the
+ * Detail-page TrailerModal): native muxed <video> on the box, YouTube
+ * iframe in the browser.  Pressing OK on a playing trailer shows two
+ * actions inside the card: "Play Full Screen" and "Open to Play".
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { API } from '@/lib/api';
+import { Maximize2, Play } from 'lucide-react';
 import { getAutoTrailer } from '@/lib/prefs';
+import {
+    fetchTrailerCandidates,
+    hasNativePreview,
+    isBox,
+    prefetchTileTrailer,
+    resolveMuxedTrailer,
+    tileTrailerRequest,
+} from '@/lib/trailerEngine';
+import TrailerModal from '@/components/TrailerModal';
 
-const DWELL_MS = 550;
-const MAX_NATIVE_TRIES = 3;
-
-const bridge = () => (typeof window !== 'undefined' ? window.OnNowTV : null);
-const hasNativePreview = () => typeof bridge()?.previewTrailer === 'function';
-
-/* Chained global callback so we coexist with TrailerModal's hook. */
-const nativeCallbacks = new Map();
-function hookBridgeCallback() {
-    if (window.__vesperPreviewHooked) return;
-    window.__vesperPreviewHooked = true;
-    const prev = window.__trailerReady;
-    window.__trailerReady = (id, result) => {
-        const cb = nativeCallbacks.get(id);
-        if (cb) {
-            nativeCallbacks.delete(id);
-            cb(result);
-            return;
-        }
-        try { prev?.(id, result); } catch { /* ignore */ }
-    };
-}
-
-function nativePreview(videoId) {
-    return new Promise((resolve) => {
-        hookBridgeCallback();
-        const id = 'hp-' + Math.random().toString(36).slice(2, 10);
-        const t = setTimeout(() => {
-            nativeCallbacks.delete(id);
-            resolve(null);
-        }, 12_000);
-        nativeCallbacks.set(id, (r) => {
-            clearTimeout(t);
-            resolve(r);
-        });
-        try {
-            bridge().previewTrailer(id, videoId);
-        } catch {
-            clearTimeout(t);
-            nativeCallbacks.delete(id);
-            resolve(null);
-        }
-    });
-}
+const EXPAND_MS = 200;
 
 /* Keep the widened tile fully visible inside its horizontal shelf. */
 function revealInShelf(tile) {
@@ -77,10 +39,23 @@ function revealInShelf(tile) {
     if (overflow > 0) shelf.scrollBy({ left: overflow, behavior: 'smooth' });
 }
 
+function nextPreviewTile(tile) {
+    let el = tile.nextElementSibling;
+    while (el && el.getAttribute('data-preview') !== 'true') el = el.nextElementSibling;
+    return el;
+}
+
 export default function TrailerHoverPreview() {
     const [enabled, setEnabled] = useState(() => getAutoTrailer());
-    const [preview, setPreview] = useState(null); // {tile,title,sub,backdrop,media}
+    // {tile,title,sub,backdrop,media,playing,ended}
+    const [preview, setPreview] = useState(null);
+    const [actions, setActions] = useState(false);
+    const [fullscreen, setFullscreen] = useState(null); // {candidates, source, title, backdrop}
     const tokenRef = useRef(0);
+    const previewRef = useRef(null);
+    const actionsRef = useRef(false);
+    previewRef.current = preview;
+    actionsRef.current = actions;
 
     useEffect(() => {
         const sync = () => setEnabled(getAutoTrailer());
@@ -97,7 +72,7 @@ export default function TrailerHoverPreview() {
             setPreview(null);
             return undefined;
         }
-        let dwell = null;
+        let expandTimer = null;
         let activeEl = null;
 
         const collapse = () => {
@@ -106,84 +81,78 @@ export default function TrailerHoverPreview() {
         };
 
         const hide = () => {
-            if (dwell) clearTimeout(dwell);
-            dwell = null;
+            if (expandTimer) clearTimeout(expandTimer);
+            expandTimer = null;
             collapse();
             tokenRef.current += 1;
             setPreview(null);
+            setActions(false);
         };
 
-        const resolveTrailer = async (tile, token) => {
-            const type = tile.getAttribute('data-preview-type') || 'movie';
-            let tmdb = tile.getAttribute('data-preview-tmdb') || '';
-            let mediaType = type;
-            const imdb = tile.getAttribute('data-preview-imdb') || '';
+        const startTile = (tile, token) => {
             const title = tile.getAttribute('data-preview-title') || '';
             const sub = tile.getAttribute('data-preview-sub') || '';
             const backdrop = tile.getAttribute('data-preview-backdrop') || '';
+            const req = tileTrailerRequest(tile);
+            const hasId = !!req.tmdbId || req.imdbId.startsWith('tt');
+            if (!backdrop && !hasId) return;
 
-            if (!backdrop && !tmdb && !imdb.startsWith('tt')) return;
-            if (token !== tokenRef.current) return;
+            const stale = () => token !== tokenRef.current;
 
-            // Expand the tile now (feels instant) — art first, trailer
-            // swaps in once resolved.
-            tile.setAttribute('data-preview-active', 'true');
-            setPreview({ tile, title, sub, backdrop, media: null });
-            setTimeout(() => {
-                if (token === tokenRef.current) revealInShelf(tile);
-            }, 300);
+            // 1. Expand after a short dwell (art first).
+            expandTimer = setTimeout(() => {
+                if (stale()) return;
+                tile.setAttribute('data-preview-active', 'true');
+                setPreview({ tile, title, sub, backdrop, media: null, playing: false, ended: false });
+                setTimeout(() => {
+                    if (!stale()) revealInShelf(tile);
+                }, 300);
+            }, EXPAND_MS);
 
-            try {
-                if (!tmdb && imdb.startsWith('tt')) {
-                    const fr = await fetch(`${API}/tmdb/find-by-imdb/${imdb}`);
-                    if (fr.ok) {
-                        const fj = await fr.json();
-                        tmdb = fj.tmdb_id ? String(fj.tmdb_id) : '';
-                        mediaType = fj.media_type || type;
+            // 2. Resolve the trailer right away — no waiting on the dwell.
+            if (!hasId) return;
+            (async () => {
+                try {
+                    const candidates = await fetchTrailerCandidates(req);
+                    if (stale() || !candidates.length) return;
+                    let media = null;
+                    if (hasNativePreview()) {
+                        const r = await resolveMuxedTrailer(candidates, stale);
+                        if (stale()) return;
+                        if (r?.url) media = { kind: 'video', url: r.url, candidates };
+                    } else if (!isBox()) {
+                        media = { kind: 'yt', candidates };
                     }
+                    if (!media) return;
+                    const apply = () => setPreview((p) => (p && p.tile === tile ? { ...p, media } : p));
+                    // The card may not be expanded yet (fast resolve) —
+                    // wait for the expand tick, then attach the media.
+                    if (tile.getAttribute('data-preview-active') === 'true') apply();
+                    else setTimeout(() => { if (!stale()) apply(); }, EXPAND_MS + 20);
+                    // Warm the next tile so scrolling right feels instant.
+                    prefetchTileTrailer(nextPreviewTile(tile));
+                } catch {
+                    /* keep the art card */
                 }
-                if (!tmdb || token !== tokenRef.current) return;
-                const tr = await fetch(`${API}/tmdb/trailer/${mediaType}/${tmdb}`);
-                if (!tr.ok) return;
-                const tj = await tr.json();
-                const data = tj?.data;
-                const candidates = (data?.candidates?.length
-                    ? data.candidates.map((c) => c.key)
-                    : [data?.key]).filter(Boolean);
-                if (!candidates.length || token !== tokenRef.current) return;
-
-                if (hasNativePreview()) {
-                    for (const key of candidates.slice(0, MAX_NATIVE_TRIES)) {
-                        const r = await nativePreview(key);
-                        if (token !== tokenRef.current) return;
-                        if (r?.videoUrl) {
-                            setPreview((p) => (p ? { ...p, media: { kind: 'video', url: r.videoUrl } } : p));
-                            return;
-                        }
-                    }
-                    return;
-                }
-                if (bridge()) return; // box without the new bridge — art only
-                setPreview((p) => (p ? { ...p, media: { kind: 'yt', candidates } } : p));
-            } catch {
-                /* keep the art card; no trailer */
-            }
+            })();
         };
 
         const onEnter = (target) => {
             const tile = target?.closest?.('[data-preview="true"]');
             if (!tile) {
+                // Focus moved into our own action overlay / modal — keep the card.
+                if (target?.closest?.('[data-testid="trailer-hover-actions"], [data-testid="trailer-modal"]')) return;
                 hide();
                 return;
             }
             if (tile === activeEl) return;
-            if (dwell) clearTimeout(dwell);
+            if (expandTimer) clearTimeout(expandTimer);
             collapse();
             activeEl = tile;
             tokenRef.current += 1;
             setPreview(null);
-            const token = tokenRef.current;
-            dwell = setTimeout(() => resolveTrailer(tile, token), DWELL_MS);
+            setActions(false);
+            startTile(tile, tokenRef.current);
         };
 
         const onFocusIn = (e) => onEnter(e.target);
@@ -191,20 +160,57 @@ export default function TrailerHoverPreview() {
         // stationary cursor never hijacks the D-pad focus preview.
         const onMove = (e) => onEnter(e.target);
 
+        // OK on a PLAYING trailer → show the in-card actions instead
+        // of navigating.  PosterTile uses useLongPress (navigates on
+        // Enter keyup / mouseup, no click event), so swallow the
+        // whole press in the capture phase.
+        const shouldIntercept = (e) => {
+            const p = previewRef.current;
+            if (!p || !p.playing || actionsRef.current) return false;
+            const tile = e.target?.closest?.('[data-preview="true"]');
+            return !!tile && tile === p.tile;
+        };
+        const onPressStart = (e) => {
+            if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+            if (!shouldIntercept(e)) return;
+            e.preventDefault();
+            e.stopPropagation();
+        };
+        const onPressEnd = (e) => {
+            if (e.type === 'keyup' && e.key !== 'Enter' && e.key !== ' ') return;
+            if (!shouldIntercept(e)) return;
+            e.preventDefault();
+            e.stopPropagation();
+            setActions(true);
+        };
+        const onClick = (e) => {
+            if (!shouldIntercept(e)) return;
+            e.preventDefault();
+            e.stopPropagation();
+        };
+
         document.addEventListener('focusin', onFocusIn);
         document.addEventListener('mousemove', onMove);
+        document.addEventListener('keydown', onPressStart, true);
+        document.addEventListener('mousedown', onPressStart, true);
+        document.addEventListener('keyup', onPressEnd, true);
+        document.addEventListener('mouseup', onPressEnd, true);
+        document.addEventListener('click', onClick, true);
         window.addEventListener('vesper:hide-trailer-preview', hide);
 
         const ae = document.activeElement;
-        if (ae && ae.closest && ae.closest('[data-preview="true"]')) {
-            onEnter(ae);
-        }
+        if (ae && ae.closest && ae.closest('[data-preview="true"]')) onEnter(ae);
 
         return () => {
             document.removeEventListener('focusin', onFocusIn);
             document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('keydown', onPressStart, true);
+            document.removeEventListener('mousedown', onPressStart, true);
+            document.removeEventListener('keyup', onPressEnd, true);
+            document.removeEventListener('mouseup', onPressEnd, true);
+            document.removeEventListener('click', onClick, true);
             window.removeEventListener('vesper:hide-trailer-preview', hide);
-            if (dwell) clearTimeout(dwell);
+            if (expandTimer) clearTimeout(expandTimer);
             collapse();
         };
     }, [enabled]);
@@ -212,93 +218,247 @@ export default function TrailerHoverPreview() {
     if (!enabled || !preview) return null;
 
     const { tile, title, sub, backdrop, media } = preview;
+    const patch = (fn) => setPreview((p) => (p ? fn(p) : p));
+    const onEnded = () => patch((p) => ({ ...p, media: null, playing: false, ended: true }));
 
-    return createPortal(
-        <div
-            data-testid="trailer-hover-preview"
-            style={{
-                position: 'absolute',
-                inset: 0,
-                zIndex: 3,
-                pointerEvents: 'none',
-                background: '#05070d',
-                animation: 'vesper-hoverprev-in 240ms ease-out both',
-            }}
-        >
-            <style>{`@keyframes vesper-hoverprev-in{from{opacity:0}to{opacity:1}}`}</style>
-            {backdrop && (
-                <img
-                    src={backdrop}
-                    alt=""
+    const closeActions = () => {
+        setActions(false);
+        try { tile.focus({ preventScroll: true }); } catch { /* ignore */ }
+    };
+    const openFullscreen = () => {
+        setActions(false);
+        // Stop the in-card trailer; the cover stays after the modal closes.
+        patch((p) => ({ ...p, media: null, playing: false, ended: true }));
+        setFullscreen({
+            candidates: media?.candidates || [],
+            source: media?.kind === 'video' ? { url: media.url } : null,
+            title,
+            backdrop,
+        });
+    };
+    const openTitle = () => {
+        setActions(false);
+        tile.dispatchEvent(new CustomEvent('vesper:preview-open'));
+    };
+
+    return (
+        <>
+            {createPortal(
+                <div
+                    data-testid="trailer-hover-preview"
                     style={{
                         position: 'absolute',
                         inset: 0,
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                    }}
-                />
-            )}
-            {media?.kind === 'video' && (
-                <VideoPreview
-                    url={media.url}
-                    onFail={() => setPreview((p) => (p ? { ...p, media: null } : p))}
-                />
-            )}
-            {media?.kind === 'yt' && (
-                <YtPreview
-                    candidates={media.candidates}
-                    title={title}
-                    onExhausted={() => setPreview((p) => (p ? { ...p, media: null } : p))}
-                />
-            )}
-            <div
-                style={{
-                    position: 'absolute',
-                    inset: 'auto 0 0 0',
-                    padding: '20px 14px 12px',
-                    background:
-                        'linear-gradient(180deg, rgba(5,7,13,0) 0%, rgba(5,7,13,0.85) 70%, rgba(5,7,13,0.96) 100%)',
-                }}
-            >
-                <div
-                    style={{
-                        fontWeight: 700,
-                        fontSize: 'clamp(13px, 1vw, 16px)',
-                        color: '#fff',
-                        lineHeight: 1.15,
-                        letterSpacing: '-0.01em',
-                        textShadow: '0 1px 6px rgba(0,0,0,0.6)',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
+                        zIndex: 3,
+                        pointerEvents: 'none',
+                        background: '#05070d',
+                        animation: 'vesper-hoverprev-in 240ms ease-out both',
                     }}
                 >
-                    {title}
-                </div>
-                {sub && (
+                    <style>{`@keyframes vesper-hoverprev-in{from{opacity:0}to{opacity:1}}`}</style>
+                    {backdrop && (
+                        <img
+                            src={backdrop}
+                            alt=""
+                            style={{
+                                position: 'absolute',
+                                inset: 0,
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                            }}
+                        />
+                    )}
+                    {media?.kind === 'video' && (
+                        <VideoPreview
+                            url={media.url}
+                            onPlaying={() => patch((p) => ({ ...p, playing: true }))}
+                            onEnded={onEnded}
+                            onFail={() => patch((p) => ({ ...p, media: null, playing: false }))}
+                        />
+                    )}
+                    {media?.kind === 'yt' && (
+                        <YtPreview
+                            candidates={media.candidates}
+                            title={title}
+                            onPlaying={() => patch((p) => ({ ...p, playing: true }))}
+                            onEnded={onEnded}
+                            onExhausted={() => patch((p) => ({ ...p, media: null, playing: false }))}
+                        />
+                    )}
                     <div
-                        className="vesper-mono"
                         style={{
-                            marginTop: 3,
-                            fontSize: 'clamp(9px, 0.62vw, 11px)',
-                            letterSpacing: '0.16em',
-                            textTransform: 'uppercase',
-                            color: 'rgba(220,230,255,0.82)',
+                            position: 'absolute',
+                            inset: 'auto 0 0 0',
+                            padding: '20px 14px 12px',
+                            background:
+                                'linear-gradient(180deg, rgba(5,7,13,0) 0%, rgba(5,7,13,0.85) 70%, rgba(5,7,13,0.96) 100%)',
                         }}
                     >
-                        {sub}
+                        <div
+                            style={{
+                                fontWeight: 700,
+                                fontSize: 'clamp(13px, 1vw, 16px)',
+                                color: '#fff',
+                                lineHeight: 1.15,
+                                letterSpacing: '-0.01em',
+                                textShadow: '0 1px 6px rgba(0,0,0,0.6)',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                            }}
+                        >
+                            {title}
+                        </div>
+                        {sub && (
+                            <div
+                                className="vesper-mono"
+                                style={{
+                                    marginTop: 3,
+                                    fontSize: 'clamp(9px, 0.62vw, 11px)',
+                                    letterSpacing: '0.16em',
+                                    textTransform: 'uppercase',
+                                    color: 'rgba(220,230,255,0.82)',
+                                }}
+                            >
+                                {sub}
+                            </div>
+                        )}
                     </div>
-                )}
-            </div>
-        </div>,
-        tile
+                </div>,
+                tile
+            )}
+            {actions && (
+                <PreviewActions
+                    tile={tile}
+                    onFullscreen={openFullscreen}
+                    onOpen={openTitle}
+                    onClose={closeActions}
+                />
+            )}
+            {fullscreen && (
+                <TrailerModal
+                    youtubeKey={fullscreen.candidates}
+                    nativeSource={fullscreen.source}
+                    initialFullscreen
+                    title={fullscreen.title}
+                    backdrop={fullscreen.backdrop}
+                    onClose={() => {
+                        setFullscreen(null);
+                        try { tile.focus({ preventScroll: true }); } catch { /* ignore */ }
+                    }}
+                />
+            )}
+        </>
     );
 }
 
+/* Two pill actions floated over the playing card (portaled to body so
+ * we never nest <button>s).  Own key handling + focus trap. */
+function PreviewActions({ tile, onFullscreen, onOpen, onClose }) {
+    const [rect, setRect] = useState(() => tile.getBoundingClientRect());
+    const firstRef = useRef(null);
+
+    useEffect(() => {
+        const t = setTimeout(() => firstRef.current?.focus({ preventScroll: true }), 30);
+        const onScroll = () => setRect(tile.getBoundingClientRect());
+        window.addEventListener('scroll', onScroll, true);
+        window.addEventListener('resize', onScroll);
+        return () => {
+            clearTimeout(t);
+            window.removeEventListener('scroll', onScroll, true);
+            window.removeEventListener('resize', onScroll);
+        };
+    }, [tile]);
+
+    const onKeyDown = (e) => {
+        const k = e.key;
+        if (k === 'ArrowLeft' || k === 'ArrowRight') {
+            e.preventDefault();
+            e.stopPropagation();
+            const btns = Array.from(e.currentTarget.querySelectorAll('button'));
+            const i = btns.indexOf(document.activeElement);
+            const n = k === 'ArrowRight' ? Math.min(btns.length - 1, i + 1) : Math.max(0, i - 1);
+            btns[n]?.focus({ preventScroll: true });
+            return;
+        }
+        if (k === 'ArrowUp' || k === 'ArrowDown' || k === 'Escape' || k === 'Backspace' || k === 'GoBack' || e.keyCode === 27 || e.keyCode === 8) {
+            e.preventDefault();
+            e.stopPropagation();
+            onClose();
+        }
+    };
+
+    return createPortal(
+        <div
+            data-testid="trailer-hover-actions"
+            data-focus-trap="true"
+            onKeyDown={onKeyDown}
+            style={{
+                position: 'fixed',
+                left: rect.left,
+                top: rect.top,
+                width: rect.width,
+                height: rect.height,
+                zIndex: 60,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 12,
+                borderRadius: 12,
+                background: 'rgba(5,7,13,0.45)',
+                animation: 'vesper-hoverprev-in 160ms ease-out both',
+            }}
+        >
+            <button
+                ref={firstRef}
+                type="button"
+                data-testid="trailer-hover-fullscreen"
+                data-focusable="true"
+                data-focus-style="pill"
+                tabIndex={0}
+                onClick={onFullscreen}
+                style={actionBtnStyle}
+            >
+                <Maximize2 size={15} /> Play Full Screen
+            </button>
+            <button
+                type="button"
+                data-testid="trailer-hover-open"
+                data-focusable="true"
+                data-focus-style="pill"
+                tabIndex={0}
+                onClick={onOpen}
+                style={actionBtnStyle}
+            >
+                <Play size={15} /> Open to Play
+            </button>
+        </div>,
+        document.body
+    );
+}
+
+const actionBtnStyle = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '10px 18px',
+    borderRadius: 999,
+    background: 'rgba(0,0,0,0.62)',
+    border: '1px solid rgba(255,255,255,0.28)',
+    color: '#fff',
+    fontSize: 'clamp(12px, 0.85vw, 14px)',
+    fontWeight: 700,
+    letterSpacing: '0.01em',
+    whiteSpace: 'nowrap',
+    cursor: 'pointer',
+    backdropFilter: 'blur(6px)',
+    WebkitBackdropFilter: 'blur(6px)',
+};
+
 /* Native (TV box) path — muxed googlevideo URL in a plain <video>,
- * unmuted.  Fades in over the backdrop once frames are flowing. */
-function VideoPreview({ url, onFail }) {
+ * unmuted, plays ONCE.  Fades in over the backdrop once frames flow. */
+function VideoPreview({ url, onPlaying, onEnded, onFail }) {
     const [playing, setPlaying] = useState(false);
     return (
         <video
@@ -306,9 +466,12 @@ function VideoPreview({ url, onFail }) {
             data-testid="trailer-hover-video"
             src={url}
             autoPlay
-            loop
             playsInline
-            onPlaying={() => setPlaying(true)}
+            onPlaying={() => {
+                setPlaying(true);
+                onPlaying?.();
+            }}
+            onEnded={onEnded}
             onError={onFail}
             style={{
                 position: 'absolute',
@@ -327,7 +490,7 @@ function VideoPreview({ url, onFail }) {
  * sends no IFrame-API events at all for Error-153 videos, so a
  * ready-timeout (or an explicit onError) advances to the next
  * candidate. */
-function YtPreview({ candidates, title, onExhausted }) {
+function YtPreview({ candidates, title, onPlaying, onEnded, onExhausted }) {
     const [idx, setIdx] = useState(0);
     const [ready, setReady] = useState(false);
     const frameRef = useRef(null);
@@ -356,9 +519,11 @@ function YtPreview({ candidates, title, onExhausted }) {
             // Only reveal once playback has actually started —
             // YouTube fires onReady even for embed-blocked videos.
             if (d.event === 'infoDelivery' && d.info?.playerState === 1) {
+                if (!gotReady) onPlaying?.();
                 gotReady = true;
                 setReady(true);
             }
+            if (d.event === 'infoDelivery' && d.info?.playerState === 0 && gotReady) onEnded?.();
             if (d.event === 'onError') advance();
         };
         window.addEventListener('message', onMsg);
@@ -392,8 +557,6 @@ function YtPreview({ candidates, title, onExhausted }) {
         iv_load_policy: '3',
         fs: '0',
         disablekb: '1',
-        loop: '1',
-        playlist: key,
         enablejsapi: '1',
         origin,
     });

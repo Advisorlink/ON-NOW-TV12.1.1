@@ -3,13 +3,10 @@
  *
  * Behaviour depends on platform:
  *
- *   • Android WebView (HK1 box) — we hand the trailer to the NATIVE
- *     libVLC player via `window.OnNowTV.playTrailer(...)`.  The
- *     backend extracts BOTH a 1080p video-only URL and a matching
- *     m4a audio URL from YouTube (since YT only serves combined
- *     audio+video MP4 up to 360p) and the native player merges them
- *     via an input slave.  Result: HD trailer playback, no iframe,
- *     no YouTube app redirect, no chunky 360p, no surprise nags.
+ *   • Android WebView (HK1 box) — SAME engine as the Home hover
+ *     preview (`lib/trailerEngine`): `OnNowTV.previewTrailer` extracts
+ *     a muxed ≤720p googlevideo URL on-device and we play it in a
+ *     plain <video>.  No iframe, no YouTube app redirect, no Error 153.
  *
  *   • Desktop / preview (no native bridge) — we render the
  *     YouTube iframe in a centered 16:9 modal so trailers still work
@@ -19,9 +16,18 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Maximize2, Minimize2, Loader2 } from 'lucide-react';
+import { hasNativePreview, resolveMuxedTrailer } from '@/lib/trailerEngine';
 
-export default function TrailerModal({ youtubeKey, title, poster, backdrop, onClose }) {
-    const [fullscreen, setFullscreen] = useState(false);
+export default function TrailerModal({
+    youtubeKey,
+    title,
+    poster,
+    backdrop,
+    onClose,
+    nativeSource = null,
+    initialFullscreen = false,
+}) {
+    const [fullscreen, setFullscreen] = useState(initialFullscreen);
     const cardRef = useRef(null);
 
     /* v2.11.6 — Multi-candidate trailer playback with YouTube
@@ -98,91 +104,41 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
         setNativeTitle('');
     }, [youtubeKey]);
 
-    /* v2.11.8 — Try native extraction for the FIRST candidate only.
-     *
-     * NewPipeExtractor is bulletproof for videos it can extract;
-     * cycling candidates isn't needed because it doesn't have the
-     * per-video iframe embed restriction that broke us on the pod.
-     * If the FIRST candidate's extraction fails, we fall through
-     * to iframe cycling for ALL candidates.
-     */
+    /* Native path — SAME engine as the Home hover preview
+     * (`lib/trailerEngine`): `OnNowTV.previewTrailer` extracts a muxed
+     * ≤720p googlevideo URL on-device (cycling up to 3 candidates) and
+     * we play it in a plain <video>.  A caller that already resolved
+     * the URL (the hover card's "Play Full Screen") passes
+     * `nativeSource` so playback is instant.  Falls back to iframe
+     * cycling in the browser / when extraction fails. */
     useEffect(() => {
-        if (!currentKey || currentIdx > 0) {
-            // Only the first candidate gets the native path.  If
-            // we've advanced past index 0, we're already in iframe
-            // cycling — don't reset.
+        if (!currentKey || currentIdx > 0) return undefined;
+        if (nativeSource?.url) {
+            setNativeUrl(nativeSource.url);
+            setNativeTitle(nativeSource.title || '');
+            setNativeState('muxed');
             return undefined;
         }
-        const bridge = (typeof window !== 'undefined')
-            ? window.OnNowTV
-            : null;
-        if (!bridge || typeof bridge.playTrailer !== 'function') {
-            // Browser preview or older APK — use iframe path.
+        if (!hasNativePreview()) {
             setNativeState('failed');
             return undefined;
         }
+        let cancelled = false;
         setNativeState('trying');
-        const callbackId = 'vt-' + Math.random().toString(36).slice(2, 10);
-        let settled = false;
-        // Register the callback globally so the bridge can find us.
-        // Multiple modals can be open sequentially so we allow
-        // overwrites; when the callback fires with a stale id we
-        // just ignore it.
-        const prev = window.__trailerReady;
-        window.__trailerReady = (id, result) => {
-            if (id !== callbackId) {
-                // Delegate to previous listener if any.
-                try { prev?.(id, result); } catch { /* swallow */ }
-                return;
-            }
-            if (settled) return;
-            settled = true;
-            if (result && result.videoUrl) {
-                if (result.audioUrl) {
-                    // DASH pair — hand off to native ExoPlayer.
-                    // Modal stays open; native activity comes up
-                    // over the top.
-                    try {
-                        bridge.playTrailerFullscreen(
-                            result.videoUrl,
-                            result.audioUrl,
-                            result.title || title || ''
-                        );
-                        // Close the modal after handoff — the
-                        // native player is now handling playback.
-                        setTimeout(() => onClose?.(), 200);
-                    } catch {
-                        setNativeState('failed');
-                    }
-                } else {
-                    setNativeUrl(result.videoUrl);
-                    setNativeTitle(result.title || '');
-                    setNativeState('muxed');
-                }
+        resolveMuxedTrailer(candidates, () => cancelled).then((r) => {
+            if (cancelled) return;
+            if (r?.url) {
+                setNativeUrl(r.url);
+                setNativeTitle(r.title || '');
+                setNativeState('muxed');
             } else {
-                // Extraction failed — fall through to iframe.
                 setNativeState('failed');
             }
-        };
-        try {
-            bridge.playTrailer(callbackId, currentKey);
-        } catch {
-            setNativeState('failed');
-        }
-        // 12 s timeout — if the bridge never calls back, fall
-        // through to iframe.  NewPipeExtractor usually completes
-        // in 1-3 s on a decent HK1 box.
-        const tId = setTimeout(() => {
-            if (!settled) {
-                settled = true;
-                setNativeState('failed');
-            }
-        }, 12_000);
+        });
         return () => {
-            settled = true;
-            clearTimeout(tId);
+            cancelled = true;
         };
-    }, [currentKey, currentIdx, title, onClose]);
+    }, [currentKey, currentIdx, candidates, nativeSource]);
 
     // Reset ready state whenever we swap candidate — the new
     // iframe needs a fresh check.
@@ -308,13 +264,13 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
             ) {
                 e.preventDefault();
                 e.stopPropagation();
-                if (fullscreen) setFullscreen(false);
+                if (fullscreen && !initialFullscreen) setFullscreen(false);
                 else onClose?.();
             }
         };
         window.addEventListener('keydown', onKey, true);
         return () => window.removeEventListener('keydown', onKey, true);
-    }, [youtubeKey, fullscreen, onClose]);
+    }, [youtubeKey, fullscreen, initialFullscreen, onClose]);
 
     /* Auto-focus the close button on open so any subsequent OK
      * press dismisses the modal cleanly. */
@@ -423,6 +379,7 @@ export default function TrailerModal({ youtubeKey, title, poster, backdrop, onCl
                         controls
                         autoPlay
                         playsInline
+                        onEnded={() => onClose?.()}
                         onError={() => {
                             // Signed URL expired mid-load or a
                             // network hiccup — fall through to

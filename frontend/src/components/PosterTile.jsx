@@ -83,6 +83,18 @@ export default function PosterTile({ item, onSelect, initialFocus = false }) {
 
     const press = useLongPress(onLongPress, onTap);
 
+    // Trailer hover card's "Open to Play" fires this on the tile.
+    const tapRef = React.useRef(onTap);
+    tapRef.current = onTap;
+    const btnRef = React.useRef(null);
+    React.useEffect(() => {
+        const el = btnRef.current;
+        if (!el) return undefined;
+        const open = () => tapRef.current();
+        el.addEventListener('vesper:preview-open', open);
+        return () => el.removeEventListener('vesper:preview-open', open);
+    }, []);
+
     // Metadata for the Netflix-style hover/focus trailer preview.
     const routeMatch = /\/resolve\/(tv|movie)\/(\d+)/.exec(item.routePath || '');
     const previewTmdb = routeMatch ? routeMatch[2] : '';
@@ -106,6 +118,10 @@ export default function PosterTile({ item, onSelect, initialFocus = false }) {
             {...(initialFocus ? { 'data-initial-focus': 'true' } : {})}
             tabIndex={0}
             {...press}
+            ref={(el) => {
+                press.ref(el);
+                btnRef.current = el;
+            }}
             className="group relative shrink-0 overflow-hidden rounded-xl text-left"
             style={{
                 '--tile-w': 'clamp(132px, 11.5vw, 198px)',
