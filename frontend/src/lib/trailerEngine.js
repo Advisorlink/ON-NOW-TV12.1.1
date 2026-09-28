@@ -218,12 +218,13 @@ export function resolveHdTrailer(videoId) {
     });
 }
 
+const candKeys = (candidates) => (candidates || [])
+    .map((c) => (typeof c === 'string' ? c : c?.key))
+    .filter(Boolean)
+    .slice(0, MAX_NATIVE_TRIES);
+
 export async function resolveHdFromCandidates(candidates, isStale) {
-    const keys = (candidates || [])
-        .map((c) => (typeof c === 'string' ? c : c?.key))
-        .filter(Boolean)
-        .slice(0, MAX_NATIVE_TRIES);
-    for (const key of keys) {
+    for (const key of candKeys(candidates)) {
         const r = await resolveHdTrailer(key);
         if (isStale?.()) return null;
         if (r?.videoUrl) return { ...r, key };
@@ -231,15 +232,18 @@ export async function resolveHdFromCandidates(candidates, isStale) {
     return null;
 }
 
-/** Hand an HD pair to the native fullscreen ExoPlayer.  Returns
- *  true when launched. */
-export function launchNativeFullscreen(hd, fallbackTitle = '') {
-    const b = bridge();
-    if (!hd?.videoUrl || typeof b?.playTrailerFullscreen !== 'function') return false;
-    try {
-        b.playTrailerFullscreen(hd.videoUrl, hd.audioUrl || '', hd.title || fallbackTitle || 'Trailer');
-        return true;
-    } catch {
-        return false;
+/** Already-resolved HD pair for these candidates (no network). */
+export function peekHd(candidates) {
+    for (const key of candKeys(candidates)) {
+        const hit = hdCache.get(key);
+        if (hit && !hit.fail && Date.now() - hit.ts < NATIVE_TTL) return { ...hit, key };
     }
+    return null;
+}
+
+/** Warm the HD pair while the little in-card trailer plays so
+ *  "Play Full Screen" expands instantly in HD. */
+export function prefetchHd(candidates) {
+    if (!isBox() || peekHd(candidates)) return;
+    resolveHdFromCandidates(candidates).catch(() => {});
 }

@@ -48,6 +48,7 @@ package tv.vesper.app
 import android.util.Log
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.schabi.newpipe.extractor.MediaFormat
 import org.schabi.newpipe.extractor.NewPipe
 import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.downloader.Downloader
@@ -204,14 +205,23 @@ object YouTubeTrailerExtractor {
             // Note: NewPipeExtractor's Stream.getUrl() is annotated
             // as nullable Java (`@Nullable String`) — Kotlin sees
             // `String?`.  Filter out null/blank before dereferencing.
-            val bestVideo = extractor.videoOnlyStreams
+            // v1.3.9 — the WebView now plays this pair itself (two synced
+            // <video>/<audio> elements), so prefer H.264 MP4 video + M4A
+            // audio: universally hardware-decoded on Android TV panels.
+            // WebM/VP9/Opus only when no MP4 rendition exists.
+            val videoPool = extractor.videoOnlyStreams
                 ?.filter {
                     !it.url.isNullOrBlank() &&
                         it.height in 1..maxHeight
                 }
+            val bestVideo = videoPool
+                ?.filter { it.format == MediaFormat.MPEG_4 }
                 ?.maxByOrNull { it.height }
-            val bestAudio = extractor.audioStreams
+                ?: videoPool?.maxByOrNull { it.height }
+            val audioPool = extractor.audioStreams
                 ?.filter { !it.url.isNullOrBlank() }
+            val bestAudio = audioPool
+                ?.filter { it.format == MediaFormat.M4A }
                 // v2.12.5 — Cap audio bitrate too so the aggregate
                 // stream fits comfortably in the throttle envelope.
                 // 128 kbps AAC is transparent for trailer dialogue +
@@ -219,8 +229,13 @@ object YouTubeTrailerExtractor {
                 // buys nothing but stall risk.
                 ?.filter { it.averageBitrate in 1..192 }
                 ?.maxByOrNull { it.averageBitrate }
-                ?: extractor.audioStreams
-                    ?.filter { !it.url.isNullOrBlank() }
+                ?: audioPool
+                    ?.filter { it.format == MediaFormat.M4A }
+                    ?.minByOrNull { it.averageBitrate.takeIf { b -> b > 0 } ?: Int.MAX_VALUE }
+                ?: audioPool
+                    ?.filter { it.averageBitrate in 1..192 }
+                    ?.maxByOrNull { it.averageBitrate }
+                ?: audioPool
                     ?.minByOrNull { it.averageBitrate.takeIf { b -> b > 0 } ?: Int.MAX_VALUE }
             if (bestVideo != null && bestAudio != null) {
                 Log.i(TAG, "DASH pair chosen: ${bestVideo.height}p video + " +

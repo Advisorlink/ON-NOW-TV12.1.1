@@ -16,8 +16,11 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Maximize2, Minimize2, Loader2 } from 'lucide-react';
-import { isBox, resolveMuxedTrailer, resolveHdFromCandidates, launchNativeFullscreen } from '@/lib/trailerEngine';
+import { isBox, resolveMuxedTrailer, resolveHdFromCandidates } from '@/lib/trailerEngine';
 import { useNativeBackTrap, triggerTrapBack } from '@/hooks/useNativeBackTrap';
+import HdTrailerVideo from '@/components/HdTrailerVideo';
+
+const HD_WAIT_MS = 5000;
 
 export default function TrailerModal({
     youtubeKey,
@@ -26,6 +29,8 @@ export default function TrailerModal({
     backdrop,
     onClose,
     nativeSource = null,
+    hdSource = null,
+    startAt = 0,
     initialFullscreen = false,
 }) {
     const [fullscreen, setFullscreen] = useState(initialFullscreen);
@@ -94,6 +99,8 @@ export default function TrailerModal({
     const [nativeState, setNativeState] = useState('unknown');
     const [nativeUrl, setNativeUrl] = useState('');
     const [nativeTitle, setNativeTitle] = useState('');
+    const [hd, setHd] = useState(null); // {videoUrl, audioUrl, title}
+    const startAtRef = useRef(startAt || 0);
     const currentKey = candidates[currentIdx]?.key || '';
 
     useEffect(() => {
@@ -103,39 +110,48 @@ export default function TrailerModal({
         setNativeState('unknown');
         setNativeUrl('');
         setNativeTitle('');
+        setHd(null);
+        startAtRef.current = startAt || 0;
     }, [youtubeKey]);
 
-    /* Native path — SAME engine as the Home hover preview
-     * (`lib/trailerEngine`): `OnNowTV.previewTrailer` extracts a muxed
-     * ≤720p googlevideo URL on-device (cycling up to 3 candidates) and
-     * we play it in a plain <video>.  A caller that already resolved
-     * the URL (the hover card's "Play Full Screen") passes
-     * `nativeSource` so playback is instant.  Falls back to iframe
-     * cycling in the browser / when extraction fails. */
+    /* Native path — everything plays INSIDE the WebView (no player
+     * hand-off).  Order on the box: HD DASH pair (1080p/720p, two synced
+     * elements via <HdTrailerVideo/>) → muxed ≤720p <video> → iframe.
+     * The hover card passes `hdSource` (prefetched) + `startAt` so the
+     * expansion is instant and continues from the same second. */
     useEffect(() => {
         if (!currentKey || currentIdx > 0) return undefined;
-        if (nativeSource?.url) {
-            setNativeUrl(nativeSource.url);
-            setNativeTitle(nativeSource.title || '');
-            setNativeState('muxed');
+        if (hdSource?.videoUrl) {
+            setHd(hdSource);
+            setNativeState('hd');
             return undefined;
         }
         if (!isBox()) {
-            setNativeState('failed');
+            if (nativeSource?.url) {
+                setNativeUrl(nativeSource.url);
+                setNativeTitle(nativeSource.title || '');
+                setNativeState('muxed');
+            } else {
+                setNativeState('failed');
+            }
             return undefined;
         }
         let cancelled = false;
         setNativeState('trying');
         (async () => {
-            // HD first: DASH 1080p/720p → native fullscreen ExoPlayer
-            // (a <video> can't merge separate audio + video tracks).
-            const hd = await resolveHdFromCandidates(candidates, () => cancelled);
+            const hdPair = await Promise.race([
+                resolveHdFromCandidates(candidates, () => cancelled),
+                new Promise((res) => setTimeout(() => res(null), HD_WAIT_MS)),
+            ]);
             if (cancelled) return;
-            if (hd && launchNativeFullscreen(hd, title)) {
-                setTimeout(() => close(), 250);
+            if (hdPair?.videoUrl) {
+                setHd(hdPair);
+                setNativeState('hd');
                 return;
             }
-            const r = await resolveMuxedTrailer(candidates, () => cancelled);
+            const r = nativeSource?.url
+                ? nativeSource
+                : await resolveMuxedTrailer(candidates, () => cancelled);
             if (cancelled) return;
             if (r?.url) {
                 setNativeUrl(r.url);
@@ -148,7 +164,23 @@ export default function TrailerModal({
         return () => {
             cancelled = true;
         };
-    }, [currentKey, currentIdx, candidates, nativeSource]);
+    }, [currentKey, currentIdx, candidates, nativeSource, hdSource]);
+
+    /* HD pair died mid-play (signed URL expired / codec) → carry on
+     * from the same second with the muxed file. */
+    const onHdError = async () => {
+        const t = nativeVideoRef.current?.currentTime;
+        if (Number.isFinite(t) && t > 0) startAtRef.current = t;
+        setHd(null);
+        const r = nativeSource?.url ? nativeSource : await resolveMuxedTrailer(candidates);
+        if (r?.url) {
+            setNativeUrl(r.url);
+            setNativeTitle(r.title || '');
+            setNativeState('muxed');
+        } else {
+            setNativeState('failed');
+        }
+    };
 
     // Reset ready state whenever we swap candidate — the new
     // iframe needs a fresh check.
@@ -391,6 +423,35 @@ export default function TrailerModal({
                   * hands us a combined video+audio URL from the
                   * device, play it in a plain <video> — bypasses
                   * every iframe embed restriction. */}
+                {nativeState === 'hd' && hd?.videoUrl && (
+                    <>
+                        {backdrop && (
+                            <img
+                                src={backdrop}
+                                alt=""
+                                data-testid="trailer-hd-backdrop"
+                                style={{
+                                    position: 'absolute',
+                                    inset: 0,
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'cover',
+                                    filter: 'brightness(0.55)',
+                                }}
+                            />
+                        )}
+                        <HdTrailerVideo
+                            key={`hd-${currentKey}`}
+                            videoRef={nativeVideoRef}
+                            videoUrl={hd.videoUrl}
+                            audioUrl={hd.audioUrl || ''}
+                            startAt={startAtRef.current}
+                            controls
+                            onEnded={() => close()}
+                            onError={onHdError}
+                        />
+                    </>
+                )}
                 {nativeState === 'muxed' && nativeUrl && (
                     <video
                         ref={nativeVideoRef}
@@ -408,6 +469,11 @@ export default function TrailerModal({
                         controls
                         autoPlay
                         playsInline
+                        onLoadedMetadata={(e) => {
+                            if (startAtRef.current > 0) {
+                                try { e.currentTarget.currentTime = startAtRef.current; } catch { /* ignore */ }
+                            }
+                        }}
                         onEnded={() => close()}
                         onError={() => {
                             // Signed URL expired mid-load or a

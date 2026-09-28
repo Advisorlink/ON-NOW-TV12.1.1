@@ -1,4 +1,11 @@
 # ON NOW TV V2 — PRD
+> **🟢 v1.3.9 — Fullscreen trailer expands IN-APP in HD, continues from the same second (Jun 2026).**
+> - User: "Play Full Screen" must just expand the card into fullscreen and keep playing from where it's up to, at ≥720p — NOT hand off to a different (native) player. Removed the `launchNativeFullscreen` hand-off from both the hover card and `TrailerModal`.
+> - New `components/HdTrailerVideo.jsx`: plays YouTube's HD DASH pair (1080p/720p video-only + m4a audio, from the existing `OnNowTV.playTrailer` bridge) inside the WebView with two synced elements (`<video muted>` + hidden `<audio>`; 300 ms drift loop: hard resync >0.25 s, ±4 % rate nudge >0.06 s; pause/seek/stall mirrored; own seeks don't count as stalls). Testids `trailer-video-hd` (`data-dual`), `trailer-audio-hd`.
+> - `TrailerModal` new props `hdSource`, `startAt`; box order: HD (in-app) → muxed → iframe, 5 s HD wait cap; HD `onError` → muxed at the same second. `trailerEngine.peekHd/prefetchHd` — hover card prefetches the HD pair as soon as the little muxed trailer starts, so expansion is instant; `openFullscreen` reads the card `<video>.currentTime` → `startAt`. Detail-page trailer also plays HD in-app now.
+> - Kotlin `YouTubeTrailerExtractor.extract()` prefers MPEG_4 (H.264) video-only + M4A audio (WebView hw-decode) — brace-check clean, **APK rebuild required** for the codec preference (web changes ship in the bundle).
+> - ✅ Verified in browser with simulated bridge: card 2.5 s → fullscreen HD dual-track from 4.1 s, drift 0.000 after 4 s, seek stays synced, Back → in-card resumes; Detail-page HD in-app; bad HD URL → muxed fallback at same time.
+>
 > **🟢 v1.3.8 — Snappy, no-slide polish (Jun 2026).** Tile expansion is instant (`EXPAND_MS=0`, width transition removed from PosterTile); top-bar labels snap (no max-width/padding transitions); rail focus-lock uses instant `scrollLeft` (no smooth scroll → no glitchy slide). Search left panel is now a compact `vesper-glass` card (46 px icon, 22-32 px heading, full-width input + keyboard, col width clamp(400px,31vw,560px)); `html.vesper-topnav` class (set by TopNav) pushes `search-layout` padding-top to 92 px so recents/results never sit under the bar. Verified in browser.
 >
 > **🟢 v1.3.7 — HD fullscreen trailers + focus-follow hero (Jun 2026).**

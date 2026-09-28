@@ -25,7 +25,7 @@ import {
 } from '@/lib/trailerEngine';
 import TrailerModal from '@/components/TrailerModal';
 import { useNativeBackTrap, triggerTrapBack } from '@/hooks/useNativeBackTrap';
-import { resolveHdFromCandidates, launchNativeFullscreen } from '@/lib/trailerEngine';
+import { peekHd, prefetchHd } from '@/lib/trailerEngine';
 
 const EXPAND_MS = 0; // instant — no slide-out, the card is simply there
 
@@ -121,6 +121,8 @@ export default function TrailerHoverPreview() {
                         const r = await resolveMuxedTrailer(candidates, stale);
                         if (stale()) return;
                         if (r?.url) media = { kind: 'video', url: r.url, candidates };
+                        // Warm the HD pair now so "Play Full Screen" is instant.
+                        if (media) prefetchHd(candidates);
                     } else if (!isBox()) {
                         media = { kind: 'yt', candidates };
                     }
@@ -226,33 +228,22 @@ export default function TrailerHoverPreview() {
         setActions(false);
         try { tile.focus({ preventScroll: true }); } catch { /* ignore */ }
     };
-    const openFullscreen = async () => {
+    const openFullscreen = () => {
         setActions(false);
         const resume = media;
-        // TV box: fullscreen MUST be HD → DASH 1080p/720p pair in the
-        // native ExoPlayer.  When the player closes the WebView becomes
-        // visible again and the little in-card version resumes.
-        if (isBox() && media?.candidates?.length) {
-            const hd = await resolveHdFromCandidates(media.candidates);
-            if (hd && launchNativeFullscreen(hd, title)) {
-                patch((p) => ({ ...p, media: null, playing: false }));
-                const onBack = () => {
-                    if (document.visibilityState !== 'visible') return;
-                    document.removeEventListener('visibilitychange', onBack);
-                    if (resume?.kind === 'video') {
-                        patch((p) => (p ? { ...p, media: { ...resume }, ended: false } : p));
-                    }
-                    try { tile.focus({ preventScroll: true }); } catch { /* ignore */ }
-                };
-                document.addEventListener('visibilitychange', onBack);
-                return;
-            }
-        }
-        // Browser / no HD available → in-app modal (muxed).
+        // Carry the exact second the little card is up to, so the
+        // fullscreen version continues instead of restarting.
+        const vid = tile.querySelector('video[data-testid="trailer-hover-video"]');
+        const startAt = Number.isFinite(vid?.currentTime) ? vid.currentTime : 0;
         patch((p) => ({ ...p, media: null, playing: false }));
+        // Expands IN the app (same WebView, no player hand-off).  On the
+        // box the modal plays the HD DASH pair (1080p/720p) — prefetched
+        // while the card was playing — and falls back to the muxed file.
         setFullscreen({
             candidates: media?.candidates || [],
             source: media?.kind === 'video' ? { url: media.url } : null,
+            hdSource: isBox() ? peekHd(media?.candidates) : null,
+            startAt,
             title,
             backdrop,
             resume,
@@ -363,6 +354,8 @@ export default function TrailerHoverPreview() {
                 <TrailerModal
                     youtubeKey={fullscreen.candidates}
                     nativeSource={fullscreen.source}
+                    hdSource={fullscreen.hdSource}
+                    startAt={fullscreen.startAt}
                     initialFullscreen
                     title={fullscreen.title}
                     backdrop={fullscreen.backdrop}
