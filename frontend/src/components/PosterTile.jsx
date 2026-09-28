@@ -133,8 +133,7 @@ export default function PosterTile({ item, onSelect, initialFocus = false }) {
                 '--tile-w': 'clamp(132px, 11.5vw, 198px)',
                 width: 'var(--tile-w)',
                 height: 'calc(var(--tile-w) * 1.5)',
-                transition:
-                    'transform 120ms ease-out, width 280ms cubic-bezier(.2,.7,.2,1)',
+                transition: 'transform 120ms ease-out',
                 background: 'var(--vesper-bg-2)',
                 border: '1px solid rgba(255,255,255,0.05)',
                 /* v2.7.88 — INLINE touch-action so a finger drag

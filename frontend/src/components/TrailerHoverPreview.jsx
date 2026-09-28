@@ -27,7 +27,7 @@ import TrailerModal from '@/components/TrailerModal';
 import { useNativeBackTrap, triggerTrapBack } from '@/hooks/useNativeBackTrap';
 import { resolveHdFromCandidates, launchNativeFullscreen } from '@/lib/trailerEngine';
 
-const EXPAND_MS = 200;
+const EXPAND_MS = 0; // instant — no slide-out, the card is simply there
 
 /* Keep the widened tile fully visible inside its horizontal shelf. */
 function revealInShelf(tile) {

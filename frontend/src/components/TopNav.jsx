@@ -12,6 +12,12 @@ import { AvatarCircle } from '@/lib/avatars';
  * focused/hovered.  Reached with UP from the top row (never LEFT).
  */
 export default function TopNav({ items }) {
+    // Lets pages that start at the very top (Search columns) make
+    // room for the bar via `html.vesper-topnav` in index.css.
+    useEffect(() => {
+        document.documentElement.classList.add('vesper-topnav');
+        return () => document.documentElement.classList.remove('vesper-topnav');
+    }, []);
     const location = useLocation();
     const navigate = useNavigate();
     const currentFilter = new URLSearchParams(location.search).get('filter');
@@ -134,7 +140,7 @@ function TopNavItem({ icon: Icon, label, active, accent = false, onClick, testid
                 gap: open ? 8 : 0,
                 color,
                 background: active ? 'color-mix(in srgb, currentColor 14%, transparent)' : 'transparent',
-                transition: 'padding 220ms cubic-bezier(.2,.7,.2,1), gap 220ms, background-color 160ms',
+                transition: 'background-color 120ms',
                 whiteSpace: 'nowrap',
             }}
         >
@@ -147,7 +153,7 @@ function TopNavItem({ icon: Icon, label, active, accent = false, onClick, testid
                     maxWidth: open ? 180 : 0,
                     opacity: open ? 1 : 0,
                     overflow: 'hidden',
-                    transition: 'max-width 220ms cubic-bezier(.2,.7,.2,1), opacity 160ms',
+                    transition: 'none',
                     color: 'var(--vesper-text)',
                 }}
             >

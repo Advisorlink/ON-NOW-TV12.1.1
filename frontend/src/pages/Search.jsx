@@ -371,33 +371,22 @@ export default function Search() {
                         data-testid="search-card"
                         className="flex flex-col items-start shrink-0"
                         style={{
-                            width: 'clamp(400px, 34vw, 640px)',
+                            width: 'clamp(400px, 31vw, 560px)',
                             position: 'sticky',
                             top: 0,
                             marginBottom: 32,
                         }}
                     >
-                        {/* Faint blue glow behind the card */}
                         <div
+                            className="vesper-glass flex flex-col items-start"
                             style={{
-                                position: 'absolute',
-                                inset: '0 18% auto 18%',
-                                height: '32vh',
-                                background:
-                                    'radial-gradient(60% 60% at 50% 0%, rgba(var(--vesper-blue-rgb),0.18) 0%, transparent 70%)',
-                                pointerEvents: 'none',
-                                filter: 'blur(20px)',
-                            }}
-                        />
-
-                        <div
-                            className="flex flex-col items-center"
-                            style={{
-                                maxWidth: 760,
                                 width: '100%',
                                 position: 'relative',
                                 zIndex: 1,
-                                gap: 10,
+                                gap: 12,
+                                padding: 'clamp(18px, 1.6vw, 26px)',
+                                borderRadius: 24,
+                                border: '1px solid var(--vesper-line)',
                             }}
                         >
                             {/* Big circular search icon — visually
@@ -405,8 +394,8 @@ export default function Search() {
                                 profile name step. */}
                             <div
                                 style={{
-                                    width: 84,
-                                    height: 84,
+                                    width: 46,
+                                    height: 46,
                                     borderRadius: 999,
                                     background:
                                         'radial-gradient(circle at 30% 30%, rgba(var(--vesper-blue-rgb),0.35) 0%, rgba(var(--vesper-blue-rgb),0.12) 70%)',
@@ -419,7 +408,7 @@ export default function Search() {
                                     color: 'var(--vesper-blue-bright)',
                                 }}
                             >
-                                <SearchIcon size={36} strokeWidth={1.8} />
+                                <SearchIcon size={22} strokeWidth={1.9} />
                             </div>
 
                             <div
@@ -437,10 +426,11 @@ export default function Search() {
                             <h1
                                 className="vesper-display"
                                 style={{
-                                    fontSize: 'clamp(26px, 3vw, 44px)',
+                                    fontSize: 'clamp(22px, 1.9vw, 32px)',
                                     letterSpacing: '-0.02em',
                                     lineHeight: 1.05,
-                                    textAlign: 'center',
+                                    textAlign: 'left',
+                                    marginBottom: 4,
                                 }}
                             >
                                 {kids ? (
@@ -483,9 +473,8 @@ export default function Search() {
                                 className="flex items-center gap-3"
                                 style={{
                                     width: '100%',
-                                    maxWidth: 560,
-                                    height: 64,
-                                    padding: '0 24px',
+                                    height: 58,
+                                    padding: '0 20px',
                                     borderRadius: 999,
                                     background:
                                         'linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%)',
@@ -661,7 +650,7 @@ export default function Search() {
                                 Phones type directly in the pill via
                                 the native IME. */}
                             {!isMobile && (
-                            <div style={{ marginTop: 4, width: '100%', maxWidth: 720 }}>
+                            <div style={{ marginTop: 4, width: '100%' }}>
                                 <TVKeyboard
                                     value={q}
                                     onChange={(v) => {

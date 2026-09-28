@@ -33,7 +33,7 @@ export default function Shelf({ shelf, onSelect, firstTileInitialFocus = false }
             target = Math.max(0, (idx - 1) * (base.offsetWidth + gap));
         }
         if (Math.abs(el.scrollLeft - target) < 2) return;
-        el.scrollTo({ left: target, behavior: 'smooth' });
+        el.scrollLeft = target;
     };
 
     return (
