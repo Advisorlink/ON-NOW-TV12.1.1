@@ -25,6 +25,7 @@ import {
 } from '@/lib/trailerEngine';
 import TrailerModal from '@/components/TrailerModal';
 import { useNativeBackTrap, triggerTrapBack } from '@/hooks/useNativeBackTrap';
+import { resolveHdFromCandidates, launchNativeFullscreen } from '@/lib/trailerEngine';
 
 const EXPAND_MS = 200;
 
@@ -225,11 +226,29 @@ export default function TrailerHoverPreview() {
         setActions(false);
         try { tile.focus({ preventScroll: true }); } catch { /* ignore */ }
     };
-    const openFullscreen = () => {
+    const openFullscreen = async () => {
         setActions(false);
-        // Pause the in-card trailer while the fullscreen modal plays;
-        // BACK brings the "little version" back, resumed where it left.
         const resume = media;
+        // TV box: fullscreen MUST be HD → DASH 1080p/720p pair in the
+        // native ExoPlayer.  When the player closes the WebView becomes
+        // visible again and the little in-card version resumes.
+        if (isBox() && media?.candidates?.length) {
+            const hd = await resolveHdFromCandidates(media.candidates);
+            if (hd && launchNativeFullscreen(hd, title)) {
+                patch((p) => ({ ...p, media: null, playing: false }));
+                const onBack = () => {
+                    if (document.visibilityState !== 'visible') return;
+                    document.removeEventListener('visibilitychange', onBack);
+                    if (resume?.kind === 'video') {
+                        patch((p) => (p ? { ...p, media: { ...resume }, ended: false } : p));
+                    }
+                    try { tile.focus({ preventScroll: true }); } catch { /* ignore */ }
+                };
+                document.addEventListener('visibilitychange', onBack);
+                return;
+            }
+        }
+        // Browser / no HD available → in-app modal (muxed).
         patch((p) => ({ ...p, media: null, playing: false }));
         setFullscreen({
             candidates: media?.candidates || [],

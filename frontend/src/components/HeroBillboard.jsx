@@ -4,10 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import * as img from '@/lib/img';
 import Host from '@/lib/host';
 
-export default function HeroBillboard({ heroes }) {
+export default function HeroBillboard({ heroes, override = null }) {
     const list = Array.isArray(heroes) ? heroes : [];
     const [idx, setIdx] = useState(0);
-    const hero = list[idx] || list[0];
+    // `override` = the rail tile currently focused (Home focus-follow):
+    // its art / title / synopsis take over the billboard instantly.
+    const hero = override || list[idx] || list[0];
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -16,8 +18,9 @@ export default function HeroBillboard({ heroes }) {
         setIdx(0);
     }, [list]);
 
+    const overriding = !!override;
     useEffect(() => {
-        if (list.length <= 1) return;
+        if (list.length <= 1 || overriding) return;
         // Slower rotation on cheap boxes so the GPU spends less time
         // blending crossfade frames.
         const period = (Host.isAndroid || Host.isLowEnd) ? 14000 : 9500;
@@ -26,7 +29,7 @@ export default function HeroBillboard({ heroes }) {
             period
         );
         return () => clearInterval(t);
-    }, [list.length]);
+    }, [list.length, overriding]);
 
     if (!hero) return null;
 
@@ -91,7 +94,7 @@ export default function HeroBillboard({ heroes }) {
                     key={h.id}
                     aria-hidden={i !== idx}
                     className="absolute inset-0 transition-opacity duration-1000"
-                    style={{ opacity: i === idx ? 1 : 0 }}
+                    style={{ opacity: i === idx && !overriding ? 1 : 0 }}
                 >
                     <div
                         key={`${h.id}-${idx}`}
@@ -115,6 +118,8 @@ export default function HeroBillboard({ heroes }) {
                     />
                 </div>
             ))}
+
+            <OverrideBackdrops url={override?.backdrop || null} active={overriding} />
 
             <div
                 className="absolute inset-0"
@@ -320,3 +325,31 @@ const Dot = () => (
         style={{ background: 'rgba(255,255,255,0.32)' }}
     />
 );
+
+/* Focus-follow backdrop: keeps the previous art underneath while the
+ * new one fades in (350 ms), so rapid D-pad scrubbing never flashes
+ * to the gradient.  Fast: w780 backdrops, no Ken Burns. */
+function OverrideBackdrops({ url, active }) {
+    const [stack, setStack] = useState(() => (url ? [url] : []));
+    useEffect(() => {
+        if (!url) return undefined;
+        setStack((s) => (s[s.length - 1] === url ? s : [...s.slice(-1), url]));
+        const t = setTimeout(() => setStack((s) => s.slice(-1)), 450);
+        return () => clearTimeout(t);
+    }, [url]);
+    if (!active || !stack.length) return null;
+    return stack.map((u, i) => (
+        <div
+            key={u}
+            data-testid="hero-focus-backdrop"
+            className="absolute inset-0 bg-cover"
+            style={{
+                backgroundImage: `url(${img.heroBackdrop(u)})`,
+                backgroundPosition: 'center 30%',
+                animation: i === stack.length - 1 && stack.length > 1
+                    ? 'vesper-heroswap 350ms ease both'
+                    : 'none',
+            }}
+        />
+    ));
+}

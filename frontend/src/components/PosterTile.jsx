@@ -115,12 +115,18 @@ export default function PosterTile({ item, onSelect, initialFocus = false }) {
             data-preview-title={item.title || ''}
             data-preview-sub={item.sub || ''}
             data-preview-backdrop={previewBackdrop || (item.poster ? img.poster(item.poster) : '')}
+            data-preview-bg-raw={item.background || item.backdrop || ''}
             {...(initialFocus ? { 'data-initial-focus': 'true' } : {})}
             tabIndex={0}
             {...press}
             ref={(el) => {
                 press.ref(el);
                 btnRef.current = el;
+            }}
+            onFocus={() => {
+                try {
+                    window.dispatchEvent(new CustomEvent('vesper:tile-focus', { detail: item }));
+                } catch { /* ignore */ }
             }}
             className="group relative shrink-0 overflow-hidden rounded-xl text-left"
             style={{

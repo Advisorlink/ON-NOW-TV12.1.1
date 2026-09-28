@@ -48,7 +48,7 @@ function hookBridgeCallback() {
     };
 }
 
-function callBridge(videoId) {
+function callBridge(videoId, method = 'previewTrailer') {
     return new Promise((resolve) => {
         hookBridgeCallback();
         const id = 'tr-' + Math.random().toString(36).slice(2, 10);
@@ -61,7 +61,7 @@ function callBridge(videoId) {
             resolve(r);
         });
         try {
-            bridge().previewTrailer(id, videoId);
+            bridge()[method](id, videoId);
         } catch {
             clearTimeout(t);
             nativeCallbacks.delete(id);
@@ -187,4 +187,59 @@ export async function prefetchTileTrailer(tile) {
     if (!req.tmdbId && !req.imdbId.startsWith('tt')) return;
     const keys = await fetchTrailerCandidates(req);
     if (keys.length && isBox()) await resolveMuxedTrailer(keys);
+}
+
+/* ---------- Fullscreen HD (1080p/720p) via native ExoPlayer ---------- */
+
+const hdCache = new Map(); // videoId -> {ts, videoUrl, audioUrl, title, height} | {ts, fail}
+
+/** DASH 1080p video + audio pair (or best muxed) through the
+ *  `playTrailer` bridge — the ONLY way to get HD, since YouTube's
+ *  muxed progressive files stop at 360p/720p. */
+export function resolveHdTrailer(videoId) {
+    const hit = hdCache.get(videoId);
+    if (hit && Date.now() - hit.ts < NATIVE_TTL) return Promise.resolve(hit.fail ? null : hit);
+    if (typeof bridge()?.playTrailer !== 'function') return Promise.resolve(null);
+    return dedupe(`hd:${videoId}`, async () => {
+        const r = await callBridge(videoId, 'playTrailer');
+        if (r?.videoUrl) {
+            const v = {
+                ts: Date.now(),
+                videoUrl: r.videoUrl,
+                audioUrl: r.audioUrl || '',
+                title: r.title || '',
+                height: Number(r.height) || 0,
+            };
+            hdCache.set(videoId, v);
+            return v;
+        }
+        hdCache.set(videoId, { ts: Date.now(), fail: true });
+        return null;
+    });
+}
+
+export async function resolveHdFromCandidates(candidates, isStale) {
+    const keys = (candidates || [])
+        .map((c) => (typeof c === 'string' ? c : c?.key))
+        .filter(Boolean)
+        .slice(0, MAX_NATIVE_TRIES);
+    for (const key of keys) {
+        const r = await resolveHdTrailer(key);
+        if (isStale?.()) return null;
+        if (r?.videoUrl) return { ...r, key };
+    }
+    return null;
+}
+
+/** Hand an HD pair to the native fullscreen ExoPlayer.  Returns
+ *  true when launched. */
+export function launchNativeFullscreen(hd, fallbackTitle = '') {
+    const b = bridge();
+    if (!hd?.videoUrl || typeof b?.playTrailerFullscreen !== 'function') return false;
+    try {
+        b.playTrailerFullscreen(hd.videoUrl, hd.audioUrl || '', hd.title || fallbackTitle || 'Trailer');
+        return true;
+    } catch {
+        return false;
+    }
 }

@@ -343,6 +343,11 @@ body {
    feel without blocking navigation.  Triggered by setting the
    `data-pressed` attribute on the element for 280 ms then
    removing it. */
+@keyframes vesper-heroswap {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
 @keyframes vesper-press {
     0% {
         transform: scale(1.08) translateY(-2px);

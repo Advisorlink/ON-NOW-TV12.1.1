@@ -195,6 +195,8 @@ export function useLiveShelves(addons, filterType = null, itemsPerCatalog = 18) 
                                     .join(' · '),
                                 poster: m.poster,
                                 background: m.background,
+                                synopsis: m.description || '',
+                                imdbRating: m.imdbRating || null,
                                 genres: Array.isArray(m.genres)
                                     ? m.genres
                                     : [],

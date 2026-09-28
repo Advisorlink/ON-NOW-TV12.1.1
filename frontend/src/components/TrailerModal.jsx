@@ -16,7 +16,7 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Maximize2, Minimize2, Loader2 } from 'lucide-react';
-import { isBox, resolveMuxedTrailer } from '@/lib/trailerEngine';
+import { isBox, resolveMuxedTrailer, resolveHdFromCandidates, launchNativeFullscreen } from '@/lib/trailerEngine';
 import { useNativeBackTrap, triggerTrapBack } from '@/hooks/useNativeBackTrap';
 
 export default function TrailerModal({
@@ -126,7 +126,16 @@ export default function TrailerModal({
         }
         let cancelled = false;
         setNativeState('trying');
-        resolveMuxedTrailer(candidates, () => cancelled).then((r) => {
+        (async () => {
+            // HD first: DASH 1080p/720p → native fullscreen ExoPlayer
+            // (a <video> can't merge separate audio + video tracks).
+            const hd = await resolveHdFromCandidates(candidates, () => cancelled);
+            if (cancelled) return;
+            if (hd && launchNativeFullscreen(hd, title)) {
+                setTimeout(() => close(), 250);
+                return;
+            }
+            const r = await resolveMuxedTrailer(candidates, () => cancelled);
             if (cancelled) return;
             if (r?.url) {
                 setNativeUrl(r.url);
@@ -135,7 +144,7 @@ export default function TrailerModal({
             } else {
                 setNativeState('failed');
             }
-        });
+        })();
         return () => {
             cancelled = true;
         };
