@@ -10,6 +10,32 @@ import PosterTile from './PosterTile';
 export default function Shelf({ shelf, onSelect, firstTileInitialFocus = false }) {
     const scroller = useRef(null);
 
+    // Focus-lock: the focused tile always parks in the SECOND slot
+    // and the row slides underneath it (leanback style), so the
+    // expanded trailer card never wanders across the screen.
+    const lockToSlot = (e) => {
+        const el = scroller.current;
+        const tile = e.target?.closest?.('[data-preview="true"]');
+        if (!el || !tile || !el.contains(tile)) return;
+        const tiles = el.querySelectorAll('[data-preview="true"]');
+        const idx = Array.prototype.indexOf.call(tiles, tile);
+        if (idx < 0) return;
+        let target = 0;
+        if (idx >= 1) {
+            // Slot pitch from an UN-expanded tile's layout width + the
+            // row gap — geometry mid-transition (a collapsing neighbour)
+            // would otherwise skew the target.
+            const base = Array.prototype.find.call(
+                tiles,
+                (t) => t.getAttribute('data-preview-active') !== 'true',
+            ) || tiles[0];
+            const gap = parseFloat(getComputedStyle(el).columnGap) || 0;
+            target = Math.max(0, (idx - 1) * (base.offsetWidth + gap));
+        }
+        if (Math.abs(el.scrollLeft - target) < 2) return;
+        el.scrollTo({ left: target, behavior: 'smooth' });
+    };
+
     return (
         <section
             data-testid={`shelf-${shelf.id}`}
@@ -59,6 +85,8 @@ export default function Shelf({ shelf, onSelect, firstTileInitialFocus = false }
             <div
                 ref={scroller}
                 className="vesper-shelf flex"
+                onFocus={lockToSlot}
+                data-testid={`shelf-row-${shelf.id || shelf.title}`}
                 style={{
                     gap: 'clamp(14px, 1.25vw, 24px)',
                     paddingLeft: 'clamp(92px, 6.5vw, 132px)',
@@ -76,7 +104,6 @@ export default function Shelf({ shelf, onSelect, firstTileInitialFocus = false }
                     // Use scroll-snap so D-pad left/right anchors
                     // tiles to a consistent X — kills the slight
                     // drift the user sees inside long rows.
-                    scrollSnapType: 'x proximity',
                     overscrollBehavior: 'contain',
                 }}
             >
@@ -88,6 +115,9 @@ export default function Shelf({ shelf, onSelect, firstTileInitialFocus = false }
                         initialFocus={firstTileInitialFocus && idx === 0}
                     />
                 ))}
+                {/* Trailing runway so the last tiles can still park
+                    in slot 2 under the focus-lock. */}
+                <div aria-hidden="true" className="shrink-0" style={{ width: '100vw', height: 1 }} />
                 {/* Dev-Unlock diagnostic — when a row was kept even
                  * though it returned 0 items, render a clear stub
                  * card so the user can see exactly which addon
