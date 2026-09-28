@@ -492,6 +492,47 @@ export default function Home() {
             <SideNav />
             <FullscreenButton />
             <TrailerHoverPreview />
+            {!isFilterView && (
+                <div
+                    data-testid="home-brand-logo"
+                    aria-label="ON NOW TV2"
+                    className="absolute flex items-baseline pointer-events-none select-none"
+                    style={{
+                        top: 'clamp(14px, 1.4vw, 24px)',
+                        left: 'clamp(92px, 6.5vw, 132px)',
+                        zIndex: 30,
+                    }}
+                >
+                    <span
+                        className="vesper-display whitespace-nowrap"
+                        style={{
+                            fontSize: 'clamp(18px, 1.35vw, 26px)',
+                            lineHeight: 1,
+                            letterSpacing: '-0.025em',
+                            fontWeight: 700,
+                            color: 'var(--vesper-text)',
+                            textShadow: '0 1px 8px rgba(0,0,0,0.6)',
+                            marginRight: 2,
+                        }}
+                    >
+                        ON NOW&nbsp;T
+                    </span>
+                    <span
+                        className="vesper-display"
+                        style={{
+                            fontSize: 'clamp(26px, 2vw, 38px)',
+                            lineHeight: 1,
+                            fontWeight: 800,
+                            letterSpacing: '-0.04em',
+                            color: 'var(--vesper-blue-bright)',
+                            textShadow:
+                                '0 0 12px rgba(var(--vesper-blue-rgb), 0.65), 0 0 28px rgba(var(--vesper-blue-rgb), 0.4)',
+                        }}
+                    >
+                        V2
+                    </span>
+                </div>
+            )}
 
             {isFilterView ? (
                 <main

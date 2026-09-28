@@ -16,7 +16,7 @@ import ReleaseTagBadge, { releaseTagKey, useReleaseTag } from '@/components/Rele
  * Press-and-hold OK (or mouse) to fire the global "Add to My List"
  * modal — short-tap still navigates to the detail page.
  */
-export default function PosterTile({ item, onSelect, initialFocus = false }) {
+export default function PosterTile({ item, onSelect, initialFocus = false, wide = false }) {
     const navigate = useNavigate();
 
     // v2.19.4 — CINEMA / HD / CAM tag on recent movie covers.
@@ -116,6 +116,7 @@ export default function PosterTile({ item, onSelect, initialFocus = false }) {
             data-preview-sub={item.sub || ''}
             data-preview-backdrop={previewBackdrop || (item.poster ? img.poster(item.poster) : '')}
             data-preview-bg-raw={item.background || item.backdrop || ''}
+            {...(wide ? { 'data-preview-wide': 'true' } : {})}
             {...(initialFocus ? { 'data-initial-focus': 'true' } : {})}
             tabIndex={0}
             {...press}
@@ -165,7 +166,15 @@ export default function PosterTile({ item, onSelect, initialFocus = false }) {
                 willChange: 'transform',
             }}
         >
-            {item.poster ? (
+            {wide && previewBackdrop ? (
+                <img
+                    src={previewBackdrop}
+                    alt={item.title}
+                    decoding="async"
+                    data-testid="poster-wide-art"
+                    className="absolute inset-0 w-full h-full object-cover"
+                />
+            ) : item.poster ? (
                 <img
                     src={img.poster(item.poster)}
                     alt={item.title}

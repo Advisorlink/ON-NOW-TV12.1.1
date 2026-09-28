@@ -452,7 +452,8 @@ html.vesper-topnav [data-testid="search-layout"] {
 /* Netflix-style hover preview — the focused poster itself widens
    into a 16:9 card (same height, ≈2.67× wider) and the trailer plays
    inside it.  Width is inline (`--tile-w`) so we need !important. */
-[data-preview='true'][data-preview-active='true'] {
+[data-preview='true'][data-preview-active='true'],
+[data-preview='true'][data-preview-wide='true'] {
     width: calc(var(--tile-w) * 2.6667) !important;
 }
 [data-focus-style='tile']:focus-visible,

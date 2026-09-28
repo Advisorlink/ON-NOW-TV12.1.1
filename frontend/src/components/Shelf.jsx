@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import PosterTile from './PosterTile';
 
 /**
@@ -6,13 +6,19 @@ import PosterTile from './PosterTile';
  * scale via clamp() so the layout stays readable from a 720p browser
  * window all the way up to 4K.  The left rail (SideNav) is 108px when
  * collapsed, so the minimum left padding stays well clear of it.
+ *
+ * A 16:9 "trailer rectangle" is PERMANENTLY parked in slot 2 of every
+ * row (slot 1 only while the very first card is focused): the card in
+ * that slot renders wide with its backdrop art, and the row slides
+ * underneath it as focus moves — nothing expands or stretches.
  */
 export default function Shelf({ shelf, onSelect, firstTileInitialFocus = false }) {
     const scroller = useRef(null);
+    const [wideIdx, setWideIdx] = useState(shelf.items.length > 1 ? 1 : 0);
 
     // Focus-lock: the focused tile always parks in the SECOND slot
     // and the row slides underneath it (leanback style), so the
-    // expanded trailer card never wanders across the screen.
+    // wide trailer card never wanders across the screen.
     const lockToSlot = (e) => {
         const el = scroller.current;
         const tile = e.target?.closest?.('[data-preview="true"]');
@@ -20,14 +26,14 @@ export default function Shelf({ shelf, onSelect, firstTileInitialFocus = false }
         const tiles = el.querySelectorAll('[data-preview="true"]');
         const idx = Array.prototype.indexOf.call(tiles, tile);
         if (idx < 0) return;
+        setWideIdx(idx);
         let target = 0;
         if (idx >= 1) {
-            // Slot pitch from an UN-expanded tile's layout width + the
-            // row gap — geometry mid-transition (a collapsing neighbour)
-            // would otherwise skew the target.
+            // Slot pitch from a NARROW tile's layout width + the row gap.
             const base = Array.prototype.find.call(
                 tiles,
-                (t) => t.getAttribute('data-preview-active') !== 'true',
+                (t) => t.getAttribute('data-preview-active') !== 'true' &&
+                    t.getAttribute('data-preview-wide') !== 'true',
             ) || tiles[0];
             const gap = parseFloat(getComputedStyle(el).columnGap) || 0;
             target = Math.max(0, (idx - 1) * (base.offsetWidth + gap));
@@ -112,6 +118,7 @@ export default function Shelf({ shelf, onSelect, firstTileInitialFocus = false }
                         key={item.id}
                         item={item}
                         onSelect={onSelect}
+                        wide={idx === wideIdx}
                         initialFocus={firstTileInitialFocus && idx === 0}
                     />
                 ))}

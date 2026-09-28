@@ -60,7 +60,16 @@ export default function TopNav({ items }) {
                 if (!activeItem) return;
                 const el = e.currentTarget.querySelector(`[data-testid="top-nav-${activeItem.id}"]`);
                 if (el && el !== e.target) {
+                    const nav = e.currentTarget;
                     try { el.focus({ preventScroll: true }); } catch { /* ignore */ }
+                    // The spatial engine marks its geometric target AFTER
+                    // this handler — move the ring to where focus really is.
+                    setTimeout(() => {
+                        nav.querySelectorAll('[data-focused="true"]').forEach((x) => {
+                            if (x !== el) x.removeAttribute('data-focused');
+                        });
+                        if (document.activeElement === el) el.setAttribute('data-focused', 'true');
+                    }, 0);
                 }
             }}
         >
@@ -133,32 +142,39 @@ function TopNavItem({ icon: Icon, label, active, accent = false, onClick, testid
             onBlur={() => setOpen(false)}
             onMouseEnter={() => setOpen(true)}
             onMouseLeave={() => setOpen(false)}
-            className="flex items-center rounded-full overflow-hidden"
+            className="relative flex items-center justify-center rounded-full"
             style={{
+                width: 40,
                 height: 40,
-                padding: open ? '0 16px 0 12px' : '0 10px',
-                gap: open ? 8 : 0,
                 color,
                 background: active ? 'color-mix(in srgb, currentColor 14%, transparent)' : 'transparent',
-                transition: 'background-color 120ms',
-                whiteSpace: 'nowrap',
+                transition: 'none',
             }}
         >
             <Icon size={20} strokeWidth={active ? 2.4 : 2} />
-            <span
-                className="font-sans"
-                style={{
-                    fontSize: 14,
-                    fontWeight: 600,
-                    maxWidth: open ? 180 : 0,
-                    opacity: open ? 1 : 0,
-                    overflow: 'hidden',
-                    transition: 'none',
-                    color: 'var(--vesper-text)',
-                }}
-            >
-                {label}
-            </span>
+            {/* Label pops in UNDER the icon — fixed-size buttons, so the
+                bar never grows, shifts or re-centres. */}
+            {open && (
+                <span
+                    data-testid={`${testid}-label`}
+                    className="vesper-glass font-sans rounded-full"
+                    style={{
+                        position: 'absolute',
+                        top: 46,
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        padding: '4px 12px',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        whiteSpace: 'nowrap',
+                        color: 'var(--vesper-text)',
+                        border: '1px solid var(--vesper-line)',
+                        pointerEvents: 'none',
+                    }}
+                >
+                    {label}
+                </span>
+            )}
         </button>
     );
 }

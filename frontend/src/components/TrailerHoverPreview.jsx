@@ -265,7 +265,6 @@ export default function TrailerHoverPreview() {
                         zIndex: 3,
                         pointerEvents: 'none',
                         background: '#05070d',
-                        animation: 'vesper-hoverprev-in 240ms ease-out both',
                     }}
                 >
                     <style>{`@keyframes vesper-hoverprev-in{from{opacity:0}to{opacity:1}}`}</style>
@@ -513,7 +512,7 @@ function VideoPreview({ url, startAt = 0, onPlaying, onEnded, onFail }) {
                 height: '100%',
                 objectFit: 'cover',
                 opacity: playing ? 1 : 0,
-                transition: 'opacity 300ms ease-in',
+                transition: 'opacity 150ms ease-in',
             }}
         />
     );
