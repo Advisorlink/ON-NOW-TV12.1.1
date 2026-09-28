@@ -10,7 +10,7 @@ import useBackHandler from '@/hooks/useBackHandler';
 import FullscreenButton from '@/components/FullscreenButton';
 import { THEMES } from '@/themes/themes';
 import { useTheme } from '@/themes/ThemeProvider';
-import { getAutoplay1080p, setAutoplay1080p, getAutoTrailer, setAutoTrailer } from '@/lib/prefs';
+import { getAutoplay1080p, setAutoplay1080p, getAutoTrailer, setAutoTrailer, getNavLayout, setNavLayout } from '@/lib/prefs';
 import { clearActiveProfile, getActiveProfile } from '@/lib/profiles';
 import { useAuth } from '@/contexts/AuthContext';
 import { collectBackupPayload, applyBackupPayload, summarizeBackupPayload, fmtBytes } from '@/lib/profileBackup';
@@ -34,6 +34,12 @@ export default function Settings() {
     const { themeId, setThemeId } = useTheme();
     const [autoplay, setAutoplay] = React.useState(getAutoplay1080p());
     const [autoTrailer, setAutoTrailerState] = React.useState(getAutoTrailer());
+    const [topNav, setTopNavState] = React.useState(getNavLayout() === 'top');
+    const toggleTopNav = () => {
+        const next = !topNav;
+        setNavLayout(next ? 'top' : 'side');
+        setTopNavState(next);
+    };
 
     /* v2.7.17 — Force-SDR playback toggle.  Persisted on the native
      * side via WebAppInterface.setForceSdr (SharedPreferences).
@@ -395,6 +401,14 @@ export default function Settings() {
                 description="Netflix-style preview: focusing a movie or show on the Home rails expands it and starts its trailer (English).  On your TV box it plays with sound; in the browser preview it starts muted until you press OK once."
                 value={autoTrailer}
                 onToggle={toggleAutoTrailer}
+            />
+
+            <ToggleRow
+                testid="top-nav-layout"
+                title="Top menu bar"
+                description="Moves the menu from the left rail to a glass icon bar centred along the top of the screen (Search, Home, TV Shows, Movies, Library, Calendar, Watch Together, Settings, Auto play).  Icons only — the name slides out when you land on one.  Pressing LEFT on a row no longer opens the menu; press UP from the top row instead."
+                value={topNav}
+                onToggle={toggleTopNav}
             />
 
             <ToggleRow

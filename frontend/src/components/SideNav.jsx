@@ -14,7 +14,8 @@ import {
     Check,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { getAutoplay1080p, setAutoplay1080p } from '@/lib/prefs';
+import { getAutoplay1080p, setAutoplay1080p, getNavLayout } from '@/lib/prefs';
+import TopNav from '@/components/TopNav';
 import { getActiveProfile } from '@/lib/profiles';
 import { AvatarCircle } from '@/lib/avatars';
 
@@ -42,6 +43,18 @@ const NAV = [
 ];
 
 export default function SideNav() {
+    // Settings → "Top menu bar" swaps the rail for the glass top bar.
+    const [layout, setLayout] = useState(getNavLayout());
+    useEffect(() => {
+        const onChange = () => setLayout(getNavLayout());
+        window.addEventListener('vesper:nav-layout-change', onChange);
+        return () => window.removeEventListener('vesper:nav-layout-change', onChange);
+    }, []);
+    if (layout === 'top') return <TopNav items={NAV} />;
+    return <SideRail />;
+}
+
+function SideRail() {
     const [expanded, setExpanded] = useState(false);
     // v2.13.1 — push-and-hold timer for the V2AI rail button.
     const v2aiHoldTimer = useRef(null);

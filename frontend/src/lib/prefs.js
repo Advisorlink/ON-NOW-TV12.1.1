@@ -80,3 +80,26 @@ export function setAutoTrailer(enabled) {
         /* ignore */
     }
 }
+
+/**
+ * Navigation layout — 'side' (classic left rail) or 'top' (glass
+ * icon bar centred along the top; labels slide out on focus).
+ */
+const KEY_NAV_LAYOUT = 'onnowtv-nav-layout';
+
+export function getNavLayout() {
+    try {
+        return readScopedString(KEY_NAV_LAYOUT) === 'top' ? 'top' : 'side';
+    } catch {
+        return 'side';
+    }
+}
+
+export function setNavLayout(layout) {
+    try {
+        writeScopedString(KEY_NAV_LAYOUT, layout === 'top' ? 'top' : 'side');
+    } catch {
+        /* ignore */
+    }
+    try { window.dispatchEvent(new Event('vesper:nav-layout-change')); } catch { /* ignore */ }
+}

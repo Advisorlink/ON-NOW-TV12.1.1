@@ -342,12 +342,14 @@ export default function Search() {
             <FullscreenButton />
 
             <main
-                className="absolute inset-0 overflow-y-auto"
+                data-testid="search-layout"
+                className="absolute inset-0 overflow-y-auto flex items-start"
                 style={{
-                    paddingLeft: 180,
-                    paddingRight: 80,
+                    paddingLeft: 150,
+                    paddingRight: 64,
                     paddingTop: 'clamp(28px, 3vw, 56px)',
                     paddingBottom: 80,
+                    gap: 'clamp(28px, 3vw, 56px)',
                 }}
             >
                 {/* Search input card — mirrors the Profile name
@@ -364,13 +366,14 @@ export default function Search() {
                     child should see, so they can't just retype the
                     blocked title.  For non-kids profiles the hero
                     stays visible so users can refine and retry. */}
-                {((!searched) || (!kids && results.length === 0)) && !busy && (
+                {!(kids && searched && results.length === 0) && (
                     <div
                         data-testid="search-card"
-                        className="flex flex-col items-center"
+                        className="flex flex-col items-start shrink-0"
                         style={{
-                            width: '100%',
-                            position: 'relative',
+                            width: 'clamp(400px, 34vw, 640px)',
+                            position: 'sticky',
+                            top: 0,
                             marginBottom: 32,
                         }}
                     >
@@ -718,12 +721,31 @@ export default function Search() {
                                 {!busy && <ArrowRight size={16} strokeWidth={2.5} />}
                             </button>
 
+
+                            {!kids && !searchable.length && (
+                                <p
+                                    style={{
+                                        color: 'var(--vesper-text-2)',
+                                        fontSize: 13,
+                                        marginTop: 4,
+                                        textAlign: 'center',
+                                    }}
+                                >
+                                    Install a searchable addon on Sources to
+                                    enable search.
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                <div data-testid="search-results-column" style={{ flex: 1, minWidth: 0 }}>
                             {/* Recent searches — tap to re-run.  Per
                                 profile, last 8.  Hidden in kids mode. */}
-                            {!kids && recents.length > 0 && (
+                            {!searched && !busy && !kids && recents.length > 0 && (
                                 <div
                                     data-testid="search-recents"
-                                    style={{ marginTop: 22, width: '100%', maxWidth: 560 }}
+                                    style={{ width: '100%', maxWidth: 640 }}
                                 >
                                     <div
                                         className="vesper-mono flex items-center justify-between"
@@ -760,7 +782,7 @@ export default function Search() {
                                             Clear
                                         </button>
                                     </div>
-                                    <div className="flex flex-wrap gap-2">
+                                    <div className="flex flex-col items-start gap-2">
                                         {recents.map((r, i) => (
                                             <button
                                                 key={r}
@@ -796,23 +818,11 @@ export default function Search() {
                                 </div>
                             )}
 
-                            {!kids && !searchable.length && (
-                                <p
-                                    style={{
-                                        color: 'var(--vesper-text-2)',
-                                        fontSize: 13,
-                                        marginTop: 4,
-                                        textAlign: 'center',
-                                    }}
-                                >
-                                    Install a searchable addon on Sources to
-                                    enable search.
-                                </p>
-                            )}
-                        </div>
-                    </div>
+                {!searched && !busy && !kids && recents.length === 0 && (
+                    <p style={{ color: 'var(--vesper-text-3)', fontSize: 14, marginTop: 12 }}>
+                        Your recent searches will appear here.
+                    </p>
                 )}
-
                 {busy ? (
                     <div
                         className="flex items-center gap-3"
@@ -826,61 +836,6 @@ export default function Search() {
                     </div>
                 ) : searched && results.length > 0 ? (
                     <>
-                        <div
-                            data-testid="search-again-bar"
-                            className="flex flex-wrap items-center gap-3"
-                            style={{ marginTop: 8 }}
-                        >
-                            <button
-                                type="button"
-                                data-focusable="true"
-                                data-focus-style="pill"
-                                data-testid="search-again-btn"
-                                onClick={() => {
-                                    setSearched(false);
-                                    setQ('');
-                                    setTimeout(() => {
-                                        try { inputRef.current?.focus?.(); } catch { /* ignore */ }
-                                    }, 60);
-                                }}
-                                className="vesper-glass flex items-center gap-2 rounded-full"
-                                style={{
-                                    padding: '10px 18px',
-                                    color: 'var(--vesper-text)',
-                                    fontSize: 15,
-                                    fontWeight: 600,
-                                    border: '1px solid var(--vesper-line)',
-                                }}
-                            >
-                                <SearchIcon size={16} /> Search again
-                            </button>
-                            {!kids && recents
-                                .filter((r) => r.toLowerCase() !== (lastQuery || '').toLowerCase())
-                                .slice(0, 6)
-                                .map((r, i) => (
-                                    <button
-                                        key={r}
-                                        type="button"
-                                        data-focusable="true"
-                                        data-focus-style="pill"
-                                        data-testid={`search-again-recent-${i}`}
-                                        onClick={() => {
-                                            setQ(r);
-                                            doSearch(r);
-                                        }}
-                                        className="rounded-full"
-                                        style={{
-                                            padding: '9px 16px',
-                                            color: 'var(--vesper-text-2)',
-                                            fontSize: 14,
-                                            background: 'transparent',
-                                            border: '1px solid var(--vesper-line)',
-                                        }}
-                                    >
-                                        {r}
-                                    </button>
-                                ))}
-                        </div>
                         <h2
                             className="vesper-display mb-5"
                             style={{
@@ -920,6 +875,7 @@ export default function Search() {
                         </p>
                     )
                 ) : null}
+                </div>
             </main>
         </div>
     );
