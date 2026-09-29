@@ -419,8 +419,8 @@ export default function Settings() {
 
             <ToggleRow
                 testid="show-collections"
-                title="Collections rail on Home"
-                description="Shows the Collections row under Browse by Network — Marvel, DC, Disney, Pixar, Star Wars, Wizarding World, James Bond, Fast & Furious and 40+ more studios and franchises.  Turn OFF to hide the row."
+                title="Studios rail on Home"
+                description="Shows the Studios row under Browse by Network — Marvel, DC, Disney, Pixar, DreamWorks, Illumination, Studio Ghibli, Warner Bros., Universal, Paramount, A24 and 30+ more.  Box Sets live in their own menu entry.  Turn OFF to hide the row."
                 value={showCollections}
                 onToggle={toggleShowCollections}
             />

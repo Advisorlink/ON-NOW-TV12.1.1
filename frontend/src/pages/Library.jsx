@@ -13,9 +13,9 @@ import {
     ChevronDown,
     ChevronUp,
     Bell,
-    Trash2,
-} from 'lucide-react';
+    Trash2, Boxes } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
+import { CollectionTile } from '@/components/CollectionsShelf';
 import useLongPress from '@/hooks/useLongPress';
 import {
     listFavouritesByType,
@@ -46,6 +46,7 @@ export default function Library() {
     const [tv, setTv] = useState(listFavouritesByType('series'));
     const [watchLater, setWatchLater] = useState(listWatchLater());
     const [actors, setActors] = useState(listActors());
+    const [boxSets, setBoxSets] = useState(listFavouritesByType('boxset'));
     const [notifyItems, setNotifyItems] = useState(listNotifyList());
     const [expanded, setExpanded] = useState(false);
     /* Per-section expand toggles — "click the three dots to extend
@@ -64,6 +65,7 @@ export default function Library() {
             setTv(listFavouritesByType('series'));
             setWatchLater(listWatchLater());
             setActors(listActors());
+            setBoxSets(listFavouritesByType('boxset'));
             setNotifyItems(listNotifyList());
         };
         window.addEventListener('vesper:library-change', sync);
@@ -155,6 +157,30 @@ export default function Library() {
                     <FavouriteGrid items={tv} type="series" />
                 )}
             </Section>
+
+            {boxSets.length > 0 && (
+                <Section icon={Boxes} eyebrow="My library · Box Sets" title="My Box Sets">
+                    <div
+                        data-testid="library-boxsets-grid"
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(clamp(180px, 14vw, 260px), 1fr))',
+                            gap: 'clamp(12px, 1.1vw, 20px)',
+                        }}
+                    >
+                        {boxSets.map((b) => (
+                            <CollectionTile
+                                key={b.id}
+                                col={{ slug: b.meta?.slug, name: b.meta?.name || b.meta?.slug, accent: b.meta?.accent || '#5DC8FF' }}
+                                art={{ logo: b.meta?.logo, backdrop: b.meta?.backdrop }}
+                                width="100%"
+                                testId={`library-boxset-${b.meta?.slug}`}
+                                onClick={() => navigate(`/collections/${b.meta?.slug}`)}
+                            />
+                        ))}
+                    </div>
+                </Section>
+            )}
 
             {actors.length > 0 && (
                 <Section
