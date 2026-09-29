@@ -282,11 +282,12 @@ function Key({ label, onPress, wide, flex, primary, active, testId }) {
             // keydown produces a duplicate letter on every press.
             className="flex items-center justify-center font-sans"
             style={{
-                height: 48,
-                minWidth: wide ? 64 : 44,
-                width: flex ? undefined : wide ? 64 : 44,
-                flex: flex ? 1 : '0 0 auto',
-                maxWidth: flex ? 220 : undefined,
+                // Keys share the row width (flex) so the keyboard always
+                // fits its container — no fixed px widths spilling out.
+                height: 'clamp(40px, 3.4vw, 50px)',
+                minWidth: 0,
+                flex: flex ? '4 1 0' : wide ? '1.6 1 0' : '1 1 0',
+                maxWidth: flex ? 260 : wide ? 110 : 72,
                 borderRadius: 12,
                 background: active
                     ? 'var(--vesper-blue)'

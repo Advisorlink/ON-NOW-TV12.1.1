@@ -1,4 +1,12 @@
 # ON NOW TV V2 — PRD
+> **🟢 v1.4.1 — Search TV-fit redesign, For You hero synopsis, What's New 1.4.0, trailer loading state, top menu default (Jun 2026).**
+> - **Search** (`pages/Search.jsx`): stacked TV layout — full-width search pill (focusable: OK re-opens the keyboard after results) + Search button; RECENT chips run lengthways across the top (+ Clear); keyboard centred in `min(100%,760px)`; results grid below. `TVKeyboard` keys are now flex-sized (`1/1.6/4 fr`, height clamp) so the board can never spill outside its container (root cause of the box screenshot). Verified 1920 + 960 CSS px: zero horizontal overflow. Glass card / icon / H1 removed.
+> - **For You rail hero**: `ForYouShelf` tiles now carry `synopsis`, `year`, `rating`, `genres`; backend `_shape_tmdb_item` adds `genres` (TMDB id→name map); cache keys bumped (`tmdb_for_you:v2`, `tmdb_similar:v2`). Verified curl: genres + synopsis returned.
+> - **What's New**: `APP_VERSION 1.4.0` with 7 items (home layout, top menu + how to switch back in Settings, HD trailers, search, correct episode, CW, player polish); modal widened to 820 px with a 2-column grid (no scrolling). Verified on /profiles.
+> - **Trailer modal**: "Loading trailer…" spinner overlay until the HD/muxed `<video>` fires `playing` (`framesFlowing`); 8 s no-start watchdog → muxed fallback.
+> - **Top menu is now the DEFAULT** (`prefs.getNavLayout` → 'top' unless 'side' saved); Settings toggle copy updated.
+> - ⚠️ Web bundle → APK rebuild for boxes.
+>
 > **🟢 v1.4.0 — Permanent trailer rectangle in slot 2 + static top bar + home wordmark (Jun 2026).**
 > - **Fixed 16:9 rectangle** (`Shelf.jsx` `wideIdx` state, `PosterTile` `wide` prop → `data-preview-wide`, CSS width rule shared with `data-preview-active`): every row has slot 2 permanently wide (backdrop art + title) at rest; focusing a card makes IT the wide one and the focus-lock scrolls the row so it sits under the rectangle — cards slide through, nothing expands. Only exception (user choice): the FIRST card is wide in slot 1. Hover card fade removed, video reveal 150 ms. Verified: rest widths [198,528,198] on every row; Right ×3 keeps the wide card at x=347.
 > - **TopNav** (user choice: icons only): fixed 40 px buttons, focused label pops in as a small glass pill UNDER the icon (`top-nav-{id}-label`), bar width constant (477 px before/after). Fixed double focus ring on entering the bar (spatial engine marked the geometric target; TopNav now moves `data-focused` to the redirected icon).

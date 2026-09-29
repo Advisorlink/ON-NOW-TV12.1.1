@@ -63,6 +63,10 @@ export default function ForYouShelf() {
                             ].filter(Boolean).join(' · '),
                             poster: it.poster,
                             background: it.backdrop,
+                            year: it.year || null,
+                            rating: it.rating ? `★ ${it.rating}` : null,
+                            genres: Array.isArray(it.genres) ? it.genres : [],
+                            synopsis: it.synopsis || it.overview || '',
                             routePath: `/resolve/${it.type === 'series' ? 'tv' : 'movie'}/${it.tmdb_id}`,
                         }));
                     }
@@ -95,6 +99,10 @@ export default function ForYouShelf() {
                             ].filter(Boolean).join(' · '),
                             poster: it.poster,
                             background: it.backdrop,
+                            year: it.year || null,
+                            rating: it.rating ? `★ ${it.rating}` : null,
+                            genres: Array.isArray(it.genres) ? it.genres : [],
+                            synopsis: it.synopsis || it.overview || '',
                             routePath: `/resolve/${it.type === 'series' ? 'tv' : 'movie'}/${it.tmdb_id}`,
                         }));
                     }

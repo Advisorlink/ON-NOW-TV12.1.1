@@ -72,7 +72,7 @@ export default function WhatsNewModal() {
                 data-focus-trap="true"
                 onClick={(e) => e.stopPropagation()}
                 style={{
-                    width: 'min(560px, 92vw)',
+                    width: 'min(820px, 92vw)',
                     maxHeight: '86vh',
                     overflowY: 'auto',
                     padding: '32px 34px',
@@ -127,7 +127,13 @@ export default function WhatsNewModal() {
                     We just updated the app
                 </h2>
 
-                <div className="flex flex-col" style={{ gap: 16 }}>
+                <div
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns: release.items.length > 4 ? '1fr 1fr' : '1fr',
+                        gap: '14px 26px',
+                    }}
+                >
                     {release.items.map((it, i) => (
                         <div key={i} className="flex items-start gap-3">
                             <div

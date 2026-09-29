@@ -2135,7 +2135,20 @@ def _shape_tmdb_item(item: Dict[str, Any], media: str) -> Optional[Dict[str, Any
             else None
         ),
         "synopsis": item.get("overview") or "",
+        "genres": [
+            _TMDB_GENRE_NAMES[g] for g in (item.get("genre_ids") or []) if g in _TMDB_GENRE_NAMES
+        ][:3],
     }
+
+
+_TMDB_GENRE_NAMES = {
+    28: "Action", 12: "Adventure", 16: "Animation", 35: "Comedy", 80: "Crime",
+    99: "Documentary", 18: "Drama", 10751: "Family", 14: "Fantasy", 36: "History",
+    27: "Horror", 10402: "Music", 9648: "Mystery", 10749: "Romance",
+    878: "Sci-Fi", 10770: "TV Movie", 53: "Thriller", 10752: "War", 37: "Western",
+    10759: "Action & Adventure", 10762: "Kids", 10763: "News", 10764: "Reality",
+    10765: "Sci-Fi & Fantasy", 10766: "Soap", 10767: "Talk", 10768: "War & Politics",
+}
 
 
 async def _tmdb_tv_us_rating(tv_id: int) -> Optional[str]:
@@ -3782,7 +3795,7 @@ async def tmdb_for_you(
         region_extra = {"with_original_language": "hi"}
 
     cache_key = (
-        f"tmdb_for_you:m={','.join(sorted(m_ids))}:t={','.join(sorted(t_ids))}"
+        f"tmdb_for_you:v2:m={','.join(sorted(m_ids))}:t={','.join(sorted(t_ids))}"
         f":{limit}:r={region or 'en'}"
     )
     cached = await cache.get(cache_key)
@@ -4211,7 +4224,7 @@ async def tmdb_similar_to_picks(
     if not parsed:
         return {"cached": False, "data": []}
 
-    cache_key = "tmdb_similar:" + ",".join(
+    cache_key = "tmdb_similar:v2:" + ",".join(
         sorted(f"{p['type']}-{p['tmdb_id']}" for p in parsed)
     ) + f":{limit}"
     cached = await cache.get(cache_key)

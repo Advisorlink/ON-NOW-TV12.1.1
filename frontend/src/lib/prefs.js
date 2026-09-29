@@ -89,9 +89,9 @@ const KEY_NAV_LAYOUT = 'onnowtv-nav-layout';
 
 export function getNavLayout() {
     try {
-        return readScopedString(KEY_NAV_LAYOUT) === 'top' ? 'top' : 'side';
+        return readScopedString(KEY_NAV_LAYOUT) === 'side' ? 'side' : 'top';
     } catch {
-        return 'side';
+        return 'top';
     }
 }
 

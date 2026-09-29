@@ -406,7 +406,7 @@ export default function Settings() {
             <ToggleRow
                 testid="top-nav-layout"
                 title="Top menu bar"
-                description="Moves the menu from the left rail to a glass icon bar centred along the top of the screen (Search, Home, TV Shows, Movies, Library, Calendar, Watch Together, Settings, Auto play).  Icons only — the name slides out when you land on one.  Pressing LEFT on a row no longer opens the menu; press UP from the top row instead."
+                description="ON by default: the menu is a glass icon bar centred along the top of the screen — press UP from the top row to reach it; the name pops up under the icon you land on.  Turn OFF to go back to the original left-hand rail (press LEFT on a row to open it)."
                 value={topNav}
                 onToggle={toggleTopNav}
             />

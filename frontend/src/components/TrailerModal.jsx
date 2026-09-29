@@ -100,6 +100,7 @@ export default function TrailerModal({
     const [nativeUrl, setNativeUrl] = useState('');
     const [nativeTitle, setNativeTitle] = useState('');
     const [hd, setHd] = useState(null); // {videoUrl, audioUrl, title}
+    const [framesFlowing, setFramesFlowing] = useState(false);
     const startAtRef = useRef(startAt || 0);
     const currentKey = candidates[currentIdx]?.key || '';
 
@@ -111,8 +112,16 @@ export default function TrailerModal({
         setNativeUrl('');
         setNativeTitle('');
         setHd(null);
+        setFramesFlowing(false);
         startAtRef.current = startAt || 0;
     }, [youtubeKey]);
+    useEffect(() => { setFramesFlowing(false); }, [nativeState, nativeUrl, hd]);
+    // HD pair that never starts (throttled/stalled CDN) → muxed after 8 s.
+    useEffect(() => {
+        if (nativeState !== 'hd' || framesFlowing) return undefined;
+        const t = setTimeout(() => onHdError(), 8000);
+        return () => clearTimeout(t);
+    }, [nativeState, framesFlowing, hd]);
 
     /* Native path — everything plays INSIDE the WebView (no player
      * hand-off).  Order on the box: HD DASH pair (1080p/720p, two synced
@@ -447,6 +456,7 @@ export default function TrailerModal({
                             audioUrl={hd.audioUrl || ''}
                             startAt={startAtRef.current}
                             controls
+                            onPlaying={() => setFramesFlowing(true)}
                             onEnded={() => close()}
                             onError={onHdError}
                         />
@@ -469,6 +479,7 @@ export default function TrailerModal({
                         controls
                         autoPlay
                         playsInline
+                        onPlaying={() => setFramesFlowing(true)}
                         onLoadedMetadata={(e) => {
                             if (startAtRef.current > 0) {
                                 try { e.currentTarget.currentTime = startAtRef.current; } catch { /* ignore */ }
@@ -534,6 +545,7 @@ export default function TrailerModal({
                   * Hides once <video> starts (native path) or the
                   * iframe fires onReady (fallback path). */}
                 {(nativeState === 'unknown' || nativeState === 'trying' ||
+                  ((nativeState === 'hd' || nativeState === 'muxed') && !framesFlowing) ||
                   (nativeState === 'failed' && !playerReady && !allExhausted)) && (
                     <div
                         data-testid="trailer-loading"
@@ -545,9 +557,12 @@ export default function TrailerModal({
                             alignItems: 'center',
                             justifyContent: 'center',
                             gap: 16,
-                            background: backdrop
-                                ? `linear-gradient(rgba(6,8,15,0.65),rgba(6,8,15,0.9)),url(${backdrop}) center/cover`
-                                : '#06080f',
+                            zIndex: 5,
+                            background: (nativeState === 'hd' || nativeState === 'muxed')
+                                ? 'rgba(6,8,15,0.35)'
+                                : backdrop
+                                    ? `linear-gradient(rgba(6,8,15,0.65),rgba(6,8,15,0.9)),url(${backdrop}) center/cover`
+                                    : '#06080f',
                             pointerEvents: 'none',
                         }}
                     >
@@ -567,7 +582,9 @@ export default function TrailerModal({
                                 textTransform: 'uppercase',
                             }}
                         >
-                            {nativeState === 'trying' || nativeState === 'unknown'
+                            {nativeState === 'hd' || nativeState === 'muxed'
+                                ? 'Loading trailer…'
+                                : nativeState === 'trying' || nativeState === 'unknown'
                                 ? 'Preparing trailer…'
                                 : (currentIdx > 0
                                     ? `Trying trailer ${currentIdx + 1} of ${candidates.length}…`

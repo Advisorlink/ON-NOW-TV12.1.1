@@ -295,13 +295,6 @@ export default function Search() {
     };
     doSearchRef.current = doSearch;
 
-    const onInputKeyDown = (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            doSearch();
-        }
-    };
-
     const onMicClick = async () => {
         if (listening) return;
         setVoiceError('');
@@ -343,206 +336,95 @@ export default function Search() {
 
             <main
                 data-testid="search-layout"
-                className="absolute inset-0 overflow-y-auto flex items-start"
+                className="absolute inset-0 overflow-y-auto flex flex-col"
                 style={{
-                    paddingLeft: 150,
-                    paddingRight: 64,
+                    paddingLeft: 'clamp(92px, 6.5vw, 132px)',
+                    paddingRight: 'clamp(40px, 4.2vw, 80px)',
                     paddingTop: 'clamp(28px, 3vw, 56px)',
                     paddingBottom: 80,
-                    gap: 'clamp(28px, 3vw, 56px)',
+                    gap: 'clamp(14px, 1.4vw, 22px)',
                 }}
             >
-                {/* Search input card — mirrors the Profile name
-                    step.  Centered column, avatar-style icon at
-                    top, big display title, pill input, TVKeyboard
-                    below, action button at the bottom.  Only shown
-                    when the user hasn't searched yet OR has no
-                    results to display, so the page collapses into
-                    the results grid once content arrives. */}
-                {/* Hide the search hero (keyboard + input + submit)
-                    in kids mode when the search came back empty —
-                    that's how we signal "not allowed".  The
-                    KidsBlockedMessage below is the only thing the
-                    child should see, so they can't just retype the
-                    blocked title.  For non-kids profiles the hero
-                    stays visible so users can refine and retry. */}
+                {/* Row 1 — the search bar + Search button, full width.
+                    Kids mode hides it after a blocked (empty) search so
+                    the child can't just retype the title. */}
                 {!(kids && searched && results.length === 0) && (
-                    <div
-                        data-testid="search-card"
-                        className="flex flex-col items-start shrink-0"
-                        style={{
-                            width: 'clamp(400px, 31vw, 560px)',
-                            position: 'sticky',
-                            top: 0,
-                            marginBottom: 32,
-                        }}
-                    >
+                    <div data-testid="search-card" className="flex items-center" style={{ gap: 14, width: '100%' }}>
                         <div
-                            className="vesper-glass flex flex-col items-start"
+                            data-testid="search-input-wrap"
+                            data-focusable={isMobile ? undefined : 'true'}
+                            data-focus-style="pill"
+                            tabIndex={isMobile ? undefined : 0}
+                            role={isMobile ? undefined : 'button'}
+                            onClick={() => {
+                                if (!isMobile && searched) setSearched(false);
+                            }}
+                            className="flex items-center gap-3"
                             style={{
-                                width: '100%',
-                                position: 'relative',
-                                zIndex: 1,
-                                gap: 12,
-                                padding: 'clamp(18px, 1.6vw, 26px)',
-                                borderRadius: 24,
-                                border: '1px solid var(--vesper-line)',
+                                flex: 1,
+                                minWidth: 0,
+                                height: 'clamp(50px, 4.2vw, 62px)',
+                                padding: '0 22px',
+                                borderRadius: 999,
+                                background:
+                                    'linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%)',
+                                border: '1px solid rgba(var(--vesper-blue-rgb),0.35)',
+                                boxShadow: '0 10px 36px rgba(var(--vesper-blue-rgb),0.16)',
+                                cursor: isMobile ? 'text' : 'pointer',
                             }}
                         >
-                            {/* Big circular search icon — visually
-                                matches the AvatarCircle on the
-                                profile name step. */}
-                            <div
-                                style={{
-                                    width: 46,
-                                    height: 46,
-                                    borderRadius: 999,
-                                    background:
-                                        'radial-gradient(circle at 30% 30%, rgba(var(--vesper-blue-rgb),0.35) 0%, rgba(var(--vesper-blue-rgb),0.12) 70%)',
-                                    border: '2px solid rgba(var(--vesper-blue-rgb),0.55)',
-                                    boxShadow:
-                                        '0 12px 36px rgba(var(--vesper-blue-rgb),0.35)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: 'var(--vesper-blue-bright)',
-                                }}
-                            >
-                                <SearchIcon size={22} strokeWidth={1.9} />
-                            </div>
-
-                            <div
-                                className="vesper-mono"
-                                style={{
-                                    fontSize: 11,
-                                    letterSpacing: '0.32em',
-                                    color: 'var(--vesper-blue-bright)',
-                                    textTransform: 'uppercase',
-                                }}
-                            >
-                                {kids ? 'Kid-safe search' : 'Search'}
-                            </div>
-
-                            <h1
-                                className="vesper-display"
-                                style={{
-                                    fontSize: 'clamp(22px, 1.9vw, 32px)',
-                                    letterSpacing: '-0.02em',
-                                    lineHeight: 1.05,
-                                    textAlign: 'left',
-                                    marginBottom: 4,
-                                }}
-                            >
-                                {kids ? (
-                                    <>
-                                        What do you{' '}
-                                        <span
-                                            style={{
-                                                color: 'var(--vesper-blue-bright)',
-                                                textShadow:
-                                                    '0 0 14px rgba(var(--vesper-blue-rgb),0.55)',
-                                            }}
-                                        >
-                                            want
-                                        </span>{' '}
-                                        to watch?
-                                    </>
-                                ) : (
-                                    <>
-                                        What are you{' '}
-                                        <span
-                                            style={{
-                                                color: 'var(--vesper-blue-bright)',
-                                                textShadow:
-                                                    '0 0 14px rgba(var(--vesper-blue-rgb),0.55)',
-                                            }}
-                                        >
-                                            looking
-                                        </span>{' '}
-                                        for?
-                                    </>
-                                )}
-                            </h1>
-
-                            {/* Display-only query preview pill —
-                                no real <input>, so the Android
-                                IME stays buried.  Typing routes
-                                through TVKeyboard below. */}
-                            <div
-                                data-testid="search-input-wrap"
-                                className="flex items-center gap-3"
-                                style={{
-                                    width: '100%',
-                                    height: 58,
-                                    padding: '0 20px',
-                                    borderRadius: 999,
-                                    background:
-                                        'linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%)',
-                                    border: '1px solid rgba(var(--vesper-blue-rgb),0.35)',
-                                    boxShadow:
-                                        '0 10px 36px rgba(var(--vesper-blue-rgb),0.18)',
-                                    marginTop: 4,
-                                }}
-                            >
-                                <SearchIcon
-                                    size={20}
-                                    strokeWidth={2}
-                                    color="var(--vesper-blue-bright)"
-                                />
-                                {isMobile ? (
-                                    /* Phone: the pill IS the input — native
-                                       keyboard, search-as-you-type feel. */
-                                    <input
-                                        data-testid="search-input"
-                                        ref={inputRef}
-                                        className="vesper-display"
-                                        value={q}
-                                        onChange={(e) => {
-                                            setQ(e.target.value.slice(0, 60));
-                                            if (searched) setSearched(false);
-                                        }}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter' && q.trim().length >= 2) {
-                                                e.preventDefault();
-                                                doSearch();
-                                            }
-                                        }}
-                                        placeholder={
-                                            listening
-                                                ? 'Listening…'
-                                                : kids
-                                                ? 'Try "Bluey" or "Mario"…'
-                                                : 'Title, actor, keyword…'
+                            <SearchIcon size={22} strokeWidth={2} color="var(--vesper-blue-bright)" />
+                            {isMobile ? (
+                                <input
+                                    data-testid="search-input"
+                                    ref={inputRef}
+                                    className="vesper-display"
+                                    value={q}
+                                    onChange={(e) => {
+                                        setQ(e.target.value.slice(0, 60));
+                                        if (searched) setSearched(false);
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && q.trim().length >= 2) {
+                                            e.preventDefault();
+                                            doSearch();
                                         }
-                                        enterKeyHint="search"
-                                        autoCorrect="off"
-                                        spellCheck={false}
-                                        style={{
-                                            flex: 1,
-                                            minWidth: 0,
-                                            fontSize: 18,
-                                            fontWeight: 500,
-                                            letterSpacing: '-0.01em',
-                                            color: 'var(--vesper-text)',
-                                            background: 'transparent',
-                                            border: 'none',
-                                            outline: 'none',
-                                            WebkitTapHighlightColor: 'transparent',
-                                        }}
-                                    />
-                                ) : (
+                                    }}
+                                    placeholder={
+                                        listening
+                                            ? 'Listening…'
+                                            : kids
+                                            ? 'What do you want to watch?'
+                                            : 'What are you looking for?'
+                                    }
+                                    enterKeyHint="search"
+                                    autoCorrect="off"
+                                    spellCheck={false}
+                                    style={{
+                                        flex: 1,
+                                        minWidth: 0,
+                                        fontSize: 18,
+                                        fontWeight: 500,
+                                        letterSpacing: '-0.01em',
+                                        color: 'var(--vesper-text)',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        outline: 'none',
+                                        WebkitTapHighlightColor: 'transparent',
+                                    }}
+                                />
+                            ) : (
                                 <div
                                     data-testid="search-input"
                                     ref={inputRef}
                                     className="vesper-display"
                                     style={{
                                         flex: 1,
-                                        fontSize: 22,
+                                        minWidth: 0,
+                                        fontSize: 'clamp(18px, 1.5vw, 24px)',
                                         fontWeight: 500,
                                         letterSpacing: '-0.01em',
-                                        color: q
-                                            ? 'var(--vesper-text)'
-                                            : 'var(--vesper-text-3)',
+                                        color: q ? 'var(--vesper-text)' : 'var(--vesper-text-3)',
                                         whiteSpace: 'nowrap',
                                         overflow: 'hidden',
                                         textOverflow: 'ellipsis',
@@ -552,318 +434,269 @@ export default function Search() {
                                         (listening
                                             ? 'Listening…'
                                             : kids
-                                            ? 'Try "Bluey" or "Mario"…'
-                                            : 'Title, actor, keyword…')}
-                                    <span
-                                        aria-hidden="true"
-                                        style={{
-                                            display: 'inline-block',
-                                            width: 2,
-                                            height: 22,
-                                            marginLeft: 4,
-                                            verticalAlign: 'middle',
-                                            background: 'var(--vesper-blue-bright)',
-                                            animation: 'vesperPulse 1100ms infinite',
-                                            borderRadius: 1,
-                                        }}
-                                    />
-                                </div>
-                                )}
-                                {voiceAvailable && (
-                                    <button
-                                        data-testid="search-mic"
-                                        data-focusable="true"
-                                        data-focus-style="bare"
-                                        tabIndex={0}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onMicClick();
-                                        }}
-                                        className="flex items-center justify-center rounded-full shrink-0"
-                                        aria-label={
-                                            listening ? 'Listening' : 'Voice search'
-                                        }
-                                        style={{
-                                            width: 40,
-                                            height: 40,
-                                            background: listening
-                                                ? 'var(--vesper-blue)'
-                                                : 'rgba(255,255,255,0.08)',
-                                            border: '1px solid rgba(255,255,255,0.16)',
-                                            color: listening
-                                                ? 'var(--vesper-bg-0)'
-                                                : 'var(--vesper-text)',
-                                            cursor: 'pointer',
-                                        }}
-                                    >
-                                        <Mic
-                                            size={16}
-                                            strokeWidth={2.4}
-                                            className={listening ? 'vesper-pulse' : ''}
+                                            ? 'What do you want to watch?'
+                                            : 'What are you looking for?')}
+                                    {!searched && (
+                                        <span
+                                            aria-hidden="true"
+                                            style={{
+                                                display: 'inline-block',
+                                                width: 2,
+                                                height: 22,
+                                                marginLeft: 4,
+                                                verticalAlign: 'middle',
+                                                background: 'var(--vesper-blue-bright)',
+                                                animation: 'vesperPulse 1100ms infinite',
+                                                borderRadius: 1,
+                                            }}
                                         />
-                                    </button>
-                                )}
-                                <span
-                                    className="vesper-mono"
-                                    style={{
-                                        fontSize: 11,
-                                        letterSpacing: '0.22em',
-                                        color: 'var(--vesper-text-3)',
-                                        textTransform: 'uppercase',
-                                    }}
-                                >
-                                    {q.length}/60
-                                </span>
-                            </div>
-
-                            {(listening || voiceError) && (
-                                <div
-                                    data-testid="search-voice-status"
-                                    className="flex items-center gap-2"
-                                    style={{
-                                        color: listening
-                                            ? 'var(--vesper-blue-bright)'
-                                            : '#FCA5A5',
-                                        fontSize: 13,
-                                        letterSpacing: '0.02em',
-                                    }}
-                                >
-                                    {listening ? (
-                                        <>
-                                            <Mic
-                                                size={14}
-                                                strokeWidth={2.4}
-                                                className="vesper-pulse"
-                                            />
-                                            Listening, say a movie or show…
-                                        </>
-                                    ) : (
-                                        <>
-                                            <MicOff size={14} strokeWidth={2} />
-                                            {voiceError}
-                                        </>
                                     )}
                                 </div>
                             )}
-
-                            {/* Themed on-screen keyboard — TV only.
-                                Phones type directly in the pill via
-                                the native IME. */}
-                            {!isMobile && (
-                            <div style={{ marginTop: 4, width: '100%' }}>
-                                <TVKeyboard
-                                    value={q}
-                                    onChange={(v) => {
-                                        setQ(v);
-                                        if (searched) setSearched(false);
+                            {voiceAvailable && (
+                                <button
+                                    data-testid="search-mic"
+                                    data-focusable="true"
+                                    data-focus-style="bare"
+                                    tabIndex={0}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onMicClick();
                                     }}
-                                    onSubmit={() => {
-                                        if (q.trim().length >= 2) doSearch();
+                                    className="flex items-center justify-center rounded-full shrink-0"
+                                    aria-label={listening ? 'Listening' : 'Voice search'}
+                                    style={{
+                                        width: 40,
+                                        height: 40,
+                                        background: listening ? 'var(--vesper-blue)' : 'rgba(255,255,255,0.08)',
+                                        border: '1px solid rgba(255,255,255,0.16)',
+                                        color: listening ? 'var(--vesper-bg-0)' : 'var(--vesper-text)',
+                                        cursor: 'pointer',
                                     }}
-                                    maxLength={60}
-                                    variant="name"
-                                />
-                            </div>
+                                >
+                                    <Mic size={16} strokeWidth={2.4} className={listening ? 'vesper-pulse' : ''} />
+                                </button>
                             )}
+                            <span
+                                className="vesper-mono shrink-0"
+                                style={{
+                                    fontSize: 11,
+                                    letterSpacing: '0.22em',
+                                    color: 'var(--vesper-text-3)',
+                                    textTransform: 'uppercase',
+                                }}
+                            >
+                                {q.length}/60
+                            </span>
+                        </div>
 
+                        <button
+                            data-testid="search-submit"
+                            data-focusable="true"
+                            data-focus-style="pill"
+                            tabIndex={0}
+                            onClick={() => doSearch()}
+                            disabled={busy || q.trim().length < 2}
+                            className="flex items-center gap-2 rounded-full font-sans font-semibold shrink-0"
+                            style={{
+                                height: 'clamp(50px, 4.2vw, 62px)',
+                                padding: '0 clamp(20px, 1.8vw, 32px)',
+                                fontSize: 'clamp(14px, 1vw, 16px)',
+                                background:
+                                    q.trim().length >= 2 && !busy
+                                        ? 'var(--vesper-blue)'
+                                        : 'rgba(var(--vesper-blue-rgb),0.25)',
+                                color: 'var(--vesper-bg-0)',
+                                border: 'none',
+                                opacity: q.trim().length >= 2 && !busy ? 1 : 0.6,
+                                cursor: q.trim().length >= 2 && !busy ? 'pointer' : 'not-allowed',
+                                boxShadow:
+                                    q.trim().length >= 2 && !busy
+                                        ? '0 12px 30px rgba(var(--vesper-blue-rgb),0.45)'
+                                        : 'none',
+                            }}
+                        >
+                            {busy ? (
+                                <Loader2 className="vesper-spin" size={16} strokeWidth={2.5} />
+                            ) : (
+                                <SearchIcon size={16} strokeWidth={2.5} />
+                            )}
+                            {kids ? 'Find it' : 'Search'}
+                            {!busy && <ArrowRight size={16} strokeWidth={2.5} />}
+                        </button>
+                    </div>
+                )}
+
+                {(listening || voiceError) && (
+                    <div
+                        data-testid="search-voice-status"
+                        className="flex items-center gap-2"
+                        style={{
+                            color: listening ? 'var(--vesper-blue-bright)' : '#FCA5A5',
+                            fontSize: 13,
+                            letterSpacing: '0.02em',
+                        }}
+                    >
+                        {listening ? (
+                            <>
+                                <Mic size={14} strokeWidth={2.4} className="vesper-pulse" />
+                                Listening, say a movie or show…
+                            </>
+                        ) : (
+                            <>
+                                <MicOff size={14} strokeWidth={2} />
+                                {voiceError}
+                            </>
+                        )}
+                    </div>
+                )}
+
+                {/* Row 2 — recent searches, lengthways across the top. */}
+                {!kids && recents.length > 0 && (
+                    <div
+                        data-testid="search-recents"
+                        className="flex items-center"
+                        style={{ gap: 10, width: '100%', flexWrap: 'wrap' }}
+                    >
+                        <span
+                            className="vesper-mono flex items-center gap-2 shrink-0"
+                            style={{
+                                fontSize: 10,
+                                letterSpacing: '0.28em',
+                                textTransform: 'uppercase',
+                                color: 'var(--vesper-text-3)',
+                                marginRight: 4,
+                            }}
+                        >
+                            <History size={13} strokeWidth={2} />
+                            Recent
+                        </span>
+                        {recents.map((r, i) => (
                             <button
-                                data-testid="search-submit"
+                                key={r}
+                                data-testid={`search-recent-${i}`}
                                 data-focusable="true"
                                 data-focus-style="pill"
                                 tabIndex={0}
-                                onClick={() => doSearch()}
-                                disabled={busy || q.trim().length < 2}
-                                className="flex items-center gap-2 rounded-full font-sans font-semibold"
+                                onClick={() => {
+                                    setQ(r);
+                                    doSearch(r);
+                                }}
+                                className="flex items-center gap-2 rounded-full font-sans shrink-0"
                                 style={{
-                                    marginTop: 4,
-                                    height: 50,
-                                    padding: '0 30px',
-                                    fontSize: 15,
-                                    background:
-                                        q.trim().length >= 2 && !busy
-                                            ? 'var(--vesper-blue)'
-                                            : 'rgba(var(--vesper-blue-rgb),0.25)',
-                                    color: 'var(--vesper-bg-0)',
-                                    border: 'none',
-                                    opacity:
-                                        q.trim().length >= 2 && !busy ? 1 : 0.6,
-                                    cursor:
-                                        q.trim().length >= 2 && !busy
-                                            ? 'pointer'
-                                            : 'not-allowed',
-                                    boxShadow:
-                                        q.trim().length >= 2 && !busy
-                                            ? '0 12px 30px rgba(var(--vesper-blue-rgb),0.45)'
-                                            : 'none',
+                                    height: 36,
+                                    padding: '0 16px',
+                                    fontSize: 13,
+                                    fontWeight: 500,
+                                    color: 'var(--vesper-text)',
+                                    background: 'rgba(255,255,255,0.06)',
+                                    border: '1px solid rgba(var(--vesper-blue-rgb),0.28)',
+                                    cursor: 'pointer',
+                                    maxWidth: 260,
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
                                 }}
                             >
-                                {busy ? (
-                                    <Loader2
-                                        className="vesper-spin"
-                                        size={16}
-                                        strokeWidth={2.5}
-                                    />
-                                ) : (
-                                    <SearchIcon size={16} strokeWidth={2.5} />
-                                )}
-                                {kids ? 'Find something to watch' : 'Search'}
-                                {!busy && <ArrowRight size={16} strokeWidth={2.5} />}
+                                {r}
                             </button>
-
-
-                            {!kids && !searchable.length && (
-                                <p
-                                    style={{
-                                        color: 'var(--vesper-text-2)',
-                                        fontSize: 13,
-                                        marginTop: 4,
-                                        textAlign: 'center',
-                                    }}
-                                >
-                                    Install a searchable addon on Sources to
-                                    enable search.
-                                </p>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                <div data-testid="search-results-column" style={{ flex: 1, minWidth: 0 }}>
-                            {/* Recent searches — tap to re-run.  Per
-                                profile, last 8.  Hidden in kids mode. */}
-                            {!searched && !busy && !kids && recents.length > 0 && (
-                                <div
-                                    data-testid="search-recents"
-                                    style={{ width: '100%', maxWidth: 640 }}
-                                >
-                                    <div
-                                        className="vesper-mono flex items-center justify-between"
-                                        style={{
-                                            fontSize: 10,
-                                            letterSpacing: '0.28em',
-                                            textTransform: 'uppercase',
-                                            color: 'var(--vesper-text-3)',
-                                            marginBottom: 10,
-                                        }}
-                                    >
-                                        <span className="flex items-center gap-2">
-                                            <History size={13} strokeWidth={2} />
-                                            Recent searches
-                                        </span>
-                                        <button
-                                            data-testid="search-recents-clear"
-                                            data-focusable="true"
-                                            data-focus-style="bare"
-                                            tabIndex={0}
-                                            onClick={clearRecents}
-                                            className="flex items-center gap-1 rounded-full"
-                                            style={{
-                                                fontSize: 10,
-                                                letterSpacing: '0.14em',
-                                                color: 'var(--vesper-text-2)',
-                                                background: 'rgba(255,255,255,0.06)',
-                                                border: '1px solid rgba(255,255,255,0.12)',
-                                                padding: '4px 10px',
-                                                cursor: 'pointer',
-                                            }}
-                                        >
-                                            <X size={11} strokeWidth={2.4} />
-                                            Clear
-                                        </button>
-                                    </div>
-                                    <div className="flex flex-col items-start gap-2">
-                                        {recents.map((r, i) => (
-                                            <button
-                                                key={r}
-                                                data-testid={`search-recent-${i}`}
-                                                data-focusable="true"
-                                                data-focus-style="pill"
-                                                tabIndex={0}
-                                                onClick={() => {
-                                                    setQ(r);
-                                                    doSearch(r);
-                                                }}
-                                                className="flex items-center gap-2 rounded-full font-sans"
-                                                style={{
-                                                    height: 38,
-                                                    padding: '0 16px',
-                                                    fontSize: 13,
-                                                    fontWeight: 500,
-                                                    color: 'var(--vesper-text)',
-                                                    background: 'rgba(255,255,255,0.06)',
-                                                    border: '1px solid rgba(var(--vesper-blue-rgb),0.28)',
-                                                    cursor: 'pointer',
-                                                }}
-                                            >
-                                                <History
-                                                    size={13}
-                                                    strokeWidth={2}
-                                                    color="var(--vesper-blue-bright)"
-                                                />
-                                                {r}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                {!searched && !busy && !kids && recents.length === 0 && (
-                    <p style={{ color: 'var(--vesper-text-3)', fontSize: 14, marginTop: 12 }}>
-                        Your recent searches will appear here.
-                    </p>
-                )}
-                {busy ? (
-                    <div
-                        className="flex items-center gap-3"
-                        style={{
-                            color: 'var(--vesper-text-2)',
-                            marginTop: 40,
-                            justifyContent: 'center',
-                        }}
-                    >
-                        <Loader2 className="vesper-spin" size={20} /> Searching…
-                    </div>
-                ) : searched && results.length > 0 ? (
-                    <>
-                        <h2
-                            className="vesper-display mb-5"
+                        ))}
+                        <button
+                            data-testid="search-recents-clear"
+                            data-focusable="true"
+                            data-focus-style="bare"
+                            tabIndex={0}
+                            onClick={clearRecents}
+                            className="vesper-mono flex items-center gap-1 rounded-full shrink-0"
                             style={{
-                                fontSize: 28,
-                                letterSpacing: '-0.02em',
-                                marginTop: 16,
-                            }}
-                        >
-                            {results.length} {kids ? 'kid-safe ' : ''}result
-                            {results.length === 1 ? '' : 's'} for &ldquo;{lastQuery}&rdquo;
-                        </h2>
-                        <div className="flex flex-wrap gap-6">
-                            {results.slice(0, 80).map((item) => (
-                                <PosterTile key={item.id} item={item} />
-                            ))}
-                        </div>
-                    </>
-                ) : searched && results.length === 0 ? (
-                    kids ? (
-                        <KidsBlockedMessage
-                            query={lastQuery}
-                            onPick={(s) => {
-                                setQ(s);
-                                doSearch(s);
-                            }}
-                        />
-                    ) : (
-                        <p
-                            data-testid="search-empty"
-                            style={{
+                                height: 36,
+                                fontSize: 10,
+                                letterSpacing: '0.14em',
+                                textTransform: 'uppercase',
                                 color: 'var(--vesper-text-2)',
-                                textAlign: 'center',
-                                marginTop: 8,
+                                background: 'rgba(255,255,255,0.04)',
+                                border: '1px solid rgba(255,255,255,0.12)',
+                                padding: '0 12px',
+                                cursor: 'pointer',
                             }}
                         >
-                            No results for &ldquo;{lastQuery}&rdquo;.
-                        </p>
-                    )
-                ) : null}
+                            <X size={11} strokeWidth={2.4} />
+                            Clear
+                        </button>
+                    </div>
+                )}
+
+                {/* Row 3 — the on-screen keyboard (TV only) while typing;
+                    scales to the container so it always fits the screen. */}
+                {!isMobile && !searched && !(kids && results.length === 0 && searched) && (
+                    <div
+                        data-testid="search-keyboard-wrap"
+                        style={{ width: 'min(100%, 760px)', marginTop: 4 }}
+                    >
+                        <TVKeyboard
+                            value={q}
+                            onChange={(v) => {
+                                setQ(v);
+                            }}
+                            onSubmit={() => {
+                                if (q.trim().length >= 2) doSearch();
+                            }}
+                            maxLength={60}
+                            variant="name"
+                        />
+                        {!kids && !searchable.length && (
+                            <p style={{ color: 'var(--vesper-text-2)', fontSize: 13, marginTop: 10 }}>
+                                Install a searchable addon on Sources to enable search.
+                            </p>
+                        )}
+                    </div>
+                )}
+
+                {/* Row 4 — results. */}
+                <div data-testid="search-results-column" style={{ width: '100%', minWidth: 0 }}>
+                    {busy ? (
+                        <div
+                            className="flex items-center gap-3"
+                            style={{ color: 'var(--vesper-text-2)', marginTop: 24 }}
+                        >
+                            <Loader2 className="vesper-spin" size={20} /> Searching…
+                        </div>
+                    ) : searched && results.length > 0 ? (
+                        <>
+                            <h2
+                                className="vesper-display mb-4"
+                                style={{
+                                    fontSize: 'clamp(20px, 1.6vw, 28px)',
+                                    letterSpacing: '-0.02em',
+                                }}
+                            >
+                                {results.length} {kids ? 'kid-safe ' : ''}result
+                                {results.length === 1 ? '' : 's'} for &ldquo;{lastQuery}&rdquo;
+                            </h2>
+                            <div className="flex flex-wrap gap-5">
+                                {results.slice(0, 80).map((item) => (
+                                    <PosterTile key={item.id} item={item} />
+                                ))}
+                            </div>
+                        </>
+                    ) : searched && results.length === 0 ? (
+                        kids ? (
+                            <KidsBlockedMessage
+                                query={lastQuery}
+                                onPick={(s) => {
+                                    setQ(s);
+                                    doSearch(s);
+                                }}
+                            />
+                        ) : (
+                            <p
+                                data-testid="search-empty"
+                                style={{ color: 'var(--vesper-text-2)', marginTop: 8 }}
+                            >
+                                No results for &ldquo;{lastQuery}&rdquo;.
+                            </p>
+                        )
+                    ) : null}
                 </div>
             </main>
         </div>
