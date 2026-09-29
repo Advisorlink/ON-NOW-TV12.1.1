@@ -31,6 +31,8 @@ export const isEasyNews = (s) =>
         `${s?._addon_id || ''} ${s?._addon_name || ''} ${s?._addon_source || ''} ${s?.name || ''}`
     );
 
+/** "ON NOW TV Direct" — the user's own IPTV VOD link.  Always first. */
+export const isOnNowDirect = (s) => s?._onnow_direct === true || s?._addon_id === 'onnowtv-direct';
 export const isTorrentio = (s) =>
     /torrentio/i.test(`${s?._addon_id || ''} ${s?._addon_name || ''}`);
 
@@ -94,10 +96,11 @@ function scoreStream(s) {
  */
 export function orderStreams(streams) {
     if (!Array.isArray(streams) || streams.length === 0) return streams;
+    const direct = [];
     const easy = [];
     const rest = [];
     streams.forEach((s, i) =>
-        (isEasyNews(s) ? easy : rest).push({ s, i, key: scoreStream(s) })
+        (isOnNowDirect(s) ? direct : isEasyNews(s) ? easy : rest).push({ s, i, key: scoreStream(s) })
     );
     const bySmallestFhd = (a, b) => {
         const fa = is1080p(a.s) && !is4K(a.s) && !isAV1(a.s) ? 0 : 1;
@@ -114,7 +117,8 @@ export function orderStreams(streams) {
         if (da !== db) return da - db;
         return bySmallestFhd(a, b);
     });
-    return [...easy, ...rest].map((x) => x.s);
+    direct.sort((a, b) => a.i - b.i);
+    return [...direct, ...easy, ...rest].map((x) => x.s);
 }
 
 /**

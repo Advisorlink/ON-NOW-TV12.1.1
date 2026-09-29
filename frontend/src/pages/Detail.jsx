@@ -24,7 +24,7 @@ import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { API, Vesper } from '@/lib/api';
 import { qualityBadge, qualityTags, toneColors, is1080p, is4K } from '@/lib/streamMeta';
-import { orderStreams, isEasyNews, isUncachedDownload } from '@/lib/streamOrder';
+import { orderStreams, isEasyNews, isUncachedDownload, isOnNowDirect } from '@/lib/streamOrder';
 import { getAutoplay1080p, setAutoplay1080p, getAutoplayTV, setAutoplayTV } from '@/lib/prefs';
 import { isKidsActive, getActiveProfile, isRatingAllowed, getKidsConfig } from '@/lib/profiles';
 import { avatarEmojiById } from '@/lib/avatars';
@@ -1338,7 +1338,8 @@ export default function Detail() {
             // searching and the current best isn't EasyNews, hold
             // (max 3 s) — the moment an EasyNews link lands the
             // cascade re-picks it and we launch instantly.
-            if (!isEasyNews(autoplayCandidate) && easyNewsPending && !enHoldExpired) return;
+            // "ON NOW TV Direct" (the user's own IPTV VOD link) never waits.
+            if (!isOnNowDirect(autoplayCandidate) && !isEasyNews(autoplayCandidate) && easyNewsPending && !enHoldExpired) return;
             autoplayFiredRef.current = true;
             setAutoplayFired(true);
             window.setTimeout(() => playStream(autoplayCandidate), 0);

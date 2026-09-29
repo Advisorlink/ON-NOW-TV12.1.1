@@ -343,6 +343,9 @@ export function nardChips(stream) {
  */
 export function nardMetaLine(stream) {
     const out = [];
+    if (stream?._recommended) {
+        out.push({ icon: '⭐', text: 'Recommended' });
+    }
     if (stream?._addon_source) {
         out.push({ icon: '🔌', text: String(stream._addon_source) });
     }

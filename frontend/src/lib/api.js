@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { tagStreams } from '@/lib/streamTags';
 import { filterEpisodeStreams } from '@/lib/episodeMatch';
+import { getToken } from '@/lib/auth';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -346,6 +347,30 @@ export const Vesper = {
             try { onPartial(assemble(), probeMeta()); } catch (_e) { /* ignore */ }
         };
 
+        // "ON NOW TV Direct" — if this movie is in the Xtream VOD
+        // catalogue the same login already pays for, its direct link
+        // lands as a pinned first entry (streamOrder puts it on top so
+        // autoplay takes it).  Fired in parallel; never blocks anything.
+        const directP = (async () => {
+            if (type !== 'movie' || !/^tt\d+$/.test(String(itemId))) return;
+            try {
+                const token = getToken();
+                const r = await api.get(`/vod/match?imdb_id=${encodeURIComponent(itemId)}`, {
+                    signal,
+                    timeout: 8000,
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                });
+                const ds = r.data?.streams || [];
+                if (ds.length) {
+                    backendOwned.add('onnowtv-direct');
+                    byAddon.set('onnowtv-direct', ds);
+                    emit();
+                }
+            } catch (_e) {
+                // not in the catalogue / backend down — addons carry on
+            }
+        })();
+
         const backendP = (async () => {
             try {
                 const r = await api.get(`/streams/${type}/${itemId}`, { signal });
@@ -457,6 +482,7 @@ export const Vesper = {
         }
 
         await backendP;
+        await directP;
         return { streams: assemble(), diagnostics: results };
     },
 };

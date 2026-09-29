@@ -59,6 +59,7 @@ const NON_LATIN_RE = /[\u0400-\u04FF\u0500-\u052F\u0600-\u06FF\u0900-\u097F\u059
 const SIZE_RE = /(\d+(?:[.,]\d+)?)\s*(GB|MB|TB)\b/gi;
 
 const ADDON_SOURCE_MAP = [
+    ['onnowtv-direct', 'ON NOW TV'],
     ['plexio', 'PLEXIO'],
     ['ep-strem', 'PLEXIO'],
     ['torrentio', 'TORRENTIO'],

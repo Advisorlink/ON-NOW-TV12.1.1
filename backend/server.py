@@ -5088,6 +5088,11 @@ from collections_api import router as collections_router, configure_collections 
 app.include_router(collections_router)
 configure_collections(_tmdb_get, cache)
 
+# "ON NOW TV Direct" — Xtream VOD match for Vesper movies.
+from vod_match import router as vod_router, configure_vod  # noqa: E402
+app.include_router(vod_router)
+configure_vod(db, _tmdb_get)
+
 
 app.add_middleware(
     CORSMiddleware,
