@@ -5083,6 +5083,11 @@ from presence import router as presence_router, configure_presence  # noqa: E402
 app.include_router(presence_router)
 configure_presence(db)
 
+# Collections rail (studios + franchises) — mirrors /api/networks.
+from collections_api import router as collections_router, configure_collections  # noqa: E402
+app.include_router(collections_router)
+configure_collections(_tmdb_get, cache)
+
 
 app.add_middleware(
     CORSMiddleware,

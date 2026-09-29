@@ -103,3 +103,16 @@ export function setNavLayout(layout) {
     }
     try { window.dispatchEvent(new Event('vesper:nav-layout-change')); } catch { /* ignore */ }
 }
+
+const KEY_SHOW_COLLECTIONS = 'onnowtv-show-collections';
+export function getShowCollections() {
+    try {
+        const v = readScopedString(KEY_SHOW_COLLECTIONS);
+        return v === null || v === undefined ? true : v === '1';
+    } catch {
+        return true;
+    }
+}
+export function setShowCollections(enabled) {
+    try { writeScopedString(KEY_SHOW_COLLECTIONS, enabled ? '1' : '0'); } catch { /* ignore */ }
+}

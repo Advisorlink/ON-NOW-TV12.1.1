@@ -946,6 +946,7 @@ function App() {
                                 <Route path="/sources" element={<RequireProfile><Sources /></RequireProfile>} />
                                 <Route path="/search" element={<RequireProfile><Search /></RequireProfile>} />
                                 <Route path="/networks/:slug" element={<RequireProfile><Network /></RequireProfile>} />
+                                <Route path="/collections/:slug" element={<RequireProfile><Network kind="collection" /></RequireProfile>} />
                                 <Route path="/resolve/:type/:id" element={<RequireProfile><Resolve /></RequireProfile>} />
                                 <Route path="/v2ai-play" element={<RequireProfile><V2AIResolve /></RequireProfile>} />
                                 <Route path="/v2ai" element={<RequireProfile><V2AI /></RequireProfile>} />

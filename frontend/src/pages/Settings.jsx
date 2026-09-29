@@ -10,7 +10,7 @@ import useBackHandler from '@/hooks/useBackHandler';
 import FullscreenButton from '@/components/FullscreenButton';
 import { THEMES } from '@/themes/themes';
 import { useTheme } from '@/themes/ThemeProvider';
-import { getAutoplay1080p, setAutoplay1080p, getAutoTrailer, setAutoTrailer, getNavLayout, setNavLayout } from '@/lib/prefs';
+import { getAutoplay1080p, setAutoplay1080p, getAutoTrailer, setAutoTrailer, getNavLayout, setNavLayout, getShowCollections, setShowCollections } from '@/lib/prefs';
 import { clearActiveProfile, getActiveProfile } from '@/lib/profiles';
 import { useAuth } from '@/contexts/AuthContext';
 import { collectBackupPayload, applyBackupPayload, summarizeBackupPayload, fmtBytes } from '@/lib/profileBackup';
@@ -39,6 +39,12 @@ export default function Settings() {
         const next = !topNav;
         setNavLayout(next ? 'top' : 'side');
         setTopNavState(next);
+    };
+    const [showCollections, setShowCollectionsState] = React.useState(getShowCollections());
+    const toggleShowCollections = () => {
+        const next = !showCollections;
+        setShowCollections(next);
+        setShowCollectionsState(next);
     };
 
     /* v2.7.17 — Force-SDR playback toggle.  Persisted on the native
@@ -409,6 +415,14 @@ export default function Settings() {
                 description="ON by default: the menu is a glass icon bar centred along the top of the screen — press UP from the top row to reach it; the name pops up under the icon you land on.  Turn OFF to go back to the original left-hand rail (press LEFT on a row to open it)."
                 value={topNav}
                 onToggle={toggleTopNav}
+            />
+
+            <ToggleRow
+                testid="show-collections"
+                title="Collections rail on Home"
+                description="Shows the Collections row under Browse by Network — Marvel, DC, Disney, Pixar, Star Wars, Wizarding World, James Bond, Fast & Furious and 40+ more studios and franchises.  Turn OFF to hide the row."
+                value={showCollections}
+                onToggle={toggleShowCollections}
             />
 
             <ToggleRow

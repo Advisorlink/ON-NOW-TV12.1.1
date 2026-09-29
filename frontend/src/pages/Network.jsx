@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2, Plus } from 'lucide-react';
 import SideNav from '@/components/SideNav';
@@ -7,6 +7,7 @@ import NetworkPosterTile from '@/components/NetworkPosterTile';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useBackHandler from '@/hooks/useBackHandler';
 import { findNetwork } from '@/lib/networks';
+import { findCollection } from '@/lib/collections';
 import { API } from '@/lib/api';
 
 /**
@@ -18,14 +19,21 @@ import { API } from '@/lib/api';
  */
 const SUBTAB_KEY = 'vesper-network-subtab';
 
-export default function Network() {
+export default function Network({ kind = 'network' }) {
     useSpatialFocus();
     useBackHandler();
     const { slug } = useParams();
     const navigate = useNavigate();
-    const network = findNetwork(slug);
+    const isCollection = kind === 'collection';
+    const apiBase = isCollection ? 'collections' : 'networks';
+    const network = useMemo(() => {
+        if (!isCollection) return findNetwork(slug);
+        const c = findCollection(slug);
+        return c ? { ...c, background: `linear-gradient(135deg, #070a12 0%, #0d1424 60%, ${c.accent}55 100%)` } : null;
+    }, [slug, isCollection]);
 
     const [subTab, setSubTab] = useState(() => {
+        if (isCollection) return 'movie';
         try {
             return localStorage.getItem(SUBTAB_KEY) || 'tv';
         } catch {
@@ -33,12 +41,13 @@ export default function Network() {
         }
     });
     useEffect(() => {
+        if (isCollection) return;
         try {
             localStorage.setItem(SUBTAB_KEY, subTab);
         } catch {
             /* ignore */
         }
-    }, [subTab]);
+    }, [subTab, isCollection]);
 
     const [items, setItems] = useState([]);
     const [page, setPage] = useState(1);
@@ -65,7 +74,7 @@ export default function Network() {
                     // v2.10.82 — Restore region query param (regressed in
                     // v2.10.36).  Binge & Stan are AU-only on TMDB; under
                     // the default US region they return zero titles.
-                    `${API}/networks/${slug}?type=${subTab}&page=1&region=${network.region || 'US'}`,
+                    `${API}/${apiBase}/${slug}?type=${subTab}&page=1&region=${network.region || 'US'}`,
                     { cache: 'no-store' }
                 );
                 if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -100,7 +109,7 @@ export default function Network() {
             const r = await fetch(
                 // v2.10.82 — Carry the same region param on subsequent
                 // pages so the catalogue stays consistent.
-                `${API}/networks/${slug}?type=${subTab}&page=${next}&region=${network.region || 'US'}`,
+                `${API}/${apiBase}/${slug}?type=${subTab}&page=${next}&region=${network.region || 'US'}`,
                 { cache: 'no-store' }
             );
             if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -230,7 +239,7 @@ export default function Network() {
                                     marginBottom: 6,
                                 }}
                             >
-                                Browse · Network · Live from TMDB
+                                Browse · {isCollection ? 'Collection' : 'Network'} · Live from TMDB
                             </div>
                             <h1
                                 className="vesper-display"
@@ -274,12 +283,14 @@ export default function Network() {
                         gap: 'clamp(8px, 0.7vw, 12px)',
                     }}
                 >
-                    <SubTab
-                        active={subTab === 'tv'}
-                        label="TV Shows"
-                        testId="network-subtab-tv"
-                        onClick={() => setSubTab('tv')}
-                    />
+                    {!network.moviesOnly && (
+                        <SubTab
+                            active={subTab === 'tv'}
+                            label="TV Shows"
+                            testId="network-subtab-tv"
+                            onClick={() => setSubTab('tv')}
+                        />
+                    )}
                     <SubTab
                         active={subTab === 'movie'}
                         label="Movies"
@@ -318,7 +329,7 @@ export default function Network() {
                             style={{ color: 'var(--vesper-text-2)' }}
                         >
                             No {subTab === 'tv' ? 'TV shows' : 'movies'}{' '}
-                            currently streamable on {network.name} ({network.region || 'US'} region).
+                            {isCollection ? `in ${network.name}.` : `currently streamable on ${network.name} (${network.region || 'US'} region).`}
                         </div>
                     ) : (
                         <>

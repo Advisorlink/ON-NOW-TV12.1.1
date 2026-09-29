@@ -6,6 +6,8 @@ import DPadHint from '@/components/DPadHint';
 import HeroBillboard from '@/components/HeroBillboard';
 import Shelf from '@/components/Shelf';
 import NetworksShelf from '@/components/NetworksShelf';
+import CollectionsShelf from '@/components/CollectionsShelf';
+import { getShowCollections } from '@/lib/prefs';
 import ContinueWatchingShelf from '@/components/ContinueWatchingShelf';
 import ForYouShelf from '@/components/ForYouShelf';
 import UpcomingMoviesShelf from '@/components/UpcomingMoviesShelf';
@@ -600,6 +602,9 @@ export default function Home() {
                             <ShelfPage height={shelfPageHeight} isMobile={isMobile}><ForYouShelf /></ShelfPage>
                         )}
                         <ShelfPage height={shelfPageHeight} isMobile={isMobile}><NetworksShelf /></ShelfPage>
+                        {getShowCollections() && (
+                            <ShelfPage height={shelfPageHeight} isMobile={isMobile}><CollectionsShelf /></ShelfPage>
+                        )}
                         {addons.length === 0 && (
                             <ShelfPage height={shelfPageHeight} isMobile={isMobile}><EmptyAddonsBanner /></ShelfPage>
                         )}

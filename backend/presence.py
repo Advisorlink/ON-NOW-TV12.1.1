@@ -33,7 +33,10 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query
+import re
+
+import httpx
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Request
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, Field
 
@@ -80,6 +83,8 @@ class HeartbeatBody(BaseModel):
     content_meta: Optional[Dict[str, Any]] = None
     client_key: Optional[str] = Field(None, description="Only for non-JWT clients (Live TV, FTA native) — device username")
     device_hint: Optional[str] = Field(None, description="Free-form label, e.g. 'Living Room Box'")
+    device_id: Optional[str] = Field(None, description="Persistent per-install id so boxes can be counted per account")
+    device_model: Optional[str] = Field(None, description="Hardware model / UA-derived label")
 
 
 class EndBody(BaseModel):
@@ -109,6 +114,7 @@ def configure_presence(db: AsyncIOMotorDatabase) -> None:
             await db.presence_sessions.create_index("last_heartbeat_at")
             await db.presence_sessions.create_index([("username", 1), ("started_at", -1)])
             await db.presence_sessions.create_index([("app", 1), ("last_heartbeat_at", -1)])
+            await db.presence_geo_cache.create_index("ip", unique=True)
             # TTL index — sessions auto-purge 7 days after last heartbeat.
             await db.presence_sessions.create_index(
                 "last_heartbeat_at",
@@ -200,11 +206,91 @@ def _require_admin(x_admin_key: Optional[str]) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Client IP + suburb-level geolocation (ip-api.com, cached 24 h per IP)
+# ---------------------------------------------------------------------------
+GEO_TTL_SECS = 24 * 3600
+_PRIVATE_IP = re.compile(r"^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1$|fc|fd|169\.254\.)")
+
+
+def _client_ip(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for") or ""
+    for part in xff.split(","):
+        ip = part.strip()
+        if ip and not _PRIVATE_IP.match(ip):
+            return ip
+    real = (request.headers.get("x-real-ip") or "").strip()
+    if real:
+        return real
+    return request.client.host if request.client else ""
+
+
+async def _geo_lookup(ip: str) -> Dict[str, Any]:
+    """district (suburb) + city + region + postcode + ISP for an IP."""
+    if not ip or _PRIVATE_IP.match(ip):
+        return {}
+    db = _require_db()
+    hit = await db.presence_geo_cache.find_one({"ip": ip}, {"_id": 0})
+    if hit and isinstance(hit.get("at"), datetime):
+        at = hit["at"] if hit["at"].tzinfo else hit["at"].replace(tzinfo=timezone.utc)
+        if (_now() - at).total_seconds() < GEO_TTL_SECS:
+            return hit.get("geo") or {}
+    geo: Dict[str, Any] = {}
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            r = await client.get(
+                f"http://ip-api.com/json/{ip}",
+                params={"fields": "status,country,countryCode,regionName,city,district,zip,lat,lon,timezone,isp,org,as,mobile,proxy,hosting"},
+            )
+            j = r.json()
+            if j.get("status") == "success":
+                geo = {
+                    "suburb":   j.get("district") or "",
+                    "city":     j.get("city") or "",
+                    "region":   j.get("regionName") or "",
+                    "country":  j.get("country") or "",
+                    "country_code": j.get("countryCode") or "",
+                    "postcode": j.get("zip") or "",
+                    "lat":      j.get("lat"),
+                    "lon":      j.get("lon"),
+                    "timezone": j.get("timezone") or "",
+                    "isp":      j.get("isp") or "",
+                    "org":      j.get("org") or "",
+                    "mobile":   bool(j.get("mobile")),
+                    "proxy":    bool(j.get("proxy")),
+                    "hosting":  bool(j.get("hosting")),
+                }
+    except Exception:
+        geo = {}
+    if geo:
+        await db.presence_geo_cache.update_one(
+            {"ip": ip}, {"$set": {"ip": ip, "geo": geo, "at": _now()}}, upsert=True
+        )
+    return geo
+
+
+def _place(geo: Dict[str, Any]) -> str:
+    """'Chatswood, Sydney, New South Wales' — or, when the provider has no
+    suburb name, 'Sydney 2067, New South Wales' (postcode pins the suburb)."""
+    if not geo:
+        return ""
+    city = geo.get("city") or ""
+    if city and geo.get("postcode") and not geo.get("suburb"):
+        city = f"{city} {geo['postcode']}"
+    parts = [geo.get("suburb"), city, geo.get("region")]
+    seen: List[str] = []
+    for p in parts:
+        if p and p not in seen:
+            seen.append(p)
+    return ", ".join(seen)
+
+
+# ---------------------------------------------------------------------------
 # Endpoints — client-facing
 # ---------------------------------------------------------------------------
 @router.post("/heartbeat")
 async def heartbeat(
     body: HeartbeatBody,
+    request: Request,
     authorization: Optional[str] = Header(default=None, alias="Authorization"),
     x_presence_key: Optional[str] = Header(default=None, alias="X-Presence-Key"),
 ):
@@ -213,7 +299,14 @@ async def heartbeat(
     db = _require_db()
     now = _now()
     key = {"session_id": body.session_id, "app": body.app}
+    ip = _client_ip(request)
+    geo = await _geo_lookup(ip)
     set_fields: Dict[str, Any] = {
+        "ip":               ip,
+        "geo":              geo,
+        "device_id":        body.device_id or "",
+        "device_model":     body.device_model or "",
+        "user_agent":       (request.headers.get("user-agent") or "")[:200],
         "session_id":       body.session_id,
         "app":              body.app,
         "username":         who["username"],
@@ -291,6 +384,11 @@ def _shape_session(doc: Dict[str, Any], now: datetime) -> Dict[str, Any]:
         "content_title":    doc.get("content_title") or "",
         "content_meta":     doc.get("content_meta") or {},
         "device_hint":      doc.get("device_hint") or "",
+        "device_id":        doc.get("device_id") or "",
+        "device_model":     doc.get("device_model") or "",
+        "ip":               doc.get("ip") or "",
+        "geo":              doc.get("geo") or {},
+        "place":            _place(doc.get("geo") or {}),
         "started_at":       started.isoformat() if started else None,
         "last_heartbeat_at": last_hb.isoformat() if last_hb else None,
         "ended_at":         ended.isoformat() if ended else None,
@@ -346,4 +444,185 @@ async def admin_user_history(
         "count":    len(rows),
         "sessions": [_shape_session(r, now) for r in rows],
         "as_of":    now.isoformat(),
+    }
+
+
+@router.get("/admin/users")
+async def admin_users(
+    q: str = Query(default="", max_length=60),
+    days: int = Query(default=30, ge=1, le=30),
+    x_admin_key: Optional[str] = Header(default=None, alias="X-Admin-Key"),
+):
+    """Find accounts by (partial, case-insensitive) username with a
+    per-user summary: live now, last seen, distinct boxes / IPs /
+    places in the window — the numbers that expose a shared login."""
+    _require_admin(x_admin_key)
+    db = _require_db()
+    now = _now()
+    cutoff = now - timedelta(days=days)
+    match: Dict[str, Any] = {"started_at": {"$gte": cutoff}}
+    if q.strip():
+        match["username"] = {"$regex": re.escape(q.strip()), "$options": "i"}
+    pipeline = [
+        {"$match": match},
+        {"$sort": {"last_heartbeat_at": -1}},
+        {"$group": {
+            "_id": "$username",
+            "sessions": {"$sum": 1},
+            "last_seen": {"$max": "$last_heartbeat_at"},
+            "devices": {"$addToSet": {"$ifNull": ["$device_id", ""]}},
+            "ips": {"$addToSet": {"$ifNull": ["$ip", ""]}},
+            "places": {"$addToSet": {"$concat": [
+                {"$ifNull": ["$geo.suburb", ""]}, "|", {"$ifNull": ["$geo.city", ""]}, "|", {"$ifNull": ["$geo.postcode", ""]}]}},
+            "apps": {"$addToSet": "$app"},
+            "last_title": {"$first": "$content_title"},
+            "last_app": {"$first": "$app"},
+            "last_geo": {"$first": "$geo"},
+            "live": {"$max": {"$cond": [
+                {"$and": [
+                    {"$gte": ["$last_heartbeat_at", now - timedelta(seconds=ACTIVE_WINDOW_SECS)]},
+                    {"$eq": ["$ended_at", None]},
+                ]}, 1, 0]}},
+        }},
+        {"$sort": {"live": -1, "last_seen": -1}},
+        {"$limit": 200},
+    ]
+    rows = await db.presence_sessions.aggregate(pipeline).to_list(200)
+    # Accounts in the vault that never streamed still show up in a search.
+    vault_names: List[str] = []
+    if q.strip():
+        try:
+            vault = await db.vesper_accounts.find(
+                {"username": {"$regex": re.escape(q.strip()), "$options": "i"}}, {"_id": 0, "username": 1}
+            ).to_list(50)
+            vault_names = [v["username"] for v in vault if v.get("username")]
+        except Exception:
+            vault_names = []
+    seen = set()
+    users = []
+    for r in rows:
+        name = r["_id"] or "(unknown)"
+        seen.add(name)
+        last_seen = r.get("last_seen")
+        if isinstance(last_seen, datetime) and not last_seen.tzinfo:
+            last_seen = last_seen.replace(tzinfo=timezone.utc)
+        users.append({
+            "username": name,
+            "is_live": bool(r.get("live")),
+            "last_seen": last_seen.isoformat() if isinstance(last_seen, datetime) else None,
+            "sessions": r.get("sessions") or 0,
+            "device_count": len([d for d in r.get("devices") or [] if d]),
+            "ip_count": len([i for i in r.get("ips") or [] if i]),
+            "place_count": len([p for p in r.get("places") or [] if p and p.replace("|", "")]),
+            "apps": sorted(r.get("apps") or []),
+            "last_title": r.get("last_title") or "",
+            "last_app": r.get("last_app") or "",
+            "last_place": _place(r.get("last_geo") or {}),
+            "in_vault": name in vault_names,
+        })
+    for name in vault_names:
+        if name not in seen:
+            users.append({
+                "username": name, "is_live": False, "last_seen": None, "sessions": 0,
+                "device_count": 0, "ip_count": 0, "place_count": 0, "apps": [],
+                "last_title": "", "last_app": "", "last_place": "", "in_vault": True,
+            })
+    return {"q": q, "days": days, "count": len(users), "users": users, "as_of": now.isoformat()}
+
+
+@router.get("/admin/user/{username}/profile")
+async def admin_user_profile(
+    username: str,
+    days: int = Query(default=30, ge=1, le=30),
+    x_admin_key: Optional[str] = Header(default=None, alias="X-Admin-Key"),
+):
+    """Everything about one account: what's playing right now, every
+    box it has been used on (with exact suburb / IP / ISP), every
+    location, and the full session history."""
+    _require_admin(x_admin_key)
+    db = _require_db()
+    now = _now()
+    cutoff = now - timedelta(days=days)
+    rows = await db.presence_sessions.find(
+        {"username": username, "started_at": {"$gte": cutoff}}, {"_id": 0},
+    ).sort("started_at", -1).to_list(1000)
+    sessions = [_shape_session(r, now) for r in rows]
+    live = [s for s in sessions if s["is_live"]]
+
+    devices: Dict[str, Dict[str, Any]] = {}
+    places: Dict[str, Dict[str, Any]] = {}
+    for s in sessions:
+        dkey = s["device_id"] or s["device_hint"] or s["device_model"] or s["ip"] or "unknown"
+        d = devices.setdefault(dkey, {
+            "device_id": s["device_id"], "device_hint": s["device_hint"],
+            "device_model": s["device_model"], "apps": set(), "ips": set(),
+            "places": set(), "sessions": 0, "first_seen": s["started_at"],
+            "last_seen": s["last_heartbeat_at"], "is_live": False, "watch_secs": 0,
+        })
+        d["sessions"] += 1
+        d["watch_secs"] += s["duration_secs"]
+        d["apps"].add(s["app"])
+        if s["ip"]:
+            d["ips"].add(s["ip"])
+        if s["place"]:
+            d["places"].add(s["place"])
+        d["is_live"] = d["is_live"] or s["is_live"]
+        if s["started_at"] and (not d["first_seen"] or s["started_at"] < d["first_seen"]):
+            d["first_seen"] = s["started_at"]
+        if s["last_heartbeat_at"] and (not d["last_seen"] or s["last_heartbeat_at"] > d["last_seen"]):
+            d["last_seen"] = s["last_heartbeat_at"]
+
+        pkey = s["ip"] or s["place"] or ""
+        if pkey:
+            p = places.setdefault(pkey, {
+                "ip": s["ip"], "place": s["place"], "geo": s["geo"], "sessions": 0,
+                "last_seen": s["last_heartbeat_at"], "is_live": False,
+            })
+            p["sessions"] += 1
+            p["is_live"] = p["is_live"] or s["is_live"]
+            if s["last_heartbeat_at"] and (not p["last_seen"] or s["last_heartbeat_at"] > p["last_seen"]):
+                p["last_seen"] = s["last_heartbeat_at"]
+
+    dev_out = []
+    for d in devices.values():
+        d["apps"] = sorted(d["apps"]); d["ips"] = sorted(d["ips"]); d["places"] = sorted(d["places"])
+        dev_out.append(d)
+    dev_out.sort(key=lambda d: (not d["is_live"], d["last_seen"] or ""), reverse=False)
+    dev_out.sort(key=lambda d: d["last_seen"] or "", reverse=True)
+    place_out = sorted(places.values(), key=lambda p: p["last_seen"] or "", reverse=True)
+
+    live_ips = {s["ip"] for s in live if s["ip"]}
+    live_devices = {s["device_id"] or s["device_hint"] or s["ip"] for s in live}
+    flags = []
+    if len(live_ips) > 1:
+        flags.append(f"Streaming from {len(live_ips)} different IPs right now")
+    if len(live_devices) > 1:
+        flags.append(f"{len(live_devices)} boxes playing at the same time")
+    if len(dev_out) > 2:
+        flags.append(f"{len(dev_out)} different boxes in the last {days} days")
+    if len({p['geo'].get('city') for p in place_out if p['geo'].get('city')}) > 1:
+        flags.append("Used from more than one city")
+    if any(p["geo"].get("proxy") or p["geo"].get("hosting") for p in place_out):
+        flags.append("VPN / proxy / hosting IP detected")
+
+    account = None
+    try:
+        acc = await db.vesper_accounts.find_one({"username": username}, {"_id": 0, "password": 0, "password_hash": 0})
+        if acc:
+            account = {k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in acc.items()}
+    except Exception:
+        account = None
+
+    return {
+        "username": username,
+        "days": days,
+        "account": account,
+        "live_now": live,
+        "devices": dev_out,
+        "places": place_out,
+        "flags": flags,
+        "total_sessions": len(sessions),
+        "total_watch_secs": sum(s["duration_secs"] for s in sessions),
+        "sessions": sessions[:500],
+        "as_of": now.isoformat(),
     }

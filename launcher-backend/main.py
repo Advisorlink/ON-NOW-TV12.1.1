@@ -2641,6 +2641,19 @@ async def presence_user_history(username: str, days: int = 7) -> JSONResponse:
     )
 
 
+@app.get("/api/admin/presence/users", dependencies=[Depends(require_admin)])
+async def presence_users(q: str = "", days: int = 30) -> JSONResponse:
+    days = max(1, min(days, 30))
+    from urllib.parse import quote
+    return await _vesper_proxy("GET", f"/api/presence/admin/users?q={quote(q[:60])}&days={days}")
+
+
+@app.get("/api/admin/presence/user/{username}/profile", dependencies=[Depends(require_admin)])
+async def presence_user_profile(username: str, days: int = 30) -> JSONResponse:
+    days = max(1, min(days, 30))
+    return await _vesper_proxy("GET", f"/api/presence/admin/user/{username}/profile?days={days}")
+
+
 @app.post("/api/admin/layout", dependencies=[Depends(require_admin)])
 def set_layout(layout: LayoutSettings) -> dict:
     """v1.0 — Persist admin-edited Layout Editor values."""

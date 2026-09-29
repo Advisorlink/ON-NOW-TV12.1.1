@@ -118,6 +118,32 @@ async function _postEnd(sessionId, app) {
  * @param {string} [args.appOverride] — force an app label instead of auto-detect
  * @returns {string} sessionId — pass to `stopPresence` when playback ends
  */
+/* Persistent per-install id + a UA-derived hardware label so the admin
+   can count how many boxes one login is being used on. */
+function _deviceId() {
+    try {
+        let id = localStorage.getItem('onnowtv-device-id');
+        if (!id) {
+            id = 'dev_' + _uuid().replace(/-/g, '').slice(0, 16);
+            localStorage.setItem('onnowtv-device-id', id);
+        }
+        return id;
+    } catch {
+        return '';
+    }
+}
+function _deviceModel() {
+    try {
+        const native = window.OnNowTV?.getDeviceModel?.();
+        if (native) return String(native).slice(0, 80);
+        const ua = navigator.userAgent || '';
+        const m = ua.match(/Android [\d.]+; ([^;)]+?)(?: Build|\))/);
+        return (m ? m[1] : ua.includes('Android') ? 'Android' : 'Browser').slice(0, 80);
+    } catch {
+        return '';
+    }
+}
+
 export function startPresence(args) {
     const {
         contentKind, contentTitle, contentId,
@@ -142,6 +168,8 @@ export function startPresence(args) {
         content_title: contentTitle,
         content_meta: contentMeta || {},
         device_hint: deviceHint || '',
+        device_id: _deviceId(),
+        device_model: _deviceModel(),
     };
     // Fire immediately so the admin sees the row within a second.
     _postHeartbeat(payload);
