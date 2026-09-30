@@ -1,4 +1,9 @@
 # ON NOW TV V2 — PRD
+> **🟢 v1.5.4 — Settings redesign (two-pane), Home row arranger, Hallmark in profile genres (Jun 2026).**
+> - **Settings** (`pages/Settings.jsx`): left sticky glass category rail (`settings-nav-{id}`: Appearance · Home screen · Playback · Personalise · Help · Tips · Backup · Sign out — focus or OK switches) + right pane showing ONE section (existing `data-settings-section` wrappers now get `hidden={section !== id}`); page max-width 1380.
+> - **Home screen section** (`HomeRowsPanel`, `lib/homeRows.js`): per-profile `onnowtv-home-rows-v1` `{order, hidden}` over the row registry `cw · foryou · networks · studios · movie-year · series-year · movie-top · series-top · upcoming`; ↑ ↓ move, eye toggle hides, "Reset to default order". `Home.jsx` now builds `[{id,node}]` and runs `arrangeHomeRows()` (unknown dev-unlock shelves keep natural position after known rows; wanted shelves tagged `rowId`). Verified: Studios ↑↑ + Networks hidden → Home renders Studios first, no Networks.
+> - **Profile setup genres**: `ProfileEdit` movie genre picker gains `{ id: -7, name: 'Hallmark' }` (synthetic; For You endpoint ignores non-digit ids as it does for Christmas).
+>
 > **🟢 v1.5.3 — Hallmark category (Jun 2026).** Movies tab genre chips: `All · In Cinema · Christmas · Hallmark · …`. Synthetic genre sentinel **-7** in `/api/tmdb/by-genres/movie` (`HALLMARK_PULLS`: discover `with_companies=53015|4056|9027|302242` (Hallmark Media / Entertainment / Hall of Fame / Hallmark) + `with_keywords=353864|361701`, vote floor 3, popularity order). `TabGridView` fetches pages 1-3 (≈287 unique titles incl. all the Christmas ones) → `hallmark-{tmdb}` items → `/resolve/movie/…`. Verified in browser.
 >
 > **🟢 v1.5.2 — Studios rail + Box Sets section (Jun 2026).**

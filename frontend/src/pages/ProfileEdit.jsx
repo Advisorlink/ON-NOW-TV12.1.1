@@ -870,7 +870,9 @@ function ViewingStyleStep({ value, onChange, onNext, onSkip }) {
                     { id: -2, name: 'Biography' },
                     { id: -3, name: 'Christmas' },
                 ];
-                setMovieGenres([...(m?.data || []), ...synthetic]);
+                // Hallmark (-7) is movie-only — Hallmark Media / Hall of
+                // Fame productions incl. every Christmas movie.
+                setMovieGenres([...(m?.data || []), ...synthetic, { id: -7, name: 'Hallmark' }]);
                 setTvGenres([...(t?.data || []), ...synthetic]);
             } catch { /* ignore */ } finally {
                 if (!cancel) setLoadingGenres(false);

@@ -3,14 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, Check, ShieldCheck,
     Cloud, Download, Upload, Copy, Loader2, KeyRound, AlertTriangle,
-    Sparkles, Lightbulb, LogOut, Heart,
-} from 'lucide-react';
+    Sparkles, Lightbulb, LogOut, Heart, Palette, Play, LayoutGrid, HelpCircle, Database, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useBackHandler from '@/hooks/useBackHandler';
 import FullscreenButton from '@/components/FullscreenButton';
 import { THEMES } from '@/themes/themes';
 import { useTheme } from '@/themes/ThemeProvider';
 import { getAutoplay1080p, setAutoplay1080p, getAutoTrailer, setAutoTrailer, getNavLayout, setNavLayout, getShowCollections, setShowCollections } from '@/lib/prefs';
+import { HOME_ROWS, getHomeRowPrefs, moveHomeRow, toggleHomeRow, resetHomeRows } from '@/lib/homeRows';
 import { clearActiveProfile, getActiveProfile } from '@/lib/profiles';
 import { useAuth } from '@/contexts/AuthContext';
 import { collectBackupPayload, applyBackupPayload, summarizeBackupPayload, fmtBytes } from '@/lib/profileBackup';
@@ -28,6 +28,7 @@ import {
  */
 export default function Settings() {
     useSpatialFocus();
+    const [section, setSection] = React.useState('theme');
     // BACK from remote → return to Home.
     useBackHandler();
     const navigate = useNavigate();
@@ -223,7 +224,7 @@ export default function Settings() {
                      * settings surface (~similar density to iOS/macOS
                      * System Settings). */
                     padding: 'clamp(20px, 2.6vw, 44px) clamp(24px, 3.2vw, 60px) 56px',
-                    maxWidth: 1100,
+                    maxWidth: 1380,
                     marginLeft: 'auto',
                     marginRight: 'auto',
                 }}
@@ -251,7 +252,25 @@ export default function Settings() {
                 <ArrowLeft size={12} /> Back
             </button>
 
-            <div data-testid="shelf-page" data-settings-section="theme">
+            <div
+                data-testid="settings-layout"
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'clamp(200px, 16vw, 264px) minmax(0, 1fr)',
+                    gap: 'clamp(20px, 2.6vw, 48px)',
+                    alignItems: 'start',
+                }}
+            >
+            <SettingsNav section={section} onPick={setSection} />
+            <div data-testid="settings-content" style={{ minWidth: 0 }}>
+
+            {/* ---- Home screen rows ---- */}
+            <div data-testid="shelf-page" data-settings-section="home" hidden={section !== 'home'}>
+            <SectionHeader eyebrow="Settings · Home screen" title="Arrange your For You page" icon={LayoutGrid} />
+            <HomeRowsPanel />
+            </div>
+
+            <div data-testid="shelf-page" data-settings-section="theme" hidden={section !== 'theme'}>
             <div
                 style={{
                     fontFamily: 'var(--theme-font-mono, monospace)',
@@ -366,7 +385,7 @@ export default function Settings() {
             </div>
 
             {/* ---- Playback section ---- */}
-            <div data-testid="shelf-page" data-settings-section="playback">
+            <div data-testid="shelf-page" data-settings-section="playback" hidden={section !== 'playback'}>
             <div
                 style={{
                     fontFamily: 'var(--theme-font-mono, monospace)',
@@ -443,7 +462,7 @@ export default function Settings() {
             </div>
 
             {/* ---- VIEWING PREFERENCE ---- */}
-            <div data-testid="shelf-page" data-settings-section="viewing-preference">
+            <div data-testid="shelf-page" data-settings-section="viewing-preference" hidden={section !== 'viewing-preference'}>
             <SectionHeader
                 eyebrow="Settings · Personalise"
                 title="Viewing preference"
@@ -502,7 +521,7 @@ export default function Settings() {
             </div>
 
             {/* ---- WELCOME TOUR ---- */}
-            <div data-testid="shelf-page" data-settings-section="welcome-tour">
+            <div data-testid="shelf-page" data-settings-section="welcome-tour" hidden={section !== 'welcome-tour'}>
             <SectionHeader
                 eyebrow="Settings · Help"
                 title="Welcome tour"
@@ -558,7 +577,7 @@ export default function Settings() {
             </div>
 
             {/* ---- BACKUP & RESTORE ---- */}
-            <div data-testid="shelf-page" data-settings-section="tips">
+            <div data-testid="shelf-page" data-settings-section="tips" hidden={section !== 'tips'}>
             <SectionHeader
                 eyebrow="Settings · Tips"
                 title="Tips &amp; nudges"
@@ -567,7 +586,7 @@ export default function Settings() {
             <TipsPanel />
             </div>
 
-            <div data-testid="shelf-page" data-settings-section="backup">
+            <div data-testid="shelf-page" data-settings-section="backup" hidden={section !== 'backup'}>
             <SectionHeader
                 eyebrow="Settings · Account"
                 title="Backup &amp; Restore"
@@ -578,7 +597,7 @@ export default function Settings() {
             </div>
 
             {/* ---- SIGN OUT ---- */}
-            <div data-testid="shelf-page" data-settings-section="signout">
+            <div data-testid="shelf-page" data-settings-section="signout" hidden={section !== 'signout'}>
             <SectionHeader
                 eyebrow="Settings · Session"
                 title="Sign out"
@@ -587,6 +606,174 @@ export default function Settings() {
             <SignOutRow />
             </div>
             </div>
+            </div>
+            </div>
+        </div>
+    );
+}
+
+const SETTINGS_SECTIONS = [
+    { id: 'theme',              label: 'Appearance',   hint: 'Themes & skins',            icon: Palette },
+    { id: 'home',               label: 'Home screen',  hint: 'Row order, show / hide',    icon: LayoutGrid },
+    { id: 'playback',           label: 'Playback',     hint: 'Auto play, trailers, menu', icon: Play },
+    { id: 'viewing-preference', label: 'Personalise',  hint: 'Your viewing style',        icon: Sparkles },
+    { id: 'welcome-tour',       label: 'Help',         hint: 'Welcome tour',              icon: HelpCircle },
+    { id: 'tips',               label: 'Tips',         hint: 'Feature nudges',            icon: Lightbulb },
+    { id: 'backup',             label: 'Backup',       hint: 'Save & restore',            icon: Database },
+    { id: 'signout',            label: 'Sign out',     hint: 'End this session',          icon: LogOut },
+];
+
+function SettingsNav({ section, onPick }) {
+    return (
+        <nav
+            data-testid="settings-nav"
+            className="vesper-glass"
+            style={{
+                position: 'sticky',
+                top: 0,
+                borderRadius: 18,
+                border: '1px solid var(--vesper-line)',
+                padding: 8,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 4,
+            }}
+        >
+            {SETTINGS_SECTIONS.map(({ id, label, hint, icon: Icon }, i) => {
+                const active = section === id;
+                return (
+                    <button
+                        key={id}
+                        type="button"
+                        data-testid={`settings-nav-${id}`}
+                        data-focusable="true"
+                        data-focus-style="tile"
+                        tabIndex={0}
+                        onClick={() => onPick(id)}
+                        onFocus={() => onPick(id)}
+                        {...(i === 0 ? { 'data-initial-focus': 'true' } : {})}
+                        className="flex items-center gap-3 text-left"
+                        style={{
+                            padding: '10px 12px',
+                            borderRadius: 12,
+                            border: '1px solid transparent',
+                            background: active ? 'color-mix(in srgb, var(--theme-accent, var(--vesper-blue)) 16%, transparent)' : 'transparent',
+                            borderColor: active ? 'color-mix(in srgb, var(--theme-accent, var(--vesper-blue)) 45%, transparent)' : 'transparent',
+                            color: active ? 'var(--vesper-text)' : 'var(--vesper-text-2)',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <span
+                            className="flex items-center justify-center shrink-0"
+                            style={{
+                                width: 34,
+                                height: 34,
+                                borderRadius: 10,
+                                background: active ? 'var(--theme-accent, var(--vesper-blue))' : 'rgba(255,255,255,0.06)',
+                                color: active ? 'var(--vesper-bg-0)' : 'var(--vesper-text)',
+                            }}
+                        >
+                            <Icon size={16} strokeWidth={2.2} />
+                        </span>
+                        <span className="min-w-0">
+                            <span className="block font-semibold" style={{ fontSize: 'clamp(13px, 1vw, 15px)', lineHeight: 1.15 }}>{label}</span>
+                            <span className="block truncate" style={{ fontSize: 11, color: 'var(--vesper-text-3)', marginTop: 2 }}>{hint}</span>
+                        </span>
+                    </button>
+                );
+            })}
+        </nav>
+    );
+}
+
+function HomeRowsPanel() {
+    const [prefs, setPrefs] = React.useState(getHomeRowPrefs());
+    const rows = prefs.order.map((id) => HOME_ROWS.find((r) => r.id === id)).filter(Boolean);
+    const iconBtn = (testid, label, onClick, disabled, children) => (
+        <button
+            type="button"
+            data-testid={testid}
+            data-focusable={disabled ? undefined : 'true'}
+            data-focus-style="pill"
+            tabIndex={disabled ? -1 : 0}
+            aria-label={label}
+            title={label}
+            disabled={disabled}
+            onClick={onClick}
+            className="flex items-center justify-center shrink-0"
+            style={{
+                width: 38,
+                height: 38,
+                borderRadius: 999,
+                background: 'rgba(255,255,255,0.07)',
+                border: '1px solid rgba(255,255,255,0.14)',
+                color: 'var(--vesper-text)',
+                opacity: disabled ? 0.25 : 1,
+                cursor: disabled ? 'default' : 'pointer',
+            }}
+        >
+            {children}
+        </button>
+    );
+    return (
+        <div data-testid="home-rows-panel">
+            <p style={{ fontSize: 'clamp(12px, 0.9vw, 14px)', color: 'var(--vesper-text-2)', maxWidth: '62ch', margin: '0 0 14px', lineHeight: 1.5 }}>
+                Put the rows you use most at the top and hide the ones you don&rsquo;t. Changes apply the next time Home opens.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {rows.map((row, i) => {
+                    const hidden = prefs.hidden.includes(row.id);
+                    return (
+                        <div
+                            key={row.id}
+                            data-testid={`home-row-${row.id}`}
+                            className="flex items-center gap-3"
+                            style={{
+                                padding: '10px 12px 10px 16px',
+                                borderRadius: 14,
+                                background: 'rgba(255,255,255,0.035)',
+                                border: '1px solid var(--vesper-line)',
+                                opacity: hidden ? 0.55 : 1,
+                            }}
+                        >
+                            <span
+                                className="vesper-mono shrink-0"
+                                style={{ width: 26, fontSize: 12, color: 'var(--vesper-text-3)', letterSpacing: '0.1em' }}
+                            >
+                                {String(i + 1).padStart(2, '0')}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block font-semibold" style={{ fontSize: 'clamp(13px, 1vw, 15px)', textDecoration: hidden ? 'line-through' : 'none' }}>{row.label}</span>
+                                <span className="block truncate" style={{ fontSize: 11, color: 'var(--vesper-text-3)' }}>{hidden ? 'Hidden from Home' : row.hint}</span>
+                            </span>
+                            {iconBtn(`home-row-${row.id}-up`, 'Move up', () => setPrefs(moveHomeRow(row.id, -1)), i === 0, <ChevronUp size={16} />)}
+                            {iconBtn(`home-row-${row.id}-down`, 'Move down', () => setPrefs(moveHomeRow(row.id, 1)), i === rows.length - 1, <ChevronDown size={16} />)}
+                            {iconBtn(`home-row-${row.id}-toggle`, hidden ? 'Show row' : 'Hide row', () => setPrefs(toggleHomeRow(row.id)), false, hidden ? <EyeOff size={16} /> : <Eye size={16} />)}
+                        </div>
+                    );
+                })}
+            </div>
+            <button
+                type="button"
+                data-testid="home-rows-reset"
+                data-focusable="true"
+                data-focus-style="pill"
+                tabIndex={0}
+                onClick={() => setPrefs(resetHomeRows())}
+                className="inline-flex items-center gap-2"
+                style={{
+                    marginTop: 16,
+                    padding: '9px 16px',
+                    borderRadius: 999,
+                    background: 'rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    color: 'var(--vesper-text-2)',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                }}
+            >
+                <RotateCcw size={13} /> Reset to default order
+            </button>
         </div>
     );
 }

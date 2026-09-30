@@ -8,6 +8,7 @@ import Shelf from '@/components/Shelf';
 import NetworksShelf from '@/components/NetworksShelf';
 import CollectionsShelf from '@/components/CollectionsShelf';
 import { getShowCollections } from '@/lib/prefs';
+import { arrangeHomeRows } from '@/lib/homeRows';
 import ContinueWatchingShelf from '@/components/ContinueWatchingShelf';
 import ForYouShelf from '@/components/ForYouShelf';
 import UpcomingMoviesShelf from '@/components/UpcomingMoviesShelf';
@@ -112,6 +113,7 @@ export default function Home() {
                     ...match,
                     title: w.title,
                     eyebrow: w.eyebrow,
+                    rowId: w.suffix.slice(1),
                 });
                 claimedIds.add(match.id);
             }
@@ -595,37 +597,34 @@ export default function Home() {
                             overscrollBehavior: 'contain',
                         }}
                     >
-                        {hasCW && (
-                            <ShelfPage height={shelfPageHeight} isMobile={isMobile}><ContinueWatchingShelf /></ShelfPage>
-                        )}
-                        {hasViewingStyle && (
-                            <ShelfPage height={shelfPageHeight} isMobile={isMobile}><ForYouShelf /></ShelfPage>
-                        )}
-                        <ShelfPage height={shelfPageHeight} isMobile={isMobile}><NetworksShelf /></ShelfPage>
-                        {getShowCollections() && (
-                            <ShelfPage height={shelfPageHeight} isMobile={isMobile}><CollectionsShelf /></ShelfPage>
-                        )}
-                        {addons.length === 0 && (
-                            <ShelfPage height={shelfPageHeight} isMobile={isMobile}><EmptyAddonsBanner /></ShelfPage>
-                        )}
-                        {shelves.map((shelf, i) => (
-                            <ShelfPage key={shelf.id} height={shelfPageHeight} isMobile={isMobile}>
-                                <Lazy minHeight={340} eager={i < 3}>
-                                    <Shelf shelf={shelf} />
-                                </Lazy>
-                            </ShelfPage>
+                        {arrangeHomeRows([
+                            hasCW && { id: 'cw', node: <ContinueWatchingShelf /> },
+                            hasViewingStyle && { id: 'foryou', node: <ForYouShelf /> },
+                            { id: 'networks', node: <NetworksShelf /> },
+                            getShowCollections() && { id: 'studios', node: <CollectionsShelf /> },
+                            addons.length === 0 && { id: 'empty-addons', node: <EmptyAddonsBanner /> },
+                            ...shelves.map((shelf, i) => ({
+                                id: shelf.rowId || shelf.id,
+                                node: (
+                                    <Lazy minHeight={340} eager={i < 3}>
+                                        <Shelf shelf={shelf} />
+                                    </Lazy>
+                                ),
+                            })),
+                            // Upcoming Movies — TMDB next-60-day window via
+                            // /api/tmdb/upcoming-movies (Detail renders the
+                            // trailer + "Notify me" CTA when no streams exist).
+                            {
+                                id: 'upcoming',
+                                node: (
+                                    <Lazy minHeight={340} eager={false}>
+                                        <UpcomingMoviesShelf />
+                                    </Lazy>
+                                ),
+                            },
+                        ]).map((row) => (
+                            <ShelfPage key={row.id} height={shelfPageHeight} isMobile={isMobile}>{row.node}</ShelfPage>
                         ))}
-
-                        {/* Upcoming Movies — always the last rail on
-                            Home.  Pulls TMDB's next-60-day window via
-                            /api/tmdb/upcoming-movies.  Clicking a tile
-                            opens Detail (which renders the trailer +
-                            "Notify me" CTA when no streams exist). */}
-                        <ShelfPage height={shelfPageHeight} isMobile={isMobile}>
-                            <Lazy minHeight={340} eager={false}>
-                                <UpcomingMoviesShelf />
-                            </Lazy>
-                        </ShelfPage>
 
                         <footer
                             className="flex items-center justify-between"
