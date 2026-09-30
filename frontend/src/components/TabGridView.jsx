@@ -66,6 +66,47 @@ export default function TabGridView({ type }) {
     // it, so it's fed by the backend's TMDB keyword discover
     // (/tmdb/by-genres with sentinel id -3 → keyword 207317).
     const isXmas = type === 'movie' && genre === 'Christmas';
+    // "Hallmark" — synthetic genre fed by TMDB discover (sentinel -7:
+    // Hallmark Media / Entertainment / Hall of Fame companies + the
+    // 'hallmark' keyword) — every Hallmark movie, Christmas ones included.
+    const isHallmark = type === 'movie' && genre === 'Hallmark';
+    const [hallmarkItems, setHallmarkItems] = React.useState([]);
+    const [hallmarkLoading, setHallmarkLoading] = React.useState(false);
+    React.useEffect(() => {
+        if (!isHallmark || hallmarkItems.length > 0) return undefined;
+        let cancel = false;
+        setHallmarkLoading(true);
+        (async () => {
+            try {
+                const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+                const pages = await Promise.all([1, 2, 3].map((pg) =>
+                    fetch(`${API}/tmdb/by-genres/movie?genre_ids=-7&limit=100&page=${pg}`).then((r) => r.json()).catch(() => null)
+                ));
+                if (cancel) return;
+                const seen = new Set();
+                const out = [];
+                pages.forEach((j) => (j?.data || []).forEach((it) => {
+                    if (seen.has(it.tmdb_id)) return;
+                    seen.add(it.tmdb_id);
+                    out.push({
+                        id: `hallmark-${it.tmdb_id}`,
+                        type: it.type,
+                        title: it.title,
+                        poster: it.poster,
+                        background: it.backdrop,
+                        genres: ['Hallmark'],
+                        year: it.year,
+                        sub: [it.year, it.rating ? `★ ${it.rating}` : null].filter(Boolean).join(' · '),
+                        routePath: `/resolve/movie/${it.tmdb_id}`,
+                    });
+                }));
+                setHallmarkItems(out);
+            } catch { /* leave empty — grid shows the no-results panel */ }
+            finally { if (!cancel) setHallmarkLoading(false); }
+        })();
+        return () => { cancel = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isHallmark]);
     // "In Cinema" is another synthetic genre — TMDB now-playing via
     // sentinel -4 (v2.19.7).
     const isCinema = type === 'movie' && genre === 'In Cinema';
@@ -146,7 +187,7 @@ export default function TabGridView({ type }) {
         totalLoaded: genreTotalLoaded,
         hasMore: genreHasMore,
         loadMore: genreLoadMore,
-    } = useTabGenreCatalog(addons, type, (isXmas || isCinema) ? '' : genre, allItems);
+    } = useTabGenreCatalog(addons, type, (isXmas || isCinema || isHallmark) ? '' : genre, allItems);
 
     // v2.1 — IntersectionObserver sentinel.  When the sentinel
     // (rendered ~6 rows from the bottom of the grid) enters the
@@ -175,12 +216,13 @@ export default function TabGridView({ type }) {
     const items = React.useMemo(() => {
         if (isCinema) return cinemaItems;
         if (isXmas) return xmasItems;
+        if (isHallmark) return hallmarkItems;
         if (!genre) return allItems.slice(0, 100);
         return genreItems;
-    }, [allItems, genre, genreItems, isXmas, xmasItems, isCinema, cinemaItems]);
+    }, [allItems, genre, genreItems, isXmas, xmasItems, isCinema, cinemaItems, isHallmark, hallmarkItems]);
 
-    const showLoading = isCinema ? cinemaLoading : isXmas ? xmasLoading : genre ? genreLoading : loading;
-    const showProgress = (isXmas || isCinema) ? 0 : genre ? genreProgress : progress;
+    const showLoading = isCinema ? cinemaLoading : isXmas ? xmasLoading : isHallmark ? hallmarkLoading : genre ? genreLoading : loading;
+    const showProgress = (isXmas || isCinema || isHallmark) ? 0 : genre ? genreProgress : progress;
 
     // Save the click target so we can re-focus it when the user
     // returns from Detail.  Stored as the title's IMDb id; the
@@ -304,7 +346,7 @@ export default function TabGridView({ type }) {
 
             {(genreList.length > 0 || type === 'movie') && (
                 <GenreChips
-                    genres={type === 'movie' ? ['In Cinema', 'Christmas', ...genreList] : genreList}
+                    genres={type === 'movie' ? ['In Cinema', 'Christmas', 'Hallmark', ...genreList] : genreList}
                     selected={genre}
                     onSelect={(g) => setGenre(g)}
                 />

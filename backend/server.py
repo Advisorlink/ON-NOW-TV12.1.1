@@ -3725,6 +3725,15 @@ async def tmdb_by_genres(
         "-5": {"with_origin_country": "IN", "vote_count.gte": "20"},
         "-6": {"with_original_language": "hi", "vote_count.gte": "10"},
     }
+    # Hallmark (-7): everything Hallmark Media / Hallmark Entertainment /
+    # Hall of Fame produced + anything TMDB tags with the 'hallmark'
+    # keyword — Christmas movies, mysteries, the lot.  Two discovers
+    # merged (companies OR keyword), popularity order, no vote floor
+    # (TV movies rarely reach 200 votes).
+    HALLMARK_PULLS = [
+        {"with_companies": "53015|4056|9027|302242", "vote_count.gte": "3"},
+        {"with_keywords": "353864|361701", "vote_count.gte": "3"},
+    ]
 
     pages_per_genre = max(1, math.ceil(limit / 20))
     start_page = (page - 1) * pages_per_genre + 1
@@ -3744,6 +3753,11 @@ async def tmdb_by_genres(
         if nid in SYNTHETIC_DISCOVER:
             for p in page_range:
                 tasks.append(_pull_discover(SYNTHETIC_DISCOVER[nid], p))
+            continue
+        if nid == "-7":
+            for extra in HALLMARK_PULLS:
+                for p in page_range:
+                    tasks.append(_pull_discover(extra, p))
             continue
         kw = SYNTHETIC_KEYWORDS.get(nid)
         if not kw:
