@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import * as img from '@/lib/img';
 import SideNav from '@/components/SideNav';
 import DPadHint from '@/components/DPadHint';
 import HeroBillboard from '@/components/HeroBillboard';
@@ -15,6 +14,7 @@ import UpcomingMoviesShelf from '@/components/UpcomingMoviesShelf';
 import TabGridView from '@/components/TabGridView';
 import FullscreenButton from '@/components/FullscreenButton';
 import TrailerHoverPreview from '@/components/TrailerHoverPreview';
+import useFocusHero from '@/hooks/useFocusHero';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { hasPendingFocusBookmark } from '@/hooks/useFocusRestore';
 import useHomeBackHandler from '@/hooks/useHomeBackHandler';
@@ -372,45 +372,7 @@ export default function Home() {
      * users saw two/three shelves bleeding through at once. */
     const [shelfPageHeight, setShelfPageHeight] = useState(600);
 
-    // Focus-follow hero: whichever rail cover is focused takes over
-    // the billboard (art + title + synopsis).  90 ms debounce keeps
-    // rapid D-pad scrubbing cheap; neighbours' art is pre-warmed.
-    const [focusHero, setFocusHero] = useState(null);
-    useEffect(() => {
-        let timer = null;
-        const toHero = (it) => {
-            if (!it) return null;
-            const rating = it.imdbRating ? `★ ${it.imdbRating}` : null;
-            return {
-                id: it.imdbId || it.id,
-                title: it.title || it.name || '',
-                backdrop: it.background || it.backdrop || null,
-                synopsis: it.synopsis || it.description || it.overview || '',
-                year: it.releaseInfo || it.year || null,
-                rating: it.rating || rating,
-                genres: Array.isArray(it.genres) ? it.genres : [],
-                routePath: it.routePath || null,
-                type: it.type,
-            };
-        };
-        const onTileFocus = (e) => {
-            const item = e.detail;
-            if (!item) return;
-            clearTimeout(timer);
-            timer = setTimeout(() => setFocusHero(toHero(item)), 90);
-            // Warm the focused tile's siblings' backdrops.
-            const el = document.activeElement?.closest?.('[data-preview="true"]');
-            [el?.nextElementSibling, el?.previousElementSibling].forEach((sib) => {
-                const b = sib?.getAttribute?.('data-preview-bg-raw');
-                if (b) { const im = new Image(); im.src = img.heroBackdrop(b); }
-            });
-        };
-        window.addEventListener('vesper:tile-focus', onTileFocus);
-        return () => {
-            clearTimeout(timer);
-            window.removeEventListener('vesper:tile-focus', onTileFocus);
-        };
-    }, []);
+    const focusHero = useFocusHero();
     useEffect(() => {
         const compute = () => {
             const heroEl = document.querySelector(

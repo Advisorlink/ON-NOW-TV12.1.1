@@ -3,11 +3,57 @@
  * the app opens.  Bump APP_VERSION and prepend a new entry to
  * WHATS_NEW whenever a release ships user-facing changes.
  */
-export const APP_VERSION = '1.4.0';
+export const APP_VERSION = '1.5.0';
 
 // Most-recent version first.  Only the entry matching APP_VERSION is
-// shown in the "What's New" popup.
+// shown in the "What's New" popup.  `icon` = lucide icon name.
 export const WHATS_NEW = {
+    '1.5.0': {
+        date: 'June 2026',
+        headline: 'Box Sets, Studios & a Home screen that\u2019s yours',
+        items: [
+            {
+                icon: 'layers',
+                title: 'Box Sets',
+                detail: 'A new Box Sets page in the menu \u2014 Batman, Bond, Star Wars, Harry Potter and 30+ more, every film in order. Push and hold a box set to save it to your Library.',
+            },
+            {
+                icon: 'clapperboard',
+                title: 'Studios on Home',
+                detail: 'Marvel, DC, Disney, Pixar, A24 and more sit in their own Studios row. Open one and browse like the For You page \u2014 trailers, backdrops and all.',
+            },
+            {
+                icon: 'layout-grid',
+                title: 'Arrange your Home screen',
+                detail: 'Settings \u2192 Home screen: move rows up or down, hide the ones you never use, and reset any time.',
+            },
+            {
+                icon: 'plus-circle',
+                title: 'Add your own category',
+                detail: 'Pick a genre or type anything \u2014 \u201chorror comedy\u201d, \u201csports movies\u201d, \u201ctime travel\u201d \u2014 and we build the row for you.',
+            },
+            {
+                icon: 'zap',
+                title: 'ON NOW TV Direct',
+                detail: 'When a movie is already in your ON NOW TV library it plays straight away \u2014 no waiting for links.',
+            },
+            {
+                icon: 'search',
+                title: 'Faster search',
+                detail: 'Your TV\u2019s own keyboard, a dedicated voice button and live suggestions as you type.',
+            },
+            {
+                icon: 'settings-2',
+                title: 'Cleaner Settings',
+                detail: 'Categories run down the left; push RIGHT to change anything. Tips now shows the actual tips.',
+            },
+            {
+                icon: 'gift',
+                title: 'Hallmark & Christmas',
+                detail: 'A Hallmark row next to Christmas on Home, and Hallmark is a choice when you set up a profile.',
+            },
+        ],
+    },
     '1.4.0': {
         date: 'June 2026',
         items: [

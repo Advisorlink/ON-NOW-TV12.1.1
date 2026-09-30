@@ -16,13 +16,6 @@ import { clearActiveProfile, getActiveProfile } from '@/lib/profiles';
 import { useAuth } from '@/contexts/AuthContext';
 import { collectBackupPayload, applyBackupPayload, summarizeBackupPayload, fmtBytes } from '@/lib/profileBackup';
 import { replayOnboarding } from '@/components/Onboarding';
-import {
-    NUDGE_FEATURES,
-    getEngagementState,
-    setMasterEnabled,
-    setFeatureEnabled,
-    resetEngagement,
-} from '@/lib/engagement';
 
 /**
  * Settings → Appearance → Theme picker + Playback toggles.
@@ -577,7 +570,7 @@ export default function Settings() {
             <div data-testid="shelf-page" data-settings-section="tips" hidden={section !== 'tips'}>
             <SectionHeader
                 eyebrow="Settings · Tips"
-                title="Tips &amp; nudges"
+                title="Tips &amp; tricks"
                 icon={Lightbulb}
             />
             <TipsPanel />
@@ -615,7 +608,7 @@ const SETTINGS_SECTIONS = [
     { id: 'playback',           label: 'Playback',     hint: 'Auto play, trailers, menu', icon: Play },
     { id: 'viewing-preference', label: 'Personalise',  hint: 'Your viewing style',        icon: Sparkles },
     { id: 'welcome-tour',       label: 'Help',         hint: 'Welcome tour',              icon: HelpCircle },
-    { id: 'tips',               label: 'Tips',         hint: 'Feature nudges',            icon: Lightbulb },
+    { id: 'tips',               label: 'Tips',         hint: 'Remote shortcuts',            icon: Lightbulb },
     { id: 'backup',             label: 'Backup',       hint: 'Save & restore',            icon: Database },
     { id: 'signout',            label: 'Sign out',     hint: 'End this session',          icon: LogOut },
 ];
@@ -1940,113 +1933,57 @@ function ThemeCard({ theme, active, initialFocus, onPick }) {
 /* ============================================================
    Tips & Nudges Settings panel — controls the FeatureNudge
    ============================================================ */
+const TIPS = [
+    { icon: Heart, title: 'Save anything to your Library', body: 'Push and hold OK on any cover, box set or studio — it lands in Library so you can find it again with one click.' },
+    { icon: LayoutGrid, title: 'Reach the top menu', body: 'Push UP from the top row on Home to open the menu bar. Push DOWN to get back to your rows.' },
+    { icon: Play, title: 'Trailers play as you browse', body: 'Land on a cover and its trailer starts in the wide window. Press OK on the window for full-screen HD; Back returns to the small version.' },
+    { icon: Sparkles, title: 'Swap links in the player', body: 'While something is playing, press OK once to open Swap links and pick another source if the picture stutters.' },
+    { icon: Eye, title: 'Turn subtitles off for good', body: 'In the player choose Subtitles → Off and pick “always” so they never come back on.' },
+    { icon: Search, title: 'Talk to search', body: 'On the Search page use the voice button, or type with your TV’s own keyboard — suggestions appear as you go.' },
+    { icon: Plus, title: 'Build your own Home rows', body: 'Settings → Home screen: move rows up or down, hide the ones you skip, and Add a category like “horror comedy”.' },
+    { icon: Database, title: 'Watch Later queue', body: 'Push and hold OK on tonight’s pick and choose Watch Later — it sits at the top of your Library, ready to play.' },
+    { icon: Palette, title: 'Follow your favourite actors', body: 'Open any actor from a show page and press Follow — every film and series they appear in lands in your Library.' },
+    { icon: HelpCircle, title: 'Watch with friends', body: 'Watch Together hosts a synced party — same scene, same time, with reactions. Up to 8 people.' },
+];
+
 function TipsPanel() {
-    const [state, setState] = React.useState(() => getEngagementState());
-
-    const refresh = React.useCallback(() => {
-        setState(getEngagementState());
-    }, []);
-
-    const handleMaster = () => {
-        setMasterEnabled(!state.masterEnabled);
-        refresh();
-    };
-
-    const handlePerFeature = (key) => {
-        const current = state.perFeatureEnabled[key];
-        const used = !!state.usedFeatures[key];
-        const muted = state.mutedForever.includes(key);
-        const effectivelyOn = !used && !muted && current !== false;
-        setFeatureEnabled(key, !effectivelyOn);
-        refresh();
-    };
-
-    const handleReset = () => {
-        if (!window.confirm('Reset all tip history?  You\'ll see suggestions for unused features again.')) return;
-        resetEngagement();
-        refresh();
-    };
-
     return (
-        <div style={{ display: 'grid', gap: 16, maxWidth: 760 }}>
-            <p
-                style={{
-                    color: 'var(--vesper-text-2)',
-                    fontSize: 14,
-                    lineHeight: 1.6,
-                    margin: 0,
-                }}
-            >
-                Occasionally we'll surface a friendly tip about a feature you
-                haven't tried yet — like saving a show, following an actor,
-                or hosting a Watch Party.  Tips never interrupt playback and
-                only one shows per app launch.
-            </p>
-
-            <ToggleRow
-                testid="tips-master"
-                title="Show feature tips"
-                description={
-                    state.masterEnabled
-                        ? 'You\'ll occasionally see a tip suggesting a new feature to try.'
-                        : 'All tips are paused — nothing will pop up.'
-                }
-                value={state.masterEnabled}
-                onToggle={handleMaster}
-            />
-
-            <div
-                data-testid="tips-feature-list"
-                style={{
-                    opacity: state.masterEnabled ? 1 : 0.45,
-                    pointerEvents: state.masterEnabled ? 'auto' : 'none',
-                    display: 'grid',
-                    gap: 8,
-                }}
-            >
-                {NUDGE_FEATURES.map((f) => {
-                    const used = !!state.usedFeatures[f.key];
-                    const muted = state.mutedForever.includes(f.key);
-                    const explicitlyDisabled = state.perFeatureEnabled[f.key] === false;
-                    const effectivelyOn = !used && !muted && !explicitlyDisabled;
-                    const sub = used
-                        ? 'Already tried — won\'t suggest again'
-                        : muted
-                            ? 'Dismissed — toggle on to re-enable'
-                            : explicitlyDisabled
-                                ? 'Tip is hidden'
-                                : 'Tip is active';
-                    return (
-                        <ToggleRow
-                            key={f.key}
-                            testid={`tips-feature-${f.key}`}
-                            title={f.name}
-                            description={sub}
-                            value={effectivelyOn}
-                            onToggle={() => handlePerFeature(f.key)}
-                        />
-                    );
-                })}
-            </div>
-
-            <button
-                data-testid="tips-reset"
-                data-focusable="true"
-                onClick={handleReset}
-                style={{
-                    justifySelf: 'start',
-                    background: 'transparent',
-                    color: 'var(--vesper-text-2)',
-                    border: '1px solid rgba(255,255,255,0.16)',
-                    borderRadius: 999,
-                    padding: '10px 22px',
-                    fontSize: 13,
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                }}
-            >
-                Reset tip history
-            </button>
+        <div data-testid="tips-list" style={{ display: 'grid', gap: 10, maxWidth: 820 }}>
+            {TIPS.map((t, i) => {
+                const Icon = t.icon;
+                return (
+                    <div
+                        key={t.title}
+                        data-testid={`tip-${i}`}
+                        data-focusable="true"
+                        data-focus-style="card"
+                        tabIndex={0}
+                        className="flex items-start gap-4"
+                        style={{
+                            padding: '16px 18px',
+                            borderRadius: 16,
+                            background: 'rgba(255,255,255,0.035)',
+                            border: '1px solid var(--vesper-line)',
+                        }}
+                    >
+                        <div
+                            className="flex items-center justify-center shrink-0"
+                            style={{
+                                width: 42, height: 42, borderRadius: 13,
+                                background: 'color-mix(in srgb, var(--theme-accent, var(--vesper-blue)) 16%, transparent)',
+                                border: '1px solid color-mix(in srgb, var(--theme-accent, var(--vesper-blue)) 40%, transparent)',
+                                color: 'var(--theme-accent, var(--vesper-blue-bright))',
+                            }}
+                        >
+                            <Icon size={19} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--vesper-text)', letterSpacing: '-0.01em' }}>{t.title}</div>
+                            <div style={{ fontSize: 13.5, color: 'var(--vesper-text-2)', marginTop: 4, lineHeight: 1.5 }}>{t.body}</div>
+                        </div>
+                    </div>
+                );
+            })}
         </div>
     );
 }
