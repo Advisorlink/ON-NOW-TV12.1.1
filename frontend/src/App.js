@@ -421,7 +421,9 @@ if (typeof window !== 'undefined') {
             // suffixed) instead of just the base.  Account-scoped
             // suffixed keys were surviving the clear and causing
             // Vesper to land on Kids UI forever for signed-in users.
-            if (!window.__vesperSkipProfileClear) {
+            // e2e hook: `?e2e=1` (persisted in sessionStorage) keeps the active profile across full reloads.
+            if (params.get('e2e') === '1') sessionStorage.setItem('vesper-e2e', '1');
+            if (!window.__vesperSkipProfileClear && sessionStorage.getItem('vesper-e2e') !== '1') {
                 try {
                     for (const k of findAllActiveKeys()) {
                         localStorage.removeItem(k);
