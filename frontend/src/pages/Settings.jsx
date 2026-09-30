@@ -83,87 +83,6 @@ export default function Settings() {
         return () => clearTimeout(t);
     }, []);
 
-    // ROW-aware vertical navigation override for Settings.
-    //
-    // The user's spec is dead simple: Down/Up must jump to the
-    // next VISUAL LINE — never sideways.  A choice row contains
-    // several pills (G / PG / PG-13 / M15) on the same horizontal
-    // line; pressing Down from one of those pills must skip past
-    // every sibling on the same line and land on the first
-    // focusable of the next row down.  Same logic in reverse for
-    // Up.  Capture-phase listener so we beat useSpatialFocus on
-    // this page only.
-    React.useEffect(() => {
-        const root = document.querySelector('[data-testid="settings-scroll"]');
-        if (!root) return undefined;
-
-        const onKey = (e) => {
-            if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-            const active = document.activeElement;
-            if (!active || !root.contains(active)) return;
-
-            const list = Array.from(
-                root.querySelectorAll('[data-focusable="true"]')
-            ).filter((el) => {
-                if (el.hasAttribute('disabled')) return false;
-                const r = el.getBoundingClientRect();
-                return r.width > 0 && r.height > 0;
-            });
-            if (list.length === 0) return;
-
-            const curRect = active.getBoundingClientRect();
-            const curCenterX = curRect.left + curRect.width / 2;
-            const ROW_TOL = 6; // px — items within this Y tolerance count as "same row"
-
-            // Score every candidate and keep the geometrically
-            // closest one that sits on a DIFFERENT row in the
-            // requested direction.
-            let best = null;
-            let bestScore = Infinity;
-            for (const el of list) {
-                if (el === active) continue;
-                const r = el.getBoundingClientRect();
-                if (e.key === 'ArrowDown') {
-                    // Must start strictly BELOW the current row.
-                    if (r.top < curRect.bottom - ROW_TOL) continue;
-                } else {
-                    // ArrowUp — must end strictly ABOVE current row.
-                    if (r.bottom > curRect.top + ROW_TOL) continue;
-                }
-                const elCenterX = r.left + r.width / 2;
-                const dy =
-                    e.key === 'ArrowDown'
-                        ? r.top - curRect.bottom
-                        : curRect.top - r.bottom;
-                const dx = Math.abs(elCenterX - curCenterX);
-                // Strongly prefer vertical proximity; use horizontal
-                // distance as tiebreaker so the column the user is
-                // in is preserved when possible.
-                const score = Math.max(0, dy) * 4 + dx;
-                if (score < bestScore) {
-                    bestScore = score;
-                    best = el;
-                }
-            }
-            if (!best) return;
-
-            e.preventDefault();
-            e.stopPropagation();
-            try { best.focus({ preventScroll: false }); } catch (err) { /* ignore */ }
-            best.setAttribute('data-focused', 'true');
-            document
-                .querySelectorAll('[data-focused="true"]')
-                .forEach((el) => {
-                    if (el !== best) el.removeAttribute('data-focused');
-                });
-            try {
-                best.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            } catch (err) { /* ignore */ }
-        };
-        window.addEventListener('keydown', onKey, true);
-        return () => window.removeEventListener('keydown', onKey, true);
-    }, []);
-
     const toggleAutoplay = () => {
         const next = !autoplay;
         setAutoplay1080p(next);
@@ -218,10 +137,16 @@ export default function Settings() {
             >
 
             <button
+                data-testid="settings-back"
                 data-focusable="true"
                 data-focus-style="pill"
                 tabIndex={0}
                 onClick={() => navigate('/')}
+                onKeyDown={(e) => {
+                    if (e.key !== 'ArrowDown') return;
+                    e.preventDefault();
+                    focusEl(document.querySelector(`[data-testid="settings-nav-${section}"]`));
+                }}
                 className="inline-flex items-center gap-2"
                 style={{
                     padding: '7px 14px',
@@ -249,7 +174,7 @@ export default function Settings() {
                 }}
             >
             <SettingsNav section={section} onPick={setSection} />
-            <div data-testid="settings-content" style={{ minWidth: 0 }} onKeyDown={(e) => leftToRail(e, section)}>
+            <div data-testid="settings-content" style={{ minWidth: 0 }} onKeyDown={(e) => contentKey(e, section)}>
 
             {/* ---- Home screen rows ---- */}
             <div data-testid="shelf-page" data-settings-section="home" hidden={section !== 'home'}>
@@ -616,42 +541,99 @@ const SETTINGS_SECTIONS = [
 const focusablesIn = (root) =>
     Array.from(root?.querySelectorAll('[data-focusable="true"]') || []).filter((el) => !el.disabled && el.offsetParent !== null);
 
-/** RIGHT on the rail → nearest focusable (by vertical distance) in the visible section. */
-function railToContent(e) {
-    if (e.key !== 'ArrowRight') return;
-    const pane = document.querySelector('[data-settings-section]:not([hidden])');
-    const list = focusablesIn(pane);
-    if (!list.length) return;
-    const cy = e.currentTarget.getBoundingClientRect().top + e.currentTarget.getBoundingClientRect().height / 2;
-    let best = list[0];
-    let bestD = Infinity;
+const focusEl = (el) => {
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    document.querySelectorAll('[data-focused="true"]').forEach((x) => { if (x !== el) x.removeAttribute('data-focused'); });
+    el.setAttribute('data-focused', 'true');
+    try { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch { /* ignore */ }
+};
+
+const inputWantsKey = (el, key) => {
+    if (el.tagName !== 'INPUT') return false;
+    const len = (el.value || '').length;
+    if (key === 'ArrowLeft') return (el.selectionStart ?? 0) > 0;
+    if (key === 'ArrowRight') return (el.selectionEnd ?? len) < len;
+    return false;
+};
+
+/** Nearest focusable in `list` in the arrow direction from `cur` (pure geometry, one pane). */
+function nearestInDirection(cur, list, key) {
+    const r = cur.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    const vertical = key === 'ArrowUp' || key === 'ArrowDown';
+    let best = null;
+    let bestScore = Infinity;
     for (const el of list) {
-        const r = el.getBoundingClientRect();
-        const d = Math.abs(r.top + r.height / 2 - cy);
-        if (d < bestD) { bestD = d; best = el; }
+        if (el === cur) continue;
+        const b = el.getBoundingClientRect();
+        let gap;
+        if (key === 'ArrowUp') gap = r.top - b.bottom;
+        else if (key === 'ArrowDown') gap = b.top - r.bottom;
+        else if (key === 'ArrowLeft') gap = r.left - b.right;
+        else gap = b.left - r.right;
+        if (gap < -Math.min(vertical ? r.height : r.width, vertical ? b.height : b.width) * 0.5) continue;
+        const overlap = vertical
+            ? b.left < r.right - 2 && b.right > r.left + 2
+            : b.top < r.bottom - 2 && b.bottom > r.top + 2;
+        if (!vertical && !overlap) continue;
+        const off = vertical ? Math.abs(b.left + b.width / 2 - cx) : Math.abs(b.top + b.height / 2 - cy);
+        const score = (overlap ? 0 : 5000) + Math.max(0, gap) * 2 + off;
+        if (score < bestScore) { bestScore = score; best = el; }
     }
-    e.preventDefault();
-    best.focus({ preventScroll: false });
+    return best;
 }
 
-/** LEFT from the left-most focusable of a content row → back to the active rail item. */
-function leftToRail(e, section) {
-    if (e.key !== 'ArrowLeft') return;
+/** Rail keys: UP/DOWN walk the rail, RIGHT enters the visible pane, LEFT is a no-op. */
+function railKey(e) {
+    const { key } = e;
+    if (!key.startsWith('Arrow')) return;
+    e.preventDefault();
+    const nav = e.currentTarget.closest('[data-testid="settings-nav"]');
+    const items = focusablesIn(nav);
+    const idx = items.indexOf(e.currentTarget);
+    if (key === 'ArrowUp') {
+        if (idx > 0) focusEl(items[idx - 1]);
+        else focusEl(document.querySelector('[data-testid="settings-back"]'));
+        return;
+    }
+    if (key === 'ArrowDown') {
+        if (idx < items.length - 1) focusEl(items[idx + 1]);
+        return;
+    }
+    if (key === 'ArrowRight') {
+        const pane = document.querySelector('[data-settings-section]:not([hidden])');
+        const list = focusablesIn(pane);
+        if (!list.length) return;
+        const rr = e.currentTarget.getBoundingClientRect();
+        const cy = rr.top + rr.height / 2;
+        let best = list[0];
+        let bestD = Infinity;
+        for (const el of list) {
+            const r = el.getBoundingClientRect();
+            const d = Math.abs(r.top + r.height / 2 - cy);
+            if (d < bestD) { bestD = d; best = el; }
+        }
+        focusEl(best);
+    }
+}
+
+/** Content keys: stay inside the visible pane; LEFT/UP with nothing there → active rail item. */
+function contentKey(e, section) {
+    const { key } = e;
+    if (!key.startsWith('Arrow')) return;
     const cur = e.target;
     if (!cur.matches?.('[data-focusable="true"]')) return;
-    if (cur.tagName === 'INPUT' && cur.selectionStart > 0) return;
-    const r = cur.getBoundingClientRect();
+    if (cur.closest('[data-focus-trap="true"]')) return;
+    if (inputWantsKey(cur, key)) return;
     const pane = cur.closest('[data-settings-section]');
-    const hasLeft = focusablesIn(pane).some((el) => {
-        if (el === cur) return false;
-        const b = el.getBoundingClientRect();
-        return b.right <= r.left + 20 && b.top < r.bottom - 4 && b.bottom > r.top + 4;
-    });
-    if (hasLeft) return;
-    const nav = document.querySelector(`[data-testid="settings-nav-${section}"]`);
-    if (!nav) return;
+    const next = nearestInDirection(cur, focusablesIn(pane), key);
     e.preventDefault();
-    nav.focus();
+    if (next) { focusEl(next); return; }
+    if (key === 'ArrowLeft' || key === 'ArrowUp') {
+        focusEl(document.querySelector(`[data-testid="settings-nav-${section}"]`));
+    }
 }
 
 function SettingsNav({ section, onPick }) {
@@ -682,7 +664,7 @@ function SettingsNav({ section, onPick }) {
                         tabIndex={0}
                         onClick={() => onPick(id)}
                         onFocus={() => onPick(id)}
-                        onKeyDown={railToContent}
+                        onKeyDown={railKey}
                         {...(i === 0 ? { 'data-initial-focus': 'true' } : {})}
                         className="flex items-center gap-3 text-left"
                         style={{

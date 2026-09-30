@@ -1,5 +1,6 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import PosterTile from './PosterTile';
+import { getAutoTrailer } from '@/lib/prefs';
 
 /**
  * Responsive shelf row.  All horizontal paddings + gaps + type sizes
@@ -12,8 +13,19 @@ import PosterTile from './PosterTile';
  * that slot renders wide with its backdrop art, and the row slides
  * underneath it as focus moves — nothing expands or stretches.
  */
-export default function Shelf({ shelf, onSelect, firstTileInitialFocus = false }) {
+export default function Shelf({ shelf, onSelect, onLongPress, firstTileInitialFocus = false }) {
     const scroller = useRef(null);
+    // Trailers OFF in Settings → no wide rectangle, plain covers only.
+    const [trailers, setTrailers] = useState(() => getAutoTrailer());
+    useEffect(() => {
+        const sync = () => setTrailers(getAutoTrailer());
+        window.addEventListener('vesper:auto-trailer-change', sync);
+        window.addEventListener('vesper:profile-change', sync);
+        return () => {
+            window.removeEventListener('vesper:auto-trailer-change', sync);
+            window.removeEventListener('vesper:profile-change', sync);
+        };
+    }, []);
     const [wideIdx, setWideIdx] = useState(shelf.items.length > 1 ? 1 : 0);
 
     // Focus-lock: the focused tile always parks in the SECOND slot
@@ -118,7 +130,8 @@ export default function Shelf({ shelf, onSelect, firstTileInitialFocus = false }
                         key={item.id}
                         item={item}
                         onSelect={onSelect}
-                        wide={idx === wideIdx}
+                        onLongPress={onLongPress}
+                        wide={trailers && idx === wideIdx}
                         initialFocus={firstTileInitialFocus && idx === 0}
                     />
                 ))}

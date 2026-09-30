@@ -16,7 +16,7 @@ import ReleaseTagBadge, { releaseTagKey, useReleaseTag } from '@/components/Rele
  * Press-and-hold OK (or mouse) to fire the global "Add to My List"
  * modal — short-tap still navigates to the detail page.
  */
-export default function PosterTile({ item, onSelect, initialFocus = false, wide = false }) {
+export default function PosterTile({ item, onSelect, onLongPress: onLongPressProp, initialFocus = false, wide = false }) {
     const navigate = useNavigate();
 
     // v2.19.4 — CINEMA / HD / CAM tag on recent movie covers.
@@ -60,6 +60,7 @@ export default function PosterTile({ item, onSelect, initialFocus = false, wide 
     };
 
     const onLongPress = () => {
+        if (onLongPressProp) { onLongPressProp(item); return; }
         const id = item.imdbId || item.id;
         if (id && id.toString().startsWith('tt')) {
             fireAddToList(id);
