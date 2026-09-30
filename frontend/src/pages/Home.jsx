@@ -7,8 +7,8 @@ import HeroBillboard from '@/components/HeroBillboard';
 import Shelf from '@/components/Shelf';
 import NetworksShelf from '@/components/NetworksShelf';
 import CollectionsShelf from '@/components/CollectionsShelf';
-import { getShowCollections } from '@/lib/prefs';
-import { arrangeHomeRows } from '@/lib/homeRows';
+import { arrangeHomeRows, getHomeRowPrefs } from '@/lib/homeRows';
+import CustomRowShelf from '@/components/CustomRowShelf';
 import ContinueWatchingShelf from '@/components/ContinueWatchingShelf';
 import ForYouShelf from '@/components/ForYouShelf';
 import UpcomingMoviesShelf from '@/components/UpcomingMoviesShelf';
@@ -601,8 +601,16 @@ export default function Home() {
                             hasCW && { id: 'cw', node: <ContinueWatchingShelf /> },
                             hasViewingStyle && { id: 'foryou', node: <ForYouShelf /> },
                             { id: 'networks', node: <NetworksShelf /> },
-                            getShowCollections() && { id: 'studios', node: <CollectionsShelf /> },
+                            { id: 'studios', node: <CollectionsShelf /> },
                             addons.length === 0 && { id: 'empty-addons', node: <EmptyAddonsBanner /> },
+                            ...getHomeRowPrefs().custom.map((row) => ({
+                                id: row.id,
+                                node: (
+                                    <Lazy minHeight={340} eager={false}>
+                                        <CustomRowShelf row={row} />
+                                    </Lazy>
+                                ),
+                            })),
                             ...shelves.map((shelf, i) => ({
                                 id: shelf.rowId || shelf.id,
                                 node: (

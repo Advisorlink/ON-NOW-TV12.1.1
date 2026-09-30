@@ -1,6 +1,7 @@
 /**
- * Home-screen row arrangement — per-profile order + hidden rows,
- * edited in Settings → Home screen and applied by Home.jsx.
+ * Home-screen row arrangement — per-profile order + hidden rows +
+ * user-added custom categories, edited in Settings → Home screen and
+ * applied by Home.jsx.
  */
 import { readScopedString, writeScopedString } from './profileScope';
 
@@ -20,25 +21,43 @@ export const HOME_ROWS = [
 
 const DEFAULT_ORDER = HOME_ROWS.map((r) => r.id);
 
+/** Genres offered in the "Add a category" picker (label doubles as the query). */
+export const CATEGORY_GENRES = [
+    'Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 'Documentary', 'Drama', 'Family',
+    'Fantasy', 'History', 'Horror', 'Music', 'Mystery', 'Romance', 'Sci-Fi', 'Thriller',
+    'War', 'Western', 'Kids', 'Reality',
+];
+
 export function getHomeRowPrefs() {
     try {
         const raw = readScopedString(KEY);
         const p = raw ? JSON.parse(raw) : null;
-        const known = new Set(DEFAULT_ORDER);
+        const custom = Array.isArray(p?.custom)
+            ? p.custom.filter((c) => c && typeof c.id === 'string' && c.id.startsWith('custom:') && c.query && c.label)
+            : [];
+        const known = new Set([...DEFAULT_ORDER, ...custom.map((c) => c.id)]);
         const order = Array.isArray(p?.order) ? p.order.filter((id) => known.has(id)) : [];
-        DEFAULT_ORDER.forEach((id) => { if (!order.includes(id)) order.push(id); });
+        [...DEFAULT_ORDER, ...custom.map((c) => c.id)].forEach((id) => { if (!order.includes(id)) order.push(id); });
         const hidden = Array.isArray(p?.hidden) ? p.hidden.filter((id) => known.has(id)) : [];
-        return { order, hidden };
+        return { order, hidden, custom };
     } catch {
-        return { order: [...DEFAULT_ORDER], hidden: [] };
+        return { order: [...DEFAULT_ORDER], hidden: [], custom: [] };
     }
 }
 
 export function setHomeRowPrefs(prefs) {
     try {
-        writeScopedString(KEY, JSON.stringify({ order: prefs.order, hidden: prefs.hidden }));
+        writeScopedString(KEY, JSON.stringify({ order: prefs.order, hidden: prefs.hidden, custom: prefs.custom || [] }));
         window.dispatchEvent(new Event('vesper:home-rows-change'));
     } catch { /* ignore */ }
+}
+
+/** Registry of every row for the given prefs: built-ins + custom categories. */
+export function getHomeRows(prefs = getHomeRowPrefs()) {
+    return [
+        ...HOME_ROWS,
+        ...prefs.custom.map((c) => ({ id: c.id, label: c.label, hint: `Your category · ${c.query}`, custom: true, query: c.query })),
+    ];
 }
 
 export function moveHomeRow(id, dir) {
@@ -58,8 +77,28 @@ export function toggleHomeRow(id) {
     return p;
 }
 
+export function addCustomHomeRow(label, query) {
+    const p = getHomeRowPrefs();
+    const slug = query.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const id = `custom:${slug || Date.now()}`;
+    if (p.custom.some((c) => c.id === id)) return p;
+    p.custom = [...p.custom, { id, label, query }];
+    p.order = [...p.order, id];
+    setHomeRowPrefs(p);
+    return p;
+}
+
+export function removeCustomHomeRow(id) {
+    const p = getHomeRowPrefs();
+    p.custom = p.custom.filter((c) => c.id !== id);
+    p.order = p.order.filter((x) => x !== id);
+    p.hidden = p.hidden.filter((x) => x !== id);
+    setHomeRowPrefs(p);
+    return p;
+}
+
 export function resetHomeRows() {
-    const p = { order: [...DEFAULT_ORDER], hidden: [] };
+    const p = { order: [...DEFAULT_ORDER], hidden: [], custom: [] };
     setHomeRowPrefs(p);
     return p;
 }

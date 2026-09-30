@@ -3783,6 +3783,175 @@ async def tmdb_by_genres(
     return {"cached": False, "data": ranked}
 
 
+# ---- Custom Home categories ("Add a category" in Settings → Home screen) ----
+_CUSTOM_GENRE_WORDS = {
+    "action": ("28", "10759"), "adventure": ("12", "10759"), "animation": ("16", "16"),
+    "animated": ("16", "16"), "cartoon": ("16", "16"), "cartoons": ("16", "16"),
+    "comedy": ("35", "35"), "comedies": ("35", "35"), "funny": ("35", "35"),
+    "crime": ("80", "80"), "documentary": ("99", "99"), "documentaries": ("99", "99"),
+    "doco": ("99", "99"), "docos": ("99", "99"), "drama": ("18", "18"), "dramas": ("18", "18"),
+    "family": ("10751", "10751"), "fantasy": ("14", "10765"), "history": ("36", None),
+    "historical": ("36", None), "horror": ("27", None), "scary": ("27", None),
+    "music": ("10402", None), "musical": ("10402", None), "musicals": ("10402", None),
+    "mystery": ("9648", "9648"), "mysteries": ("9648", "9648"), "romance": ("10749", None),
+    "romantic": ("10749", None), "rom": ("10749", None), "scifi": ("878", "10765"),
+    "sci-fi": ("878", "10765"), "sci": ("878", "10765"), "science": ("878", "10765"),
+    "fiction": ("878", "10765"), "thriller": ("53", None), "thrillers": ("53", None),
+    "war": ("10752", "10768"), "western": ("37", "37"), "westerns": ("37", "37"),
+    "kids": ("10751", "10762"), "reality": (None, "10764"), "soap": (None, "10766"),
+    "soaps": (None, "10766"), "talk": (None, "10767"), "news": (None, "10763"),
+}
+_CUSTOM_MEDIA_WORDS = {
+    "movie": "movie", "movies": "movie", "film": "movie", "films": "movie", "flicks": "movie",
+    "show": "tv", "shows": "tv", "series": "tv", "tv": "tv", "television": "tv",
+}
+_CUSTOM_STOP = {"and", "or", "the", "a", "of", "with", "about", "best", "top", "great", "good", "my", "&", "+"}
+
+
+def _custom_tokens(q: str) -> List[str]:
+    return [t for t in re.split(r"[\s,/+&]+", (q or "").lower().strip()) if t]
+
+
+async def _custom_resolve_query(q: str) -> Dict[str, Any]:
+    """Free text → {media_types, genres per media, keyword ids, labels}."""
+    tokens = _custom_tokens(q)
+    media_pref: Optional[str] = None
+    genre_movie: List[str] = []
+    genre_tv: List[str] = []
+    genre_names: List[str] = []
+    leftovers: List[str] = []
+    unsupported: set = set()
+    for t in tokens:
+        if t in _CUSTOM_MEDIA_WORDS:
+            media_pref = media_pref or _CUSTOM_MEDIA_WORDS[t]
+            continue
+        if t in _CUSTOM_STOP:
+            continue
+        g = _CUSTOM_GENRE_WORDS.get(t)
+        if g:
+            mv, tv = g
+            if mv and mv not in genre_movie:
+                genre_movie.append(mv)
+            if tv and tv not in genre_tv:
+                genre_tv.append(tv)
+            # A genre with no equivalent on one side (Horror has no TV
+            # genre) would leave that side under-constrained → drop it.
+            if not mv:
+                unsupported.add("movie")
+            if not tv:
+                unsupported.add("tv")
+            name = _TMDB_GENRE_NAMES.get(int(mv or tv), t.title())
+            if name not in genre_names:
+                genre_names.append(name)
+            continue
+        leftovers.append(t)
+    keyword_ids: List[str] = []
+    keyword_names: List[str] = []
+    if leftovers:
+        phrase = " ".join(leftovers)
+        queries = [phrase] if len(leftovers) == 1 else [phrase, *leftovers]
+        for kq in queries[:4]:
+            try:
+                data = await _tmdb_get("/search/keyword", {"query": kq, "page": "1"})
+            except HTTPException:
+                continue
+            results = data.get("results") or []
+            exact = [k for k in results if (k.get("name") or "").lower() == kq]
+            picks = exact or results[:1]
+            for k in picks:
+                kid = str(k.get("id"))
+                if kid and kid not in keyword_ids:
+                    keyword_ids.append(kid)
+                    keyword_names.append(k.get("name") or kq)
+            if keyword_ids and kq == phrase:
+                break
+    medias = [media_pref] if media_pref else ["movie", "tv"]
+    medias = [m for m in medias if m not in unsupported] or medias
+    return {
+        "medias": medias,
+        "genres": {"movie": genre_movie, "tv": genre_tv},
+        "genre_names": genre_names,
+        "keywords": keyword_ids,
+        "keyword_names": keyword_names[:4],
+        "text": " ".join(leftovers),
+    }
+
+
+@api.get("/tmdb/custom-row")
+async def tmdb_custom_row(
+    q: str = Query(..., min_length=1, max_length=80),
+    limit: int = Query(40, ge=1, le=100),
+):
+    """Turn a user-typed category ("horror and comedy", "sports movies",
+    "james bond") into a rail of TMDB titles.  Genre words → discover
+    `with_genres` (AND); other words → TMDB keywords (OR); nothing
+    recognised → plain title search."""
+    key = re.sub(r"\s+", " ", q.lower().strip())
+    cache_key = f"tmdb_custom_row:{key}:{limit}:v2"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, **cached}
+    spec = await _custom_resolve_query(q)
+    tasks = []
+    used_search = False
+    for media in spec["medias"]:
+        genres = spec["genres"][media]
+        kws = spec["keywords"]
+        if not genres and not kws:
+            continue
+        params: Dict[str, Any] = {
+            "sort_by": "popularity.desc",
+            "include_adult": "false",
+            "vote_count.gte": "20" if kws else "100",
+        }
+        if genres:
+            params["with_genres"] = ",".join(genres)
+        if kws:
+            params["with_keywords"] = "|".join(kws)
+        if media == "tv":
+            params["without_genres"] = "10767,10763"
+        for p in (1, 2):
+            tasks.append((media, _tmdb_get(f"/discover/{media}", {**params, "page": str(p)})))
+    if not tasks and spec["text"]:
+        used_search = True
+        for media in spec["medias"]:
+            tasks.append((media, _tmdb_get(f"/search/{media}", {"query": spec["text"], "include_adult": "false", "page": "1"})))
+    results = await asyncio.gather(*[t for _, t in tasks], return_exceptions=True)
+    seen: Dict[Any, Dict[str, Any]] = {}
+    for (media, _), resp in zip(tasks, results):
+        if isinstance(resp, Exception) or not resp:
+            continue
+        for item in (resp.get("results") or []):
+            if used_search and (item.get("vote_count") or 0) < 20:
+                continue
+            shaped = _shape_tmdb_item(item, media)
+            if not shaped:
+                continue
+            k2 = (shaped["type"], shaped["tmdb_id"])
+            if k2 not in seen:
+                seen[k2] = {**shaped, "popularity": item.get("popularity") or 0}
+    by_type: Dict[str, List[Dict[str, Any]]] = {"movie": [], "series": []}
+    for r in sorted(seen.values(), key=lambda r: -r.get("popularity", 0)):
+        by_type[r["type"]].append(r)
+    ranked: List[Dict[str, Any]] = []
+    while len(ranked) < limit and (by_type["movie"] or by_type["series"]):
+        for t in ("movie", "series"):
+            if by_type[t]:
+                ranked.append(by_type[t].pop(0))
+    ranked = ranked[:limit]
+    for r in ranked:
+        r.pop("popularity", None)
+    label_parts = spec["genre_names"] + ([spec["text"].title()] if spec["text"] else [])
+    out = {
+        "label": " & ".join(label_parts) if label_parts else q.strip().title(),
+        "matched": {"genres": spec["genre_names"], "keywords": spec["keyword_names"], "media": spec["medias"]},
+        "data": ranked,
+    }
+    await cache.set(cache_key, out, 60 * 60 * 6)
+    return {"cached": False, **out}
+
+
+
 @api.get("/tmdb/for-you")
 async def tmdb_for_you(
     movie_genres: str = Query("", description="Comma-separated TMDB movie genre IDs"),

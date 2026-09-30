@@ -3,14 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, Check, ShieldCheck,
     Cloud, Download, Upload, Copy, Loader2, KeyRound, AlertTriangle,
-    Sparkles, Lightbulb, LogOut, Heart, Palette, Play, LayoutGrid, HelpCircle, Database, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw } from 'lucide-react';
+    Sparkles, Lightbulb, LogOut, Heart, Palette, Play, LayoutGrid, HelpCircle, Database, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Plus, Trash2, X, Search } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useBackHandler from '@/hooks/useBackHandler';
 import FullscreenButton from '@/components/FullscreenButton';
 import { THEMES } from '@/themes/themes';
 import { useTheme } from '@/themes/ThemeProvider';
-import { getAutoplay1080p, setAutoplay1080p, getAutoTrailer, setAutoTrailer, getNavLayout, setNavLayout, getShowCollections, setShowCollections } from '@/lib/prefs';
-import { HOME_ROWS, getHomeRowPrefs, moveHomeRow, toggleHomeRow, resetHomeRows } from '@/lib/homeRows';
+import { getAutoplay1080p, setAutoplay1080p, getAutoTrailer, setAutoTrailer, getNavLayout, setNavLayout } from '@/lib/prefs';
+import { getHomeRows, getHomeRowPrefs, moveHomeRow, toggleHomeRow, resetHomeRows, addCustomHomeRow, removeCustomHomeRow, CATEGORY_GENRES } from '@/lib/homeRows';
+import { API } from '@/lib/api';
 import { clearActiveProfile, getActiveProfile } from '@/lib/profiles';
 import { useAuth } from '@/contexts/AuthContext';
 import { collectBackupPayload, applyBackupPayload, summarizeBackupPayload, fmtBytes } from '@/lib/profileBackup';
@@ -41,13 +42,6 @@ export default function Settings() {
         setNavLayout(next ? 'top' : 'side');
         setTopNavState(next);
     };
-    const [showCollections, setShowCollectionsState] = React.useState(getShowCollections());
-    const toggleShowCollections = () => {
-        const next = !showCollections;
-        setShowCollections(next);
-        setShowCollectionsState(next);
-    };
-
     /* v2.7.17 — Force-SDR playback toggle.  Persisted on the native
      * side via WebAppInterface.setForceSdr (SharedPreferences).
      * When ON, the libVLC VOD pipeline switches to software decode
@@ -262,12 +256,39 @@ export default function Settings() {
                 }}
             >
             <SettingsNav section={section} onPick={setSection} />
-            <div data-testid="settings-content" style={{ minWidth: 0 }}>
+            <div data-testid="settings-content" style={{ minWidth: 0 }} onKeyDown={(e) => leftToRail(e, section)}>
 
             {/* ---- Home screen rows ---- */}
             <div data-testid="shelf-page" data-settings-section="home" hidden={section !== 'home'}>
             <SectionHeader eyebrow="Settings · Home screen" title="Arrange your For You page" icon={LayoutGrid} />
             <HomeRowsPanel />
+
+            <h2
+                style={{
+                    fontFamily: 'var(--theme-font-display, "Geist", sans-serif)',
+                    fontSize: 'clamp(16px, 1.4vw, 22px)',
+                    fontWeight: 700,
+                    letterSpacing: '-0.02em',
+                    lineHeight: 1,
+                    margin: '32px 0 12px',
+                }}
+            >
+                Home behaviour
+            </h2>
+            <ToggleRow
+                testid="top-nav-layout"
+                title="Top menu bar"
+                description="ON by default: the menu is a glass icon bar centred along the top of the screen — press UP from the top row to reach it; the name pops up under the icon you land on.  Turn OFF to go back to the original left-hand rail (press LEFT on a row to open it)."
+                value={topNav}
+                onToggle={toggleTopNav}
+            />
+            <ToggleRow
+                testid="auto-trailer"
+                title="Auto-play trailers on Home"
+                description="Netflix-style preview: focusing a movie or show on the Home rails expands it and starts its trailer (English).  On your TV box it plays with sound; in the browser preview it starts muted until you press OK once."
+                value={autoTrailer}
+                onToggle={toggleAutoTrailer}
+            />
             </div>
 
             <div data-testid="shelf-page" data-settings-section="theme" hidden={section !== 'theme'}>
@@ -418,30 +439,6 @@ export default function Settings() {
                 description="Skip the sources list and instantly play the best available stream when you press Play.  Falls back to the source picker if nothing playable is available."
                 value={autoplay}
                 onToggle={toggleAutoplay}
-            />
-
-            <ToggleRow
-                testid="auto-trailer"
-                title="Auto-play trailers on Home"
-                description="Netflix-style preview: focusing a movie or show on the Home rails expands it and starts its trailer (English).  On your TV box it plays with sound; in the browser preview it starts muted until you press OK once."
-                value={autoTrailer}
-                onToggle={toggleAutoTrailer}
-            />
-
-            <ToggleRow
-                testid="top-nav-layout"
-                title="Top menu bar"
-                description="ON by default: the menu is a glass icon bar centred along the top of the screen — press UP from the top row to reach it; the name pops up under the icon you land on.  Turn OFF to go back to the original left-hand rail (press LEFT on a row to open it)."
-                value={topNav}
-                onToggle={toggleTopNav}
-            />
-
-            <ToggleRow
-                testid="show-collections"
-                title="Studios rail on Home"
-                description="Shows the Studios row under Browse by Network — Marvel, DC, Disney, Pixar, DreamWorks, Illumination, Studio Ghibli, Warner Bros., Universal, Paramount, A24 and 30+ more.  Box Sets live in their own menu entry.  Turn OFF to hide the row."
-                value={showCollections}
-                onToggle={toggleShowCollections}
             />
 
             <ToggleRow
@@ -623,6 +620,47 @@ const SETTINGS_SECTIONS = [
     { id: 'signout',            label: 'Sign out',     hint: 'End this session',          icon: LogOut },
 ];
 
+const focusablesIn = (root) =>
+    Array.from(root?.querySelectorAll('[data-focusable="true"]') || []).filter((el) => !el.disabled && el.offsetParent !== null);
+
+/** RIGHT on the rail → nearest focusable (by vertical distance) in the visible section. */
+function railToContent(e) {
+    if (e.key !== 'ArrowRight') return;
+    const pane = document.querySelector('[data-settings-section]:not([hidden])');
+    const list = focusablesIn(pane);
+    if (!list.length) return;
+    const cy = e.currentTarget.getBoundingClientRect().top + e.currentTarget.getBoundingClientRect().height / 2;
+    let best = list[0];
+    let bestD = Infinity;
+    for (const el of list) {
+        const r = el.getBoundingClientRect();
+        const d = Math.abs(r.top + r.height / 2 - cy);
+        if (d < bestD) { bestD = d; best = el; }
+    }
+    e.preventDefault();
+    best.focus({ preventScroll: false });
+}
+
+/** LEFT from the left-most focusable of a content row → back to the active rail item. */
+function leftToRail(e, section) {
+    if (e.key !== 'ArrowLeft') return;
+    const cur = e.target;
+    if (!cur.matches?.('[data-focusable="true"]')) return;
+    if (cur.tagName === 'INPUT' && cur.selectionStart > 0) return;
+    const r = cur.getBoundingClientRect();
+    const pane = cur.closest('[data-settings-section]');
+    const hasLeft = focusablesIn(pane).some((el) => {
+        if (el === cur) return false;
+        const b = el.getBoundingClientRect();
+        return b.right <= r.left + 20 && b.top < r.bottom - 4 && b.bottom > r.top + 4;
+    });
+    if (hasLeft) return;
+    const nav = document.querySelector(`[data-testid="settings-nav-${section}"]`);
+    if (!nav) return;
+    e.preventDefault();
+    nav.focus();
+}
+
 function SettingsNav({ section, onPick }) {
     return (
         <nav
@@ -651,6 +689,7 @@ function SettingsNav({ section, onPick }) {
                         tabIndex={0}
                         onClick={() => onPick(id)}
                         onFocus={() => onPick(id)}
+                        onKeyDown={railToContent}
                         {...(i === 0 ? { 'data-initial-focus': 'true' } : {})}
                         className="flex items-center gap-3 text-left"
                         style={{
@@ -688,7 +727,10 @@ function SettingsNav({ section, onPick }) {
 
 function HomeRowsPanel() {
     const [prefs, setPrefs] = React.useState(getHomeRowPrefs());
-    const rows = prefs.order.map((id) => HOME_ROWS.find((r) => r.id === id)).filter(Boolean);
+    const [adding, setAdding] = React.useState(false);
+    const registry = getHomeRows(prefs);
+    const rows = prefs.order.map((id) => registry.find((r) => r.id === id)).filter(Boolean);
+    const testKey = (id) => id.replace('custom:', 'custom-');
     const iconBtn = (testid, label, onClick, disabled, children) => (
         <button
             type="button"
@@ -726,7 +768,7 @@ function HomeRowsPanel() {
                     return (
                         <div
                             key={row.id}
-                            data-testid={`home-row-${row.id}`}
+                            data-testid={`home-row-${testKey(row.id)}`}
                             className="flex items-center gap-3"
                             style={{
                                 padding: '10px 12px 10px 16px',
@@ -746,34 +788,217 @@ function HomeRowsPanel() {
                                 <span className="block font-semibold" style={{ fontSize: 'clamp(13px, 1vw, 15px)', textDecoration: hidden ? 'line-through' : 'none' }}>{row.label}</span>
                                 <span className="block truncate" style={{ fontSize: 11, color: 'var(--vesper-text-3)' }}>{hidden ? 'Hidden from Home' : row.hint}</span>
                             </span>
-                            {iconBtn(`home-row-${row.id}-up`, 'Move up', () => setPrefs(moveHomeRow(row.id, -1)), i === 0, <ChevronUp size={16} />)}
-                            {iconBtn(`home-row-${row.id}-down`, 'Move down', () => setPrefs(moveHomeRow(row.id, 1)), i === rows.length - 1, <ChevronDown size={16} />)}
-                            {iconBtn(`home-row-${row.id}-toggle`, hidden ? 'Show row' : 'Hide row', () => setPrefs(toggleHomeRow(row.id)), false, hidden ? <EyeOff size={16} /> : <Eye size={16} />)}
+                            {iconBtn(`home-row-${testKey(row.id)}-up`, 'Move up', () => setPrefs(moveHomeRow(row.id, -1)), i === 0, <ChevronUp size={16} />)}
+                            {iconBtn(`home-row-${testKey(row.id)}-down`, 'Move down', () => setPrefs(moveHomeRow(row.id, 1)), i === rows.length - 1, <ChevronDown size={16} />)}
+                            {iconBtn(`home-row-${testKey(row.id)}-toggle`, hidden ? 'Show row' : 'Hide row', () => setPrefs(toggleHomeRow(row.id)), false, hidden ? <EyeOff size={16} /> : <Eye size={16} />)}
+                            {row.custom && iconBtn(`home-row-${testKey(row.id)}-remove`, 'Remove category', () => setPrefs(removeCustomHomeRow(row.id)), false, <Trash2 size={16} />)}
                         </div>
                     );
                 })}
             </div>
-            <button
-                type="button"
-                data-testid="home-rows-reset"
-                data-focusable="true"
-                data-focus-style="pill"
-                tabIndex={0}
-                onClick={() => setPrefs(resetHomeRows())}
-                className="inline-flex items-center gap-2"
-                style={{
-                    marginTop: 16,
-                    padding: '9px 16px',
-                    borderRadius: 999,
-                    background: 'rgba(255,255,255,0.06)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    color: 'var(--vesper-text-2)',
-                    fontSize: 12,
-                    cursor: 'pointer',
-                }}
-            >
-                <RotateCcw size={13} /> Reset to default order
-            </button>
+            <div className="flex flex-wrap items-center gap-3" style={{ marginTop: 16 }}>
+                <button
+                    type="button"
+                    data-testid="home-rows-add-category"
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
+                    onClick={() => setAdding((v) => !v)}
+                    className="inline-flex items-center gap-2"
+                    style={{
+                        padding: '9px 16px',
+                        borderRadius: 999,
+                        background: 'var(--theme-accent, var(--vesper-blue))',
+                        border: '1px solid transparent',
+                        color: 'var(--vesper-bg-0)',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                    }}
+                >
+                    {adding ? <X size={13} /> : <Plus size={13} />} {adding ? 'Close' : 'Add a category'}
+                </button>
+                <button
+                    type="button"
+                    data-testid="home-rows-reset"
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
+                    onClick={() => setPrefs(resetHomeRows())}
+                    className="inline-flex items-center gap-2"
+                    style={{
+                        padding: '9px 16px',
+                        borderRadius: 999,
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        color: 'var(--vesper-text-2)',
+                        fontSize: 12,
+                        cursor: 'pointer',
+                    }}
+                >
+                    <RotateCcw size={13} /> Reset to default order
+                </button>
+            </div>
+            {adding && (
+                <AddCategoryPanel
+                    existing={prefs.custom}
+                    onAdd={(label, query) => {
+                        setPrefs(addCustomHomeRow(label, query));
+                        setAdding(false);
+                        setTimeout(() => document.querySelector('[data-testid="home-rows-add-category"]')?.focus(), 0);
+                    }}
+                />
+            )}
+        </div>
+    );
+}
+
+const pillStyle = (active) => ({
+    padding: '8px 14px',
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    background: active ? 'color-mix(in srgb, var(--theme-accent, var(--vesper-blue)) 22%, transparent)' : 'rgba(255,255,255,0.06)',
+    border: `1px solid ${active ? 'var(--theme-accent, var(--vesper-blue))' : 'rgba(255,255,255,0.12)'}`,
+    color: 'var(--vesper-text)',
+});
+
+function AddCategoryPanel({ existing, onAdd }) {
+    const [text, setText] = React.useState('');
+    const [busy, setBusy] = React.useState(false);
+    const [error, setError] = React.useState('');
+    const inputRef = React.useRef(null);
+    const taken = new Set(existing.map((c) => c.query.toLowerCase()));
+
+    const submit = async () => {
+        const q = text.trim();
+        if (!q || busy) return;
+        setBusy(true);
+        setError('');
+        try {
+            const r = await fetch(`${API}/tmdb/custom-row?q=${encodeURIComponent(q)}&limit=12`);
+            const json = r.ok ? await r.json() : null;
+            const n = Array.isArray(json?.data) ? json.data.length : 0;
+            if (n < 4) {
+                setError(`Couldn\u2019t find enough titles for \u201c${q}\u201d. Try different words \u2014 e.g. \u201chorror comedy\u201d or \u201csports movies\u201d.`);
+                return;
+            }
+            onAdd(json.label || q, q);
+        } catch {
+            setError('Something went wrong looking that up. Please try again.');
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <div
+            data-testid="add-category-panel"
+            style={{
+                marginTop: 16,
+                padding: '16px 18px',
+                borderRadius: 16,
+                background: 'rgba(255,255,255,0.035)',
+                border: '1px solid var(--vesper-line)',
+            }}
+        >
+            <div className="vesper-mono" style={{ fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: 'var(--vesper-text-3)', marginBottom: 10 }}>
+                Pick a genre
+            </div>
+            <div className="flex flex-wrap" style={{ gap: 8 }}>
+                {CATEGORY_GENRES.map((g, i) => {
+                    const done = taken.has(g.toLowerCase());
+                    return (
+                        <button
+                            key={g}
+                            type="button"
+                            data-testid={`add-category-genre-${g.toLowerCase().replace(/[^a-z]+/g, '-')}`}
+                            data-focusable={done ? undefined : 'true'}
+                            data-focus-style="pill"
+                            tabIndex={done ? -1 : 0}
+                            disabled={done}
+                            {...(i === 0 ? { 'data-initial-focus': 'true' } : {})}
+                            onClick={() => onAdd(g, g)}
+                            style={{ ...pillStyle(false), opacity: done ? 0.35 : 1 }}
+                        >
+                            {done ? '✓ ' : ''}{g}
+                        </button>
+                    );
+                })}
+            </div>
+
+            <div className="vesper-mono" style={{ fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: 'var(--vesper-text-3)', margin: '18px 0 8px' }}>
+                Or add your own
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--vesper-text-2)', margin: '0 0 10px', lineHeight: 1.5, maxWidth: '62ch' }}>
+                Type anything &mdash; &ldquo;horror and comedy&rdquo;, &ldquo;sports movies&rdquo;, &ldquo;time travel&rdquo;, &ldquo;superhero series&rdquo; &mdash; and we&rsquo;ll find the titles for you.
+            </p>
+            <div className="flex items-center" style={{ gap: 10 }}>
+                <div
+                    className="flex items-center flex-1"
+                    style={{
+                        gap: 8,
+                        padding: '0 14px',
+                        height: 44,
+                        borderRadius: 999,
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.14)',
+                    }}
+                >
+                    <Search size={15} style={{ color: 'var(--vesper-text-3)', flexShrink: 0 }} />
+                    <input
+                        ref={inputRef}
+                        data-testid="add-category-input"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        value={text}
+                        placeholder="e.g. horror comedy"
+                        maxLength={60}
+                        onChange={(e) => { setText(e.target.value); setError(''); }}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') { e.preventDefault(); submit(); }
+                        }}
+                        style={{
+                            flex: 1,
+                            minWidth: 0,
+                            background: 'transparent',
+                            border: 0,
+                            outline: 'none',
+                            color: 'var(--vesper-text)',
+                            fontSize: 14,
+                        }}
+                    />
+                </div>
+                <button
+                    type="button"
+                    data-testid="add-category-submit"
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
+                    onClick={submit}
+                    disabled={busy}
+                    className="inline-flex items-center gap-2"
+                    style={{
+                        height: 44,
+                        padding: '0 18px',
+                        borderRadius: 999,
+                        background: 'var(--theme-accent, var(--vesper-blue))',
+                        border: 0,
+                        color: 'var(--vesper-bg-0)',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        opacity: busy ? 0.6 : 1,
+                    }}
+                >
+                    {busy ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} {busy ? 'Finding…' : 'Add'}
+                </button>
+            </div>
+            {error && (
+                <p data-testid="add-category-error" style={{ marginTop: 10, fontSize: 12, color: '#fca5a5' }}>{error}</p>
+            )}
         </div>
     );
 }
