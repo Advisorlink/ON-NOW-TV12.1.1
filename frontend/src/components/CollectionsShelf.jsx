@@ -86,7 +86,7 @@ function logoFilter(treatment) {
     return 'drop-shadow(0 4px 14px rgba(0,0,0,0.7))';
 }
 
-export function CollectionTile({ col, art, onClick, width = 'clamp(200px, 15.6vw, 300px)', testId, extraProps = {}, saved = false }) {
+export function CollectionTile({ col, art, onClick, width = 'clamp(220px, 18vw, 310px)', testId, extraProps = {}, saved = false }) {
     const logo = art?.logo;
     const backdrop = art?.backdrop;
     return (
