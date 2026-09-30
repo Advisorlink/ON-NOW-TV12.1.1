@@ -1,0 +1,76 @@
+{
+  "summary": "Frontend E2E for Vesper v1.5.0: Box Set page (/collections/batman), Studio page (/collections/marvel), unknown-slug fallback, Settings → Tips list, redesigned What's New popup, and Home regression. All 7 requested feature groups PASS.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "detailed_results": {
+    "box_set_batman": {
+      "renders": true,
+      "collection-back": true,
+      "collection-eyebrow_text": "Box set · Batman",
+      "hero-billboard_title": "Batman (1989, ★7.2, synopsis present)",
+      "shelf-collection-batman-movies": true,
+      "preview_tiles": 7,
+      "preview_wide_tiles": 1,
+      "initial_focus": "poster-col-batman-movie-268 (first tile, NOT back button) ✓"
+    },
+    "hero_follows_focus": {
+      "hero_before_arrows": "Batman",
+      "hero_after_2x_arrowright": "Batman Forever (1995, ★5.5)",
+      "trailer_video_or_iframe_in_wide_slot": true,
+      "arrowup_focus_lands_on_hero_buttons": "hero-list-button (My List) ✓",
+      "enter_navigates_to": "/title/movie/tt0096895 ✓"
+    },
+    "studio_marvel": {
+      "collection-page-marvel": true,
+      "eyebrow": "Studio · Marvel",
+      "shelf-collection-marvel-movies_title": "Marvel · Movies",
+      "marvel_movies_tile_count": 60,
+      "shelf-collection-marvel-series": true
+    },
+    "unknown_slug": {
+      "message_shown": "Unknown collection ✓",
+      "collection-home_button_focused": true
+    },
+    "settings_tips": {
+      "header": "Tips & tricks",
+      "tips-list_present": true,
+      "tip_cards_count": 10,
+      "tip_ids": "tip-0..tip-9 ✓",
+      "no_toggle_buttons": true,
+      "no_tips-master": true,
+      "no_tips-reset": true,
+      "arrow_nav": "settings-nav-tips → ArrowRight → tip-2 → ArrowDown → tip-3 → ArrowLeft → settings-nav-tips ✓"
+    },
+    "whats_new_modal": {
+      "shown_on_profiles": true,
+      "headline_contains_box_sets_studios": true,
+      "items_0_to_7_present": true,
+      "close_button_top_right": "x=1423 vs dialog_center=960 ✓",
+      "got-it_focused_by_default": true,
+      "enter_dismisses": true,
+      "stored_version": "1.5.0",
+      "not_shown_after_reload": true
+    },
+    "home_regression": {
+      "hero-billboard": true,
+      "shelf_count": 15
+    }
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Minor: vesperCloudSync push failures spam console with 'TypeError: Failed to fetch' warnings; no functional impact but noisy. Consider silencing when offline/preview.",
+    "Minor: Third-party stream fetchers (torrentio, plexio) throw CORS errors from title page; expected in preview pod but adds console noise."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped)", "frontend": "100% (7/7 feature groups)"},
+  "test_credentials": "testuser / testpass123 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Seeded localStorage profile p-test-1 + onboarding + whatsnew seen keys per playbook.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All v1.5.0 acceptance criteria for Collections page, Tips list, and What's New modal verified passing on preview URL. Cloud-sync/torrentio CORS console warnings are pre-existing preview-pod noise, not regressions."
+}
