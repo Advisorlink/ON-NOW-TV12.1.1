@@ -23,9 +23,9 @@ const DEFAULT_ORDER = HOME_ROWS.map((r) => r.id);
 
 /** Genres offered in the "Add a category" picker (label doubles as the query). */
 export const CATEGORY_GENRES = [
-    'Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 'Documentary', 'Drama', 'Family',
+    'Hallmark', 'Christmas', 'Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 'Documentary', 'Drama', 'Family',
     'Fantasy', 'History', 'Horror', 'Music', 'Mystery', 'Romance', 'Sci-Fi', 'Thriller',
-    'War', 'Western', 'Kids', 'Reality',
+    'War', 'Western', 'Kids', 'Reality', 'Based on a True Story', 'Biography', 'Bollywood',
 ];
 
 export function getHomeRowPrefs() {

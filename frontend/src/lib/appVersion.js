@@ -35,7 +35,7 @@ export const WHATS_NEW = {
             {
                 icon: 'zap',
                 title: 'ON NOW TV Direct',
-                detail: 'When a movie is already in your ON NOW TV library it plays straight away \u2014 no waiting for links.',
+                detail: 'Movies that are in the ON NOW TV library play straight away \u2014 no waiting for links. Depends on what\u2019s in the ON NOW TV library.',
             },
             {
                 icon: 'search',
@@ -51,6 +51,26 @@ export const WHATS_NEW = {
                 icon: 'gift',
                 title: 'Hallmark & Christmas',
                 detail: 'A Hallmark row next to Christmas on Home, and Hallmark is a choice when you set up a profile.',
+            },
+            {
+                icon: 'film',
+                title: 'Coming soon with trailers',
+                detail: 'The Coming soon row now plays trailers as you browse, just like every other row.',
+            },
+            {
+                icon: 'lightbulb',
+                title: 'Tips & tricks',
+                detail: 'Settings \u2192 Tips lists every remote shortcut \u2014 push-and-hold to save, UP for the menu, swap links and more.',
+            },
+            {
+                icon: 'eye-off',
+                title: 'Trailers off = plain covers',
+                detail: 'Turn off Auto-play trailers and the wide trailer window disappears from every row.',
+            },
+            {
+                icon: 'users',
+                title: 'Easier party hosting',
+                detail: 'Host a party now uses your TV\u2019s own keyboard to find the title, with a proper Search button.',
             },
         ],
     },

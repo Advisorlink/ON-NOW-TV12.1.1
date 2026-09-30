@@ -2,6 +2,7 @@ import React from 'react';
 import { useLocation } from 'react-router-dom';
 import {
     Sparkles, X, Layers, Clapperboard, LayoutGrid, PlusCircle, Zap, Search, Settings2, Gift, Check,
+    Film, Lightbulb, EyeOff, Users,
 } from 'lucide-react';
 import { APP_VERSION, WHATS_NEW } from '@/lib/appVersion';
 
@@ -9,6 +10,7 @@ const SEEN_KEY = 'onnowtv-whatsnew-seen-v1';
 const ICONS = {
     layers: Layers, clapperboard: Clapperboard, 'layout-grid': LayoutGrid, 'plus-circle': PlusCircle,
     zap: Zap, search: Search, 'settings-2': Settings2, gift: Gift,
+    film: Film, lightbulb: Lightbulb, 'eye-off': EyeOff, users: Users,
 };
 
 /**
@@ -52,7 +54,7 @@ export default function WhatsNewModal() {
 
     if (!open) return null;
     const release = WHATS_NEW[APP_VERSION];
-    const twoCols = release.items.length > 4;
+    const cols = release.items.length > 8 ? 3 : release.items.length > 4 ? 2 : 1;
 
     return (
         <div
@@ -72,7 +74,7 @@ export default function WhatsNewModal() {
                 onClick={(e) => e.stopPropagation()}
                 className="relative overflow-hidden"
                 style={{
-                    width: 'min(1040px, 94vw)',
+                    width: 'min(1180px, 95vw)',
                     maxHeight: '90vh',
                     display: 'flex',
                     flexDirection: 'column',
@@ -87,7 +89,7 @@ export default function WhatsNewModal() {
                 <div
                     className="relative shrink-0"
                     style={{
-                        padding: '30px 38px 26px',
+                        padding: '22px 32px 20px',
                         background:
                             'radial-gradient(120% 180% at 0% 0%, rgba(var(--vesper-blue-rgb), 0.42) 0%, rgba(var(--vesper-blue-rgb), 0.08) 45%, transparent 70%), radial-gradient(70% 120% at 100% 100%, rgba(255,120,60,0.22) 0%, transparent 60%)',
                         borderBottom: '1px solid rgba(255,255,255,0.07)',
@@ -138,7 +140,7 @@ export default function WhatsNewModal() {
                     <h2
                         className="vesper-display"
                         style={{
-                            fontSize: 'clamp(28px, 3.4vw, 44px)',
+                            fontSize: 'clamp(24px, 2.6vw, 36px)',
                             letterSpacing: '-0.035em',
                             lineHeight: 1.02,
                             color: '#fff',
@@ -155,10 +157,10 @@ export default function WhatsNewModal() {
                     className="flex-1"
                     style={{
                         overflowY: 'auto',
-                        padding: '26px 38px 10px',
+                        padding: '18px 32px 6px',
                         display: 'grid',
-                        gridTemplateColumns: twoCols ? '1fr 1fr' : '1fr',
-                        gap: 14,
+                        gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+                        gap: 10,
                     }}
                 >
                     {release.items.map((it, i) => {
@@ -167,10 +169,10 @@ export default function WhatsNewModal() {
                             <div
                                 key={i}
                                 data-testid={`whats-new-item-${i}`}
-                                className="flex items-start gap-4"
+                                className="flex items-start gap-3"
                                 style={{
-                                    padding: '16px 18px',
-                                    borderRadius: 18,
+                                    padding: '12px 14px',
+                                    borderRadius: 14,
                                     background: 'rgba(255,255,255,0.035)',
                                     border: '1px solid rgba(255,255,255,0.07)',
                                     animation: `vesperFadeUp 480ms cubic-bezier(0.2, 0.8, 0.2, 1) ${120 + i * 55}ms both`,
@@ -179,20 +181,20 @@ export default function WhatsNewModal() {
                                 <div
                                     className="flex items-center justify-center shrink-0"
                                     style={{
-                                        width: 44, height: 44, borderRadius: 14,
+                                        width: 36, height: 36, borderRadius: 11,
                                         background: 'linear-gradient(135deg, rgba(var(--vesper-blue-rgb),0.35) 0%, rgba(var(--vesper-blue-rgb),0.08) 100%)',
                                         border: '1px solid rgba(var(--vesper-blue-rgb),0.45)',
                                         color: 'var(--vesper-blue-bright)',
                                     }}
                                 >
-                                    <Icon size={20} />
+                                    <Icon size={17} />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--vesper-text)', letterSpacing: '-0.01em' }}>
+                                    <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--vesper-text)', letterSpacing: '-0.01em', lineHeight: 1.2 }}>
                                         {it.title}
                                     </div>
                                     {it.detail && (
-                                        <div style={{ fontSize: 13.5, color: 'var(--vesper-text-2)', marginTop: 4, lineHeight: 1.45 }}>
+                                        <div style={{ fontSize: 12, color: 'var(--vesper-text-2)', marginTop: 3, lineHeight: 1.4 }}>
                                             {it.detail}
                                         </div>
                                     )}
@@ -202,7 +204,7 @@ export default function WhatsNewModal() {
                     })}
                 </div>
 
-                <div className="shrink-0" style={{ padding: '18px 38px 30px' }}>
+                <div className="shrink-0" style={{ padding: '14px 32px 22px' }}>
                     <button
                         data-testid="whats-new-got-it"
                         data-focusable="true"
@@ -214,7 +216,7 @@ export default function WhatsNewModal() {
                         className="font-sans rounded-full"
                         style={{
                             width: '100%',
-                            padding: '15px 0',
+                            padding: '13px 0',
                             background: 'linear-gradient(135deg, var(--vesper-blue) 0%, #4FB8F0 100%)',
                             color: '#06080F',
                             border: 'none',

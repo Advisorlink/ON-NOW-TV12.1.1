@@ -19,7 +19,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, ArrowRight, Users, Plus, KeyRound, Play, Pause,
-    Copy, Check, Search as SearchIcon, Loader2, Sparkles,
+    Copy, Check, Search as SearchIcon, Loader2, Sparkles, X,
 } from 'lucide-react';
 import { API } from '@/lib/api';
 import { getActiveProfile } from '@/lib/profiles';
@@ -645,7 +645,20 @@ function MoviePicker({ onPick }) {
        only when the user explicitly engages the search input.  By
        default we show top 5 new release movies (rating ≥ 6) so the
        host can pick something without typing anything. */
-    const [keyboardOpen, setKeyboardOpen] = useState(false);
+    const [inputFocused, setInputFocused] = useState(false);
+    const inputRef = useRef(null);
+    // The picker mounts after the party is created, i.e. after the
+    // page's initial-focus pass — land focus on the search box ourselves.
+    useEffect(() => {
+        const t = setTimeout(() => {
+            const el = inputRef.current;
+            if (!el || document.activeElement === el) return;
+            try { el.focus({ preventScroll: true }); } catch { /* ignore */ }
+            document.querySelectorAll('[data-focused="true"]').forEach((x) => { if (x !== el) x.removeAttribute('data-focused'); });
+            el.setAttribute('data-focused', 'true');
+        }, 80);
+        return () => clearTimeout(t);
+    }, []);
     const [picks, setPicks] = useState([]);
     const [picksBusy, setPicksBusy] = useState(true);
     /* When the host taps a TV result we don't broadcast the pick
@@ -673,8 +686,18 @@ function MoviePicker({ onPick }) {
         try {
             const r = await fetch(`${API}/tmdb/search?q=${encodeURIComponent(q.trim())}`);
             const j = await r.json();
-            setResults(Array.isArray(j?.data) ? j.data : []);
+            const list = Array.isArray(j?.data) ? j.data : [];
+            setResults(list);
             setSearched(true);
+            setTimeout(() => {
+                const first = document.querySelector('[data-testid^="party-pick-"]');
+                const target = first || inputRef.current;
+                try { target?.focus({ preventScroll: false }); } catch { /* ignore */ }
+                if (target) {
+                    document.querySelectorAll('[data-focused="true"]').forEach((x) => { if (x !== target) x.removeAttribute('data-focused'); });
+                    target.setAttribute('data-focused', 'true');
+                }
+            }, 60);
         } catch { setResults([]); } finally { setBusy(false); }
     };
 
@@ -707,10 +730,25 @@ function MoviePicker({ onPick }) {
             onPick(base);
         }
     };
+    // UP from the top row of covers goes back to the search box — the
+    // wide input loses the engine's centre-based scoring to the top menu.
+    const upToInput = (e) => {
+        if (e.key !== 'ArrowUp') return;
+        const cur = e.target;
+        if (!cur.matches?.('[data-testid^="party-quickpick-"], [data-testid^="party-pick-"]')) return;
+        const r = cur.getBoundingClientRect();
+        const grid = cur.parentElement;
+        const above = Array.from(grid.querySelectorAll('[data-focusable="true"]'))
+            .some((el) => el !== cur && el.getBoundingClientRect().bottom <= r.top + 20);
+        if (above) return;
+        e.preventDefault();
+        try { inputRef.current?.focus({ preventScroll: false }); } catch { /* ignore */ }
+    };
+
     return (
-        <div className="flex flex-col" style={{ gap: 24, width: '100%' }}>
-            {/* Search card — mirrors the Search page's centered card */}
-            {(!searched || results.length === 0) && !busy && (
+        <div className="flex flex-col" style={{ gap: 24, width: '100%' }} onKeyDown={upToInput}>
+            {/* Search card — always visible so the host can search again */}
+            {!busy && (
                 <div
                     data-testid="party-search-card"
                     className="flex flex-col items-center"
@@ -748,75 +786,111 @@ function MoviePicker({ onPick }) {
                             </span>{' '}
                             together?
                         </h2>
-                        <div
-                            data-testid="party-search-input-wrap"
-                            className="flex items-center gap-3"
-                            role="button"
-                            tabIndex={0}
-                            data-focusable="true"
-                            data-initial-focus="true"
-                            onClick={() => setKeyboardOpen(true)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                    e.preventDefault();
-                                    setKeyboardOpen(true);
-                                }
-                            }}
-                            style={{
-                                width: '100%', maxWidth: 560, height: 52, padding: '0 20px',
-                                borderRadius: 999,
-                                background: 'linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%)',
-                                border: '1px solid rgba(var(--vesper-blue-rgb),0.35)',
-                                boxShadow: '0 10px 36px rgba(var(--vesper-blue-rgb),0.18)',
-                                marginTop: 2,
-                                cursor: 'pointer',
-                            }}
-                        >
-                            <SearchIcon size={18} strokeWidth={2} color="var(--vesper-blue-bright)" />
+                        {/* Real <input> — OK opens the Android box's own keyboard
+                            (same as the Search page).  RIGHT at the end of the
+                            text hops to the Search button. */}
+                        <div className="flex items-center" style={{ gap: 12, width: '100%', maxWidth: 680, marginTop: 2 }}>
                             <div
-                                data-testid="party-search-input"
-                                className="vesper-display"
+                                data-testid="party-search-input-wrap"
+                                className="flex items-center gap-3"
                                 style={{
-                                    flex: 1, fontSize: 18, fontWeight: 500, letterSpacing: '-0.01em',
-                                    color: q ? 'var(--vesper-text)' : 'var(--vesper-text-3)',
-                                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                    flex: 1, minWidth: 0, height: 52, padding: '0 20px',
+                                    borderRadius: 999,
+                                    background: 'linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%)',
+                                    border: inputFocused
+                                        ? '2px solid var(--vesper-blue-bright)'
+                                        : '1px solid rgba(var(--vesper-blue-rgb),0.35)',
+                                    boxShadow: inputFocused
+                                        ? '0 0 0 4px rgba(var(--vesper-blue-rgb),0.25), 0 10px 36px rgba(var(--vesper-blue-rgb),0.25)'
+                                        : '0 10px 36px rgba(var(--vesper-blue-rgb),0.18)',
                                 }}
                             >
-                                {q || 'Title, actor, keyword…'}
-                                {keyboardOpen && (
-                                    <span aria-hidden="true" style={{
-                                        display: 'inline-block', width: 2, height: 18, marginLeft: 4,
-                                        verticalAlign: 'middle', background: 'var(--vesper-blue-bright)',
-                                        animation: 'vesperPulse 1100ms infinite', borderRadius: 1,
-                                    }} />
+                                <SearchIcon size={18} strokeWidth={2} color="var(--vesper-blue-bright)" />
+                                <input
+                                    data-testid="party-search-input"
+                                    data-focusable="true"
+                                    data-focus-style="bare"
+                                    data-initial-focus="true"
+                                    ref={inputRef}
+                                    className="vesper-display"
+                                    value={q}
+                                    onChange={(e) => {
+                                        setQ(e.target.value.slice(0, 60));
+                                        if (searched) setSearched(false);
+                                    }}
+                                    onFocus={() => setInputFocused(true)}
+                                    onBlur={() => setInputFocused(false)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            if (q.trim().length >= 2) {
+                                                submit();
+                                                try { e.currentTarget.blur(); } catch { /* ignore */ }
+                                            }
+                                            return;
+                                        }
+                                        if (e.key === 'ArrowRight') {
+                                            const el = e.currentTarget;
+                                            if ((el.selectionStart ?? q.length) >= q.length) {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                try { document.querySelector('[data-testid="party-search-submit"]')?.focus({ preventScroll: true }); } catch { /* ignore */ }
+                                            }
+                                        }
+                                    }}
+                                    placeholder="Title, actor, keyword…"
+                                    enterKeyHint="search"
+                                    autoCorrect="off"
+                                    autoCapitalize="words"
+                                    spellCheck={false}
+                                    maxLength={60}
+                                    style={{
+                                        flex: 1, minWidth: 0, fontSize: 18, fontWeight: 500, letterSpacing: '-0.01em',
+                                        color: 'var(--vesper-text)', background: 'transparent', border: 'none', outline: 'none',
+                                        caretColor: 'var(--vesper-blue-bright)', WebkitTapHighlightColor: 'transparent',
+                                    }}
+                                />
+                                {q && (
+                                    <button
+                                        data-testid="party-search-clear"
+                                        data-focusable="true"
+                                        data-focus-style="bare"
+                                        tabIndex={0}
+                                        onClick={() => { setQ(''); setSearched(false); try { inputRef.current?.focus(); } catch { /* ignore */ } }}
+                                        aria-label="Clear"
+                                        className="flex items-center justify-center rounded-full shrink-0"
+                                        style={{ width: 30, height: 30, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.16)', color: 'var(--vesper-text)', cursor: 'pointer' }}
+                                    >
+                                        <X size={13} strokeWidth={2.4} />
+                                    </button>
                                 )}
                             </div>
-                            <span className="vesper-mono" style={{ fontSize: 10, letterSpacing: '0.22em', color: 'var(--vesper-text-3)', textTransform: 'uppercase' }}>
-                                {q.length}/60
-                            </span>
+                            <button
+                                data-testid="party-search-submit"
+                                data-focusable="true"
+                                data-focus-style="pill"
+                                tabIndex={0}
+                                onClick={submit}
+                                disabled={busy || q.trim().length < 2}
+                                className="flex items-center gap-2 rounded-full font-sans font-semibold shrink-0"
+                                style={{
+                                    height: 52, padding: '0 22px', fontSize: 14,
+                                    background: q.trim().length >= 2 ? 'var(--vesper-blue)' : 'rgba(255,255,255,0.08)',
+                                    color: q.trim().length >= 2 ? 'var(--vesper-bg-0)' : 'var(--vesper-text-3)',
+                                    border: '1px solid rgba(var(--vesper-blue-rgb),0.4)',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                <SearchIcon size={16} strokeWidth={2.4} /> Search
+                            </button>
                         </div>
-                        {/* v2.6.75: keyboard hidden until the user
-                            taps the search input.  Saves a ton of
-                            real estate for the Top 5 movies rail
-                            below. */}
-                        {keyboardOpen && (
-                            <div style={{ marginTop: 2, width: '100%', maxWidth: 720 }}>
-                                <TVKeyboard
-                                    value={q}
-                                    onChange={(v) => { setQ(v); if (searched) setSearched(false); }}
-                                    onSubmit={submit}
-                                    maxLength={60}
-                                    variant="name"
-                                />
-                            </div>
-                        )}
                         {/* v2.6.75: Top 5 new release movies rail.
                             Hidden while the user is actively typing
                             (keyboardOpen + non-empty query) or while
                             search results are showing.  All titles
                             have vote_average ≥ 6 + 40+ votes — the
                             backend filters this. */}
-                        {!keyboardOpen && !q && (
+                        {!q && (
                             <div
                                 data-testid="shelf-page"
                                 style={{ marginTop: 18, width: '100%', maxWidth: 1100 }}

@@ -3887,10 +3887,35 @@ async def tmdb_custom_row(
     `with_genres` (AND); other words → TMDB keywords (OR); nothing
     recognised → plain title search."""
     key = re.sub(r"\s+", " ", q.lower().strip())
-    cache_key = f"tmdb_custom_row:{key}:{limit}:v2"
+    cache_key = f"tmdb_custom_row:{key}:{limit}:v3"
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, **cached}
+    # Home-screen synthetic categories (same pulls as the Home rows).
+    _SYNTH = {
+        "hallmark": ("-7", "Hallmark"), "christmas": ("-3", "Christmas"), "xmas": ("-3", "Christmas"),
+        "true story": ("-1", "Based on a True Story"), "based on true story": ("-1", "Based on a True Story"),
+        "biography": ("-2", "Biography"), "biographies": ("-2", "Biography"),
+        "in cinemas": ("-4", "In Cinemas"), "cinema": ("-4", "In Cinemas"),
+        "indian": ("-5", "Indian"), "bollywood": ("-6", "Bollywood"),
+    }
+    core = " ".join(t for t in _custom_tokens(q) if t not in _CUSTOM_MEDIA_WORDS and t not in _CUSTOM_STOP)
+    if core in _SYNTH:
+        sid, label = _SYNTH[core]
+        media_pref = next((_CUSTOM_MEDIA_WORDS[t] for t in _custom_tokens(q) if t in _CUSTOM_MEDIA_WORDS), None)
+        medias = [media_pref] if media_pref else (["movie", "tv"] if sid in ("-7", "-1", "-2") else ["movie"])
+        pulls = await asyncio.gather(
+            *[tmdb_by_genres(m, genre_ids=sid, limit=limit, page=1) for m in medias],
+            return_exceptions=True,
+        )
+        merged: List[Dict[str, Any]] = []
+        for resp in pulls:
+            if isinstance(resp, Exception):
+                continue
+            merged.extend(resp.get("data") or [])
+        out = {"label": label, "matched": {"genres": [label], "keywords": [], "media": medias}, "data": merged[:limit]}
+        await cache.set(cache_key, out, 60 * 60 * 6)
+        return {"cached": False, **out}
     spec = await _custom_resolve_query(q)
     tasks = []
     used_search = False
