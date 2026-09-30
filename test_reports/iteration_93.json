@@ -1,0 +1,48 @@
+{
+  "summary": "Full end-to-end verification (backend + frontend) of Vesper Settings v2 features: rail↔content D-pad keyboard nav, Playback/Home section reorg, Add-a-category flow (genre chip + custom text + no-results), custom-row management (up/toggle/remove), Home-page rendering of custom rails, home-rows-reset regression, and Search regression. All acceptance criteria PASS. Backend /api/tmdb/custom-row returns correct label/matched/media/data for 'horror and comedy', 'superhero series', 'sports movies', 'zzqxjv' (empty data) and 422 on empty q.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_custom_row.py",
+    "/app/test_reports/pytest/iter93_custom_row.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Settings.jsx is still ~1800+ lines. Now includes AddCategoryPanel/HomeRowsPanel on top of existing sections. Recommend factoring HomeRowsPanel + AddCategoryPanel into /pages/settings/homeRows/*.jsx for maintainability.",
+    "homeRows.js addCustomHomeRow uses slug from query, so 'Horror' chip creates id 'custom:horror' — matches spec. Good.",
+    "No aria-checked exposed on Home behaviour toggle buttons; consider adding role=switch + aria-checked for a11y (values only inferable via visual state)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_custom_row.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "testuser / testpass123",
+  "seed_data_creation": "sessionStorage vesper-e2e=1 via ?e2e=1; localStorage onnowtv-profiles-v1[:testuser] + onnowtv-active-profile-v1[:testuser] for p-test-1; vesper-onboarding-seen-v1; onnowtv-whatsnew-seen-v1=9.9.9; onnowtv-home-rows-v1:p-test-1 preset for Home rendering check.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "verified_scenarios": {
+    "keynav_theme_right_left": "PASS — settings-nav-theme → ArrowRight lands on theme-electric; ArrowLeft returns to settings-nav-theme",
+    "keynav_home_right_left": "PASS — settings-nav-home → ArrowRight into [data-settings-section=home] home-row-cw-down; ArrowLeft loop returns to settings-nav-home",
+    "keynav_playback_right_left": "PASS — settings-nav-playback → ArrowRight to toggle-autoplay-1080p; ArrowLeft back to settings-nav-playback",
+    "section_reorg_playback": "PASS — playback testids = [toggle-autoplay-1080p, toggle-force-sdr, player-backend-row/exo/libvlc]; NO toggle-auto-trailer, NO toggle-top-nav-layout, NO toggle-show-collections anywhere in DOM",
+    "section_reorg_home_behaviour": "PASS — 'Home behaviour' heading present in home section; toggle-top-nav-layout and toggle-auto-trailer render and flip on click",
+    "add_category_panel_opens": "PASS — 20 add-category-genre-* chips + add-category-input + add-category-submit",
+    "add_category_genre_horror": "PASS — panel closes, home-row-custom-horror appears at position 10 with up/down/toggle/remove; Horror chip disabled on re-open",
+    "add_category_custom_text_sports_movies": "PASS — submit shows loading state, home-row-custom-sports-movies appears with label 'Sports'; localStorage custom=[{id:custom:horror,label:Horror,query:Horror},{id:custom:sports-movies,label:Sports,query:'sports movies'}] and ids at end of order",
+    "add_category_no_results_zzqxjv": "PASS — [data-testid=add-category-error] shows 'Couldn't find enough titles for \"zzqxjv\"…'; no row added",
+    "custom_row_reorder_up": "PASS — sports-movies-up moved custom:sports-movies above custom:horror in order",
+    "custom_row_toggle_hide": "PASS — custom-horror-toggle causes 'Hidden' text in row",
+    "custom_row_remove": "PASS — custom-horror-remove deletes row; localStorage.custom no longer contains it; Horror chip enabled again in panel",
+    "home_renders_custom_row": "PASS — with sports-movies at index 0, [data-testid=custom-row-shelf-sports-movies] renders as first rail after hero, title 'Sports', ~80 poster-tile elements (>= expected ~40 tiles)",
+    "studios_rail_still_renders": "PASS — Studios rail present on Home (no pref gating)",
+    "home_rows_reset_clears_custom": "PASS — reset restores default order, hidden=[], custom=[]",
+    "search_regression": "PASS — search-input auto-focus; typing 'top gun' surfaces [data-testid=search-suggestions] within a few seconds",
+    "backend_custom_row_horror_and_comedy": "PASS — label='Horror & Comedy', matched.genres={Horror,Comedy}, matched.media=['movie'], 8 items with tmdb_id/type/title/poster",
+    "backend_custom_row_superhero_series": "PASS — matched.media=['tv']",
+    "backend_custom_row_zzqxjv": "PASS — data=[]",
+    "backend_custom_row_empty_q": "PASS — 422",
+    "backend_custom_row_sports_movies": "PASS — label='Sports'"
+  },
+  "context_for_next_testing_agent": "Backend /api/tmdb/custom-row responses are fast (~1.7s for full 5-test suite). Add-category submit inserts a loading state ('Finding…') then the row appears — allow up to ~15s. Home renders custom rows via [data-testid=custom-row-shelf-<slug>] where slug replaces spaces with '-' (e.g. sports-movies). The reset button in HomeRowsPanel is a single-click reset (no two-tap confirm needed). Toggles in Home behaviour section do not expose aria-checked — verify state visually or via the internal input.checked.",
+  "rca of the issue": "No defects found; all Round-93 acceptance criteria met on both frontend and backend."
+}
