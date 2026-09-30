@@ -1,4 +1,10 @@
 # ON NOW TV V2 — PRD
+> **🟢 v1.5.5 — Settings redesign + Search VERIFIED (iteration_92, frontend 100%) + e2e hook (Jun 2026).**
+> - Testing agent confirmed: 8-entry left rail with one visible section, Home row panel (9 rows, up/down/hide/reset, per-profile isolation), Home honours order/hidden, Search native input + suggestions + recents + empty state, theme/playback regressions clean.
+> - `App.js` boot IIFE: `?e2e=1` → `sessionStorage['vesper-e2e']='1'` skips the v2.8.5 active-profile wipe for that tab only (test harness hook; box behaviour unchanged). Documented in `memory/test_credentials.md`.
+> - Observation: first `/api/tmdb/search` in the preview pod can take ~8 s cold (latency, not a bug).
+> - ⚠️ Still pending user: APK rebuild/deploy for native Kotlin fixes; VPS `onnowtv-launcher.service` diagnosis (needs `systemctl status` / `journalctl` output).
+>
 > **🟢 v1.5.4 — Settings redesign (two-pane), Home row arranger, Hallmark in profile genres (Jun 2026).**
 > - **Settings** (`pages/Settings.jsx`): left sticky glass category rail (`settings-nav-{id}`: Appearance · Home screen · Playback · Personalise · Help · Tips · Backup · Sign out — focus or OK switches) + right pane showing ONE section (existing `data-settings-section` wrappers now get `hidden={section !== id}`); page max-width 1380.
 > - **Home screen section** (`HomeRowsPanel`, `lib/homeRows.js`): per-profile `onnowtv-home-rows-v1` `{order, hidden}` over the row registry `cw · foryou · networks · studios · movie-year · series-year · movie-top · series-top · upcoming`; ↑ ↓ move, eye toggle hides, "Reset to default order". `Home.jsx` now builds `[{id,node}]` and runs `arrangeHomeRows()` (unknown dev-unlock shelves keep natural position after known rows; wanted shelves tagged `rowId`). Verified: Studios ↑↑ + Networks hidden → Home renders Studios first, no Networks.

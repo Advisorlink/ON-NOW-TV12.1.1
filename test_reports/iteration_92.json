@@ -1,0 +1,50 @@
+{
+  "summary": "Frontend-only verification of Settings left-rail redesign, Home screen row-reorder/hide panel, and rebuilt native-input Search. All acceptance criteria PASS after allowing ~8s for TMDB search to resolve. The ?e2e=1 sessionStorage hook works — /settings no longer bounces after seeding profile.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Search results latency", "issue": "First /api/tmdb/search call typically takes ~7-8s to resolve in this preview pod (results-column stays on 'Searching…' until then). Previously fine ~4s. Recents / focus-first-result / search-empty all depend on that promise resolving, so short-wait tests can flap. Not a code bug — a backend latency observation.", "affected_selectors": ["[data-testid=\"search-results-column\"]", "[data-testid=\"search-recent-0\"]", "[data-testid=\"search-empty\"]"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Settings.jsx is 1829 lines — still growing. Splitting HomeRowsPanel, ThemeSection, PlaybackSection, ViewingPreferenceSection, BackupSection into own files under /pages/settings/* would help maintainability (threshold >700).",
+    "The review-request expectation 'Click home-row-studios-up twice → studios is row 01' is off by one: default order puts studios at index 3, so 3 up-clicks are needed to reach row 01. Two clicks correctly land it at row 02. Code (moveHomeRow in homeRows.js) is behaving correctly — the spec sentence is inaccurate.",
+    "Search results/recents completion depends on /api/tmdb/search which can take ~8s cold. Consider surfacing a lightweight skeleton for suggestions/results or a client-side cache warmer to keep first-search feel snappy on TV."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100%"},
+  "test_credentials": "testuser / testpass123",
+  "seed_data_creation": "sessionStorage vesper-e2e=1 (via ?e2e=1), localStorage profile p-test-1 + p-test-2 for testuser suffix, onboarding+whatsnew markers, preset home-rows-v1:p-test-1 for isolation test",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "verified_scenarios": {
+    "settings_e2e_hook": "PASS — page.goto('/settings') stays on /settings after ?e2e=1 sets sessionStorage['vesper-e2e']='1'",
+    "settings_nav_8_entries": "PASS — settings-nav-{home,theme,playback,viewing-preference,welcome-tour,tips,backup,signout} all present",
+    "one_section_visible": "PASS — exactly 1 of 8 [data-settings-section] wrappers is visible; others carry hidden attribute",
+    "nav_click_switches_section": "PASS — clicking each rail entry updates the visible section to match id",
+    "home_rows_panel_9_rows_default_order": "PASS — [cw,foryou,networks,studios,movie-year,series-year,movie-top,series-top,upcoming] with numbering 01..09",
+    "first_up_last_down_disabled": "PASS — home-row-cw-up.disabled=true, home-row-upcoming-down.disabled=true",
+    "studios_up_twice_moves_to_index_1": "PARTIAL — task expected row 01 but 2 clicks moves studios from index 3 → index 1 (row 02). Code correct; task expectation off by one.",
+    "networks_toggle_hides_row": "PASS — 'Hidden from Home' text renders after clicking home-row-networks-toggle",
+    "localstorage_home_rows_key": "PASS — 'onnowtv-home-rows-v1:p-test-1' = {order:[…studios…],hidden:['networks']}",
+    "home_reflects_row_prefs": "PASS — Home rails ordered with Studios first, 'Browse by Network' rail not rendered",
+    "reset_to_default": "PASS — home-rows-reset restores default order and empty hidden list",
+    "per_profile_isolation": "PASS — profile p-test-2 shows default order while p-test-1 keeps its customised state",
+    "search_native_input_no_keyboard": "PASS — [data-testid=search-input].tagName === INPUT, initial focus on it, no [data-testid=tv-keyboard] present",
+    "search_suggestions_debounced": "PASS — typing 'top gun' shows [data-testid=search-suggestions] with poster tiles within ~1.5s",
+    "search_enter_shows_results": "PASS — Enter hides suggestions and renders [data-testid=search-results-column] (53 focusable results for 'top gun' after ~8s)",
+    "search_clear_input": "PASS — [data-testid=search-clear-input] empties the field",
+    "search_recents": "PASS — [data-testid=search-recent-0] 'top gun' chip appears on returning to /search; click repopulates input; [data-testid=search-recents-clear] removes them",
+    "search_second_type_shows_suggestions_again": "PASS",
+    "search_empty_state": "PASS — 'zzqxjv…' query eventually surfaces [data-testid=search-empty] once the TMDB call resolves (~6-8s)",
+    "home_regression": "PASS — Home mounts with hero + 9 rails, no console errors",
+    "theme_cards_render": "PASS — theme-magenta et al present; page needs vertical scroll to reach all cards at 1080p",
+    "playback_toggles_present": "PASS — [data-testid^=toggle-] toggles enumerated in Playback section"
+  },
+  "context_for_next_testing_agent": "?e2e=1 sessionStorage hook works reliably — always start with page.goto(BASE + '/?e2e=1'). Login uses placeholder-based inputs: page.get_by_placeholder('Enter your username').fill(...) then 'Enter your password' then get_by_role('button', name='Sign in'). After login, seed onnowtv-profiles-v1:testuser + onnowtv-active-profile-v1:testuser (and plain keys for legacy). Set vesper-onboarding-seen-v1 and onnowtv-whatsnew-seen-v1='1.4.0'. Settings section default is 'theme', not 'home' — always click settings-nav-home before asserting home-rows-panel. The Settings page is tall; home-rows-reset sits below the fold on 1080p — scroll it into view before clicking (page.evaluate scrollIntoView). Search results/suggestions can take up to 8s cold in this preview pod, so wait ≥8s after pressing Enter before checking recents/empty state.",
+  "rca of the issue": "Not applicable — no functional defects found. The single misleading item in the review request ('studios-up twice → row 01') is a spec arithmetic slip: studios is default row 04, so exactly 3 up-clicks are needed to reach row 01; two clicks correctly places it at row 02. moveHomeRow() logic in /app/frontend/src/lib/homeRows.js is correct."
+}
