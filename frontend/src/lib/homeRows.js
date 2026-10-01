@@ -12,7 +12,6 @@ export const HOME_ROWS = [
     { id: 'foryou',      label: 'Similar to what you love', hint: 'Picks from your viewing style' },
     { id: 'networks',    label: 'Browse by Network',  hint: 'Netflix, Disney+, Max, Apple TV+…' },
     { id: 'studios',     label: 'Studios',            hint: 'Marvel, DC, Pixar, A24…' },
-    { id: 'anime',       label: 'Anime',              hint: 'Japanese animation — movies & series' },
     { id: 'movie-year',  label: 'New movies',         hint: 'This year\u2019s releases' },
     { id: 'series-year', label: 'New series',         hint: 'This year\u2019s shows' },
     { id: 'movie-top',   label: 'Popular movies',     hint: 'Most watched right now' },

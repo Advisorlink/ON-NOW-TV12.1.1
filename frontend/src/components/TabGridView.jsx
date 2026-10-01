@@ -388,7 +388,7 @@ export default function TabGridView({ type }) {
 
             {(genreList.length > 0 || type === 'movie') && (
                 <GenreChips
-                    genres={type === 'movie' ? ['In Cinema', 'Christmas', 'Hallmark', 'Anime', ...genreList] : ['Anime', ...genreList]}
+                    genres={type === 'movie' ? ['In Cinema', 'Christmas', 'Hallmark', ...genreList, 'Anime'] : [...genreList, 'Anime']}
                     selected={genre}
                     onSelect={(g) => setGenre(g)}
                 />

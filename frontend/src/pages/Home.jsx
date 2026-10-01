@@ -564,14 +564,6 @@ export default function Home() {
                             hasViewingStyle && { id: 'foryou', node: <ForYouShelf /> },
                             { id: 'networks', node: <NetworksShelf /> },
                             { id: 'studios', node: <CollectionsShelf /> },
-                            {
-                                id: 'anime',
-                                node: (
-                                    <Lazy minHeight={340} eager={false}>
-                                        <CustomRowShelf row={{ id: 'anime', label: 'Anime', query: 'anime', eyebrow: 'ANIME · MOVIES & SERIES' }} />
-                                    </Lazy>
-                                ),
-                            },
                             addons.length === 0 && { id: 'empty-addons', node: <EmptyAddonsBanner /> },
                             ...getHomeRowPrefs().custom.map((row) => ({
                                 id: row.id,

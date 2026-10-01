@@ -55,7 +55,7 @@ export const WHATS_NEW = {
             {
                 icon: 'sword',
                 title: 'Anime',
-                detail: 'A full Anime section in the menu \u2014 trending series, movies, airing now, Ghibli, genres and classics \u2014 plus an Anime filter on Movies and TV Shows and an Anime row for Home.',
+                detail: 'A full Anime section in the menu \u2014 trending series, movies, airing now, Ghibli, genres and classics \u2014 plus an Anime filter on Movies and TV Shows. Want it on Home? Add it as a category in Settings.',
             },
             {
                 icon: 'lightbulb',
