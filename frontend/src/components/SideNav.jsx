@@ -11,7 +11,7 @@ import {
     Users,
     UserCircle2,
     CalendarDays,
-    Check, Boxes } from 'lucide-react';
+    Check, Boxes, Sword } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getAutoplay1080p, setAutoplay1080p, getNavLayout } from '@/lib/prefs';
 import TopNav from '@/components/TopNav';
@@ -30,6 +30,7 @@ const NAV = [
     { id: 'tv', label: 'TV Shows', icon: Tv, path: '/?filter=series' },
     { id: 'movies', label: 'Movies', icon: Film, path: '/?filter=movie' },
     { id: 'boxsets', label: 'Box Sets', icon: Boxes, path: '/boxsets' },
+    { id: 'anime', label: 'Anime', icon: Sword, path: '/anime' },
     { id: 'library', label: 'My Library', icon: Library, path: '/library' },
     // v2.13.4 — Calendar promoted out of the Library page to its own
     // rail entry (full-page release calendar at /calendar).

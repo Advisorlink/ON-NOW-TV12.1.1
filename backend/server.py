@@ -3721,9 +3721,11 @@ async def tmdb_by_genres(
     # of titles on TMDB):
     #   • -5 → Indian    (any movie produced in India, all languages)
     #   • -6 → Bollywood (Hindi-language movies)
+    #   • -8 → Anime     (Japanese animation — movies and series)
     SYNTHETIC_DISCOVER = {
         "-5": {"with_origin_country": "IN", "vote_count.gte": "20"},
         "-6": {"with_original_language": "hi", "vote_count.gte": "10"},
+        "-8": {"with_genres": "16", "with_origin_country": "JP", "vote_count.gte": "20"},
     }
     # Hallmark (-7): everything Hallmark Media / Hallmark Entertainment /
     # Hall of Fame produced + anything TMDB tags with the 'hallmark'
@@ -3781,6 +3783,100 @@ async def tmdb_by_genres(
         r.pop("popularity", None)
     await cache.set(cache_key, ranked, 60 * 60 * 6)
     return {"cached": False, "data": ranked}
+
+
+# ---- Anime hub (/anime page): one call → every rail ----
+_ANIME_BASE = {"with_genres": "16", "with_origin_country": "JP", "include_adult": "false"}
+_ANIME_RAILS: List[Dict[str, Any]] = [
+    {"id": "trending-series", "title": "Trending anime series", "eyebrow": "ANIME · SERIES", "media": "tv",
+     "params": {"sort_by": "popularity.desc", "vote_count.gte": "50"}},
+    {"id": "popular-movies", "title": "Popular anime movies", "eyebrow": "ANIME · MOVIES", "media": "movie",
+     "params": {"sort_by": "popularity.desc", "vote_count.gte": "50"}},
+    {"id": "airing-now", "title": "Airing now", "eyebrow": "ANIME · THIS SEASON", "media": "tv",
+     "params": {"sort_by": "popularity.desc", "vote_count.gte": "5", "__recent_tv": 120}},
+    {"id": "new-movies", "title": "New anime movies", "eyebrow": "ANIME · NEW RELEASES", "media": "movie",
+     "params": {"sort_by": "popularity.desc", "vote_count.gte": "10", "__recent_movie": 365}},
+    {"id": "top-series", "title": "Top rated anime series", "eyebrow": "ANIME · ALL-TIME", "media": "tv",
+     "params": {"sort_by": "vote_average.desc", "vote_count.gte": "400"}},
+    {"id": "top-movies", "title": "Top rated anime movies", "eyebrow": "ANIME · ALL-TIME", "media": "movie",
+     "params": {"sort_by": "vote_average.desc", "vote_count.gte": "300"}},
+    {"id": "ghibli", "title": "Studio Ghibli", "eyebrow": "ANIME · STUDIO", "media": "movie",
+     "params": {"sort_by": "popularity.desc", "with_companies": "10342"}},
+    {"id": "action", "title": "Action & adventure", "eyebrow": "ANIME · GENRE", "media": "tv",
+     "params": {"sort_by": "popularity.desc", "vote_count.gte": "30", "with_genres": "16,10759"}},
+    {"id": "fantasy", "title": "Sci-fi & fantasy", "eyebrow": "ANIME · GENRE", "media": "tv",
+     "params": {"sort_by": "popularity.desc", "vote_count.gte": "30", "with_genres": "16,10765"}},
+    {"id": "romance", "title": "Romance & slice of life", "eyebrow": "ANIME · GENRE", "media": "tv",
+     "params": {"sort_by": "popularity.desc", "vote_count.gte": "50", "with_keywords": "9840|210024|195256"}},
+    {"id": "comedy", "title": "Comedy", "eyebrow": "ANIME · GENRE", "media": "tv",
+     "params": {"sort_by": "popularity.desc", "vote_count.gte": "30", "with_genres": "16,35"}},
+    {"id": "drama", "title": "Drama", "eyebrow": "ANIME · GENRE", "media": "tv",
+     "params": {"sort_by": "popularity.desc", "vote_count.gte": "30", "with_genres": "16,18"}},
+    {"id": "mystery", "title": "Mystery & thriller", "eyebrow": "ANIME · GENRE", "media": "tv",
+     "params": {"sort_by": "popularity.desc", "vote_count.gte": "20", "with_genres": "16,9648"}},
+    {"id": "fantasy-movies", "title": "Fantasy & adventure movies", "eyebrow": "ANIME · MOVIES", "media": "movie",
+     "params": {"sort_by": "popularity.desc", "vote_count.gte": "30", "with_genres": "16,14|12"}},
+    {"id": "kids", "title": "For younger fans", "eyebrow": "ANIME · KIDS", "media": "tv",
+     "params": {"sort_by": "popularity.desc", "vote_count.gte": "20", "with_genres": "16,10762"}},
+    {"id": "classics", "title": "Classics (before 2005)", "eyebrow": "ANIME · CLASSICS", "media": "tv",
+     "params": {"sort_by": "popularity.desc", "vote_count.gte": "50", "first_air_date.lte": "2004-12-31"}},
+]
+
+
+_ANIME_HEADLINE = {"trending-series", "popular-movies", "airing-now", "new-movies", "top-series", "top-movies", "ghibli"}
+
+
+@api.get("/tmdb/anime")
+async def tmdb_anime_hub(limit: int = Query(40, ge=10, le=60)):
+    """All anime rails for the Anime page in one response."""
+    cache_key = f"tmdb_anime_hub:{limit}:v3"
+    cached = await cache.get(cache_key)
+    if cached:
+        return {"cached": True, "rails": cached}
+    pages = max(1, math.ceil(limit / 20))
+    today = datetime.now(timezone.utc).date()
+    tasks = []
+    for rail in _ANIME_RAILS:
+        params = {**_ANIME_BASE}
+        for k, v in rail["params"].items():
+            if k == "__recent_tv":
+                params["first_air_date.gte"] = (today - timedelta(days=v)).isoformat()
+                params["first_air_date.lte"] = today.isoformat()
+            elif k == "__recent_movie":
+                params["primary_release_date.gte"] = (today - timedelta(days=v)).isoformat()
+                params["primary_release_date.lte"] = today.isoformat()
+            else:
+                params[k] = v
+        extra_pages = 0 if rail["id"] in _ANIME_HEADLINE else 2
+        for p in range(1, pages + 1 + extra_pages):
+            tasks.append((rail["id"], rail["media"], _tmdb_get(f"/discover/{rail['media']}", {**params, "page": str(p)})))
+    results = await asyncio.gather(*[t for _, _, t in tasks], return_exceptions=True)
+    buckets: Dict[str, Dict[Any, Dict[str, Any]]] = {r["id"]: {} for r in _ANIME_RAILS}
+    for (rid, media, _), resp in zip(tasks, results):
+        if isinstance(resp, Exception) or not resp:
+            continue
+        for item in (resp.get("results") or []):
+            shaped = _shape_tmdb_item(item, media)
+            if not shaped:
+                continue
+            k2 = (shaped["type"], shaped["tmdb_id"])
+            if k2 not in buckets[rid]:
+                buckets[rid][k2] = shaped
+    # Genre rails hide titles already in the two headline rails so each
+    # row feels different from the top of the page.
+    shown: set = set()
+    for rid in ("trending-series", "popular-movies"):
+        shown.update(list(buckets[rid].keys())[:limit])
+    rails = []
+    for rail in _ANIME_RAILS:
+        items = list(buckets[rail["id"]].values())
+        if rail["id"] not in _ANIME_HEADLINE:
+            items = [it for it in items if (it["type"], it["tmdb_id"]) not in shown]
+        data = items[:limit]
+        if len(data) >= 6:
+            rails.append({"id": rail["id"], "title": rail["title"], "eyebrow": rail["eyebrow"], "data": data})
+    await cache.set(cache_key, rails, 60 * 60 * 6)
+    return {"cached": False, "rails": rails}
 
 
 # ---- Custom Home categories ("Add a category" in Settings → Home screen) ----
@@ -3898,12 +3994,13 @@ async def tmdb_custom_row(
         "biography": ("-2", "Biography"), "biographies": ("-2", "Biography"),
         "in cinemas": ("-4", "In Cinemas"), "cinema": ("-4", "In Cinemas"),
         "indian": ("-5", "Indian"), "bollywood": ("-6", "Bollywood"),
+        "anime": ("-8", "Anime"), "animes": ("-8", "Anime"), "japanese animation": ("-8", "Anime"),
     }
     core = " ".join(t for t in _custom_tokens(q) if t not in _CUSTOM_MEDIA_WORDS and t not in _CUSTOM_STOP)
     if core in _SYNTH:
         sid, label = _SYNTH[core]
         media_pref = next((_CUSTOM_MEDIA_WORDS[t] for t in _custom_tokens(q) if t in _CUSTOM_MEDIA_WORDS), None)
-        medias = [media_pref] if media_pref else (["movie", "tv"] if sid in ("-7", "-1", "-2") else ["movie"])
+        medias = [media_pref] if media_pref else (["movie", "tv"] if sid in ("-7", "-1", "-2", "-8") else ["movie"])
         pulls = await asyncio.gather(
             *[tmdb_by_genres(m, genre_ids=sid, limit=limit, page=1) for m in medias],
             return_exceptions=True,

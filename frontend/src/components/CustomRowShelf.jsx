@@ -18,7 +18,7 @@ export default function CustomRowShelf({ row }) {
                 setShelf({
                     id: row.id,
                     title: row.label,
-                    eyebrow: 'YOUR CATEGORY',
+                    eyebrow: row.eyebrow || 'YOUR CATEGORY',
                     items: list.map((it) => ({
                         id: `${row.id}-${it.type}-${it.tmdb_id}`,
                         imdbId: null,

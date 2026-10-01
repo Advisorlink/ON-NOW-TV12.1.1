@@ -2,7 +2,7 @@ import React from 'react';
 import { useLocation } from 'react-router-dom';
 import {
     Sparkles, X, Layers, Clapperboard, LayoutGrid, PlusCircle, Zap, Search, Settings2, Gift, Check,
-    Film, Lightbulb, EyeOff, Users,
+    Film, Lightbulb, EyeOff, Users, Sword,
 } from 'lucide-react';
 import { APP_VERSION, WHATS_NEW } from '@/lib/appVersion';
 
@@ -10,7 +10,7 @@ const SEEN_KEY = 'onnowtv-whatsnew-seen-v1';
 const ICONS = {
     layers: Layers, clapperboard: Clapperboard, 'layout-grid': LayoutGrid, 'plus-circle': PlusCircle,
     zap: Zap, search: Search, 'settings-2': Settings2, gift: Gift,
-    film: Film, lightbulb: Lightbulb, 'eye-off': EyeOff, users: Users,
+    film: Film, lightbulb: Lightbulb, 'eye-off': EyeOff, users: Users, sword: Sword,
 };
 
 /**
@@ -35,12 +35,23 @@ export default function WhatsNewModal() {
         try { seen = localStorage.getItem(SEEN_KEY) || ''; } catch { /* ignore */ }
         if (seen === APP_VERSION) return undefined;
         if (!WHATS_NEW[APP_VERSION]) return undefined;
-        const t = setTimeout(() => setOpen(true), 1100);
+        const t = setTimeout(() => {
+            try { sessionStorage.setItem('vesper-whatsnew-shown', '1'); } catch { /* ignore */ }
+            setOpen(true);
+        }, 1100);
         return () => clearTimeout(t);
     }, [location.pathname]);
 
     const dismiss = () => {
         try { localStorage.setItem(SEEN_KEY, APP_VERSION); } catch { /* ignore */ }
+        // One popup per launch: the feature tour covers the same ground,
+        // so never let it stack on top of What's New (still replayable
+        // from Settings → Welcome tour).
+        try {
+            if (!localStorage.getItem('vesper-onboarding-seen-v1')) {
+                localStorage.setItem('vesper-onboarding-seen-v1', String(Date.now()));
+            }
+        } catch { /* ignore */ }
         setOpen(false);
     };
 

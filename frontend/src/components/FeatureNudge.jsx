@@ -57,6 +57,9 @@ export default function FeatureNudge() {
     useEffect(() => {
         if (!onHome) return;
         if (SESSION_SHOWN) return;
+        // One popup per launch — if What's New already showed this
+        // session, the tip waits for the next launch.
+        try { if (sessionStorage.getItem('vesper-whatsnew-shown') === '1') return; } catch { /* ignore */ }
         // v2.12.14 — Never fire the first tip while the onboarding
         // slides are still on screen.  The user's spec: tips must
         // appear AFTER onboarding, once they've actually entered the

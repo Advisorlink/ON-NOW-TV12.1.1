@@ -10,7 +10,7 @@ export const APP_VERSION = '1.5.0';
 export const WHATS_NEW = {
     '1.5.0': {
         date: 'June 2026',
-        headline: 'Box Sets, Studios & a Home screen that\u2019s yours',
+        headline: 'Anime, Box Sets, Studios & a Home screen that\u2019s yours',
         items: [
             {
                 icon: 'layers',
@@ -53,9 +53,9 @@ export const WHATS_NEW = {
                 detail: 'A Hallmark row next to Christmas on Home, and Hallmark is a choice when you set up a profile.',
             },
             {
-                icon: 'film',
-                title: 'Coming soon with trailers',
-                detail: 'The Coming soon row now plays trailers as you browse, just like every other row.',
+                icon: 'sword',
+                title: 'Anime',
+                detail: 'A full Anime section in the menu \u2014 trending series, movies, airing now, Ghibli, genres and classics \u2014 plus an Anime filter on Movies and TV Shows and an Anime row for Home.',
             },
             {
                 icon: 'lightbulb',
@@ -64,8 +64,8 @@ export const WHATS_NEW = {
             },
             {
                 icon: 'eye-off',
-                title: 'Trailers off = plain covers',
-                detail: 'Turn off Auto-play trailers and the wide trailer window disappears from every row.',
+                title: 'Trailers everywhere (or nowhere)',
+                detail: 'Coming soon now plays trailers like every other row \u2014 and turning Auto-play off removes the trailer window completely.',
             },
             {
                 icon: 'users',

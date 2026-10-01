@@ -8,6 +8,7 @@ import Player from '@/pages/Player';
 import Search from '@/pages/Search';
 import Network from '@/pages/Network';
 import Collection from '@/pages/Collection';
+import Anime from '@/pages/Anime';
 import BoxSets from '@/pages/BoxSets';
 import Resolve from '@/pages/Resolve';
 import V2AIResolve from '@/pages/V2AIResolve';
@@ -952,6 +953,7 @@ function App() {
                                 <Route path="/networks/:slug" element={<RequireProfile><Network /></RequireProfile>} />
                                 <Route path="/collections/:slug" element={<RequireProfile><Collection /></RequireProfile>} />
                                 <Route path="/boxsets" element={<RequireProfile><BoxSets /></RequireProfile>} />
+                                <Route path="/anime" element={<RequireProfile><Anime /></RequireProfile>} />
                                 <Route path="/resolve/:type/:id" element={<RequireProfile><Resolve /></RequireProfile>} />
                                 <Route path="/v2ai-play" element={<RequireProfile><V2AIResolve /></RequireProfile>} />
                                 <Route path="/v2ai" element={<RequireProfile><V2AI /></RequireProfile>} />

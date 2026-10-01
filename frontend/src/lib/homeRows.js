@@ -12,6 +12,7 @@ export const HOME_ROWS = [
     { id: 'foryou',      label: 'Similar to what you love', hint: 'Picks from your viewing style' },
     { id: 'networks',    label: 'Browse by Network',  hint: 'Netflix, Disney+, Max, Apple TV+…' },
     { id: 'studios',     label: 'Studios',            hint: 'Marvel, DC, Pixar, A24…' },
+    { id: 'anime',       label: 'Anime',              hint: 'Japanese animation — movies & series' },
     { id: 'movie-year',  label: 'New movies',         hint: 'This year\u2019s releases' },
     { id: 'series-year', label: 'New series',         hint: 'This year\u2019s shows' },
     { id: 'movie-top',   label: 'Popular movies',     hint: 'Most watched right now' },
@@ -23,7 +24,7 @@ const DEFAULT_ORDER = HOME_ROWS.map((r) => r.id);
 
 /** Genres offered in the "Add a category" picker (label doubles as the query). */
 export const CATEGORY_GENRES = [
-    'Hallmark', 'Christmas', 'Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 'Documentary', 'Drama', 'Family',
+    'Hallmark', 'Christmas', 'Anime', 'Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 'Documentary', 'Drama', 'Family',
     'Fantasy', 'History', 'Horror', 'Music', 'Mystery', 'Romance', 'Sci-Fi', 'Thriller',
     'War', 'Western', 'Kids', 'Reality', 'Based on a True Story', 'Biography', 'Bollywood',
 ];
