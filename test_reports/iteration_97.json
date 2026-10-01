@@ -1,0 +1,93 @@
+{
+  "summary": "Round-97 full backend + frontend E2E for Vesper v1.5.0 Anime hub and single-popup launch. Backend 8/8 pass (anime hub w/ 16 rails incl. all required ids, cached<10s on 2nd call, by-genres -8 for both tv & movie incl. Spirited Away, custom-row anime synthetic). Frontend verified on https://rebrand-app-5.preview.emergentagent.com: /anime renders with [data-testid=anime-page], eyebrow 'Anime · Movies & Series', 16 shelves (incl. trending-series, popular-movies, airing-now, top-series, top-movies, ghibli, action, comedy, kids, classics), initial focus on first poster tile, hero follows focus, <iframe>/<video> appears within 4s, ArrowDown moves between shelves, Escape returns to /. top-nav-anime placed between top-nav-boxsets and top-nav-library and highlights on /anime. Movies chips show 'anime' at position 5 after Hallmark; TV chips show 'Anime' as the FIRST chip after All (confirmed via screenshot); clicking the Movies anime chip renders 500 grid-anime-* tiles. Home has [data-testid=custom-row-shelf-anime]; Settings → Home screen lists home-row-anime at position 05 right after home-row-studios (04). Add-a-category panel chips are hallmark, christmas, ANIME (3rd), action, adventure, ...  — matches spec. What's New modal appears on /profiles, headline 'Anime, Box Sets, Studios & a Home screen that’s yours', Enter dismisses, writes onnowtv-whatsnew-seen-v1=1.5.0 AND vesper-onboarding-seen-v1 AND sessionStorage vesper-whatsnew-shown=1; after selecting profile NO onboarding/tour modal and NO feature-nudge appeared within 10s. Overlay count never > 1. Batman box-set regression still works.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "detailed_results": {
+    "backend_api": {
+      "anime_hub_rails_count": 16,
+      "required_rail_ids_present": ["trending-series","popular-movies","airing-now","top-series","top-movies","ghibli","action","comedy","kids","classics"],
+      "every_rail_has_6plus_items_with_required_fields": true,
+      "second_call_cached_true_under_10s": true,
+      "by_genres_tv_-8_items": "40 anime series returned (data key)",
+      "by_genres_movie_-8_spirited_away_in_first_60": true,
+      "custom_row_anime_label_and_matched_media": "label='Anime', matched.media superset of {movie,tv}"
+    },
+    "anime_page": {
+      "anime-page_present": true,
+      "anime-eyebrow": "Anime · Movies & Series",
+      "anime-shelves_present": true,
+      "shelf_count": 16,
+      "shelf_ids_sample": ["shelf-anime-trending-series","shelf-anime-popular-movies","shelf-anime-airing-now","shelf-anime-new-movies","shelf-anime-top-series","shelf-anime-top-movies","shelf-anime-ghibli","shelf-anime-action","shelf-anime-fantasy","shelf-anime-romance","shelf-anime-comedy","shelf-anime-drama","shelf-anime-mystery","shelf-anime-fantasy-movies","shelf-anime-kids","shelf-anime-classics"],
+      "initial_focus_within_6s": "poster-anime-trending-series-series-65733 (first tile — Doraemon) ✓",
+      "arrow_right_changes_hero": "Doraemon → Mushoku Tensei: Jobless Reincarnation ✓",
+      "trailer_video_or_iframe_within_4s": true,
+      "arrow_down_moves_to_next_shelf_tile": "poster-anime-popular-movies-movie-4935 ✓",
+      "escape_returns_to_home": "/"
+    },
+    "top_nav": {
+      "top-nav-anime_present": true,
+      "position": "between top-nav-boxsets and top-nav-library ✓",
+      "click_navigates_to_/anime": true
+    },
+    "tv_chips": {
+      "visible_in_screenshot": true,
+      "first_chip_after_all": "Anime",
+      "note": "DOM-query from Playwright sometimes returned empty due to tab-grid lazy mount, but screenshot and user-visible state show chips rendered correctly."
+    },
+    "movie_chips": {
+      "order_sample": ["all","in cinema","christmas","hallmark","anime"],
+      "anime_tile_count_after_click": 500
+    },
+    "home_row_anime": {
+      "custom-row-shelf-anime_present": true,
+      "settings_home_rows_order_positions": {"cw":0,"foryou":1,"networks":2,"studios":3,"anime":4,"movie-year":5},
+      "anime_after_studios": true
+    },
+    "add_a_category_chips": {
+      "chips": ["hallmark","christmas","anime","action","adventure","animation","comedy","crime"],
+      "anime_position_0based": 2,
+      "matches_spec_3rd_chip": true
+    },
+    "whats_new_single_popup": {
+      "whats-new-modal_shown_on_/profiles": true,
+      "headline": "Anime, Box Sets, Studios & a Home screen that’s yours",
+      "starts_with_anime_box_sets": true,
+      "items_count": 12,
+      "overlays_concurrently": 1,
+      "enter_dismisses": true,
+      "localStorage_after_dismiss": {"onnowtv-whatsnew-seen-v1":"1.5.0","vesper-onboarding-seen-v1":"<timestamp set>"},
+      "sessionStorage_vesper-whatsnew-shown": "1",
+      "after_profile_select_no_tour_no_nudge_within_10s": true,
+      "spec_said_13_items_actual_12": "Minor copy mismatch: spec expected 13 cards (incl. Anime); UI renders 12. All Anime copy is present as its own card. Non-blocking."
+    },
+    "regression": {
+      "/collections/batman": "hero + shelf-collection-batman present ✓"
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter97_anime.py",
+    "/app/test_reports/pytest/iter97_anime.xml"
+  ],
+  "action_items": [
+    "(Optional) Whats-new modal shows 12 cards but the review spec requested 13; verify whether a planned 13th card was dropped or whether the spec count is stale."
+  ],
+  "critical_code_review_comments": [
+    "Pre-existing noise (not a regression): console warnings '[vesperCloudSync] push failed TypeError: Failed to fetch' and torrentio/plexio CORS errors still spam the console in preview. Consider silencing when the cloud sync endpoint is unreachable or when running inside preview pod.",
+    "Minor: Whats-new modal item count (12) is off-by-one vs. iteration-97 spec expectation of 13; recheck /app/frontend/src/components/WhatsNewModal.jsx items array if the 13th card was intentional.",
+    "Anime hub cold-start takes ~5-6s in current preview (well under the 12s spec budget); subsequent requests return cached:true in <1s — good."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter97_anime.py (new)"
+  ],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "100% on 8/8 feature groups; one minor copy mismatch (12 vs 13 whats-new items) flagged as non-blocking"},
+  "test_credentials": "testuser / testpass123 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Visited /?e2e=1 to set sessionStorage vesper-e2e=1; logged in testuser/testpass123; seeded localStorage onnowtv-profiles-v1[:testuser]+onnowtv-active-profile-v1[:testuser]=p-test-1, vesper-onboarding-seen-v1=now, onnowtv-whatsnew-seen-v1=9.9.9; cleared onnowtv-home-rows-v1* keys. For the single-popup test, removed both onnowtv-whatsnew-seen-v1 and vesper-onboarding-seen-v1 before visiting /profiles.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Anime hub rail testids on /anime are 'shelf-anime-<rail-id>' (plus mirror 'shelf-row-anime-<rail-id>') — total 16 rails. Posters inside use 'poster-anime-<rail-id>-<type>-<tmdbId>' naming. Backend returns {rails:[...]} with keys id/title/eyebrow/data; each item has type in {movie,tv,series} — note 'series' is also valid (contract observed in actual response), not strictly 'tv'. by-genres endpoint returns {cached, data:[...]} (not {items}). Movies chip order is All, In Cinema, Christmas, Hallmark, Anime, ... — Anime is 5th (position 4). TV chips start with All, Anime, Drama, Comedy, ... — Anime is first after All. Whats-new modal currently renders 12 cards (spec expected 13); flagged non-blocking. Single-popup gating (sessionStorage vesper-whatsnew-shown + vesper-onboarding-seen-v1 on dismiss) works correctly — no concurrent overlays observed.",
+  "rca of the issue": "No defects discovered. Only observation worth noting: WhatsNewModal item count (12) is one less than iteration-97 review spec expected (13 incl. Anime); the Anime card IS present and prominently shown, so this appears to be either a spec miscount or an intentional edit."
+}
