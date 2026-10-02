@@ -16,7 +16,7 @@ import ReleaseTagBadge, { releaseTagKey, useReleaseTag } from '@/components/Rele
  * Press-and-hold OK (or mouse) to fire the global "Add to My List"
  * modal — short-tap still navigates to the detail page.
  */
-export default function PosterTile({ item, onSelect, onLongPress: onLongPressProp, initialFocus = false, wide = false }) {
+function PosterTile({ item, onSelect, onLongPress: onLongPressProp, initialFocus = false, wide = false }) {
     const navigate = useNavigate();
 
     // v2.19.4 — CINEMA / HD / CAM tag on recent movie covers.
@@ -172,7 +172,7 @@ export default function PosterTile({ item, onSelect, onLongPress: onLongPressPro
                     src={previewBackdrop}
                     alt={item.title}
                     decoding="async"
-                    data-testid="poster-wide-art"
+                    data-testid={`poster-wide-art-${item.id}`}
                     className="absolute inset-0 w-full h-full object-cover"
                 />
             ) : item.poster ? (
@@ -243,3 +243,6 @@ export default function PosterTile({ item, onSelect, onLongPress: onLongPressPro
         </button>
     );
 }
+
+// Moving focus changes only the incoming and outgoing card, not every poster.
+export default React.memo(PosterTile);

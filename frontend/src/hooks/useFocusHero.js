@@ -3,8 +3,8 @@ import * as img from '@/lib/img';
 
 /**
  * Focus-follow hero: whichever rail cover is focused takes over the
- * billboard (art + title + synopsis).  90 ms debounce keeps rapid
- * D-pad scrubbing cheap; neighbours' art is pre-warmed.
+ * billboard (art + title + synopsis). Wait for the row's motion to
+ * settle; rapid scrubbing doesn't decode a fullscreen image per key.
  */
 export function tileToHero(it) {
     if (!it) return null;
@@ -30,12 +30,17 @@ export default function useFocusHero() {
             const item = e.detail;
             if (!item) return;
             clearTimeout(timer);
-            timer = setTimeout(() => setFocusHero(tileToHero(item)), 90);
-            const el = document.activeElement?.closest?.('[data-preview="true"]');
-            [el?.nextElementSibling, el?.previousElementSibling].forEach((sib) => {
-                const b = sib?.getAttribute?.('data-preview-bg-raw');
+            timer = setTimeout(() => {
+                setFocusHero(tileToHero(item));
+                const el = document.activeElement?.closest?.('[data-preview="true"]');
+                const cell = el?.closest('[data-shelf-cell]') || el;
+                // Warm only the next image after settling, never both sides
+                // of every tile traversed while the key is held.
+                const sib = cell?.nextElementSibling;
+                const next = sib?.matches('[data-preview]') ? sib : sib?.querySelector('[data-preview]');
+                const b = next?.getAttribute('data-preview-bg-raw');
                 if (b) { const im = new Image(); im.src = img.heroBackdrop(b); }
-            });
+            }, 200);
         };
         window.addEventListener('vesper:tile-focus', onTileFocus);
         return () => {

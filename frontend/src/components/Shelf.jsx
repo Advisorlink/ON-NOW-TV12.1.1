@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import PosterTile from './PosterTile';
 import { getAutoTrailer } from '@/lib/prefs';
+import useShelfMotion from '@/hooks/useShelfMotion';
 
 /**
  * Responsive shelf row.  All horizontal paddings + gaps + type sizes
@@ -26,33 +27,7 @@ export default function Shelf({ shelf, onSelect, onLongPress, firstTileInitialFo
             window.removeEventListener('vesper:profile-change', sync);
         };
     }, []);
-    const [wideIdx, setWideIdx] = useState(shelf.items.length > 1 ? 1 : 0);
-
-    // Focus-lock: the focused tile always parks in the SECOND slot
-    // and the row slides underneath it (leanback style), so the
-    // wide trailer card never wanders across the screen.
-    const lockToSlot = (e) => {
-        const el = scroller.current;
-        const tile = e.target?.closest?.('[data-preview="true"]');
-        if (!el || !tile || !el.contains(tile)) return;
-        const tiles = el.querySelectorAll('[data-preview="true"]');
-        const idx = Array.prototype.indexOf.call(tiles, tile);
-        if (idx < 0) return;
-        setWideIdx(idx);
-        let target = 0;
-        if (idx >= 1) {
-            // Slot pitch from a NARROW tile's layout width + the row gap.
-            const base = Array.prototype.find.call(
-                tiles,
-                (t) => t.getAttribute('data-preview-active') !== 'true' &&
-                    t.getAttribute('data-preview-wide') !== 'true',
-            ) || tiles[0];
-            const gap = parseFloat(getComputedStyle(el).columnGap) || 0;
-            target = Math.max(0, (idx - 1) * (base.offsetWidth + gap));
-        }
-        if (Math.abs(el.scrollLeft - target) < 2) return;
-        el.scrollLeft = target;
-    };
+    const { wideIndex, onFocus } = useShelfMotion(scroller, shelf.items.length, trailers);
 
     return (
         <section
@@ -102,8 +77,9 @@ export default function Shelf({ shelf, onSelect, onLongPress, firstTileInitialFo
 
             <div
                 ref={scroller}
-                className="vesper-shelf flex"
-                onFocus={lockToSlot}
+                className="vesper-shelf vesper-motion-shelf flex"
+                onFocus={onFocus}
+                data-focus-scroll="shelf"
                 data-testid={`shelf-row-${shelf.id || shelf.title}`}
                 style={{
                     gap: 'clamp(14px, 1.25vw, 24px)',
@@ -119,21 +95,27 @@ export default function Shelf({ shelf, onSelect, onLongPress, firstTileInitialFo
                     // tile level via `content-visibility: auto`.
                     transform: 'translateZ(0)',
                     willChange: 'scroll-position',
-                    // Use scroll-snap so D-pad left/right anchors
-                    // tiles to a consistent X — kills the slight
-                    // drift the user sees inside long rows.
+                    // useShelfMotion owns horizontal positioning; no second
+                    // scroll-snap or edge-comfort correction may fight it.
                     overscrollBehavior: 'contain',
                 }}
             >
                 {shelf.items.map((item, idx) => (
-                    <PosterTile
+                    <div
                         key={item.id}
-                        item={item}
-                        onSelect={onSelect}
-                        onLongPress={onLongPress}
-                        wide={trailers && idx === wideIdx}
-                        initialFocus={firstTileInitialFocus && idx === 0}
-                    />
+                        data-shelf-cell="true"
+                        data-testid={`shelf-cell-${shelf.id}-${item.id}`}
+                        className="vesper-shelf-cell shrink-0"
+                        style={{ zIndex: trailers && idx === wideIndex ? 2 : 0 }}
+                    >
+                        <PosterTile
+                            item={item}
+                            onSelect={onSelect}
+                            onLongPress={onLongPress}
+                            wide={trailers && idx === wideIndex}
+                            initialFocus={firstTileInitialFocus && idx === 0}
+                        />
+                    </div>
                 ))}
                 {/* Trailing runway so the last tiles can still park
                     in slot 2 under the focus-lock. */}

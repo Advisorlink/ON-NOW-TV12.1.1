@@ -3,12 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import SideNav from '@/components/SideNav';
 import FullscreenButton from '@/components/FullscreenButton';
-import HeroBillboard from '@/components/HeroBillboard';
+import { FocusHeroBillboard } from '@/components/FocusHeroBillboard';
 import TrailerHoverPreview from '@/components/TrailerHoverPreview';
 import Shelf from '@/components/Shelf';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useBackHandler from '@/hooks/useBackHandler';
-import useFocusHero, { tileToHero } from '@/hooks/useFocusHero';
+import { tileToHero } from '@/hooks/useFocusHero';
 import { API } from '@/lib/api';
 
 /**
@@ -35,7 +35,6 @@ export default function Anime() {
     useSpatialFocus();
     const navigate = useNavigate();
     useBackHandler(() => navigate('/'));
-    const focusHero = useFocusHero();
     const [rails, setRails] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -135,7 +134,7 @@ export default function Anime() {
             <main data-testid="anime-main" className="absolute inset-0 flex flex-col">
                 <div className="shrink-0">
                     {heroes.length > 0 ? (
-                        <HeroBillboard heroes={heroes} override={focusHero} />
+                        <FocusHeroBillboard heroes={heroes} />
                     ) : (
                         <div
                             data-testid="anime-hero-placeholder"

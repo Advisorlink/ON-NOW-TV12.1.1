@@ -2,10 +2,9 @@
  * <TrailerHoverPreview/> — Netflix-style focus/hover preview.
  *
  * Mounted once on the Home page.  Focusing (D-pad) or hovering a
- * poster tile (`data-preview="true"`) starts resolving its trailer
- * IMMEDIATELY; after a short dwell the TILE ITSELF widens into a
- * 16:9 card (same row height, siblings shift right) and the trailer
- * plays inside it — once, then the cover art stays.
+ * poster tile (`data-preview="true"`) starts a cancellable dwell.
+ * The shelf shows artwork immediately; only a settled selection
+ * resolves/plays a trailer. Passing over tiles never starts extraction.
  *
  * Playback goes through `lib/trailerEngine` (same engine as the
  * Detail-page TrailerModal): native muxed <video> on the box, YouTube
@@ -19,7 +18,6 @@ import { getAutoTrailer } from '@/lib/prefs';
 import {
     fetchTrailerCandidates,
     isBox,
-    prefetchTileTrailer,
     resolveMuxedTrailer,
     tileTrailerRequest,
 } from '@/lib/trailerEngine';
@@ -27,23 +25,17 @@ import TrailerModal from '@/components/TrailerModal';
 import { useNativeBackTrap, triggerTrapBack } from '@/hooks/useNativeBackTrap';
 import { peekHd, prefetchHd } from '@/lib/trailerEngine';
 
-const EXPAND_MS = 0; // instant — no slide-out, the card is simply there
+const PREVIEW_DWELL_MS = 280;
 
 /* Keep the widened tile fully visible inside its horizontal shelf. */
 function revealInShelf(tile) {
     const shelf = tile.closest('.vesper-shelf');
-    if (!shelf) return;
+    if (!shelf || shelf.dataset.focusScroll === 'shelf') return;
     const sr = shelf.getBoundingClientRect();
     const tr = tile.getBoundingClientRect();
     const pad = 48;
     const overflow = tr.right + pad - sr.right;
     if (overflow > 0) shelf.scrollBy({ left: overflow, behavior: 'smooth' });
-}
-
-function nextPreviewTile(tile) {
-    let el = tile.nextElementSibling;
-    while (el && el.getAttribute('data-preview') !== 'true') el = el.nextElementSibling;
-    return el;
 }
 
 export default function TrailerHoverPreview() {
@@ -74,10 +66,17 @@ export default function TrailerHoverPreview() {
             return undefined;
         }
         let expandTimer = null;
+        let revealFrame = null;
         let activeEl = null;
 
         const collapse = () => {
-            if (activeEl) activeEl.removeAttribute('data-preview-active');
+            if (revealFrame) cancelAnimationFrame(revealFrame);
+            revealFrame = null;
+            if (activeEl) {
+                // Stop decoding/audio before waiting for React's unmount.
+                activeEl.querySelector('video')?.pause();
+                activeEl.removeAttribute('data-preview-active');
+            }
             activeEl = null;
         };
 
@@ -98,19 +97,19 @@ export default function TrailerHoverPreview() {
             const hasId = !!req.tmdbId || req.imdbId.startsWith('tt');
             if (!backdrop && !hasId) return;
 
-            const stale = () => token !== tokenRef.current;
-
-            // 1. Expand after a short dwell (art first).
-            expandTimer = setTimeout(() => {
-                if (stale()) return;
-                tile.setAttribute('data-preview-active', 'true');
-                setPreview({ tile, title, sub, backdrop, media: null, playing: false, ended: false });
-                setTimeout(() => {
+            const stale = () => token !== tokenRef.current || !tile.isConnected;
+            if (stale()) return;
+            tile.setAttribute('data-preview-active', 'true');
+            setPreview({ tile, title, sub, backdrop, media: null, playing: false, ended: false });
+            // Only unmanaged rails need a visibility correction. Shelf owns
+            // both the width and scroll; don't nudge it a second time later.
+            if (!tile.closest('[data-focus-scroll="shelf"]')) {
+                revealFrame = requestAnimationFrame(() => {
                     if (!stale()) revealInShelf(tile);
-                }, 300);
-            }, EXPAND_MS);
+                });
+            }
 
-            // 2. Resolve the trailer right away — no waiting on the dwell.
+            // The dwell has elapsed. Only now start network/native work.
             if (!hasId) return;
             (async () => {
                 try {
@@ -121,19 +120,12 @@ export default function TrailerHoverPreview() {
                         const r = await resolveMuxedTrailer(candidates, stale);
                         if (stale()) return;
                         if (r?.url) media = { kind: 'video', url: r.url, candidates };
-                        // Warm the HD pair now so "Play Full Screen" is instant.
-                        if (media) prefetchHd(candidates);
                     } else if (!isBox()) {
                         media = { kind: 'yt', candidates };
                     }
                     if (!media) return;
-                    const apply = () => setPreview((p) => (p && p.tile === tile ? { ...p, media } : p));
-                    // The card may not be expanded yet (fast resolve) —
-                    // wait for the expand tick, then attach the media.
-                    if (tile.getAttribute('data-preview-active') === 'true') apply();
-                    else setTimeout(() => { if (!stale()) apply(); }, EXPAND_MS + 20);
-                    // Warm the next tile so scrolling right feels instant.
-                    prefetchTileTrailer(nextPreviewTile(tile));
+                    if (stale()) return;
+                    setPreview((p) => (p && p.tile === tile ? { ...p, media } : p));
                 } catch {
                     /* keep the art card */
                 }
@@ -155,13 +147,27 @@ export default function TrailerHoverPreview() {
             tokenRef.current += 1;
             setPreview(null);
             setActions(false);
-            startTile(tile, tokenRef.current);
+            const token = tokenRef.current;
+            expandTimer = setTimeout(() => startTile(tile, token), PREVIEW_DWELL_MS);
         };
 
         const onFocusIn = (e) => onEnter(e.target);
         // mousemove (not mouseover) so layout shifting under a
         // stationary cursor never hijacks the D-pad focus preview.
-        const onMove = (e) => onEnter(e.target);
+        const onMove = (e) => {
+            if (actionsRef.current || document.querySelector('[data-testid="trailer-modal"]')) return;
+            const tile = e.target?.closest?.('[data-preview="true"]');
+            // One selected card, even with a mouse: don't widen a hovered
+            // card while Shelf still considers another card the wide one.
+            if (tile?.closest('[data-focus-scroll="shelf"]') && tile !== document.activeElement) {
+                tile.focus({ preventScroll: true });
+            }
+            onEnter(e.target);
+        };
+        const onVisibility = () => {
+            if (document.hidden) hide();
+            else onEnter(document.activeElement);
+        };
 
         // OK on a PLAYING trailer → show the in-card actions instead
         // of navigating.  PosterTile uses useLongPress (navigates on
@@ -194,6 +200,7 @@ export default function TrailerHoverPreview() {
 
         document.addEventListener('focusin', onFocusIn);
         document.addEventListener('mousemove', onMove);
+        document.addEventListener('visibilitychange', onVisibility);
         document.addEventListener('keydown', onPressStart, true);
         document.addEventListener('mousedown', onPressStart, true);
         document.addEventListener('keyup', onPressEnd, true);
@@ -207,6 +214,7 @@ export default function TrailerHoverPreview() {
         return () => {
             document.removeEventListener('focusin', onFocusIn);
             document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('visibilitychange', onVisibility);
             document.removeEventListener('keydown', onPressStart, true);
             document.removeEventListener('mousedown', onPressStart, true);
             document.removeEventListener('keyup', onPressEnd, true);
@@ -214,14 +222,24 @@ export default function TrailerHoverPreview() {
             document.removeEventListener('click', onClick, true);
             window.removeEventListener('vesper:hide-trailer-preview', hide);
             if (expandTimer) clearTimeout(expandTimer);
+            // In-flight results from an old page/profile cannot attach media.
+            tokenRef.current += 1;
             collapse();
         };
     }, [enabled]);
 
+    useEffect(() => {
+        if (!preview?.playing || !preview.media || !isBox()) return undefined;
+        // HD is useful only if the user stays. No neighbour extraction, and
+        // no HD fan-out while the user is moving through the row.
+        const timer = setTimeout(() => prefetchHd(preview.media.candidates), 1000);
+        return () => clearTimeout(timer);
+    }, [preview?.tile, preview?.playing, preview?.media]);
+
     if (!enabled || !preview) return null;
 
     const { tile, title, sub, backdrop, media } = preview;
-    const patch = (fn) => setPreview((p) => (p ? fn(p) : p));
+    const patch = (fn) => setPreview((p) => (p?.tile === tile ? fn(p) : p));
     const onEnded = () => patch((p) => ({ ...p, media: null, playing: false, ended: true }));
 
     const closeActions = () => {

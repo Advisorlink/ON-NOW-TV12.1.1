@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-02",
+  "type": "main-agent self verification after iteration_98",
+  "result": "navigation fixes browser-verified; real APK/device verification pending",
+  "fixed_findings": [
+    "TopNav controls contained at 390x844, remaining items/autoplay in focus-trapped compact More menu; Escape closes and returns focus",
+    "FullscreenButton fixed positioning overrides generic focusable position rule; hidden on phone",
+    "Android/low-end WAAPI observation clarified by sampling during motion rather than after it: 180ms translations running at 16.6ms, zero after settle",
+    "Nonplaying trailer Enter fallback is already deterministic by design: opens title, verified; no behaviour change required"
+  ],
+  "verified": {
+    "rapid_scrub_requests": {"during_eight_moves": 0, "after_settle": 2, "baseline_total": 12},
+    "single_focus_after_tv_motion": 1,
+    "held_repeat_cpu_throttle": "4x; same focused title on release and 800ms later",
+    "mobile_viewport": "390x844, no uncontained page overflow; expected offscreen children inside clipped horizontal rails",
+    "desktop_viewport": "1920x800",
+    "playback_resume": {"card_seconds": 0.523565, "fullscreen_seconds": 0.715936, "resumed_seconds": 0.736038, "resumed_paused": false},
+    "nonplaying_enter": "navigated to /title/movie/tt6933238",
+    "eslint_changed_files": "pass",
+    "production_build": "CI=false yarn build passed in 23.71s; existing hook-dependency warnings; CI=true fails on legacy warnings as expected from existing workflow configuration",
+    "compact_menu_final": "9 Down presses remain inside trap; Escape restores More; clicking Anime navigates and remains on /anime after trap cleanup"
+  },
+  "mocked_only_for_playback_test": ["OnNowTV.previewTrailer/playTrailer callback simulation", "TMDB trailer candidate response", "existing local e2e-test-clip.webm instead of YouTube media"],
+  "production_mocks_added": false,
+  "external_limitations": ["Browser YouTube embed availability", "Existing external addon CORS/502 and cloud-sync warnings", "No physical Android TV test available"],
+  "logs": [
+    "/root/.emergent/automation_output/20261002_070240/console_20261002_070240.log",
+    "/root/.emergent/automation_output/20261002_070348/console_20261002_070348.log"
+  ],
+  "note": "Original iteration_98 report left intact; this follow-up resolves or clarifies its findings without claiming real native service validation. No auth credentials created or changed."
+}

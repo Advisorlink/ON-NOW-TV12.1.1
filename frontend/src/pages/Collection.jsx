@@ -3,12 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import SideNav from '@/components/SideNav';
 import FullscreenButton from '@/components/FullscreenButton';
-import HeroBillboard from '@/components/HeroBillboard';
+import { FocusHeroBillboard } from '@/components/FocusHeroBillboard';
 import TrailerHoverPreview from '@/components/TrailerHoverPreview';
 import Shelf from '@/components/Shelf';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useBackHandler from '@/hooks/useBackHandler';
-import useFocusHero, { tileToHero } from '@/hooks/useFocusHero';
+import { tileToHero } from '@/hooks/useFocusHero';
 import { findCollection } from '@/lib/collections';
 import { API } from '@/lib/api';
 
@@ -55,7 +55,6 @@ export default function Collection() {
     const { slug } = useParams();
     const navigate = useNavigate();
     const col = useMemo(() => findCollection(slug), [slug]);
-    const focusHero = useFocusHero();
 
     const [movies, setMovies] = useState([]);
     const [series, setSeries] = useState([]);
@@ -181,7 +180,7 @@ export default function Collection() {
             <main data-testid="collection-main" className="absolute inset-0 flex flex-col">
                 <div className="shrink-0">
                     {heroes.length > 0 ? (
-                        <HeroBillboard heroes={heroes} override={focusHero} />
+                        <FocusHeroBillboard heroes={heroes} />
                     ) : (
                         <div
                             data-testid="collection-hero-placeholder"

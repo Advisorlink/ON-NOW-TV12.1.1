@@ -413,6 +413,10 @@ export default function useSpatialFocus() {
 
         const horizontalScroller = (el) => {
             if (!el) return null;
+            // Explicit rails stay rails even before images/data make them
+            // overflow. Avoid the computed-style ancestor walk for posters.
+            const ownedRail = el.closest('[data-focus-scroll="shelf"]');
+            if (ownedRail) return ownedRail;
             if (el.__sfHRail !== undefined) return el.__sfHRail;
             let p = el.parentElement;
             while (p && p !== document.body) {
@@ -548,6 +552,11 @@ export default function useSpatialFocus() {
 
             el.focus({ preventScroll: true });
             setFocusAttr(el);
+
+            // Shelf commits its width swap + scroll together before paint.
+            // Reading geometry here would flush the OLD layout and enqueue
+            // a competing edge-comfort scroll (most visible moving LEFT).
+            if ((dir === 'left' || dir === 'right') && el.closest('[data-focus-scroll="shelf"]')) return;
 
             const rect = el.getBoundingClientRect();
             const vh = window.innerHeight;

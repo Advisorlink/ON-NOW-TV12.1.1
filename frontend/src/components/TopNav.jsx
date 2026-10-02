@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Zap } from 'lucide-react';
+import { Zap, MoreHorizontal } from 'lucide-react';
 import { getAutoplay1080p, setAutoplay1080p } from '@/lib/prefs';
 import { getActiveProfile } from '@/lib/profiles';
 import { AvatarCircle } from '@/lib/avatars';
+import { CompactNavMenu } from '@/components/CompactNavMenu';
 
 /**
  * <TopNav/> — alternative to the left rail (Settings → "Top menu
@@ -12,6 +13,13 @@ import { AvatarCircle } from '@/lib/avatars';
  * focused/hovered.  Reached with UP from the top row (never LEFT).
  */
 export default function TopNav({ items }) {
+    const [compact, setCompact] = useState(() => window.matchMedia('(max-width: 600px)').matches);
+    const [moreOpen, setMoreOpen] = useState(false);
+    useEffect(() => {
+        const resize = () => { setCompact(window.matchMedia('(max-width: 600px)').matches); setMoreOpen(false); };
+        window.addEventListener('resize', resize);
+        return () => window.removeEventListener('resize', resize);
+    }, []);
     // Lets pages that start at the very top (Search columns) make
     // room for the bar via `html.vesper-topnav` in index.css.
     useEffect(() => {
@@ -45,13 +53,24 @@ export default function TopNav({ items }) {
         try { document.activeElement?.blur?.(); } catch { /* ignore */ }
         navigate(path);
     };
+    const toggleAutoplay = () => {
+        const next = !autoplay;
+        setAutoplay1080p(next);
+        setAutoplay(next);
+    };
+    const closeMore = () => {
+        setMoreOpen(false);
+        document.querySelector('[data-testid="top-nav-more"]')?.focus({ preventScroll: true });
+    };
 
     return (
         <nav
             data-testid="top-nav"
+            data-compact={compact ? 'true' : undefined}
             className="fixed left-0 right-0 top-0 z-40 flex justify-center pointer-events-none"
             style={{ paddingTop: 14 }}
             onFocus={(e) => {
+                if (e.target.closest('[data-focus-trap="true"]')) return;
                 // Entering the bar from the page (UP from a row): land
                 // on the CURRENT page's icon rather than whichever icon
                 // happened to be geometrically nearest.
@@ -74,6 +93,7 @@ export default function TopNav({ items }) {
             }}
         >
             <div
+                data-testid="top-nav-items"
                 className="vesper-glass flex items-center gap-1 rounded-full pointer-events-auto"
                 style={{
                     padding: '6px 10px',
@@ -81,7 +101,7 @@ export default function TopNav({ items }) {
                     boxShadow: '0 12px 40px rgba(0,0,0,0.35)',
                 }}
             >
-                {items.map((item) => (
+                {(compact ? items.slice(0, 4) : items).map((item) => (
                     <TopNavItem
                         key={item.id}
                         testid={`top-nav-${item.id}`}
@@ -91,22 +111,24 @@ export default function TopNav({ items }) {
                         onClick={() => go(item.path)}
                     />
                 ))}
-                <span
+                {!compact && <span
                     aria-hidden="true"
                     style={{ width: 1, height: 22, background: 'var(--vesper-line)', margin: '0 6px' }}
-                />
-                <TopNavItem
+                />}
+                {compact ? <TopNavItem
+                    testid="top-nav-more"
+                    icon={MoreHorizontal}
+                    label="More"
+                    active={moreOpen || items.slice(4).some(isActive)}
+                    onClick={() => setMoreOpen((open) => !open)}
+                /> : <TopNavItem
                     testid="top-nav-autoplay"
                     icon={Zap}
                     label={autoplay ? 'Auto play · ON' : 'Auto play · OFF'}
                     active={autoplay}
                     accent
-                    onClick={() => {
-                        const next = !autoplay;
-                        setAutoplay1080p(next);
-                        setAutoplay(next);
-                    }}
-                />
+                    onClick={toggleAutoplay}
+                />}
                 <button
                     type="button"
                     data-focusable="true"
@@ -120,6 +142,7 @@ export default function TopNav({ items }) {
                     <AvatarCircle avatarId={activeProfile?.avatarId} size={28} />
                 </button>
             </div>
+            {compact && moreOpen && <CompactNavMenu items={items.slice(4)} isActive={isActive} go={go} autoplay={autoplay} toggleAutoplay={toggleAutoplay} onClose={closeMore} />}
         </nav>
     );
 }
@@ -145,6 +168,7 @@ function TopNavItem({ icon: Icon, label, active, accent = false, onClick, testid
             className="relative flex items-center justify-center rounded-full"
             style={{
                 width: 40,
+                flexShrink: 0,
                 height: 40,
                 color,
                 background: active ? 'color-mix(in srgb, currentColor 14%, transparent)' : 'transparent',

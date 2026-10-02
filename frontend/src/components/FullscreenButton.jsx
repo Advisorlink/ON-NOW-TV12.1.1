@@ -19,6 +19,7 @@ export default function FullscreenButton() {
             aria-label={isFs ? 'Exit fullscreen' : 'Enter fullscreen'}
             className="fixed top-6 right-8 z-[60] flex items-center justify-center rounded-full"
             style={{
+                position: 'fixed',
                 width: 52,
                 height: 52,
                 background: 'rgba(17,24,39,0.6)',

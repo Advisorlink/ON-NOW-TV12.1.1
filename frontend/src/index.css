@@ -456,6 +456,20 @@ html.vesper-topnav [data-testid="search-layout"] {
 [data-preview='true'][data-preview-wide='true'] {
     width: calc(var(--tile-w) * 2.6667) !important;
 }
+/* Translation lives on the cell, focus scale on its button. This avoids
+   transform conflicts and does not animate width/layout on every frame. */
+.vesper-motion-shelf { position: relative; }
+.vesper-shelf-cell { position: relative; display: flex; }
+.vesper-shelf-cell:focus-within { z-index: 3 !important; }
+.vesper-motion-shelf [data-preview='true'] {
+    max-width: calc(100vw - 32px);
+}
+@media (max-width: 600px) {
+    [data-testid='top-nav-items'] { max-width: calc(100vw - 24px); }
+    [data-testid='top-nav'][data-compact='true'] [data-testid$='-label'] { display: none; }
+    [data-testid='fullscreen-button'] { display: none !important; }
+    html.vesper-topnav [data-testid='home-brand-logo'] { top: 80px !important; left: 18px !important; }
+}
 [data-focus-style='tile']:focus-visible,
 [data-focus-style='tile'][data-focused='true'] {
     transform: scale(1.06) translateY(-2px);
@@ -738,6 +752,15 @@ html.vesper-topnav [data-testid="search-layout"] {
        instant snap is the fast, crisp feel they want, and it also
        avoids the "ghost glow under the next tile". */
     transition: none !important;
+}
+/* Keep inexpensive focus motion on posters even on TV. Shadows still snap;
+   do not re-enable expensive blur/box-shadow transitions globally. */
+.vesper-low-end .vesper-motion-shelf [data-preview='true'],
+.vesper-host-android .vesper-motion-shelf [data-preview='true'] {
+    transition: transform 120ms ease-out !important;
+}
+@media (prefers-reduced-motion: reduce) {
+    .vesper-motion-shelf [data-preview='true'] { transition: none !important; }
 }
 /* Pop-out effect on focused tiles + pills — kept enabled even in
    perf mode because it's the single most "alive" feedback users get

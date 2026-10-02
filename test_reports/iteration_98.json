@@ -1,0 +1,72 @@
+{
+  "summary": "Frontend-only deep-dive regression on Vesper navigation smoothness vs Kids reference completed on preview URL. Core shelf motion behavior improved and mostly matches expected: single focus invariant held, no post-release queued movement, slot-2 stability observed, trailer request suppression during rapid scrub observed, and WAAPI motion present during normal shelf moves with clean settle. Found remaining mobile/top-nav clipping and a preview-action flow gap under non-playing trailer states.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "TopNav + floating controls (mobile 390x844)",
+        "issue": "Visible clipping/offscreen controls on phone width: left icon/button partially outside viewport and right autoplay button partially outside viewport; fullscreen floating button also renders partially offscreen.",
+        "selector": "[data-testid='top-nav'], [data-testid='top-nav-home'], [data-testid='top-nav-autoplay'], [data-testid='fullscreen-button']",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Trailer preview -> Enter -> action overlay",
+        "issue": "Preview card appears after dwell, but action overlay did not open in tested run because trailer did not reach playing state (actions_count=0). Full overlay->fullscreen->back/resume path therefore not fully validated in this run.",
+        "affected_selectors": [
+          "[data-testid='trailer-hover-preview']",
+          "[data-testid='trailer-hover-actions']",
+          "[data-testid='trailer-hover-fullscreen']"
+        ]
+      },
+      {
+        "flow": "Route loads using networkidle waits",
+        "issue": "Persistent external addon CORS/502 traffic (plexio/torrentio and cloud-sync warnings) prevents stable network-idle and can cause automation timeouts despite UI being interactive.",
+        "affected_selectors": [
+          "window.fetch (global)",
+          "console"
+        ]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Home mobile (390x844)",
+        "issues": [
+          "Top-nav pill/children exceed effective width and clip visually on both sides",
+          "Interactive floating controls near edges reduce touch comfort on narrow screens"
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/root/.emergent/automation_output/20261002_065435/console_20261002_065435.log",
+    "/root/.emergent/automation_output/20261002_065713/console_20261002_065713.log",
+    "/root/.emergent/automation_output/20261002_065906/console_20261002_065906.log"
+  ],
+  "action_items": [
+    "Fix mobile top-nav layout at exact 390x844 so all controls remain fully visible without clipping.",
+    "Harden trailer preview action flow when trailer media is unavailable/not yet playing (deterministic fallback or graceful action availability policy).",
+    "Optionally isolate/suppress noisy external addon CORS failures during QA flows to avoid false network-idle failures."
+  ],
+  "critical_code_review_comments": [
+    "useShelfMotion FLIP path behaves as expected on normal class set (WAAPI running observed during second move, and 0 running animations after settle).",
+    "Under simulated .vesper-host-android + .vesper-low-end classes, running WAAPI count was 0 during sample check (then 0 after settle), consistent with aggressive perf-mode animation stripping; verify this is intended on real Android TV hardware.",
+    "TopNav currently uses fixed-size icon cells in a centered pill; on narrow mobile widths this can clip edge controls. Consider mobile-specific condensation (fewer icons, horizontal scroll, or compact mode)."
+  ],
+  "updated_files": [
+    "/app/test_reports/iteration_98.json"
+  ],
+  "success_rate": {
+    "backend": "n/a (skipped per request)",
+    "frontend": "84%"
+  },
+  "seed_data_creation": "Used testuser/testpass123 login API and seeded localStorage/sessionStorage: vesper-auth-token-v1, vesper-auth-account-v1, onnowtv-profiles-v1:testuser, onnowtv-active-profile-v1:testuser, vesper-e2e=1, onboarding/whatsnew skip keys. For kids-context regression, seeded onnowtv-kids-config-v1 with a 4-digit pin then opened ?profile=kids.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Kids comparison should be tested via '?profile=kids' context (not '/kids' direct in this environment). Verified kids-home focus movement there. Mobile screenshot after splash removal saved at /app/test_reports/artifacts_iter98/mobile_390x844_home_after_boot.jpg (not listed in links by template rule). Key metrics captured: one focus invariant stayed true, release-state focus stable after 420ms, scrub requests during 8x right @100ms = 0 and after settle = 2, reduced-motion running animations = 0.",
+  "rca of the issue": "Primary chunky-nav root cause appears resolved by FLIP ownership + scroll arbitration (as provided by E1 context and validated behaviorally here). Remaining user-visible roughness now comes from mobile top-nav clipping and non-deterministic trailer-play state in preview mode. Reproduction: open Home on 390x844 -> observe partially offscreen top-nav edge buttons; focus tile and press Enter after preview appears on a title with unavailable/non-starting trailer -> actions overlay may not appear. Mitigation: responsive top-nav compaction and explicit preview-state fallback/action policy."
+}

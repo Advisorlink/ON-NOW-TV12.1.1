@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import SideNav from '@/components/SideNav';
 import DPadHint from '@/components/DPadHint';
-import HeroBillboard from '@/components/HeroBillboard';
+import { FocusHeroBillboard } from '@/components/FocusHeroBillboard';
 import Shelf from '@/components/Shelf';
 import NetworksShelf from '@/components/NetworksShelf';
 import CollectionsShelf from '@/components/CollectionsShelf';
@@ -14,7 +14,6 @@ import UpcomingMoviesShelf from '@/components/UpcomingMoviesShelf';
 import TabGridView from '@/components/TabGridView';
 import FullscreenButton from '@/components/FullscreenButton';
 import TrailerHoverPreview from '@/components/TrailerHoverPreview';
-import useFocusHero from '@/hooks/useFocusHero';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { hasPendingFocusBookmark } from '@/hooks/useFocusRestore';
 import useHomeBackHandler from '@/hooks/useHomeBackHandler';
@@ -245,6 +244,8 @@ export default function Home() {
             // (clicks an item or presses Right) the menu collapses
             // and this row-walker takes over again.
             if (active.closest('[data-testid="side-nav"]')) return;
+            // Menus/dialogs own their arrows; never walk background rows.
+            if (active.closest('[data-focus-trap="true"]')) return;
 
             // v2.13.14 — frame-aware repeat pacing (shared pacer with
             // the spatial engine).  Held-key repeats are dropped, not
@@ -372,7 +373,6 @@ export default function Home() {
      * users saw two/three shelves bleeding through at once. */
     const [shelfPageHeight, setShelfPageHeight] = useState(600);
 
-    const focusHero = useFocusHero();
     useEffect(() => {
         const compute = () => {
             const heroEl = document.querySelector(
@@ -521,7 +521,7 @@ export default function Home() {
                     className="absolute inset-0 flex flex-col"
                 >
                     <div className="shrink-0">
-                        <HeroBillboard heroes={liveHeroes} override={focusHero} />
+                        <FocusHeroBillboard heroes={liveHeroes} />
                     </div>
 
                     <div
