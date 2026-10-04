@@ -1,6 +1,6 @@
 # ON NOW TV V2 — Product requirements and current state
 
-Updated: 2026-10-02. Historical implementation details previously in this 12,244-line file are preserved in [CHANGELOG.md](CHANGELOG.md). Priorities are in [ROADMAP.md](ROADMAP.md).
+Updated: 2026-10-04. Historical implementation details previously in this 12,244-line file are preserved in [CHANGELOG.md](CHANGELOG.md). Priorities are in [ROADMAP.md](ROADMAP.md).
 
 ## Original product requirements
 Continue development of the ON NOW TV V2 app suite:
@@ -10,7 +10,22 @@ Continue development of the ON NOW TV V2 app suite:
 
 Audience: TV viewers using a D-pad on Android TV boxes, families using the Kids app, phone companion/game participants, and the operator managing boxes through the launcher admin.
 
-## Current user request (2026-10-02)
+## Latest user request (2026-10-04)
+Remove the duplicate startup/login update popups, fit every update on a single non-scrolling dialog, and smooth the top navigation bar. User resumed after a credit interruption; work and testing continued.
+
+### Implemented and verified
+- Reproduced actual duplicate with a delayed rejected cached session: old notice appeared before `/me` completed, disappeared at login, appeared again after login. Independent automatic welcome tour and auth-remounted boot splash could add further interruptions.
+- `AuthContext.jsx` exposes `sessionVerified` for UI readiness, without changing server auth, credentials, token storage or providers. Notice waits for real `/me` validation, or successful login plus completion of cloud restore lookup. Optimistic cached authentication alone cannot trigger it.
+- `lib/releaseNotice.js` provides a synchronous, versioned session/in-memory claim on actual presentation, persistent version acknowledgement on dismissal. `WhatsNewModal.jsx` waits for boot/other focus traps and eligible Vesper routes. Explicit restore choice remains intact; update notes do not stack over it.
+- `OnboardingGate` is manual-only via existing Settings → Help → Replay. `BootSplash` mounts once outside `LoginGate`, not again on sign-in.
+- Release version `1.5.1`, 14 concise entries: all 12 preceding release topics plus smooth browsing and the single-popup change. `ReleaseNotesPanel.jsx` + `releaseNotes.css`: responsive 3-column TV / 2-column phone grid, every title/detail visible, no scroll pane or clipping, D-pad/Tab focus trap and native Back dismissal.
+- `useTopNavMotion.js` + `topNavMotion.css`: one 160 ms translate3d focus indicator; fixed-size buttons; 120 ms icon transforms; persistent fade labels. Local left/right sibling navigation avoids whole-page geometric scanning. TV/low-end CSS no longer forces the menu's movement to snap. Reduced-motion preference respected. Spatial engine marks actual redirected focus synchronously.
+- Main report `test_reports/iteration_99.json`; follow-up `iteration_99_followup.json`. Real auth smoke 3/3 pass. Stale-token, once-only notice, reload/relogin, excluded products, layout and top-nav movement checks passed. Main follow-up proved manual tour works both with click and D-pad after selecting Help; no Settings fix needed.
+- Restore-ordering test used a **MOCKED cloud snapshot and push response in browser automation only** to avoid mutating real profile backups. Verified pending lookup → restore dialog alone → restore/reload → one update notice → no duplicate after dismissal/reload. No application API is mocked.
+- Required screenshots: 1920×800 panel 1120×453 and 390×844 panel 366×577; all 14 entries with no text or horizontal overflow. No physical TV test performed; rebuild/install APK remains required.
+- Modified-file lint: zero errors; two existing App.js warnings. Final `CI=false yarn build` passed in 24.12 seconds with existing suite hook/bundle-size warnings, no compilation errors (`/tmp/vesper-popup-topnav-build.log`). No new/changed credentials.
+
+## Previous user request (2026-10-02)
 Deeply investigate why horizontal navigation in Vesper feels chunky compared with Kids in the supplied recording; fix underlying causes without removing trailers, and explain what was wrong.
 Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/artifacts/26fu3mgh_az_recorder_20261002_163651.mp4
 
@@ -45,7 +60,7 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 
 ## Previous delivered work to preserve
 - Anime removed from automatic default Home injection; hub stays in top/side navigation and is available through Add a category. Existing Movies/TV chip order retained.
-- Settings left-pane navigation and Home row arrangement; custom categories including Hallmark/Christmas/Anime; static Tips; one What's New popup per launch.
+- Settings left-pane navigation and Home row arrangement; custom categories including Hallmark/Christmas/Anime; static Tips. What's New is now once per release, never twice across startup/login; manual welcome tour remains available.
 - Studios sizing, Box Set hero/trailer behaviour, Coming Soon hover trailers, trailers-off without preview rectangle; native keyboard in Host a Party search.
 - Native player improvements from earlier sessions still require rebuilt APKs to reach boxes.
 

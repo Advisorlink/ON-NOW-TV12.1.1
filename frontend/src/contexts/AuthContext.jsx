@@ -30,6 +30,7 @@ import { isRestorableSnapshot } from '@/lib/profileBackup';
 
 const AuthContext = React.createContext({
     status: 'checking',
+    sessionVerified: false,
     account: null,
     login: async () => {},
     logout: async () => {},
@@ -65,6 +66,9 @@ export function AuthProvider({ children }) {
         getToken() ? 'authenticated' : 'guest',
     );
     const [account, setAccount] = React.useState(() => getAccount());
+    // Cached credentials may render the shell optimistically, but launch
+    // notices must wait for a server-verified session (not an expired token).
+    const [sessionVerified, setSessionVerified] = React.useState(false);
     // v2.16.18 — Cloud-sync restore prompt.  Populated after a
     // successful `login()` (or on-boot resume of an authenticated
     // session that hasn't been offered restore yet) when the server
@@ -80,6 +84,7 @@ export function AuthProvider({ children }) {
     const refresh = React.useCallback(async () => {
         const t = getToken();
         if (!t) {
+            setSessionVerified(false);
             setStatus('guest');
             setAccount(null);
             return;
@@ -89,15 +94,19 @@ export function AuthProvider({ children }) {
         // (e.g. logout) while /me was in flight, do NOT re-assert
         // 'authenticated' from this stale request.
         if (!getToken()) {
+            setSessionVerified(false);
             setStatus('guest');
             setAccount(null);
             return;
         }
+        if (getToken() !== t) return;
         if (acc) {
+            if (!loginInProgressRef.current) setSessionVerified(true);
             setStatus('authenticated');
             setAccount(acc);
             _pushPresenceUserToHost(acc);
         } else {
+            setSessionVerified(false);
             setStatus('guest');
             setAccount(null);
             _pushPresenceUserToHost(null);
@@ -118,6 +127,7 @@ export function AuthProvider({ children }) {
 
     const login = React.useCallback(async (username, password) => {
         loginInProgressRef.current = true;
+        setSessionVerified(false);
         try {
             const data = await apiLogin(username, password);
             setStatus('authenticated');
@@ -155,6 +165,9 @@ export function AuthProvider({ children }) {
             } catch {
                 resumeVesperCloudSync();
             }
+            // Restore choice is known now; don't flash release notes while
+            // the login's cloud-snapshot lookup is still pending.
+            if (getToken() === data.access_token) setSessionVerified(true);
             return data;
         } finally {
             loginInProgressRef.current = false;
@@ -162,6 +175,7 @@ export function AuthProvider({ children }) {
     }, []);
 
     const logout = React.useCallback(async () => {
+        setSessionVerified(false);
         await apiLogout();
         setStatus('guest');
         setAccount(null);
@@ -203,6 +217,7 @@ export function AuthProvider({ children }) {
     const value = React.useMemo(
         () => ({
             status,
+            sessionVerified,
             account,
             login,
             logout,
@@ -212,7 +227,7 @@ export function AuthProvider({ children }) {
                 dismiss: dismissCloudRestore,
             },
         }),
-        [status, account, login, logout, refresh, cloudSnapshot, dismissCloudRestore],
+        [status, sessionVerified, account, login, logout, refresh, cloudSnapshot, dismissCloudRestore],
     );
 
     return (

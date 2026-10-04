@@ -3,11 +3,31 @@
  * the app opens.  Bump APP_VERSION and prepend a new entry to
  * WHATS_NEW whenever a release ships user-facing changes.
  */
-export const APP_VERSION = '1.5.0';
+export const APP_VERSION = '1.5.1';
 
 // Most-recent version first.  Only the entry matching APP_VERSION is
 // shown in the "What's New" popup.  `icon` = lucide icon name.
 export const WHATS_NEW = {
+    '1.5.1': {
+        date: 'October 2026',
+        headline: 'Your latest updates, all in one place',
+        items: [
+            { icon: 'movement', title: 'Smoother browsing', detail: 'Fluid rows and top menu, even with trailers on.' },
+            { icon: 'layers', title: 'Box Sets', detail: 'Films in order. Hold a set to save it to Library.' },
+            { icon: 'clapperboard', title: 'Studios on Home', detail: 'Marvel, Disney, Pixar and more, with trailers.' },
+            { icon: 'layout-grid', title: 'Arrange Home', detail: 'Move, hide or reset rows in Settings.' },
+            { icon: 'plus-circle', title: 'Your own categories', detail: 'Choose a genre or type a theme for a new row.' },
+            { icon: 'zap', title: 'ON NOW TV Direct', detail: 'Direct play for movies in the ON NOW TV library.' },
+            { icon: 'search', title: 'Faster search', detail: 'TV keyboard, voice search and live suggestions.' },
+            { icon: 'settings-2', title: 'Cleaner Settings', detail: 'An easier menu with Home and Playback sections.' },
+            { icon: 'gift', title: 'Hallmark & Christmas', detail: 'Add either category from Home settings.' },
+            { icon: 'sword', title: 'Anime', detail: 'A dedicated hub. Add its Home row in Settings.' },
+            { icon: 'lightbulb', title: 'Tips & tricks', detail: 'Remote shortcuts together in Settings → Tips.' },
+            { icon: 'eye-off', title: 'Trailers your way', detail: 'Coming Soon previews; turn trailers off to hide them.' },
+            { icon: 'users', title: 'Easier party hosting', detail: 'Find your party title using the TV keyboard.' },
+            { icon: 'gift', title: 'One update popup', detail: 'Every update on this screen, without scrolling.' },
+        ],
+    },
     '1.5.0': {
         date: 'June 2026',
         headline: 'Anime, Box Sets, Studios & a Home screen that\u2019s yours',

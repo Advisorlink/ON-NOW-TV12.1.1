@@ -1,0 +1,60 @@
+{
+  "summary": "Completed iteration99 backend+frontend runtime testing on external preview URL. Fixed and executed iter99 auth smoke tests against actual username/Bearer JWT contract (3/3 pass). Frontend release-notice flow validated with a MOCKED delayed /api/auth/me=401 stale-token repro and real login; single v1.5.1 notice shown, no duplicate on reload/relogin, excluded kids/music/trivia routes showed no Vesper notice. Top-nav motion/transitions validated after forcing top layout; manual onboarding replay control remains not interactable in runtime check.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Settings Help / Replay welcome tour",
+        "issue": "Replay button exists in DOM but is not visible/clickable in tested runtime; onboarding overlay could not be opened from Settings via automation.",
+        "selector": "[data-testid='settings-replay-onboarding']",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Cloud restore + release popup sequencing",
+        "issue": "Cloud restore dialog did not appear for testuser in this environment, so 'Restore then show release popup' ordering could not be fully verified with real snapshot data.",
+        "affected_selectors": [
+          "[data-testid='cloud-restore-dialog']",
+          "[data-testid='cloud-restore-confirm']",
+          "[data-testid='whats-new-modal']"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter99_auth_release_smoke.py",
+    "/app/test_reports/pytest/iter99_auth_release_smoke.xml",
+    "/root/.emergent/automation_output/20261004_055345/console_20261004_055345.log",
+    "/root/.emergent/automation_output/20261004_055507/console_20261004_055507.log",
+    "/root/.emergent/automation_output/20261004_055530/console_20261004_055530.log",
+    "/root/.emergent/automation_output/20261004_055547/console_20261004_055547.log"
+  ],
+  "action_items": [
+    "Fix Settings replay-onboarding button visibility/clickability so manual welcome tour replay is reliably usable.",
+    "Run one real-user retest with cloud snapshot present to verify release popup waits until restore dialog is resolved (Restore path).",
+    "Optional: add deterministic QA hook/seed for cloud snapshot presence to make this sequence testable without live account-state dependency."
+  ],
+  "critical_code_review_comments": [
+    "App.js is very large (1000+ lines) and mixes boot-time side effects, routing, and product-mode guards; split into focused modules to reduce regression risk in auth/release sequencing changes.",
+    "server.py is very large (5600+ lines); continued growth increases integration risk and slows targeted regression analysis—modularize by domain routers/services.",
+    "Auth contract is clearly Bearer JWT/localStorage (not httpOnly-cookie); tests must stay aligned to auth_router.py contract to avoid false failures."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter99_auth_release_smoke.py",
+    "/app/test_reports/iteration_99.json"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "88%"
+  },
+  "seed_data_creation": "Browser-local seeds used for nav/profile readiness only: onnowtv-profiles-v1:testuser, onnowtv-active-profile-v1:testuser=p-test-1, onnowtv-nav-layout:p-test-1=top, sessionStorage vesper-e2e=1. No server-side seed data created.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Release modal fit checks passed with no internal overflow detected across tested viewports; desktop panel measured ~1120x452.9. Required screenshots were captured at /app/test_reports/artifacts_iter99/release_modal_1920x800.jpeg and /app/test_reports/artifacts_iter99/release_modal_390x844.jpeg. Top-nav transitions observed as marker transform 160ms and button transform/color 120ms after forcing top layout and profile seed. Duplicate release popup repro was covered with MOCKED delayed /api/auth/me=401; real login produced one notice and no duplicate after reload/relogin. Stop repeating settings-replay selector attempts without a UI fix (3 attempts already made).",
+  "rca of the issue": "Primary unresolved issue is manual replay onboarding control not actionable at runtime: selector resolves in DOM, but Playwright reports element not visible; direct visible-node click fallback also found no visible candidate. This indicates section visibility/layout-state mismatch (hidden section or occluded control) rather than auth/API failure. Reproduction: login -> /settings -> attempt click [data-testid='settings-replay-onboarding'] after navigating welcome-tour section -> click blocked/not visible, onboarding overlay never appears. Mitigation: ensure help section activation makes replay button visibly rendered and pointer/focus reachable."
+}

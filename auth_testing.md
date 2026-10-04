@@ -1,4 +1,17 @@
-# Auth Testing Playbook — Vesper v2 (Xtream-credential login)
+# Auth Testing Playbook — Vesper v2
+
+## 2026-10-04: session-readiness UI regression
+Integration playbook consulted. This change preserves the existing username/Bearer-token contract; no account, password, hashing, cookie, schema or provider changes. Historical notes below predate the `vesper_accounts` rename; use memory/test_credentials.md as current source of truth and the external URL from frontend/.env for all tests.
+
+- Guest: no update notice before successful sign-in.
+- Valid cached token: notice waits for /me verification and boot splash dismissal.
+- Delayed rejected cached token: no early popup; a subsequent successful sign-in shows one.
+- Cloud profile restore: release notes wait for Restore/Start fresh to resolve; do not stack dialogs or erase test profile backups.
+- Dismissed release: route/profile changes, logout/login and reload do not duplicate it. Session claim is versioned and acquired synchronously on presentation (not on scheduling).
+- Old response after logout/token replacement cannot mark a different session verified. Same-value React state updates do not trigger a second transition.
+- Login failures retain existing behaviour. Existing credentials only; do not create users or test lockouts against the shared test account.
+
+## Historical authentication checks
 
 ## Step 1: MongoDB Verification
 

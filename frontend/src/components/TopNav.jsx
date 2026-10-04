@@ -5,6 +5,8 @@ import { getAutoplay1080p, setAutoplay1080p } from '@/lib/prefs';
 import { getActiveProfile } from '@/lib/profiles';
 import { AvatarCircle } from '@/lib/avatars';
 import { CompactNavMenu } from '@/components/CompactNavMenu';
+import useTopNavMotion from '@/hooks/useTopNavMotion';
+import './topNavMotion.css';
 
 /**
  * <TopNav/> — alternative to the left rail (Settings → "Top menu
@@ -13,6 +15,7 @@ import { CompactNavMenu } from '@/components/CompactNavMenu';
  * focused/hovered.  Reached with UP from the top row (never LEFT).
  */
 export default function TopNav({ items }) {
+    const motion = useTopNavMotion();
     const [compact, setCompact] = useState(() => window.matchMedia('(max-width: 600px)').matches);
     const [moreOpen, setMoreOpen] = useState(false);
     useEffect(() => {
@@ -69,8 +72,11 @@ export default function TopNav({ items }) {
             data-compact={compact ? 'true' : undefined}
             className="fixed left-0 right-0 top-0 z-40 flex justify-center pointer-events-none"
             style={{ paddingTop: 14 }}
+            onKeyDown={motion.onKeyDown}
+            onBlur={motion.onBlur}
             onFocus={(e) => {
                 if (e.target.closest('[data-focus-trap="true"]')) return;
+                motion.follow(e.target);
                 // Entering the bar from the page (UP from a row): land
                 // on the CURRENT page's icon rather than whichever icon
                 // happened to be geometrically nearest.
@@ -79,28 +85,21 @@ export default function TopNav({ items }) {
                 if (!activeItem) return;
                 const el = e.currentTarget.querySelector(`[data-testid="top-nav-${activeItem.id}"]`);
                 if (el && el !== e.target) {
-                    const nav = e.currentTarget;
                     try { el.focus({ preventScroll: true }); } catch { /* ignore */ }
-                    // The spatial engine marks its geometric target AFTER
-                    // this handler — move the ring to where focus really is.
-                    setTimeout(() => {
-                        nav.querySelectorAll('[data-focused="true"]').forEach((x) => {
-                            if (x !== el) x.removeAttribute('data-focused');
-                        });
-                        if (document.activeElement === el) el.setAttribute('data-focused', 'true');
-                    }, 0);
                 }
             }}
         >
             <div
+                ref={motion.barRef}
                 data-testid="top-nav-items"
-                className="vesper-glass flex items-center gap-1 rounded-full pointer-events-auto"
+                className="top-nav-bar vesper-glass flex items-center gap-1 rounded-full pointer-events-auto"
                 style={{
                     padding: '6px 10px',
                     border: '1px solid var(--vesper-line)',
                     boxShadow: '0 12px 40px rgba(0,0,0,0.35)',
                 }}
             >
+                <span ref={motion.markerRef} data-testid="top-nav-focus-indicator" aria-hidden="true" className="top-nav-focus-indicator" />
                 {(compact ? items.slice(0, 4) : items).map((item) => (
                     <TopNavItem
                         key={item.id}
@@ -136,8 +135,8 @@ export default function TopNav({ items }) {
                     data-testid="top-nav-profile"
                     aria-label="Switch profile"
                     onClick={() => go('/profiles')}
-                    className="flex items-center justify-center rounded-full"
-                    style={{ width: 40, height: 40, marginLeft: 2, background: 'transparent' }}
+                    className="top-nav-item flex items-center justify-center rounded-full"
+                    style={{ width: 40, flexShrink: 0, height: 40, marginLeft: 2, background: 'transparent' }}
                 >
                     <AvatarCircle avatarId={activeProfile?.avatarId} size={28} />
                 </button>
@@ -148,7 +147,6 @@ export default function TopNav({ items }) {
 }
 
 function TopNavItem({ icon: Icon, label, active, accent = false, onClick, testid }) {
-    const [open, setOpen] = useState(false);
     const color = active
         ? (accent ? '#FFC350' : 'var(--vesper-accent, #5DC8FF)')
         : 'var(--vesper-text-2)';
@@ -161,27 +159,21 @@ function TopNavItem({ icon: Icon, label, active, accent = false, onClick, testid
             aria-label={label}
             title={label}
             onClick={onClick}
-            onFocus={() => setOpen(true)}
-            onBlur={() => setOpen(false)}
-            onMouseEnter={() => setOpen(true)}
-            onMouseLeave={() => setOpen(false)}
-            className="relative flex items-center justify-center rounded-full"
+            className="top-nav-item relative flex items-center justify-center rounded-full"
             style={{
                 width: 40,
                 flexShrink: 0,
                 height: 40,
                 color,
                 background: active ? 'color-mix(in srgb, currentColor 14%, transparent)' : 'transparent',
-                transition: 'none',
             }}
         >
             <Icon size={20} strokeWidth={active ? 2.4 : 2} />
             {/* Label pops in UNDER the icon — fixed-size buttons, so the
                 bar never grows, shifts or re-centres. */}
-            {open && (
                 <span
                     data-testid={`${testid}-label`}
-                    className="vesper-glass font-sans rounded-full"
+                    className="top-nav-label vesper-glass font-sans rounded-full"
                     style={{
                         position: 'absolute',
                         top: 46,
@@ -198,7 +190,6 @@ function TopNavItem({ icon: Icon, label, active, accent = false, onClick, testid
                 >
                     {label}
                 </span>
-            )}
         </button>
     );
 }

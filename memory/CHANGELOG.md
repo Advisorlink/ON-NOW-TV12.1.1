@@ -1,5 +1,14 @@
 # ON NOW TV V2 — Implementation history
 
+## 2026-10-04 — One-screen release notice + smooth top menu
+- Reproduced duplicate startup/login release dialog with delayed rejected cached token; confirmed separate automatic-tour race. Fixed with verified-session notice gating, single mounted boot splash, versioned synchronous presentation claim, and manual-only welcome tour.
+- v1.5.1 contains 14 concise updates in a responsive non-scrolling grid; all details remain visible. D-pad/Tab and native Back supported; waits for cloud restoration instead of stacking modals.
+- Top navigation uses one sliding 160 ms focus marker, 120 ms icon transforms and persistent fading labels. Fixed geometry, local sibling-key movement, correct current-route focus and Android CSS overrides; reduced motion respected.
+- Test agent iteration_99: real auth 3/3 pass, stale-token reproduction/one-notice/layout/menu checks passed. Agent's manual-tour visibility finding resolved by self-test: activate Help after boot, click Replay OR D-pad Down4/Right/Enter both work; no Settings source change warranted.
+- Follow-up restore test: **MOCKED browser-only snapshot/push**; delayed cloud lookup and restore dialog blocked notes, Restore/reload produced exactly one notice, dismissal and reload suppressed repeat. No production integration mocked, no server/credential/Kotlin changes.
+- Specs and evidence: PRD.md, auth_testing.md, test_reports/iteration_99.json and iteration_99_followup.json. Existing release 1.5.0 entries archived in appVersion.js.
+- Final validation: standard production build passed in 24.12 seconds, existing warnings only. Modified-file ESLint zero errors. Real TV APK rebuild/install remains next user verification step.
+
 ## 2026-10-02 — Vesper horizontal navigation deep dive
 - Replaced snap/competing scroll paths with a single shelf-owned FLIP motion controller; kept fixed-slot trailer layout and responsive focus.
 - Memoized posters; isolated hero updates; moved trailer/network/HD work off transient focus changes. TV-only inexpensive transform transitions enabled.

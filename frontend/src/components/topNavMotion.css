@@ -1,0 +1,21 @@
+.top-nav-bar { position: relative; isolation: isolate; }
+.top-nav-focus-indicator { position: absolute; left: 0; top: 0; width: 40px; height: 40px; border-radius: 50%; pointer-events: none; opacity: 0; background: rgba(var(--vesper-blue-rgb), .14); border: 1.5px solid var(--vesper-blue-bright); box-shadow: 0 0 16px rgba(var(--vesper-blue-rgb), .28); will-change: transform; transition: transform 160ms cubic-bezier(.22,1,.36,1), opacity 100ms ease; }
+/* Don't animate a new blur on every icon. The one ring glides beneath
+   fixed-size buttons; icons use only a small compositor scale. */
+[data-testid='top-nav'] .top-nav-item[data-focusable='true'][data-focus-style='pill'] {
+    transition: transform 120ms ease-out, color 120ms ease-out !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+[data-testid='top-nav'] .top-nav-item[data-focusable='true'][data-focus-style='pill']:focus-visible,
+[data-testid='top-nav'] .top-nav-item[data-focusable='true'][data-focus-style='pill'][data-focused='true'] {
+    outline: none !important;
+    box-shadow: none !important;
+    transform: scale(1.04) !important;
+}
+.top-nav-label { opacity: 0; visibility: hidden; transition: opacity 100ms ease; }
+.top-nav-item:focus .top-nav-label,
+.top-nav-item:hover .top-nav-label { opacity: 1; visibility: visible; }
+@media (prefers-reduced-motion: reduce) {
+    [data-testid='top-nav'] .top-nav-item[data-focusable='true'][data-focus-style='pill'], .top-nav-focus-indicator, .top-nav-label { transition: none !important; }
+}

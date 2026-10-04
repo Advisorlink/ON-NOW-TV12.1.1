@@ -53,7 +53,7 @@ import MobileBottomNav from '@/components/MobileBottomNav';
 import { GlobalFocusRestore } from '@/hooks/useFocusRestore';
 // v2.10.77 — UpdateGate import removed; in-app update prompt killed
 // at user request, updates now flow ONLY through the Launcher.
-import Onboarding, { hasSeenOnboarding } from '@/components/Onboarding';
+import Onboarding from '@/components/Onboarding';
 import BootSplash from '@/components/BootSplash';
 import WhatsNewModal from '@/components/WhatsNewModal';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -712,46 +712,19 @@ function KidsExitPill() {
 }
 
 /**
- * Gates the welcome tour: shows it once after a non-kids profile
- * is active and the user hasn't seen it yet.  Also listens for a
- * `vesper:onboarding-replay` event so the Settings → "Replay
- * welcome tour" button can re-open it on demand.
+ * The welcome tour is manual-only. What's New is the single automatic
+ * launch notice; Settings can still open the tour on demand.
  */
 function OnboardingGate() {
-    const location = useLocation();
     const [open, setOpen] = React.useState(false);
 
     React.useEffect(() => {
-        const check = () => {
-            // v2.19.2 — Trivia app never shows the Vesper feature
-            // tour (it has no profiles / no movie features).
-            if (isTriviaApp()) return;
-            const profile = getActiveProfile();
-            // Don't run on the profile picker / edit screens — wait
-            // until the user has actually entered the app.  Kids
-            // profiles skip the tour entirely (it'd confuse the
-            // wee ones).
-            if (!profile) return;
-            if (profile.kids) return;
-            const onProfilesRoute =
-                location.pathname.startsWith('/profiles') ||
-                location.pathname.startsWith('/kids/');
-            if (onProfilesRoute) return;
-            if (hasSeenOnboarding()) return;
-            setOpen(true);
+        const onReplay = () => {
+            if (!isTriviaApp() && !isKidsApp()) setOpen(true);
         };
-        // First check (next tick so React Router has resolved).
-        const t = setTimeout(check, 250);
-        const onReplay = () => setOpen(true);
-        const onProfileChange = () => setTimeout(check, 250);
         window.addEventListener('vesper:onboarding-replay', onReplay);
-        window.addEventListener('vesper:profile-change', onProfileChange);
-        return () => {
-            clearTimeout(t);
-            window.removeEventListener('vesper:onboarding-replay', onReplay);
-            window.removeEventListener('vesper:profile-change', onProfileChange);
-        };
-    }, [location.pathname]);
+        return () => window.removeEventListener('vesper:onboarding-replay', onReplay);
+    }, []);
 
     return <Onboarding open={open} onClose={() => setOpen(false)} />;
 }
@@ -929,6 +902,9 @@ function App() {
                         <AuthProvider>
                             <DeepLinkHandler />
                             <SonnerToaster />
+                            {/* One splash for the app, not a new splash every
+                                time LoginGate switches between guest/app. */}
+                            <BootSplash />
                             <CloudRestoreMount />
                             <MobilePlatformRoot>
                                 <LoginGate>
@@ -1041,7 +1017,6 @@ function App() {
                                 React tree. */}
                             <OnboardingGate />
                             <WhatsNewModal />
-                            <BootSplash />
                                 </LoginGate>
                             </MobilePlatformRoot>
                         </AuthProvider>

@@ -1,0 +1,28 @@
+{
+  "date": "2026-10-04",
+  "type": "main-agent verification of iteration_99 findings",
+  "status": "requested browser flows verified; actual TV APK verification pending",
+  "resolved_findings": {
+    "manual_welcome_tour": {
+      "source_change_needed": false,
+      "result": "PASS: after boot settles, select settings-nav-welcome-tour. Help is the visible section and Replay button rect is x1453.66 y201.03 width113.34 height40.30. Clicking opens onboarding. Also four DOWN presses from Appearance, RIGHT, ENTER focuses Replay and opens onboarding. Previous automation attempted inactive/hidden section.",
+      "log": "/root/.emergent/automation_output/20261004_055655/console_20261004_055655.log"
+    },
+    "restore_ordering": {
+      "result": "PASS: real UI login; delayed cloud lookup has no update popup. Restore dialog is sole modal. Restore reload applies Test profile and yields exactly one v1.5.1 notice after splash. D-pad and Tab remain trapped. Escape dismisses at /profiles and reload has no repeat.",
+      "log": "/root/.emergent/automation_output/20261004_055727/console_20261004_055727.log",
+      "limitations": "Deterministic browser-only MOCKED cloud snapshot/push; not a real cloud roundtrip. No live profile backup altered by this follow-up."
+    }
+  },
+  "popup_measurements": {
+    "1920x800": {"panel": "1120x452.875", "client_height": 451, "scroll_height": 451, "entries": 14, "clipped_text_nodes": 0, "horizontal_overflow": []},
+    "390x844": {"panel": "366x576.6875", "client_height": 575, "scroll_height": 575, "entries": 14, "clipped_text_nodes": 0, "horizontal_overflow": []}
+  },
+  "auth_smoke": "3/3 passed by testing agent; existing username/Bearer JWT contract, no cookie migration",
+  "lint": "0 errors; 2 pre-existing App.js warnings",
+  "production_build": "CI=false yarn build passed in 24.12 seconds; existing hook-dependency and bundle-size warnings, no compilation errors. Log /tmp/vesper-popup-topnav-build.log",
+  "mocks": ["Delayed 401 /api/auth/me for stale-token reproduction", "Cloud snapshot + push response for deterministic restore UI ordering/protecting real backup"],
+  "application_mocks_added": false,
+  "credentials_created_or_modified": false,
+  "remaining": ["Rebuild/install APK and verify real Android TV visual smoothness and launch sequence"]
+}

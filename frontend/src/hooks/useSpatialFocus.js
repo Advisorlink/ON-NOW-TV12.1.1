@@ -551,7 +551,12 @@ export default function useSpatialFocus() {
             }
 
             el.focus({ preventScroll: true });
-            setFocusAttr(el);
+            // TopNav may redirect entry focus to the current page. Mark the
+            // actual target synchronously rather than flashing a second ring.
+            const focused = document.activeElement?.matches('[data-focusable="true"]')
+                ? document.activeElement : el;
+            setFocusAttr(focused);
+            if (focused.closest('[data-testid="top-nav"]')) return;
 
             // Shelf commits its width swap + scroll together before paint.
             // Reading geometry here would flush the OLD layout and enqueue
