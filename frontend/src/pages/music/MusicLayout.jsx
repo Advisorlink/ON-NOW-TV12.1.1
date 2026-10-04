@@ -21,7 +21,9 @@ import {
 import { MiniPlayer } from '../../components/music/MiniPlayer';
 import { CompanionBridge } from '../../components/music/CompanionBridge';
 import useSpatialFocus from '../../hooks/useSpatialFocus';
-import { useMusicPlayer } from '../../hooks/useMusicPlayer';
+import { useMusicPlayback as useMusicPlayer } from '../../hooks/useMusicPlayer';
+import { cancelMusicScroll } from '../../lib/musicScrollMotion';
+import './musicMotion.css';
 import './tunes.css';
 import './karaoke.css';
 import './karaoke-party.css';
@@ -235,8 +237,22 @@ export default function MusicLayout() {
     // Router preserves its scrollTop across navigations, which made
     // Artist/Album pages open "halfway down the screen".
     useEffect(() => {
+        cancelMusicScroll(rootRef.current);
         if (rootRef.current) rootRef.current.scrollTop = 0;
     }, [pathname]);
+    useEffect(() => {
+        const root = rootRef.current;
+        const stop = () => cancelMusicScroll(root);
+        root?.addEventListener('pointerdown', stop, { passive: true });
+        root?.addEventListener('wheel', stop, { passive: true });
+        window.addEventListener('resize', stop);
+        return () => {
+            stop();
+            root?.removeEventListener('pointerdown', stop);
+            root?.removeEventListener('wheel', stop);
+            window.removeEventListener('resize', stop);
+        };
+    }, []);
 
     const [theme, setTheme] = useState(() => readStoredTheme());
     const changeTheme = (next) => {

@@ -1,5 +1,15 @@
 # ON NOW TV V2 — Implementation history
 
+## 2026-10-04 — Live TV login recovery and Music navigation
+- Native loader + crash screen now expose Log in again alongside Retry. Reset handled in main process, cancels loader descendants/invalidates callbacks and clears session/provider caches without wiping personal stores. Crash subprocess skips EPG/player initialization; bounded diagnostic payload.
+- Replaced unsafe cache directory promotion with rollback-preserving pure JVM helper; retained jobs/cancellation semantics and session-generation publication guards prevent stale loaders/workers from restoring cleared guide data.
+- Music: scoped interruptible 180 ms horizontal/vertical scrolling, 120 ms TV focus transitions, no conflicting scroll-snap. Stable control-only and non-progress playback hooks remove background redraws across browse/navigation screens while mini/fullscreen progress stays live.
+- Verification: iteration_100 and follow-up; cache swap JVM tests pass; seven Kotlin brace checks pass; API scoped follow-up 4 pass/3 explicitly skipped unrelated tests; browser TV mode motion 0→302→488, reversal/vertical/reduced-motion/local audio pause-resume pass, no uncontained phone overflow. Web build passed30.70s, existing warnings.
+- Limits: unidentified native crash needs photo/log; actual TV APK verification pending. Existing external music-source403/decode failures and deferred backend security observations not resolved in this task. Test-only local media used for deterministic playback check; no product mocks.
+- Native verification environment: SDK34 installed under /tmp/livetv-android-sdk. Official aapt2 x86-only, Debian ARM aapt2 too old for AGP --source-path. Complete Kotlin typecheck fallback uses Gradle-resolved real Android dependencies and generated R ID placeholders (memory/scripts/typecheck_livetv.py); not APK packaging.
+- Agent-created disposable TEST_iter100_dd8d6a03 deleted; current credentials unchanged and test_credentials.md records cleanup.
+- Final native verification after user resumed: **42 Kotlin sources +79 real Android/dependency jars compile successfully** using Kotlin1.9.22/API34, compile-time resource-ID placeholders only. Caught and fixed Intent Context receiver in async reset. Six cache-swap JVM cases rerun PASS. APK resource packaging/signing and real device E2E remain unverified; modern ARM aapt2 unavailable in this container. Log /tmp/livetv-typecheck-final.log.
+
 ## 2026-10-04 — One-screen release notice + smooth top menu
 - Reproduced duplicate startup/login release dialog with delayed rejected cached token; confirmed separate automatic-tour race. Fixed with verified-session notice gating, single mounted boot splash, versioned synchronous presentation claim, and manual-only welcome tour.
 - v1.5.1 contains 14 concise updates in a responsive non-scrolling grid; all details remain visible. D-pad/Tab and native Back supported; waits for cloud restoration instead of stacking modals.

@@ -1,5 +1,8 @@
 # Auth Testing Playbook — Vesper v2
 
+## 2026-10-04: native Live TV recovery
+Existing AuthStore/provider preserved; playbook consulted, no new auth service or credentials. Verify loader Retry + Log in again and crash-screen recovery. Reset runs in MAIN process, clears task/credentials/provider caches but preserves favourites/collections/preferences. Retained loader children cancel, old progress/navigation ignored, session-generation guards reject old cache publishers. CrashActivity already uses :crash; skip ordinary player/EPG initialization there. Verify cache-promotion rollback with JVM tests and Kotlin syntax/type checks. No emulator means no claim of device E2E success or diagnosis of the user's unidentified crash. Only a real photo/log can confirm that crash cause. Do not use browser-cookie tests for native provider credentials.
+
 ## 2026-10-04: session-readiness UI regression
 Integration playbook consulted. This change preserves the existing username/Bearer-token contract; no account, password, hashing, cookie, schema or provider changes. Historical notes below predate the `vesper_accounts` rename; use memory/test_credentials.md as current source of truth and the external URL from frontend/.env for all tests.
 

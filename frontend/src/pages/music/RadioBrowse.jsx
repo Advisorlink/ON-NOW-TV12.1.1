@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Radio as RadioIcon, Play } from 'lucide-react';
 import { musicAPI } from '../../lib/music-api';
-import { useMusicPlayer } from '../../hooks/useMusicPlayer';
+import { useMusicPlayback as useMusicPlayer } from '../../hooks/useMusicPlayer';
 
 export default function RadioBrowse() {
     const [stations, setStations] = useState(null);

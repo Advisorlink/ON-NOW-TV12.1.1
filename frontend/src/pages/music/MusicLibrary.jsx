@@ -9,7 +9,7 @@ import {
     deletePlaylist,
     removeTrackFromPlaylist,
 } from '../../lib/music-library';
-import { useMusicPlayer } from '../../hooks/useMusicPlayer';
+import { useMusicControls as useMusicPlayer } from '../../hooks/useMusicPlayer';
 
 function fmtDur(secs) {
     const m = Math.floor((secs || 0) / 60);

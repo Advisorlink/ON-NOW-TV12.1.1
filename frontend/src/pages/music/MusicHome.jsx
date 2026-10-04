@@ -20,7 +20,7 @@ import {
     Play, Plus, Info, Sun, Moon, Flame, Zap, Heart, Headphones,
 } from 'lucide-react';
 import { musicAPI, isRealArt } from '../../lib/music-api';
-import { useMusicPlayer } from '../../hooks/useMusicPlayer';
+import { useMusicControls as useMusicPlayer } from '../../hooks/useMusicPlayer';
 
 /* -- Image helpers --------------------------------------------
  * v2.8.61 — Deezer CDN URLs contain the image size in the URL

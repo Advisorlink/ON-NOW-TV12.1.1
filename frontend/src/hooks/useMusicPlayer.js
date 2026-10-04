@@ -21,7 +21,7 @@
 //   controls.next() / previous()
 //   controls.seek(seconds)
 //   controls.setVolume(0..1)
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { resolveTrackStream } from '../lib/musicResolver';
 
 class PlayerEngine {
@@ -580,12 +580,7 @@ const engine = (typeof window !== 'undefined' && (window.__musicEngine || (windo
     } catch (_err) { /* presence is best-effort */ }
 })();
 
-export function useMusicPlayer() {
-    const [state, setState] = useState(engine.state);
-    useEffect(() => engine.subscribe(setState), []);
-    return {
-        state,
-        controls: {
+const controls = Object.freeze({
             playTrack: engine.playTrack.bind(engine),
             playRadio: engine.playRadio.bind(engine),
             playEpisode: engine.playEpisode.bind(engine),
@@ -598,6 +593,28 @@ export function useMusicPlayer() {
             setVolume: engine.setVolume.bind(engine),
             setMuted: engine.setMuted.bind(engine),
             setKaraokeInstrumental: engine.setKaraokeInstrumental.bind(engine),
-        },
-    };
+});
+const subscribe = (callback) => engine.subscribe(callback);
+const getState = () => engine.state;
+
+// Buttons that only issue commands should never subscribe to the playback
+// clock. This removes dozens of otherwise idle tile renders per timeupdate.
+export function useMusicControls() { return { controls }; }
+
+let playbackState;
+function getPlaybackState() {
+    const next = { ...engine.state };
+    delete next.position;
+    delete next.duration;
+    if (!playbackState || Object.keys(next).some((key) => !Object.is(next[key], playbackState[key]))) playbackState = next;
+    return playbackState;
+}
+
+// Browsing pages need track/play/pause changes, not a ticking scrubber.
+export function useMusicPlayback() {
+    return { state: useSyncExternalStore(subscribe, getPlaybackState, getPlaybackState), controls };
+}
+
+export function useMusicPlayer() {
+    return { state: useSyncExternalStore(subscribe, getState, getState), controls };
 }

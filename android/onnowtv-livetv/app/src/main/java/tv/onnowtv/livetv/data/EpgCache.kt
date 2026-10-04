@@ -274,7 +274,7 @@ object EpgCache {
      *  "Loading guide…" forever until a full re-download succeeded.
      *  With staging, a failed refresh simply discards the staging
      *  dir and the existing 3-day cache stays fully intact. */
-    fun openStreamingWriter(ctx: Context): StreamingWriter {
+    fun openStreamingWriter(ctx: Context, session: String = AuthStore.sessionId(ctx)): StreamingWriter {
         // Sweep leftover staging dirs from crashed writers (>2 h old).
         try {
             ctx.filesDir.listFiles()?.forEach { f ->
@@ -287,7 +287,7 @@ object EpgCache {
         } catch (_: Throwable) {}
         val staging = File(ctx.filesDir, "$DIR_NAME-staging-${java.util.UUID.randomUUID()}")
         staging.mkdirs()
-        return StreamingWriter(ctx, staging)
+        return StreamingWriter(ctx, staging, session)
     }
 
     /** Atomically swap a fully-written staging dir into place as
@@ -299,11 +299,6 @@ object EpgCache {
     private fun promote(ctx: Context, staging: File): Boolean {
         return try {
             val live = cacheDir(ctx)
-            val old = File(ctx.filesDir, "$DIR_NAME.old")
-            old.deleteRecursively()
-            if (live.exists() && !live.renameTo(old)) {
-                live.deleteRecursively()
-            }
             // v2.16.51 — CARRY-OVER: the fresh XMLTV parse only writes
             // files for channels the XMLTV feed covers.  Channels whose
             // EPG arrived via the lazy /epg/{id} fetch or the epg-only
@@ -312,16 +307,7 @@ object EpgCache {
             // old dir was deleted wholesale.  Move any per-channel file
             // the new parse didn't produce into the staging dir before
             // the swap so lazily-fetched guides survive refresh cycles.
-            try {
-                if (old.isDirectory) {
-                    old.listFiles { f -> f.name.endsWith(".jsonl.gz") }?.forEach { f ->
-                        val target = File(staging, f.name)
-                        if (!target.exists()) f.renameTo(target)
-                    }
-                }
-            } catch (_: Throwable) {}
-            val ok = staging.renameTo(live)
-            old.deleteRecursively()
+            val ok = CacheDirectorySwap.promote(live, staging)
             if (!ok) Log.w(TAG, "promote: rename staging→live failed")
             ok
         } catch (t: Throwable) {
@@ -373,6 +359,7 @@ object EpgCache {
     class StreamingWriter internal constructor(
         private val ctx: Context,
         private val dir: File,
+        private val session: String,
     ) {
         private val buffers = HashMap<String, MutableList<Programme>>(512)
         private var bufferedProgrammes = 0
@@ -467,10 +454,19 @@ object EpgCache {
                 File(dir, DIR_DONE_FILE).writeText(System.currentTimeMillis().toString())
             } catch (t: Throwable) {
                 Log.w(TAG, "stamp failed: ${t.message}")
+                abort()
+                throw java.io.IOException("Could not complete guide cache", t)
             }
             // v2.16.39 — Atomic swap: the live cache is only replaced
             // AFTER the new one is fully written and stamped.
-            val promoted = promote(ctx, dir)
+            val promoted = AuthStore.withSession(ctx, session) { promote(ctx, dir) } ?: run {
+                abort()
+                throw kotlinx.coroutines.CancellationException("Session changed")
+            }
+            if (!promoted) {
+                abort()
+                throw java.io.IOException("Could not replace guide cache; previous guide preserved")
+            }
             Log.i(
                 TAG,
                 "streamed write committed (promoted=$promoted): " +

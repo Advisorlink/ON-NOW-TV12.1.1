@@ -13,7 +13,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Search as SearchIcon, Mic, Sparkles, X as XIcon } from 'lucide-react';
 import { musicAPI } from '../../lib/music-api';
-import { useMusicPlayer } from '../../hooks/useMusicPlayer';
+import { useMusicControls as useMusicPlayer } from '../../hooks/useMusicPlayer';
 
 const SOLO_KARAOKE_FLAG = 'tunes-karaoke-mode';
 const CHALLENGE_KEY     = 'tunes-karaoke-challenge';

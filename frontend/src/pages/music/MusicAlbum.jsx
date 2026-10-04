@@ -12,7 +12,7 @@ import {
     Play, Pause, Plus, Shuffle, MoreHorizontal, Check,
 } from 'lucide-react';
 import { musicAPI } from '../../lib/music-api';
-import { useMusicPlayer } from '../../hooks/useMusicPlayer';
+import { useMusicPlayback as useMusicPlayer } from '../../hooks/useMusicPlayer';
 import {
     isMusicLiked, toggleMusicLike, subscribeMusicLibrary,
 } from '../../lib/music-library';

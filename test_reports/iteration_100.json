@@ -1,0 +1,86 @@
+{
+  "summary": "Completed iteration 100 testing for Music frontend regressions, auth/backend regressions, and native Live TV Kotlin validation. Music layout/data/nav/playback smoke mostly works on external preview URL; two backend guardrail failures reproduced (brute-force lockout, strict CORS-origin expectation), one flaky music-home timeout retried and passed. Native full Android compile/typecheck is blocked in this environment without Android SDK/ANDROID_HOME; pure JVM CacheDirectorySwap rollback tests pass.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/auth/login",
+        "issue": "Brute-force lockout guardrail did not return 429 on 6th bad attempt (statuses stayed 401 x6).",
+        "priority": "HIGH"
+      },
+      {
+        "endpoint": "Android native compile (:app:compileDebugKotlin)",
+        "issue": "Blocked: SDK location missing (ANDROID_HOME/local.properties not set), so full APK Kotlin typecheck against Android dependencies could not be completed in-container.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "/api/auth/login (OPTIONS)",
+        "issue": "CORS allow-origin returned cluster host (rebrand-app-5.cluster-12.preview.emergentcf.cloud) instead of tested external origin string; strict explicit-origin expectation failed."
+      },
+      {
+        "endpoint": "/api/music/home",
+        "issue": "Intermittent 30s read-timeout observed once; immediate retry passed (flaky)."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Music track playback from home shelf",
+        "issue": "Console showed repeated audio decode warnings and one 403 resource error during playback smoke; mini-player still rendered and controls remained clickable.",
+        "affected_selectors": [
+          "[data-testid^='tunes-track-']",
+          "[data-testid='tunes-mini-player']",
+          "[data-testid='tunes-mini-toggle']"
+        ]
+      },
+      {
+        "flow": "Android host class flags in web preview",
+        "issue": ".vesper-host-android and .vesper-low-end were not present in browser preview runtime; cannot claim Android-class behavior validated on hardware from this run.",
+        "affected_selectors": [
+          "document.documentElement",
+          "document.body"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter99_auth_release_smoke.py",
+    "/app/backend/tests/test_iter100_music_auth_regression.py",
+    "/app/tests/cache_directory_swap_jvm_test.kt",
+    "/app/test_reports/pytest/iter100_auth_smoke.xml",
+    "/app/test_reports/pytest/iter100_music_auth_regression.xml",
+    "/root/.emergent/automation_output/20261004_073017/console_20261004_073017.log",
+    "/root/.emergent/automation_output/20261004_073110/console_20261004_073110.log",
+    "/root/.emergent/automation_output/20261004_073118/console_20261004_073118.log"
+  ],
+  "action_items": [
+    "Fix lockout behavior so 6th failed login returns 429 consistently in ingress/proxy deployment (likely identifier keying around request.client.host).",
+    "Confirm/adjust CORS explicit-origin behavior for the public preview domain and any canonical redirect host expectations.",
+    "Run real Android build/typecheck on environment with SDK installed (ANDROID_HOME + local.properties) and then device validation for CrashActivity/loader D-pad behavior.",
+    "Investigate music playback decode/403 path to reduce console decode failures on some tracks/sources.",
+    "Hardware verification still required for unknown user-reported Live TV crash root cause; this run does NOT claim crash cause fixed."
+  ],
+  "critical_code_review_comments": [
+    "server.py remains very large (>5600 lines), increasing regression risk across auth/music/native-support integration points.",
+    "Auth router intentionally uses Bearer JWT body response (no httpOnly cookie) per documented contract; playbook checks expecting cookie auth do not apply unless product contract changes.",
+    "MainActivity/CrashActivity flow appears to include required Retry + Log in again paths and CLEAR_TASK|NEW_TASK reset intent wiring in code, but no hardware confirmation was possible in this environment."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter100_music_auth_regression.py",
+    "/app/tests/cache_directory_swap_jvm_test.kt",
+    "/app/test_reports/iteration_100.json"
+  ],
+  "success_rate": {
+    "backend": "80%",
+    "frontend": "78%"
+  },
+  "seed_data_creation": "Created temporary TEST_iter100_* account via /api/admin/accounts/bulk-import for replace_existing regression check; no production credentials modified.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Mandatory screenshots captured without splash overlay: desktop /app/test_reports/artifacts_iter100_music_desktop_final2/music_populated_no_splash_1920x800.jpeg and mobile /app/test_reports/artifacts_iter100_music_mobile2/music_populated_no_splash_390x844.jpeg. Music route validated against [data-testid='music-layout'] (not tunes-root). D-pad edge/navigation checks passed in browser automation. Native full compile currently blocked by missing Android SDK in this container; pure JVM CacheDirectorySwap cases all passed with Gradle cached Kotlin compiler (1.9.22 from Gradle 8.7 libs).",
+  "rca of the issue": "Brute-force lockout RCA: auth_router keys attempts by identifier = request.client.host + username (+ optional client_id). In this ingress/proxy deployment, effective client host may not be stable/consistent for repeated external requests, so accumulated failures may not hit the same identifier bucket; result observed was 401 for all six attempts instead of 429. Reproduction: send 6 bad /api/auth/login attempts with same username from external URL; expected final 429, observed [401,401,401,401,401,401]. Mitigation: use trusted forwarded client IP (or secondary stable key) for identifier construction in proxied deployments. Native compile RCA: :app:compileDebugKotlin fails immediately with missing SDK location (ANDROID_HOME/local.properties absent), and direct kotlinc module typecheck with android-all jar still has unresolved AndroidX refs without full Android toolchain/dependency resolution; therefore only pure JVM class tests were executable here."
+}

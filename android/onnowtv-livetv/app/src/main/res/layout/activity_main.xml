@@ -153,11 +153,17 @@
         <!-- Retry CTA: hidden by default.  v2.9.10 — Styled as a
              pill button instead of a tiny text link so the user
              can clearly find it after a load failure. -->
+        <LinearLayout
+            android:id="@+id/loader_actions"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:orientation="horizontal"
+            android:gravity="center">
         <TextView
             android:id="@+id/loader_retry"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="22dp"
             android:paddingHorizontal="22dp"
             android:paddingVertical="12dp"
             android:background="@drawable/login_btn_bg"
@@ -168,7 +174,26 @@
             android:visibility="gone"
             android:focusable="true"
             android:clickable="true"
-            android:text="TAP TO RETRY" />
+            android:nextFocusRight="@id/loader_login_again"
+            android:text="RETRY" />
+        <TextView
+            android:id="@+id/loader_login_again"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:minHeight="48dp"
+            android:gravity="center"
+            android:paddingHorizontal="22dp"
+            android:paddingVertical="12dp"
+            android:background="@drawable/login_btn_bg"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:fontFamily="sans-serif-medium"
+            android:focusable="true"
+            android:clickable="true"
+            android:nextFocusLeft="@id/loader_retry"
+            android:text="Log in again" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- Footer hint -->

@@ -1,6 +1,7 @@
 # ON NOW TV V2 — Priorities (2026-10-04)
 
 ## P0 — current
+- Obtain Live TV crash photo/stack or trigger; unidentified device crash cannot yet be attributed to a specific line. Install rebuilt Live TV APK with login recovery/cancellation/cache fixes, and Music APK with scoped motion/update optimizations; test real D-pad + reset + favourites preservation.
 - Install a newly built Vesper APK containing shelf + top-menu smoothing and v1.5.1 single-screen update notice. Validate normal/held/reversed D-pad movement with trailers ON and startup/login on the same box. Browser tests pass; physical hardware pending.
 - Existing native APK fixes from prior sessions also await installation.
 - Self-hosted launcher recovery remains blocked on user/VPS evidence: `systemctl status onnowtv-launcher.service` and `journalctl -u onnowtv-launcher.service -n 50 --no-pager`. Not touched during navigation work; no new production outage was reported this session.
@@ -22,4 +23,6 @@
 - Replace superscript Live text with visual LIVE chips.
 - P3: muted-over-an-hour guard.
 - Existing critical security findings explicitly deferred by user; see historical CHANGELOG. Not fixed by this task.
+- Iteration100 additionally observed backend lockout counter/proxy-origin behaviour in unrequested security tests. Original report retained; security task remains deferred. Same-origin login/navigation tests pass.
+- Some external music streaming sources fail403/decode in browser; navigation/playback-state changes do not guarantee upstream playback availability.
 - Legacy hook-dependency lint warnings in unrelated suite components remain technical debt; standard APK workflow already uses CI=false.

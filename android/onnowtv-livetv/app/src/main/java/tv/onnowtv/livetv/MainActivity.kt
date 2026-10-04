@@ -15,6 +15,10 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -59,6 +63,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var statusCounters: TextView
     private lateinit var progress: ProgressBar
     private lateinit var retry: TextView
+    private lateinit var loginAgain: TextView
+    private var loaderJob: Job? = null
+    @Volatile private var recovering = false
+    @Volatile private var loadAttempt = 0
     private lateinit var tip: TextView
     private lateinit var brandV2: TextView
     private lateinit var dot1: View
@@ -107,6 +115,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (intent.getBooleanExtra(CrashActivity.EXTRA_RESET_LOGIN, false)) {
+            sendBackToLogin("Please log in again to reload your guide.")
+            return
+        }
 
         // v2.9.5 — Xtream sign-in gate.  No saved credentials =
         // first launch (or just signed out).  Route straight to the
@@ -276,6 +288,8 @@ class MainActivity : AppCompatActivity() {
         statusCounters = findViewById(R.id.loader_counters)
         progress       = findViewById(R.id.loader_progress)
         retry          = findViewById(R.id.loader_retry)
+        loginAgain     = findViewById(R.id.loader_login_again)
+        loginAgain.setOnClickListener { sendBackToLogin("Please log in again to reload your guide.") }
         tip            = findViewById(R.id.loader_tip)
         brandV2        = findViewById(R.id.loader_brand_v2)
         dot1           = findViewById(R.id.loader_dot_1)
@@ -392,15 +406,24 @@ class MainActivity : AppCompatActivity() {
      * goes straight to the login screen and doesn't loop.
      */
     private fun sendBackToLogin(message: String) {
+        if (recovering) return
+        recovering = true
+        loadAttempt++
+        loaderJob?.cancel()
+        bundleKick?.cancel()
+        if (::retry.isInitialized) retry.isEnabled = false
+        if (::loginAgain.isInitialized) loginAgain.isEnabled = false
         Log.w("MainActivity", "sendBackToLogin: $message")
-        tv.onnowtv.livetv.data.AuthStore.signOut(this)
-        startActivity(
-            Intent(this, LoginActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                .putExtra(LoginActivity.EXTRA_AUTH_ERROR, message),
-        )
-        overridePendingTransition(0, 0)
-        finish()
+        lifecycleScope.launch {
+            withContext(Dispatchers.IO) { tv.onnowtv.livetv.data.AuthStore.signOut(applicationContext) }
+            startActivity(
+                Intent(this@MainActivity, LoginActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    .putExtra(LoginActivity.EXTRA_AUTH_ERROR, message),
+            )
+            overridePendingTransition(0, 0)
+            finish()
+        }
     }
 
     /**
@@ -412,16 +435,21 @@ class MainActivity : AppCompatActivity() {
      * "contact support" line.
      */
     private fun showFetchError(detail: String) {
+        if (recovering || isFinishing || isDestroyed) return
         Log.w("MainActivity", "showFetchError: $detail")
         headline.text = "We can't load your guide right now"
-        substatus.text = "Check your internet, then tap retry below."
+        substatus.text = "Check your connection and retry, or log in again for a fresh start."
         statusCounters.text = "Still stuck?  Contact ON NOW TV Support."
         progress.progress = 0
         retry.visibility = View.VISIBLE
         retry.setOnClickListener { startLoad() }
+        retry.requestFocus()
     }
 
     private fun startLoad() {
+        if (recovering) return
+        val attempt = ++loadAttempt
+        loaderJob?.cancel()
         retry.visibility = View.GONE
         headline.text = "Connecting…"
         substatus.text = "Reaching the backend…"
@@ -433,20 +461,20 @@ class MainActivity : AppCompatActivity() {
         bundleKick?.cancel()
         bundleKick = null
 
-        lifecycleScope.launch {
+        loaderJob = lifecycleScope.launch {
             try {
-                runLoader()
+                runLoader(attempt)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (t: Throwable) {
                 Log.e("MainActivity", "loader failed", t)
-                headline.text = "Couldn't load guide"
-                substatus.text = t.message ?: t::class.java.simpleName
-                retry.visibility = View.VISIBLE
-                retry.setOnClickListener { startLoad() }
+                if (attempt == loadAttempt) showFetchError(t.javaClass.simpleName)
             }
         }
     }
 
-    private suspend fun runLoader() {
+    private suspend fun runLoader(attempt: Int) {
+        val session = tv.onnowtv.livetv.data.AuthStore.sessionId(applicationContext)
         val started = SystemClock.elapsedRealtime()
         headline.text = "Loading guide…"
         substatus.text = "Downloading bundle…"
@@ -457,7 +485,7 @@ class MainActivity : AppCompatActivity() {
         // wastes 8 s on a guaranteed failure.  Fire the direct
         // path immediately; backend runs in the background as a
         // secondary path in case it ever comes back to life.
-        bundleKick = lifecycleScope.async(Dispatchers.IO) {
+        bundleKick = CoroutineScope(currentCoroutineContext()).async(Dispatchers.IO) {
             val directJob = async {
                 try {
                     val text = tv.onnowtv.livetv.data.DirectProviderFetcher
@@ -474,6 +502,7 @@ class MainActivity : AppCompatActivity() {
                     bundleError = "INVALID_CREDS"
                     null
                 } catch (t: Throwable) {
+                    if (t is CancellationException) throw t
                     Log.w("MainActivity", "direct bundle fetch failed: ${t.javaClass.simpleName}: ${t.message}")
                     bundleError = "NETWORK"
                     null
@@ -491,6 +520,7 @@ class MainActivity : AppCompatActivity() {
                         text to b
                     }
                 } catch (t: Throwable) {
+                    if (t is CancellationException) throw t
                     Log.w("MainActivity", "backend bundle fetch failed: ${t.javaClass.simpleName}: ${t.message}")
                     null
                 }
@@ -550,7 +580,7 @@ class MainActivity : AppCompatActivity() {
             // winning bundle so the WhatsOn hub scan on boot can
             // find every live sport WITHOUT the user having to
             // navigate into the Sky Sports category first.
-            if (winner != null && backendJob.isCompleted) {
+            if (winner != null && backendJob.isCompleted && !backendJob.isCancelled) {
                 try {
                     val br = backendJob.await()
                     val backendEpg = br?.second?.epg
@@ -565,10 +595,14 @@ class MainActivity : AppCompatActivity() {
                 } catch (_: Throwable) { /* backend never landed — ok */ }
             }
             if (winner != null) {
+                currentCoroutineContext().ensureActive()
+                if (attempt != loadAttempt || recovering) return@async
                 bundleJson = winner.first
                 bundleResult = winner.second
                 bundleError = null
-                BundleCache.saveJson(applicationContext, winner.first)
+                tv.onnowtv.livetv.data.AuthStore.withSession(applicationContext, session) {
+                    BundleCache.saveJson(applicationContext, winner.first)
+                }
             } else {
                 if (bundleError == null) {
                     bundleError = "NETWORK"
@@ -580,10 +614,11 @@ class MainActivity : AppCompatActivity() {
         var lastMeta: Meta? = null
         var lastMetaErrorAt = 0L
 
-        while (lifecycleScope.isActive) {
+        while (currentCoroutineContext().isActive) {
             val meta = try {
                 fetchMeta()
             } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 lastMetaErrorAt = SystemClock.elapsedRealtime()
                 Log.w("MainActivity", "meta fetch failed: ${t.message}")
                 null
@@ -628,6 +663,7 @@ class MainActivity : AppCompatActivity() {
             delay(pollIntervalMs)
         }
 
+        currentCoroutineContext().ensureActive()
         headline.text = "Finalising guide…"
         substatus.text = "Almost there…"
         progress.progress = 970
@@ -637,7 +673,10 @@ class MainActivity : AppCompatActivity() {
             try {
                 val text = tv.onnowtv.livetv.data.DirectProviderFetcher
                     .fetchBundleJson(applicationContext)
-                BundleCache.saveJson(applicationContext, text)
+                currentCoroutineContext().ensureActive()
+                tv.onnowtv.livetv.data.AuthStore.withSession(applicationContext, session) {
+                    BundleCache.saveJson(applicationContext, text)
+                }
                 XtreamRepository.parseBundleJson(text)
             } catch (_: tv.onnowtv.livetv.data.DirectProviderFetcher.InvalidCredentialsException) {
                 // v2.9.14 — Same bounce-to-login path as the
@@ -745,7 +784,7 @@ class MainActivity : AppCompatActivity() {
             // ~5 MB of programme data in memory.  The previous
             // revision OOM'd on the user's 256 MB-heap box partway
             // through "Parsing 3 days of programmes…".
-            val writer = EpgCache.openStreamingWriter(applicationContext)
+            val writer = EpgCache.openStreamingWriter(applicationContext, session)
 
             val parseResult = try {
                 XmlTvFetcher.fetchEpgForChannels(
@@ -757,6 +796,7 @@ class MainActivity : AppCompatActivity() {
                     // Throttled inside the parser already, but
                     // marshal to the UI thread before touching views.
                     runOnUiThread {
+                        if (attempt != loadAttempt || recovering || isDestroyed || isFinishing) return@runOnUiThread
                         substatus.text = "Parsing 3 days of programmes…"
                         statusCounters.text = "${fmt(progs)} programmes · ${fmt(chSeen)} EPG channels seen"
                         // Drift progress bar from 850 → 960 as parse
@@ -768,6 +808,7 @@ class MainActivity : AppCompatActivity() {
             } catch (t: Throwable) {
                 Log.w("MainActivity", "XMLTV prefetch failed: ${t.message}")
                 writer.abort()
+                if (t is CancellationException) throw t
                 null
             }
 
@@ -810,6 +851,7 @@ class MainActivity : AppCompatActivity() {
                     patchedChannels = bundle.channels
                 }
 
+                currentCoroutineContext().ensureActive()
                 val writeResult = writer.finish(parseResult.displayNameToEpgId)
                 Log.i(
                     "MainActivity",
@@ -840,13 +882,17 @@ class MainActivity : AppCompatActivity() {
                     )
                     var merged = 0
                     for ((sid, progs) in epgOnly) {
+                        currentCoroutineContext().ensureActive()
                         if (progs.isEmpty()) continue
-                        EpgCache.mergeChannel(applicationContext, sid, progs)
+                        tv.onnowtv.livetv.data.AuthStore.withSession(applicationContext, session) {
+                            EpgCache.mergeChannel(applicationContext, sid, progs)
+                        } ?: throw CancellationException("Session changed")
                         merged++
                     }
                     if (merged > 0) EpgCache.touchTimestamp(applicationContext)
                     Log.i("MainActivity", "backend EPG fallback: $merged channels merged")
                 } catch (t: Throwable) {
+                    if (t is CancellationException) throw t
                     Log.w("MainActivity", "backend EPG fallback failed: ${t.message}")
                 }
             }
@@ -896,9 +942,12 @@ class MainActivity : AppCompatActivity() {
                 )
             }
         } catch (t: Throwable) {
+            if (t is CancellationException) throw t
             Log.w("MainActivity", "bulk EPG hydrate failed: ${t.message}")
         }
 
+        currentCoroutineContext().ensureActive()
+        if (recovering || attempt != loadAttempt || isFinishing || isDestroyed) return
         BundleHolder.current = mergedBundle
         progress.progress = 1000
 
@@ -1108,6 +1157,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        loadAttempt++
+        loaderJob?.cancel()
         bundleKick?.cancel()
         tipHandler.removeCallbacksAndMessages(null)
         dotsHandler.removeCallbacksAndMessages(null)

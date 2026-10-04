@@ -38,7 +38,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Mic, Search as SearchIcon } from 'lucide-react';
 import { musicAPI } from '../../lib/music-api';
-import { useMusicPlayer } from '../../hooks/useMusicPlayer';
+import { useMusicControls as useMusicPlayer } from '../../hooks/useMusicPlayer';
 
 const KARAOKE_FLAG_KEY = 'tunes-karaoke-mode';
 

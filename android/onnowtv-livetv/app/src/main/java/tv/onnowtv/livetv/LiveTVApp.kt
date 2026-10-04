@@ -21,14 +21,22 @@ class LiveTVApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // CrashActivity already lives in :crash. Do NOT start the same
+        // provider refresh/player lifecycle in this recovery process, or
+        // the fault can repeat before the recovery buttons are usable.
+        val manager = getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager
+        val processName = manager.runningAppProcesses?.firstOrNull { it.pid == Process.myPid() }?.processName
+        if (processName?.endsWith(":crash") == true) return
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             try {
                 Log.e("LiveTVApp", "Uncaught exception in thread ${thread.name}", throwable)
                 val intent = Intent(applicationContext, CrashActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                    putExtra(CrashActivity.EXTRA_MESSAGE, throwable.toString())
-                    putExtra(CrashActivity.EXTRA_STACK, Log.getStackTraceString(throwable))
+                    // Bound Binder payloads; retain the report on the crash
+                    // screen instead of risking TransactionTooLargeException.
+                    putExtra(CrashActivity.EXTRA_MESSAGE, throwable.toString().take(1000))
+                    putExtra(CrashActivity.EXTRA_STACK, Log.getStackTraceString(throwable).take(24000))
                 }
                 startActivity(intent)
             } catch (chain: Throwable) {

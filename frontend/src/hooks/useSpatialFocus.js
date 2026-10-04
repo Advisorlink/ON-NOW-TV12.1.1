@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { paceDpad } from '@/lib/dpadPacer';
+import { musicScrollTo, cancelMusicScroll } from '@/lib/musicScrollMotion';
 
 /**
  * Spatial D-pad focus manager for TV.
@@ -508,6 +509,10 @@ export default function useSpatialFocus() {
                 if (!p) continue;
                 scrollPending.delete(el);
                 if (p.x || p.y) {
+                    if (el.closest?.('.tunes-root')) {
+                        musicScrollTo(el, el.scrollLeft + (p.x || 0), el.scrollTop + (p.y || 0));
+                        continue;
+                    }
                     el.scrollBy({
                         left: p.x || 0,
                         top: p.y || 0,
@@ -626,6 +631,14 @@ export default function useSpatialFocus() {
              * explicitly asked for. */
             const snapPage = el.closest(ROW_PAGE);
             if (snapPage) {
+                if (el.closest('.tunes-root')) {
+                    const bounds = vs.getBoundingClientRect();
+                    const row = snapPage.getBoundingClientRect();
+                    // One vertical owner. Don't scrollIntoView the row and
+                    // then separately pin the tile (nor move its X bookmark).
+                    musicScrollTo(vs, vs.scrollLeft, vs.scrollTop + row.top - bounds.top - 40);
+                    return;
+                }
                 try {
                     snapPage.scrollIntoView({
                         behavior: 'auto',
@@ -987,6 +1000,7 @@ export default function useSpatialFocus() {
             window.removeEventListener('keyup', onKeyUp);
             timers.forEach((t) => clearTimeout(t));
             observer.disconnect();
+            cancelMusicScroll();
             if (invalidationTimer) cancelAnimationFrame(invalidationTimer);
         };
     }, []);

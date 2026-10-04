@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Search as SearchIcon, Radio as RadioIcon, Mic } from 'lucide-react';
 import { musicAPI, isRealArt } from '../../lib/music-api';
-import { useMusicPlayer } from '../../hooks/useMusicPlayer';
+import { useMusicControls as useMusicPlayer } from '../../hooks/useMusicPlayer';
 import { LikeButton } from '../../components/music/LikeButton';
 import { AddToPlaylistButton } from '../../components/music/AddToPlaylistButton';
 

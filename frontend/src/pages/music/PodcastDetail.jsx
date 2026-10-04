@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Play, Pause } from 'lucide-react';
 import { musicAPI } from '../../lib/music-api';
-import { useMusicPlayer } from '../../hooks/useMusicPlayer';
+import { useMusicPlayback as useMusicPlayer } from '../../hooks/useMusicPlayer';
 
 export default function PodcastDetail() {
     const { feedUrl } = useParams();

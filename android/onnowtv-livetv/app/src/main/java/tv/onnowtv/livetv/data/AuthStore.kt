@@ -18,6 +18,7 @@ object AuthStore {
     private const val PREFS = "v2_livetv_auth"
     private const val KEY_USER = "xtream_username"
     private const val KEY_PASS = "xtream_password"
+    private const val KEY_SESSION = "session_generation"
 
     const val HOST = "njala.ddns.me"
     const val PORT = "8443"
@@ -38,11 +39,23 @@ object AuthStore {
     fun password(ctx: Context): String =
         prefs(ctx).getString(KEY_PASS, "").orEmpty()
 
+    @Synchronized
     fun saveCredentials(ctx: Context, username: String, password: String) {
         prefs(ctx).edit()
             .putString(KEY_USER, username.trim())
             .putString(KEY_PASS, password.trim())
+            .putString(KEY_SESSION, java.util.UUID.randomUUID().toString())
             .apply()
+    }
+
+    fun sessionId(ctx: Context): String = prefs(ctx).getString(KEY_SESSION, "legacy").orEmpty()
+
+    /** Serialize publication against sign-out: cancelled old requests may
+     * finish network IO, but cannot recreate caches for a previous login. */
+    @Synchronized
+    fun <T> withSession(ctx: Context, expected: String, write: () -> T): T? {
+        if (!isSignedIn(ctx) || sessionId(ctx) != expected) return null
+        return write()
     }
 
     /**
@@ -60,20 +73,20 @@ object AuthStore {
      *   • Priority EPG disk cache (`epg_priority.json.gz`)
      *   • In-memory BundleHolder
      */
+    @Synchronized
     fun signOut(ctx: Context) {
+        // Cancel producers before deleting their cached outputs. Personal
+        // favourites, collections, reminders and player preferences remain.
+        try { EpgRefreshWorker.cancel(ctx) } catch (_: Throwable) {}
         prefs(ctx).edit()
             .remove(KEY_USER)
             .remove(KEY_PASS)
-            .apply()
+            .putString(KEY_SESSION, java.util.UUID.randomUUID().toString())
+            .commit()
         // Wipe disk caches so a stale stream-URL with the old user
         // is never reused on the next sign-in.
         try { BundleCache.delete(ctx) } catch (_: Throwable) {}
         try { EpgCache.delete(ctx) } catch (_: Throwable) {}
-        // v2.10.14 — Also cancel the periodic EPG refresh worker
-        // so it stops hitting the provider with creds we no
-        // longer hold.  Re-enqueues automatically on next
-        // successful sign-in via MainActivity.
-        try { EpgRefreshWorker.cancel(ctx) } catch (_: Throwable) {}
         tv.onnowtv.livetv.BundleHolder.current = null
         tv.onnowtv.livetv.BundleHolder.needsBackgroundRefresh = false
     }

@@ -14,6 +14,9 @@ import androidx.work.WorkManager
 import androidx.work.WorkRequest
 import androidx.work.WorkerParameters
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 /**
  * v2.10.14 — Background EPG refresh worker.
@@ -41,6 +44,7 @@ class EpgRefreshWorker(
 
     override suspend fun doWork(): Result {
         val ctx = applicationContext
+        val session = AuthStore.sessionId(ctx)
 
         // No creds, no work — the next foreground launch will
         // re-enqueue once the user signs in again.
@@ -78,7 +82,7 @@ class EpgRefreshWorker(
             // than ~5 MB of programme data in memory.  Critical for
             // budget Android TV boxes where the WorkManager process
             // shares the same 256 MB heap as the foreground app.
-            val writer = EpgCache.openStreamingWriter(ctx)
+            val writer = EpgCache.openStreamingWriter(ctx, session)
             val parsed = try {
                 XmlTvFetcher.fetchEpgForChannels(
                     ctx,
@@ -88,6 +92,7 @@ class EpgRefreshWorker(
                 ) { _, _ -> /* no UI to drive — silent worker */ }
             } catch (t: Throwable) {
                 writer.abort()
+                if (t is CancellationException) throw t
                 Log.w(TAG, "XMLTV direct fetch failed: ${t.message} — trying backend EPG fallback")
                 null
             }
@@ -106,13 +111,14 @@ class EpgRefreshWorker(
                 // keeps its own pre-warmed, gzip-cached EPG (refreshed
                 // server-side every 2 h with wipe guards), so merge its
                 // window instead and stamp the cache fresh.
-                val merged = mergeBackendEpg(ctx, wantedIds)
+                val merged = mergeBackendEpg(ctx, wantedIds, session)
                 return if (merged >= MIN_FALLBACK_CHANNELS) Result.success() else Result.retry()
             }
 
             // Commit the new cache to disk.  EpgActivity will pick
             // it up via per-channel loadChannel() lookups on next
             // cold boot.
+            currentCoroutineContext().ensureActive()
             val r = writer.finish(parsed.displayNameToEpgId)
             Log.i(
                 TAG,
@@ -129,9 +135,10 @@ class EpgRefreshWorker(
             // the instant the app opens — with no network wait.
             // mergeChannel() UNION-merges, so multi-day XMLTV guides
             // are never truncated by this window.
-            mergeBackendEpg(ctx, wantedIds)
+            mergeBackendEpg(ctx, wantedIds, session)
             Result.success()
         } catch (t: Throwable) {
+            if (t is CancellationException) throw t
             Log.w(TAG, "refresh failed: ${t.message}")
             Result.retry()
         }
@@ -142,7 +149,7 @@ class EpgRefreshWorker(
      *  XMLTV guides).  Returns the number of channels merged (0 on
      *  failure).  Stamps the cache timestamp fresh when the merge is
      *  substantial so the boot staleness check passes. */
-    private suspend fun mergeBackendEpg(ctx: Context, wantedIds: Set<String>): Int {
+    private suspend fun mergeBackendEpg(ctx: Context, wantedIds: Set<String>, session: String): Int {
         return try {
             val epgOnly = XtreamRepository.fetchEpgOnlyMap(
                 windowHours = 8,
@@ -150,14 +157,18 @@ class EpgRefreshWorker(
             )
             var merged = 0
             for ((sid, progs) in epgOnly) {
+                currentCoroutineContext().ensureActive()
                 if (progs.isEmpty()) continue
-                EpgCache.mergeChannel(ctx, sid, progs)
+                AuthStore.withSession(ctx, session) {
+                    EpgCache.mergeChannel(ctx, sid, progs)
+                } ?: throw CancellationException("Session changed")
                 merged++
             }
             if (merged >= MIN_FALLBACK_CHANNELS) EpgCache.touchTimestamp(ctx)
             Log.i(TAG, "backend epg-only merge: refreshed $merged channels")
             merged
         } catch (t: Throwable) {
+            if (t is CancellationException) throw t
             Log.w(TAG, "backend epg-only merge failed: ${t.message}")
             0
         }

@@ -1,0 +1,16 @@
+/* Music owns one interruptible scroll; CSS snap cannot fight its endpoint. */
+.tunes-root .tunes-shelf__rail { scroll-snap-type: none; scroll-behavior: auto; }
+.tunes-root [data-focusable='true'][data-focus-style] {
+    transition: transform 120ms ease-out, color 120ms ease-out, background-color 120ms ease-out !important;
+}
+/* Large animated glows force repaints on low-powered TV boxes. Keep the
+   existing crisp ring, but animate only the compositor-friendly scale. */
+.tunes-root [data-focusable='true'][data-focus-style='tile']:focus-visible,
+.tunes-root [data-focusable='true'][data-focus-style='tile'][data-focused='true'] {
+    box-shadow: none !important;
+}
+.tunes-root .tunes-nav__item-icon { transition: transform 120ms ease-out; }
+.tunes-root .tunes-nav__item:focus .tunes-nav__item-icon { transform: scale(1.08); }
+@media (prefers-reduced-motion: reduce) {
+    .tunes-root [data-focusable='true'][data-focus-style], .tunes-root .tunes-nav__item-icon { transition: none !important; }
+}

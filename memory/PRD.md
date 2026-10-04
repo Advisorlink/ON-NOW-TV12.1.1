@@ -10,7 +10,26 @@ Continue development of the ON NOW TV V2 app suite:
 
 Audience: TV viewers using a D-pad on Android TV boxes, families using the Kids app, phone companion/game participants, and the operator managing boxes through the launcher admin.
 
-## Latest user request (2026-10-04)
+## Current user request (2026-10-04) — Live TV recovery + Music motion
+User reports an unidentified Live TV crash (no photo/log yet); wants **Log in again** beside Retry to restart login without reinstalling; wants Music scrolling/navigation as smooth as updated Vesper.
+
+### Delivered changes and evidence
+- Native loader has Retry + Log in again, with explicit D-pad neighbour links. Login reset is available during loading as well as on failure. It cancels retained loader/child jobs, invalidates the attempt, clears the provider session/guide caches and clears the activity task before LoginActivity. Favourites/collections/preferences are preserved.
+- CrashActivity has the same recovery actions and retains diagnostic text for a photo. It already runs in `:crash`; its reset action sends an explicit extra to MAIN process before cache fast-path/auth processing. LiveTVApp now avoids normal EPG/player initialization in the crash process; diagnostic Intent payload bounded. No claim that the existing 800 ms main-process kill caused the unidentified device crash.
+- Retained loader ownership, cancellation propagation, stale progress/navigation checks, session-generation guarded cache publication. EPG workers/streaming writer cannot publish a previous session after reset. CacheDirectorySwap preserves the previous guide when either rename fails and keeps a backup if rollback also fails.
+- Music has scoped 180 ms interruptible scrolling with one owner and 120 ms focus transforms enabled in Android/low-end mode. Removed conflicting shelf scroll-snap; row navigation retains X bookmarks. Pointer/wheel/resize/route changes cancel pending motion. Vesper scrolling paths unchanged.
+- Stable Music command hooks do not subscribe catalogue/track/artist/search/library/radio/karaoke controls to playback progress. Browsing components subscribe only to track/play-state changes; mini/fullscreen player keep live progress subscriptions via useSyncExternalStore.
+- Browser follow-up: real catalogue, TV CSS classes present, horizontal offsets 0 → 302 → 488 demonstrate intermediate motion; reversals settled with no queued focus; vertical target fully visible; reduced-motion instant; controlled local media clock + mini-player pause/resume passed with four engine subscriptions. Desktop1920×800 and mobile390×844 checked; no uncontained overflow (intentional offscreen carousel children remain clipped).
+- Test report iteration_100 plus main follow-up. Four scoped API tests passed; all six pure JVM CacheDirectorySwap carry-over/failure/rollback tests passed; all seven modified Kotlin files pass brace checks. Web production build passed (30.70 s, existing warnings). **Final SDK-backed Kotlin typecheck PASS: all 42 Live TV Kotlin files against 79 real dependencies.** Compiler caught the coroutine's `Intent(this, ...)` receiver; corrected to `this@MainActivity`, rerun passed. Not an APK packaging or device-runtime test.
+- Full APK packaging initially blocked by missing SDK, then ARM64 aapt2 mismatch. Main installed official SDK34/dependencies and ran a direct SDK-backed Kotlin typecheck using generated resource-ID placeholders; this is not a signed/linked APK or device test. Do not change project Gradle settings for this machine-specific verification workaround.
+- No application APIs mocked. Browser playback timing verified using **controlled local test media**, not real external stream availability. Some external Googlevideo sources returned 403/decode errors in the browser; those service failures remain separate from navigation work.
+- Testing agent accidentally ran unrelated backend security/admin tests: original results retained in iteration_100. Existing lockout/proxy-origin observations are not claimed fixed; user previously deferred security work. Out-of-scope tests now explicit skips. Disposable TEST_iter100_dd8d6a03 account removed and credentials handoff updated; real accounts unchanged.
+
+### Still needed
+- **Photo/stack trace or reproducible trigger for the actual Live TV crash.** Recovery hardening is not proof that the unidentified crash itself is eliminated.
+- Build/install updated Live TV and Music APKs; physical remote, crash/reset and playback validation pending.
+
+## Previous user request (2026-10-04)
 Remove the duplicate startup/login update popups, fit every update on a single non-scrolling dialog, and smooth the top navigation bar. User resumed after a credit interruption; work and testing continued.
 
 ### Implemented and verified

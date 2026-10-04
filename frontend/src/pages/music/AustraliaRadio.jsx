@@ -19,7 +19,7 @@
 import React, { useEffect, useState } from 'react';
 import { Radio as RadioIcon, Disc3 } from 'lucide-react';
 import { musicAPI } from '../../lib/music-api';
-import { useMusicPlayer } from '../../hooks/useMusicPlayer';
+import { useMusicControls as useMusicPlayer } from '../../hooks/useMusicPlayer';
 
 // Curated list of well-known Aussie stations.  The names are matched
 // case-insensitive against the Radio Browser response so we always

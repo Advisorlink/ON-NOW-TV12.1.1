@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="7" time="38.826" timestamp="2026-10-04T07:32:32.518138+00:00" hostname="agent-env-49bc65fa-9152-42e4-b845-97fdcbbeec38"><testcase classname="backend.tests.test_iter100_music_auth_regression" name="test_music_home_populated_catalogue_shape" time="30.120"><failure message="requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='rebrand-app-5.preview.emergentagent.com', port=443): Read timed out. (read timeout=30)">/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:534: in _make_request
+    response = conn.getresponse()
+               ^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/urllib3/connection.py:571: in getresponse
+    httplib_response = super().getresponse()
+                       ^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/http/client.py:1443: in getresponse
+    response.begin()
+/usr/local/lib/python3.11/http/client.py:337: in begin
+    version, status, reason = self._read_status()
+                              ^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/http/client.py:298: in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/socket.py:718: in readinto
+    return self._sock.recv_into(b)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/ssl.py:1314: in recv_into
+    return self.read(nbytes, buffer)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/ssl.py:1166: in read
+    return self._sslobj.read(len, buffer)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+/root/.venv/lib/python3.11/site-packages/requests/adapters.py:645: in send
+    resp = conn.urlopen(
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:841: in urlopen
+    retries = retries.increment(
+/root/.venv/lib/python3.11/site-packages/urllib3/util/retry.py:490: in increment
+    raise reraise(type(error), error, _stacktrace)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/urllib3/util/util.py:39: in reraise
+    raise value
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:787: in urlopen
+    response = self._make_request(
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:536: in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:367: in _raise_timeout
+    raise ReadTimeoutError(
+E   urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='rebrand-app-5.preview.emergentagent.com', port=443): Read timed out. (read timeout=30)
+
+During handling of the above exception, another exception occurred:
+backend/tests/test_iter100_music_auth_regression.py:38: in test_music_home_populated_catalogue_shape
+    r = client.get(f"{BASE_URL}/api/music/home", timeout=TIMEOUT)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/sessions.py:605: in get
+    return self.request("GET", url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/sessions.py:592: in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/sessions.py:706: in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/adapters.py:691: in send
+    raise ReadTimeout(e, request=request)
+E   requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='rebrand-app-5.preview.emergentagent.com', port=443): Read timed out. (read timeout=30)</failure></testcase><testcase classname="backend.tests.test_iter100_music_auth_regression" name="test_music_search_works" time="7.656" /><testcase classname="backend.tests.test_iter100_music_auth_regression" name="test_auth_login_contract_and_headers" time="0.062" /><testcase classname="backend.tests.test_iter100_music_auth_regression" name="test_auth_me_rejects_invalid_token" time="0.066" /><testcase classname="backend.tests.test_iter100_music_auth_regression" name="test_bruteforce_lockout_after_5_failures" time="0.376"><failure message="AssertionError: expected 429 on 6th attempt, got [401, 401, 401, 401, 401, 401]&#10;assert 401 == 429">backend/tests/test_iter100_music_auth_regression.py:89: in test_bruteforce_lockout_after_5_failures
+    assert statuses[-1] == 429, f"expected 429 on 6th attempt, got {statuses}"
+E   AssertionError: expected 429 on 6th attempt, got [401, 401, 401, 401, 401, 401]
+E   assert 401 == 429</failure></testcase><testcase classname="backend.tests.test_iter100_music_auth_regression" name="test_cors_credentials_with_explicit_origin" time="0.061"><failure message="AssertionError: expected explicit origin reflection, got 'https://rebrand-app-5.cluster-12.preview.emergentcf.cloud'&#10;assert 'https://rebr...rgentcf.cloud' == 'https://rebr...gentagent.com'&#10;  &#10;  - https://rebrand-app-5.preview.emergentagent.com&#10;  ?                                       ^^^^^   ^&#10;  + https://rebrand-app-5.cluster-12.preview.emergentcf.cloud&#10;  ?                       +++++++++++                ^^  + ^^">backend/tests/test_iter100_music_auth_regression.py:105: in test_cors_credentials_with_explicit_origin
+    assert allow_origin == origin, f"expected explicit origin reflection, got {allow_origin!r}"
+E   AssertionError: expected explicit origin reflection, got 'https://rebrand-app-5.cluster-12.preview.emergentcf.cloud'
+E   assert 'https://rebr...rgentcf.cloud' == 'https://rebr...gentagent.com'
+E     
+E     - https://rebrand-app-5.preview.emergentagent.com
+E     ?                                       ^^^^^   ^
+E     + https://rebrand-app-5.cluster-12.preview.emergentcf.cloud
+E     ?                       +++++++++++                ^^  + ^^</failure></testcase><testcase classname="backend.tests.test_iter100_music_auth_regression" name="test_admin_bulk_import_replace_updates_password" time="0.232" /></testsuite></testsuites>

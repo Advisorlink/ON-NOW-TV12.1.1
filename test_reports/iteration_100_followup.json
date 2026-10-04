@@ -1,0 +1,33 @@
+{
+  "date": "2026-10-04",
+  "scope": "Live TV recovery and Music navigation",
+  "music_tv_mode": {
+    "classes_verified": ["vesper-host-android", "vesper-low-end"],
+    "scroll_start_middle_end": [0, 302, 488],
+    "focus_transition": "0.12s",
+    "reversal_no_queued_focus": "PASS",
+    "vertical_focus_visible": "PASS; focused card y139.9..375.3 at 800px height",
+    "reduced_motion": "PASS immediate settle",
+    "playback": "PASS controlled local media advances at0.506s, mini-player pause/resume changes actual playing state; 4 engine subscriptions",
+    "mobile": "390x844 no uncontained overflow; intentionally clipped hero/carousel children excluded",
+    "log": "/root/.emergent/automation_output/20261004_073614/console_20261004_073614.log"
+  },
+  "native": {
+    "brace_checks": "7 modified Kotlin files PASS",
+    "cache_swap_jvm": "PASS success/carryover, first rename fail, second rename fail rollback, failed rollback retains backup, backup recovery, missing staging",
+    "apk_resource_packaging": "Not completed: official aapt2 is x86_64 on ARM64 host; Debian ARM aapt2 lacks AGP --source-path support. No repo Gradle configuration changed.",
+    "sdk": "/tmp/livetv-android-sdk/platforms/android-34/android.jar",
+    "typecheck_log": "/tmp/livetv-typecheck-final.log",
+    "typecheck_result": "PASS all42 LiveTV Kotlin source files against79 real Android/API34 and Gradle-resolved dependencies. Kotlin1.9.22. Only R IDs are generated compile-time placeholders from actual resource symbols; all app source and dependency types are real. Not APK linking/signing/device runtime.",
+    "compiler_fix": "MainActivity sendBackToLogin coroutine Intent constructor now uses this@MainActivity, not CoroutineScope this. Rerun passed.",
+    "jvm_final_rerun": "All6 CacheDirectorySwap cases PASS after final source fix",
+    "on_device": "NOT TESTED; no TV/emulator",
+    "actual_crash_root_cause": "UNCONFIRMED: user has not provided photo/stack/trigger"
+  },
+  "production_web_build": "PASS CI=false yarn build, 30.70s, existing warnings only",
+  "scoped_api_followup": "4 PASS,3 explicit SKIP. Original report retained; unrequested security/proxy checks not silently marked passing. Account mutation test disabled.",
+  "credentials": "Agent-created disposable TEST_iter100_dd8d6a03 deleted. Existing testuser and all real accounts unchanged. test_credentials.md updated.",
+  "test_media": "Controlled local e2e-test-clip.webm for timing/pause/resume. Does NOT validate external music service availability.",
+  "application_mocked_apis": [],
+  "remaining": ["Actual LiveTV crash evidence", "Rebuilt APK/device validation", "Pre-existing external source403/decode warnings", "Previously deferred backend security work"]
+}
