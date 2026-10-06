@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-06",
+  "scope": "Installed Vesper phone/tablet Play and Autoplay",
+  "baseline": {
+    "fixture": "Playable URL from fast vod/match; final aggregate streams delayed8s. Android WebView UA with OnNowTV suffix,390x844, actual CDP touch.",
+    "early_tap": "Button disabled;0 native calls despite partial playable result",
+    "settled_tap": "1 native call after slow source completion",
+    "picker_payload": "Empty title from stale handleStreamPick closure"
+  },
+  "resolved_iteration_101_findings": {
+    "duplicate_handoff": "Shared useNativeLaunchGuard across all playStream entry paths. URL autoplay then3 trusted touches spaced450ms produced exactly1 launch. Native-return lifecycle permits replay; watchdog releases failed handoff with feedback.",
+    "touch_harness": "Real CDP touch IS supported: Emulation.setTouchEmulationEnabled + Input.dispatchTouchEvent. Verified3 trusted touchstart events, no click fallback. Agent's page.touchscreen restriction was a harness limitation, not product/browser incapability."
+  },
+  "browser_verified": [
+    "Phone390x844: first partial stream dispatches before final slow9s source, correct title",
+    "Wide Android tablet1920x800 WITHOUT Mobile token: platformmobile, delayed source queues and launches once",
+    "Autoplay OFF: picker opens while loading, real touched row launches correct title/cwId/alternatives",
+    "URL autoplay plus repeated touch does not stack native handoffs",
+    "Returning from simulated native visibility/focus permits explicit replay",
+    "SPA navigation from Matrix to second title updates payloadtitle/cwId",
+    "External-only final sources show unavailable dialog,0 native launches",
+    "Genuine AndroidTV UA remains platformtv; D-pad Enter launches once"
+  ],
+  "unit_tests": {"suites":3,"passed":22,"failed":0,"log":"/tmp/mobile-play-unit-tests.log"},
+  "build": "CI=false yarn build PASS42.52s; existing unrelated hook and bundle-size warnings",
+  "lint": "0 errors in changed files; existing Detail warnings",
+  "mocks_test_only": ["OnNowTV.playInternalRichV2 bridge spy", "Selected metadata and source responses with controlled delays", "Cloudpush response to avoid changing real backup"],
+  "production_apis_mocked": false,
+  "physical_device_tested": false,
+  "remaining": "Rebuilt Vesper APK on physical phone/tablet, including real native player decoding and configured provider availability",
+  "logs": [
+    "/root/.emergent/automation_output/20261006_084555/console_20261006_084555.log",
+    "/root/.emergent/automation_output/20261006_085252/console_20261006_085252.log",
+    "/root/.emergent/automation_output/20261006_090356/console_20261006_090356.log"
+  ],
+  "credentials": "Existing testuser only. No accounts/passwords or persistent server data created/changed."
+}

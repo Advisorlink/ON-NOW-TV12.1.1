@@ -1,0 +1,66 @@
+{
+  "summary": "Frontend-only regression run executed for mobile/tablet Play Movie behavior with mocked Android bridge and delayed stream fixtures. Unit tests for device classification and movie play intent pass (15/15). Mobile autoplay tap triggers native handoff payload correctly, but rapid repeated taps caused duplicate native launches in mocked bridge flow.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Detail play CTA",
+        "issue": "Rapid repeat taps on [data-testid='detail-play-autoplay'] triggered multiple native handoffs (expected single launch per request window).",
+        "selector": "[data-testid='detail-play-autoplay']",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Installed-app native handoff from Detail",
+        "issue": "Bridge payload validation passed for title/cwId/alternatives on first tap, but duplicate launches were observed on repeated taps before CTA state prevented subsequent actions.",
+        "affected_selectors": [
+          "[data-testid='detail-play-autoplay']"
+        ]
+      },
+      {
+        "flow": "Real touch CDP verification",
+        "issue": "MOCKED limitation: browser automation context here does not enable hasTouch; page.touchscreen.tap is unavailable. Used synthetic touchstart/touchend + click fallback with Android WebView UA/bridge mock to continue regression.",
+        "affected_selectors": [
+          "[data-testid='detail-play-autoplay']"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/frontend/src/lib/deviceInput.test.js",
+    "/app/frontend/src/hooks/useMoviePlayIntent.test.jsx",
+    "/root/.emergent/automation_output/20261006_085830/console_20261006_085830.log",
+    "/root/.emergent/automation_output/20261006_085757/console_20261006_085757.log",
+    "/root/.emergent/automation_output/20261006_085656/console_20261006_085656.log"
+  ],
+  "action_items": [
+    "Debounce/lock detail-play-autoplay after first manual launch request so rapid taps cannot call Host.playVideo multiple times.",
+    "Keep manual tap idempotent until title key or candidate set changes (not just a 500 ms guard window).",
+    "Re-run tablet-wide and autoplay-off swap-stream interaction after duplicate-launch fix; current run stopped additional playwright selector iterations per loop-prevention rule.",
+    "If strict 'real CDP touch' is mandatory, run in a Playwright context configured with hasTouch=true/mobile emulation; current harness cannot provide that capability."
+  ],
+  "critical_code_review_comments": [
+    "useMoviePlayIntent currently suppresses duplicates only for ~500ms via performance.now; this is too short for repeated user taps while Detail remains interactive.",
+    "Detail CTA remains tap-enabled immediately after first native handoff request; there is no explicit in-flight launch lock tied to titleKey/candidate state.",
+    "Good fix already present: deviceInput strips OnNowTV UA suffix and classifies Android touch devices as handheld, with TV-family UA hard exclusions maintained."
+  ],
+  "updated_files": [
+    "/app/frontend/src/lib/deviceInput.test.js",
+    "/app/frontend/src/hooks/useMoviePlayIntent.test.jsx",
+    "/app/test_reports/iteration_101.json"
+  ],
+  "success_rate": {
+    "backend": "N/A",
+    "frontend": "70%"
+  },
+  "seed_data_creation": "No backend seed/user mutation. Test session used existing testuser/testpass123 and local profile keys for gated-route bootstrap.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Executed frontend-only run on external URL with mocked OnNowTV bridge. Unit regressions added and passing: isHandheldInput + useMoviePlayIntent (15 tests). Mobile flow confirmed first native play payload includes expected title 'The Matrix', cwId 'tt0133093', and non-empty streamsJSON alternatives. Rapid duplicate taps reproduced multiple handoffs (HIGH). Prior attempts hit login gate and no-touch context limitations; see console logs for sequence.",
+  "rca of the issue": "Repro: on mobile viewport (390x844), open /title/movie/tt0133093?autoplay=1, tap [detail-play-autoplay] once (native handoff captured), then rapidly tap 3 more times. Observed additional bridge invocations. Likely cause: useMoviePlayIntent dedupe is time-window based (500ms) and CTA remains actionable after first launch, so repeated manual calls can re-trigger Host.playVideo. Mitigation: add deterministic one-shot guard per title/candidate launch cycle (e.g., explicit launched flag reset only on titleKey change or stream-pick reset), and disable CTA while launch dispatch is pending/just sent."
+}

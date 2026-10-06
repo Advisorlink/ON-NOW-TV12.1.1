@@ -1,6 +1,7 @@
-# ON NOW TV V2 — Priorities (2026-10-04)
+# ON NOW TV V2 — Priorities (2026-10-06)
 
 ## P0 — current
+- Rebuild/install Vesper APK with phone/tablet Play fixes. Verify portrait phone + landscape tablet: early Play, Autoplay OFF picker, native Back/replay, genuine playback on configured provider. Browser trusted-touch → MOCKED native handoff tests pass; physical player still unverified.
 - Obtain Live TV crash photo/stack or trigger; unidentified device crash cannot yet be attributed to a specific line. Install rebuilt Live TV APK with login recovery/cancellation/cache fixes, and Music APK with scoped motion/update optimizations; test real D-pad + reset + favourites preservation.
 - Install a newly built Vesper APK containing shelf + top-menu smoothing and v1.5.1 single-screen update notice. Validate normal/held/reversed D-pad movement with trailers ON and startup/login on the same box. Browser tests pass; physical hardware pending.
 - Existing native APK fixes from prior sessions also await installation.
@@ -19,6 +20,7 @@
 ## P2 / future
 - Playback/navigation diagnostics screen (useful next enhancement: actual TV frame/latency counters).
 - Optional Settings → Latest updates entry to reopen the concise release summary manually without startup repeats.
+- Optional playback-handoff diagnostics to record failed taps/player launches for easier real-device troubleshooting.
 - Apply 16:9 Up Next artwork to channel previews.
 - Replace superscript Live text with visual LIVE chips.
 - P3: muted-over-an-hour guard.

@@ -1,5 +1,12 @@
 # ON NOW TV V2 — Implementation history
 
+## 2026-10-06 — Installed-app phone/tablet Play recovery
+- Reproduced trusted touch ignored on disabled Autoplay despite a ready playable partial stream; enabled immediate intent, queued delayed availability, explicit loading/failure feedback. Fresh stream-picker closures + scoped metadata/source state correct empty/stale native payloads across title navigation.
+- Fixed OnNowTV UA suffix poisoning device classification, including wide Android tablets without Mobile UA token. Handhelds skip TV CTA focus timers; true TVs retain D-pad controls/trap behaviour.
+- Shared native launch lifecycle guard prevents URL-autoplay/manual repeated taps from stacking Activities, resets on player return, watchdog feedback permits retry if player never opens. Original500ms-only debounce was insufficient; finding retained in iteration101 report.
+- Testing:22unit tests PASS, production build PASS42.52s(existingwarnings), actual trusted CDP touch phone/tablet + AutoplayOFF/picker/late sources/replay/SPA-title/TV Enter PASS. Native bridge and selected sources MOCKED only in tests; actual Android ExoPlayer/device still needs rebuilt APK check. No Kotlin/auth/backend or credentials changes.
+- Evidence: test_reports/iteration_101.json + iteration_101_followup.json, /tmp/mobile-play-unit-tests.log, /tmp/mobile-play-build.log. Original stale payload confirmed as empty title, NOT loss of stream URL; a read-only subagent's external-only speculation contradicted the actual playable fixture and was not adopted.
+
 ## 2026-10-04 — Live TV login recovery and Music navigation
 - Native loader + crash screen now expose Log in again alongside Retry. Reset handled in main process, cancels loader descendants/invalidates callbacks and clears session/provider caches without wiping personal stores. Crash subprocess skips EPG/player initialization; bounded diagnostic payload.
 - Replaced unsafe cache directory promotion with rollback-preserving pure JVM helper; retained jobs/cancellation semantics and session-generation publication guards prevent stale loaders/workers from restoring cleared guide data.

@@ -1,6 +1,6 @@
 # ON NOW TV V2 — Product requirements and current state
 
-Updated: 2026-10-04. Historical implementation details previously in this 12,244-line file are preserved in [CHANGELOG.md](CHANGELOG.md). Priorities are in [ROADMAP.md](ROADMAP.md).
+Updated: 2026-10-06. Historical implementation details previously in this 12,244-line file are preserved in [CHANGELOG.md](CHANGELOG.md). Priorities are in [ROADMAP.md](ROADMAP.md).
 
 ## Original product requirements
 Continue development of the ON NOW TV V2 app suite:
@@ -10,7 +10,23 @@ Continue development of the ON NOW TV V2 app suite:
 
 Audience: TV viewers using a D-pad on Android TV boxes, families using the Kids app, phone companion/game participants, and the operator managing boxes through the launcher admin.
 
-## Current user request (2026-10-04) — Live TV recovery + Music motion
+## Current user request (2026-10-06) — Installed phone/tablet Play taps
+User says Play Movie / Autoplay on phones/tablets behaves as if not clicked. Clarified explicitly: **installed app**, not browser.
+
+### Confirmed causes and fixes
+- Reproduced with genuine CDP touch + Android WebView UA/OnNowTV marker: a valid fast partial stream was present, but Detail disabled Play until a deliberately slow final source finished. Early touch produced zero native calls; the same touch after completion dispatched playback. Buttons now accept intent immediately, use partial playable results, or queue one tap until the first playable stream/current metadata arrives. Pending state is visible; empty/external-only final results explain unavailability instead of silently doing nothing.
+- Stream pick used `useCallback([])` capturing initial `playStream`/metadata/stream list: baseline native payload title was empty. Fresh callback now supplies current title, ID and alternatives, including same-component title changes. Metadata/streams scoped by `${type}:${id}` prevent previous-title handoffs; URL-autoplay/unavailable flags reset per title.
+- Device detection treated `OnNowTV/version` in the installed app's UA as a TV signal. Narrow-touch fallback masked it on some portrait phones, but wide phones/tablets could stay TV-classified. `deviceInput.js` strips only the app marker and recognizes Android/iPad tablets regardless of width; genuine AndroidTV/SmartTV/GoogleTV/AFT remain remote mode. Detail's TV auto-focus timers no longer run on handhelds and respect modal traps on TVs.
+- `useMoviePlayIntent.js` owns queued user intent; cancelling/changing title/rating block prevents stale launch. `useNativeLaunchGuard.js` shares a single native launch across manual, URL-autoplay and stream-picker paths. Returning from native (window/visibility lifecycle) re-enables explicit replay. If handoff never opens, an 8-second watchdog supplies an error and permits retry—no permanent dead button.
+
+### Verification / limits
+- 22/22 unit tests across deviceInput, movie intent and native launch guard PASS. `CI=false yarn build` PASS42.52s with existing unrelated warnings; changed-file lint no errors.
+- Main follow-up uses actual `Input.dispatchTouchEvent` and asserts `touchstart.isTrusted`; no synthetic click fallback. Phone390×844 and wide tablet1920×800 APK UAs tested. Partial stream launches before slow source; queued delayed stream launches once; URL autoplay + repeated touches yield one handoff; return/replay works; Autoplay OFF picker works during loading; SPA A→B selection passes B's title/cwId; external-only results explain failure; TV Enter still launches once.
+- Report `iteration_101.json` preserves first test-agent duplicate-handoff finding. Corrected/shared launch guard and complete follow-up evidence in `iteration_101_followup.json`. Test agent's unavailable `page.touchscreen.tap` did not prevent CDP touch—main explicitly enabled touch emulation and verified trusted events.
+- **MOCKED in tests only:** native OnNowTV player bridge, selected stream/metadata/delay responses, cloud push to protect shared profile backups. No application API mocked and no real credentials changed. This proves tap→correct native handoff, NOT physical ExoPlayer decoding or real-provider availability.
+- No Kotlin/server/auth changes in this task. **Rebuild/install Vesper APK** (bundled web assets) and verify on actual phone/tablet; existing installed APK will not contain this fix automatically.
+
+## Previous user request (2026-10-04) — Live TV recovery + Music motion
 User reports an unidentified Live TV crash (no photo/log yet); wants **Log in again** beside Retry to restart login without reinstalling; wants Music scrolling/navigation as smooth as updated Vesper.
 
 ### Delivered changes and evidence

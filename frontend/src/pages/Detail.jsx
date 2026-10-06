@@ -22,6 +22,9 @@ import StreamUnavailableModal from '@/components/StreamUnavailableModal';
 import StreamPickerModal from '@/components/StreamPickerModal';
 import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
+import useMoviePlayIntent from '@/hooks/useMoviePlayIntent';
+import useNativeLaunchGuard from '@/hooks/useNativeLaunchGuard';
+import useIsMobile from '@/lib/useIsMobile';
 import { API, Vesper } from '@/lib/api';
 import { qualityBadge, qualityTags, toneColors, is1080p, is4K } from '@/lib/streamMeta';
 import { orderStreams, isEasyNews, isUncachedDownload, isOnNowDirect } from '@/lib/streamOrder';
@@ -72,6 +75,9 @@ const buildMagnet = (s, fallbackName = '') => {
 export default function Detail() {
     useSpatialFocus();
     const { type, id } = useParams();
+    const isMobile = useIsMobile();
+    const titleKey = `${type}:${id}`;
+    const nativeLaunch = useNativeLaunchGuard(titleKey, Host.isAndroid);
     const navigate = useNavigate();
     const location = useLocation();
     const resumeRequested = useMemo(
@@ -136,11 +142,17 @@ export default function Detail() {
         [location.search]
     );
 
-    const [meta, setMeta] = useState(null);
-    const [streams, setStreams] = useState([]);
+    const [loadedMeta, setMeta] = useState(null);
+    const [metaKey, setMetaKey] = useState(titleKey);
+    const meta = metaKey === titleKey ? loadedMeta : null;
+    const [loadedStreams, setStreams] = useState([]);
+    const [streamsKey, setStreamsKey] = useState(titleKey);
+    const streams = useMemo(() => streamsKey === titleKey ? loadedStreams : [], [streamsKey, titleKey, loadedStreams]);
     const [diagnostics, setDiagnostics] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [streamLoading, setStreamLoading] = useState(true);
+    const [metadataLoading, setLoading] = useState(true);
+    const loading = metaKey !== titleKey || metadataLoading;
+    const [sourcesLoading, setStreamLoading] = useState(true);
+    const streamLoading = streamsKey !== titleKey || sourcesLoading;
     // v2.13.12 — EasyNews++-first hold: true while an EasyNews probe
     // is still in flight; early-launch of a lower-priority candidate
     // is held until it settles or the 3 s cap expires.
@@ -235,6 +247,8 @@ export default function Detail() {
         let cancel = false;
         (async () => {
             setLoading(true);
+            setMetaKey(`${type}:${id}`);
+            setMeta(null);
             setErr(null);
             try {
                 const m = await Vesper.getMeta(type, id);
@@ -495,6 +509,8 @@ export default function Detail() {
     }, [focusedActor?.id]);
 
     useEffect(() => {
+        setStreamsKey(`${type}:${id}`);
+        setStreams([]);
         if (type === 'series') {
             // Series streams are fetched per-episode inside <SeriesEpisodes>
             setStreamLoading(false);
@@ -590,9 +606,11 @@ export default function Detail() {
     // moved to a different stream.
     useEffect(() => {
         if (type !== 'movie') return;
+        if (isMobile) return;
         if (streamLoading || streams.length === 0) return;
         const t = setTimeout(() => {
             const first = document.querySelector('[data-testid="stream-0"]');
+            if (document.querySelector('[data-focus-trap="true"]')) return;
             if (!first) return;
             // Bail if the user has already moved into the stream
             // list or the stream picker is no longer visible.
@@ -608,7 +626,7 @@ export default function Detail() {
                 });
         }, 220);
         return () => clearTimeout(t);
-    }, [streamLoading, streams.length, type]);
+    }, [streamLoading, streams.length, type, isMobile]);
 
     // List-scoped D-pad override.  When focus is INSIDE the stream
     // list, pressing Up/Down walks to the previous/next stream
@@ -754,6 +772,11 @@ export default function Detail() {
         setFocusedMovie(null);
         setCastView('cast');
         setSeriesEpisodesShown(false);
+        autoplayFiredRef.current = false;
+        setAutoplayFired(false);
+        unavailableSeenRef.current = false;
+        setShowStreamPicker(false);
+        if (isMobile) return undefined;
 
         let cancelled = false;
         let preferredHit = false;
@@ -773,6 +796,7 @@ export default function Detail() {
         ];
         const tryFocus = () => {
             if (cancelled) return;
+            if (document.querySelector('[data-focus-trap="true"]')) return;
             const target = findCandidates().find(Boolean);
             if (target) {
                 try { target.focus({ preventScroll: true }); } catch { /* ignore */ }
@@ -812,6 +836,7 @@ export default function Detail() {
          * primary button auto-focused. */
         const watcher = setInterval(() => {
             if (cancelled || preferredHit) return;
+            if (document.querySelector('[data-focus-trap="true"]')) return;
             const ae = document.activeElement;
             const userMoved =
                 ae && (
@@ -846,7 +871,7 @@ export default function Detail() {
             clearInterval(watcher);
             clearTimeout(stopWatcher);
         };
-    }, [id]);
+    }, [id, type, isMobile]);
 
     /* v2.10.46-d — Streams-just-loaded focus pulse.
      * Separate, narrower hook from the mount-time watcher: the
@@ -862,8 +887,10 @@ export default function Detail() {
      * row or episode list. */
     useEffect(() => {
         if (type !== 'movie') return;
+        if (isMobile) return;
         if (streamLoading) return;
         const t = window.setTimeout(() => {
+            if (document.querySelector('[data-focus-trap="true"]')) return;
             const ae = document.activeElement;
             const userMoved =
                 ae && (
@@ -886,7 +913,7 @@ export default function Detail() {
             });
         }, 60);
         return () => window.clearTimeout(t);
-    }, [streamLoading, type, id]);
+    }, [streamLoading, type, id, isMobile]);
 
     // ---------- AUTOPLAY 1080p — derived state ----------
     // `autoplayEnabled` reflects the live preference.  We read it
@@ -1022,24 +1049,20 @@ export default function Detail() {
     }, [streams, type, partyCode, autoplayCandidate]);
 
     // Manual trigger for the on-page Play button.
-    const triggerAutoplay = () => {
-        // v2.10.77 — Kids rating gate: do nothing if blocked.  The
-        // overlay explains why; user can press Back to leave.
-        if (ratingBlocked) return;
-        if (autoplayCandidate) {
-            playStream(autoplayCandidate);
-            return;
-        }
-        /* v2.6.87 — if there's no candidate it means streams loading
-         * finished and there's literally nothing playable (no addon
-         * has this title yet — usually a brand-new TMDB release).
-         * Replace the silent dead-button-state with a cinematic
-         * "Coming Soon" modal that offers the user to add it to
-         * their notify list. */
-        if (!streamLoading && (!streams || streams.length === 0)) {
-            setShowUnavailableModal(true);
-        }
-    };
+    const moviePlay = useMoviePlayIntent({
+        titleKey,
+        candidate: loading ? null : autoplayCandidate,
+        loading: loading || streamLoading,
+        blocked: ratingBlocked,
+        onPlay: (stream) => {
+            // A manual request also fulfils ?autoplay=1; its effect must not
+            // launch the player a second time when another source arrives.
+            autoplayFiredRef.current = true;
+            setAutoplayFired(true);
+            playStream(stream);
+        },
+        onUnavailable: () => setShowUnavailableModal(true),
+    });
 
     const [showUnavailableModal, setShowUnavailableModal] = useState(false);
     // v2.13.13 — Detail stays MOUNTED when SPA-navigating between
@@ -1074,20 +1097,22 @@ export default function Detail() {
      * the streams list; auto-focuses stream-0; D-pad scrolls;
      * OK plays; Back closes. */
     const [showStreamPicker, setShowStreamPicker] = useState(false);
-    const openStreamPicker = React.useCallback(() => {
+    const openStreamPicker = () => {
+        moviePlay.cancel();
         setShowStreamPicker(true);
-    }, []);
+    };
     const closeStreamPicker = React.useCallback(() => {
         setShowStreamPicker(false);
     }, []);
-    const handleStreamPick = React.useCallback(
-        (stream) => {
-            setShowStreamPicker(false);
-            playStream(stream);
-        },
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        []
-    );
+    // Must use this render's metadata/id/streams, not the initial empty
+    // closure: that dropped the title and all alternate streams on taps.
+    const handleStreamPick = (stream) => {
+        moviePlay.cancel();
+        setShowStreamPicker(false);
+        autoplayFiredRef.current = true;
+        setAutoplayFired(true);
+        playStream(stream);
+    };
 
     /* AUTO-SHOW "Coming soon" modal as soon as stream-loading
      * resolves with zero playable streams — no Play click needed.
@@ -1492,6 +1517,10 @@ export default function Detail() {
 
     const playStream = async (stream, episodeOverride = null, streamsOverride = null) => {
         const mode = streamMode(stream);
+        // Covers manual, URL autoplay and stream-picker paths together. A
+        // second tap cannot stack native Activities while the first opens.
+        if ((mode === 'direct' || mode === 'torrent') && !nativeLaunch.begin()) return;
+        try {
         /* v2.7.20 — Persist which stream the user is currently
          * playing so the picker can mark it as "CURRENT" on
          * return. */
@@ -1516,7 +1545,7 @@ export default function Detail() {
                 mode === 'direct'
                     ? stream.url
                     : buildMagnet(stream, meta?.name);
-            if (!playUrl) return;
+            if (!playUrl) { nativeLaunch.fail(); return; }
             // Look up any previously-saved position so we can resume.
             const cwList = cw.getEntries();
             const existing = cwList.find((e) => e.id === playId);
@@ -1756,6 +1785,7 @@ export default function Detail() {
                 ? `&party=${encodeURIComponent(partyCode)}&at_ms=${encodeURIComponent(partyAtMs)}&position_ms=${encodeURIComponent(partyPositionMs)}`
                 : '';
             if (partyCode) partyBreadcrumb('playStream:web-fallback', {});
+            nativeLaunch.release();
             navigate(
                 `/play?url=${encodeURIComponent(
                     playUrl
@@ -1769,6 +1799,9 @@ export default function Detail() {
             } catch {
                 /* popup blocked */
             }
+        }
+        } catch {
+            nativeLaunch.fail();
         }
     };
 
@@ -2189,30 +2222,27 @@ export default function Detail() {
                                 data-focus-style="pill"
                                 data-initial-focus="true"
                                 tabIndex={0}
-                                onClick={triggerAutoplay}
-                                disabled={streamLoading}
+                                onClick={moviePlay.request}
+                                aria-busy={moviePlay.pending || nativeLaunch.busy}
                                 className="vesper-pulse-cta flex items-center gap-2.5 rounded-full font-sans font-semibold"
                                 style={{
                                     height: 'clamp(50px, 4vw, 60px)',
                                     paddingLeft: 'clamp(24px, 1.8vw, 32px)',
                                     paddingRight: 'clamp(28px, 2.2vw, 38px)',
                                     fontSize: 'clamp(15px, 1.15vw, 18px)',
-                                    background: streamLoading
-                                        ? 'rgba(255,255,255,0.10)'
-                                        : 'var(--vesper-blue)',
-                                    color: streamLoading
-                                        ? 'var(--vesper-text-2)'
-                                        : 'var(--vesper-bg-0)',
-                                    opacity: streamLoading ? 0.7 : 1,
+                                    background: 'var(--vesper-blue)',
+                                    color: 'var(--vesper-bg-0)',
                                 }}
                             >
-                                {streamLoading ? (
+                                {nativeLaunch.busy ? (
+                                    <><Loader2 className="vesper-spin" size={18} /><span data-testid="detail-opening-player" role="status">Opening player…</span></>
+                                ) : !autoplayCandidate && streamLoading ? (
                                     <>
                                         <Loader2
                                             className="vesper-spin"
                                             size={18}
                                         />
-                                        Finding stream…
+                                        <span data-testid="detail-play-status" role="status">{moviePlay.pending ? 'Starting when ready…' : 'Find & play'}</span>
                                     </>
                                 ) : autoplayCandidate ? (
                                     <>
@@ -2293,23 +2323,18 @@ export default function Detail() {
                                 data-initial-focus="true"
                                 tabIndex={0}
                                 onClick={openStreamPicker}
-                                disabled={streamLoading}
+                                aria-busy={streamLoading && streams.length === 0}
                                 className="vesper-pulse-cta flex items-center gap-2.5 rounded-full font-sans font-semibold"
                                 style={{
                                     height: 'clamp(50px, 4vw, 60px)',
                                     paddingLeft: 'clamp(24px, 1.8vw, 32px)',
                                     paddingRight: 'clamp(28px, 2.2vw, 38px)',
                                     fontSize: 'clamp(15px, 1.15vw, 18px)',
-                                    background: streamLoading
-                                        ? 'rgba(255,255,255,0.10)'
-                                        : 'var(--vesper-blue)',
-                                    color: streamLoading
-                                        ? 'var(--vesper-text-2)'
-                                        : 'var(--vesper-bg-0)',
-                                    opacity: streamLoading ? 0.7 : 1,
+                                    background: 'var(--vesper-blue)',
+                                    color: 'var(--vesper-bg-0)',
                                 }}
                             >
-                                {streamLoading ? (
+                                {streamLoading && streams.length === 0 ? (
                                     <>
                                         <Loader2
                                             className="vesper-spin"
@@ -2351,6 +2376,8 @@ export default function Detail() {
                         pill row inside <SeriesEpisodes>, per user
                         request ("put the trailer button BESIDE first
                         pill of Seasons, NOT on top"). */}
+
+                    {nativeLaunch.error && <p data-testid="detail-native-launch-error" role="alert" className="mt-4 max-w-[58ch]" style={{ color: 'var(--vesper-text-2)', fontSize: 14 }}>{nativeLaunch.error}</p>}
 
                     {/* Stream picker (movies) / Episode browser (series).
                         Hidden when actor OR a filmography movie is
