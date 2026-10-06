@@ -715,20 +715,30 @@ class ExoPlayerActivity : ComponentActivity(),
             Log.e(TAG, "ExoPlayer init failed — relaunching with VLC engine", t)
             try {
                 val comingFrom = intent.getStringExtra(EXTRA_FORCE_ENGINE)
+                val retryAttempt = intent.getIntExtra("vesper.init_retry", 0)
                 val nextEngine = when (comingFrom) {
                     PlayerEngine.MPV.token -> PlayerEngine.VLC.token
                     PlayerEngine.VLC.token -> PlayerEngine.EXO.token
                     else -> PlayerEngine.VLC.token
                 }
+                if (retryAttempt >= 2) {
+                    NativePlaybackSession.failed(intent, "The player could not initialise on this device. Try another stream or send the app version to support.")
+                    android.widget.Toast.makeText(this, "Player could not initialise on this device", android.widget.Toast.LENGTH_LONG).show()
+                    finish()
+                    return
+                }
                 val fallback = Intent(intent)
                 fallback.setClass(this, ExoPlayerActivity::class.java)
                 fallback.putExtra(EXTRA_FORCE_ENGINE, nextEngine)
+                fallback.putExtra("vesper.init_retry", retryAttempt + 1)
                 fallback.flags = (
                     Intent.FLAG_ACTIVITY_NO_ANIMATION
                             or Intent.FLAG_ACTIVITY_NO_HISTORY
                 )
                 startActivity(fallback)
-            } catch (_: Throwable) { /* nothing more to try */ }
+            } catch (_: Throwable) {
+                NativePlaybackSession.failed(intent, "Android could not initialise the player. Please try again.")
+            }
             finish()
         }
     }
@@ -1469,6 +1479,7 @@ class ExoPlayerActivity : ComponentActivity(),
         }
         root.addView(composeView)
         setContentView(root)
+        NativePlaybackSession.opened(intent)
 
         // v2.7.52 — Force focus on the Compose overlay so D-pad
         // navigation engages immediately.  Without this, the

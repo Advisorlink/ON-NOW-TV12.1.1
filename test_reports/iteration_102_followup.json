@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-06",
+  "scope": "Recurring installed phone/tablet Play failure; touch-player-2 native handoff",
+  "physical_device_issue": "NOT YET VERIFIED RESOLVED. User reports no opening/error; previous rebuilt APK install unconfirmed.",
+  "native_compile": {
+    "result": "PASS23 Vesper Kotlin source files with96 real Android/dependency artifacts",
+    "compiler": "Kotlin1.9.23 + Compose plugin1.5.13, matching project",
+    "resource_ids": "Generated compile-time placeholders; not APK resource linking/signing",
+    "fixes": ["Activity→MainActivity guarded cast in playMedia", "False return rejected explicitly by JS; no nonexistent WebView field", "Standalone compiler includes required Compose plugin"],
+    "log": "/tmp/vesper-touch-native-typecheck.log"
+  },
+  "browser_followup": {
+    "trusted_touch_missing_click": "PASS: capture listener deliberately drops compatibility click; CDP touch still launches once with correct Matrix title/cwId",
+    "native_ack_without_blur": "PASS: opened acknowledgement prevents watchdog error after8.1s despite no window blur",
+    "native_rejection": "PASS: playMedia false shows immediate host unavailable error, not silent web fallback",
+    "desktop_modal": "PASS5 open/close cycles, Tab trapped, Escape/Close restore trigger focus",
+    "portal": "PASS full viewport overlay and no uncontained overflow at1920x800 and390x844",
+    "diagnostic_values": "touch-player-2, test-build(102), Protocol1, returned/failed stages"
+  },
+  "browser_mocks": ["OnNowTV playMedia/player lifecycle ACK events", "Selected stream and metadata fixture endpoints", "Cloudpush response to avoid backup changes"],
+  "production_mocks_added": false,
+  "final_unit_tests": "40/40 PASS across5 suites; /tmp/touch-player2-tests.log",
+  "final_web_build": "CI=false yarn build PASS23.24s; existing warnings only; /tmp/touch-player2-build.log",
+  "final_kotlin_braces": "All5 modified native files PASS",
+  "credentials_changed": false,
+  "remaining": ["Build/install APK on actual affected phone/tablet", "Confirm web/native markers then real playback; capture stage if failure persists"],
+  "logs": [
+    "/root/.emergent/automation_output/20261006_092820/console_20261006_092820.log",
+    "/root/.emergent/automation_output/20261006_095032/console_20261006_095032.log"
+  ]
+}

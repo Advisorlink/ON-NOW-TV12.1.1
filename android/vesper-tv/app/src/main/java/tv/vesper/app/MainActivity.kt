@@ -738,6 +738,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        NativePlaybackSession.returned(this)
         applyImmersiveMode()
         if (webViewReady) webView.onResume()
         consumeNextEpisodeIntent()
@@ -963,6 +964,15 @@ class MainActivity : AppCompatActivity() {
                     .apply()
             }
         } catch (_: Exception) {}
+    }
+
+    fun reportNativePlayback(status: org.json.JSONObject) {
+        if (!webViewReady || isDestroyed) return
+        webView.post {
+            if (!isDestroyed) webView.evaluateJavascript(
+                "window.dispatchEvent(new CustomEvent('vesper:native-playback', {detail:${status}}));", null,
+            )
+        }
     }
 
     /** Remove any `profile=…` query parameter from a Vesper URL, while

@@ -8,6 +8,7 @@ export default function useNativeLaunchGuard(scope, enabled) {
     const lock = useRef(false);
     const away = useRef(false);
     const timer = useRef(null);
+    const requestId = useRef(null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const release = useCallback(() => {
@@ -25,6 +26,7 @@ export default function useNativeLaunchGuard(scope, enabled) {
         if (!enabled) return true;
         if (lock.current) return false;
         lock.current = true;
+        requestId.current = null;
         away.current = false;
         setError('');
         setBusy(true);
@@ -46,16 +48,36 @@ export default function useNativeLaunchGuard(scope, enabled) {
         const focus = (event) => {
             if (event.target === window && away.current) release();
         };
+        const native = (event) => {
+            const detail = event.detail || {};
+            if (detail.status === 'dispatching' && lock.current) {
+                requestId.current = detail.requestId;
+                return;
+            }
+            if (!requestId.current || detail.requestId !== requestId.current) return;
+            if (detail.status === 'opened') {
+                away.current = true;
+                clearTimeout(timer.current);
+            } else if (detail.status === 'returned') {
+                release();
+            } else if (detail.status === 'failed') {
+                release();
+                setError(detail.message || 'Android could not open the player. Please try again.');
+            }
+        };
         window.addEventListener('blur', departed);
         window.addEventListener('focus', focus);
         document.addEventListener('visibilitychange', visibility);
+        window.addEventListener('vesper:native-playback', native);
         return () => {
             clearTimeout(timer.current);
             lock.current = false;
             away.current = false;
+            requestId.current = null;
             window.removeEventListener('blur', departed);
             window.removeEventListener('focus', focus);
             document.removeEventListener('visibilitychange', visibility);
+            window.removeEventListener('vesper:native-playback', native);
         };
     }, [scope, release]);
 

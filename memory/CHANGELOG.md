@@ -1,5 +1,14 @@
 # ON NOW TV V2 — Implementation history
 
+## 2026-10-06 — Recurring phone/tablet failure: real Android handoff protocol
+- User says no Opening player/error, boxes work; APK update unconfirmed. Actual affected-device root cause remains unverified, despite previous mocked-native success.
+- Direct stationary touch activation (not scroll/long press), duplicate compatibility-click suppression; mouse/remote fallback retained. Added playMedia protocol1 JSONnative requests + received/launched/opened/returned/failed acknowledgements; legacy/party/player routing preserved. Correlated guard failure/retry/reset, bounded native init fallback.
+- Playback details exposes web marker touch-player-2, native version/build/protocol and stage, without URLs/secrets. Full viewport portal, focus trap/restoration verified at390×844 and1920×800;5 desktop cycles passed.
+- Native compile corrections verified: Activity safe cast, explicit Boolean rejection, matching Kotlin1.9.23+Compose1.5.13 standalone setup. All23 native source files +96 actual dependencies compile; generated resource-ID placeholders, NOT packaged APK/device playback.
+- Browser test with compatibility click intentionally dropped still dispatched exactly once on trusted CDP touch; explicit native opened ack prevents false8s watchdog. Native/source endpoints MOCKED in automation only. Reports iteration102/follow-up retain original failures and resolutions.
+- No auth/server/account changes. Next step must be rebuilt APK + physical phone/tablet and Playback details capture, not further assumptions from simulated bridge alone.
+- Final completion checks:40/40 frontend tests PASS; productionweb build PASS23.24s(existingwarnings); fivechangedKotlin bracechecks PASS; all23Vesper Kotlin sources compile against96 actual Android dependencies with matching Kotlin/Compose compiler. Physicaldevice/APKpackaging still pending.
+
 ## 2026-10-06 — Installed-app phone/tablet Play recovery
 - Reproduced trusted touch ignored on disabled Autoplay despite a ready playable partial stream; enabled immediate intent, queued delayed availability, explicit loading/failure feedback. Fresh stream-picker closures + scoped metadata/source state correct empty/stale native payloads across title navigation.
 - Fixed OnNowTV UA suffix poisoning device classification, including wide Android tablets without Mobile UA token. Handhelds skip TV CTA focus timers; true TVs retain D-pad controls/trap behaviour.

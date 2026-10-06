@@ -478,6 +478,7 @@ class VlcPlayerActivity : AppCompatActivity() {
         }
 
         setContentView(R.layout.activity_vlc_player)
+        NativePlaybackSession.opened(intent)
         videoLayout = findViewById(R.id.video_layout)
         rootControls = findViewById(R.id.controls_root)
         backBtn = findViewById(R.id.btn_back)

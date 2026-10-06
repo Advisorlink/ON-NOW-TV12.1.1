@@ -231,6 +231,23 @@ class WebAppInterface(private val activity: Activity) {
         }
     }
 
+    /** JSON avoids device/WebView differences converting fifteen positional
+     * arguments. Existing box/party interfaces remain backward compatible. */
+    @JavascriptInterface
+    fun playMedia(requestId: String, payload: String): Boolean {
+        val host = activity as? MainActivity ?: return false
+        host.runOnUiThread { NativePlaybackSession.launch(host, requestId, payload) }
+        return true
+    }
+
+    @JavascriptInterface
+    fun getPlaybackHostInfo(): String = org.json.JSONObject()
+        .put("protocol", 1)
+        .put("version", BuildConfig.VERSION_NAME)
+        .put("build", BuildConfig.VERSION_CODE)
+        .put("androidApi", android.os.Build.VERSION.SDK_INT)
+        .toString()
+
     /**
      * Rich variant — used by the web layer to pass the full cinematic
      * preview meta (poster / backdrop / synopsis / year / rating /

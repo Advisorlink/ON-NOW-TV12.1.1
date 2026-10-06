@@ -63,6 +63,8 @@ const Host = (() => {
         streamsList,
         currentStreamIdx, // eslint-disable-line no-unused-vars
     } = {}) => {
+        const a = typeof window !== 'undefined' ? window.OnNowTV : null;
+        const isAndroid = !!a && (typeof a.isAndroidHost === 'function' || typeof a.playMedia === 'function');
         if (!url) return false;
         // Internal libVLC player (native, every codec, in-app).
         // Prefer the party-aware bridge when we have party params.
@@ -100,7 +102,7 @@ const Host = (() => {
         }
         // Prefer the rich V2 bridge (passes cinematic preview meta
         // + alternate-streams payload for the in-player picker).
-        if (isAndroid && typeof a.playInternalRichV2 === 'function') {
+        if (isAndroid && (typeof a.playInternalRichV2 === 'function' || typeof a.playMedia === 'function')) {
             try {
                 /* v2.13.4 — The picker must ONLY list streams that can
                  * actually play.  Torrent entries (magnet:/infoHash —
@@ -145,6 +147,25 @@ const Host = (() => {
                     : [];
                 const streamsJson = rows.length > 0 ? JSON.stringify(rows) : '';
                 const curIdx = rows.findIndex((e) => e.url === url);
+                if (!partyCode && typeof a.playMedia === 'function') {
+                    const requestId = `play-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+                    const signal = (status, message = '') => window.dispatchEvent(new CustomEvent('vesper:native-playback', { detail: { requestId, status, message } }));
+                    signal('dispatching');
+                    try {
+                        const accepted = a.playMedia(requestId, JSON.stringify({
+                            url, title: title || '', type: type || '', subtitleUrl: subtitleUrl || null,
+                            poster: poster || null, backdrop: backdrop || null, synopsis: synopsis || '',
+                            year: String(year || ''), rating: String(rating || ''), runtime: String(runtime || ''),
+                            genres: Array.isArray(genres) ? genres.join(' · ') : (genres || ''),
+                            startAtMs: Math.max(0, Math.floor(Number(startAtMs) || 0)),
+                            cwId: cwId || null, streamsJson, currentStreamIdx: curIdx,
+                        }));
+                        if (accepted === false) signal('failed', 'The Android player host is unavailable. Please reopen Vesper.');
+                    } catch {
+                        signal('failed', 'The Android player connection failed. Please try again.');
+                    }
+                    return true;
+                }
                 a.playInternalRichV2(
                     url,
                     title || '',
@@ -351,7 +372,10 @@ const Host = (() => {
     };
 
     return {
-        isAndroid,
+        get isAndroid() {
+            const bridge = typeof window !== 'undefined' ? window.OnNowTV : null;
+            return !!bridge && (typeof bridge.isAndroidHost === 'function' || typeof bridge.playMedia === 'function');
+        },
         isOnNowTV,
         isLowEnd: lowEnd,
         playVideo,

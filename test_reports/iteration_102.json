@@ -1,0 +1,66 @@
+{
+  "summary": "Executed scoped frontend+native regression for touch-player-2 flow, host JSON bridge, launch guard behavior, and Kotlin compile confidence checks. Frontend unit suite passed (39/39). SDK-backed native typecheck found a real Kotlin compile error in WebAppInterface.playMedia. Browser validations used MOCKED OnNowTV bridge + controlled fixtures (CDP touch verified).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Native Kotlin compile/typecheck",
+        "issue": "WebAppInterface.playMedia passes Activity to NativePlaybackSession.launch(MainActivity,...), causing Kotlin type mismatch compile failure.",
+        "affected_selectors": [
+          "N/A (native source compile)"
+        ]
+      },
+      {
+        "flow": "Desktop playback details open in one run",
+        "issue": "Intermittent failure reproduced once: click on [data-testid='playback-details-open'] did not produce dialog before timeout in 1920x800 run; mobile run did open and verify dialog fields.",
+        "affected_selectors": [
+          "[data-testid='playback-details-open']",
+          "[data-testid='playback-details-dialog']"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/frontend/src/hooks/useTouchActivate.test.jsx",
+    "/app/frontend/src/hooks/useNativeLaunchGuard.test.jsx",
+    "/app/frontend/src/hooks/useMoviePlayIntent.test.jsx",
+    "/app/frontend/src/lib/deviceInput.test.js",
+    "/app/frontend/src/lib/host.test.js",
+    "/app/tests/typecheck_vesper_native.py",
+    "/app/tests/vesper_classpath.init.gradle",
+    "/root/.emergent/automation_output/20261006_094233/console_20261006_094233.log",
+    "/root/.emergent/automation_output/20261006_094305/console_20261006_094305.log"
+  ],
+  "action_items": [
+    "Fix compile error in /app/android/vesper-tv/app/src/main/java/tv/vesper/app/WebAppInterface.kt line calling NativePlaybackSession.launch: pass MainActivity safely (cast/guard) or widen launch signature.",
+    "Retest desktop playback details open/close focus return path at 1920x800 after native compile fix to confirm no intermittent dialog-open issue.",
+    "After APK rebuild, validate on real phone/tablet device because browser bridge validations here are MOCKED and cannot verify physical player decoding/handoff timing."
+  ],
+  "critical_code_review_comments": [
+    "NativePlaybackSession.launch strictly requires MainActivity, but WebAppInterface stores Activity; direct call is currently uncompilable under SDK-backed typecheck.",
+    "Host.playVideo JSON bridge path now has good requestId/status dispatch behavior and call-time bridge resolution; added regression tests to preserve this.",
+    "Touch activation edge-case matrix (drag/cancel/multitouch/longpress/compat-click suppression/touch fallback) is now covered by unit tests and passing."
+  ],
+  "updated_files": [
+    "/app/frontend/src/hooks/useTouchActivate.test.jsx",
+    "/app/frontend/src/lib/host.test.js",
+    "/app/frontend/src/hooks/useNativeLaunchGuard.test.jsx",
+    "/app/tests/vesper_classpath.init.gradle",
+    "/app/tests/typecheck_vesper_native.py",
+    "/app/test_reports/iteration_102.json"
+  ],
+  "success_rate": {
+    "backend": "N/A",
+    "frontend": "85%"
+  },
+  "seed_data_creation": "None. Used existing testuser/testpass123 and local profile seed keys only.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Unit tests executed: 5 suites, 39 tests all PASS via yarn test. CDP touch validation succeeded on /title/movie/tt0133093 (stationary touch launch once; swipe did not add calls). Playback details rows verified in successful mobile run: web build touch-player-2, native build test-build (102), protocol 1, stage returned. Browser flow relied on MOCKED OnNowTV.playMedia + MOCKED fixture endpoints. SDK-backed Kotlin typecheck (not APK packaging) failed on WebAppInterface.playMedia type mismatch; brace checks for 5 changed Kotlin files passed.",
+  "rca of the issue": "Compile RCA: NativePlaybackSession.launch(activity: MainActivity, id: String, payload: String) is invoked from WebAppInterface.playMedia where activity is typed as Activity. Kotlin rejects Activity->MainActivity mismatch during typecheck. Repro: ANDROID_HOME=/tmp/vesper-sdk ANDROID_SDK_ROOT=/tmp/vesper-sdk ./gradlew -I /app/tests/vesper_classpath.init.gradle :app:printVerificationClasspath then python /app/tests/typecheck_vesper_native.py; error points to WebAppInterface.kt playMedia call. Mitigation: guard cast (activity as? MainActivity) and fail/emit message when null, or relax NativePlaybackSession.launch parameter type if intended." 
+}

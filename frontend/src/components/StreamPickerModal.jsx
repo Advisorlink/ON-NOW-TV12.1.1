@@ -41,6 +41,8 @@ import * as img from '@/lib/img';
 import { Loader2 } from 'lucide-react';
 
 // Inline streamMode helper — matches Detail.jsx's definition.
+import { PlaybackButton } from '@/components/PlaybackButton';
+
 const streamMode = (s) => {
     if (s?.url) return 'direct';
     if (s?.externalUrl) return 'external';
@@ -379,7 +381,7 @@ export default function StreamPickerModal({
                             const isCurrent = i === currentIdx;
                             return (
                                 <li key={i}>
-                                    <button
+                                    <PlaybackButton
                                         data-testid={`modal-stream-${i}`}
                                         data-focusable="true"
                                         data-focus-style="pill"
@@ -574,7 +576,7 @@ export default function StreamPickerModal({
                                                 </span>
                                             </div>
                                         </div>
-                                    </button>
+                                    </PlaybackButton>
                                 </li>
                             );
                         })}

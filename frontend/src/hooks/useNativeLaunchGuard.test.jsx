@@ -22,7 +22,7 @@ describe('native playback launch lifecycle', () => {
         node.remove();
         jest.useRealTimers();
     });
-    test('blocks duplicate launches beyond a 500ms tap debounce', () => {
+    test('blocks duplicate launches while a native handoff is in flight', () => {
         let first, second;
         act(() => { first = gate.begin(); });
         act(() => jest.advanceTimersByTime(2000));
@@ -62,6 +62,78 @@ describe('native playback launch lifecycle', () => {
         act(() => jest.advanceTimersByTime(9000));
         expect(gate.busy).toBe(false);
         expect(gate.error).toBe('');
+    });
+    test('opened ack cancels watchdog even if blur never fires', () => {
+        act(() => gate.begin());
+        const requestId = 'play-req-1';
+        act(() => {
+            window.dispatchEvent(new CustomEvent('vesper:native-playback', {
+                detail: { requestId, status: 'dispatching' },
+            }));
+            window.dispatchEvent(new CustomEvent('vesper:native-playback', {
+                detail: { requestId, status: 'opened' },
+            }));
+        });
+        act(() => jest.advanceTimersByTime(9000));
+        expect(gate.error).toBe('');
+        expect(gate.busy).toBe(true);
+    });
+    test('ignores failed events for a different request id', () => {
+        act(() => gate.begin());
+        act(() => {
+            window.dispatchEvent(new CustomEvent('vesper:native-playback', {
+                detail: { requestId: 'play-main', status: 'dispatching' },
+            }));
+            window.dispatchEvent(new CustomEvent('vesper:native-playback', {
+                detail: {
+                    requestId: 'play-other',
+                    status: 'failed',
+                    message: 'other launch failed',
+                },
+            }));
+        });
+        expect(gate.error).toBe('');
+        expect(gate.busy).toBe(true);
+    });
+    test('failed ack for current request shows message and allows retry', () => {
+        let replay;
+        act(() => gate.begin());
+        act(() => {
+            window.dispatchEvent(new CustomEvent('vesper:native-playback', {
+                detail: { requestId: 'play-main-2', status: 'dispatching' },
+            }));
+            window.dispatchEvent(new CustomEvent('vesper:native-playback', {
+                detail: {
+                    requestId: 'play-main-2',
+                    status: 'failed',
+                    message: 'explicit native failure',
+                },
+            }));
+        });
+        expect(gate.error).toBe('explicit native failure');
+        expect(gate.busy).toBe(false);
+        act(() => {
+            replay = gate.begin();
+        });
+        expect(replay).toBe(true);
+    });
+    test('returned event unlocks and permits replay', () => {
+        let replay;
+        act(() => gate.begin());
+        act(() => {
+            window.dispatchEvent(new CustomEvent('vesper:native-playback', {
+                detail: { requestId: 'play-main-3', status: 'dispatching' },
+            }));
+            window.dispatchEvent(new CustomEvent('vesper:native-playback', {
+                detail: { requestId: 'play-main-3', status: 'opened' },
+            }));
+            window.dispatchEvent(new CustomEvent('vesper:native-playback', {
+                detail: { requestId: 'play-main-3', status: 'returned' },
+            }));
+        });
+        expect(gate.busy).toBe(false);
+        act(() => { replay = gate.begin(); });
+        expect(replay).toBe(true);
     });
     test('ordinary browser navigation is not native-locked', () => {
         act(() => root.render(<Harness enabled={false} />));

@@ -1,0 +1,17 @@
+allprojects {
+    afterEvaluate { proj ->
+        if (proj.path == ':app') {
+            proj.tasks.register('printVerificationClasspath') {
+                doLast {
+                    def cfg = proj.configurations.findByName('debugCompileClasspath')
+                    if (cfg == null) {
+                        throw new GradleException('debugCompileClasspath not found')
+                    }
+                    cfg.resolve().each { f ->
+                        println("VERIFY_CP:${f.absolutePath}")
+                    }
+                }
+            }
+        }
+    }
+}

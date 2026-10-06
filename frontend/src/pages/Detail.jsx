@@ -24,6 +24,8 @@ import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useMoviePlayIntent from '@/hooks/useMoviePlayIntent';
 import useNativeLaunchGuard from '@/hooks/useNativeLaunchGuard';
+import { PlaybackButton } from '@/components/PlaybackButton';
+import { PlaybackDetails } from '@/components/PlaybackDetails';
 import useIsMobile from '@/lib/useIsMobile';
 import { API, Vesper } from '@/lib/api';
 import { qualityBadge, qualityTags, toneColors, is1080p, is4K } from '@/lib/streamMeta';
@@ -2216,7 +2218,7 @@ export default function Detail() {
                         />
                     ) : type === 'movie' && autoplayEnabled && (
                         <div className="mt-8 flex items-center gap-3 flex-wrap">
-                            <button
+                            <PlaybackButton
                                 data-testid="detail-play-autoplay"
                                 data-focusable="true"
                                 data-focus-style="pill"
@@ -2255,7 +2257,7 @@ export default function Detail() {
                                         No stream found
                                     </>
                                 )}
-                            </button>
+                            </PlaybackButton>
                             {/* v2.7.25 — Choose stream is ALWAYS
                                 available on movie detail when there
                                 are streams, regardless of Autoplay
@@ -2316,7 +2318,7 @@ export default function Detail() {
                         && !focusedActor
                         && !focusedMovie && (
                         <div className="mt-8 flex items-center gap-3 flex-wrap">
-                            <button
+                            <PlaybackButton
                                 data-testid="detail-choose-stream"
                                 data-focusable="true"
                                 data-focus-style="pill"
@@ -2363,7 +2365,7 @@ export default function Detail() {
                                         No stream found
                                     </>
                                 )}
-                            </button>
+                            </PlaybackButton>
                             <TrailerPill
                                 onClick={openTrailer}
                                 loading={trailerLoading}
@@ -2378,6 +2380,7 @@ export default function Detail() {
                         pill of Seasons, NOT on top"). */}
 
                     {nativeLaunch.error && <p data-testid="detail-native-launch-error" role="alert" className="mt-4 max-w-[58ch]" style={{ color: 'var(--vesper-text-2)', fontSize: 14 }}>{nativeLaunch.error}</p>}
+                    <PlaybackDetails />
 
                     {/* Stream picker (movies) / Episode browser (series).
                         Hidden when actor OR a filmography movie is

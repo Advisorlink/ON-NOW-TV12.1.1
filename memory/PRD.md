@@ -10,7 +10,28 @@ Continue development of the ON NOW TV V2 app suite:
 
 Audience: TV viewers using a D-pad on Android TV boxes, families using the Kids app, phone companion/game participants, and the operator managing boxes through the launcher admin.
 
-## Current user request (2026-10-06) — Installed phone/tablet Play taps
+## Current user report (2026-10-06) — phone/tablet Play STILL unresponsive
+User says TV box works, installed phone/tablet does nothing and shows neither Opening player nor error. User has **not confirmed the previous rebuilt APK was installed**. Prior simulated-bridge tests did not verify the actual Android player. Do NOT call the physical-device issue resolved without new APK/device evidence.
+
+### Second-stage implementation: `touch-player-2`
+- `useTouchActivate` + `PlaybackButton` activate on a stationary touch release, so a missing compatibility click cannot swallow Play. Mouse/keyboard keep click semantics. Duplicate compatibility clicks, drag>10px, cancellation, multitouch, disabled controls, long press and out-of-bounds release are guarded. Applied to Autoplay, source picker and source rows.
+- Added native `playMedia(requestId,payload)` protocol1 JSON interface, avoiding positional-argument conversion differences and resolving bridge at call time. Existing legacy/party bridges and player routing retained. No assertion that positional conversion was the confirmed device root cause.
+- `NativePlaybackSession.kt` validates requests, forwards metadata/resume/alternate streams to the existing player activities, reports received/launched/opened/returned/failed with correlation ID. MainActivity, Exo and VLC signal actual native lifecycle. No stream URLs/credentials in status events.
+- `useNativeLaunchGuard` uses explicit native acknowledgements in addition to legacy focus/visibility. Native rejection now gives immediate feedback; opened cancels false watchdog failures even without WebView blur; returned unlocks replay. Exo startup fallback bounded to two retries rather than potentially looping Exo↔VLC.
+- Playback details button on title page shows **Web build touch-player-2**, Android version/build, **Protocol1** and last native stage. Dialog portals to document.body to avoid transformed-hero clipping; focus trapped/restored, phone/desktop verified. This identifies whether the updated web/native pieces actually reached the user's device.
+- No auth/server credentials/permissions changes. No physical Android playback/decoder verification or APK packaging performed in this environment.
+
+### Verification
+- Report iteration_102 found a real Kotlin Activity/MainActivity bridge mismatch. Fixed with guarded MainActivity cast and Boolean rejection; JS handles explicit false. Compiler check uses actual project Kotlin1.9.23 + Compose compiler1.5.13 (standalone compiler initially omitted Compose).
+- **PASS: all23 Vesper Kotlin sources compiled against96 actual Android/dependency artifacts**, generated resource-ID placeholders only; not APK resource linking/signing.
+- Final frontend tests: **40/40 across5 suites PASS** (touch/cancel/drag/duplicate suppression, modern/legacy/party bridges, late binding, acknowledgements/errors/replay). Final `CI=false yarn build` PASS23.24s, existing unrelated warnings only. Five changed Kotlin files pass brace checks; complete23-file native typecheck passed. Detailed evidence in iteration_102_followup.json.
+- Main CDP test deliberately prevented compatibility clicks: trusted touch still produced one correct handoff. Explicit opened status prevented timeout beyond8s without blur. **Native bridge/source endpoints MOCKED in browser tests only**, not actual Android execution.
+- Final desktop retest:5 open/close cycles, Tab trap, Escape/Close focus restoration passed. Native false return immediately showed error. Portal covers1920×800 and390×844 with no uncontained overflow. Runtime app integrations are not mocked.
+
+### P0 user verification
+Build/install this Vesper APK on the affected phone/tablet. Confirm Playback details shows `touch-player-2` and `Protocol1`, then try Play. If it still fails, the panel's native stage + exact Android version/build is required for further diagnosis. An absent panel/old marker means this code is not running; do not suggest clearing cache as a substitute for delivering the rebuilt APK.
+
+## Previous user request (2026-10-06) — Installed phone/tablet Play taps
 User says Play Movie / Autoplay on phones/tablets behaves as if not clicked. Clarified explicitly: **installed app**, not browser.
 
 ### Confirmed causes and fixes
