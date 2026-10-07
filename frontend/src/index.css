@@ -1028,42 +1028,58 @@ body[data-platform="mobile"] [data-testid="shelves-region"] footer {
 }
 
 /* ---- DETAIL ----
-   TV pins the cast lane above the bottom edge. On handhelds it must
-   follow the controls in normal flow: a transparent z-15 cast header
-   otherwise steals taps from the z-10 Play button in landscape.
-   One scroll owner keeps every control reachable at short heights. */
-body[data-platform="mobile"] [data-testid="detail-page"] {
-    overflow-x: hidden;
-    overflow-y: auto;
-    min-height: 0;
-    overscroll-behavior-y: contain;
-}
+   Detail page wraps content in <main> with `padding: 64px 80px 80px
+   80px` and the inner column has `max-w-[68vw]`.  Collapse both.
+   The cast lane keeps its TV placement (pinned above the bottom
+   edge) on handhelds too — user asked for the actors "back where
+   they were".  Play-tap failures were a native init bug, not this
+   layout (see PRD 2026-10-07 play-diag-5). */
 body[data-platform="mobile"] [data-testid="detail-page"] main {
-    left: 0 !important;
-    height: auto;
-    overflow: visible;
-    padding: 18px 16px 24px !important;
+    padding: 18px 16px 96px 16px !important;
 }
 body[data-platform="mobile"] [data-testid="detail-hero-content"] {
     max-width: 100% !important;
-    min-width: 0;
-    overflow-wrap: anywhere;
 }
-body[data-platform="mobile"] [data-testid="detail-cast-lane"] {
-    position: relative !important;
-    inset: auto !important;
-    padding: 0 0 24px !important;
+/* The pinned lane sits above the controls on short landscape screens.
+   Only its real content may take touches; the transparent header
+   padding must never swallow a tap meant for Play underneath. */
+body[data-platform="mobile"] [data-testid="detail-cast-lane"],
+body[data-platform="mobile"] [data-testid="cast-row-header"] {
+    pointer-events: none;
+}
+body[data-platform="mobile"] [data-testid="cast-row-header"] > *,
+body[data-platform="mobile"] [data-testid="cast-row-strip"] {
+    pointer-events: auto;
 }
 body[data-platform="mobile"] [data-testid="cast-row-header"] {
     padding-left: 16px !important;
     padding-right: 16px !important;
-    flex-wrap: wrap;
 }
 body[data-platform="mobile"] [data-testid="cast-row-strip"] {
     padding-left: 16px !important;
     padding-right: 16px !important;
     scroll-padding-left: 16px !important;
-    scroll-padding-right: 16px !important;
+}
+/* Short landscape screens (phone on its side): the pinned lane would
+   physically sit on top of Play, so only there the lane follows the
+   controls in normal flow and the page scrolls. */
+@media (max-height: 520px) {
+    body[data-platform="mobile"] [data-testid="detail-page"] {
+        overflow-x: hidden;
+        overflow-y: auto;
+        min-height: 0;
+    }
+    body[data-platform="mobile"] [data-testid="detail-page"] main {
+        left: 0 !important;
+        height: auto;
+        overflow: visible;
+        padding: 18px 16px 24px !important;
+    }
+    body[data-platform="mobile"] [data-testid="detail-cast-lane"] {
+        position: relative !important;
+        inset: auto !important;
+        padding: 0 0 24px !important;
+    }
 }
 body[data-platform="mobile"] [data-testid="detail-page"] h1 {
     font-size: clamp(28px, 7vw, 40px) !important;

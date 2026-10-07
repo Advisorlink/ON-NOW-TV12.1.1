@@ -10,7 +10,13 @@ Continue development of the ON NOW TV V2 app suite:
 
 Audience: TV viewers using a D-pad on Android TV boxes, families using the Kids app, phone companion/game participants, and the operator managing boxes through the launcher admin.
 
-## Current playback fix (2026-10-07, later) — player Activity exits before first frame on Fold 7 / Android 16, `play-diag-5`
+## Current (2026-10-07, latest) — phone follow-ups after the player fix was confirmed working
+- Tap on the video in the native player now reveals the control dock (PlayerOverlay `touchActivityTs`); auto-hide re-armed like a remote key. Needs CI APK.
+- Actors restored to the pinned bottom lane on handhelds (portrait/tablet); lane padding never intercepts taps; short landscape (≤520px tall) flows the lane under the controls.
+- Finger-on-cover vertical scroll fixed: Shelf rail `overscroll-behavior` is X-only (was shorthand `contain`, which blocked vertical chaining to the page scroller).
+- Verified: 51/51 tests, build, iter105 Playwright regression, browser A/B of the scroll fix, Kotlin typecheck. Device verification of the player tap fix pending.
+
+## Previous playback fix (2026-10-07) — player Activity exits before first frame on Fold 7 / Android 16, `play-diag-5`
 User clarified: "the click is fine, the player doesn't open". Device evidence: Galaxy Z Fold 7; Playback details → Last native stage **returned**; TV shows: spinner then back to episode picker; movies: nothing visible.
 
 ### Cause (traced in code against the evidence)
