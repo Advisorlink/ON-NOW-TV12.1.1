@@ -135,6 +135,22 @@ describe('native playback launch lifecycle', () => {
         act(() => { replay = gate.begin(); });
         expect(replay).toBe(true);
     });
+    test('late failed after a transient returned (engine-retry cascade) still shows the error', () => {
+        const fire = (status, message) => window.dispatchEvent(new CustomEvent('vesper:native-playback', {
+            detail: { requestId: 'play-main-4', status, message },
+        }));
+        act(() => gate.begin());
+        act(() => { fire('dispatching'); fire('received'); fire('launched'); fire('retrying', 'init-error'); fire('returned'); });
+        expect(gate.busy).toBe(false);
+        expect(gate.error).toBe('');
+        act(() => fire('failed', 'The player could not initialise on this device (IllegalStateException).'));
+        expect(gate.error).toMatch(/could not initialise/);
+        let retry;
+        act(() => { retry = gate.begin(); });
+        expect(retry).toBe(true);
+        expect(gate.error).toBe('');
+    });
+
     test('ordinary browser navigation is not native-locked', () => {
         act(() => root.render(<Harness enabled={false} />));
         let first, second;

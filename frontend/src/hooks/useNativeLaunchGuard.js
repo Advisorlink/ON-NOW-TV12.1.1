@@ -59,7 +59,8 @@ export default function useNativeLaunchGuard(scope, enabled) {
                 away.current = true;
                 clearTimeout(timer.current);
             } else if (detail.status === 'returned') {
-                requestId.current = null;
+                // Keep requestId: a late `failed` from an engine-retry
+                // cascade must still surface instead of being masked.
                 release();
             } else if (detail.status === 'failed') {
                 requestId.current = null;

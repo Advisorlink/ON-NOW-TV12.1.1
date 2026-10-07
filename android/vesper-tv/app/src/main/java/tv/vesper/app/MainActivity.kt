@@ -808,6 +808,7 @@ class MainActivity : AppCompatActivity() {
      */
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
+        NativePlaybackSession.hostEvent(this, "host-new-intent", intent.action ?: "")
         try {
             val routeExtra = intent.getStringExtra("vesper_route").orEmpty()
             val dataQuery  = intent.data?.encodedQuery.orEmpty()
@@ -947,6 +948,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         playbackTouchRecovery?.cancel()
+        NativePlaybackSession.hostEvent(this, "host-pause")
         super.onPause()
         if (webViewReady) webView.onPause()
         // v2.7.46 — persist current WebView URL so we can restore it

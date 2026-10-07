@@ -10,7 +10,26 @@ Continue development of the ON NOW TV V2 app suite:
 
 Audience: TV viewers using a D-pad on Android TV boxes, families using the Kids app, phone companion/game participants, and the operator managing boxes through the launcher admin.
 
-## Current playback fix (2026-10-07) — reproduced layout blocker, `play-layout-4`
+## Current playback fix (2026-10-07, later) — player Activity exits before first frame on Fold 7 / Android 16, `play-diag-5`
+User clarified: "the click is fine, the player doesn't open". Device evidence: Galaxy Z Fold 7; Playback details → Last native stage **returned**; TV shows: spinner then back to episode picker; movies: nothing visible.
+
+### Cause (traced in code against the evidence)
+- `returned` proves Android started the player Activity and MainActivity resumed again → the player exited before drawing. The only invisible-exit path is the onCreate init try/catch → engine-retry cascade (EXO_FFMPEG→VLC→EXO, each relaunch finishes before first frame) → final `failed`.
+- `ExoPlayerActivity.hideSystemUi()` called `window.setDecorFitsSystemWindows(false)` / `insetsController` **unguarded and before `setContentView()`**; MainActivity guards the same call with the note "Fold's outer cover screen has thrown IllegalStateException here in some One UI builds". The player never received that fix → init throws on every engine on the Fold/One UI tablets, never on TV boxes.
+- The `failed` ack was masked: MainActivity's transient onResume between relaunches emitted `returned`; both `useNativeLaunchGuard` and the details panel treated that as terminal, so the web showed no error.
+
+### Implemented
+- Native: `hideSystemUi()` fully guarded and moved after `setContentView` (Exo + legacy VLC), `requestedOrientation` guarded, blank-URL exit reports `failed`. `NativePlaybackSession` adds `stage()/retrying()/hostEvent()` and a `relaunching` flag (no `returned` during retries); Exo/VLC emit player-create (engine/retry/sdk/orientation), pause/resume/focus/finish(reason + caller frame)/destroy; MainActivity emits host-pause/host-new-intent.
+- Web: `lib/playbackTrace.js` rolling trail (sessionStorage); Playback details lists every step of the last request with +ms and messages, Copy/Clear buttons, marker **play-diag-5**; `useNativeLaunchGuard` surfaces a late `failed` after a transient `returned`.
+
+### Verification and limits
+- 51/51 frontend tests (new masked-failure test), ESLint clean, production build PASS, `tests/iter105_touch_bridge_regression_playwright.py` PASS. Browser screenshot at 390×844 confirms error text under Play + full trail in the panel with a simulated cascade.
+- **Vesper Kotlin typecheck PASS** via `memory/scripts/typecheck_vesper.py` (real android-34 jar + 99 Gradle-resolved deps + Compose compiler 1.5.13; 0 errors). Not an APK build; device behaviour unverified until the CI APK is installed.
+
+### Next action
+Save to GitHub → CI builds Vesper APK → install on the Fold 7 → tap Play. If it still fails, open Playback details → Copy and paste the trail: it now names the exact exception, engine attempt and the method that closed the player.
+
+## Previous playback fix (2026-10-07) — reproduced layout blocker, `play-layout-4`
 User: "Just make it work ... before we did this new ... trailer ... working on the phone ... now it's not at all." Scope remains mobile/tablet playback, not launcher/Trivia/security.
 
 ### Evidence-based cause (not another native tap workaround)

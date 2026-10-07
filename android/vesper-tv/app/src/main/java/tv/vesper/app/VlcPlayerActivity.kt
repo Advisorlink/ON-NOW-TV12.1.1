@@ -378,7 +378,8 @@ class VlcPlayerActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        NativePlaybackSession.stage(intent, "player-create", "engine=legacy-vlc sdk=${android.os.Build.VERSION.SDK_INT}")
+        try { requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE } catch (_: Throwable) {}
         window.setFlags(
             WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
             WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
@@ -688,15 +689,18 @@ class VlcPlayerActivity : AppCompatActivity() {
             }
         })
 
-        // Hide system bars for full immersion
-        window.decorView.systemUiVisibility = (
-            View.SYSTEM_UI_FLAG_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-            )
+        // Hide system bars for full immersion (cosmetic — never fatal)
+        try {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_FULLSCREEN
+                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                )
+        } catch (_: Throwable) {}
 
         initVlc()
         startPlayback()
@@ -3139,7 +3143,18 @@ class VlcPlayerActivity : AppCompatActivity() {
         if (this::mediaPlayer.isInitialized) mediaPlayer.pause()
     }
 
+    override fun finish() {
+        try {
+            val caller = Thread.currentThread().stackTrace
+                .firstOrNull { it.className.startsWith("tv.vesper.app") && it.methodName != "finish" && !it.methodName.startsWith("access$") }
+                ?.let { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" } ?: "?"
+            NativePlaybackSession.stage(intent, "player-finish", "from=$caller")
+        } catch (_: Throwable) {}
+        super.finish()
+    }
+
     override fun onDestroy() {
+        NativePlaybackSession.stage(intent, "player-destroy", "finishing=$isFinishing")
         // v2.16.31 — Drop the row from the launcher-admin Live tab.
         try { tv.vesper.app.data.VesperPresenceReporter.stop(this) } catch (_: Throwable) {}
         // Final progress flush so the Continue Watching shelf picks

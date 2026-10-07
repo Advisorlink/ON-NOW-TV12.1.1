@@ -1,6 +1,7 @@
 package tv.vesper.app
 
 import android.content.Intent
+import android.os.SystemClock
 import java.lang.ref.WeakReference
 import org.json.JSONObject
 
@@ -11,11 +12,20 @@ object NativePlaybackSession {
     private var owner = WeakReference<MainActivity>(null)
     private var request = ""
     private var launched = false
+    // True while the player Activity is re-launching itself (engine
+    // fallback cascade).  MainActivity can be resumed for a frame in
+    // between, which must NOT read as the user "returning".
+    private var relaunching = false
+    private var startedAt = 0L
+    private var seq = 0
 
     fun launch(activity: MainActivity, id: String, payload: String) {
         owner = WeakReference(activity)
         request = id.take(100)
         launched = false
+        relaunching = false
+        startedAt = SystemClock.uptimeMillis()
+        seq = 0
         try {
             require(payload.length <= 500_000) { "Playback request too large" }
             val data = JSONObject(payload)
@@ -48,33 +58,58 @@ object NativePlaybackSession {
             }
             activity.startActivity(intent)
             launched = true
-            emit("launched")
+            emit("launched", target.simpleName)
         } catch (error: Throwable) {
             emit("failed", "Android could not open the player (${error.javaClass.simpleName}). Try another stream.")
         }
     }
 
+    private fun matches(intent: Intent?): Boolean =
+        request.isNotBlank() && intent?.getStringExtra(EXTRA_REQUEST) == request
+
+    /** Free-form lifecycle breadcrumb from a player Activity. Never
+     * changes the launched/relaunching state. */
+    fun stage(intent: Intent?, name: String, message: String = "") {
+        if (matches(intent)) emit(name, message)
+    }
+
+    /** Player Activity is restarting itself (engine fallback). */
+    fun retrying(intent: Intent?, message: String) {
+        if (!matches(intent)) return
+        relaunching = true
+        emit("retrying", message)
+    }
+
     fun opened(intent: Intent) {
-        if (intent.getStringExtra(EXTRA_REQUEST) == request && request.isNotBlank()) emit("opened")
+        if (!matches(intent)) return
+        relaunching = false
+        launched = true
+        emit("opened")
     }
 
     fun failed(intent: Intent, message: String) {
-        if (intent.getStringExtra(EXTRA_REQUEST) == request && request.isNotBlank()) {
-            launched = false
-            emit("failed", message)
-        }
+        if (!matches(intent)) return
+        launched = false
+        relaunching = false
+        emit("failed", message)
     }
 
     fun returned(activity: MainActivity) {
-        if (owner.get() === activity && launched) {
-            launched = false
-            emit("returned")
-        }
+        if (owner.get() !== activity || !launched) return
+        if (relaunching) { emit("host-resumed-during-retry"); return }
+        launched = false
+        emit("returned")
+    }
+
+    /** Host-side breadcrumbs while a request is in flight. */
+    fun hostEvent(activity: MainActivity, name: String, message: String = "") {
+        if (owner.get() === activity && request.isNotBlank() && (launched || relaunching)) emit(name, message)
     }
 
     private fun emit(status: String, message: String = "") {
         owner.get()?.reportNativePlayback(JSONObject()
-            .put("requestId", request).put("status", status).put("message", message)
+            .put("requestId", request).put("status", status).put("message", message.take(300))
+            .put("seq", ++seq).put("t", SystemClock.uptimeMillis() - startedAt)
             .put("appVersion", BuildConfig.VERSION_NAME).put("appBuild", BuildConfig.VERSION_CODE))
     }
 }

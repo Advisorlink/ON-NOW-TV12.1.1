@@ -223,7 +223,7 @@ async def run_iter105_touch_bridge_regression(page):
     await cdp_legacy.send('Emulation.setUserAgentOverride', {'userAgent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/138.0 Safari/537.36'})
     await goto_detail(MOVIE_PATH)
     await page.locator('[data-testid="playback-details-open"]').click()
-    assert await page.locator('[data-testid="playback-web-build"]').inner_text() == 'play-layout-4'
+    assert await page.locator('[data-testid="playback-web-build"]').inner_text() == 'play-diag-5'
     await page.locator('[data-testid="playback-details-close"]').click()
     await page.wait_for_selector('[data-testid="playback-details-dialog"]', state='detached')
     print('PASS desktop playback details')

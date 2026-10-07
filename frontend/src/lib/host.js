@@ -12,6 +12,7 @@
  */
 
 import { sizeLabel } from '@/lib/streamMeta';
+import './playbackTrace';
 
 const Host = (() => {
     const a = typeof window !== 'undefined' ? window.OnNowTV : null;

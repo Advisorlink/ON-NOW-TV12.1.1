@@ -713,6 +713,7 @@ class ExoPlayerActivity : ComponentActivity(),
             // with the engine forced to VLC (proven, safe) so the
             // user still gets the modern Compose overlay.
             Log.e(TAG, "ExoPlayer init failed — relaunching with VLC engine", t)
+            val cause = "${t.javaClass.simpleName}: ${t.message ?: ""}".take(220)
             try {
                 val comingFrom = intent.getStringExtra(EXTRA_FORCE_ENGINE)
                 val retryAttempt = intent.getIntExtra("vesper.init_retry", 0)
@@ -722,11 +723,13 @@ class ExoPlayerActivity : ComponentActivity(),
                     else -> PlayerEngine.VLC.token
                 }
                 if (retryAttempt >= 2) {
-                    NativePlaybackSession.failed(intent, "The player could not initialise on this device. Try another stream or send the app version to support.")
+                    NativePlaybackSession.failed(intent, "The player could not initialise on this device ($cause). Try another stream or send the app version to support.")
                     android.widget.Toast.makeText(this, "Player could not initialise on this device", android.widget.Toast.LENGTH_LONG).show()
+                    finishReason = "init-error"
                     finish()
                     return
                 }
+                NativePlaybackSession.retrying(intent, "init-error attempt=$retryAttempt next=$nextEngine $cause")
                 val fallback = Intent(intent)
                 fallback.setClass(this, ExoPlayerActivity::class.java)
                 fallback.putExtra(EXTRA_FORCE_ENGINE, nextEngine)
@@ -737,17 +740,29 @@ class ExoPlayerActivity : ComponentActivity(),
                 )
                 startActivity(fallback)
             } catch (_: Throwable) {
-                NativePlaybackSession.failed(intent, "Android could not initialise the player. Please try again.")
+                NativePlaybackSession.failed(intent, "Android could not initialise the player ($cause). Please try again.")
             }
+            finishReason = "init-error-relaunch"
             finish()
         }
     }
 
+    // Set by callers right before finish() so the diagnostics trail
+    // says WHY the player closed; the override also records the caller.
+    private var finishReason = ""
+
     private fun initExoPlayerActivity(savedInstanceState: Bundle?) {
         // (formerly the body of onCreate)
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        NativePlaybackSession.stage(
+            intent, "player-create",
+            "engine=${intent.getStringExtra(EXTRA_FORCE_ENGINE) ?: PlayerEngine.read(this).token} retry=${intent.getIntExtra("vesper.init_retry", 0)} sdk=${Build.VERSION.SDK_INT} orientation=${resources.configuration.orientation}",
+        )
+        try { requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE } catch (t: Throwable) {
+            Log.w(TAG, "requestedOrientation failed", t)
+        }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        hideSystemUi()
+        // hideSystemUi() runs after setContentView() in buildUiAndStart():
+        // the DecorView must exist first on Android 16 / One UI.
 
         // Phone-remote seek commands (drag on the phone's progress bar).
         try {
@@ -978,7 +993,11 @@ class ExoPlayerActivity : ComponentActivity(),
             )
         }
 
-        if (streamUrl.isBlank()) { finish(); return }
+        if (streamUrl.isBlank()) {
+            NativePlaybackSession.failed(intent, "The player received no stream address. Please try again.")
+            finishReason = "no-url"
+            finish(); return
+        }
 
         // ─── v2.16.42 — pick the playback engine ────────────────
         // 4-way selection: MPV (default) / VLC / ExoPlayer /
@@ -1158,6 +1177,8 @@ class ExoPlayerActivity : ComponentActivity(),
                     val sinceSwap = System.currentTimeMillis() - lastInActivitySwapAt
                     if (lastInActivitySwapAt > 0L && sinceSwap < 8_000L) {
                         Log.w(TAG, "fatal error during next-ep swap; restarting ExoPlayer instead of VLC")
+                        NativePlaybackSession.retrying(intent, "exo-fatal-swap ${error.errorCodeName}")
+                        finishReason = "exo-fatal-swap"
                         try {
                             val restart = Intent(intent)
                             restart.setClass(this@ExoPlayerActivity, ExoPlayerActivity::class.java)
@@ -1175,6 +1196,8 @@ class ExoPlayerActivity : ComponentActivity(),
                     // legacy VlcPlayerActivity with its old UI.
                     // v2.16.42 — Prefer MPV first, which has the
                     // widest codec coverage of the three engines.
+                    NativePlaybackSession.retrying(intent, "exo-fatal ${error.errorCodeName} next=mpv")
+                    finishReason = "exo-fatal"
                     try {
                         val fallback = Intent(intent)
                         fallback.setClass(this@ExoPlayerActivity, ExoPlayerActivity::class.java)
@@ -1479,6 +1502,7 @@ class ExoPlayerActivity : ComponentActivity(),
         }
         root.addView(composeView)
         setContentView(root)
+        hideSystemUi()
         NativePlaybackSession.opened(intent)
 
         // v2.7.52 — Force focus on the Compose overlay so D-pad
@@ -2100,9 +2124,15 @@ class ExoPlayerActivity : ComponentActivity(),
         }
     }
 
-    override fun onPause()   { super.onPause();   try { pbPause() } catch (_: Exception) {} }
-    override fun onResume()  { super.onResume();  hideSystemUi(); try { pbPlay() } catch (_: Exception) {} }
+    override fun onPause()   { super.onPause();   NativePlaybackSession.stage(intent, "player-pause"); try { pbPause() } catch (_: Exception) {} }
+    override fun onResume()  { super.onResume();  NativePlaybackSession.stage(intent, "player-resume"); hideSystemUi(); try { pbPlay() } catch (_: Exception) {} }
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        NativePlaybackSession.stage(intent, "player-focus", "hasFocus=$hasFocus")
+        if (hasFocus) hideSystemUi()
+    }
     override fun onDestroy() {
+        NativePlaybackSession.stage(intent, "player-destroy", "finishing=$isFinishing")
         super.onDestroy()
         // v2.16.31 — Drop the row from the launcher-admin Live tab.
         try { tv.vesper.app.data.VesperPresenceReporter.stop(this) } catch (_: Throwable) {}
@@ -2126,6 +2156,12 @@ class ExoPlayerActivity : ComponentActivity(),
     }
 
     override fun finish() {
+        try {
+            val caller = Thread.currentThread().stackTrace
+                .firstOrNull { it.className.startsWith("tv.vesper.app") && it.methodName != "finish" && !it.methodName.startsWith("access$") }
+                ?.let { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" } ?: "?"
+            NativePlaybackSession.stage(intent, "player-finish", "reason=${finishReason.ifBlank { "unspecified" }} from=$caller")
+        } catch (_: Throwable) {}
         try {
             val pos = pbPositionMs().coerceAtLeast(0L)
             val dur = pbDurationMs().coerceAtLeast(0L)
@@ -2186,24 +2222,40 @@ class ExoPlayerActivity : ComponentActivity(),
 
 
 
+    /** Immersive mode is cosmetic — it must never be able to abort
+     *  playback.  On Android 16 / One UI (Fold 7, Samsung tablets)
+     *  `setDecorFitsSystemWindows` / `insetsController` have thrown
+     *  IllegalStateException before the DecorView exists; the same
+     *  call is guarded in MainActivity.applyImmersiveMode(). */
     private fun hideSystemUi() {
+        try { window.decorView } catch (_: Throwable) { /* force decor creation */ }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.setDecorFitsSystemWindows(false)
-            window.insetsController?.let { c ->
-                c.hide(WindowInsets.Type.systemBars())
-                c.systemBarsBehavior =
-                    WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            try { window.setDecorFitsSystemWindows(false) } catch (t: Throwable) {
+                Log.w(TAG, "setDecorFitsSystemWindows failed", t)
+            }
+            try {
+                window.insetsController?.let { c ->
+                    c.hide(WindowInsets.Type.systemBars())
+                    c.systemBarsBehavior =
+                        WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "insetsController hide failed", t)
             }
         } else {
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-            )
+            try {
+                @Suppress("DEPRECATION")
+                window.decorView.systemUiVisibility = (
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    or View.SYSTEM_UI_FLAG_FULLSCREEN
+                    or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                )
+            } catch (t: Throwable) {
+                Log.w(TAG, "systemUiVisibility failed", t)
+            }
         }
     }
 
@@ -2328,12 +2380,14 @@ class ExoPlayerActivity : ComponentActivity(),
             else -> PlayerEngine.VLC
         }
         Log.w(TAG, "${from.label} failed before first frame — restarting with ${next.label}")
+        NativePlaybackSession.retrying(intent, "engine-fallback from=${from.token} next=${next.token}")
         try {
             val restart = Intent(intent)
             restart.setClass(this, ExoPlayerActivity::class.java)
             restart.putExtra(EXTRA_FORCE_ENGINE, next.token)
             startActivity(restart)
         } catch (_: Throwable) { /* nothing more to try */ }
+        finishReason = "engine-fallback"
         finish()
     }
 
@@ -2892,6 +2946,7 @@ class ExoPlayerActivity : ComponentActivity(),
                 Log.i(TAG, "onBackFromPlayer: saved back-to-details ($type, $cwId)")
             }
         } catch (_: Throwable) {}
+        finishReason = "back"
         finish()
     }
 }
