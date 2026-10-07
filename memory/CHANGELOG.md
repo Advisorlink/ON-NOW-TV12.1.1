@@ -1,5 +1,12 @@
 # ON NOW TV V2 — Implementation history
 
+## 2026-10-07 — Phone UI polish pass (all CSS under `body[data-platform="mobile"]`, TV untouched)
+- Home: whole page scrolls (billboard scrolls away) instead of a pinned hero over a 380px shelf window; TV brand mark hidden; row headers stack eyebrow/title, 16px gutters.
+- Movies / TV Shows browse grid (`TabGridView`): 3 columns on phones, 4 at ≥600px, 6 at ≥900px (Fold open); content starts below the floating top pill; tile captions compact.
+- Detail: scrolling page with fixed cinematic backdrop; Cast is a proper section after the controls with gradient + bottom-nav clearance (replaces the pinned-at-screen-edge lane). Season pills no longer collapse into vertical letters (horizontal scroller, `flex: none`).
+- Search: input sits below the top pill. Network/Studio pages: 16px gutters, header below the nav, 3/5-column tile wall. Settings: left rail becomes a horizontal chip strip with full-width content.
+- Verified by browser screenshots at 390×844 and 900×1000 (Home, Movies, Detail movie+series, Search, Library, Anime, Network, Settings) with zero uncontained horizontal overflow; 51/51 unit tests; prod build; iter105 Playwright regression PASS. Not run through the testing agent (visual pass only).
+
 ## 2026-10-07 — Player tap-to-show controls, actors back in place, finger-on-cover vertical scroll
 - User confirmed the player now opens on the Fold 7 (play-diag-5 fix verified on device). Three follow-ups:
 - **Vertical scroll blocked on covers (web)**: `Shelf.jsx` rail had `overscrollBehavior: 'contain'` (shorthand = both axes) from the Oct-2 motion rework; it cut vertical scroll chaining from inside any `.vesper-shelf`, so a finger on a poster could only pan horizontally while the gaps between rows (outside the rail) scrolled. Fix: `overscrollBehaviorX: contain` + `overscrollBehaviorY: auto`. A/B in browser with trusted CDP touch at 390×844: old = BLOCKED (300→300), new = SCROLLED (300→630).

@@ -1027,59 +1027,232 @@ body[data-platform="mobile"] [data-testid="shelves-region"] footer {
     padding: 16px !important;
 }
 
-/* ---- DETAIL ----
-   Detail page wraps content in <main> with `padding: 64px 80px 80px
-   80px` and the inner column has `max-w-[68vw]`.  Collapse both.
-   The cast lane keeps its TV placement (pinned above the bottom
-   edge) on handhelds too — user asked for the actors "back where
-   they were".  Play-tap failures were a native init bug, not this
-   layout (see PRD 2026-10-07 play-diag-5). */
+/* ---- DETAIL (handheld) ----
+   One scrolling page: full-bleed cinematic backdrop stays fixed while
+   title, controls, synopsis and the Cast section scroll over it.
+   The cast lane is a real section after the controls (not pinned to
+   the screen edge) with the same 16px gutters as every other page. */
+body[data-platform="mobile"] [data-testid="detail-page"] {
+    overflow-x: hidden;
+    overflow-y: auto;
+    min-height: 0;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+}
+body[data-platform="mobile"] [data-testid="detail-page"] > .absolute.inset-0 {
+    position: fixed;
+}
 body[data-platform="mobile"] [data-testid="detail-page"] main {
-    padding: 18px 16px 96px 16px !important;
+    left: 0 !important;
+    height: auto;
+    min-height: 62vh;
+    overflow: visible;
+    padding: 18px 16px 8px !important;
 }
 body[data-platform="mobile"] [data-testid="detail-hero-content"] {
     max-width: 100% !important;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
-/* The pinned lane sits above the controls on short landscape screens.
-   Only its real content may take touches; the transparent header
-   padding must never swallow a tap meant for Play underneath. */
-body[data-platform="mobile"] [data-testid="detail-cast-lane"],
-body[data-platform="mobile"] [data-testid="cast-row-header"] {
-    pointer-events: none;
-}
-body[data-platform="mobile"] [data-testid="cast-row-header"] > *,
-body[data-platform="mobile"] [data-testid="cast-row-strip"] {
-    pointer-events: auto;
+body[data-platform="mobile"] [data-testid="detail-cast-lane"] {
+    position: relative !important;
+    inset: auto !important;
+    padding: 24px 0 112px !important;
+    background: linear-gradient(180deg, rgba(6,8,15,0) 0%, rgba(6,8,15,0.82) 18%, var(--vesper-bg-0) 100%);
 }
 body[data-platform="mobile"] [data-testid="cast-row-header"] {
     padding-left: 16px !important;
     padding-right: 16px !important;
+    flex-wrap: wrap;
+    row-gap: 10px;
 }
 body[data-platform="mobile"] [data-testid="cast-row-strip"] {
     padding-left: 16px !important;
     padding-right: 16px !important;
     scroll-padding-left: 16px !important;
 }
-/* Short landscape screens (phone on its side): the pinned lane would
-   physically sit on top of Play, so only there the lane follows the
-   controls in normal flow and the page scrolls. */
-@media (max-height: 520px) {
-    body[data-platform="mobile"] [data-testid="detail-page"] {
-        overflow-x: hidden;
-        overflow-y: auto;
-        min-height: 0;
+
+/* ---- HOME (handheld) ----
+   Phones scroll the whole page: the billboard scrolls away with the
+   rows instead of staying pinned above a small 380px scroll window. */
+body[data-platform="mobile"] [data-testid="home-main"]:not(:has([data-testid^="tab-grid-"])) {
+    display: block;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+body[data-platform="mobile"] [data-testid="shelves-region"] {
+    flex: none;
+    overflow: visible !important;
+    scroll-snap-type: none !important;
+}
+/* Row headers: eyebrow + title + count don't fit one phone line —
+   stack the eyebrow above the title and keep the count on the right. */
+body[data-platform="mobile"] .vesper-shelf-section header {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    align-items: flex-end;
+}
+body[data-platform="mobile"] .vesper-shelf-section header > div:first-child {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    flex: 1 1 auto;
+}
+body[data-platform="mobile"] .vesper-shelf-section header .vesper-display {
+    font-size: 19px !important;
+    white-space: normal !important;
+    overflow: visible !important;
+}
+body[data-platform="mobile"] .vesper-shelf-section header .vesper-eyebrow {
+    font-size: 10px !important;
+}
+body[data-platform="mobile"] .vesper-shelf {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    padding-top: 12px !important;
+    padding-bottom: 18px !important;
+    gap: 10px !important;
+}
+
+/* The TV brand mark is pinned top-left; phones already have the top
+   pill nav, and a pinned mark would float over scrolled rows. */
+body[data-platform="mobile"] [data-testid="home-brand-logo"] { display: none !important; }
+
+/* ---- SERIES season / episode controls (handheld) ----
+   The season row is a horizontal scroller; pills must never shrink
+   into vertical letter stacks. */
+body[data-platform="mobile"] [data-testid="season-picker"] {
+    margin-left: -16px;
+    margin-right: -16px;
+    padding: 4px 16px 8px !important;
+    scroll-padding-left: 16px;
+    -webkit-overflow-scrolling: touch;
+}
+body[data-platform="mobile"] [data-testid="season-picker"] > * {
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+}
+
+/* ---- NETWORK / STUDIO pages (handheld) ---- */
+body[data-platform="mobile"] [data-testid^="network-page-"] > main > header,
+body[data-platform="mobile"] [data-testid="network-subtabs"],
+body[data-platform="mobile"] [data-testid^="network-page-"] section.relative.w-full {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+}
+body[data-platform="mobile"] [data-testid^="network-page-"] > main > header {
+    padding-top: 84px !important;
+    height: auto !important;
+    min-height: 200px;
+}
+body[data-platform="mobile"] [data-testid^="network-page-"] section.relative.w-full {
+    padding-bottom: 112px !important;
+}
+/* Header band: back pill on its own line, eyebrow/title/count below. */
+body[data-platform="mobile"] [data-testid^="network-page-"] .relative.h-full.flex.items-end {
+    flex-wrap: wrap;
+    align-items: flex-end;
+    row-gap: 12px;
+    padding-bottom: 18px !important;
+}
+body[data-platform="mobile"] [data-testid="network-back"] { flex: 0 0 auto; width: max-content; }
+body[data-platform="mobile"] [data-testid^="network-page-"] .relative.h-full.flex.items-end > .flex-1.min-w-0 { flex-basis: 100%; }
+body[data-platform="mobile"] [data-testid^="network-page-"] .vesper-eyebrow {
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;
+}
+body[data-platform="mobile"] [data-testid^="network-page-"] .flex.flex-wrap {
+    gap: 10px !important;
+}
+body[data-platform="mobile"] [data-testid^="network-tile-"] {
+    width: calc((100vw - 32px - 20px) / 3) !important;
+}
+@media (min-width: 600px) {
+    body[data-platform="mobile"] [data-testid^="network-tile-"] {
+        width: calc((100vw - 32px - 40px) / 5) !important;
     }
-    body[data-platform="mobile"] [data-testid="detail-page"] main {
-        left: 0 !important;
-        height: auto;
-        overflow: visible;
-        padding: 18px 16px 24px !important;
+}
+
+/* ---- SETTINGS (handheld) — rail becomes a horizontal chip strip,
+   content takes the full width below it. */
+body[data-platform="mobile"] [data-testid="settings-layout"] {
+    display: flex !important;
+    flex-direction: column;
+    gap: 16px !important;
+}
+body[data-platform="mobile"] [data-testid="settings-nav"] {
+    display: flex !important;
+    flex-direction: row !important;
+    position: static !important;
+    overflow-x: auto;
+    gap: 8px !important;
+    padding: 8px !important;
+    margin: 0 -16px;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+}
+body[data-platform="mobile"] [data-testid="settings-nav"] > * {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+body[data-platform="mobile"] [data-testid^="settings-nav-"] > span.min-w-0 > span:last-child {
+    display: none;
+}
+body[data-platform="mobile"] [data-testid^="settings-nav-"] {
+    padding: 8px 12px 8px 8px !important;
+    border-radius: 999px !important;
+}
+body[data-platform="mobile"] [data-testid="settings-content"] { width: 100%; min-width: 0; }
+
+/* ---- BROWSE GRIDS / SEARCH / SECTION PAGES (handheld) ----
+   Every TV-sized gutter (92px rail inset) collapses to 16px, content
+   starts below the floating top pill, and grids become a tight
+   3-column poster wall instead of one or two giant tiles. */
+body[data-platform="mobile"] [data-testid^="tab-grid-"]:not([data-testid^="tab-grid-list"]) {
+    padding: 84px 16px 112px !important;
+}
+body[data-platform="mobile"] [data-testid^="tab-grid-"] header { margin-bottom: 18px !important; }
+body[data-platform="mobile"] [data-testid^="tab-grid-"] header h1,
+body[data-platform="mobile"] [data-testid^="tab-grid-"] header h2 {
+    font-size: 30px !important;
+    line-height: 1.05 !important;
+}
+body[data-platform="mobile"] [data-testid^="tab-grid-list-"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+}
+@media (min-width: 600px) {
+    body[data-platform="mobile"] [data-testid^="tab-grid-list-"] {
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        gap: 12px !important;
     }
-    body[data-platform="mobile"] [data-testid="detail-cast-lane"] {
-        position: relative !important;
-        inset: auto !important;
-        padding: 0 0 24px !important;
+}
+@media (min-width: 900px) {
+    body[data-platform="mobile"] [data-testid^="tab-grid-list-"] {
+        grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
     }
+}
+body[data-platform="mobile"] [data-testid^="tab-grid-list-"] > button {
+    border-radius: 10px !important;
+}
+body[data-platform="mobile"] [data-testid^="tab-grid-list-"] .vesper-mono { display: none; }
+body[data-platform="mobile"] [data-testid^="tab-grid-list-"] .font-sans {
+    font-size: 11px !important;
+    line-height: 1.2 !important;
+}
+body[data-platform="mobile"] [data-testid="tab-genre-chips"] {
+    margin-left: -16px;
+    margin-right: -16px;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+}
+body[data-platform="mobile"] [data-testid="search-page"] > .absolute.inset-0 {
+    padding: 84px 16px 112px !important;
 }
 body[data-platform="mobile"] [data-testid="detail-page"] h1 {
     font-size: clamp(28px, 7vw, 40px) !important;
