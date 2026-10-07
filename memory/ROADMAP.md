@@ -1,7 +1,7 @@
 # ON NOW TV V2 — Priorities (2026-10-07)
 
 ## P0 — current
-- **Recurring P0:** deliver/build/install Vesper **touch-player-3** web/native update on affected phone/tablet. Native raw-touch recovery now observes missed WebView activation, preserves scrolling/TV route. Playback details marker3 +Android tap recovery Available distinguish new build. User declined diagnostics and has not confirmed prior updated APK installation; actual phone/tablet playback remains unverified. Do not repeat mock-only success claims; next evidence must concern delivered APK/physical execution.
+- **Recurring P0:** build/install Vesper **play-layout-4** on affected phone/tablet. Actual layout blocker reproduced: absolute cast lane intercepts Play at844×390/1024×600; fixed by mobile normal-flow cast + one scroller/full-width hero. Trusted touch with real populated data now passes modern and legacy bridge tests. Desktop diagnostics overlap also fixed. Browser native bridge/lifecycle MOCKED; physical APK playback remains unverified. No Kotlin changed in this fix. See PRD + iteration104/105/followup.
 - Obtain Live TV crash photo/stack or trigger; unidentified device crash cannot yet be attributed to a specific line. Install rebuilt Live TV APK with login recovery/cancellation/cache fixes, and Music APK with scoped motion/update optimizations; test real D-pad + reset + favourites preservation.
 - Install a newly built Vesper APK containing shelf + top-menu smoothing and v1.5.1 single-screen update notice. Validate normal/held/reversed D-pad movement with trailers ON and startup/login on the same box. Browser tests pass; physical hardware pending.
 - Existing native APK fixes from prior sessions also await installation.

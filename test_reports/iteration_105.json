@@ -1,0 +1,74 @@
+{
+  "summary": "Completed interrupted Iteration 105 verification on public URL: backend 5-smoke passed, frontend 50 unit tests passed, mobile/tablet bridge-touch regressions validated with trusted CDP touch and correct legacy/modern bridge dispatch. One critical desktop UI blocker remains.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Detail page Playback Details trigger",
+        "issue": "At 1920x800, [data-testid='playback-details-open'] does not open dialog because cast lane overlays its click center (elementFromPoint resolves to [data-testid='cast-row-header']).",
+        "selector": "[data-testid='playback-details-open'], [data-testid='cast-row-header'], [data-testid='detail-cast-lane']",
+        "priority": "CRITICAL"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Detail stream resolution in browser preview",
+        "issue": "Multiple third-party addon URLs (torrentio/plexio) are blocked by CORS in browser logs; app still dispatches native/mock launch from available direct stream.",
+        "affected_selectors": [
+          "[data-testid='detail-play-autoplay']",
+          "[data-testid='detail-choose-stream']"
+        ]
+      },
+      {
+        "flow": "Cloud backup push",
+        "issue": "Console warnings show [vesperCloudSync] push failed (TypeError: Failed to fetch); stubbed success:true behavior requested in review note is not observed in this environment.",
+        "affected_selectors": []
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Detail desktop 1920x800",
+        "issues": [
+          "Cast lane top overlaps the vertical band where Playback Details link sits, creating hidden/non-actionable tap area.",
+          "Hero utility controls near cast lane boundary are fragile at short desktop height variants."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter104_metadata_streams_smoke.py",
+    "/app/test_reports/pytest/iter105_metadata_streams_smoke.xml",
+    "/app/tests/iter105_touch_bridge_regression_playwright.py",
+    "/root/.emergent/automation_output/20261007_082640/console_20261007_082640.log",
+    "/root/.emergent/automation_output/20261007_082743/console_20261007_082743.log",
+    "/root/.emergent/automation_output/20261007_082829/console_20261007_082829.log",
+    "/root/.emergent/automation_output/20261007_082935/console_20261007_082935.log"
+  ],
+  "action_items": [
+    "Fix desktop 1920x800 hit-testing so playback-details-open is not under cast-row-header overlay.",
+    "Keep current mobile/tablet bridge behavior unchanged: modern 844x390 -> single playMedia call; legacy 1024x600 -> single playInternalRichV2 call; no /play fallback.",
+    "Validate cloud backup push/stub behavior for this environment or silence expected network-failure warnings.",
+    "Re-run iter105 reusable Playwright regression after desktop overlap fix."
+  ],
+  "critical_code_review_comments": [
+    "Detail.jsx remains very large (>3000 lines) with layout + playback + bridge logic tightly coupled; this increases regression risk for geometry-dependent hit-testing.",
+    "detail-cast-lane uses absolute positioning and z-index layering that can still intersect actionable hero controls outside mobile mode.",
+    "No backend contract regression detected for Matrix meta/streams/TMDB credits during this run."
+  ],
+  "updated_files": [
+    "/app/tests/iter105_touch_bridge_regression_playwright.py",
+    "/app/test_reports/iteration_105.json"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "88%"
+  },
+  "seed_data_creation": "No DB seed writes. Test-only auth/profile/session seeding via localStorage/sessionStorage (p-test-1) during Playwright runs.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Confirmed required bridge mocks and dispatch invariants: modern mock (with isAndroidHost/deviceClass/getHostPackage/playMedia) at 844x390 dispatched exactly once; legacy mock matching Kotlin contract (isAndroidHost/deviceClass/getHostPackage/playInternalRichV2) at 1024x600 dispatched exactly once with same title/cwId as modern payload. Both had no /play fallback. Mobile overlap for autoplay fixed (playBottom 318.25, laneTop 450.75, elementFromPoint hits button). Desktop blocker remains around playback-details-open.",
+  "rca of the issue": "Desktop Playback Details failure RCA: at 1920x800, playback-details-open center (~x=144,y=453) falls inside cast lane vertical region (lane top ~448), and elementFromPoint at that center is cast-row-header, not the trigger button. As a result, force click on playback-details-open produces no dialog. Mitigation: reserve non-overlap space for hero utility row or move playback-details control above lane boundary / adjust lane pointer hit region in desktop short-height layouts."
+}

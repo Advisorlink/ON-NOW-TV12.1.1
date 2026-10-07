@@ -1990,6 +1990,7 @@ export default function Detail() {
             />
 
             <main
+                data-testid="detail-main"
                 className={`relative z-10 w-full h-full ${
                     /* Hide overflow on movies + initial TV view
                      * (where Cast row is bottom-anchored).  Allow
@@ -2008,7 +2009,7 @@ export default function Detail() {
                 data-no-row-snap={seriesEpisodesShown ? undefined : 'true'}
                 style={{ padding: '40px 80px 60px 80px' }}
             >
-                <div className="flex items-center gap-3 mb-5">
+                <div data-testid="detail-navigation" className="flex items-center gap-3 mb-5">
                     <button
                         data-testid="back-button"
                         data-focusable="true"
@@ -2046,9 +2047,11 @@ export default function Detail() {
                         <Home size={16} /> Home
                     </button>
                     <LibraryStatusPill id={id} />
+                    {!isMobile && <PlaybackDetails className="ml-auto" />}
                 </div>
 
                 <div
+                    data-testid="detail-hero-content"
                     className="max-w-[68vw] vesper-fade-up"
                 >
                     {meta.imdb_id && (
@@ -2380,7 +2383,7 @@ export default function Detail() {
                         pill of Seasons, NOT on top"). */}
 
                     {nativeLaunch.error && <p data-testid="detail-native-launch-error" role="alert" className="mt-4 max-w-[58ch]" style={{ color: 'var(--vesper-text-2)', fontSize: 14 }}>{nativeLaunch.error}</p>}
-                    <PlaybackDetails />
+                    {isMobile && <PlaybackDetails />}
 
                     {/* Stream picker (movies) / Episode browser (series).
                         Hidden when actor OR a filmography movie is
@@ -2987,8 +2990,8 @@ export default function Detail() {
                         <CastRow
                             tmdbId={tmdbInfo.tmdb_id}
                             mediaType={tmdbInfo.media_type}
-                            onFocus={setFocusedActor}
-                            onMovieFocus={setFocusedMovie}
+                            onFocus={isMobile ? undefined : setFocusedActor}
+                            onMovieFocus={isMobile ? undefined : setFocusedMovie}
                             onViewChange={setCastView}
                         />
                     </div>

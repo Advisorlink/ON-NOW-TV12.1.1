@@ -10,7 +10,30 @@ Continue development of the ON NOW TV V2 app suite:
 
 Audience: TV viewers using a D-pad on Android TV boxes, families using the Kids app, phone companion/game participants, and the operator managing boxes through the launcher admin.
 
-## Current recurring issue (2026-10-07) — native touch recovery `touch-player-3`
+## Current playback fix (2026-10-07) — reproduced layout blocker, `play-layout-4`
+User: "Just make it work ... before we did this new ... trailer ... working on the phone ... now it's not at all." Scope remains mobile/tablet playback, not launcher/Trivia/security.
+
+### Evidence-based cause (not another native tap workaround)
+- Iteration104 reproduced with REAL Matrix metadata, streams and populated cast plus trusted CDP touch: at **844×390 and1024×600**, the absolute cast lane (`z-index:15`) covers the Play button in main (`z-index:10`). `elementFromPoint` resolves to the cast header; Play receives ZERO pointer/click events and native bridge receives ZERO requests. The same page works at390×844/1280×800. Remote activation bypasses coordinate hit-testing, explaining TV-vs-touch differences.
+- Git evidence: `b137f7bc` (May16) changed hero60vw→68vw without updating the mobile selector; `a849b083` (May18) introduced the absolute cast lane and disabled main scrolling. These establish the layout regression, not the exact installed version on the user's phone. Sep26/27 trailer capture listeners were investigated but NOT demonstrated to block Detail; they check preview tiles and clean up on unmount. Do not repeat the troubleshooting agent's unsupported claim that capture phase alone causes the failure.
+
+### Implemented
+- Mobile Detail owns one vertical scroller, full-width hero with stable `data-testid`, auto-height main and cast in normal flow AFTER controls, including landscape tablets. The tablet sidebar offset no longer shifts Detail offscreen. Cast/header insets16px and wrapping preserved; TV's anchored cast layout retained.
+- Mobile cast focus no longer replaces the movie hero/removes Play and shifts the row under a finger. TV actor-focus hero behavior unchanged.
+- Iteration105 found another overlap: desktop Playback Details sat behind cast header. Moved that desktop utility to top navigation; mobile keeps its already-reachable location. Added test IDs for main/hero/navigation/cast header.
+- Playback details web marker **play-layout-4**. No Android, bridge, trailer, backend, auth, account or credential code changed. Existing earlier touch recovery remains, but this fix corrects the obstructing layout instead of adding a fourth interception workaround.
+
+### Verification and limits
+- Reports: `test_reports/iteration_104.json` (before), `iteration_105.json` (initial retest + desktop finding), `iteration_105_followup.json` (main verified desktop fix/replay). Scoped backend5/5; frontend50/50 across6 suites. Standard production build passed; changed-file lint0errors (existing warnings).
+- Correct Kotlin-shaped legacy mock (`isAndroidHost` PLUS `playInternalRichV2`) dispatches exactly once at1024×600; modern `playMedia` dispatches once at844×390. Real metadata/cast/stream data; no browser `/play` fallback with either bridge. Earlier interrupted report's legacy failure used an inadequate mock; NOT a confirmed host.js regression.
+- Main final follow-up:1920×800 desktop dialog opens/closes without forced clicks and shows marker; Enter gives exactly one legacy dispatch.390×844 trusted touch launches once, simulated return then explicit replay gives exactly one additional dispatch; dialog works. Both populated screenshots checked; **no uncontained overflow**. Offscreen cast carousel children stay clipped in their scrolling rail.
+- Test-only native bridge/lifecycle and cloud-push responses are **MOCKED**. No physical Android Activity/decoder test, APK packaging/signing or device installation performed. Browser provider CORS and intermittent cloud warnings observed by the agent are pre-existing/environmental; no claim that external providers or cloud backup were repaired. No production integration is mocked.
+- Regression script: `tests/iter105_touch_bridge_regression_playwright.py` reads current frontend env URL and VESPER_TEST_USERNAME/PASSWORD environment; preserves shared backups via test stub, gates mock installation deterministically and does not print stream credentials. Credentials are unchanged in test_credentials.md.
+
+### Next action
+Rebuild/install Vesper APK containing the updated bundled web assets and verify Play on the affected phone/tablet (Playback details → **play-layout-4**). Browser results prove the reproduced tap obstruction and handoff are corrected, not that an existing installed APK has changed. If it still fails on that exact build, obtain native stage/device evidence rather than guessing another cause. Launcher, unidentified Live TV crash and other backlog remain pending.
+
+## Previous recurring issue (2026-10-07) — native touch recovery `touch-player-3`
 User again reports installed phone/tablet Autoplay does nothing, TV box works. Declined/skipped screenshot/model request and repeated symptom. Physical device issue and installation of prior APK remain unconfirmed. Do NOT equate simulated success with a resolved device report.
 
 ### New Android-level recovery (not another click-handler-only change)
@@ -144,5 +167,5 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 ## Working constraints
 - Preserve current visual language and deterministic D-pad navigation; do not “fix” performance by silently removing trailers.
 - Do not modify auth/keys, production services or deferred security findings as part of navigation work.
-- Native changes require local brace/syntax checks and on-device verification. This task changes only the web bundle.
+- Native changes require local brace/syntax checks and on-device verification. This playback-layout task changes only the web bundle; no Kotlin edits.
 - Read ROADMAP before picking new work. Test credentials were not created or changed in this session.

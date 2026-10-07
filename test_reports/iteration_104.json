@@ -1,0 +1,69 @@
+{
+  "summary": "Reproduced recurring mobile/tablet landscape touch-blocker on Detail autoplay CTA with trusted CDP touch using real Matrix metadata/streams. Backend metadata/streams smoke passed. Root cause evidence shows cast lane overlay intercepting touches in specific landscape geometries.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Detail page autoplay CTA",
+        "issue": "In landscape 844x390 and 1024x600, trusted touch at CTA center does not reach button; cast lane captures pointer/click so play never starts.",
+        "selector": "[data-testid='detail-play-autoplay'], [data-testid='detail-cast-lane']",
+        "priority": "CRITICAL"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Home -> Detail (Matrix) -> trusted touch on Autoplay",
+        "issue": "Without bridge: portrait/tablet landscape navigates to /play, but phone/small-tablet landscape remains on detail due to hit-test interception. With MOCKED modern and legacy native bridges, failing layouts still produce zero bridge calls, confirming blocker occurs before native handoff.",
+        "affected_selectors": [
+          "[data-testid='detail-play-autoplay']",
+          "[data-testid='detail-cast-lane']",
+          "[data-testid='cast-row']"
+        ]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Detail landscape layouts (844x390, 1024x600)",
+        "issues": [
+          "Bottom cast lane visually overlaps hero CTA area, making touch target ambiguous/non-functional.",
+          "Mobile CSS still targets .max-w-[60vw] while Detail content class is now .max-w-[68vw], so intended mobile width override is stale."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter104_metadata_streams_smoke.py",
+    "/app/test_reports/pytest/iter104_metadata_streams_smoke.xml",
+    "/app/tests/iter104_touch_repro_notes.md",
+    "/root/.emergent/automation_output/20261007_052836/console_20261007_052836.log",
+    "/root/.emergent/automation_output/20261007_052954/console_20261007_052954.log"
+  ],
+  "action_items": [
+    "Fix Detail responsive stacking/hit-testing so cast lane never overlays CTA hit area in landscape phone/tablet geometries.",
+    "Align mobile CSS selector with current Detail content class (68vw), then verify layout spacing and cast lane top boundary across 844x390 and 1024x600.",
+    "After fix, rerun same trusted CDP touch recipe and confirm button pointer/click increments plus /play navigation in failing geometries.",
+    "Keep bridge tests diagnostic-only: browser MOCKED native calls are not proof of physical Android launch correctness."
+  ],
+  "critical_code_review_comments": [
+    "Detail.jsx is 3300+ lines and now mixes playback logic, overlay layout, and cast interactions; split modules to reduce regression risk in geometry/hit-testing.",
+    "Regression window evidence: commit b137f7bc changed Detail hero width from max-w-[60vw] to max-w-[68vw], but mobile override in index.css still targets max-w-[60vw] (stale selector).",
+    "Cast lane introduced as absolute overlay with zIndex 15 (present from commit a849b083 path history) while main content is z-10; this creates touch interception risk in short-height landscape viewports."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter104_metadata_streams_smoke.py",
+    "/app/tests/iter104_touch_repro_notes.md",
+    "/app/test_reports/iteration_104.json"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "50%"
+  },
+  "seed_data_creation": "No backend seed data created. Only local/session storage e2e profile seeding used for UI access.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Trusted CDP touch evidence is already captured. Failing geometries: 844x390 and 1024x600 (button center hit resolves to cast row/lane; button receives 0 pointer/click). Passing geometries: 390x844 and 1280x800 (button receives pointer/click and routes to /play). Modern + legacy bridge MOCKED runs also fail in same geometries with zero native calls, so root cause is pre-bridge UI hit interception.",
+  "rca of the issue": "Repro steps: login -> seed profile -> open /title/movie/tt0133093 -> trusted CDP touch at CTA center. In failing landscape viewports, cast lane top moves upward into CTA vertical region (e.g., lane top 122 with button 116-168 at 844x390; lane top 332 with button 335-385 at 1024x600). elementFromPoint at CTA center returns cast lane subtree (H3/cast-row), and tap diagnostics show lane pointer/click increments while button remains zero. Therefore autoplay/play appears 'dead' because touch target is blocked by overlay, not by trailer hover logic and not by native bridge implementation. Mitigation direction: adjust responsive geometry/stacking/pointer behavior so lane cannot occlude CTA hitbox."
+}

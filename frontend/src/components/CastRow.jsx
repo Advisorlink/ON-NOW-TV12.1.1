@@ -287,6 +287,7 @@ export default function CastRow({
             style={{ width: '100%' }}
         >
             <div
+                data-testid={`${testId}-header`}
                 style={{
                     paddingLeft: 80,
                     paddingRight: 80,

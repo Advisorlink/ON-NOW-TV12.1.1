@@ -1028,13 +1028,42 @@ body[data-platform="mobile"] [data-testid="shelves-region"] footer {
 }
 
 /* ---- DETAIL ----
-   Detail page wraps content in <main> with `padding: 64px 80px 80px
-   80px` and the inner column has `max-w-[60vw]`.  Collapse both. */
-body[data-platform="mobile"] [data-testid="detail-page"] main {
-    padding: 18px 16px 96px 16px !important;
+   TV pins the cast lane above the bottom edge. On handhelds it must
+   follow the controls in normal flow: a transparent z-15 cast header
+   otherwise steals taps from the z-10 Play button in landscape.
+   One scroll owner keeps every control reachable at short heights. */
+body[data-platform="mobile"] [data-testid="detail-page"] {
+    overflow-x: hidden;
+    overflow-y: auto;
+    min-height: 0;
+    overscroll-behavior-y: contain;
 }
-body[data-platform="mobile"] [data-testid="detail-page"] main > div.max-w-\[60vw\] {
+body[data-platform="mobile"] [data-testid="detail-page"] main {
+    left: 0 !important;
+    height: auto;
+    overflow: visible;
+    padding: 18px 16px 24px !important;
+}
+body[data-platform="mobile"] [data-testid="detail-hero-content"] {
     max-width: 100% !important;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+body[data-platform="mobile"] [data-testid="detail-cast-lane"] {
+    position: relative !important;
+    inset: auto !important;
+    padding: 0 0 24px !important;
+}
+body[data-platform="mobile"] [data-testid="cast-row-header"] {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    flex-wrap: wrap;
+}
+body[data-platform="mobile"] [data-testid="cast-row-strip"] {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    scroll-padding-left: 16px !important;
+    scroll-padding-right: 16px !important;
 }
 body[data-platform="mobile"] [data-testid="detail-page"] h1 {
     font-size: clamp(28px, 7vw, 40px) !important;

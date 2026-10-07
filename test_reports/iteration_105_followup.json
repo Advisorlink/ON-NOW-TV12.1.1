@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-07",
+  "case": "Recurring mobile/tablet Play tap obstruction",
+  "status": "Reproduced layout blocker fixed and browser-verified; physical Android verification pending",
+  "resolved_agent_finding": "Desktop Playback Details trigger covered by cast header. Desktop trigger moved into top navigation, mobile position retained.",
+  "verification": {
+    "desktop_1920x800": ["Populated real Matrix metadata and cast", "Playback Details opened without forced click", "play-layout-4 marker confirmed and dialog closed", "TV Enter dispatched legacy bridge exactly once", "No uncontained horizontal overflow"],
+    "mobile_390x844": ["Android14 UA with OnNowTV marker and touch emulation", "Playback Details opens and closes", "Trusted CDP tap dispatched legacy bridge once with cwId tt0133093", "Simulated window departure/return followed by explicit replay dispatched exactly once more", "No uncontained horizontal overflow"],
+    "landscape_from_iteration105": ["Modern bridge844x390 dispatch1", "Legacy Kotlin-shaped bridge1024x600 dispatch1", "No browser fallback with native bridge", "Mobile cast no longer overlaps Play; series and source controls reachable"],
+    "backend": "5 scoped metadata/stream smoke tests passed",
+    "unit_tests": "50 tests / 6 suites passed",
+    "lint": "0 errors; existing warnings"
+  },
+  "main_browser_evidence": "/root/.emergent/automation_output/20261007_083329/console_20261007_083329.log",
+  "testing_notes": "First follow-up harness acted before dialog focus restoration and replayed inside the existing500ms debounce. Final harness waits for restoration and a genuine distinct replay; both pass. Carousel offscreen children are contained within scrolling rails, not page overflow.",
+  "mocked_in_tests_only": ["OnNowTV native playback bridge", "Native return lifecycle", "Cloud sync push to protect shared backups"],
+  "not_verified": ["Installed physical Android WebView/Activity/decoder", "APK packaging or installation", "External provider availability"],
+  "remaining_environment_warnings": ["Browser direct-addon CORS restrictions", "Intermittent cloud sync warnings in agent run without functioning stub; shared-backup stub added to reusable test"],
+  "unresolved_in_scope_code_defects": [],
+  "required_next_action": "Build and install updated Vesper APK, confirm play-layout-4, and verify on affected device. Do not claim preview updates an already-installed APK."
+}
