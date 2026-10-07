@@ -38,6 +38,7 @@ class MainActivity : AppCompatActivity() {
      *  lifecycle methods from crashing if WebView init failed
      *  (e.g. a phone without Android System WebView installed). */
     private var webViewReady: Boolean = false
+    private var playbackTouchRecovery: PlaybackTouchRecovery? = null
     private var pendingVoiceCallbackId: String? = null
 
     /**
@@ -726,6 +727,13 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(webView)
         webViewReady = true
+        if (!isTv && packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)) {
+            try {
+                playbackTouchRecovery = PlaybackTouchRecovery(webView).also { it.install() }
+            } catch (error: Exception) {
+                android.util.Log.e("VesperMain", "Playback touch recovery unavailable", error)
+            }
+        }
         webView.loadUrl(finalBootUrl)
     }
 
@@ -938,6 +946,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
+        playbackTouchRecovery?.cancel()
         super.onPause()
         if (webViewReady) webView.onPause()
         // v2.7.46 — persist current WebView URL so we can restore it

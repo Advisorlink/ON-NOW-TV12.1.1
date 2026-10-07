@@ -243,6 +243,7 @@ class WebAppInterface(private val activity: Activity) {
     @JavascriptInterface
     fun getPlaybackHostInfo(): String = org.json.JSONObject()
         .put("protocol", 1)
+        .put("touchRecovery", true)
         .put("version", BuildConfig.VERSION_NAME)
         .put("build", BuildConfig.VERSION_CODE)
         .put("androidApi", android.os.Build.VERSION.SDK_INT)

@@ -59,8 +59,10 @@ export default function useNativeLaunchGuard(scope, enabled) {
                 away.current = true;
                 clearTimeout(timer.current);
             } else if (detail.status === 'returned') {
+                requestId.current = null;
                 release();
             } else if (detail.status === 'failed') {
+                requestId.current = null;
                 release();
                 setError(detail.message || 'Android could not open the player. Please try again.');
             }

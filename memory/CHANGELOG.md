@@ -1,5 +1,13 @@
 # ON NOW TV V2 — Implementation history
 
+## 2026-10-07 — Android raw-touch recovery (`touch-player-3`)
+- Persistent phone/tablet-only failure, no device/build evidence; user declined further details. Added native OnTouch observer on touchscreen non-TV hosts; stationary missed input invokes same action as TV, never consuming touch events.
+- Added pure gesture policy plus exact Android JS hit-test asset. Same node/route/version required, disabled/covered/background/pinch targets excluded; raw timestamp/route + accepted-action stamp prevents delayed-probe duplicate or wrong-screen activation. Busy-renderer probe results handled with bounded one-shot recovery, cancellation on pause/new gesture/rotation.
+- Normal pointer/keyboard behavior remains. Late native opened events after terminal state ignored; diagnostic marker touch-player-3 and native touchRecovery capability surfaced.
+- Agent iteration103 passes scope checks; main added10 actual-asset tests and recompiled controller after timing hardening.50 frontend tests PASS; 25 Kotlin sources/96 deps typecheck PASS; pure JVM gesture tests PASS. Real Android player still NOT tested; browser bridge/sources MOCKED only for verification. No APK packaging/signing.
+- Temporary browser-served test copy removed, actual Android asset preserved. No auth/account/server changes. User must receive newly built APK; no claim that an unchanged installed copy is repaired.
+- Final checks after user resumed:50/50 frontend tests across6 suites PASS,25 Kotlin sources/96 deps typecheck PASS, productionweb build PASS26.52s(existingwarnings). Actual APK packaging/phone playback still outstanding. No further implementation required for this source-level batch.
+
 ## 2026-10-06 — Recurring phone/tablet failure: real Android handoff protocol
 - User says no Opening player/error, boxes work; APK update unconfirmed. Actual affected-device root cause remains unverified, despite previous mocked-native success.
 - Direct stationary touch activation (not scroll/long press), duplicate compatibility-click suppression; mouse/remote fallback retained. Added playMedia protocol1 JSONnative requests + received/launched/opened/returned/failed acknowledgements; legacy/party/player routing preserved. Correlated guard failure/retry/reset, bounded native init fallback.

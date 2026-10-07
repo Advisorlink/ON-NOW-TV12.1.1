@@ -8,12 +8,19 @@ export const PlaybackDetails = () => {
     const [open, setOpen] = useState(false);
     const [stage, setStage] = useState('No play request yet');
     const trigger = useRef(null);
+    const request = useRef({ id: null, terminal: false });
     const dismiss = () => {
         setOpen(false);
         requestAnimationFrame(() => trigger.current?.focus({ preventScroll: true }));
     };
     useEffect(() => {
-        const update = (e) => setStage(e.detail?.status || 'unknown');
+        const update = (e) => {
+            const detail = e.detail || {};
+            if (detail.status === 'dispatching') request.current = { id: detail.requestId, terminal: false };
+            if (request.current.terminal || (request.current.id && detail.requestId !== request.current.id)) return;
+            setStage(detail.status || 'unknown');
+            if (detail.status === 'returned' || detail.status === 'failed') request.current.terminal = true;
+        };
         window.addEventListener('vesper:native-playback', update);
         return () => window.removeEventListener('vesper:native-playback', update);
     }, []);
@@ -29,9 +36,10 @@ export const PlaybackDetails = () => {
             }}>
                 <h2 data-testid="playback-details-title" className="text-lg font-semibold">Playback details</h2>
                 <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                    <dt>Web build</dt><dd data-testid="playback-web-build">touch-player-2</dd>
+                    <dt>Web build</dt><dd data-testid="playback-web-build">touch-player-3</dd>
                     <dt>Android app</dt><dd data-testid="playback-native-build">{info ? `${info.version} (${info.build})` : 'Legacy / browser'}</dd>
                     <dt>Player connection</dt><dd data-testid="playback-protocol">{info ? `Protocol ${info.protocol}` : 'Legacy bridge'}</dd>
+                    <dt>Android tap recovery</dt><dd data-testid="playback-touch-recovery">{info?.touchRecovery ? 'Available' : 'Not in this APK'}</dd>
                     <dt>Last native stage</dt><dd data-testid="playback-native-stage" className="break-words">{stage}</dd>
                 </dl>
                 <PlaybackButton data-testid="playback-details-close" data-focusable="true" data-initial-focus="true" data-focus-style="pill" autoFocus onClick={() => triggerTrapBack()} className="mt-6 flex items-center gap-2 rounded px-4 py-2" style={{ background: 'var(--vesper-blue)', color: 'var(--vesper-bg-0)' }}><X size={16} /> Close</PlaybackButton>

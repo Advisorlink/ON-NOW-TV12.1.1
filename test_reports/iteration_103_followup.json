@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-07",
+  "scope": "Android raw-touch recovery for repeated phone/tablet Play failure",
+  "status": "Implemented and code-path verified; actual affected-device resolution NOT confirmed",
+  "final_frontend_tests": {"passed":50,"failed":0,"log":"/tmp/touch-player3-tests.log"},
+  "final_web_build": {"result":"PASS CI=false yarn build in26.52s","warnings":"Existing hook/bundle-size warnings only","log":"/tmp/touch-player3-build.log"},
+  "final_asset_check": "Actual Android asset exists and is not git-ignored. Temporary frontend test copy removed before final web build.",
+  "native_typecheck": {"result":"PASS25 native sources with96 actual Android/dependency artifacts","log":"/tmp/touch-player3-native.log","limitations":"Generated R/BuildConfig placeholders; not resource linking/signing/device runtime"},
+  "native_gesture_policy": "Pure JVM cases PASS: single stationary once, nonphysical reject, drag, return-after-drag, multipointer, negative duration, long hold, cancel, new-down reset, stylus",
+  "main_browser_smoke": {
+    "all_dom_input_blocked": "Reproduced trusted touch ->0 native requests",
+    "actual_android_asset": "Exact shipped JS recovered1 correct request; second recovery already-handled",
+    "normal_input": "Normal touch request not duplicated by fallback",
+    "viewport_checks": "390x844 and1920x800 screenshots; no uncontained mobile overflow",
+    "log": "/root/.emergent/automation_output/20261007_024717/console_20261007_024717.log"
+  },
+  "extra_hardening_after_agent": [
+    "Busy renderer: recover only when hit-test snapshot ready, one-shot and expiry bounded",
+    "Raw native DOWN route/time vs accepted action timestamps prevents delayed duplicate or wrong-screen input",
+    "Added10 source-parity tests reading actual native JS asset",
+    "Native opened after terminal returned/failed ignored by guard/diagnostics"
+  ],
+  "mocks_test_only": ["OnNowTV playMedia and native ACK events in browser", "Selected metadata/source responses", "Cloudpush response to protect real profile backup"],
+  "runtime_apis_mocked": false,
+  "temporary_asset_removed": "/app/frontend/public/e2e-native-touch.js",
+  "real_asset_preserved": "/app/android/vesper-tv/app/src/main/assets/touch-playback.js",
+  "credentials_changed": false,
+  "remaining": ["Build/deliver/install updatedAPK", "Physical affected phone/tablet playback verification", "Pre-existing plain-browser Torrentio CORS warning not part of Android fallback fix"]
+}

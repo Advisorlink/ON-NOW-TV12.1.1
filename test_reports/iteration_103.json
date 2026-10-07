@@ -1,0 +1,63 @@
+{
+  "summary": "Completed scoped backend+frontend+native regression for Android touch recovery. Backend auth/session smoke passed (3/3). Frontend unit regressions passed (40/40). SDK-backed native Kotlin typecheck passed for 25 sources with 96 dependencies. Added and executed a pure JVM PlaybackTapPolicy harness covering stationary tap, drag/slop, multi-pointer, timeout, cancel, reset, and stylus semantics. Browser smoke validated playback details terminal-stage behavior and EXACT shipped native asset behavior via temporary e2e copy.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Physical Android WebView playback handoff",
+        "issue": "Not verified in this environment; browser checks used MOCKED native bridge/events where applicable.",
+        "affected_selectors": [
+          "N/A"
+        ]
+      },
+      {
+        "flow": "Movie detail source loading in plain browser",
+        "issue": "Console shows external addon CORS failure to torrentio URL (ERR_FAILED).",
+        "affected_selectors": [
+          "[data-testid='playback-details-open']"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter103_touch_recovery_backend_smoke.py",
+    "/app/test_reports/pytest/iter103_touch_recovery_backend.xml",
+    "/tmp/iter103-frontend-alltests.log",
+    "/tmp/vesper-classpath-resolved.log",
+    "/tmp/vesper-typecheck-run2.log",
+    "/app/tests/playback_tap_policy_jvm_harness.kt",
+    "/tmp/playback-tap-harness-run3.log",
+    "/root/.emergent/automation_output/20261007_033918/console_20261007_033918.log",
+    "/root/.emergent/automation_output/20261007_034149/console_20261007_034149.log",
+    "/root/.emergent/automation_output/20261007_034206/console_20261007_034206.log"
+  ],
+  "action_items": [
+    "Validate on an actual installed phone/tablet APK build: browser and unit checks cannot confirm native setOnTouchListener delivery or Exo handoff timing.",
+    "Remove temporary frontend/public/e2e-native-touch.js after scoped regression use (actual native asset remains at android/vesper-tv/app/src/main/assets/touch-playback.js).",
+    "If browser CORS on torrentio should be avoided in preview, route addon fetches through backend/proxy path instead of direct cross-origin calls."
+  ],
+  "critical_code_review_comments": [
+    "MainActivity.kt (1292 lines) and WebAppInterface.kt (1398 lines) exceed maintainability threshold; split into focused modules to reduce regression risk.",
+    "PlaybackTouchRecovery correctly observes input and always returns false; TV/touchscreen gating and onPause cancellation are implemented as required.",
+    "Native asset parity check PASS: frontend/public/e2e-native-touch.js is byte-identical to android asset touch-playback.js in this iteration."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter103_touch_recovery_backend_smoke.py",
+    "/app/tests/playback_tap_policy_jvm_harness.kt",
+    "/app/test_reports/iteration_103.json"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "95%"
+  },
+  "seed_data_creation": "None.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Executed: pytest backend smoke (3 passed), frontend targeted unit suites (40 passed), SDK-backed native typecheck (PASS 25 sources / 96 deps), PlaybackTapPolicy JVM harness PASS, browser playback-details terminal-stage smoke PASS, e2e-native-touch asset behavior checks PASS (recovered then already-handled, replaced-node different-target, overlay/disabled/offpage/zoom/offset cancel, 2x/3x coordinate mapping). Limitation: physical Android device path unverified.",
+  "rca of the issue": "No reproducible code failure in scoped environment. Original user symptom remains device-specific until physical APK validation. Regression guards now indicate fallback logic is working in code paths tested here (unit + browser + JVM + SDK typecheck)."
+}

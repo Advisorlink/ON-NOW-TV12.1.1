@@ -1,6 +1,6 @@
 # ON NOW TV V2 — Product requirements and current state
 
-Updated: 2026-10-06. Historical implementation details previously in this 12,244-line file are preserved in [CHANGELOG.md](CHANGELOG.md). Priorities are in [ROADMAP.md](ROADMAP.md).
+Updated: 2026-10-07. Historical implementation details previously in this 12,244-line file are preserved in [CHANGELOG.md](CHANGELOG.md). Priorities are in [ROADMAP.md](ROADMAP.md).
 
 ## Original product requirements
 Continue development of the ON NOW TV V2 app suite:
@@ -10,7 +10,28 @@ Continue development of the ON NOW TV V2 app suite:
 
 Audience: TV viewers using a D-pad on Android TV boxes, families using the Kids app, phone companion/game participants, and the operator managing boxes through the launcher admin.
 
-## Current user report (2026-10-06) — phone/tablet Play STILL unresponsive
+## Current recurring issue (2026-10-07) — native touch recovery `touch-player-3`
+User again reports installed phone/tablet Autoplay does nothing, TV box works. Declined/skipped screenshot/model request and repeated symptom. Physical device issue and installation of prior APK remain unconfirmed. Do NOT equate simulated success with a resolved device report.
+
+### New Android-level recovery (not another click-handler-only change)
+- MainActivity installs `PlaybackTouchRecovery` only on **non-TV devices with a touchscreen**. It observes raw finger/stylus MotionEvents and always returns false so WebView input/scroll/accessibility remain intact. Remote/mouse and TV route unaffected.
+- Pure `PlaybackTapPolicy` uses Android's touch slop and long-press timeout, cancels dragging, multitouch, pointer cancellation, long hold and new gestures. Main.onPause invalidates pending recovery. Dimensions/window focus/attachment must still match.
+- Native ACTION_DOWN records route/time plus an async DOM hit-test. On a stationary release, after100ms the shipped `assets/touch-playback.js` invokes the same zero-detail button click as TV ONLY if normal handling was missed. It requires the same URL, same DOM node, same test ID and unchanged activation version; no disabled/covered/background/zoomed targets. A replaced stream row cannot be clicked accidentally.
+- PlaybackButton records accepted-action version and timestamp before executing, including queued or rating-blocked intents. Android recovery never repeats accepted input or bypasses blocking. Delayed probes wait until ready (bounded expiry), run once, and compare raw-touch route/time so late renderer results cannot act on a new screen.
+- Existing v2 JSON/native acknowledgements retained. Late `opened` after a terminal returned/failed event no longer changes the guard/diagnostic terminal state.
+- Playback details marker is **touch-player-3** and Android tap recovery **Available** indicates matching native capability. This remains a bundled APK change, not something that updates an already-installed app via preview.
+
+### Evidence / remaining limits
+- Main reproduced 0 player requests after trusted physical browser touch while intentionally blocking ALL page tap handlers. Running the EXACT shipped Android JS recovered one correct Matrix request; duplicate recovery returned already-handled. Normal input followed by recovery did not replay.
+- Agent report iteration_103:40 existing frontend tests PASS; pure JVM gesture cases PASS; 25 native Kotlin sources against96 real dependencies PASS; actual asset semantics/coordinate mapping/cancel cases verified in browser. Main added10 exact-asset regression tests for delayed probe timestamps/route change/replaced node/zoom/mapping: final50 frontend tests PASS across6 suites. Latest native controller revisions recompiled successfully. Final `CI=false yarn build` PASS26.52s, existing warnings only; committed Android asset present/not ignored and temporary browser copy removed. Evidence in iteration_103_followup.json.
+- The controlled browser test used a **MOCKED native bridge and source responses**. It does not execute a physical Android WebView OnTouchListener or Exo decoder. Native compile uses resource/BuildConfig placeholders, not APK packaging/signing. Actual user-device playback still needs validation.
+- Temporary frontend/public/e2e-native-touch.js removed; actual committed Android asset retained, outside the assets/web directory cleared by build-apk.yml. No auth/server/credentials changes or production mocks.
+- External Torrentio CORS warning observed in browser harness is separate/pre-existing; not evidence of the installed native app's cause.
+
+### Required next step
+Build/install the APK containing both new web assets and native recovery. Do not claim the user's current installed app changed. If this exact delivered build still fails, investigate the actual APK/device execution rather than repeating mocked-bridge tests or inventing a device root cause. Other Live TV/launcher/backlog items remain untouched.
+
+## Previous user report (2026-10-06) — phone/tablet Play STILL unresponsive
 User says TV box works, installed phone/tablet does nothing and shows neither Opening player nor error. User has **not confirmed the previous rebuilt APK was installed**. Prior simulated-bridge tests did not verify the actual Android player. Do NOT call the physical-device issue resolved without new APK/device evidence.
 
 ### Second-stage implementation: `touch-player-2`
