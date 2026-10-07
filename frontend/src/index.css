@@ -1213,23 +1213,40 @@ body[data-platform="mobile"] [data-testid="settings-content"] { width: 100%; min
    Every TV-sized gutter (92px rail inset) collapses to 16px, content
    starts below the floating top pill, and grids become a tight
    3-column poster wall instead of one or two giant tiles. */
-body[data-platform="mobile"] [data-testid^="tab-grid-"]:not([data-testid^="tab-grid-list"]) {
+body[data-platform="mobile"] [data-testid^="tab-grid-"]:not([data-testid^="tab-grid-list"]):not([data-testid^="tab-grid-load"]):not([data-testid^="tab-grid-loading"]) {
     padding: 84px 16px 112px !important;
 }
-body[data-platform="mobile"] [data-testid^="tab-grid-"] header { margin-bottom: 18px !important; }
-body[data-platform="mobile"] [data-testid^="tab-grid-"] header h1,
-body[data-platform="mobile"] [data-testid^="tab-grid-"] header h2 {
-    font-size: 30px !important;
-    line-height: 1.05 !important;
+body[data-platform="mobile"] [data-testid^="tab-grid-"] > header { margin-bottom: 14px !important; }
+body[data-platform="mobile"] [data-testid^="tab-grid-"] > header .vesper-eyebrow {
+    font-size: 11px !important;
+    margin-bottom: 6px !important;
+    letter-spacing: 0.2em;
+    color: var(--vesper-blue);
 }
+body[data-platform="mobile"] [data-testid^="tab-grid-"] > header h1 {
+    font-size: 34px !important;
+    line-height: 1 !important;
+    letter-spacing: -0.03em !important;
+}
+body[data-platform="mobile"] [data-testid^="tab-grid-"] > header .vesper-mono {
+    margin-top: 8px !important;
+    font-size: 11px !important;
+    letter-spacing: 0.12em !important;
+    text-transform: none !important;
+    opacity: 0.8;
+}
+/* Poster wall: 3 across on phones, 4 on small tablets, 6 on the open
+   Fold.  Clean posters — the in-tile caption overlay is a TV affordance
+   and only clutters 110px tiles. */
 body[data-platform="mobile"] [data-testid^="tab-grid-list-"] {
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-    gap: 10px !important;
+    gap: 10px 10px !important;
+    margin-top: 4px;
 }
 @media (min-width: 600px) {
     body[data-platform="mobile"] [data-testid^="tab-grid-list-"] {
         grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-        gap: 12px !important;
+        gap: 14px !important;
     }
 }
 @media (min-width: 900px) {
@@ -1239,6 +1256,11 @@ body[data-platform="mobile"] [data-testid^="tab-grid-list-"] {
 }
 body[data-platform="mobile"] [data-testid^="tab-grid-list-"] > button {
     border-radius: 10px !important;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+    background: var(--vesper-bg-2) !important;
+}
+body[data-platform="mobile"] [data-testid^="tab-grid-list-"] > button:has(img) > .absolute.inset-x-0.bottom-0 {
+    display: none;
 }
 body[data-platform="mobile"] [data-testid^="tab-grid-list-"] .vesper-mono { display: none; }
 body[data-platform="mobile"] [data-testid^="tab-grid-list-"] .font-sans {
@@ -1248,8 +1270,16 @@ body[data-platform="mobile"] [data-testid^="tab-grid-list-"] .font-sans {
 body[data-platform="mobile"] [data-testid="tab-genre-chips"] {
     margin-left: -16px;
     margin-right: -16px;
-    padding-left: 16px !important;
-    padding-right: 16px !important;
+    padding: 2px 16px 10px !important;
+    gap: 8px !important;
+    scroll-padding-left: 16px;
+}
+body[data-platform="mobile"] [data-testid^="genre-chip-"] {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    border-radius: 999px !important;
+    padding: 8px 14px !important;
+    font-size: 12px !important;
 }
 body[data-platform="mobile"] [data-testid="search-page"] > .absolute.inset-0 {
     padding: 84px 16px 112px !important;

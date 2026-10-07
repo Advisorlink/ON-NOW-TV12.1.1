@@ -1,5 +1,8 @@
 # ON NOW TV V2 — Implementation history
 
+## 2026-10-07 — Movies / TV Shows phone grid refined (user: "looks crap, one cover in the centre")
+- User was most likely still on the APK bundling the pre-polish web (TabGridView rendered 1 column with TV gutters). Refined further: 3-across clean poster wall (4 @600px, 6 @900px), in-tile caption overlay hidden on mobile, 10px radius + shadow, pill genre chips, compact header (blue eyebrow, 34px title, 11px status). Screenshot at 390×844 verified (tileW 113, 3 cols, grid starts below chips). 51/51 tests, build PASS. Web is bundled in the APK → needs a CI build to show on the phone.
+
 ## 2026-10-07 — Phone UI polish pass (all CSS under `body[data-platform="mobile"]`, TV untouched)
 - Home: whole page scrolls (billboard scrolls away) instead of a pinned hero over a 380px shelf window; TV brand mark hidden; row headers stack eyebrow/title, 16px gutters.
 - Movies / TV Shows browse grid (`TabGridView`): 3 columns on phones, 4 at ≥600px, 6 at ≥900px (Fold open); content starts below the floating top pill; tile captions compact.
