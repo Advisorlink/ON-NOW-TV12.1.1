@@ -10,7 +10,10 @@ Continue development of the ON NOW TV V2 app suite:
 
 Audience: TV viewers using a D-pad on Android TV boxes, families using the Kids app, phone companion/game participants, and the operator managing boxes through the launcher admin.
 
-## Current (2026-10-08) — Save star on covers + Library mobile redesign
+## Current (2026-10-08, later) — Detail-page Watch Later / My List pill
+Pill beside Play/Trailer on every title (TV + handheld), state-aware, opens the shared sheet. Touch-open bug in AddToListModal fixed (backdrop click grace). Mobile seasons row wraps. See CHANGELOG.
+
+## Previous (2026-10-08) — Save star on covers + Library mobile redesign
 Phone/tablet-only star on every cover opens the existing Add-to-list sheet (movies → Watch Later, series → My List); sheet is a bottom sheet on handhelds; Library page redesigned for phones (3-col grids, compact header, fixed Watch Later block). See CHANGELOG 2026-10-08. Web bundled in APK → CI build needed on device.
 
 ## Previous (2026-10-07) — phone UI polish pass

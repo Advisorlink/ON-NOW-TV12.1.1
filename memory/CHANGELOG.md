@@ -1,5 +1,11 @@
 # ON NOW TV V2 — Implementation history
 
+## 2026-10-08 — "Watch Later" / "My List" pill on the Detail page (all platforms)
+- New `SaveListPill` in Detail.jsx beside Play + Trailer (movie rows) and in the Seasons leading slot (series, compact). Movies → Watch Later, series → My List; label flips to "In Watch Later"/"In My List" with gold state; opens the shared Add-to-list sheet (add + remove). Focusable pill on TV.
+- AddToListModal: backdrop clicks ignored for 450ms after opening — the tap that opened the sheet produced a synthetic click on the backdrop and closed it instantly on touch.
+- Mobile: season picker now wraps (Autoplay / Trailer / My List / Season chips) instead of a horizontal scroller that hid the leading pills; redundant top-row "In My List" badge hidden on handhelds.
+- Verified via CDP touch at 390×844 (movie + series: tap → sheet → confirm → state flips; backdrop still closes), TV layout screenshot at 1920×800 (no stars, pill inline), 51/51 tests, build PASS, iter105 regression PASS.
+
 ## 2026-10-08 — Save star on covers (phone/tablet) + Library mobile redesign
 - New `components/SaveStarButton.jsx`: phone/tablet-only star (top-right of every cover: PosterTile shelves, Movies/TV grid tiles, Network tiles). Tap → fires the existing `vesper:request-add-to-list` flow (movies → Watch Later, series → My List, same as hold-OK on TV); star fills gold when saved, syncs on `vesper:library-change`. Touch events are stopped so the tile itself still opens Detail. TV untouched (component returns null).
 - Add-to-list confirm card restyled as a bottom sheet on handhelds (96px thumb, stacked full-width actions, remote-only tip hidden).

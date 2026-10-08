@@ -12,6 +12,8 @@ import {
     Film,
     Home,
     Zap,
+    Bookmark,
+    BookmarkCheck,
 } from 'lucide-react';
 import FullscreenButton from '@/components/FullscreenButton';
 import SeriesEpisodes from '@/components/SeriesEpisodes';
@@ -34,7 +36,7 @@ import { getAutoplay1080p, setAutoplay1080p, getAutoplayTV, setAutoplayTV } from
 import { isKidsActive, getActiveProfile, isRatingAllowed, getKidsConfig } from '@/lib/profiles';
 import { avatarEmojiById } from '@/lib/avatars';
 import * as cw from '@/lib/continueWatching';
-import { isInLibrary } from '@/lib/library';
+import { isInLibrary, isMovieInWatchLater } from '@/lib/library';
 
 const streamMode = (s) => {
     if (s?.url) return 'direct';
@@ -2305,6 +2307,7 @@ export default function Detail() {
                                 onClick={openTrailer}
                                 loading={trailerLoading}
                             />
+                            <SaveListPill type={type} id={id} meta={meta} />
                         </div>
                     )}
 
@@ -2373,6 +2376,7 @@ export default function Detail() {
                                 onClick={openTrailer}
                                 loading={trailerLoading}
                             />
+                            <SaveListPill type={type} id={id} meta={meta} />
                         </div>
                     )}
 
@@ -2429,6 +2433,7 @@ export default function Detail() {
                                         loading={trailerLoading}
                                         compact
                                     />
+                                    <SaveListPill type={type} id={id} meta={meta} compact />
                                 </>
                             }
                         />
@@ -3150,6 +3155,74 @@ function AutoplayPill({ enabled, onToggle }) {
             <Zap size={14} fill={enabled ? 'currentColor' : 'none'} />
             Autoplay {enabled ? 'ON' : 'OFF'}
         </button>
+    );
+}
+
+/** "Watch Later" (movies) / "My List" (series) pill beside Play +
+ *  Trailer.  Opens the shared Add-to-list sheet so one flow handles
+ *  add + remove on TV (OK) and handhelds (tap). */
+function SaveListPill({ type, id, meta, compact }) {
+    const isMovie = type === 'movie';
+    const read = React.useCallback(
+        () => (isMovie ? isMovieInWatchLater(id) : isInLibrary(id)),
+        [isMovie, id]
+    );
+    const [saved, setSaved] = React.useState(read);
+    React.useEffect(() => {
+        setSaved(read());
+        const sync = () => setSaved(read());
+        window.addEventListener('vesper:library-change', sync);
+        return () => window.removeEventListener('vesper:library-change', sync);
+    }, [read]);
+    const open = () => {
+        if (!id) return;
+        window.dispatchEvent(
+            new CustomEvent('vesper:request-add-to-list', {
+                detail: {
+                    id,
+                    type: isMovie ? 'movie' : 'series',
+                    title: meta?.name || '',
+                    poster: meta?.poster || null,
+                    background: meta?.background || null,
+                    year: meta?.releaseInfo || meta?.year || '',
+                    genres: meta?.genres,
+                    synopsis: meta?.description,
+                },
+            })
+        );
+    };
+    const label = isMovie
+        ? (saved ? 'In Watch Later' : 'Watch Later')
+        : (saved ? 'In My List' : 'My List');
+    const Icon = saved ? BookmarkCheck : Bookmark;
+    return (
+        <PlaybackButton
+            data-testid="detail-save-list"
+            data-saved={saved ? 'true' : 'false'}
+            data-focusable="true"
+            data-focus-style="pill"
+            tabIndex={0}
+            onClick={open}
+            aria-pressed={saved}
+            className="flex items-center gap-2 rounded-full font-sans font-semibold"
+            style={{
+                height: compact ? 'clamp(36px, 3vw, 44px)' : 'clamp(44px, 3.4vw, 52px)',
+                paddingLeft: compact ? 'clamp(14px, 1.3vw, 20px)' : 'clamp(18px, 1.4vw, 24px)',
+                paddingRight: compact ? 'clamp(16px, 1.4vw, 22px)' : 'clamp(22px, 1.6vw, 28px)',
+                fontSize: compact ? 'clamp(13px, 0.95vw, 15px)' : 'clamp(13px, 0.95vw, 15px)',
+                background: saved ? 'rgba(255,209,102,0.16)' : 'rgba(255,255,255,0.08)',
+                color: saved ? '#ffd166' : 'var(--vesper-text)',
+                border: saved
+                    ? '1px solid rgba(255,209,102,0.42)'
+                    : '1px solid rgba(255,255,255,0.16)',
+                letterSpacing: '0.02em',
+                whiteSpace: 'nowrap',
+                transition: 'background-color 140ms ease-out, color 140ms ease-out, border-color 140ms ease-out',
+            }}
+        >
+            <Icon size={16} strokeWidth={2.2} />
+            {label}
+        </PlaybackButton>
     );
 }
 

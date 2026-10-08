@@ -251,6 +251,15 @@ export default function AddToListModal() {
         };
     }, [payload]);
 
+    // Touch: the tap that OPENED the sheet also produces a synthetic
+    // click on whatever is under the finger ~10ms later — now the
+    // backdrop.  Ignore backdrop clicks in the first 450ms.
+    const openedAtRef = useRef(0);
+    useEffect(() => { if (payload) openedAtRef.current = Date.now(); }, [payload]);
+    const onBackdropClick = () => {
+        if (Date.now() - openedAtRef.current < 450) return;
+        close();
+    };
     const close = () => {
         setClosing(true);
         setTimeout(() => {
@@ -364,7 +373,7 @@ export default function AddToListModal() {
         <div
             data-testid="add-to-list-modal"
             className="fixed inset-0 z-[70] flex items-center justify-center"
-            onClick={close}
+            onClick={onBackdropClick}
             style={{
                 background: 'rgba(0,0,0,0.72)',
                 backdropFilter: 'blur(8px)',

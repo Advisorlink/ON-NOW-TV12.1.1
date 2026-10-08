@@ -1123,11 +1123,10 @@ body[data-platform="mobile"] [data-testid="home-brand-logo"] { display: none !im
    The season row is a horizontal scroller; pills must never shrink
    into vertical letter stacks. */
 body[data-platform="mobile"] [data-testid="season-picker"] {
-    margin-left: -16px;
-    margin-right: -16px;
-    padding: 4px 16px 8px !important;
-    scroll-padding-left: 16px;
-    -webkit-overflow-scrolling: touch;
+    flex-wrap: wrap !important;
+    overflow: visible !important;
+    gap: 10px !important;
+    padding: 4px 0 8px !important;
 }
 body[data-platform="mobile"] [data-testid="season-picker"] > * {
     flex: 0 0 auto !important;
@@ -1208,6 +1207,12 @@ body[data-platform="mobile"] [data-testid^="settings-nav-"] {
     border-radius: 999px !important;
 }
 body[data-platform="mobile"] [data-testid="settings-content"] { width: 100%; min-width: 0; }
+
+/* Detail controls row: Play + Trailer + Watch Later/My List wrap
+   cleanly on narrow screens; the top-row "In My List" badge is
+   redundant now that the pill shows state. */
+body[data-platform="mobile"] [data-testid="detail-save-list"] { flex: 0 0 auto; }
+body[data-platform="mobile"] [data-testid="library-status"] { display: none !important; }
 
 /* ---- BROWSE GRIDS / SEARCH / SECTION PAGES (handheld) ----
    Every TV-sized gutter (92px rail inset) collapses to 16px, content
