@@ -917,7 +917,8 @@ function TvEmptyState() {
                         marginBottom: 14,
                     }}
                 >
-                    Press &amp; hold OK on any show to follow it.
+                    <span data-platform-copy="tv">Press &amp; hold OK on any show to follow it.</span>
+                    <span data-platform-copy="mobile">Tap the star on any show to follow it.</span>
                 </div>
                 <p
                     style={{
@@ -934,9 +935,10 @@ function TvEmptyState() {
                             fontWeight: 600,
                         }}
                     >
-                        press &amp; hold the OK button
+                        <span data-platform-copy="tv">press &amp; hold the OK button</span>
+                        <span data-platform-copy="mobile">tap the star</span>
                     </span>{' '}
-                    (or click &amp; hold) on its poster. A confirm card pops
+                    <span data-platform-copy="tv">(or click &amp; hold) </span>on its poster. A confirm card pops
                     up. Tap{' '}
                     <span
                         style={{
@@ -1104,6 +1106,7 @@ function NotificationPreview() {
 function FavouriteGrid({ items, type }) {
     return (
         <div
+            data-testid={`favourite-grid-${type}`}
             className="grid"
             style={{
                 /* v2.8.88 — Per user: TV Shows + Movies should be

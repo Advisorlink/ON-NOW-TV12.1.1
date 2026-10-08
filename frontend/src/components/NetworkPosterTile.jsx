@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { API } from '@/lib/api';
 import * as img from '@/lib/img';
 import useLongPress from '@/hooks/useLongPress';
+import { SaveStarButton } from '@/components/SaveStarButton';
 
 /**
  * Poster tile for TMDB-sourced network catalogues.  The TMDB discover
@@ -215,6 +216,7 @@ export default function NetworkPosterTile({ item }) {
                     )}
                 </div>
             )}
+            <SaveStarButton item={{ ...item, id: item.imdb_id || item.tmdb_id, imdbId: item.imdb_id }} onActivate={handleLongPress} testId={`save-star-network-${item.tmdb_id}`} />
         </button>
     );
 }

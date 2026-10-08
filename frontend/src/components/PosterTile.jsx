@@ -4,6 +4,7 @@ import * as img from '@/lib/img';
 import { API } from '@/lib/api';
 import useLongPress from '@/hooks/useLongPress';
 import ReleaseTagBadge, { releaseTagKey, useReleaseTag } from '@/components/ReleaseTagBadge';
+import { SaveStarButton } from '@/components/SaveStarButton';
 
 /**
  * Poster tile.  Image renders immediately on mount — we don't try
@@ -240,6 +241,7 @@ function PosterTile({ item, onSelect, onLongPress: onLongPressProp, initialFocus
                     </div>
                 )}
             </div>
+            <SaveStarButton item={item} onActivate={onLongPress} />
         </button>
     );
 }

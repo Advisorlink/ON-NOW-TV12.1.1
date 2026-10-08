@@ -1,5 +1,11 @@
 # ON NOW TV V2 — Implementation history
 
+## 2026-10-08 — Save star on covers (phone/tablet) + Library mobile redesign
+- New `components/SaveStarButton.jsx`: phone/tablet-only star (top-right of every cover: PosterTile shelves, Movies/TV grid tiles, Network tiles). Tap → fires the existing `vesper:request-add-to-list` flow (movies → Watch Later, series → My List, same as hold-OK on TV); star fills gold when saved, syncs on `vesper:library-change`. Touch events are stopped so the tile itself still opens Detail. TV untouched (component returns null).
+- Add-to-list confirm card restyled as a bottom sheet on handhelds (96px thumb, stacked full-width actions, remote-only tip hidden).
+- Library on handhelds: 76/16/112 padding, compact header, 3/4/6-column favourite + box-set grids, Watch Later header rewrapped (eyebrow line, title + Expand), 168px cards, "Hold OK" hint hidden; copy switches "press & hold OK" → "tap the star" via `data-platform-copy` spans.
+- Verified via trusted CDP touch at 390×844: star → sheet → confirm → saved=true (movie + series), poster body tap still navigates, Library shows 2 favourites + 3 Watch Later with zero overflow. 51/51 tests, build PASS, iter105 regression PASS (runner now at tests/run_iter105.py).
+
 ## 2026-10-07 — Movies / TV Shows phone grid refined (user: "looks crap, one cover in the centre")
 - User was most likely still on the APK bundling the pre-polish web (TabGridView rendered 1 column with TV gutters). Refined further: 3-across clean poster wall (4 @600px, 6 @900px), in-tile caption overlay hidden on mobile, 10px radius + shadow, pill genre chips, compact header (blue eyebrow, 34px title, 11px status). Screenshot at 390×844 verified (tileW 113, 3 cols, grid starts below chips). 51/51 tests, build PASS. Web is bundled in the APK → needs a CI build to show on the phone.
 

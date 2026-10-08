@@ -10,7 +10,10 @@ Continue development of the ON NOW TV V2 app suite:
 
 Audience: TV viewers using a D-pad on Android TV boxes, families using the Kids app, phone companion/game participants, and the operator managing boxes through the launcher admin.
 
-## Current (2026-10-07, latest) — phone UI polish pass
+## Current (2026-10-08) — Save star on covers + Library mobile redesign
+Phone/tablet-only star on every cover opens the existing Add-to-list sheet (movies → Watch Later, series → My List); sheet is a bottom sheet on handhelds; Library page redesigned for phones (3-col grids, compact header, fixed Watch Later block). See CHANGELOG 2026-10-08. Web bundled in APK → CI build needed on device.
+
+## Previous (2026-10-07) — phone UI polish pass
 User: "make sure all of the phone UI fits perfectly ... high-end quality app ... not just two little columns ... actors look good, not right down the bottom". Delivered as mobile-only CSS (see CHANGELOG 2026-10-07 polish entry): scrolling Home, 3/4/6-column browse grids, scrolling Detail with Cast section after controls, fixed season pills, Search/Network/Settings layouts. Verified via screenshots + unit tests + build + Playwright regression; user device check pending.
 
 ## Previous (2026-10-07) — phone follow-ups after the player fix was confirmed working

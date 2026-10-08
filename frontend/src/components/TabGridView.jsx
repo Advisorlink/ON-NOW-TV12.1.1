@@ -7,6 +7,7 @@ import ReleaseTagBadge, { releaseTagKey, useReleaseTag } from '@/components/Rele
 import { useAddons } from '@/hooks/useAddons';
 import { useTabCatalog } from '@/hooks/useTabCatalog';
 import { useTabGenreCatalog } from '@/hooks/useTabGenreCatalog';
+import { SaveStarButton } from '@/components/SaveStarButton';
 
 /**
  * Newest-first grid for the TV Shows / Movies tab views.
@@ -740,6 +741,7 @@ function MorphTileImpl({ item, navigate, onTapRecord }) {
                     )}
                 </div>
             )}
+            {isReady && <SaveStarButton item={item} onActivate={onLongPress} />}
         </button>
     );
 }

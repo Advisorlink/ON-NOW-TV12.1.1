@@ -1309,9 +1309,222 @@ body[data-platform="mobile"] [data-testid="settings-page"] h1 {
     font-size: clamp(28px, 7vw, 38px) !important;
 }
 
-/* ---- LIBRARY ---- */
+/* ---- SAVE STAR (phone/tablet covers) ---- */
+.vesper-save-star {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    z-index: 3;
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    color: #fff;
+    background: rgba(8, 10, 18, 0.62);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.14);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+    touch-action: manipulation;
+    transition: transform 120ms ease-out, background-color 120ms ease-out, color 120ms ease-out;
+}
+.vesper-save-star:active { transform: scale(0.9); }
+.vesper-save-star[data-saved="true"] {
+    color: #ffd166;
+    background: rgba(8, 10, 18, 0.78);
+    border-color: rgba(255, 209, 102, 0.45);
+}
+
+/* Platform-specific copy: TV says "press & hold OK", handhelds say "tap the star". */
+[data-platform-copy="mobile"] { display: none; }
+body[data-platform="mobile"] [data-platform-copy="mobile"] { display: inline; }
+body[data-platform="mobile"] [data-platform-copy="tv"] { display: none; }
+
+/* ---- ADD TO LIST sheet (handheld) — TV confirm dialog becomes a
+   bottom sheet with full-width actions. */
+body[data-platform="mobile"] [data-testid="add-to-list-modal"] {
+    align-items: flex-end !important;
+}
+body[data-platform="mobile"] [data-testid="add-to-list-modal"] > div {
+    width: 100% !important;
+    max-width: 640px;
+    border-radius: 22px 22px 0 0 !important;
+    padding: 20px 18px calc(18px + env(safe-area-inset-bottom, 0px)) !important;
+    max-height: 86dvh;
+    overflow-y: auto;
+}
+body[data-platform="mobile"] [data-testid="add-to-list-modal"] h2,
+body[data-platform="mobile"] [data-testid="add-to-list-modal"] .vesper-display {
+    font-size: 26px !important;
+    line-height: 1.05 !important;
+}
+/* Poster column (flex: 0 0 180px on TV) becomes a compact 96px thumb
+   beside the copy; the copy column gets phone padding. */
+body[data-platform="mobile"] [data-testid="add-to-list-modal"] .overflow-hidden.flex {
+    border-radius: 18px;
+}
+body[data-platform="mobile"] [data-testid="add-to-list-modal"] .overflow-hidden.flex > div:first-child {
+    flex: 0 0 96px !important;
+    max-height: 144px;
+    align-self: flex-start;
+    border-radius: 12px;
+    overflow: hidden;
+}
+body[data-platform="mobile"] [data-testid="add-to-list-modal"] .overflow-hidden.flex > div:last-child {
+    padding: 4px 0 0 16px !important;
+    min-width: 0;
+}
+body[data-platform="mobile"] [data-testid="add-to-list-modal"] .overflow-hidden.flex > div:last-child > .vesper-mono {
+    font-size: 10px !important;
+    letter-spacing: 0.18em !important;
+}
+body[data-platform="mobile"] [data-testid="add-to-list-modal"] .flex.items-center.gap-3.mt-auto {
+    margin-top: 18px !important;
+    gap: 10px !important;
+    flex-direction: column;
+    align-items: stretch !important;
+}
+body[data-platform="mobile"] [data-testid="modal-confirm"],
+body[data-platform="mobile"] [data-testid="modal-cancel"] {
+    white-space: nowrap;
+    padding: 12px 18px !important;
+}
+body[data-platform="mobile"] [data-testid="add-to-list-modal"] .overflow-hidden.flex > div:last-child > .vesper-mono:last-child {
+    display: none;
+}
+body[data-platform="mobile"] [data-testid="modal-confirm"],
+body[data-platform="mobile"] [data-testid="modal-cancel"] {
+    flex: 1 1 0 !important;
+    min-height: 48px;
+    justify-content: center;
+    font-size: 15px !important;
+}
+
+/* ---- LIBRARY (handheld) — the TV layout (100px rail inset, 7-column
+   grids, 40px header gaps) becomes a compact personal shelf. */
 body[data-platform="mobile"] [data-testid="library-page"] {
-    padding: 24px 14px 96px 14px !important;
+    padding: 76px 16px 112px !important;
+}
+body[data-platform="mobile"] [data-testid="library-page"] > .flex.items-center.justify-between {
+    margin-bottom: 22px !important;
+    gap: 12px !important;
+    align-items: flex-start !important;
+}
+body[data-platform="mobile"] [data-testid="library-page"] > .flex.items-center.justify-between .vesper-mono {
+    white-space: nowrap;
+    font-size: 10px !important;
+    letter-spacing: 0.2em !important;
+}
+body[data-platform="mobile"] [data-testid="library-page"] h1 {
+    font-size: 32px !important;
+    line-height: 1 !important;
+    letter-spacing: -0.03em !important;
+}
+body[data-platform="mobile"] [data-testid="library-back"] {
+    width: 40px !important;
+    height: 40px !important;
+}
+body[data-platform="mobile"] [data-testid="library-notifications-toggle"] {
+    padding: 8px 12px !important;
+    font-size: 12px !important;
+}
+body[data-platform="mobile"] [data-testid="library-page"] section {
+    margin-bottom: 30px !important;
+}
+body[data-platform="mobile"] [data-testid="library-page"] section > .vesper-mono {
+    font-size: 10px !important;
+    letter-spacing: 0.2em !important;
+    color: var(--vesper-blue) !important;
+    margin-bottom: 4px !important;
+}
+body[data-platform="mobile"] [data-testid="library-page"] section h2 {
+    font-size: 22px !important;
+    line-height: 1.1 !important;
+    gap: 8px !important;
+}
+body[data-platform="mobile"] [data-testid="library-page"] section h2 svg {
+    width: 18px !important;
+    height: 18px !important;
+}
+body[data-platform="mobile"] [data-testid="library-page"] section > .flex.items-end {
+    margin-bottom: 12px !important;
+    gap: 12px !important;
+}
+body[data-platform="mobile"] [data-testid^="favourite-grid-"],
+body[data-platform="mobile"] [data-testid="library-boxsets-grid"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+}
+@media (min-width: 600px) {
+    body[data-platform="mobile"] [data-testid^="favourite-grid-"],
+    body[data-platform="mobile"] [data-testid="library-boxsets-grid"] {
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        gap: 14px !important;
+    }
+}
+@media (min-width: 900px) {
+    body[data-platform="mobile"] [data-testid^="favourite-grid-"],
+    body[data-platform="mobile"] [data-testid="library-boxsets-grid"] {
+        grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+    }
+}
+body[data-platform="mobile"] [data-testid^="favorite-"] {
+    border-radius: 10px !important;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+}
+body[data-platform="mobile"] [data-testid^="favorite-"] .absolute.inset-x-0.bottom-0 {
+    padding: 8px !important;
+}
+body[data-platform="mobile"] [data-testid^="favorite-"] .absolute.inset-x-0.bottom-0 .font-sans {
+    font-size: 11px !important;
+    line-height: 1.2 !important;
+}
+body[data-platform="mobile"] [data-testid^="favorite-"] .absolute.inset-x-0.bottom-0 .vesper-mono { display: none; }
+body[data-platform="mobile"] [data-testid^="actor-"] { width: 92px !important; }
+body[data-platform="mobile"] [data-testid="watch-later-scroller"] {
+    margin: 0 -14px;
+    padding: 0 14px 6px !important;
+    gap: 10px !important;
+}
+body[data-platform="mobile"] [data-testid="watch-later-scroller"] > div {
+    width: 168px !important;
+    flex: 0 0 168px !important;
+}
+body[data-platform="mobile"] [data-testid^="watch-later-movie-"],
+body[data-platform="mobile"] [data-testid^="watch-later-episode-"] {
+    width: 168px !important;
+    height: auto !important;
+    border-radius: 12px !important;
+}
+/* Watch Later header: eyebrow on its own line, title left, Expand
+   right; the "Hold OK to remove" hint is a remote-control affordance. */
+body[data-platform="mobile"] [data-testid="watch-later-block"] > .flex.items-end.justify-between {
+    flex-wrap: wrap;
+    gap: 8px 12px !important;
+    margin-bottom: 14px !important;
+    align-items: center !important;
+}
+body[data-platform="mobile"] [data-testid="watch-later-block"] > .flex.items-end.justify-between > div:first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+body[data-platform="mobile"] [data-testid="watch-later-block"] > .flex.items-end.justify-between .vesper-mono:not([data-testid]) {
+    white-space: nowrap;
+    font-size: 10px !important;
+    letter-spacing: 0.2em !important;
+}
+body[data-platform="mobile"] [data-testid="watch-later-block"] > .flex.items-end.justify-between .vesper-display {
+    font-size: 22px !important;
+    white-space: nowrap;
+}
+body[data-platform="mobile"] [data-testid="watch-later-block"] > .flex.items-end.justify-between > .flex.items-center > .vesper-mono:not([data-testid]) {
+    display: none;
+}
+body[data-platform="mobile"] [data-testid="watch-later-expand"] {
+    padding: 8px 12px !important;
+    font-size: 11px !important;
 }
 body[data-platform="mobile"] [data-testid="watch-later-block"] {
     margin-top: 32px !important;
