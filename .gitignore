@@ -1626,3 +1626,7 @@ frontend/node_modules/.cache/default-development/91.pack
 frontend/node_modules/.cache/default-development/98.pack
 frontend/node_modules/.cache/default-development/3.pack_
 frontend/node_modules/.cache/default-development/5.pack_
+
+# Launcher chunked-upload temp files (runtime only, never source)
+launcher-backend/data/uploads_tmp/*
+!launcher-backend/data/uploads_tmp/.gitkeep

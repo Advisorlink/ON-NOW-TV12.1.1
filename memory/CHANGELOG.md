@@ -1,5 +1,10 @@
 # ON NOW TV V2 — Implementation history
 
+## 2026-10-09 — Repo push-health deep dive (user: "Save to GitHub fails each time")
+- Checked: git fsck clean, no lock files, no remote divergence visible locally, no symlinks/submodules, no >200-char paths or invalid characters, node_modules/build/.gradle NOT tracked (1548 files), no .env tracked, no provider-token patterns (OpenAI/GitHub/Google/Slack/Stripe/Telegram/JWT/AWS) in tracked text, all 13 workflow YAMLs parse, backend + launcher Python syntax OK, frontend build OK, Live TV Kotlin typecheck PASS (memory/scripts/typecheck_livetv.py against /tmp/vsdk android-34 + 81 Gradle deps, 0 errors), Vesper typecheck PASS earlier.
+- Only risk factors: `launcher-backend/data/system-deps/webview-138.apkm` = 68 MB (intentional, served to boxes; GitHub warns >50 MB, blocks >100 MB — currently allowed) and tracked chunked-upload leftovers `launcher-backend/data/uploads_tmp/*.part` (could someday exceed 100 MB and hard-block pushes). Untracked the .part files and gitignored the folder (.gitkeep kept). Pack size 208 MB.
+- Conclusion: nothing in the repo should make GitHub reject the push; failures are platform/connection side (auth expiry, pushing mid-agent-turn, or the large first push timing out). Need the exact dialog error text.
+
 ## 2026-10-08 — "Watch Later" / "My List" pill on the Detail page (all platforms)
 - New `SaveListPill` in Detail.jsx beside Play + Trailer (movie rows) and in the Seasons leading slot (series, compact). Movies → Watch Later, series → My List; label flips to "In Watch Later"/"In My List" with gold state; opens the shared Add-to-list sheet (add + remove). Focusable pill on TV.
 - AddToListModal: backdrop clicks ignored for 450ms after opening — the tap that opened the sheet produced a synthetic click on the backdrop and closed it instantly on touch.
