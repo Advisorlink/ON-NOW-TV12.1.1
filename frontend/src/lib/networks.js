@@ -55,6 +55,19 @@ export const NETWORKS = [
         customLogo: '/networks/prime-video.webp',
     },
     {
+        slug: 'hayu',
+        name: 'Hayu',
+        wordmark: 'hayu',
+        accent: '#ff3cac',
+        background:
+            'linear-gradient(135deg, #1a0330 0%, #5b1a8a 50%, #ff3cac 100%)',
+        customLogo: '/networks/hayu.webp',
+        // NBCUniversal reality service (AU/UK/CA/NZ etc.) — TMDB
+        // provider 223 carries nothing under US.  Reality TV only:
+        // the Movies tab is legitimately empty.
+        region: 'AU',
+    },
+    {
         slug: 'hulu',
         name: 'Hulu',
         wordmark: 'hulu',

@@ -1,5 +1,8 @@
 # ON NOW TV V2 — Implementation history
 
+## 2026-10-10 — Hayu added to Networks (5th tile)
+- Backend `NETWORK_PROVIDERS["hayu"] = {id: 223}` (TMDB watch provider; AU/GB only, 260 TV shows, 0 movies — Hayu is reality-TV only so the Movies tab is legitimately empty). Frontend `NETWORKS` entry after Prime Video with `region: 'AU'`, pink/purple gradient + custom tile `/networks/hayu.webp` (800×450, generated, matches existing tiles). Verified: row order Netflix, Apple TV+, Disney+, Prime Video, **Hayu**, Hulu…; /networks/hayu renders 20/260 with full metadata; API returns poster/backdrop/overview/rating/year/tmdb_id per title.
+
 ## 2026-10-09 — Repo push-health deep dive (user: "Save to GitHub fails each time")
 - Checked: git fsck clean, no lock files, no remote divergence visible locally, no symlinks/submodules, no >200-char paths or invalid characters, node_modules/build/.gradle NOT tracked (1548 files), no .env tracked, no provider-token patterns (OpenAI/GitHub/Google/Slack/Stripe/Telegram/JWT/AWS) in tracked text, all 13 workflow YAMLs parse, backend + launcher Python syntax OK, frontend build OK, Live TV Kotlin typecheck PASS (memory/scripts/typecheck_livetv.py against /tmp/vsdk android-34 + 81 Gradle deps, 0 errors), Vesper typecheck PASS earlier.
 - Only risk factors: `launcher-backend/data/system-deps/webview-138.apkm` = 68 MB (intentional, served to boxes; GitHub warns >50 MB, blocks >100 MB — currently allowed) and tracked chunked-upload leftovers `launcher-backend/data/uploads_tmp/*.part` (could someday exceed 100 MB and hard-block pushes). Untracked the .part files and gitignored the folder (.gitkeep kept). Pack size 208 MB.
