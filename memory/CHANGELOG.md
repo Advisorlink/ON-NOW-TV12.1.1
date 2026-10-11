@@ -1,5 +1,8 @@
 # ON NOW TV V2 — Implementation history
 
+## 2026-10-11 (later) — New networks moved to the END of the row (user request)
+- Order now: Netflix, Apple TV+, Disney+, Prime Video, Hulu, Max, Paramount+, Binge, Stan, **Hayu, 7plus, 9Now, 10 Play, BritBox**. Verified in browser.
+
 ## 2026-10-11 — TV boxes were getting the PHONE layout (fixed) + 7plus / 9Now / 10 Play / BritBox networks
 - Root cause: `deviceInput.isHandheldInput` treated any Android UA without "Mobile" + touch as a tablet. Cheap boxes (HK1 etc.) advertise FEATURE_TOUCHSCREEN and Chromium-Android always exposes `ontouchstart`/coarse pointer → box classified `mobile` → bottom nav, stars, 3-col grids, scrolling Home on the TV. Reproduced in browser with the box UA (platform=mobile).
 - Fix (ships in the APK): MainActivity stamps `" VesperTV"` on the WebView UA when `WebAppInterface.isTelevisionHost()` (LEANBACK / LEANBACK_ONLY / UI_MODE_TV / no touchscreen); new `@JavascriptInterface isTelevision()`. Web: `VesperTV` in UA → never handheld; `useIsMobile` asks `OnNowTV.isTelevision()` first. Verified: box UA + VesperTV → platform=tv, no mobile nav/stars; old-APK UA still → mobile (documented). New unit test (52/52). Vesper Kotlin typecheck PASS.

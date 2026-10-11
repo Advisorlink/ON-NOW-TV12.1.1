@@ -55,55 +55,6 @@ export const NETWORKS = [
         customLogo: '/networks/prime-video.webp',
     },
     {
-        slug: 'hayu',
-        name: 'Hayu',
-        wordmark: 'hayu',
-        accent: '#ff3cac',
-        background:
-            'linear-gradient(135deg, #1a0330 0%, #5b1a8a 50%, #ff3cac 100%)',
-        customLogo: '/networks/hayu.webp',
-        // NBCUniversal reality service (AU/UK/CA/NZ etc.) — TMDB
-        // provider 223 carries nothing under US.  Reality TV only:
-        // the Movies tab is legitimately empty.
-        region: 'AU',
-    },
-    {
-        slug: '7plus',
-        name: '7plus',
-        wordmark: '7plus',
-        accent: '#e4002b',
-        background: 'linear-gradient(135deg, #2a0006 0%, #8a0019 55%, #e4002b 100%)',
-        customLogo: '/networks/7plus.webp',
-        region: 'AU',
-    },
-    {
-        slug: '9now',
-        name: '9Now',
-        wordmark: '9Now',
-        accent: '#1ea0ff',
-        background: 'linear-gradient(135deg, #04122a 0%, #0a3f8a 55%, #1ea0ff 100%)',
-        customLogo: '/networks/9now.webp',
-        region: 'AU',
-    },
-    {
-        slug: '10play',
-        name: '10 Play',
-        wordmark: '10',
-        accent: '#19c3ff',
-        background: 'linear-gradient(135deg, #061a3a 0%, #0b4fa8 50%, #19c3ff 100%)',
-        customLogo: '/networks/10play.webp',
-        region: 'AU',
-    },
-    {
-        slug: 'britbox',
-        name: 'BritBox',
-        wordmark: 'BritBox',
-        accent: '#19d3c5',
-        background: 'linear-gradient(135deg, #041b2a 0%, #0a4f66 55%, #19d3c5 100%)',
-        customLogo: '/networks/britbox.webp',
-        region: 'AU',
-    },
-    {
         slug: 'hulu',
         name: 'Hulu',
         wordmark: 'hulu',
@@ -154,6 +105,55 @@ export const NETWORKS = [
             'linear-gradient(135deg, #000010 0%, #001e6e 55%, #1e6dff 100%)',
         customLogo: '/networks/stan.webp',
         // AU-only.  Empty in every other region.
+        region: 'AU',
+    },
+    {
+        slug: 'hayu',
+        name: 'Hayu',
+        wordmark: 'hayu',
+        accent: '#ff3cac',
+        background:
+            'linear-gradient(135deg, #1a0330 0%, #5b1a8a 50%, #ff3cac 100%)',
+        customLogo: '/networks/hayu.webp',
+        // NBCUniversal reality service (AU/UK/CA/NZ etc.) — TMDB
+        // provider 223 carries nothing under US.  Reality TV only:
+        // the Movies tab is legitimately empty.
+        region: 'AU',
+    },
+    {
+        slug: '7plus',
+        name: '7plus',
+        wordmark: '7plus',
+        accent: '#e4002b',
+        background: 'linear-gradient(135deg, #2a0006 0%, #8a0019 55%, #e4002b 100%)',
+        customLogo: '/networks/7plus.webp',
+        region: 'AU',
+    },
+    {
+        slug: '9now',
+        name: '9Now',
+        wordmark: '9Now',
+        accent: '#1ea0ff',
+        background: 'linear-gradient(135deg, #04122a 0%, #0a3f8a 55%, #1ea0ff 100%)',
+        customLogo: '/networks/9now.webp',
+        region: 'AU',
+    },
+    {
+        slug: '10play',
+        name: '10 Play',
+        wordmark: '10',
+        accent: '#19c3ff',
+        background: 'linear-gradient(135deg, #061a3a 0%, #0b4fa8 50%, #19c3ff 100%)',
+        customLogo: '/networks/10play.webp',
+        region: 'AU',
+    },
+    {
+        slug: 'britbox',
+        name: 'BritBox',
+        wordmark: 'BritBox',
+        accent: '#19d3c5',
+        background: 'linear-gradient(135deg, #041b2a 0%, #0a4f66 55%, #19d3c5 100%)',
+        customLogo: '/networks/britbox.webp',
         region: 'AU',
     },
 ];
