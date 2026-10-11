@@ -4,9 +4,25 @@ import './featureWall.css';
 
 const ICONS = { layers: Layers, clapperboard: Clapperboard, 'layout-grid': LayoutGrid, 'plus-circle': PlusCircle, zap: Zap, search: Search, 'settings-2': Settings2, gift: Gift, lightbulb: Lightbulb, 'eye-off': EyeOff, users: Users, sword: Sword, movement: MoveHorizontal, tv: Tv, bookmark: Bookmark, smartphone: Smartphone, star: Star, play: Play };
 
-function columnsOf(grid) {
-    if (!grid) return 1;
-    return Math.max(1, getComputedStyle(grid).gridTemplateColumns.split(' ').length);
+const centre = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, h: r.height }; };
+
+/** Nearest tile in the arrow direction by on-screen position (tiles may span columns). */
+function neighbourOf(tiles, from, key) {
+    const c = centre(tiles[from]);
+    const horizontal = key === 'ArrowLeft' || key === 'ArrowRight';
+    let best = -1, bestScore = Infinity;
+    tiles.forEach((t, i) => {
+        if (i === from) return;
+        const p = centre(t);
+        const dx = p.x - c.x, dy = p.y - c.y;
+        const ok = key === 'ArrowRight' ? dx > 1 && Math.abs(dy) < c.h / 2
+            : key === 'ArrowLeft' ? dx < -1 && Math.abs(dy) < c.h / 2
+            : key === 'ArrowDown' ? dy > 1 : dy < -1;
+        if (!ok) return;
+        const score = horizontal ? Math.abs(dx) : Math.abs(dy) * 4 + Math.abs(dx);
+        if (score < bestScore) { bestScore = score; best = i; }
+    });
+    return best;
 }
 
 /** Full-screen "What's New" wall: one illustrated tile per feature.
@@ -38,14 +54,12 @@ export const FeatureWall = ({ release, version, onDismiss, onBack }) => {
     const onKeyDown = (e) => {
         if (['Escape', 'Backspace', 'GoBack', 'BrowserBack'].includes(e.key)) { e.preventDefault(); e.stopPropagation(); onBack(); return; }
         const onDone = document.activeElement === done.current;
-        const cols = columnsOf(grid.current);
-        const moves = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: cols, ArrowUp: -cols };
-        if (e.key in moves) {
+        if (e.key.startsWith('Arrow')) {
             e.preventDefault(); e.stopPropagation();
             if (onDone) { if (e.key === 'ArrowUp') focusTile(items.length - 1); return; }
-            const target = active + moves[e.key];
-            if (e.key === 'ArrowDown' && target >= items.length) { done.current?.focus({ preventScroll: false }); return; }
-            if (target >= 0 && target < items.length) focusTile(target);
+            const target = neighbourOf([...(grid.current?.children || [])], active, e.key);
+            if (e.key === 'ArrowDown' && target < 0) { done.current?.focus({ preventScroll: false }); return; }
+            if (target >= 0) focusTile(target);
             return;
         }
         if (e.key === 'Enter' || e.key === ' ') {
@@ -78,6 +92,7 @@ export const FeatureWall = ({ release, version, onDismiss, onBack }) => {
                                 data-testid={`whats-new-item-${i}`}
                                 data-active={active === i ? 'true' : 'false'}
                                 data-open={open ? 'true' : 'false'}
+                                data-wide={item.wide ? 'true' : 'false'}
                                 className="wall-tile"
                                 style={{ '--i': i, backgroundImage: `url(${item.art})` }}
                                 tabIndex={0}

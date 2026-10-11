@@ -10,7 +10,10 @@ Continue development of the ON NOW TV V2 app suite:
 
 Audience: TV viewers using a D-pad on Android TV boxes, families using the Kids app, phone companion/game participants, and the operator managing boxes through the launcher admin.
 
-## Current (2026-10-11, later) — Illustrated full-screen What's New wall (v1.6.0)
+## Current (2026-10-11, latest) — What's New wall trimmed to 13 tiles
+User removed from the v1.6.0 wall: Phone & tablet redesign, Stars on every cover, Smoother player, Hallmark & Christmas, Easier party hosting (features themselves untouched). TV grid now 5 columns; "Five new networks" and "Watch Later & My List" tiles span 2 columns (`wide: true` in `appVersion.js`) so 13 tiles fill 3 rows exactly. D-pad navigation in `FeatureWall.jsx` is now geometry-based (`neighbourOf`) so spanning tiles move correctly. Verified via Playwright (13 tiles, arrow moves, mobile 390px layout).
+
+## Previous (2026-10-11, later) — Illustrated full-screen What's New wall (v1.6.0)
 Option B chosen by user. 18 illustrated tiles, remote-navigable, no auto-advance. See CHANGELOG. New networks moved to the end of the By-network row.
 
 ## Previous (2026-10-11) — TV-box platform detection fixed + AU networks

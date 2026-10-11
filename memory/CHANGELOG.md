@@ -12355,3 +12355,6 @@ User: tags hallucinating ("The End of Oak Street" = Cinema?, "One Night Only" = 
 **Verified:** py syntax + boot + meta healthy (13991 ch / 3241 epg), chunked persist+restore round-trip PASS (7 chunks, byte-identical) + legacy restore PASS, kt brace checks pass (kotlinc 1.3 on pod false-positives on trailing commas — ignore; CI uses modern Kotlin), epg-only endpoint 200/1.3 MB gz.
 
 **Deploy note:** user must REBUILD the Live TV APK (CI) and redeploy the VPS backend to get these fixes.
+
+## 2026-10-11 — What's New wall trimmed (13 tiles)
+Removed Phone & tablet redesign, Stars on every cover, Smoother player, Hallmark & Christmas, Easier party hosting from the v1.6.0 wall (`appVersion.js`). Grid 6→5 cols; first two tiles `wide: true` (span 2). `FeatureWall.jsx` arrow navigation now uses on-screen geometry (`neighbourOf`). Web-only change — ships with next APK bundle.
