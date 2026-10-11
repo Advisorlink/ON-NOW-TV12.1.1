@@ -12358,3 +12358,6 @@ User: tags hallucinating ("The End of Oak Street" = Cinema?, "One Night Only" = 
 
 ## 2026-10-11 — What's New wall trimmed (13 tiles)
 Removed Phone & tablet redesign, Stars on every cover, Smoother player, Hallmark & Christmas, Easier party hosting from the v1.6.0 wall (`appVersion.js`). Grid 6→5 cols; first two tiles `wide: true` (span 2). `FeatureWall.jsx` arrow navigation now uses on-screen geometry (`neighbourOf`). Web-only change — ships with next APK bundle.
+
+## 2026-10-11 — Brand-accurate What's New art
+`whatsnew/networks.webp` and `whatsnew/studios.webp` are now composited by `memory/scripts/whatsnew_brand_tiles.py` (Pillow, 1280x720): networks = the real Hayu/7plus/9Now/10 Play/BritBox cards from `public/networks/` fanned out; studios = TMDB logos for Marvel, DC, Disney, Pixar, DreamWorks, Warner Bros. (dark marks whitened) on glass plates. Re-run the script to regenerate.
