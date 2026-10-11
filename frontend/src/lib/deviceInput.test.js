@@ -88,4 +88,15 @@ describe('isHandheldInput', () => {
         });
         expect(value).toBe(true);
     });
+
+    test('Android box stamped VesperTV stays TV even with touch + coarse', () => {
+        const value = isHandheldInput({
+            userAgent: 'Mozilla/5.0 (Linux; Android 9; HK1 Build/PPR1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 OnNowTV/2.21.0 VesperTV',
+            coarse: true,
+            touchPoints: 1,
+            touchEvents: true,
+            width: 1920,
+        });
+        expect(value).toBe(false);
+    });
 });

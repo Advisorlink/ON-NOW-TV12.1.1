@@ -1,5 +1,10 @@
 # ON NOW TV V2 — Implementation history
 
+## 2026-10-11 — TV boxes were getting the PHONE layout (fixed) + 7plus / 9Now / 10 Play / BritBox networks
+- Root cause: `deviceInput.isHandheldInput` treated any Android UA without "Mobile" + touch as a tablet. Cheap boxes (HK1 etc.) advertise FEATURE_TOUCHSCREEN and Chromium-Android always exposes `ontouchstart`/coarse pointer → box classified `mobile` → bottom nav, stars, 3-col grids, scrolling Home on the TV. Reproduced in browser with the box UA (platform=mobile).
+- Fix (ships in the APK): MainActivity stamps `" VesperTV"` on the WebView UA when `WebAppInterface.isTelevisionHost()` (LEANBACK / LEANBACK_ONLY / UI_MODE_TV / no touchscreen); new `@JavascriptInterface isTelevision()`. Web: `VesperTV` in UA → never handheld; `useIsMobile` asks `OnNowTV.isTelevision()` first. Verified: box UA + VesperTV → platform=tv, no mobile nav/stars; old-APK UA still → mobile (documented). New unit test (52/52). Vesper Kotlin typecheck PASS.
+- Networks: added 7plus (TMDB 246, 508 shows/545 movies), 9Now (378, 445/9), 10 Play (82, 444/211), BritBox (151, 234/38) — all `region: 'AU'`, after Hayu, with generated 800×450 tiles. Row now: Netflix, Apple TV+, Disney+, Prime Video, Hayu, 7plus, 9Now, 10 Play, BritBox, Hulu, Max, Paramount+, Binge, Stan.
+
 ## 2026-10-10 — Hayu added to Networks (5th tile)
 - Backend `NETWORK_PROVIDERS["hayu"] = {id: 223}` (TMDB watch provider; AU/GB only, 260 TV shows, 0 movies — Hayu is reality-TV only so the Movies tab is legitimately empty). Frontend `NETWORKS` entry after Prime Video with `region: 'AU'`, pink/purple gradient + custom tile `/networks/hayu.webp` (800×450, generated, matches existing tiles). Verified: row order Netflix, Apple TV+, Disney+, Prime Video, **Hayu**, Hulu…; /networks/hayu renders 20/260 with full metadata; API returns poster/backdrop/overview/rating/year/tmdb_id per title.
 

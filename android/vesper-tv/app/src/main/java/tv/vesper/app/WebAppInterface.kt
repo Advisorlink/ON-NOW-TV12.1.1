@@ -539,6 +539,23 @@ class WebAppInterface(private val activity: Activity) {
     @JavascriptInterface
     fun isAndroidHost(): Boolean = true
 
+    /** True on leanback / television hosts (TV boxes, Google TV). */
+    @JavascriptInterface
+    fun isTelevision(): Boolean = isTelevisionHost(activity)
+
+    companion object {
+        fun isTelevisionHost(ctx: android.content.Context): Boolean {
+            val pm = ctx.packageManager
+            val uiTv = (ctx.resources.configuration.uiMode and
+                android.content.res.Configuration.UI_MODE_TYPE_MASK) ==
+                android.content.res.Configuration.UI_MODE_TYPE_TELEVISION
+            return pm.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK) ||
+                pm.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK_ONLY) ||
+                uiTv ||
+                !pm.hasSystemFeature(android.content.pm.PackageManager.FEATURE_TOUCHSCREEN)
+        }
+    }
+
     /**
      * Dev-mode network override.  Persists a URL in
      * SharedPreferences("onnowtv-dev") that MainActivity.onCreate

@@ -461,7 +461,11 @@ class MainActivity : AppCompatActivity() {
                 layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
                 @Suppress("DEPRECATION")
                 setDefaultZoom(WebSettings.ZoomDensity.FAR)
-                userAgentString = userAgentString + " OnNowTV/" + BuildConfig.VERSION_NAME
+                // "VesperTV" marks a leanback / television host so the web
+                // layer never mistakes a touch-capable Android box for a
+                // tablet (cheap boxes advertise FEATURE_TOUCHSCREEN).
+                userAgentString = userAgentString + " OnNowTV/" + BuildConfig.VERSION_NAME +
+                    (if (WebAppInterface.isTelevisionHost(this@MainActivity)) " VesperTV" else "")
             }
 
             // v2.7.80 SECURITY — Refuse all WebView downloads.  The
