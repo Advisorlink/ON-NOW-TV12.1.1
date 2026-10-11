@@ -110,6 +110,16 @@ export const NETWORKS = [
     // ---- 2026-10-11 — restored "new networks" with house-style
     // full-bleed brand banners in /public/networks ----
     {
+        slug: 'hayu',
+        name: 'Hayu',
+        wordmark: 'hayu',
+        accent: '#ff2d8c',
+        background:
+            'linear-gradient(135deg, #1a0010 0%, #6b0037 55%, #ff2d8c 100%)',
+        customLogo: '/networks/hayu.webp',
+        region: 'AU',
+    },
+    {
         slug: 'peacock',
         name: 'Peacock',
         wordmark: 'peacock',
@@ -207,16 +217,6 @@ export const NETWORKS = [
         background:
             'linear-gradient(135deg, #140000 0%, #560008 55%, #e3132b 100%)',
         customLogo: '/networks/shudder.webp',
-        region: 'AU',
-    },
-    {
-        slug: 'hayu',
-        name: 'Hayu',
-        wordmark: 'hayu',
-        accent: '#ff2d8c',
-        background:
-            'linear-gradient(135deg, #1a0010 0%, #6b0037 55%, #ff2d8c 100%)',
-        customLogo: '/networks/hayu.webp',
         region: 'AU',
     },
 ];
