@@ -1028,6 +1028,20 @@ NETWORK_PROVIDERS: Dict[str, Dict[str, Any]] = {
     "hulu": {"id": 15, "label": "Hulu"},
     "binge": {"id": 385, "label": "BINGE"},
     "stan": {"id": 21, "label": "Stan"},
+    # 2026-10-11 — restored "new networks" row (ids verified against
+    # TMDB /watch/providers for AU/US/GB).  Kayo has no TMDB provider
+    # (sports only) so it is intentionally absent.
+    "peacock": {"id": 386, "label": "Peacock"},
+    "crunchyroll": {"id": 283, "label": "Crunchyroll"},
+    "britbox": {"id": 151, "label": "BritBox"},
+    "foxtel-now": {"id": 134, "label": "Foxtel Now"},
+    "abc-iview": {"id": 135, "label": "ABC iview"},
+    "sbs-on-demand": {"id": 132, "label": "SBS On Demand"},
+    "9now": {"id": 378, "label": "9Now"},
+    "7plus": {"id": 246, "label": "7plus"},
+    "10-play": {"id": 82, "label": "10 Play"},
+    "shudder": {"id": 99, "label": "Shudder"},
+    "hayu": {"id": 223, "label": "Hayu"},
 }
 
 CACHE_TTL_NETWORK = 3600          # 1 hour — TMDB's discover updates daily
@@ -1074,7 +1088,7 @@ async def network_logos():
     """Return TMDB-hosted logo URLs + brand colors for every network
     we expose under /networks/:slug.  Cached aggressively (24 h) since
     TMDB watch-provider logo paths are extremely stable."""
-    cache_key = "networks:logos:v2"
+    cache_key = "networks:logos:v3"
     cached = await cache.get(cache_key)
     if cached:
         return {"cached": True, "data": cached}

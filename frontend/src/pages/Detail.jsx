@@ -1,18 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import {
-    Play,
-    ArrowLeft,
-    Loader2,
-    ExternalLink,
-    Copy,
-    Magnet,
-    Info,
-    Check,
-    Film,
-    Home,
-    Zap,
-} from 'lucide-react';
+import { Play, ArrowLeft, Loader2, ExternalLink, Copy, Magnet, Info, Check, Film, Home, Zap, Bookmark } from 'lucide-react';
 import FullscreenButton from '@/components/FullscreenButton';
 import SeriesEpisodes from '@/components/SeriesEpisodes';
 import CastRow from '@/components/CastRow';
@@ -29,7 +17,7 @@ import { getAutoplay1080p, setAutoplay1080p, getAutoplayTV, setAutoplayTV } from
 import { isKidsActive, getActiveProfile, isRatingAllowed, getKidsConfig } from '@/lib/profiles';
 import { avatarEmojiById } from '@/lib/avatars';
 import * as cw from '@/lib/continueWatching';
-import { isInLibrary } from '@/lib/library';
+import { isInLibrary, isMovieInWatchLater } from '@/lib/library';
 
 const streamMode = (s) => {
     if (s?.url) return 'direct';
@@ -2270,6 +2258,7 @@ export default function Detail() {
                                 onClick={openTrailer}
                                 loading={trailerLoading}
                             />
+                            <LibraryPill id={id} type={type} meta={meta} />
                         </div>
                     )}
 
@@ -2343,6 +2332,7 @@ export default function Detail() {
                                 onClick={openTrailer}
                                 loading={trailerLoading}
                             />
+                            <LibraryPill id={id} type={type} meta={meta} />
                         </div>
                     )}
 
@@ -2396,6 +2386,7 @@ export default function Detail() {
                                         loading={trailerLoading}
                                         compact
                                     />
+                                    <LibraryPill id={id} type={type} meta={meta} compact />
                                 </>
                             }
                         />
@@ -3174,6 +3165,70 @@ function TrailerPill({ onClick, loading, primary, compact }) {
                     Trailer
                 </>
             )}
+        </button>
+    );
+}
+
+/** "Add to Library" pill beside Play / Trailer.  Reuses the global
+ *  Add-to-List confirm modal (same store semantics as long-press:
+ *  movies → Watch Later, series → My List) so Library/Home stay in
+ *  sync and focus returns here when the modal closes. */
+function LibraryPill({ id, type, meta, compact }) {
+    const isMovie = type === 'movie';
+    const check = React.useCallback(
+        () => (isMovie ? isMovieInWatchLater(id) : isInLibrary(id)),
+        [id, isMovie],
+    );
+    const [inList, setInList] = React.useState(check);
+    React.useEffect(() => {
+        setInList(check());
+        const sync = () => setInList(check());
+        window.addEventListener('vesper:library-change', sync);
+        window.addEventListener('storage', sync);
+        return () => {
+            window.removeEventListener('vesper:library-change', sync);
+            window.removeEventListener('storage', sync);
+        };
+    }, [check]);
+    const open = () => {
+        window.dispatchEvent(new CustomEvent('vesper:request-add-to-list', {
+            detail: {
+                id,
+                type: isMovie ? 'movie' : 'series',
+                title: meta?.name || meta?.title || '',
+                poster: meta?.poster || '',
+                background: meta?.background || meta?.backdrop || '',
+                year: meta?.year || '',
+                genres: meta?.genres || [],
+                synopsis: meta?.synopsis || meta?.description || '',
+            },
+        }));
+    };
+    const Icon = inList ? Check : Bookmark;
+    return (
+        <button
+            data-testid="detail-library-toggle"
+            data-focusable="true"
+            data-focus-style="pill"
+            tabIndex={0}
+            onClick={open}
+            aria-pressed={inList}
+            className="flex items-center gap-2 rounded-full font-sans font-semibold"
+            style={{
+                height: compact ? 'clamp(36px, 3vw, 44px)' : 'clamp(44px, 3.4vw, 52px)',
+                paddingLeft: compact ? 'clamp(16px, 1.4vw, 22px)' : 'clamp(18px, 1.4vw, 24px)',
+                paddingRight: compact ? 'clamp(16px, 1.4vw, 22px)' : 'clamp(22px, 1.6vw, 28px)',
+                fontSize: compact ? 'clamp(13px, 0.95vw, 15px)' : 'clamp(13px, 0.95vw, 15px)',
+                background: inList ? 'rgba(93,200,255,0.16)' : 'rgba(255,255,255,0.10)',
+                color: inList ? 'var(--vesper-blue-bright)' : 'var(--vesper-text)',
+                border: inList
+                    ? '1px solid rgba(93,200,255,0.32)'
+                    : '1px solid rgba(255,255,255,0.18)',
+                letterSpacing: '0.02em',
+            }}
+        >
+            <Icon size={compact ? 14 : 16} />
+            {inList ? 'In Library' : 'Add to Library'}
         </button>
     );
 }

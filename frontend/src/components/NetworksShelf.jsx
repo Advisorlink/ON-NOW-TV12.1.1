@@ -155,6 +155,11 @@ function NetworkTile({ net, logo, onClick }) {
                         objectFit: net.customLogo ? 'cover' : 'contain',
                         objectPosition: 'center',
                         display: 'block',
+                        // TMDB provider logos are square icons — inset
+                        // them so they read as a badge on the brand
+                        // gradient rather than a wall-to-wall square.
+                        padding: net.customLogo ? 0 : '12% 30%',
+                        boxSizing: 'border-box',
                     }}
                 />
             ) : (

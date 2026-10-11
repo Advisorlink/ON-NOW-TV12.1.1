@@ -1017,12 +1017,18 @@ class ExoPlayerActivity : ComponentActivity(),
         // same URLs that Kids (with 6 s / 10 s) plays instantly.
         // Match Kids exactly so a slow CDN handshake / TCP slow-start
         // gets the head-room it needs before we call the stream dead.
+        // 2026-10-11 — "ON NOW TV Direct" (Xtream /movie/ VOD) is served
+        // by the panel's *remote* proxy at barely above realtime.  With
+        // the generic 10 s post-rebuffer wait every seek or dip meant a
+        // long spinner.  Those URLs get a deeper forward buffer and a
+        // 3-4 s resume; debrid/torrent streams keep the proven profile.
+        val directVod = isXtreamVodUrl(streamUrl)
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                50_000,    // minBufferMs — keep refilling toward 50 s
-                120_000,   // maxBufferMs — long soak room
-                6_000,     // bufferForPlaybackMs — match Kids (was 2_000)
-                10_000,    // bufferForPlaybackAfterRebufferMs — match Kids (was 3_000)
+                if (directVod) 60_000 else 50_000,    // minBufferMs — keep refilling toward this
+                120_000,                              // maxBufferMs — long soak room
+                if (directVod) 3_000 else 6_000,      // bufferForPlaybackMs — match Kids (was 2_000)
+                if (directVod) 4_000 else 10_000,     // bufferForPlaybackAfterRebufferMs — match Kids (was 3_000)
             )
             .setPrioritizeTimeOverSizeThresholds(true)
             .setTargetBufferBytes(C.LENGTH_UNSET)
@@ -1093,9 +1099,18 @@ class ExoPlayerActivity : ComponentActivity(),
             .setMediaSourceFactory(mediaSourceFactory)
             .build()
             .apply {
+                // 2026-10-11 — Subtitles: FORCED-only by default.  Remux
+                // MKVs from the ON NOW TV Direct catalogue carry a
+                // DEFAULT-flagged English sub track (PGS or SRT); the old
+                // `preferredTextLanguages("eng")` auto-switched it on for
+                // every movie.  Now only forced (foreign-dialogue) subs
+                // appear; full subs stay one tap away in the CC sheet,
+                // which sets an explicit preference/override.
                 trackSelectionParameters = trackSelectionParameters.buildUpon()
                     .setPreferredAudioLanguages("eng", "en", "english")
-                    .setPreferredTextLanguages("eng", "en", "english")
+                    .setPreferredTextLanguages()
+                    .setSelectUndeterminedTextLanguage(false)
+                    .setIgnoredTextSelectionFlags(C.SELECTION_FLAG_DEFAULT)
                     .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, subsOffPermanent())
                     .build()
                 // v2.10.38 — Tried `setSeekParameters(CLOSEST_SYNC)`
@@ -2722,6 +2737,10 @@ class ExoPlayerActivity : ComponentActivity(),
         }
 
         @Suppress("unused")
+        /** Xtream-style VOD link: `…/movie/<user>/<pass>/<id>.<ext>`. */
+        fun isXtreamVodUrl(url: String): Boolean =
+            Regex("""^https?://[^/]+/movie/[^/]+/[^/]+/\d+\.[A-Za-z0-9]+(\?.*)?$""").matches(url)
+
         fun shouldUseExoPlayer(ctx: android.content.Context): Boolean {
             // v2.7.88 — UNCONDITIONAL ExoPlayer.  User reports v2.7.87
             // still launches LibVLC on a clean install despite the

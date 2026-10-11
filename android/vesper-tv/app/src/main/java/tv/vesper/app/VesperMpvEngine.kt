@@ -199,7 +199,10 @@ class VesperMpvEngine(
                     demuxer-readahead-secs=20
                     # English audio/sub preferred (matches VLC engine).
                     alang=eng,en
-                    slang=eng,en
+                    # Forced-only subs by default (no slang, no DEFAULT-flag
+                    # fallback); full subs via the CC sheet.
+                    subs-fallback=no
+                    subs-fallback-forced=yes
                     # Match Android's audio hardware.
                     audio-channels=auto-safe
                     """.trimIndent()

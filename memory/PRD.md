@@ -13,6 +13,7 @@ Audience: TV viewers using a D-pad on Android TV boxes, families using the Kids 
 ## Current state (2026-10-11) — ROLLED BACK to the 4 Oct TV-box checkpoint at the user's request
 - Codebase = git `1586730c` (4 Oct, after "Live TV recovery and Music navigation update") + one kept native fix: guarded `hideSystemUi()` in Exo/VLC player activities so the player opens on Fold 7 / One UI tablets (no TV effect).
 - Everything from 6–7 Oct (phone/tablet layout, touch recovery, native handoff protocol, Playback details, scroll/overscroll change, tap-to-show dock) is intentionally gone. Focus is the TV box version. Do not re-add phone work unless the user asks.
+- 2026-10-11 additions after rollback: 11 new networks (backend NETWORK_PROVIDERS + lib/networks.js), Detail "Add to Library" pill (reuses Add-to-List modal), ON NOW TV Direct fixes in the native player (forced-only subs default, Direct buffer profile). Native changes need the CI APK.
 - Open items carried over: Launcher backend service down (user SSH needed), Trivia app not started, user to build/install the CI APK.
 
 ## Previous user request (2026-10-04) — Live TV recovery + Music motion

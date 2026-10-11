@@ -175,7 +175,10 @@ class VesperVlcEngine(
             val media = Media(vlc, Uri.parse(url))
             media.setHWDecoderEnabled(true, false)
             media.addOption(":audio-language=eng,en,english")
-            media.addOption(":sub-language=eng,en,english")
+            // Forced-only subtitles by default (see ExoPlayerActivity):
+            // no language preference so DEFAULT-flagged full subs on
+            // Direct remuxes stay off until the user picks them.
+            media.addOption(":sub-language=none")
             if (live) {
                 // Fast-zap live profile (VlcPlayerActivity verbatim).
                 media.addOption(":network-caching=600")
