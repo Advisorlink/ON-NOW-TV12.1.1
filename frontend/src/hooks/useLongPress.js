@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import useIsMobile from '@/lib/useIsMobile';
 
 /**
  * Press-and-hold detector for TV remote (Enter / Space) and mouse.
@@ -37,23 +38,12 @@ import { useEffect, useRef } from 'react';
  * long-press is unavailable on touch (still works via mouse / D-pad).
  */
 
-/* Detect coarse pointers (= touch primary input).  Evaluated once
-   per module load — phones don't switch input mode mid-session. */
-function detectTouchPrimary() {
-    if (typeof window === 'undefined') return false;
-    try {
-        if (typeof window.matchMedia === 'function') {
-            return window.matchMedia('(pointer: coarse)').matches;
-        }
-    } catch { /* ignore */ }
-    return (
-        ('ontouchstart' in window) ||
-        (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0)
-    );
-}
-const TOUCH_PRIMARY = detectTouchPrimary();
+/* Touch-primary = the shared platform decision (useIsMobile), NOT the
+   raw `pointer: coarse` query — cheap TV boxes report a coarse pointer
+   and must keep hold-OK long-press on the remote. */
 
 export default function useLongPress(onLongPress, onTap, { duration = 700 } = {}) {
+    const TOUCH_PRIMARY = useIsMobile();
     const timerRef = useRef(null);
     const heldRef = useRef(false);
     const longPressFiredRef = useRef(false);

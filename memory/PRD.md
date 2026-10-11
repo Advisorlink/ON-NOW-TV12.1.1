@@ -10,6 +10,9 @@ Continue development of the ON NOW TV V2 app suite:
 
 Audience: TV viewers using a D-pad on Android TV boxes, families using the Kids app, phone companion/game participants, and the operator managing boxes through the launcher admin.
 
+## Current (2026-10-11, night) — TV layout restored on boxes running the current APK
+See CHANGELOG same date. Detection no longer needs the new APK; tablets flip to handheld on first touch. Known-recurrence count now 3 — any future change to `deviceInput.js` must keep the `oldApkBox` tests green.
+
 ## Current (2026-10-11, latest) — What's New wall trimmed to 13 tiles + real-logo art for networks/studios tiles (see CHANGELOG, `memory/scripts/whatsnew_brand_tiles.py`)
 User removed from the v1.6.0 wall: Phone & tablet redesign, Stars on every cover, Smoother player, Hallmark & Christmas, Easier party hosting (features themselves untouched). TV grid now 5 columns; "Five new networks" and "Watch Later & My List" tiles span 2 columns (`wide: true` in `appVersion.js`) so 13 tiles fill 3 rows exactly. D-pad navigation in `FeatureWall.jsx` is now geometry-based (`neighbourOf`) so spanning tiles move correctly. Verified via Playwright (13 tiles, arrow moves, mobile 390px layout).
 

@@ -25,6 +25,40 @@
 import { useEffect, useState } from 'react';
 import { isHandheldInput } from '@/lib/deviceInput';
 
+const INPUT_SEEN_KEY = 'vesper-input-seen';
+
+function readInputSeen() {
+    try { return localStorage.getItem(INPUT_SEEN_KEY); } catch { return null; }
+}
+
+/** Remember the first real input (finger vs remote) so older APKs that
+ *  cannot tell a TV box from a tablet still land on the right layout. */
+let probeInstalled = false;
+function installInputProbe() {
+    if (probeInstalled || typeof window === 'undefined') return;
+    probeInstalled = true;
+    const mark = (kind) => {
+        const seen = readInputSeen();
+        if (seen === kind || (seen === 'touch' && kind === 'key')) return;
+        try { localStorage.setItem(INPUT_SEEN_KEY, kind); } catch { /* ignore */ }
+        window.dispatchEvent(new Event('resize'));
+    };
+    window.addEventListener('touchstart', () => mark('touch'), { capture: true, passive: true });
+    window.addEventListener('keydown', (e) => {
+        if (/^(Arrow(Up|Down|Left|Right)|Enter|GoBack|BrowserBack|MediaPlayPause|ChannelUp|ChannelDown)$/.test(e.key)) mark('key');
+    }, true);
+}
+
+function nativeBridge() {
+    const a = typeof window !== 'undefined' ? window.OnNowTV : null;
+    const inApk = !!a && typeof a.isAndroidHost === 'function';
+    let nativeTv = null;
+    if (inApk && typeof a.isTelevision === 'function') {
+        try { nativeTv = !!a.isTelevision(); } catch { nativeTv = null; }
+    }
+    return { inApk, nativeTv };
+}
+
 function detect() {
     if (typeof window === 'undefined' || typeof document === 'undefined') {
         return false;
@@ -53,6 +87,9 @@ function detect() {
             touchPoints: navigator.maxTouchPoints || 0,
             touchEvents: 'ontouchstart' in window,
             width: window.innerWidth,
+            height: window.innerHeight,
+            inputSeen: readInputSeen(),
+            ...nativeBridge(),
         });
     } catch { /* ignore */ }
 
@@ -63,6 +100,7 @@ function detect() {
 export default function useIsMobile() {
     const [isMobile, setIsMobile] = useState(detect);
     useEffect(() => {
+        installInputProbe();
         const onChange = () => setIsMobile(detect());
         window.addEventListener('resize', onChange);
         window.addEventListener('orientationchange', onChange);

@@ -1692,21 +1692,23 @@ body[data-platform="mobile"] [data-focus-style='tile'][data-focused='true'] {
     }
     /* Kill the focus-glow / scale transform on touch.  Spec says
        :focus-visible should never match on touch, but Samsung's
-       WebView ignores that — so we wipe the effect ourselves. */
-    [data-focus-style='tile']:focus-visible,
-    [data-focus-style='pill']:focus-visible,
-    [data-focus-style='bare']:focus-visible,
-    [data-focus-style='nav']:focus-visible,
-    [data-focus-style='key']:focus-visible,
-    [data-focus-style='quiet']:focus-visible {
+       WebView ignores that — so we wipe the effect ourselves.
+       Gated on the mobile platform tag: cheap TV boxes also report a
+       coarse pointer, and they must keep the D-pad focus glow. */
+    body[data-platform="mobile"] [data-focus-style='tile']:focus-visible,
+    body[data-platform="mobile"] [data-focus-style='pill']:focus-visible,
+    body[data-platform="mobile"] [data-focus-style='bare']:focus-visible,
+    body[data-platform="mobile"] [data-focus-style='nav']:focus-visible,
+    body[data-platform="mobile"] [data-focus-style='key']:focus-visible,
+    body[data-platform="mobile"] [data-focus-style='quiet']:focus-visible {
         transform: none !important;
         box-shadow: none !important;
         outline: none !important;
     }
     /* Same on the data-focused mirror attribute used by some
        components for initial-focus priming. */
-    [data-focus-style='tile'][data-focused='true'],
-    [data-focus-style='pill'][data-focused='true'] {
+    body[data-platform="mobile"] [data-focus-style='tile'][data-focused='true'],
+    body[data-platform="mobile"] [data-focus-style='pill'][data-focused='true'] {
         transform: none !important;
         box-shadow: none !important;
         outline: none !important;
