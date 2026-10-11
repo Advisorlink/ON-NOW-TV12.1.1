@@ -107,8 +107,8 @@ export const NETWORKS = [
         // AU-only.  Empty in every other region.
         region: 'AU',
     },
-    // ---- 2026-10-11 — restored "new networks" (TMDB logo fallback,
-    // no customLogo artwork shipped yet) ----
+    // ---- 2026-10-11 — restored "new networks" with house-style
+    // full-bleed brand banners in /public/networks ----
     {
         slug: 'peacock',
         name: 'Peacock',
@@ -116,6 +116,7 @@ export const NETWORKS = [
         accent: '#ffffff',
         background:
             'linear-gradient(135deg, #050505 0%, #15151a 55%, #2a2a33 100%)',
+        customLogo: '/networks/peacock.webp',
         region: 'US',
     },
     {
@@ -125,6 +126,7 @@ export const NETWORKS = [
         accent: '#f47521',
         background:
             'linear-gradient(135deg, #2a1200 0%, #7a3400 55%, #f47521 100%)',
+        customLogo: '/networks/crunchyroll.webp',
         region: 'US',
     },
     {
@@ -134,6 +136,7 @@ export const NETWORKS = [
         accent: '#3b7bff',
         background:
             'linear-gradient(135deg, #040a1f 0%, #0b2a7a 55%, #3b7bff 100%)',
+        customLogo: '/networks/britbox.webp',
         region: 'AU',
     },
     {
@@ -143,6 +146,7 @@ export const NETWORKS = [
         accent: '#ff5a1f',
         background:
             'linear-gradient(135deg, #1b0800 0%, #5a1a00 55%, #ff5a1f 100%)',
+        customLogo: '/networks/foxtel-now.webp',
         region: 'AU',
     },
     {
@@ -152,6 +156,7 @@ export const NETWORKS = [
         accent: '#19b5fe',
         background:
             'linear-gradient(135deg, #001a2a 0%, #004d78 55%, #19b5fe 100%)',
+        customLogo: '/networks/abc-iview.webp',
         region: 'AU',
     },
     {
@@ -161,6 +166,7 @@ export const NETWORKS = [
         accent: '#ffcd00',
         background:
             'linear-gradient(135deg, #1a1400 0%, #6b5400 55%, #ffcd00 100%)',
+        customLogo: '/networks/sbs-on-demand.webp',
         region: 'AU',
     },
     {
@@ -170,6 +176,7 @@ export const NETWORKS = [
         accent: '#2a7bff',
         background:
             'linear-gradient(135deg, #020a1c 0%, #0a2f73 55%, #2a7bff 100%)',
+        customLogo: '/networks/9now.webp',
         region: 'AU',
     },
     {
@@ -179,6 +186,7 @@ export const NETWORKS = [
         accent: '#ff1e1e',
         background:
             'linear-gradient(135deg, #1c0202 0%, #6b0606 55%, #ff1e1e 100%)',
+        customLogo: '/networks/7plus.webp',
         region: 'AU',
     },
     {
@@ -188,6 +196,7 @@ export const NETWORKS = [
         accent: '#00a7e1',
         background:
             'linear-gradient(135deg, #00131c 0%, #004b66 55%, #00a7e1 100%)',
+        customLogo: '/networks/10-play.webp',
         region: 'AU',
     },
     {
@@ -197,6 +206,7 @@ export const NETWORKS = [
         accent: '#e3132b',
         background:
             'linear-gradient(135deg, #140000 0%, #560008 55%, #e3132b 100%)',
+        customLogo: '/networks/shudder.webp',
         region: 'AU',
     },
     {
@@ -206,6 +216,7 @@ export const NETWORKS = [
         accent: '#ff2d8c',
         background:
             'linear-gradient(135deg, #1a0010 0%, #6b0037 55%, #ff2d8c 100%)',
+        customLogo: '/networks/hayu.webp',
         region: 'AU',
     },
 ];

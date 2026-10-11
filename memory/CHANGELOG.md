@@ -1,6 +1,7 @@
 # ON NOW TV V2 — Implementation history
 
 ## 2026-10-11 — New networks restored, Add-to-Library pill, ON NOW TV Direct deep dive
+- **Network tiles**: all 11 new networks now ship house-style full-bleed 800×450 WebP banners in `frontend/public/networks/` (near-black card, glowing wordmark, brand-colour light sweep — matches stan/binge/netflix) wired via `customLogo`. Generated with the image tool, centre-cropped to 16:9.
 - **Networks (+11)**: Peacock (US), Crunchyroll, BritBox, Foxtel Now, ABC iview, SBS On Demand, 9Now, 7plus, 10 Play, Shudder, Hayu — TMDB provider ids verified live (386/283/151/134/135/132/378/246/82/99/223), `/api/networks/logos` cache key bumped to v3, TMDB square logos inset as badges on brand gradients. Kayo has no TMDB provider (sports) → not added.
 - **Add to Library** (`detail-library-toggle`) beside Play/Swap/Trailer on movies (both autoplay states) and compact in the series pill row. Reuses the global Add-to-List confirm modal (movies → Watch Later, series → My List), flips to "In Library", focus returns to the pill.
 - **ON NOW TV Direct deep dive** (probed real streams): panel 302s to a `remote` proxy with per-session JWT (bitrate ≈4.3 Mbps, UA + IP bound); concurrency fine. Files are full remuxes with DEFAULT-flagged English subs (Oppenheimer 11×PGS, Barbie 12×SRT, Deadpool SRT) → `preferredTextLanguages("eng")` auto-enabled subs on every Direct movie; generic 10 s post-rebuffer wait made every seek/dip a long spinner on the trickle proxy.
