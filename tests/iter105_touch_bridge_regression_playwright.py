@@ -57,7 +57,7 @@ async def run_iter105_touch_bridge_regression(page):
                 localStorage.setItem('onnowtv-profiles-v1:testuser', JSON.stringify([profile]));
                 localStorage.setItem('onnowtv-active-profile-v1:testuser', 'p-test-1');
                 localStorage.setItem('vesper-onboarding-seen-v1', String(Date.now()));
-                localStorage.setItem('onnowtv-whatsnew-seen-v1', '1.5.1');
+                localStorage.setItem('onnowtv-whatsnew-seen-v1', '1.6.0');
                 localStorage.setItem('onnowtv-autoplay-1080p:p-test-1', '1');
                 localStorage.setItem('onnowtv-auto-trailer:p-test-1', '1');
                 sessionStorage.setItem('vesper-e2e', '1');

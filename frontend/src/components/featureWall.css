@@ -1,0 +1,125 @@
+/* Full-screen illustrated "What's New" wall (TV first, handheld friendly). */
+.wall-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: radial-gradient(120% 90% at 20% 0%, rgba(17, 36, 74, 0.92) 0%, rgba(4, 6, 12, 0.97) 55%, #04060c 100%);
+    animation: wallFade 320ms ease-out both;
+}
+.wall {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    padding: clamp(22px, 3.2vh, 40px) clamp(24px, 4vw, 72px) clamp(16px, 2.4vh, 28px);
+    color: #fff;
+    font-family: var(--vesper-font-sans, inherit);
+}
+.wall-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: clamp(14px, 2.2vh, 26px); }
+.wall-eyebrow {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-size: clamp(10px, 0.75vw, 12px); letter-spacing: 0.26em; font-weight: 700;
+    color: var(--vesper-blue, #3ea6ff);
+    animation: wallRise 420ms ease-out both;
+}
+.wall-eyebrow span { color: rgba(255,255,255,0.8); letter-spacing: 0.12em; }
+.wall-eyebrow em { font-style: normal; color: rgba(255,255,255,0.45); letter-spacing: 0.12em; }
+.wall-title {
+    margin: 8px 0 0; font-weight: 800; letter-spacing: -0.03em; line-height: 1.02;
+    font-size: clamp(26px, 3.1vw, 54px);
+    animation: wallRise 480ms 60ms ease-out both;
+}
+.wall-close {
+    flex: none; width: 44px; height: 44px; border-radius: 999px;
+    display: grid; place-items: center;
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); color: #fff;
+}
+.wall-grid {
+    flex: 1 1 auto; min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-auto-rows: 1fr;
+    gap: clamp(10px, 1vw, 16px);
+}
+.wall-tile {
+    position: relative; overflow: hidden; isolation: isolate;
+    border-radius: clamp(12px, 1vw, 18px);
+    background-size: cover; background-position: center;
+    border: 2px solid rgba(255,255,255,0.08);
+    text-align: left; color: #fff; padding: 0; min-height: 0;
+    transform: translateZ(0);
+    animation: wallPop 520ms cubic-bezier(.2,.9,.3,1.2) both;
+    animation-delay: calc(var(--i) * 45ms + 120ms);
+    transition: transform 220ms cubic-bezier(.2,.8,.2,1), border-color 180ms ease-out, box-shadow 220ms ease-out;
+    will-change: transform;
+}
+.wall-tile:focus { outline: none; }
+.wall-tile[data-active="true"] {
+    z-index: 2;
+    transform: scale(1.06);
+    border-color: var(--vesper-blue, #3ea6ff);
+    box-shadow: 0 18px 50px rgba(0,0,0,0.6), 0 0 0 4px rgba(62,166,255,0.25);
+}
+.wall-tile-shade {
+    position: absolute; inset: 0; z-index: 0;
+    background: linear-gradient(180deg, rgba(4,6,12,0.05) 0%, rgba(4,6,12,0.25) 45%, rgba(4,6,12,0.92) 100%);
+    transition: background 220ms ease-out;
+}
+.wall-tile[data-open="true"] .wall-tile-shade {
+    background: linear-gradient(180deg, rgba(4,6,12,0.15) 0%, rgba(4,6,12,0.6) 40%, rgba(4,6,12,0.96) 100%);
+}
+.wall-tile-icon {
+    position: absolute; top: 10px; left: 10px; z-index: 1;
+    width: 28px; height: 28px; border-radius: 999px; display: grid; place-items: center;
+    background: rgba(8,10,18,0.62); border: 1px solid rgba(255,255,255,0.16);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+.wall-tile-copy {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 1;
+    display: flex; flex-direction: column; gap: 4px;
+    padding: clamp(10px, 0.9vw, 14px);
+}
+.wall-tile-copy strong {
+    font-size: clamp(13px, 0.95vw, 17px); font-weight: 700; letter-spacing: -0.01em; line-height: 1.15;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.6);
+}
+.wall-tile-copy small {
+    font-size: clamp(11px, 0.72vw, 13px); line-height: 1.3; color: rgba(255,255,255,0.86);
+    max-height: 0; opacity: 0; overflow: hidden;
+    transition: max-height 260ms ease-out, opacity 220ms ease-out;
+}
+.wall-tile[data-open="true"] .wall-tile-copy small { max-height: 6em; opacity: 1; }
+.wall-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: clamp(12px, 2vh, 22px); }
+.wall-hint { font-size: clamp(11px, 0.72vw, 13px); letter-spacing: 0.08em; color: rgba(255,255,255,0.5); text-transform: uppercase; }
+.wall-done {
+    height: 48px; padding: 0 28px; border-radius: 999px; font-weight: 700; font-size: 15px;
+    background: var(--vesper-blue, #3ea6ff); color: #04060c; border: 2px solid transparent;
+    transition: transform 160ms ease-out, box-shadow 160ms ease-out;
+}
+.wall-done:focus { outline: none; transform: scale(1.05); box-shadow: 0 0 0 4px rgba(62,166,255,0.35), 0 10px 30px rgba(0,0,0,0.5); }
+
+@keyframes wallFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes wallRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes wallPop { from { opacity: 0; transform: translateY(18px) scale(0.94); } to { opacity: 1; transform: none; } }
+
+@media (max-width: 1100px) {
+    .wall-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+/* Handhelds: a scrolling two-column wall with 16:9 cards. */
+body[data-platform="mobile"] .wall { padding: 18px 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
+body[data-platform="mobile"] .wall-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: auto;
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 4px 2px 12px;
+}
+body[data-platform="mobile"] .wall-tile { height: clamp(104px, 29vw, 160px); }
+body[data-platform="mobile"] .wall-tile[data-open="true"] .wall-tile-copy small { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; max-height: 3.9em; }
+body[data-platform="mobile"] .wall-tile[data-open="true"] .wall-tile-copy strong { font-size: 12px; }
+body[data-platform="mobile"] .wall-tile[data-active="true"] { transform: scale(1.02); }
+body[data-platform="mobile"] .wall-tile-copy small { display: none; }
+
+body[data-platform="mobile"] .wall-hint { display: none; }
+body[data-platform="mobile"] .wall-done { flex: 1 1 auto; }
+@media (min-width: 600px) {
+    body[data-platform="mobile"] .wall-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .wall-overlay, .wall-eyebrow, .wall-title, .wall-tile { animation: none; }
+}

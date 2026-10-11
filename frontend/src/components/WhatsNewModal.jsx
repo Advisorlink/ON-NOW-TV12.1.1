@@ -6,6 +6,7 @@ import { APP_VERSION, WHATS_NEW } from '@/lib/appVersion';
 import { claimReleaseNotice, dismissReleaseNotice, releaseWasPresented } from '@/lib/releaseNotice';
 import { useNativeBackTrap, triggerTrapBack } from '@/hooks/useNativeBackTrap';
 import { ReleaseNotesPanel } from '@/components/ReleaseNotesPanel';
+import { FeatureWall } from '@/components/FeatureWall';
 
 /** Single automatic release notice, after verified sign-in and boot. */
 export default function WhatsNewModal() {
@@ -49,5 +50,7 @@ export default function WhatsNewModal() {
     useNativeBackTrap(visible, () => { dismiss(); return false; });
 
     if (!visible) return null;
-    return <ReleaseNotesPanel release={WHATS_NEW[APP_VERSION]} version={APP_VERSION} onDismiss={dismiss} onBack={triggerTrapBack} />;
+    const release = WHATS_NEW[APP_VERSION];
+    const Panel = release.wall ? FeatureWall : ReleaseNotesPanel;
+    return <Panel release={release} version={APP_VERSION} onDismiss={dismiss} onBack={triggerTrapBack} />;
 }

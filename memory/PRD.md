@@ -10,7 +10,10 @@ Continue development of the ON NOW TV V2 app suite:
 
 Audience: TV viewers using a D-pad on Android TV boxes, families using the Kids app, phone companion/game participants, and the operator managing boxes through the launcher admin.
 
-## Current (2026-10-11) — TV-box platform detection fixed + AU networks
+## Current (2026-10-11, later) — Illustrated full-screen What's New wall (v1.6.0)
+Option B chosen by user. 18 illustrated tiles, remote-navigable, no auto-advance. See CHANGELOG. New networks moved to the end of the By-network row.
+
+## Previous (2026-10-11) — TV-box platform detection fixed + AU networks
 Boxes were mis-detected as handheld (touchscreen feature + WebView touch events). APK now stamps `VesperTV` in the UA and exposes `isTelevision()`; web honours both. Added 7plus, 9Now, 10 Play, BritBox (TMDB providers, AU). Needs CI APK on boxes. See CHANGELOG.
 
 ## Previous (2026-10-08) — Detail-page Watch Later / My List pill

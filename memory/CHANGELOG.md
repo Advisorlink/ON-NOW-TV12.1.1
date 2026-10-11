@@ -1,5 +1,10 @@
 # ON NOW TV V2 — Implementation history
 
+## 2026-10-11 — Full-screen illustrated "What's New" Feature Wall (v1.6.0)
+- User picked option B (Feature Wall), all 1.5.1 items + this round, no auto-advance. `APP_VERSION` → 1.6.0; `WHATS_NEW['1.6.0']` has `wall: true` + 18 items each with `art` (`/public/whatsnew/*.webp`, 640×360 generated illustrations, 460 KB total).
+- New `components/FeatureWall.jsx` + `featureWall.css`: full-screen 6×3 grid on TV (4 cols <1100px, 2–3 cols scrolling on handhelds), stagger-in pop, focused tile scales + reveals description, arrows move (grid-aware), OK pins description, Down past last row → "Got it", Back/Escape closes; `WhatsNewModal` picks FeatureWall when `release.wall`. Legacy text panel kept for older entries.
+- Verified: TV 1920×800 (18 tiles, focus path, Escape closes & marks seen=1.6.0); phone 390×844 (tap opens description, Got it closes, zero overflow). 52/52 tests, build PASS, iter105 regression PASS (seen-key bumped to 1.6.0).
+
 ## 2026-10-11 (later) — New networks moved to the END of the row (user request)
 - Order now: Netflix, Apple TV+, Disney+, Prime Video, Hulu, Max, Paramount+, Binge, Stan, **Hayu, 7plus, 9Now, 10 Play, BritBox**. Verified in browser.
 
