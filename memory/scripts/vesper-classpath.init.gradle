@@ -1,0 +1,14 @@
+allprojects {
+    afterEvaluate { p ->
+        if (p.name == 'app') {
+            p.tasks.register('printVerificationClasspath') {
+                doLast {
+                    def cfg = p.configurations.findByName('debugCompileClasspath')
+                    cfg.resolvedConfiguration.resolvedArtifacts.each { a ->
+                        println 'VERIFY_CP:' + a.file.absolutePath
+                    }
+                }
+            }
+        }
+    }
+}

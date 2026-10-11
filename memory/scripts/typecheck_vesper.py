@@ -1,10 +1,10 @@
 """SDK-backed Kotlin typecheck for the Vesper (android/vesper-tv) module on hosts without aapt2.
 
-Prereqs (see memory/CHANGELOG 2026-10-07):
-  1. /tmp/vsdk/platforms/android-34/android.jar  (platform-34 zip from dl.google.com)
-  2. /tmp/vsdk/compose-compiler-1.5.13.jar       (maven.google.com androidx.compose.compiler)
+Prereqs:
+  1. /tmp/vsdk/platforms/android-34/android.jar  (platform-34-ext7_r03.zip from dl.google.com/android/repository)
+  2. /tmp/vsdk/compose-compiler-1.5.13.jar       (maven.google.com/androidx/compose/compiler/compiler/1.5.13/)
   3. ./gradlew --offline -I /tmp/vesper-classpath.init.gradle -Psdk.dir=/tmp/vsdk :app:printVerificationClasspath
-     > /tmp/vesper-classpath-resolved.log
+     > /tmp/vesper-classpath-resolved.log   (init script prints 'VERIFY_CP:<path>' per debugCompileClasspath artifact)
 Only R IDs are generated placeholders; this validates Kotlin types, NOT packaging/device behaviour.
 """
 import collections, pathlib, subprocess, sys, xml.etree.ElementTree as ET, zipfile

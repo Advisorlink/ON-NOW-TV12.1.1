@@ -97,11 +97,7 @@ export default function Shelf({ shelf, onSelect, onLongPress, firstTileInitialFo
                     willChange: 'scroll-position',
                     // useShelfMotion owns horizontal positioning; no second
                     // scroll-snap or edge-comfort correction may fight it.
-                    // X only: the shorthand `contain` also cut vertical
-                    // scroll chaining, so a finger on a cover could not
-                    // scroll the page up/down (gaps between rows could).
-                    overscrollBehaviorX: 'contain',
-                    overscrollBehaviorY: 'auto',
+                    overscrollBehavior: 'contain',
                 }}
             >
                 {shelf.items.map((item, idx) => (

@@ -271,16 +271,13 @@ fun PlayerOverlay(
     // re-appears even after auto-hide.
     var dockVisible by remember { mutableStateOf(true) }
     var lastActivity by remember { mutableStateOf(System.currentTimeMillis()) }
-    // Touch/mouse activity (tap on the video, dock button presses) must
-    // reveal the dock and re-arm auto-hide exactly like a remote key.
-    var touchActivityTs by remember { mutableStateOf(0L) }
-    LaunchedEffect(userActivityTs, touchActivityTs) {
-        lastActivity = maxOf(userActivityTs, touchActivityTs)
+    LaunchedEffect(userActivityTs) {
+        lastActivity = userActivityTs
         dockVisible = true
         delay(if (!hasEverPlayed) 10_000L else 5_000L)
         if (System.currentTimeMillis() - lastActivity >= 5000) dockVisible = false
     }
-    val bump: () -> Unit = { touchActivityTs = System.currentTimeMillis() }
+    val bump: () -> Unit = { lastActivity = System.currentTimeMillis() }
 
     // Track picker sheet state
     var sheet by remember { mutableStateOf<SheetKind>(SheetKind.None) }
@@ -313,7 +310,7 @@ fun PlayerOverlay(
             detectTapGestures {
                 if (dockVisible && sheet == SheetKind.None) {
                     dockVisible = false
-                } else if (sheet == SheetKind.None) {
+                } else {
                     bump()
                 }
             }

@@ -38,7 +38,6 @@ class MainActivity : AppCompatActivity() {
      *  lifecycle methods from crashing if WebView init failed
      *  (e.g. a phone without Android System WebView installed). */
     private var webViewReady: Boolean = false
-    private var playbackTouchRecovery: PlaybackTouchRecovery? = null
     private var pendingVoiceCallbackId: String? = null
 
     /**
@@ -727,13 +726,6 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(webView)
         webViewReady = true
-        if (!isTv && packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)) {
-            try {
-                playbackTouchRecovery = PlaybackTouchRecovery(webView).also { it.install() }
-            } catch (error: Exception) {
-                android.util.Log.e("VesperMain", "Playback touch recovery unavailable", error)
-            }
-        }
         webView.loadUrl(finalBootUrl)
     }
 
@@ -746,7 +738,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        NativePlaybackSession.returned(this)
         applyImmersiveMode()
         if (webViewReady) webView.onResume()
         consumeNextEpisodeIntent()
@@ -808,7 +799,6 @@ class MainActivity : AppCompatActivity() {
      */
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
-        NativePlaybackSession.hostEvent(this, "host-new-intent", intent.action ?: "")
         try {
             val routeExtra = intent.getStringExtra("vesper_route").orEmpty()
             val dataQuery  = intent.data?.encodedQuery.orEmpty()
@@ -947,8 +937,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
-        playbackTouchRecovery?.cancel()
-        NativePlaybackSession.hostEvent(this, "host-pause")
         super.onPause()
         if (webViewReady) webView.onPause()
         // v2.7.46 — persist current WebView URL so we can restore it
@@ -975,15 +963,6 @@ class MainActivity : AppCompatActivity() {
                     .apply()
             }
         } catch (_: Exception) {}
-    }
-
-    fun reportNativePlayback(status: org.json.JSONObject) {
-        if (!webViewReady || isDestroyed) return
-        webView.post {
-            if (!isDestroyed) webView.evaluateJavascript(
-                "window.dispatchEvent(new CustomEvent('vesper:native-playback', {detail:${status}}));", null,
-            )
-        }
     }
 
     /** Remove any `profile=…` query parameter from a Vesper URL, while

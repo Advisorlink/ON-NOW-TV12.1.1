@@ -378,8 +378,7 @@ class VlcPlayerActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        NativePlaybackSession.stage(intent, "player-create", "engine=legacy-vlc sdk=${android.os.Build.VERSION.SDK_INT}")
-        try { requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE } catch (_: Throwable) {}
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         window.setFlags(
             WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
             WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
@@ -479,7 +478,6 @@ class VlcPlayerActivity : AppCompatActivity() {
         }
 
         setContentView(R.layout.activity_vlc_player)
-        NativePlaybackSession.opened(intent)
         videoLayout = findViewById(R.id.video_layout)
         rootControls = findViewById(R.id.controls_root)
         backBtn = findViewById(R.id.btn_back)
@@ -689,7 +687,7 @@ class VlcPlayerActivity : AppCompatActivity() {
             }
         })
 
-        // Hide system bars for full immersion (cosmetic — never fatal)
+        // Hide system bars for full immersion
         try {
             @Suppress("DEPRECATION")
             window.decorView.systemUiVisibility = (
@@ -3143,18 +3141,7 @@ class VlcPlayerActivity : AppCompatActivity() {
         if (this::mediaPlayer.isInitialized) mediaPlayer.pause()
     }
 
-    override fun finish() {
-        try {
-            val caller = Thread.currentThread().stackTrace
-                .firstOrNull { it.className.startsWith("tv.vesper.app") && it.methodName != "finish" && !it.methodName.startsWith("access$") }
-                ?.let { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" } ?: "?"
-            NativePlaybackSession.stage(intent, "player-finish", "from=$caller")
-        } catch (_: Throwable) {}
-        super.finish()
-    }
-
     override fun onDestroy() {
-        NativePlaybackSession.stage(intent, "player-destroy", "finishing=$isFinishing")
         // v2.16.31 — Drop the row from the launcher-admin Live tab.
         try { tv.vesper.app.data.VesperPresenceReporter.stop(this) } catch (_: Throwable) {}
         // Final progress flush so the Continue Watching shelf picks

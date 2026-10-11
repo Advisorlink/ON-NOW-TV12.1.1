@@ -12,10 +12,13 @@
  * swipes on touch devices — exactly the behaviour the user
  * reported ("horizontal works, vertical doesn't").
  *
- * Runtime priority: explicit URL/session override, then the underlying
- * device UA (ignoring the APK's OnNowTV suffix), then narrow touch input.
- * Android/iPad tablets stay handheld in landscape regardless of width;
- * genuine TV UAs remain on the remote-controlled path.
+ * The new logic, in priority order:
+ *   1. Explicit URL / sessionStorage override (`?mobile=1` / `?mobile=0`)
+ *   2. User-agent contains "Mobile" → mobile (phones always
+ *      include "Mobile" in the UA; Android TV / WebView on TV
+ *      boxes never do)
+ *   3. Old combo: viewport < 900 px AND touch primary
+ *   4. Default: not mobile (TV path)
  *
  * The hook subscribes to window resizes + orientation changes so
  * rotating the phone re-checks (e.g. landscape may push viewport
@@ -23,7 +26,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import { isHandheldInput } from '@/lib/deviceInput';
+
+const MOBILE_BREAKPOINT = 900;   // px
 
 function detect() {
     if (typeof window === 'undefined' || typeof document === 'undefined') {
@@ -45,15 +49,27 @@ function detect() {
         if (stored === '0') return false;
     } catch { /* ignore */ }
 
-    /* Match the underlying device, not the APK's OnNowTV UA suffix. */
+    /* 2. User-agent check.  Phone UAs (Android, iPhone, etc.)
+       ALWAYS contain "Mobile".  Android TV / Smart TV UAs never
+       do.  This is the cleanest signal we have on a WebView. */
     try {
-        return isHandheldInput({
-            userAgent: navigator.userAgent || '',
-            coarse: typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches,
-            touchPoints: navigator.maxTouchPoints || 0,
-            touchEvents: 'ontouchstart' in window,
-            width: window.innerWidth,
-        });
+        const ua = navigator.userAgent || '';
+        if (/Mobile|iPhone|iPad/.test(ua) && !/TV|SMART-TV|GoogleTV|AppleTV|HbbTV|NetCast|BRAVIA|Crkey/i.test(ua)) {
+            return true;
+        }
+    } catch { /* ignore */ }
+
+    /* 3. Old combo as a last resort. */
+    try {
+        const coarse = (typeof window.matchMedia === 'function')
+            ? window.matchMedia('(pointer: coarse)').matches
+            : false;
+        const hasTouch =
+            coarse ||
+            (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0) ||
+            'ontouchstart' in window;
+        const narrow = window.innerWidth < MOBILE_BREAKPOINT;
+        if (narrow && hasTouch) return true;
     } catch { /* ignore */ }
 
     /* 4. Default: TV / desktop. */
