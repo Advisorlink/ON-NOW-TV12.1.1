@@ -99,6 +99,17 @@ export default function useLongPress(onLongPress, onTap, { duration = 700 } = {}
         if (heldRef.current) return; // already holding
         heldRef.current = true;
         longPressFiredRef.current = false;
+        // Focus often moves away mid-hold (confirm card / modal opens), so
+        // the element never sees its own keyup.  Release from the window
+        // too, or the hook stays "held" and the next tap is swallowed.
+        const onWindowUp = (e) => {
+            if (e.type === 'keyup' && e.key !== 'Enter' && e.key !== ' ') return;
+            window.removeEventListener('keyup', onWindowUp, true);
+            window.removeEventListener('mouseup', onWindowUp, true);
+            if (heldRef.current) release();
+        };
+        window.addEventListener('keyup', onWindowUp, true);
+        window.addEventListener('mouseup', onWindowUp, true);
         if (elRef.current) elRef.current.setAttribute('data-holding', 'true');
         timerRef.current = setTimeout(() => {
             longPressFiredRef.current = true;

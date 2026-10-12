@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft,
@@ -1675,21 +1675,12 @@ function WatchLaterTile({ item, onPlay, onRemove, big }) {
     const logo = useTitleLogo(item.type === 'movie' ? 'movie' : 'series', item.id);
 
     const [confirmRemove, setConfirmRemove] = useState(false);
-    const pressTimer = useRef(null);
-    const startPress = useCallback(() => {
-        if (pressTimer.current) clearTimeout(pressTimer.current);
-        pressTimer.current = setTimeout(() => {
-            pressTimer.current = null;
-            setConfirmRemove(true);
-        }, 700);
-    }, []);
-    const cancelPress = useCallback(() => {
-        if (pressTimer.current) {
-            clearTimeout(pressTimer.current);
-            pressTimer.current = null;
-        }
-    }, []);
-    useEffect(() => () => cancelPress(), [cancelPress]);
+    // Same press-and-hold detector as poster tiles: it stops the Enter
+    // keydown before the spatial engine's el.click() can fire onPlay.
+    const press = useLongPress(
+        () => setConfirmRemove(true),
+        () => { if (!confirmRemove) onPlay(); },
+    );
 
     // Pressing Back / Escape while the confirm card is showing
     // should DISMISS the confirm, not navigate away from Library.
@@ -1706,6 +1697,18 @@ function WatchLaterTile({ item, onPlay, onRemove, big }) {
             }
         };
         window.addEventListener('keydown', onKey, true);
+        // The OK that opened us is still held: the engine clicks whatever
+        // is focused on keyup (now Cancel).  Swallow that first release.
+        let armed = false;
+        const onUp = (e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            if (armed) return;
+            armed = true;
+            e.preventDefault();
+            e.stopPropagation();
+        };
+        window.addEventListener('keyup', onUp, true);
+        const armTimer = setTimeout(() => { armed = true; }, 1500);
         // Imperatively focus Cancel when the confirm appears so
         // the safe action is highlighted by default.
         const grab = () => {
@@ -1725,6 +1728,8 @@ function WatchLaterTile({ item, onPlay, onRemove, big }) {
         const t2 = setTimeout(grab, 160);
         return () => {
             window.removeEventListener('keydown', onKey, true);
+            window.removeEventListener('keyup', onUp, true);
+            clearTimeout(armTimer);
             cancelAnimationFrame(r);
             clearTimeout(t1);
             clearTimeout(t2);
@@ -1734,26 +1739,6 @@ function WatchLaterTile({ item, onPlay, onRemove, big }) {
     const tileSize = big
         ? { width: '100%', minWidth: 0 }
         : { width: '100%', minWidth: 0 };
-
-    const handleClick = () => {
-        if (confirmRemove) return;
-        onPlay();
-    };
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter' || e.key === ' ' || e.keyCode === 13) {
-            if (!e.repeat) startPress();
-        }
-    };
-    const handleKeyUp = (e) => {
-        if (e.key === 'Enter' || e.key === ' ' || e.keyCode === 13) {
-            const wasShortPress = !!pressTimer.current;
-            cancelPress();
-            if (wasShortPress && !confirmRemove) {
-                e.preventDefault();
-                onPlay();
-            }
-        }
-    };
 
     if (confirmRemove) {
         return (
@@ -1836,12 +1821,7 @@ function WatchLaterTile({ item, onPlay, onRemove, big }) {
             data-focusable="true"
             data-focus-style="tile"
             tabIndex={0}
-            onClick={handleClick}
-            onKeyDown={handleKeyDown}
-            onKeyUp={handleKeyUp}
-            onMouseDown={startPress}
-            onMouseUp={cancelPress}
-            onMouseLeave={cancelPress}
+            {...press}
             aria-label={title}
             className="relative overflow-hidden text-left block"
             style={{

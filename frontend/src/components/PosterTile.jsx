@@ -84,16 +84,23 @@ function PosterTile({ item, onSelect, onLongPress: onLongPressProp, initialFocus
 
     const press = useLongPress(onLongPress, onTap);
 
-    // Trailer hover card's "Open to Play" fires this on the tile.
+    // Trailer hover card's "Play Movie" / "Add to Library" fire these on the tile.
     const tapRef = React.useRef(onTap);
     tapRef.current = onTap;
+    const holdRef = React.useRef(onLongPress);
+    holdRef.current = onLongPress;
     const btnRef = React.useRef(null);
     React.useEffect(() => {
         const el = btnRef.current;
         if (!el) return undefined;
         const open = () => tapRef.current();
+        const add = () => holdRef.current();
         el.addEventListener('vesper:preview-open', open);
-        return () => el.removeEventListener('vesper:preview-open', open);
+        el.addEventListener('vesper:preview-add', add);
+        return () => {
+            el.removeEventListener('vesper:preview-open', open);
+            el.removeEventListener('vesper:preview-add', add);
+        };
     }, []);
 
     // Metadata for the Netflix-style hover/focus trailer preview.

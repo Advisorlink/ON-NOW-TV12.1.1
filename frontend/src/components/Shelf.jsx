@@ -47,8 +47,36 @@ export default function Shelf({ shelf, onSelect, onLongPress, firstTileInitialFo
     }, []);
     const recycle = perf.recycle;
     const allItems = shelf.pending ? (lazyItems || []) : shelf.items;
-    const items = allItems.length > perf.limit ? allItems.slice(0, perf.limit) : allItems;
-    const { wideIndex, onFocus } = useShelfMotion(scroller, items.length, trailers);
+    // "Show more" at the end of the row reveals the next batch (and asks
+    // the owner for another page via shelf.loadMore when we run dry).
+    const [extra, setExtra] = useState(0);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const focusIdxRef = useRef(null);
+    useEffect(() => { setExtra(0); }, [shelf.id]);
+    const limit = perf.limit + extra;
+    const items = allItems.length > limit ? allItems.slice(0, limit) : allItems;
+    const hiddenCount = allItems.length - items.length;
+    const canLoadMore = typeof shelf.loadMore === 'function' && shelf.hasMore !== false;
+    const showMore = items.length > 0 && (hiddenCount > 0 || canLoadMore);
+    const onShowMore = async () => {
+        if (loadingMore) return;
+        focusIdxRef.current = items.length;
+        if (hiddenCount > 0) { setExtra((e) => e + perf.limit); return; }
+        setLoadingMore(true);
+        try { await shelf.loadMore(); setExtra((e) => e + perf.limit); }
+        catch { focusIdxRef.current = null; }
+        finally { setLoadingMore(false); }
+    };
+    // Land on the first newly revealed title so the row keeps flowing.
+    useEffect(() => {
+        const idx = focusIdxRef.current;
+        if (idx == null || idx >= items.length) return;
+        focusIdxRef.current = null;
+        const cell = scroller.current?.querySelectorAll(':scope > [data-shelf-cell]')[idx];
+        const btn = cell?.querySelector('[data-focusable="true"]');
+        if (btn) requestAnimationFrame(() => btn.focus({ preventScroll: true }));
+    }, [items.length]);
+    const { wideIndex, onFocus } = useShelfMotion(scroller, items.length + (showMore ? 1 : 0), trailers);
     // Lazy row whose catalog came back empty / dead → collapse it.
     const collapsed = shelf.pending && lazyItems && lazyItems.length === 0 && !shelf.empty;
     // RecyclerView-style windowing: only tiles near the focused slot get
@@ -100,7 +128,7 @@ export default function Shelf({ shelf, onSelect, onLongPress, firstTileInitialFo
                         textTransform: 'uppercase',
                     }}
                 >
-                    {shelf.pending && !lazyItems ? 'loading…' : `${items.length} titles`}
+                    {shelf.pending && !lazyItems ? 'loading…' : `${items.length}${hiddenCount > 0 ? ` of ${allItems.length}` : ''} titles`}
                 </span>
             </header>
 
@@ -161,6 +189,60 @@ export default function Shelf({ shelf, onSelect, onLongPress, firstTileInitialFo
                         )}
                     </div>
                 ))}
+                {showMore && (
+                    <div
+                        data-shelf-cell="true"
+                        data-testid={`shelf-cell-${shelf.id}-more`}
+                        className="vesper-shelf-cell shrink-0"
+                    >
+                        <button
+                            type="button"
+                            data-testid={`shelf-more-${shelf.id}`}
+                            data-focusable="true"
+                            data-focus-style="tile"
+                            data-preview="true"
+                            tabIndex={0}
+                            onClick={onShowMore}
+                            aria-label="Show more titles"
+                            className="rounded-xl flex flex-col items-center justify-center"
+                            style={{
+                                '--tile-w': 'clamp(132px, 11.5vw, 198px)',
+                                width: 'var(--tile-w)',
+                                height: 'calc(var(--tile-w) * 1.5)',
+                                gap: 10,
+                                background: 'linear-gradient(160deg, rgba(var(--vesper-blue-rgb),0.18) 0%, rgba(255,255,255,0.04) 100%)',
+                                border: '1px solid rgba(var(--vesper-blue-rgb),0.35)',
+                                color: 'var(--vesper-text)',
+                                padding: 0,
+                            }}
+                        >
+                            <span
+                                className="flex items-center justify-center rounded-full"
+                                style={{
+                                    width: 52,
+                                    height: 52,
+                                    background: 'rgba(var(--vesper-blue-rgb),0.22)',
+                                    border: '1px solid rgba(var(--vesper-blue-rgb),0.5)',
+                                    fontSize: 30,
+                                    lineHeight: 1,
+                                    fontWeight: 300,
+                                    color: 'var(--vesper-blue-bright)',
+                                }}
+                            >
+                                {loadingMore ? '…' : '+'}
+                            </span>
+                            <span className="vesper-display" style={{ fontSize: 'clamp(14px, 1.1vw, 18px)', fontWeight: 700 }}>
+                                {loadingMore ? 'Loading' : 'Show more'}
+                            </span>
+                            <span
+                                className="vesper-mono"
+                                style={{ fontSize: 'clamp(9px, 0.62vw, 11px)', letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--vesper-text-3)' }}
+                            >
+                                {hiddenCount > 0 ? `${hiddenCount} more` : 'next page'}
+                            </span>
+                        </button>
+                    </div>
+                )}
                 {/* Trailing runway so the last tiles can still park
                     in slot 2 under the focus-lock. */}
                 <div aria-hidden="true" className="shrink-0" style={{ width: '100vw', height: 1 }} />

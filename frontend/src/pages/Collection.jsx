@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import SideNav from '@/components/SideNav';
@@ -32,10 +32,11 @@ const toTile = (slug, it) => ({
     routePath: `/resolve/${it.type === 'series' ? 'tv' : 'movie'}/${it.tmdb_id}`,
 });
 
-async function fetchAll(slug, type, region, pages) {
+async function fetchPages(slug, type, region, from, to, seen = new Set()) {
     const out = [];
-    const seen = new Set();
-    for (let p = 1; p <= pages; p += 1) {
+    let lastPage = from - 1;
+    let totalPages = 1;
+    for (let p = from; p <= to; p += 1) {
         const r = await fetch(`${API}/collections/${slug}?type=${type}&page=${p}&region=${region}`, { cache: 'no-store' });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const data = (await r.json())?.data || {};
@@ -44,9 +45,11 @@ async function fetchAll(slug, type, region, pages) {
             seen.add(it.tmdb_id);
             out.push(toTile(slug, it));
         }
-        if (p >= (data.total_pages || 1)) break;
+        lastPage = p;
+        totalPages = data.total_pages || 1;
+        if (p >= totalPages) break;
     }
-    return out;
+    return { items: out, page: lastPage, totalPages };
 }
 
 export default function Collection() {
@@ -60,6 +63,9 @@ export default function Collection() {
     const [series, setSeries] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    // Paging state per row for the "Show more" tile at the end of the rail.
+    const pagingRef = useRef({ movie: { page: 0, totalPages: 1, seen: new Set() }, tv: { page: 0, totalPages: 1, seen: new Set() } });
+    const [hasMore, setHasMore] = useState({ movie: false, tv: false });
 
     useEffect(() => {
         if (!col) return;
@@ -68,16 +74,21 @@ export default function Collection() {
         setError(null);
         setMovies([]);
         setSeries([]);
+        pagingRef.current = { movie: { page: 0, totalPages: 1, seen: new Set() }, tv: { page: 0, totalPages: 1, seen: new Set() } };
         (async () => {
             try {
                 const region = col.region || 'US';
+                const pg = pagingRef.current;
                 const [m, s] = await Promise.all([
-                    fetchAll(slug, 'movie', region, 3),
-                    col.moviesOnly ? Promise.resolve([]) : fetchAll(slug, 'tv', region, 2),
+                    fetchPages(slug, 'movie', region, 1, 3, pg.movie.seen),
+                    col.moviesOnly ? Promise.resolve({ items: [], page: 0, totalPages: 0 }) : fetchPages(slug, 'tv', region, 1, 2, pg.tv.seen),
                 ]);
                 if (cancel) return;
-                setMovies(m);
-                setSeries(s);
+                pg.movie.page = m.page; pg.movie.totalPages = m.totalPages;
+                pg.tv.page = s.page; pg.tv.totalPages = s.totalPages;
+                setHasMore({ movie: m.page < m.totalPages, tv: s.page < s.totalPages });
+                setMovies(m.items);
+                setSeries(s.items);
             } catch (e) {
                 if (!cancel) setError(e?.message || 'Could not load this collection');
             } finally {
@@ -85,6 +96,16 @@ export default function Collection() {
             }
         })();
         return () => { cancel = true; };
+    }, [slug, col]);
+
+    const loadMore = useCallback(async (type) => {
+        const pg = pagingRef.current[type];
+        if (pg.page >= pg.totalPages) return;
+        const region = col?.region || 'US';
+        const next = await fetchPages(slug, type, region, pg.page + 1, pg.page + 1, pg.seen);
+        pg.page = next.page; pg.totalPages = next.totalPages;
+        setHasMore((h) => ({ ...h, [type]: next.page < next.totalPages }));
+        (type === 'movie' ? setMovies : setSeries)((prev) => [...prev, ...next.items]);
     }, [slug, col]);
 
     const isBoxSet = col?.group === 'boxset';
@@ -100,13 +121,22 @@ export default function Collection() {
                 eyebrow: isBoxSet ? 'Box set' : 'Studio',
                 title: isBoxSet ? `${col.name} · Films in order` : `${col.name} · Movies`,
                 items: movies,
+                hasMore: hasMore.movie,
+                loadMore: () => loadMore('movie'),
             });
         }
         if (series.length) {
-            list.push({ id: `collection-${slug}-series`, eyebrow: 'Studio', title: `${col.name} · TV Shows`, items: series });
+            list.push({
+                id: `collection-${slug}-series`,
+                eyebrow: 'Studio',
+                title: `${col.name} · TV Shows`,
+                items: series,
+                hasMore: hasMore.tv,
+                loadMore: () => loadMore('tv'),
+            });
         }
         return list;
-    }, [col, slug, movies, series, isBoxSet]);
+    }, [col, slug, movies, series, isBoxSet, hasMore, loadMore]);
 
     if (!col) {
         return (

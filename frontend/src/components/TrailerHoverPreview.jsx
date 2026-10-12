@@ -13,7 +13,7 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Maximize2, Play } from 'lucide-react';
+import { Maximize2, Play, Plus } from 'lucide-react';
 import { getAutoTrailer } from '@/lib/prefs';
 import {
     fetchTrailerCandidates,
@@ -271,6 +271,10 @@ export default function TrailerHoverPreview() {
         setActions(false);
         tile.dispatchEvent(new CustomEvent('vesper:preview-open'));
     };
+    const addToLibrary = () => {
+        setActions(false);
+        tile.dispatchEvent(new CustomEvent('vesper:preview-add'));
+    };
 
     return (
         <>
@@ -362,8 +366,10 @@ export default function TrailerHoverPreview() {
             {actions && (
                 <PreviewActions
                     tile={tile}
+                    isSeries={tile.getAttribute('data-preview-type') === 'tv'}
                     onFullscreen={openFullscreen}
                     onOpen={openTitle}
+                    onAdd={addToLibrary}
                     onClose={closeActions}
                 />
             )}
@@ -390,9 +396,10 @@ export default function TrailerHoverPreview() {
     );
 }
 
-/* Two pill actions floated over the playing card (portaled to body so
- * we never nest <button>s).  Own key handling + focus trap. */
-function PreviewActions({ tile, onFullscreen, onOpen, onClose }) {
+/* Three stacked pill actions floated over the playing card (portaled to
+ * body so we never nest <button>s).  UP/DOWN moves between them,
+ * LEFT/RIGHT or BACK returns to the row.  Own focus trap. */
+function PreviewActions({ tile, isSeries, onFullscreen, onOpen, onAdd, onClose }) {
     const [rect, setRect] = useState(() => tile.getBoundingClientRect());
     const firstRef = useRef(null);
     // Android BACK closes the actions instead of leaving Home.
@@ -412,16 +419,16 @@ function PreviewActions({ tile, onFullscreen, onOpen, onClose }) {
 
     const onKeyDown = (e) => {
         const k = e.key;
-        if (k === 'ArrowLeft' || k === 'ArrowRight') {
+        if (k === 'ArrowUp' || k === 'ArrowDown') {
             e.preventDefault();
             e.stopPropagation();
             const btns = Array.from(e.currentTarget.querySelectorAll('button'));
             const i = btns.indexOf(document.activeElement);
-            const n = k === 'ArrowRight' ? Math.min(btns.length - 1, i + 1) : Math.max(0, i - 1);
+            const n = k === 'ArrowDown' ? Math.min(btns.length - 1, i + 1) : Math.max(0, i - 1);
             btns[n]?.focus({ preventScroll: true });
             return;
         }
-        if (k === 'ArrowUp' || k === 'ArrowDown') {
+        if (k === 'ArrowLeft' || k === 'ArrowRight') {
             e.preventDefault();
             e.stopPropagation();
             onClose();
@@ -433,6 +440,11 @@ function PreviewActions({ tile, onFullscreen, onOpen, onClose }) {
             triggerTrapBack();
         }
     };
+
+    const compact = rect.height < 200;
+    const btnStyle = compact
+        ? { ...actionBtnStyle, padding: '7px 14px', fontSize: 'clamp(11px, 0.75vw, 13px)' }
+        : actionBtnStyle;
 
     return createPortal(
         <div
@@ -447,11 +459,12 @@ function PreviewActions({ tile, onFullscreen, onOpen, onClose }) {
                 height: rect.height,
                 zIndex: 60,
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 12,
+                gap: compact ? 6 : 10,
                 borderRadius: 12,
-                background: 'rgba(5,7,13,0.45)',
+                background: 'rgba(5,7,13,0.55)',
                 animation: 'vesper-hoverprev-in 160ms ease-out both',
             }}
         >
@@ -463,9 +476,9 @@ function PreviewActions({ tile, onFullscreen, onOpen, onClose }) {
                 data-focus-style="pill"
                 tabIndex={0}
                 onClick={onFullscreen}
-                style={actionBtnStyle}
+                style={btnStyle}
             >
-                <Maximize2 size={15} /> Play Full Screen
+                <Maximize2 size={15} /> Open Trailer
             </button>
             <button
                 type="button"
@@ -474,9 +487,20 @@ function PreviewActions({ tile, onFullscreen, onOpen, onClose }) {
                 data-focus-style="pill"
                 tabIndex={0}
                 onClick={onOpen}
-                style={actionBtnStyle}
+                style={btnStyle}
             >
-                <Play size={15} /> Open to Play
+                <Play size={15} /> {isSeries ? 'Play Show' : 'Play Movie'}
+            </button>
+            <button
+                type="button"
+                data-testid="trailer-hover-add"
+                data-focusable="true"
+                data-focus-style="pill"
+                tabIndex={0}
+                onClick={onAdd}
+                style={btnStyle}
+            >
+                <Plus size={15} /> Add to Library
             </button>
         </div>,
         document.body
@@ -488,6 +512,8 @@ const actionBtnStyle = {
     alignItems: 'center',
     gap: 8,
     padding: '10px 18px',
+    minWidth: 'min(72%, 220px)',
+    justifyContent: 'center',
     borderRadius: 999,
     background: 'rgba(0,0,0,0.62)',
     border: '1px solid rgba(255,255,255,0.28)',

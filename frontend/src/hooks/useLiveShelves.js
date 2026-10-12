@@ -60,8 +60,7 @@ export async function fetchShelfItems(shelf) {
         throw err;
     }
     const metas = res?.data?.metas || [];
-    const limit = Number(getPerf('itemsPerRow')) || 60;
-    return metas.slice(0, limit).map((m) => metaToItem(shelf.addonId, shelf.catType, m));
+    return metas.slice(0, 60).map((m) => metaToItem(shelf.addonId, shelf.catType, m));
 }
 const TTL_MS = 10 * 60 * 1000; // 10 min stale window
 
@@ -73,13 +72,14 @@ function cacheKey(addons, filterType) {
     // when the user clicked the TV Shows tab for the first time
     // after we changed the limit.
     const ids = (addons || []).map((a) => a.id).sort().join(',');
-    return `shelves:${filterType || 'all'}:${ids}`;
+    return `shelves:v2:${filterType || 'all'}:${ids}`;
 }
 
 export function useLiveShelves(addons, filterType = null, itemsPerCatalog = 18) {
     // ALWAYS fetch the larger of (itemsPerCatalog, 60) so a single
     // cache entry can satisfy both home (18) and tab-grid (60).
-    const FETCH_LIMIT = Math.min(Math.max(itemsPerCatalog, 60), Number(getPerf('itemsPerRow')) || 60);
+    // Fetch the full 60 so Shelf's "Show more" tile can reveal beyond itemsPerRow.
+    const FETCH_LIMIT = Math.max(itemsPerCatalog, 60);
     const strategy = getPerf('rowLoading');
     const [perfTick, setPerfTick] = useState(0);
     const key = cacheKey(addons, filterType);
