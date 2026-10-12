@@ -1,12 +1,9 @@
 import React from 'react';
-import { PERF_OPTIONS, getPerf, setPerf, resetPerf, PERF_CHANGE } from '@/lib/perfLab';
-import { gradeFor } from '@/lib/perfMetrics';
-import { BENCH_DONE, BENCH_PRESSES, clearBenchResults, describeSettings, getBenchResults, requestBenchmark } from '@/lib/perfBench';
 import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, Check, ShieldCheck,
     Cloud, Download, Upload, Copy, Loader2, KeyRound, AlertTriangle,
-    Sparkles, Lightbulb, LogOut, Heart, Palette, Play, LayoutGrid, HelpCircle, Database, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Plus, Trash2, X, Search, Gauge } from 'lucide-react';
+    Sparkles, Lightbulb, LogOut, Heart, Palette, Play, LayoutGrid, HelpCircle, Database, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Plus, Trash2, X, Search } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useBackHandler from '@/hooks/useBackHandler';
 import FullscreenButton from '@/components/FullscreenButton';
@@ -25,10 +22,7 @@ import { replayOnboarding } from '@/components/Onboarding';
  */
 export default function Settings() {
     useSpatialFocus();
-    const [section, setSection] = React.useState(() => {
-        try { return sessionStorage.getItem('vesper-settings-jump-to') === 'performance' ? 'performance' : 'theme'; }
-        catch { return 'theme'; }
-    });
+    const [section, setSection] = React.useState('theme');
     // BACK from remote → return to Home.
     useBackHandler();
     const navigate = useNavigate();
@@ -69,12 +63,6 @@ export default function Settings() {
         let target = '';
         try { target = sessionStorage.getItem('vesper-settings-jump-to') || ''; }
         catch { /* private mode */ }
-        if (target === 'performance') {
-            setSection('performance');
-            // Remove late: a gate-driven remount within the first seconds must still land here.
-            const t = setTimeout(() => { try { sessionStorage.removeItem('vesper-settings-jump-to'); } catch { /* ignore */ } }, 3000);
-            return () => clearTimeout(t);
-        }
         if (target !== 'backup') return;
         try { sessionStorage.removeItem('vesper-settings-jump-to'); }
         catch { /* ignore */ }
@@ -447,17 +435,6 @@ export default function Settings() {
             </div>
             </div>
 
-            {/* ---- PERFORMANCE LAB ---- */}
-            <div data-testid="shelf-page" data-settings-section="performance" hidden={section !== 'performance'}>
-            <SectionHeader
-                eyebrow="Settings · Performance lab"
-                title="Test what makes the box smooth"
-                icon={Gauge}
-            />
-            <PerformanceLabPanel />
-            <PerfBenchPanel />
-            </div>
-
             {/* ---- WELCOME TOUR ---- */}
             <div data-testid="shelf-page" data-settings-section="welcome-tour" hidden={section !== 'welcome-tour'}>
             <SectionHeader
@@ -557,7 +534,6 @@ const SETTINGS_SECTIONS = [
     { id: 'viewing-preference', label: 'Personalise',  hint: 'Your viewing style',        icon: Sparkles },
     { id: 'welcome-tour',       label: 'Help',         hint: 'Welcome tour',              icon: HelpCircle },
     { id: 'tips',               label: 'Tips',         hint: 'Remote shortcuts',            icon: Lightbulb },
-    { id: 'performance',        label: 'Performance',  hint: 'A/B test smoothness',       icon: Gauge },
     { id: 'backup',             label: 'Backup',       hint: 'Save & restore',            icon: Database },
     { id: 'signout',            label: 'Sign out',     hint: 'End this session',          icon: LogOut },
 ];
@@ -689,8 +665,7 @@ function SettingsNav({ section, onPick }) {
                         onClick={() => onPick(id)}
                         onFocus={() => onPick(id)}
                         onKeyDown={railKey}
-                        {...(i === 0 && section === 'theme' ? { 'data-initial-focus': 'true' } : {})}
-                        {...(active && section !== 'theme' ? { 'data-initial-focus': 'true' } : {})}
+                        {...(i === 0 ? { 'data-initial-focus': 'true' } : {})}
                         className="flex items-center gap-3 text-left"
                         style={{
                             padding: '10px 12px',
@@ -1706,168 +1681,6 @@ function ToggleRow({ testid, title, description, value, onToggle }) {
  *   3. Watch 5+ min — if ExoPlayer doesn't buffer, libVLC was the bug.
  *  ──────────────────────────────────
  */
-/** Performance lab — every strategy is switchable live (no APK
- *  rebuild).  The active choice is marked ● and the HUD shows what is
- *  running on screen. */
-function PerformanceLabPanel() {
-    const [, force] = React.useReducer((n) => n + 1, 0);
-    React.useEffect(() => {
-        window.addEventListener(PERF_CHANGE, force);
-        return () => window.removeEventListener(PERF_CHANGE, force);
-    }, []);
-    return (
-        <div data-testid="performance-lab">
-            <div style={{
-                marginBottom: 14, fontSize: 12, lineHeight: 1.5,
-                color: 'var(--vesper-text-2)', maxWidth: '78ch',
-            }}>
-                Each row below is one thing that can make navigation chunky on a TV box.
-                Pick a variant, go back to Home and feel it — the change is live immediately
-                (catalogue rows refetch when you change how they load).
-                Turn on the <strong>Performance HUD</strong> to see how many milliseconds each
-                D-pad press takes to reach the screen, or use <strong>Run benchmark</strong> below
-                for a like-for-like score per setup. The <strong>Auto trailers</strong> switch under
-                Playback also changes the rows (wide preview card) — worth a run with it off.
-            </div>
-            {Object.entries(PERF_OPTIONS).map(([key, opt]) => {
-                const cur = getPerf(key);
-                return (
-                    <div
-                        key={key}
-                        data-testid={`perf-row-${key}`}
-                        style={{
-                            background: 'rgba(255,255,255,0.04)',
-                            border: '1px solid rgba(255,255,255,0.08)',
-                            borderRadius: 10, padding: '14px 18px', marginBottom: 8,
-                        }}
-                    >
-                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--vesper-text)' }}>
-                            {opt.label}
-                            <span data-testid={`perf-active-${key}`} style={{
-                                fontSize: 9, fontWeight: 700, letterSpacing: '0.22em',
-                                color: '#7CF1F1', marginLeft: 10, textTransform: 'uppercase',
-                            }}>
-                                Active: {opt.values.find((v) => v.id === cur)?.label}
-                                {cur === opt.default ? ' · default' : ''}
-                            </span>
-                        </div>
-                        <div style={{ marginTop: 3, fontSize: 11, lineHeight: 1.4, color: 'var(--vesper-text-2)' }}>
-                            {opt.hint}
-                        </div>
-                        <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-                            {opt.values.map((v) => (
-                                <PlayerBackendPill
-                                    key={v.id}
-                                    label={v.label}
-                                    sub={v.sub || (v.id === opt.default ? 'default' : '')}
-                                    active={cur === v.id}
-                                    onClick={() => setPerf(key, v.id)}
-                                    testid={`perf-${key}-${v.id}`}
-                                    accent="#7CF1F1"
-                                />
-                            ))}
-                        </div>
-                    </div>
-                );
-            })}
-            <button
-                data-testid="perf-reset"
-                data-focusable="true"
-                data-focus-style="pill"
-                tabIndex={0}
-                onClick={() => resetPerf()}
-                className="flex items-center gap-2 rounded-full font-sans"
-                style={{
-                    marginTop: 6, padding: '10px 18px', fontSize: 13, fontWeight: 700,
-                    background: 'rgba(255,255,255,0.06)', color: 'var(--vesper-text)',
-                    border: '1px solid rgba(255,255,255,0.14)', cursor: 'pointer',
-                }}
-            >
-                <RotateCcw size={14} /> Reset to recommended
-            </button>
-        </div>
-    );
-}
-
-const BENCH_BTN = {
-    padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-    background: 'rgba(124,241,241,0.12)', color: '#7CF1F1', border: '1px solid rgba(124,241,241,0.4)',
-};
-
-/** Automated A/B benchmark: scripted D-pad run on Home, scored by
- *  key-press → paint latency, with a history table per variant. */
-function PerfBenchPanel() {
-    const navigate = useNavigate();
-    const [results, setResults] = React.useState(() => getBenchResults());
-    React.useEffect(() => {
-        const sync = () => setResults(getBenchResults());
-        window.addEventListener(BENCH_DONE, sync);
-        return () => window.removeEventListener(BENCH_DONE, sync);
-    }, []);
-    const start = () => { requestBenchmark(); navigate('/'); };
-    const best = results.reduce((b, r) => (r.medianMs && (!b || r.medianMs < b.medianMs) ? r : b), null);
-    return (
-        <div data-testid="perf-bench" style={{
-            marginTop: 18, background: 'rgba(124,241,241,0.05)',
-            border: '1px solid rgba(124,241,241,0.2)', borderRadius: 10, padding: '14px 18px',
-        }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--vesper-text)' }}>Benchmark this setup</div>
-            <div style={{ marginTop: 3, fontSize: 11, lineHeight: 1.4, color: 'var(--vesper-text-2)', maxWidth: '78ch' }}>
-                Goes to Home, fires {BENCH_PRESSES} D-pad presses by itself and measures how long each press takes to
-                reach the screen. Lower is better. Run each setup twice — the box is never perfectly steady — then compare the rows.
-            </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-                <button data-testid="perf-bench-run" data-focusable="true" data-focus-style="pill" tabIndex={0}
-                    onClick={start} className="flex items-center gap-2 rounded-full font-sans" style={BENCH_BTN}>
-                    <Gauge size={14} /> Run benchmark
-                </button>
-                {results.length > 0 && (
-                    <button data-testid="perf-bench-clear" data-focusable="true" data-focus-style="pill" tabIndex={0}
-                        onClick={clearBenchResults} className="flex items-center gap-2 rounded-full font-sans"
-                        style={{ ...BENCH_BTN, background: 'rgba(255,255,255,0.06)', color: 'var(--vesper-text)', border: '1px solid rgba(255,255,255,0.14)' }}>
-                        <RotateCcw size={14} /> Clear results
-                    </button>
-                )}
-            </div>
-            {results.length > 0 && (
-                <table data-testid="perf-bench-results" className="vesper-mono" style={{ width: '100%', marginTop: 14, fontSize: 11, borderCollapse: 'collapse' }}>
-                    <thead>
-                        <tr style={{ color: 'var(--vesper-text-3)', textAlign: 'left', letterSpacing: '0.12em', textTransform: 'uppercase', fontSize: 9 }}>
-                            <th style={{ padding: '4px 8px 6px 0' }}>Run</th>
-                            <th style={{ padding: '4px 8px 6px' }}>Typical press</th>
-                            <th style={{ padding: '4px 8px 6px' }}>Slowest 10%</th>
-                            <th style={{ padding: '4px 8px 6px' }}>Worst</th>
-                            <th style={{ padding: '4px 8px 6px' }}>Long tasks</th>
-                            <th style={{ padding: '4px 8px 6px' }}>Slow frames</th>
-                            <th style={{ padding: '4px 8px 6px' }}>Grade</th>
-                            <th style={{ padding: '4px 0 6px 8px' }}>Settings</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {results.map((r, i) => {
-                            const g = gradeFor(r.medianMs);
-                            return (
-                                <tr key={r.ts} data-testid={`perf-bench-row-${i}`} style={{ borderTop: '1px solid rgba(255,255,255,0.06)', color: 'var(--vesper-text-2)' }}>
-                                    <td style={{ padding: '6px 8px 6px 0', whiteSpace: 'nowrap' }}>
-                                        {new Date(r.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                        {best && best.ts === r.ts && <span style={{ color: '#7CF1A1', marginLeft: 6 }}>★ best</span>}
-                                    </td>
-                                    <td style={{ padding: '6px 8px', color: g.color, fontWeight: 800 }}>{r.medianMs} ms</td>
-                                    <td style={{ padding: '6px 8px' }}>{r.p90Ms} ms</td>
-                                    <td style={{ padding: '6px 8px' }}>{r.worstMs} ms</td>
-                                    <td style={{ padding: '6px 8px' }}>{r.longTasks} ({r.longTaskMs} ms)</td>
-                                    <td style={{ padding: '6px 8px' }}>{r.slowFrames}</td>
-                                    <td style={{ padding: '6px 8px', color: g.color }}>{g.label}</td>
-                                    <td style={{ padding: '6px 0 6px 8px', color: 'var(--vesper-text-3)' }}>{describeSettings(r.settings)}</td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-            )}
-        </div>
-    );
-}
 
 function PlayerBackendRow() {
     const [backend, setBackend] = React.useState(() => {

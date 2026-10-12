@@ -1,8 +1,9 @@
-/** Performance lab — runtime-switchable rendering / loading strategies
- *  so the TV box can be A/B tested without rebuilding the APK.
+/** Rendering / loading strategies for the TV box.  Defaults are the
+ *  setup chosen after A/B testing on the HK1 (2026-10-12); the Settings
+ *  lab UI was removed, but every knob stays switchable via setPerf().
  *  Persisted in localStorage; applied as <html> classes for CSS and
  *  read directly by hooks/components for behaviour. */
-const KEY = 'vesper-perf-lab-v1';
+const KEY = 'vesper-perf-lab-v2';
 export const PERF_CHANGE = 'vesper:perf-change';
 import * as cache from '@/lib/cache';
 
@@ -15,7 +16,7 @@ export const PERF_OPTIONS = {
             { id: 'batched', label: 'All rows, paint in batches', sub: 'one paint per 1.5 s' },
             { id: 'lazy', label: 'Only rows on screen', sub: 'fetch when scrolled near' },
         ],
-        default: 'batched',
+        default: 'lazy',
     },
     itemsPerRow: {
         label: 'Titles per row',
@@ -25,7 +26,7 @@ export const PERF_OPTIONS = {
             { id: '30', label: '30', sub: 'lighter' },
             { id: '18', label: '18', sub: 'lightest' },
         ],
-        default: '30',
+        default: '18',
     },
     recycle: {
         label: 'Tile recycling',
@@ -35,7 +36,7 @@ export const PERF_OPTIONS = {
             { id: 'normal', label: 'Normal', sub: '−6 … +12 around focus' },
             { id: 'tight', label: 'Tight', sub: '−3 … +9 around focus' },
         ],
-        default: 'normal',
+        default: 'tight',
     },
     layers: {
         label: 'GPU layers',
@@ -72,7 +73,7 @@ export const PERF_OPTIONS = {
             { id: 'delayed', label: 'After you stop', sub: '700 ms settle' },
             { id: 'off', label: 'Off', sub: 'hero never swaps' },
         ],
-        default: 'on',
+        default: 'delayed',
     },
     shelfMotion: {
         label: 'Row slide animation',
@@ -81,7 +82,7 @@ export const PERF_OPTIONS = {
             { id: 'flip', label: 'Glide', sub: 'original' },
             { id: 'instant', label: 'Instant', sub: 'jump, no animation' },
         ],
-        default: 'flip',
+        default: 'instant',
     },
     posterSize: {
         label: 'Poster image size',
@@ -90,7 +91,7 @@ export const PERF_OPTIONS = {
             { id: 'medium', label: 'Medium', sub: 'original · w342' },
             { id: 'small', label: 'Small', sub: 'w185 · ¼ of the pixels' },
         ],
-        default: 'medium',
+        default: 'small',
     },
     hud: {
         label: 'Performance HUD',

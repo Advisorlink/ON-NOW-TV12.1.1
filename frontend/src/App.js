@@ -34,7 +34,6 @@ import LiveTV from '@/pages/LiveTV';
 import DevModeBadge from '@/components/DevModeBadge';
 import NewEpisodeToast from '@/components/NewEpisodeToast';
 import AddToListModal from '@/components/AddToListModal';
-import { PerfHud, PerfBenchRunner } from '@/components/PerfHud';
 import ReminderWatcher from '@/components/ReminderWatcher';
 // v2.7.90 — DebugTouchOverlay intentionally removed.  It was a
 // one-build diagnostic with `position: fixed; z-index: 999999`
@@ -759,8 +758,6 @@ function VesperOnlyChrome() {
             <DevModeBadge />
             <NewEpisodeToast />
             <AddToListModal />
-            <PerfHud />
-            <PerfBenchRunner />
             <ReminderWatcher />
             <NotifyHitWatcher />
         </>
