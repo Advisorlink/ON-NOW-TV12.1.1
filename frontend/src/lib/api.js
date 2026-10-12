@@ -200,11 +200,16 @@ const buildExtraPath = (extra) => {
 const isEasyNewsAddon = (a) =>
     /easy[\s_-]?news/i.test(`${a?.id || ''} ${a?.name || ''}`);
 let knownHasEasyNews = null; // null = not yet known
+// Torrentio is the top-priority searchable source (after ON NOW Direct)
+// per the 2026-10-12 cascade, so autoplay holds briefly for ITS probe.
+const isTorrentioAddon = (a) => /torrentio/i.test(`${a?.id || ''} ${a?.name || ''}`);
+let knownHasTorrentio = null;
 
 export const Vesper = {
     listAddons: (opts = {}) => api.get('/addons', opts).then((r) => {
         try {
             knownHasEasyNews = Array.isArray(r.data) && r.data.some(isEasyNewsAddon);
+            knownHasTorrentio = Array.isArray(r.data) && r.data.some(isTorrentioAddon);
         } catch (_e) { /* ignore */ }
         return r.data;
     }),
@@ -325,6 +330,7 @@ export const Vesper = {
         // the tiny window before the addon list resolves.
         let addonsKnown = false;
         let easyNewsInFlight = 0;
+        let torrentioInFlight = 0;
         const probeMeta = () => ({
             // Unknown addon list: fall back to the module memo — a
             // previous listAddons already told us whether EasyNews is
@@ -333,6 +339,9 @@ export const Vesper = {
             easyNewsPending: addonsKnown
                 ? easyNewsInFlight > 0
                 : knownHasEasyNews !== false,
+            torrentioPending: addonsKnown
+                ? torrentioInFlight > 0
+                : knownHasTorrentio !== false,
         });
         const assemble = () => {
             const out = [];
@@ -400,7 +409,9 @@ export const Vesper = {
             const addons = await Vesper.listAddons({ signal });
             const probes = addons.map(async (a) => {
                 const isEN = isEasyNewsAddon(a);
+                const isTor = isTorrentioAddon(a);
                 if (isEN) easyNewsInFlight += 1;
+                if (isTor) torrentioInFlight += 1;
                 try {
                     let streamResource = null;
                     for (const r of a.resources || []) {
@@ -464,12 +475,11 @@ export const Vesper = {
                         };
                     }
                 } finally {
-                    if (isEN) {
-                        easyNewsInFlight -= 1;
-                        // Re-emit so held callers see easyNewsPending
-                        // flip false even when the probe added nothing.
-                        emit();
-                    }
+                    if (isEN) easyNewsInFlight -= 1;
+                    if (isTor) torrentioInFlight -= 1;
+                    // Re-emit so held callers see the pending flags
+                    // flip false even when the probe added nothing.
+                    if (isEN || isTor) emit();
                 }
             });
             addonsKnown = true;

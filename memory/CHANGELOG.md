@@ -12342,3 +12342,10 @@ User picked the final setup after testing; Settings → Performance section, HUD
 - Verified with tests/preview_streamcheck_e2e.py (box emulated via `window.OnNowTV`, googlevideo request held open, synthetic `playing`): badge "CAM COPY · 1" appears top-right of the wide card, disappears on ArrowRight, no page errors.
 
 - (same day, user feedback) Verdict thresholds now 1–20 / 21–35 / 36+. Badge restyled: small solid pill (green/amber/orange, white text, no stream count) top-left, under the CINEMA tag when present. Re-verified with tests/preview_streamcheck_e2e.py.
+
+
+## 2026-10-12 — Stream cascade order: Direct → Torrentio → MediaFusion → EasyNews++ → rest
+
+- `lib/streamOrder.js`: new `isMediaFusion`, `sourceRank(s)` (0 Direct, 1 Torrentio, 2 MediaFusion, 3 EasyNews++, 4 other); `orderStreams` buckets by rank (uncached debrid downloads in a 6th bucket at the very end), smallest-FHD-first inside each bucket. `scoreStream` uses the same rank ×100.
+- `lib/api.js` `getStreams` probeMeta gains `torrentioPending` (knownHasTorrentio memo + in-flight counter, re-emits on settle). `Detail.jsx` and `SeriesEpisodes.jsx` early-launch hold (≤3 s) now applies when the best partial candidate has `sourceRank > 1` and Torrentio is still probing — previously held for EasyNews.
+- Verified with a node harness (tests/stream_order_test.mjs after sed-aliasing streamMeta): Direct, Tor 1 GB, Tor 2 GB, MediaFusion, EasyNews, Plexio, Tor-uncached.

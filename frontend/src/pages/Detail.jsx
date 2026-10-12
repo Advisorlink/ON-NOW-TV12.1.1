@@ -12,7 +12,7 @@ import Host from '@/lib/host';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { API, Vesper } from '@/lib/api';
 import { qualityBadge, qualityTags, toneColors, is1080p, is4K } from '@/lib/streamMeta';
-import { orderStreams, isEasyNews, isUncachedDownload, isOnNowDirect } from '@/lib/streamOrder';
+import { orderStreams, isUncachedDownload, sourceRank } from '@/lib/streamOrder';
 import { getAutoplay1080p, setAutoplay1080p, getAutoplayTV, setAutoplayTV } from '@/lib/prefs';
 import { isKidsActive, getActiveProfile, isRatingAllowed, getKidsConfig } from '@/lib/profiles';
 import { avatarEmojiById } from '@/lib/avatars';
@@ -514,7 +514,9 @@ export default function Detail() {
                 const onPartial = (partial, probeMeta) => {
                     if (cancel) return;
                     if (probeMeta) {
-                        setEasyNewsPending(probeMeta.easyNewsPending === true);
+                        // Cascade 2026-10-12: Torrentio is the source worth
+                        // waiting (≤3 s) for; EasyNews++ is now 4th.
+                        setEasyNewsPending(probeMeta.torrentioPending === true);
                     }
                     if (Array.isArray(partial) && partial.length > 0) {
                         setStreams(partial);
@@ -1322,12 +1324,12 @@ export default function Detail() {
         // results, fire it — same fast path TV episodes already use.
         if (streamLoading) {
             if (!autoplayCandidate) return;
-            // v2.13.12 — EasyNews++-first: if EasyNews is still
-            // searching and the current best isn't EasyNews, hold
-            // (max 3 s) — the moment an EasyNews link lands the
-            // cascade re-picks it and we launch instantly.
-            // "ON NOW TV Direct" (the user's own IPTV VOD link) never waits.
-            if (!isOnNowDirect(autoplayCandidate) && !isEasyNews(autoplayCandidate) && easyNewsPending && !enHoldExpired) return;
+            // Cascade hold: if Torrentio is still searching and the
+            // current best is a lower-priority source (MediaFusion /
+            // EasyNews++ / other), hold max 3 s — the moment a Torrentio
+            // link lands the cascade re-picks it and we launch instantly.
+            // ON NOW TV Direct and Torrentio candidates never wait.
+            if (sourceRank(autoplayCandidate) > 1 && easyNewsPending && !enHoldExpired) return;
             autoplayFiredRef.current = true;
             setAutoplayFired(true);
             window.setTimeout(() => playStream(autoplayCandidate), 0);

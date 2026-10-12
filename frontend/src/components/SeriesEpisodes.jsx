@@ -12,7 +12,7 @@ import {
 import { Vesper } from '@/lib/api';
 import Host from '@/lib/host';
 import { qualityBadge, qualityTags, toneColors, is1080p } from '@/lib/streamMeta';
-import { orderStreams, isEasyNews } from '@/lib/streamOrder';
+import { orderStreams, sourceRank } from '@/lib/streamOrder';
 import StreamPickerModal from '@/components/StreamPickerModal';
 import { getAutoplay1080p, getAutoplayTV } from '@/lib/prefs';
 import * as cw from '@/lib/continueWatching';
@@ -481,14 +481,14 @@ export default function SeriesEpisodes({
                         if (Array.isArray(partial)) {
                             const cand = pickBestPlayable(partial);
                             if (cand) {
-                                // v2.13.12 — EasyNews++-first: hold a
-                                // lower-priority candidate while the
-                                // EasyNews probe is in flight (≤3 s).
+                                // Cascade 2026-10-12: hold a lower-priority
+                                // candidate while the Torrentio probe is
+                                // in flight (≤3 s).
                                 const m = partialsMetaRef.current[ep.id];
                                 if (
-                                    isEasyNews(cand) ||
+                                    sourceRank(cand) <= 1 ||
                                     !m ||
-                                    m.easyNewsPending !== true ||
+                                    m.torrentioPending !== true ||
                                     Date.now() - clickT0 > 3000
                                 ) {
                                     return partial;
@@ -564,8 +564,8 @@ export default function SeriesEpisodes({
                 if (launchedEarly) return;
                 const cand = pickBestPlayable(partial);
                 if (!cand) return;
-                const enPending = probeMeta?.easyNewsPending === true;
-                if (!isEasyNews(cand) && enPending && Date.now() - clickT0 < 3000) {
+                const torPending = probeMeta?.torrentioPending === true;
+                if (sourceRank(cand) > 1 && torPending && Date.now() - clickT0 < 3000) {
                     heldPartial = partial;
                     if (!holdTimer) {
                         holdTimer = setTimeout(

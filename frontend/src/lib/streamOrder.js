@@ -2,11 +2,12 @@
  * streamOrder — shared cascade-priority ordering for the stream list
  * passed to the native player.
  *
- * Order (lowest score = highest priority):
- *   1. EasyNews++  (Usenet direct, usually instant first-frame)
+ * Order (USER SPEC 2026-10-12, lowest score = highest priority):
+ *   1. ON NOW TV Direct (the user's own IPTV VOD link)
  *   2. Torrentio   (debrid-cached when available)
- *   3. EP-STREM / Plexio (premium direct)
- *   4. Everything else
+ *   3. MediaFusion
+ *   4. EasyNews++  (demoted — "isn't really working very well right now")
+ *   5. Everything else (EP-STREM / Plexio, custom addons)
  *
  * Within each addon source we further prefer:
  *   - 1080p > others (4K demoted; oversized for the user's bandwidth)
@@ -35,6 +36,16 @@ export const isEasyNews = (s) =>
 export const isOnNowDirect = (s) => s?._onnow_direct === true || s?._addon_id === 'onnowtv-direct';
 export const isTorrentio = (s) =>
     /torrentio/i.test(`${s?._addon_id || ''} ${s?._addon_name || ''}`);
+export const isMediaFusion = (s) =>
+    /media[\s_-]?fusion/i.test(`${s?._addon_id || ''} ${s?._addon_name || ''} ${s?._addon_source || ''}`);
+
+/** 0 = ON NOW Direct … 4 = anything else — the cascade's source rank. */
+export const sourceRank = (s) =>
+    isOnNowDirect(s)  ? 0 :
+    isTorrentio(s)    ? 1 :
+    isMediaFusion(s)  ? 2 :
+    isEasyNews(s)     ? 3 :
+    4;
 
 export const isEpStrem = (s) =>
     /plexio|ep[\s-]?strem/i.test(
@@ -69,14 +80,9 @@ function scoreStream(s) {
     // v2.13.11 — uncached debrid "download" links go to the very
     // bottom of every list (×1000 dominates all other weights).
     const dl     = isUncachedDownload(s) ? 1 : 0;
-    // Addon source dominates: 0 = EasyNews++, 1 = Torrentio, 2 = EP-STREM/Plexio,
-    // 3 = anything else.  ×100 weight so source ranking can't be swamped by
-    // a 1080p hit on an inferior addon.
-    const src =
-        isEasyNews(s)   ? 0 :
-        isTorrentio(s)  ? 1 :
-        isEpStrem(s)    ? 2 :
-        3;
+    // Addon source dominates (×100) so source ranking can't be swamped
+    // by a 1080p hit on a lower-priority addon.
+    const src = sourceRank(s);
     return dl * 1000 + src * 100 + ten * 20 + four * 50 + av1 * 50 + dir * 4 + strict * 2 + eng + sized * 10;
 }
 
@@ -84,23 +90,19 @@ function scoreStream(s) {
  * Returns a NEW array with the streams sorted in cascade priority.
  * Input is returned as-is when null / empty / not an array.
  *
- * USER SPEC — smallest-FHD-first, EasyNews++ block leading:
- *   • EasyNews++ links first: 1080p (FHD) sorted by size ASC, then
- *     sub-1080p "HD" copies.
- *   • Everything else follows the SAME rule — lowest-size 1080p
- *     first (e.g. smallest Torrentio cached 1080p when there's no
- *     Easy++) — with two safety sinks that always drop to the
- *     bottom: uncached debrid "download" links (30 s+ cloud
- *     transfer) and AV1 encodes (no hardware decoder on the box).
- *   • Unknown size sorts after sized links; quality score breaks ties.
+ * USER SPEC — source blocks in cascade order (ON NOW Direct →
+ * Torrentio → MediaFusion → EasyNews++ → rest); inside each block the
+ * smallest 1080p (FHD) link comes first, then sub-1080p / AV1 copies
+ * (no AV1 hardware decoder on the box).  Uncached debrid "download"
+ * links (30 s+ cloud transfer) sink below every source.  Unknown size
+ * sorts after sized links; quality score breaks ties.
  */
 export function orderStreams(streams) {
     if (!Array.isArray(streams) || streams.length === 0) return streams;
-    const direct = [];
-    const easy = [];
-    const rest = [];
+    // Sixth bucket: uncached debrid downloads sink below EVERY source.
+    const groups = [[], [], [], [], [], []];
     streams.forEach((s, i) =>
-        (isOnNowDirect(s) ? direct : isEasyNews(s) ? easy : rest).push({ s, i, key: scoreStream(s) })
+        groups[isUncachedDownload(s) ? 5 : sourceRank(s)].push({ s, i, key: scoreStream(s) })
     );
     const bySmallestFhd = (a, b) => {
         const fa = is1080p(a.s) && !is4K(a.s) && !isAV1(a.s) ? 0 : 1;
@@ -110,15 +112,9 @@ export function orderStreams(streams) {
         const gb = typeof b.s?._size_gb === 'number' ? b.s._size_gb : Number.MAX_VALUE;
         return ga - gb || a.key - b.key || a.i - b.i;
     };
-    easy.sort(bySmallestFhd);
-    rest.sort((a, b) => {
-        const da = isUncachedDownload(a.s) ? 1 : 0;
-        const db = isUncachedDownload(b.s) ? 1 : 0;
-        if (da !== db) return da - db;
-        return bySmallestFhd(a, b);
-    });
-    direct.sort((a, b) => a.i - b.i);
-    return [...direct, ...easy, ...rest].map((x) => x.s);
+    groups[0].sort((a, b) => a.i - b.i);
+    for (let g = 1; g < groups.length; g += 1) groups[g].sort(bySmallestFhd);
+    return groups.flat().map((x) => x.s);
 }
 
 /**
