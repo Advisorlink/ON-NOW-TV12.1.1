@@ -434,6 +434,11 @@ fun PlayerOverlay(
                     bufferAheadMs = bufAhead,
                     bufferedPercent = bufferedPercentValue,
                     bitrateKbps = bitrate,
+                    engineToken = currentEngineToken,
+                    currentStream = streamList.firstOrNull { it.selected },
+                    info = info,
+                    canSwap = streamList.size > 1,
+                    onSwapStream = { sheet = SheetKind.Stream; bump() },
                     onDismiss = { sheet = SheetKind.None; bump() },
                 )
                 SheetKind.Engine -> EnginePickerSheet(
@@ -1628,9 +1633,26 @@ private fun BufferingInfoSheet(
     bufferedPercent: Int,
     bitrateKbps: Long,
     engineToken: String = "",
+    currentStream: StreamOption? = null,
+    info: PlayerInfo? = null,
+    canSwap: Boolean = false,
+    onSwapStream: () -> Unit = {},
     onDismiss: () -> Unit,
 ) {
     val dismissFocus = remember { FocusRequester() }
+    // Which link is actually playing — source (ON NOW TV Direct /
+    // Torrentio / EasyNews++ …), quality + size, and the link's name.
+    val sourceName = currentStream?.addonSource?.ifBlank { null }
+        ?: info?.addonSource?.ifBlank { null }
+        ?: "Unknown source"
+    val linkLabel = currentStream?.label?.ifBlank { null } ?: ""
+    val chips = buildList {
+        (currentStream?.quality?.ifBlank { null } ?: info?.quality?.ifBlank { null })?.let { add(it) }
+        currentStream?.sizeChip?.ifBlank { null }?.let { add(it) }
+        if (currentStream?.pmCached == true) add("Cached")
+        if (currentStream?.isEnglish == true || info?.isEnglish == true) add("ENG")
+        if ((currentStream?.seeds ?: 0) > 0) add("${currentStream?.seeds} seeds")
+    }
     LaunchedEffect(Unit) {
         try { dismissFocus.requestFocus() } catch (_: Exception) {}
     }
@@ -1667,12 +1689,14 @@ private fun BufferingInfoSheet(
     ) {
         Column(
             modifier = Modifier
-                .width(620.dp)
+                .width(640.dp)
+                .heightIn(max = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.94f).dp)
                 .background(
                     Color(0xFF0B1220),
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
                 )
-                .padding(28.dp),
+                .padding(horizontal = 28.dp, vertical = 22.dp)
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.Start,
         ) {
             Text(
@@ -1717,7 +1741,63 @@ private fun BufferingInfoSheet(
                     )
                 }
             }
-            Spacer(Modifier.height(22.dp))
+            Spacer(Modifier.height(18.dp))
+
+            // ── Now playing: the actual link ──
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Color(0xFF11192B),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                    )
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    "NOW PLAYING",
+                    color = Color(0xFF5DC8FF),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.4.sp,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        sourceName,
+                        color = Color.White,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    chips.forEach { chip ->
+                        Spacer(Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    Color.White.copy(alpha = 0.10f),
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
+                                )
+                                .padding(horizontal = 8.dp, vertical = 3.dp),
+                        ) {
+                            Text(
+                                chip,
+                                color = Color.White.copy(alpha = 0.85f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                    }
+                }
+                if (linkLabel.isNotBlank() && linkLabel != sourceName) {
+                    Text(
+                        linkLabel,
+                        color = Color.White.copy(alpha = 0.66f),
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                        maxLines = 2,
+                    )
+                }
+            }
+            Spacer(Modifier.height(18.dp))
 
             // ── Big number: buffer ahead in seconds ──
             Row(verticalAlignment = Alignment.Bottom) {
@@ -1800,24 +1880,54 @@ private fun BufferingInfoSheet(
 
             Spacer(Modifier.height(20.dp))
 
-            // ── Dismiss pill ──
-            Box(
-                modifier = Modifier
-                    .focusRequester(dismissFocus)
-                    .focusable()
-                    .clickable { onDismiss() }
-                    .background(
-                        Color(0xFF5DC8FF),
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
+            // ── Actions: Swap stream (opens the Stream picker) + Got it ──
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (canSwap) {
+                    var swapFocused by remember { mutableStateOf(false) }
+                    Box(
+                        modifier = Modifier
+                            .onFocusChanged { swapFocused = it.isFocused }
+                            .focusable()
+                            .clickable { onSwapStream() }
+                            .background(
+                                if (swapFocused) Color(0xFF5DC8FF) else Color(0xFF5DC8FF).copy(alpha = 0.16f),
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
+                            )
+                            .border(
+                                1.dp,
+                                Color(0xFF5DC8FF).copy(alpha = if (swapFocused) 1f else 0.45f),
+                                androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
+                            )
+                            .padding(horizontal = 22.dp, vertical = 10.dp),
+                    ) {
+                        Text(
+                            "Swap stream",
+                            color = if (swapFocused) Color(0xFF020610) else Color(0xFF5DC8FF),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                        )
+                    }
+                }
+                var dismissFocused by remember { mutableStateOf(false) }
+                Box(
+                    modifier = Modifier
+                        .focusRequester(dismissFocus)
+                        .onFocusChanged { dismissFocused = it.isFocused }
+                        .focusable()
+                        .clickable { onDismiss() }
+                        .background(
+                            if (dismissFocused || !canSwap) Color(0xFF5DC8FF) else Color.White.copy(alpha = 0.10f),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
+                        )
+                        .padding(horizontal = 24.dp, vertical = 10.dp),
+                ) {
+                    Text(
+                        "Got it",
+                        color = if (dismissFocused || !canSwap) Color(0xFF020610) else Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
                     )
-                    .padding(horizontal = 24.dp, vertical = 10.dp),
-            ) {
-                Text(
-                    "Got it",
-                    color = Color(0xFF020610),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                )
+                }
             }
         }
     }

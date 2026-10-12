@@ -3176,7 +3176,7 @@ function TrailerPill({ onClick, loading, primary, compact }) {
 function LibraryPill({ id, type, meta, compact }) {
     const isMovie = type === 'movie';
     const check = React.useCallback(
-        () => (isMovie ? isMovieInWatchLater(id) : isInLibrary(id)),
+        () => isInLibrary(id) || (isMovie && isMovieInWatchLater(id)),
         [id, isMovie],
     );
     const [inList, setInList] = React.useState(check);

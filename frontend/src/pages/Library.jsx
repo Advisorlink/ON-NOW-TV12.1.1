@@ -13,7 +13,7 @@ import {
     ChevronDown,
     ChevronUp,
     Bell,
-    Trash2, Boxes } from 'lucide-react';
+    Trash2, Boxes, Film } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { CollectionTile } from '@/components/CollectionsShelf';
 import useLongPress from '@/hooks/useLongPress';
@@ -25,7 +25,8 @@ import {
     listNotifyList,
     removeFromNotifyList,
 } from '@/lib/library';
-import { Vesper } from '@/lib/api';
+import { Vesper, API } from '@/lib/api';
+import * as cache from '@/lib/cache';
 
 /**
  * /library — My Library.
@@ -44,6 +45,7 @@ import { Vesper } from '@/lib/api';
 export default function Library() {
     useSpatialFocus();
     const [tv, setTv] = useState(listFavouritesByType('series'));
+    const [movies, setMovies] = useState(listFavouritesByType('movie'));
     const [watchLater, setWatchLater] = useState(listWatchLater());
     const [actors, setActors] = useState(listActors());
     const [boxSets, setBoxSets] = useState(listFavouritesByType('boxset'));
@@ -53,6 +55,7 @@ export default function Library() {
      * the section past 2 rows".  Default = collapsed so the page
      * stays scannable; user clicks to reveal the full grid. */
     const [tvExpanded, setTvExpanded] = useState(false);
+    const [moviesExpanded, setMoviesExpanded] = useState(false);
     const [actorsExpanded, setActorsExpanded] = useState(false);
     const [notifyExpanded, setNotifyExpanded] = useState(false);
     /* Notifications popover (replaces the in-row Notifications
@@ -63,6 +66,7 @@ export default function Library() {
     useEffect(() => {
         const sync = () => {
             setTv(listFavouritesByType('series'));
+            setMovies(listFavouritesByType('movie'));
             setWatchLater(listWatchLater());
             setActors(listActors());
             setBoxSets(listFavouritesByType('boxset'));
@@ -134,10 +138,23 @@ export default function Library() {
                 onNotifyOpen={() => setNotifyPopoverOpen(true)}
             />
 
+            <WatchLaterBlock
+                items={watchLater}
+                onRemove={(w) =>
+                    removeFromWatchLater({
+                        id: w.id,
+                        season: w.episode?.season,
+                        number: w.episode?.number,
+                    })
+                }
+                onExpand={() => setExpanded(true)}
+            />
+
             <Section
                 icon={Tv}
                 eyebrow="My library · Series"
                 title="TV Shows"
+                style={{ marginTop: 56 }}
                 collapsible={tv.length > 6}
                 expanded={tvExpanded}
                 onToggle={() => setTvExpanded((v) => !v)}
@@ -158,8 +175,34 @@ export default function Library() {
                 )}
             </Section>
 
+            <Section
+                icon={Film}
+                eyebrow="My library · Movies"
+                title="Movies"
+                style={{ marginTop: 56 }}
+                collapsible={movies.length > 14}
+                expanded={moviesExpanded}
+                onToggle={() => setMoviesExpanded((v) => !v)}
+            >
+                {movies.length === 0 ? (
+                    <EmptyNote testId="movies-empty">
+                        Press <strong>Add to Library</strong> on any movie — or hold OK on its
+                        cover and pick <strong>Library</strong> — and it lands here.
+                    </EmptyNote>
+                ) : movies.length > 14 ? (
+                    <CollapsibleGrid
+                        expanded={moviesExpanded}
+                        onToggle={() => setMoviesExpanded((v) => !v)}
+                        items={movies}
+                        renderGrid={(slice) => <FavouriteGrid items={slice} type="movie" />}
+                    />
+                ) : (
+                    <FavouriteGrid items={movies} type="movie" />
+                )}
+            </Section>
+
             {boxSets.length > 0 && (
-                <Section icon={Boxes} eyebrow="My library · Box Sets" title="My Box Sets">
+                <Section icon={Boxes} eyebrow="My library · Box Sets" title="My Box Sets" style={{ marginTop: 56 }}>
                     <div
                         data-testid="library-boxsets-grid"
                         style={{
@@ -187,6 +230,7 @@ export default function Library() {
                     icon={Users}
                     eyebrow="My library · Actors"
                     title="My Actors"
+                    style={{ marginTop: 56 }}
                     collapsible={actors.length > 8}
                     expanded={actorsExpanded}
                     onToggle={() => setActorsExpanded((v) => !v)}
@@ -203,18 +247,6 @@ export default function Library() {
                     )}
                 </Section>
             )}
-
-            <WatchLaterBlock
-                items={watchLater}
-                onRemove={(w) =>
-                    removeFromWatchLater({
-                        id: w.id,
-                        season: w.episode?.season,
-                        number: w.episode?.number,
-                    })
-                }
-                onExpand={() => setExpanded(true)}
-            />
 
             {expanded && (
                 <WatchLaterExpanded
@@ -432,6 +464,26 @@ function Section({
             </div>
             {children}
         </section>
+    );
+}
+
+function EmptyNote({ children, testId }) {
+    return (
+        <div
+            data-testid={testId}
+            style={{
+                fontSize: 14,
+                lineHeight: 1.55,
+                color: 'var(--vesper-text-2)',
+                maxWidth: '70ch',
+                padding: '18px 22px',
+                borderRadius: 16,
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.08)',
+            }}
+        >
+            {children}
+        </div>
     );
 }
 
@@ -1371,166 +1423,86 @@ function WatchLaterBlock({ items, onRemove, onExpand }) {
             navigate(`/title/movie/${w.id}`);
         }
     };
-    return (
-        <section
-            data-testid="watch-later-block"
+    const expandBtn = items.length > 0 && (
+        <button
+            data-testid="watch-later-expand"
+            data-focusable="true"
+            data-focus-style="quiet"
+            tabIndex={0}
+            onClick={onExpand}
+            aria-label="Expand Watch Later"
+            className="flex items-center gap-2 rounded-full vesper-mono"
             style={{
-                marginTop: 56,
-                padding: '28px 32px 30px',
-                background:
-                    'linear-gradient(180deg, rgba(var(--vesper-blue-rgb), 0.06) 0%, rgba(255,255,255,0.02) 100%)',
-                border: '1px solid rgba(var(--vesper-blue-rgb), 0.22)',
-                borderRadius: 24,
+                height: 36,
+                padding: '0 14px',
+                background: 'rgba(255,255,255,0.06)',
+                color: 'var(--vesper-text-2)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                fontSize: 11,
+                letterSpacing: '0.22em',
+                textTransform: 'uppercase',
+                fontWeight: 600,
             }}
         >
-            <div
-                className="flex items-end justify-between"
-                style={{ marginBottom: 22, gap: 24 }}
-            >
-                <div>
+            <Maximize2 size={12} strokeWidth={2.4} />
+            See all
+        </button>
+    );
+    return (
+        <Section
+            icon={Bookmark}
+            eyebrow={`My library · Queued up${items.length > 0 ? ` · ${items.length}` : ''}`}
+            title="Watch Later"
+            action={expandBtn}
+        >
+            <div data-testid="watch-later-block">
+                {items.length === 0 ? (
+                    <EmptyNote testId="watch-later-empty">
+                        When a new episode pops up in the top-right corner and you tap{' '}
+                        <strong>Watch Later</strong>, or you hold OK on a movie and pick{' '}
+                        <strong>Watch Later</strong>, it lands here for you.
+                    </EmptyNote>
+                ) : (
+                    /* Horizontal rail of 16:9 box-set style cards.  The extra
+                       vertical padding (with matching negative margins) gives the
+                       focused card's 1.08× pop-out + ring room so nothing clips. */
                     <div
-                        className="vesper-mono"
+                        data-testid="watch-later-scroller"
+                        className="flex"
                         style={{
-                            fontSize: 11,
-                            letterSpacing: '0.32em',
-                            color: 'var(--vesper-blue-bright)',
-                            textTransform: 'uppercase',
-                            /* v2.7.07 — align with the heading text
-                             * (bookmark icon 24px + gap-3 12px = 36px). */
-                            marginLeft: 36,
-                            marginBottom: 10,
+                            gap: 'clamp(14px, 1.25vw, 24px)',
+                            overflowX: 'auto',
+                            overflowY: 'hidden',
+                            scrollSnapType: 'x mandatory',
+                            padding: '18px 16px 22px 14px',
+                            margin: '-18px -16px -22px -14px',
+                            scrollPaddingLeft: 14,
                         }}
                     >
-                        Queued up{items.length > 0 && ` · ${items.length}`}
+                        {items.map((w) => (
+                            <div
+                                key={
+                                    w.type === 'movie'
+                                        ? `movie:${w.id}`
+                                        : `${w.id}:S${w.episode.season}E${w.episode.number}`
+                                }
+                                style={{
+                                    width: 'clamp(220px, 18vw, 310px)',
+                                    flex: '0 0 clamp(220px, 18vw, 310px)',
+                                    scrollSnapAlign: 'start',
+                                }}
+                            >
+                                <WatchLaterTile
+                                    item={w}
+                                    onPlay={() => playItem(w)}
+                                    onRemove={() => onRemove(w)}
+                                />
+                            </div>
+                        ))}
                     </div>
-                    <h2
-                        className="vesper-display flex items-center gap-3"
-                        style={{
-                            fontSize: 'clamp(26px, 2.8vw, 40px)',
-                            letterSpacing: '-0.025em',
-                            lineHeight: 1,
-                        }}
-                    >
-                        <Bookmark
-                            size={24}
-                            strokeWidth={2}
-                            style={{ color: 'var(--vesper-blue)' }}
-                        />
-                        Watch Later
-                    </h2>
-                </div>
-                <div
-                    className="flex items-center"
-                    style={{ gap: 14, flex: '0 0 auto' }}
-                >
-                    {items.length > 0 && (
-                        <span
-                            className="vesper-mono"
-                            style={{
-                                color: 'var(--vesper-text-3)',
-                                fontSize: 11,
-                                letterSpacing: '0.22em',
-                                textTransform: 'uppercase',
-                            }}
-                        >
-                            Hold OK to remove
-                        </span>
-                    )}
-                    {items.length > 0 && (
-                        <button
-                            data-testid="watch-later-expand"
-                            data-focusable="true"
-                            data-focus-style="quiet"
-                            tabIndex={0}
-                            onClick={onExpand}
-                            aria-label="Expand Watch Later"
-                            className="flex items-center gap-2 rounded-full vesper-mono"
-                            style={{
-                                height: 34,
-                                padding: '0 14px',
-                                background: 'rgba(var(--vesper-blue-rgb), 0.14)',
-                                color: 'var(--vesper-blue-bright)',
-                                border: '1px solid rgba(var(--vesper-blue-rgb), 0.45)',
-                                fontSize: 11,
-                                letterSpacing: '0.22em',
-                                textTransform: 'uppercase',
-                                fontWeight: 600,
-                            }}
-                        >
-                            <Maximize2 size={12} strokeWidth={2.4} />
-                            Expand
-                        </button>
-                    )}
-                </div>
+                )}
             </div>
-
-            {items.length === 0 ? (
-                <div
-                    style={{
-                        fontSize: 14,
-                        lineHeight: 1.55,
-                        color: 'var(--vesper-text-2)',
-                        maxWidth: '70ch',
-                    }}
-                >
-                    When a new episode pops up in the top-right corner and you
-                    tap{' '}
-                    <span
-                        style={{
-                            color: 'var(--vesper-blue-bright)',
-                            fontWeight: 600,
-                        }}
-                    >
-                        Watch Later
-                    </span>
-                    , or you long-press a movie to add it, it lands here for
-                    you.
-                </div>
-            ) : (
-                // Horizontal landscape tile row.  Snap-scrolls so a
-                // D-pad press always lands at the start of the next
-                // tile rather than mid-tile.  Tiles flex to ~280px so
-                // 4-5 fit comfortably across at 1080p.  Vertical
-                // padding leaves room for the focused-tile pop-out
-                // (scale 1.08 + translateY(-2px) + 3px ring) so the
-                // top and bottom of the focus glow aren't clipped.
-                <div
-                    data-testid="watch-later-scroller"
-                    className="flex"
-                    style={{
-                        gap: 18,
-                        overflowX: 'auto',
-                        overflowY: 'hidden',
-                        scrollSnapType: 'x mandatory',
-                        paddingTop: 14,
-                        paddingBottom: 14,
-                        marginTop: -8,
-                        marginBottom: -8,
-                    }}
-                >
-                    {items.map((w) => (
-                        <div
-                            key={
-                                w.type === 'movie'
-                                    ? `movie:${w.id}`
-                                    : `${w.id}:S${w.episode.season}E${w.episode.number}`
-                            }
-                            style={{
-                                width: 280,
-                                flex: '0 0 280px',
-                                scrollSnapAlign: 'start',
-                            }}
-                        >
-                            <WatchLaterTile
-                                item={w}
-                                onPlay={() => playItem(w)}
-                                onRemove={() => onRemove(w)}
-                            />
-                        </div>
-                    ))}
-                </div>
-            )}
-        </section>
+        </Section>
     );
 }
 
@@ -1657,6 +1629,28 @@ function WatchLaterExpanded({ items, onClose, onRemove }) {
 }
 
 
+const LOGO_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+/** TMDB title logo (cached 7 days, '' = known none) for the box-set style card. */
+function useTitleLogo(type, id) {
+    const key = `logo:${type}:${id}`;
+    const [logo, setLogo] = useState(() => cache.get(key)?.value ?? null);
+    useEffect(() => {
+        const c = cache.get(key);
+        if (c && !cache.isStale(c, LOGO_TTL_MS)) { setLogo(c.value); return undefined; }
+        let alive = true;
+        (async () => {
+            try {
+                const r = await fetch(`${API}/tmdb/logo/${type}/${id}`);
+                const url = r.ok ? ((await r.json())?.logo_url || '') : '';
+                cache.set(key, url);
+                if (alive) setLogo(url);
+            } catch { if (alive) setLogo(''); }
+        })();
+        return () => { alive = false; };
+    }, [key, type, id]);
+    return logo || '';
+}
+
 function WatchLaterTile({ item, onPlay, onRemove, big }) {
     // CW-style landscape tile: 16:9 backdrop, bottom gradient,
     // Play badge bottom-left, title + small mono subtitle.  No
@@ -1670,14 +1664,15 @@ function WatchLaterTile({ item, onPlay, onRemove, big }) {
     if (item.type === 'movie') {
         const m = item.movie || {};
         title = m.name;
-        subtitle = m.year || 'Movie';
+        subtitle = m.year ? `Movie · ${m.year}` : 'Movie';
         thumb = m.background || m.poster;
     } else {
         const { showMeta, episode } = item;
         title = showMeta.name;
-        subtitle = `S${episode.season} · E${episode.number}`;
-        thumb = episode.thumbnail || showMeta.background || showMeta.poster;
+        subtitle = `S${episode.season} · E${episode.number}${episode.title ? ` · ${episode.title}` : ''}`;
+        thumb = showMeta.background || episode.thumbnail || showMeta.poster;
     }
+    const logo = useTitleLogo(item.type === 'movie' ? 'movie' : 'series', item.id);
 
     const [confirmRemove, setConfirmRemove] = useState(false);
     const pressTimer = useRef(null);
@@ -1847,106 +1842,104 @@ function WatchLaterTile({ item, onPlay, onRemove, big }) {
             onMouseDown={startPress}
             onMouseUp={cancelPress}
             onMouseLeave={cancelPress}
+            aria-label={title}
             className="relative overflow-hidden text-left block"
             style={{
                 ...tileSize,
                 aspectRatio: '16 / 9',
                 borderRadius: big ? 18 : 14,
-                background: '#0B1322',
-                border: '1px solid rgba(255,255,255,0.06)',
+                background: 'linear-gradient(135deg, #0b0f1a 0%, #111a2c 55%, rgba(var(--vesper-blue-rgb),0.2) 100%)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                boxShadow: '0 12px 30px rgba(0,0,0,0.45)',
                 padding: 0,
             }}
         >
             {thumb ? (
                 <img
                     src={thumb}
-                    alt={title || ''}
+                    alt=""
                     loading="lazy"
                     decoding="async"
-                    style={{
-                        position: 'absolute',
-                        inset: 0,
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                    }}
+                    className="absolute inset-0 w-full h-full object-cover"
+                    style={{ opacity: logo ? 0.55 : 0.7 }}
                 />
             ) : null}
-
-            {/* Bottom gradient for legibility */}
             <div
                 className="absolute inset-0 pointer-events-none"
-                style={{
-                    background:
-                        'linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(0,0,0,0.85) 100%)',
-                }}
+                style={{ background: 'linear-gradient(180deg, rgba(5,8,15,0.15) 0%, rgba(5,8,15,0.45) 60%, rgba(5,8,15,0.88) 100%)' }}
             />
 
-            {/* Play badge bottom-left */}
-            <div
-                className="absolute"
-                style={{
-                    left: 14,
-                    bottom: big ? 26 : 22,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: big ? 40 : 36,
-                    height: big ? 40 : 36,
-                    borderRadius: 999,
-                    background: 'rgba(11,19,34,0.7)',
-                    border: '1px solid rgba(255,255,255,0.18)',
-                    backdropFilter: 'blur(8px)',
-                }}
-            >
-                <Play
-                    size={big ? 16 : 14}
-                    fill="#fff"
-                    color="#fff"
-                    style={{ marginLeft: 2 }}
-                />
-            </div>
-
-            {/* Title + subtitle */}
-            <div
-                className="absolute"
-                style={{
-                    left: 14,
-                    right: 14,
-                    bottom: big ? 12 : 10,
-                }}
-            >
-                <div
+            {/* Centre: title logo (box-set look) or typographic fallback */}
+            {logo ? (
+                <img
+                    src={logo}
+                    alt={title}
+                    loading="lazy"
+                    decoding="async"
+                    className="absolute"
                     style={{
-                        fontSize: 'clamp(13px, 1vw, 16px)',
-                        fontWeight: 700,
+                        left: '14%',
+                        top: '16%',
+                        width: '72%',
+                        height: '52%',
+                        objectFit: 'contain',
+                        filter: 'drop-shadow(0 4px 14px rgba(0,0,0,0.7))',
+                    }}
+                />
+            ) : (
+                <span
+                    className="absolute vesper-display"
+                    style={{
+                        left: 16,
+                        right: 16,
+                        top: '30%',
+                        textAlign: 'center',
+                        fontSize: big ? 'clamp(20px, 1.6vw, 30px)' : 'clamp(16px, 1.3vw, 24px)',
+                        fontWeight: 800,
+                        letterSpacing: '-0.02em',
+                        lineHeight: 1.05,
                         color: '#fff',
-                        textShadow: '0 1px 4px rgba(0,0,0,0.55)',
-                        whiteSpace: 'nowrap',
+                        textShadow: '0 2px 12px rgba(0,0,0,0.8)',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
                         overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        paddingLeft: big ? 50 : 46,
                     }}
                 >
                     {title}
-                </div>
-                <div
-                    className="vesper-mono"
+                </span>
+            )}
+
+            {/* Bottom strip: play badge + caption */}
+            <div
+                className="absolute flex items-center"
+                style={{ left: 12, right: 12, bottom: 10, gap: 10 }}
+            >
+                <span
+                    className="inline-flex items-center justify-center shrink-0"
                     style={{
-                        fontSize: 11,
-                        letterSpacing: '0.14em',
+                        width: 28,
+                        height: 28,
+                        borderRadius: 999,
+                        background: 'rgba(255,255,255,0.14)',
+                        border: '1px solid rgba(255,255,255,0.22)',
+                    }}
+                >
+                    <Play size={11} fill="#fff" color="#fff" style={{ marginLeft: 1 }} />
+                </span>
+                <span
+                    className="vesper-mono truncate"
+                    style={{
+                        fontSize: 'clamp(9px, 0.62vw, 11px)',
+                        letterSpacing: '0.2em',
                         textTransform: 'uppercase',
-                        color: 'var(--vesper-blue)',
-                        marginTop: 3,
-                        paddingLeft: big ? 50 : 46,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
+                        color: 'rgba(255,255,255,0.78)',
                     }}
                 >
                     {subtitle}
-                </div>
+                </span>
             </div>
+            <span className="absolute inset-0 pointer-events-none" style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10), inset 0 -1px 0 rgba(0,0,0,0.45)' }} />
         </button>
     );
 }

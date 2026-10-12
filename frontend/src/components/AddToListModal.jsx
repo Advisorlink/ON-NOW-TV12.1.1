@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Check, X, Plus, Trash2, Bookmark, User } from 'lucide-react';
+import { Check, X, Plus, Trash2, Bookmark, User, Film } from 'lucide-react';
 import {
     isInLibrary,
     addToLibrary,
@@ -177,25 +177,16 @@ export default function AddToListModal() {
                     '[data-testid="add-to-list-modal"]'
                 );
                 if (!root) return;
-                const confirm = root.querySelector('[data-testid="modal-confirm"]');
-                const cancel = root.querySelector('[data-testid="modal-cancel"]');
-                if (!confirm || !cancel) return;
-                const focused = document.activeElement;
+                const buttons = Array.from(root.querySelectorAll('[data-testid^="modal-"]'));
+                if (buttons.length < 2) return;
                 if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-                    const target = focused === confirm ? cancel : confirm;
+                    const cur = Math.max(0, buttons.indexOf(document.activeElement));
+                    const step = e.key === 'ArrowRight' ? 1 : -1;
+                    const target = buttons[(cur + step + buttons.length) % buttons.length];
                     try {
-                        // Clear any lingering data-focused outside the modal.
                         document
                             .querySelectorAll('[data-focused="true"]')
-                            .forEach((el) => {
-                                if (!root.contains(el)) {
-                                    el.removeAttribute('data-focused');
-                                }
-                            });
-                        // Strip data-focused from BOTH buttons before re-applying
-                        // so the visual focus indicator never duplicates.
-                        confirm.removeAttribute('data-focused');
-                        cancel.removeAttribute('data-focused');
+                            .forEach((el) => el.removeAttribute('data-focused'));
                         target.focus({ preventScroll: true });
                         target.setAttribute('data-focused', 'true');
                     } catch { /* ignore */ }
@@ -311,10 +302,9 @@ export default function AddToListModal() {
     // For series:  "Add/Remove from My List".
     // For movies:  "Add/Remove from Watch Later".
     // For actors:  "Add/Remove from My Actors".
+    const inWatchLater = isMovie && isMovieInWatchLater(payload.id);
     const isActive = isActor
         ? isActorInLibrary(payload.id)
-        : isMovie
-        ? isMovieInWatchLater(payload.id)
         : isInLibrary(payload.id);
 
     const onConfirm = () => {
@@ -328,27 +318,12 @@ export default function AddToListModal() {
                     profile: payload.poster,
                 });
             }
-        } else if (isMovie) {
-            if (isActive) {
-                removeFromWatchLater({ id: payload.id });
-            } else {
-                addToWatchLater({
-                    id: payload.id,
-                    movie: {
-                        name: payload.title,
-                        poster: payload.poster,
-                        background: payload.background,
-                        year: payload.year,
-                        synopsis: payload.synopsis,
-                    },
-                });
-            }
         } else {
             if (isActive) {
                 removeFromLibrary(payload.id);
             } else {
                 addToLibrary(payload.id, {
-                    type: 'series',
+                    type: isMovie ? 'movie' : 'series',
                     meta: {
                         name: payload.title,
                         poster: payload.poster,
@@ -356,6 +331,25 @@ export default function AddToListModal() {
                     },
                 });
             }
+        }
+        close();
+    };
+
+    // Movies only: the second action toggles the Watch Later queue.
+    const onWatchLater = () => {
+        if (inWatchLater) {
+            removeFromWatchLater({ id: payload.id });
+        } else {
+            addToWatchLater({
+                id: payload.id,
+                movie: {
+                    name: payload.title,
+                    poster: payload.poster,
+                    background: payload.background,
+                    year: payload.year,
+                    synopsis: payload.synopsis,
+                },
+            });
         }
         close();
     };
@@ -388,8 +382,10 @@ export default function AddToListModal() {
                     isMovie={isMovie}
                     isActor={isActor}
                     isActive={isActive}
+                    inWatchLater={inWatchLater}
                     confirmBtnRef={confirmBtnRef}
                     onConfirm={onConfirm}
+                    onWatchLater={onWatchLater}
                     onCancel={close}
                 />
             </div>
@@ -397,7 +393,7 @@ export default function AddToListModal() {
     );
 }
 
-function ModalCard({ payload, isMovie, isActor, isActive, confirmBtnRef, onConfirm, onCancel }) {
+function ModalCard({ payload, isMovie, isActor, isActive, inWatchLater, confirmBtnRef, onConfirm, onWatchLater, onCancel }) {
     const { title, poster, year, genres, synopsis, type } = payload;
 
     // Wording matrix:
@@ -417,10 +413,12 @@ function ModalCard({ payload, isMovie, isActor, isActive, confirmBtnRef, onConfi
         confirmLabel = isActive ? 'Remove' : 'Add to My Actors';
         ConfirmIcon = isActive ? Trash2 : User;
     } else if (isMovie) {
-        eyebrow = isActive ? 'Remove from Watch Later' : 'Add to Watch Later';
-        bigHeading = isActive ? 'Remove this?' : 'Watch later?';
-        confirmLabel = isActive ? 'Remove' : 'Add to Watch Later';
-        ConfirmIcon = isActive ? Trash2 : Bookmark;
+        // Two independent homes for a movie: Library (Movies grid) and
+        // the Watch Later queue.  Each button toggles its own list.
+        eyebrow = isActive || inWatchLater ? 'In your library' : 'Save this movie';
+        bigHeading = isActive || inWatchLater ? 'Update this?' : 'Where to?';
+        confirmLabel = isActive ? 'Remove from Library' : 'Add to Library';
+        ConfirmIcon = isActive ? Trash2 : Film;
     } else {
         eyebrow = isActive ? 'Remove from My List' : 'Add to My List';
         bigHeading = isActive ? 'Remove this?' : 'Add this?';
@@ -589,6 +587,32 @@ function ModalCard({ payload, isMovie, isActor, isActive, confirmBtnRef, onConfi
                         <ConfirmIcon size={16} strokeWidth={2.4} />
                         {confirmLabel}
                     </button>
+                    {isMovie && (
+                        <button
+                            data-testid="modal-watch-later"
+                            data-focusable="true"
+                            data-focus-style="pill"
+                            tabIndex={0}
+                            onClick={onWatchLater}
+                            className="flex items-center gap-2 rounded-full font-sans font-semibold"
+                            style={{
+                                flex: 1,
+                                height: 52,
+                                paddingLeft: 20,
+                                paddingRight: 24,
+                                fontSize: 15,
+                                background: inWatchLater
+                                    ? 'rgba(255, 81, 81, 0.92)'
+                                    : 'rgba(var(--vesper-blue-rgb), 0.16)',
+                                color: inWatchLater ? '#fff' : 'var(--vesper-blue-bright)',
+                                border: inWatchLater ? 'none' : '1px solid rgba(var(--vesper-blue-rgb), 0.45)',
+                                justifyContent: 'center',
+                            }}
+                        >
+                            {inWatchLater ? <Trash2 size={16} strokeWidth={2.4} /> : <Bookmark size={16} strokeWidth={2.4} />}
+                            {inWatchLater ? 'Remove from Watch Later' : 'Watch Later'}
+                        </button>
+                    )}
                     <button
                         data-testid="modal-cancel"
                         data-focusable="true"
@@ -613,7 +637,7 @@ function ModalCard({ payload, isMovie, isActor, isActive, confirmBtnRef, onConfi
                     </button>
                 </div>
 
-                {!isActive && (
+                {!isActive && !inWatchLater && (
                     <div
                         className="vesper-mono flex items-center gap-2"
                         style={{
