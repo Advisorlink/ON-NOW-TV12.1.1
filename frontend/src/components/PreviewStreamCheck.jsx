@@ -61,8 +61,10 @@ export default function PreviewStreamCheck({ tile, active }) {
     if (!state) return null;
     const checking = state.status === 'checking';
     const v = streamVerdict(state.count);
-    const showVerdict = state.count > 0 || !checking;
-    const Icon = checking && !state.count ? Loader2 : v.Icon;
+    // Spinner + "Checking stream quality" for the whole search; the
+    // verdict only lands once every source has answered.
+    const showVerdict = !checking;
+    const Icon = checking ? Loader2 : v.Icon;
     // Sit just under the poster's CINEMA tag when the tile has one.
     const hasCinema = !!tile?.querySelector('[data-testid="release-tag-badge"]');
     return (
@@ -94,9 +96,9 @@ export default function PreviewStreamCheck({ tile, active }) {
                 whiteSpace: 'nowrap',
             }}
         >
-            <Icon size={10} strokeWidth={2.6} className={checking && !state.count ? 'vesper-spin' : undefined} />
+            <Icon size={10} strokeWidth={2.6} className={checking ? 'vesper-spin' : undefined} />
             <span data-testid="preview-stream-check-label">
-                {showVerdict ? v.label : 'Checking'}
+                {showVerdict ? v.label : 'Checking stream quality'}
             </span>
         </div>
     );
