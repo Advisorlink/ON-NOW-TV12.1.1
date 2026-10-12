@@ -24,6 +24,7 @@ import {
 import TrailerModal from '@/components/TrailerModal';
 import { useNativeBackTrap, triggerTrapBack } from '@/hooks/useNativeBackTrap';
 import { peekHd, prefetchHd } from '@/lib/trailerEngine';
+import PreviewStreamCheck from '@/components/PreviewStreamCheck';
 
 const PREVIEW_DWELL_MS = 280;
 
@@ -321,6 +322,9 @@ export default function TrailerHoverPreview() {
                             onExhausted={() => patch((p) => ({ ...p, media: null, playing: false }))}
                         />
                     )}
+                    {/* Live stream-count verdict — starts only once the
+                        trailer is actually playing, aborted on move-off. */}
+                    <PreviewStreamCheck tile={tile} active={!!preview.playing} />
                     <div
                         style={{
                             position: 'absolute',

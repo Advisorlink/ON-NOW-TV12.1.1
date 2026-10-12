@@ -12334,3 +12334,9 @@ User picked the final setup after testing; Settings → Performance section, HUD
 - **Collection.jsx**: `fetchPages` + per-type paging ref; shelves carry `hasMore`/`loadMore` (movies start with 3 pages, TV with 2, then one page per press).
 - **useLiveShelves.js**: always fetch 60 per catalog (render limit stays itemsPerRow via Shelf), cache key bumped to `shelves:v2`.
 - Verified (tests/library_more_e2e.py): Warner Bros row 18→36→54→60→80 with focus on first new tile; Home rows show the more tile; `vesper:preview-add` opens the modal; Watch Later hold → confirm, Escape → tap plays; poster long-press/modal/tap regression OK.
+
+
+## 2026-10-12 — Live stream-count verdict on the playing trailer card
+
+- New `components/PreviewStreamCheck.jsx`, mounted inside `TrailerHoverPreview`'s portaled card with `active={!!preview.playing}`. Effect starts only when the trailer is actually playing: resolves imdb (`data-preview-imdb`, else `/api/tmdb/imdb/{tv|movie}/{tmdb}`), then `Vesper.getStreams(type, id, onPartial, {signal})` — badge updates as each addon answers ("Checking streams" → "Cam copy · 7…" → final). AbortController cancels on tile change / card hide; nothing is stored client-side so every dwell re-checks (backend `/streams` keeps its own 5-min cache). Verdicts: 1–20 Cam copy (orange), 21–50 Watchable cam copy (amber), 51+ HD copy (green), 0 No streams yet. Series use `tt:1:1`.
+- Verified with tests/preview_streamcheck_e2e.py (box emulated via `window.OnNowTV`, googlevideo request held open, synthetic `playing`): badge "CAM COPY · 1" appears top-right of the wide card, disappears on ArrowRight, no page errors.
