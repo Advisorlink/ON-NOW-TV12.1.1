@@ -4,6 +4,7 @@
  *  read directly by hooks/components for behaviour. */
 const KEY = 'vesper-perf-lab-v1';
 export const PERF_CHANGE = 'vesper:perf-change';
+import * as cache from '@/lib/cache';
 
 export const PERF_OPTIONS = {
     rowLoading: {
@@ -63,9 +64,37 @@ export const PERF_OPTIONS = {
         ],
         default: 'off',
     },
+    heroFollow: {
+        label: 'Hero follows focus',
+        hint: 'The big artwork at the top swaps to whichever cover is focused — a full-width image decode per move',
+        values: [
+            { id: 'on', label: 'Every move', sub: 'original · 200 ms settle' },
+            { id: 'delayed', label: 'After you stop', sub: '700 ms settle' },
+            { id: 'off', label: 'Off', sub: 'hero never swaps' },
+        ],
+        default: 'on',
+    },
+    shelfMotion: {
+        label: 'Row slide animation',
+        hint: 'Covers glide 180 ms when the row moves (animates every visible tile)',
+        values: [
+            { id: 'flip', label: 'Glide', sub: 'original' },
+            { id: 'instant', label: 'Instant', sub: 'jump, no animation' },
+        ],
+        default: 'flip',
+    },
+    posterSize: {
+        label: 'Poster image size',
+        hint: 'Pixel size of each cover image the box has to download and decode',
+        values: [
+            { id: 'medium', label: 'Medium', sub: 'original · w342' },
+            { id: 'small', label: 'Small', sub: 'w185 · ¼ of the pixels' },
+        ],
+        default: 'medium',
+    },
     hud: {
         label: 'Performance HUD',
-        hint: 'Live FPS, DOM size and active settings in the corner',
+        hint: 'Key-press → paint latency, long tasks, FPS and active settings in the corner',
         values: [
             { id: 'off', label: 'Hidden', sub: '' },
             { id: 'on', label: 'Shown', sub: 'top-right' },
@@ -88,15 +117,24 @@ export function getAllPerf() {
     return Object.fromEntries(Object.keys(PERF_OPTIONS).map((k) => [k, getPerf(k)]));
 }
 
+/** Row-loading / per-row limits only matter on a cold fetch, so the
+ *  persisted shelf cache must go when they change — otherwise the
+ *  cached rows short-circuit the strategy and nothing changes. */
+function dropShelfCaches() {
+    cache.clearPrefix('shelves:');
+}
+
 export function setPerf(key, value) {
     const next = { ...read(), [key]: value };
     try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* ignore */ }
+    if (key === 'rowLoading' || key === 'itemsPerRow') dropShelfCaches();
     applyPerfClasses();
     window.dispatchEvent(new CustomEvent(PERF_CHANGE, { detail: { key, value } }));
 }
 
 export function resetPerf() {
     try { localStorage.removeItem(KEY); } catch { /* ignore */ }
+    dropShelfCaches();
     applyPerfClasses();
     window.dispatchEvent(new CustomEvent(PERF_CHANGE, { detail: { key: '*', value: null } }));
 }

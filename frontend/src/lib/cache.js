@@ -107,3 +107,19 @@ export function clear(key) {
         /* ignore */
     }
 }
+
+/** Drop every entry (memory + session + persisted) whose key starts with `prefix`. */
+export function clearPrefix(prefix) {
+    for (const k of Array.from(memory.keys())) if (k.startsWith(prefix)) memory.delete(k);
+    for (const store of [typeof sessionStorage !== 'undefined' && sessionStorage, typeof localStorage !== 'undefined' && localStorage]) {
+        if (!store) continue;
+        try {
+            const dead = [];
+            for (let i = 0; i < store.length; i += 1) {
+                const k = store.key(i);
+                if (k && k.startsWith(PREFIX + prefix)) dead.push(k);
+            }
+            dead.forEach((k) => store.removeItem(k));
+        } catch { /* ignore */ }
+    }
+}

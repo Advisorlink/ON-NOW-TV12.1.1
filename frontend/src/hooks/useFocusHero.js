@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as img from '@/lib/img';
+import { getPerf } from '@/lib/perfLab';
 
 /**
  * Focus-follow hero: whichever rail cover is focused takes over the
@@ -30,6 +31,8 @@ export default function useFocusHero() {
             const item = e.detail;
             if (!item) return;
             clearTimeout(timer);
+            const mode = getPerf('heroFollow');
+            if (mode === 'off') return;
             timer = setTimeout(() => {
                 setFocusHero(tileToHero(item));
                 const el = document.activeElement?.closest?.('[data-preview="true"]');
@@ -40,7 +43,7 @@ export default function useFocusHero() {
                 const next = sib?.matches('[data-preview]') ? sib : sib?.querySelector('[data-preview]');
                 const b = next?.getAttribute('data-preview-bg-raw');
                 if (b) { const im = new Image(); im.src = img.heroBackdrop(b); }
-            }, 200);
+            }, mode === 'delayed' ? 700 : 200);
         };
         window.addEventListener('vesper:tile-focus', onTileFocus);
         return () => {

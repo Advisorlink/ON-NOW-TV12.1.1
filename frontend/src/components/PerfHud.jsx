@@ -1,10 +1,18 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { getAllPerf, getPerf, perfLabel, PERF_CHANGE } from '@/lib/perfLab';
+import { getSnapshot, gradeFor, startMetrics, stopMetrics, subscribe } from '@/lib/perfMetrics';
+import { BENCH_PROGRESS, BENCH_PRESSES, consumeBenchmarkRequest, runBenchmark } from '@/lib/perfBench';
 
-/** Tiny always-on-top readout so the user can SEE which performance
- *  strategy is live on the box: FPS, dropped frames, DOM weight,
- *  mounted tiles / layers, and every lab setting.  Updates once per
- *  second — it must never become the thing it measures. */
+const PANEL = {
+    position: 'fixed', top: 10, right: 12, zIndex: 99999, padding: '8px 10px', borderRadius: 8,
+    background: 'rgba(4,6,12,0.88)', border: '1px solid rgba(124,241,241,0.35)',
+    color: '#D8E6F2', fontSize: 11, lineHeight: 1.45, minWidth: 250,
+};
+
+/** Always-on-top readout of what actually makes the box feel chunky:
+ *  key-press → paint latency, long tasks and slow frames, plus the
+ *  active lab settings.  Updates on each press / once a second. */
 export const PerfHud = () => {
     const [enabled, setEnabled] = useState(() => getPerf('hud') === 'on');
     const [stats, setStats] = useState(null);
@@ -15,41 +23,36 @@ export const PerfHud = () => {
     }, []);
     useEffect(() => {
         if (!enabled) return undefined;
-        let frames = 0; let slow = 0; let last = performance.now(); let raf = 0; let alive = true;
-        const tick = (t) => {
-            frames += 1; if (t - last > 34) slow += 1; last = t;
-            if (alive) raf = requestAnimationFrame(tick);
-        };
-        raf = requestAnimationFrame(tick);
-        const timer = setInterval(() => {
-            const all = document.querySelectorAll('*').length;
-            const tiles = document.querySelectorAll('[data-testid^="poster-"]').length;
-            const recycled = document.querySelectorAll('[data-testid^="shelf-recycled-"]').length;
-            const imgs = document.images.length;
-            setStats({ fps: frames, slow, all, tiles, recycled, imgs, perf: getAllPerf() });
-            frames = 0; slow = 0;
-        }, 1000);
-        return () => { alive = false; cancelAnimationFrame(raf); clearInterval(timer); };
+        startMetrics();
+        const refresh = () => setStats({
+            ...getSnapshot(),
+            dom: document.querySelectorAll('*').length,
+            tiles: document.querySelectorAll('[data-testid^="poster-"]').length,
+            recycled: document.querySelectorAll('[data-testid^="shelf-recycled-"]').length,
+            perf: getAllPerf(),
+        });
+        refresh();
+        const unsub = subscribe(refresh);
+        return () => { unsub(); stopMetrics(); };
     }, [enabled]);
     if (!enabled || !stats) return null;
-    const fpsColor = stats.fps >= 50 ? '#7CF1A1' : stats.fps >= 30 ? '#FFD36B' : '#FF6B6B';
+    const grade = gradeFor(stats.avgMs);
     return (
-        <div
-            data-testid="perf-hud"
-            aria-hidden="true"
-            className="vesper-mono fixed pointer-events-none"
-            style={{
-                top: 10, right: 12, zIndex: 99999, padding: '8px 10px', borderRadius: 8,
-                background: 'rgba(4,6,12,0.88)', border: '1px solid rgba(124,241,241,0.35)',
-                color: '#D8E6F2', fontSize: 11, lineHeight: 1.45, minWidth: 230,
-            }}
-        >
+        <div data-testid="perf-hud" aria-hidden="true" className="vesper-mono pointer-events-none" style={PANEL}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                <span style={{ color: fpsColor, fontWeight: 800 }} data-testid="perf-hud-fps">{stats.fps} fps</span>
-                <span style={{ color: stats.slow ? '#FF9B6B' : '#7CF1A1' }}>{stats.slow} slow frames</span>
+                <span style={{ color: grade.color, fontWeight: 800 }} data-testid="perf-hud-latency">
+                    {stats.presses ? `${stats.avgMs} ms / press` : 'press a D-pad key…'}
+                </span>
+                <span style={{ color: grade.color }} data-testid="perf-hud-grade">{grade.label}</span>
             </div>
-            <div style={{ color: '#9FB3C8' }}>
-                DOM {stats.all} · tiles {stats.tiles}{stats.recycled ? ` (+${stats.recycled} recycled)` : ''} · imgs {stats.imgs}
+            <div style={{ color: '#9FB3C8' }} data-testid="perf-hud-presses">
+                worst {stats.worstMs} ms · p90 {stats.p90Ms} ms · {stats.presses} presses
+            </div>
+            <div style={{ color: stats.longTasks ? '#FF9B6B' : '#9FB3C8' }} data-testid="perf-hud-longtasks">
+                long tasks {stats.longTasks} ({stats.longTaskMs} ms) · slow frames {stats.slowFrames}
+            </div>
+            <div style={{ color: '#9FB3C8' }} data-testid="perf-hud-fps">
+                {stats.fps} fps · DOM {stats.dom} · tiles {stats.tiles}{stats.recycled ? ` (+${stats.recycled} recycled)` : ''}
             </div>
             <div style={{ marginTop: 5, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 5, color: '#7CF1F1' }}>
                 {Object.entries(stats.perf).filter(([k]) => k !== 'hud').map(([k, v]) => (
@@ -57,6 +60,45 @@ export const PerfHud = () => {
                         <span style={{ color: '#9FB3C8' }}>{k}</span> {perfLabel(k, v)}
                     </div>
                 ))}
+            </div>
+        </div>
+    );
+};
+
+/** Runs the automated D-pad benchmark once Home has mounted after
+ *  "Run benchmark" was pressed in Settings, then returns to the lab. */
+export const PerfBenchRunner = () => {
+    const location = useLocation();
+    const navigate = useNavigate();
+    const [progress, setProgress] = useState(null);
+    useEffect(() => {
+        if (location.pathname !== '/' || !consumeBenchmarkRequest()) return undefined;
+        let alive = true;
+        const onProgress = (e) => { if (alive) setProgress(e.detail); };
+        window.addEventListener(BENCH_PROGRESS, onProgress);
+        setProgress({ done: 0, total: BENCH_PRESSES, warming: true });
+        const start = async () => {
+            for (let i = 0; i < 20 && alive; i += 1) {
+                if (document.querySelector('[data-testid="shelves-region"] [data-focusable="true"]')) break;
+                await new Promise((r) => setTimeout(r, 300));
+            }
+            await new Promise((r) => setTimeout(r, 1500));
+            if (!alive) return;
+            try { await runBenchmark(); } catch { /* rails never mounted */ }
+            if (!alive) return;
+            setProgress(null);
+            try { sessionStorage.setItem('vesper-settings-jump-to', 'performance'); } catch { /* ignore */ }
+            navigate('/settings');
+        };
+        start();
+        return () => { alive = false; window.removeEventListener(BENCH_PROGRESS, onProgress); };
+    }, [location.pathname, navigate]);
+    if (!progress) return null;
+    return (
+        <div data-testid="perf-bench-overlay" className="vesper-mono pointer-events-none" style={{ ...PANEL, top: 'auto', bottom: 16, right: 16, minWidth: 260 }}>
+            <div style={{ color: '#7CF1F1', fontWeight: 800 }}>Benchmark running — hands off the remote</div>
+            <div style={{ color: '#9FB3C8' }} data-testid="perf-bench-progress">
+                {progress.warming && !progress.done ? 'warming up…' : `${progress.done} / ${progress.total} presses`}
             </div>
         </div>
     );

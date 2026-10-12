@@ -38,23 +38,21 @@ export default function Shelf({ shelf, onSelect, onLongPress, firstTileInitialFo
         fetchShelfItems(shelf).then((items) => { if (alive) setLazyItems(items); }).catch(() => { if (alive) setLazyItems([]); });
         return () => { alive = false; };
     }, [shelf]);
-    const items = shelf.pending ? (lazyItems || []) : shelf.items;
-    const { wideIndex, onFocus } = useShelfMotion(scroller, items.length, trailers);
-    // Lazy row whose catalog came back empty / dead → collapse it.
-    const collapsed = shelf.pending && lazyItems && lazyItems.length === 0 && !shelf.empty;
-    // RecyclerView-style windowing (2026-10-11): only tiles near the
-    // focused slot get a real <PosterTile>; the rest are same-size
-    // empty cells so row geometry, scroll maths and the FLIP motion
-    // are untouched while the DOM per row drops from ~48 tiles to
-    // ~19.  D-pad focus only ever moves to an adjacent tile, so the
-    // target is always mounted; the window slides with the selection.
-    // Window size is a Performance-lab setting (Settings → Performance).
-    const [recycle, setRecycle] = useState(() => getPerf('recycle'));
+    // Performance-lab knobs (Settings → Performance): tile window + titles per row.
+    const [perf, setPerfState] = useState(() => ({ recycle: getPerf('recycle'), limit: Number(getPerf('itemsPerRow')) || 60, posterSize: getPerf('posterSize') }));
     useEffect(() => {
-        const sync = () => setRecycle(getPerf('recycle'));
+        const sync = () => setPerfState({ recycle: getPerf('recycle'), limit: Number(getPerf('itemsPerRow')) || 60, posterSize: getPerf('posterSize') });
         window.addEventListener(PERF_CHANGE, sync);
         return () => window.removeEventListener(PERF_CHANGE, sync);
     }, []);
+    const recycle = perf.recycle;
+    const allItems = shelf.pending ? (lazyItems || []) : shelf.items;
+    const items = allItems.length > perf.limit ? allItems.slice(0, perf.limit) : allItems;
+    const { wideIndex, onFocus } = useShelfMotion(scroller, items.length, trailers);
+    // Lazy row whose catalog came back empty / dead → collapse it.
+    const collapsed = shelf.pending && lazyItems && lazyItems.length === 0 && !shelf.empty;
+    // RecyclerView-style windowing: only tiles near the focused slot get
+    // a real <PosterTile>; the rest are same-size empty cells.
     const AHEAD = recycle === 'tight' ? 9 : 12;
     const BEHIND = recycle === 'tight' ? 3 : 6;
     const mounted = (idx) => recycle === 'off' || (idx >= wideIndex - BEHIND && idx <= wideIndex + AHEAD);
@@ -145,6 +143,7 @@ export default function Shelf({ shelf, onSelect, onLongPress, firstTileInitialFo
                                 onSelect={onSelect}
                                 onLongPress={onLongPress}
                                 wide={trailers && idx === wideIndex}
+                                posterSize={perf.posterSize}
                                 initialFocus={firstTileInitialFocus && idx === 0}
                             />
                         ) : (

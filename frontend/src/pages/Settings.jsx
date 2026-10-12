@@ -1,5 +1,7 @@
 import React from 'react';
 import { PERF_OPTIONS, getPerf, setPerf, resetPerf, PERF_CHANGE } from '@/lib/perfLab';
+import { gradeFor } from '@/lib/perfMetrics';
+import { BENCH_DONE, BENCH_PRESSES, clearBenchResults, describeSettings, getBenchResults, requestBenchmark } from '@/lib/perfBench';
 import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, Check, ShieldCheck,
@@ -444,6 +446,7 @@ export default function Settings() {
                 icon={Gauge}
             />
             <PerformanceLabPanel />
+            <PerfBenchPanel />
             </div>
 
             {/* ---- WELCOME TOUR ---- */}
@@ -1709,9 +1712,11 @@ function PerformanceLabPanel() {
                 color: 'var(--vesper-text-2)', maxWidth: '78ch',
             }}>
                 Each row below is one thing that can make navigation chunky on a TV box.
-                Pick a variant, go back to Home and feel it — the change is live immediately.
-                Turn on the <strong>Performance HUD</strong> to see FPS, DOM size and the
-                active choices in the corner while you test.
+                Pick a variant, go back to Home and feel it — the change is live immediately
+                (catalogue rows refetch when you change how they load).
+                Turn on the <strong>Performance HUD</strong> to see how many milliseconds each
+                D-pad press takes to reach the screen, or use <strong>Run benchmark</strong> below
+                for a like-for-like score per setup.
             </div>
             {Object.entries(PERF_OPTIONS).map(([key, opt]) => {
                 const cur = getPerf(key);
@@ -1769,6 +1774,84 @@ function PerformanceLabPanel() {
             >
                 <RotateCcw size={14} /> Reset to recommended
             </button>
+        </div>
+    );
+}
+
+const BENCH_BTN = {
+    padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+    background: 'rgba(124,241,241,0.12)', color: '#7CF1F1', border: '1px solid rgba(124,241,241,0.4)',
+};
+
+/** Automated A/B benchmark: scripted D-pad run on Home, scored by
+ *  key-press → paint latency, with a history table per variant. */
+function PerfBenchPanel() {
+    const navigate = useNavigate();
+    const [results, setResults] = React.useState(() => getBenchResults());
+    React.useEffect(() => {
+        const sync = () => setResults(getBenchResults());
+        window.addEventListener(BENCH_DONE, sync);
+        return () => window.removeEventListener(BENCH_DONE, sync);
+    }, []);
+    const start = () => { requestBenchmark(); navigate('/'); };
+    const best = results.reduce((b, r) => (r.avgMs && (!b || r.avgMs < b.avgMs) ? r : b), null);
+    return (
+        <div data-testid="perf-bench" style={{
+            marginTop: 18, background: 'rgba(124,241,241,0.05)',
+            border: '1px solid rgba(124,241,241,0.2)', borderRadius: 10, padding: '14px 18px',
+        }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--vesper-text)' }}>Benchmark this setup</div>
+            <div style={{ marginTop: 3, fontSize: 11, lineHeight: 1.4, color: 'var(--vesper-text-2)', maxWidth: '78ch' }}>
+                Goes to Home, fires {BENCH_PRESSES} D-pad presses by itself and measures how long each press takes to
+                reach the screen. Lower is better. Change one setting above, run again, and compare the rows.
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                <button data-testid="perf-bench-run" data-focusable="true" data-focus-style="pill" tabIndex={0}
+                    onClick={start} className="flex items-center gap-2 rounded-full font-sans" style={BENCH_BTN}>
+                    <Gauge size={14} /> Run benchmark
+                </button>
+                {results.length > 0 && (
+                    <button data-testid="perf-bench-clear" data-focusable="true" data-focus-style="pill" tabIndex={0}
+                        onClick={clearBenchResults} className="flex items-center gap-2 rounded-full font-sans"
+                        style={{ ...BENCH_BTN, background: 'rgba(255,255,255,0.06)', color: 'var(--vesper-text)', border: '1px solid rgba(255,255,255,0.14)' }}>
+                        <RotateCcw size={14} /> Clear results
+                    </button>
+                )}
+            </div>
+            {results.length > 0 && (
+                <table data-testid="perf-bench-results" className="vesper-mono" style={{ width: '100%', marginTop: 14, fontSize: 11, borderCollapse: 'collapse' }}>
+                    <thead>
+                        <tr style={{ color: 'var(--vesper-text-3)', textAlign: 'left', letterSpacing: '0.12em', textTransform: 'uppercase', fontSize: 9 }}>
+                            <th style={{ padding: '4px 8px 6px 0' }}>Run</th>
+                            <th style={{ padding: '4px 8px 6px' }}>Avg / press</th>
+                            <th style={{ padding: '4px 8px 6px' }}>Worst</th>
+                            <th style={{ padding: '4px 8px 6px' }}>Long tasks</th>
+                            <th style={{ padding: '4px 8px 6px' }}>Slow frames</th>
+                            <th style={{ padding: '4px 8px 6px' }}>Grade</th>
+                            <th style={{ padding: '4px 0 6px 8px' }}>Settings</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {results.map((r, i) => {
+                            const g = gradeFor(r.avgMs);
+                            return (
+                                <tr key={r.ts} data-testid={`perf-bench-row-${i}`} style={{ borderTop: '1px solid rgba(255,255,255,0.06)', color: 'var(--vesper-text-2)' }}>
+                                    <td style={{ padding: '6px 8px 6px 0', whiteSpace: 'nowrap' }}>
+                                        {new Date(r.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        {best && best.ts === r.ts && <span style={{ color: '#7CF1A1', marginLeft: 6 }}>★ best</span>}
+                                    </td>
+                                    <td style={{ padding: '6px 8px', color: g.color, fontWeight: 800 }}>{r.avgMs} ms</td>
+                                    <td style={{ padding: '6px 8px' }}>{r.worstMs} ms</td>
+                                    <td style={{ padding: '6px 8px' }}>{r.longTasks} ({r.longTaskMs} ms)</td>
+                                    <td style={{ padding: '6px 8px' }}>{r.slowFrames}</td>
+                                    <td style={{ padding: '6px 8px', color: g.color }}>{g.label}</td>
+                                    <td style={{ padding: '6px 0 6px 8px', color: 'var(--vesper-text-3)' }}>{describeSettings(r.settings)}</td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            )}
         </div>
     );
 }

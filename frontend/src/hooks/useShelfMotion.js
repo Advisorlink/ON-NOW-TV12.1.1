@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { getPerf } from '@/lib/perfLab';
 
 const DURATION = 180;
 const EASING = 'cubic-bezier(0.22, 1, 0.36, 1)';
@@ -60,7 +61,8 @@ export default function useShelfMotion(scroller, count, wide) {
         const scroll = rail.scrollLeft;
         const previous = before.current;
         before.current = null;
-        if (!previous || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        if (!previous || getPerf('shelfMotion') === 'instant') return;
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
         geometry.forEach(({ el, left, width }, i) => {
             const end = bounds.left + left - scroll;
             const start = previous.get(el);

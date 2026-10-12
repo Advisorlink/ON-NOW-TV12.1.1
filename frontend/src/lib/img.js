@@ -17,11 +17,19 @@
  */
 
 import Host from '@/lib/host';
+import { getPerf } from '@/lib/perfLab';
 
 const isLite = () => Host.isAndroid || Host.isLowEnd;
 
 export function poster(url) {
-    if (!url || !isLite()) return url;
+    if (!url) return url;
+    // Performance lab: "Poster image size = small" → ¼ of the pixels.
+    if (getPerf('posterSize') === 'small') {
+        return url
+            .replace(/\/poster\/(large|medium|original)\//, '/poster/small/')
+            .replace(/image\.tmdb\.org\/t\/p\/(w500|w342|original)\//, 'image.tmdb.org/t/p/w185/');
+    }
+    if (!isLite()) return url;
     return url
         .replace('/poster/large/', '/poster/medium/')
         .replace('/poster/original/', '/poster/medium/')
