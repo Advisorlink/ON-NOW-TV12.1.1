@@ -28,6 +28,15 @@ export default function Shelf({ shelf, onSelect, onLongPress, firstTileInitialFo
         };
     }, []);
     const { wideIndex, onFocus } = useShelfMotion(scroller, shelf.items.length, trailers);
+    // RecyclerView-style windowing (2026-10-11): only tiles near the
+    // focused slot get a real <PosterTile>; the rest are same-size
+    // empty cells so row geometry, scroll maths and the FLIP motion
+    // are untouched while the DOM per row drops from ~48 tiles to
+    // ~19.  D-pad focus only ever moves to an adjacent tile, so the
+    // target is always mounted; the window slides with the selection.
+    const AHEAD = 12;
+    const BEHIND = 6;
+    const mounted = (idx) => idx >= wideIndex - BEHIND && idx <= wideIndex + AHEAD;
 
     return (
         <section
@@ -108,13 +117,27 @@ export default function Shelf({ shelf, onSelect, onLongPress, firstTileInitialFo
                         className="vesper-shelf-cell shrink-0"
                         style={{ zIndex: trailers && idx === wideIndex ? 2 : 0 }}
                     >
-                        <PosterTile
-                            item={item}
-                            onSelect={onSelect}
-                            onLongPress={onLongPress}
-                            wide={trailers && idx === wideIndex}
-                            initialFocus={firstTileInitialFocus && idx === 0}
-                        />
+                        {mounted(idx) ? (
+                            <PosterTile
+                                item={item}
+                                onSelect={onSelect}
+                                onLongPress={onLongPress}
+                                wide={trailers && idx === wideIndex}
+                                initialFocus={firstTileInitialFocus && idx === 0}
+                            />
+                        ) : (
+                            <div
+                                aria-hidden="true"
+                                data-testid={`shelf-recycled-${shelf.id}-${item.id}`}
+                                className="rounded-xl"
+                                style={{
+                                    '--tile-w': 'clamp(132px, 11.5vw, 198px)',
+                                    width: 'var(--tile-w)',
+                                    height: 'calc(var(--tile-w) * 1.5)',
+                                    background: 'var(--vesper-bg-1)',
+                                }}
+                            />
+                        )}
                     </div>
                 ))}
                 {/* Trailing runway so the last tiles can still park

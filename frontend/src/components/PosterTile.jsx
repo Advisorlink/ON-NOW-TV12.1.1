@@ -154,17 +154,13 @@ function PosterTile({ item, onSelect, onLongPress: onLongPressProp, initialFocus
                 touchAction: 'pan-x pan-y',
                 scrollMarginTop: 24,
                 scrollMarginBottom: 24,
-                // GPU compositing only.  IMPORTANT: do NOT add
-                // `content-visibility: auto` or `contain: size /
-                // paint / strict` here — those create a
-                // size-contained box that clips the focused tile's
-                // `scale(1.08)` animation at the tile's bottom
-                // edge.  Pure compositor promotion is enough to
-                // get smooth scrolling on the HK1 without breaking
-                // the scale animation.
-                transform: 'translateZ(0)',
-                backfaceVisibility: 'hidden',
-                willChange: 'transform',
+                // IMPORTANT: do NOT add `content-visibility: auto`
+                // or `contain: size / paint / strict` here — those
+                // clip the focused tile's `scale(1.08)` at its bottom
+                // edge.  Also NO translateZ / will-change here any
+                // more (2026-10-11): one GPU layer per tile is what
+                // made the HK1 chunky — see index.css
+                // `[data-focusable='true']`.
             }}
         >
             {wide && previewBackdrop ? (

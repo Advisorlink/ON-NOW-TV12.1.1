@@ -247,24 +247,29 @@ body {
 /* Every focusable tile gets promoted on-demand so transforms /
    shadows render off the UI thread. */
 [data-focusable='true'] {
-    /* Limit `will-change` to transform only — older WebViews
-       allocate a full layer for every property listed.  box-shadow
-       compositing comes from the focus-glow rule applying
-       translateZ implicitly via transform: scale(). */
-    will-change: transform;
-    transform: translateZ(0);
-    -webkit-transform: translate3d(0, 0, 0);
+    /* 2026-10-11 — NO blanket layer promotion.  `will-change:
+       transform` + translateZ(0) on every tile gave the HK1 ~300
+       composited layers (plus one per poster <img>) — tens of MB of
+       GPU textures the Mali compositor had to re-blend every frame,
+       which is exactly the "chunky" feel.  RecyclerView only keeps a
+       screenful of views alive; we now promote only the focused tile
+       (rule below) and let Chromium promote tiles during an active
+       transform transition automatically. */
     /* Strict containment on tiles — focus animation can't leak
        layout pressure into siblings. */
     contain: layout style;
+}
+[data-focusable='true']:focus-visible,
+[data-focused='true'] {
+    will-change: transform;
 }
 
 /* Posters — pre-decode + hint the compositor. */
 .vesper-shelf img,
 [data-testid="shelves-region"] img {
     image-rendering: -webkit-optimize-contrast;
-    transform: translateZ(0);
-    -webkit-transform: translate3d(0, 0, 0);
+    /* No translateZ(0): a separate GPU layer per poster image doubled
+       the layer count on the TV box for zero visual gain. */
     /* Hint the browser to decode off the main thread when
        supported (Chrome 65+). */
     decoding: async;
@@ -728,6 +733,20 @@ html.vesper-topnav [data-testid="search-layout"] {
 .vesper-low-end .vesper-grain::after,
 .vesper-host-android .vesper-grain::after {
     display: none !important;
+}
+/* 2026-10-11 — Kill EVERY backdrop blur on the box, including inline
+   styles (release-tag badges, modals, pills).  backdrop-filter forces
+   a readback + blur of what is behind the element on every frame it
+   or its background changes; Mali-G31 class GPUs cannot do that at
+   60 fps.  Elements keep their translucent backgrounds. */
+.vesper-low-end *,
+.vesper-host-android * {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+.vesper-low-end [data-testid^="release-tag-"],
+.vesper-host-android [data-testid^="release-tag-"] {
+    background: rgba(6, 8, 15, 0.86) !important;
 }
 .vesper-low-end *,
 .vesper-host-android *:not([data-keep-anim='true']):not(.vesper-spin):not(.vesper-dots):not(.lvtv-spin):not(.kk-spin):not(.orbital-loader):not([data-loading-anim='true']) {

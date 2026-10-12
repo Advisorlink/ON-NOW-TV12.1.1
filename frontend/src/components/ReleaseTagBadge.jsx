@@ -34,6 +34,7 @@ export default function ReleaseTagBadge({ tag }) {
     if (!tag || !tag.cinema) return null;
     return (
         <span
+            data-testid="release-tag-badge"
             className="vesper-mono absolute z-10 pointer-events-none flex items-center"
             style={{
                 top: 8,

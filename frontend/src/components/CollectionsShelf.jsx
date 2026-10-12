@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { STUDIOS } from '@/lib/collections';
 import { API } from '@/lib/api';
 import * as cache from '@/lib/cache';
+import Host from '@/lib/host';
 
 const ART_KEY = 'collections:logos:v2';
 const ART_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -80,7 +81,12 @@ export default function CollectionsShelf() {
    backend samples each PNG — 'invert' (black script → white), 'plate'
    (dark but colourful → lifted with a soft white glow), 'none' (keeps
    its brand colours).  Box-set title treatments are used as-is. */
+// TV box / low-end: `drop-shadow()` and `saturate()` filters force an
+// off-screen render pass per image on Mali GPUs.  Keep only the
+// functional invert there (dark marks must still read on dark art).
+const CHEAP_PAINT = Host.isAndroid || Host.isLowEnd;
 function logoFilter(treatment) {
+    if (CHEAP_PAINT) return treatment === 'invert' ? 'invert(1)' : 'none';
     if (treatment === 'invert') return 'invert(1) drop-shadow(0 4px 14px rgba(0,0,0,0.7))';
     if (treatment === 'plate') return 'drop-shadow(0 0 8px rgba(255,255,255,0.9)) drop-shadow(0 0 22px rgba(255,255,255,0.55)) drop-shadow(0 4px 14px rgba(0,0,0,0.7))';
     return 'drop-shadow(0 4px 14px rgba(0,0,0,0.7))';
@@ -117,7 +123,7 @@ export function CollectionTile({ col, art, onClick, width = 'clamp(220px, 18vw, 
                     loading="lazy"
                     decoding="async"
                     className="absolute inset-0 w-full h-full object-cover"
-                    style={{ opacity: 0.55, filter: 'saturate(0.9)' }}
+                    style={{ opacity: 0.55, filter: CHEAP_PAINT ? 'none' : 'saturate(0.9)' }}
                 />
             )}
             <div

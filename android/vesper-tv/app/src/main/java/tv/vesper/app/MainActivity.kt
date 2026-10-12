@@ -404,12 +404,14 @@ class MainActivity : AppCompatActivity() {
             )
             setBackgroundColor(android.graphics.Color.parseColor("#06080F"))
 
-            // Force the WebView onto a dedicated hardware layer so
-            // every paint (and especially shelf scroll transforms)
-            // is GPU-composited.  On the HK1's old Mali GPU this is
-            // the difference between 30 fps stuttery scroll and a
-            // buttery 60 fps LeanBack-style glide.
-            setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
+            // 2026-10-11 — Do NOT force LAYER_TYPE_HARDWARE on a WebView.
+            // Chromium WebView is hardware-accelerated by default and
+            // draws through its own compositor; a forced View hardware
+            // layer adds a full-screen off-screen texture that must be
+            // re-rendered on every frame the page changes (every D-pad
+            // move) — an extra 1080p copy per frame on the HK1's Mali
+            // GPU, which read as "chunky" navigation.  Default layer type.
+            setLayerType(android.view.View.LAYER_TYPE_NONE, null)
             // Bonus on Android 9+: lets the WebView's compositor
             // render off the UI thread (huge win for D-pad nav).
             android.webkit.WebView.setWebContentsDebuggingEnabled(false)
