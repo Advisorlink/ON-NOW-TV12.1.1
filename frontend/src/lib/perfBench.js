@@ -69,6 +69,11 @@ export async function runBenchmark() {
         first.focus({ preventScroll: true });
         first.setAttribute('data-focused', 'true');
         await wait(600);
+        // Warm-up (not scored): first moves pay for cold image decodes.
+        for (const k of ['ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowLeft', 'ArrowLeft', 'ArrowLeft']) {
+            press(k); await afterPaint(); await wait(140);
+        }
+        await wait(400);
         resetMetrics();
         for (let i = 0; i < SCRIPT.length; i += 1) {
             press(SCRIPT[i]);

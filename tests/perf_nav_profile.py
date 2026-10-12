@@ -46,9 +46,12 @@ async def main():
         for k, v in self_us.most_common(18): print(f"  {v/1000:7.1f} ms  {k}")
         print("== top inclusive (app code)")
         shown = 0
-        for k, v in total_us.most_common(80):
+        import re as _re
+        REACT = _re.compile(r'^(commit|recursively|perform|run|flush|process|render|work|begin|update|react_|exports\.jsx|ReactElement|getComponentName|validate|create|complete|mount|use[A-Z]\w*\b bundle|dispatch|batched|execute|invoke|call|safely|trackUsed|reconcile|scheduleUpdate|markUpdate|request|ensureRoot|finish|prepare|basicStateReducer|readContext|resolveDispatcher|jsx|Transition|Hook|Fiber|Lane|Effect|Root|Children|Context)')
+        for k, v in total_us.most_common(400):
             if '(root)' in k or '(program)' in k or '(idle)' in k or 'react-dom' in k or 'chunk' in k and 'node_modules' in k: continue
+            if REACT.match(k) and 'bundle' in k: continue
             print(f"  {v/1000:7.1f} ms  {k}"); shown += 1
-            if shown >= 22: break
+            if shown >= 45: break
         await b.close()
 asyncio.run(main())

@@ -12300,3 +12300,15 @@ User: tags hallucinating ("The End of Oak Street" = Cinema?, "One Night Only" = 
 **Verified:** py syntax + boot + meta healthy (13991 ch / 3241 epg), chunked persist+restore round-trip PASS (7 chunks, byte-identical) + legacy restore PASS, kt brace checks pass (kotlinc 1.3 on pod false-positives on trailing commas — ignore; CI uses modern Kotlin), epg-only endpoint 200/1.3 MB gz.
 
 **Deploy note:** user must REBUILD the Live TV APK (CI) and redeploy the VPS backend to get these fixes.
+
+---
+
+## 2026-10-12 — Performance lab: make the toggles real + measure per press
+
+**User:** "changing the settings in the performance A/B testing makes no difference — the HUD shows the change but performance doesn't change."
+
+**Root causes found:** (1) rowLoading/itemsPerRow only act on a cold fetch, but shelves are cached in session+localStorage and the Settings page unmounts Home, so the cache short-circuited every strategy; (2) itemsPerRow was masked by tile recycling and the cached 60-item list; (3) the HUD showed idle FPS (always 60) — chunkiness is per key-press and was never measured.
+
+**Changes:** `perfLab.setPerf/resetPerf` drop `shelves:*` caches (new `cache.clearPrefix`); `Shelf` slices to itemsPerRow at render and re-renders tiles on posterSize change; new knobs `heroFollow` (every move / after you stop / off → `useFocusHero`), `shelfMotion` (glide / instant → `useShelfMotion`), `posterSize` (medium / small → `img.poster`). New `lib/perfMetrics.js` (keydown→paint latency via rAF+setTimeout, PerformanceObserver longtask, slow-frame counter) and `lib/perfBench.js` (40 scripted synthetic KeyboardEvents on Home after a 6-press warm-up, results in localStorage `vesper-perf-bench-results`). `PerfHud` shows median/p90/worst ms per press + long tasks; `PerfBenchRunner` (App.js) runs the benchmark when Home mounts with `sessionStorage['vesper-perf-bench-pending']`, then returns to Settings → Performance via `vesper-settings-jump-to='performance'` (Settings now honours it; nav initial-focus no longer forces the Theme section). Settings `PerfBenchPanel`: Run benchmark / Clear results / comparison table (★ best).
+
+**Verified:** tests/perf_lab_e2e.py PASS (toggles change DOM, HUD shows latency, benchmark completes and lands a row). tests/perf_lab_ab.py on a production build at 6× CPU throttle: defaults 23–24 ms median vs "all tiles + layers + recycle off" 35–36 ms — differences now visible and repeatable.

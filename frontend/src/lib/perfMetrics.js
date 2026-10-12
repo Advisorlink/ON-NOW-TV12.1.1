@@ -94,10 +94,12 @@ export function getSnapshot() {
     const p = state.presses;
     const sorted = [...p].sort((a, b) => a - b);
     const avg = p.length ? p.reduce((a, b) => a + b, 0) / p.length : 0;
-    const p90 = sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.9))] : 0;
+    const at = (q) => (sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * q))] : 0);
+    const p90 = at(0.9);
     return {
         presses: p.length,
         avgMs: Math.round(avg),
+        medianMs: Math.round(at(0.5)),
         worstMs: Math.round(sorted[sorted.length - 1] || 0),
         p90Ms: Math.round(p90),
         longTasks: state.longTasks,

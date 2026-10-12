@@ -8,7 +8,7 @@ import asyncio, json, os, re, sys, statistics
 from playwright.async_api import async_playwright
 
 ENV = open('/app/frontend/.env').read()
-BASE = re.search(r'REACT_APP_BACKEND_URL=(\S+)', ENV).group(1)
+BASE = os.environ.get('PERF_BASE') or re.search(r'REACT_APP_BACKEND_URL=(\S+)', ENV).group(1)
 THROTTLE = float(sys.argv[1]) if len(sys.argv) > 1 else 6.0
 ANDROID = 'android' in sys.argv[2:]
 STUB = "window.OnNowTV = { isAndroidHost: () => true, deviceClass: () => 'normal', getHostPackage: () => 'tv.onnowtv.app' };"

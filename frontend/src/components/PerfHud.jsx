@@ -36,12 +36,12 @@ export const PerfHud = () => {
         return () => { unsub(); stopMetrics(); };
     }, [enabled]);
     if (!enabled || !stats) return null;
-    const grade = gradeFor(stats.avgMs);
+    const grade = gradeFor(stats.medianMs);
     return (
         <div data-testid="perf-hud" aria-hidden="true" className="vesper-mono pointer-events-none" style={PANEL}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                 <span style={{ color: grade.color, fontWeight: 800 }} data-testid="perf-hud-latency">
-                    {stats.presses ? `${stats.avgMs} ms / press` : 'press a D-pad key…'}
+                    {stats.presses ? `${stats.medianMs} ms / press` : 'press a D-pad key…'}
                 </span>
                 <span style={{ color: grade.color }} data-testid="perf-hud-grade">{grade.label}</span>
             </div>
@@ -78,11 +78,12 @@ export const PerfBenchRunner = () => {
         window.addEventListener(BENCH_PROGRESS, onProgress);
         setProgress({ done: 0, total: BENCH_PRESSES, warming: true });
         const start = async () => {
-            for (let i = 0; i < 20 && alive; i += 1) {
-                if (document.querySelector('[data-testid="shelves-region"] [data-focusable="true"]')) break;
+            // Wait for the catalogue rows to be on screen, then let images settle.
+            for (let i = 0; i < 40 && alive; i += 1) {
+                if (document.querySelectorAll('[data-testid^="shelf-row-"]').length >= 3) break;
                 await new Promise((r) => setTimeout(r, 300));
             }
-            await new Promise((r) => setTimeout(r, 1500));
+            await new Promise((r) => setTimeout(r, 2500));
             if (!alive) return;
             try { await runBenchmark(); } catch { /* rails never mounted */ }
             if (!alive) return;
