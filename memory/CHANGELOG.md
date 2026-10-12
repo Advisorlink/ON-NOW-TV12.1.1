@@ -12349,3 +12349,5 @@ User picked the final setup after testing; Settings → Performance section, HUD
 - `lib/streamOrder.js`: new `isMediaFusion`, `sourceRank(s)` (0 Direct, 1 Torrentio, 2 MediaFusion, 3 EasyNews++, 4 other); `orderStreams` buckets by rank (uncached debrid downloads in a 6th bucket at the very end), smallest-FHD-first inside each bucket. `scoreStream` uses the same rank ×100.
 - `lib/api.js` `getStreams` probeMeta gains `torrentioPending` (knownHasTorrentio memo + in-flight counter, re-emits on settle). `Detail.jsx` and `SeriesEpisodes.jsx` early-launch hold (≤3 s) now applies when the best partial candidate has `sourceRank > 1` and Torrentio is still probing — previously held for EasyNews.
 - Verified with a node harness (tests/stream_order_test.mjs after sed-aliasing streamMeta): Direct, Tor 1 GB, Tor 2 GB, MediaFusion, EasyNews, Plexio, Tor-uncached.
+
+- (same day) Size band for the cascade: `sizeBand()` — 1–4 GB first (smallest leading), then sub-1 GB, oversized, unknown; SIZE_CAP 3→4 GB, SIZE_MIN 1 GB. Harness: 1.4 → 2.2 → 3.5 → 0.7 → 6 → unknown → 720p.

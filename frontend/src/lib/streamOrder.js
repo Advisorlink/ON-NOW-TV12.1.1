@@ -25,7 +25,19 @@
  */
 import { is1080p, is4K, isAV1 } from '@/lib/streamMeta';
 
-const SIZE_CAP_GB = 3.0;
+// USER SPEC 2026-10-12: a good 1080p copy is 1–4 GB.  Under 1 GB is a
+// squashed/cam-grade encode, over 4 GB is oversized for the connection.
+const SIZE_MIN_GB = 1.0;
+const SIZE_CAP_GB = 4.0;
+
+/** 0 = sweet spot (1–4 GB), 1 = too small, 2 = too big, 3 = unknown size. */
+const sizeBand = (s) => {
+    const gb = s?._size_gb;
+    if (typeof gb !== 'number') return 3;
+    if (gb < SIZE_MIN_GB) return 1;
+    if (gb > SIZE_CAP_GB) return 2;
+    return 0;
+};
 
 export const isEasyNews = (s) =>
     /easy[\s_-]?news/i.test(
@@ -76,7 +88,7 @@ function scoreStream(s) {
     // fallback that takes 20-30 s to first frame.
     const av1    = isAV1(s) ? 1 : 0;
     const ten    = is1080p(s) ? 0 : 1;
-    const sized  = typeof s?._size_gb !== 'number' || s._size_gb <= SIZE_CAP_GB ? 0 : 1;
+    const sized  = sizeBand(s) === 0 || sizeBand(s) === 3 ? 0 : 1;
     // v2.13.11 — uncached debrid "download" links go to the very
     // bottom of every list (×1000 dominates all other weights).
     const dl     = isUncachedDownload(s) ? 1 : 0;
@@ -92,7 +104,8 @@ function scoreStream(s) {
  *
  * USER SPEC — source blocks in cascade order (ON NOW Direct →
  * Torrentio → MediaFusion → EasyNews++ → rest); inside each block the
- * smallest 1080p (FHD) link comes first, then sub-1080p / AV1 copies
+ * 1080p (FHD) links come first — those in the 1–4 GB sweet spot
+ * smallest-first, then sub-1 GB, then oversized — then sub-1080p / AV1 copies
  * (no AV1 hardware decoder on the box).  Uncached debrid "download"
  * links (30 s+ cloud transfer) sink below every source.  Unknown size
  * sorts after sized links; quality score breaks ties.
@@ -108,6 +121,11 @@ export function orderStreams(streams) {
         const fa = is1080p(a.s) && !is4K(a.s) && !isAV1(a.s) ? 0 : 1;
         const fb = is1080p(b.s) && !is4K(b.s) && !isAV1(b.s) ? 0 : 1;
         if (fa !== fb) return fa - fb;
+        // 1–4 GB copies first (smallest of those leading), then the
+        // sub-1 GB ones, then oversized, then unknown size.
+        const ba = sizeBand(a.s);
+        const bb = sizeBand(b.s);
+        if (ba !== bb) return ba - bb;
         const ga = typeof a.s?._size_gb === 'number' ? a.s._size_gb : Number.MAX_VALUE;
         const gb = typeof b.s?._size_gb === 'number' ? b.s._size_gb : Number.MAX_VALUE;
         return ga - gb || a.key - b.key || a.i - b.i;
