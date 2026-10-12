@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import PosterTile from './PosterTile';
 import { getAutoTrailer } from '@/lib/prefs';
 import useShelfMotion from '@/hooks/useShelfMotion';
+import { getPerf, PERF_CHANGE } from '@/lib/perfLab';
+import { fetchShelfItems } from '@/hooks/useLiveShelves';
 
 /**
  * Responsive shelf row.  All horizontal paddings + gaps + type sizes
@@ -27,17 +29,37 @@ export default function Shelf({ shelf, onSelect, onLongPress, firstTileInitialFo
             window.removeEventListener('vesper:profile-change', sync);
         };
     }, []);
-    const { wideIndex, onFocus } = useShelfMotion(scroller, shelf.items.length, trailers);
+    // Lazy row-loading strategy: a pending stub fetches its own items
+    // once this Shelf mounts (Home's <Lazy> mounts rows near the screen).
+    const [lazyItems, setLazyItems] = useState(null);
+    useEffect(() => {
+        if (!shelf.pending) { setLazyItems(null); return undefined; }
+        let alive = true;
+        fetchShelfItems(shelf).then((items) => { if (alive) setLazyItems(items); }).catch(() => { if (alive) setLazyItems([]); });
+        return () => { alive = false; };
+    }, [shelf]);
+    const items = shelf.pending ? (lazyItems || []) : shelf.items;
+    const { wideIndex, onFocus } = useShelfMotion(scroller, items.length, trailers);
+    // Lazy row whose catalog came back empty / dead → collapse it.
+    const collapsed = shelf.pending && lazyItems && lazyItems.length === 0 && !shelf.empty;
     // RecyclerView-style windowing (2026-10-11): only tiles near the
     // focused slot get a real <PosterTile>; the rest are same-size
     // empty cells so row geometry, scroll maths and the FLIP motion
     // are untouched while the DOM per row drops from ~48 tiles to
     // ~19.  D-pad focus only ever moves to an adjacent tile, so the
     // target is always mounted; the window slides with the selection.
-    const AHEAD = 12;
-    const BEHIND = 6;
-    const mounted = (idx) => idx >= wideIndex - BEHIND && idx <= wideIndex + AHEAD;
+    // Window size is a Performance-lab setting (Settings → Performance).
+    const [recycle, setRecycle] = useState(() => getPerf('recycle'));
+    useEffect(() => {
+        const sync = () => setRecycle(getPerf('recycle'));
+        window.addEventListener(PERF_CHANGE, sync);
+        return () => window.removeEventListener(PERF_CHANGE, sync);
+    }, []);
+    const AHEAD = recycle === 'tight' ? 9 : 12;
+    const BEHIND = recycle === 'tight' ? 3 : 6;
+    const mounted = (idx) => recycle === 'off' || (idx >= wideIndex - BEHIND && idx <= wideIndex + AHEAD);
 
+    if (collapsed) return null;
     return (
         <section
             data-testid={`shelf-${shelf.id}`}
@@ -80,7 +102,7 @@ export default function Shelf({ shelf, onSelect, onLongPress, firstTileInitialFo
                         textTransform: 'uppercase',
                     }}
                 >
-                    {shelf.items.length} titles
+                    {shelf.pending && !lazyItems ? 'loading…' : `${items.length} titles`}
                 </span>
             </header>
 
@@ -109,7 +131,7 @@ export default function Shelf({ shelf, onSelect, onLongPress, firstTileInitialFo
                     overscrollBehavior: 'contain',
                 }}
             >
-                {shelf.items.map((item, idx) => (
+                {items.map((item, idx) => (
                     <div
                         key={item.id}
                         data-shelf-cell="true"
@@ -149,7 +171,7 @@ export default function Shelf({ shelf, onSelect, onLongPress, firstTileInitialFo
                  * catalog is failing.  Stays out of production UX
                  * because useLiveShelves skips empty rows unless
                  * unlock is on. */}
-                {shelf.empty && shelf.items.length === 0 && (
+                {shelf.empty && items.length === 0 && (
                     <div
                         data-testid={`shelf-empty-${shelf.id}`}
                         style={{

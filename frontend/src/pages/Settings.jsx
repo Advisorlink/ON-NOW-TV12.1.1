@@ -1,9 +1,10 @@
 import React from 'react';
+import { PERF_OPTIONS, getPerf, setPerf, resetPerf, PERF_CHANGE } from '@/lib/perfLab';
 import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, Check, ShieldCheck,
     Cloud, Download, Upload, Copy, Loader2, KeyRound, AlertTriangle,
-    Sparkles, Lightbulb, LogOut, Heart, Palette, Play, LayoutGrid, HelpCircle, Database, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Plus, Trash2, X, Search } from 'lucide-react';
+    Sparkles, Lightbulb, LogOut, Heart, Palette, Play, LayoutGrid, HelpCircle, Database, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Plus, Trash2, X, Search, Gauge } from 'lucide-react';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useBackHandler from '@/hooks/useBackHandler';
 import FullscreenButton from '@/components/FullscreenButton';
@@ -435,6 +436,16 @@ export default function Settings() {
             </div>
             </div>
 
+            {/* ---- PERFORMANCE LAB ---- */}
+            <div data-testid="shelf-page" data-settings-section="performance" hidden={section !== 'performance'}>
+            <SectionHeader
+                eyebrow="Settings · Performance lab"
+                title="Test what makes the box smooth"
+                icon={Gauge}
+            />
+            <PerformanceLabPanel />
+            </div>
+
             {/* ---- WELCOME TOUR ---- */}
             <div data-testid="shelf-page" data-settings-section="welcome-tour" hidden={section !== 'welcome-tour'}>
             <SectionHeader
@@ -534,6 +545,7 @@ const SETTINGS_SECTIONS = [
     { id: 'viewing-preference', label: 'Personalise',  hint: 'Your viewing style',        icon: Sparkles },
     { id: 'welcome-tour',       label: 'Help',         hint: 'Welcome tour',              icon: HelpCircle },
     { id: 'tips',               label: 'Tips',         hint: 'Remote shortcuts',            icon: Lightbulb },
+    { id: 'performance',        label: 'Performance',  hint: 'A/B test smoothness',       icon: Gauge },
     { id: 'backup',             label: 'Backup',       hint: 'Save & restore',            icon: Database },
     { id: 'signout',            label: 'Sign out',     hint: 'End this session',          icon: LogOut },
 ];
@@ -1681,6 +1693,86 @@ function ToggleRow({ testid, title, description, value, onToggle }) {
  *   3. Watch 5+ min — if ExoPlayer doesn't buffer, libVLC was the bug.
  *  ──────────────────────────────────
  */
+/** Performance lab — every strategy is switchable live (no APK
+ *  rebuild).  The active choice is marked ● and the HUD shows what is
+ *  running on screen. */
+function PerformanceLabPanel() {
+    const [, force] = React.useReducer((n) => n + 1, 0);
+    React.useEffect(() => {
+        window.addEventListener(PERF_CHANGE, force);
+        return () => window.removeEventListener(PERF_CHANGE, force);
+    }, []);
+    return (
+        <div data-testid="performance-lab">
+            <div style={{
+                marginBottom: 14, fontSize: 12, lineHeight: 1.5,
+                color: 'var(--vesper-text-2)', maxWidth: '78ch',
+            }}>
+                Each row below is one thing that can make navigation chunky on a TV box.
+                Pick a variant, go back to Home and feel it — the change is live immediately.
+                Turn on the <strong>Performance HUD</strong> to see FPS, DOM size and the
+                active choices in the corner while you test.
+            </div>
+            {Object.entries(PERF_OPTIONS).map(([key, opt]) => {
+                const cur = getPerf(key);
+                return (
+                    <div
+                        key={key}
+                        data-testid={`perf-row-${key}`}
+                        style={{
+                            background: 'rgba(255,255,255,0.04)',
+                            border: '1px solid rgba(255,255,255,0.08)',
+                            borderRadius: 10, padding: '14px 18px', marginBottom: 8,
+                        }}
+                    >
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--vesper-text)' }}>
+                            {opt.label}
+                            <span data-testid={`perf-active-${key}`} style={{
+                                fontSize: 9, fontWeight: 700, letterSpacing: '0.22em',
+                                color: '#7CF1F1', marginLeft: 10, textTransform: 'uppercase',
+                            }}>
+                                Active: {opt.values.find((v) => v.id === cur)?.label}
+                                {cur === opt.default ? ' · default' : ''}
+                            </span>
+                        </div>
+                        <div style={{ marginTop: 3, fontSize: 11, lineHeight: 1.4, color: 'var(--vesper-text-2)' }}>
+                            {opt.hint}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                            {opt.values.map((v) => (
+                                <PlayerBackendPill
+                                    key={v.id}
+                                    label={v.label}
+                                    sub={v.sub || (v.id === opt.default ? 'default' : '')}
+                                    active={cur === v.id}
+                                    onClick={() => setPerf(key, v.id)}
+                                    testid={`perf-${key}-${v.id}`}
+                                    accent="#7CF1F1"
+                                />
+                            ))}
+                        </div>
+                    </div>
+                );
+            })}
+            <button
+                data-testid="perf-reset"
+                data-focusable="true"
+                data-focus-style="pill"
+                tabIndex={0}
+                onClick={() => resetPerf()}
+                className="flex items-center gap-2 rounded-full font-sans"
+                style={{
+                    marginTop: 6, padding: '10px 18px', fontSize: 13, fontWeight: 700,
+                    background: 'rgba(255,255,255,0.06)', color: 'var(--vesper-text)',
+                    border: '1px solid rgba(255,255,255,0.14)', cursor: 'pointer',
+                }}
+            >
+                <RotateCcw size={14} /> Reset to recommended
+            </button>
+        </div>
+    );
+}
+
 function PlayerBackendRow() {
     const [backend, setBackend] = React.useState(() => {
         try {

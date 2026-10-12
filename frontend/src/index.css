@@ -263,6 +263,14 @@ body {
 [data-focused='true'] {
     will-change: transform;
 }
+/* Performance lab: "GPU layers = every tile" (the original behaviour) */
+html.perf-layers-all [data-focusable='true'] {
+    will-change: transform;
+    transform: translateZ(0);
+}
+html.perf-layers-all .vesper-shelf img {
+    transform: translateZ(0);
+}
 
 /* Posters — pre-decode + hint the compositor. */
 .vesper-shelf img,
@@ -739,8 +747,8 @@ html.vesper-topnav [data-testid="search-layout"] {
    a readback + blur of what is behind the element on every frame it
    or its background changes; Mali-G31 class GPUs cannot do that at
    60 fps.  Elements keep their translucent backgrounds. */
-.vesper-low-end *,
-.vesper-host-android * {
+.vesper-low-end:not(.perf-blur-on) *,
+.vesper-host-android:not(.perf-blur-on) * {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
 }
@@ -752,6 +760,12 @@ html.vesper-topnav [data-testid="search-layout"] {
 .vesper-host-android *:not([data-keep-anim='true']):not(.vesper-spin):not(.vesper-dots):not(.lvtv-spin):not(.kk-spin):not(.orbital-loader):not([data-loading-anim='true']) {
     animation-duration: 0.001s !important;
     animation-iteration-count: 1 !important;
+}
+/* Performance lab: hero Ken Burns back on, even on the box. */
+html.perf-hero-on .vesper-kenburns {
+    animation: vesperKenBurns 24s linear forwards !important;
+    animation-iteration-count: 1 !important;
+    will-change: transform;
 }
 /* v2.10.24 — Loading spinners MUST keep animating even in perf
    mode, otherwise the user thinks the app is frozen.  Re-assert

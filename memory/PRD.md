@@ -15,6 +15,7 @@ Audience: TV viewers using a D-pad on Android TV boxes, families using the Kids 
 - Everything from 6–7 Oct (phone/tablet layout, touch recovery, native handoff protocol, Playback details, scroll/overscroll change, tap-to-show dock) is intentionally gone. Focus is the TV box version. Do not re-add phone work unless the user asks.
 - 2026-10-11 additions after rollback: 11 new networks (backend NETWORK_PROVIDERS + lib/networks.js), Detail "Add to Library" pill (reuses Add-to-List modal), ON NOW TV Direct fixes in the native player (forced-only subs default, Direct buffer profile). Native changes need the CI APK.
 - 2026-10-12 perf pass (user: "smooth like RecyclerView on the HK1"): layer-count cut 299→11, all backdrop blurs off on the box, image filters removed, Shelf tile windowing (−6…+12 around focus), WebView default layer type. Probe scripts in tests/perf_*.py. Needs CI APK for the native part.
+- 2026-10-12 Performance lab in Settings (A/B every smoothness strategy live, with HUD). Dead Plexio addon identified as the slow-rows cause; catalog loading now parallel + circuit-breaker.
 - Open items carried over: Launcher backend service down (user SSH needed), Trivia app not started, user to build/install the CI APK.
 
 ## Previous user request (2026-10-04) — Live TV recovery + Music motion
