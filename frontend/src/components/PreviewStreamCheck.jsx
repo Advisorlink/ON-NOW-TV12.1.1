@@ -4,12 +4,12 @@ import { API, Vesper } from '@/lib/api';
 import { tileTrailerRequest } from '@/lib/trailerEngine';
 
 /** Verdict from the live stream count (user spec): 1–20 Cam copy,
- *  21–50 Watchable cam copy, 51+ HD copy. */
+ *  21–35 Watchable cam copy, 36+ HD copy.  Solid colour, white text. */
 export function streamVerdict(count) {
-    if (count >= 51) return { label: 'HD copy', color: '#7CF1A1', bg: 'rgba(22, 92, 52, 0.82)', Icon: Sparkles };
-    if (count >= 21) return { label: 'Watchable cam copy', color: '#FFD36B', bg: 'rgba(104, 74, 10, 0.82)', Icon: Eye };
-    if (count >= 1) return { label: 'Cam copy', color: '#FF9B6B', bg: 'rgba(110, 40, 20, 0.82)', Icon: Film };
-    return { label: 'No streams yet', color: '#C7D2E0', bg: 'rgba(30, 36, 50, 0.82)', Icon: Film };
+    if (count >= 36) return { label: 'HD copy', bg: '#15903f', Icon: Sparkles };
+    if (count >= 21) return { label: 'Watchable cam copy', bg: '#c47a06', Icon: Eye };
+    if (count >= 1) return { label: 'Cam copy', bg: '#b9401c', Icon: Film };
+    return { label: 'No streams yet', bg: '#3a4356', Icon: Film };
 }
 
 async function resolveImdb(req, signal) {
@@ -63,6 +63,8 @@ export default function PreviewStreamCheck({ tile, active }) {
     const v = streamVerdict(state.count);
     const showVerdict = state.count > 0 || !checking;
     const Icon = checking && !state.count ? Loader2 : v.Icon;
+    // Sit just under the poster's CINEMA tag when the tile has one.
+    const hasCinema = !!tile?.querySelector('[data-testid="release-tag-badge"]');
     return (
         <div
             data-testid="preview-stream-check"
@@ -71,36 +73,31 @@ export default function PreviewStreamCheck({ tile, active }) {
             className="vesper-mono"
             style={{
                 position: 'absolute',
-                top: 8,
-                right: 8,
+                top: hasCinema ? 34 : 8,
+                left: 8,
                 zIndex: 4,
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 6,
-                padding: '5px 9px 5px 7px',
-                borderRadius: 999,
-                background: showVerdict ? v.bg : 'rgba(5, 7, 13, 0.72)',
-                border: `1px solid ${showVerdict ? v.color : 'rgba(255,255,255,0.22)'}55`,
-                color: showVerdict ? v.color : 'rgba(255,255,255,0.85)',
-                fontSize: 'clamp(9px, 0.62vw, 11px)',
-                letterSpacing: '0.14em',
+                gap: 4,
+                padding: '3px 8px 3px 6px',
+                borderRadius: 7,
+                background: showVerdict ? v.bg : 'rgba(8, 12, 18, 0.72)',
+                color: '#fff',
+                fontSize: 9,
+                lineHeight: 1,
+                letterSpacing: '0.12em',
                 textTransform: 'uppercase',
                 fontWeight: 700,
-                boxShadow: '0 4px 14px rgba(0,0,0,0.45)',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.45)',
                 animation: 'vesper-hoverprev-in 160ms ease-out both',
                 pointerEvents: 'none',
                 whiteSpace: 'nowrap',
             }}
         >
-            <Icon size={12} strokeWidth={2.4} className={checking && !state.count ? 'vesper-spin' : undefined} />
+            <Icon size={10} strokeWidth={2.6} className={checking && !state.count ? 'vesper-spin' : undefined} />
             <span data-testid="preview-stream-check-label">
-                {showVerdict ? v.label : 'Checking streams'}
+                {showVerdict ? v.label : 'Checking'}
             </span>
-            {state.count > 0 && (
-                <span data-testid="preview-stream-check-count" style={{ opacity: 0.8 }}>
-                    · {state.count}{checking ? '…' : ''}
-                </span>
-            )}
         </div>
     );
 }
