@@ -1,0 +1,23 @@
+{
+  "status": "Native implementation and local verification pass; physical-device acceptance pending",
+  "native_tests": 53,
+  "failures": 0,
+  "build_signature_alignment_crc": "pass",
+  "reported_issue_resolution": {
+    "issue": "Replay discovery could run on the UI thread",
+    "disposition": "False positive, no runtime change needed",
+    "evidence": "SportsReplayRepository.discover owns withContext(Dispatchers.Default). SportsReplayThreadingTest instruments channel traversal and confirms all accesses off the caller thread, without network."
+  },
+  "additional_checks": [
+    "Follow twice and player-team filtering preserve header, field and broadcast slot objects",
+    "Native match theme resolves windowDisablePreview=true",
+    "Benchmark writes to portable module build/reports directory",
+    "Cancellation test synchronizes on started signal instead of a fixed sleep"
+  ],
+  "benchmark": {"old_median_ms": 559, "new_median_ms": 6, "channels": 5000, "programme_slots_per_channel": 96, "warmed_runs": 5, "same_match_signatures": true, "scope": "synthetic JVM guide-matching only, not real TV navigation timing"},
+  "apk_sha256": "a14e4df8b3d6330771486eb0b29f4494ad8862317bef546dc6003f269981efb1",
+  "apk_distribution": "Local debug validation only; no release-signed update published or installed",
+  "remaining": ["Install matching-signer APK on user's box", "Confirm real black transition, cold/repeat navigation, Back and prior visual/orientation changes"],
+  "mocked": ["Browser design fixtures/replay dialog", "Synthetic native unit/benchmark fixtures"],
+  "credentials": "No auth credentials created or changed"
+}

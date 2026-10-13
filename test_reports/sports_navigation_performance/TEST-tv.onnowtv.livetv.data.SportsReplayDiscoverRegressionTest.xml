@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="tv.onnowtv.livetv.data.SportsReplayDiscoverRegressionTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-10-13T15:31:30" hostname="agent-env-49bc65fa-9152-42e4-b845-97fdcbbeec38" time="2.536">
+  <properties/>
+  <testcase name="verify_cancellation_does_not_publish_cached_result" classname="tv.onnowtv.livetv.data.SportsReplayDiscoverRegressionTest" time="2.251"/>
+  <testcase name="verify_concurrent_same_request_is_deduplicated_by_cache" classname="tv.onnowtv.livetv.data.SportsReplayDiscoverRegressionTest" time="0.046"/>
+  <testcase name="verify_uses_rewritten_account_credentials_and_range_header" classname="tv.onnowtv.livetv.data.SportsReplayDiscoverRegressionTest" time="0.045"/>
+  <testcase name="discover_can_find_local_archived_tnt_candidate_even_when_broadcast_hint_is_fox" classname="tv.onnowtv.livetv.data.SportsReplayDiscoverRegressionTest" time="0.096"/>
+  <testcase name="discover_pre_or_live_state_does_not_probe_provider" classname="tv.onnowtv.livetv.data.SportsReplayDiscoverRegressionTest" time="0.001"/>
+  <testcase name="discover_unknown_or_false_archive_flags_do_not_expose_replay" classname="tv.onnowtv.livetv.data.SportsReplayDiscoverRegressionTest" time="0.006"/>
+  <testcase name="discover_expired_post_game_does_not_probe_provider" classname="tv.onnowtv.livetv.data.SportsReplayDiscoverRegressionTest" time="0.001"/>
+  <testcase name="verify_cache_key_is_isolated_per_account_stream_url" classname="tv.onnowtv.livetv.data.SportsReplayDiscoverRegressionTest" time="0.089"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -8,6 +8,8 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -34,13 +36,15 @@ object SportsReplayRow {
                 job?.cancel()
                 job = owner.lifecycleScope.launch {
                     owner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                        // Reuse the SAME per-viewer URL rewrite as live playback, not the bundle's master account.
-                        val accountBundle = bundle.copy(channels = bundle.channels.map { channel ->
-                            if (channel.archiveEnabled) channel.copy(streamUrl = AuthStore.rewriteStreamUrl(ctx, channel.streamUrl)) else channel
-                        })
                         var previous: GameChannelMatcher.Match? = null
                         try {
                             delay(300) // Fast D-pad scrolling must not fan out provider requests.
+                            // Same viewer URL rewrite as live playback, but never scan the guide on the UI thread.
+                            val accountBundle = withContext(Dispatchers.Default) {
+                                bundle.copy(channels = bundle.channels.map { channel ->
+                                    if (channel.archiveEnabled) channel.copy(streamUrl = AuthStore.rewriteStreamUrl(ctx, channel.streamUrl)) else channel
+                                })
+                            }
                             while (isActive) {
                                 val cached = previous
                                 if (cached == null || !SportsReplayPolicy.check(game, cached).eligible ||

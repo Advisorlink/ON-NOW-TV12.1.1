@@ -1,0 +1,20 @@
+[
+  {
+    "attempt": 1,
+    "status": 200,
+    "wall_ms": 632,
+    "bytes": 105396
+  },
+  {
+    "attempt": 2,
+    "status": 200,
+    "wall_ms": 148,
+    "bytes": 105396
+  },
+  {
+    "attempt": 3,
+    "status": 200,
+    "wall_ms": 149,
+    "bytes": 105396
+  }
+]

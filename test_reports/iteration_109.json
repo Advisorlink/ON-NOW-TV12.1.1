@@ -1,0 +1,63 @@
+{
+  "summary": "Executed native JVM+Robolectric verification for sports navigation performance/caching/lifecycle scope, added benchmark+cache tests, and reran full :app:testDebugUnitTest + :app:assembleDebug successfully (51/51 tests passed).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Sports replay row discovery thread usage",
+        "issue": "SportsReplayRow still calls SportsReplayRepository.discover(...) directly inside lifecycleScope loop without Dispatchers.Default wrapping, so provider discovery/probe can run on main thread after the 300ms dwell.",
+        "affected_selectors": [
+          "N/A native code path: tv.onnowtv.livetv.ui.SportsReplayRow#create (while loop)"
+        ]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Native Android Sports Hub physical black-screen transition",
+        "issues": [
+          "Not provable in JVM/Robolectric. Physical TV box behavior still requires on-device validation."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/GameChannelMatcherBenchmarkRegressionTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/SportsResponseCacheTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/ui/SportsNativeLayoutRobolectricTest.kt",
+    "/app/android/onnowtv-livetv/app/build/test-results/testDebugUnitTest/TEST-tv.onnowtv.livetv.data.GameChannelMatcherBenchmarkRegressionTest.xml",
+    "/app/android/onnowtv-livetv/app/build/test-results/testDebugUnitTest/TEST-tv.onnowtv.livetv.data.SportsResponseCacheTest.xml",
+    "/app/android/onnowtv-livetv/app/build/test-results/testDebugUnitTest/TEST-tv.onnowtv.livetv.ui.SportsNativeLayoutRobolectricTest.xml",
+    "/app/test_reports/sports_navigation_performance/game_channel_matcher_timing_latest.json"
+  ],
+  "action_items": [
+    "Move SportsReplayRepository.discover(...) in SportsReplayRow loop to Dispatchers.Default (same as account rewrite path) to avoid main-thread provider probing.",
+    "Re-run :app:testDebugUnitTest after the SportsReplayRow dispatcher fix.",
+    "Validate black-screen transition/window behavior on physical TV box (cannot be certified from JVM tests)."
+  ],
+  "critical_code_review_comments": [
+    "GameActivity guard logic is present: 20s polling force-refresh for non-post states, resumeGeneration pause/resume guard, and renderedSnapshot early-return all verified in code path and test run.",
+    "Benchmark regression parity passed: OLD vs current matcher produced identical ordered signatures on 5,000x96 synthetic dataset; warmed median timings logged without CI-threshold assertion.",
+    "SportsResponseCache behavior validated with fake clock: live/pre/post/unknown TTL mapping, standings-style TTL pattern support, force-bypass, expiry boundary, deep-copy immutability, cancellation non-publication, size/count eviction, and >500KB payload no-cache."
+  ],
+  "updated_files": [
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/GameChannelMatcherBenchmarkRegressionTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/SportsResponseCacheTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/ui/SportsNativeLayoutRobolectricTest.kt",
+    "/app/test_reports/sports_navigation_performance/game_channel_matcher_timing_latest.json",
+    "/app/test_reports/iteration_109.json"
+  ],
+  "success_rate": {
+    "backend": "N/A (not in requested native scope)",
+    "frontend": "98%"
+  },
+  "seed_data_creation": "",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Native gradle command used: ANDROID_HOME=/tmp/v2-android-sdk ANDROID_SDK_ROOT=/tmp/v2-android-sdk gradle :app:testDebugUnitTest :app:assembleDebug -Pandroid.aapt2FromMavenOverride=/tmp/v2-arm64-tools/aapt2 --no-daemon --offline. Result: BUILD SUCCESS. XML suite counts: 1+4+4+3+6+8+4+7+6+8 = 51 tests, 0 failed. APK verify: v1/v2 signature true (debug cert). Assets present in APK: assets/sports-scene/index.html and assets/sports-scene/scene.js. Merged manifest confirms SportsHubActivity screenOrientation=unspecified and GameActivity theme=Theme.OnNowLiveTV.Match.",
+  "rca of the issue": "Root cause for unresolved issue: in SportsReplayRow#create, the heavy discovery call (SportsReplayRepository.discover) executes in the lifecycleScope loop context (main) after delay(300). Only account URL rewrite is offloaded with withContext(Dispatchers.Default). Repro: open game card with replay row attached/resumed and let replay loop execute; discovery/probe can compete with UI thread. Mitigation: wrap discover invocation in withContext(Dispatchers.Default) and keep cancellation checks before UI mutation.",
+  "mocked_flows": "MOCKED: BrowserAstra sample fixtures/replay dialog remain unchanged. MOCKED: Benchmark/cache tests are synthetic JVM fixtures; not physical TV performance proof."
+}

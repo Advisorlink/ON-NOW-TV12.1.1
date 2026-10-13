@@ -1,0 +1,12 @@
+{
+  "note": "JVM benchmark only; not physical TV timing",
+  "warmed_runs": 5,
+  "parity": true,
+  "old_median_ms": 559,
+  "dataset": {
+    "channels": 5000,
+    "mostlyOutsideKickoffWindow": true,
+    "programmesPerChannel": 96
+  },
+  "new_median_ms": 6
+}

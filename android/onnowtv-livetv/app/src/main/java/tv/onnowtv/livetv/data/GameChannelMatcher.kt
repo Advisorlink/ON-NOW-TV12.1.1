@@ -23,20 +23,35 @@ object GameChannelMatcher {
         return names.filter { it.length >= 2 && it !in setOf("fc", "cf", "sc", "united", "city", "town", "club", "the") }.toSet()
     }
     private fun mentions(title: String, names: Set<String>) = names.any { " $title ".contains(" $it ") }
-    fun isFixtureProgramme(game: JSONObject, programme: Programme): Boolean {
-        val start = game.optLong("startMs"); if (start <= 0 || programme.stopMs <= programme.startMs) return false
-        val title = normalize(programme.title)
-        if (excluded.containsMatchIn(title)) return false
-        // Pre-game coverage may begin before kickoff; another day's/repeat fixture is not the same event.
-        if (abs(programme.startMs - start) > 90 * 60_000L || programme.stopMs <= start) return false
-        val home = aliases(game.optJSONObject("home")); val away = aliases(game.optJSONObject("away"))
-        return mentions(title, home - away) && mentions(title, away - home)
+    private class Fixture(game: JSONObject) {
+        val start = game.optLong("startMs")
+        private val home = aliases(game.optJSONObject("home"))
+        private val away = aliases(game.optJSONObject("away"))
+        private val homeOnly = home - away
+        private val awayOnly = away - home
+        fun inWindow(p: Programme) = start > 0 && p.stopMs > p.startMs && p.stopMs > start && abs(p.startMs - start) <= 90 * 60_000L
+        fun matches(p: Programme): Boolean {
+            // Reject the rest of the week's guide BEFORE doing any regex/Unicode work.
+            if (!inWindow(p)) return false
+            val title = normalize(p.title)
+            return !excluded.containsMatchIn(title) && mentions(title, homeOnly) && mentions(title, awayOnly)
+        }
     }
+    fun isFixtureProgramme(game: JSONObject, programme: Programme) = Fixture(game).matches(programme)
     fun find(game: JSONObject, bundle: XtreamBundle, nowMs: Long = System.currentTimeMillis()): List<Match> {
+        val fixture = Fixture(game)
         val casters = game.optJSONArray("broadcasts")?.let { a -> (0 until a.length()).map { normalize(a.optString(it)) }.filter { it.length >= 3 } }.orEmpty()
         return bundle.channels.mapNotNull { ch ->
-            val exact = (SportsGuideOverlay.get(ch) + bundle.epg[ch.epgChannelId ?: ch.id].orEmpty()).distinctBy { it.startMs to it.stopMs }.filter { isFixtureProgramme(game, it) }
-                .minByOrNull { abs(it.startMs - game.optLong("startMs")) }
+            var exact: Programme? = null
+            var nearest = Long.MAX_VALUE
+            val seen = HashSet<Pair<Long, Long>>()
+            for (rows in listOf(SportsGuideOverlay.get(ch), bundle.epg[ch.epgChannelId ?: ch.id].orEmpty())) for (p in rows) {
+                if (!fixture.inWindow(p)) continue
+                // Overlay wins for identical programme windows, including an explicit archive denial.
+                if (!seen.add(p.startMs to p.stopMs)) continue
+                val distance = abs(p.startMs - fixture.start)
+                if (distance < nearest && fixture.matches(p)) { exact = p; nearest = distance }
+            }
             if (exact != null) Match(ch, 100 + if (exact.isLiveAt(nowMs)) 10 else 0, "Guide confirmed · ${exact.title}", exact, true)
             else if (casters.any { " ${normalize(ch.name)} ".contains(" $it ") }) Match(ch, 25, "Possible broadcast · not confirmed in guide")
             else null

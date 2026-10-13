@@ -1,0 +1,31 @@
+{
+  "native_tests": 53,
+  "failures": 0,
+  "build": "pass",
+  "signature_v1_v2": "pass",
+  "alignment": "pass",
+  "apk_bytes": 202068771,
+  "apk_sha256": "a14e4df8b3d6330771486eb0b29f4494ad8862317bef546dc6003f269981efb1",
+  "benchmark": {
+    "note": "JVM benchmark only; not physical TV timing",
+    "warmed_runs": 5,
+    "parity": true,
+    "old_median_ms": 559,
+    "dataset": {
+      "channels": 5000,
+      "mostlyOutsideKickoffWindow": true,
+      "programmesPerChannel": 96
+    },
+    "new_median_ms": 6
+  },
+  "device_validation": "Not performed: no connected box/phone. JVM timings are not physical device timings.",
+  "distribution": "Local debug validation APK only; not published or signed for release update.",
+  "threading_report_resolution": "iteration109 replay discovery concern disproved: SportsReplayRepository.discover already switches to Dispatchers.Default. New SportsReplayThreadingTest confirms channel traversal is not on calling thread.",
+  "test_hardening": [
+    "Benchmark writes under module build/reports for CI portability, not hardcoded /app",
+    "Cancellation test awaits started signal, not fixed delay",
+    "Native test confirms same score/header/field/broadcast objects survive Follow and player-team filter changes, plus windowDisablePreview attribute"
+  ],
+  "archive_crc": null,
+  "bundled_scene": true
+}

@@ -68,6 +68,7 @@ class SportsHubActivity : AppCompatActivity() {
     private var requestId = 0
     private var message = "Loading sports…"
     private var failed = false
+    private var openingMatch = false
     private lateinit var filters: LinearLayout
     private lateinit var filterDock: LinearLayout
     private lateinit var filterHeader: FrameLayout
@@ -154,7 +155,7 @@ class SportsHubActivity : AppCompatActivity() {
         mapPanel.addView(side, if (portrait) LinearLayout.LayoutParams(-1, 0, 1f) else LinearLayout.LayoutParams(0, -1, 1f))
     }
     override fun onResume() {
-        super.onResume(); if (::map.isInitialized) render()
+        super.onResume(); openingMatch = false; if (::map.isInitialized) render()
         refresh(quiet = games.isNotEmpty()); poll?.cancel()
         poll = lifecycleScope.launch { while (isActive) { delay(30_000); if (fetch?.isActive != true) refresh(quiet = true) } }
     }
@@ -230,8 +231,14 @@ class SportsHubActivity : AppCompatActivity() {
             if (visible.isNotEmpty()) restoredListState?.let { list.layoutManager?.onRestoreInstanceState(it); restoredListState = null }
         }
     }
-    private fun openGame(g: JSONObject) = startActivity(Intent(this, GameActivity::class.java).apply {
-        putExtra(GameActivity.EXTRA_SPORT, g.optString("sport")); putExtra(GameActivity.EXTRA_LEAGUE, g.optString("league"))
-        putExtra(GameActivity.EXTRA_ID, g.optString("id")); putExtra(GameActivity.EXTRA_SEED, g.toString())
-    })
+    @Suppress("DEPRECATION")
+    private fun openGame(g: JSONObject) {
+        if (openingMatch) return
+        openingMatch = true
+        startActivity(Intent(this, GameActivity::class.java).apply {
+            putExtra(GameActivity.EXTRA_SPORT, g.optString("sport")); putExtra(GameActivity.EXTRA_LEAGUE, g.optString("league"))
+            putExtra(GameActivity.EXTRA_ID, g.optString("id")); putExtra(GameActivity.EXTRA_SEED, g.toString())
+        })
+        overridePendingTransition(0, 0)
+    }
 }

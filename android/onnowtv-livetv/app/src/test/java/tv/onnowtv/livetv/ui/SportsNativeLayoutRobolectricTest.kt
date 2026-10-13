@@ -32,6 +32,7 @@ import tv.onnowtv.livetv.R
 import tv.onnowtv.livetv.SportsHubActivity
 import tv.onnowtv.livetv.data.SportsLayoutPolicy
 import tv.onnowtv.livetv.ui.SportsUi.dp
+import tv.onnowtv.livetv.ui.SportsSceneView
 
 @RunWith(RobolectricTestRunner::class)
 @LooperMode(LooperMode.Mode.PAUSED)
@@ -137,6 +138,62 @@ class SportsNativeLayoutRobolectricTest {
         assertNoVisibleChildOverflow(content)
     }
 
+    // Seeded header/status are visible immediately on create before async network refresh.
+    @Test
+    @Config(qualifiers = "w390dp-h844dp-port")
+    fun game_activity_seed_header_visible_before_network_roundtrip() {
+        val seed = JSONObject()
+            .put("id", "401908030")
+            .put("sport", "baseball")
+            .put("league", "mlb")
+            .put("leagueName", "Major League Baseball")
+            .put("statusDetail", "Pre-game")
+            .put("state", "pre")
+            .put("home", JSONObject().put("id", "h").put("name", "Milwaukee Brewers").put("abbr", "MIL").put("score", "0").put("logo", ""))
+            .put("away", JSONObject().put("id", "a").put("name", "Los Angeles Dodgers").put("abbr", "LAD").put("score", "0").put("logo", ""))
+
+        val intent = Intent(RuntimeEnvironment.getApplication(), GameActivity::class.java)
+            .putExtra(GameActivity.EXTRA_SPORT, "baseball")
+            .putExtra(GameActivity.EXTRA_LEAGUE, "mlb")
+            .putExtra(GameActivity.EXTRA_ID, "401908030")
+            .putExtra(GameActivity.EXTRA_SEED, seed.toString())
+
+        val activity = Robolectric.buildActivity(GameActivity::class.java, intent).create().get()
+        val status = activity.window.decorView.findViewWithTag<TextView>("game-feed-status")
+        val score = activity.window.decorView.findViewWithTag<TextView>("game-score")
+        assertTrue(status.text.toString().contains("Loading", ignoreCase = true) || status.text.isEmpty())
+        assertTrue(score.text.toString().contains("VS") || score.text.toString().contains(":"))
+    }
+
+    // Scene view starts with fallback, and browser remains nullable in constructor path.
+    @Test
+    @Config(qualifiers = "w390dp-h844dp-port")
+    fun sports_scene_constructor_keeps_fallback_visible_before_browser_start() {
+        val scene = SportsSceneView(RuntimeEnvironment.getApplication())
+        val browser = readField<android.webkit.WebView?>(scene, "browser")
+        val fallback = readField<View>(scene, "fallback")
+        assertEquals(null, browser)
+        assertNotNull(fallback)
+        assertTrue(fallback.parent === scene)
+    }
+
+    // Rapid open requests should launch only one GameActivity until onResume clears guard.
+    @Test
+    @Config(qualifiers = "w390dp-h844dp-port")
+    fun sports_hub_rapid_open_guard_allows_single_launch_until_resume() {
+        val activity = Robolectric.buildActivity(SportsHubActivity::class.java).create().start().resume().get()
+        val open = SportsHubActivity::class.java.getDeclaredMethod("openGame", JSONObject::class.java)
+        open.isAccessible = true
+        val game = JSONObject().put("sport", "baseball").put("league", "mlb").put("id", "401908030")
+
+        open.invoke(activity, game)
+        open.invoke(activity, game)
+
+        val shadow = Shadows.shadowOf(activity)
+        assertNotNull(shadow.nextStartedActivity)
+        assertEquals(null, shadow.nextStartedActivity)
+    }
+
     // Decorative artwork layer must stay non-interactive and not expand card bounds.
     @Test
     @Config(qualifiers = "w390dp-h844dp-port")
@@ -164,6 +221,42 @@ class SportsNativeLayoutRobolectricTest {
             .mapNotNull { layer.getChildAt(it) as? android.widget.ImageView }
         assertTrue(crestChildren.isNotEmpty())
         assertTrue(crestChildren.all { it.alpha <= 0.13f })
+    }
+
+    @Test
+    @Config(qualifiers = "w390dp-h844dp-port")
+    fun team_actions_update_in_place_without_recreating_header_field_or_replay_panel() {
+        val app = RuntimeEnvironment.getApplication()
+        app.getSharedPreferences("sports_follow", 0).edit().clear().commit()
+        val seed = JSONObject().put("id", "ui-fast-team").put("sport", "baseball").put("league", "mlb").put("state", "in")
+            .put("home", JSONObject().put("id", "h").put("name", "Home Team").put("score", "2"))
+            .put("away", JSONObject().put("id", "a").put("name", "Away Team").put("score", "1"))
+        val intent = Intent(app, GameActivity::class.java).putExtra(GameActivity.EXTRA_SPORT, "baseball")
+            .putExtra(GameActivity.EXTRA_LEAGUE, "mlb").putExtra(GameActivity.EXTRA_ID, "ui-fast-team")
+            .putExtra(GameActivity.EXTRA_SEED, seed.toString())
+        val controller = Robolectric.buildActivity(GameActivity::class.java, intent).create()
+        val activity = controller.get()
+        try {
+            val score = activity.window.decorView.findViewWithTag<TextView>("game-score")
+            val field = activity.window.decorView.findViewWithTag<View>("game-field")
+            val broadcast = readField<LinearLayout>(activity, "broadcastSlot")
+            val follow = activity.window.decorView.findViewWithTag<TextView>("game-follow-h")
+            follow.performClick()
+            assertEquals("★ Following", follow.text.toString())
+            assertTrue(follow.isSelected)
+            assertTrue(follow === activity.window.decorView.findViewWithTag<TextView>("game-follow-h"))
+            follow.performClick()
+            assertEquals("☆ Follow", follow.text.toString())
+            assertFalse(follow.isSelected)
+            activity.window.decorView.findViewWithTag<View>("players-filter-home").performClick()
+            assertEquals("home", readField<String>(activity, "playerSide"))
+            assertTrue(score === activity.window.decorView.findViewWithTag<TextView>("game-score"))
+            assertTrue(field === activity.window.decorView.findViewWithTag<View>("game-field"))
+            assertTrue(broadcast === readField<LinearLayout>(activity, "broadcastSlot"))
+            val preview = android.util.TypedValue()
+            assertTrue(activity.theme.resolveAttribute(android.R.attr.windowDisablePreview, preview, true))
+            assertTrue(preview.data != 0)
+        } finally { controller.destroy() }
     }
 
     private fun collectTextViews(root: View): List<TextView> {

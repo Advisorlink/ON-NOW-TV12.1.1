@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="tv.onnowtv.livetv.data.SportsReplayPolicyTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-10-13T15:31:33" hostname="agent-env-49bc65fa-9152-42e4-b845-97fdcbbeec38" time="0.002">
+  <properties/>
+  <testcase name="replay_gate_blocks_unconfirmed_or_archive_false_or_unsupported_url" classname="tv.onnowtv.livetv.data.SportsReplayPolicyTest" time="0.001"/>
+  <testcase name="replay_url_uses_provider_timezone_and_rejects_invalid_timezone" classname="tv.onnowtv.livetv.data.SportsReplayPolicyTest" time="0.0"/>
+  <testcase name="replay_gate_accepts_inside_retention_and_rejects_outside_window" classname="tv.onnowtv.livetv.data.SportsReplayPolicyTest" time="0.0"/>
+  <testcase name="provider_api_extracts_from_live_url_shape_only" classname="tv.onnowtv.livetv.data.SportsReplayPolicyTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

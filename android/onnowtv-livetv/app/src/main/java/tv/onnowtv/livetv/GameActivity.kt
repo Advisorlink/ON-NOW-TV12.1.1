@@ -13,6 +13,9 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import androidx.core.view.doOnPreDraw
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -80,6 +83,13 @@ class GameActivity : AppCompatActivity() {
     private var stacked = false
     private lateinit var headerSurface: FrameLayout
     private lateinit var mobileBroadcast: LinearLayout
+    private lateinit var broadcastSlot: LinearLayout
+    private lateinit var playersSlot: LinearLayout
+    private var matchesJob: Job? = null
+    private var channelMatches: List<GameChannelMatcher.Match> = emptyList()
+    private var checkingChannels = true
+    private var resumeGeneration = 0
+    private var renderedSnapshot: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -97,7 +107,7 @@ class GameActivity : AppCompatActivity() {
         masthead.addView(SportsUi.wordmark(ctx, true), LinearLayout.LayoutParams(0, -2, 1f))
         feedStatus = SportsUi.identify(SportsUi.text(ctx, "Loading match…", 11f, SportsUi.DIM), "game-feed-status")
         if (!stacked) masthead.addView(feedStatus, LinearLayout.LayoutParams(0, -2, 1f))
-        retry = SportsUi.identify(SportsUi.pill(ctx, "Retry") { refresh() }, "game-retry").apply { visibility = View.GONE }
+        retry = SportsUi.identify(SportsUi.pill(ctx, "Retry") { refresh(true) }, "game-retry").apply { visibility = View.GONE }
         if (!stacked) masthead.addView(retry)
         masthead.addView(SportsUi.identify(SportsUi.pill(ctx, "‹ Scores") { finish() }, "game-back-scores"))
         root.addView(masthead); root.addView(SportsUi.divider(ctx))
@@ -154,16 +164,32 @@ class GameActivity : AppCompatActivity() {
         setStep(-1)
     }
 
-    override fun onResume() { super.onResume(); if (!::plot.isInitialized) return; plot.resumeScene(); refresh(); poll?.cancel(); poll = lifecycleScope.launch { while (isActive) { delay(20_000); if (game.optString("state") == "in" && fetch?.isActive != true) refresh() } } }
-    override fun onPause() { if (::plot.isInitialized) plot.pauseScene(); poll?.cancel(); fetch?.cancel(); standingsJob?.cancel(); super.onPause() }
+    override fun onResume() {
+        super.onResume(); if (!::plot.isInitialized) return
+        val generation = ++resumeGeneration
+        plot.resumeScene()
+        // Even an instant memory response must not rebuild details before the seeded first frame.
+        window.decorView.doOnPreDraw { view -> view.post {
+            if (generation == resumeGeneration && !isFinishing && !isDestroyed) { refreshMatches(); refresh() }
+        } }
+        poll?.cancel(); poll = lifecycleScope.launch {
+            while (isActive) { delay(20_000); if (game.optString("state") != "post" && fetch?.isActive != true) refresh(true) }
+        }
+    }
+    override fun onPause() { resumeGeneration++; if (::plot.isInitialized) plot.pauseScene(); poll?.cancel(); fetch?.cancel(); matchesJob?.cancel(); standingsJob?.cancel(); super.onPause() }
     override fun onDestroy() { if (::plot.isInitialized) plot.destroyScene(); super.onDestroy() }
     override fun onSaveInstanceState(out: Bundle) { out.putString("playerSide", playerSide); if (stepIdx < plays.lastIndex) plays.getOrNull(stepIdx)?.let { out.putString("selectedPlay", it.optString("id")) }; super.onSaveInstanceState(out) }
-    private fun refresh() { fetch?.cancel(); fetch = lifecycleScope.launch { load() } }
+    @Suppress("DEPRECATION")
+    override fun finish() { super.finish(); overridePendingTransition(0, 0) }
+    private fun refresh(force: Boolean = false) { fetch?.cancel(); fetch = lifecycleScope.launch { load(force) } }
 
-    private suspend fun load() {
-        val d = SportsHubApi.game(sport, league, id)
+    private suspend fun load(force: Boolean) {
+        val d = SportsHubApi.game(sport, league, id, force)
         if (d == null) { feedStatus.text = "Match update unavailable"; retry.visibility = View.VISIBLE; return }
         feedStatus.text = ""; retry.visibility = View.GONE
+        val snapshot = withContext(Dispatchers.Default) { d.toString() }
+        if (snapshot == renderedSnapshot) return
+        renderedSnapshot = snapshot
         val focus = currentFocus?.tag as? String
         val selectedId = restoredPlayId ?: plays.getOrNull(stepIdx)?.optString("id")
         val atLive = stepIdx == -1 || stepIdx >= plays.lastIndex
@@ -176,6 +202,7 @@ class GameActivity : AppCompatActivity() {
         plot.setGame(SportsUi.fieldId(sport, league), if (sport == "football") SportsUi.LIVE else SportsUi.ACCENT, homeColor, awayColor, plays)
         plot.setTeams(game)
         renderHeader(); renderRight()
+        refreshMatches()
         val restored = plays.indexOfFirst { it.optString("id") == selectedId }
         if (restoredPlayId != null && restored >= 0) setStep(restored) else if (atLive) setStep(plays.lastIndex) else setStep(if (restored >= 0) restored else 0)
         restoredPlayId = null
@@ -243,19 +270,51 @@ class GameActivity : AppCompatActivity() {
     private fun followButton(t: JSONObject): TextView {
         val team = SportsFollowStore.Team(sport, league, t.optString("id"), t.optString("name"), t.optString("logo").ifBlank { null })
         val on = SportsFollowStore.isFollowed(this, team.key)
-        return SportsUi.identify(SportsUi.pill(this, if (on) "★ Following" else "☆ Follow", on, 0xFFFFC850.toInt()) {
-            SportsFollowStore.toggle(this, team)
-            if (!on) scheduleAlertIfPossible()
-            renderHeader()
-            header.findViewWithTag<View>("game-follow-${team.id}")?.requestFocus()
+        lateinit var button: TextView
+        button = SportsUi.identify(SportsUi.pill(this, if (on) "★ Following" else "☆ Follow", on, 0xFFFFC850.toInt()) {
+            val followed = SportsFollowStore.toggle(this, team)
+            button.text = if (followed) "★ Following" else "☆ Follow"
+            button.contentDescription = "${button.text} · ${team.name}"
+            SportsUi.updatePill(button, followed, SportsUi.GOLD)
+            if (followed) scheduleAlertIfPossible()
         }, "game-follow-${team.id}").apply { textSize = 11f; if (stacked) setPadding(dp(context, 5f), dp(context, 8f), dp(context, 5f), dp(context, 8f)) }
+        return button
     }
 
     /** Kick-off alert via the guide's reminder banner when we know a channel. */
     private fun scheduleAlertIfPossible() {
         val bundle = BundleHolder.current ?: return
-        val match = GameChannelMatcher.find(game, bundle).firstOrNull { it.confirmed } ?: return
-        SportsFollowStore.scheduleAlert(this, game, match.channel)
+        val fixture = game
+        lifecycleScope.launch {
+            val match = channelMatches.firstOrNull { it.confirmed } ?: withContext(Dispatchers.Default) { GameChannelMatcher.find(fixture, bundle).firstOrNull { it.confirmed } }
+            if (match != null && BundleHolder.current === bundle) SportsFollowStore.scheduleAlert(this@GameActivity, fixture, match.channel)
+        }
+    }
+
+    private fun refreshMatches() {
+        matchesJob?.cancel()
+        val bundle = BundleHolder.current
+        if (bundle == null) { checkingChannels = false; renderBroadcast(); return }
+        val fixture = game
+        matchesJob = lifecycleScope.launch {
+            val matches = withContext(Dispatchers.Default) { GameChannelMatcher.find(fixture, bundle) }
+            if (game !== fixture || BundleHolder.current !== bundle) return@launch
+            channelMatches = matches; checkingChannels = false; renderBroadcast()
+        }
+    }
+
+    private fun renderBroadcast() {
+        if (!::broadcastSlot.isInitialized) return
+        broadcastSlot.removeAllViews()
+        broadcastSlot.addView(SportsBroadcastPanel.build(this, this, game, BundleHolder.current, channelMatches,
+            { all, selected -> tune(all, selected) }, { channel -> SportsReplayActivity.open(this, game, channel) }, checkingChannels))
+    }
+
+    private fun renderPlayers() {
+        playersSlot.removeAllViews()
+        playersSlot.addView(SportsPlayerPanels.players(this, game, playerSide) { selected ->
+            playerSide = selected; renderPlayers(); playersSlot.findViewWithTag<View>("players-filter-$selected")?.requestFocus()
+        })
     }
 
     private fun card(title: String, accent: Int = SportsUi.DIM): LinearLayout = SportsUi.col(this, dp(this, 8f)).apply {
@@ -267,9 +326,9 @@ class GameActivity : AppCompatActivity() {
         right.removeAllViews()
         mobileBroadcast.removeAllViews()
         // Watch on your channels
-        val bundle = BundleHolder.current
-        val matches = if (bundle != null) GameChannelMatcher.find(game, bundle) else emptyList()
-        (if (stacked) mobileBroadcast else right).addView(SportsBroadcastPanel.build(this, this, game, bundle, matches, { all, selected -> tune(all, selected) }, { channel -> SportsReplayActivity.open(this, game, channel) }))
+        broadcastSlot = SportsUi.col(this)
+        (if (stacked) mobileBroadcast else right).addView(broadcastSlot)
+        renderBroadcast()
         SportsPlayerPanels.active(this, game)?.let { right.addView(it) }
         // Situation
         val sit = game.optJSONObject("situation") ?: JSONObject()
@@ -284,7 +343,7 @@ class GameActivity : AppCompatActivity() {
             str("lastPlay"),
         )
         if (sitLines.isNotEmpty()) right.addView(card("Game").apply { sitLines.forEach { addView(SportsUi.text(this@GameActivity, it, 13f)) } })
-        right.addView(SportsPlayerPanels.players(this, game, playerSide) { selected -> playerSide = selected; renderRight(); right.findViewWithTag<View>("players-filter-$selected")?.requestFocus() })
+        playersSlot = SportsUi.col(this); right.addView(playersSlot); renderPlayers()
         // Standings
         if (game.optString("state") == "pre") {
             val reminderKey = "sports:" + game.optString("id")
@@ -292,9 +351,9 @@ class GameActivity : AppCompatActivity() {
             val remind = SportsUi.identify(SportsUi.pill(this, if (saved) "✓ Reminder set" else "Remind me", saved) {
                 val items = ReminderStore.load(this)
                 if (items.remove(reminderKey) != null) { ReminderStore.save(this, items); Toast.makeText(this, "Reminder removed", Toast.LENGTH_SHORT).show() }
-                else if (matches.none { it.confirmed }) Toast.makeText(this, "A guide-confirmed channel is needed to set a reminder", Toast.LENGTH_LONG).show()
+                else if (channelMatches.none { it.confirmed }) Toast.makeText(this, "A guide-confirmed channel is needed to set a reminder", Toast.LENGTH_LONG).show()
                 else if (game.optLong("startMs") <= System.currentTimeMillis()) Toast.makeText(this, "This game has already started", Toast.LENGTH_SHORT).show()
-                else { SportsFollowStore.scheduleAlert(this, game, matches.first { it.confirmed }.channel); Toast.makeText(this, "Kick-off reminder saved", Toast.LENGTH_SHORT).show() }
+                else { SportsFollowStore.scheduleAlert(this, game, channelMatches.first { it.confirmed }.channel); Toast.makeText(this, "Kick-off reminder saved", Toast.LENGTH_SHORT).show() }
                 renderRight(); right.findViewWithTag<View>("game-reminder")?.requestFocus()
             }, "game-reminder")
             right.addView(remind, LinearLayout.LayoutParams(-2, -2))

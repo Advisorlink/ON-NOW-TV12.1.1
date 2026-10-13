@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="tv.onnowtv.livetv.data.SportsReplayThreadingTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-10-13T15:31:38" hostname="agent-env-49bc65fa-9152-42e4-b845-97fdcbbeec38" time="0.001">
+  <properties/>
+  <testcase name="discovery_traverses_channels_off_the_calling_thread_without_network" classname="tv.onnowtv.livetv.data.SportsReplayThreadingTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="tv.onnowtv.livetv.data.SportsPresentationTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-13T15:31:30" hostname="agent-env-49bc65fa-9152-42e4-b845-97fdcbbeec38" time="0.001">
+  <properties/>
+  <testcase name="home_probability_uses_closest_preceding_valid_point_only" classname="tv.onnowtv.livetv.data.SportsPresentationTest" time="0.0"/>
+  <testcase name="value_suppresses_literal_null_and_blank" classname="tv.onnowtv.livetv.data.SportsPresentationTest" time="0.0"/>
+  <testcase name="home_probability_ignores_future_and_last_when_selected_earlier" classname="tv.onnowtv.livetv.data.SportsPresentationTest" time="0.0"/>
+  <testcase name="home_probability_returns_null_when_points_invalid_or_missing" classname="tv.onnowtv.livetv.data.SportsPresentationTest" time="0.001"/>
+  <testcase name="home_probability_returns_null_for_invalid_index" classname="tv.onnowtv.livetv.data.SportsPresentationTest" time="0.0"/>
+  <testcase name="home_probability_returns_null_when_no_plays" classname="tv.onnowtv.livetv.data.SportsPresentationTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

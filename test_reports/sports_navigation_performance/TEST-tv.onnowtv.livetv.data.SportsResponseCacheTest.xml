@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="tv.onnowtv.livetv.data.SportsResponseCacheTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-13T15:31:38" hostname="agent-env-49bc65fa-9152-42e4-b845-97fdcbbeec38" time="0.039">
+  <properties/>
+  <testcase name="bounded_eviction_and_oversized_payload_rules_hold" classname="tv.onnowtv.livetv.data.SportsResponseCacheTest" time="0.032"/>
+  <testcase name="game_ttl_mapping_matches_live_pre_post_unknown" classname="tv.onnowtv.livetv.data.SportsResponseCacheTest" time="0.0"/>
+  <testcase name="defensive_json_copy_and_invalid_or_null_responses_not_cached" classname="tv.onnowtv.livetv.data.SportsResponseCacheTest" time="0.002"/>
+  <testcase name="load_revisit_force_and_ttl_boundary_behave_as_expected" classname="tv.onnowtv.livetv.data.SportsResponseCacheTest" time="0.001"/>
+  <testcase name="cancellation_never_publishes_partial_result" classname="tv.onnowtv.livetv.data.SportsResponseCacheTest" time="0.002"/>
+  <testcase name="load_executes_on_dispatchers_default_not_caller_thread" classname="tv.onnowtv.livetv.data.SportsResponseCacheTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

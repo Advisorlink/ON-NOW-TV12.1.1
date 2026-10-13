@@ -103,7 +103,7 @@
             android:exported="false"
             android:screenOrientation="unspecified"
             android:configChanges="keyboardHidden|layoutDirection|locale"
-            android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
+            android:theme="@style/Theme.OnNowLiveTV.Match" />
 
         <activity
             android:name=".CrashActivity"

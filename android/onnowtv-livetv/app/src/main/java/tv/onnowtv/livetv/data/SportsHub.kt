@@ -16,6 +16,7 @@ import java.net.URLEncoder
 
 /** Sports Hub — thin client over the backend's /api/sportshub proxy (ESPN). */
 object SportsHubApi {
+    private val snapshots = SportsResponseCache()
     private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
     private val client = OkHttpClient.Builder().connectTimeout(8, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS).callTimeout(35, TimeUnit.SECONDS).build()
@@ -38,10 +39,16 @@ object SportsHubApi {
     suspend fun live(tier: Int = 3, date: String? = null): JSONObject? = getJson("/api/sportshub/live?tier=$tier" + (date?.let { "&date=${enc(it)}" } ?: ""))
     suspend fun scoreboard(sport: String, league: String, date: String? = null): JSONObject? =
         getJson("/api/sportshub/scoreboard?sport=${enc(sport)}&league=${enc(league)}" + (date?.let { "&date=${enc(it)}" } ?: ""))
-    suspend fun game(sport: String, league: String, id: String): JSONObject? =
-        getJson("/api/sportshub/game?sport=${enc(sport)}&league=${enc(league)}&id=${enc(id)}")
-    suspend fun standings(sport: String, league: String): JSONObject? =
-        getJson("/api/sportshub/standings?sport=${enc(sport)}&league=${enc(league)}")
+    suspend fun game(sport: String, league: String, id: String, forceRefresh: Boolean = false): JSONObject? {
+        val path = "/api/sportshub/game?sport=${enc(sport)}&league=${enc(league)}&id=${enc(id)}"
+        return snapshots.load(XtreamRepository.BACKEND_BASE + path, forceRefresh, { SportsResponseCache.gameTtl(it) },
+            { it.optString("id") == id && it.optString("sport") == sport && it.optString("league") == league && it.optJSONObject("home") != null && it.optJSONObject("away") != null }) { getJson(path) }
+    }
+    suspend fun standings(sport: String, league: String, forceRefresh: Boolean = false): JSONObject? {
+        val path = "/api/sportshub/standings?sport=${enc(sport)}&league=${enc(league)}"
+        return snapshots.load(XtreamRepository.BACKEND_BASE + path, forceRefresh, { 300_000L },
+            { it.optJSONArray("groups") != null && it.optString("league").isNotBlank() }) { getJson(path) }
+    }
 
     fun JSONArray?.objects(): List<JSONObject> {
         if (this == null) return emptyList()

@@ -17,6 +17,11 @@
         <item name="windowNoTitle">true</item>
     </style>
 
+    <!-- Keep the rendered hub visible until the lightweight match window can draw. -->
+    <style name="Theme.OnNowLiveTV.Match" parent="Theme.OnNowLiveTV.NoActionBar">
+        <item name="android:windowDisablePreview">true</item>
+    </style>
+
     <!--
         Launcher splash: dark navy backdrop with a subtle blue glow,
         the big red "V2" + white "Live TV" wordmark wired in via the

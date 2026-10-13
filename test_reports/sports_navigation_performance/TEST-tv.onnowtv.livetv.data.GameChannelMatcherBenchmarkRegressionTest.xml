@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="tv.onnowtv.livetv.data.GameChannelMatcherBenchmarkRegressionTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-10-13T15:31:25" hostname="agent-env-49bc65fa-9152-42e4-b845-97fdcbbeec38" time="4.799">
+  <properties/>
+  <testcase name="benchmark_and_regression_old_vs_new_matcher_parity" classname="tv.onnowtv.livetv.data.GameChannelMatcherBenchmarkRegressionTest" time="4.799"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

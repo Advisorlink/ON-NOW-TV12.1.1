@@ -77,9 +77,17 @@ object SportsUi {
             identify(this, "sports-button-${label.lowercase().replace(Regex("[^a-z0-9]+"), "-")}-${sequence.incrementAndGet()}")
             setPadding(dp(ctx, 15f), dp(ctx, 10f), dp(ctx, 15f), dp(ctx, 10f)); gravity = Gravity.CENTER
             isFocusable = true; isClickable = true; isSelected = selected; minHeight = dp(ctx, 36f)
-            fun paint(has: Boolean) { background = bg(if (selected) accent else if (has) CARD_FOCUS else CARD, dp(ctx, 24f).toFloat(), dp(ctx, if (has) 2.5f else 1f), if (has) Color.WHITE else if (selected) accent else BORDER) }
-            paint(false); setOnFocusChangeListener { _, has -> paint(has) }; setOnClickListener { onClick() }
+            updatePill(this, selected, accent); setOnClickListener { onClick() }
         }
+    fun updatePill(view: TextView, selected: Boolean, accent: Int = ACCENT) {
+        view.isSelected = selected; view.setTextColor(if (selected) BG else Color.WHITE)
+        fun paint(has: Boolean) {
+            view.background = bg(if (view.isSelected) accent else if (has) CARD_FOCUS else CARD,
+                dp(view.context, 24f).toFloat(), dp(view.context, if (has) 2.5f else 1f),
+                if (has) Color.WHITE else if (view.isSelected) accent else BORDER)
+        }
+        paint(view.hasFocus()); view.setOnFocusChangeListener { _, has -> paint(has) }
+    }
     fun eyebrow(ctx: Context, s: String, color: Int = DIM) = text(ctx, s.uppercase(), 10f, color, mono = true)
     fun divider(ctx: Context) = View(ctx).apply { setBackgroundColor(BORDER); layoutParams = LinearLayout.LayoutParams(-1, dp(ctx, 1f)) }
     fun singleLine(v: TextView): TextView = v.apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END }

@@ -13,6 +13,8 @@ import android.webkit.WebView
 import android.widget.FrameLayout
 import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewClientCompat
+import androidx.core.view.OneShotPreDrawListener
+import androidx.core.view.doOnPreDraw
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
@@ -34,19 +36,30 @@ class SportsSceneView(context: Context) : FrameLayout(context) {
     private var top = false
     private var cameraControl: View? = null
     private var lastScene = ""
+    private var resumed = false
+    private var destroyed = false
+    private var firstFrame: OneShotPreDrawListener? = null
+    private val startBrowser = Runnable {
+        if (resumed && !destroyed && isAttachedToWindow && !lowMemory && browser == null) createBrowser()
+    }
     private val drawScene = Runnable { draw() }
     private val lowMemory = (context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager)?.isLowRamDevice == true
     private val host = WebViewAssetLoader.DEFAULT_DOMAIN
     init {
         SportsUi.identify(this, "sports-dimensional-field"); setBackgroundColor(SportsUi.PLOT)
         addView(fallback, LayoutParams(-1, -1))
-        if (!lowMemory) createBrowser()
         val label = SportsUi.eyebrow(context, "SCHEMATIC FIELD · FIGURES ARE ILLUSTRATIVE").apply { textSize = 8f; setPadding(10, 7, 10, 7); background = SportsUi.bg(0xBB0C1520.toInt(), 12f) }
         addView(label, LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.START).apply { setMargins(12, 0, 12, 10) })
         if (!lowMemory) {
             cameraControl = SportsUi.identify(SportsUi.pill(context, "3D / Top") { top = !top; render() }, "field-camera-toggle").apply { visibility = View.GONE }
             addView(cameraControl, LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply { setMargins(0, 8, 8, 0) })
         }
+    }
+    private fun scheduleBrowser() {
+        if (lowMemory || destroyed || !resumed || browser != null) return
+        firstFrame?.removeListener()
+        firstFrame = doOnPreDraw { firstFrame = null; post(startBrowser) }
+        invalidate()
     }
     private fun createBrowser() {
         val loader = WebViewAssetLoader.Builder().addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(context)).build()
@@ -88,12 +101,12 @@ class SportsSceneView(context: Context) : FrameLayout(context) {
         removeCallbacks(drawScene); postDelayed(drawScene, 16)
     }
     private fun draw() {
-        if (!loaded || browser == null || payload.optString("sport").isBlank()) return
+        if (!resumed || destroyed || !loaded || browser == null || payload.optString("sport").isBlank()) return
         payload.put("plays", JSONArray(plays.take((index + 1).coerceAtLeast(0)).takeLast(60))).put("view", if (top) "top" else "angle")
         val json = payload.toString(); if (json == lastScene) return; lastScene = json
         browser?.evaluateJavascript("window.SportsScene ? SportsScene.render($json) : false") { result -> browser?.visibility = if (result == "true") View.VISIBLE else View.INVISIBLE; cameraControl?.visibility = if (result == "true") View.VISIBLE else View.GONE }
     }
-    fun pauseScene() { removeCallbacks(drawScene); browser?.evaluateJavascript("window.SportsScene && SportsScene.pause()", null); browser?.onPause() }
-    fun resumeScene() { browser?.onResume(); browser?.evaluateJavascript("window.SportsScene && SportsScene.resume()", null); render() }
-    fun destroyScene() { removeCallbacks(drawScene); browser?.evaluateJavascript("window.SportsScene && SportsScene.dispose()", null); browser?.stopLoading(); browser?.let { removeView(it); it.destroy() }; browser = null; loaded = false }
+    fun pauseScene() { resumed = false; firstFrame?.removeListener(); firstFrame = null; removeCallbacks(startBrowser); removeCallbacks(drawScene); browser?.evaluateJavascript("window.SportsScene && SportsScene.pause()", null); browser?.onPause() }
+    fun resumeScene() { resumed = true; lastScene = ""; browser?.onResume(); browser?.evaluateJavascript("window.SportsScene && SportsScene.resume()", null); scheduleBrowser(); render() }
+    fun destroyScene() { destroyed = true; pauseScene(); browser?.evaluateJavascript("window.SportsScene && SportsScene.dispose()", null); browser?.stopLoading(); browser?.let { removeView(it); it.destroy() }; browser = null; loaded = false }
 }

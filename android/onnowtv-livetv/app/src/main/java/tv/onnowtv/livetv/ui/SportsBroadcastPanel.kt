@@ -12,10 +12,10 @@ import tv.onnowtv.livetv.ui.SportsUi as UI
 import tv.onnowtv.livetv.ui.SportsUi.dp
 
 object SportsBroadcastPanel {
-    fun build(ctx: Context, owner: LifecycleOwner, game: JSONObject, bundle: XtreamBundle?, matches: List<GameChannelMatcher.Match>, tune: (List<Channel>, Channel) -> Unit, replay: (String) -> Unit): LinearLayout = UI.col(ctx, dp(ctx, 9f)).apply {
+    fun build(ctx: Context, owner: LifecycleOwner, game: JSONObject, bundle: XtreamBundle?, matches: List<GameChannelMatcher.Match>, tune: (List<Channel>, Channel) -> Unit, replay: (String) -> Unit, checking: Boolean = false): LinearLayout = UI.col(ctx, dp(ctx, 9f)).apply {
         val state = game.optString("state")
         addView(UI.eyebrow(ctx, when (state) { "pre" -> "Scheduled on your channels"; "post" -> "Broadcast & catch-up"; else -> "Watch on your channels" }, UI.ACCENT))
-        val empty = UI.identify(UI.text(ctx, "No confirmed channel in your guide yet", 13f, UI.DIM), "game-no-channel")
+        val empty = UI.identify(UI.text(ctx, if (checking) "Finding your channels…" else "No confirmed channel in your guide yet", 13f, UI.DIM), "game-no-channel")
         if (matches.isEmpty()) addView(empty)
         matches.forEach { match ->
             val row = UI.row(ctx, dp(ctx, 11f)).apply { setPadding(dp(ctx, 11f), dp(ctx, 10f), dp(ctx, 11f), dp(ctx, 10f)) }
