@@ -1,97 +1,178 @@
 {
   "design_system": {
-    "name": "Astra Kinetic Broadcast Edition",
-    "persona": "E1 The Anti-AI Designer - Fusion of Swiss Precision Architecture, Broadcast Telemetry, and High-Contrast Tactical Minimalism",
-    "theme": "Dark Mode (Deep Obsidian Canvas + Electric Cyan & Kinetic Crimson)",
+    "name": "Astra Kinetic V2 Sports Hub - Refined Native & Preview Edition",
+    "persona": "E1 The Anti-AI Designer - Tactical Broadcast Precision with V2 Live Aesthetics",
+    "theme": "Dark Mode Broadcast Engine (Obsidian #0A0F1A / #050811 + V2 Red #FF2535 + Electric Cyan #00F0FF + Blue Focus #5DC8FF)",
     "resolution_target": "1920x1080 Native Android TV (xhdpi 1dp = 2px, 10-ft readability)",
+    "branding": {
+      "wordmark": "V2 Sports Hub",
+      "v2_badge": {
+        "text": "V2",
+        "bg_color": "#FF2535",
+        "text_color": "#FFFFFF",
+        "radius_dp": "6dp",
+        "font_weight": "900"
+      },
+      "title_text": {
+        "text": "SPORTS HUB",
+        "font_family": "Barlow Condensed, Outfit, sans-serif",
+        "font_weight": "800",
+        "text_color": "#FFFFFF",
+        "tracking": "tracking-wide"
+      },
+      "tagline": "KINETIC TELEMETRY · LIVE SPORTS & BROADCAST CHANNELS"
+    },
     "typography": {
       "headings": {
         "family": "Barlow Condensed, Outfit, sans-serif",
         "weights": ["700", "800", "900"],
         "tracking": "tracking-tight",
-        "h1": "text-4xl lg:text-5xl (48px - 60px)",
-        "h2": "text-2xl lg:text-3xl (32px - 38px)",
-        "h3": "text-xl lg:text-2xl (24px - 28px)"
+        "h1": "text-4xl lg:text-5xl (48px - 60px / 32sp)",
+        "h2": "text-2xl lg:text-3xl (32px - 38px / 24sp)",
+        "h3": "text-xl lg:text-2xl (24px - 28px / 18sp)"
       },
       "body": {
         "family": "DM Sans, Inter, sans-serif",
         "weights": ["400", "500", "600"],
-        "size": "text-base (16px) / text-sm (14px)"
+        "size": "text-base (16px / 14sp) / text-sm (14px / 12sp)"
       },
       "telemetry_mono": {
         "family": "JetBrains Mono, SF Mono, monospace",
         "weights": ["500", "700"],
         "tracking": "tracking-widest uppercase (0.12em)"
+      },
+      "native_sp_scale": {
+        "title_large": "28sp",
+        "score_display": "32sp",
+        "heading_medium": "20sp",
+        "subheading": "16sp",
+        "body": "14sp",
+        "caption_telemetry": "11sp"
       }
     },
     "colors": {
-      "background_canvas": "#050811",
-      "surface_card": "#0C1322",
-      "surface_card_hover": "#141F36",
-      "surface_elevated": "#121C30",
-      "border_subtle": "rgba(0, 240, 255, 0.12)",
-      "border_bright": "rgba(0, 240, 255, 0.35)",
-      "accent_primary_cyan": "#00F0FF",
-      "accent_glow_cyan": "rgba(0, 240, 255, 0.40)",
-      "live_crimson": "#FF2A5F",
-      "live_glow": "rgba(255, 42, 95, 0.50)",
-      "warning_gold": "#FFC700",
-      "success_emerald": "#00E676",
-      "text_primary": "#FFFFFF",
-      "text_muted": "#8C9BAE",
-      "text_dim": "#57677A"
-    },
-    "surface_strategy": {
-      "style": "Tactical Glass & Cyber Edge",
-      "card_border": "1px solid rgba(0, 240, 255, 0.15)",
-      "card_shadow": "0 8px 32px rgba(0, 0, 0, 0.65)",
-      "focus_state": {
-        "border": "3px solid #00F0FF",
-        "scale": "scale(1.05)",
-        "box_shadow": "0 0 28px rgba(0, 240, 255, 0.55), inset 0 0 12px rgba(0, 240, 255, 0.20)",
-        "z_index": 10
+      "android_resources": {
+        "livetv_bg": "#0A0F1A",
+        "livetv_bg_alt": "#0E1422",
+        "livetv_bg_card": "#141C2A",
+        "livetv_bg_focused": "#1A2438",
+        "livetv_bg_live": "#18253F",
+        "livetv_accent": "#5DC8FF",
+        "livetv_accent_red": "#FF2535",
+        "livetv_accent_fav": "#FFC850",
+        "livetv_blue": "#5DC8FF",
+        "livetv_fg": "#FFFFFF",
+        "livetv_fg_bright": "#E6EAF2",
+        "livetv_fg_dim": "#9DA5B5",
+        "livetv_fg_dimmer": "#7D8493",
+        "livetv_now_line": "#5DC8FF",
+        "livetv_row_separator": "#11FFFFFF",
+        "livetv_card_border": "#1AFFFFFF",
+        "livetv_reminder_yellow": "#5BD49A"
+      },
+      "web_tailwind": {
+        "bg_canvas": "#0A0F1A",
+        "bg_surface": "#141C2A",
+        "bg_surface_hover": "#1A2438",
+        "bg_surface_elevated": "#18253F",
+        "accent_v2_red": "#FF2535",
+        "accent_cyan": "#00F0FF",
+        "accent_focus_blue": "#5DC8FF",
+        "status_live": "#FF2535",
+        "text_primary": "#FFFFFF",
+        "text_secondary": "#E6EAF2",
+        "text_muted": "#9DA5B5",
+        "text_dim": "#7D8493",
+        "border_subtle": "rgba(255, 255, 255, 0.10)",
+        "border_focus": "#5DC8FF"
       }
+    },
+    "geometry_and_radii": {
+      "native_dp": {
+        "filter_pill_radius": "24dp",
+        "game_card_radius": "14dp",
+        "panel_dialog_radius": "16dp",
+        "badge_chip_radius": "8dp",
+        "focus_stroke_width": "3dp"
+      },
+      "web_tailwind": {
+        "filter_pills": "rounded-full",
+        "game_cards": "rounded-xl",
+        "modal_panels": "rounded-2xl",
+        "badges_chips": "rounded-md",
+        "focus_ring": "ring-3 ring-[#5DC8FF]"
+      }
+    },
+    "tv_focus_engine": {
+      "dpad_focused_state": {
+        "border": "3dp solid #5DC8FF (or #00F0FF)",
+        "scale": "scale(1.04)",
+        "bg_tint": "#1A2438",
+        "glow": "0 0 20px rgba(93, 200, 255, 0.45)",
+        "z_index": 10
+      },
+      "dpad_selected_state": {
+        "bg_pill": "#FF2535 or #5DC8FF",
+        "text_color": "#FFFFFF or #0A0F1A"
+      },
+      "low_end_android_optimization": "Hardware-accelerated transforms (translate3d/scale), 150ms smooth focus interpolation, minimal canvas redraws on TV remotes."
     }
   },
   "layout_and_screens": {
     "screen_dimensions": "1920px x 1080px (Scale ratio fluid for viewport fit)",
-    "header": {
+    "masthead_header": {
       "height": "88px",
       "padding": "24px 48px",
-      "logo_badge": "ASTRA SPORTS HUB · KINETIC TELEMETRY",
+      "logo_badge": "V2 SPORTS HUB · KINETIC TELEMETRY",
+      "branding": "Red V2 Pill Badge (#FF2535) + White SPORTS HUB Title",
       "live_counter": "PULSATING CRIMSON BADGE (● N LIVE NOW)",
-      "nav_pills": ["Scores", "World Map", "Following"]
+      "nav_pills": ["Scores", "World Map", "Following", "Field Gallery"]
     },
-    "sport_filters_bar": {
+    "sport_filter_bar": {
       "height": "56px",
       "gap": "12px",
-      "primary_row": ["All · Live", "Football", "Baseball", "Basketball", "Hockey", "Soccer", "Tennis", "Cricket", "Golf", "MMA", "Racing", "Rugby", "AFL"],
+      "pills_style": "rounded-full (24dp)",
+      "categories": [
+        "All · Live",
+        "Football",
+        "Baseball",
+        "Basketball",
+        "Hockey",
+        "Soccer",
+        "Tennis",
+        "Cricket",
+        "Golf",
+        "MMA",
+        "Racing",
+        "Rugby",
+        "AFL"
+      ],
       "sub_league_row": ["MLB", "College Baseball", "WBC", "Minor League"]
     },
     "screens_spec": {
       "scores": {
         "title": "Scores Screen",
-        "description": "Multi-column high-density bento scoreboard with live indicators, momentum bars, and broadcast channels.",
+        "description": "Multi-column high-density bento scoreboard with rounded 14dp cards, live indicators, momentum bars, and broadcast channel matchers.",
         "sections": ["Live Now (Crimson Accent Header)", "Up Next (Cyan Accent Header)", "Final (Muted Gray Header)"],
         "cards_per_row": 3,
         "gap": "20px"
       },
       "map": {
         "title": "World Map View",
-        "description": "Vector continent canvas overlay with tactical longitude grid lines, pulsating game beacons, and broadcast overlay popup.",
-        "canvas_border": "2px solid #00F0FF",
-        "beacon_colors": "Crimson for live, Cyan for upcoming"
+        "description": "Tactical canvas overlay with geographic coordinate grid lines, pulsating game location pins, and detail broadcast channel cards.",
+        "canvas_border": "2px solid #5DC8FF",
+        "beacon_colors": "Red #FF2535 for live, Cyan #00F0FF for upcoming"
       },
       "game_mlb": {
         "title": "MLB Game Detail (Baseball Diamond)",
-        "description": "Left column: Interactive canvas baseball diamond with play-by-play hit plot markers, live win probability gradient meter. Right column: Watch channels, inning telemetry, player stat lines.",
+        "description": "Left column: Interactive canvas baseball diamond with hit plot markers, stepwise win probability gradient meter. Right column: Channel watch triggers, inning telemetry, player stat lines.",
         "diamond_color": "#00F0FF",
-        "win_prob_bar": "Yankees Away Crimson (#003087) vs Red Sox Home Cyan (#BD3039)"
+        "win_prob_bar": "Yankees Away Crimson vs Red Sox Home Cyan"
       },
       "game_nfl": {
         "title": "NFL Game Detail (Gridiron)",
         "description": "Left column: Tactical canvas 100-yard gridiron with yardage plot markers, drive summary, win probability. Right column: Live stream channel sources (CBS, NFL Net), player lines.",
-        "gridiron_color": "#FF2A5F"
+        "gridiron_color": "#FF2535"
       },
       "fields": {
         "title": "12 Drawn Sports Surfaces Gallery",
@@ -104,13 +185,13 @@
   "general_ui_ux_guidelines": [
     "All interactive elements (buttons, nav pills, game cards, channel rows) MUST include exact data-testid attributes (e.g. data-testid='nav-scores', data-testid='game-card-0').",
     "Maintain 10-ft TV viewing readability: text minimum 12sp (24px) for body, 18sp (36px) for team names, 28sp (56px) for scores.",
-    "Focus state contrast: Focused item must feature electric cyan border (#00F0FF), scale bump (1.05x), and glow ring to provide unmistakable feedback for D-pad control.",
-    "Zero transparent backgrounds on text surfaces or overlays: all dropdowns, cards, and modal dialogs must have solid tinted backings (min #0C1322) with backdrop-blur.",
+    "Focus state contrast: Focused item must feature blue/cyan focus border (#5DC8FF / #00F0FF), scale bump (1.04x), and glow ring to provide unmistakable feedback for D-pad control.",
+    "Zero transparent backgrounds on text surfaces or overlays: all dropdowns, cards, and modal dialogs must have solid tinted backings (min #141C2A) with backdrop-blur.",
     "Hardware performance target: Keep canvas redraws light, use CSS GPU transforms (`transform: scale() translate3d()`), avoid heavy unthrottled DOM mutations for smooth rendering on low-end Android TV hardware."
   ],
   "media": {
-    "stadium_background": "https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHwxfHxzdGFkaXVtJTIwbGlnaHRzJTIwc3BvcnRzJTIwbmlnaHQlMjBicm9hZGNhc3R8ZW58MHx8fHwxNzkxODYzMDUzfDA&ixlib=rb-4.1.0&q=85",
-    "sports_lights": "https://images.unsplash.com/photo-1545525201-e1a5a2a18293?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHw0fHxzdGFkaXVtJTIwbGlnaHRzJTIwc3BvcnRzJTIwbmlnaHQlMjBicm9hZGNhc3R8ZW58MHx8fHwxNzkxODYzMDUzfDA&ixlib=rb-4.1.0&q=85"
+    "stadium_background": "https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHwxfHxzdGFkaXVtJTIwbGlnaHRzJTIwbmlnaHQlMjBicm9hZGNhc3R8ZW58MHx8fHwxNzkxODYzMDUzfDA&ixlib=rb-4.1.0&q=85",
+    "sports_lights": "https://images.unsplash.com/photo-1545525201-e1a5a2a18293?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHw0fHxzdGFkaXVtJTIwbGlnaHRzJTIwbmlnaHQlMjBicm9hZGNhc3R8ZW58MHx8fHwxNzkxODYzMDUzfDA&ixlib=rb-4.1.0&q=85"
   },
-  "instructions_to_main_agent": "Implement Astra Sports Hub design blueprint under /app/frontend/public/sportshub-astra/ using pure HTML/CSS/JS or React, preserving all sample data from mock.js and providing seamless screen switching via URL parameter '?screen=' (scores, league, map, following, game-mlb, game-nfl, fields). Ensure focus states are hyper-visible and visual presentation reflects top 1% broadcast design."
+  "instructions_to_main_agent": "Ensure full sync between native Kotlin views (SportsUi.kt, SportsHubActivity.kt, colors.xml) and browser design preview (/app/frontend/public/sportshub-astra/). Apply V2 Sports Hub branding with red V2 badge (#FF2535), rounded 24dp filter pills, 14dp card radii, and hyper-visible D-pad focus states (#5DC8FF ring + 1.04x scale)."
 }

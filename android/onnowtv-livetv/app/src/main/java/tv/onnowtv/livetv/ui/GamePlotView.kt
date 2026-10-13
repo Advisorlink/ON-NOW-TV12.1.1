@@ -1,13 +1,11 @@
 package tv.onnowtv.livetv.ui
 
-import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.util.AttributeSet
-import android.view.animation.LinearInterpolator
 import org.json.JSONObject
 import kotlin.math.min
 
@@ -25,17 +23,13 @@ class GamePlotView @JvmOverloads constructor(
     private var plays: List<JSONObject> = emptyList()
     private var upTo: Int = -1
     private var sportKey = ""
-    private var pulse = 0f
+    private val pulse = .25f
     private var homeColor = Color.WHITE
     private var awayColor = Color.WHITE
 
     private val dot = Paint(Paint.ANTI_ALIAS_FLAG)
     private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val glow = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val anim = ValueAnimator.ofFloat(0f, 1f).apply {
-        duration = 1400; repeatCount = ValueAnimator.INFINITE; interpolator = LinearInterpolator()
-        addUpdateListener { pulse = it.animatedValue as Float; invalidate() }
-    }
 
     /** `sportId` matches SportFieldView ids: mlb, soccer, nba, nfl, nhl, … */
     fun setGame(sportId: String, accent: Int, home: Int, away: Int, plays: List<JSONObject>) {
@@ -43,14 +37,12 @@ class GamePlotView @JvmOverloads constructor(
         this.plays = plays
         upTo = plays.lastIndex
         setSport(sportId, accent)
-        if (!anim.isRunning) anim.start()
+        setHighContrast(true)
         invalidate()
     }
 
     /** Index of the last play to show (win-probability stepper). */
     fun showUpTo(index: Int) { upTo = index.coerceIn(-1, plays.lastIndex); invalidate() }
-
-    override fun onDetachedFromWindow() { anim.cancel(); super.onDetachedFromWindow() }
 
     private fun dpF(v: Float) = v * resources.displayMetrics.density
 

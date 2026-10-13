@@ -603,6 +603,7 @@
                 <!-- Sports Hub entry — sits directly under the What's on pill -->
                 <LinearLayout
                     android:id="@+id/sports_hub_btn"
+                    android:contentDescription="@string/sports_hub_title"
                     android:layout_width="match_parent"
                     android:layout_height="40dp"
                     android:layout_marginTop="6dp"
@@ -616,6 +617,17 @@
                     android:nextFocusDown="@id/categories_list"
                     android:background="@drawable/category_pill_bg">
                     <TextView
+                        android:layout_width="30dp"
+                        android:layout_height="24dp"
+                        android:layout_marginEnd="8dp"
+                        android:background="@drawable/sports_brand_badge"
+                        android:gravity="center"
+                        android:text="V2"
+                        android:textColor="#FFFFFF"
+                        android:fontFamily="sans-serif-condensed"
+                        android:textStyle="bold"
+                        android:textSize="15sp" />
+                    <TextView
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
@@ -623,7 +635,7 @@
                         android:textStyle="bold"
                         android:textColor="#FFFFFFFF"
                         android:textSize="11sp"
-                        android:letterSpacing="0.18"
+                        android:letterSpacing="0"
                         android:text="SPORTS HUB" />
                     <TextView
                         android:id="@+id/sports_hub_live"
@@ -634,7 +646,7 @@
                         android:textColor="#FFFF4D5E"
                         android:textSize="10sp"
                         android:letterSpacing="0.14"
-                        android:text="SCORES · MAP ›" />
+                        android:text="›" />
                 </LinearLayout>
 
                 <TextView

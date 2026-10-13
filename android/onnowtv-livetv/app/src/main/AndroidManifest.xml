@@ -91,12 +91,16 @@
         <!-- Sports Hub: scores, world map, game pages (opens from What's on live) -->
         <activity
             android:name=".SportsHubActivity"
+            android:label="@string/sports_hub_title"
             android:exported="false"
+            android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale"
             android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
         <activity
             android:name=".GameActivity"
+            android:label="@string/sports_hub_title"
             android:exported="false"
+            android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale"
             android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
 

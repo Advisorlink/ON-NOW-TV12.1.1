@@ -238,7 +238,7 @@ async def _scoreboard(sport: str, league: str, date: Optional[str]) -> List[Dict
         data = await _get(f"{ESPN}/{sport}/{league}/scoreboard", params, ttl=15)
     except Exception as e:  # noqa: BLE001
         log.warning("scoreboard %s/%s failed: %s", sport, league, e)
-        return []
+        raise HTTPException(502, "Scores are temporarily unavailable for this league") from e
     out = []
     for ev in data.get("events") or []:
         n = _event(ev, meta)
@@ -251,7 +251,7 @@ async def _scoreboard(sport: str, league: str, date: Optional[str]) -> List[Dict
 async def scoreboard(sport: str, league: str, date: Optional[str] = None):
     games = await _scoreboard(sport, league, date)
     games.sort(key=lambda g: ({"in": 0, "pre": 1, "post": 2}.get(g["state"], 3), g["startMs"]))
-    return {"games": games, "league": LEAGUE_BY_KEY[(sport, league)]["name"]}
+    return {"games": games, "league": LEAGUE_BY_KEY[(sport, league)]["name"], "status": "ok" if games else "empty"}
 
 
 @router.get("/live")
@@ -267,13 +267,33 @@ async def live(tier: int = Query(3, ge=1, le=3)):
         async with sem:
             return await _scoreboard(m["sport"], m["league"], None)
 
-    results = await asyncio.gather(*(one(m) for m in metas), return_exceptions=True)
-    games = [g for r in results if isinstance(r, list) for g in r]
+    tasks = {asyncio.create_task(one(m)): m for m in metas}
+    try:
+        # A few unavailable leagues must not hold the whole TV hub for a minute.
+        done, pending = await asyncio.wait(tasks, timeout=14)
+        games = []
+        failed = []
+        for task in done:
+            meta = tasks[task]
+            try:
+                games.extend(task.result())
+            except Exception:
+                failed.append({"sport": meta["sport"], "league": meta["league"]})
+        for task in pending:
+            meta = tasks[task]
+            failed.append({"sport": meta["sport"], "league": meta["league"]})
+    finally:
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
     now = int(time.time() * 1000)
     games = [g for g in games if g["state"] == "in" or (g["state"] == "pre" and 0 <= g["startMs"] - now <= 36 * 3600_000)
              or (g["state"] == "post" and now - g["startMs"] <= 6 * 3600_000)]
     games.sort(key=lambda g: ({"in": 0, "pre": 1, "post": 2}.get(g["state"], 3), g["startMs"]))
-    out = {"games": games, "liveCount": sum(1 for g in games if g["state"] == "in"), "generatedMs": now}
+    status = "unavailable" if len(failed) == len(metas) else ("partial" if failed else ("ok" if games else "empty"))
+    out = {"games": games, "liveCount": sum(1 for g in games if g["state"] == "in"), "generatedMs": now,
+           "status": status, "failedLeagues": failed}
     _cput(f"live:{tier}", out)
     return out
 
@@ -354,6 +374,11 @@ async def game(sport: str, league: str, id: str):
     comp = (header.get("competitions") or [{}])[0]
     ev_like = {"id": header.get("id") or id, "name": "", "shortName": "", "date": comp.get("date"), "status": comp.get("status"), "competitions": [comp]}
     hdr = _event(ev_like, meta) or {}
+    if not hdr:
+        raise HTTPException(502, "Game details are temporarily unavailable")
+    if not hdr.get("name"):
+        hdr["name"] = f'{hdr["away"]["name"]} at {hdr["home"]["name"]}'
+        hdr["shortName"] = f'{hdr["away"]["abbr"]} @ {hdr["home"]["abbr"]}'
     gi = data.get("gameInfo") or {}
     if gi.get("venue"):
         hdr["venue"] = {"name": (gi["venue"].get("fullName") or ""), "city": ((gi["venue"].get("address") or {}).get("city") or ""), "geo": _geo(gi["venue"])}

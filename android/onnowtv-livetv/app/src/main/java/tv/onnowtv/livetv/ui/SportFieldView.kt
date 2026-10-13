@@ -59,6 +59,14 @@ open class SportFieldView @JvmOverloads constructor(
     private fun withAlpha(color: Int, alpha: Int): Int =
         (color and 0x00FFFFFF) or (alpha shl 24)
 
+    /** Hub surfaces carry data, unlike the faint decorative StatsPlayer background. */
+    fun setHighContrast(enabled: Boolean) {
+        line.color = withAlpha(accent, if (enabled) 0xAA else 0x4A)
+        soft.color = withAlpha(accent, if (enabled) 0x70 else 0x30)
+        dashed.color = withAlpha(accent, if (enabled) 0x60 else 0x30)
+        invalidate()
+    }
+
     private fun dp(v: Float): Float = v * resources.displayMetrics.density
 
     override fun onDraw(canvas: Canvas) {

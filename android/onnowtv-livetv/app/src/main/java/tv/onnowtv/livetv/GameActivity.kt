@@ -8,6 +8,7 @@ import android.view.View
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -21,9 +22,13 @@ import tv.onnowtv.livetv.data.GameChannelMatcher
 import tv.onnowtv.livetv.data.SportsFollowStore
 import tv.onnowtv.livetv.data.SportsHubApi
 import tv.onnowtv.livetv.data.SportsHubApi.objects
+import tv.onnowtv.livetv.data.ReminderStore
+import tv.onnowtv.livetv.data.SportsPresentation as Data
 import tv.onnowtv.livetv.ui.GamePlotView
 import tv.onnowtv.livetv.ui.SportsUi
 import tv.onnowtv.livetv.ui.SportsUi.dp
+import tv.onnowtv.livetv.ui.ProbabilityBarView
+import kotlin.math.roundToInt
 
 /**
  * Sports Hub game page: score header, drawn field with every play, win
@@ -44,14 +49,23 @@ class GameActivity : AppCompatActivity() {
     private var wp: List<JSONObject> = emptyList()
     private var stepIdx = -1
     private var poll: Job? = null
+    private var fetch: Job? = null
+    private var standingsJob: Job? = null
+    private var restoredPlayId: String? = null
 
     private lateinit var header: LinearLayout
     private lateinit var plot: GamePlotView
-    private lateinit var wpBar: View
+    private lateinit var wpBar: ProbabilityBarView
     private lateinit var wpHome: TextView
     private lateinit var wpAway: TextView
     private lateinit var playText: TextView
     private lateinit var right: LinearLayout
+    private lateinit var feedStatus: TextView
+    private lateinit var retry: TextView
+    private lateinit var wpTitle: TextView
+    private lateinit var playControls: LinearLayout
+    private lateinit var wpCard: LinearLayout
+    private lateinit var rightScroll: ScrollView
     private var homeColor = SportsUi.ACCENT
     private var awayColor = 0xFFFF8FAB.toInt()
 
@@ -59,27 +73,39 @@ class GameActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         sport = intent.getStringExtra(EXTRA_SPORT) ?: ""; league = intent.getStringExtra(EXTRA_LEAGUE) ?: ""; id = intent.getStringExtra(EXTRA_ID) ?: ""
         game = try { JSONObject(intent.getStringExtra(EXTRA_SEED) ?: "{}") } catch (_: Exception) { JSONObject() }
+        if (sport.isBlank() || league.isBlank() || id.isBlank()) { Toast.makeText(this, "This match is unavailable", Toast.LENGTH_SHORT).show(); finish(); return }
+        restoredPlayId = savedInstanceState?.getString("selectedPlay")
         val ctx = this
-        val root = SportsUi.col(ctx, dp(ctx, 16f)).apply { setBackgroundColor(SportsUi.BG); setPadding(dp(ctx, 36f), dp(ctx, 22f), dp(ctx, 36f), dp(ctx, 18f)) }
+        val root = SportsUi.col(ctx, dp(ctx, 12f)).apply { setBackgroundColor(SportsUi.BG); setPadding(dp(ctx, 28f), dp(ctx, 18f), dp(ctx, 28f), dp(ctx, 16f)) }
+        val masthead = SportsUi.row(ctx, dp(ctx, 14f))
+        masthead.addView(SportsUi.wordmark(ctx, true), LinearLayout.LayoutParams(0, -2, 1f))
+        feedStatus = SportsUi.identify(SportsUi.text(ctx, "Loading match…", 11f, SportsUi.DIM), "game-feed-status")
+        masthead.addView(feedStatus, LinearLayout.LayoutParams(0, -2, 1f))
+        retry = SportsUi.identify(SportsUi.pill(ctx, "Retry") { refresh() }, "game-retry").apply { visibility = View.GONE }
+        masthead.addView(retry)
+        masthead.addView(SportsUi.identify(SportsUi.pill(ctx, "‹ Scores") { finish() }, "game-back-scores"))
+        root.addView(masthead); root.addView(SportsUi.divider(ctx))
         header = SportsUi.row(ctx, dp(ctx, 18f)); root.addView(header)
 
         val body = SportsUi.row(ctx, dp(ctx, 18f))
         val left = SportsUi.col(ctx, dp(ctx, 12f))
-        plot = GamePlotView(ctx).apply { background = SportsUi.bg(0xFF0B1220.toInt(), dp(ctx, 18f).toFloat(), 1, 0x22FFFFFF) }
+        plot = GamePlotView(ctx).apply { SportsUi.identify(this, "game-field"); background = SportsUi.bg(SportsUi.PLOT, dp(ctx, 16f).toFloat(), 1, SportsUi.BORDER); clipToOutline = true }
+        plot.setGame(SportsUi.fieldId(sport, league), SportsUi.ACCENT, homeColor, awayColor, emptyList())
         left.addView(plot, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         // Win probability card (focusable: ◀ ▶ steps through plays)
-        val wpCard = SportsUi.col(ctx, dp(ctx, 8f)).apply { setPadding(dp(ctx, 16f), dp(ctx, 12f), dp(ctx, 16f), dp(ctx, 12f)) }
+        wpCard = SportsUi.col(ctx, dp(ctx, 7f)).apply { setPadding(dp(ctx, 14f), dp(ctx, 10f), dp(ctx, 14f), dp(ctx, 10f)) }
+        SportsUi.identify(wpCard, "game-play-stepper")
         SportsUi.focusable(wpCard, dp(ctx, 14f).toFloat())
         wpCard.addView(SportsUi.row(ctx).apply {
-            addView(SportsUi.eyebrow(ctx, "Win probability"), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-            addView(SportsUi.eyebrow(ctx, "◀ ▶ step plays · OK = live"))
+            wpTitle = SportsUi.identify(SportsUi.eyebrow(ctx, "Win probability"), "game-probability-status")
+            addView(wpTitle, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         })
         val pct = SportsUi.row(ctx)
-        wpAway = SportsUi.text(ctx, "–", 22f, bold = true); wpHome = SportsUi.text(ctx, "–", 22f, bold = true).apply { gravity = Gravity.END }
+        wpAway = SportsUi.identify(SportsUi.text(ctx, "—", 22f, bold = true), "game-away-probability"); wpHome = SportsUi.identify(SportsUi.text(ctx, "—", 22f, bold = true), "game-home-probability").apply { gravity = Gravity.END }
         pct.addView(wpAway, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)); pct.addView(wpHome, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         wpCard.addView(pct)
-        wpBar = View(ctx); wpCard.addView(wpBar, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(ctx, 10f)))
-        playText = SportsUi.text(ctx, "", 13f, 0xFFE6EAF2.toInt()).apply { maxLines = 2 }
+        wpBar = ProbabilityBarView(ctx); wpCard.addView(wpBar, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(ctx, 5f)))
+        playText = SportsUi.identify(SportsUi.text(ctx, "", 12f, 0xFFE6EAF2.toInt()), "game-selected-play").apply { maxLines = 3 }
         wpCard.addView(playText)
         wpCard.setOnKeyListener { _, code, ev ->
             if (ev.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
@@ -91,20 +117,28 @@ class GameActivity : AppCompatActivity() {
         }
         wpCard.setOnClickListener { setStep(plays.lastIndex) }
         left.addView(wpCard)
-        body.addView(left, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1.15f))
+        playControls = SportsUi.row(ctx, dp(ctx, 8f)); left.addView(playControls)
+        body.addView(left, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1.45f))
         right = SportsUi.col(ctx, dp(ctx, 12f))
-        body.addView(ScrollView(ctx).apply { isVerticalScrollBarEnabled = false; addView(right) }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f))
+        rightScroll = ScrollView(ctx).apply { isVerticalScrollBarEnabled = false; clipToPadding = false; setPadding(dp(ctx, 4f), dp(ctx, 4f), dp(ctx, 4f), dp(ctx, 6f)); addView(this@GameActivity.right) }
+        body.addView(rightScroll, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f))
         root.addView(body, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         setContentView(root)
         renderHeader(); renderRight()
-        lifecycleScope.launch { load() }
+        setStep(-1)
     }
 
-    override fun onResume() { super.onResume(); poll = lifecycleScope.launch { while (isActive) { delay(20_000); if (game.optString("state") == "in") load() } } }
-    override fun onPause() { poll?.cancel(); super.onPause() }
+    override fun onResume() { super.onResume(); if (!::plot.isInitialized) return; refresh(); poll?.cancel(); poll = lifecycleScope.launch { while (isActive) { delay(20_000); if (game.optString("state") == "in" && fetch?.isActive != true) refresh() } } }
+    override fun onPause() { poll?.cancel(); fetch?.cancel(); standingsJob?.cancel(); super.onPause() }
+    override fun onSaveInstanceState(out: Bundle) { if (stepIdx < plays.lastIndex) plays.getOrNull(stepIdx)?.let { out.putString("selectedPlay", it.optString("id")) }; super.onSaveInstanceState(out) }
+    private fun refresh() { fetch?.cancel(); fetch = lifecycleScope.launch { load() } }
 
     private suspend fun load() {
-        val d = SportsHubApi.game(sport, league, id) ?: return
+        val d = SportsHubApi.game(sport, league, id)
+        if (d == null) { feedStatus.text = "Match update unavailable"; retry.visibility = View.VISIBLE; return }
+        feedStatus.text = ""; retry.visibility = View.GONE
+        val focus = currentFocus?.tag as? String
+        val selectedId = restoredPlayId ?: plays.getOrNull(stepIdx)?.optString("id")
         val atLive = stepIdx == -1 || stepIdx >= plays.lastIndex
         game = d
         plays = d.optJSONArray("plays").objects()
@@ -112,27 +146,38 @@ class GameActivity : AppCompatActivity() {
         homeColor = SportsUi.parseColor(d.optJSONObject("home")?.optString("color"), SportsUi.ACCENT)
         awayColor = SportsUi.parseColor(d.optJSONObject("away")?.optString("color"), 0xFFFF8FAB.toInt())
         if (homeColor == awayColor) awayColor = 0xFFFF8FAB.toInt()
-        plot.setGame(SportsUi.fieldId(sport, league), homeColor, homeColor, awayColor, plays)
+        plot.setGame(SportsUi.fieldId(sport, league), if (sport == "football") SportsUi.LIVE else SportsUi.ACCENT, homeColor, awayColor, plays)
         renderHeader(); renderRight()
-        if (atLive) setStep(plays.lastIndex) else setStep(stepIdx)
+        val restored = plays.indexOfFirst { it.optString("id") == selectedId }
+        if (restoredPlayId != null && restored >= 0) setStep(restored) else if (atLive) setStep(plays.lastIndex) else setStep(if (restored >= 0) restored else 0)
+        restoredPlayId = null
+        focus?.let { window.decorView.findViewWithTag<View>(it)?.requestFocus() }
     }
 
     private fun setStep(i: Int) {
         stepIdx = i.coerceIn(-1, plays.lastIndex)
         plot.showUpTo(stepIdx)
         val p = plays.getOrNull(stepIdx)
-        val w = p?.let { pl -> wp.firstOrNull { it.optString("playId") == pl.optString("id") } } ?: wp.lastOrNull()
-        val home = w?.optDouble("home") ?: 50.0
-        wpHome.text = "${home.toInt()}%"; wpAway.text = "${(100 - home).toInt()}%"
+        val home = Data.homeProbability(plays, wp, stepIdx)
+        val homePercent = home?.roundToInt()
+        wpTitle.text = if (home == null) "WIN PROBABILITY · UNAVAILABLE" else "WIN PROBABILITY"
+        wpHome.text = homePercent?.let { "${Data.abbreviation(game.optJSONObject("home"))}  $it%" } ?: "—"
+        wpAway.text = homePercent?.let { "${100 - it}%  ${Data.abbreviation(game.optJSONObject("away"))}" } ?: "—"
         wpHome.setTextColor(homeColor); wpAway.setTextColor(awayColor)
-        wpBar.background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(awayColor, awayColor, homeColor, homeColor)).apply {
-            cornerRadius = 999f
-            // Two-tone split at the away share
-            val away = (100 - home).toFloat() / 100f
-            setGradientCenter(away, 0.5f)
+        wpBar.update(home, awayColor, homeColor)
+        val latest = stepIdx == plays.lastIndex
+        val phase = if (latest && game.optString("state") == "in") "● LIVE" else if (latest) "LATEST PLAY" else "PLAY ${stepIdx + 1}/${plays.size}"
+        playText.text = if (p == null) "Play-by-play is not available for this game yet." else "$phase  ${Data.value(p, "clock")} ${Data.value(p, "period").let { if (it.isNotBlank()) "· P$it" else "" }}\n${Data.value(p, "text")}"
+        val focusedControl = currentFocus?.tag as? String
+        playControls.removeAllViews()
+        listOf(Triple("previous", "‹ Previous", stepIdx - 1), Triple("next", "Next ›", stepIdx + 1), Triple("latest", "Latest play", plays.lastIndex)).forEach { (key, label, target) ->
+            val allowed = plays.isNotEmpty() && when (key) { "previous" -> stepIdx > 0; "next" -> stepIdx < plays.lastIndex; else -> true }
+            playControls.addView(SportsUi.identify(SportsUi.pill(this, label, key == "latest" && latest) { setStep(target) }, "game-play-$key").apply { isEnabled = allowed; isFocusable = allowed; alpha = if (allowed) 1f else .35f })
         }
-        val live = stepIdx == plays.lastIndex
-        playText.text = if (p == null) "No plays yet" else "${if (live) "● LIVE  " else "Play ${stepIdx + 1}/${plays.size}  "}${p.optString("clock")} ${p.optString("period")?.let { if (it.isNotBlank() && it != "null") "· P$it " else "" }}— ${p.optString("text")}"
+        if (focusedControl?.startsWith("game-play-") == true && focusedControl != "game-play-stepper") {
+            val next = playControls.findViewWithTag<View>(focusedControl)
+            if (next?.isEnabled == true) next.requestFocus() else wpCard.requestFocus()
+        }
     }
 
     private fun renderHeader() {
@@ -144,16 +189,16 @@ class GameActivity : AppCompatActivity() {
             val logo = SportsUi.logo(this@GameActivity, t.optString("logo"), dp(this@GameActivity, 64f))
             val name = SportsUi.col(this@GameActivity, dp(this@GameActivity, 2f)).apply {
                 gravity = if (end) Gravity.END else Gravity.START
-                addView(SportsUi.text(this@GameActivity, t.optString("name"), 18f, bold = true).apply { maxLines = 1 })
-                addView(SportsUi.text(this@GameActivity, listOfNotNull(t.optString("record").ifBlank { null }).joinToString(" · "), 11f, SportsUi.DIM, mono = true))
+                addView(SportsUi.text(this@GameActivity, Data.value(t, "name", "Team to be confirmed"), 23f, bold = true).apply { maxLines = 2 })
+                addView(SportsUi.text(this@GameActivity, Data.value(t, "record"), 10f, SportsUi.DIM, mono = true))
                 addView(followButton(t))
             }
-            if (end) { addView(name); addView(logo) } else { addView(logo); addView(name) }
+            if (end) { addView(name, LinearLayout.LayoutParams(0, -2, 1f)); addView(logo) } else { addView(logo); addView(name, LinearLayout.LayoutParams(0, -2, 1f)) }
         }
         header.addView(side(away, false), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         val centre = SportsUi.col(this, dp(this, 4f)).apply { gravity = Gravity.CENTER }
-        centre.addView(SportsUi.text(this, "${away.optString("score").ifBlank { "-" }}  –  ${home.optString("score").ifBlank { "-" }}", 44f, bold = true))
-        centre.addView(SportsUi.text(this, "${game.optString("leagueName")} · ${game.optString("statusDetail")}", 12f, if (live) SportsUi.LIVE else SportsUi.DIM, bold = true, mono = true))
+        centre.addView(SportsUi.identify(SportsUi.text(this, if (game.optString("state") == "pre") "VS" else "${Data.value(away, "score", "—")} : ${Data.value(home, "score", "—")}", 44f, bold = true), "game-score"))
+        centre.addView(SportsUi.identify(SportsUi.text(this, "${game.optString("leagueName")} · ${game.optString("statusDetail")}", 11f, if (live) SportsUi.LIVE else SportsUi.DIM, mono = true), "game-status").apply { maxWidth = dp(this@GameActivity, 210f); gravity = Gravity.CENTER; maxLines = 2 })
         game.optJSONObject("venue")?.optString("name")?.takeIf { it.isNotBlank() }?.let { centre.addView(SportsUi.text(this, it, 11f, SportsUi.DIM)) }
         header.addView(centre, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = dp(this@GameActivity, 24f); marginEnd = dp(this@GameActivity, 24f) })
         header.addView(side(home, true), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
@@ -162,11 +207,12 @@ class GameActivity : AppCompatActivity() {
     private fun followButton(t: JSONObject): TextView {
         val team = SportsFollowStore.Team(sport, league, t.optString("id"), t.optString("name"), t.optString("logo").ifBlank { null })
         val on = SportsFollowStore.isFollowed(this, team.key)
-        return SportsUi.pill(this, if (on) "★ Following" else "☆ Follow", on, 0xFFFFC850.toInt()) {
+        return SportsUi.identify(SportsUi.pill(this, if (on) "★ Following" else "☆ Follow", on, 0xFFFFC850.toInt()) {
             SportsFollowStore.toggle(this, team)
             if (!on) scheduleAlertIfPossible()
             renderHeader()
-        }.apply { textSize = 11f }
+            header.findViewWithTag<View>("game-follow-${team.id}")?.requestFocus()
+        }, "game-follow-${team.id}").apply { textSize = 11f }
     }
 
     /** Kick-off alert via the guide's reminder banner when we know a channel. */
@@ -177,8 +223,7 @@ class GameActivity : AppCompatActivity() {
     }
 
     private fun card(title: String, accent: Int = SportsUi.DIM): LinearLayout = SportsUi.col(this, dp(this, 8f)).apply {
-        setPadding(dp(this@GameActivity, 16f), dp(this@GameActivity, 12f), dp(this@GameActivity, 16f), dp(this@GameActivity, 14f))
-        background = SportsUi.bg(SportsUi.CARD, dp(this@GameActivity, 14f).toFloat(), 1, 0x22FFFFFF)
+        setPadding(0, dp(this@GameActivity, 2f), 0, dp(this@GameActivity, 10f))
         addView(SportsUi.eyebrow(this@GameActivity, title, accent))
     }
 
@@ -191,7 +236,8 @@ class GameActivity : AppCompatActivity() {
         if (matches.isEmpty()) watch.addView(SportsUi.text(this, "Not found on your channels yet — we re-check as the EPG updates.", 12f, SportsUi.DIM))
         matches.forEachIndexed { i, m ->
             val rowV = SportsUi.row(this, dp(this, 10f)).apply { setPadding(dp(this@GameActivity, 10f), dp(this@GameActivity, 8f), dp(this@GameActivity, 10f), dp(this@GameActivity, 8f)) }
-            SportsUi.focusable(rowV, dp(this, 10f).toFloat(), base = 0xFF0B1220.toInt())
+            SportsUi.identify(rowV, "game-channel-${m.channel.id}")
+            SportsUi.focusable(rowV, dp(this, 12f).toFloat(), base = SportsUi.CARD)
             rowV.addView(SportsUi.logo(this, m.channel.logoUrl, dp(this, 30f)))
             rowV.addView(SportsUi.col(this).apply {
                 addView(SportsUi.text(this@GameActivity, m.channel.name, 13f, bold = true).apply { maxLines = 1 })
@@ -240,7 +286,20 @@ class GameActivity : AppCompatActivity() {
             pc.addView(cols); right.addView(pc)
         }
         // Standings
-        val st = SportsUi.pill(this, "League standings", false) { showStandings() }
+        if (game.optString("state") == "pre") {
+            val reminderKey = "sports:" + game.optString("id")
+            val saved = ReminderStore.load(this).containsKey(reminderKey)
+            val remind = SportsUi.identify(SportsUi.pill(this, if (saved) "✓ Reminder set" else "Remind me", saved) {
+                val items = ReminderStore.load(this)
+                if (items.remove(reminderKey) != null) { ReminderStore.save(this, items); Toast.makeText(this, "Reminder removed", Toast.LENGTH_SHORT).show() }
+                else if (matches.isEmpty()) Toast.makeText(this, "A matched channel is needed to set a reminder", Toast.LENGTH_LONG).show()
+                else if (game.optLong("startMs") <= System.currentTimeMillis()) Toast.makeText(this, "This game has already started", Toast.LENGTH_SHORT).show()
+                else { SportsFollowStore.scheduleAlert(this, game, matches.first().channel); Toast.makeText(this, "Kick-off reminder saved", Toast.LENGTH_SHORT).show() }
+                renderRight(); right.findViewWithTag<View>("game-reminder")?.requestFocus()
+            }, "game-reminder")
+            right.addView(remind, LinearLayout.LayoutParams(-2, -2))
+        }
+        val st = SportsUi.identify(SportsUi.pill(this, "League standings", false) { showStandings() }, "game-standings")
         right.addView(st, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT))
     }
 
@@ -254,11 +313,14 @@ class GameActivity : AppCompatActivity() {
     }
 
     private fun showStandings() {
-        lifecycleScope.launch {
-            val d = SportsHubApi.standings(sport, league) ?: return@launch
+        standingsJob?.cancel()
+        standingsJob = lifecycleScope.launch {
+            val d = SportsHubApi.standings(sport, league)
+            if (d == null) { Toast.makeText(this@GameActivity, "Standings are temporarily unavailable for this league", Toast.LENGTH_LONG).show(); return@launch }
             val ctx = this@GameActivity
             val col = SportsUi.col(ctx, dp(ctx, 12f)).apply { setPadding(dp(ctx, 20f), dp(ctx, 16f), dp(ctx, 20f), dp(ctx, 16f)); setBackgroundColor(SportsUi.BG) }
             col.addView(SportsUi.text(ctx, d.optString("league") + " · Standings", 20f, bold = true))
+            if (d.optJSONArray("groups").objects().isEmpty()) col.addView(SportsUi.text(ctx, "Standings are not available for this competition yet.", 13f, SportsUi.DIM))
             d.optJSONArray("groups").objects().forEach { g ->
                 col.addView(SportsUi.eyebrow(ctx, g.optString("title"), SportsUi.ACCENT))
                 g.optJSONArray("rows").objects().forEachIndexed { i, r ->
@@ -266,8 +328,8 @@ class GameActivity : AppCompatActivity() {
                         r.optString("points").takeIf { it != "null" && it.isNotBlank() }?.let { "$it pts" }, r.optString("gd").takeIf { it != "null" && it.isNotBlank() }?.let { "GD $it" }).joinToString("  ·  ")
                     val isHome = r.optString("id") == game.optJSONObject("home")?.optString("id"); val isAway = r.optString("id") == game.optJSONObject("away")?.optString("id")
                     col.addView(SportsUi.row(ctx, dp(ctx, 10f)).apply {
-                        isFocusable = true
-                        if (isHome || isAway) background = SportsUi.bg(0x22FFFFFF, 10f)
+                        SportsUi.identify(this, "standing-${g.optString("title")}-${r.optString("id")}")
+                        SportsUi.focusable(this, dp(ctx, 10f).toFloat(), base = if (isHome || isAway) SportsUi.CARD_FOCUS else SportsUi.BG)
                         addView(SportsUi.text(ctx, "${i + 1}", 12f, SportsUi.DIM, mono = true).apply { minWidth = dp(ctx, 28f) })
                         addView(SportsUi.logo(ctx, r.optString("logo"), dp(ctx, 24f)))
                         addView(SportsUi.text(ctx, r.optString("team"), 14f, bold = isHome || isAway), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
@@ -275,7 +337,7 @@ class GameActivity : AppCompatActivity() {
                     })
                 }
             }
-            AlertDialog.Builder(ctx).setView(ScrollView(ctx).apply { addView(col) }).show()
+            AlertDialog.Builder(ctx).setView(ScrollView(ctx).apply { addView(col) }).setPositiveButton("Close", null).show()
         }
     }
 }

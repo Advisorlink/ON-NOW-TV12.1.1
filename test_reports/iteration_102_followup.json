@@ -1,0 +1,26 @@
+{
+  "scope": "Main-agent fixes and native verification after iteration102",
+  "resolved": [
+    "Fixed GameActivity ScrollView.right Int shadowing: addView(this@GameActivity.right).",
+    "Allowed normal Gradle dependency resolution instead of strict offline mode; cached missing Kotlin1.9.22 compiler. Project Kotlin/SDK targets unchanged.",
+    "Added JUnit4.13.2 and real org.json test dependencies so six agent-written native business-logic tests execute."
+  ],
+  "verified": {
+    "native_resources_and_kotlin": "PASS: full :app:compileDebugKotlin including Android resource processing",
+    "apk_assembly": "PASS: :app:assembleDebug (41 tasks); debug APK signature verifies with v1 and v2",
+    "apk_assets": "Bundled font/geography/manifest/resources/dex present; browser demo fixtures absent",
+    "apk_sha256": "d06e53c11e92c2d1ada6b9ded391624b2e99d664aedd9695c2d050bdec1e87ed",
+    "persistent_build_evidence": "/app/test_reports/native_v2/",
+    "jvm_tests": "PASS: 6 tests,0 failures,0 errors in SportsPresentationTest",
+    "native_build_log": "/tmp/v2-native-verified.log",
+    "jvm_xml": "/app/android/onnowtv-livetv/app/build/test-results/testDebugUnitTest/TEST-tv.onnowtv.livetv.data.SportsPresentationTest.xml",
+    "backend": "13/13 tests passed in testing-agent run; backend unchanged after those tests",
+    "browser": "Desktop1920x800/mobile390x844 screenshots verified; no horizontal overflow. Final game captures wait for visible logos and animation completion.",
+    "sdk_helper": "Testing-agent fake-runner tests passed for installed fast path, targeted package install and explicit failure; script unchanged afterward.",
+    "preserved": "Original mockup index/mock.js and PlayerActivity.kt byte-identical to HEAD"
+  },
+  "cancellation_note": "Report suspicion is not a reproduced bug. invokeOnCancellation cancels the OkHttp call; onFailure/onResponse check continuation.isActive before resuming. Caller cancellation is preserved by suspendCancellableCoroutine, including resume/cancel races.",
+  "preview_toolchain": "ARM64-only local aapt2 override from checksum-verified Commit451 platform-tools35.0.1. Base Android34r3 SDK; release CI continues to use its normal hosted x86 Android34 tools.",
+  "remaining_acceptance": ["Actual GitHub workflow rerun and release signing", "Install signed update on user hardware", "On-device layout/D-pad and real IPTV playback/reminder verification"],
+  "mocking": "Only standalone browser design preview uses MOCKED/sample data. Native endpoints and backend are real."
+}

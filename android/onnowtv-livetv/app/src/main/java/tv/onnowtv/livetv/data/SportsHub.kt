@@ -1,29 +1,37 @@
 package tv.onnowtv.livetv.data
 
 import android.content.Context
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.suspendCancellableCoroutine
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
+import java.io.IOException
+import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
 import java.net.URLEncoder
 
 /** Sports Hub — thin client over the backend's /api/sportshub proxy (ESPN). */
 object SportsHubApi {
     private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
+    private val client = OkHttpClient.Builder().connectTimeout(8, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS).callTimeout(35, TimeUnit.SECONDS).build()
 
-    private suspend fun getJson(path: String): JSONObject? = withContext(Dispatchers.IO) {
-        try {
-            val conn = (URL(XtreamRepository.BACKEND_BASE.trimEnd('/') + path).openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"; connectTimeout = 8_000; readTimeout = 20_000
-                setRequestProperty("Accept", "application/json")
+    private suspend fun getJson(path: String): JSONObject? = suspendCancellableCoroutine { continuation ->
+        val request = try { Request.Builder().url(XtreamRepository.BACKEND_BASE.trimEnd('/') + path).header("Accept", "application/json").get().build() }
+        catch (_: IllegalArgumentException) { continuation.resume(null); return@suspendCancellableCoroutine }
+        val call = client.newCall(request)
+        continuation.invokeOnCancellation { call.cancel() }
+        call.enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) { if (continuation.isActive) continuation.resume(null) }
+            override fun onResponse(call: Call, response: Response) {
+                val result = response.use { try { if (it.isSuccessful) it.body?.string()?.let(::JSONObject) else null } catch (_: Exception) { null } }
+                if (continuation.isActive) continuation.resume(result)
             }
-            try {
-                if (conn.responseCode !in 200..299) return@withContext null
-                JSONObject(conn.inputStream.bufferedReader().readText())
-            } finally { conn.disconnect() }
-        } catch (_: Exception) { null }
+        })
     }
 
     suspend fun leagues(): JSONObject? = getJson("/api/sportshub/leagues")

@@ -1,0 +1,56 @@
+{
+  "summary": "Completed backend + frontend + native/CI verification for Sports Hub V2 scope. Public sportshub endpoints and regression monkeypatch tests passed; Astra preview V2 screenshots and interaction checks passed at 1920x800 and 390x844. Native Android build is currently blocked by a Kotlin compile error in GameActivity plus offline dependency-cache limitation.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_sportshub_v2_live.py",
+    "/app/test_reports/pytest/iter102_sportshub_v2.xml",
+    "/app/frontend/public/sportshub-astra/previews/v2-scores-desktop.jpg",
+    "/app/frontend/public/sportshub-astra/previews/v2-game-mlb-desktop.jpg",
+    "/app/frontend/public/sportshub-astra/previews/v2-map-desktop.jpg",
+    "/app/frontend/public/sportshub-astra/previews/v2-scores-mobile.jpg",
+    "/app/frontend/public/sportshub-astra/previews/v2-game-mlb-mobile.jpg",
+    "/app/frontend/public/sportshub-astra/previews/v2-map-mobile.jpg",
+    "/root/.emergent/automation_output/20261013_042937/console_20261013_042937.log",
+    "/tmp/v2-native-compile.log"
+  ],
+  "action_items": [
+    "Fix native compile blocker in /app/android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/GameActivity.kt line ~123: ScrollView.apply scope resolves `right` to ScrollView.right (Int), causing `addView(right)` type mismatch.",
+    "After fixing compile error, re-run :app:compileDebugKotlin with the same command and then run JVM test target for SportsPresentationTest.",
+    "If offline mode is required in CI/preview compile checks, prewarm/cache kotlin-compiler-embeddable:1.9.22 or remove offline for compile validation stage."
+  ],
+  "critical_code_review_comments": [
+    "Native compile cannot currently pass: with network enabled, :app:compileDebugKotlin fails at GameActivity.kt:123:178 (Type mismatch Int vs View).",
+    "Offline compile path additionally fails when kotlin-compiler-embeddable:1.9.22 is not already cached; this is environmental but blocks strict offline verification.",
+    "Kotlin client cancellation handling likely swallows cancellation as null data: SportsHubApi.getJson onFailure always resumes null (no distinction for call cancellation), which can mask cancellation state in app flow.",
+    "Real IPTV/channel playback and signed-in device handoff remain unverified in this environment (hardware/account dependent)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_sportshub_v2_live.py",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/SportsPresentationTest.kt",
+    "/app/test_reports/iteration_102.json",
+    "/app/frontend/public/sportshub-astra/previews/v2-scores-desktop.jpg",
+    "/app/frontend/public/sportshub-astra/previews/v2-game-mlb-desktop.jpg",
+    "/app/frontend/public/sportshub-astra/previews/v2-map-desktop.jpg",
+    "/app/frontend/public/sportshub-astra/previews/v2-scores-mobile.jpg",
+    "/app/frontend/public/sportshub-astra/previews/v2-game-mlb-mobile.jpg",
+    "/app/frontend/public/sportshub-astra/previews/v2-map-mobile.jpg"
+  ],
+  "success_rate": {
+    "backend": "100% (13/13 in iter102 sportshub suite)",
+    "frontend": "100% for scoped V2 browser checks (scores/game/map, overflow/testids/errors)"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Executed real external endpoint tests against REACT_APP_BACKEND_URL preview. /api/sportshub/leagues, /live?tier=1, /live?tier=3, dynamic scoreboard/game/standings, and invalid params all passed. Monkeypatch regression tests for scoreboard/live/game fallback all passed. CI helper script ensure-android-sdk.sh parse and fake-runner scenarios validated (skip when fully installed, targeted install, explicit failure handling). Frontend Astra V2 checks passed with no duplicate testids and no horizontal overflow at 1920x800 and 390x844. Required V2 screenshots copied into public previews path.",
+  "rca of the issue": "Native compile blocker RCA: In GameActivity.kt, property name `right` (LinearLayout) is shadowed inside `ScrollView(ctx).apply { ... }` by receiver property `ScrollView.right` (Int). `addView(right)` resolves to Int argument, producing the Kotlin compile error `Type mismatch: inferred type is Int but View! was expected` at line 123. Mitigation: disambiguate as `addView(this@GameActivity.right)` or rename the class property. Secondary blocker: strict offline compile fails when kotlin compiler artifact is not cached.",
+  "application_mocked_apis": "MOCKED: Browser preview at /sportshub-astra uses sample/demo fixtures and localStorage reminders/follows only. Real backend /api/sportshub endpoints tested separately and are not mocked in this run."
+}
