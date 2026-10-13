@@ -1,0 +1,134 @@
+{
+  "checked_at": "2026-10-13T10:35:13Z",
+  "source": "configured_v2_live_managed_provider",
+  "provider_id": "managed-5bb3130ce589",
+  "metadata_only": true,
+  "streams_started": false,
+  "status": "success",
+  "total_channels": 8938,
+  "archive_enabled_channels": 72,
+  "archive_enabled_sports_named_channels": 15,
+  "sports_named_channels": 1296,
+  "retention_days_distribution": {
+    "7": 65,
+    "5": 7
+  },
+  "examples": [
+    {
+      "channel": "SKY SPORTS MAIN EVENT SD",
+      "stream_id": "33",
+      "retention_days": 7
+    },
+    {
+      "channel": "SKY SPORTS PREMIER LEAGUE HD",
+      "stream_id": "29",
+      "retention_days": 5
+    },
+    {
+      "channel": "SKY SPORTS PREMIER LEAGUE SD",
+      "stream_id": "30",
+      "retention_days": 7
+    },
+    {
+      "channel": "SKY SPORTS FOOTBALL SD",
+      "stream_id": "27",
+      "retention_days": 7
+    },
+    {
+      "channel": "SKY SPORTS GOLF SD",
+      "stream_id": "12",
+      "retention_days": 7
+    },
+    {
+      "channel": "SKY SPORTS F1 SD",
+      "stream_id": "18",
+      "retention_days": 7
+    },
+    {
+      "channel": "SKY SPORTS RACING SD",
+      "stream_id": "9",
+      "retention_days": 7
+    },
+    {
+      "channel": "SKY SPORTS + SD",
+      "stream_id": "24",
+      "retention_days": 7
+    },
+    {
+      "channel": "SKY SPORTS ACTION/NFL SD",
+      "stream_id": "6",
+      "retention_days": 7
+    },
+    {
+      "channel": "SKY SPORTS CRICKET SD",
+      "stream_id": "15",
+      "retention_days": 7
+    },
+    {
+      "channel": "SKY SPORTS MIX SD",
+      "stream_id": "21",
+      "retention_days": 7
+    },
+    {
+      "channel": "Sky Sports Tennis HD",
+      "stream_id": "944",
+      "retention_days": 5
+    },
+    {
+      "channel": "TNT SPORTS 1 SD",
+      "stream_id": "673",
+      "retention_days": 7
+    },
+    {
+      "channel": "TNT SPORTS 2 SD",
+      "stream_id": "676",
+      "retention_days": 7
+    },
+    {
+      "channel": "TNT SPORTS 3 SD",
+      "stream_id": "679",
+      "retention_days": 7
+    }
+  ],
+  "programme_checks": [
+    {
+      "channel": "SKY SPORTS MAIN EVENT SD",
+      "retention_days": 7,
+      "status": "success",
+      "programme_count": 184,
+      "provider_flagged_archived_completed_programmes": 107,
+      "recent_examples": [
+        {
+          "title": "Live Tennis : ATP Shanghai Masters & WTA Wuhan Open \u1d38\u1da6\u1d5b\u1d49",
+          "start_utc": "2026-10-13T05:00:00Z",
+          "end_utc": "2026-10-13T07:00:00Z"
+        },
+        {
+          "title": "Live Tennis : ATP Shanghai Masters & WTA Wuhan Open \u1d38\u1da6\u1d5b\u1d49",
+          "start_utc": "2026-10-13T04:00:00Z",
+          "end_utc": "2026-10-13T05:00:00Z"
+        }
+      ]
+    },
+    {
+      "channel": "SKY SPORTS PREMIER LEAGUE HD",
+      "retention_days": 5,
+      "status": "success",
+      "programme_count": 425,
+      "provider_flagged_archived_completed_programmes": 168,
+      "recent_examples": [
+        {
+          "title": "Sky Sports FC  \u1d38\u1da6\u1d5b\u1d49",
+          "start_utc": "2026-10-13T09:00:00Z",
+          "end_utc": "2026-10-13T10:00:00Z"
+        },
+        {
+          "title": "Saturday Night Football : Manchester United v Tottenham Hotspur",
+          "start_utc": "2026-10-13T08:30:00Z",
+          "end_utc": "2026-10-13T09:00:00Z"
+        }
+      ]
+    }
+  ],
+  "recording_playback_tested": false
+}
