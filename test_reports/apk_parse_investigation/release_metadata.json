@@ -1,0 +1,20 @@
+{
+  "release_name": "ON NOW V2 Live TV 2.10.75 (build 136)",
+  "assets": [
+    {
+      "name": "onnowtv-livetv-debug.apk",
+      "size": 198686201,
+      "updated_at": "2026-10-13T12:32:38Z",
+      "digest": "sha256:c53365dfd22b25932f478ad65296986947c9b84686f912d347a2b2c50223cf8a",
+      "browser_download_url": "https://github.com/Advisorlink/ON-NOW-TV12.1.1/releases/download/livetv-latest/onnowtv-livetv-debug.apk"
+    },
+    {
+      "name": "onnowtv-livetv-release.apk",
+      "size": 196369151,
+      "updated_at": "2026-10-13T12:32:35Z",
+      "digest": "sha256:1e0d3c4aa54014a6b45093e9ca8d6d5e2e615c2176502dce1c771a2d0930f821",
+      "browser_download_url": "https://github.com/Advisorlink/ON-NOW-TV12.1.1/releases/download/livetv-latest/onnowtv-livetv-release.apk"
+    }
+  ],
+  "download_sha256": "1e0d3c4aa54014a6b45093e9ca8d6d5e2e615c2176502dce1c771a2d0930f821"
+}
