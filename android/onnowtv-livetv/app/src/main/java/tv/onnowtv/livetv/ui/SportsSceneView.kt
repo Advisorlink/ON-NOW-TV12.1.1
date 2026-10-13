@@ -20,6 +20,11 @@ import java.io.ByteArrayInputStream
 /** One sandboxed, bundled Three.js scene. No JS bridge, remote scripts, network, or idle animation. */
 @SuppressLint("SetJavaScriptEnabled")
 class SportsSceneView(context: Context) : FrameLayout(context) {
+    var aspectRatio: Float? = null
+    override fun onMeasure(widthSpec: Int, heightSpec: Int) {
+        val height = aspectRatio?.let { MeasureSpec.makeMeasureSpec((MeasureSpec.getSize(widthSpec) / it).toInt(), MeasureSpec.EXACTLY) } ?: heightSpec
+        super.onMeasure(widthSpec, height)
+    }
     private val fallback = GamePlotView(context)
     private var browser: WebView? = null
     private var loaded = false
@@ -89,6 +94,6 @@ class SportsSceneView(context: Context) : FrameLayout(context) {
         browser?.evaluateJavascript("window.SportsScene ? SportsScene.render($json) : false") { result -> browser?.visibility = if (result == "true") View.VISIBLE else View.INVISIBLE; cameraControl?.visibility = if (result == "true") View.VISIBLE else View.GONE }
     }
     fun pauseScene() { removeCallbacks(drawScene); browser?.evaluateJavascript("window.SportsScene && SportsScene.pause()", null); browser?.onPause() }
-    fun resumeScene() { browser?.onResume(); render() }
+    fun resumeScene() { browser?.onResume(); browser?.evaluateJavascript("window.SportsScene && SportsScene.resume()", null); render() }
     fun destroyScene() { removeCallbacks(drawScene); browser?.evaluateJavascript("window.SportsScene && SportsScene.dispose()", null); browser?.stopLoading(); browser?.let { removeView(it); it.destroy() }; browser = null; loaded = false }
 }

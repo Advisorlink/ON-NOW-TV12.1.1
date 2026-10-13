@@ -1,9 +1,9 @@
 {
   "design_system": {
-    "name": "Astra Kinetic V2 Sports Hub - Premium 3D & Broadcast Edition",
+    "name": "Astra Kinetic V2 Sports Hub - Native Phone/TV & Web Design Blueprint",
     "persona": "E1 The Anti-AI Designer - Tactical Broadcast Precision with 3D Textured Surface Mechanics",
     "theme": "Dark Mode Premium Stadium (Obsidian #0A0F1A / Pitch Dark #050811 + V2 Red #FF2535 + Electric Cyan #00F0FF + Focus Blue #5DC8FF + Stadium Turf Green #1F8A4C)",
-    "resolution_target": "1920x1080 Native Android TV (xhdpi 1dp = 2px, 10-ft readability)",
+    "resolution_target": "Fluid Responsive Mobile Phone (Portrait/Landscape) & 1920x1080 Native Android TV",
     "branding": {
       "wordmark": "V2 Sports Hub",
       "v2_badge": {
@@ -20,28 +20,20 @@
         "text_color": "#FFFFFF",
         "tracking": "tracking-wide"
       },
-      "tagline": "3D TACTICAL TELEMETRY · BROADCAST CHANNELS & GENUINE CATCH-UP"
+      "tagline": "3D TACTICAL TELEMETRY · BROADCAST CHANNELS & GENUINE CATCH-UP REPLAY"
     },
     "typography": {
-      "headings": {
-        "family": "Barlow Condensed, Outfit, sans-serif",
-        "weights": ["700", "800", "900"],
-        "tracking": "tracking-tight",
-        "h1": "text-4xl lg:text-5xl (48px - 60px / 32sp)",
-        "h2": "text-2xl lg:text-3xl (32px - 38px / 24sp)",
-        "h3": "text-xl lg:text-2xl (24px - 28px / 18sp)"
+      "js_web_scale": {
+        "headings_family": "Barlow Condensed, Outfit, sans-serif",
+        "body_family": "DM Sans, Inter, sans-serif",
+        "mono_telemetry": "JetBrains Mono, SF Mono, monospace",
+        "h1": "text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight",
+        "h2": "text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight",
+        "h3": "text-lg sm:text-xl lg:text-2xl font-semibold",
+        "body": "text-sm sm:text-base text-[#E6EAF2]",
+        "caption": "text-xs font-mono uppercase tracking-widest text-[#9DA5B5]"
       },
-      "body": {
-        "family": "DM Sans, Inter, sans-serif",
-        "weights": ["400", "500", "600"],
-        "size": "text-base (16px / 14sp) / text-sm (14px / 12sp)"
-      },
-      "telemetry_mono": {
-        "family": "JetBrains Mono, SF Mono, monospace",
-        "weights": ["500", "700"],
-        "tracking": "tracking-widest uppercase (0.12em)"
-      },
-      "native_sp_scale": {
+      "native_android_sp_scale": {
         "title_large": "28sp",
         "score_display": "32sp",
         "heading_medium": "20sp",
@@ -146,7 +138,7 @@
     }
   },
   "layout_and_screens": {
-    "screen_dimensions": "1920px x 1080px (Scale ratio fluid for viewport fit)",
+    "screen_dimensions": "Fluid Mobile Phone (Portrait/Landscape) & 1920px x 1080px TV canvas",
     "masthead_header": {
       "height": "88px",
       "padding": "24px 48px",
@@ -203,17 +195,37 @@
       }
     }
   },
+  "3d_libraries": {
+    "engine": "Three.js / Canvas WebGL + Custom Native Android View Graphics",
+    "assets_path": "/app/frontend/public/sportshub-scene/"
+  },
+  "component_path": {
+    "web_reference": "/app/frontend/public/sportshub-astra/app.js",
+    "web_css": "/app/frontend/public/sportshub-astra/premium.css",
+    "native_ui": "/app/android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/ui/SportsUi.kt",
+    "native_score_adapter": "/app/android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/ui/SportsScoreAdapter.kt",
+    "native_activity": "/app/android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/SportsHubActivity.kt",
+    "native_game_activity": "/app/android/onnowtv-livetv/app/src/main/java/tv/onnowtv/livetv/GameActivity.kt"
+  },
+  "image_urls": {
+    "stadium_background": "https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?crop=entropy&cs=srgb&fm=jpg&q=85",
+    "sports_lights": "https://images.unsplash.com/photo-1545525201-e1a5a2a18293?crop=entropy&cs=srgb&fm=jpg&q=85",
+    "baseball_field_3d": "https://images.unsplash.com/photo-1583960435304-37f2e1592c37?crop=entropy&cs=srgb&fm=jpg&q=85"
+  },
   "general_ui_ux_guidelines": [
-    "All interactive elements (buttons, nav pills, game cards, channel rows, replay buttons) MUST include exact data-testid attributes (e.g. data-testid='nav-scores', data-testid='game-card-0', data-testid='btn-watch-replay').",
+    "All interactive and key informational elements MUST include exact data-testid attributes (e.g. data-testid='nav-scores', data-testid='game-card-0', data-testid='btn-watch-replay') to facilitate robust automated testing.",
     "Maintain 10-ft TV viewing readability: text minimum 12sp (24px) for body, 18sp (36px) for team names, 28sp (56px) for scores.",
     "Focus state contrast: Focused item must feature blue/cyan focus border (#5DC8FF / #00F0FF), scale bump (1.04x), and glow ring to provide unmistakable feedback for D-pad control.",
-    "Zero transparent backgrounds on text surfaces or overlays: all dropdowns, cards, and modal dialogs must have solid tinted backings (min #141C2A) with backdrop-blur.",
-    "Hardware performance target: Keep canvas redraws light, use CSS GPU transforms (`transform: scale() translate3d()`), avoid heavy unthrottled DOM mutations for smooth rendering on low-end Android TV hardware."
+    "CRITICAL: Zero complete transparent backgrounds on header, overlays, dropdowns or cards. Every container must have solid/semi-solid backing (#141C2A with backdrop-blur) to guarantee text contrast against background graphics.",
+    "Adaptive Layout: Mobile phone in vertical portrait mode must render the V2 Hub entry button and stack components cleanly; horizontal orientation must handle smooth rotation without locking orientation.",
+    "Low-end Android TV performance target: Keep hardware acceleration active (`transform: translate3d/scale`), avoid heavy DOM/view re-renders."
   ],
-  "media": {
-    "stadium_background": "https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHwxfHxzdGFkaXVtJTIwbGlnaHRzJTIwbmlnaHQlMjBicm9hZGNhc3R8ZW58MHx8fHwxNzkxODYzMDUzfDA&ixlib=rb-4.1.0&q=85",
-    "sports_lights": "https://images.unsplash.com/photo-1545525201-e1a5a2a18293?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHw0fHxzdGFkaXVtJTIwbGlnaHRzJTIwbmlnaHQlMjBicm9hZGNhc3R8ZW58MHx8fHwxNzkxODYzMDUzfDA&ixlib=rb-4.1.0&q=85",
-    "baseball_field_3d": "https://images.unsplash.com/photo-1583960435304-37f2e1592c37?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHwzfHwzZCUyMHNwb3J0cyUyMHN0YWRpdW0lMjBmaWVsZCUyMGdyYXBoaWMlMjBiYXNlYmFsbCUyMGRpYW1vbmQlMjBmb290YmFsbCUyMHBpdGNofGVufDB8fHx8MTc5MTg4MTM2M3ww&ixlib=rb-4.1.0&q=85"
-  },
-  "instructions_to_main_agent": "Ensure full sync between native Kotlin views (SportsUi.kt, SportsHubActivity.kt, colors.xml) and browser design preview (/app/frontend/public/sportshub-astra/). Apply V2 Sports Hub branding with red V2 badge (#FF2535), rounded 24dp filter pills, 14dp card radii, 3D textured field graphics with cartoon player figures, authentic player headshots, exact channel EPG listings, and genuine Catch-Up replay action buttons."
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "You use .js files for frontend web components. Avoid .tsx extensions.",
+    "Avoid AI assistant Emoji characters like 🤖, 🧠, 💭, 💡, 🔮, 🎯 as icons.",
+    "All interactive elements MUST include data-testid attributes.",
+    "Do not use transparent background on dropdowns, modals, or top headers.",
+    "Ensure exact visual alignment between browser preview (/app/frontend/public/sportshub-astra) and native Kotlin UI."
+  ],
+  "instructions_to_main_agent": "Ensure complete visual and layout parity between native Kotlin components (SportsUi.kt, SportsScoreAdapter.kt, SportsHubActivity.kt, GameActivity.kt) and the existing reference design at /app/frontend/public/sportshub-astra/app.js. Key focus: maintain V2 badge (#FF2535), rounded 24dp filter pills, faded team crest backgrounds, 3D tactical sports surface graphics, player headshots, real broadcast channel matcher badges, portrait V2 Hub button access, and provider-gated watch replay action triggers."
 }

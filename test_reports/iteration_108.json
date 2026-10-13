@@ -1,0 +1,51 @@
+{
+  "summary": "Executed requested native + backend verification scope: added SportsLayoutPolicy width/orientation unit tests, added Robolectric native layout measurements for portrait EPG/Sports Hub/GameActivity/SportsArtwork, ran full :app:testDebugUnitTest + :app:assembleDebug, verified APK signature/assets, and reran sports hub backend regression/live tests against public endpoint.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Native APK physical phone/box rendering",
+        "issues": [
+          "Not verifiable in this environment (no physical adb/KVM device). Browser preview cannot prove native parity."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/SportsLayoutPolicyTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/ui/SportsNativeLayoutRobolectricTest.kt",
+    "/app/android/onnowtv-livetv/app/build/test-results/testDebugUnitTest/TEST-tv.onnowtv.livetv.ui.SportsNativeLayoutRobolectricTest.xml",
+    "/app/test_reports/pytest/iter108_sportshub_backend.xml"
+  ],
+  "action_items": [
+    "Install signed APK on real phone + TV box and verify approved Astra V2 visual parity (faded background crests, replay visibility rules, and portrait entry UX) on device.",
+    "Validate orientation return flow on physical handset (vertical -> horizontal -> vertical) with user rotation settings and lifecycle recreation.",
+    "Keep robolectric.conscryptMode=OFF for ARM64 CI/unit test stability unless CI image provides matching conscrypt native libs."
+  ],
+  "critical_code_review_comments": [
+    "Merged manifest confirms SportsHubActivity/GameActivity are screenOrientation=unspecified with no orientation/screenSize configChanges; SportsWindow.apply enforces sensorLandscape only for television path.",
+    "Portrait EPG layout contains sports_hub_btn with 48dp height and 128x72 preview card values as requested.",
+    "Handset Sports Hub path uses ConcatAdapter header+scores; landscape handset still remains handset path by design (not TV path)."
+  ],
+  "updated_files": [
+    "/app/android/onnowtv-livetv/app/build.gradle.kts",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/SportsLayoutPolicyTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/ui/SportsNativeLayoutRobolectricTest.kt",
+    "/app/test_reports/iteration_108.json"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "90%"
+  },
+  "seed_data_creation": "",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Android command used: ANDROID_HOME=/tmp/v2-android-sdk ANDROID_SDK_ROOT=/tmp/v2-android-sdk gradle :app:testDebugUnitTest :app:assembleDebug -Pandroid.aapt2FromMavenOverride=/tmp/v2-arm64-tools/aapt2 --no-daemon. Result: build success; 41 unit tests complete, 0 failed. Backend regression: 18/18 passed in iter108_sportshub_backend.xml. APK verify: v1/v2 pass; assets/sports-scene/index.html + scene.js present. Physical-device visual parity remains pending.",
+  "rca of the issue": "Initial Robolectric failures were infrastructure-level on ARM64 due missing conscrypt_openjdk_jni-linux-aarch_64 during AndroidTestEnvironment init (before app assertions). Mitigation: set test JVM property robolectric.conscryptMode=OFF in app/build.gradle.kts testOptions.unitTests.all. After this test-only configuration, all new/existing unit tests passed.",
+  "mocked_flows": "MOCKED: Browser Astra fixtures/replay dialog are sample data only. MOCKED: Native provider verification contract tests rely on MockWebServer fixtures; no live provider playback executed in these JVM tests."
+}

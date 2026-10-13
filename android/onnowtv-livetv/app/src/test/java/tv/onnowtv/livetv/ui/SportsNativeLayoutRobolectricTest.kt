@@ -1,0 +1,197 @@
+package tv.onnowtv.livetv.ui
+
+import android.app.Application
+import android.content.Intent
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.ScrollView
+import android.widget.HorizontalScrollView
+import androidx.recyclerview.widget.ConcatAdapter
+import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import org.json.JSONObject
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.Robolectric
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+import org.robolectric.annotation.LooperMode
+import tv.onnowtv.livetv.GameActivity
+import tv.onnowtv.livetv.R
+import tv.onnowtv.livetv.SportsHubActivity
+import tv.onnowtv.livetv.data.SportsLayoutPolicy
+import tv.onnowtv.livetv.ui.SportsUi.dp
+
+@RunWith(RobolectricTestRunner::class)
+@LooperMode(LooperMode.Mode.PAUSED)
+@GraphicsMode(GraphicsMode.Mode.LEGACY)
+@Config(application = Application::class, sdk = [28])
+class SportsNativeLayoutRobolectricTest {
+
+    // Portrait EPG entry and preview thumbnail dimensions.
+    @Test
+    @Config(qualifiers = "w390dp-h844dp-port")
+    fun portrait_epg_contains_sports_hub_button_and_compact_preview() {
+        val context = RuntimeEnvironment.getApplication()
+        val root = LayoutInflater.from(context).inflate(R.layout.activity_epg, FrameLayout(context), false)
+
+        val hubBtn = root.findViewById<LinearLayout>(R.id.sports_hub_btn)
+        assertNotNull(hubBtn)
+        assertTrue(hubBtn.isClickable)
+        assertTrue(hubBtn.isFocusable)
+        assertTrue(hubBtn.layoutParams.height >= dp(context, 48f))
+        assertEquals(R.id.whatson_pill, hubBtn.nextFocusDownId)
+
+        val preview = root.findViewById<FrameLayout>(R.id.preview_card)
+        assertEquals(dp(context, 128f), preview.layoutParams.width)
+        assertEquals(dp(context, 72f), preview.layoutParams.height)
+    }
+
+    // Native Sports Hub on phone should use ConcatAdapter and computed columns.
+    @Test
+    @Config(qualifiers = "w390dp-h844dp-port")
+    fun sports_hub_phone_uses_concat_adapter_and_expected_columns() {
+        val activity = Robolectric.buildActivity(SportsHubActivity::class.java).create().get()
+        val list = activity.window.decorView.findViewWithTag<RecyclerView>("hub-score-list")
+        val adapter = list.adapter
+        assertTrue(adapter is ConcatAdapter)
+        val concat = adapter as ConcatAdapter
+        assertEquals(2, concat.adapters.size)
+        assertTrue(concat.adapters.first() is SportsHeaderAdapter)
+
+        val lm = list.layoutManager as GridLayoutManager
+        assertEquals(SportsLayoutPolicy.columns(activity.resources.configuration.screenWidthDp), lm.spanCount)
+
+        val mapMode = activity.window.decorView.findViewWithTag<View>("hub-mode-map")
+        mapMode.performClick()
+        Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+
+        val filters = readField<LinearLayout>(activity, "filters")
+        val filterDock = readField<LinearLayout>(activity, "filterDock")
+        assertTrue(filters.parent === filterDock)
+    }
+
+    // Handset landscape still uses ConcatAdapter, but grid columns should scale to 2.
+    @Test
+    @Config(qualifiers = "w960dp-h540dp-land")
+    fun sports_hub_landscape_keeps_concat_adapter_and_two_columns() {
+        val activity = Robolectric.buildActivity(SportsHubActivity::class.java).create().get()
+        val list = activity.window.decorView.findViewWithTag<RecyclerView>("hub-score-list")
+        assertTrue(list.adapter is ConcatAdapter)
+        val lm = list.layoutManager as GridLayoutManager
+        assertEquals(2, lm.spanCount)
+    }
+
+    // Game screen stacked phone layout should keep score/header/button areas measurable and non-overflowing.
+    @Test
+    @Config(qualifiers = "w390dp-h844dp-port")
+    fun game_activity_phone_layout_has_nonzero_team_text_and_no_overflow() {
+        val seed = JSONObject()
+            .put("id", "401908030")
+            .put("sport", "baseball")
+            .put("league", "mlb")
+            .put("leagueName", "Major League Baseball")
+            .put("statusDetail", "Final")
+            .put("state", "post")
+            .put("home", JSONObject().put("name", "Milwaukee Brewers Super Long Team Name").put("abbr", "MIL").put("score", "118").put("logo", ""))
+            .put("away", JSONObject().put("name", "Los Angeles Dodgers Super Long Team Name").put("abbr", "LAD").put("score", "123").put("logo", ""))
+
+        val intent = Intent(RuntimeEnvironment.getApplication(), GameActivity::class.java)
+            .putExtra(GameActivity.EXTRA_SPORT, "baseball")
+            .putExtra(GameActivity.EXTRA_LEAGUE, "mlb")
+            .putExtra(GameActivity.EXTRA_ID, "401908030")
+            .putExtra(GameActivity.EXTRA_SEED, seed.toString())
+
+        val activity = Robolectric.buildActivity(GameActivity::class.java, intent).create().get()
+        val content = activity.findViewById<ViewGroup>(android.R.id.content)
+        content.measure(
+            View.MeasureSpec.makeMeasureSpec(dp(activity, activity.resources.configuration.screenWidthDp.toFloat()), View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(dp(activity, activity.resources.configuration.screenHeightDp.toFloat()), View.MeasureSpec.EXACTLY),
+        )
+        content.layout(0, 0, content.measuredWidth, content.measuredHeight)
+
+        val score = activity.window.decorView.findViewWithTag<TextView>("game-score")
+        assertTrue(score.measuredWidth > 0)
+        assertTrue("Measured layout must actually be phone-width", content.measuredWidth <= dp(activity, 390f))
+        assertTrue(score.text.contains("123") || score.text.contains("VS"))
+
+        val maybeLongTeamLabels = collectTextViews(content).filter {
+            (it.text?.contains("Team to be confirmed") == true) || (it.text?.contains("Super Long Team Name") == true)
+        }
+        assertTrue(maybeLongTeamLabels.isNotEmpty())
+        assertTrue(maybeLongTeamLabels.all { it.measuredWidth > 0 })
+
+        val playStepper = activity.window.decorView.findViewWithTag<View>("game-play-stepper")
+        assertTrue(playStepper.measuredWidth > 0)
+        assertNoVisibleChildOverflow(content)
+    }
+
+    // Decorative artwork layer must stay non-interactive and not expand card bounds.
+    @Test
+    @Config(qualifiers = "w390dp-h844dp-port")
+    fun sports_artwork_layer_is_non_interactive_and_crest_alpha_is_decorative() {
+        val context = RuntimeEnvironment.getApplication()
+        val game = JSONObject()
+            .put("id", "g1")
+            .put("away", JSONObject().put("logo", "https://a.espncdn.com/i/teamlogos/mlb/500/scoreboard/lad.png").put("color", "005A9C"))
+            .put("home", JSONObject().put("logo", "https://a.espncdn.com/i/teamlogos/mlb/500/scoreboard/mil.png").put("color", "13294b"))
+
+        val layer = SportsArtwork.layer(context, game, large = false)
+        val parent = FrameLayout(context)
+        parent.addView(layer, FrameLayout.LayoutParams(dp(context, 320f), ViewGroup.LayoutParams.WRAP_CONTENT))
+        parent.measure(
+            View.MeasureSpec.makeMeasureSpec(dp(context, 320f), View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(dp(context, 220f), View.MeasureSpec.AT_MOST),
+        )
+        parent.layout(0, 0, parent.measuredWidth, parent.measuredHeight)
+
+        assertFalse(layer.isClickable)
+        assertFalse(layer.isFocusable)
+        assertTrue(layer.measuredHeight <= parent.measuredHeight)
+
+        val crestChildren = (0 until layer.childCount)
+            .mapNotNull { layer.getChildAt(it) as? android.widget.ImageView }
+        assertTrue(crestChildren.isNotEmpty())
+        assertTrue(crestChildren.all { it.alpha <= 0.13f })
+    }
+
+    private fun collectTextViews(root: View): List<TextView> {
+        if (root is TextView) return listOf(root)
+        if (root !is ViewGroup) return emptyList()
+        val out = ArrayList<TextView>()
+        for (i in 0 until root.childCount) out += collectTextViews(root.getChildAt(i))
+        return out
+    }
+
+    private fun assertNoVisibleChildOverflow(view: View) {
+        if (view !is ViewGroup || view.measuredWidth <= 0 || view.measuredHeight <= 0) return
+        if (view.importantForAccessibility == View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS) return // intentionally clipped decorative crests
+        for (i in 0 until view.childCount) {
+            val child = view.getChildAt(i)
+            if (child.visibility == View.GONE) continue
+            assertTrue("${child.javaClass.simpleName} left overflow in ${view.javaClass.simpleName}", child.left >= -1)
+            assertTrue("${child.javaClass.simpleName} top overflow in ${view.javaClass.simpleName}", child.top >= -1)
+            if (view !is HorizontalScrollView) assertTrue("${child.javaClass.simpleName} right overflow in ${view.javaClass.simpleName}", child.right <= view.measuredWidth + 1)
+            if (view !is ScrollView) assertTrue("${child.javaClass.simpleName} bottom overflow in ${view.javaClass.simpleName}", child.bottom <= view.measuredHeight + 1)
+            assertNoVisibleChildOverflow(child)
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun <T> readField(target: Any, field: String): T {
+        val f = target::class.java.getDeclaredField(field)
+        f.isAccessible = true
+        return f.get(target) as T
+    }
+}

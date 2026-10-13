@@ -93,16 +93,16 @@
             android:name=".SportsHubActivity"
             android:label="@string/sports_hub_title"
             android:exported="false"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale"
+            android:screenOrientation="unspecified"
+            android:configChanges="keyboardHidden|layoutDirection|locale"
             android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
         <activity android:name=".SportsReplayActivity" android:exported="false" android:label="@string/sports_hub_title" android:screenOrientation="sensorLandscape" />
         <activity
             android:name=".GameActivity"
             android:label="@string/sports_hub_title"
             android:exported="false"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale"
+            android:screenOrientation="unspecified"
+            android:configChanges="keyboardHidden|layoutDirection|locale"
             android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
 
         <activity

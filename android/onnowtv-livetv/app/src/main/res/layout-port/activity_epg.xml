@@ -156,8 +156,8 @@
         <!-- Live preview card — small 16:9, top-right -->
         <FrameLayout
             android:id="@+id/preview_card"
-            android:layout_width="164dp"
-            android:layout_height="92dp"
+            android:layout_width="128dp"
+            android:layout_height="72dp"
             android:layout_gravity="end|top"
             android:layout_marginTop="12dp"
             android:layout_marginEnd="12dp"
@@ -433,6 +433,47 @@
                 android:visibility="gone" />
         </LinearLayout>
     </FrameLayout>
+
+    <LinearLayout
+        android:id="@+id/sports_hub_btn"
+        android:tag="sports-hub-entry-portrait"
+        android:contentDescription="@string/sports_hub_title"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginHorizontal="12dp"
+        android:layout_marginBottom="4dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="12dp"
+        android:background="@drawable/category_pill_bg"
+        android:clickable="true"
+        android:focusable="true"
+        android:nextFocusDown="@id/whatson_pill">
+        <TextView
+            android:layout_width="32dp"
+            android:layout_height="28dp"
+            android:gravity="center"
+            android:background="@drawable/preview_live_badge_bg"
+            android:text="V2"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:textSize="16sp" />
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="10dp"
+            android:text="SPORTS HUB"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="@color/livetv_fg" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="›"
+            android:textSize="24sp"
+            android:textColor="@color/livetv_accent" />
+    </LinearLayout>
 
     <!-- ───────── CATEGORY STRIP (horizontal on phone) ───────── -->
     <LinearLayout

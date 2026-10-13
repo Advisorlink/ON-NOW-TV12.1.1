@@ -6,6 +6,7 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.widget.LinearLayout
+import android.widget.FrameLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
@@ -31,6 +32,9 @@ import tv.onnowtv.livetv.ui.SportsBroadcastPanel
 import tv.onnowtv.livetv.ui.SportsUi
 import tv.onnowtv.livetv.ui.SportsUi.dp
 import tv.onnowtv.livetv.ui.ProbabilityBarView
+import tv.onnowtv.livetv.ui.SportsArtwork
+import tv.onnowtv.livetv.ui.SportsWindow
+import tv.onnowtv.livetv.data.SportsLayoutPolicy
 import kotlin.math.roundToInt
 
 /**
@@ -73,30 +77,45 @@ class GameActivity : AppCompatActivity() {
     private lateinit var rightScroll: ScrollView
     private var homeColor = SportsUi.ACCENT
     private var awayColor = 0xFFFF8FAB.toInt()
+    private var stacked = false
+    private lateinit var headerSurface: FrameLayout
+    private lateinit var mobileBroadcast: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        SportsWindow.apply(this)
+        val config = resources.configuration
+        stacked = SportsLayoutPolicy.stackedGame(config.screenWidthDp, config.screenHeightDp, SportsWindow.television(this))
         sport = intent.getStringExtra(EXTRA_SPORT) ?: ""; league = intent.getStringExtra(EXTRA_LEAGUE) ?: ""; id = intent.getStringExtra(EXTRA_ID) ?: ""
         game = try { JSONObject(intent.getStringExtra(EXTRA_SEED) ?: "{}") } catch (_: Exception) { JSONObject() }
         if (sport.isBlank() || league.isBlank() || id.isBlank()) { Toast.makeText(this, "This match is unavailable", Toast.LENGTH_SHORT).show(); finish(); return }
         restoredPlayId = savedInstanceState?.getString("selectedPlay")
+        playerSide = savedInstanceState?.getString("playerSide") ?: "both"
         val ctx = this
-        val root = SportsUi.col(ctx, dp(ctx, 12f)).apply { setBackgroundColor(SportsUi.BG); setPadding(dp(ctx, 28f), dp(ctx, 18f), dp(ctx, 28f), dp(ctx, 16f)) }
-        val masthead = SportsUi.row(ctx, dp(ctx, 14f))
+        val root = SportsUi.col(ctx, dp(ctx, 12f)).apply { setBackgroundColor(SportsUi.BG); val pad = dp(ctx, if (stacked) 12f else 28f); setPadding(pad, dp(ctx, 14f), pad, dp(ctx, 16f)) }
+        val masthead = SportsUi.row(ctx, dp(ctx, 8f))
         masthead.addView(SportsUi.wordmark(ctx, true), LinearLayout.LayoutParams(0, -2, 1f))
         feedStatus = SportsUi.identify(SportsUi.text(ctx, "Loading match…", 11f, SportsUi.DIM), "game-feed-status")
-        masthead.addView(feedStatus, LinearLayout.LayoutParams(0, -2, 1f))
+        if (!stacked) masthead.addView(feedStatus, LinearLayout.LayoutParams(0, -2, 1f))
         retry = SportsUi.identify(SportsUi.pill(ctx, "Retry") { refresh() }, "game-retry").apply { visibility = View.GONE }
-        masthead.addView(retry)
+        if (!stacked) masthead.addView(retry)
         masthead.addView(SportsUi.identify(SportsUi.pill(ctx, "‹ Scores") { finish() }, "game-back-scores"))
         root.addView(masthead); root.addView(SportsUi.divider(ctx))
-        header = SportsUi.row(ctx, dp(ctx, 18f)); root.addView(header)
+        if (stacked) root.addView(SportsUi.row(ctx, dp(ctx, 8f)).apply {
+            addView(feedStatus, LinearLayout.LayoutParams(0, -2, 1f)); addView(retry)
+        })
+        headerSurface = FrameLayout(ctx).apply { clipToOutline = true; background = SportsUi.bg(SportsUi.CARD, dp(ctx, 14f).toFloat()) }
+        header = SportsUi.row(ctx, dp(ctx, if (stacked) 6f else 18f)).apply { val pad = dp(ctx, if (stacked) 10f else 16f); setPadding(pad, pad, pad, pad) }
+        root.addView(headerSurface)
+        mobileBroadcast = SportsUi.col(ctx)
+        if (stacked) root.addView(mobileBroadcast)
 
-        val body = SportsUi.row(ctx, dp(ctx, 18f))
+        val body = if (stacked) SportsUi.col(ctx, dp(ctx, 18f)) else SportsUi.row(ctx, dp(ctx, 18f))
         val left = SportsUi.col(ctx, dp(ctx, 12f))
         plot = SportsSceneView(ctx).apply { SportsUi.identify(this, "game-field"); background = SportsUi.bg(SportsUi.PLOT, dp(ctx, 16f).toFloat(), 1, SportsUi.BORDER); clipToOutline = true }
+        if (stacked) plot.aspectRatio = if (config.screenWidthDp < 600) 1.2f else 1.7f
         plot.setGame(SportsUi.fieldId(sport, league), SportsUi.ACCENT, homeColor, awayColor, emptyList())
-        left.addView(plot, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+        left.addView(plot, if (stacked) LinearLayout.LayoutParams(-1, -2) else LinearLayout.LayoutParams(-1, 0, 1f))
         // Win probability card (focusable: ◀ ▶ steps through plays)
         wpCard = SportsUi.col(ctx, dp(ctx, 7f)).apply { setPadding(dp(ctx, 14f), dp(ctx, 10f), dp(ctx, 14f), dp(ctx, 10f)) }
         SportsUi.identify(wpCard, "game-play-stepper")
@@ -123,12 +142,14 @@ class GameActivity : AppCompatActivity() {
         wpCard.setOnClickListener { setStep(plays.lastIndex) }
         left.addView(wpCard)
         playControls = SportsUi.row(ctx, dp(ctx, 8f)); left.addView(playControls)
-        body.addView(left, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1.45f))
+        body.addView(left, if (stacked) LinearLayout.LayoutParams(-1, -2) else LinearLayout.LayoutParams(0, -1, 1.45f))
         right = SportsUi.col(ctx, dp(ctx, 12f))
-        rightScroll = ScrollView(ctx).apply { isVerticalScrollBarEnabled = false; clipToPadding = false; setPadding(dp(ctx, 4f), dp(ctx, 4f), dp(ctx, 4f), dp(ctx, 6f)); addView(this@GameActivity.right) }
-        body.addView(rightScroll, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f))
-        root.addView(body, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
-        setContentView(root)
+        rightScroll = ScrollView(ctx).apply { isVerticalScrollBarEnabled = false; clipToPadding = false; setPadding(dp(ctx, 4f), dp(ctx, 4f), dp(ctx, 4f), dp(ctx, 6f)) }
+        if (stacked) body.addView(right, LinearLayout.LayoutParams(-1, -2))
+        else { rightScroll.addView(right); body.addView(rightScroll, LinearLayout.LayoutParams(0, -1, 1f)) }
+        root.addView(body, if (stacked) LinearLayout.LayoutParams(-1, -2) else LinearLayout.LayoutParams(-1, 0, 1f))
+        if (stacked) setContentView(ScrollView(ctx).apply { SportsUi.identify(this, "game-mobile-scroll"); isFillViewport = true; setBackgroundColor(SportsUi.BG); addView(root) })
+        else setContentView(root)
         renderHeader(); renderRight()
         setStep(-1)
     }
@@ -136,7 +157,7 @@ class GameActivity : AppCompatActivity() {
     override fun onResume() { super.onResume(); if (!::plot.isInitialized) return; plot.resumeScene(); refresh(); poll?.cancel(); poll = lifecycleScope.launch { while (isActive) { delay(20_000); if (game.optString("state") == "in" && fetch?.isActive != true) refresh() } } }
     override fun onPause() { if (::plot.isInitialized) plot.pauseScene(); poll?.cancel(); fetch?.cancel(); standingsJob?.cancel(); super.onPause() }
     override fun onDestroy() { if (::plot.isInitialized) plot.destroyScene(); super.onDestroy() }
-    override fun onSaveInstanceState(out: Bundle) { if (stepIdx < plays.lastIndex) plays.getOrNull(stepIdx)?.let { out.putString("selectedPlay", it.optString("id")) }; super.onSaveInstanceState(out) }
+    override fun onSaveInstanceState(out: Bundle) { out.putString("playerSide", playerSide); if (stepIdx < plays.lastIndex) plays.getOrNull(stepIdx)?.let { out.putString("selectedPlay", it.optString("id")) }; super.onSaveInstanceState(out) }
     private fun refresh() { fetch?.cancel(); fetch = lifecycleScope.launch { load() } }
 
     private suspend fun load() {
@@ -179,7 +200,7 @@ class GameActivity : AppCompatActivity() {
         playControls.removeAllViews()
         listOf(Triple("previous", "‹ Previous", stepIdx - 1), Triple("next", "Next ›", stepIdx + 1), Triple("latest", "Latest play", plays.lastIndex)).forEach { (key, label, target) ->
             val allowed = plays.isNotEmpty() && when (key) { "previous" -> stepIdx > 0; "next" -> stepIdx < plays.lastIndex; else -> true }
-            playControls.addView(SportsUi.identify(SportsUi.pill(this, label, key == "latest" && latest) { setStep(target) }, "game-play-$key").apply { isEnabled = allowed; isFocusable = allowed; alpha = if (allowed) 1f else .35f })
+            playControls.addView(SportsUi.identify(SportsUi.pill(this, label, key == "latest" && latest) { setStep(target) }, "game-play-$key").apply { isEnabled = allowed; isFocusable = allowed; alpha = if (allowed) 1f else .35f }, if (stacked) LinearLayout.LayoutParams(0, -2, 1f) else LinearLayout.LayoutParams(-2, -2))
         }
         if (focusedControl?.startsWith("game-play-") == true && focusedControl != "game-play-stepper") {
             val next = playControls.findViewWithTag<View>(focusedControl)
@@ -189,29 +210,33 @@ class GameActivity : AppCompatActivity() {
 
     private fun renderHeader() {
         header.removeAllViews()
+        headerSurface.removeAllViews()
+        headerSurface.addView(SportsArtwork.layer(this, game, true), FrameLayout.LayoutParams(-1, -1))
+        headerSurface.addView(header, FrameLayout.LayoutParams(-1, -2))
         val home = game.optJSONObject("home") ?: JSONObject(); val away = game.optJSONObject("away") ?: JSONObject()
         probabilityTeams.removeAllViews()
         probabilityTeams.addView(SportsUi.logo(this, Data.value(away, "logo"), dp(this, 27f)))
         probabilityTeams.addView(wpAway, LinearLayout.LayoutParams(0, -2, 1f)); probabilityTeams.addView(wpHome, LinearLayout.LayoutParams(0, -2, 1f))
         probabilityTeams.addView(SportsUi.logo(this, Data.value(home, "logo"), dp(this, 27f)))
         val live = game.optString("state") == "in"
-        fun side(t: JSONObject, end: Boolean) = SportsUi.row(this, dp(this, 12f)).apply {
-            gravity = if (end) Gravity.END else Gravity.START
-            val logo = SportsUi.logo(this@GameActivity, t.optString("logo"), dp(this@GameActivity, 64f))
+        fun side(t: JSONObject, end: Boolean) = (if (stacked) SportsUi.col(this, dp(this, 8f)) else SportsUi.row(this, dp(this, 12f))).apply {
+            gravity = if (stacked) Gravity.CENTER_HORIZONTAL else if (end) Gravity.END else Gravity.START
+            val logo = SportsUi.logo(this@GameActivity, t.optString("logo"), dp(this@GameActivity, if (stacked) 48f else 64f))
             val name = SportsUi.col(this@GameActivity, dp(this@GameActivity, 2f)).apply {
-                gravity = if (end) Gravity.END else Gravity.START
-                addView(SportsUi.text(this@GameActivity, Data.value(t, "name", "Team to be confirmed"), 23f, bold = true).apply { maxLines = 2 })
+                gravity = if (stacked) Gravity.CENTER_HORIZONTAL else if (end) Gravity.END else Gravity.START
+                addView(SportsUi.text(this@GameActivity, Data.value(t, "name", "Team to be confirmed"), if (stacked) 16f else 23f, bold = true).apply { maxLines = if (stacked) 3 else 2; if (stacked) gravity = Gravity.CENTER })
                 addView(SportsUi.text(this@GameActivity, Data.value(t, "record"), 10f, SportsUi.DIM, mono = true))
-                addView(followButton(t))
+                addView(followButton(t), LinearLayout.LayoutParams(if (stacked) -1 else -2, -2))
             }
-            if (end) { addView(name, LinearLayout.LayoutParams(0, -2, 1f)); addView(logo) } else { addView(logo); addView(name, LinearLayout.LayoutParams(0, -2, 1f)) }
+            if (stacked) { addView(logo); addView(name, LinearLayout.LayoutParams(-1, -2)) }
+            else if (end) { addView(name, LinearLayout.LayoutParams(0, -2, 1f)); addView(logo) } else { addView(logo); addView(name, LinearLayout.LayoutParams(0, -2, 1f)) }
         }
         header.addView(side(away, false), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         val centre = SportsUi.col(this, dp(this, 4f)).apply { gravity = Gravity.CENTER }
-        centre.addView(SportsUi.identify(SportsUi.text(this, if (game.optString("state") == "pre") "VS" else "${Data.value(away, "score", "—")} : ${Data.value(home, "score", "—")}", 44f, bold = true), "game-score"))
+        centre.addView(SportsUi.identify(SportsUi.text(this, if (game.optString("state") == "pre") "VS" else "${Data.value(away, "score", "—")} : ${Data.value(home, "score", "—")}", if (stacked) 30f else 44f, bold = true), "game-score").apply { gravity = Gravity.CENTER; maxLines = 1; if (stacked) androidx.core.widget.TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(this, 18, 30, 1, android.util.TypedValue.COMPLEX_UNIT_SP) }, LinearLayout.LayoutParams(if (stacked) -1 else -2, -2))
         centre.addView(SportsUi.identify(SportsUi.text(this, "${game.optString("leagueName")} · ${game.optString("statusDetail")}", 11f, if (live) SportsUi.LIVE else SportsUi.DIM, mono = true), "game-status").apply { maxWidth = dp(this@GameActivity, 210f); gravity = Gravity.CENTER; maxLines = 2 })
         game.optJSONObject("venue")?.optString("name")?.takeIf { it.isNotBlank() }?.let { centre.addView(SportsUi.text(this, it, 11f, SportsUi.DIM)) }
-        header.addView(centre, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = dp(this@GameActivity, 24f); marginEnd = dp(this@GameActivity, 24f) })
+        header.addView(centre, if (stacked) LinearLayout.LayoutParams(0, -2, 1.05f) else LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(this@GameActivity, 24f); marginEnd = dp(this@GameActivity, 24f) })
         header.addView(side(home, true), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
     }
 
@@ -223,7 +248,7 @@ class GameActivity : AppCompatActivity() {
             if (!on) scheduleAlertIfPossible()
             renderHeader()
             header.findViewWithTag<View>("game-follow-${team.id}")?.requestFocus()
-        }, "game-follow-${team.id}").apply { textSize = 11f }
+        }, "game-follow-${team.id}").apply { textSize = 11f; if (stacked) setPadding(dp(context, 5f), dp(context, 8f), dp(context, 5f), dp(context, 8f)) }
     }
 
     /** Kick-off alert via the guide's reminder banner when we know a channel. */
@@ -240,10 +265,11 @@ class GameActivity : AppCompatActivity() {
 
     private fun renderRight() {
         right.removeAllViews()
+        mobileBroadcast.removeAllViews()
         // Watch on your channels
         val bundle = BundleHolder.current
         val matches = if (bundle != null) GameChannelMatcher.find(game, bundle) else emptyList()
-        right.addView(SportsBroadcastPanel.build(this, this, game, bundle, matches, { all, selected -> tune(all, selected) }, { channel -> SportsReplayActivity.open(this, game, channel) }))
+        (if (stacked) mobileBroadcast else right).addView(SportsBroadcastPanel.build(this, this, game, bundle, matches, { all, selected -> tune(all, selected) }, { channel -> SportsReplayActivity.open(this, game, channel) }))
         SportsPlayerPanels.active(this, game)?.let { right.addView(it) }
         // Situation
         val sit = game.optJSONObject("situation") ?: JSONObject()

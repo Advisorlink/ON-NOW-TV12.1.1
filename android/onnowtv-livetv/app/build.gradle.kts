@@ -68,6 +68,12 @@ android {
         )
     }
     buildFeatures { viewBinding = true; buildConfig = true }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+        unitTests.all {
+            it.systemProperty("robolectric.conscryptMode", "OFF")
+        }
+    }
     packaging {
         resources.excludes += setOf(
             "META-INF/AL2.0", "META-INF/LGPL2.1",
@@ -81,6 +87,7 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("org.robolectric:robolectric:4.14.1")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.webkit:webkit:1.11.0")
     implementation("androidx.appcompat:appcompat:1.7.0")

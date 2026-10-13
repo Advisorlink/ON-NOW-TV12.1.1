@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="tv.onnowtv.livetv.ui.SportsNativeLayoutRobolectricTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-13T14:55:59" hostname="agent-env-49bc65fa-9152-42e4-b845-97fdcbbeec38" time="3.862">
+  <properties/>
+  <testcase name="game_activity_phone_layout_has_nonzero_team_text_and_no_overflow" classname="tv.onnowtv.livetv.ui.SportsNativeLayoutRobolectricTest" time="2.884"/>
+  <testcase name="sports_artwork_layer_is_non_interactive_and_crest_alpha_is_decorative" classname="tv.onnowtv.livetv.ui.SportsNativeLayoutRobolectricTest" time="0.085"/>
+  <testcase name="portrait_epg_contains_sports_hub_button_and_compact_preview" classname="tv.onnowtv.livetv.ui.SportsNativeLayoutRobolectricTest" time="0.709"/>
+  <testcase name="sports_hub_phone_uses_concat_adapter_and_expected_columns" classname="tv.onnowtv.livetv.ui.SportsNativeLayoutRobolectricTest" time="0.103"/>
+  <testcase name="sports_hub_landscape_keeps_concat_adapter_and_two_columns" classname="tv.onnowtv.livetv.ui.SportsNativeLayoutRobolectricTest" time="0.079"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[Invalid ID 0x00000000.
+Invalid ID 0x00000000.
+Invalid ID 0x00000000.
+Invalid ID 0x00000000.
+Invalid ID 0x00000000.
+Invalid ID 0x00000000.
+Invalid ID 0x00000000.
+Invalid ID 0x00000000.
+]]></system-err>
+</testsuite>

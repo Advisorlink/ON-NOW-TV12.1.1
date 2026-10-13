@@ -1,0 +1,18 @@
+{
+  "native_tests": 41,
+  "failures": 0,
+  "backend_tests": 18,
+  "apk_bytes": 202068771,
+  "apk_sha256": "6445f3622b578e9c2f7243320515b541834fc7a9d7e051d70c8a9ca3318757ad",
+  "apk_type": "local debug validation; not published or signed with release identity",
+  "apk_signature_v1_v2": "pass",
+  "zipalign": "pass",
+  "phone_native_layout": "Robolectric legacy actual390dp width with long names and3-digit score; no horizontal overflow",
+  "device_install_and_pixels": "Not tested: no phone/TV connected",
+  "browser_canvas": "Shared renderer only;1920x800 and390x844 with canvas pixel checks; simulatedDPR3 renders at2; sampledataMOCKED",
+  "physical_retest_required": true,
+  "packaged_enhanced_renderer": true,
+  "packaged_SportsArtwork": true,
+  "packaged_SportsLayoutPolicy": true,
+  "packaged_SportsHeaderAdapter": true
+}

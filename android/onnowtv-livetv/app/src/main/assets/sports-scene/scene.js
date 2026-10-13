@@ -109,7 +109,7 @@
     if(renderer)return true;if(!T)return false;
     try{
       renderer=new T.WebGLRenderer({antialias:true,alpha:false,powerPreference:'low-power',preserveDrawingBuffer:true});
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.25));renderer.setClearColor('#0c1520');renderer.outputColorSpace=T.SRGBColorSpace;
+      renderer.setClearColor('#0c1520');renderer.outputColorSpace=T.SRGBColorSpace;
       renderer.domElement.dataset.testid='sports-3d-canvas';renderer.domElement.setAttribute('role','img');renderer.domElement.setAttribute('aria-label','Three-dimensional schematic sports field');document.body.appendChild(renderer.domElement);
       scene=new T.Scene();camera=new T.OrthographicCamera(-9,9,5,-5,.1,70);
       scene.add(new T.HemisphereLight('#e6f4ff','#263a22',2.0));const light=new T.DirectionalLight('#fff3d6',2.4);light.position.set(-8,15,10);scene.add(light);
@@ -117,7 +117,11 @@
       return true;
     }catch(_){document.getElementById('fallback').classList.add('show');return false;}
   }
-  function draw(){if(!renderer||disposed||document.hidden)return;const w=innerWidth,h=innerHeight;if(!w||!h)return;renderer.setSize(w,h,false);const aspect=w/h;
+  function draw(){if(!renderer||disposed||document.hidden)return;const w=innerWidth,h=innerHeight;if(!w||!h)return;
+    // Crisp high-density phones without allocating TV-sized 4K framebuffers or an idle loop.
+    const ratio=Math.min(window.devicePixelRatio||1,2,Math.sqrt(1200000/(w*h)));
+    if(renderer.getPixelRatio()!==ratio)renderer.setPixelRatio(ratio);
+    renderer.setSize(w,h,false);window.__v2SceneSize={width:renderer.domElement.width,height:renderer.domElement.height,ratio};const aspect=w/h;
     const height=state.sport==='mlb'?10.7:10.1,width=Math.max(16.7,height*aspect);camera.left=-width/2;camera.right=width/2;camera.top=width/aspect/2;camera.bottom=-width/aspect/2;
     const centre=state.sport==='mlb'?1.25:0;camera.up.set(0,state.view==='top'?0:1,state.view==='top'?-1:0);camera.position.set(state.view==='top'?0:state.sport==='mlb'?0:8,state.view==='top'?25:16,state.view==='top'?centre:21);camera.lookAt(0,0,centre);camera.zoom=1;camera.updateProjectionMatrix();camera.updateMatrixWorld(true);
     const bounds=new T.Box3().setFromObject(world);let mx=0,my=0;

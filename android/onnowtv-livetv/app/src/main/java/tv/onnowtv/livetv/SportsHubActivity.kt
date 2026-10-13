@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
@@ -14,6 +15,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.ConcatAdapter
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -32,6 +34,9 @@ import tv.onnowtv.livetv.ui.SportsScoreAdapter
 import tv.onnowtv.livetv.ui.SportsUi as UI
 import tv.onnowtv.livetv.ui.SportsUi.dp
 import tv.onnowtv.livetv.ui.WorldMapView
+import tv.onnowtv.livetv.ui.SportsWindow
+import tv.onnowtv.livetv.ui.SportsHeaderAdapter
+import tv.onnowtv.livetv.data.SportsLayoutPolicy
 
 /** Real, native V2 Sports Hub. Browser fixtures are never used by this activity. */
 class SportsHubActivity : AppCompatActivity() {
@@ -63,48 +68,66 @@ class SportsHubActivity : AppCompatActivity() {
     private var requestId = 0
     private var message = "Loading sports…"
     private var failed = false
+    private lateinit var filters: LinearLayout
+    private lateinit var filterDock: LinearLayout
+    private lateinit var filterHeader: FrameLayout
+    private var handset = false
+    private var restoredListState: android.os.Parcelable? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        SportsWindow.apply(this)
+        handset = !SportsWindow.television(this)
+        restoredListState = savedInstanceState?.getParcelable("scoresScroll")
         mode = Mode.values().getOrElse(savedInstanceState?.getInt("mode") ?: 0) { Mode.SCORES }
         sportIdx = savedInstanceState?.getInt("sport", -1) ?: -1; leagueIdx = savedInstanceState?.getInt("league", 0) ?: 0
         dayOffset = savedInstanceState?.getInt("day", 0) ?: 0
-        val ctx = this; val compact = resources.configuration.screenWidthDp < 900
-        val root = UI.col(ctx, dp(ctx, 12f)).apply { setBackgroundColor(UI.BG); setPadding(dp(ctx, 28f), dp(ctx, 22f), dp(ctx, 28f), dp(ctx, 14f)) }
+        val ctx = this; val width = resources.configuration.screenWidthDp; val compact = width < 900
+        val root = UI.col(ctx, dp(ctx, if (handset) 6f else 12f)).apply { setBackgroundColor(UI.BG); val pad = dp(ctx, if (handset) 12f else 28f); setPadding(pad, dp(ctx, if (handset) 10f else 22f), pad, dp(ctx, 10f)) }
         val header = UI.row(ctx, dp(ctx, 12f))
         header.addView(UI.wordmark(ctx, compact), LinearLayout.LayoutParams(0, -2, 1f))
         modes = UI.row(ctx, dp(ctx, 7f)); if (!compact) header.addView(modes)
-        liveBadge = UI.identify(UI.eyebrow(ctx, "— LIVE", UI.LIVE), "hub-live-count"); header.addView(liveBadge)
+        liveBadge = UI.identify(UI.eyebrow(ctx, "— LIVE", UI.LIVE), "hub-live-count"); if (width >= 600) header.addView(liveBadge)
         header.addView(UI.identify(UI.pill(ctx, "‹ Guide") { finish() }, "hub-back-guide")); root.addView(header)
-        if (compact) root.addView(modes)
+        if (compact) root.addView(SportsWindow.horizontal(ctx, modes))
         renderModes(); root.addView(UI.divider(ctx))
         sportsRow = UI.row(ctx, dp(ctx, 7f)); leaguesRow = UI.row(ctx, dp(ctx, 7f))
         fun scroller(row: LinearLayout) = HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false; setPadding(dp(ctx, 3f), dp(ctx, 3f), dp(ctx, 3f), dp(ctx, 3f)); addView(row) }
-        root.addView(scroller(sportsRow)); leagueScroll = scroller(leaguesRow); root.addView(leagueScroll); renderFilters()
+        filters = UI.col(ctx, dp(ctx, 5f))
+        filters.addView(scroller(sportsRow)); leagueScroll = scroller(leaguesRow); filters.addView(leagueScroll); renderFilters()
         val dates = UI.row(ctx, dp(ctx, 8f))
         fun day(delta: Int) { dayOffset = (dayOffset + delta).coerceIn(-14, 7); updateDateLabel(); games = emptyList(); refresh() }
-        dates.addView(UI.identify(UI.pill(ctx, "‹ Previous day") { day(-1) }, "hub-previous-day"))
-        dateLabel = UI.identify(UI.pill(ctx, "Today") { dayOffset = 0; updateDateLabel(); games = emptyList(); refresh() }, "hub-fixture-date"); dates.addView(dateLabel)
-        dates.addView(UI.identify(UI.pill(ctx, "Next day ›") { day(1) }, "hub-next-day")); updateDateLabel(); root.addView(dates)
+        dates.addView(UI.identify(UI.pill(ctx, if (width < 600) "‹ Previous" else "‹ Previous day") { day(-1) }, "hub-previous-day"), LinearLayout.LayoutParams(0, -2, 1f))
+        dateLabel = UI.identify(UI.pill(ctx, "Today") { dayOffset = 0; updateDateLabel(); games = emptyList(); refresh() }, "hub-fixture-date"); dates.addView(dateLabel, LinearLayout.LayoutParams(0, -2, 1.3f))
+        dates.addView(UI.identify(UI.pill(ctx, if (width < 600) "Next ›" else "Next day ›") { day(1) }, "hub-next-day"), LinearLayout.LayoutParams(0, -2, 1f)); updateDateLabel(); filters.addView(dates)
         val status = UI.row(ctx, dp(ctx, 12f))
         notice = UI.identify(UI.text(ctx, message, 12f, UI.DIM), "hub-feed-status")
         status.addView(notice, LinearLayout.LayoutParams(0, -2, 1f))
         retry = UI.identify(UI.pill(ctx, "Retry") { refresh() }, "hub-retry").apply { visibility = View.GONE }; status.addView(retry)
-        root.addView(status)
+        filters.addView(status)
+        if (width < 600) filters.addView(liveBadge)
+        filterDock = UI.col(ctx); root.addView(filterDock)
+        filterHeader = FrameLayout(ctx)
+        if (handset) filterHeader.addView(filters) else filterDock.addView(filters)
         val stage = FrameLayout(ctx)
-        val columns = if (compact) 2 else 3
+        val columns = SportsLayoutPolicy.columns(width)
         list = RecyclerView(ctx).apply {
-            adapter = scores; itemAnimator = null; clipToPadding = false; setPadding(dp(ctx, 3f), 0, dp(ctx, 3f), dp(ctx, 8f))
-            layoutManager = GridLayoutManager(ctx, columns).apply { spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() { override fun getSpanSize(position: Int) = if (scores.isHeader(position)) columns else 1 } }
+            adapter = if (handset) ConcatAdapter(ConcatAdapter.Config.Builder().setStableIdMode(ConcatAdapter.Config.StableIdMode.NO_STABLE_IDS).build(), SportsHeaderAdapter(filterHeader), scores) else scores
+            itemAnimator = null; clipToPadding = true; setPadding(0, 0, 0, dp(ctx, 8f))
+            layoutManager = GridLayoutManager(ctx, columns).apply { spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() { override fun getSpanSize(position: Int): Int { val offset = if (handset) 1 else 0; return if (position < offset || scores.isHeader(position - offset)) columns else 1 } } }
         }; UI.identify(list, "hub-score-list"); stage.addView(list, FrameLayout.LayoutParams(-1, -1))
         empty = UI.identify(UI.text(ctx, "", 15f, UI.DIM), "hub-empty-state").apply { gravity = Gravity.CENTER; visibility = View.GONE; setPadding(dp(ctx, 30f), dp(ctx, 24f), dp(ctx, 30f), dp(ctx, 24f)) }
-        stage.addView(empty, FrameLayout.LayoutParams(-1, -1))
+        // Empty messaging stays below the scrolling filters and never blocks their taps.
+        empty.isClickable = false; empty.isFocusable = false
+        if (handset) filters.addView(empty, LinearLayout.LayoutParams(-1, -2))
+        else stage.addView(empty, FrameLayout.LayoutParams(-1, dp(ctx, 100f), Gravity.BOTTOM))
         buildMap(); stage.addView(mapPanel, FrameLayout.LayoutParams(-1, -1))
         root.addView(stage, LinearLayout.LayoutParams(-1, 0, 1f)); setContentView(root)
     }
     private fun buildMap() {
         val ctx = this
-        mapPanel = UI.row(ctx, dp(ctx, 18f)).apply { visibility = View.GONE; gravity = Gravity.TOP }
+        val portrait = resources.configuration.screenWidthDp < 600
+        mapPanel = (if (portrait) UI.col(ctx, dp(ctx, 12f)) else UI.row(ctx, dp(ctx, 12f))).apply { visibility = View.GONE; gravity = Gravity.TOP }
         val mapLeft = UI.col(ctx, dp(ctx, 10f))
         mapCaption = UI.identify(UI.text(ctx, "", 12f, UI.DIM), "hub-map-selected-venue").apply { maxLines = 2 }
         mapOpen = UI.identify(UI.pill(ctx, "Open match centre") { map.selectedGame()?.let { openGame(it) } }, "hub-map-open")
@@ -125,10 +148,10 @@ class SportsHubActivity : AppCompatActivity() {
             }
         }
         mapLeft.addView(map, LinearLayout.LayoutParams(-1, 0, 1f)); mapLeft.addView(mapCaption); mapLeft.addView(mapOpen, LinearLayout.LayoutParams(-2, -2))
-        mapPanel.addView(mapLeft, LinearLayout.LayoutParams(0, -1, 1.8f))
+        mapPanel.addView(mapLeft, if (portrait) LinearLayout.LayoutParams(-1, 0, 1.4f) else LinearLayout.LayoutParams(0, -1, 1.8f))
         val side = UI.col(ctx, dp(ctx, 10f)); side.addView(UI.eyebrow(ctx, "On the map", UI.ACCENT))
         side.addView(RecyclerView(ctx).apply { adapter = mapRows; layoutManager = LinearLayoutManager(ctx); itemAnimator = null; clipToPadding = false }, LinearLayout.LayoutParams(-1, 0, 1f))
-        mapPanel.addView(side, LinearLayout.LayoutParams(0, -1, 1f))
+        mapPanel.addView(side, if (portrait) LinearLayout.LayoutParams(-1, 0, 1f) else LinearLayout.LayoutParams(0, -1, 1f))
     }
     override fun onResume() {
         super.onResume(); if (::map.isInitialized) render()
@@ -136,9 +159,9 @@ class SportsHubActivity : AppCompatActivity() {
         poll = lifecycleScope.launch { while (isActive) { delay(30_000); if (fetch?.isActive != true) refresh(quiet = true) } }
     }
     override fun onPause() { poll?.cancel(); fetch?.cancel(); requestId++; super.onPause() }
-    override fun onSaveInstanceState(out: Bundle) { out.putInt("mode", mode.ordinal); out.putInt("sport", sportIdx); out.putInt("league", leagueIdx); out.putInt("day", dayOffset); super.onSaveInstanceState(out) }
+    override fun onSaveInstanceState(out: Bundle) { out.putInt("mode", mode.ordinal); out.putInt("sport", sportIdx); out.putInt("league", leagueIdx); out.putInt("day", dayOffset); out.putParcelable("scoresScroll", list.layoutManager?.onSaveInstanceState()); super.onSaveInstanceState(out) }
     private fun fixtureDate(): java.util.Date = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DATE, dayOffset) }.time
-    private fun updateDateLabel() { dateLabel.text = if (dayOffset == 0) "Today" else java.text.SimpleDateFormat("EEE, d MMM", java.util.Locale.getDefault()).format(fixtureDate()) }
+    private fun updateDateLabel() { dateLabel.text = java.text.SimpleDateFormat(if (dayOffset == 0) "'Today' · d MMM" else "EEE, d MMM", java.util.Locale.getDefault()).format(fixtureDate()) }
     private fun renderModes(focus: String? = null) {
         modes.removeAllViews()
         listOf(Mode.SCORES to "Scores", Mode.MAP to "World map", Mode.FOLLOWING to "Following").forEach { (m, label) ->
@@ -190,6 +213,10 @@ class SportsHubActivity : AppCompatActivity() {
     }
     private fun render() {
         if (!::map.isInitialized) return
+        if (handset) {
+            val target = if (mode == Mode.MAP) filterDock else filterHeader
+            if (filters.parent !== target) { (filters.parent as? ViewGroup)?.removeView(filters); target.addView(filters) }
+        }
         val followed = SportsFollowStore.all(this).map { it.key }.toSet()
         val visible = if (mode == Mode.FOLLOWING) games.filter { followed.contains(Data.teamKey(it, "home")) || followed.contains(Data.teamKey(it, "away")) } else games
         liveBadge.text = "● ${visible.count { it.optString("state") == "in" }} LIVE"
@@ -199,7 +226,9 @@ class SportsHubActivity : AppCompatActivity() {
         list.visibility = if (mode == Mode.MAP) View.GONE else View.VISIBLE
         empty.visibility = if (mode != Mode.MAP && visible.isEmpty() && message.isEmpty()) View.VISIBLE else View.GONE
         empty.text = if (mode == Mode.FOLLOWING) { if (followed.isEmpty()) "No teams followed yet.\nOpen a match and choose Follow." else "No games for your followed teams in this selection." } else "No games scheduled in this selection."
-        if (mode == Mode.MAP) { map.setGames(visible); mapRows.show(map.mappedGames()) } else scores.show(visible)
+        if (mode == Mode.MAP) { map.setGames(visible); mapRows.show(map.mappedGames()) } else scores.show(visible) {
+            if (visible.isNotEmpty()) restoredListState?.let { list.layoutManager?.onRestoreInstanceState(it); restoredListState = null }
+        }
     }
     private fun openGame(g: JSONObject) = startActivity(Intent(this, GameActivity::class.java).apply {
         putExtra(GameActivity.EXTRA_SPORT, g.optString("sport")); putExtra(GameActivity.EXTRA_LEAGUE, g.optString("league"))
