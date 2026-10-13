@@ -22,7 +22,7 @@ SEED = """async () => {
   localStorage.setItem('onnowtv-profiles-v1:testuser', JSON.stringify([profile]));
   localStorage.setItem('onnowtv-active-profile-v1:testuser', 'p-test-1');
   localStorage.setItem('vesper-onboarding-seen-v1', String(Date.now()));
-  localStorage.setItem('onnowtv-whatsnew-seen-v1', '1.5.1');
+  localStorage.setItem('onnowtv-whatsnew-seen-v1', '1.5.2');
   sessionStorage.setItem('vesper-e2e', '1');
 }"""
 

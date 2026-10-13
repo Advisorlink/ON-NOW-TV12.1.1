@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, Check, ShieldCheck,
     Cloud, Download, Upload, Copy, Loader2, KeyRound, AlertTriangle,
-    Sparkles, Lightbulb, LogOut, Heart, Palette, Play, LayoutGrid, HelpCircle, Database, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Plus, Trash2, X, Search } from 'lucide-react';
+    Sparkles, Lightbulb, LogOut, Heart, Palette, Play, LayoutGrid, HelpCircle, Database, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Plus, Trash2, X, Search, Gift } from 'lucide-react';
+import WhatsNewTour from '@/components/WhatsNewTour';
+import { APP_VERSION, WHATS_NEW } from '@/lib/appVersion';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useBackHandler from '@/hooks/useBackHandler';
 import FullscreenButton from '@/components/FullscreenButton';
@@ -492,6 +494,15 @@ export default function Settings() {
             </div>
 
             {/* ---- BACKUP & RESTORE ---- */}
+            <div data-testid="shelf-page" data-settings-section="whats-new" hidden={section !== 'whats-new'}>
+            <SectionHeader
+                eyebrow="Settings · What's new"
+                title="What&rsquo;s new"
+                icon={Gift}
+            />
+            <WhatsNewPanel />
+            </div>
+
             <div data-testid="shelf-page" data-settings-section="tips" hidden={section !== 'tips'}>
             <SectionHeader
                 eyebrow="Settings · Tips"
@@ -534,6 +545,7 @@ const SETTINGS_SECTIONS = [
     { id: 'viewing-preference', label: 'Personalise',  hint: 'Your viewing style',        icon: Sparkles },
     { id: 'welcome-tour',       label: 'Help',         hint: 'Welcome tour',              icon: HelpCircle },
     { id: 'tips',               label: 'Tips',         hint: 'Remote shortcuts',            icon: Lightbulb },
+    { id: 'whats-new',          label: "What's new",   hint: `Version ${APP_VERSION}`,       icon: Gift },
     { id: 'backup',             label: 'Backup',       hint: 'Save & restore',            icon: Database },
     { id: 'signout',            label: 'Sign out',     hint: 'End this session',          icon: LogOut },
 ];
@@ -1928,6 +1940,96 @@ const TIPS = [
     { icon: Palette, title: 'Follow your favourite actors', body: 'Open any actor from a show page and press Follow — every film and series they appear in lands in your Library.' },
     { icon: HelpCircle, title: 'Watch with friends', body: 'Watch Together hosts a synced party — same scene, same time, with reactions. Up to 8 people.' },
 ];
+
+/** Every release, newest first: the current one opens the step-by-step
+ *  tour; older ones list their highlights inline. */
+function WhatsNewPanel() {
+    const [tour, setTour] = React.useState(null);
+    const versions = Object.keys(WHATS_NEW);
+    return (
+        <div data-testid="whats-new-settings" style={{ maxWidth: 960 }}>
+            {versions.map((v, idx) => {
+                const rel = WHATS_NEW[v];
+                const current = v === APP_VERSION;
+                return (
+                    <div
+                        key={v}
+                        data-testid={`whats-new-release-${v}`}
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: '150px 1fr',
+                            gap: 24,
+                            padding: '22px 0',
+                            borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.07)',
+                        }}
+                    >
+                        <div>
+                            <div className="vesper-mono" style={{ fontSize: 11, letterSpacing: '0.24em', color: current ? 'var(--vesper-blue-bright)' : 'var(--vesper-text-3)', fontWeight: 700 }}>
+                                {current ? 'CURRENT' : 'EARLIER'}
+                            </div>
+                            <div className="vesper-display" style={{ fontSize: 26, fontWeight: 800, color: 'var(--vesper-text)', marginTop: 4 }}>v{v}</div>
+                            <div style={{ fontSize: 12, color: 'var(--vesper-text-3)', marginTop: 2 }}>{rel.date}</div>
+                        </div>
+                        <div>
+                            <div style={{ fontSize: 17, fontWeight: 600, color: 'var(--vesper-text)', lineHeight: 1.3 }}>{rel.headline}</div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+                                {rel.items.map((it) => (
+                                    <span
+                                        key={it.title}
+                                        className="vesper-mono"
+                                        style={{
+                                            fontSize: 11,
+                                            letterSpacing: '0.08em',
+                                            padding: '6px 10px',
+                                            borderRadius: 999,
+                                            background: current ? 'rgba(var(--vesper-blue-rgb),0.10)' : 'rgba(255,255,255,0.05)',
+                                            border: `1px solid ${current ? 'rgba(var(--vesper-blue-rgb),0.35)' : 'rgba(255,255,255,0.10)'}`,
+                                            color: 'var(--vesper-text-2)',
+                                        }}
+                                    >
+                                        {it.title}
+                                    </span>
+                                ))}
+                            </div>
+                            <button
+                                data-testid={`whats-new-open-${v}`}
+                                data-focusable="true"
+                                data-focus-style="pill"
+                                tabIndex={0}
+                                onClick={() => setTour(v)}
+                                className="flex items-center gap-2 rounded-full font-sans"
+                                style={{
+                                    marginTop: 16,
+                                    height: 44,
+                                    padding: '0 20px',
+                                    fontSize: 14,
+                                    fontWeight: 700,
+                                    background: current ? 'var(--vesper-blue-bright)' : 'rgba(255,255,255,0.08)',
+                                    color: current ? '#061018' : 'var(--vesper-text)',
+                                    border: current ? 'none' : '1px solid rgba(255,255,255,0.14)',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                <Sparkles size={15} /> {current ? "See what's new" : 'Replay this update'}
+                            </button>
+                        </div>
+                    </div>
+                );
+            })}
+            {tour && (
+                <WhatsNewTour
+                    release={WHATS_NEW[tour]}
+                    version={tour}
+                    onDismiss={() => {
+                        const v = tour;
+                        setTour(null);
+                        requestAnimationFrame(() => document.querySelector(`[data-testid="whats-new-open-${v}"]`)?.focus({ preventScroll: true }));
+                    }}
+                />
+            )}
+        </div>
+    );
+}
 
 function TipsPanel() {
     return (

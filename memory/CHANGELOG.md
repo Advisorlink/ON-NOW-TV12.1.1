@@ -12351,3 +12351,11 @@ User picked the final setup after testing; Settings → Performance section, HUD
 - Verified with a node harness (tests/stream_order_test.mjs after sed-aliasing streamMeta): Direct, Tor 1 GB, Tor 2 GB, MediaFusion, EasyNews, Plexio, Tor-uncached.
 
 - (same day) Size band for the cascade: `sizeBand()` — 1–4 GB first (smallest leading), then sub-1 GB, oversized, unknown; SIZE_CAP 3→4 GB, SIZE_MIN 1 GB. Harness: 1.4 → 2.2 → 3.5 → 0.7 → 6 → unknown → 720p.
+
+
+## 2026-10-12 — What's new tour + faster stream verdict
+
+- `components/WhatsNewTour.jsx` (portal, own focus containment + native back trap): step counter 01/08, accent ring icon, title/detail/"how" tip, progress dots, Skip + Next/Done. `WhatsNewModal` now renders it for the once-per-version boot popup; `ReleaseNotesPanel.jsx` + `releaseNotes.css` removed. Settings gains a "What's new" nav entry (`WhatsNewPanel`: every WHATS_NEW release with chips + open button; focus returns to the button on close).
+- `lib/appVersion.js`: APP_VERSION 1.5.2, new entry (stream verdict, source order, trailer actions, Library, Movies shelf, Show more, player link info, box smoothness) with `accent` + `how` fields.
+- `PreviewStreamCheck`: verdict appears on the first partial result again (user: slower than before) with " – N" live count; "Checking stream quality" only until then.
+- tests/whats_new_e2e.py PASS (auto-show, Next, Left→Skip closes & marks seen, Settings entry, open from Settings, 8× Enter closes, focus restored). tests/perf_nav_probe.py SEED marks 1.5.2 seen so other e2e runs aren't blocked by the popup.

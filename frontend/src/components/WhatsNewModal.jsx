@@ -4,8 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { isKidsApp, isMusicApp, isTriviaApp } from '@/lib/profiles';
 import { APP_VERSION, WHATS_NEW } from '@/lib/appVersion';
 import { claimReleaseNotice, dismissReleaseNotice, releaseWasPresented } from '@/lib/releaseNotice';
-import { useNativeBackTrap, triggerTrapBack } from '@/hooks/useNativeBackTrap';
-import { ReleaseNotesPanel } from '@/components/ReleaseNotesPanel';
+import WhatsNewTour from '@/components/WhatsNewTour';
 
 /** Single automatic release notice, after verified sign-in and boot. */
 export default function WhatsNewModal() {
@@ -46,8 +45,7 @@ export default function WhatsNewModal() {
         });
     };
     const visible = open && ready;
-    useNativeBackTrap(visible, () => { dismiss(); return false; });
 
     if (!visible) return null;
-    return <ReleaseNotesPanel release={WHATS_NEW[APP_VERSION]} version={APP_VERSION} onDismiss={dismiss} onBack={triggerTrapBack} />;
+    return <WhatsNewTour release={WHATS_NEW[APP_VERSION]} version={APP_VERSION} onDismiss={dismiss} />;
 }
