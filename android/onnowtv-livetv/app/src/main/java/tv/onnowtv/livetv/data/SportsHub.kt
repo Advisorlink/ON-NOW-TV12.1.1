@@ -35,9 +35,9 @@ object SportsHubApi {
     }
 
     suspend fun leagues(): JSONObject? = getJson("/api/sportshub/leagues")
-    suspend fun live(tier: Int = 3): JSONObject? = getJson("/api/sportshub/live?tier=$tier")
-    suspend fun scoreboard(sport: String, league: String): JSONObject? =
-        getJson("/api/sportshub/scoreboard?sport=${enc(sport)}&league=${enc(league)}")
+    suspend fun live(tier: Int = 3, date: String? = null): JSONObject? = getJson("/api/sportshub/live?tier=$tier" + (date?.let { "&date=${enc(it)}" } ?: ""))
+    suspend fun scoreboard(sport: String, league: String, date: String? = null): JSONObject? =
+        getJson("/api/sportshub/scoreboard?sport=${enc(sport)}&league=${enc(league)}" + (date?.let { "&date=${enc(it)}" } ?: ""))
     suspend fun game(sport: String, league: String, id: String): JSONObject? =
         getJson("/api/sportshub/game?sport=${enc(sport)}&league=${enc(league)}&id=${enc(id)}")
     suspend fun standings(sport: String, league: String): JSONObject? =
@@ -98,46 +98,3 @@ object SportsFollowStore {
     }
 }
 
-/** Finds a game on the user's own channels: team names in the current/next
- *  EPG programme title, and broadcaster names (ESPN, beIN, Fox Sports…) in
- *  the channel name.  Highest score first. */
-object GameChannelMatcher {
-    private val STOP = setOf("fc", "cf", "sc", "the", "club", "united", "city", "de", "la", "los", "at", "vs", "v")
-
-    private fun tokens(s: String): Set<String> =
-        s.lowercase().replace(Regex("[^a-z0-9 ]"), " ").split(' ').filter { it.length > 2 && it !in STOP }.toSet()
-
-    data class Match(val channel: Channel, val score: Int, val reason: String)
-
-    fun find(game: JSONObject, bundle: XtreamBundle, nowMs: Long = System.currentTimeMillis()): List<Match> {
-        val home = game.optJSONObject("home") ?: JSONObject()
-        val away = game.optJSONObject("away") ?: JSONObject()
-        val names = listOf(home.optString("name"), home.optString("short"), away.optString("name"), away.optString("short"))
-        val teamTok = names.flatMap { tokens(it) }.toSet()
-        val abbrs = listOf(home.optString("abbr"), away.optString("abbr")).map { it.lowercase() }.filter { it.length >= 2 }
-        val casters = game.optJSONArray("broadcasts")?.let { a -> (0 until a.length()).map { a.optString(it).lowercase() } } ?: emptyList()
-        val league = game.optString("leagueName").lowercase()
-        val out = ArrayList<Match>()
-        for (ch in bundle.channels) {
-            var score = 0; var reason = ""
-            val progs = bundle.epg[ch.epgChannelId ?: ch.id] ?: emptyList()
-            val window = progs.filter { it.stopMs > nowMs - 15 * 60_000L && it.startMs < nowMs + 4 * 3600_000L }
-            for (p in window) {
-                val tt = tokens(p.title)
-                val hit = tt.intersect(teamTok).size
-                val both = names.chunked(2).all { pair -> pair.any { n -> tokens(n).intersect(tt).isNotEmpty() } }
-                var s = when { both -> 100; hit >= 2 -> 60; hit == 1 -> 25; else -> 0 }
-                if (s > 0 && p.live) s += 15
-                if (s > 0 && p.isLiveAt(nowMs)) s += 20
-                if (s > 0 && abbrs.all { p.title.lowercase().contains(it) }) s += 10
-                if (s > score) { score = s; reason = p.title }
-            }
-            val chName = ch.name.lowercase()
-            val caster = casters.firstOrNull { c -> c.length > 2 && chName.contains(c.substringBefore(' ')) }
-            if (caster != null) { score += 30; if (reason.isBlank()) reason = "Broadcaster: $caster" }
-            if (league.isNotBlank() && chName.contains(league.substringBefore(' '))) { score += 10; if (reason.isBlank()) reason = "League channel" }
-            if (score >= 25) out.add(Match(ch, score, reason))
-        }
-        return out.sortedByDescending { it.score }.take(8)
-    }
-}

@@ -19,8 +19,8 @@ object SportsFieldGallery {
                 tile.addView(SportsUi.text(ctx, name, 14f, bold = true))
                 tile.addView(SportFieldView(ctx).apply { setSport(id, SportsUi.ACCENT); setHighContrast(true) }, LinearLayout.LayoutParams(-1, dp(ctx, 95f)))
                 tile.setOnClickListener {
-                    val large = SportFieldView(ctx).apply { setSport(id, SportsUi.ACCENT); setHighContrast(true); minimumHeight = dp(ctx, 230f); setBackgroundColor(SportsUi.PLOT) }
-                    AlertDialog.Builder(ctx).setTitle(name).setView(large).setPositiveButton("Close", null).show()
+                    val large = SportsSceneView(ctx).apply { setGame(id, SportsUi.ACCENT, SportsUi.LIVE, SportsUi.ACCENT, emptyList()); minimumHeight = dp(ctx, 260f) }
+                    AlertDialog.Builder(ctx).setTitle(name).setView(large).setPositiveButton("Close", null).create().apply { setOnDismissListener { large.destroyScene() }; show() }
                 }
                 row.addView(tile, LinearLayout.LayoutParams(0, -2, 1f))
             }; col.addView(row)

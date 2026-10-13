@@ -18,6 +18,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import tv.onnowtv.livetv.data.GameChannelMatcher
 import org.json.JSONObject
 import tv.onnowtv.livetv.data.SportsFollowStore
 import tv.onnowtv.livetv.data.SportsHubApi
@@ -52,6 +55,8 @@ class SportsHubActivity : AppCompatActivity() {
     private var games: List<JSONObject> = emptyList()
     private var sportIdx = -1
     private var leagueIdx = 0
+    private var dayOffset = 0
+    private lateinit var dateLabel: TextView
     private var mode = Mode.SCORES
     private var poll: Job? = null
     private var fetch: Job? = null
@@ -63,6 +68,7 @@ class SportsHubActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         mode = Mode.values().getOrElse(savedInstanceState?.getInt("mode") ?: 0) { Mode.SCORES }
         sportIdx = savedInstanceState?.getInt("sport", -1) ?: -1; leagueIdx = savedInstanceState?.getInt("league", 0) ?: 0
+        dayOffset = savedInstanceState?.getInt("day", 0) ?: 0
         val ctx = this; val compact = resources.configuration.screenWidthDp < 900
         val root = UI.col(ctx, dp(ctx, 12f)).apply { setBackgroundColor(UI.BG); setPadding(dp(ctx, 28f), dp(ctx, 22f), dp(ctx, 28f), dp(ctx, 14f)) }
         val header = UI.row(ctx, dp(ctx, 12f))
@@ -75,6 +81,11 @@ class SportsHubActivity : AppCompatActivity() {
         sportsRow = UI.row(ctx, dp(ctx, 7f)); leaguesRow = UI.row(ctx, dp(ctx, 7f))
         fun scroller(row: LinearLayout) = HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false; setPadding(dp(ctx, 3f), dp(ctx, 3f), dp(ctx, 3f), dp(ctx, 3f)); addView(row) }
         root.addView(scroller(sportsRow)); leagueScroll = scroller(leaguesRow); root.addView(leagueScroll); renderFilters()
+        val dates = UI.row(ctx, dp(ctx, 8f))
+        fun day(delta: Int) { dayOffset = (dayOffset + delta).coerceIn(-14, 7); updateDateLabel(); games = emptyList(); refresh() }
+        dates.addView(UI.identify(UI.pill(ctx, "‹ Previous day") { day(-1) }, "hub-previous-day"))
+        dateLabel = UI.identify(UI.pill(ctx, "Today") { dayOffset = 0; updateDateLabel(); games = emptyList(); refresh() }, "hub-fixture-date"); dates.addView(dateLabel)
+        dates.addView(UI.identify(UI.pill(ctx, "Next day ›") { day(1) }, "hub-next-day")); updateDateLabel(); root.addView(dates)
         val status = UI.row(ctx, dp(ctx, 12f))
         notice = UI.identify(UI.text(ctx, message, 12f, UI.DIM), "hub-feed-status")
         status.addView(notice, LinearLayout.LayoutParams(0, -2, 1f))
@@ -125,7 +136,9 @@ class SportsHubActivity : AppCompatActivity() {
         poll = lifecycleScope.launch { while (isActive) { delay(30_000); if (fetch?.isActive != true) refresh(quiet = true) } }
     }
     override fun onPause() { poll?.cancel(); fetch?.cancel(); requestId++; super.onPause() }
-    override fun onSaveInstanceState(out: Bundle) { out.putInt("mode", mode.ordinal); out.putInt("sport", sportIdx); out.putInt("league", leagueIdx); super.onSaveInstanceState(out) }
+    override fun onSaveInstanceState(out: Bundle) { out.putInt("mode", mode.ordinal); out.putInt("sport", sportIdx); out.putInt("league", leagueIdx); out.putInt("day", dayOffset); super.onSaveInstanceState(out) }
+    private fun fixtureDate(): java.util.Date = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DATE, dayOffset) }.time
+    private fun updateDateLabel() { dateLabel.text = if (dayOffset == 0) "Today" else java.text.SimpleDateFormat("EEE, d MMM", java.util.Locale.getDefault()).format(fixtureDate()) }
     private fun renderModes(focus: String? = null) {
         modes.removeAllViews()
         listOf(Mode.SCORES to "Scores", Mode.MAP to "World map", Mode.FOLLOWING to "Following").forEach { (m, label) ->
@@ -161,10 +174,16 @@ class SportsHubActivity : AppCompatActivity() {
                 renderFilters()
             }
             val choice = sports.getOrNull(sportIdx)?.optJSONArray("leagues").objects().getOrNull(leagueIdx)
-            val response = if (choice == null) SportsHubApi.live() else SportsHubApi.scoreboard(choice.optString("sport"), choice.optString("league"))
+            val date = if (dayOffset == 0) null else java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(fixtureDate())
+            val response = if (choice == null) SportsHubApi.live(date = date) else SportsHubApi.scoreboard(choice.optString("sport"), choice.optString("league"), date)
             if (generation != requestId || !isActive) return@launch
             failed = response == null || response.optString("status") == "unavailable"
-            if (!failed) games = response?.optJSONArray("games").objects()
+            if (!failed) {
+                val fresh = response?.optJSONArray("games").objects(); val bundle = BundleHolder.current
+                val channels = withContext(Dispatchers.Default) { if (bundle == null) emptyMap() else fresh.associate { Data.key(it) to GameChannelMatcher.find(it, bundle) } }
+                if (generation != requestId || !isActive) return@launch
+                games = fresh; scores.setChannelMatches(channels)
+            }
             message = when { failed -> if (games.isEmpty()) "Scores are temporarily unavailable. Please retry." else "Connection interrupted · showing the last scores."; response?.optString("status") == "partial" -> "Some leagues are temporarily unavailable."; else -> "" }
             render()
         }

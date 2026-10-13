@@ -481,6 +481,15 @@ async def _restore_from_db() -> None:
 # ---------------------------------------------------------------------------
 # Refresh tasks
 # ---------------------------------------------------------------------------
+def _archive_days(value):
+    """Unknown or malformed retention must never invent catch-up availability."""
+    try:
+        days = int(str(value))
+        return days if 0 <= days <= 366 else None
+    except (ValueError, TypeError):
+        return None
+
+
 async def _refresh_channels(p: Dict[str, Any]) -> None:
     """Fetch categories + live streams and cache normalised records."""
     log.info("instant_bundle: refreshing channels…")
@@ -507,7 +516,8 @@ async def _refresh_channels(p: Dict[str, Any]) -> None:
             "logo":           str(s.get("stream_icon") or ""),
             "category_id":    str(s.get("category_id") or ""),
             "epg_channel_id": str(s.get("epg_channel_id") or ""),
-            "tv_archive":     int(s.get("tv_archive") or 0),
+            "tv_archive":     1 if str(s.get("tv_archive")) == "1" else 0,
+            "tv_archive_duration": _archive_days(s.get("tv_archive_duration")),
             "stream_url":     _build_stream_url(p, sid, ext="ts"),
         })
 

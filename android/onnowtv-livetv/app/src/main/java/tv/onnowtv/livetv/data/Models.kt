@@ -29,6 +29,8 @@ data class Channel(
     val categoryId: String?,
     val streamUrl: String,    // pre-built — already includes user/pass
     val epgChannelId: String?, // mapping to EPG bucket
+    val archiveEnabled: Boolean = false,
+    val archiveDays: Int? = null,
 )
 
 data class Programme(
@@ -45,6 +47,7 @@ data class Programme(
      *  older callers that don't pass a value get the safe
      *  behaviour of "not live". */
     val live: Boolean = false,
+    val archiveAvailable: Boolean? = null,
 ) {
     val durationMin: Int get() = ((stopMs - startMs) / 60_000L).toInt().coerceAtLeast(1)
     fun isLiveAt(nowMs: Long): Boolean = startMs <= nowMs && stopMs > nowMs

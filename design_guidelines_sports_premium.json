@@ -1,0 +1,16 @@
+{
+  "spec_name": "Astra Sports Hub - Premium 3D & Broadcast Scoped Design Spec",
+  "reference_asset": "https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/artifacts/e6cdc23027a81589_Screenshot_20261013_125315_Reddit.jpg",
+  "visual_composition": {
+    "field_material": "3D perspective grass mowing stripes (#1C7B43 / #238E4F) + dirt infield gradient + 3D base pads",
+    "player_avatars": "Schematic 3D cartoon player figures on field positions + real headshots for active pitcher/batter",
+    "scoreboard_graphics": "Team logos/crests on scoreboards, win probability bars, and filter pills",
+    "epg_channel_lineup": "Exact channel name, channel logo, LCN, and confidence tags for fixtures",
+    "catchup_replay": "Genuine 'WATCH REPLAY' / 'REPLAY GAME' action button when catchup is available"
+  },
+  "android_tv_compliance": {
+    "dpad_focus": "#5DC8FF ring + 1.04x scale",
+    "readability": "10-ft viewing experience, 14sp body minimum",
+    "performance": "Hardware CSS/Canvas transforms for low-end Android TV hardware"
+  }
+}

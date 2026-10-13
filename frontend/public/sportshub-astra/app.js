@@ -1,5 +1,6 @@
 import { games, sports, leagues, surfaces, fieldFor, plays, players, standings } from './data.js';
 import { drawSurface, drawWorld } from './surfaces.js';
+import { enhanceSportsView, refreshPremiumPlay, enhanceFieldDialog } from './premium.js';
 
 const $ = (s) => document.querySelector(s);
 const iconPaths = {
@@ -78,6 +79,7 @@ function render({keepScroll=false,focusId=null}={}){
   const originalKeys=['scores','league','map','following','game-mlb','game-nfl','fields'];
   $('#compare-original').href=`../sportshub-mockup/index.html?screen=${originalKeys.includes(screen)?screen:'scores'}`;
   renderCanvases();
+  enhanceSportsView(g,playIndex,openDialog);
   if(keepScroll)window.scrollTo(0,scroll);else window.scrollTo(0,0);
   if(focusId)document.querySelector(`[data-testid="${focusId}"]`)?.focus({preventScroll:true});
 }
@@ -107,7 +109,7 @@ function layoutMapMarkers(){
 function renderCanvases(){document.querySelectorAll('canvas[data-surface]').forEach(cv=>drawSurface(cv,cv.dataset.surface,cv.dataset.color||'#00e6ed',cv.dataset.game?plays[cv.dataset.game]||[]:[],playIndex));const world=$('#world-canvas');if(world){drawWorld(world);layoutMapMarkers();}}
 function notify(message){clearTimeout(toastTimer);$('#toast').textContent=message;$('#toast').classList.add('show');toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),2600);}
 function openDialog(title,content){dialog.innerHTML=`<div class="dialog-head"><h2 id="dialog-title" data-testid="dialog-title">${title}</h2><button class="icon-button" data-close-dialog data-testid="dialog-close" aria-label="Close dialog" title="Close">${ic('close')}</button></div>${content}`;dialog.showModal();}
-function updatePlays(index,focusId){const g=games.find(g=>g.id===activeGame),list=plays[g.id];playIndex=Math.max(0,Math.min(list.length-1,index));$('#play-panel').innerHTML=playPanel(g);renderCanvases();const next=document.querySelector(`[data-testid="${focusId}"]`);if(next&&!next.disabled)next.focus({preventScroll:true});else document.querySelector(`[data-testid="play-${playIndex}"]`)?.focus({preventScroll:true});}
+function updatePlays(index,focusId){const g=games.find(g=>g.id===activeGame),list=plays[g.id];playIndex=Math.max(0,Math.min(list.length-1,index));$('#play-panel').innerHTML=playPanel(g);renderCanvases();refreshPremiumPlay(g,playIndex);const next=document.querySelector(`[data-testid="${focusId}"]`);if(next&&!next.disabled)next.focus({preventScroll:true});else document.querySelector(`[data-testid="play-${playIndex}"]`)?.focus({preventScroll:true});}
 
 document.addEventListener('click',e=>{
   const link=e.target.closest('a');if(link){if(e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;const url=new URL(link.href,location.href);if(url.pathname===location.pathname&&url.searchParams.has('screen')){e.preventDefault();navigate(link.href);}return;}
@@ -122,7 +124,7 @@ document.addEventListener('click',e=>{
   if(d.mapGame){mapId=d.mapGame;render({keepScroll:true,focusId});}
   if(d.channel){openDialog('Your game. Your channel.',`<div class="view-eyebrow">SAMPLE CHANNEL MATCH</div><div class="dialog-channel"><span class="channel-mark">${safe(d.channel.split(' ')[0])}</span><strong data-testid="dialog-channel-name">${safe(d.channel)}</strong></div><p data-testid="playback-demo-notice">This is a design preview. Live playback and channel switching are not connected.</p><button class="solid-button" data-close-dialog data-testid="channel-return">Back to match ${ic('arrow')}</button>`);}
   if(d.standings){const rows=standings[d.standings]||[];openDialog(`${d.standings} standings`,`<div class="view-eyebrow">${d.standings==='MLB'?'AMERICAN LEAGUE EAST':'AFC EAST'} · SAMPLE DATA</div><table class="standings-table" data-testid="standings-table"><thead><tr><th>TEAM</th><th>W</th><th>L</th><th>GB</th></tr></thead><tbody>${rows.map(([name,w,l,gb],i)=>`<tr data-testid="standing-${i}"><td><span class="muted">${i+1}.</span> ${name}</td><td>${w}</td><td>${l}</td><td>${gb}</td></tr>`).join('')}</tbody></table>`);}
-  if(d.field){const [id,name,,color]=surfaces.find(s=>s[0]===d.field);openDialog(name,`<div class="view-eyebrow">FIELD OF PLAY · SCHEMATIC</div><canvas class="dialog-canvas" data-testid="expanded-field" role="img" aria-label="${name} field"></canvas>`);drawSurface($('.dialog-canvas'),id,color);}
+  if(d.field){const [id,name,,color]=surfaces.find(s=>s[0]===d.field);openDialog(name,`<div class="view-eyebrow">FIELD OF PLAY · SCHEMATIC</div><canvas class="dialog-canvas" data-testid="expanded-field" role="img" aria-label="${name} field"></canvas>`);drawSurface($('.dialog-canvas'),id,color);enhanceFieldDialog(id);}
   if('closeDialog'in d)dialog.close();
 });
 // Native-like geometric D-pad navigation without autoplay or a render loop.

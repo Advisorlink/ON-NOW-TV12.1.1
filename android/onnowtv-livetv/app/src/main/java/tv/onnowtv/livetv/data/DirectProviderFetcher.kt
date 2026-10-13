@@ -174,6 +174,7 @@ object DirectProviderFetcher {
                     put("category_id", s.opt("category_id")?.toString() ?: "")
                     put("epg_channel_id", s.optString("epg_channel_id"))
                     put("tv_archive", s.optInt("tv_archive", 0))
+                    put("tv_archive_duration", s.opt("tv_archive_duration")?.toString()?.toIntOrNull()?.takeIf { it >= 0 } ?: JSONObject.NULL)
                     put("stream_url", "$base/live/$username/$password/$sid.ts")
                 },
             )

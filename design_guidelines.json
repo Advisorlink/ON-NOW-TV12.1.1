@@ -1,8 +1,8 @@
 {
   "design_system": {
-    "name": "Astra Kinetic V2 Sports Hub - Refined Native & Preview Edition",
-    "persona": "E1 The Anti-AI Designer - Tactical Broadcast Precision with V2 Live Aesthetics",
-    "theme": "Dark Mode Broadcast Engine (Obsidian #0A0F1A / #050811 + V2 Red #FF2535 + Electric Cyan #00F0FF + Blue Focus #5DC8FF)",
+    "name": "Astra Kinetic V2 Sports Hub - Premium 3D & Broadcast Edition",
+    "persona": "E1 The Anti-AI Designer - Tactical Broadcast Precision with 3D Textured Surface Mechanics",
+    "theme": "Dark Mode Premium Stadium (Obsidian #0A0F1A / Pitch Dark #050811 + V2 Red #FF2535 + Electric Cyan #00F0FF + Focus Blue #5DC8FF + Stadium Turf Green #1F8A4C)",
     "resolution_target": "1920x1080 Native Android TV (xhdpi 1dp = 2px, 10-ft readability)",
     "branding": {
       "wordmark": "V2 Sports Hub",
@@ -20,7 +20,7 @@
         "text_color": "#FFFFFF",
         "tracking": "tracking-wide"
       },
-      "tagline": "KINETIC TELEMETRY · LIVE SPORTS & BROADCAST CHANNELS"
+      "tagline": "3D TACTICAL TELEMETRY · BROADCAST CHANNELS & GENUINE CATCH-UP"
     },
     "typography": {
       "headings": {
@@ -60,6 +60,7 @@
         "livetv_accent": "#5DC8FF",
         "livetv_accent_red": "#FF2535",
         "livetv_accent_fav": "#FFC850",
+        "livetv_turf_green": "#1F8A4C",
         "livetv_blue": "#5DC8FF",
         "livetv_fg": "#FFFFFF",
         "livetv_fg_bright": "#E6EAF2",
@@ -78,6 +79,7 @@
         "accent_v2_red": "#FF2535",
         "accent_cyan": "#00F0FF",
         "accent_focus_blue": "#5DC8FF",
+        "accent_turf_green": "#1F8A4C",
         "status_live": "#FF2535",
         "text_primary": "#FFFFFF",
         "text_secondary": "#E6EAF2",
@@ -103,6 +105,31 @@
         "focus_ring": "ring-3 ring-[#5DC8FF]"
       }
     },
+    "visual_enhancements_3d_and_graphics": {
+      "field_rendering": {
+        "baseball_diamond": {
+          "perspective_transform": "rotateX(42deg) rotateZ(-2deg) scale(1.05)",
+          "grass_mow_stripes": "repeating-linear-gradient(90deg, #1C7B43 0px, #1C7B43 28px, #238E4F 28px, #238E4F 56px)",
+          "dirt_infield_texture": "radial-gradient(circle at center, #9E6138 0%, #7A4725 100%)",
+          "base_markers": "Elevated 3D white pads with drop shadows (rgba(0,0,0,0.6))",
+          "chalk_lines": "Crisp 2px bright white #FFFFFF lines with outer glow"
+        },
+        "football_gridiron": {
+          "perspective_transform": "rotateX(38deg) scale(1.02)",
+          "turf_stripes": "repeating-linear-gradient(180deg, #156235 0px, #156235 40px, #1F7D45 40px, #1F7D45 80px)",
+          "hash_marks": "3D sharp telemetry chalk lines every 5 and 10 yards"
+        }
+      },
+      "player_representation": {
+        "schematic_field_figures": "Stylized 3D cartoon avatars/silhouettes placed on tactical field coordinates (P, C, 1B, 2B, 3B, SS, LF, CF, RF) with glow rings",
+        "active_matchup_headshots": "Authentic circular high-res headshots for active Pitcher & Batter with team border ring (#FF2535 / #00F0FF) and live stat pills (ERA, AVG, HR)",
+        "fallback_graphic": "High-contrast team crest graphic vector badge when real player headshot is unavailable"
+      },
+      "epg_channel_lineup_and_replay": {
+        "fixture_channels": "surfaces verified channel logo, channel name (e.g. ESPN HD, YES Network), LCN, and confidence indicator ('Guaranteed Live' / 'EPG Match')",
+        "catchup_replay_trigger": "Surfaces 'WATCH REPLAY' / 'REPLAY GAME' action button ONLY when provider catch-up genuinely available (hasCatchup=true), avoiding fake decorative triggers"
+      }
+    },
     "tv_focus_engine": {
       "dpad_focused_state": {
         "border": "3dp solid #5DC8FF (or #00F0FF)",
@@ -115,7 +142,7 @@
         "bg_pill": "#FF2535 or #5DC8FF",
         "text_color": "#FFFFFF or #0A0F1A"
       },
-      "low_end_android_optimization": "Hardware-accelerated transforms (translate3d/scale), 150ms smooth focus interpolation, minimal canvas redraws on TV remotes."
+      "low_end_android_optimization": "Hardware-accelerated CSS/Canvas transforms (translate3d/scale), 150ms smooth focus interpolation, minimal DOM re-renders for TV remotes."
     }
   },
   "layout_and_screens": {
@@ -123,7 +150,7 @@
     "masthead_header": {
       "height": "88px",
       "padding": "24px 48px",
-      "logo_badge": "V2 SPORTS HUB · KINETIC TELEMETRY",
+      "logo_badge": "V2 SPORTS HUB · 3D TACTICAL TELEMETRY",
       "branding": "Red V2 Pill Badge (#FF2535) + White SPORTS HUB Title",
       "live_counter": "PULSATING CRIMSON BADGE (● N LIVE NOW)",
       "nav_pills": ["Scores", "World Map", "Following", "Field Gallery"]
@@ -152,38 +179,32 @@
     "screens_spec": {
       "scores": {
         "title": "Scores Screen",
-        "description": "Multi-column high-density bento scoreboard with rounded 14dp cards, live indicators, momentum bars, and broadcast channel matchers.",
+        "description": "Multi-column high-density bento scoreboard with rounded 14dp cards, live indicators, momentum bars, team crests, and exact broadcast channel matchers + replay triggers.",
         "sections": ["Live Now (Crimson Accent Header)", "Up Next (Cyan Accent Header)", "Final (Muted Gray Header)"],
         "cards_per_row": 3,
         "gap": "20px"
       },
-      "map": {
-        "title": "World Map View",
-        "description": "Tactical canvas overlay with geographic coordinate grid lines, pulsating game location pins, and detail broadcast channel cards.",
-        "canvas_border": "2px solid #5DC8FF",
-        "beacon_colors": "Red #FF2535 for live, Cyan #00F0FF for upcoming"
-      },
       "game_mlb": {
-        "title": "MLB Game Detail (Baseball Diamond)",
-        "description": "Left column: Interactive canvas baseball diamond with hit plot markers, stepwise win probability gradient meter. Right column: Channel watch triggers, inning telemetry, player stat lines.",
-        "diamond_color": "#00F0FF",
+        "title": "MLB Game Detail (3D Baseball Diamond)",
+        "description": "Left column: Interactive 3D perspective baseball diamond with turf mowing patterns, dirt basepaths, schematic 3D player figures, and real pitcher/batter headshots. Right column: Channel lineup matcher (YES Network, MLB TV), EPG verification, player stat lines, and genuine Catch-Up replay action button.",
+        "diamond_color": "#1F8A4C",
         "win_prob_bar": "Yankees Away Crimson vs Red Sox Home Cyan"
       },
       "game_nfl": {
-        "title": "NFL Game Detail (Gridiron)",
-        "description": "Left column: Tactical canvas 100-yard gridiron with yardage plot markers, drive summary, win probability. Right column: Live stream channel sources (CBS, NFL Net), player lines.",
+        "title": "NFL Game Detail (3D Gridiron)",
+        "description": "Left column: 3D perspective 100-yard gridiron with yardage plot markers, drive summary, win probability. Right column: Live stream channel sources (CBS, NFL Net), player lines, and replay trigger.",
         "gridiron_color": "#FF2535"
       },
       "fields": {
         "title": "12 Drawn Sports Surfaces Gallery",
-        "description": "4x3 grid displaying 12 precision drawn vector surfaces: Soccer, MLB, NBA, NHL, NFL, Tennis, Cricket, AFL, Rugby, MMA, F1, Golf with custom field accent colors.",
+        "description": "4x3 grid displaying 12 precision drawn vector/3D surfaces with schematic player figures: Soccer, MLB, NBA, NHL, NFL, Tennis, Cricket, AFL, Rugby, MMA, F1, Golf.",
         "grid": "grid-cols-4 rows-3",
         "gap": "16px"
       }
     }
   },
   "general_ui_ux_guidelines": [
-    "All interactive elements (buttons, nav pills, game cards, channel rows) MUST include exact data-testid attributes (e.g. data-testid='nav-scores', data-testid='game-card-0').",
+    "All interactive elements (buttons, nav pills, game cards, channel rows, replay buttons) MUST include exact data-testid attributes (e.g. data-testid='nav-scores', data-testid='game-card-0', data-testid='btn-watch-replay').",
     "Maintain 10-ft TV viewing readability: text minimum 12sp (24px) for body, 18sp (36px) for team names, 28sp (56px) for scores.",
     "Focus state contrast: Focused item must feature blue/cyan focus border (#5DC8FF / #00F0FF), scale bump (1.04x), and glow ring to provide unmistakable feedback for D-pad control.",
     "Zero transparent backgrounds on text surfaces or overlays: all dropdowns, cards, and modal dialogs must have solid tinted backings (min #141C2A) with backdrop-blur.",
@@ -191,7 +212,8 @@
   ],
   "media": {
     "stadium_background": "https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHwxfHxzdGFkaXVtJTIwbGlnaHRzJTIwbmlnaHQlMjBicm9hZGNhc3R8ZW58MHx8fHwxNzkxODYzMDUzfDA&ixlib=rb-4.1.0&q=85",
-    "sports_lights": "https://images.unsplash.com/photo-1545525201-e1a5a2a18293?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHw0fHxzdGFkaXVtJTIwbGlnaHRzJTIwbmlnaHQlMjBicm9hZGNhc3R8ZW58MHx8fHwxNzkxODYzMDUzfDA&ixlib=rb-4.1.0&q=85"
+    "sports_lights": "https://images.unsplash.com/photo-1545525201-e1a5a2a18293?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHw0fHxzdGFkaXVtJTIwbGlnaHRzJTIwbmlnaHQlMjBicm9hZGNhc3R8ZW58MHx8fHwxNzkxODYzMDUzfDA&ixlib=rb-4.1.0&q=85",
+    "baseball_field_3d": "https://images.unsplash.com/photo-1583960435304-37f2e1592c37?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHwzfHwzZCUyMHNwb3J0cyUyMHN0YWRpdW0lMjBmaWVsZCUyMGdyYXBoaWMlMjBiYXNlYmFsbCUyMGRpYW1vbmQlMjBmb290YmFsbCUyMHBpdGNofGVufDB8fHx8MTc5MTg4MTM2M3ww&ixlib=rb-4.1.0&q=85"
   },
-  "instructions_to_main_agent": "Ensure full sync between native Kotlin views (SportsUi.kt, SportsHubActivity.kt, colors.xml) and browser design preview (/app/frontend/public/sportshub-astra/). Apply V2 Sports Hub branding with red V2 badge (#FF2535), rounded 24dp filter pills, 14dp card radii, and hyper-visible D-pad focus states (#5DC8FF ring + 1.04x scale)."
+  "instructions_to_main_agent": "Ensure full sync between native Kotlin views (SportsUi.kt, SportsHubActivity.kt, colors.xml) and browser design preview (/app/frontend/public/sportshub-astra/). Apply V2 Sports Hub branding with red V2 badge (#FF2535), rounded 24dp filter pills, 14dp card radii, 3D textured field graphics with cartoon player figures, authentic player headshots, exact channel EPG listings, and genuine Catch-Up replay action buttons."
 }

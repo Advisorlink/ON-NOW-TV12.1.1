@@ -5,4 +5,6 @@
 - Typefaces: Barlow Condensed, DM Sans, JetBrains Mono via Google Fonts.
 - All scores, events, channel matches, standings, clock, reminders and probabilities are demonstration fixtures. No streams, notifications, external sports APIs or account integrations are connected.
 - All sports surfaces are Canvas 2D schematics, not imagery of a live sporting event. Nearby world-map markers are separated at each viewport size; thin leader lines retain their true geographic anchors while keeping each sample event individually selectable.
-- Original design and Android source remain unchanged. This is a comparison prototype only.
+- The original design is preserved. This browser route remains a sample-data design preview; the actual feature logic is implemented in native Android.
+- Premium iteration: team crests remain authentic ESPN assets. Aaron Judge (33192), Gerrit Cole (32081), Giancarlo Stanton (30583) and Tanner Houck (41009) portraits were obtained by matching exact names and IDs from ESPN's current Yankees/Red Sox roster responses. Player lines remain sample data; no facial identity is generated.
+- The local `/sportshub-scene/` Three.js renderer is now shared with the native app. Team-coloured figures are illustrative formations, not live athlete tracking. Native scores/channel/replay logic is separate from this MOCKED browser preview.

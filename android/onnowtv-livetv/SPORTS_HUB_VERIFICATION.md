@@ -16,6 +16,15 @@ The workflow now reuses the hosted runner's Android SDK 34 rather than replacing
 
 ## On-box checks still required
 
+### Premium graphics and catch-up update
+- Include the matching backend changes before testing the new APK: provider archive-duration metadata, dated sports feeds and active-player portrait fields are part of this update.
+- Verify angle/top3D fields, live event markers, generic illustrative figures, team colours/crests and real player photos. Low-memory/unsupported hardware intentionally falls back to the lightweight field. Check the camera button is absent when3D is unavailable.
+- Open upcoming and previous-day fixtures. Confirm listed LCNs/channel names are from the actual subscribed lineup and possible broadcasts are not labelled confirmed.
+- Open a completed match with a guide-confirmed programme. Check archive-enabled/retention metadata has refreshed. Select **Check replay**; missing timezone, unavailable recording, expired retention or unsupported provider formats must give a reason rather than false playback availability.
+- For an actual recording, verify playback, restart, Back and seek availability. Provider timezone is used for timeshift URLs; device timezone is never substituted. Player controls should hide without covering the video permanently, and the connection must close when leaving.
+- Verify an archived match with provider `has_archive=0` cannot offer playback and a broadcaster-only hint cannot authorize a replay. The server may not retain every programme despite channel-level catch-up support.
+- Confirm the separate live player remains unchanged. Replay contract tests used a fake provider, not your account; successful APK/JVM tests alone do not verify a real recording.
+
 - Enter **V2 Sports Hub** from the guide. Confirm the branding, rounded card edges, focused blue ring and pale-backed team logos at the box's actual resolution.
 - Navigate sport/league pills, Scores, World map, Following and Fields using the remote. Leave focus on one scorecard through a refresh; focus must stay on that match.
 - Open a live MLB/NFL match with available play data. Step back/forward and return to the latest play. Probabilities must follow the selected play; missing provider values show unavailable rather than an invented 50/50 split.

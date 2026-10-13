@@ -1,0 +1,74 @@
+{
+  "summary": "Executed native compile validation, backend regression/API tests, Kotlin test scaffolding for replay/channel matching, and browser verification for /sportshub-astra routes and required screenshots.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Fields dialog 3D embed",
+        "issue": "Clicking a field tile opens dialog but does not inject expanded 3D iframe; only fallback dialog canvas remains.",
+        "selector": "[data-testid='field-mlb'] -> [data-testid='expanded-3d-field']",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Native Android compile + unit test execution",
+        "issue": "Compile fails before JVM tests run due unresolved references in main sources.",
+        "affected_selectors": [
+          "GameActivity.showUpTo",
+          "SportsSceneView.setIndex",
+          "BundleHolder import in SportsHubActivity/SportsReplayActivity"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_sportshub_v2_live.py",
+    "/app/backend/tests/test_sportshub_v2_backend_regression.py",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/GameChannelMatcherTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/SportsReplayPolicyTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/SportsReplayRepositoryTest.kt",
+    "/app/test_reports/pytest/iter106_sportshub_v2_plus.xml",
+    "/app/frontend/public/sportshub-astra/previews/premium-game-desktop.jpg",
+    "/app/frontend/public/sportshub-astra/previews/premium-game-mobile.jpg",
+    "/app/frontend/public/sportshub-astra/previews/premium-fixtures-desktop.jpg",
+    "/app/frontend/public/sportshub-astra/previews/premium-fields-desktop.jpg"
+  ],
+  "action_items": [
+    "Fix native compile blockers: replace/restore BundleHolder symbol, and reconcile plot API mismatch (showUpTo vs setIndex).",
+    "After compile fix, run :app:testDebugUnitTest to execute new matcher/replay contract tests.",
+    "Fix premium fields dialog expansion path so [data-testid='expanded-3d-field'] is actually rendered after tile click.",
+    "Re-verify full 12-field expanded 3D gallery distinctness after dialog fix."
+  ],
+  "critical_code_review_comments": [
+    "Native source currently cannot compile with required command: unresolved BundleHolder references in SportsHubActivity/SportsReplayActivity, and GameActivity calling plot.showUpTo while SportsSceneView exposes setIndex.",
+    "Fields gallery flow appears partially wired: app.js opens dialog canvas, but premium.js expansion hook did not inject 3D iframe in repeated browser runs.",
+    "Asset sync integrity is good: frontend/public/sportshub-scene and android assets/sports-scene files hash-match for index.html/scene.js/bridge.js/three.min.js."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_sportshub_v2_backend_regression.py",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/GameChannelMatcherTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/SportsReplayPolicyTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/SportsReplayRepositoryTest.kt",
+    "/app/frontend/public/sportshub-astra/previews/premium-game-desktop.jpg",
+    "/app/frontend/public/sportshub-astra/previews/premium-game-mobile.jpg",
+    "/app/frontend/public/sportshub-astra/previews/premium-fixtures-desktop.jpg",
+    "/app/frontend/public/sportshub-astra/previews/premium-fields-desktop.jpg",
+    "/app/test_reports/iteration_103.json"
+  ],
+  "success_rate": {
+    "backend": "100% (18/18 passed)",
+    "frontend": "85% (core routes/flows passed; expanded fields 3D modal failed)",
+    "native": "0% compile gate (blocked before unit execution)"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Compile command reproduced failure with same unresolved refs. Added Kotlin JVM tests for GameChannelMatcher/SportsReplayPolicy/SportsReplayRepository (MockWebServer-based) but they are blocked by compile failure. Browser checks passed for scores/league/map/following/game-mlb/game-nfl/fields and extra game-astros/game-dodgers routes, reminder/follow/standings/channel/replay-sample flows. Required screenshots saved in frontend/public/sportshub-astra/previews. Expanded field dialog 3D iframe remains missing in browser checks.",
+  "rca of the issue": "Native RCA: APIs were renamed/incomplete across files. GameActivity calls SportsSceneView.showUpTo(), but SportsSceneView currently exposes setIndex(); SportsSceneView still calls fallback.setIndex() while fallback API appears mismatched; BundleHolder import is referenced but symbol/file is absent in current data package. This creates compile-time unresolved references, blocking all JVM test execution. Frontend RCA: field tile click opens base dialog (dialog-canvas present), but premium.js post-open replacement path did not produce expanded-3d-field iframe in repeated runs, so gallery expanded 3D verification cannot complete. Repro: /sportshub-astra/?screen=fields -> click [data-testid='field-mlb'] -> dialog opens with hasCanvas=true, hasExpanded=false.",
+  "application_mocked_apis": "MOCKED: /sportshub-astra browser design preview uses static sample fixtures/channels/replay modal only; no live IPTV stream playback."
+}

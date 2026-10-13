@@ -1,0 +1,38 @@
+{
+  "scope": "Final verification after premium Sports Hub testing",
+  "fixed": [
+    "Native BundleHolder package imports corrected",
+    "SportsSceneView now implements and delegates the existing showUpTo API",
+    "Gallery 3D initialization explicitly runs after dialog creation rather than before the main click listener",
+    "Top view orientation corrected and automatic camera fitting retained",
+    "Distinctive nickname aliases supported without treating shared City/United aliases as confirmation",
+    "Replay retention test corrected to use an old fixture matching its programme; valid HLS test now contains a segment URI",
+    "Empty HLS prefix rejected, failed playback clears verified cache, replay header follows controller visibility",
+    "Native camera button hidden on unsupported/fallback renderers; portrait tags unique across active and stats panels"
+  ],
+  "final_results": {
+    "backend_tests": "18 passed (testing agent)",
+    "native_tests": "21 passed;0 failures;0 errors (SportsPresentation6, Matcher4, ReplayPolicy4, ReplayRepository7)",
+    "native_build": "Full native compilation and assembleDebug successful",
+    "apk_signature": "apksigner verifies v1/v2 signatures",
+    "apk_bytes": 202068771,
+    "apk_sha256": "5e8a2bd2a7e15dd6bba4e3a435f3b18979c6fc6358022312f14649ad4f733568",
+    "shared_assets": "All packaged scene entry/renderer/bridge/vendor files byte-identical to canonical source",
+    "demo_assets_in_apk": false,
+    "gallery": "All12 expanded WebGL fields ready, nonblank and distinct by pixel signature; iframe removed on close",
+    "idle_render": "Frame count1 before and after idle wait; no continuous loop",
+    "responsive": "1920x800 and390x844 screenshots verified; zero horizontal overflow, including mobile expanded3D modal"
+  },
+  "evidence": {
+    "native": "/app/test_reports/native_sports_premium/",
+    "browser": "/root/.emergent/automation_output/20261013_094937/console_20261013_094937.log",
+    "screenshots": "/app/frontend/public/sportshub-astra/previews/premium-*.jpg"
+  },
+  "unverified_in_this_environment": [
+    "Physical Android TV graphics/remote and low-memory fallback acceptance",
+    "User's actual IPTV catch-up recordings and stream playback",
+    "Production backend update and real signed GitHub workflow/install"
+  ],
+  "mocking": "Browser design preview uses explicitly labelled MOCKED sample fixtures/lineup/replay dialog. Provider contract tests use MockWebServer only. Native app runtime and backend integrations are not mocked.",
+  "credentials": "No auth credentials created or modified"
+}

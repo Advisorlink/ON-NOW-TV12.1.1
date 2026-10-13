@@ -10,11 +10,15 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import org.json.JSONObject
 import tv.onnowtv.livetv.data.SportsPresentation as Data
+import tv.onnowtv.livetv.data.GameChannelMatcher
+import tv.onnowtv.livetv.data.SportsReplayPolicy
 import tv.onnowtv.livetv.ui.SportsUi.dp
 
 /** Recycles scorecards; stable keys keep remote focus on the same game during polling. */
 class SportsScoreAdapter(private val open: (JSONObject) -> Unit) : ListAdapter<SportsScoreAdapter.Item, SportsScoreAdapter.Holder>(Diff) {
-    data class Item(val key: String, val title: String = "", val color: Int = SportsUi.DIM, val json: String = "") {
+    private var broadcasts: Map<String, List<GameChannelMatcher.Match>> = emptyMap()
+    fun setChannelMatches(value: Map<String, List<GameChannelMatcher.Match>>) { broadcasts = value }
+    data class Item(val key: String, val title: String = "", val color: Int = SportsUi.DIM, val json: String = "", val lineup: String = "") {
         val isHeader get() = json.isEmpty()
     }
     object Diff : DiffUtil.ItemCallback<Item>() {
@@ -53,7 +57,7 @@ class SportsScoreAdapter(private val open: (JSONObject) -> Unit) : ListAdapter<S
         fun side(key: String): View {
             val t = g.optJSONObject(key); val home = key == "home"
             val team = SportsUi.row(ctx, dp(ctx, 7f)).apply { gravity = if (home) Gravity.END else Gravity.START }
-            val logo = SportsUi.logo(ctx, Data.value(t, "logo"), dp(ctx, 32f))
+            val logo = SportsUi.logo(ctx, Data.value(t, "logo"), dp(ctx, 40f))
             val short = SportsUi.text(ctx, Data.abbreviation(t), 20f, bold = true).apply { maxLines = 1; maxWidth = dp(ctx, 53f) }
             if (home) { team.addView(short); team.addView(logo) } else { team.addView(logo); team.addView(short) }
             return team
@@ -67,17 +71,25 @@ class SportsScoreAdapter(private val open: (JSONObject) -> Unit) : ListAdapter<S
         root.addView(names)
         root.addView(SportsUi.divider(ctx), LinearLayout.LayoutParams(-1, dp(ctx, 1f)).apply { topMargin = dp(ctx, 11f); bottomMargin = dp(ctx, 9f) })
         val foot = SportsUi.row(ctx, dp(ctx, 5f))
-        val broadcasters = g.optJSONArray("broadcasts")?.let { arr -> (0 until arr.length()).joinToString(" / ") { arr.optString(it) } }.orEmpty()
-        foot.addView(SportsUi.singleLine(SportsUi.text(ctx, broadcasters.ifBlank { "Broadcast to be confirmed" }, 9f, SportsUi.DIM)), LinearLayout.LayoutParams(0, -2, 1f))
+        val matches = broadcasts[Data.key(g)].orEmpty(); val match = matches.firstOrNull()
+        if (match != null) {
+            foot.addView(SportsUi.logo(ctx, match.channel.logoUrl, dp(ctx, 25f)))
+            foot.addView(SportsUi.col(ctx, dp(ctx, 3f)).apply {
+                addView(SportsUi.text(ctx, listOfNotNull(match.channel.lcn, match.channel.name).joinToString(" · ") + if (matches.size > 1) " +${matches.size - 1}" else "", 10f, bold = true).apply { maxLines = 2 })
+                addView(SportsUi.text(ctx, if (match.confirmed) "Guide confirmed" else "Possible broadcast", 9f, if (match.confirmed) SportsUi.ACCENT else SportsUi.DIM))
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+        } else foot.addView(SportsUi.text(ctx, "Channel not confirmed", 10f, SportsUi.DIM), LinearLayout.LayoutParams(0, -2, 1f))
         foot.addView(SportsUi.text(ctx, if (upcoming) "Preview  ›" else if (live) "Match centre  ›" else "Full result  ›", 10f, SportsUi.ACCENT))
         root.addView(foot); root.setOnClickListener { open(g) }
+        val archive = matches.firstOrNull { SportsReplayPolicy.check(g, it).eligible }
+        if (archive != null) root.addView(SportsUi.identify(SportsUi.pill(ctx, "↻ Check replay") { open(g) }, "fixture-replay-${g.optString("id")}"), LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(ctx, 8f) })
     }
     fun show(games: List<JSONObject>, onCommitted: (() -> Unit)? = null) {
         val rows = ArrayList<Item>()
         listOf(Triple("in", "Live now", SportsUi.LIVE), Triple("pre", "Up next", SportsUi.ACCENT), Triple("post", "Final scores", SportsUi.DIM)).forEach { (state, title, color) ->
             val group = games.filter { it.optString("state") == state }; if (group.isNotEmpty()) {
                 rows.add(Item("section-$state", "$title   ${group.size}", color))
-                group.forEach { rows.add(Item("game-${Data.key(it)}", json = it.toString())) }
+                group.forEach { g -> rows.add(Item("game-${Data.key(g)}", json = g.toString(), lineup = broadcasts[Data.key(g)].orEmpty().joinToString { "${it.channel.id}:${it.confirmed}:${it.channel.archiveDays}:${it.programme?.startMs}" })) }
             }
         }
         submitList(rows) { onCommitted?.invoke() }

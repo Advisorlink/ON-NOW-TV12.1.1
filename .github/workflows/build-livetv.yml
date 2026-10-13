@@ -27,6 +27,10 @@ jobs:
         shell: bash
         run: bash scripts/ensure-android-sdk.sh 34 34.0.0
 
+      - name: Bundle local V2 sports graphics
+        shell: bash
+        run: bash scripts/sync-sports-scene.sh
+
       - name: Keep Android SDK diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4

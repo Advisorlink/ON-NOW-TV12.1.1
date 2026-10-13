@@ -255,9 +255,17 @@ async def scoreboard(sport: str, league: str, date: Optional[str] = None):
 
 
 @router.get("/live")
-async def live(tier: int = Query(3, ge=1, le=3)):
+async def live(tier: int = Query(3, ge=1, le=3), date: Optional[str] = None):
     """Every game in play now (plus today's upcoming) across all leagues — fuels the hub's Live Now row and the world map."""
-    hit = _cget(f"live:{tier}", 25)
+    if date:
+        try:
+            if len(date) != 8 or not date.isdigit():
+                raise ValueError()
+            datetime.strptime(date, "%Y%m%d")
+        except ValueError:
+            raise HTTPException(422, "Date must be a valid YYYYMMDD calendar date")
+    cache_key = f"live:{tier}" + (f":{date}" if date else "")
+    hit = _cget(cache_key, 25)
     if hit is not None:
         return hit
     metas = [l for l in LEAGUES if l.get("tier", 3) <= tier]
@@ -265,7 +273,7 @@ async def live(tier: int = Query(3, ge=1, le=3)):
 
     async def one(m):
         async with sem:
-            return await _scoreboard(m["sport"], m["league"], None)
+            return await _scoreboard(m["sport"], m["league"], date)
 
     tasks = {asyncio.create_task(one(m)): m for m in metas}
     try:
@@ -288,13 +296,14 @@ async def live(tier: int = Query(3, ge=1, le=3)):
                 task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
     now = int(time.time() * 1000)
-    games = [g for g in games if g["state"] == "in" or (g["state"] == "pre" and 0 <= g["startMs"] - now <= 36 * 3600_000)
-             or (g["state"] == "post" and now - g["startMs"] <= 6 * 3600_000)]
+    if not date:
+        games = [g for g in games if g["state"] == "in" or (g["state"] == "pre" and 0 <= g["startMs"] - now <= 36 * 3600_000)
+                 or (g["state"] == "post" and now - g["startMs"] <= 6 * 3600_000)]
     games.sort(key=lambda g: ({"in": 0, "pre": 1, "post": 2}.get(g["state"], 3), g["startMs"]))
     status = "unavailable" if len(failed) == len(metas) else ("partial" if failed else ("ok" if games else "empty"))
     out = {"games": games, "liveCount": sum(1 for g in games if g["state"] == "in"), "generatedMs": now,
            "status": status, "failedLeagues": failed}
-    _cput(f"live:{tier}", out)
+    _cput(cache_key, out)
     return out
 
 
@@ -353,12 +362,30 @@ def _players(box: Dict[str, Any], side_id: str) -> List[Dict[str, Any]]:
                     continue
                 line = " · ".join(f"{labels[i]} {vals[i]}" for i in range(min(len(labels), len(vals), 4)) if vals[i] not in ("", "-"))
                 out.append({
-                    "id": str(ath.get("id") or ""), "name": ath.get("shortName") or ath.get("displayName") or "",
+                    "id": str(ath.get("id") or ""), "teamId": side_id, "name": ath.get("shortName") or ath.get("displayName") or "",
                     "pos": (ath.get("position") or {}).get("abbreviation") or "", "headshot": (ath.get("headshot") or {}).get("href") if isinstance(ath.get("headshot"), dict) else ath.get("headshot"),
                     "line": line, "group": stats.get("name") or stats.get("type") or "",
                     "active": bool(a.get("active", True)) and not a.get("didNotPlay"),
                 })
     return out[:40]
+
+
+def _active_player(situation, role, player_rows):
+    """Join portraits by ESPN athlete ID only, never by a guessed name."""
+    entry = situation.get(role) or {}
+    if not isinstance(entry, dict):
+        return None
+    athlete = entry.get("athlete") or {}
+    identity = str(athlete.get("id") or "")
+    if not identity:
+        return None
+    known = next((p for p in player_rows if p.get("id") == identity), {})
+    shot = athlete.get("headshot")
+    if isinstance(shot, dict):
+        shot = shot.get("href")
+    return {"id": identity, "name": athlete.get("shortName") or athlete.get("displayName") or known.get("name"),
+            "headshot": shot or known.get("headshot"), "line": entry.get("summary") or known.get("line"),
+            "teamId": str((athlete.get("team") or {}).get("id") or known.get("teamId") or "")}
 
 
 @router.get("/game")
@@ -432,7 +459,11 @@ async def game(sport: str, league: str, id: str):
     if not sit and drives.get("current"):
         last = ((drives["current"].get("plays") or [{}])[-1]).get("end") or {}
         sit = {"downDistanceText": last.get("downDistanceText"), "possessionText": last.get("possessionText")}
+    player_rows = {"home": _players(box, home_id), "away": _players(box, away_id)}
+    all_players = player_rows["home"] + player_rows["away"]
     situation = {
+        "pitcherPlayer": _active_player(sit, "pitcher", all_players),
+        "batterPlayer": _active_player(sit, "batter", all_players),
         "balls": sit.get("balls"), "strikes": sit.get("strikes"), "outs": sit.get("outs"),
         "onFirst": bool(sit.get("onFirst")), "onSecond": bool(sit.get("onSecond")), "onThird": bool(sit.get("onThird")),
         "pitcher": ((sit.get("pitcher") or {}).get("athlete") or {}).get("shortName") if isinstance(sit.get("pitcher"), dict) else None,
@@ -462,7 +493,7 @@ async def game(sport: str, league: str, id: str):
         "linescore": linescore,
         "plays": plays,
         "winProbability": wp,
-        "players": {"home": _players(box, home_id), "away": _players(box, away_id)},
+        "players": player_rows,
         "leaders": leaders[:12],
         "lastPlayId": plays[-1]["id"] if plays else None,
     }

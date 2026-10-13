@@ -25,6 +25,10 @@ import tv.onnowtv.livetv.data.SportsHubApi.objects
 import tv.onnowtv.livetv.data.ReminderStore
 import tv.onnowtv.livetv.data.SportsPresentation as Data
 import tv.onnowtv.livetv.ui.GamePlotView
+import tv.onnowtv.livetv.ui.SportsSceneView
+import tv.onnowtv.livetv.ui.SportsPlayerPanels
+import tv.onnowtv.livetv.ui.SportsBroadcastPanel
+import tv.onnowtv.livetv.data.SportsReplayRepository
 import tv.onnowtv.livetv.ui.SportsUi
 import tv.onnowtv.livetv.ui.SportsUi.dp
 import tv.onnowtv.livetv.ui.ProbabilityBarView
@@ -51,12 +55,15 @@ class GameActivity : AppCompatActivity() {
     private var poll: Job? = null
     private var fetch: Job? = null
     private var standingsJob: Job? = null
+    private var archiveJob: Job? = null
+    private var playerSide = "both"
     private var restoredPlayId: String? = null
 
     private lateinit var header: LinearLayout
-    private lateinit var plot: GamePlotView
+    private lateinit var plot: SportsSceneView
     private lateinit var wpBar: ProbabilityBarView
     private lateinit var wpHome: TextView
+    private lateinit var probabilityTeams: LinearLayout
     private lateinit var wpAway: TextView
     private lateinit var playText: TextView
     private lateinit var right: LinearLayout
@@ -89,7 +96,7 @@ class GameActivity : AppCompatActivity() {
 
         val body = SportsUi.row(ctx, dp(ctx, 18f))
         val left = SportsUi.col(ctx, dp(ctx, 12f))
-        plot = GamePlotView(ctx).apply { SportsUi.identify(this, "game-field"); background = SportsUi.bg(SportsUi.PLOT, dp(ctx, 16f).toFloat(), 1, SportsUi.BORDER); clipToOutline = true }
+        plot = SportsSceneView(ctx).apply { SportsUi.identify(this, "game-field"); background = SportsUi.bg(SportsUi.PLOT, dp(ctx, 16f).toFloat(), 1, SportsUi.BORDER); clipToOutline = true }
         plot.setGame(SportsUi.fieldId(sport, league), SportsUi.ACCENT, homeColor, awayColor, emptyList())
         left.addView(plot, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         // Win probability card (focusable: ◀ ▶ steps through plays)
@@ -100,7 +107,7 @@ class GameActivity : AppCompatActivity() {
             wpTitle = SportsUi.identify(SportsUi.eyebrow(ctx, "Win probability"), "game-probability-status")
             addView(wpTitle, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         })
-        val pct = SportsUi.row(ctx)
+        val pct = SportsUi.row(ctx, dp(ctx, 8f)); probabilityTeams = pct
         wpAway = SportsUi.identify(SportsUi.text(ctx, "—", 22f, bold = true), "game-away-probability"); wpHome = SportsUi.identify(SportsUi.text(ctx, "—", 22f, bold = true), "game-home-probability").apply { gravity = Gravity.END }
         pct.addView(wpAway, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)); pct.addView(wpHome, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         wpCard.addView(pct)
@@ -128,8 +135,9 @@ class GameActivity : AppCompatActivity() {
         setStep(-1)
     }
 
-    override fun onResume() { super.onResume(); if (!::plot.isInitialized) return; refresh(); poll?.cancel(); poll = lifecycleScope.launch { while (isActive) { delay(20_000); if (game.optString("state") == "in" && fetch?.isActive != true) refresh() } } }
-    override fun onPause() { poll?.cancel(); fetch?.cancel(); standingsJob?.cancel(); super.onPause() }
+    override fun onResume() { super.onResume(); if (!::plot.isInitialized) return; plot.resumeScene(); refresh(); poll?.cancel(); poll = lifecycleScope.launch { while (isActive) { delay(20_000); if (game.optString("state") == "in" && fetch?.isActive != true) refresh() } } }
+    override fun onPause() { if (::plot.isInitialized) plot.pauseScene(); poll?.cancel(); fetch?.cancel(); standingsJob?.cancel(); archiveJob?.cancel(); super.onPause() }
+    override fun onDestroy() { if (::plot.isInitialized) plot.destroyScene(); super.onDestroy() }
     override fun onSaveInstanceState(out: Bundle) { if (stepIdx < plays.lastIndex) plays.getOrNull(stepIdx)?.let { out.putString("selectedPlay", it.optString("id")) }; super.onSaveInstanceState(out) }
     private fun refresh() { fetch?.cancel(); fetch = lifecycleScope.launch { load() } }
 
@@ -147,11 +155,18 @@ class GameActivity : AppCompatActivity() {
         awayColor = SportsUi.parseColor(d.optJSONObject("away")?.optString("color"), 0xFFFF8FAB.toInt())
         if (homeColor == awayColor) awayColor = 0xFFFF8FAB.toInt()
         plot.setGame(SportsUi.fieldId(sport, league), if (sport == "football") SportsUi.LIVE else SportsUi.ACCENT, homeColor, awayColor, plays)
+        plot.setTeams(game)
         renderHeader(); renderRight()
         val restored = plays.indexOfFirst { it.optString("id") == selectedId }
         if (restoredPlayId != null && restored >= 0) setStep(restored) else if (atLive) setStep(plays.lastIndex) else setStep(if (restored >= 0) restored else 0)
         restoredPlayId = null
         focus?.let { window.decorView.findViewWithTag<View>(it)?.requestFocus() }
+        if (game.optString("state") == "post") BundleHolder.current?.let { bundle ->
+            archiveJob?.cancel(); archiveJob = lifecycleScope.launch {
+                SportsReplayRepository.enrichGuide(game, bundle)
+                val tag = currentFocus?.tag as? String; renderRight(); tag?.let { window.decorView.findViewWithTag<View>(it)?.requestFocus() }
+            }
+        }
     }
 
     private fun setStep(i: Int) {
@@ -183,6 +198,10 @@ class GameActivity : AppCompatActivity() {
     private fun renderHeader() {
         header.removeAllViews()
         val home = game.optJSONObject("home") ?: JSONObject(); val away = game.optJSONObject("away") ?: JSONObject()
+        probabilityTeams.removeAllViews()
+        probabilityTeams.addView(SportsUi.logo(this, Data.value(away, "logo"), dp(this, 27f)))
+        probabilityTeams.addView(wpAway, LinearLayout.LayoutParams(0, -2, 1f)); probabilityTeams.addView(wpHome, LinearLayout.LayoutParams(0, -2, 1f))
+        probabilityTeams.addView(SportsUi.logo(this, Data.value(home, "logo"), dp(this, 27f)))
         val live = game.optString("state") == "in"
         fun side(t: JSONObject, end: Boolean) = SportsUi.row(this, dp(this, 12f)).apply {
             gravity = if (end) Gravity.END else Gravity.START
@@ -218,7 +237,7 @@ class GameActivity : AppCompatActivity() {
     /** Kick-off alert via the guide's reminder banner when we know a channel. */
     private fun scheduleAlertIfPossible() {
         val bundle = BundleHolder.current ?: return
-        val match = GameChannelMatcher.find(game, bundle).firstOrNull() ?: return
+        val match = GameChannelMatcher.find(game, bundle).firstOrNull { it.confirmed } ?: return
         SportsFollowStore.scheduleAlert(this, game, match.channel)
     }
 
@@ -230,24 +249,10 @@ class GameActivity : AppCompatActivity() {
     private fun renderRight() {
         right.removeAllViews()
         // Watch on your channels
-        val watch = card("Watch on your channels", SportsUi.ACCENT)
         val bundle = BundleHolder.current
         val matches = if (bundle != null) GameChannelMatcher.find(game, bundle) else emptyList()
-        if (matches.isEmpty()) watch.addView(SportsUi.text(this, "Not found on your channels yet — we re-check as the EPG updates.", 12f, SportsUi.DIM))
-        matches.forEachIndexed { i, m ->
-            val rowV = SportsUi.row(this, dp(this, 10f)).apply { setPadding(dp(this@GameActivity, 10f), dp(this@GameActivity, 8f), dp(this@GameActivity, 10f), dp(this@GameActivity, 8f)) }
-            SportsUi.identify(rowV, "game-channel-${m.channel.id}")
-            SportsUi.focusable(rowV, dp(this, 12f).toFloat(), base = SportsUi.CARD)
-            rowV.addView(SportsUi.logo(this, m.channel.logoUrl, dp(this, 30f)))
-            rowV.addView(SportsUi.col(this).apply {
-                addView(SportsUi.text(this@GameActivity, m.channel.name, 13f, bold = true).apply { maxLines = 1 })
-                addView(SportsUi.text(this@GameActivity, m.reason, 10f, SportsUi.DIM).apply { maxLines = 1 })
-            }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-            rowV.addView(SportsUi.text(this, if (i == 0) "▶ WATCH" else "▶", 11f, SportsUi.ACCENT, bold = true, mono = true))
-            rowV.setOnClickListener { tune(matches.map { it.channel }, m.channel) }
-            watch.addView(rowV)
-        }
-        right.addView(watch)
+        right.addView(SportsBroadcastPanel.build(this, game, matches, { all, selected -> tune(all, selected) }, { channel -> SportsReplayActivity.open(this, game, channel) }))
+        SportsPlayerPanels.active(this, game)?.let { right.addView(it) }
         // Situation
         val sit = game.optJSONObject("situation") ?: JSONObject()
         fun str(k: String): String? = sit.optString(k).takeIf { it.isNotBlank() && it != "null" }
@@ -261,30 +266,7 @@ class GameActivity : AppCompatActivity() {
             str("lastPlay"),
         )
         if (sitLines.isNotEmpty()) right.addView(card("Game").apply { sitLines.forEach { addView(SportsUi.text(this@GameActivity, it, 13f)) } })
-        // Players (live lines)
-        val players = game.optJSONObject("players")
-        if (players != null) {
-            val pc = card("Players")
-            val cols = SportsUi.row(this, dp(this, 14f))
-            listOf("away" to awayColor, "home" to homeColor).forEach { (side, color) ->
-                val c = SportsUi.col(this, dp(this, 8f))
-                c.addView(SportsUi.eyebrow(this, game.optJSONObject(side)?.optString("abbr") ?: side, color))
-                players.optJSONArray(side).objects().filter { it.optBoolean("active", true) }.take(6).forEach { p ->
-                    c.addView(SportsUi.row(this, dp(this, 8f)).apply {
-                        addView(SportsUi.logo(this@GameActivity, p.optString("headshot").ifBlank { null }, dp(this@GameActivity, 28f)).apply { background = SportsUi.bg(0xFF1A2438.toInt(), 999f) })
-                        addView(SportsUi.col(this@GameActivity).apply {
-                            addView(SportsUi.row(this@GameActivity, dp(this@GameActivity, 6f)).apply {
-                                addView(SportsUi.text(this@GameActivity, p.optString("name"), 12f, bold = true).apply { maxLines = 1 })
-                                addView(SportsUi.text(this@GameActivity, p.optString("pos"), 9f, SportsUi.DIM, mono = true))
-                            })
-                            addView(SportsUi.text(this@GameActivity, p.optString("line"), 10f, SportsUi.DIM).apply { maxLines = 1 })
-                        }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-                    })
-                }
-                cols.addView(c, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-            }
-            pc.addView(cols); right.addView(pc)
-        }
+        right.addView(SportsPlayerPanels.players(this, game, playerSide) { selected -> playerSide = selected; renderRight(); right.findViewWithTag<View>("players-filter-$selected")?.requestFocus() })
         // Standings
         if (game.optString("state") == "pre") {
             val reminderKey = "sports:" + game.optString("id")
@@ -292,9 +274,9 @@ class GameActivity : AppCompatActivity() {
             val remind = SportsUi.identify(SportsUi.pill(this, if (saved) "✓ Reminder set" else "Remind me", saved) {
                 val items = ReminderStore.load(this)
                 if (items.remove(reminderKey) != null) { ReminderStore.save(this, items); Toast.makeText(this, "Reminder removed", Toast.LENGTH_SHORT).show() }
-                else if (matches.isEmpty()) Toast.makeText(this, "A matched channel is needed to set a reminder", Toast.LENGTH_LONG).show()
+                else if (matches.none { it.confirmed }) Toast.makeText(this, "A guide-confirmed channel is needed to set a reminder", Toast.LENGTH_LONG).show()
                 else if (game.optLong("startMs") <= System.currentTimeMillis()) Toast.makeText(this, "This game has already started", Toast.LENGTH_SHORT).show()
-                else { SportsFollowStore.scheduleAlert(this, game, matches.first().channel); Toast.makeText(this, "Kick-off reminder saved", Toast.LENGTH_SHORT).show() }
+                else { SportsFollowStore.scheduleAlert(this, game, matches.first { it.confirmed }.channel); Toast.makeText(this, "Kick-off reminder saved", Toast.LENGTH_SHORT).show() }
                 renderRight(); right.findViewWithTag<View>("game-reminder")?.requestFocus()
             }, "game-reminder")
             right.addView(remind, LinearLayout.LayoutParams(-2, -2))
