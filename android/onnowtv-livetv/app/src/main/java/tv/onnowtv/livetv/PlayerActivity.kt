@@ -78,6 +78,9 @@ class PlayerActivity : AppCompatActivity() {
          *  is what allows the preview→full-screen→preview round-trip
          *  to happen with zero buffer hit. */
         const val EXTRA_USE_SHARED_PLAYER = "extra_use_shared_player"
+        /** Sports Hub: when the tuned channel fails, hop to the next channel
+         *  in the PlaybackQueue (the other channels carrying the same game). */
+        const val EXTRA_FAILOVER_QUEUE = "extra_failover_queue"
 
         private const val INFO_HOLD_MS = 2_500L
         private const val NUMBER_PILL_TIMEOUT_MS = 1_500L
@@ -195,6 +198,7 @@ class PlayerActivity : AppCompatActivity() {
     private val numberHandler = Handler(Looper.getMainLooper())
     private val progressHandler = Handler(Looper.getMainLooper())
     private val retryHandler = Handler(Looper.getMainLooper())
+    private var failoverHops = 0
     private val numberBuffer = StringBuilder()
     private var currentChannel: Channel? = null
     private val clockFmt = SimpleDateFormat("h:mm a", Locale.UK)
@@ -467,6 +471,16 @@ class PlayerActivity : AppCompatActivity() {
                     val delay = 800L * (1 shl (consecutiveFailures - 1))  // 0.8 / 1.6 / 3.2 s
                     status.text = "Provider busy (503) — retrying in ${delay / 1000.0}s…"
                     scheduleRetry(delay)
+                } else if (intent.getBooleanExtra(EXTRA_FAILOVER_QUEUE, false) && failoverHops < 6) {
+                    failoverHops += 1
+                    val next = PlaybackQueue.next()
+                    if (next != null) {
+                        status.text = "Channel failed — trying ${next.name}…"
+                        consecutiveFailures = 0
+                        retryHandler.postDelayed({ tuneTo(next) }, 600L)
+                    } else {
+                        status.text = buildErrorMessage(error)
+                    }
                 } else {
                     status.text = buildErrorMessage(error)
                 }

@@ -16,16 +16,35 @@ const ICONS = {
 const ACCENTS = ['#5DC8FF', '#7CF1A1', '#FFD36B', '#FF8FAB', '#C4A3FF', '#FF9B6B', '#6BE3E3', '#9FE870'];
 const hex = (h, a) => `${h}${Math.round(a * 255).toString(16).padStart(2, '0')}`;
 
-/** One-feature-per-screen "What's new" tour with Skip / Next.
- *  LEFT/RIGHT moves between the two buttons, OK activates, BACK closes. */
-export default function WhatsNewTour({ release, version, onDismiss }) {
-    const steps = release.items;
+/** Build the screens: every release except the newest becomes one
+ *  "chapter" recap screen; the newest release gets one screen per feature. */
+function buildScreens(releases) {
+    const out = [];
+    releases.forEach((r, ri) => {
+        const newest = ri === releases.length - 1;
+        if (newest) {
+            r.release.items.forEach((item) => out.push({ kind: 'feature', version: r.version, release: r.release, item }));
+        } else {
+            out.push({ kind: 'chapter', version: r.version, release: r.release });
+        }
+    });
+    return out;
+}
+
+/** "What's new" tour with Skip / Next.  Older releases (since the floor)
+ *  show as one recap screen each, the current release one feature per
+ *  screen.  LEFT/RIGHT moves between the two buttons, OK activates,
+ *  BACK closes. */
+export default function WhatsNewTour({ releases, version, onDismiss }) {
+    const steps = React.useMemo(() => buildScreens(releases), [releases]);
     const [i, setI] = useState(0);
     const [dir, setDir] = useState(1);
     const nextRef = useRef(null);
     const root = useRef(null);
     const last = i === steps.length - 1;
-    const step = steps[i];
+    const screen = steps[i];
+    const step = screen.kind === 'feature' ? screen.item : { title: screen.release.headline, icon: 'sparkles' };
+    const release = screen.release;
     const accent = step.accent || ACCENTS[i % ACCENTS.length];
     const Icon = ICONS[step.icon] || Check;
 
@@ -74,7 +93,15 @@ export default function WhatsNewTour({ release, version, onDismiss }) {
                     <div key={i} style={{ ...S.iconWrap, animation: 'wn-pop 420ms cubic-bezier(.2,.9,.3,1.2) both' }}>
                         <span style={{ ...S.ring, boxShadow: `0 0 0 1px ${hex(accent, 0.55)}, 0 0 60px ${hex(accent, 0.35)}, inset 0 0 40px ${hex(accent, 0.18)}` }} />
                         <span style={{ ...S.ring2, borderColor: hex(accent, 0.25) }} />
-                        <Icon size={92} strokeWidth={1.4} color={accent} aria-hidden="true" style={{ position: 'relative', filter: `drop-shadow(0 0 18px ${hex(accent, 0.6)})` }} />
+                        {screen.kind === 'chapter' ? (
+                            <span data-testid="whats-new-chapter-version" className="vesper-display" style={{ position: 'relative', textAlign: 'center', color: '#fff', lineHeight: 1 }}>
+                                <span className="vesper-mono" style={{ display: 'block', fontSize: 12, letterSpacing: '0.3em', color: accent, marginBottom: 10 }}>VERSION</span>
+                                <span style={{ fontSize: 54, fontWeight: 800, letterSpacing: '-0.03em', textShadow: `0 0 28px ${hex(accent, 0.5)}` }}>{screen.version}</span>
+                                <span style={{ display: 'block', fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 10 }}>{release.date}</span>
+                            </span>
+                        ) : (
+                            <Icon size={92} strokeWidth={1.4} color={accent} aria-hidden="true" style={{ position: 'relative', filter: `drop-shadow(0 0 18px ${hex(accent, 0.6)})` }} />
+                        )}
                     </div>
                     <div style={S.grain} aria-hidden="true" />
                 </div>
@@ -82,16 +109,38 @@ export default function WhatsNewTour({ release, version, onDismiss }) {
                 {/* Copy half */}
                 <div style={S.copy}>
                     <div data-testid="whats-new-version" className="vesper-mono" style={S.eyebrow}>
-                        <Sparkles size={13} /> WHAT’S NEW · V{version} <span style={{ opacity: 0.45 }}>· {release.date}</span>
+                        <Sparkles size={13} /> {screen.kind === 'chapter' ? 'EARLIER UPDATE' : 'WHAT’S NEW'} · V{screen.version} <span style={{ opacity: 0.45 }}>· {release.date}</span>
                     </div>
-                    <div key={`t${i}`} style={{ animation: `wn-slide-${dir > 0 ? 'in' : 'back'} 320ms ease-out both`, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                        <h2 data-testid="whats-new-heading" className="vesper-display" style={S.title}>{step.title}</h2>
-                        <p data-testid="whats-new-detail" style={S.detail}>{step.detail}</p>
-                        {step.how && (
-                            <div data-testid="whats-new-how" style={{ ...S.how, borderColor: hex(accent, 0.35), background: hex(accent, 0.08) }}>
-                                <Lightbulb size={14} color={accent} />
-                                <span>{step.how}</span>
-                            </div>
+                    <div key={`t${i}`} style={{ animation: `wn-slide-${dir > 0 ? 'in' : 'back'} 320ms ease-out both`, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 0 }}>
+                        {screen.kind === 'chapter' ? (
+                            <>
+                                <h2 data-testid="whats-new-heading" className="vesper-display" style={{ ...S.title, fontSize: 'clamp(22px, 2vw, 30px)', marginBottom: 14 }}>{release.headline}</h2>
+                                <ul data-testid="whats-new-chapter-list" style={{ ...S.chapterList, gridTemplateColumns: release.items.length > 7 ? '1fr 1fr' : '1fr' }}>
+                                    {release.items.map((it) => {
+                                        const It = ICONS[it.icon] || Check;
+                                        return (
+                                            <li key={it.title} style={S.chapterItem}>
+                                                <span style={{ ...S.chapterIcon, color: accent, background: hex(accent, 0.12) }}><It size={14} strokeWidth={2.2} /></span>
+                                                <span style={{ minWidth: 0 }}>
+                                                    <span style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#fff', lineHeight: 1.25 }}>{it.title}</span>
+                                                    <span style={{ display: '-webkit-box', WebkitLineClamp: release.items.length > 7 ? 1 : 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontSize: 12.5, lineHeight: 1.35, color: 'rgba(226,234,245,0.68)', marginTop: 2 }}>{it.detail}</span>
+                                                </span>
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
+                            </>
+                        ) : (
+                            <>
+                                <h2 data-testid="whats-new-heading" className="vesper-display" style={S.title}>{step.title}</h2>
+                                <p data-testid="whats-new-detail" style={S.detail}>{step.detail}</p>
+                                {step.how && (
+                                    <div data-testid="whats-new-how" style={{ ...S.how, borderColor: hex(accent, 0.35), background: hex(accent, 0.08) }}>
+                                        <Lightbulb size={14} color={accent} />
+                                        <span>{step.how}</span>
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
 
@@ -171,6 +220,9 @@ const S = {
         border: '1px solid', fontSize: 13.5, color: 'rgba(255,255,255,0.88)', maxWidth: 'fit-content',
     },
     footer: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, marginTop: 24 },
+    chapterList: { listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '7px 18px', overflow: 'hidden', minHeight: 0, alignContent: 'start' },
+    chapterItem: { display: 'flex', gap: 10, alignItems: 'flex-start', minWidth: 0 },
+    chapterIcon: { flex: '0 0 26px', width: 26, height: 26, borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginTop: 1 },
     dots: { display: 'flex', alignItems: 'center', gap: 6 },
     dot: { height: 8, borderRadius: 999, transition: 'width 220ms ease, background-color 220ms ease' },
     skip: {

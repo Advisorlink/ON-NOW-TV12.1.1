@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { isKidsApp, isMusicApp, isTriviaApp } from '@/lib/profiles';
-import { APP_VERSION, WHATS_NEW } from '@/lib/appVersion';
+import { APP_VERSION, WHATS_NEW, releasesForTour } from '@/lib/appVersion';
 import { claimReleaseNotice, dismissReleaseNotice, releaseWasPresented } from '@/lib/releaseNotice';
 import WhatsNewTour from '@/components/WhatsNewTour';
 
@@ -47,5 +47,5 @@ export default function WhatsNewModal() {
     const visible = open && ready;
 
     if (!visible) return null;
-    return <WhatsNewTour release={WHATS_NEW[APP_VERSION]} version={APP_VERSION} onDismiss={dismiss} />;
+    return <WhatsNewTour releases={releasesForTour()} version={APP_VERSION} onDismiss={dismiss} />;
 }

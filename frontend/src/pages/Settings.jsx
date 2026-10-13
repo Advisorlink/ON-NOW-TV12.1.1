@@ -2018,7 +2018,7 @@ function WhatsNewPanel() {
             })}
             {tour && (
                 <WhatsNewTour
-                    release={WHATS_NEW[tour]}
+                    releases={[{ version: tour, release: WHATS_NEW[tour] }]}
                     version={tour}
                     onDismiss={() => {
                         const v = tour;

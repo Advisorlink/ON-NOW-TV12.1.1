@@ -88,6 +88,18 @@
             android:launchMode="singleTask"
             android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
 
+        <!-- Sports Hub: scores, world map, game pages (opens from What's on live) -->
+        <activity
+            android:name=".SportsHubActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale"
+            android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
+        <activity
+            android:name=".GameActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale"
+            android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
+
         <activity
             android:name=".CrashActivity"
             android:exported="false"

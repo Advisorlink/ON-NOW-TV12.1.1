@@ -4,6 +4,25 @@
  * WHATS_NEW whenever a release ships user-facing changes.
  */
 export const APP_VERSION = '1.5.2';
+// The boot "What's new" tour covers every release from this version up
+// to APP_VERSION (user: start at 1.4.0 this time).  Bump the floor to the
+// current version when shipping the next update so only new work shows.
+export const WHATS_NEW_FLOOR = '1.4.0';
+
+const cmp = (a, b) => {
+    const pa = a.split('.').map(Number);
+    const pb = b.split('.').map(Number);
+    for (let i = 0; i < 3; i += 1) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0);
+    return 0;
+};
+
+/** Releases for the boot tour, oldest first: WHATS_NEW_FLOOR … APP_VERSION. */
+export function releasesForTour() {
+    return Object.keys(WHATS_NEW)
+        .filter((v) => cmp(v, WHATS_NEW_FLOOR) >= 0 && cmp(v, APP_VERSION) <= 0)
+        .sort(cmp)
+        .map((version) => ({ version, release: WHATS_NEW[version] }));
+}
 
 // Most-recent version first.  Only the entry matching APP_VERSION is
 // shown in the "What's New" popup.  `icon` = lucide icon name.
@@ -147,6 +166,7 @@ export const WHATS_NEW = {
     },
     '1.4.0': {
         date: 'June 2026',
+        headline: 'A new Home layout, top menu and HD trailers',
         items: [
             {
                 title: 'New home screen layout',

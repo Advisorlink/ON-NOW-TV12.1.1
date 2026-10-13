@@ -5347,6 +5347,9 @@ app.include_router(sportsdb_router)
 # Live TV app's split-screen stats mode).
 from livestats import router as livestats_router  # noqa: E402
 app.include_router(livestats_router)
+# Sports Hub (Live TV app) — ESPN scoreboards, game pages, standings, live map.
+from sportshub import router as sportshub_router  # noqa: E402
+app.include_router(sportshub_router)
 
 # v2.19.0 — ON NOW Trivia: real-time party trivia (TV + phone pads).
 from trivia import router as trivia_router  # noqa: E402

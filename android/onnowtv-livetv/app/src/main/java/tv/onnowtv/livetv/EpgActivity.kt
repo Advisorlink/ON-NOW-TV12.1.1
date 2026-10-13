@@ -1048,6 +1048,9 @@ class EpgActivity : AppCompatActivity() {
         recomputeWhatsOnRows()
         whatsOnPillCount.text = (whatsOnRows.firstOrNull()?.count ?: 0).toString()
 
+        findViewById<View>(R.id.sports_hub_btn)?.setOnClickListener {
+            startActivity(Intent(this, SportsHubActivity::class.java))
+        }
         whatsOnPill.setOnClickListener {
             currentCategoryId = "__whatson__"
             whatsOnActiveSport = null

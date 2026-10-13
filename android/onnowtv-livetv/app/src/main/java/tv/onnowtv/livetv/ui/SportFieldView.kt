@@ -21,7 +21,7 @@ import kotlin.math.sin
  * octagon, and a stylised F1 circuit.  All geometry is drawn in
  * the sport's accent colour at low alpha so the score stays king.
  */
-class SportFieldView @JvmOverloads constructor(
+open class SportFieldView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
 ) : View(context, attrs) {

@@ -12359,3 +12359,11 @@ User picked the final setup after testing; Settings → Performance section, HUD
 - `lib/appVersion.js`: APP_VERSION 1.5.2, new entry (stream verdict, source order, trailer actions, Library, Movies shelf, Show more, player link info, box smoothness) with `accent` + `how` fields.
 - `PreviewStreamCheck`: verdict appears on the first partial result again (user: slower than before) with " – N" live count; "Checking stream quality" only until then.
 - tests/whats_new_e2e.py PASS (auto-show, Next, Left→Skip closes & marks seen, Settings entry, open from Settings, 8× Enter closes, focus restored). tests/perf_nav_probe.py SEED marks 1.5.2 seen so other e2e runs aren't blocked by the popup.
+
+- (same day) `appVersion.releasesForTour()` + `WHATS_NEW_FLOOR` ('1.4.0'); `WhatsNewTour` takes `releases[]` and builds chapter screens for older versions (clamped recap list) + feature screens for the newest. 1.4.0 got a headline. whats_new_e2e PASS (01/11 → chapters → features).
+
+
+## 2026-10-12 — Sports Hub for the Live TV app (backend + native Kotlin)
+
+- Backend `sportshub.py` wired in server.py after livestats. Verified: /leagues 16 sports·69 leagues; /live tier=1 → 18 games (2 live) with venue geo; /game NFL 182 plays (from drives) + 168 win-prob points + 77 player lines; /game MLB 400 plays, 83 with hit coords (outcomes hit/out/homerun/score); /standings NFL 2 conferences × 16.
+- Android Live TV: SportsHubActivity, GameActivity, SportsUi, GamePlotView, WorldMapView, data/SportsHub.kt; PlayerActivity gained EXTRA_FAILOVER_QUEUE (hop to PlaybackQueue.next() after retries); SportFieldView made `open`; "SPORTS HUB" button under the What's-on pill; manifest. Brace/paren balanced; kotlinc-1.3 syntax pass clean apart from Kotlin-1.4+ trailing commas (project is 1.9.22). Needs CI APK.
