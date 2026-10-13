@@ -20,6 +20,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import tv.onnowtv.livetv.data.GameChannelMatcher
+import tv.onnowtv.livetv.data.AuthStore
 import tv.onnowtv.livetv.data.SportsReplayRepository
 import tv.onnowtv.livetv.ui.SportsUi as UI
 import tv.onnowtv.livetv.ui.SportsUi.dp
@@ -49,7 +50,7 @@ class SportsReplayActivity : AppCompatActivity() {
         val controls = UI.row(this, dp(this, 10f)); controls.addView(UI.wordmark(this, true), LinearLayout.LayoutParams(0, -2, 1f))
         controls.addView(UI.identify(UI.pill(this, "↺ Restart") { resumeMs = 0; begin() }, "replay-restart"))
         controls.addView(UI.identify(UI.pill(this, "‹ Back") { finish() }, "replay-back")); top.addView(controls)
-        status = UI.identify(UI.text(this, "Checking provider recording…", 13f, UI.DIM), "replay-status"); top.addView(status)
+        status = UI.identify(UI.text(this, "Opening replay…", 13f, UI.DIM), "replay-status"); top.addView(status)
         retry = UI.identify(UI.pill(this, "Retry") { begin() }, "replay-retry").apply { visibility = View.GONE }; top.addView(retry, LinearLayout.LayoutParams(-2, -2))
         root.addView(top, FrameLayout.LayoutParams(-1, -2, Gravity.TOP)); setContentView(root)
         resumeMs = savedInstanceState?.getLong("position", 0L) ?: 0L
@@ -61,9 +62,12 @@ class SportsReplayActivity : AppCompatActivity() {
         fetch?.cancel(); playerView.player = null; player?.release(); player = null; retry.visibility = View.GONE; header.visibility = View.VISIBLE
         val game = try { JSONObject(intent.getStringExtra("game").orEmpty()) } catch (_: Exception) { fail("Game details unavailable"); return }
         val bundle = BundleHolder.current ?: run { fail("Open the guide again before playing this replay"); return }
-        val match = GameChannelMatcher.find(game, bundle).firstOrNull { it.channel.id == intent.getStringExtra("channel") && it.confirmed }
+        val channel = bundle.channels.firstOrNull { it.id == intent.getStringExtra("channel") }
+            ?: run { fail("This replay channel is no longer in your guide"); return }
+        val accountChannel = channel.copy(streamUrl = AuthStore.rewriteStreamUrl(this, channel.streamUrl))
+        val match = GameChannelMatcher.find(game, bundle.copy(channels = listOf(accountChannel))).firstOrNull { it.confirmed }
             ?: run { fail("The fixture is no longer confirmed in your guide"); return }
-        status.text = "Checking ${match.channel.name} catch-up…"
+        status.text = "Opening replay · ${match.channel.name}…"
         fetch = lifecycleScope.launch {
             val result = SportsReplayRepository.verify(game, match)
             val verified = result.verified ?: run { fail(result.message); return@launch }

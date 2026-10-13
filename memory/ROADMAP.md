@@ -1,6 +1,7 @@
 # ON NOW TV V2 — Priorities (2026-10-13)
 
 ## P0 — current
+- **Automatic replay implemented/tested2026-10-13:** no Check replay; verified-only Watch replay on native cards/game pages, direct player handoff, account-isolated bounded/cancellable discovery.33 JVM tests +13 backend tests and debug assembly/signature pass. Real example Dodgers–Brewers NLCS Game1 on TNT SPORTS1 SD, ESPN11Oct2026 slate (broadcast12Oct01:00UK), valid bounded MPEGTS probe. **Next:** signed APK/install + physical device playback; current installed/published APK not updated. See PRD and provider_replay_recording_check.json. Browser examples remain MOCKED.
 - **New: APK parse error unresolved** (Samsung screenshot,2026-10-13). Saved debug and downloaded GitHub release pass CRC/manifest/signature/data-offset alignment checks. Need user's exact failing APK/download link and Android version. No code fix or new APK issued. Do NOT follow initial RCA header-offset/16KB claim; independently disproved (see PRD). Optional CI signing/publish verification and download preflight guards not implemented. User switched to replay-button demonstration; existing browser locations shown and click-tested.
 - Sports homepage requested three sections **Live Now / Coming Up / Previous Games & Replays** still pending. Existing preview labels are Live now / Up next / Final scores; replay buttons already present. User has now been shown existing placement, not a completed redesign.
 - Premium V2 Sports Hub implemented: genuine shared3D fields with illustrative figures, team graphics/portraits, fixture-time channel matching, date browsing and provider-aware replay checks/player. **Passed:**18 backend tests,21 native tests, debug APK assembly/signature,12 WebGL surfaces and desktop/mobile checks. **Next acceptance:** update backend, run signed Live TV APK workflow, install on box; verify real provider metadata/recordings, graphics/fallback and D-pad behavior. Browser preview remains MOCKED; actual provider streaming is not tested from this pod. See PRD latest section and `test_reports/iteration_103_followup.json`.
@@ -22,6 +23,7 @@
 - Box/network fingerprinting was proposed but NOT approved; do not implement without explicit user consent.
 
 ## P2 / future
+- Optional Replays-only filter, after automatic replay/device acceptance.
 - Playback/navigation diagnostics screen (useful next enhancement: actual TV frame/latency counters).
 - Optional Settings → Latest updates entry to reopen the concise release summary manually without startup repeats.
 - Apply 16:9 Up Next artwork to channel previews.

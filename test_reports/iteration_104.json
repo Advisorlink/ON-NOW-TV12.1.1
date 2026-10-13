@@ -1,0 +1,44 @@
+{
+  "summary": "Validated replay auto-availability behavior across native JVM tests, API evidence, and Astra browser preview. Added focused Kotlin regression tests for cache TTL/capacity, discovery gates, replay verification headers, dedup, cancellation, and per-account isolation.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_sportshub_v2_live.py",
+    "/app/test_reports/pytest/iter107_sportshub_v2_live.xml",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/ReplayVerificationCacheTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/SportsReplayDiscoverRegressionTest.kt",
+    "/app/android/onnowtv-livetv/app/build/test-results/testDebugUnitTest/TEST-tv.onnowtv.livetv.data.ReplayVerificationCacheTest.xml",
+    "/app/android/onnowtv-livetv/app/build/test-results/testDebugUnitTest/TEST-tv.onnowtv.livetv.data.SportsReplayDiscoverRegressionTest.xml",
+    "/app/test_reports/provider_replay_recording_check.json"
+  ],
+  "action_items": [
+    "No functional replay bug reproduced in this scope.",
+    "Keep the new JVM regression tests in CI to guard replay auto-discovery/caching behavior."
+  ],
+  "critical_code_review_comments": [
+    "Replay UI wiring in SportsReplayRow correctly binds to lifecycle + attach state and cancels on detach; no global-scope leak found in reviewed code.",
+    "Replay verification uses per-channel streamUrl-derived provider credentials and bounded Range probe bytes=0-4095 as expected."
+  ],
+  "updated_files": [
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/ReplayVerificationCacheTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/SportsReplayDiscoverRegressionTest.kt",
+    "/app/test_reports/iteration_104.json"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "95%"
+  },
+  "seed_data_creation": "",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Astra preview validation is MOCKED fixture-driven only. Desktop replay checks fully passed (astros visible, derby hidden, no 'Check replay', dialog opens). Mobile verified derby has no watch replay and no horizontal overflow; astros replay visibility verified in separate mobile run due single-game detail navigation behavior.",
+  "rca of the issue": "No implementation defect confirmed in tested replay scope. Earlier mobile script mismatch came from navigation state (single-game detail view) rather than replay logic.",
+  "mocked_flows": "MOCKED: Astra browser preview uses fixture replayAvailable flags + demo dialog; no real playback. MOCKED: Native provider contract tests use MockWebServer."
+}

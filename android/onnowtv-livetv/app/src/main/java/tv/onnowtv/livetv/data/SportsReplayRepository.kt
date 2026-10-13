@@ -11,20 +11,27 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import okio.ByteString.Companion.decodeBase64
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import okio.ByteString.Companion.encodeUtf8
 
-/** Only explicit replay selection opens provider connections. URLs never leave the native process. */
+/** Foreground screens automatically check bounded prefixes. No autoplay; URLs stay native-only. */
 object SportsReplayRepository {
     const val USER_AGENT = "V2LiveTV/SportsReplay"
     class Verified(val url: String, val mimeType: String)
     data class Result(val verified: Verified? = null, val message: String = "Replay could not be verified")
     private val client = OkHttpClient.Builder().connectTimeout(7, TimeUnit.SECONDS).readTimeout(8, TimeUnit.SECONDS).callTimeout(12, TimeUnit.SECONDS).build()
-    private val confirmed = mutableMapOf<String, Long>()
-    private fun key(channel: Channel, p: Programme) = "${channel.streamUrl.hashCode()}:${channel.id}:${p.startMs}:${p.stopMs}"
-    fun isVerified(channel: Channel, p: Programme): Boolean = synchronized(confirmed) { (confirmed[key(channel, p)] ?: 0) > System.currentTimeMillis() }
-    fun invalidate(channel: Channel, p: Programme) { synchronized(confirmed) { confirmed.remove(key(channel, p)) } }
+    private val cache = ReplayVerificationCache<Result>()
+    // One request at a time across all visible cards; queued callers recheck the cache.
+    private val gate = Mutex()
+    private fun key(channel: Channel, p: Programme) = listOf(channel.streamUrl, channel.id, channel.archiveEnabled,
+        channel.archiveDays, p.startMs, p.stopMs, p.title, p.archiveAvailable).joinToString("\u0000").encodeUtf8().sha256().hex()
+    fun isVerified(channel: Channel, p: Programme): Boolean = cache.get(key(channel, p))?.verified != null
+    fun invalidate(channel: Channel, p: Programme) { cache.remove(key(channel, p)) }
     private suspend fun <T> request(request: Request, read: (Response) -> T?): T? = suspendCancellableCoroutine { continuation ->
         val call = client.newCall(request); continuation.invokeOnCancellation { call.cancel() }
         call.enqueue(object : Callback {
@@ -35,10 +42,18 @@ object SportsReplayRepository {
             }
         })
     }
-    suspend fun verify(game: JSONObject, match: GameChannelMatcher.Match): Result {
+    suspend fun verify(game: JSONObject, match: GameChannelMatcher.Match): Result = gate.withLock {
         val decision = SportsReplayPolicy.check(game, match)
-        if (!decision.eligible) return Result(message = decision.reason)
-        val programme = match.programme ?: return Result()
+        if (!decision.eligible) return@withLock Result(message = decision.reason)
+        val programme = match.programme ?: return@withLock Result()
+        val cacheKey = key(match.channel, programme)
+        cache.get(cacheKey)?.let { return@withLock it }
+        val result = probe(match, programme)
+        currentCoroutineContext().ensureActive() // Cancelled requests must never publish availability.
+        cache.put(cacheKey, result, if (result.verified != null) 120_000 else 60_000)
+        result
+    }
+    private suspend fun probe(match: GameChannelMatcher.Match, programme: Programme): Result {
         val api = SportsReplayPolicy.providerApi(match.channel) ?: return Result(message = "This provider's replay URL format is not supported")
         val timezone = request(Request.Builder().url(api).header("User-Agent", USER_AGENT).build()) { response ->
             val json = JSONObject(response.body?.string().orEmpty())
@@ -50,18 +65,30 @@ object SportsReplayRepository {
             val type = mediaType(prefix)
             if (type == "application/x-mpegURL" && !String(prefix, Charsets.UTF_8).lineSequence().map { it.trim() }.any { it.isNotBlank() && !it.startsWith("#") }) null else type
         } ?: return Result(message = "No playable recording returned by your provider")
-        synchronized(confirmed) { confirmed.entries.removeAll { it.value <= System.currentTimeMillis() }; confirmed[key(match.channel, programme)] = System.currentTimeMillis() + 120_000 }
         return Result(Verified(url.toString(), mime), "Recording verified")
     }
-    /** Historical EPG is requested only for a few candidate channels when a finished match is opened. */
-    suspend fun enrichGuide(game: JSONObject, bundle: XtreamBundle) = coroutineScope {
-        GameChannelMatcher.find(game, bundle).map { it.channel }.filter { it.archiveEnabled && !SportsGuideOverlay.fresh(it) }.take(3).map { channel -> async {
-            val url = SportsReplayPolicy.providerApi(channel)?.newBuilder()?.addQueryParameter("action", "get_simple_data_table")?.addQueryParameter("stream_id", channel.id)?.build() ?: return@async
-            val rows = request(Request.Builder().url(url).header("User-Agent", USER_AGENT).build()) { response ->
-                parseProgrammes(JSONObject(response.body?.string().orEmpty()))
+    /** Historical guide discovery also covers local broadcasters omitted from ESPN's US listings. */
+    suspend fun enrichGuide(game: JSONObject, bundle: XtreamBundle) = withContext(Dispatchers.Default) {
+        SportsReplayCandidates.channels(game, bundle).forEach { channel ->
+            gate.withLock {
+                if (SportsGuideOverlay.fresh(channel)) return@withLock
+                val url = SportsReplayPolicy.providerApi(channel)?.newBuilder()?.addQueryParameter("action", "get_simple_data_table")?.addQueryParameter("stream_id", channel.id)?.build() ?: return@withLock
+                val rows = request(Request.Builder().url(url).header("User-Agent", USER_AGENT).build()) { response ->
+                    parseProgrammes(JSONObject(response.body?.string().orEmpty()))
+                }
+                currentCoroutineContext().ensureActive()
+                SportsGuideOverlay.put(channel, rows.orEmpty(), if (rows == null) 60_000 else 600_000)
             }
-            if (rows != null) SportsGuideOverlay.put(channel, rows)
-        } }.awaitAll()
+        }
+    }
+    suspend fun discover(game: JSONObject, bundle: XtreamBundle): GameChannelMatcher.Match? = withContext(Dispatchers.Default) {
+        if (game.optString("state") != "post") return@withContext null
+        enrichGuide(game, bundle)
+        val archiveBundle = bundle.copy(channels = bundle.channels.filter { it.archiveEnabled })
+        val candidates = GameChannelMatcher.find(game, archiveBundle).filter {
+            it.programme?.archiveAvailable == true && SportsReplayPolicy.check(game, it).eligible
+        }.take(3)
+        candidates.firstOrNull { verify(game, it).verified != null }
     }
     fun parseProgrammes(json: JSONObject): List<Programme> {
         val rows = json.optJSONArray("epg_listings") ?: return emptyList()

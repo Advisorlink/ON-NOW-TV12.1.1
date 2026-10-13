@@ -1,3 +1,8 @@
+# 2026-10-13 — Automatic Sports Hub replay availability
+- User approved automatic verification and a brief real recording-access check. Replaced native Check replay actions with lifecycle/attach-bound background discovery and hidden-until-confirmed Watch replay, directly opening the isolated replay player. Added bounded serial requests, positive/negative account-isolated caching, local broadcaster discovery and actual-viewer URL reuse. Live playback/auth unchanged.
+- Confirmed real provider MPEGTS prefix for Dodgers at Brewers NLCS Game1, TNT SPORTS1 SD,12Oct01:00UK (ESPN11Oct slate/game401908030); Game2 returned404. Full playback not performed. Credentials/media not included in evidence.
+-33 JVM tests,13 backend tests, native debug compile/assembly/signature/alignment and desktop/mobile sample preview checks pass. Sample available/unavailable replay states are MOCKED. Physical install/playback pending; previous APK parse error not fixed or attributed. PRD contains build hash, exact navigation and test artifacts.
+
 # ON NOW TV V2 — Implementation history
 
 ## 2026-10-12 — Performance lab (Settings → Performance) + the real "slow rows" cause

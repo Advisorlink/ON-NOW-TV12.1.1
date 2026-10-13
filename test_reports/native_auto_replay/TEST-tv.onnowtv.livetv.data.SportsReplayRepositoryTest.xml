@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="tv.onnowtv.livetv.data.SportsReplayRepositoryTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-10-13T13:32:45" hostname="agent-env-49bc65fa-9152-42e4-b845-97fdcbbeec38" time="5.052">
+  <properties/>
+  <testcase name="media_type_recognizes_hls_and_ts_and_rejects_html_json_or_empty" classname="tv.onnowtv.livetv.data.SportsReplayRepositoryTest" time="0.0"/>
+  <testcase name="verify_uses_provider_timezone_and_accepts_hls_probe" classname="tv.onnowtv.livetv.data.SportsReplayRepositoryTest" time="0.044"/>
+  <testcase name="verify_rejects_unknown_retention_before_probe" classname="tv.onnowtv.livetv.data.SportsReplayRepositoryTest" time="0.001"/>
+  <testcase name="verify_404_or_nonmedia_never_promoted_available" classname="tv.onnowtv.livetv.data.SportsReplayRepositoryTest" time="0.003"/>
+  <testcase name="guide_overlay_cache_isolated_by_stream_url_and_expiry_safe" classname="tv.onnowtv.livetv.data.SportsReplayRepositoryTest" time="0.0"/>
+  <testcase name="parse_programmes_honors_archive_flag_and_base64_title" classname="tv.onnowtv.livetv.data.SportsReplayRepositoryTest" time="0.001"/>
+  <testcase name="verify_cancellation_cancels_active_request" classname="tv.onnowtv.livetv.data.SportsReplayRepositoryTest" time="5.003"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

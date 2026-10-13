@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="tv.onnowtv.livetv.data.ReplayVerificationCacheTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-10-13T13:32:43" hostname="agent-env-49bc65fa-9152-42e4-b845-97fdcbbeec38" time="0.005">
+  <properties/>
+  <testcase name="put_enforces_capacity_128_and_evicts_oldest" classname="tv.onnowtv.livetv.data.ReplayVerificationCacheTest" time="0.004"/>
+  <testcase name="get_returns_value_before_expiry_then_null_after_expiry" classname="tv.onnowtv.livetv.data.ReplayVerificationCacheTest" time="0.001"/>
+  <testcase name="put_prunes_expired_entries_before_capacity_check" classname="tv.onnowtv.livetv.data.ReplayVerificationCacheTest" time="0.0"/>
+  <testcase name="remove_invalidates_entry_immediately" classname="tv.onnowtv.livetv.data.ReplayVerificationCacheTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

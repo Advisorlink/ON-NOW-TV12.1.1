@@ -28,7 +28,6 @@ import tv.onnowtv.livetv.ui.GamePlotView
 import tv.onnowtv.livetv.ui.SportsSceneView
 import tv.onnowtv.livetv.ui.SportsPlayerPanels
 import tv.onnowtv.livetv.ui.SportsBroadcastPanel
-import tv.onnowtv.livetv.data.SportsReplayRepository
 import tv.onnowtv.livetv.ui.SportsUi
 import tv.onnowtv.livetv.ui.SportsUi.dp
 import tv.onnowtv.livetv.ui.ProbabilityBarView
@@ -55,7 +54,6 @@ class GameActivity : AppCompatActivity() {
     private var poll: Job? = null
     private var fetch: Job? = null
     private var standingsJob: Job? = null
-    private var archiveJob: Job? = null
     private var playerSide = "both"
     private var restoredPlayId: String? = null
 
@@ -136,7 +134,7 @@ class GameActivity : AppCompatActivity() {
     }
 
     override fun onResume() { super.onResume(); if (!::plot.isInitialized) return; plot.resumeScene(); refresh(); poll?.cancel(); poll = lifecycleScope.launch { while (isActive) { delay(20_000); if (game.optString("state") == "in" && fetch?.isActive != true) refresh() } } }
-    override fun onPause() { if (::plot.isInitialized) plot.pauseScene(); poll?.cancel(); fetch?.cancel(); standingsJob?.cancel(); archiveJob?.cancel(); super.onPause() }
+    override fun onPause() { if (::plot.isInitialized) plot.pauseScene(); poll?.cancel(); fetch?.cancel(); standingsJob?.cancel(); super.onPause() }
     override fun onDestroy() { if (::plot.isInitialized) plot.destroyScene(); super.onDestroy() }
     override fun onSaveInstanceState(out: Bundle) { if (stepIdx < plays.lastIndex) plays.getOrNull(stepIdx)?.let { out.putString("selectedPlay", it.optString("id")) }; super.onSaveInstanceState(out) }
     private fun refresh() { fetch?.cancel(); fetch = lifecycleScope.launch { load() } }
@@ -161,12 +159,6 @@ class GameActivity : AppCompatActivity() {
         if (restoredPlayId != null && restored >= 0) setStep(restored) else if (atLive) setStep(plays.lastIndex) else setStep(if (restored >= 0) restored else 0)
         restoredPlayId = null
         focus?.let { window.decorView.findViewWithTag<View>(it)?.requestFocus() }
-        if (game.optString("state") == "post") BundleHolder.current?.let { bundle ->
-            archiveJob?.cancel(); archiveJob = lifecycleScope.launch {
-                SportsReplayRepository.enrichGuide(game, bundle)
-                val tag = currentFocus?.tag as? String; renderRight(); tag?.let { window.decorView.findViewWithTag<View>(it)?.requestFocus() }
-            }
-        }
     }
 
     private fun setStep(i: Int) {
@@ -251,7 +243,7 @@ class GameActivity : AppCompatActivity() {
         // Watch on your channels
         val bundle = BundleHolder.current
         val matches = if (bundle != null) GameChannelMatcher.find(game, bundle) else emptyList()
-        right.addView(SportsBroadcastPanel.build(this, game, matches, { all, selected -> tune(all, selected) }, { channel -> SportsReplayActivity.open(this, game, channel) }))
+        right.addView(SportsBroadcastPanel.build(this, this, game, bundle, matches, { all, selected -> tune(all, selected) }, { channel -> SportsReplayActivity.open(this, game, channel) }))
         SportsPlayerPanels.active(this, game)?.let { right.addView(it) }
         // Situation
         val sit = game.optJSONObject("situation") ?: JSONObject()

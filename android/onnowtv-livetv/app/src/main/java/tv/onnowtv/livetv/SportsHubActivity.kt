@@ -49,7 +49,7 @@ class SportsHubActivity : AppCompatActivity() {
     private lateinit var notice: TextView
     private lateinit var retry: TextView
     private lateinit var empty: TextView
-    private val scores = SportsScoreAdapter { openGame(it) }
+    private val scores = SportsScoreAdapter(this) { openGame(it) }
     private val mapRows = SportsMapAdapter({ map.selectGame(Data.key(it)) }, { openGame(it) })
     private var sports: List<JSONObject> = emptyList()
     private var games: List<JSONObject> = emptyList()

@@ -1,0 +1,71 @@
+{
+  "checked_at": "2026-10-13T13:16:23.853198+00:00",
+  "full_playback": false,
+  "limit_bytes": 4096,
+  "checks": [
+    {
+      "title": "Major League Baseball : National League Championship Series, Game 2: Los Angeles Dodgers at Milwaukee Brewers \u1d38\u1da6\u1d5b\u1d49",
+      "channel": "TNT SPORTS 1 SD",
+      "stream_id": "673",
+      "start_utc": "2026-10-12T21:00:00+00:00",
+      "end_utc": "2026-10-13T00:30:00+00:00",
+      "start_provider_local": "2026-10-12:22-00",
+      "retention_days": 7,
+      "status": 404,
+      "bytes_read": 146,
+      "media_confirmed": false,
+      "media_type": null
+    },
+    {
+      "title": "Major League Baseball : National League Championship Series, Game 1: Los Angeles Dodgers at Milwaukee Brewers \u1d38\u1da6\u1d5b\u1d49",
+      "channel": "TNT SPORTS 1 SD",
+      "stream_id": "673",
+      "start_utc": "2026-10-12T00:00:00+00:00",
+      "end_utc": "2026-10-12T03:30:00+00:00",
+      "start_provider_local": "2026-10-12:01-00",
+      "retention_days": 7,
+      "status": 206,
+      "bytes_read": 4096,
+      "media_confirmed": true,
+      "media_type": "video/mp2t"
+    }
+  ],
+  "provider_timezone": "Europe/London",
+  "espn_match": {
+    "id": "401908030",
+    "name": "Los Angeles Dodgers at Milwaukee Brewers",
+    "state": "post",
+    "startMs": 1791763200000,
+    "broadcasts": [
+      "ERADM",
+      "Fox"
+    ],
+    "home": {
+      "id": "8",
+      "name": "Milwaukee Brewers",
+      "short": "Brewers",
+      "abbr": "MIL",
+      "logo": "https://a.espncdn.com/i/teamlogos/mlb/500/scoreboard/mil.png",
+      "color": "13294b",
+      "altColor": "ffc72c",
+      "score": "2",
+      "record": "103-59",
+      "winner": true,
+      "home": true
+    },
+    "away": {
+      "id": "19",
+      "name": "Los Angeles Dodgers",
+      "short": "Dodgers",
+      "abbr": "LAD",
+      "logo": "https://a.espncdn.com/i/teamlogos/mlb/500/scoreboard/lad.png",
+      "color": "005a9c",
+      "altColor": "ffffff",
+      "score": "1",
+      "record": "100-62",
+      "winner": false,
+      "home": false
+    }
+  },
+  "sports_hub_selected_date": "20261011"
+}

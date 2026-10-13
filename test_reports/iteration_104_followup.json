@@ -1,0 +1,21 @@
+{
+  "scope": "Automatic verified replay final verification",
+  "native_tests": {"total": 33, "failures": 0, "errors": 0, "note": "Counted directly from six Gradle XML reports; testing agent summary incorrectly said32."},
+  "backend_tests": {"total": 13, "failures": 0},
+  "apk": {
+    "type": "local debug validation only; not a release-signed update",
+    "bytes": 202068771,
+    "sha256": "e8707c4afb0e790955a5ce6241e2b1f847dac7035fb9ce5c8f1effa2b96c3b9c",
+    "signature_v1_v2": "pass",
+    "zipalign": "pass",
+    "contains_new_replay_classes": true,
+    "contains_check_replay_text_in_dex": false,
+    "contains_watch_replay_text_in_dex": true
+  },
+  "browser": {"desktop": "1920x800 pass", "mobile": "390x844 pass", "overflow": [], "available_sample": "astros", "unavailable_sample": "derby", "click": "clearly labelled sample dialog"},
+  "real_provider_evidence": "provider_replay_recording_check.json",
+  "verified_match": {"name": "Los Angeles Dodgers at Milwaukee Brewers, NLCS Game1", "channel": "TNT SPORTS1 SD", "espn_id": "401908030", "scoreboard_date": "20261011", "broadcast_start_utc": "2026-10-12T00:00:00Z", "status": 206, "bytes_inspected": 4096, "media": "video/mp2t"},
+  "limitations": ["No native device/emulator attached", "No full recording playback", "No release publication or production changes", "Previous APK parsing failure unresolved; exact failing artifact required"],
+  "mocked": ["Browser preview sample fixtures/replay dialog", "Native MockWebServer contract tests only"],
+  "credentials": "No auth credentials created or changed"
+}

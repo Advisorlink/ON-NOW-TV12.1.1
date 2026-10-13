@@ -8,14 +8,16 @@ import android.widget.LinearLayout
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import androidx.lifecycle.LifecycleOwner
 import org.json.JSONObject
 import tv.onnowtv.livetv.data.SportsPresentation as Data
 import tv.onnowtv.livetv.data.GameChannelMatcher
-import tv.onnowtv.livetv.data.SportsReplayPolicy
+import tv.onnowtv.livetv.BundleHolder
+import tv.onnowtv.livetv.SportsReplayActivity
 import tv.onnowtv.livetv.ui.SportsUi.dp
 
 /** Recycles scorecards; stable keys keep remote focus on the same game during polling. */
-class SportsScoreAdapter(private val open: (JSONObject) -> Unit) : ListAdapter<SportsScoreAdapter.Item, SportsScoreAdapter.Holder>(Diff) {
+class SportsScoreAdapter(private val owner: LifecycleOwner, private val open: (JSONObject) -> Unit) : ListAdapter<SportsScoreAdapter.Item, SportsScoreAdapter.Holder>(Diff) {
     private var broadcasts: Map<String, List<GameChannelMatcher.Match>> = emptyMap()
     fun setChannelMatches(value: Map<String, List<GameChannelMatcher.Match>>) { broadcasts = value }
     data class Item(val key: String, val title: String = "", val color: Int = SportsUi.DIM, val json: String = "", val lineup: String = "") {
@@ -81,8 +83,9 @@ class SportsScoreAdapter(private val open: (JSONObject) -> Unit) : ListAdapter<S
         } else foot.addView(SportsUi.text(ctx, "Channel not confirmed", 10f, SportsUi.DIM), LinearLayout.LayoutParams(0, -2, 1f))
         foot.addView(SportsUi.text(ctx, if (upcoming) "Preview  ›" else if (live) "Match centre  ›" else "Full result  ›", 10f, SportsUi.ACCENT))
         root.addView(foot); root.setOnClickListener { open(g) }
-        val archive = matches.firstOrNull { SportsReplayPolicy.check(g, it).eligible }
-        if (archive != null) root.addView(SportsUi.identify(SportsUi.pill(ctx, "↻ Check replay") { open(g) }, "fixture-replay-${g.optString("id")}"), LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(ctx, 8f) })
+        if (g.optString("state") == "post") root.addView(SportsReplayRow.create(ctx, owner, g, BundleHolder.current,
+            "fixture-replay-${g.optString("id")}", { channel -> SportsReplayActivity.open(ctx, g, channel) }),
+            LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(ctx, 8f) })
     }
     fun show(games: List<JSONObject>, onCommitted: (() -> Unit)? = null) {
         val rows = ArrayList<Item>()
