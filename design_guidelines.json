@@ -1,314 +1,116 @@
 {
-  "app_context": {
-    "app_type": "media_streaming_tv_app",
-    "target_platforms": ["Android TV (D-pad remote first)", "Browser Preview"],
-    "key_feature": "Dynamic 6-Theme UI Reskinning via CSS Custom Properties & data-theme attributes",
-    "file_extension_notice": "Project uses JavaScript (.js / .jsx), NOT TypeScript (.tsx)."
-  },
-  "theme_architecture": {
-    "mechanism": "Global html[data-theme=\"<theme_id>\"] CSS attribute selector controlling root variables and surface modifiers",
-    "shared_class_vocabulary": {
-      ".vesper-glass": "Primary card/panel surface modifier adaptively styled per theme (glassmorphism, paper card, brutalist box, crt screen, film container, bubble pill)",
-      ".vesper-display": "Typography utility class for major headings and titles, applying theme display font family & weight",
-      ".vesper-mono": "Typography utility class for badges, metadata, episode labels, tech info using mono or serif theme fonts",
-      "[data-focused=\"true\"]": "D-pad focused state applied to active TV element",
-      "[data-focus-style]": "Variants: 'tile', 'pill', 'bare', 'nav', 'key', 'quiet'"
-    }
-  },
-  "themes": [
-    {
-      "id": "aurora-glass",
-      "name": "Aurora Glass",
-      "tagline": "Deep Midnight & Frosted Neon Cyan",
-      "mode": "dark",
-      "background_treatment": {
-        "base_color": "#070B14",
-        "css_background": "radial-gradient(ellipse at 20% 10%, rgba(14, 165, 233, 0.15) 0%, transparent 50%), radial-gradient(ellipse at 80% 80%, rgba(99, 102, 241, 0.12) 0%, transparent 50%), #070B14",
-        "overlay_texture": "Subtle 2% noise texture overlay with backdrop-blur-3xl"
+  "design_system": {
+    "name": "Astra Kinetic Broadcast Edition",
+    "persona": "E1 The Anti-AI Designer - Fusion of Swiss Precision Architecture, Broadcast Telemetry, and High-Contrast Tactical Minimalism",
+    "theme": "Dark Mode (Deep Obsidian Canvas + Electric Cyan & Kinetic Crimson)",
+    "resolution_target": "1920x1080 Native Android TV (xhdpi 1dp = 2px, 10-ft readability)",
+    "typography": {
+      "headings": {
+        "family": "Barlow Condensed, Outfit, sans-serif",
+        "weights": ["700", "800", "900"],
+        "tracking": "tracking-tight",
+        "h1": "text-4xl lg:text-5xl (48px - 60px)",
+        "h2": "text-2xl lg:text-3xl (32px - 38px)",
+        "h3": "text-xl lg:text-2xl (24px - 28px)"
       },
-      "typography": {
-        "display_font": "'Outfit', sans-serif",
-        "body_font": "'Plus Jakarta Sans', sans-serif",
-        "mono_font": "'JetBrains Mono', monospace",
-        "google_fonts_url": "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Outfit:wght@500;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      "body": {
+        "family": "DM Sans, Inter, sans-serif",
+        "weights": ["400", "500", "600"],
+        "size": "text-base (16px) / text-sm (14px)"
       },
-      "colors": {
-        "text_primary": "#F8FAFC",
-        "text_secondary": "#94A3B8",
-        "text_tertiary": "#64748B",
-        "accent_hex": "#0EA5E9",
-        "accent_bright": "#38BDF8",
-        "accent_glow": "rgba(14, 165, 233, 0.45)",
-        "surface_bg": "rgba(15, 23, 42, 0.65)",
-        "surface_border": "rgba(255, 255, 255, 0.12)",
-        "focus_ring": "#38BDF8"
-      },
-      "surface_style": {
-        "glass_class": "backdrop-blur-xl bg-slate-900/60 border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.37)]",
-        "border_radius": "16px (rounded-2xl)"
-      },
-      "focus_personality": {
-        "style": "Blowing Neon Glow Ring + Smooth Scale Up 1.05x",
-        "tile_focus": "ring-4 ring-[#38BDF8] shadow-[0_0_30px_rgba(14,165,233,0.5)] scale-105 z-20 border-sky-400",
-        "pill_focus": "ring-2 ring-[#38BDF8] bg-sky-500/20 text-white scale-105",
-        "nav_focus": "bg-sky-500/20 text-sky-400 border-l-4 border-sky-400 pl-4",
-        "key_focus": "ring-2 ring-sky-400 bg-sky-500/30 text-white"
-      },
-      "poster_tile_treatment": "Rounded-2xl overflow-hidden border border-white/10 bg-slate-800/40 hover:border-sky-500/50 transition-all duration-200",
-      "sidenav_treatment": "Fixed left rail, glassmorphism panel (bg-slate-950/70 backdrop-blur-2xl border-r border-white/10)"
+      "telemetry_mono": {
+        "family": "JetBrains Mono, SF Mono, monospace",
+        "weights": ["500", "700"],
+        "tracking": "tracking-widest uppercase (0.12em)"
+      }
     },
-    {
-      "id": "brutalist-mono",
-      "name": "Brutalist Mono",
-      "tagline": "Stark Monochromatic Precision",
-      "mode": "dark",
-      "background_treatment": {
-        "base_color": "#050505",
-        "css_background": "linear-gradient(90deg, #0A0A0A 1px, transparent 1px) 0 0 / 32px 32px, linear-gradient(0deg, #0A0A0A 1px, transparent 1px) 0 0 / 32px 32px, #050505",
-        "overlay_texture": "Architectural technical grid pattern with high contrast lines"
-      },
-      "typography": {
-        "display_font": "'Space Grotesk', sans-serif",
-        "body_font": "'Space Mono', monospace",
-        "mono_font": "'Space Mono', monospace",
-        "google_fonts_url": "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap"
-      },
-      "colors": {
-        "text_primary": "#FFFFFF",
-        "text_secondary": "#A3A3A3",
-        "text_tertiary": "#525252",
-        "accent_hex": "#FFFFFF",
-        "accent_bright": "#FFFFFF",
-        "accent_glow": "rgba(255, 255, 255, 0.8)",
-        "surface_bg": "#0A0A0A",
-        "surface_border": "#FFFFFF",
-        "focus_ring": "#FFFFFF"
-      },
-      "surface_style": {
-        "glass_class": "bg-black border-2 border-white shadow-[4px_4px_0px_0px_#FFFFFF]",
-        "border_radius": "0px (sharp square corners)"
-      },
-      "focus_personality": {
-        "style": "Hard Invert (White BG + Black Text) with 0px sharp offset shadow",
-        "tile_focus": "bg-white text-black border-4 border-white shadow-[8px_8px_0px_0px_#FFFFFF] translate-x-[-2px] translate-y-[-2px] z-20",
-        "pill_focus": "bg-white text-black font-bold border-2 border-white",
-        "nav_focus": "bg-white text-black font-bold border-l-8 border-white pl-4",
-        "key_focus": "bg-white text-black border-2 border-white"
-      },
-      "poster_tile_treatment": "Sharp 0px edges, 2px solid white border, technical metadata stamp overlay on bottom",
-      "sidenav_treatment": "Solid black container, 2px solid white right border, block-style navigation buttons"
+    "colors": {
+      "background_canvas": "#050811",
+      "surface_card": "#0C1322",
+      "surface_card_hover": "#141F36",
+      "surface_elevated": "#121C30",
+      "border_subtle": "rgba(0, 240, 255, 0.12)",
+      "border_bright": "rgba(0, 240, 255, 0.35)",
+      "accent_primary_cyan": "#00F0FF",
+      "accent_glow_cyan": "rgba(0, 240, 255, 0.40)",
+      "live_crimson": "#FF2A5F",
+      "live_glow": "rgba(255, 42, 95, 0.50)",
+      "warning_gold": "#FFC700",
+      "success_emerald": "#00E676",
+      "text_primary": "#FFFFFF",
+      "text_muted": "#8C9BAE",
+      "text_dim": "#57677A"
     },
-    {
-      "id": "synthwave-crt",
-      "name": "Synthwave CRT",
-      "tagline": "Retro Neon Sunset & CRT Scanlines",
-      "mode": "dark",
-      "background_treatment": {
-        "base_color": "#120224",
-        "css_background": "linear-gradient(180deg, #0A0017 0%, #240038 50%, #4D004D 100%), repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 1px, transparent 1px, transparent 3px)",
-        "overlay_texture": "CRT TV scanlines overlay + radial vignette glow"
-      },
-      "typography": {
-        "display_font": "'Chakra Petch', sans-serif",
-        "body_font": "'Rajdhani', sans-serif",
-        "mono_font": "'VT323', monospace",
-        "google_fonts_url": "https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,600;0,700;1,700&family=Rajdhani:wght@500;600;700&family=VT323&display=swap"
-      },
-      "colors": {
-        "text_primary": "#FFE6FF",
-        "text_secondary": "#FF80BF",
-        "text_tertiary": "#A34785",
-        "accent_hex": "#FF007F",
-        "accent_bright": "#00F0FF",
-        "accent_glow": "rgba(255, 0, 127, 0.6)",
-        "surface_bg": "rgba(36, 0, 56, 0.8)",
-        "surface_border": "#FF007F",
-        "focus_ring": "#00F0FF"
-      },
-      "surface_style": {
-        "glass_class": "bg-[#1A002C]/80 border-2 border-[#FF007F] shadow-[0_0_15px_rgba(255,0,127,0.4)] backdrop-blur-md",
-        "border_radius": "8px (rounded-lg)"
-      },
-      "focus_personality": {
-        "style": "Cyan & Magenta Laser Glow Outline + Pulsing Neon Effect",
-        "tile_focus": "border-2 border-[#00F0FF] shadow-[0_0_25px_#00F0FF,0_0_10px_#FF007F] scale-105 z-20 text-white",
-        "pill_focus": "border-2 border-[#00F0FF] bg-[#00F0FF]/20 text-[#00F0FF] shadow-[0_0_15px_#00F0FF]",
-        "nav_focus": "border-l-4 border-[#00F0FF] bg-[#FF007F]/30 text-[#00F0FF] shadow-[0_0_15px_#FF007F]",
-        "key_focus": "border-2 border-[#00F0FF] bg-[#00F0FF]/30 text-white"
-      },
-      "poster_tile_treatment": "Retro cassette-box styling, magenta grid border, cybernetic title overlay",
-      "sidenav_treatment": "Deep purple rail, magenta neon border on right, arcade-style glowing category badges"
-    },
-    {
-      "id": "paper-editorial",
-      "name": "Paper Editorial",
-      "tagline": "Warm Light Paper & Ink Serif Typography",
-      "mode": "light",
-      "background_treatment": {
-        "base_color": "#F9F6F0",
-        "css_background": "radial-gradient(circle at 50% 0%, #FFFDF9 0%, #F4EFE6 100%)",
-        "overlay_texture": "Subtle tactile paper grain texture overlay"
-      },
-      "typography": {
-        "display_font": "'Playfair Display', serif",
-        "body_font": "'Source Sans 3', sans-serif",
-        "mono_font": "'Courier Prime', monospace",
-        "google_fonts_url": "https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,600;0,800;1,600&family=Source+Sans+3:wght@400;500;600;700&display=swap"
-      },
-      "colors": {
-        "text_primary": "#1C1917",
-        "text_secondary": "#57534E",
-        "text_tertiary": "#78716C",
-        "accent_hex": "#991B1B",
-        "accent_bright": "#B91C1C",
-        "accent_glow": "rgba(153, 27, 27, 0.2)",
-        "surface_bg": "#FFFFFF",
-        "surface_border": "#E7E5E4",
-        "focus_ring": "#1C1917"
-      },
-      "surface_style": {
-        "glass_class": "bg-white border border-[#D6D3D1] shadow-[0_4px_20px_rgba(28,25,23,0.06)]",
-        "border_radius": "4px (rounded-sm)"
-      },
-      "focus_personality": {
-        "style": "Thick Ink-Black Frame + Subtle Crimson Accent Line",
-        "tile_focus": "ring-4 ring-[#1C1917] border-2 border-[#991B1B] scale-102 z-20 shadow-[0_12px_30px_rgba(28,25,23,0.15)]",
-        "pill_focus": "bg-[#1C1917] text-white font-serif",
-        "nav_focus": "bg-[#F5F5F4] text-[#991B1B] font-bold border-l-4 border-[#991B1B]",
-        "key_focus": "ring-2 ring-[#1C1917] bg-[#1C1917] text-white"
-      },
-      "poster_tile_treatment": "Crisp white archival frame, hairline warm borders, rich serif magazine title typography",
-      "sidenav_treatment": "Clean cream rail, thin hairline border on right, elegant editorial section markers"
-    },
-    {
-      "id": "cinema-noir",
-      "name": "Cinema Noir",
-      "tagline": "35mm Film Grain & Amber Spotlight Glow",
-      "mode": "dark",
-      "background_treatment": {
-        "base_color": "#090807",
-        "css_background": "radial-gradient(circle at 50% 30%, rgba(217, 119, 6, 0.12) 0%, transparent 70%), #090807",
-        "overlay_texture": "35mm film grain texture + subtle vignette overlay"
-      },
-      "typography": {
-        "display_font": "'Cormorant Garamond', serif",
-        "body_font": "'Inter', sans-serif",
-        "mono_font": "'Cinzel', serif",
-        "google_fonts_url": "https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&family=Inter:wght@400;500;600&display=swap"
-      },
-      "colors": {
-        "text_primary": "#F5F2EB",
-        "text_secondary": "#D4CEB8",
-        "text_tertiary": "#8C8573",
-        "accent_hex": "#D97706",
-        "accent_bright": "#F59E0B",
-        "accent_glow": "rgba(217, 119, 6, 0.5)",
-        "surface_bg": "rgba(23, 20, 18, 0.85)",
-        "surface_border": "rgba(217, 119, 6, 0.25)",
-        "focus_ring": "#F59E0B"
-      },
-      "surface_style": {
-        "glass_class": "bg-[#141210]/90 border border-[#D97706]/30 shadow-[0_10px_30px_rgba(0,0,0,0.8)]",
-        "border_radius": "6px (rounded-md)"
-      },
-      "focus_personality": {
-        "style": "Golden Spotlight Lens Halo + Brass Border Frame",
-        "tile_focus": "border-2 border-[#F59E0B] shadow-[0_0_35px_rgba(245,158,11,0.45)] scale-105 z-20",
-        "pill_focus": "border border-[#F59E0B] bg-[#F59E0B]/20 text-[#F59E0B]",
-        "nav_focus": "bg-[#D97706]/20 text-[#F59E0B] border-l-2 border-[#F59E0B]",
-        "key_focus": "border border-[#F59E0B] bg-[#F59E0B]/30 text-white"
-      },
-      "poster_tile_treatment": "Letterboxed aesthetic, subtle gold foil border on focus, dramatic chiaroscuro gradient backdrop",
-      "sidenav_treatment": "Velvet black rail with gold-tinted active markers and classic movie house typography"
-    },
-    {
-      "id": "vapor-bubble",
-      "name": "Vapor Bubble",
-      "tagline": "Playful Pastel Gradients & Bouncy Pill UI",
-      "mode": "dark",
-      "background_treatment": {
-        "base_color": "#18122B",
-        "css_background": "linear-gradient(135deg, #2E134D 0%, #1A0B2E 50%, #0F081D 100%), radial-gradient(circle at 80% 20%, rgba(244, 114, 182, 0.2) 0%, transparent 40%)",
-        "overlay_texture": "Soft bubble gradient blooms with smooth backdrop blur"
-      },
-      "typography": {
-        "display_font": "'Fredoka', sans-serif",
-        "body_font": "'Nunito', sans-serif",
-        "mono_font": "'Comfortaa', cursive",
-        "google_fonts_url": "https://fonts.googleapis.com/css2?family=Comfortaa:wght@700&family=Fredoka:wght@500;600;700&family=Nunito:wght@500;700;800&display=swap"
-      },
-      "colors": {
-        "text_primary": "#FFFFFF",
-        "text_secondary": "#F472B6",
-        "text_tertiary": "#A78BFA",
-        "accent_hex": "#F472B6",
-        "accent_bright": "#FB7185",
-        "accent_glow": "rgba(244, 114, 182, 0.6)",
-        "surface_bg": "rgba(46, 19, 77, 0.6)",
-        "surface_border": "rgba(244, 114, 182, 0.3)",
-        "focus_ring": "#F472B6"
-      },
-      "surface_style": {
-        "glass_class": "bg-[#2E134D]/60 border-2 border-pink-400/30 backdrop-blur-xl shadow-[0_8px_25px_rgba(244,114,182,0.15)]",
-        "border_radius": "28px (rounded-3xl / pills)"
-      },
-      "focus_personality": {
-        "style": "Bouncy Elastic Spring Scale (1.1x) + Candy Pink/Cyan Dual Glow Ring",
-        "tile_focus": "ring-4 ring-pink-400 border-2 border-cyan-300 shadow-[0_0_30px_rgba(244,114,182,0.6)] scale-110 z-30",
-        "pill_focus": "bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-lg scale-105",
-        "nav_focus": "bg-pink-500/30 text-pink-300 rounded-full scale-105 px-4",
-        "key_focus": "ring-4 ring-pink-400 bg-pink-500/40 text-white rounded-2xl"
-      },
-      "poster_tile_treatment": "Rounded-3xl pill contours, soft candy-coated shadows, playful bouncing interactions",
-      "sidenav_treatment": "Rounded floating bubble container with pastel indicator pills"
-    }
-  ],
-  "implementation_blueprint": {
-    "css_theme_variables_template": "html[data-theme=\"<theme_id>\"] {\n  --vesper-bg: <base_color>;\n  --vesper-text-main: <text_primary>;\n  --vesper-text-muted: <text_secondary>;\n  --vesper-accent: <accent_hex>;\n  --vesper-accent-glow: <accent_glow>;\n  --vesper-font-display: <display_font>;\n  --vesper-font-body: <body_font>;\n  --vesper-font-mono: <mono_font>;\n}",
-    "components_guidelines": {
-      "settings_theme_picker": {
-        "description": "Grid of 6 interactive preview cards showcasing real-time UI re-skinning",
-        "requirements": [
-          "Include mini-home preview thumbnail for each skin",
-          "Highlight currently active skin with distinct focused border",
-          "Ensure theme selection instantaneously updates html[data-theme] and stores preference in localStorage",
-          "Provide testid attribute data-testid=\"theme-card-<theme-id>\" for automated tests"
-        ]
-      },
-      "home_billboard_hero": {
-        "description": "10-foot TV hero section featuring active title preview, backdrop media, metadata chips, and primary action buttons (Play, Trailer, Add to Watchlist)",
-        "focus_rules": "Hero CTAs must adopt theme-specific focus styles when selected via D-pad"
-      },
-      "poster_shelf": {
-        "description": "Horizontal scrollable media rows featuring PosterTile cards",
-        "focus_rules": "Selected PosterTile scales according to theme parameters, auto-scrolls into viewport center, and updates hero backdrop preview"
-      },
-      "left_sidenav": {
-        "description": "Navigation rail with Search, Home, Movies, TV Shows, Library, Settings icons and labels",
-        "tv_behavior": "Collapsed rail expands on D-pad Left focus, highlighting active item with theme nav_focus style"
-      },
-      "player_overlay": {
-        "description": "Native-style TV video player controls, scrub bar, chapter markers, and audio/subtitle drawer",
-        "tv_behavior": "D-pad interaction reveals theme-reskinned control overlay with focusable play/pause/scrub controls"
+    "surface_strategy": {
+      "style": "Tactical Glass & Cyber Edge",
+      "card_border": "1px solid rgba(0, 240, 255, 0.15)",
+      "card_shadow": "0 8px 32px rgba(0, 0, 0, 0.65)",
+      "focus_state": {
+        "border": "3px solid #00F0FF",
+        "scale": "scale(1.05)",
+        "box_shadow": "0 0 28px rgba(0, 240, 255, 0.55), inset 0 0 12px rgba(0, 240, 255, 0.20)",
+        "z_index": 10
       }
     }
   },
-  "dpad_navigation_rules": {
-    "spatial_navigation": "Logical 4-way direction navigation (Up, Down, Left, Right, Select/OK, Back)",
-    "auto_scroll": "Focused tile must trigger smooth scroll animation to keep target centered within TV safe bounds",
-    "safe_zones": "5% outer overscan margin (p-8 to p-12) to prevent content cutoff on hardware TV screens",
-    "focus_attributes": "Every interactive element MUST maintain data-focused=\"true/false\" and appropriate data-focus-style attribute"
+  "layout_and_screens": {
+    "screen_dimensions": "1920px x 1080px (Scale ratio fluid for viewport fit)",
+    "header": {
+      "height": "88px",
+      "padding": "24px 48px",
+      "logo_badge": "ASTRA SPORTS HUB · KINETIC TELEMETRY",
+      "live_counter": "PULSATING CRIMSON BADGE (● N LIVE NOW)",
+      "nav_pills": ["Scores", "World Map", "Following"]
+    },
+    "sport_filters_bar": {
+      "height": "56px",
+      "gap": "12px",
+      "primary_row": ["All · Live", "Football", "Baseball", "Basketball", "Hockey", "Soccer", "Tennis", "Cricket", "Golf", "MMA", "Racing", "Rugby", "AFL"],
+      "sub_league_row": ["MLB", "College Baseball", "WBC", "Minor League"]
+    },
+    "screens_spec": {
+      "scores": {
+        "title": "Scores Screen",
+        "description": "Multi-column high-density bento scoreboard with live indicators, momentum bars, and broadcast channels.",
+        "sections": ["Live Now (Crimson Accent Header)", "Up Next (Cyan Accent Header)", "Final (Muted Gray Header)"],
+        "cards_per_row": 3,
+        "gap": "20px"
+      },
+      "map": {
+        "title": "World Map View",
+        "description": "Vector continent canvas overlay with tactical longitude grid lines, pulsating game beacons, and broadcast overlay popup.",
+        "canvas_border": "2px solid #00F0FF",
+        "beacon_colors": "Crimson for live, Cyan for upcoming"
+      },
+      "game_mlb": {
+        "title": "MLB Game Detail (Baseball Diamond)",
+        "description": "Left column: Interactive canvas baseball diamond with play-by-play hit plot markers, live win probability gradient meter. Right column: Watch channels, inning telemetry, player stat lines.",
+        "diamond_color": "#00F0FF",
+        "win_prob_bar": "Yankees Away Crimson (#003087) vs Red Sox Home Cyan (#BD3039)"
+      },
+      "game_nfl": {
+        "title": "NFL Game Detail (Gridiron)",
+        "description": "Left column: Tactical canvas 100-yard gridiron with yardage plot markers, drive summary, win probability. Right column: Live stream channel sources (CBS, NFL Net), player lines.",
+        "gridiron_color": "#FF2A5F"
+      },
+      "fields": {
+        "title": "12 Drawn Sports Surfaces Gallery",
+        "description": "4x3 grid displaying 12 precision drawn vector surfaces: Soccer, MLB, NBA, NHL, NFL, Tennis, Cricket, AFL, Rugby, MMA, F1, Golf with custom field accent colors.",
+        "grid": "grid-cols-4 rows-3",
+        "gap": "16px"
+      }
+    }
   },
-  "accessibility_and_testing": {
-    "data_testid_convention": "All interactive elements MUST include data-testid (e.g. data-testid=\"nav-settings\", data-testid=\"poster-tile-1\", data-testid=\"player-play-btn\")",
-    "contrast_standards": "All skins maintain > 4.5:1 text contrast for body copy and > 3:1 for large display headlines",
-    "performance_optimization": "Backdrop blur styles fall back gracefully to semi-opaque solid backgrounds on lower-powered TV processors"
+  "general_ui_ux_guidelines": [
+    "All interactive elements (buttons, nav pills, game cards, channel rows) MUST include exact data-testid attributes (e.g. data-testid='nav-scores', data-testid='game-card-0').",
+    "Maintain 10-ft TV viewing readability: text minimum 12sp (24px) for body, 18sp (36px) for team names, 28sp (56px) for scores.",
+    "Focus state contrast: Focused item must feature electric cyan border (#00F0FF), scale bump (1.05x), and glow ring to provide unmistakable feedback for D-pad control.",
+    "Zero transparent backgrounds on text surfaces or overlays: all dropdowns, cards, and modal dialogs must have solid tinted backings (min #0C1322) with backdrop-blur.",
+    "Hardware performance target: Keep canvas redraws light, use CSS GPU transforms (`transform: scale() translate3d()`), avoid heavy unthrottled DOM mutations for smooth rendering on low-end Android TV hardware."
+  ],
+  "media": {
+    "stadium_background": "https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHwxfHxzdGFkaXVtJTIwbGlnaHRzJTIwc3BvcnRzJTIwbmlnaHQlMjBicm9hZGNhc3R8ZW58MHx8fHwxNzkxODYzMDUzfDA&ixlib=rb-4.1.0&q=85",
+    "sports_lights": "https://images.unsplash.com/photo-1545525201-e1a5a2a18293?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHw0fHxzdGFkaXVtJTIwbGlnaHRzJTIwc3BvcnRzJTIwbmlnaHQlMjBicm9hZGNhc3R8ZW58MHx8fHwxNzkxODYzMDUzfDA&ixlib=rb-4.1.0&q=85"
   },
-  "instructions_to_main_agent": [
-    "Load all 6 Google Fonts families in index.html or index.css.",
-    "Implement the theme manager in a React context (ThemeContext.js) that toggles the `data-theme` attribute on document.documentElement.",
-    "Do NOT create TypeScript files (.tsx), use standard JavaScript (.js / .jsx).",
-    "Ensure every clickable/focusable card or button has proper keyboard/D-pad event listeners (KeyDown Enter/Space) and data-testid attributes.",
-    "Style surfaces using .vesper-glass, headings with .vesper-display, labels with .vesper-mono for universal skin adaptability."
-  ]
+  "instructions_to_main_agent": "Implement Astra Sports Hub design blueprint under /app/frontend/public/sportshub-astra/ using pure HTML/CSS/JS or React, preserving all sample data from mock.js and providing seamless screen switching via URL parameter '?screen=' (scores, league, map, following, game-mlb, game-nfl, fields). Ensure focus states are hyper-visible and visual presentation reflects top 1% broadcast design."
 }

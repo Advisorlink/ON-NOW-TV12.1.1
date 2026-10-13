@@ -1,0 +1,20 @@
+{
+  "scope": "Main-agent visual follow-up, Astra comparison only",
+  "findings_fixed": [
+    "Map selected-venue SVG had no bounded dimensions, making the text cramped. Fixed to 20px with stable flex sizing.",
+    "Mobile Northeast US map markers could intercept other markers. Added per-viewport collision-free placement and anchor leader lines.",
+    "A displaced mobile marker could overlap the selected venue label. Placement now reserves label and legend clearance. Noninteractive overlays ignore pointer events."
+  ],
+  "verification": {
+    "desktop_viewport": "1920x800",
+    "mobile_viewport": "390x844",
+    "horizontal_overflow": "None at both viewports",
+    "map_marker_tap_check": "All 10 mobile marker centres verified with document.elementFromPoint; each was directly hittable and selected correctly",
+    "syntax": "node --input-type=module --check passed for updated app.js",
+    "original_preservation": "Original index.html/mock.js and native SportsHubActivity.kt/SportsUi.kt byte-identical to HEAD",
+    "screenshot_delivery": "Final map screenshots copied to public previews path; external HTTP200 confirmed",
+    "evidence": "/root/.emergent/automation_output/20261013_035816/console_20261013_035816.log"
+  },
+  "remaining_scope_issues": [],
+  "limitations": "Entire comparison is SAMPLE/MOCKED data. No streaming, real notification delivery, native compilation or device-runtime verification performed."
+}

@@ -1,0 +1,34 @@
+// Intentionally fixed fixtures: identical matchups and scores to Design A. No live API calls.
+const team = (lg, key, short, name, record, color) => ({id: `${lg}-${key}`, logo: lg==='afl'&&key==='col'?'crest-fallback.svg':`logos/${lg}-${key}.png`, short, name, record, color});
+export const games = [
+  {id:'mlb',state:'in',sport:'Baseball',league:'MLB',status:'Top 7th',channels:['ESPN','YES Network'],away:team('mlb','nyy','NYY','New York Yankees','58–34','#76a8ff'),home:team('mlb','bos','BOS','Boston Red Sox','49–43','#ff6278'),aScore:4,hScore:3,geo:[42.35,-71.06],venue:'Fenway Park',city:'Boston, US',prob:59},
+  {id:'nfl',state:'in',sport:'Football',league:'NFL',status:'Q3 · 8:42',channels:['CBS'],away:team('nfl','kc','KC','Kansas City Chiefs','7–2','#ff6278'),home:team('nfl','buf','BUF','Buffalo Bills','6–3','#76a8ff'),aScore:17,hScore:21,geo:[42.77,-78.79],venue:'Highmark Stadium',city:'Orchard Park, US',prob:37},
+  {id:'epl',state:'in',sport:'Soccer',league:'Premier League',status:'67′',channels:['Sky Sports','NBC'],away:team('soccer',364,'LIV','Liverpool','2nd · 61 pts','#ff6278'),home:team('soccer',359,'ARS','Arsenal','1st · 64 pts','#ffae79'),aScore:1,hScore:1,geo:[51.55,-.11],venue:'Emirates Stadium',city:'London, UK'},
+  {id:'nba',state:'in',sport:'Basketball',league:'NBA',status:'Q4 · 2:15',channels:['TNT'],away:team('nba','lal','LAL','Los Angeles Lakers','31–19','#e8baff'),home:team('nba','bos','BOS','Boston Celtics','38–12','#50e4a0'),aScore:98,hScore:101,geo:[42.36,-71.06],venue:'TD Garden',city:'Boston, US'},
+  {id:'nhl',state:'in',sport:'Hockey',league:'NHL',status:'P2 · 11:03',channels:['Sportsnet'],away:team('nhl','tor','TOR','Toronto Maple Leafs','30–18–5','#76a8ff'),home:team('nhl','mtl','MTL','Montreal Canadiens','24–22–6','#ff6278'),aScore:2,hScore:2,geo:[45.5,-73.57],venue:'Bell Centre',city:'Montréal, CA'},
+  {id:'laliga',state:'in',sport:'Soccer',league:'LaLiga',status:'Half-time',channels:['ESPN+'],away:team('soccer',83,'BAR','Barcelona','2nd','#ff89c1'),home:team('soccer',86,'RMA','Real Madrid','1st','#ffdb70'),aScore:0,hScore:2,geo:[40.45,-3.69],venue:'Santiago Bernabéu',city:'Madrid, ES'},
+  {id:'dodgers',state:'pre',sport:'Baseball',league:'MLB',status:'7:10 PM',channels:['FOX'],away:team('mlb','lad','LAD','Los Angeles Dodgers','61–31','#76a8ff'),home:team('mlb','sf','SF','San Francisco Giants','47–45','#ffae79'),geo:[37.78,-122.39],venue:'Oracle Park',city:'San Francisco, US'},
+  {id:'cowboys',state:'pre',sport:'Football',league:'NFL',status:'8:20 PM',channels:['NBC','Peacock'],away:team('nfl','dal','DAL','Dallas Cowboys','5–4','#76a8ff'),home:team('nfl','phi','PHI','Philadelphia Eagles','8–1','#50e4a0'),geo:[39.90,-75.17],venue:'Lincoln Financial Field',city:'Philadelphia, US'},
+  {id:'seriea',state:'pre',sport:'Soccer',league:'Serie A',status:'2:45 PM',channels:['Paramount+'],away:team('soccer',111,'JUV','Juventus','3rd','#fafafa'),home:team('soccer',110,'INT','Inter Milan','1st','#76a8ff'),geo:[45.48,9.12],venue:'San Siro',city:'Milan, IT'},
+  {id:'afl',state:'pre',sport:'AFL',league:'AFL',status:'7:50 PM',channels:['Fox Footy'],away:team('afl','col','COLL','Collingwood','9–4','#fafafa'),home:team('afl','rich','RICH','Richmond','5–8','#ffdb70'),geo:[-37.82,144.98],venue:'Melbourne Cricket Ground',city:'Melbourne, AU'},
+  {id:'astros',state:'post',sport:'Baseball',league:'MLB',status:'Final',channels:['MLB Network'],away:team('mlb','hou','HOU','Houston Astros','52–40','#ffae79'),home:team('mlb','atl','ATL','Atlanta Braves','50–42','#ff6278'),aScore:5,hScore:2,geo:[33.89,-84.47],venue:'Truist Park',city:'Atlanta, US'},
+  {id:'derby',state:'post',sport:'Soccer',league:'Premier League',status:'Full-time',channels:['USA Network'],away:team('soccer',382,'MCI','Manchester City','3rd','#76cfff'),home:team('soccer',360,'MUN','Manchester United','8th','#ff6278'),aScore:3,hScore:1,geo:[53.46,-2.29],venue:'Old Trafford',city:'Manchester, UK'},
+];
+export const sports = ['All sports','Football','Baseball','Basketball','Hockey','Soccer','Tennis','Cricket','Golf','MMA','Racing','Rugby','AFL'];
+export const leagues = {'Baseball':['MLB','College Baseball','WBC','Minor League'],Football:['NFL'],Basketball:['NBA'],Hockey:['NHL'],Soccer:['All leagues','Premier League','LaLiga','Serie A'],AFL:['AFL']};
+export const surfaces = [
+  ['soccer','Soccer','THE BEAUTIFUL GAME','#50e4a0'],['mlb','Baseball','ON THE DIAMOND','#00e6ed'],['nba','Basketball','ABOVE THE RIM','#ffb976'],['nhl','Hockey','ON THE ICE','#97dbff'],['nfl','Football','EVERY YARD COUNTS','#ff6278'],['tennis','Tennis','MATCH POINT','#d4ed83'],['cricket','Cricket','AT THE CREASE','#50e4a0'],['afl','Australian football','AROUND THE OVAL','#ffdb70'],['rugby','Rugby','OVER THE LINE','#b7cfff'],['mma','MMA','INSIDE THE OCTAGON','#ff6278'],['f1','Racing','LIGHTS OUT','#ffae79'],['golf','Golf','ON THE GREEN','#50e4a0'],
+];
+export const fieldFor = {'Baseball':'mlb','Football':'nfl','Soccer':'soccer','Basketball':'nba','Hockey':'nhl','AFL':'afl'};
+export const plays = {
+  mlb:[{time:'T6',title:'Soto draws a walk',text:'Juan Soto walks on six pitches.',x:.54,y:.67,prob:46},{time:'B6',title:'Devers doubles to right',text:'Rafael Devers doubles on a line drive to right field.',x:.72,y:.43,prob:38},{time:'T7',title:'Soto singles to centre',text:'Juan Soto singles on a ground ball to centre field.',x:.48,y:.46,prob:43},{time:'T7',title:'Judge goes deep',text:'Aaron Judge homers (31) to left centre. Juan Soto scores.',x:.34,y:.24,prob:59,score:true}],
+  nfl:[{time:'10:12',title:'Cook picks up nine',text:'James Cook rushes up the middle for 9 yards.',x:.35,y:.49,prob:51},{time:'9:48',title:'Allen finds Kincaid',text:'Josh Allen completes a pass to Dalton Kincaid for 15 yards.',x:.48,y:.49,prob:48},{time:'9:06',title:'Bills move the chains',text:'James Cook runs right for 14 yards. First down Buffalo.',x:.65,y:.49,prob:46},{time:'8:42',title:'Touchdown, Buffalo',text:'Josh Allen finds Stefon Diggs for 34 yards. Bass extra point is good.',x:.85,y:.49,prob:37,score:true}],
+};
+export const players = {
+  mlb:[['A. Judge','NYY · RF','2–3','HR · 2 RBI'],['J. Soto','NYY · LF','1–2','2 BB · R'],['G. Cole','NYY · SP','6.0','8 K · 3 ER'],['R. Devers','BOS · 3B','2–4','2B · RBI']],
+  nfl:[['J. Allen','BUF · QB','243','YDS · 3 TD'],['P. Mahomes','KC · QB','221','YDS · 2 TD'],['S. Diggs','BUF · WR','112','YDS · 2 TD'],['T. Kelce','KC · TE','78','YDS · TD']],
+};
+export const standings = {
+  MLB:[['New York Yankees',58,34,'—'],['Baltimore Orioles',55,37,'3.0'],['Boston Red Sox',49,43,'9.0'],['Tampa Bay Rays',46,46,'12.0'],['Toronto Blue Jays',43,49,'15.0']],
+  NFL:[['Buffalo Bills',6,3,'—'],['Miami Dolphins',5,4,'1.0'],['New York Jets',4,5,'2.0'],['New England Patriots',2,7,'4.0']],
+};

@@ -1,6 +1,8 @@
-# ON NOW TV V2 — Priorities (2026-10-04)
+# ON NOW TV V2 — Priorities (2026-10-13)
 
 ## P0 — current
+- Sports Hub design choice pending: original `/sportshub-mockup/` vs Astra `/sportshub-astra/`. Both preserved; Astra sample-data prototype browser tested with screenshots. Wait for user preference before applying a design to Kotlin. Existing native dark-colour contrast and duplicate upcoming time tweaks still pending approval/selected design.
+- ON NOW TV Direct playback stutter/buffering and wrong audio/subtitle selection remain unresolved; recurring user issue. Not investigated during comparison-only work. Inspect VesperVlcEngine/ExoPlayer track selection and buffering in a separate task, then rebuild/install APK for actual device testing.
 - Obtain Live TV crash photo/stack or trigger; unidentified device crash cannot yet be attributed to a specific line. Install rebuilt Live TV APK with login recovery/cancellation/cache fixes, and Music APK with scoped motion/update optimizations; test real D-pad + reset + favourites preservation.
 - Install a newly built Vesper APK containing shelf + top-menu smoothing and v1.5.1 single-screen update notice. Validate normal/held/reversed D-pad movement with trailers ON and startup/login on the same box. Browser tests pass; physical hardware pending.
 - Existing native APK fixes from prior sessions also await installation.
