@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Channel pill — thin row to match SKY HISTORY 2 reference.
      56dp height + 4dp gap = 60dp per row → 9-10 rows visible. -->
-<LinearLayout
+<FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="56dp"
@@ -13,6 +13,9 @@
     android:clickable="true"
     android:paddingStart="16dp"
     android:paddingEnd="16dp">
+
+    <FrameLayout android:id="@+id/ch_sports_art" android:layout_width="match_parent" android:layout_height="match_parent" android:importantForAccessibility="noHideDescendants" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal" android:gravity="center_vertical">
 
     <TextView
         android:id="@+id/ch_num"
@@ -98,6 +101,8 @@
                 android:text="" />
         </LinearLayout>
 
+        <TextView android:id="@+id/ch_event_date" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="@color/livetv_fg_dim" android:textSize="11sp" android:maxLines="4" android:visibility="gone" />
+
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="2dp"
@@ -111,4 +116,5 @@
                 android:background="@color/livetv_accent" />
         </FrameLayout>
     </LinearLayout>
-</LinearLayout>
+    </LinearLayout>
+</FrameLayout>

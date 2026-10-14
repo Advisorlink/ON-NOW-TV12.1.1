@@ -16,6 +16,7 @@ import tv.onnowtv.livetv.data.*
 import tv.onnowtv.livetv.ui.SportsLoadingBand
 import tv.onnowtv.livetv.ui.SportsReplayAdapter
 import tv.onnowtv.livetv.ui.SportsWindow
+import tv.onnowtv.livetv.data.SportsHubApi.objects
 import tv.onnowtv.livetv.ui.SportsUi as UI
 import tv.onnowtv.livetv.ui.SportsUi.dp
 
@@ -39,6 +40,9 @@ class SportsReplaysActivity : AppCompatActivity() {
     private var fetch: Job? = null
     private var loadingInterrupted = false
     private var opening = false
+    private var officialFetch: Job? = null
+    private var official: List<OfficialReplay> = emptyList()
+    private var officialState = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState); SportsWindow.apply(this); LivePreviewSession.release()
@@ -58,7 +62,7 @@ class SportsReplaysActivity : AppCompatActivity() {
                     opening = true; SportsReplayActivity.openProgramme(this, entry)
                 } else { verified.remove(entry.key); render(); status.text = "This replay has expired from the provider's archive." }
             }
-        })
+        }, { item -> if (!opening) { opening = true; SportsOfficialReplayActivity.open(this, item.id) } })
         list = UI.identify(RecyclerView(this), "replays-grid").apply {
             adapter = this@SportsReplaysActivity.adapter; itemAnimator = null
             clipToPadding = true; setPadding(dp(context, 3f), dp(context, 3f), dp(context, 3f), dp(context, 8f))
@@ -78,18 +82,33 @@ class SportsReplaysActivity : AppCompatActivity() {
                 verified.entries.removeAll { !SportsReplayPolicy.checkProgramme(it.value.channel, it.value.programme).eligible }
                 render()
                 if (loadingInterrupted) loadBatch()
+                if (officialFetch?.isCancelled == true) loadOfficial(bucket!!)
             }
         }
     }
-    override fun onPause() { loadingInterrupted = fetch?.isActive == true; fetch?.cancel(); super.onPause() }
+    override fun onPause() { loadingInterrupted = fetch?.isActive == true; fetch?.cancel(); officialFetch?.cancel(); super.onPause() }
     override fun onSaveInstanceState(outState: Bundle) { outState.putString("bucket", bucket); super.onSaveInstanceState(outState) }
     @Deprecated("Android remote compatibility") override fun onBackPressed() { goBack() }
     private fun goBack() { if (bucket == null) finish() else select(null) }
     private fun select(value: String?, force: Boolean = false) {
-        fetch?.cancel(); bucket = value; source = BundleHolder.current; channels = emptyList(); cursor = 0
+        fetch?.cancel(); officialFetch?.cancel(); official = emptyList(); officialState = ""; bucket = value; source = BundleHolder.current; channels = emptyList(); cursor = 0
         pending.clear(); verified.clear(); failedChannels = 0; rejected = 0; loadingInterrupted = false
         loading.show(null); render(); list.scrollToPosition(0)
-        if (value != null) loadBatch(force)
+        if (value != null) { loadBatch(force); loadOfficial(value) }
+    }
+    private fun loadOfficial(selected: String) {
+        officialFetch?.cancel(); officialState = "Checking recent full-match replays…"; render()
+        officialFetch = lifecycleScope.launch {
+            val response = SportsHubApi.officialReplays()
+            if (bucket != selected) return@launch
+            official = response?.optJSONArray("replays").objects().mapNotNull { OfficialReplay.parse(it) }.filter { it.sport == selected }
+            officialState = when {
+                response == null || response.optString("status") == "unavailable" -> "Official replay checks are unavailable. Retry to check again."
+                response.optString("status") == "not_connected" -> "Recent official replay discovery is not connected."
+                else -> ""
+            }
+            render()
+        }
     }
     private fun render() {
         val width = resources.configuration.screenWidthDp
@@ -97,7 +116,7 @@ class SportsReplaysActivity : AppCompatActivity() {
         if ((list.layoutManager as? GridLayoutManager)?.spanCount != columns) list.layoutManager = GridLayoutManager(this, columns)
         heading.text = if (bucket == null) "REPLAYS" else LiveSportsClassifier.labelOf(bucket!!) + " · REPLAYS"
         adapter.submitList(if (bucket == null) LiveSportsClassifier.DISPLAY_ORDER.map { SportsReplayAdapter.Item(it) }
-            else verified.values.sortedByDescending { it.programme.startMs }.map { SportsReplayAdapter.Item(it.bucket, it) })
+            else verified.values.sortedByDescending { it.programme.startMs }.map { SportsReplayAdapter.Item(it.bucket, it) } + official.map { SportsReplayAdapter.Item(it.sport, official = it) })
         val hasMore = bucket != null && (pending.isNotEmpty() || cursor < channels.size)
         more.visibility = if (hasMore) View.VISIBLE else View.GONE
         more.isEnabled = fetch?.isActive != true
@@ -105,13 +124,14 @@ class SportsReplaysActivity : AppCompatActivity() {
         retry.text = if (failedChannels > 0 || rejected > 0) "Retry" else "Refresh"
         status.text = when {
             bucket == null -> "SPORTS ARCHIVE · 18 CATEGORIES"
-            source == null -> "Open your TV guide first to connect your replay library."
-            verified.isNotEmpty() -> "${verified.size} recordings available" + if (failedChannels > 0) " · Some channels could not be checked" else ""
+            verified.isNotEmpty() || official.isNotEmpty() -> "${verified.size} IPTV recordings · ${official.size} official full matches" + if (failedChannels > 0) " · Some IPTV channels could not be checked" else ""
+            source == null -> "No IPTV guide connected." + if (officialState.isBlank()) " No official full-match source is currently listed for this sport." else ""
             loading.visibility == View.VISIBLE -> "Recordings appear as they are verified."
             failedChannels > 0 -> "Unable to check some archive channels. Please retry."
             hasMore -> "No playable recordings in this batch. More archive listings are available."
             else -> "No replays currently available for this sport."
         }
+        if (bucket != null && officialState.isNotBlank()) status.append("\n$officialState")
     }
     private fun loadBatch(force: Boolean = false) {
         val selected = bucket ?: return
@@ -121,7 +141,15 @@ class SportsReplaysActivity : AppCompatActivity() {
         fetch = lifecycleScope.launch {
             if (channels.isEmpty() && cursor == 0) channels = withContext(Dispatchers.Default) {
                 SportsReplayCatalogue.channels(bundle).map { it.copy(streamUrl = AuthStore.rewriteStreamUrl(this@SportsReplaysActivity, it.streamUrl)) }
-                    .sortedBy { if (LiveSportsClassifier.classify("", it.name) == selected) 0 else 1 }
+                    .sortedBy { channel ->
+                        val known = SharedSportsGuide.rows(bundle)[channel.epgChannelId ?: channel.id].orEmpty()
+                        when {
+                            known.any { SportsEventPolicy.bucket(it, channel) == selected } -> 0
+                            LiveSportsClassifier.programmeBucket(channel.name) == selected -> 1
+                            LiveSportsClassifier.classify("", channel.name) != null -> 2
+                            else -> 3
+                        }
+                    }
             }
             var checked = 0; var scanned = 0
             // A page performs at most 12 media-prefix checks and 6 metadata calls, one at a time.

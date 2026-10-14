@@ -233,6 +233,10 @@ class SportsHubActivity : AppCompatActivity() {
                 val fresh = response?.optJSONArray("games").objects(); val bundle = BundleHolder.current
                 // Team names/crests/scores appear before guide matching and replay work.
                 games = fresh; loadingScores = false; render()
+                programmes = withContext(Dispatchers.Default) {
+                    tv.onnowtv.livetv.data.SportsEventMetadata.publish(fresh)
+                    if (bundle == null || dayOffset != 0) emptyList() else SportsLiveGuide.current(bundle, bucket)
+                }
                 val channels = withContext(Dispatchers.Default) { if (bundle == null) emptyMap() else fresh.associate { Data.key(it) to GameChannelMatcher.find(it, bundle) } }
                 if (generation != requestId || !isActive) return@launch
                 games = fresh; scores.setChannelMatches(channels)

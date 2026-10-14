@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>ON NOW · Official Replay</title>
+<style>
+*{box-sizing:border-box}html,body{height:100%;margin:0;background:#080c13;color:#eef4fa;font-family:'Trebuchet MS',sans-serif}
+main{height:100%;display:flex;flex-direction:column;min-width:0;padding:12px 18px}header{display:flex;gap:16px;align-items:center;margin-bottom:10px}
+h1{font-size:18px;line-height:1.35;margin:0;flex:1;overflow-wrap:anywhere}button{background:#d4f376;border:0;border-radius:24px;padding:12px 22px;color:#10170a;font:700 15px 'Trebuchet MS',sans-serif;cursor:pointer}
+button:focus-visible{outline:3px solid #77c9ff;outline-offset:4px}#stage{flex:1;min-height:0;display:grid;place-items:center;position:relative}
+#start{max-width:560px;text-align:center;line-height:1.6}#start h2{font-size:24px;margin:12px}#player{width:100%;height:100%;border:0;min-height:200px}
+#status{font-size:16px;color:#b5c7d8;line-height:1.5;margin:10px 0;overflow-wrap:anywhere}#loading{display:none;width:100%;height:8px;accent-color:#d4f376;margin-bottom:12px}#retry{display:none}
+body:fullscreen main{padding:12px}body:fullscreen #status{font-size:13px}
+@media(max-width:520px){main{padding:10px}h1{font-size:15px}header button{padding:10px;font-size:13px}#player{height:auto;aspect-ratio:16/9;max-height:100%}}
+</style></head>
+<body><main data-testid="official-replay-shell">
+<header><h1 id="title" data-testid="official-replay-title"></h1><button data-testid="official-fullscreen" id="fullscreen" aria-pressed="false">⛶ Fullscreen</button></header>
+<div id="stage"><div id="start" data-testid="official-replay-consent"><h2>Official full-match replay</h2><p>Plays here using the official YouTube player. Provider controls, ads and regional restrictions may apply.</p><button id="begin" data-testid="official-replay-play">▶ Play match</button></div></div>
+<p id="status" data-testid="official-replay-status" aria-live="polite">No external app required.</p>
+<progress id="loading" data-testid="official-replay-loading" aria-label="Loading official player"></progress>
+<button id="retry" data-testid="official-replay-retry">Retry</button></main>
+<script>
+const config=__REPLAY_CONFIG__;let player,timer;
+const status=document.getElementById('status'), loading=document.getElementById('loading'), fullscreen=document.getElementById('fullscreen');
+document.getElementById('title').textContent=config.title;
+function error(code){
+  clearTimeout(timer);loading.style.display='none';if(player&&player.stopVideo)player.stopVideo();
+  status.textContent=({100:'The official uploader has removed or restricted this recording.',101:'The uploader does not permit this match to play inside other apps.',150:'The uploader does not permit this match to play inside other apps.',153:'The official player could not verify the app. This replay cannot play here right now.',5:'The official player cannot play this recording on this device.',2:'This official recording is unavailable.'})[code]||'The official player could not load. Check your connection and retry.';
+  document.getElementById('retry').style.display='block';document.title='ONNOW:ERROR';
+}
+window.stopOfficialReplay=()=>{clearTimeout(timer);if(player&&player.stopVideo)player.stopVideo();};
+window.onYouTubeIframeAPIReady=()=>{
+  player=new YT.Player('player',{host:config.host,videoId:config.videoId,playerVars:{controls:1,fs:1,playsinline:1,autoplay:0,enablejsapi:1,origin:config.origin},events:{
+    onReady:()=>{clearTimeout(timer);loading.style.display='none';status.textContent='Ready · use the official player controls to start the match.';document.title='ONNOW:READY';},
+    onError:e=>error(e.data),
+    onStateChange:e=>{if(e.data===1){status.textContent='Official replay · playing';document.title='ONNOW:PLAYING';}if(e.data===0)status.textContent='Replay finished.';},
+    onAutoplayBlocked:()=>{status.textContent='Press Play in the official player to continue.';}
+  }});
+};
+document.getElementById('begin').onclick=()=>{
+  document.getElementById('stage').innerHTML='<div id="player" data-testid="official-player-frame"></div>';
+  status.textContent='Loading official player…';loading.style.display='block';
+  const script=document.createElement('script');script.src=config.api;script.onerror=()=>error('network');document.head.appendChild(script);
+  timer=setTimeout(()=>error('timeout'),30000);
+};
+document.getElementById('retry').onclick=()=>location.reload();
+async function toggleFullscreen(){
+  try {
+    if(document.fullscreenElement||document.webkitFullscreenElement){const exit=document.exitFullscreen||document.webkitExitFullscreen;if(exit)await exit.call(document);}
+    else {const enter=document.body.requestFullscreen||document.body.webkitRequestFullscreen;if(!enter)throw new Error('unsupported');await enter.call(document.body);}
+  } catch(_){status.textContent='Fullscreen is unavailable on this device.';}
+}
+fullscreen.onclick=toggleFullscreen;
+function updateFullscreen(){const active=!!(document.fullscreenElement||document.webkitFullscreenElement);fullscreen.textContent=active?'⤢ Exit fullscreen':'⛶ Fullscreen';fullscreen.setAttribute('aria-pressed',String(active));}
+document.addEventListener('fullscreenchange',updateFullscreen);document.addEventListener('webkitfullscreenchange',updateFullscreen);
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&(document.fullscreenElement||document.webkitFullscreenElement)){e.preventDefault();toggleFullscreen();}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)window.stopOfficialReplay();});window.addEventListener('pagehide',window.stopOfficialReplay);
+</script></body></html>

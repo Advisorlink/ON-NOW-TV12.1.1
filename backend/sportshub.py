@@ -22,6 +22,8 @@ from espn import ESPN_LEAGUES
 
 log = logging.getLogger("sportshub")
 router = APIRouter(prefix="/api/sportshub")
+from sports_official_sources import router as official_sources_router
+router.include_router(official_sources_router)
 
 ESPN = "https://site.api.espn.com/apis/site/v2/sports"
 ESPN_V2 = "https://site.api.espn.com/apis/v2/sports"

@@ -47,6 +47,7 @@ class SportsScoreAdapter(private val owner: LifecycleOwner, private val open: (J
         surface.removeAllViews(); SportsUi.identify(surface, item.key)
         val root = SportsUi.col(ctx)
         if (!item.isHeader && item.programme == null) surface.addView(SportsArtwork.layer(ctx, JSONObject(item.json)), FrameLayout.LayoutParams(-1, -1))
+        item.programme?.let { entry -> surface.addView(SportsArtwork.eventLayer(ctx, entry.fixtureJson?.let(::JSONObject), entry.bucket, entry.key), FrameLayout.LayoutParams(-1, -1)) }
         surface.addView(root, FrameLayout.LayoutParams(-1, -2))
         if (item.isHeader) {
             root.setPadding(0, dp(ctx, 10f), 0, dp(ctx, 2f))
@@ -85,6 +86,7 @@ class SportsScoreAdapter(private val owner: LifecycleOwner, private val open: (J
         val names = SportsUi.row(ctx, dp(ctx, 10f))
         listOf("away", "home").forEach { side -> names.addView(SportsUi.singleLine(SportsUi.text(ctx, Data.value(g.optJSONObject(side), "name"), 10f, SportsUi.DIM)).apply { gravity = if (side == "home") Gravity.END else Gravity.START }, LinearLayout.LayoutParams(0, -2, 1f)) }
         root.addView(names)
+        root.addView(SportsUi.identify(SportsUi.text(ctx, tv.onnowtv.livetv.data.SportsEventMetadata.eventLabel(g), 11f, SportsUi.ACCENT), "fixture-event-date-${Data.key(g)}"), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(ctx, 8f) })
         root.addView(SportsUi.divider(ctx), LinearLayout.LayoutParams(-1, dp(ctx, 1f)).apply { topMargin = dp(ctx, 11f); bottomMargin = dp(ctx, 9f) })
         val foot = SportsUi.row(ctx, dp(ctx, 5f))
         val matches = broadcasts[Data.key(g)].orEmpty(); val match = matches.firstOrNull()

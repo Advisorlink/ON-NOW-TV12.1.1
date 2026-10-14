@@ -131,6 +131,7 @@ class EpgActivity : AppCompatActivity() {
     /** Currently-selected sport bucket inside the "What's On Live"
      *  hub.  `null` → the pinned "ALL" chip is active. */
     private var whatsOnActiveSport: String? = null
+    private var sportsMetadataJob: Job? = null
     /** Live sport-bucket rows powering the sport-icon filter row.
      *  Recomputed inside `applyCategory("__whatson__")` and again
      *  from the 30-second clock ticker so counts stay honest. */
@@ -540,6 +541,7 @@ class EpgActivity : AppCompatActivity() {
             onLongPress = { ch -> showChannelActionsMenu(ch) },
             onBound = { ch -> lazyFetchForChannel(ch) },
             isKnownEmpty = { ch -> epgKnownEmpty.contains(ch.epgChannelId ?: "") },
+            sportsMode = { currentCategoryId == "__whatson__" },
         )
         channelsList.layoutManager = LinearLayoutManager(this)
         channelsList.adapter = channelAdapter
@@ -1297,6 +1299,7 @@ class EpgActivity : AppCompatActivity() {
         whatsOnAdapter.submit(whatsOnRows, whatsOnActiveSport)
         paintWhatsOnChannels()
 
+
         whatsOnPillCount.text = (whatsOnRows.firstOrNull()?.count ?: 0).toString()
     }
 
@@ -1321,6 +1324,14 @@ class EpgActivity : AppCompatActivity() {
      *  FULL repaint — used on explicit user actions (opening the
      *  hub, picking a chip). */
     private fun paintWhatsOnChannels() {
+        if (sportsMetadataJob?.isActive != true) sportsMetadataJob = lifecycleScope.launch {
+            tv.onnowtv.livetv.data.SportsEventMetadata.refresh()
+            if (currentCategoryId == "__whatson__") {
+                val visible = currentChannelList.toList()
+                withContext(Dispatchers.Default) { visible.forEach { ch -> liveProgrammeOf(ch)?.let { tv.onnowtv.livetv.data.SportsEventMetadata.match(it) } } }
+                if (currentCategoryId == "__whatson__") visible.forEach { channelAdapter.refreshChannel(it.id) }
+            }
+        }
         val visible = whatsOnVisibleChannels()
         currentChannelList = visible
         channelAdapter.submit(visible)

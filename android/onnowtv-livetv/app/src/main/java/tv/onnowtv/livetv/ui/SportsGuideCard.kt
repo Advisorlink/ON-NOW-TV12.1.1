@@ -16,6 +16,9 @@ object SportsGuideCard {
             addView(UI.logo(ctx, entry.channel.logoUrl, UI.dp(ctx, 34f)))
             addView(UI.identify(UI.text(ctx, listOfNotNull(entry.channel.lcn, entry.channel.name).joinToString(" · "), 12f, UI.DIM).apply { maxLines = 2 }, "guide-channel-${entry.key}"), LinearLayout.LayoutParams(0, -2, 1f))
         })
+        val fixture = entry.fixtureJson?.let { org.json.JSONObject(it) }
+        root.addView(UI.identify(UI.text(ctx, tv.onnowtv.livetv.data.SportsEventMetadata.eventLabel(fixture), 12f, UI.ACCENT), "guide-event-date-${entry.key}"))
+        root.addView(UI.identify(UI.text(ctx, tv.onnowtv.livetv.data.SportsEventMetadata.programmeLabel(entry.programme), 11f, UI.DIM), "guide-broadcast-date-${entry.key}"))
         root.addView(UI.identify(UI.pill(ctx, "▶ Watch live", true, onClick = play), "guide-watch-${entry.key}"),
             LinearLayout.LayoutParams(-2, -2).apply { topMargin = UI.dp(ctx, 12f) })
     }

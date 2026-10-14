@@ -44,7 +44,8 @@ class SportsReplayCatalogueTest {
         )
 
         val channels = SportsReplayCatalogue.channels(bundle)
-        assertEquals(listOf("2", "1"), channels.map { it.id })
+        // Discovery intentionally includes archive-capable mixed/FTA channels; event policy filters later.
+        assertEquals(listOf("5", "2", "1"), channels.map { it.id })
     }
 
     @Test

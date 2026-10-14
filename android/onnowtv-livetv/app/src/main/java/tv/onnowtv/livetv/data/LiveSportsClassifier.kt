@@ -29,7 +29,7 @@ object LiveSportsClassifier {
         return programmeBucket(programme.title)
             ?: classify(programme.title, channel)
     }
-    fun programmeBucket(title: String): String? = classifyTitle(titlePunctuation.replace(title, " ")) ?: classifyTitle(title)
+    fun programmeBucket(title: String): String? = SportsSportIdentity.resolve(title) ?: classifyTitle(titlePunctuation.replace(title, " ")) ?: classifyTitle(title)
 
     // Sport bucket IDs.  Kept as constants (not enum) so we can add
     // new buckets from JSON later without breaking existing pins.
@@ -136,8 +136,8 @@ object LiveSportsClassifier {
 
     private val RULES: List<Rule> = listOf(
         // These explicit codes must beat generic phrases such as "grand final" or "grand prix".
-        Rule(AFL, listOf(" afl ", " aflw ", "aussie rules", "australian football")),
-        Rule(RUGBY_LEAGUE, listOf(" nrl ", "rugby league", "state of origin")),
+        Rule(AFL, listOf(" afl ", " aflw ", "aussie rules", "australian football", "fox footy", "watch afl")),
+        Rule(RUGBY_LEAGUE, listOf(" nrl ", "rugby league", "state of origin", "fox league", "watch nrl")),
         Rule(MOTORSPORT, listOf("motogp", "moto gp", "moto2", "moto3", "formula e", "indycar", "nascar")),
         // ── Very specific series first ──────────────────────────
         Rule(F1, listOf(
@@ -174,8 +174,7 @@ object LiveSportsClassifier {
             "afl round", "afl finals", "aflw",
         )),
         Rule(NFL, listOf(
-            " nfl ", "super bowl", "monday night football",
-            "thursday night football", "sunday night football",
+            " nfl ", "super bowl", "american football",
             "college football", "ncaa football",
         )),
         Rule(NBA, listOf(
@@ -252,6 +251,7 @@ object LiveSportsClassifier {
      * matches any pattern (the show is NOT sports at all).
      */
     fun classify(title: String, channelName: String? = null): String? {
+        if (title.isNotBlank()) programmeBucket(title)?.let { return it }
         val hay = " " + title.lowercase() + " " +
                   (channelName?.lowercase().orEmpty()) + " "
         for (r in RULES) {

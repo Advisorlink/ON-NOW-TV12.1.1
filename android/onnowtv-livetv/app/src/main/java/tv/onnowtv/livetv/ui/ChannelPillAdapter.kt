@@ -31,6 +31,7 @@ class ChannelPillAdapter(
     private val onLongPress: (Channel) -> Unit = {},
     private val onBound: (Channel) -> Unit = {},
     private val isKnownEmpty: (Channel) -> Boolean = { false },
+    private val sportsMode: () -> Boolean = { false },
 ) : RecyclerView.Adapter<ChannelPillAdapter.VH>() {
 
     private val items = mutableListOf<Channel>()
@@ -92,6 +93,8 @@ class ChannelPillAdapter(
         private val nowV: TextView = itemView.findViewById(R.id.ch_now_title)
         private val nowPill: TextView = itemView.findViewById(R.id.ch_now_pill)
         private val progress: View = itemView.findViewById(R.id.ch_progress)
+        private val art: FrameLayout = itemView.findViewById(R.id.ch_sports_art)
+        private val eventDate: TextView = itemView.findViewById(R.id.ch_event_date)
 
         private fun progressContainer(): FrameLayout? = progress.parent as? FrameLayout
 
@@ -105,6 +108,18 @@ class ChannelPillAdapter(
             nameV.text = channel.name
 
             val now = nowResolver(channel)
+            val bucket = if (sportsMode() && now != null) tv.onnowtv.livetv.data.LiveSportsClassifier.liveBucket(now, channel.name, System.currentTimeMillis()) else null
+            art.removeAllViews(); eventDate.visibility = if (bucket == null) View.GONE else View.VISIBLE
+            itemView.layoutParams = itemView.layoutParams.apply { height = SportsUi.dp(itemView.context, if (bucket == null) 56f else 132f) }
+            nowV.maxLines = if (bucket == null) 1 else 2; nowV.textSize = if (bucket == null) 11f else 14f
+            nowPill.text = if (bucket == null) "NOW" else "LIVE"
+            SportsUi.identify(itemView, "channel-row-${channel.id}")
+            SportsUi.identify(eventDate, "channel-event-date-${channel.id}")
+            if (bucket != null && now != null) {
+                val event = tv.onnowtv.livetv.data.SportsEventMetadata.match(now)
+                art.addView(SportsArtwork.eventLayer(itemView.context, event, bucket, "channel-${channel.id}"), FrameLayout.LayoutParams(-1, -1))
+                eventDate.text = tv.onnowtv.livetv.data.SportsEventMetadata.eventLabel(event) + "\n" + tv.onnowtv.livetv.data.SportsEventMetadata.programmeLabel(now)
+            }
             if (now != null) {
                 nowPill.visibility = View.VISIBLE
                 nowV.text = now.title

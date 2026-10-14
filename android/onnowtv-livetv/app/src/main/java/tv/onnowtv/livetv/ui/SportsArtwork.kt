@@ -12,6 +12,22 @@ import org.json.JSONObject
 
 /** Reuses actual ESPN crests. Small cached images, no blur shader or continuous animation. */
 object SportsArtwork {
+    fun eventLayer(ctx: Context, game: JSONObject?, bucket: String, key: String): FrameLayout {
+        if (game != null) return layer(ctx, game).also { SportsUi.identify(it, "event-artwork-$key") }
+        return object : FrameLayout(ctx) {
+            override fun onMeasure(w: Int, h: Int) { super.onMeasure(w, if (MeasureSpec.getMode(h) == MeasureSpec.EXACTLY) h else MeasureSpec.makeMeasureSpec(0, MeasureSpec.EXACTLY)) }
+        }.apply {
+            SportsUi.identify(this, "event-artwork-$key")
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(SportsUi.CARD,
+                ColorUtils.blendARGB(SportsUi.CARD, tv.onnowtv.livetv.data.LiveSportsClassifier.colorOf(bucket), .14f)))
+            val size = SportsUi.dp(ctx, 132f)
+            addView(ImageView(ctx).apply {
+                alpha = .22f; scaleType = ImageView.ScaleType.FIT_CENTER
+                load(tv.onnowtv.livetv.data.LiveSportsClassifier.iconOf(bucket)) { size(size); crossfade(false) }
+            }, FrameLayout.LayoutParams(size, size, Gravity.END or Gravity.CENTER_VERTICAL))
+        }
+    }
     fun layer(ctx: Context, game: JSONObject, large: Boolean = false): FrameLayout = object : FrameLayout(ctx) {
         // Decorative crests must not enlarge a wrap-content card/header during its first measure pass.
         override fun onMeasure(widthSpec: Int, heightSpec: Int) {

@@ -95,7 +95,7 @@ class SportsReplayActivity : AppCompatActivity() {
         fetch = lifecycleScope.launch {
             val programme: Programme? = if (intent.hasExtra("programme-start")) {
                 SportsReplayRepository.archiveProgrammes(channel)?.firstOrNull {
-                    it.startMs == intent.getLongExtra("programme-start", -1) && it.archiveAvailable == true
+                    it.startMs == intent.getLongExtra("programme-start", -1) && SportsReplayCatalogue.entries(channel, listOf(it)).isNotEmpty()
                 }
             } else withContext(Dispatchers.Default) {
                 val game = runCatching { JSONObject(intent.getStringExtra("game").orEmpty()) }.getOrNull()

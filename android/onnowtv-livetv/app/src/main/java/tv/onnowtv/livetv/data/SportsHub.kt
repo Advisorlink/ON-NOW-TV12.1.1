@@ -36,6 +36,8 @@ object SportsHubApi {
     }
 
     suspend fun leagues(): JSONObject? = getJson("/api/sportshub/leagues")
+    suspend fun officialReplays(): JSONObject? = snapshots.load(XtreamRepository.BACKEND_BASE + "/api/sportshub/official-replays", false,
+        { 60_000L }, { it.optJSONArray("replays") != null && it.optString("status") == "ready" }) { getJson("/api/sportshub/official-replays") }
     suspend fun live(tier: Int = 3, date: String? = null): JSONObject? = getJson("/api/sportshub/live?tier=$tier" + (date?.let { "&date=${enc(it)}" } ?: ""))
     suspend fun scoreboard(sport: String, league: String, date: String? = null): JSONObject? =
         getJson("/api/sportshub/scoreboard?sport=${enc(sport)}&league=${enc(league)}" + (date?.let { "&date=${enc(it)}" } ?: ""))

@@ -1,0 +1,71 @@
+{
+  "summary": "Completed backend + web official replay verification and native compile/test rerun. Backend sportshub suite passed 28/28 including new official replay security/regression tests. Native unit tests passed 86/86 and assembleDebug succeeded. Real embeds: rugby+NRL reached READY on desktop/mobile; NFL reached provider error (embed not permitted) rather than hanging load.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "official_replay_player fullscreen",
+        "issue": "After entering fullscreen on desktop web, ESC did not exit fullscreen in headless browser run (document.fullscreenElement remained set).",
+        "selector": "[data-testid='official-fullscreen']",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Official replay playback for nfl-super-bowl-54",
+        "issue": "Provider iframe returns ONNOW:ERROR with YouTube unavailable/embed-not-allowed behavior; app surfaces mapped message correctly (not a fake success).",
+        "affected_selectors": [
+          "iframe#player",
+          "[data-testid='official-replay-status']",
+          "[data-testid='official-replay-retry']"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_sportshub_v2_backend_regression.py",
+    "/app/backend/tests/test_sportshub_v2_live.py",
+    "/app/backend/tests/test_sportshub_official_replays.py",
+    "/app/test_reports/pytest/iteration_113_backend.xml",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/SportsEventPolicyTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/ui/SportsOfficialReplayActivityTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/SportsReplayCatalogueTest.kt",
+    "/app/test_reports/replay_event_quality/native_build_iter113.log",
+    "/app/test_reports/replay_event_quality/apk-signature-iter113.log",
+    "/app/test_reports/replay_event_quality/apk-alignment-iter113.log",
+    "/app/test_reports/replay_event_quality/apk-crc-iter113.log"
+  ],
+  "action_items": [
+    "Decide fallback handling for curated IDs that are valid uploads but embed-blocked by provider policy/region (current NFL ID shows expected provider denial message).",
+    "Review fullscreen exit UX in official_replay_player (ESC did not exit in this browser automation environment)."
+  ],
+  "critical_code_review_comments": [
+    "official_replay_player.html correctly enforces consent-first iframe creation, 30s timeout path, retry reload, and explicit status mapping for 100/101/150/153/5/2.",
+    "sports_official_sources.py origin/embed/config assertions and CSP headers are strong; injected title markup is escaped in payload and does not execute.",
+    "SportsReplayCatalogue test expectation required update for intentional broadened channel discovery (mixed/FTA archive candidates included, event filtering still enforced later)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_sportshub_official_replays.py",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/SportsEventPolicyTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/ui/SportsOfficialReplayActivityTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/SportsReplayCatalogueTest.kt",
+    "/app/test_reports/iteration_113.json"
+  ],
+  "success_rate": {
+    "backend": "100% (28/28)",
+    "frontend": "90% (official replay web checks passed except NFL provider denial and fullscreen-exit behavior)"
+  },
+  "seed_data_creation": "",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Real external URL used: https://rebrand-app-5.preview.emergentagent.com. Replay checks covered desktop 1920x800 and mobile 390x844, no horizontal overflow. rugby-england-new-zealand-2025 and nrl-origin-2012-game-3 reached ONNOW:READY after consent; nfl-super-bowl-54 reached ONNOW:ERROR with provider embed denial text. Mocked callback run validated READY/PLAYING/error153/error100/error101/timeout/retry flows via iframe_api route interception. Native run command succeeded with ANDROID_HOME=/app/.cache/native-tools/sdk and gradle 8.7 offline: tests=86 failures=0 errors=0 skipped=0, assembleDebug success. zipalign check used /usr/bin/zipalign because SDK zipalign binary is incompatible in this container.",
+  "rca of the issue": "The reported 'stuck loading official player' is not reproducible for rugby/NRL in this environment; both become READY with valid iframe geometry and YouTube API callback firing. nfl-super-bowl-54 fails with provider-side embed restriction behavior (mapped by app to 'does not permit this match to play inside other apps'), corroborated by YouTube qoe logs showing Video_unavailable/auth-style errors. This indicates upstream/provider availability constraints for that source rather than a blanket implementation failure.",
+  "mocked_flows": [
+    "MOCKED: YouTube iframe_api callback simulation for ready/playing/unavailable153/unavailable100/unavailable101/timeout/retry path verification.",
+    "MOCKED: Native/unit HTTP/archive fixtures remain controlled test data; no physical decoder/device playback claim."
+  ]
+}
