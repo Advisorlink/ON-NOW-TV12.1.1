@@ -226,10 +226,12 @@ object LivePreviewSession {
 
     fun isAlive(): Boolean = player != null
 
-    /** Tear down completely.  Only call on sign-out / app exit. */
+    /** Explicit teardown, including returning from a sports-owned player (not ordinary guide Back). */
     fun release() {
         synchronized(this) {
-            player?.release()
+            try { player?.playWhenReady = false; player?.stop(); player?.clearMediaItems() } catch (_: Throwable) {}
+            try { player?.release() } catch (_: Throwable) {}
+            try { httpClient?.dispatcher?.cancelAll(); httpClient?.connectionPool?.evictAll() } catch (_: Throwable) {}
             player = null
             httpClient = null
             currentChannel = null

@@ -49,6 +49,82 @@ def test_active_player_missing_identity_returns_none():
     assert sportshub._active_player(situation, "pitcher", []) is None
 
 
+def test_broadcasts_prefers_names_and_media_shortname_not_market_or_type():
+    comp = {
+        "broadcasts": [
+            {"names": ["ESPN", "espn", "  "]},
+            {
+                "type": {"shortName": "TV"},
+                "market": {"type": "Home"},
+                "media": {"shortName": "ESPN+"},
+            },
+        ],
+        "geoBroadcasts": [
+            {
+                "type": {"shortName": "Streaming"},
+                "market": {"type": "National"},
+                "media": [{"shortName": "ABTV"}, {"shortName": "espn+"}],
+            }
+        ],
+    }
+    out = sportshub._broadcasts(comp)
+    assert out == ["ABTV", "ESPN", "ESPN+"]
+    assert "TV" not in out
+    assert "Streaming" not in out
+    assert "Home" not in out
+    assert "National" not in out
+
+
+def test_broadcasts_ignores_null_and_malformed_rows_without_crash():
+    comp = {
+        "broadcasts": "not-a-list",
+        "geoBroadcasts": [
+            None,
+            7,
+            "TSN",
+            {"names": "SN1"},
+            {"media": [{"displayName": "NHL Network"}, "Bally Sports"]},
+            {"names": ["null", ""]},
+        ],
+    }
+    out = sportshub._broadcasts(comp)
+    assert out == ["Bally Sports", "NHL Network", "SN1", "TSN"]
+
+
+def test_event_extracts_summary_media_short_name_when_names_empty():
+    event = {
+        "id": "401892502",
+        "name": "Edmonton Oilers at Los Angeles Kings",
+        "date": "2026-10-14T02:00:00Z",
+        "status": {"type": {"state": "in", "completed": False, "shortDetail": "2nd"}},
+        "competitions": [
+            {
+                "competitors": [
+                    {"homeAway": "home", "team": {"id": "8", "displayName": "Los Angeles Kings"}},
+                    {"homeAway": "away", "team": {"id": "6", "displayName": "Edmonton Oilers"}},
+                ],
+                "broadcasts": [{"media": {"shortName": "ESPN+"}}],
+                "geoBroadcasts": [{"media": {"shortName": "ABTV"}}],
+                "venue": {"address": {"city": "Los Angeles"}},
+            }
+        ],
+    }
+    meta = {"sport": "hockey", "league": "nhl", "name": "NHL", "label": "Ice Hockey"}
+    parsed = sportshub._event(event, meta)
+    assert parsed is not None
+    assert parsed["id"] == "401892502"
+    assert parsed["broadcasts"] == ["ABTV", "ESPN+"]
+
+
+def test_invalid_shortname_falls_back_to_real_media_name_without_placeholder_labels():
+    comp = {"broadcasts": [
+        {"names": [" NULL ", "undefined", "None", "N/A", "unknown", "TBD", "-"]},
+        {"media": {"shortName": "null", "name": "ESPN+"}},
+        {"media": {"shortName": None, "displayName": "ABTV"}},
+    ]}
+    assert sportshub._broadcasts(comp) == ["ABTV", "ESPN+"]
+
+
 @pytest.mark.asyncio
 async def test_live_invalid_calendar_date_422():
     with pytest.raises(HTTPException) as err:

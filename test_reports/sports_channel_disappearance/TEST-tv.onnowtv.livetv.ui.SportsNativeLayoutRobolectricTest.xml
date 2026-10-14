@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="tv.onnowtv.livetv.ui.SportsNativeLayoutRobolectricTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-14T05:43:06" hostname="agent-env-49bc65fa-9152-42e4-b845-97fdcbbeec38" time="1.712">
+  <properties/>
+  <testcase name="game_activity_phone_layout_has_nonzero_team_text_and_no_overflow" classname="tv.onnowtv.livetv.ui.SportsNativeLayoutRobolectricTest" time="0.274"/>
+  <testcase name="sports_artwork_layer_is_non_interactive_and_crest_alpha_is_decorative" classname="tv.onnowtv.livetv.ui.SportsNativeLayoutRobolectricTest" time="0.108"/>
+  <testcase name="game_activity_seed_header_visible_before_network_roundtrip" classname="tv.onnowtv.livetv.ui.SportsNativeLayoutRobolectricTest" time="0.092"/>
+  <testcase name="sports_hub_rapid_open_guard_allows_single_launch_until_resume" classname="tv.onnowtv.livetv.ui.SportsNativeLayoutRobolectricTest" time="0.139"/>
+  <testcase name="sports_scene_constructor_keeps_fallback_visible_before_browser_start" classname="tv.onnowtv.livetv.ui.SportsNativeLayoutRobolectricTest" time="0.022"/>
+  <testcase name="portrait_epg_contains_sports_hub_button_and_compact_preview" classname="tv.onnowtv.livetv.ui.SportsNativeLayoutRobolectricTest" time="0.743"/>
+  <testcase name="team_actions_update_in_place_without_recreating_header_field_or_replay_panel" classname="tv.onnowtv.livetv.ui.SportsNativeLayoutRobolectricTest" time="0.221"/>
+  <testcase name="sports_hub_phone_uses_concat_adapter_and_expected_columns" classname="tv.onnowtv.livetv.ui.SportsNativeLayoutRobolectricTest" time="0.06"/>
+  <testcase name="sports_hub_landscape_keeps_concat_adapter_and_two_columns" classname="tv.onnowtv.livetv.ui.SportsNativeLayoutRobolectricTest" time="0.052"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[Invalid ID 0x00000000.
+Invalid ID 0x00000000.
+Invalid ID 0x00000000.
+Invalid ID 0x00000000.
+Invalid ID 0x00000000.
+Invalid ID 0x00000000.
+Invalid ID 0x00000000.
+Invalid ID 0x00000000.
+]]></system-err>
+</testsuite>

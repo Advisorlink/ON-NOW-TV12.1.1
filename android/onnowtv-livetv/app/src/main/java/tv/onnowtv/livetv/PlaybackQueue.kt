@@ -18,6 +18,7 @@ object PlaybackQueue {
         channels = list
         index = list.indexOfFirst { it.id == startId }.coerceAtLeast(0)
     }
+    fun clear() { channels = emptyList(); index = 0 }
 
     /** Move to the next channel (wraps around end → start). */
     fun next(): Channel? {

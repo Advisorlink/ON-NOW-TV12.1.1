@@ -52,7 +52,12 @@ class SportsNativeLayoutRobolectricTest {
         assertTrue(hubBtn.isClickable)
         assertTrue(hubBtn.isFocusable)
         assertTrue(hubBtn.layoutParams.height >= dp(context, 48f))
-        assertEquals(R.id.whatson_pill, hubBtn.nextFocusDownId)
+        assertEquals(R.id.sports_replays_btn, hubBtn.nextFocusDownId)
+        val replays = root.findViewById<View>(R.id.sports_replays_btn)
+        assertTrue(replays.isClickable)
+        assertTrue(replays.isFocusable)
+        assertEquals(R.id.sports_hub_btn, replays.nextFocusUpId)
+        assertEquals(R.id.whatson_pill, replays.nextFocusDownId)
 
         val preview = root.findViewById<FrameLayout>(R.id.preview_card)
         assertEquals(dp(context, 128f), preview.layoutParams.width)
@@ -165,16 +170,26 @@ class SportsNativeLayoutRobolectricTest {
         assertTrue(score.text.toString().contains("VS") || score.text.toString().contains(":"))
     }
 
-    // Scene view starts with fallback, and browser remains nullable in constructor path.
+    // Scene is native-only: GamePlotView surface + overlays, no WebView/browser fallback fields.
     @Test
     @Config(qualifiers = "w390dp-h844dp-port")
-    fun sports_scene_constructor_keeps_fallback_visible_before_browser_start() {
+    fun sports_scene_view_tree_is_native_only_without_webview_or_browser_fallback() {
         val scene = SportsSceneView(RuntimeEnvironment.getApplication())
-        val browser = readField<android.webkit.WebView?>(scene, "browser")
-        val fallback = readField<View>(scene, "fallback")
-        assertEquals(null, browser)
-        assertNotNull(fallback)
-        assertTrue(fallback.parent === scene)
+        val gamePlotChildren = (0 until scene.childCount).map { scene.getChildAt(it) }.filterIsInstance<GamePlotView>()
+        assertEquals(1, gamePlotChildren.size)
+        assertTrue(scene.findViewWithTag<View>("sports-2d-field") === scene)
+        assertNotNull(scene.findViewWithTag<View>("field-location-status"))
+        assertNotNull(scene.findViewWithTag<View>("field-team-labels"))
+
+        fun hasWebView(root: View): Boolean {
+            if (root is android.webkit.WebView) return true
+            if (root !is ViewGroup) return false
+            for (i in 0 until root.childCount) {
+                if (hasWebView(root.getChildAt(i))) return true
+            }
+            return false
+        }
+        assertFalse(hasWebView(scene))
     }
 
     // Rapid open requests should launch only one GameActivity until onResume clears guard.

@@ -1,0 +1,66 @@
+{
+  "summary": "Completed backend Sports Hub regression + native JVM/Robolectric verification for sports-channel disappearance fixes. Added new regressions for broadcasts parsing, shared guide identity/cache isolation, fixture metadata merge behavior, live-candidate fallback rules, and GameActivity tune/failover intent wiring. Backend suite had 1 failing regression; native suite and assembleDebug passed.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/sportshub/game and /api/sportshub/scoreboard parser path (_broadcasts)",
+        "issue": "_broadcasts currently accepts literal string \"null\" as a channel name when upstream rows are malformed/sparse. New regression test failed: test_broadcasts_ignores_null_and_malformed_rows_without_crash.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Native physical-device sports flow",
+        "issues": [
+          "No adb/emulator attached; physical TV/phone click-journey rendering and playback behavior remain unverified in-device."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_sportshub_v2_backend_regression.py",
+    "/app/backend/tests/test_sportshub_v2_live.py",
+    "/app/test_reports/pytest/iter110_sportshub_backend.xml",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/GameChannelMatcherTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/SharedSportsGuideTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/SportsFixtureMetadataTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/ui/GameActivityBroadcastIntentRobolectricTest.kt",
+    "/app/test_reports/native_sports_iter110/TEST-tv.onnowtv.livetv.data.SharedSportsGuideTest.xml",
+    "/app/test_reports/native_sports_iter110/TEST-tv.onnowtv.livetv.data.SportsFixtureMetadataTest.xml",
+    "/app/test_reports/native_sports_iter110/TEST-tv.onnowtv.livetv.ui.GameActivityBroadcastIntentRobolectricTest.xml",
+    "/app/test_reports/native_sports_iter110/apk-signature.txt"
+  ],
+  "action_items": [
+    "Fix sportshub._broadcasts to drop literal/null-like names (e.g., \"null\") before dedupe/sort.",
+    "Re-run backend Sports Hub pytest file set after parser fix.",
+    "Optionally validate native Sports Hub on physical device for final user-facing confirmation."
+  ],
+  "critical_code_review_comments": [
+    "SharedSportsGuide session identity behavior is now covered: same bundle identity reuses ConcurrentHashMap; separate bundle instance (same channel IDs) does not leak prior cache.",
+    "GameActivity tune() path is now regression-tested: confirmed multi-channel fixture sets failover queue true; unconfirmed live-candidate keeps single-channel queue and failover false.",
+    "Merged manifest check passed for SportsHubActivity/GameActivity orientation=unspecified and expected package/sdks from APK badging."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_sportshub_v2_backend_regression.py",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/GameChannelMatcherTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/SharedSportsGuideTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/SportsFixtureMetadataTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/ui/GameActivityBroadcastIntentRobolectricTest.kt",
+    "/app/test_reports/iteration_110.json"
+  ],
+  "success_rate": {
+    "backend": "95% (20/21)",
+    "frontend": "100% (native JVM/Robolectric: 66/66)"
+  },
+  "seed_data_creation": "",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend command: pytest /app/backend/tests/test_sportshub_v2_backend_regression.py /app/backend/tests/test_sportshub_v2_live.py -v --tb=short --junitxml=/app/test_reports/pytest/iter110_sportshub_backend.xml (1 fail: null channel-name filtering). Android command: ANDROID_HOME=/tmp/v2-android-sdk ANDROID_SDK_ROOT=/tmp/v2-android-sdk gradle :app:testDebugUnitTest :app:assembleDebug -Pandroid.aapt2FromMavenOverride=/tmp/v2-arm64-tools/aapt2 --no-daemon --offline (BUILD SUCCESS). Unit XML totals: 66 tests, 0 failures, 0 errors across 14 suites.",
+  "rca of the issue": "Repro: call _broadcasts with malformed/sparse rows containing names=[\"null\", \"\"] or similar string payloads. Current add() logic only checks non-empty strings and does not blacklist null-like tokens, so \"null\" is emitted as a channel name. In Sports Hub, that can pollute broadcaster lists and downstream matching. Mitigation: sanitize channel labels in _broadcasts by rejecting null-like literals (null/none/n-a/unknown as required), then keep existing casefold dedupe.",
+  "mocked_flows": "MOCKED: Browser Astra fixtures/replay dialog remain unchanged. MOCKED: Native fixture stream URLs are synthetic in JVM tests; no actual playback stream was launched."
+}

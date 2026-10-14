@@ -175,7 +175,7 @@ class EpgActivity : AppCompatActivity() {
     /** v2.16.2 — ConcurrentHashMap: the WhatsOn prefetch writes from
      *  many IO threads while the main thread reads/iterates — the
      *  old HashMap raced and could corrupt or CME mid-scan. */
-    private val epgCache = java.util.concurrent.ConcurrentHashMap<String, List<Programme>>()
+    private var epgCache = java.util.concurrent.ConcurrentHashMap<String, List<Programme>>()
     /** Channels whose lazy-fetch returned no EPG.  We remember
      *  these so the channel pill stops showing "Loading guide…"
      *  forever — it'll just show the channel name. */
@@ -229,7 +229,7 @@ class EpgActivity : AppCompatActivity() {
             return
         }
         bundle = held
-        epgCache.putAll(bundle.epg)
+        epgCache = tv.onnowtv.livetv.data.SharedSportsGuide.attach(bundle)
         rehydrateReminders()
         favouriteSet.clear()
         favouriteSet.addAll(FavouritesStore.load(this))
@@ -1051,6 +1051,9 @@ class EpgActivity : AppCompatActivity() {
         findViewById<View>(R.id.sports_hub_btn)?.setOnClickListener {
             startActivity(Intent(this, SportsHubActivity::class.java))
         }
+        findViewById<View>(R.id.sports_replays_btn)?.setOnClickListener {
+            startActivity(Intent(this, SportsReplaysActivity::class.java))
+        }
         whatsOnPill.setOnClickListener {
             currentCategoryId = "__whatson__"
             whatsOnActiveSport = null
@@ -1399,19 +1402,13 @@ class EpgActivity : AppCompatActivity() {
             // ("Live Tennis: ATP…", "Live NASCAR").  Keyword-only
             // sports matches with no live marker stay excluded, so
             // the hub doesn't balloon back to 300+ channels.
-            if (!current.live &&
-                !tv.onnowtv.livetv.data.LiveSportsClassifier.hasLiveWord(current.title)
-            ) continue
-            // Suppress replays/highlights that still say "live"
-            // somewhere in the title.
-            if (tv.onnowtv.livetv.data.LiveSportsClassifier.isNonLive(current.title)) continue
             // Now assign a bucket by title first, falling back to
             // channel name for cases like "Ireland vs Italy" on
             // Sky Sports Rugby where the title itself doesn't
             // mention rugby.  Channel-name fallback is safe once
             // the live gate above has cleared.
             val bucket = tv.onnowtv.livetv.data.LiveSportsClassifier
-                .classify(current.title, ch.name) ?: continue
+                .liveBucket(current, ch.name, now) ?: continue
             byBucket.getOrPut(bucket) { mutableListOf() }.add(ch)
         }
 

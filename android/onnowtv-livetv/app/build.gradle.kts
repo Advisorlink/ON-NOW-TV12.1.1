@@ -129,8 +129,3 @@ dependencies {
     implementation("org.videolan.android:libvlc-all:3.6.0")
 }
 
-val syncSportsScene by tasks.registering(Copy::class) {
-    from(rootProject.file("../../frontend/public/sportshub-scene"))
-    into(file("src/main/assets/sports-scene"))
-}
-tasks.named("preBuild") { dependsOn(syncSportsScene) }

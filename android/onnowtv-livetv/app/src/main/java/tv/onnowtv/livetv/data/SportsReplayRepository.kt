@@ -3,7 +3,6 @@ package tv.onnowtv.livetv.data
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.Call
 import okhttp3.Callback
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import org.json.JSONObject
@@ -24,7 +23,6 @@ object SportsReplayRepository {
     const val USER_AGENT = "V2LiveTV/SportsReplay"
     class Verified(val url: String, val mimeType: String)
     data class Result(val verified: Verified? = null, val message: String = "Replay could not be verified")
-    private val client = OkHttpClient.Builder().connectTimeout(7, TimeUnit.SECONDS).readTimeout(8, TimeUnit.SECONDS).callTimeout(12, TimeUnit.SECONDS).build()
     private val cache = ReplayVerificationCache<Result>()
     // One request at a time across all visible cards; queued callers recheck the cache.
     private val gate = Mutex()
@@ -33,7 +31,9 @@ object SportsReplayRepository {
     fun isVerified(channel: Channel, p: Programme): Boolean = cache.get(key(channel, p))?.verified != null
     fun invalidate(channel: Channel, p: Programme) { cache.remove(key(channel, p)) }
     private suspend fun <T> request(request: Request, read: (Response) -> T?): T? = suspendCancellableCoroutine { continuation ->
-        val call = client.newCall(request); continuation.invokeOnCancellation { call.cancel() }
+        val call = SportsReplayTransport.client.newCall(request)
+        call.timeout().timeout(12, TimeUnit.SECONDS)
+        continuation.invokeOnCancellation { call.cancel() }
         call.enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) { if (continuation.isActive) continuation.resume(null) }
             override fun onResponse(call: Call, response: Response) {
@@ -42,24 +42,28 @@ object SportsReplayRepository {
             }
         })
     }
-    suspend fun verify(game: JSONObject, match: GameChannelMatcher.Match): Result = gate.withLock {
+    suspend fun verify(game: JSONObject, match: GameChannelMatcher.Match): Result {
         val decision = SportsReplayPolicy.check(game, match)
+        if (!decision.eligible) return Result(message = decision.reason)
+        return verifyProgramme(match.channel, match.programme ?: return Result())
+    }
+    suspend fun verifyProgramme(channel: Channel, programme: Programme): Result = gate.withLock {
+        val decision = SportsReplayPolicy.checkProgramme(channel, programme)
         if (!decision.eligible) return@withLock Result(message = decision.reason)
-        val programme = match.programme ?: return@withLock Result()
-        val cacheKey = key(match.channel, programme)
+        val cacheKey = key(channel, programme)
         cache.get(cacheKey)?.let { return@withLock it }
-        val result = probe(match, programme)
+        val result = probe(channel, programme)
         currentCoroutineContext().ensureActive() // Cancelled requests must never publish availability.
         cache.put(cacheKey, result, if (result.verified != null) 120_000 else 60_000)
         result
     }
-    private suspend fun probe(match: GameChannelMatcher.Match, programme: Programme): Result {
-        val api = SportsReplayPolicy.providerApi(match.channel) ?: return Result(message = "This provider's replay URL format is not supported")
+    private suspend fun probe(channel: Channel, programme: Programme): Result {
+        val api = SportsReplayPolicy.providerApi(channel) ?: return Result(message = "This provider's replay URL format is not supported")
         val timezone = request(Request.Builder().url(api).header("User-Agent", USER_AGENT).build()) { response ->
             val json = JSONObject(response.body?.string().orEmpty())
             json.optJSONObject("server_info")?.optString("timezone")?.takeIf { it in java.util.TimeZone.getAvailableIDs() }
         } ?: return Result(message = "Provider timezone unavailable. Replay cannot be checked safely.")
-        val url = SportsReplayPolicy.replayUrl(match.channel, programme, timezone) ?: return Result(message = "Replay time could not be resolved")
+        val url = SportsReplayPolicy.replayUrl(channel, programme, timezone) ?: return Result(message = "Replay time could not be resolved")
         val mime = request(Request.Builder().url(url).header("User-Agent", USER_AGENT).header("Range", "bytes=0-4095").header("Connection", "close").build()) { response ->
             val prefix = response.peekBody(4096).bytes()
             val type = mediaType(prefix)
@@ -70,16 +74,20 @@ object SportsReplayRepository {
     /** Historical guide discovery also covers local broadcasters omitted from ESPN's US listings. */
     suspend fun enrichGuide(game: JSONObject, bundle: XtreamBundle) = withContext(Dispatchers.Default) {
         SportsReplayCandidates.channels(game, bundle).forEach { channel ->
-            gate.withLock {
-                if (SportsGuideOverlay.fresh(channel)) return@withLock
-                val url = SportsReplayPolicy.providerApi(channel)?.newBuilder()?.addQueryParameter("action", "get_simple_data_table")?.addQueryParameter("stream_id", channel.id)?.build() ?: return@withLock
-                val rows = request(Request.Builder().url(url).header("User-Agent", USER_AGENT).build()) { response ->
-                    parseProgrammes(JSONObject(response.body?.string().orEmpty()))
-                }
-                currentCoroutineContext().ensureActive()
-                SportsGuideOverlay.put(channel, rows.orEmpty(), if (rows == null) 60_000 else 600_000)
-            }
+            archiveProgrammes(channel)
         }
+    }
+    suspend fun archiveProgrammes(channel: Channel, force: Boolean = false): List<Programme>? = gate.withLock {
+        if (!force && SportsGuideOverlay.fresh(channel)) return@withLock if (SportsGuideOverlay.failed(channel)) null else SportsGuideOverlay.get(channel)
+        val url = SportsReplayPolicy.providerApi(channel)?.newBuilder()?.addQueryParameter("action", "get_simple_data_table")
+            ?.addQueryParameter("stream_id", channel.id)?.build() ?: return@withLock null
+        val rows = request(Request.Builder().url(url).header("User-Agent", USER_AGENT).build()) { response ->
+            val json = JSONObject(response.body?.string().orEmpty())
+            if (json.optJSONArray("epg_listings") == null) null else parseProgrammes(json)
+        }
+        currentCoroutineContext().ensureActive()
+        SportsGuideOverlay.put(channel, rows.orEmpty(), if (rows == null) 60_000 else 600_000, rows == null)
+        rows
     }
     suspend fun discover(game: JSONObject, bundle: XtreamBundle): GameChannelMatcher.Match? = withContext(Dispatchers.Default) {
         if (game.optString("state") != "post") return@withContext null

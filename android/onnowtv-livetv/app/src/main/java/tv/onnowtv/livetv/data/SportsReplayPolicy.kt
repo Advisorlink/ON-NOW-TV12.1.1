@@ -15,13 +15,17 @@ object SportsReplayPolicy {
     fun check(game: JSONObject, match: GameChannelMatcher.Match, now: Long = System.currentTimeMillis()): Decision {
         val p = match.programme ?: return Decision(false, "No confirmed programme")
         if (!match.confirmed || !GameChannelMatcher.isFixtureProgramme(game, p)) return Decision(false, "Fixture not confirmed")
-        if (game.optString("state") != "post" || p.stopMs > now) return Decision(false, "Game or broadcast has not ended")
-        if (!match.channel.archiveEnabled) return Decision(false, "Channel does not support catch-up")
+        if (game.optString("state") != "post") return Decision(false, "Game has not ended")
+        return checkProgramme(match.channel, p, now)
+    }
+    fun checkProgramme(channel: Channel, p: Programme, now: Long = System.currentTimeMillis()): Decision {
+        if (p.stopMs > now) return Decision(false, "Broadcast has not ended")
+        if (!channel.archiveEnabled) return Decision(false, "Channel does not support catch-up")
         if (p.archiveAvailable == false) return Decision(false, "Provider has no recording for this programme")
-        val days = match.channel.archiveDays ?: return Decision(false, "Provider retention is unknown")
+        val days = channel.archiveDays ?: return Decision(false, "Provider retention is unknown")
         if (days !in 1..366 || p.startMs < now - days * 86_400_000L) return Decision(false, "Outside catch-up window")
-        if (providerApi(match.channel) == null) return Decision(false, "Provider replay format is not supported")
-        if (p.startMs >= p.stopMs || p.stopMs - p.startMs > 24 * 3_600_000L) return Decision(false, "Invalid programme window")
+        if (providerApi(channel) == null) return Decision(false, "Provider replay format is not supported")
+        if (p.startMs <= 0 || p.startMs >= p.stopMs || p.stopMs - p.startMs > 24 * 3_600_000L) return Decision(false, "Invalid programme window")
         return Decision(true, "Catch-up supported · check recording")
     }
     fun providerApi(channel: Channel): HttpUrl? {

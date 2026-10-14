@@ -1,6 +1,7 @@
 import { games, sports, leagues, surfaces, fieldFor, plays, players, standings } from './data.js';
 import { drawSurface, drawWorld } from './surfaces.js';
 import { enhanceSportsView, refreshPremiumPlay, enhanceFieldDialog } from './premium.js';
+import { replaysView } from './replays.js';
 
 const $ = (s) => document.querySelector(s);
 const iconPaths = {
@@ -30,8 +31,8 @@ const teamSide = (t,side,id) => `<span class="team-stack ${side}">${badge(t,`${i
 const pageIntro=(eyebrow,title,sub='',extra='')=>`<div class="view-intro"><div><div class="view-eyebrow">${eyebrow}</div><h2 class="view-title" data-testid="view-title">${title}</h2>${sub?`<p class="view-subtitle" data-testid="view-subtitle">${sub}</p>`:''}</div>${extra}</div>`;
 
 function header(){
-  const mode=screen==='map'?'map':screen==='following'?'following':'scores';
-  return `<header class="masthead"><a class="brand" href="?screen=scores" data-testid="brand-home" aria-label="V2 Sports Hub"><span class="brand-icon" aria-hidden="true">V2</span><span><span class="brand-kicker">V2 LIVE</span><h1 aria-label="V2 Sports Hub">Sports Hub</h1></span></a><nav class="main-nav" aria-label="Main navigation">${[['scores','Scores','scores'],['map','World map','globe'],['following','Following','star']].map(([id,label,ico])=>`<a href="?screen=${id}" class="nav-link ${mode===id?'active':''}" ${mode===id?'aria-current="page"':''} data-testid="nav-${id}">${ic(ico)}${label}</a>`).join('')}</nav><div class="mast-meta"><span class="live-total mono" data-testid="live-game-count"><i class="live-dot"></i>06 LIVE NOW</span><div class="sample-clock" data-testid="sample-clock">19:42<small>DEMO MATCHDAY</small></div></div></header>`;
+  const mode=screen==='map'?'map':screen==='following'?'following':screen==='replays'?'replays':'scores';
+  return `<header class="masthead"><a class="brand" href="?screen=scores" data-testid="brand-home" aria-label="V2 Sports Hub"><span class="brand-icon" aria-hidden="true">V2</span><span><span class="brand-kicker">V2 LIVE</span><h1 aria-label="V2 Sports Hub">Sports Hub</h1></span></a><nav class="main-nav" aria-label="Main navigation">${[['scores','Scores','scores'],['replays','Replays','play'],['map','World map','globe'],['following','Following','star']].map(([id,label,ico])=>`<a href="?screen=${id}" class="nav-link ${mode===id?'active':''}" ${mode===id?'aria-current="page"':''} data-testid="${id==='replays'?'top-nav-replays-button':'nav-'+id}">${ic(ico)}${label}</a>`).join('')}</nav><div class="mast-meta"><span class="live-total mono" data-testid="live-game-count"><i class="live-dot"></i>06 LIVE NOW</span><div class="sample-clock" data-testid="sample-clock">19:42<small>DEMO MATCHDAY</small></div></div></header>`;
 }
 function sportFilters(){return `<nav class="sport-bar" aria-label="Sports">${sports.map(s=>`<button data-sport="${s}" data-testid="sport-${slug(s)}" class="sport-button ${sport===s?'active':''}" aria-pressed="${sport===s}">${s}</button>`).join('')}</nav>${sport!=='All sports'&&leagues[sport]?`<nav class="league-bar" aria-label="Leagues">${leagues[sport].map(l=>`<button data-league="${l}" data-testid="league-${slug(l)}" class="league-button ${league===l?'active':''}" aria-pressed="${league===l}">${l}</button>`).join('')}</nav>`:''}`;}
 function footer(){return `<footer class="footer"><span data-testid="footer-data-notice">V2 SPORTS HUB · DESIGN PREVIEW<br>Sample scores · No live playback</span><a href="?screen=fields" data-testid="nav-fields">${ic('field')}Fields & courts ${ic('arrow')}</a></footer>`;}
@@ -74,7 +75,7 @@ function render({keepScroll=false,focusId=null}={}){
   screen=getScreen();const scroll=window.scrollY;
   const g=screen.startsWith('game-')?games.find(g=>g.id===screen.slice(5)):null;
   if(screen==='league'&&sport==='All sports'){sport='Baseball';league='MLB';}
-  const body=g?gameView(g):screen==='map'?mapView():screen==='fields'?fieldsView():scoresView(screen==='following');
+  const body=g?gameView(g):screen==='replays'?replaysView():screen==='map'?mapView():screen==='fields'?fieldsView():scoresView(screen==='following');
   app.innerHTML=`<div class="shell">${header()}<main class="screen-enter" data-testid="astra-screen-${safe(screen)}">${body}</main>${footer()}</div>`;
   const originalKeys=['scores','league','map','following','game-mlb','game-nfl','fields'];
   $('#compare-original').href=`../sportshub-mockup/index.html?screen=${originalKeys.includes(screen)?screen:'scores'}`;
@@ -130,7 +131,7 @@ document.addEventListener('click',e=>{
 // Native-like geometric D-pad navigation without autoplay or a render loop.
 document.addEventListener('keydown',e=>{
   if(!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Escape'].includes(e.key))return;
-  if(e.key==='Escape'){if(dialog.open)dialog.close();else if(screen.startsWith('game-')||screen==='fields')navigate('?screen=scores');return;}
+  if(e.key==='Escape'){if(dialog.open)dialog.close();else if(screen==='replays')navigate(new URLSearchParams(location.search).has('sport')?'?screen=replays':'?screen=scores');else if(screen.startsWith('game-')||screen==='fields')navigate('?screen=scores');return;}
   const root=dialog.open?dialog:document;
   const nodes=[...root.querySelectorAll('button:not(:disabled),a[href]')].filter(el=>el.getBoundingClientRect().width&&el.getBoundingClientRect().height);
   const current=document.activeElement;const r=current?.getBoundingClientRect();

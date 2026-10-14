@@ -2,7 +2,6 @@ package tv.onnowtv.livetv.data
 
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.Dispatcher
@@ -17,11 +16,14 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.Base64
+import java.util.concurrent.TimeUnit
 
 class SportsReplayRepositoryTest {
 
     private fun game(startMs: Long, state: String = "post") = JSONObject()
         .put("state", state)
+        .put("sport", "baseball")
+        .put("league", "mlb")
         .put("startMs", startMs)
         .put("home", JSONObject().put("name", "New York Yankees").put("abbr", "NYY"))
         .put("away", JSONObject().put("name", "Boston Red Sox").put("abbr", "BOS"))
@@ -165,7 +167,7 @@ class SportsReplayRepositoryTest {
             val m = match(server.url("/provider/live/user/pass/100.ts").toString(), now)
             var job: Job? = null
             job = launch { SportsReplayRepository.verify(g, m) }
-            delay(100)
+            assertNotNull(kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { server.takeRequest(2, TimeUnit.SECONDS) })
             job.cancelAndJoin()
             assertTrue(job.isCancelled)
         } finally {

@@ -614,7 +614,7 @@
                     android:focusable="true"
                     android:clickable="true"
                     android:nextFocusUp="@id/whatson_pill"
-                    android:nextFocusDown="@id/categories_list"
+                    android:nextFocusDown="@id/sports_replays_btn"
                     android:background="@drawable/category_pill_bg">
                     <TextView
                         android:layout_width="30dp"
@@ -648,6 +648,25 @@
                         android:letterSpacing="0.14"
                         android:text="›" />
                 </LinearLayout>
+
+                <TextView
+                    android:id="@+id/sports_replays_btn"
+                    android:tag="guide-replays-button"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:layout_marginTop="6dp"
+                    android:paddingHorizontal="12dp"
+                    android:gravity="center_vertical"
+                    android:text="↺  REPLAYS"
+                    android:contentDescription="Sports replays"
+                    android:textColor="#FFFFFF"
+                    android:textSize="13sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:background="@drawable/category_pill_bg"
+                    android:focusable="true"
+                    android:clickable="true"
+                    android:nextFocusUp="@id/sports_hub_btn"
+                    android:nextFocusDown="@id/categories_list" />
 
                 <TextView
                     android:layout_width="match_parent"

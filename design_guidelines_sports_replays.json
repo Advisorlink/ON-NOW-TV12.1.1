@@ -1,0 +1,148 @@
+{
+  "project_name": "OnNowTV - Sports Replays Feature & Global Design Guidelines",
+  "version": "2.8.0",
+  "last_updated": "2026-07-01",
+  "theme": "dark",
+  "design_archetype": "THE PERFORMANCE PRO (Tactical Minimalism & High Contrast)",
+  "context": "Native Android TV & Web/Mobile Sports Streaming App - Replays Hub",
+  "color_palette": {
+    "background": "#090B10",
+    "surface": "#121620",
+    "surface_elevated": "#1A202C",
+    "surface_card": "#151A24",
+    "primary_accent": "#FF3B30",
+    "secondary_accent": "#00E5FF",
+    "text_primary": "#FFFFFF",
+    "text_secondary": "#94A3B8",
+    "text_muted": "#64748B",
+    "border_subtle": "rgba(255, 255, 255, 0.1)",
+    "border_focus": "#00E5FF",
+    "focus_glow": "rgba(0, 229, 255, 0.4)",
+    "overlay_gradient": "linear-gradient(180deg, rgba(9,11,16,0.2) 0%, rgba(9,11,16,0.85) 75%, rgba(9,11,16,0.98) 100%)",
+    "tile_faded_overlay": "linear-gradient(135deg, rgba(18, 22, 32, 0.75) 0%, rgba(9, 11, 16, 0.92) 100%)"
+  },
+  "typography": {
+    "font_family_heading": "Barlow Condensed, Outfit, sans-serif",
+    "font_family_body": "Inter, DM Sans, sans-serif",
+    "h1_hero": "text-4xl sm:text-5xl lg:text-6xl tracking-tight font-extrabold",
+    "h2_section": "text-2xl sm:text-3xl lg:text-4xl tracking-tight font-bold",
+    "h3_card": "text-lg sm:text-xl font-bold tracking-normal",
+    "label": "text-xs font-semibold uppercase tracking-widest text-slate-400",
+    "body": "text-sm sm:text-base leading-relaxed text-slate-300"
+  },
+  "top_navigation": {
+    "replays_button": {
+      "label": "REPLAYS",
+      "data_testid": "top-nav-replays-button",
+      "position": "Top Navigation Menu alongside Live TV / Sports / Schedule",
+      "style": "px-4 py-2 rounded-lg font-bold text-sm tracking-wider uppercase transition-all duration-200 hover:bg-white/10 focus:ring-2 focus:ring-cyan-400 focus:bg-white/15",
+      "active_state": "bg-red-600 text-white shadow-lg shadow-red-900/40"
+    }
+  },
+  "sports_replays_hub": {
+    "grid_layout": {
+      "desktop_tv": "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-5 p-6",
+      "mobile_portrait": "grid-cols-2 gap-4 p-4",
+      "aspect_ratio": "aspect-[4/3] or aspect-square",
+      "performance_budget": "Android Canvas / Native Drawables & lightweight CSS. Zero heavy WebGL or unoptimized blur filters for low-end boxes."
+    },
+    "tile_design": {
+      "concept": "Atmospheric Faded Artwork Category Tiles",
+      "rules": [
+        "Consistent square/rectangle dimensions across all 18 categories",
+        "Neutral high-quality generic sport background imagery (no misrepresenting single team as entire sport)",
+        "Dark contrast gradient overlay ensuring 4.5:1 APCA readability for title and subtext",
+        "1px subtle perimeter border with sharp 8px rounded corners",
+        "High visibility D-Pad focus frame (2px cyan/amber outline + scale-105 transition) for TV navigation"
+      ],
+      "hover_focus_state": "transform scale-105 border-cyan-400 shadow-[0_0_20px_rgba(0,229,255,0.3)] duration-200 z-10"
+    },
+    "categories_18": [
+      { "id": "football", "name": "Football (Soccer)", "badge": "SOCCER", "icon": "soccer-ball", "image_url": "https://images.unsplash.com/photo-1522778119026-d647f0596c20?crop=entropy&cs=srgb&fm=jpg&q=85" },
+      { "id": "f1", "name": "Formula 1", "badge": "MOTORSPORT", "icon": "flag-checkered", "image_url": "https://images.unsplash.com/photo-1590227632180-80a3bf110871?crop=entropy&cs=srgb&fm=jpg&q=85" },
+      { "id": "motorsport", "name": "Motorsport", "badge": "RACING", "icon": "car-sport", "image_url": "https://images.unsplash.com/photo-1590227632180-80a3bf110871?crop=entropy&cs=srgb&fm=jpg&q=85" },
+      { "id": "golf", "name": "Golf", "badge": "PGA / LIV", "icon": "golf", "image_url": "https://images.unsplash.com/photo-1535131749006-b7f58c99034b?crop=entropy&cs=srgb&fm=jpg&q=85" },
+      { "id": "cricket", "name": "Cricket", "badge": "TEST / T20", "icon": "cricket-ball", "image_url": "https://images.unsplash.com/photo-1531415074968-036ba1b575da?crop=entropy&cs=srgb&fm=jpg&q=85" },
+      { "id": "tennis", "name": "Tennis", "badge": "GRAND SLAM", "icon": "tennis-ball", "image_url": "https://images.unsplash.com/photo-1595435934249-5df7ed86e1c0?crop=entropy&cs=srgb&fm=jpg&q=85" },
+      { "id": "rugby_union", "name": "Rugby Union", "badge": "UNION", "icon": "rugby-ball", "image_url": "https://images.unsplash.com/photo-1522778119026-d647f0596c20?crop=entropy&cs=srgb&fm=jpg&q=85" },
+      { "id": "rugby_league", "name": "Rugby League", "badge": "NRL / SUPER", "icon": "rugby-ball", "image_url": "https://images.unsplash.com/photo-1522778119026-d647f0596c20?crop=entropy&cs=srgb&fm=jpg&q=85" },
+      { "id": "afl", "name": "AFL", "badge": "FOOTY", "icon": "afl-ball", "image_url": "https://images.unsplash.com/photo-1522778119026-d647f0596c20?crop=entropy&cs=srgb&fm=jpg&q=85" },
+      { "id": "nfl", "name": "NFL", "badge": "AMERICAN FOOTBALL", "icon": "american-football", "image_url": "https://images.unsplash.com/photo-1566577739112-5180d4bf9390?crop=entropy&cs=srgb&fm=jpg&q=85" },
+      { "id": "basketball", "name": "Basketball", "badge": "NBA / NBL", "icon": "basketball", "image_url": "https://images.unsplash.com/photo-1504450758481-7338eba7524a?crop=entropy&cs=srgb&fm=jpg&q=85" },
+      { "id": "hockey", "name": "Hockey", "badge": "NHL / FIELD", "icon": "hockey-puck", "image_url": "https://images.unsplash.com/photo-1580748141549-71748dbe0bdc?crop=entropy&cs=srgb&fm=jpg&q=85" },
+      { "id": "baseball", "name": "Baseball", "badge": "MLB", "icon": "baseball", "image_url": "https://images.unsplash.com/photo-1508802511966-9d4000bc358b?crop=entropy&cs=srgb&fm=jpg&q=85" },
+      { "id": "combat", "name": "Combat Sports", "badge": "UFC / BOXING", "icon": "boxing-glove", "image_url": "https://images.unsplash.com/photo-1549719386-74dfcbf7dbed?crop=entropy&cs=srgb&fm=jpg&q=85" },
+      { "id": "cycling", "name": "Cycling", "badge": "TOUR / UCI", "icon": "bike", "image_url": "https://images.unsplash.com/photo-1485965120184-e220f721d03e?crop=entropy&cs=srgb&fm=jpg&q=85" },
+      { "id": "athletics", "name": "Athletics", "badge": "TRACK & FIELD", "icon": "runner", "image_url": "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?crop=entropy&cs=srgb&fm=jpg&q=85" },
+      { "id": "wwe", "name": "WWE & Pro Wrestling", "badge": "ENTERTAINMENT", "icon": "wrestling-ring", "image_url": "https://images.unsplash.com/photo-1549719386-74dfcbf7dbed?crop=entropy&cs=srgb&fm=jpg&q=85" },
+      { "id": "other", "name": "Other Sports", "badge": "REPLAYS HUB", "icon": "trophy", "image_url": "https://images.unsplash.com/photo-1489944440615-453fc2b6a9a9?crop=entropy&cs=srgb&fm=jpg&q=85" }
+    ]
+  },
+  "replay_matches_view": {
+    "list_card_layout": "bg-slate-900/90 border border-slate-800 hover:border-cyan-500/50 rounded-xl p-4 transition-all duration-200 cursor-pointer",
+    "metadata_fields": [
+      "Sport Category",
+      "Date & Time Recorded",
+      "Home Team vs Away Team",
+      "Programme Name / Round",
+      "Broadcasting Channel Name",
+      "Duration & Quality Tag (1080p 60fps)"
+    ],
+    "playback_behavior": "Clicking any replay tile triggers immediate native recording playback (direct video player launch with back button control)."
+  },
+  "loading_and_feedback_states": {
+    "prominent_loading_band": {
+      "data_testid": "replays-loading-progress-band",
+      "description": "Large visible animated progress bar + status description spanning top section of screen during recording verification and match index fetch.",
+      "container_style": "w-full bg-slate-900 border-b border-cyan-500/30 p-4 flex flex-col items-center justify-center space-y-2",
+      "progress_bar": "w-full max-w-xl h-2 bg-slate-800 rounded-full overflow-hidden relative"
+    },
+    "partial_loading": "Progressive rendering showing available categories immediately while background streams fetch remaining recordings.",
+    "empty_state": {
+      "data_testid": "replays-empty-state",
+      "title": "No Replays Currently Available",
+      "subtitle": "Check back shortly after live broadcast completes or select another sport category."
+    },
+    "error_state": {
+      "data_testid": "replays-error-state",
+      "title": "Unable to Load Replays",
+      "action_button": "Retry Fetch"
+    }
+  },
+  "accessibility_and_testing": {
+    "rule": "Every interactive element must include explicit kebab-case data-testid attributes",
+    "data_testids": [
+      "top-nav-replays-button",
+      "sport-category-tile-football",
+      "sport-category-tile-f1",
+      "sport-category-tile-motorsport",
+      "sport-category-tile-golf",
+      "sport-category-tile-cricket",
+      "sport-category-tile-tennis",
+      "sport-category-tile-rugby_union",
+      "sport-category-tile-rugby_league",
+      "sport-category-tile-afl",
+      "sport-category-tile-nfl",
+      "sport-category-tile-basketball",
+      "sport-category-tile-hockey",
+      "sport-category-tile-baseball",
+      "sport-category-tile-combat",
+      "sport-category-tile-cycling",
+      "sport-category-tile-athletics",
+      "sport-category-tile-wwe",
+      "sport-category-tile-other",
+      "replay-match-card-item",
+      "replay-player-back-button",
+      "replays-loading-progress-band"
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Ensure 'REPLAYS' is prominently placed in the top menu header.",
+    "Render the 18 sport categories in a clean responsive grid of high-contrast tiles with atmospheric artwork backgrounds.",
+    "Ensure all 18 categories maintain visual parity while featuring sport-appropriate background photography.",
+    "Include a prominent loading band at the top during replay verification.",
+    "On category selection, list all channel recordings with date, team, programme, and channel details.",
+    "Clicking a match automatically launches replay stream with back navigation.",
+    "Maintain high performance for Android TV D-pad and portrait phone displays using native Canvas/CSS rendering."
+  ]
+}

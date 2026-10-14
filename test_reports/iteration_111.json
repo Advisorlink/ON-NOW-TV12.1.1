@@ -1,0 +1,49 @@
+{
+  "summary": "Tested backend sportshub regressions and frontend Astra replay/2D surfaces. Backend passed 22/22. Frontend replay library, modal/back/escape, responsive widths, and 12 expanded 2D surfaces passed. Native JVM/assemble rerun was blocked by missing Android SDK path in this container, though existing /tmp/replays-build.log shows prior assembleDebug success.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Native gradle test/assemble rerun in current container",
+        "issue": "Gradle failed at configuration: SDK location not found for ANDROID_HOME=/tmp/v2-android-sdk (directory missing in this runtime), so current-iteration native unit execution could not be completed.",
+        "affected_selectors": []
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_sportshub_v2_backend_regression.py",
+    "/app/backend/tests/test_sportshub_v2_live.py",
+    "/app/test_reports/pytest/iter111_sportshub_backend.xml",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/ui/SportsNativeLayoutRobolectricTest.kt",
+    "/tmp/replays-build.log"
+  ],
+  "action_items": [
+    "Re-provision Android SDK path in container (or provide valid sdk.dir) and rerun :app:testDebugUnitTest :app:assembleDebug for this iteration's native verification.",
+    "Run/update native transport regression specifically asserting Media3 OkHttpDataSource byte-read over HTTPS->HTTP cross-host redirects and non-2xx failure behavior.",
+    "Re-run full native suite after the SportsNativeLayoutRobolectricTest native-only update to confirm green in CI/runtime."
+  ],
+  "critical_code_review_comments": [
+    "SportsNativeLayoutRobolectricTest had stale assertions for removed browser/fallback internals; updated test now asserts native-only SportsSceneView tree (GamePlotView + overlays, no WebView).",
+    "SportsReplayTransport configuration looks aligned with requested policy: single shared OkHttpClient, followRedirects/followSslRedirects enabled, callTimeout=0 for long stream calls, UA set via repository/data source.",
+    "Current tests cover Range header and credential rewriting, but explicit DataSource-level redirect byte-read assertions are not clearly present in the checked test files."
+  ],
+  "updated_files": [
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/ui/SportsNativeLayoutRobolectricTest.kt",
+    "/app/test_reports/iteration_111.json"
+  ],
+  "success_rate": {
+    "backend": "100% (22/22)",
+    "frontend": "92% (Astra web preview flows passed; native rerun blocked by SDK env)"
+  },
+  "seed_data_creation": "",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Frontend Astra checks completed against https://rebrand-app-5.preview.emergentagent.com/sportshub-astra/index.html (18 replay tiles, baseball Astros sample, soccer empty state, Escape/back history, widths 320/390/768/1024/1440 no horizontal overflow, 12 expanded field dialogs non-blank, 2D game field screenshots at 1920x800 and 390x844). Backend command passed: pytest /app/backend/tests/test_sportshub_v2_backend_regression.py /app/backend/tests/test_sportshub_v2_live.py -v --tb=short --junitxml=/app/test_reports/pytest/iter111_sportshub_backend.xml. Native rerun command failed due missing SDK directory in this runtime. APK signature/zipalign checks on existing debug APK passed via apksigner + zipalign.",
+  "rca of the issue": "Native rerun blocker reproduction: execute gradle :app:testDebugUnitTest :app:assembleDebug with ANDROID_HOME=/tmp/v2-android-sdk from /app/android/onnowtv-livetv -> failure 'SDK location not found'. Root cause in this environment: expected SDK directory absent. Mitigation: restore/provide valid SDK path (ANDROID_HOME/ANDROID_SDK_ROOT or local.properties sdk.dir), then rerun native suite. Additional note: in frontend canvas play-step check, 'next-play' appeared unchanged only because initial state is already last play (button disabled); moving to previous play confirmed pixel/state changes.",
+  "mocked_flows": "MOCKED: Browser Astra fixtures/replay modal/sample channels are design-preview data. MOCKED: Native replay fixture/network unit tests are controlled test fixtures; no physical-device playback claimed."
+}

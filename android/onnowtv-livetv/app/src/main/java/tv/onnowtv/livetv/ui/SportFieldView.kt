@@ -28,6 +28,7 @@ open class SportFieldView @JvmOverloads constructor(
 
     private var sport: String = ""
     private var accent: Int = 0xFF5DC8FF.toInt()
+    private var detailed = false
 
     private val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -61,20 +62,32 @@ open class SportFieldView @JvmOverloads constructor(
 
     /** Hub surfaces carry data, unlike the faint decorative StatsPlayer background. */
     fun setHighContrast(enabled: Boolean) {
-        line.color = withAlpha(accent, if (enabled) 0xAA else 0x4A)
-        soft.color = withAlpha(accent, if (enabled) 0x70 else 0x30)
-        dashed.color = withAlpha(accent, if (enabled) 0x60 else 0x30)
+        detailed = enabled
+        val ink = if (enabled) { if (sport == "nhl") 0xFF426578.toInt() else android.graphics.Color.WHITE } else accent
+        line.color = withAlpha(ink, if (enabled) 0xCE else 0x4A)
+        soft.color = withAlpha(ink, if (enabled) 0x8A else 0x30)
+        dashed.color = withAlpha(ink, if (enabled) 0x78 else 0x30)
         invalidate()
     }
 
     private fun dp(v: Float): Float = v * resources.displayMetrics.density
+
+    protected fun fieldBounds(): RectF {
+        val r = RectF(width * .08f, height * .16f, width * .92f, height * .84f)
+        if (!detailed) return RectF(width * .10f, height * .12f, width * .90f, height * .88f)
+        val ratio = when (sport) { "mlb", "mma" -> 1.25f; "nhl" -> 2.35f; "nba" -> 1.88f; else -> 1.9f }
+        if (r.width() / r.height() > ratio) r.inset((r.width() - r.height() * ratio) / 2, 0f)
+        else r.inset(0f, (r.height() - r.width() / ratio) / 2)
+        return r
+    }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val w = width.toFloat()
         val h = height.toFloat()
         if (w <= 0f || h <= 0f) return
-        val r = RectF(w * 0.10f, h * 0.12f, w * 0.90f, h * 0.88f)
+        val r = fieldBounds()
+        if (detailed) SportsFieldDetail.ground(canvas, r, sport)
         when (sport) {
             "soccer" -> drawSoccer(canvas, r)
             "tennis" -> drawTennis(canvas, r)
@@ -89,6 +102,7 @@ open class SportFieldView @JvmOverloads constructor(
             "f1", "motorsport" -> drawCircuit(canvas, r)
             "golf" -> drawGolfGreen(canvas, r)
         }
+        if (detailed) SportsFieldDetail.markings(canvas, r, sport, resources.displayMetrics.density)
     }
 
     /* pitch outline + halfway + centre circle + penalty boxes */

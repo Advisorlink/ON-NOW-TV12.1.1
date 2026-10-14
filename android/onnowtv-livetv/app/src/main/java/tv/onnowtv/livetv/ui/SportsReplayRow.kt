@@ -19,6 +19,7 @@ import tv.onnowtv.livetv.data.GameChannelMatcher
 import tv.onnowtv.livetv.data.SportsReplayPolicy
 import tv.onnowtv.livetv.data.SportsReplayRepository
 import tv.onnowtv.livetv.data.XtreamBundle
+import tv.onnowtv.livetv.data.SharedSportsGuide
 import tv.onnowtv.livetv.ui.SportsUi as UI
 
 /** Work belongs to the attached card AND the foreground activity, never to a global scope. */
@@ -41,7 +42,7 @@ object SportsReplayRow {
                             delay(300) // Fast D-pad scrolling must not fan out provider requests.
                             // Same viewer URL rewrite as live playback, but never scan the guide on the UI thread.
                             val accountBundle = withContext(Dispatchers.Default) {
-                                bundle.copy(channels = bundle.channels.map { channel ->
+                                SharedSportsGuide.enriched(bundle).copy(channels = bundle.channels.map { channel ->
                                     if (channel.archiveEnabled) channel.copy(streamUrl = AuthStore.rewriteStreamUrl(ctx, channel.streamUrl)) else channel
                                 })
                             }

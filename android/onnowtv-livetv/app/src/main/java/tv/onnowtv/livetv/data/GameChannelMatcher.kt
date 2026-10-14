@@ -9,7 +9,7 @@ object GameChannelMatcher {
     private val marks = Regex("\\p{M}+")
     private val punctuation = Regex("[^a-z0-9]+")
     private val spaces = Regex(" +")
-    data class Match(val channel: Channel, val score: Int, val reason: String, val programme: Programme? = null, val confirmed: Boolean = false)
+    data class Match(val channel: Channel, val score: Int, val reason: String, val programme: Programme? = null, val confirmed: Boolean = false, val liveCandidate: Boolean = false)
     private val excluded = Regex("\\b(highlights?|recap|preview|postgame|post game|news|classic|review|rewind)\\b")
     fun normalize(s: String): String = Normalizer.normalize(s, Normalizer.Form.NFD).replace(marks, "")
         .lowercase().replace(punctuation, " ").trim().replace(spaces, " ")
@@ -25,6 +25,7 @@ object GameChannelMatcher {
     private fun mentions(title: String, names: Set<String>) = names.any { " $title ".contains(" $it ") }
     private class Fixture(game: JSONObject) {
         val start = game.optLong("startMs")
+        private val bucket = SportsCategories.bucket(game)
         private val home = aliases(game.optJSONObject("home"))
         private val away = aliases(game.optJSONObject("away"))
         private val homeOnly = home - away
@@ -34,18 +35,23 @@ object GameChannelMatcher {
             // Reject the rest of the week's guide BEFORE doing any regex/Unicode work.
             if (!inWindow(p)) return false
             val title = normalize(p.title)
-            return !excluded.containsMatchIn(title) && mentions(title, homeOnly) && mentions(title, awayOnly)
+            val statedSport = LiveSportsClassifier.programmeBucket(p.title)
+            return (statedSport == null || statedSport == bucket) && !excluded.containsMatchIn(title) && mentions(title, homeOnly) && mentions(title, awayOnly)
         }
     }
     fun isFixtureProgramme(game: JSONObject, programme: Programme) = Fixture(game).matches(programme)
     fun find(game: JSONObject, bundle: XtreamBundle, nowMs: Long = System.currentTimeMillis()): List<Match> {
         val fixture = Fixture(game)
+        val guide = SharedSportsGuide.rows(bundle)
+        val liveBucket = SportsCategories.bucket(game).takeIf { game.optString("state") == "in" }
         val casters = game.optJSONArray("broadcasts")?.let { a -> (0 until a.length()).map { normalize(a.optString(it)) }.filter { it.length >= 3 } }.orEmpty()
         return bundle.channels.mapNotNull { ch ->
             var exact: Programme? = null
+            var live: Programme? = null
             var nearest = Long.MAX_VALUE
             val seen = HashSet<Pair<Long, Long>>()
-            for (rows in listOf(SportsGuideOverlay.get(ch), bundle.epg[ch.epgChannelId ?: ch.id].orEmpty())) for (p in rows) {
+            for (rows in listOf(SportsGuideOverlay.get(ch), guide[ch.epgChannelId ?: ch.id].orEmpty())) for (p in rows) {
+                if (live == null && liveBucket != null && LiveSportsClassifier.liveBucket(p, ch.name, nowMs) == liveBucket) live = p
                 if (!fixture.inWindow(p)) continue
                 // Overlay wins for identical programme windows, including an explicit archive denial.
                 if (!seen.add(p.startMs to p.stopMs)) continue
@@ -53,6 +59,7 @@ object GameChannelMatcher {
                 if (distance < nearest && fixture.matches(p)) { exact = p; nearest = distance }
             }
             if (exact != null) Match(ch, 100 + if (exact.isLiveAt(nowMs)) 10 else 0, "Guide confirmed · ${exact.title}", exact, true)
+            else if (live != null) Match(ch, 45, "Live ${LiveSportsClassifier.labelOf(liveBucket.orEmpty())} · match unconfirmed", live, liveCandidate = true)
             else if (casters.any { " ${normalize(ch.name)} ".contains(" $it ") }) Match(ch, 25, "Possible broadcast · not confirmed in guide")
             else null
         }.sortedWith(compareByDescending<Match> { it.confirmed }.thenByDescending { it.score }.thenBy { it.channel.name }).take(12)

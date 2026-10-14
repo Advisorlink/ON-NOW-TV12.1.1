@@ -10,6 +10,7 @@ import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
@@ -35,8 +36,11 @@ import tv.onnowtv.livetv.ui.SportsUi as UI
 import tv.onnowtv.livetv.ui.SportsUi.dp
 import tv.onnowtv.livetv.ui.WorldMapView
 import tv.onnowtv.livetv.ui.SportsWindow
+import tv.onnowtv.livetv.ui.SportsLoadingBand
 import tv.onnowtv.livetv.ui.SportsHeaderAdapter
 import tv.onnowtv.livetv.data.SportsLayoutPolicy
+import tv.onnowtv.livetv.data.SportsCategories
+import tv.onnowtv.livetv.data.SportsLiveGuide
 
 /** Real, native V2 Sports Hub. Browser fixtures are never used by this activity. */
 class SportsHubActivity : AppCompatActivity() {
@@ -56,7 +60,9 @@ class SportsHubActivity : AppCompatActivity() {
     private lateinit var empty: TextView
     private val scores = SportsScoreAdapter(this) { openGame(it) }
     private val mapRows = SportsMapAdapter({ map.selectGame(Data.key(it)) }, { openGame(it) })
-    private var sports: List<JSONObject> = emptyList()
+    private var sports: List<JSONObject> = SportsCategories.catalogue(emptyList())
+    private var catalogueLoaded = false
+    private var programmes: List<SportsLiveGuide.Entry> = emptyList()
     private var games: List<JSONObject> = emptyList()
     private var sportIdx = -1
     private var leagueIdx = 0
@@ -74,9 +80,16 @@ class SportsHubActivity : AppCompatActivity() {
     private lateinit var filterHeader: FrameLayout
     private var handset = false
     private var restoredListState: android.os.Parcelable? = null
+    private lateinit var loadingBand: SportsLoadingBand
+    private var loadingScores = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        scores.playProgramme = { entry ->
+            if (entry.programme.isLiveAt(System.currentTimeMillis()) && BundleHolder.current?.channels?.any { it.id == entry.channel.id && it.streamUrl == entry.channel.streamUrl } == true) {
+                SportsPlayback.open(this, entry.channel, subtitle = entry.programme.title)
+            } else { Toast.makeText(this, "This programme has ended or the guide changed", Toast.LENGTH_SHORT).show(); refresh(quiet = true) }
+        }
         SportsWindow.apply(this)
         handset = !SportsWindow.television(this)
         restoredListState = savedInstanceState?.getParcelable("scoresScroll")
@@ -92,6 +105,7 @@ class SportsHubActivity : AppCompatActivity() {
         header.addView(UI.identify(UI.pill(ctx, "‹ Guide") { finish() }, "hub-back-guide")); root.addView(header)
         if (compact) root.addView(SportsWindow.horizontal(ctx, modes))
         renderModes(); root.addView(UI.divider(ctx))
+        loadingBand = SportsLoadingBand(ctx, "hub"); root.addView(loadingBand)
         sportsRow = UI.row(ctx, dp(ctx, 7f)); leaguesRow = UI.row(ctx, dp(ctx, 7f))
         fun scroller(row: LinearLayout) = HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false; setPadding(dp(ctx, 3f), dp(ctx, 3f), dp(ctx, 3f), dp(ctx, 3f)); addView(row) }
         filters = UI.col(ctx, dp(ctx, 5f))
@@ -102,7 +116,7 @@ class SportsHubActivity : AppCompatActivity() {
         dateLabel = UI.identify(UI.pill(ctx, "Today") { dayOffset = 0; updateDateLabel(); games = emptyList(); refresh() }, "hub-fixture-date"); dates.addView(dateLabel, LinearLayout.LayoutParams(0, -2, 1.3f))
         dates.addView(UI.identify(UI.pill(ctx, if (width < 600) "Next ›" else "Next day ›") { day(1) }, "hub-next-day"), LinearLayout.LayoutParams(0, -2, 1f)); updateDateLabel(); filters.addView(dates)
         val status = UI.row(ctx, dp(ctx, 12f))
-        notice = UI.identify(UI.text(ctx, message, 12f, UI.DIM), "hub-feed-status")
+        notice = UI.identify(UI.text(ctx, message, 15f, UI.DIM), "hub-feed-status")
         status.addView(notice, LinearLayout.LayoutParams(0, -2, 1f))
         retry = UI.identify(UI.pill(ctx, "Retry") { refresh() }, "hub-retry").apply { visibility = View.GONE }; status.addView(retry)
         filters.addView(status)
@@ -169,6 +183,7 @@ class SportsHubActivity : AppCompatActivity() {
             val tag = "hub-mode-${m.name.lowercase()}"
             modes.addView(UI.identify(UI.pill(this, label, mode == m) { mode = m; renderModes(tag); render() }, tag))
         }
+        modes.addView(UI.identify(UI.pill(this, "↺ Replays") { startActivity(Intent(this, SportsReplaysActivity::class.java)) }, "top-nav-replays-button"))
         modes.addView(UI.identify(UI.pill(this, "Fields") { SportsFieldGallery.show(this) }, "hub-fields"))
         focus?.let { modes.findViewWithTag<View>(it)?.requestFocus() }
     }
@@ -189,46 +204,64 @@ class SportsHubActivity : AppCompatActivity() {
     }
     private fun refresh(quiet: Boolean = false) {
         fetch?.cancel(); val generation = ++requestId
+        loadingScores = !quiet || games.isEmpty()
         if (!quiet) { message = if (sports.isEmpty()) "Loading sports…" else "Fetching scores…"; failed = false; render() }
         fetch = lifecycleScope.launch {
-            if (sports.isEmpty()) {
+            // Guide channels are available even if ESPN is slow, offline, or does not cover this sport.
+            val guideBundle = BundleHolder.current
+            val bucket = sports.getOrNull(sportIdx)?.optString("bucket")
+            val live = withContext(Dispatchers.Default) { if (guideBundle == null || dayOffset != 0) emptyList() else SportsLiveGuide.current(guideBundle, bucket) }
+            if (generation != requestId || !isActive) return@launch
+            programmes = if (BundleHolder.current === guideBundle) live else emptyList()
+            render()
+            if (!catalogueLoaded) {
                 val meta = SportsHubApi.leagues()
-                if (meta == null) { message = "Sports are temporarily unavailable. Please retry."; failed = true; render(); return@launch }
-                sports = meta.optJSONArray("sports").objects(); if (sportIdx >= sports.size) sportIdx = -1
+                if (meta == null) { message = "Scores are temporarily unavailable."; failed = true; loadingScores = false; render(); return@launch }
+                sports = SportsCategories.catalogue(meta.optJSONArray("sports").objects()); catalogueLoaded = true
+                if (sportIdx >= sports.size) sportIdx = -1
                 renderFilters()
             }
             val choice = sports.getOrNull(sportIdx)?.optJSONArray("leagues").objects().getOrNull(leagueIdx)
+            if (sportIdx >= 0 && choice == null) {
+                games = emptyList(); scores.setChannelMatches(emptyMap()); message = ""; failed = false; loadingScores = false; render(); return@launch
+            }
             val date = if (dayOffset == 0) null else java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(fixtureDate())
             val response = if (choice == null) SportsHubApi.live(date = date) else SportsHubApi.scoreboard(choice.optString("sport"), choice.optString("league"), date)
             if (generation != requestId || !isActive) return@launch
             failed = response == null || response.optString("status") == "unavailable"
             if (!failed) {
                 val fresh = response?.optJSONArray("games").objects(); val bundle = BundleHolder.current
+                // Team names/crests/scores appear before guide matching and replay work.
+                games = fresh; loadingScores = false; render()
                 val channels = withContext(Dispatchers.Default) { if (bundle == null) emptyMap() else fresh.associate { Data.key(it) to GameChannelMatcher.find(it, bundle) } }
                 if (generation != requestId || !isActive) return@launch
                 games = fresh; scores.setChannelMatches(channels)
             }
             message = when { failed -> if (games.isEmpty()) "Scores are temporarily unavailable. Please retry." else "Connection interrupted · showing the last scores."; response?.optString("status") == "partial" -> "Some leagues are temporarily unavailable."; else -> "" }
+            loadingScores = false
             render()
         }
     }
     private fun render() {
         if (!::map.isInitialized) return
+        loadingBand.show(if (loadingScores) "Loading teams & scores…" else null)
         if (handset) {
             val target = if (mode == Mode.MAP) filterDock else filterHeader
             if (filters.parent !== target) { (filters.parent as? ViewGroup)?.removeView(filters); target.addView(filters) }
         }
         val followed = SportsFollowStore.all(this).map { it.key }.toSet()
         val visible = if (mode == Mode.FOLLOWING) games.filter { followed.contains(Data.teamKey(it, "home")) || followed.contains(Data.teamKey(it, "away")) } else games
-        liveBadge.text = "● ${visible.count { it.optString("state") == "in" }} LIVE"
+        val bucket = sports.getOrNull(sportIdx)?.optString("bucket")
+        val liveProgrammes = if (mode == Mode.SCORES && dayOffset == 0) programmes.filter { bucket == null || it.bucket == bucket } else emptyList()
+        liveBadge.text = if (mode == Mode.SCORES) "● ${liveProgrammes.size} LIVE CHANNELS" else "● ${visible.count { it.optString("state") == "in" }} LIVE"
         notice.text = message; notice.visibility = if (message.isEmpty()) View.GONE else View.VISIBLE
         retry.visibility = if (failed || message.startsWith("Some leagues")) View.VISIBLE else View.GONE
         mapPanel.visibility = if (mode == Mode.MAP) View.VISIBLE else View.GONE
         list.visibility = if (mode == Mode.MAP) View.GONE else View.VISIBLE
-        empty.visibility = if (mode != Mode.MAP && visible.isEmpty() && message.isEmpty()) View.VISIBLE else View.GONE
-        empty.text = if (mode == Mode.FOLLOWING) { if (followed.isEmpty()) "No teams followed yet.\nOpen a match and choose Follow." else "No games for your followed teams in this selection." } else "No games scheduled in this selection."
-        if (mode == Mode.MAP) { map.setGames(visible); mapRows.show(map.mappedGames()) } else scores.show(visible) {
-            if (visible.isNotEmpty()) restoredListState?.let { list.layoutManager?.onRestoreInstanceState(it); restoredListState = null }
+        empty.visibility = if (mode != Mode.MAP && visible.isEmpty() && liveProgrammes.isEmpty() && message.isEmpty()) View.VISIBLE else View.GONE
+        empty.text = if (mode == Mode.FOLLOWING) { if (followed.isEmpty()) "No teams followed yet.\nOpen a match and choose Follow." else "No games for your followed teams in this selection." } else "No live programmes or games in this selection."
+        if (mode == Mode.MAP) { map.setGames(visible); mapRows.show(map.mappedGames()) } else scores.show(visible, liveProgrammes) {
+            if (visible.isNotEmpty() || liveProgrammes.isNotEmpty()) restoredListState?.let { list.layoutManager?.onRestoreInstanceState(it); restoredListState = null }
         }
     }
     @Suppress("DEPRECATION")

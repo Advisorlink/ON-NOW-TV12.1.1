@@ -9,6 +9,16 @@ export function drawSurface(canvas, kind, color = '#00e6ed', events = [], select
   const scale = Math.min(rect.width / 1000, rect.height / 560);
   c.translate((rect.width - scale * 1000) / 2, (rect.height - scale * 560) / 2);
   c.scale(scale, scale);
+  // Detailed native-style 2D ground: no WebGL, canvas is redrawn only on data/size changes.
+  c.save();c.beginPath();
+  if(kind==='mlb'){c.moveTo(500,466);c.lineTo(201,190);c.bezierCurveTo(295,-5,708,-5,799,190);c.closePath();}
+  else if(['afl','cricket','golf'].includes(kind))c.ellipse(500,280,399,184,0,0,Math.PI*2);
+  else if(kind==='nhl')c.roundRect(100,100,800,360,105);
+  else if(!['f1','mma'].includes(kind))c.rect(100,100,800,360);
+  c.clip();c.fillStyle=kind==='nhl'?'#cbdde2':kind==='nba'?'#936b43':kind==='tennis'?'#255276':'#174c37';c.fillRect(80,0,850,520);
+  c.fillStyle=kind==='nhl'?'#ffffff18':'#ffffff0b';for(let i=0;i<24;i+=2)c.fillRect(100+i*34,0,34,520);
+  c.restore();
+  if(!['f1','mma'].includes(kind))color=kind==='nhl'?'#366375':'#d3eee2';
   const path = (fn, fill = null, stroke = color+'66', width = 2) => {c.beginPath();fn();if(fill){c.fillStyle=fill;c.fill();}if(stroke){c.strokeStyle=stroke;c.lineWidth=width;c.stroke();}};
   const line = (x1,y1,x2,y2,col=color+'55',width=2) => path(()=>{c.moveTo(x1,y1);c.lineTo(x2,y2);},null,col,width);
   const box = (x,y,w,h,fill=null,col=color+'66',width=2) => path(()=>c.rect(x,y,w,h),fill,col,width);
@@ -36,8 +46,8 @@ export function drawSurface(canvas, kind, color = '#00e6ed', events = [], select
       pitch();box(100,100,70,360,color+'10');box(830,100,70,360,color+'10');
       for(let i=0;i<=10;i++){const x=170+i*66;line(x,100,x,460,color+(i===5?'a0':'40'));if(i>0&&i<10){label(String(i>5?(10-i)*10:i*10),x,148,21);label(String(i>5?(10-i)*10:i*10),x,433,21);}}
       for(let i=1;i<50;i++){const x=170+i*13.2;line(x,222,x,231,color+'66',1);line(x,329,x,338,color+'66',1);}
-      c.save();c.translate(137,280);c.rotate(-Math.PI/2);label('CHIEFS',0,0,21,color+'bb');c.restore();
-      c.save();c.translate(866,280);c.rotate(Math.PI/2);label('BILLS',0,0,21,color+'bb');c.restore();
+      c.save();c.translate(137,280);c.rotate(-Math.PI/2);label(events.length?'CHIEFS':'END ZONE',0,0,21,color+'bb');c.restore();
+      c.save();c.translate(866,280);c.rotate(Math.PI/2);label(events.length?'BILLS':'END ZONE',0,0,21,color+'bb');c.restore();
       if(events.length){const p=events[selected];line(p.x*1000,101,p.x*1000,459,'#00e6ed',3);dash(()=>line(Math.min(817,p.x*1000+66),101,Math.min(817,p.x*1000+66),459,'#ffdb70',2));}
       break;
     }
@@ -52,7 +62,13 @@ export function drawSurface(canvas, kind, color = '#00e6ed', events = [], select
     case 'f1':{const track=()=>{c.moveTo(285,438);c.lineTo(717,438);c.bezierCurveTo(916,431,924,267,739,271);c.lineTo(555,284);c.bezierCurveTo(480,278,495,81,345,99);c.bezierCurveTo(147,117,134,401,285,438);};path(track,null,color+'20',20);dash(()=>path(track,null,color+'cc',2));for(let i=0;i<4;i++)box(500+i*6,426,6,23,i%2?'#090e15':color,null);break;}
     case 'golf':oval(500,290,306,157,color+'09');dash(()=>oval(500,290,222,105));oval(500,290,124,51);circle(500,290,9,color);line(500,290,500,143,color,3);path(()=>{c.moveTo(500,143);c.lineTo(578,165);c.lineTo(500,190);c.closePath();},color+'99',color);break;
   }
-  events.slice(0,selected+1).forEach((p,i)=>{const x=p.x*1000,y=p.y*560;circle(x,y,i===selected?8:5,i===selected?'#ffdb70':color,null);if(i===selected){circle(x,y,17,null,'#ffdb70',2);circle(x,y,23,null,'#ffdb7044',2);}else circle(x,y,10,null,color+'55');});
+  if(kind==='soccer'){
+    [100,900].forEach(x=>{box(x-10,250,20,60,null,'#f5ffedbb');for(let i=1;i<5;i++)line(x-10,250+i*12,x+10,250+i*12,'#f5ffed66',1);});
+    [[100,100],[900,100],[100,460],[900,460]].forEach(([x,y])=>circle(x,y,10,null,'#f5ffed88'));
+  }
+  if(kind==='mlb'){box(480,448,9,24,null,'#fff9');box(512,448,9,24,null,'#fff9');}
+  if(kind==='nhl')[150,850].forEach((x,i)=>path(()=>c.arc(x,280,28,i?-Math.PI/2:Math.PI/2,i?Math.PI/2:Math.PI*1.5),null,'#c3425a',3));
+  events.slice(0,selected+1).forEach((p,i)=>{const x=p.x*1000,y=p.y*560;circle(x,y,i===selected?8:5,i===selected?'#ffdb70':'#8ee9ff',null);if(i===selected){circle(x,y,17,null,'#ffdb70',2);circle(x,y,23,null,'#ffdb7044',2);}else circle(x,y,10,null,'#8ee9ff77');});
 }
 
 let worldPromise;

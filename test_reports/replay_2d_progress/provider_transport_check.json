@@ -1,0 +1,25 @@
+{
+  "checked_at": "2026-10-14T07:36:05.333012+00:00",
+  "byte_limit": 4096,
+  "full_playback": false,
+  "checks": [
+    {
+      "title": "Major League Baseball : American League Championship Series, Game 2: Cleveland Guardians at Tampa Bay Rays \u1d38\u1da6\u1d5b\u1d49",
+      "channel": "TNT SPORTS 1 SD",
+      "start_utc": "2026-10-14T00:00:00+00:00",
+      "status": 206,
+      "bytes_read": 4096,
+      "mpeg_ts_prefix": true,
+      "content_type": "video/mp2t",
+      "redirect_statuses": [
+        302
+      ],
+      "protocols": [
+        "https",
+        "http"
+      ],
+      "cross_host_redirect": true
+    }
+  ],
+  "timezone": "Europe/London"
+}

@@ -1,0 +1,15 @@
+{
+  "status": "All local regression and package checks pass; physical live playback pending",
+  "backend_tests": 22,
+  "native_tests": 68,
+  "failures": 0,
+  "fixed_reported_issue": "Broadcaster sanitizer drops null/none/unknown/TBD labels and falls back from invalid shortName to valid name/displayName",
+  "additional_regression_fixed": "NHL: title punctuation previously classified as Other on generic sports channel; shared liveBucket now recognizes explicit programme evidence while rejecting unmarked/expired/replay content",
+  "ui_regression": "Sparse bundle plus hydrated What's On NHL guide -> three sparse summary refreshes -> channel row stays visible/clickable -> row click emits original channel ID/URL to existing PlayerActivity",
+  "real_api_recheck": {"http_status": 200, "event_id": "401892502", "name": "Edmonton Oilers at Los Angeles Kings", "state_at_final_check": "post", "broadcasts": ["ABTV", "ESPN+"]},
+  "apk": {"build": "pass", "signature_v1_v2": "pass", "alignment": "pass", "crc": "pass", "bytes": 202068771, "sha256": "a50b9ac842e0f9c7d0b9da0e6fc187af1304e0a843a08a8e296a810812705266", "distribution": "Local debug validation only; not release-signed/published"},
+  "remaining": ["Update running backend", "Install matching-signer updated Android release", "Verify current live match stays linked after refresh and actual playback works on box"],
+  "limitations": ["No connected physical TV/phone", "Playback intent tested, no real provider media connection opened"],
+  "mocked": ["Browser Astra fixtures/dialogs", "Native guide/stream regression fixtures"],
+  "credentials": "No auth credentials created or changed"
+}

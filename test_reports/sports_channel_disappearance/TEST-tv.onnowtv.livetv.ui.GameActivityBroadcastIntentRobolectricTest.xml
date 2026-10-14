@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="tv.onnowtv.livetv.ui.GameActivityBroadcastIntentRobolectricTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-14T05:42:50" hostname="agent-env-49bc65fa-9152-42e4-b845-97fdcbbeec38" time="2.992">
+  <properties/>
+  <testcase name="confirmed_same_fixture_channels_enable_failover_and_keep_original_selected_channel_intent" classname="tv.onnowtv.livetv.ui.GameActivityBroadcastIntentRobolectricTest" time="2.718"/>
+  <testcase name="unconfirmed_live_candidate_never_enables_failover_and_queue_stays_single_channel" classname="tv.onnowtv.livetv.ui.GameActivityBroadcastIntentRobolectricTest" time="0.134"/>
+  <testcase name="hydrated_whats_on_nhl_channel_survives_sparse_summary_refreshes_and_row_click_opens_that_channel" classname="tv.onnowtv.livetv.ui.GameActivityBroadcastIntentRobolectricTest" time="0.14"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

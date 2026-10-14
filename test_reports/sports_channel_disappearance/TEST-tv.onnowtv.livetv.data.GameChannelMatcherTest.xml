@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="tv.onnowtv.livetv.data.GameChannelMatcherTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-10-14T05:42:58" hostname="agent-env-49bc65fa-9152-42e4-b845-97fdcbbeec38" time="0.003">
+  <properties/>
+  <testcase name="fixture_programme_is_anchored_to_kickoff_not_now" classname="tv.onnowtv.livetv.data.GameChannelMatcherTest" time="0.0"/>
+  <testcase name="live_candidate_requires_explicit_current_live_programme_and_never_confirms" classname="tv.onnowtv.livetv.data.GameChannelMatcherTest" time="0.001"/>
+  <testcase name="find_prefers_confirmed_epg_match_and_preserves_lcn" classname="tv.onnowtv.livetv.data.GameChannelMatcherTest" time="0.0"/>
+  <testcase name="generic_or_nonlive_or_expired_nhl_titles_are_excluded_from_live_candidate" classname="tv.onnowtv.livetv.data.GameChannelMatcherTest" time="0.0"/>
+  <testcase name="fixture_programme_requires_both_teams_and_rejects_highlights_or_postgame" classname="tv.onnowtv.livetv.data.GameChannelMatcherTest" time="0.001"/>
+  <testcase name="exact_fixture_match_has_priority_over_live_candidate" classname="tv.onnowtv.livetv.data.GameChannelMatcherTest" time="0.0"/>
+  <testcase name="nhl_punctuation_and_superscript_live_match_without_promoting_replays_or_unmarked_shows" classname="tv.onnowtv.livetv.data.GameChannelMatcherTest" time="0.0"/>
+  <testcase name="broadcaster_only_hint_is_possible_not_confirmed" classname="tv.onnowtv.livetv.data.GameChannelMatcherTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

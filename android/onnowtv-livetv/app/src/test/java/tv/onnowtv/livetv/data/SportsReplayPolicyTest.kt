@@ -13,6 +13,8 @@ class SportsReplayPolicyTest {
 
     private fun game(startMs: Long, state: String = "post") = JSONObject()
         .put("state", state)
+        .put("sport", "baseball")
+        .put("league", "mlb")
         .put("startMs", startMs)
         .put("home", JSONObject().put("name", "New York Yankees").put("abbr", "NYY"))
         .put("away", JSONObject().put("name", "Boston Red Sox").put("abbr", "BOS"))

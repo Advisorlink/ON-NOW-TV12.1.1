@@ -1,0 +1,24 @@
+{
+  "native_tests": 68,
+  "failures": 0,
+  "backend_tests": 22,
+  "backend_failures": 0,
+  "api_recheck": {
+    "status": 200,
+    "id": "401892502",
+    "name": "Edmonton Oilers at Los Angeles Kings",
+    "state": "post",
+    "broadcasts": [
+      "ABTV",
+      "ESPN+"
+    ]
+  },
+  "apk_bytes": 202068771,
+  "apk_sha256": "a50b9ac842e0f9c7d0b9da0e6fc187af1304e0a843a08a8e296a810812705266",
+  "signature_v1_v2": "pass",
+  "alignment": "pass",
+  "native_refresh_regression": "NHL channel stays visible and clickable through three sparse-summary refreshes; click emits existing PlayerActivity intent with original channel ID/URL; no actual stream launched",
+  "distribution": "Local debug validation APK only; matching release signer required for installed-app update",
+  "remaining": "Backend and signed APK update plus physical box live playback confirmation; no production publication performed",
+  "zip_crc_ok": true
+}

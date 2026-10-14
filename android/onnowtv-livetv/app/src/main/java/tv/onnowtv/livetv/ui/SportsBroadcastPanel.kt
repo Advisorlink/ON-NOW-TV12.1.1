@@ -24,9 +24,10 @@ object SportsBroadcastPanel {
             row.addView(UI.col(ctx, dp(ctx, 5f)).apply {
                 addView(UI.text(ctx, listOfNotNull(match.channel.lcn, match.channel.name).joinToString(" · "), 14f, bold = true).apply { maxLines = 2 })
                 val time = match.programme?.let { java.text.SimpleDateFormat("EEE, h:mm a", java.util.Locale.getDefault()).format(java.util.Date(it.startMs)) }
-                addView(UI.text(ctx, if (match.confirmed) "Guide confirmed · $time" else "Possible broadcast · guide unconfirmed", 11f, if (match.confirmed) UI.ACCENT else UI.DIM).apply { maxLines = 2 })
+                val detail = when { match.confirmed -> "Guide confirmed · $time"; match.liveCandidate -> "${match.reason}\n${match.programme?.title.orEmpty()}"; else -> "Possible broadcast · guide unconfirmed" }
+                addView(UI.identify(UI.text(ctx, detail, 11f, if (match.confirmed) UI.ACCENT else UI.DIM).apply { maxLines = if (match.liveCandidate) 3 else 2 }, "game-channel-${match.channel.id}-match-status"))
             }, LinearLayout.LayoutParams(0, -2, 1f))
-            row.addView(UI.text(ctx, if (state == "in" && match.confirmed) "▶" else "›", 22f, UI.ACCENT, bold = true))
+            row.addView(UI.text(ctx, if (state == "in") "▶" else "›", 22f, UI.ACCENT, bold = true))
             row.setOnClickListener { tune(matches.map { it.channel }, match.channel) }; addView(row)
         }
         if (state == "post") addView(SportsReplayRow.create(ctx, owner, game, bundle, "game-replay", replay) { empty.visibility = View.GONE })

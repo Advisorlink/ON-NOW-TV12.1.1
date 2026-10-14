@@ -1,0 +1,72 @@
+{
+  "checked_utc": "2026-10-14T04:59:58.317474+00:00",
+  "scoreboard": {
+    "id": "401892502",
+    "name": "Edmonton Oilers at Los Angeles Kings",
+    "state": "in",
+    "startMs": 1791945000000,
+    "broadcasts": [
+      "ABTV",
+      "ESPN+"
+    ],
+    "home": {
+      "id": "8",
+      "name": "Los Angeles Kings",
+      "short": "Kings",
+      "abbr": "LA",
+      "logo": "https://a.espncdn.com/i/teamlogos/nhl/500/scoreboard/la.png",
+      "color": "121212",
+      "altColor": null,
+      "score": "1",
+      "record": "0-2-2",
+      "winner": false,
+      "home": true
+    },
+    "away": {
+      "id": "6",
+      "name": "Edmonton Oilers",
+      "short": "Oilers",
+      "abbr": "EDM",
+      "logo": "https://a.espncdn.com/i/teamlogos/nhl/500/scoreboard/edm.png",
+      "color": "00205b",
+      "altColor": null,
+      "score": "3",
+      "record": "4-0-1",
+      "winner": false,
+      "home": false
+    }
+  },
+  "summary": {
+    "id": "401892502",
+    "name": "Edmonton Oilers at Los Angeles Kings",
+    "state": "in",
+    "startMs": 1791945000000,
+    "broadcasts": [],
+    "home": {
+      "id": "8",
+      "name": "Los Angeles Kings",
+      "short": "LA",
+      "abbr": "LA",
+      "logo": "https://a.espncdn.com/i/teamlogos/nhl/500/la.png",
+      "color": "121212",
+      "altColor": null,
+      "score": "1",
+      "record": null,
+      "winner": false,
+      "home": true
+    },
+    "away": {
+      "id": "6",
+      "name": "Edmonton Oilers",
+      "short": "EDM",
+      "abbr": "EDM",
+      "logo": "https://a.espncdn.com/i/teamlogos/nhl/500/edm.png",
+      "color": "00205b",
+      "altColor": null,
+      "score": "3",
+      "record": null,
+      "winner": false,
+      "home": false
+    }
+  }
+}

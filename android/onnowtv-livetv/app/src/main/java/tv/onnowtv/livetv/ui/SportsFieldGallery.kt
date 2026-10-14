@@ -11,7 +11,7 @@ object SportsFieldGallery {
     fun show(ctx: Context) {
         val col = SportsUi.col(ctx, dp(ctx, 12f)).apply { setPadding(dp(ctx, 22f), dp(ctx, 20f), dp(ctx, 22f), dp(ctx, 20f)); background = SportsUi.bg(SportsUi.BG, dp(ctx, 16f).toFloat()) }
         col.addView(SportsUi.wordmark(ctx, true)); col.addView(SportsUi.text(ctx, "Fields of play", 24f, bold = true))
-        fields.chunked(4).forEach { group ->
+        fields.chunked(if (ctx.resources.configuration.screenWidthDp < 600) 2 else 4).forEach { group ->
             val row = SportsUi.row(ctx, dp(ctx, 10f))
             group.forEach { (id, name) ->
                 val tile = SportsUi.col(ctx).apply { setPadding(dp(ctx, 10f), dp(ctx, 10f), dp(ctx, 10f), dp(ctx, 10f)) }

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="tv.onnowtv.livetv.data.SportsFixtureMetadataTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-10-14T05:35:04" hostname="agent-env-49bc65fa-9152-42e4-b845-97fdcbbeec38" time="0.007">
+  <properties/>
+  <testcase name="metadata_never_carries_to_other_fixture_identity_or_opponent" classname="tv.onnowtv.livetv.data.SportsFixtureMetadataTest" time="0.005"/>
+  <testcase name="sparse_or_nullish_broadcasts_fall_back_to_previous_but_fresh_values_replace" classname="tv.onnowtv.livetv.data.SportsFixtureMetadataTest" time="0.001"/>
+  <testcase name="literal_null_team_names_are_not_retained" classname="tv.onnowtv.livetv.data.SportsFixtureMetadataTest" time="0.0"/>
+  <testcase name="incoming_scores_state_plays_and_zero_values_are_preserved_and_start_falls_back_only_when_invalid" classname="tv.onnowtv.livetv.data.SportsFixtureMetadataTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -13,16 +13,18 @@ import androidx.lifecycle.LifecycleOwner
 import org.json.JSONObject
 import tv.onnowtv.livetv.data.SportsPresentation as Data
 import tv.onnowtv.livetv.data.GameChannelMatcher
+import tv.onnowtv.livetv.data.SportsLiveGuide
 import tv.onnowtv.livetv.BundleHolder
 import tv.onnowtv.livetv.SportsReplayActivity
 import tv.onnowtv.livetv.ui.SportsUi.dp
 
 /** Recycles scorecards; stable keys keep remote focus on the same game during polling. */
 class SportsScoreAdapter(private val owner: LifecycleOwner, private val open: (JSONObject) -> Unit) : ListAdapter<SportsScoreAdapter.Item, SportsScoreAdapter.Holder>(Diff) {
+    var playProgramme: (SportsLiveGuide.Entry) -> Unit = {}
     private var broadcasts: Map<String, List<GameChannelMatcher.Match>> = emptyMap()
     fun setChannelMatches(value: Map<String, List<GameChannelMatcher.Match>>) { broadcasts = value }
-    data class Item(val key: String, val title: String = "", val color: Int = SportsUi.DIM, val json: String = "", val lineup: String = "") {
-        val isHeader get() = json.isEmpty()
+    data class Item(val key: String, val title: String = "", val color: Int = SportsUi.DIM, val json: String = "", val lineup: String = "", val programme: SportsLiveGuide.Entry? = null) {
+        val isHeader get() = json.isEmpty() && programme == null
     }
     object Diff : DiffUtil.ItemCallback<Item>() {
         override fun areItemsTheSame(old: Item, new: Item) = old.key == new.key
@@ -44,12 +46,17 @@ class SportsScoreAdapter(private val owner: LifecycleOwner, private val open: (J
         val item = getItem(position); val surface = holder.root; val ctx = surface.context
         surface.removeAllViews(); SportsUi.identify(surface, item.key)
         val root = SportsUi.col(ctx)
-        if (!item.isHeader) surface.addView(SportsArtwork.layer(ctx, JSONObject(item.json)), FrameLayout.LayoutParams(-1, -1))
+        if (!item.isHeader && item.programme == null) surface.addView(SportsArtwork.layer(ctx, JSONObject(item.json)), FrameLayout.LayoutParams(-1, -1))
         surface.addView(root, FrameLayout.LayoutParams(-1, -2))
         if (item.isHeader) {
             root.setPadding(0, dp(ctx, 10f), 0, dp(ctx, 2f))
             root.addView(SportsUi.text(ctx, item.title, 15f, item.color, bold = true))
             return
+        }
+        item.programme?.let { programme ->
+            surface.contentDescription = "${programme.programme.title} · ${programme.channel.name}"
+            SportsGuideCard.bind(root, programme) { playProgramme(programme) }
+            surface.setOnClickListener { playProgramme(programme) }; return
         }
         val g = JSONObject(item.json); val live = g.optString("state") == "in"; val upcoming = g.optString("state") == "pre"
         root.setPadding(dp(ctx, 14f), dp(ctx, 12f), dp(ctx, 14f), dp(ctx, 10f))
@@ -94,12 +101,16 @@ class SportsScoreAdapter(private val owner: LifecycleOwner, private val open: (J
             "fixture-replay-${g.optString("id")}", { channel -> SportsReplayActivity.open(ctx, g, channel) }),
             LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(ctx, 8f) })
     }
-    fun show(games: List<JSONObject>, onCommitted: (() -> Unit)? = null) {
+    fun show(games: List<JSONObject>, programmes: List<SportsLiveGuide.Entry> = emptyList(), onCommitted: (() -> Unit)? = null) {
         val rows = ArrayList<Item>()
         listOf(Triple("in", "Live Now", SportsUi.LIVE), Triple("pre", "Coming Up", SportsUi.ACCENT), Triple("post", "Previous Games & Replays", SportsUi.DIM)).forEach { (state, title, color) ->
             val group = games.filter { it.optString("state") == state }; if (group.isNotEmpty()) {
                 rows.add(Item("section-$state", "$title   ${group.size}", color))
                 group.forEach { g -> rows.add(Item("game-${Data.key(g)}", json = g.toString(), lineup = broadcasts[Data.key(g)].orEmpty().joinToString { "${it.channel.id}:${it.confirmed}:${it.channel.archiveDays}:${it.programme?.startMs}" })) }
+            }
+            if (state == "in" && programmes.isNotEmpty()) {
+                rows.add(Item("section-guide-live", "Live on your channels   ${programmes.size}", SportsUi.LIVE))
+                programmes.forEach { entry -> rows.add(Item("guide-${entry.key}", programme = entry)) }
             }
         }
         submitList(rows) { onCommitted?.invoke() }

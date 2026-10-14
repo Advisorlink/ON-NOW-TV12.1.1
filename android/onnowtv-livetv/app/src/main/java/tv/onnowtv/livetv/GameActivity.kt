@@ -37,7 +37,10 @@ import tv.onnowtv.livetv.ui.SportsUi.dp
 import tv.onnowtv.livetv.ui.ProbabilityBarView
 import tv.onnowtv.livetv.ui.SportsArtwork
 import tv.onnowtv.livetv.ui.SportsWindow
+import tv.onnowtv.livetv.ui.SportsLoadingBand
+import tv.onnowtv.livetv.ui.SportsPlayTimeline
 import tv.onnowtv.livetv.data.SportsLayoutPolicy
+import tv.onnowtv.livetv.data.SportsFixtureMetadata
 import kotlin.math.roundToInt
 
 /**
@@ -90,6 +93,8 @@ class GameActivity : AppCompatActivity() {
     private var checkingChannels = true
     private var resumeGeneration = 0
     private var renderedSnapshot: String? = null
+    private lateinit var loadingBand: SportsLoadingBand
+    private var timeline: SportsPlayTimeline? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -105,7 +110,7 @@ class GameActivity : AppCompatActivity() {
         val root = SportsUi.col(ctx, dp(ctx, 12f)).apply { setBackgroundColor(SportsUi.BG); val pad = dp(ctx, if (stacked) 12f else 28f); setPadding(pad, dp(ctx, 14f), pad, dp(ctx, 16f)) }
         val masthead = SportsUi.row(ctx, dp(ctx, 8f))
         masthead.addView(SportsUi.wordmark(ctx, true), LinearLayout.LayoutParams(0, -2, 1f))
-        feedStatus = SportsUi.identify(SportsUi.text(ctx, "Loading match…", 11f, SportsUi.DIM), "game-feed-status")
+        feedStatus = SportsUi.identify(SportsUi.text(ctx, "", 15f, SportsUi.DIM), "game-feed-status")
         if (!stacked) masthead.addView(feedStatus, LinearLayout.LayoutParams(0, -2, 1f))
         retry = SportsUi.identify(SportsUi.pill(ctx, "Retry") { refresh(true) }, "game-retry").apply { visibility = View.GONE }
         if (!stacked) masthead.addView(retry)
@@ -117,6 +122,8 @@ class GameActivity : AppCompatActivity() {
         headerSurface = FrameLayout(ctx).apply { clipToOutline = true; background = SportsUi.bg(SportsUi.CARD, dp(ctx, 14f).toFloat()) }
         header = SportsUi.row(ctx, dp(ctx, if (stacked) 6f else 18f)).apply { val pad = dp(ctx, if (stacked) 10f else 16f); setPadding(pad, pad, pad, pad) }
         root.addView(headerSurface)
+        loadingBand = SportsLoadingBand(ctx, "game").apply { show("Loading match details & play-by-play…") }
+        root.addView(loadingBand)
         mobileBroadcast = SportsUi.col(ctx)
         if (stacked) root.addView(mobileBroadcast)
 
@@ -139,7 +146,7 @@ class GameActivity : AppCompatActivity() {
         pct.addView(wpAway, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)); pct.addView(wpHome, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         wpCard.addView(pct)
         wpBar = ProbabilityBarView(ctx); wpCard.addView(wpBar, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(ctx, 5f)))
-        playText = SportsUi.identify(SportsUi.text(ctx, "", 12f, 0xFFE6EAF2.toInt()), "game-selected-play").apply { maxLines = 3 }
+        playText = SportsUi.identify(SportsUi.text(ctx, "", 14f, 0xFFE6EAF2.toInt()), "game-selected-play").apply { maxLines = 5 }
         wpCard.addView(playText)
         wpCard.setOnKeyListener { _, code, ev ->
             if (ev.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
@@ -161,6 +168,7 @@ class GameActivity : AppCompatActivity() {
         if (stacked) setContentView(ScrollView(ctx).apply { SportsUi.identify(this, "game-mobile-scroll"); isFillViewport = true; setBackgroundColor(SportsUi.BG); addView(root) })
         else setContentView(root)
         renderHeader(); renderRight()
+        plot.setTeams(game)
         setStep(-1)
     }
 
@@ -184,11 +192,14 @@ class GameActivity : AppCompatActivity() {
     private fun refresh(force: Boolean = false) { fetch?.cancel(); fetch = lifecycleScope.launch { load(force) } }
 
     private suspend fun load(force: Boolean) {
-        val d = SportsHubApi.game(sport, league, id, force)
-        if (d == null) { feedStatus.text = "Match update unavailable"; retry.visibility = View.VISIBLE; return }
+        if (renderedSnapshot == null) loadingBand.show("Loading match details & play-by-play…")
+        val incoming = SportsHubApi.game(sport, league, id, force)
+        loadingBand.show(null)
+        if (incoming == null) { feedStatus.text = "Match update unavailable"; retry.visibility = View.VISIBLE; refreshMatches(); return }
+        val d = withContext(Dispatchers.Default) { SportsFixtureMetadata.merge(game, incoming) }
         feedStatus.text = ""; retry.visibility = View.GONE
         val snapshot = withContext(Dispatchers.Default) { d.toString() }
-        if (snapshot == renderedSnapshot) return
+        if (snapshot == renderedSnapshot) { refreshMatches(); return }
         renderedSnapshot = snapshot
         val focus = currentFocus?.tag as? String
         val selectedId = restoredPlayId ?: plays.getOrNull(stepIdx)?.optString("id")
@@ -210,6 +221,7 @@ class GameActivity : AppCompatActivity() {
     }
 
     private fun setStep(i: Int) {
+        val priorFocus = currentFocus?.tag as? String
         stepIdx = i.coerceIn(-1, plays.lastIndex)
         plot.showUpTo(stepIdx)
         val p = plays.getOrNull(stepIdx)
@@ -223,6 +235,7 @@ class GameActivity : AppCompatActivity() {
         val latest = stepIdx == plays.lastIndex
         val phase = if (latest && game.optString("state") == "in") "● LIVE" else if (latest) "LATEST PLAY" else "PLAY ${stepIdx + 1}/${plays.size}"
         playText.text = if (p == null) "Play-by-play is not available for this game yet." else "$phase  ${Data.value(p, "clock")} ${Data.value(p, "period").let { if (it.isNotBlank()) "· P$it" else "" }}\n${Data.value(p, "text")}"
+        timeline?.select(stepIdx)
         val focusedControl = currentFocus?.tag as? String
         playControls.removeAllViews()
         listOf(Triple("previous", "‹ Previous", stepIdx - 1), Triple("next", "Next ›", stepIdx + 1), Triple("latest", "Latest play", plays.lastIndex)).forEach { (key, label, target) ->
@@ -232,6 +245,9 @@ class GameActivity : AppCompatActivity() {
         if (focusedControl?.startsWith("game-play-") == true && focusedControl != "game-play-stepper") {
             val next = playControls.findViewWithTag<View>(focusedControl)
             if (next?.isEnabled == true) next.requestFocus() else wpCard.requestFocus()
+        }
+        if (priorFocus?.startsWith("game-timeline-play-") == true) {
+            timeline?.findViewWithTag<View>(priorFocus)?.requestFocus()
         }
     }
 
@@ -294,7 +310,7 @@ class GameActivity : AppCompatActivity() {
     private fun refreshMatches() {
         matchesJob?.cancel()
         val bundle = BundleHolder.current
-        if (bundle == null) { checkingChannels = false; renderBroadcast(); return }
+        if (bundle == null) { channelMatches = emptyList(); checkingChannels = false; renderBroadcast(); return }
         val fixture = game
         matchesJob = lifecycleScope.launch {
             val matches = withContext(Dispatchers.Default) { GameChannelMatcher.find(fixture, bundle) }
@@ -305,9 +321,11 @@ class GameActivity : AppCompatActivity() {
 
     private fun renderBroadcast() {
         if (!::broadcastSlot.isInitialized) return
+        val focused = currentFocus?.tag as? String
         broadcastSlot.removeAllViews()
         broadcastSlot.addView(SportsBroadcastPanel.build(this, this, game, BundleHolder.current, channelMatches,
             { all, selected -> tune(all, selected) }, { channel -> SportsReplayActivity.open(this, game, channel) }, checkingChannels))
+        if (focused?.startsWith("game-channel-") == true) broadcastSlot.findViewWithTag<View>(focused)?.requestFocus()
     }
 
     private fun renderPlayers() {
@@ -343,6 +361,8 @@ class GameActivity : AppCompatActivity() {
             str("lastPlay"),
         )
         if (sitLines.isNotEmpty()) right.addView(card("Game").apply { sitLines.forEach { addView(SportsUi.text(this@GameActivity, it, 13f)) } })
+        timeline = SportsPlayTimeline(this).apply { setPlays(plays) { setStep(it) }; select(stepIdx) }
+        right.addView(timeline)
         playersSlot = SportsUi.col(this); right.addView(playersSlot); renderPlayers()
         // Standings
         if (game.optString("state") == "pre") {
@@ -363,12 +383,10 @@ class GameActivity : AppCompatActivity() {
     }
 
     private fun tune(all: List<Channel>, ch: Channel) {
-        PlaybackQueue.setQueue(all, ch.id)
-        startActivity(Intent(this, PlayerActivity::class.java).apply {
-            putExtra(PlayerActivity.EXTRA_URL, ch.streamUrl); putExtra(PlayerActivity.EXTRA_TITLE, ch.name)
-            putExtra(PlayerActivity.EXTRA_CHANNEL_ID, ch.id); putExtra(PlayerActivity.EXTRA_USE_SHARED_PLAYER, true)
-            putExtra(PlayerActivity.EXTRA_SUBTITLE, game.optString("name")); putExtra(PlayerActivity.EXTRA_FAILOVER_QUEUE, true)
-        })
+        // Generic live-sport candidates must not auto-failover into another unconfirmed game.
+        val confirmed = channelMatches.firstOrNull { it.channel.id == ch.id }?.confirmed == true
+        val queue = if (confirmed) all.filter { item -> channelMatches.any { it.confirmed && it.channel.id == item.id } } else listOf(ch)
+        SportsPlayback.open(this, ch, queue, game.optString("name"), confirmed)
     }
 
     private fun showStandings() {

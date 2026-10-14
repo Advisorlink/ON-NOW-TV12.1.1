@@ -179,6 +179,47 @@ def _team(c: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _broadcasts(comp: Dict[str, Any]) -> List[str]:
+    """Scoreboard names[] and summary media.shortName; never treat market/type as channels."""
+    found: List[str] = []
+    seen = set()
+
+    def add(value) -> bool:
+        if isinstance(value, str):
+            name = " ".join(value.split())
+            key = name.casefold()
+            if not name or key in {"null", "none", "undefined", "unknown", "n/a", "na", "n-a", "tbd", "not available", "-", "--"}:
+                return False
+            if key not in seen:
+                seen.add(key)
+                found.append(name)
+            return True
+        return False
+
+    for key in ("broadcasts", "geoBroadcasts"):
+        rows = comp.get(key) or []
+        if not isinstance(rows, list):
+            continue
+        for row in rows:
+            if isinstance(row, str):
+                add(row)
+                continue
+            if not isinstance(row, dict):
+                continue
+            names = row.get("names") or []
+            for name in names if isinstance(names, list) else [names]:
+                add(name)
+            media = row.get("media") or {}
+            for outlet in media if isinstance(media, list) else [media]:
+                if isinstance(outlet, dict):
+                    for field in ("shortName", "name", "displayName"):
+                        if add(outlet.get(field)):
+                            break
+                else:
+                    add(outlet)
+    return sorted(found, key=str.casefold)
+
+
 def _event(ev: Dict[str, Any], meta: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     comps = ev.get("competitions") or []
     if not comps:
@@ -210,8 +251,7 @@ def _event(ev: Dict[str, Any], meta: Dict[str, Any]) -> Optional[Dict[str, Any]]
         "home": _team(home),
         "away": _team(away),
         "venue": {"name": venue.get("fullName") or "", "city": ((venue.get("address") or {}).get("city") or ""), "geo": _geo(venue)},
-        "broadcasts": sorted({n for b in (comp.get("broadcasts") or []) for n in (b.get("names") or [])}
-                             | {(b.get("media") or {}).get("shortName", "") for b in (comp.get("geoBroadcasts") or [])} - {""}),
+        "broadcasts": _broadcasts(comp),
     }
 
 

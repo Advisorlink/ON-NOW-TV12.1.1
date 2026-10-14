@@ -1,0 +1,58 @@
+{
+  "date": "2026-10-14",
+  "summary": "Final native verification completed after the interrupted testing dispatch. All 82 native JVM/Robolectric tests pass; debug assembly and package integrity pass. Browser/backend verification from iteration111 retained. No physical-device playback claim.",
+  "original_request": "Continue approved Sports Hub priorities: repair black-screen replay playback, remove 3D for detailed 2D play-by-play, prominent loading/team-first rendering, faded-artwork dedicated top-menu Replays library for all sports on Android phone and TV.",
+  "native_results": {
+    "tests": 82,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "compile": "pass",
+    "assembleDebug": "pass",
+    "zip_crc": "pass",
+    "signature": "pass: local debug v1/v2",
+    "zip_alignment": "pass",
+    "removed_3d_assets_absent_from_apk": true,
+    "apk_bytes": 202068385,
+    "apk_sha256": "7f4a39a9c08947b5ea2a5799e2be7fcbeffd074e16d5d6e9facf9ac3826e6210"
+  },
+  "native_coverage": [
+    "Previous matcher/channel-refresh/replay/performance/layout regressions retained; obsolete game fixtures supplied sport/league rather than weakening production cross-sport checks",
+    "Media3 OkHttpDataSource bounded-byte read through actual localhost to 127.0.0.1 HTTP302 redirect and rejection of non2xx",
+    "Shared replay transport follows redirects/cross-protocol redirects, no full-stream timeout, standard hostname verification and no custom certificate pins",
+    "Audio/video enabled, English preference, text disabled; Media3 player construction/release",
+    "Catalogue archive eligibility, programme-over-channel sport classification, news/highlights rejection, dedup/order, raw/base64 programme parsing and18category labels",
+    "Actual native category views phone390dp/TV1920dp, focusable unique tags, category click, Back chain, no-guide state, long-title binding/focus inset",
+    "Controlled archive metadata and media-prefix fixture to verified catalogue card to sanitized replay intent; no physical decoder started",
+    "Native-only SportsSceneView tree with no WebView; existing measured phone/TV match layout and no-guide/player intent regressions"
+  ],
+  "inherited_results_iteration111": {
+    "backend_sports_tests": "22/22 pass",
+    "browser": "18sport replay tiles/local art/category/sample replay/empty/Back/Escape/history;12expanded2Dfields nonblank; selected-play canvas change; no uncontained overflow at320/390/768/1024/1440; desktop1920x800 andmobile390x844 screenshots inspected",
+    "native_sdk_blocker": "Resolved; replaced temporary missing SDK path with gitignored /app/.cache/native-tools"
+  },
+  "build_command": "cd /app/android/onnowtv-livetv && ANDROID_HOME=/app/.cache/native-tools/sdk ANDROID_SDK_ROOT=/app/.cache/native-tools/sdk /root/.gradle/wrapper/dists/gradle-8.7-bin/bhs2wmbdwecv87pi65oeuq5iu/gradle-8.7/bin/gradle :app:testDebugUnitTest :app:assembleDebug -Pandroid.aapt2FromMavenOverride=/app/.cache/native-tools/aapt2 --console=plain --offline",
+  "evidence": [
+    "/app/test_reports/replay_2d_progress/native-build.log",
+    "/app/test_reports/replay_2d_progress/apk-signature.log",
+    "/app/test_reports/replay_2d_progress/apk-alignment.log",
+    "/app/test_reports/replay_2d_progress/apk-crc.log",
+    "/app/test_reports/replay_2d_progress/provider_transport_check.json",
+    "/app/android/onnowtv-livetv/app/build/test-results/testDebugUnitTest/",
+    "/app/test_reports/pytest/iter111_sportshub_backend.xml",
+    "/app/test_reports/iteration_111.json"
+  ],
+  "remaining_limits": [
+    "No connected Android device, no actual replay video/audio decode, seeking or physical lifecycle/performance acceptance",
+    "Cross-protocol HTTPS-to-HTTP has configuration assertions and saved real provider redirect evidence; newly added network regression exercises cross-host HTTP302, not a local TLS handshake",
+    "Debug APK is not a matching-signer installed release and has not been published or installed",
+    "No backend production update was performed; prior native/backend channel changes still need appropriate release acceptance",
+    "Recurring ON NOW TV Direct stuttering/wrong audio/subtitles remain uninvestigated in this Sports Hub scope",
+    "Launcher downtime, unidentified native crash and explicitly deferred security issues remain separate pending items"
+  ],
+  "mocked_flows": [
+    "MOCKED browser Astra fixtures, replay dialog and sample channels: design preview only",
+    "Native regression HTTP/archive streams are controlled test fixtures; actual native application uses provider data"
+  ],
+  "test_credentials": "Existing /app/memory/test_credentials.md remains valid; no accounts or auth credentials created/changed."
+}

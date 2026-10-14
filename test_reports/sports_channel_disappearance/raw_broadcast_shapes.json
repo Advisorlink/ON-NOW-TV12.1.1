@@ -1,0 +1,37 @@
+{
+  "broadcasts": [
+    {
+      "type": {
+        "id": "4",
+        "shortName": "Streaming"
+      },
+      "market": {
+        "id": "1",
+        "type": "National"
+      },
+      "media": {
+        "shortName": "ESPN+"
+      },
+      "lang": "en",
+      "region": "us",
+      "isNational": true
+    },
+    {
+      "type": {
+        "id": "1",
+        "shortName": "TV"
+      },
+      "market": {
+        "id": "2",
+        "type": "Home"
+      },
+      "media": {
+        "shortName": "ABTV"
+      },
+      "lang": "en",
+      "region": "us",
+      "isNational": false
+    }
+  ],
+  "geoBroadcasts": null
+}

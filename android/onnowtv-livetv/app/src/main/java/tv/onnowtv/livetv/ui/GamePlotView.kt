@@ -49,8 +49,7 @@ class GamePlotView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         if (plays.isEmpty() || width == 0) return
-        val w = width.toFloat(); val h = height.toFloat()
-        val r = RectF(w * 0.10f, h * 0.12f, w * 0.90f, h * 0.88f)
+        val r = fieldBounds()
         val first = (upTo - 160).coerceAtLeast(0)
         for (i in first..upTo) {
             val p = plays[i]
@@ -84,6 +83,13 @@ class GamePlotView @JvmOverloads constructor(
                 }
             }
             if (i == upTo) {
+                if (sportKey == "nfl") {
+                    ring.color = 0xFF5DC8FF.toInt(); ring.strokeWidth = dpF(2f)
+                    canvas.drawLine(pt[0], r.top, pt[0], r.bottom, ring)
+                } else if (sportKey == "mlb") {
+                    ring.color = 0x99FFC850.toInt(); ring.strokeWidth = dpF(1f)
+                    canvas.drawLine(r.centerX(), r.bottom, pt[0], pt[1], ring)
+                }
                 val pr = radius + dpF(4f) + pulse * dpF(14f)
                 ring.strokeWidth = dpF(2f)
                 ring.color = (Color.WHITE and 0x00FFFFFF) or (((1f - pulse) * 220f).toInt() shl 24)
@@ -93,11 +99,12 @@ class GamePlotView @JvmOverloads constructor(
     }
 
     /** Map ESPN coordinates into the drawn surface; null = nothing to plot. */
+    fun hasLocation(index: Int): Boolean = plays.getOrNull(index)?.let { project(it, RectF(0f, 0f, 100f, 100f)) != null } == true
     private fun project(p: JSONObject, r: RectF): FloatArray? {
-        fun has(k: String) = p.has(k) && !p.isNull(k)
+        fun has(k: String) = p.has(k) && !p.isNull(k) && p.optDouble(k).isFinite()
         return when (sportKey) {
             "mlb" -> {
-                if (!has("hx")) return null
+                if (!has("hx") || !has("hy")) return null
                 val hx = p.optDouble("hx").toFloat(); val hy = p.optDouble("hy").toFloat()
                 val cx = r.centerX(); val homeY = r.bottom
                 val size = min(r.width(), r.height()) * 0.52f
@@ -106,27 +113,26 @@ class GamePlotView @JvmOverloads constructor(
                 floatArrayOf(cx + fx * size * 1.45f, homeY - (1f - fy) * size * 1.75f)
             }
             "soccer" -> {
-                if (!has("fx")) return null
+                if (!has("fx") || !has("fy")) return null
                 val fx = (p.optDouble("fx").toFloat() / 100f).coerceIn(0f, 1f)
                 val fy = (p.optDouble("fy").toFloat() / 100f).coerceIn(0f, 1f)
                 floatArrayOf(r.left + fx * r.width(), r.top + fy * r.height())
             }
             "nba" -> {
-                if (!has("x")) return null
+                if (!has("x") || !has("y")) return null
                 val x = (p.optDouble("x").toFloat() / 50f).coerceIn(0f, 1f)
-                val yRaw = p.optDouble("y").toFloat()
-                val y = (if (yRaw > 50f) (94f - yRaw) else yRaw).coerceIn(0f, 47f) / 47f
-                floatArrayOf(r.left + x * r.width(), r.top + y * r.height())
+                val y = (p.optDouble("y").toFloat() / 94f).coerceIn(0f, 1f)
+                floatArrayOf(r.left + y * r.width(), r.bottom - x * r.height())
             }
             "nfl" -> {
                 if (!has("yardsToGo")) return null
                 val yards = p.optDouble("yardsToGo").toFloat().coerceIn(0f, 100f)
                 val along = if (p.optString("side") == "home") (100f - yards) / 100f else yards / 100f
                 val lane = if (p.optString("side") == "home") 0.42f else 0.58f
-                floatArrayOf(r.left + along * r.width(), r.top + lane * r.height())
+                floatArrayOf(r.left + r.width() * (.1f + along * .8f), r.top + lane * r.height())
             }
             "nhl" -> {
-                if (!has("x")) return null
+                if (!has("x") || !has("y")) return null
                 val x = ((p.optDouble("x").toFloat() + 100f) / 200f).coerceIn(0f, 1f)
                 val y = ((p.optDouble("y").toFloat() + 42.5f) / 85f).coerceIn(0f, 1f)
                 floatArrayOf(r.left + x * r.width(), r.top + y * r.height())

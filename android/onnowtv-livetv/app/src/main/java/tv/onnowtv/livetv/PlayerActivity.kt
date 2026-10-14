@@ -78,6 +78,7 @@ class PlayerActivity : AppCompatActivity() {
          *  is what allows the preview→full-screen→preview round-trip
          *  to happen with zero buffer hit. */
         const val EXTRA_USE_SHARED_PLAYER = "extra_use_shared_player"
+        const val EXTRA_STOP_ON_EXIT = "extra_stop_on_exit"
         /** Sports Hub: when the tuned channel fails, hop to the next channel
          *  in the PlaybackQueue (the other channels carrying the same game). */
         const val EXTRA_FAILOVER_QUEUE = "extra_failover_queue"
@@ -101,6 +102,10 @@ class PlayerActivity : AppCompatActivity() {
     private var player: ExoPlayer? = null
     private var cachedHttpClient: OkHttpClient? = null
     private var usingSharedPlayer: Boolean = false
+    private var sportsExitStopped = false
+    private var sportsBackgrounded = false
+    private val stopOnExit: Boolean get() = intent?.getBooleanExtra(EXTRA_STOP_ON_EXIT, false) == true
+    private fun playbackBlocked() = sportsExitStopped || isFinishing || isDestroyed || (stopOnExit && sportsBackgrounded)
     private lateinit var playerView: PlayerView
     private lateinit var status: TextView
     private lateinit var infoCard: View
@@ -464,6 +469,7 @@ class PlayerActivity : AppCompatActivity() {
 
         p.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
+                if (playbackBlocked()) return
                 Log.w("PlayerActivity", "playback error: ${error.errorCodeName}", error)
                 val httpCode = extractHttpStatus(error)
                 if (httpCode == 503 && consecutiveFailures < 3) {
@@ -601,6 +607,7 @@ class PlayerActivity : AppCompatActivity() {
      *  re-tune the current channel — all without leaving the
      *  activity or dismissing the overlay. */
     private fun switchBackend(newBackend: PlayerPrefs.Backend) {
+        if (playbackBlocked()) return
         if (newBackend == backend) return
         status.text = "Switching player…"
         retryHandler.removeCallbacksAndMessages(null)
@@ -711,6 +718,7 @@ class PlayerActivity : AppCompatActivity() {
      * new one opens — no double-stream condition.
      */
     private fun tuneTo(channel: Channel, initial: Boolean = false) {
+        if (playbackBlocked()) return
         // v2.18.0 — Companion now-playing refresh on every zap.
         if (!initial) broadcastNowPlaying(channel)
         // v2.16.9 — SWAP BACK memory lives in a process-scoped
@@ -775,9 +783,11 @@ class PlayerActivity : AppCompatActivity() {
      * provider's session tracker so the next request succeeds.
      */
     private fun scheduleRetry(delayMs: Long) {
+        if (playbackBlocked()) return
         val ch = currentChannel ?: return
         retryHandler.removeCallbacksAndMessages(null)
         retryHandler.postDelayed({
+            if (playbackBlocked()) return@postDelayed
             val url = tv.onnowtv.livetv.data.AuthStore.rewriteStreamUrl(this, ch.streamUrl)
             if (backend == PlayerPrefs.Backend.VLC) {
                 vlcController?.tune(url)
@@ -805,18 +815,21 @@ class PlayerActivity : AppCompatActivity() {
     private var lastStallRecoveryMs = 0L
 
     private fun startStallWatchdog() {
+        if (playbackBlocked()) return
         stallHandler.removeCallbacksAndMessages(null)
         stallLastPos = Long.MIN_VALUE
         stallSinceMs = 0L
         stallHandler.postDelayed(object : Runnable {
             override fun run() {
+                if (playbackBlocked()) return
                 try { checkForStall() } catch (_: Throwable) {}
-                stallHandler.postDelayed(this, 5_000L)
+                if (!playbackBlocked()) stallHandler.postDelayed(this, 5_000L)
             }
         }, 5_000L)
     }
 
     private fun checkForStall() {
+        if (playbackBlocked()) return
         // Only police playback while this activity is front-most —
         // backgrounded playback is torn down by onStop anyway.
         if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
@@ -1634,7 +1647,33 @@ class PlayerActivity : AppCompatActivity() {
 
     /* ─────────────────── Lifecycle ─────────────────── */
 
+    /** Release before exposing the sports page, not after the activity's delayed destruction. */
+    private fun stopSportsPlayback() {
+        if (!stopOnExit || sportsExitStopped) return
+        sportsExitStopped = true
+        retryHandler.removeCallbacksAndMessages(null); stallHandler.removeCallbacksAndMessages(null)
+        numberHandler.removeCallbacksAndMessages(null); progressHandler.removeCallbacksAndMessages(null)
+        hideHandler.removeCallbacksAndMessages(null); controlsHideHandler.removeCallbacksAndMessages(null)
+        clockHandler.removeCallbacksAndMessages(null); upNextArtJob?.cancel()
+        try { player?.playWhenReady = false; player?.volume = 0f } catch (_: Throwable) {}
+        releaseUpstream()
+        if (::playerView.isInitialized) playerView.player = null
+        if (usingSharedPlayer) LivePreviewSession.release() else try { player?.release() } catch (_: Throwable) {}
+        player = null; usingSharedPlayer = false
+        try { vlcController?.release() } catch (_: Throwable) {}
+        vlcController = null; cachedHttpClient = null
+        PlaybackQueue.clear(); currentChannel = null
+        tv.onnowtv.livetv.data.PresenceReporter.stop()
+    }
+
+    override fun finish() { stopSportsPlayback(); super.finish() }
+
     override fun onStop() {
+        if (stopOnExit) {
+            sportsBackgrounded = true
+            retryHandler.removeCallbacksAndMessages(null); stallHandler.removeCallbacksAndMessages(null)
+            if (isFinishing) stopSportsPlayback() else releaseUpstream()
+        }
         // App moved to background / HOME pressed.  Aggressively kill
         // the upstream socket so the provider's concurrent-stream
         // tracker frees our slot — the user's account allows only
@@ -1653,6 +1692,8 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (sportsExitStopped) { finish(); return }
+        sportsBackgrounded = false
         // v2.18.9 — (re)arm the frozen-frame watchdog every time we
         // come to the foreground.
         startStallWatchdog()
@@ -1685,7 +1726,7 @@ class PlayerActivity : AppCompatActivity() {
             val p = LivePreviewSession.getOrCreate(this)
             if (playerView.player !== p) playerView.player = p
             val ch = currentChannel
-            if (!sessionAlive && ch != null) {
+            if (ch != null && (!sessionAlive || (stopOnExit && p.mediaItemCount == 0))) {
                 // Session was released — restart this channel from
                 // scratch.  Single restart per HOME→re-open cycle.
                 LivePreviewSession.setChannel(this, ch)
@@ -1724,6 +1765,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        stopSportsPlayback()
         // v2.18.0 — Clear the phone Companion now-playing card.
         try {
             sendBroadcast(Intent("tv.onnow.remote.NOW_PLAYING").apply {

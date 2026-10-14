@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="tv.onnowtv.livetv.data.SportsLayoutPolicyTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-14T05:35:04" hostname="agent-env-49bc65fa-9152-42e4-b845-97fdcbbeec38" time="0.004">
+  <properties/>
+  <testcase name="portrait_helper_detects_orientation" classname="tv.onnowtv.livetv.data.SportsLayoutPolicyTest" time="0.004"/>
+  <testcase name="stacked_game_policy_respects_phone_tablet_tv_and_short_landscape" classname="tv.onnowtv.livetv.data.SportsLayoutPolicyTest" time="0.0"/>
+  <testcase name="columns_match_expected_breakpoints" classname="tv.onnowtv.livetv.data.SportsLayoutPolicyTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

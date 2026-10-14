@@ -20,6 +20,16 @@ import tv.onnowtv.livetv.R
  * a slow TV box — string.contains is O(n·m) but pool-cheap.
  */
 object LiveSportsClassifier {
+    private val titlePunctuation = Regex("[^\\p{L}\\p{N}\\s]")
+    /** Shared by What's On and Sports Hub; a sports keyword alone is NOT evidence of a live game. */
+    fun liveBucket(programme: Programme, channel: String, nowMs: Long): String? {
+        if (!programme.isLiveAt(nowMs) || (!programme.live && !hasLiveWord(programme.title)) || isNonLive(programme.title)) return null
+        // Provider titles such as "NHL:" lack the trailing space expected by bucket keywords.
+        // Explicit programme evidence takes precedence over a channel's general sports branding.
+        return programmeBucket(programme.title)
+            ?: classify(programme.title, channel)
+    }
+    fun programmeBucket(title: String): String? = classifyTitle(titlePunctuation.replace(title, " ")) ?: classifyTitle(title)
 
     // Sport bucket IDs.  Kept as constants (not enum) so we can add
     // new buckets from JSON later without breaking existing pins.
@@ -125,6 +135,10 @@ object LiveSportsClassifier {
     private data class Rule(val bucket: String, val needles: List<String>)
 
     private val RULES: List<Rule> = listOf(
+        // These explicit codes must beat generic phrases such as "grand final" or "grand prix".
+        Rule(AFL, listOf(" afl ", " aflw ", "aussie rules", "australian football")),
+        Rule(RUGBY_LEAGUE, listOf(" nrl ", "rugby league", "state of origin")),
+        Rule(MOTORSPORT, listOf("motogp", "moto gp", "moto2", "moto3", "formula e", "indycar", "nascar")),
         // ── Very specific series first ──────────────────────────
         Rule(F1, listOf(
             "formula 1", "formula one", " f1 ", "grand prix", "gp weekend",
@@ -148,7 +162,7 @@ object LiveSportsClassifier {
         )),
         Rule(RUGBY_LEAGUE, listOf(
             "nrl ", "rugby league", "state of origin", "super league",
-            "grand final", "kangaroos", "kiwis",
+            "kangaroos", "kiwis",
         )),
         Rule(RUGBY_UNION, listOf(
             "rugby", "six nations", "rugby championship", "rugby world cup",
