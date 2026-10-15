@@ -209,8 +209,8 @@ object XtreamRepository {
                         // here, not epg_channel_id, otherwise channels
                         // with a real XMLTV id like "BBCOne.uk" miss.
                         epgChannelId = c.optString("stream_id"),
-                        archiveEnabled = c.optInt("tv_archive", 0) == 1,
-                        archiveDays = c.opt("tv_archive_duration")?.toString()?.toIntOrNull()?.takeIf { it >= 0 },
+                        archiveEnabled = SportsArchiveMetadata.flag(c.opt("tv_archive")) == true,
+                        archiveDays = SportsArchiveMetadata.retentionDays(c.opt("tv_archive_duration")),
                     )
                 )
             }

@@ -45,34 +45,19 @@ class SportsReplaysActivityRobolectricTest {
 
     @Test
     @Config(qualifiers = "w390dp-h844dp-port")
-    fun categories_show_all_18_tiles_with_unique_tags_and_click_enters_bucket() {
+    fun empty_guide_shows_zero_available_category_tiles_and_no_spinner_loop() {
         val controller = Robolectric.buildActivity(SportsReplaysActivity::class.java).create().start().resume()
         val activity = controller.get()
         try {
             val list = activity.window.decorView.findViewWithTag<RecyclerView>("replays-grid")
-            assertEquals(18, list.adapter!!.itemCount)
+            assertEquals(0, list.adapter!!.itemCount)
             assertEquals(2, (list.layoutManager as GridLayoutManager).spanCount)
-
-            val adapter = list.adapter as SportsReplayAdapter
-            val parent = RecyclerView(activity)
-            val tags = mutableSetOf<Any?>()
-            repeat(adapter.itemCount) { index ->
-                val holder = adapter.onCreateViewHolder(parent, 0)
-                adapter.onBindViewHolder(holder, index)
-                assertTrue(holder.frame.isFocusable)
-                assertTrue(tags.add(holder.frame.tag))
-            }
-
-            val first = adapter.onCreateViewHolder(parent, 0)
-            adapter.onBindViewHolder(first, 0)
-            first.frame.performClick()
-            Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
 
             val heading = activity.window.decorView.findViewWithTag<TextView>("replays-heading")
             val status = activity.window.decorView.findViewWithTag<TextView>("replays-status")
             val retry = activity.window.decorView.findViewWithTag<TextView>("replays-retry")
             val loading = activity.window.decorView.findViewWithTag<View>("replays-loading-progress-band")
-            assertTrue(heading.text.toString().contains("REPLAYS"))
+            assertEquals("REPLAYS", heading.text.toString())
             assertTrue(status.text.toString().contains("guide", ignoreCase = true))
             assertEquals(View.VISIBLE, retry.visibility)
             assertEquals("Refresh", retry.text.toString())
@@ -92,7 +77,7 @@ class SportsReplaysActivityRobolectricTest {
             val list = activity.window.decorView.findViewWithTag<RecyclerView>("replays-grid")
             assertEquals(6, (list.layoutManager as GridLayoutManager).spanCount)
 
-            invokeSelect(activity, LiveSportsClassifier.MLB)
+            setBucket(activity, LiveSportsClassifier.MLB)
             activity.onBackPressed()
             val heading = activity.window.decorView.findViewWithTag<TextView>("replays-heading")
             assertEquals("REPLAYS", heading.text.toString())
@@ -210,7 +195,19 @@ class SportsReplaysActivityRobolectricTest {
         val controller = Robolectric.buildActivity(SportsReplaysActivity::class.java).create().start().resume()
         val activity = controller.get()
         try {
-            invokeSelect(activity, LiveSportsClassifier.MLB)
+            waitUntil(3_500) {
+                val recycler = activity.window.decorView.findViewWithTag<RecyclerView>("replays-grid")
+                recycler.adapter?.itemCount == 1
+            }
+
+            // One available sport category should appear first, then selecting it shows matching replay rows.
+            val categories = activity.window.decorView.findViewWithTag<RecyclerView>("replays-grid")
+            val categoryAdapter = categories.adapter as SportsReplayAdapter
+            val categoryHolder = categoryAdapter.onCreateViewHolder(categories, 0)
+            categoryAdapter.onBindViewHolder(categoryHolder, 0)
+            assertEquals("sport-category-tile-${LiveSportsClassifier.MLB}", categoryHolder.frame.tag)
+            setBucket(activity, LiveSportsClassifier.MLB)
+
             waitUntil(3_000) {
                 val recycler = activity.window.decorView.findViewWithTag<RecyclerView>("replays-grid")
                 recycler.adapter?.itemCount == 1
@@ -220,9 +217,11 @@ class SportsReplaysActivityRobolectricTest {
             val adapter = recycler.adapter as SportsReplayAdapter
             val holder = adapter.onCreateViewHolder(recycler, 0)
             adapter.onBindViewHolder(holder, 0)
+            assertTrue((holder.frame.tag as? String)?.startsWith("replay-match-") == true)
             holder.frame.performClick()
 
             val started = Shadows.shadowOf(activity).nextStartedActivity
+            assertNotNull(started)
             assertEquals(SportsReplayActivity::class.java.name, started.component?.className)
             assertEquals("777", started.getStringExtra("channel"))
             assertTrue(started.hasExtra("programme-start"))
@@ -238,10 +237,13 @@ class SportsReplaysActivityRobolectricTest {
         }
     }
 
-    private fun invokeSelect(activity: SportsReplaysActivity, bucket: String?) {
-        val method = SportsReplaysActivity::class.java.getDeclaredMethod("select", String::class.java, Boolean::class.javaPrimitiveType)
-        method.isAccessible = true
-        method.invoke(activity, bucket, false)
+    private fun setBucket(activity: SportsReplaysActivity, bucket: String?) {
+        val field = SportsReplaysActivity::class.java.getDeclaredField("bucket")
+        field.isAccessible = true
+        field.set(activity, bucket)
+        val render = SportsReplaysActivity::class.java.getDeclaredMethod("render")
+        render.isAccessible = true
+        render.invoke(activity)
         Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
     }
 

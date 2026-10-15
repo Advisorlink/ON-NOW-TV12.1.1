@@ -603,9 +603,10 @@
                 <!-- Sports Hub entry — sits directly under the What's on pill -->
                 <LinearLayout
                     android:id="@+id/sports_hub_btn"
+                    android:tag="sports-hub-entry-landscape"
                     android:contentDescription="@string/sports_hub_title"
                     android:layout_width="match_parent"
-                    android:layout_height="40dp"
+                    android:layout_height="54dp"
                     android:layout_marginTop="6dp"
                     android:orientation="horizontal"
                     android:gravity="center_vertical"
@@ -614,8 +615,8 @@
                     android:focusable="true"
                     android:clickable="true"
                     android:nextFocusUp="@id/whatson_pill"
-                    android:nextFocusDown="@id/sports_replays_btn"
-                    android:background="@drawable/category_pill_bg">
+                    android:nextFocusDown="@id/categories_list"
+                    android:background="@drawable/sports_hub_button_bg">
                     <TextView
                         android:layout_width="30dp"
                         android:layout_height="24dp"
@@ -634,7 +635,7 @@
                         android:fontFamily="monospace"
                         android:textStyle="bold"
                         android:textColor="#FFFFFFFF"
-                        android:textSize="11sp"
+                        android:textSize="14sp"
                         android:letterSpacing="0"
                         android:text="SPORTS HUB" />
                     <TextView
@@ -648,25 +649,6 @@
                         android:letterSpacing="0.14"
                         android:text="›" />
                 </LinearLayout>
-
-                <TextView
-                    android:id="@+id/sports_replays_btn"
-                    android:tag="guide-replays-button"
-                    android:layout_width="match_parent"
-                    android:layout_height="40dp"
-                    android:layout_marginTop="6dp"
-                    android:paddingHorizontal="12dp"
-                    android:gravity="center_vertical"
-                    android:text="↺  REPLAYS"
-                    android:contentDescription="Sports replays"
-                    android:textColor="#FFFFFF"
-                    android:textSize="13sp"
-                    android:fontFamily="sans-serif-medium"
-                    android:background="@drawable/category_pill_bg"
-                    android:focusable="true"
-                    android:clickable="true"
-                    android:nextFocusUp="@id/sports_hub_btn"
-                    android:nextFocusDown="@id/categories_list" />
 
                 <TextView
                     android:layout_width="match_parent"

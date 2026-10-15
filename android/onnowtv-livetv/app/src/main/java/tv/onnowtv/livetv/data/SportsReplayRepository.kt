@@ -16,6 +16,8 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import okio.ByteString.Companion.encodeUtf8
 
 /** Foreground screens automatically check bounded prefixes. No autoplay; URLs stay native-only. */
@@ -26,6 +28,8 @@ object SportsReplayRepository {
     private val cache = ReplayVerificationCache<Result>()
     // One request at a time across all visible cards; queued callers recheck the cache.
     private val gate = Mutex()
+    private val metadataGate = Semaphore(3)
+    private val timezones = ReplayVerificationCache<String>()
     private fun key(channel: Channel, p: Programme) = listOf(channel.streamUrl, channel.id, channel.archiveEnabled,
         channel.archiveDays, p.startMs, p.stopMs, p.title, p.archiveAvailable).joinToString("\u0000").encodeUtf8().sha256().hex()
     fun isVerified(channel: Channel, p: Programme): Boolean = cache.get(key(channel, p))?.verified != null
@@ -59,10 +63,12 @@ object SportsReplayRepository {
     }
     private suspend fun probe(channel: Channel, programme: Programme): Result {
         val api = SportsReplayPolicy.providerApi(channel) ?: return Result(message = "This provider's replay URL format is not supported")
-        val timezone = request(Request.Builder().url(api).header("User-Agent", USER_AGENT).build()) { response ->
+        val zoneKey = api.toString().encodeUtf8().sha256().hex()
+        val timezone = timezones.get(zoneKey) ?: request(Request.Builder().url(api).header("User-Agent", USER_AGENT).build()) { response ->
             val json = JSONObject(response.body?.string().orEmpty())
             json.optJSONObject("server_info")?.optString("timezone")?.takeIf { it in java.util.TimeZone.getAvailableIDs() }
         } ?: return Result(message = "Provider timezone unavailable. Replay cannot be checked safely.")
+        timezones.put(zoneKey, timezone, 600_000)
         val url = SportsReplayPolicy.replayUrl(channel, programme, timezone) ?: return Result(message = "Replay time could not be resolved")
         val mime = request(Request.Builder().url(url).header("User-Agent", USER_AGENT).header("Range", "bytes=0-4095").header("Connection", "close").build()) { response ->
             val prefix = response.peekBody(4096).bytes()
@@ -77,10 +83,10 @@ object SportsReplayRepository {
             archiveProgrammes(channel)
         }
     }
-    suspend fun archiveProgrammes(channel: Channel, force: Boolean = false): List<Programme>? = gate.withLock {
-        if (!force && SportsGuideOverlay.fresh(channel)) return@withLock if (SportsGuideOverlay.failed(channel)) null else SportsGuideOverlay.get(channel)
+    suspend fun archiveProgrammes(channel: Channel, force: Boolean = false): List<Programme>? = metadataGate.withPermit {
+        if (!force && SportsGuideOverlay.fresh(channel)) return@withPermit if (SportsGuideOverlay.failed(channel)) null else SportsGuideOverlay.get(channel)
         val url = SportsReplayPolicy.providerApi(channel)?.newBuilder()?.addQueryParameter("action", "get_simple_data_table")
-            ?.addQueryParameter("stream_id", channel.id)?.build() ?: return@withLock null
+            ?.addQueryParameter("stream_id", channel.id)?.build() ?: return@withPermit null
         val rows = request(Request.Builder().url(url).header("User-Agent", USER_AGENT).build()) { response ->
             val json = JSONObject(response.body?.string().orEmpty())
             if (json.optJSONArray("epg_listings") == null) null else parseProgrammes(json)
@@ -94,7 +100,7 @@ object SportsReplayRepository {
         enrichGuide(game, bundle)
         val archiveBundle = bundle.copy(channels = bundle.channels.filter { it.archiveEnabled })
         val candidates = GameChannelMatcher.find(game, archiveBundle).filter {
-            it.programme?.archiveAvailable == true && SportsReplayPolicy.check(game, it).eligible
+            it.programme?.archiveAvailable != false && SportsReplayPolicy.check(game, it).eligible
         }.take(3)
         candidates.firstOrNull { verify(game, it).verified != null }
     }
@@ -103,9 +109,10 @@ object SportsReplayRepository {
         fun decoded(raw: String): String = raw.decodeBase64()?.utf8()?.takeUnless { value -> value.any { it == '\uFFFD' || (it.code < 32 && it != '\n' && it != '\t') } } ?: raw
         return (0 until rows.length()).mapNotNull { index ->
             val row = rows.optJSONObject(index) ?: return@mapNotNull null
-            val start = row.optLong("start_timestamp") * 1000; val stop = row.optLong("stop_timestamp", row.optLong("end_timestamp")) * 1000
-            if (start <= 0 || stop <= start) return@mapNotNull null
-            Programme(decoded(row.optString("title")), null, start, stop, archiveAvailable = if (row.has("has_archive") && !row.isNull("has_archive")) row.optInt("has_archive") == 1 else null)
+            val start = SportsArchiveMetadata.timestamp(row.opt("start_timestamp")) ?: return@mapNotNull null
+            val stop = SportsArchiveMetadata.timestamp(row.opt("stop_timestamp")) ?: SportsArchiveMetadata.timestamp(row.opt("end_timestamp")) ?: return@mapNotNull null
+            if (stop <= start) return@mapNotNull null
+            Programme(decoded(row.optString("title")), decoded(row.optString("description")).takeIf { it.isNotBlank() }, start, stop, archiveAvailable = SportsArchiveMetadata.flag(row.opt("has_archive")))
         }
     }
     /** Reject login HTML, JSON errors and empty successes even when the HTTP status is 200. */

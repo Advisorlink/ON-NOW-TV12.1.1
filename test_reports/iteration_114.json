@@ -1,0 +1,58 @@
+{
+  "date": "2026-10-15",
+  "summary": "Implemented approved native Sports Hub event grouping/navigation and replay discovery/UI fixes. Testing-agent work reviewed; main completed interrupted regression run and resolved remaining failures. All 97 native and 30 backend tests pass.",
+  "user_requirements": [
+    "One Sports Hub live card per game/event; every matching channel remains selectable inside",
+    "DPAD Up from the first score row must reach filters/top navigation",
+    "Only show replay sports with verified available recordings; reuse discovery across sports and improve provider metadata compatibility",
+    "Remove the separate Replays entry beneath Sports Hub on the main V2 Live guide, retaining Sports Hub's internal Replays menu",
+    "Prominent Sports Hub button beneath What's On Live",
+    "Focused/hovered live-channel outline wraps the full card above its artwork"
+  ],
+  "native_results": {"tests": 97, "failures": 0, "errors": 0, "skipped": 0, "compile": "pass", "assemble_debug": "pass"},
+  "backend_results": {"tests": 30, "failures": 0, "warnings": "One pre-existing Pydantic Query(regex=...) deprecation in instant_bundle.py; unrelated to this work"},
+  "package": {
+    "signature": "pass, local debug v1/v2",
+    "zip_alignment": "pass",
+    "zip_crc": "pass",
+    "latest_feature_dex_markers": "pass: SportsReplayDiscovery, SportsLiveChannelsDialog, channel_focus_outline, retentionDays",
+    "bytes": 202068552,
+    "sha256": "08fc85a10a0679e885a4fe82aa0dda7d697c85bdf0dda7242248e511ed69d8db",
+    "installed_or_published": false
+  },
+  "regression_coverage": [
+    "Fixture-ID and conservative title/sport grouping; duplicate channel IDs removed without dropping different channels/sports",
+    "More than 12 channel choices, correct selected channel player intent and stale-broadcast protection",
+    "Phone first-row DPAD Up transition using actual rendered score card; window-focus lookup fallback to focused decor view",
+    "Portrait/TV guide entry structure, removed redundant replay entry, focused foreground bounds and artwork insets",
+    "Boolean/string/numeric archive flags, second/millisecond epoch parsing, channel archive metadata fixture",
+    "No-guide replay view has no blind categories; controlled archive metadata plus positive media prefix produces category and replay row and sanitized player intent",
+    "Existing score/field/replay lifecycle, layout, channel matching and repository tests retained",
+    "Official recent-replay policy: old/future/uncompleted/unknown-date candidates excluded, today's event requires confirmed past end; disconnected directory empty and historical player URLs404"
+  ],
+  "fixes_after_testing": [
+    "Updated intentional old UI contracts and corrected scorecard test ID to include sport/league/event identity",
+    "Corrected outline assertion to inspect actual artwork margin, not unrelated root padding",
+    "Made test window visible/focused; confirmed real card/view tree focus but null window lookup, added safe production decor.findFocus fallback",
+    "Bounded candidate retention evicts oldest entries rather than allowing early old candidates to crowd out newer ones",
+    "Prunes stale/expired candidates and verified rows when resuming discovery; accepts integer-valued retention numbers safely"
+  ],
+  "evidence": [
+    "/app/test_reports/sports_hub_navigation_replays/native-final.log",
+    "/app/test_reports/sports_hub_navigation_replays/backend-final.log",
+    "/app/test_reports/sports_hub_navigation_replays/apk-signature.log",
+    "/app/test_reports/sports_hub_navigation_replays/apk-alignment.log",
+    "/app/test_reports/sports_hub_navigation_replays/apk-crc.log",
+    "/app/android/onnowtv-livetv/app/build/test-results/testDebugUnitTest/"
+  ],
+  "limits": [
+    "No connected physical Android device. Actual long-scroll remote behavior, artwork/outline appearance and decoder playback still require user-device acceptance",
+    "No real provider inventory scan or user stream playback; replay availability depends on provider recordings/retention",
+    "Three-metadata/one-media concurrency and bounded cached scanning implemented; not exhaustively load-benchmarked against the user's provider",
+    "Web reference smoke at1920x800 and390x844 had no uncontained overflow, but is MOCKED and does not prove native visual fixes",
+    "Automatic recent official replay discovery remains NOT CONNECTED; user paused extra-provider research. No old classic games or external app handoffs offered",
+    "Debug APK is not a matching-signer release and was not installed/published"
+  ],
+  "test_credentials": "Existing /app/memory/test_credentials.md unchanged. No auth accounts, passwords or keys created/modified.",
+  "next_action": "Matching-signer update and user TV checks, then choose next backlog work. Keep additional official-provider research paused unless user resumes it."
+}

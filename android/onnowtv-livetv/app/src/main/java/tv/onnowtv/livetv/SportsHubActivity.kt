@@ -85,11 +85,7 @@ class SportsHubActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        scores.playProgramme = { entry ->
-            if (entry.programme.isLiveAt(System.currentTimeMillis()) && BundleHolder.current?.channels?.any { it.id == entry.channel.id && it.streamUrl == entry.channel.streamUrl } == true) {
-                SportsPlayback.open(this, entry.channel, subtitle = entry.programme.title)
-            } else { Toast.makeText(this, "This programme has ended or the guide changed", Toast.LENGTH_SHORT).show(); refresh(quiet = true) }
-        }
+        scores.openLiveEvent = { event -> tv.onnowtv.livetv.ui.SportsLiveChannelsDialog.show(this, event, ::openGame) }
         SportsWindow.apply(this)
         handset = !SportsWindow.television(this)
         restoredListState = savedInstanceState?.getParcelable("scoresScroll")
@@ -257,7 +253,9 @@ class SportsHubActivity : AppCompatActivity() {
         val visible = if (mode == Mode.FOLLOWING) games.filter { followed.contains(Data.teamKey(it, "home")) || followed.contains(Data.teamKey(it, "away")) } else games
         val bucket = sports.getOrNull(sportIdx)?.optString("bucket")
         val liveProgrammes = if (mode == Mode.SCORES && dayOffset == 0) programmes.filter { bucket == null || it.bucket == bucket } else emptyList()
-        liveBadge.text = if (mode == Mode.SCORES) "● ${liveProgrammes.size} LIVE CHANNELS" else "● ${visible.count { it.optString("state") == "in" }} LIVE"
+        val events = tv.onnowtv.livetv.data.SportsLiveEvents.group(liveProgrammes)
+        val liveKeys = visible.filter { it.optString("state") == "in" }.map { "fixture-${Data.key(it)}" }.toSet() + events.map { it.key }
+        liveBadge.text = "● ${liveKeys.size} LIVE EVENTS"
         notice.text = message; notice.visibility = if (message.isEmpty()) View.GONE else View.VISIBLE
         retry.visibility = if (failed || message.startsWith("Some leagues")) View.VISIBLE else View.GONE
         mapPanel.visibility = if (mode == Mode.MAP) View.VISIBLE else View.GONE
@@ -277,5 +275,35 @@ class SportsHubActivity : AppCompatActivity() {
             putExtra(GameActivity.EXTRA_ID, g.optString("id")); putExtra(GameActivity.EXTRA_SEED, g.toString())
         })
         overridePendingTransition(0, 0)
+    }
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_DPAD_UP && ::list.isInitialized) {
+            val focus = currentFocus ?: window.decorView.findFocus()
+            fun inside(parent: ViewGroup): Boolean {
+                var node = focus
+                while (node != null) { if (node === parent) return true; node = node.parent as? View }
+                return false
+            }
+            fun nav(): Boolean = modes.findViewWithTag<View>("hub-mode-${mode.name.lowercase()}")?.requestFocus() == true
+            if (focus != null && inside(sportsRow)) return nav() || super.dispatchKeyEvent(event)
+            if (focus != null && inside(leaguesRow)) return (sportsRow.getChildAt(0)?.requestFocus() == true) || super.dispatchKeyEvent(event)
+            if (focus != null && inside(filters) && !inside(sportsRow) && !inside(leaguesRow)) {
+                val target = if (leagueScroll.visibility == View.VISIBLE) leaguesRow.getChildAt(leagueIdx) else sportsRow.getChildAt((sportIdx + 1).coerceAtLeast(0))
+                return (target?.requestFocus() == true) || nav() || super.dispatchKeyEvent(event)
+            }
+            if (focus != null && list.visibility == View.VISIBLE && inside(list)) {
+                val holder = list.findContainingViewHolder(focus)
+                val position = holder?.absoluteAdapterPosition ?: RecyclerView.NO_POSITION
+                val offset = if (handset) 1 else 0
+                val first = scores.currentList.indexOfFirst { !it.isHeader }.takeIf { it >= 0 }?.plus(offset)
+                val manager = list.layoutManager as? GridLayoutManager
+                if (first != null && manager != null && position >= first && manager.spanSizeLookup.getSpanGroupIndex(position, manager.spanCount) == manager.spanSizeLookup.getSpanGroupIndex(first, manager.spanCount)) {
+                    if (handset) { list.scrollToPosition(0); list.post { if (!dateLabel.requestFocus()) nav() } }
+                    else if (!dateLabel.requestFocus()) nav()
+                    return true
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
     }
 }

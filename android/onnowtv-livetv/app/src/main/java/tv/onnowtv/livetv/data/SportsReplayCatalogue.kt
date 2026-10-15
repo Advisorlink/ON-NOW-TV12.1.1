@@ -10,7 +10,7 @@ object SportsReplayCatalogue {
     }.sortedBy { it.lcn?.toIntOrNull() ?: Int.MAX_VALUE }.distinctBy { it.id }
 
     fun entries(channel: Channel, rows: List<Programme>, now: Long = System.currentTimeMillis()): List<Entry> = rows.mapNotNull { p ->
-        if (p.archiveAvailable != true || !SportsReplayPolicy.checkProgramme(channel, p, now).eligible) return@mapNotNull null
+        if (p.archiveAvailable == false || !SportsReplayPolicy.checkProgramme(channel, p, now).eligible || p.startMs < now - 7 * 86_400_000L) return@mapNotNull null
         if (SportsEventPolicy.isProgramme(p.title)) return@mapNotNull null
         val fixture = SportsEventMetadata.match(p)
         val bucket = fixture?.let { SportsCategories.bucket(it) } ?: SportsEventPolicy.bucket(p, channel) ?: return@mapNotNull null

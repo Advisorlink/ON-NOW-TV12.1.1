@@ -62,6 +62,6 @@ object GameChannelMatcher {
             else if (live != null) Match(ch, 45, "Live ${LiveSportsClassifier.labelOf(liveBucket.orEmpty())} · match unconfirmed", live, liveCandidate = true)
             else if (casters.any { " ${normalize(ch.name)} ".contains(" $it ") }) Match(ch, 25, "Possible broadcast · not confirmed in guide")
             else null
-        }.sortedWith(compareByDescending<Match> { it.confirmed }.thenByDescending { it.score }.thenBy { it.channel.name }).take(12)
+        }.sortedWith(compareByDescending<Match> { it.confirmed }.thenByDescending { it.score }.thenBy { it.channel.name })
     }
 }

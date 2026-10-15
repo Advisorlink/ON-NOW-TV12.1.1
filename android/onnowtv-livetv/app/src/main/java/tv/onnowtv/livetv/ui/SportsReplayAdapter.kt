@@ -23,7 +23,7 @@ import java.util.Locale
 
 class SportsReplayAdapter(private val context: Context, private val select: (String) -> Unit,
     private val play: (SportsReplayCatalogue.Entry) -> Unit, private val playOfficial: (OfficialReplay) -> Unit = {}) : ListAdapter<SportsReplayAdapter.Item, SportsReplayAdapter.Holder>(DIFF) {
-    data class Item(val bucket: String, val entry: SportsReplayCatalogue.Entry? = null, val official: OfficialReplay? = null) {
+    data class Item(val bucket: String, val entry: SportsReplayCatalogue.Entry? = null, val official: OfficialReplay? = null, val count: Int = 0) {
         val key get() = official?.let { "official-${it.id}" } ?: entry?.key ?: bucket
     }
     companion object {
@@ -63,7 +63,7 @@ class SportsReplayAdapter(private val context: Context, private val select: (Str
         copy.addView(UI.identify(UI.text(context, official?.title ?: entry?.programme?.title ?: Sport.labelOf(item.bucket), if (category) 26f else 23f, bold = true).apply {
             maxLines = if (category) 2 else 4; ellipsize = android.text.TextUtils.TruncateAt.END
         }, "replay-name-${item.key}"))
-        if (category) copy.addView(UI.identify(UI.text(context, "Browse recordings  →", 11f, UI.DIM), "replay-category-detail-${item.key}"))
+        if (category) copy.addView(UI.identify(UI.text(context, "${item.count} available  →", 11f, UI.DIM), "replay-category-detail-${item.key}"))
         else if (official != null) {
             copy.addView(UI.identify(UI.text(context, "OFFICIAL · ${official.channel}", 13f, UI.ACCENT), "replay-source-${item.key}"))
             copy.addView(UI.identify(UI.text(context, official.dateLabel(), 11f, UI.DIM), "replay-date-${item.key}"))
