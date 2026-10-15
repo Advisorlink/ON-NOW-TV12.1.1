@@ -292,6 +292,21 @@ def build_auth_router(db_provider) -> APIRouter:
     router = APIRouter(prefix="/api")
     get_current_account = make_get_current_account(db_provider)
 
+    # ----- Debug: echo login payload (temporary, for diagnosing native-app login) -----
+    @router.post("/auth/debug-echo")
+    async def debug_echo(request: Request):
+        """Echo the raw request body so we can see exactly what the native app sends."""
+        body = await request.body()
+        headers_fwd = dict(request.headers)
+        headers_fwd.pop("authorization", None)  # don't echo auth headers
+        return {
+            "raw_body": body.decode("utf-8", errors="replace"),
+            "body_bytes_hex": body.hex(),
+            "content_type": request.headers.get("content-type", ""),
+            "content_length": request.headers.get("content-length", ""),
+            "user_agent": request.headers.get("user-agent", ""),
+        }
+
     # ----- Public auth -----
     @router.post("/auth/login")
     async def login(req: LoginRequest, request: Request):
