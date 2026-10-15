@@ -12,6 +12,8 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.*
 import tv.onnowtv.vespernative.BuildConfig
 import tv.onnowtv.vespernative.R
+import android.text.method.HideReturnsTransformationMethod
+import android.text.method.PasswordTransformationMethod
 
 class LoginScreen(c: Context, private val submit: (String, String) -> Unit) : NativeScreen(c) {
     private val username = input("login-username", "Username", false)
@@ -36,7 +38,22 @@ class LoginScreen(c: Context, private val submit: (String, String) -> Unit) : Na
             setPadding(TvUi.dp(c, 24), TvUi.dp(c, 24), TvUi.dp(c, 24), TvUi.dp(c, 24))
             addView(TvUi.heading(c, "login-title", "Welcome back", 26f)); addView(TvUi.gap(c, 14))
             addView(username, LinearLayout.LayoutParams(-1, TvUi.dp(c, 48)))
-            addView(TvUi.gap(c, 12)); addView(password, LinearLayout.LayoutParams(-1, TvUi.dp(c, 48)))
+            addView(TvUi.gap(c, 12))
+            // Password row: field + show/hide toggle
+            val passRow = LinearLayout(c).apply { orientation = LinearLayout.HORIZONTAL }
+            var passwordVisible = false
+            lateinit var showToggle: android.widget.TextView
+            showToggle = TvUi.button(c, "login-show-password", "Show") {
+                passwordVisible = !passwordVisible
+                password.transformationMethod = if (passwordVisible) HideReturnsTransformationMethod.getInstance() else PasswordTransformationMethod.getInstance()
+                showToggle.text = if (passwordVisible) "Hide" else "Show"
+                password.setSelection(password.text.length)
+            }
+            showToggle.textSize = 11f
+            passRow.addView(password, LinearLayout.LayoutParams(0, TvUi.dp(c, 48), 1f))
+            passRow.addView(TvUi.gap(c, 8))
+            passRow.addView(showToggle, LinearLayout.LayoutParams(-2, TvUi.dp(c, 48)))
+            addView(passRow, LinearLayout.LayoutParams(-1, -2))
             addView(TvUi.gap(c, 14)); addView(signIn, LinearLayout.LayoutParams(-1, TvUi.dp(c, 44)))
             addView(error, LinearLayout.LayoutParams(-1, -2))
             addView(TvUi.gap(c, 8))
