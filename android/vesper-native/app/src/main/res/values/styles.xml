@@ -1,0 +1,12 @@
+<resources>
+    <style name="Theme.VesperNative" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:fontFamily">@font/geist</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowBackground">#03060F</item>
+        <item name="android:colorAccent">#00B8FF</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:navigationBarColor">#03060F</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+</resources>

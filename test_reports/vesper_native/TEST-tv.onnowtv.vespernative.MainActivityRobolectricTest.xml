@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="tv.onnowtv.vespernative.MainActivityRobolectricTest" tests="6" skipped="0" failures="1" errors="0" timestamp="2026-10-15T05:21:24" hostname="agent-env-49bc65fa-9152-42e4-b845-97fdcbbeec38" time="12.21">
+  <properties/>
+  <testcase name="first_row_focus_up_chain_targets_hero_then_top_nav" classname="tv.onnowtv.vespernative.MainActivityRobolectricTest" time="7.697"/>
+  <testcase name="search_results_to_detail_and_back_keeps_query_and_results" classname="tv.onnowtv.vespernative.MainActivityRobolectricTest" time="0.997"/>
+  <testcase name="visible_views_have_unique_test_ids_and_hero_title_sits_below_top_nav" classname="tv.onnowtv.vespernative.MainActivityRobolectricTest" time="0.157"/>
+  <testcase name="restore_401_shows_login_instead_of_blank_or_crash" classname="tv.onnowtv.vespernative.MainActivityRobolectricTest" time="0.226"/>
+  <testcase name="sign_out_returns_to_login_even_when_server_logout_is_slow" classname="tv.onnowtv.vespernative.MainActivityRobolectricTest" time="2.664"/>
+  <testcase name="restore_to_home_open_detail_and_back_restores_focus_and_scroll" classname="tv.onnowtv.vespernative.MainActivityRobolectricTest" time="0.468">
+    <failure message="java.lang.AssertionError: expected:&lt;a1-movie-year-title-movie:tt-movie-year-1&gt; but was:&lt;null&gt;" type="java.lang.AssertionError">java.lang.AssertionError: expected:&lt;a1-movie-year-title-movie:tt-movie-year-1&gt; but was:&lt;null&gt;
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.failNotEquals(Assert.java:835)
+	at org.junit.Assert.assertEquals(Assert.java:120)
+	at org.junit.Assert.assertEquals(Assert.java:146)
+	at tv.onnowtv.vespernative.MainActivityRobolectricTest$restore_to_home_open_detail_and_back_restores_focus_and_scroll$1.invokeSuspend(MainActivityRobolectricTest.kt:89)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:108)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:280)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:85)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:59)
+	at kotlinx.coroutines.BuildersKt.runBlocking(Unknown Source)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:38)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(Unknown Source)
+	at tv.onnowtv.vespernative.MainActivityRobolectricTest.restore_to_home_open_detail_and_back_restores_focus_and_scroll(MainActivityRobolectricTest.kt:62)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59)
+	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56)
+	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+	at org.junit.internal.runners.statements.RunBefores.evaluate(RunBefores.java:26)
+	at org.junit.internal.runners.statements.RunAfters.evaluate(RunAfters.java:27)
+	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+	at org.robolectric.RobolectricTestRunner$HelperTestRunner$1.evaluate(RobolectricTestRunner.java:502)
+	at org.robolectric.internal.SandboxTestRunner$2.lambda$evaluate$2(SandboxTestRunner.java:285)
+	at org.robolectric.internal.bytecode.Sandbox.lambda$runOnMainThread$0(Sandbox.java:104)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:840)
+</failure>
+  </testcase>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[Invalid ID 0x00000000.
+Invalid ID 0x00000000.
+Invalid ID 0x00000000.
+Invalid ID 0x00000000.
+Invalid ID 0x00000000.
+Invalid ID 0x00000000.
+Invalid ID 0x00000000.
+Invalid ID 0x00000000.
+]]></system-err>
+</testsuite>

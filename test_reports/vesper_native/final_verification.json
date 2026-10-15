@@ -1,0 +1,60 @@
+{
+  "date": "2026-10-15",
+  "scope": "Native Vesper TV-only foundation plus read-only profile compatibility data layer. NOT the complete parity rebuild.",
+  "native_tests": {
+    "total": 45,
+    "passed": 44,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1,
+    "skip_reason": "Android hardware Keystore unavailable in Robolectric; real-device test remains required.",
+    "evidence": "final-regression-build.log and app/build/test-results/testDebugUnitTest/TEST-*.xml"
+  },
+  "real_external_backend": {
+    "passed": 5,
+    "failures": 0,
+    "evidence": "final-backend.log and final-backend.xml",
+    "checks": ["login envelope", "auth/me", "addon/catalog/meta/search contracts", "authenticated cloud pull envelope", "cloud pull missing-bearer rejection"],
+    "credential_issue_resolved": "Existing memory/test_credentials.md verified present; test environment injected from it. No credentials or cloud data created/changed."
+  },
+  "apk": {
+    "build": "pass",
+    "path": "/app/android/vesper-native/app/build/outputs/apk/debug/app-debug.apk",
+    "application_id": "tv.onnowtv.vespernative",
+    "version": "0.1.0-native-dev",
+    "bytes": 5400874,
+    "sha256": "894f5d0e86c15aa259e45a2300513aee35e400fd2a7782f6b778aec25ebb6848",
+    "signature": "debug signature verified",
+    "alignment": "pass",
+    "zip_crc": "pass",
+    "artifact_manifest_evidence": "final-manifest.log",
+    "webview": "none in new project",
+    "published": false
+  },
+  "resolved": [
+    "Exact poster focus restore waits for native RecyclerView layout after Back",
+    "First-row Up traverses hero Info then top navigation",
+    "Hero title stays below top navigation; read-only labels not focusable",
+    "Globally identified IMDb search results deduplicated without collapsing opaque cross-type IDs",
+    "Native test fixtures now use visible focused windows and measured TV bounds",
+    "Cloud pull test environment resolved without resetting existing credentials"
+  ],
+  "profile_data_layer": {
+    "tested": true,
+    "connected_to_ui": false,
+    "persistent_snapshot_storage": false,
+    "cloud_writes": false,
+    "unknown_keys_preserved": true,
+    "account_and_profile_isolation": true
+  },
+  "runtime_apis_mocked": false,
+  "test_fixtures": "MOCKED MockWebServer fixtures are confined to tests; five live external API checks use real backend.",
+  "remaining": [
+    "Profile picker/PIN UI, safe persistent migration and profile CRUD",
+    "Library and Continue Watching UI and updates",
+    "Complete browse grids/home rows/themes/trailers and pixel comparison",
+    "Playback/source selection and extraction of full current native player capabilities",
+    "Party/AI/voice/calendar/settings/backup/host parity",
+    "Physical Android TV visual/remote/Keystore/playback/performance acceptance"
+  ]
+}

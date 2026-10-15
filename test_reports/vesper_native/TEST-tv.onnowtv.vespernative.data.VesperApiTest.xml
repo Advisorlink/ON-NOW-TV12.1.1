@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="tv.onnowtv.vespernative.data.VesperApiTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-15T05:21:39" hostname="agent-env-49bc65fa-9152-42e4-b845-97fdcbbeec38" time="5.112">
+  <properties/>
+  <testcase name="cancellation_cancels_inflight_okhttp_call" classname="tv.onnowtv.vespernative.data.VesperApiTest" time="5.013"/>
+  <testcase name="safe_messages_for_403_and_429" classname="tv.onnowtv.vespernative.data.VesperApiTest" time="0.045"/>
+  <testcase name="oversized_response_body_is_rejected_by_8mb_guard" classname="tv.onnowtv.vespernative.data.VesperApiTest" time="0.047"/>
+  <testcase name="invalid_or_non_json_body_returns_safe_parse_error" classname="tv.onnowtv.vespernative.data.VesperApiTest" time="0.004"/>
+  <testcase name="request_encodes_path_and_query_and_sets_bearer_on_backend_call" classname="tv.onnowtv.vespernative.data.VesperApiTest" time="0.003"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

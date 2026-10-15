@@ -1,0 +1,73 @@
+{
+  "summary": "Executed first-checkpoint verification for android/vesper-native with new deterministic JVM/MockWebServer/Robolectric suites plus external read-only backend contract smoke. Native unit suite ran (24 tests): 21 passed, 2 failed, 1 skipped; assembleDebug succeeded; external backend smoke passed (3/3).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "MainActivity / NativeScreen focus restore",
+        "issue": "Back from Detail did not restore previously focused poster tag in Robolectric lifecycle test (expected exact tile restore, got null focus tag).",
+        "selector": "test_id=a1-movie-year-title-movie:tt-movie-year-1",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "CatalogRepository search deduplication",
+        "issue": "Search aggregation keeps duplicate title IDs across media types because dedupe key is type+id (Title.key), so same content ID from movie/series catalogs is returned twice.",
+        "affected_selectors": [
+          "CatalogRepository.search() distinctBy(Title::key)"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/auth/AuthRepositoryTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/auth/KeystoreSessionStoreRobolectricTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/data/VesperApiTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/data/CatalogRepositoryTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/MainActivityRobolectricTest.kt",
+    "/app/backend/tests/test_vesper_native_external_contract.py",
+    "/app/test_reports/vesper_native/iteration_117_gradle_test.log",
+    "/app/test_reports/vesper_native/iteration_117_assemble.log",
+    "/app/test_reports/vesper_native/TEST-tv.onnowtv.vespernative.MainActivityRobolectricTest.xml",
+    "/app/test_reports/vesper_native/TEST-tv.onnowtv.vespernative.data.CatalogRepositoryTest.xml",
+    "/app/test_reports/pytest/iteration_117_backend.xml"
+  ],
+  "action_items": [
+    "Fix focus restoration path so Back from Detail returns exact prior focused poster/row position reliably.",
+    "Decide and implement intended dedupe strategy for search results when identical IDs appear across multiple searchable catalogs/media types.",
+    "Re-run :app:testDebugUnitTest after fixing the above two failures.",
+    "If required, run physical-device validation for focus outlines/clipping and signout dialog interaction (Robolectric dialog inspection boundary)."
+  ],
+  "critical_code_review_comments": [
+    "No password/token logging detected in native source review (no Log/println exposure paths found).",
+    "Bearer header is scoped through VesperApi base URL request pathing; no WebView dependency or HTML asset usage found in native module packaging.",
+    "Build-tools binaries (aapt/zipalign) in this environment are not executable on current architecture, so packaged-manifest decoding and zipalign check were tool-boundary limited; APK integrity/signature were verified via unzip -t and apksigner jar.",
+    "MainActivity signout delayed-server flow test is present; one assertion path is skipped under Robolectric when dialog shadow is not inspectable (explicit boundary)."
+  ],
+  "updated_files": [
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/auth/AuthRepositoryTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/auth/KeystoreSessionStoreRobolectricTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/data/VesperApiTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/data/CatalogRepositoryTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/MainActivityRobolectricTest.kt",
+    "/app/backend/tests/test_vesper_native_external_contract.py",
+    "/app/test_reports/vesper_native/iteration_117_gradle_test.log",
+    "/app/test_reports/vesper_native/iteration_117_assemble.log",
+    "/app/test_reports/pytest/iteration_117_backend.xml",
+    "/app/test_reports/iteration_117.json"
+  ],
+  "success_rate": {
+    "backend": "100% (3/3 external contract smoke passed)",
+    "frontend": "88% (native unit: 21 passed / 24 total, 2 failed, 1 skipped)"
+  },
+  "seed_data_creation": "None. Read-only contract tests used existing testuser credentials only.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "New native tests are in app/src/test/java/tv/onnowtv/vespernative/* and backend read-only smoke at backend/tests/test_vesper_native_external_contract.py. Current failing native tests are: MainActivity focus restore after Back from Detail, and CatalogRepository search duplicate handling across sources/types. assembleDebug succeeded and APK copied to /app/test_reports/vesper_native/app-debug-iteration117.apk. External backend URL smoke is REAL (not mocked) and passed.",
+  "rca of the issue": "RCA-1 (focus restore): NativeScreen.hidden stores focusKey from root.findFocus(), but in tested Back path from Detail the previous Home tile focus was not restored (null tag on return), indicating focus state retention/rehydration gap in screen stack transition. RCA-2 (search duplicates): CatalogRepository.search combines per-catalog results and dedupes by Title.key (=type:id), which preserves duplicates when identical title IDs surface under different media types/catalogs. Mitigation: refine dedupe identity (e.g., stable content id normalization) per desired product behavior."
+}

@@ -1,0 +1,67 @@
+{
+  "summary": "Added and executed new JVM coverage for CloudSnapshot/CloudProfile/ProfileCloudRepository plus full native baseline build. :app:testDebugUnitTest and :app:assembleDebug passed (44 total / 43 pass / 1 Keystore skip). Extended external REAL read-only smoke with /api/vesper/sync/pull shape and missing-bearer rejection; authenticated smoke could not run because required env credentials were not injected.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/auth/login (external smoke precondition)",
+        "issue": "VESPER_TEST_USERNAME/VESPER_TEST_PASSWORD were missing in environment; authenticated external contract tests could not execute.",
+        "priority": "CRITICAL"
+      },
+      {
+        "endpoint": "/app/memory/test_credentials.md",
+        "issue": "Required credentials source file was not present in workspace, blocking credentials verification workflow.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/profile/CloudSnapshotTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/profile/ProfileCloudRepositoryTest.kt",
+    "/app/backend/tests/test_vesper_native_external_contract.py",
+    "/app/test_reports/vesper_native/iteration_118_final-test-build.log",
+    "/app/android/vesper-native/app/build/test-results/testDebugUnitTest/TEST-tv.onnowtv.vespernative.profile.CloudSnapshotTest.xml",
+    "/app/android/vesper-native/app/build/test-results/testDebugUnitTest/TEST-tv.onnowtv.vespernative.profile.ProfileCloudRepositoryTest.xml",
+    "/app/test_reports/vesper_native/iteration_118_apksigner.log",
+    "/app/test_reports/vesper_native/iteration_118_alignment.log",
+    "/app/test_reports/vesper_native/iteration_118_crc.log",
+    "/app/test_reports/pytest/iteration_118_backend.xml"
+  ],
+  "action_items": [
+    "Inject VESPER_TEST_USERNAME and VESPER_TEST_PASSWORD into environment, then rerun /app/backend/tests/test_vesper_native_external_contract.py.",
+    "Restore or provide /app/memory/test_credentials.md per auth testing policy.",
+    "(Tooling boundary) If APK appId must be re-verified from built artifact in this environment, provide an executable aapt/apkanalyzer binary for this host architecture."
+  ],
+  "critical_code_review_comments": [
+    "CloudSnapshot and ProfileCloudRepository data-layer behavior now has deterministic regression coverage for scoped-key precedence, no cross-account key scan, exact PIN policy, first-owner legacy promotion, and token-switch cancellation safety.",
+    "Repository tests confirm GET-only pull path with bearer and no write endpoints exercised in this increment.",
+    "APK verification completed for signature/alignment/CRC; appId artifact re-check via aapt/apkanalyzer remains tool-boundary limited on this host (exec format/missing binary)."
+  ],
+  "updated_files": [
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/profile/CloudSnapshotTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/profile/ProfileCloudRepositoryTest.kt",
+    "/app/backend/tests/test_vesper_native_external_contract.py",
+    "/app/test_reports/vesper_native/iteration_118_final-test-build.log",
+    "/app/test_reports/vesper_native/iteration_118_apksigner.log",
+    "/app/test_reports/vesper_native/iteration_118_alignment.log",
+    "/app/test_reports/vesper_native/iteration_118_crc.log",
+    "/app/test_reports/vesper_native/iteration_118_appid.log",
+    "/app/test_reports/vesper_native/iteration_118_webview_scan.log",
+    "/app/test_reports/pytest/iteration_118_backend.xml",
+    "/app/test_reports/iteration_118.json"
+  ],
+  "success_rate": {
+    "backend": "Native JVM/build: 100% pass (43/43, 1 skip). External REAL smoke: 20% (1/5) due missing injected credentials.",
+    "frontend": "N/A (backend/native-data-layer only scope)"
+  },
+  "seed_data_creation": "None. No cloud push/POST writes or DB mutation were executed.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All requested Kotlin data-layer tests were added and passing. Build baseline is now 44 total with 1 hardware Keystore skip. External authenticated contract tests are blocked purely by missing VESPER_TEST_* env vars in this environment; missing-bearer rejection test already passes. WebView scan is clean (no matches).",
+  "rca of the issue": "Reproduction: run pytest /app/backend/tests/test_vesper_native_external_contract.py without VESPER_TEST_USERNAME/PASSWORD -> fixture fails at setup, causing all authenticated smoke checks to error. Root cause is missing credential injection (and absent /app/memory/test_credentials.md reference file), not endpoint logic. Mitigation: inject credentials via environment as specified, then rerun smoke suite to validate login/me/addons/sync pull shape end-to-end."
+}

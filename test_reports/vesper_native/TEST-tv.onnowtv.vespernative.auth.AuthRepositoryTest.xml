@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="tv.onnowtv.vespernative.auth.AuthRepositoryTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-15T05:21:37" hostname="agent-env-49bc65fa-9152-42e4-b845-97fdcbbeec38" time="2.089">
+  <properties/>
+  <testcase name="sign_in_posts_exact_json_and_returns_account" classname="tv.onnowtv.vespernative.auth.AuthRepositoryTest" time="0.009"/>
+  <testcase name="disabled_or_expired_account_fails_as_403" classname="tv.onnowtv.vespernative.auth.AuthRepositoryTest" time="0.048"/>
+  <testcase name="sign_out_clears_locally_before_slow_logout_response" classname="tv.onnowtv.vespernative.auth.AuthRepositoryTest" time="2.01"/>
+  <testcase name="restore_network_outage_preserves_saved_token" classname="tv.onnowtv.vespernative.auth.AuthRepositoryTest" time="0.011"/>
+  <testcase name="sign_in_does_not_persist_token_on_malformed_response" classname="tv.onnowtv.vespernative.auth.AuthRepositoryTest" time="0.006"/>
+  <testcase name="restore_401_clears_saved_session" classname="tv.onnowtv.vespernative.auth.AuthRepositoryTest" time="0.005"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
