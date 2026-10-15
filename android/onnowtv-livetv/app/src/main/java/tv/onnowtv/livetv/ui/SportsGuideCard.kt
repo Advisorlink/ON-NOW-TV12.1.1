@@ -11,6 +11,7 @@ object SportsGuideCard {
         val ctx = root.context; val pad = UI.dp(ctx, 14f)
         root.setPadding(pad, pad, pad, pad)
         root.addView(UI.identify(UI.eyebrow(ctx, "● LIVE · ${LiveSportsClassifier.labelOf(entry.bucket)}", UI.LIVE), "guide-live-${entry.key}"))
+        root.addView(SportsSportBadge.create(ctx, entry.bucket, event.key), LinearLayout.LayoutParams(-1, -2).apply { topMargin = UI.dp(ctx, 7f) })
         root.addView(UI.identify(UI.text(ctx, event.title, 18f, bold = true).apply { maxLines = 3 }, "guide-title-${event.key}"),
             LinearLayout.LayoutParams(-1, -2).apply { topMargin = UI.dp(ctx, 9f); bottomMargin = UI.dp(ctx, 10f) })
         root.addView(UI.row(ctx, UI.dp(ctx, 8f)).apply {

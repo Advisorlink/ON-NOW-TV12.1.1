@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-15",
+  "scope": "Replay startup 0/0 stall, upcoming sport icon/label, Watch Live opens full match page before channel playback",
+  "native_tests": {"tests": 108, "failures": 0, "errors": 0, "skipped": 0},
+  "build": "compile + assembleDebug PASS",
+  "signature": "local debug v1/v2 PASS",
+  "alignment": "PASS using /usr/bin/zipalign -c -p 4 (supersedes iteration115 x86 SDK binary error)",
+  "zip_crc": "PASS",
+  "apk_bytes": 202068552,
+  "apk_sha256": "344d2f7c63cb065af9e6a36983c7d74a2404a0b0290845f8b9a95d815eb5325e",
+  "apk_feature_markers_present": ["SportsLiveDetailsActivity", "SportsSportBadge", "SportsLiveNavigation", "Reading your replay channels"],
+  "new_regression_evidence": [
+    "300 catch-up channels, poison EPG map, zero history reads during channel ordering",
+    "Cache seed inspects only current3channel wave and no more than96rows/channel",
+    "Blocked metadata request: actual Activity publishes1channel state and0/1 label before release, then verified category/recording appears",
+    "Setup enumeration exception andzero eligiblechannels exitloading safely",
+    "Knownfixture routesGameActivity withfull seed; unknownfixture routesfullnativeSportsLiveDetailsActivity; Hubcallback doesnotpopup/autoplay",
+    "SeededGameActivity initial teamnames,Followcontrols,channelpanel andnoautoplay verified",
+    "Sporticonresources/labels andphone/TVbadgecontainment checked"
+  ],
+  "main_followup": "Canonicalized channel scope to deduplicate IDs consistently with the details-page intent, added assertion, reran all108tests and package checks",
+  "limitations": [
+    "Controlled provider fixtures; no actual user's IPTV inventory/decoder/device test",
+    "45second scan deadline/generationguard implemented but all timing races not exhaustively tested",
+    "Guide-only events without a recognised fixture cannot invent team profiles or Follow IDs",
+    "Browser design reference remains MOCKED and is not native visual acceptance",
+    "Official recent replay discovery remains NOT CONNECTED/research paused",
+    "Debug APK not installed, published or signed to replace user's existing release"
+  ],
+  "test_credentials": "Existing memory/test_credentials.md unchanged; no credentials created/modified"
+}

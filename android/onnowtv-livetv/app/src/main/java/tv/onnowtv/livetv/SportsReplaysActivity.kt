@@ -12,6 +12,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withTimeoutOrNull
 import tv.onnowtv.livetv.data.*
 import tv.onnowtv.livetv.data.SportsHubApi.objects
 import tv.onnowtv.livetv.ui.SportsLoadingBand
@@ -38,6 +40,8 @@ class SportsReplaysActivity : AppCompatActivity() {
     private var scanning = false
     private var opening = false
     private var stopped = false
+    private var generation = 0
+    private var scanNotice: String? = null
 
     override fun onCreate(saved: Bundle?) {
         super.onCreate(saved); SportsWindow.apply(this); LivePreviewSession.release()
@@ -57,7 +61,7 @@ class SportsReplaysActivity : AppCompatActivity() {
         }; root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
         val actions = UI.row(this, dp(this, 10f))
         more = UI.identify(UI.pill(this, "Find more replays") {
-            if (scanning) { stopped = true; fetch?.cancel(); scanning = false; render() } else { stopped = false; begin() }
+            if (scanning) { generation++; stopped = true; fetch?.cancel(); scanning = false; render() } else { stopped = false; begin() }
         }, "replays-load-more")
         refresh = UI.identify(UI.pill(this, "Refresh") { state = null; stopped = false; begin(true) }, "replays-retry")
         actions.addView(more); actions.addView(refresh); root.addView(actions); setContentView(root); render()
@@ -71,26 +75,41 @@ class SportsReplaysActivity : AppCompatActivity() {
             render()
         }
     }
-    override fun onPause() { fetch?.cancel(); officialFetch?.cancel(); scanning = false; super.onPause() }
+    override fun onPause() { generation++; fetch?.cancel(); officialFetch?.cancel(); scanning = false; super.onPause() }
     override fun onSaveInstanceState(out: Bundle) { out.putString("bucket", bucket); super.onSaveInstanceState(out) }
     @Deprecated("TV remote compatibility") override fun onBackPressed() { goBack() }
     private fun goBack() { if (bucket == null) finish() else { bucket = null; render(); list.scrollToPosition(0) } }
     private fun begin(force: Boolean = false) {
+        val request = ++generation
         fetch?.cancel(); source = BundleHolder.current
         val bundle = source ?: run { scanning = false; render(); return }
         state?.let { SportsReplayDiscovery.prune(it) }
-        scanning = true; render()
+        scanNotice = null; scanning = true; render()
         fetch = lifecycleScope.launch {
-            if (state == null || force) {
-                val channels = withContext(Dispatchers.Default) { SportsReplayDiscovery.orderedChannels(bundle) { ch -> ch.copy(streamUrl = AuthStore.rewriteStreamUrl(this@SportsReplaysActivity, ch.streamUrl)) } }
-                val next = SportsReplayDiscovery.acquire(channels, force)
-                SportsReplayDiscovery.seed(next, SharedSportsGuide.rows(bundle))
-                if (BundleHolder.current !== bundle) { scanning = false; render(); return@launch }
-                state = next
+            try {
+                val finished = withTimeoutOrNull(45_000) {
+                    if (state == null || force) {
+                        val channels = withContext(Dispatchers.Default) { SportsReplayDiscovery.orderedChannels(bundle) { ch -> ch.copy(streamUrl = AuthStore.rewriteStreamUrl(this@SportsReplaysActivity, ch.streamUrl)) } }
+                        if (request != generation || BundleHolder.current !== bundle) { scanNotice = "Your guide changed. Refresh to check its recordings."; return@withTimeoutOrNull }
+                        // Publish the real inventory BEFORE any programme parsing or network work.
+                        state = SportsReplayDiscovery.acquire(channels, force)
+                        render()
+                    }
+                    val index = state ?: return@withTimeoutOrNull
+                    if (index.channels.isEmpty()) { scanNotice = "Your provider is not reporting any supported catch-up channels."; return@withTimeoutOrNull }
+                    SportsReplayDiscovery.scan(index, { bucket }, { request == generation && BundleHolder.current === bundle && !isFinishing }, force,
+                        SharedSportsGuide.rows(bundle)) { if (request == generation) render() }
+                    if (BundleHolder.current !== bundle) scanNotice = "Your guide changed. Refresh to check its recordings."
+                }
+                if (finished == null) scanNotice = "The archive check is taking too long. Continue the search or refresh; any recordings found are kept."
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // Never expose/log exceptions that can contain provider credential URLs.
+                scanNotice = "The replay check could not finish. Refresh to retry."
+            } finally {
+                if (request == generation) { scanning = false; render() }
             }
-            val index = state ?: return@launch
-            SportsReplayDiscovery.scan(index, { bucket }, { BundleHolder.current === bundle && !isFinishing }, force) { render() }
-            scanning = false; render()
         }
     }
     private fun render() {
@@ -105,10 +124,16 @@ class SportsReplaysActivity : AppCompatActivity() {
         heading.text = bucket?.let { LiveSportsClassifier.labelOf(it) + " · REPLAYS" } ?: "REPLAYS"
         adapter.submitList(if (bucket == null) available.map { sport -> SportsReplayAdapter.Item(sport, count = index?.verified?.values?.count { it.bucket == sport }.orZero() + official.count { it.sport == sport }) }
             else rows.map { SportsReplayAdapter.Item(it.bucket, it) } + external.map { SportsReplayAdapter.Item(it.sport, official = it) })
-        loading.show(if (scanning) "Finding available replays · ${index?.cursor ?: 0}/${index?.channels?.size ?: 0} channels" else null)
+        loading.show(when {
+            !scanning -> null
+            index == null -> "Reading your replay channels…"
+            index.channels.isEmpty() -> "Finishing archive check…"
+            else -> "${index.phase} · ${index.cursor}/${index.channels.size} channels"
+        })
         status.text = when {
             rows.isNotEmpty() || external.isNotEmpty() -> if (bucket == null) "${available.size} sports with available replays · ${rows.size + external.size} recordings" else "${rows.size + external.size} available recordings"
-            scanning -> "Only sports with verified recordings will appear."
+            scanning -> if (index == null) "Preparing your provider archive. Your guide stays unchanged." else "Sports appear as their recordings are checked."
+            scanNotice != null -> scanNotice!!
             source == null -> "Open your TV guide to load your available recordings."
             stopped -> "Search paused. No recordings verified yet."
             index?.errors.orZero() > 0 -> "Some archive channels could not be checked. Refresh to retry."
@@ -116,6 +141,7 @@ class SportsReplaysActivity : AppCompatActivity() {
             else -> "No playable recent match recordings were found in your provider archive."
         }
         if (index?.errors.orZero() > 0 && rows.isNotEmpty()) status.append(" · Some channels could not be checked")
+        if (!scanning && rows.isNotEmpty() && scanNotice != null) status.append("\n$scanNotice")
         more.text = if (scanning) "Pause search" else "Find more replays"
         more.visibility = if (scanning || index?.hasMore() == true) View.VISIBLE else View.GONE
         refresh.isEnabled = !scanning

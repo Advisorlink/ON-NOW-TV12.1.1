@@ -85,7 +85,7 @@ class SportsHubActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        scores.openLiveEvent = { event -> tv.onnowtv.livetv.ui.SportsLiveChannelsDialog.show(this, event, ::openGame) }
+        scores.openLiveEvent = { event -> startActivity(tv.onnowtv.livetv.data.SportsLiveNavigation.intent(this, event)) }
         SportsWindow.apply(this)
         handset = !SportsWindow.television(this)
         restoredListState = savedInstanceState?.getParcelable("scoresScroll")

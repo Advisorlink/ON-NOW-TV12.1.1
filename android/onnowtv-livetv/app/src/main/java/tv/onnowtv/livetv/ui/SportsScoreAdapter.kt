@@ -69,6 +69,7 @@ class SportsScoreAdapter(private val owner: LifecycleOwner, private val open: (J
         val status = if (upcoming && g.optLong("startMs") > 0) android.text.format.DateFormat.getTimeFormat(ctx).format(java.util.Date(g.optLong("startMs"))) else Data.value(g, "statusDetail", "Scheduled")
         top.addView(SportsUi.singleLine(SportsUi.text(ctx, (if (live) "● " else "") + status, 10f, if (live) SportsUi.LIVE else SportsUi.ACCENT)).apply { maxWidth = dp(ctx, 112f) })
         root.addView(top)
+        root.addView(SportsSportBadge.create(ctx, tv.onnowtv.livetv.data.SportsCategories.bucket(g), Data.key(g)), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(ctx, 8f) })
         val mid = SportsUi.row(ctx, dp(ctx, 8f)).apply { setPadding(0, dp(ctx, 14f), 0, dp(ctx, 12f)) }
         fun side(key: String): View {
             val t = g.optJSONObject(key)

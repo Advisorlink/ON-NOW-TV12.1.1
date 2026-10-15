@@ -1,0 +1,46 @@
+{
+  "summary": "Implemented the six requested native regression areas and executed unit tests + assembleDebug. Added deterministic replay startup/discovery guards, Sports Hub live-navigation intent coverage, sport badge rendering checks, and GameActivity seeded initial-render assertions.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/SportsReplayDiscoveryStartupTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/ui/SportsReplaysActivityRobolectricTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/ui/SportsLiveNavigationTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/ui/SportsSportBadgeRobolectricTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/ui/GameActivityInitialRenderRobolectricTest.kt",
+    "/app/test_reports/replay_startup_match_navigation/iteration116_build.log"
+  ],
+  "action_items": [
+    "No production-code change required from this iteration; keep these new tests in regression suite.",
+    "If user still reproduces freeze/nav issues, run failing scenario against this exact suite to isolate runtime-only/device-only behavior."
+  ],
+  "critical_code_review_comments": [
+    "Focused scope respected: only Kotlin test files were added/edited; production code unchanged.",
+    "Replay startup test now explicitly verifies non-null state publication and avoids the historical 0/0 loading regression path under blocked metadata."
+  ],
+  "updated_files": [
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/data/SportsReplayDiscoveryStartupTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/ui/SportsReplaysActivityRobolectricTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/ui/SportsLiveNavigationTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/ui/SportsSportBadgeRobolectricTest.kt",
+    "/app/android/onnowtv-livetv/app/src/test/java/tv/onnowtv/livetv/ui/GameActivityInitialRenderRobolectricTest.kt",
+    "/app/test_reports/replay_startup_match_navigation/iteration116_build.log",
+    "/app/test_reports/iteration_116.json"
+  ],
+  "success_rate": {
+    "backend": "N/A (frontend-only native scope)",
+    "frontend": "100% (108/108 unit tests passed)"
+  },
+  "seed_data_creation": "None. Only deterministic in-test fixtures/mocks were used.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Total unit tests increased to 108 and all pass. New regressions cover replay discovery startup ordering/no-EPG-access guard, blocked metadata startup state rendering, channel-source exception safety, zero-eligible channel clean exit, Sports Hub live-event navigation intent correctness, upcoming sport badge rendering on phone/TV, and GameActivity seeded first-frame controls/panel visibility.",
+  "rca of the issue": "Previous iteration had a verification gap (tests missing for replay startup freeze, full-page watch-live navigation, and sport badges). This iteration closes that gap with executable Robolectric/data tests. Browser flow remains MOCKED/irrelevant for this native task."
+}

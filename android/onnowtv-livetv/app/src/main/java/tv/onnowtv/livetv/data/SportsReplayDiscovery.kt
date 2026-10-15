@@ -16,6 +16,7 @@ object SportsReplayDiscovery {
         var errors = 0
         var probes = 0
         var failedAt = 0L
+        var phase = "Reading archive listings"
         val candidates = linkedMapOf<String, SportsReplayCatalogue.Entry>()
         val checked = mutableSetOf<String>()
         val verified = linkedMapOf<String, SportsReplayCatalogue.Entry>()
@@ -38,8 +39,17 @@ object SportsReplayDiscovery {
         expired.forEach { state.verified.remove(it); state.checked.remove(it) }
         if (now - state.failedAt > 60_000) { state.checked.retainAll(state.verified.keys); state.failedAt = now }
     }
-    suspend fun seed(state: State, guide: Map<String, List<Programme>>) {
-        val entries = withContext(Dispatchers.Default) { state.channels.flatMap { channel -> SportsReplayCatalogue.entries(channel, guide[channel.epgChannelId ?: channel.id].orEmpty()) } }
+    suspend fun seed(state: State, guide: Map<String, List<Programme>>, channels: List<Channel> = state.channels.take(3)) {
+        // This is an optional cache optimisation, never a whole-guide gate before the screen can load.
+        val entries = withContext(Dispatchers.Default) {
+            val now = System.currentTimeMillis()
+            channels.take(3).flatMap { channel ->
+                currentCoroutineContext().ensureActive()
+                val rows = guide[channel.epgChannelId ?: channel.id].orEmpty().asSequence().take(96)
+                    .filter { it.startMs >= now - 7 * 86_400_000L && it.stopMs <= now }.take(16).toList()
+                SportsReplayCatalogue.entries(channel, rows)
+            }
+        }
         add(state, entries)
     }
     private fun add(state: State, entries: List<SportsReplayCatalogue.Entry>) {
@@ -60,17 +70,16 @@ object SportsReplayDiscovery {
         }
     }
     fun orderedChannels(bundle: XtreamBundle, rewrite: (Channel) -> Channel): List<Channel> {
-        val guide = SharedSportsGuide.rows(bundle)
         val groups = SportsReplayCatalogue.channels(bundle).map(rewrite).groupBy { channel ->
-            guide[channel.epgChannelId ?: channel.id].orEmpty().firstNotNullOfOrNull { SportsEventPolicy.bucket(it, channel) }
-                ?: LiveSportsClassifier.programmeBucket(channel.name) ?: "other"
+            // Never walk programme history to decide which channel to read first.
+            LiveSportsClassifier.programmeBucket(channel.name) ?: "other"
         }.mapValues { (_, list) -> ArrayDeque(list) }.toMutableMap()
         val ordered = mutableListOf<Channel>()
         val order = (LiveSportsClassifier.DISPLAY_ORDER + groups.keys).distinct()
         while (groups.values.any { it.isNotEmpty() }) order.forEach { sport -> groups[sport]?.removeFirstOrNull()?.let(ordered::add) }
         return ordered
     }
-    suspend fun scan(state: State, selected: () -> String?, current: () -> Boolean, force: Boolean = false, update: () -> Unit) = coroutineScope {
+    suspend fun scan(state: State, selected: () -> String?, current: () -> Boolean, force: Boolean = false, guide: Map<String, List<Programme>> = emptyMap(), update: () -> Unit) = coroutineScope {
         val counts = mutableMapOf<String, Int>()
         var budget = 0
         suspend fun verifyNext(): Boolean {
@@ -79,6 +88,8 @@ object SportsReplayDiscovery {
                 when { state.verified.values.none { v -> v.bucket == it.bucket } -> 0; it.bucket == selected() -> 1; else -> 2 }
             }.thenBy { counts[it.bucket] ?: 0 }.thenByDescending { it.programme.startMs }) ?: return false
             if (force) SportsReplayRepository.invalidate(next.channel, next.programme)
+            state.phase = "Checking ${LiveSportsClassifier.labelOf(next.bucket)} recordings"
+            update()
             val result = SportsReplayRepository.verifyProgramme(next.channel, next.programme)
             currentCoroutineContext().ensureActive(); if (!current()) return false
             state.checked.add(next.key); state.probes++; budget++; counts[next.bucket] = (counts[next.bucket] ?: 0) + 1
@@ -89,6 +100,8 @@ object SportsReplayDiscovery {
         if (state.pending().isNotEmpty() && current()) verifyNext()
         while (state.cursor < state.channels.size && current()) {
             val wave = state.channels.drop(state.cursor).take(3)
+            state.phase = "Reading archive listings"; update()
+            seed(state, guide, wave)
             val results = wave.map { channel -> async { channel to SportsReplayRepository.archiveProgrammes(channel, force) } }.awaitAll()
             currentCoroutineContext().ensureActive(); if (!current()) return@coroutineScope
             results.forEach { (channel, rows) ->

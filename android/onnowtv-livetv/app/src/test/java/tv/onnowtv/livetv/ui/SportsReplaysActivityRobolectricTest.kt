@@ -10,6 +10,7 @@ import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
+import okio.Buffer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -32,9 +33,11 @@ import tv.onnowtv.livetv.data.Channel
 import tv.onnowtv.livetv.data.LiveSportsClassifier
 import tv.onnowtv.livetv.data.Programme
 import tv.onnowtv.livetv.data.Provider
+import tv.onnowtv.livetv.data.SportsReplayDiscovery
 import tv.onnowtv.livetv.data.SportsReplayCatalogue
 import tv.onnowtv.livetv.data.XtreamBundle
 import tv.onnowtv.livetv.ui.SportsUi.dp
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
@@ -210,7 +213,11 @@ class SportsReplaysActivityRobolectricTest {
 
             waitUntil(3_000) {
                 val recycler = activity.window.decorView.findViewWithTag<RecyclerView>("replays-grid")
-                recycler.adapter?.itemCount == 1
+                val adapter = recycler.adapter as SportsReplayAdapter
+                if (adapter.itemCount == 0) return@waitUntil false
+                val probe = adapter.onCreateViewHolder(recycler, 0)
+                adapter.onBindViewHolder(probe, 0)
+                (probe.frame.tag as? String)?.startsWith("replay-match-") == true
             }
 
             val recycler = activity.window.decorView.findViewWithTag<RecyclerView>("replays-grid")
@@ -237,6 +244,196 @@ class SportsReplaysActivityRobolectricTest {
         }
     }
 
+    @Test
+    @Config(qualifiers = "w390dp-h844dp-port")
+    fun startup_with_blocked_archive_metadata_publishes_non_empty_channel_state_before_probe_completion() {
+        val now = System.currentTimeMillis()
+        val start = now - 2 * 3_600_000L
+        val stop = now - 90 * 60_000L
+        val tableRequested = CountDownLatch(1)
+        val releaseTable = CountDownLatch(1)
+        val server = server(object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                return when {
+                    request.path?.contains("action=get_simple_data_table") == true -> {
+                        tableRequested.countDown()
+                        releaseTable.await(5, TimeUnit.SECONDS)
+                        MockResponse().setResponseCode(200).setBody(row("Yankees vs Red Sox", start, stop))
+                    }
+
+                    request.path?.contains("player_api.php") == true -> MockResponse().setResponseCode(200)
+                        .setBody("{\"server_info\":{\"timezone\":\"America/New_York\"}}")
+
+                    request.path?.contains("/timeshift/") == true -> {
+                        val bytes = ByteArray(4096)
+                        bytes[0] = 0x47
+                        bytes[188] = 0x47
+                        bytes[376] = 0x47
+                        MockResponse().setResponseCode(200).setBody(Buffer().write(bytes))
+                    }
+
+                    else -> MockResponse().setResponseCode(404)
+                }
+            }
+        })
+        val previous = BundleHolder.current
+        BundleHolder.current = XtreamBundle(
+            provider = Provider("p", "p", "h", "443", "https"),
+            categories = listOf(Category("sport", "Sports")),
+            channels = listOf(
+                Channel(
+                    id = "901",
+                    name = "MLB Network",
+                    lcn = "901",
+                    logoUrl = null,
+                    categoryId = "sport",
+                    streamUrl = server.url("/provider/live/user/pass/901.ts").toString(),
+                    epgChannelId = "901",
+                    archiveEnabled = true,
+                    archiveDays = 7,
+                ),
+            ),
+            epg = emptyMap(),
+            generatedAt = now,
+        )
+
+        val controller = Robolectric.buildActivity(SportsReplaysActivity::class.java).create().start().resume()
+        val activity = controller.get()
+        try {
+            waitFor(2_000) { tableRequested.count == 0L }
+            assertEquals(0L, tableRequested.count)
+            waitFor(2_000) {
+                val state = readField<SportsReplayDiscovery.State?>(activity, "state")
+                val label = activity.window.decorView.findViewWithTag<TextView>("replays-loading-label")
+                state != null && state.channels.size == 1 && label.text.contains("0/1") && !label.text.contains("0/0")
+            }
+
+            val blockingState = readField<SportsReplayDiscovery.State?>(activity, "state")
+            val label = activity.window.decorView.findViewWithTag<TextView>("replays-loading-label")
+            assertNotNull(blockingState)
+            assertEquals(1, blockingState!!.channels.size)
+            assertTrue(label.text.contains("0/1"))
+            assertTrue(!label.text.contains("0/0"))
+
+            releaseTable.countDown()
+
+            waitFor(4_000) {
+                val recycler = activity.window.decorView.findViewWithTag<RecyclerView>("replays-grid")
+                recycler.adapter?.itemCount == 1
+            }
+            val categories = activity.window.decorView.findViewWithTag<RecyclerView>("replays-grid")
+            val categoryAdapter = categories.adapter as SportsReplayAdapter
+            val categoryHolder = categoryAdapter.onCreateViewHolder(categories, 0)
+            categoryAdapter.onBindViewHolder(categoryHolder, 0)
+            assertEquals("sport-category-tile-${LiveSportsClassifier.MLB}", categoryHolder.frame.tag)
+
+            setBucket(activity, LiveSportsClassifier.MLB)
+            waitFor(4_000) {
+                val recycler = activity.window.decorView.findViewWithTag<RecyclerView>("replays-grid")
+                val adapter = recycler.adapter as SportsReplayAdapter
+                if (adapter.itemCount == 0) return@waitFor false
+                val holder = adapter.onCreateViewHolder(recycler, 0)
+                adapter.onBindViewHolder(holder, 0)
+                (holder.frame.tag as? String)?.startsWith("replay-match-") == true
+            }
+        } finally {
+            releaseTable.countDown()
+            controller.pause().stop().destroy()
+            BundleHolder.current = previous
+            server.shutdown()
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "w390dp-h844dp-port")
+    fun channel_source_enumeration_failure_exits_loading_with_safe_retry_message() {
+        val previous = BundleHolder.current
+        val unstableChannels = object : AbstractList<Channel>() {
+            private val seed = Channel(
+                id = "c-1",
+                name = "MLB Network",
+                lcn = "101",
+                logoUrl = null,
+                categoryId = "sport",
+                streamUrl = "https://provider/live/user/pass/101.ts",
+                epgChannelId = "c-1",
+                archiveEnabled = true,
+                archiveDays = 7,
+            )
+            override val size: Int = 1
+            override fun get(index: Int): Channel = seed
+            override fun iterator(): Iterator<Channel> = throw IllegalStateException("Enumeration failed")
+        }
+        BundleHolder.current = XtreamBundle(
+            provider = Provider("p", "p", "h", "443", "https"),
+            categories = listOf(Category("sport", "Sports")),
+            channels = unstableChannels,
+            epg = emptyMap(),
+            generatedAt = System.currentTimeMillis(),
+        )
+
+        val controller = Robolectric.buildActivity(SportsReplaysActivity::class.java).create().start().resume()
+        val activity = controller.get()
+        try {
+            waitFor(2_500) {
+                val status = activity.window.decorView.findViewWithTag<TextView>("replays-status")
+                status.text.contains("could not finish", ignoreCase = true)
+            }
+            val status = activity.window.decorView.findViewWithTag<TextView>("replays-status")
+            val retry = activity.window.decorView.findViewWithTag<TextView>("replays-retry")
+            val loading = activity.window.decorView.findViewWithTag<View>("replays-loading-progress-band")
+            assertTrue(status.text.contains("could not finish", ignoreCase = true))
+            assertEquals(View.GONE, loading.visibility)
+            assertTrue(retry.isEnabled)
+        } finally {
+            controller.pause().stop().destroy()
+            BundleHolder.current = previous
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "w390dp-h844dp-port")
+    fun zero_eligible_replay_channels_finishes_scan_without_indefinite_initial_loading() {
+        val previous = BundleHolder.current
+        BundleHolder.current = XtreamBundle(
+            provider = Provider("p", "p", "h", "443", "https"),
+            categories = listOf(Category("sport", "Sports")),
+            channels = listOf(
+                Channel(
+                    id = "10",
+                    name = "News 24",
+                    lcn = "10",
+                    logoUrl = null,
+                    categoryId = "sport",
+                    streamUrl = "https://provider/live/user/pass/10.ts",
+                    epgChannelId = "10",
+                    archiveEnabled = false,
+                    archiveDays = null,
+                ),
+            ),
+            epg = emptyMap(),
+            generatedAt = System.currentTimeMillis(),
+        )
+
+        val controller = Robolectric.buildActivity(SportsReplaysActivity::class.java).create().start().resume()
+        val activity = controller.get()
+        try {
+            waitFor(2_500) {
+                val status = activity.window.decorView.findViewWithTag<TextView>("replays-status")
+                status.text.contains("not reporting any supported catch-up channels", ignoreCase = true)
+            }
+            val status = activity.window.decorView.findViewWithTag<TextView>("replays-status")
+            val loading = activity.window.decorView.findViewWithTag<View>("replays-loading-progress-band")
+            val retry = activity.window.decorView.findViewWithTag<TextView>("replays-retry")
+            assertTrue(status.text.contains("not reporting any supported catch-up channels", ignoreCase = true))
+            assertEquals(View.GONE, loading.visibility)
+            assertTrue(retry.isEnabled)
+        } finally {
+            controller.pause().stop().destroy()
+            BundleHolder.current = previous
+        }
+    }
+
     private fun setBucket(activity: SportsReplaysActivity, bucket: String?) {
         val field = SportsReplaysActivity::class.java.getDeclaredField("bucket")
         field.isAccessible = true
@@ -256,6 +453,20 @@ class SportsReplaysActivityRobolectricTest {
         }
         throw AssertionError("Condition not met within ${timeoutMs}ms")
     }
+
+    private fun waitFor(timeoutMs: Long, condition: () -> Boolean) = waitUntil(timeoutMs, condition)
+
+    private fun server(dispatcher: Dispatcher): MockWebServer = MockWebServer().apply {
+        this.dispatcher = dispatcher
+        start()
+    }
+
+    private fun row(title: String, startMs: Long, stopMs: Long): String =
+        """
+        {"epg_listings":[
+          {"title":"$title","start_timestamp":${startMs / 1000},"stop_timestamp":${stopMs / 1000},"has_archive":1}
+        ]}
+        """.trimIndent()
 
     @Suppress("UNCHECKED_CAST")
     private fun <T> readField(target: Any, name: String): T {

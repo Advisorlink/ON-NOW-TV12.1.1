@@ -1,0 +1,101 @@
+{
+  "summary": "Executed full native unit/regression suite and assembleDebug for Sports replay/navigation changes. Build and 97 tests passed, but multiple user-requested critical regressions are not explicitly covered by current tests, so startup 0/0 behavior and full Watch Live details-page flow are not fully proven.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Replay startup (exact 'Finding available replays · 0/0 channels' freeze) under blocked/slow MWS metadata",
+        "issue": "No explicit Robolectric test found that asserts assigned state with channelcount>0 appears before metadata/player probes finish and never shows stuck 0/0.",
+        "affected_selectors": [
+          "replays-loading-progress-band",
+          "replays-status",
+          "replays-grid"
+        ]
+      },
+      {
+        "flow": "Watch Live from Sports Hub event card",
+        "issue": "No explicit regression test found that hub callback opens full details/game page first (not channel popup dialog) and validates unknown fixture fallback to SportsLiveDetailsActivity page.",
+        "affected_selectors": [
+          "guide-watch-*",
+          "live-details-page",
+          "live-event-channels"
+        ]
+      },
+      {
+        "flow": "Large guide channel ordering guard",
+        "issue": "No dedicated test found proving SportsReplayDiscovery.orderedChannels never touches EPG/programme history (poison map/access-counter style assertion requested).",
+        "affected_selectors": [
+          "N/A-native-data-path"
+        ]
+      },
+      {
+        "flow": "45s scan timeout/race/cancellation generation-guard",
+        "issue": "No explicit regression test found for old cancelled job not clearing newer scan loading state and preserving prior found results on timeout exit.",
+        "affected_selectors": [
+          "replays-load-more",
+          "replays-retry",
+          "replays-status"
+        ]
+      },
+      {
+        "flow": "APK alignment verification",
+        "issue": "zipalign check could not execute in this container (Exec format error for SDK zipalign binary), so alignment pass/fail is unverified in this run.",
+        "affected_selectors": [
+          "N/A-build-tooling"
+        ]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Upcoming cards + guide live cards",
+        "issues": [
+          "No dedicated phone/TV regression test found that asserts sport icon+label badge placement/containment across long league/team names for all requested sports (NFL, soccer, MLB, NHL, AFL, NRL, etc.)."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/replay_startup_match_navigation/iteration115_build.log",
+    "/app/android/onnowtv-livetv/app/build/test-results/testDebugUnitTest/TEST-tv.onnowtv.livetv.ui.SportsReplaysActivityRobolectricTest.xml",
+    "/app/android/onnowtv-livetv/app/build/test-results/testDebugUnitTest/TEST-tv.onnowtv.livetv.ui.GameActivityBroadcastIntentRobolectricTest.xml",
+    "/app/android/onnowtv-livetv/app/build/reports/sports-navigation/game_channel_matcher_timing_latest.json",
+    "/app/test_reports/replay_startup_match_navigation/iteration115_apk-signature.log",
+    "/app/test_reports/replay_startup_match_navigation/iteration115_apk-crc.log",
+    "/app/test_reports/replay_startup_match_navigation/iteration115_apk-alignment.log"
+  ],
+  "action_items": [
+    "Add 6-10 focused native regressions covering exact 0/0 startup freeze path with blocked/slow controlled provider fixtures and progressive state assertions.",
+    "Add orderedChannels non-EPG-touch test with poison/access-counter EPG map and large guide fixture shape (300 channels / 30,000 rows equivalent).",
+    "Add hub Watch Live intent flow tests: known fixture -> GameActivity, unknown fixture -> SportsLiveDetailsActivity full page, no popup expectation in hub path.",
+    "Add timeout/race tests for 45s scan window, pause/back cancel, and generation guard (old cancelled finally must not clear newer scan loading).",
+    "Add explicit badge layout/containment tests for upcoming cards and SportsGuideCard across long labels on 390dp and TV widths.",
+    "Re-run APK alignment in environment with executable-compatible zipalign binary."
+  ],
+  "critical_code_review_comments": [
+    "SportsLiveChannelsDialog utility tests still exist and pass; no issue by itself, but hub flow requirements now prioritize full-page details/game navigation and this path needs explicit regression coverage.",
+    "SportsReplaysActivity catch-all exception handling intentionally suppresses raw provider errors (good for secret hygiene), but masking reason classes increases risk of silently missing the exact startup freeze without dedicated deterministic tests.",
+    "Signature check shows v1/v2 true but v3/v3.1/v4 false for debug APK (acceptable for local debug, not release signing proof)."
+  ],
+  "updated_files": [
+    "/app/test_reports/iteration_115.json",
+    "/app/test_reports/replay_startup_match_navigation/iteration115_build.log",
+    "/app/test_reports/replay_startup_match_navigation/iteration115_apk-signature.log",
+    "/app/test_reports/replay_startup_match_navigation/iteration115_apk-crc.log",
+    "/app/test_reports/replay_startup_match_navigation/iteration115_apk-alignment.log",
+    "/app/test_reports/replay_startup_match_navigation/iteration115_apk-sha256.txt",
+    "/app/test_reports/replay_startup_match_navigation/iteration115_apk-bytes.txt"
+  ],
+  "success_rate": {
+    "backend": "N/A (frontend-only scope)",
+    "frontend": "68%"
+  },
+  "seed_data_creation": "None. Controlled native fixtures only.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "This run executed :app:testDebugUnitTest + :app:assembleDebug successfully (97/97 pass, duration 52s). Large-guide benchmark artifact reports old median 574ms vs new median 7ms on JVM synthetic dataset (5000 channels, 96 programmes/channel). Exact user-reported startup freeze and watch-live page-first flow need new deterministic regressions; current suite does not explicitly assert those paths.",
+  "rca of the issue": "Primary risk is verification gap, not immediate compile/test failure: current tests validate many replay/navigation behaviors but do not directly encode the newly requested deterministic failure/recovery scenarios (exact 0/0 startup freeze, blocked/slow metadata race ordering, generation-guard timeout races, and hub watch-live full-page-first expectations). Without those assertions, regressions can recur while suite stays green. Mitigation: add focused deterministic Robolectric/fixture tests for those exact acceptance criteria before claiming closure."
+}
