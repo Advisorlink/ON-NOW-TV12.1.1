@@ -5424,6 +5424,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Vesper Native APK download ─────────────────────────────────────────────
+_NATIVE_APK = Path(__file__).parent.parent / "android" / "vesper-native" / "app" / "build" / "outputs" / "apk" / "debug" / "app-debug.apk"
+
+@app.get("/api/download/vesper-native-apk")
+async def download_vesper_native_apk():
+    """Serve the latest debug build of the Vesper Native Android TV app."""
+    if not _NATIVE_APK.exists():
+        raise HTTPException(status_code=404, detail="APK not built yet. Run: cd /app/android/vesper-native && ./gradlew assembleDebug")
+    return FileResponse(
+        path=str(_NATIVE_APK),
+        media_type="application/vnd.android.package-archive",
+        filename="vesper-native-debug.apk",
+    )
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
