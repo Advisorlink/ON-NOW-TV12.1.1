@@ -24,8 +24,8 @@ android {
         applicationId = "tv.onnowtv.vespernative"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0-native-dev"
+        versionCode = 2
+        versionName = "0.1.1-native-dev"
         buildConfigField("String", "API_BASE_URL", "\"${backendUrl.trimEnd('/')}\"")
     }
     buildFeatures { buildConfig = true }

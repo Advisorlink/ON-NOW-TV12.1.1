@@ -5435,7 +5435,8 @@ async def download_vesper_native_apk():
     return FileResponse(
         path=str(_NATIVE_APK),
         media_type="application/vnd.android.package-archive",
-        filename="vesper-native-debug.apk",
+        filename="vesper-native-v0.1.1.apk",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"},
     )
 
 logging.basicConfig(

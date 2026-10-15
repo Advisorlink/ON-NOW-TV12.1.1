@@ -10,6 +10,7 @@ import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.*
+import tv.onnowtv.vespernative.BuildConfig
 import tv.onnowtv.vespernative.R
 
 class LoginScreen(c: Context, private val submit: (String, String) -> Unit) : NativeScreen(c) {
@@ -38,6 +39,8 @@ class LoginScreen(c: Context, private val submit: (String, String) -> Unit) : Na
             addView(TvUi.gap(c, 12)); addView(password, LinearLayout.LayoutParams(-1, TvUi.dp(c, 48)))
             addView(TvUi.gap(c, 14)); addView(signIn, LinearLayout.LayoutParams(-1, TvUi.dp(c, 44)))
             addView(error, LinearLayout.LayoutParams(-1, -2))
+            addView(TvUi.gap(c, 8))
+            addView(TvUi.text(c, "login-server-hint", "server: ${BuildConfig.API_BASE_URL.removePrefix("https://")}", 10f, Color.argb(120, 200, 200, 200)))
         }
         row.addView(form, LinearLayout.LayoutParams(0, -2, 1f))
         root.addView(row, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER))
