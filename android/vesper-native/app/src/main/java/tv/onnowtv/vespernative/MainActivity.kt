@@ -15,6 +15,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.*
 import tv.onnowtv.vespernative.data.*
 import tv.onnowtv.vespernative.ui.*
+import tv.onnowtv.vespernative.profile.*
 
 class MainActivity : AppCompatActivity() {
     private lateinit var services: NativeServices
@@ -22,6 +23,8 @@ class MainActivity : AppCompatActivity() {
     private var repository: CatalogRepository? = null
     private val screens = mutableListOf<NativeScreen>()
     private var account: Account? = null
+    private var activeProfile: CloudProfile? = null
+    private var profileData: ProfileData? = null
     private var authJob: Job? = null
     private var invalidating = false
 
@@ -76,13 +79,27 @@ class MainActivity : AppCompatActivity() {
     private fun signedIn(value: Account) {
         account = value
         repository = CatalogRepository(services.api) { services.auth.token }
-        navigate("home")
+        showProfiles()
+    }
+    private fun showProfiles() {
+        val owner = account ?: return
+        activeProfile = null; profileData = null
+        replace(ProfilePickerScreen(this, services.cloudProfiles(owner), { snapshot, profile ->
+            fun activate(data: ProfileData) {
+                activeProfile = profile; profileData = data
+                repository = CatalogRepository(services.api) { services.auth.token }
+                navigate("home")
+            }
+            if (profile.requiresPin) push(ProfilePinScreen(this, profile, snapshot, ::activate, ::pop))
+            else activate(snapshot.openProfile(profile.id))
+        }, { navigate("home") }, ::signOut, ::failed))
     }
     private fun navigate(route: String) {
         val repo = repository ?: return
         when (route) {
-            "home", "movie", "series" -> replace(HomeScreen(this, repo, route.takeUnless { it == "home" }, ::open, ::navigate, ::failed))
+            "home", "movie", "series" -> replace(HomeScreen(this, repo, route.takeUnless { it == "home" }, ::open, ::navigate, ::failed, profileData != null))
             "search" -> push(SearchScreen(this, repo, ::open, ::pop, ::failed))
+            "library" -> activeProfile?.let { profile -> profileData?.let { push(LibraryScreen(this, profile, it, ::open, ::pop)) } }
             "account" -> showAccount()
         }
     }
@@ -90,7 +107,10 @@ class MainActivity : AppCompatActivity() {
     private fun failed(error: Throwable) {
         if (error is ApiFailure && (error.status == 401 || error.status == 403) && !invalidating) {
             invalidating = true
-            lifecycleScope.launch { services.auth.clear(); repository = null; account = null; login() }
+            lifecycleScope.launch {
+                services.auth.clear(); repository = null; account = null
+                activeProfile = null; profileData = null; login()
+            }
         }
     }
     private fun replace(screen: NativeScreen) {
@@ -107,19 +127,21 @@ class MainActivity : AppCompatActivity() {
         content.addView(TvUi.heading(this, "account-name", account?.label.orEmpty()))
         val dialog = AlertDialog.Builder(this).setView(content).create()
         content.addView(TvUi.button(this, "account-close", "Back") { dialog.dismiss() })
+        content.addView(TvUi.button(this, "account-profiles", "Switch profile") { dialog.dismiss(); showProfiles() })
         content.addView(TvUi.button(this, "account-signout", "Sign out") {
             dialog.dismiss()
-            authJob?.cancel()
-            screens.forEach(NativeScreen::dispose); screens.clear(); container.removeAllViews()
-            container.addView(StatusBand(this, "signout-status").apply { show("Signing out…") },
-                FrameLayout.LayoutParams(-1, -2, Gravity.CENTER))
-            repository = null; account = null
-            authJob = lifecycleScope.launch {
-                services.auth.signOut { login() }
-            }
+            signOut()
         })
         dialog.setOnShowListener { TvUi.identify(dialog.window!!.decorView, "account-dialog") }
         dialog.show()
+    }
+    private fun signOut() {
+        authJob?.cancel()
+        screens.forEach(NativeScreen::dispose); screens.clear(); container.removeAllViews()
+        container.addView(StatusBand(this, "signout-status").apply { show("Signing out…") },
+            FrameLayout.LayoutParams(-1, -2, Gravity.CENTER))
+        repository = null; account = null; activeProfile = null; profileData = null
+        authJob = lifecycleScope.launch { services.auth.signOut { login() } }
     }
     private fun confirmExit() {
         val content = TvUi.column(this).apply { setPadding(32, 24, 32, 24) }

@@ -13,7 +13,7 @@ import tv.onnowtv.vespernative.data.*
 
 class HomeScreen(c: Context, private val repository: CatalogRepository, private val filter: String?,
     private val open: (Title) -> Unit, navigate: (String) -> Unit,
-    private val failed: (Throwable) -> Unit) : NativeScreen(c) {
+    private val failed: (Throwable) -> Unit, showLibrary: Boolean = false) : NativeScreen(c) {
     private val hero = HeroView(c, open)
     private val status = StatusBand(c, "home-status")
     private val shelves = TvUi.identify(RecyclerView(c), "home-shelves").apply {
@@ -33,9 +33,12 @@ class HomeScreen(c: Context, private val repository: CatalogRepository, private 
         content.addView(status, LinearLayout.LayoutParams(-1, -2))
         content.addView(shelves, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(content, FrameLayout.LayoutParams(-1, -1))
-        val entries = listOf(Triple("Search", "search", R.drawable.ic_search), Triple("Home", "home", R.drawable.ic_home),
-            Triple("TV Shows", "series", R.drawable.ic_tv), Triple("Movies", "movie", R.drawable.ic_movies),
-            Triple("Account", "account", R.drawable.ic_account))
+        val entries = buildList {
+            add(Triple("Search", "search", R.drawable.ic_search)); add(Triple("Home", "home", R.drawable.ic_home))
+            add(Triple("TV Shows", "series", R.drawable.ic_tv)); add(Triple("Movies", "movie", R.drawable.ic_movies))
+            if (showLibrary) add(Triple("Library", "library", R.drawable.ic_library))
+            add(Triple("Account", "account", R.drawable.ic_account))
+        }
         entries.forEach { (label, route, icon) ->
             val button = TvUi.icon(c, "nav-$route", label, icon) { navigate(route) }
             nav.addView(button, LinearLayout.LayoutParams(TvUi.dp(c, 40), TvUi.dp(c, 40)))

@@ -1,0 +1,20 @@
+{
+  "date": "2026-10-15",
+  "scope": "Native Vesper saved profile/PIN/switch and read-only library UI checkpoint; not full app parity",
+  "native_tests": {"total": 56, "passed": 55, "skipped": 1, "failures": 0, "errors": 0, "skip": "Hardware Android Keystore requires device", "evidence": "profiles-final.log and app/build/test-results/testDebugUnitTest/TEST-*.xml"},
+  "real_backend_tests": {"passed": 5, "failures": 0, "evidence": "iteration_119_backend.log"},
+  "apk": {
+    "build": "pass", "signature": "debug verified", "alignment": "pass", "crc": "pass",
+    "application_id": "tv.onnowtv.vespernative", "bytes": 8727408,
+    "sha256": "c58c33f30e6d6208178c1aef96dca009d134f75c24f088c975dc5d329023656e",
+    "static_avatar_parity": "75/75 existing reference JPG icon IDs bundled",
+    "published": false
+  },
+  "verified_flows": ["Cold start waits for profile selection", "PIN wrong/correct/cancel/reset and re-gating on switch", "Thirty profiles and long-name focus", "Confirmed empty profiles permit non-personal Browse", "Cloud error does not enable Browse and Retry recovers", "Scoped saved title projection/recency/show dedup", "Library long-scroll title -> details -> Back restores focus", "Existing browse/search/signout/Up navigation regressions"],
+  "data_writes": false,
+  "real_credentials_changed": false,
+  "runtime_mocked": false,
+  "fixtures": "MOCKED fixtures used only in JVM tests",
+  "limits": ["No profile CRUD or persistent cloud merge", "No library edits/real resume/playback", "Custom/emoji avatar parity pending", "No physical TV visual/focus/performance/Keystore proof", "Full app parity not complete"],
+  "github": "Workspace source android/vesper-native; user uses Save to Github for chosen existing repo/branch. No agent push or automatic GitHub APK Release."
+}

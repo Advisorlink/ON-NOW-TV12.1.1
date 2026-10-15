@@ -4,6 +4,7 @@ import android.os.Looper
 import android.graphics.Rect
 import android.view.View
 import android.widget.EditText
+import android.widget.TextView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.runBlocking
@@ -11,6 +12,7 @@ import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -212,10 +214,157 @@ class MainActivityRobolectricTest {
         assertTrue("Hero title $heroRect should render below top nav $navRect", heroRect.top >= navRect.bottom)
     }
 
-    private fun visibleActivity(): MainActivity {
+    @Test
+    fun cold_start_requires_profile_selection_before_home_or_library_nav_is_visible() = runBlocking {
+        memoryStore.save("saved-token")
+
+        val activity = visibleActivity(autoPickProfile = false)
+        waitUi()
+
+        assertNotNull(findByTestTag(activity.window.decorView, "profiles-title"))
+        assertNull(findByTestTag(activity.window.decorView, "nav-home"))
+        assertNull(findByTestTag(activity.window.decorView, "nav-library"))
+    }
+
+    @Test
+    fun empty_cloud_profiles_show_explicit_browse_action_and_no_profile_tiles() = runBlocking {
+        fixture.cloudScenario = CloudScenario.EMPTY
+        memoryStore.save("saved-token")
+
+        val activity = visibleActivity(autoPickProfile = false)
+        waitUi()
+
+        assertNotNull(waitForView(activity.window.decorView, "profiles-status"))
+        assertNotNull(findByTestTag(activity.window.decorView, "profiles-browse"))
+        assertNull(findByTestTag(activity.window.decorView, "profile-p-main"))
+    }
+
+    @Test
+    fun profile_picker_handles_many_profiles_focuses_first_and_keeps_long_names_bounded() = runBlocking {
+        fixture.cloudScenario = CloudScenario.MANY_PROFILES
+        memoryStore.save("saved-token")
+
+        val activity = visibleActivity(autoPickProfile = false)
+        waitUi()
+
+        val grid = waitForView(activity.window.decorView, "profiles-grid") as RecyclerView
+        waitUntil { (grid.adapter?.itemCount ?: 0) >= 30 }
+        layoutActivity(activity)
+
+        val first = grid.findViewHolderForAdapterPosition(0)?.itemView ?: grid.getChildAt(0)
+        assertNotNull(first)
+        waitUntil { activity.window.decorView.findFocus() != null }
+        val focusedTag = activity.window.decorView.findFocus()?.getTag(tv.onnowtv.vespernative.R.id.test_id)
+        assertEquals("profile-p-01", focusedTag)
+
+        val longName = waitForView(activity.window.decorView, "profile-name-p-long") as TextView
+        assertEquals(2, longName.maxLines)
+        assertEquals(android.text.TextUtils.TruncateAt.END, longName.ellipsize)
+    }
+
+    @Test
+    fun pin_profile_wrong_pin_clears_fields_then_correct_pin_enters_home() = runBlocking {
+        fixture.cloudScenario = CloudScenario.MIXED_WITH_PIN
+        memoryStore.save("saved-token")
+
+        val activity = visibleActivity(autoPickProfile = false)
+        waitUi()
+
+        waitForView(activity.window.decorView, "profile-p-pin").performClick()
+        waitForView(activity.window.decorView, "profile-pin-title")
+
+        enterPin(activity.window.decorView, "0000")
+        val error = waitForView(activity.window.decorView, "profile-pin-error") as TextView
+        assertEquals("Incorrect PIN. Try again.", error.text.toString())
+        for (i in 0..3) {
+            val digit = waitForView(activity.window.decorView, "profile-pin-digit-$i") as EditText
+            assertEquals("", digit.text.toString())
+        }
+
+        enterPin(activity.window.decorView, "1234")
+        assertNotNull(waitForView(activity.window.decorView, "nav-home"))
+    }
+
+    @Test
+    fun pin_screen_cancel_returns_to_picker_and_pin_is_required_again_after_switch_profile() = runBlocking {
+        fixture.cloudScenario = CloudScenario.MIXED_WITH_PIN
+        memoryStore.save("saved-token")
+
+        val activity = visibleActivity(autoPickProfile = false)
+        waitUi()
+
+        waitForView(activity.window.decorView, "profile-p-pin").performClick()
+        waitForView(activity.window.decorView, "profile-pin-cancel").performClick()
+        waitForView(activity.window.decorView, "profiles-title")
+        assertNull(findByTestTag(activity.window.decorView, "nav-home"))
+
+        waitForView(activity.window.decorView, "profile-p-main").performClick()
+        waitForView(activity.window.decorView, "nav-home")
+
+        waitForView(activity.window.decorView, "nav-account").performClick()
+        waitUi()
+        val dialog = ShadowDialog.getShownDialogs().lastOrNull { it.isShowing }
+        assertNotNull("Account dialog must be shown", dialog)
+        waitForView(dialog!!.window!!.decorView, "account-profiles").performClick()
+        waitForView(activity.window.decorView, "profiles-title")
+
+        waitForView(activity.window.decorView, "profile-p-pin").performClick()
+        waitForView(activity.window.decorView, "profile-pin-title")
+        assertNull(findByTestTag(activity.window.decorView, "nav-home"))
+    }
+
+    @Test
+    fun saved_library_opens_details_and_restores_scrolled_title_focus() = runBlocking {
+        fixture.cloudScenario = CloudScenario.SAVED_LIBRARY
+        memoryStore.save("saved-token")
+        val activity = visibleActivity()
+        waitForView(activity.window.decorView, "nav-library").performClick()
+        val sections = waitForView(activity.window.decorView, "library-sections") as RecyclerView
+        sections.scrollToPosition(3)
+        layoutActivity(activity)
+        val movies = waitForView(activity.window.decorView, "library-row-movies") as RecyclerView
+        assertEquals(30, movies.adapter!!.itemCount)
+        movies.scrollToPosition(15)
+        layoutActivity(activity)
+        waitUntil { movies.findViewHolderForAdapterPosition(15) != null }
+        val tile = movies.findViewHolderForAdapterPosition(15)!!.itemView
+        assertTrue(tile.requestFocus())
+        val expected = tile.getTag(R.id.test_id)
+        tile.performClick()
+        waitForView(activity.window.decorView, "detail-title")
+        activity.onBackPressedDispatcher.onBackPressed()
+        layoutActivity(activity)
+        assertNotNull(findByTestTag(activity.window.decorView, "library-title"))
+        assertEquals(expected, activity.window.decorView.findFocus()?.getTag(R.id.test_id))
+    }
+
+    @Test
+    fun cloud_error_never_enables_browse_and_retry_recovers_profiles() = runBlocking {
+        fixture.cloudUnavailable = true
+        memoryStore.save("saved-token")
+        val activity = visibleActivity(autoPickProfile = false)
+        val retry = waitForView(activity.window.decorView, "profiles-status-retry")
+        waitUntil { retry.visibility == View.VISIBLE }
+        assertEquals(View.GONE, waitForView(activity.window.decorView, "profiles-browse").visibility)
+        assertNull(findByTestTag(activity.window.decorView, "nav-home"))
+        fixture.cloudUnavailable = false
+        retry.performClick()
+        waitForView(activity.window.decorView, "profile-p-main")
+        assertEquals(View.GONE, waitForView(activity.window.decorView, "profiles-browse").visibility)
+    }
+
+    private fun visibleActivity(autoPickProfile: Boolean = true): MainActivity {
         val controller = Robolectric.buildActivity(MainActivity::class.java).create().start().resume().visible()
         controller.windowFocusChanged(true)
-        return controller.get().also { layoutActivity(it) }
+        return controller.get().also {
+            layoutActivity(it)
+            if (autoPickProfile && !fixture.meUnauthorized) {
+                // Cold start now always gates on saved-profile choice.
+                waitForView(it.window.decorView, "profile-p-main").performClick()
+                waitForView(it.window.decorView, "nav-home")
+                layoutActivity(it)
+            }
+        }
     }
 
     private fun layoutActivity(activity: MainActivity) {
@@ -245,6 +394,14 @@ class MainActivityRobolectricTest {
         return requireNotNull(findByTestTag(root, tag))
     }
 
+    private fun enterPin(root: View, pin: String) {
+        require(pin.length == 4)
+        pin.forEachIndexed { index, char ->
+            (waitForView(root, "profile-pin-digit-$index") as EditText).setText(char.toString())
+            waitUi()
+        }
+    }
+
     private fun findByTestTag(view: View, tag: String): View? {
         if (view.getTag(tv.onnowtv.vespernative.R.id.test_id) == tag) return view
         if (view is android.view.ViewGroup) {
@@ -267,6 +424,8 @@ class MainActivityRobolectricTest {
     }
 }
 
+private enum class CloudScenario { DEFAULT, EMPTY, MIXED_WITH_PIN, MANY_PROFILES, SAVED_LIBRARY }
+
 private class MemorySessionStore : SessionStore {
     private var token: String? = null
     override suspend fun read(): String? = token
@@ -281,6 +440,8 @@ private class MemorySessionStore : SessionStore {
 private class NativeFixtureDispatcher : Dispatcher() {
     var meUnauthorized: Boolean = false
     var slowLogout: Boolean = false
+    var cloudScenario: CloudScenario = CloudScenario.DEFAULT
+    var cloudUnavailable = false
 
     override fun dispatch(request: RecordedRequest): MockResponse {
         val path = request.requestUrl!!.encodedPath
@@ -305,6 +466,7 @@ private class NativeFixtureDispatcher : Dispatcher() {
             }
 
             path == "/api/addons" -> json(addonsPayload())
+            path == "/api/vesper/sync/pull" -> if (cloudUnavailable) MockResponse().setResponseCode(503).setBody("{}") else json(cloudPayload())
 
             path.startsWith("/api/addons/a1/catalog/movie/year") -> json(catalogPayload("movie", "year"))
             path.startsWith("/api/addons/a1/catalog/series/year") -> json(catalogPayload("series", "year"))
@@ -336,6 +498,39 @@ private class NativeFixtureDispatcher : Dispatcher() {
 
     private fun json(body: String): MockResponse =
         MockResponse().setResponseCode(200).setHeader("Content-Type", "application/json").setBody(body)
+
+    private fun cloudPayload(): String = when (cloudScenario) {
+        CloudScenario.SAVED_LIBRARY -> {
+            val favourites = JSONObject()
+            repeat(30) { index -> favourites.put("tt-saved-$index", JSONObject().put("type", "movie")
+                .put("addedAt", "2026-01-01").put("meta", JSONObject().put("name", "Saved title $index"))) }
+            JSONObject().put("found", true).put("data", JSONObject()
+                .put("onnowtv-profiles-v1:testuser", "[{\"id\":\"p-main\",\"name\":\"Main\"}]")
+                .put("vesper-library:p-main", JSONObject().put("favorites", favourites).toString())).toString()
+        }
+        CloudScenario.EMPTY -> """{"found":true,"data":{"onnowtv-profiles-v1:testuser":"[]"}}"""
+        CloudScenario.MIXED_WITH_PIN -> """
+            {
+              "found": true,
+              "data": {
+                "onnowtv-profiles-v1:testuser": "[{\"id\":\"p-main\",\"name\":\"Main\",\"avatarId\":\"fn-popcorn-fg\"},{\"id\":\"p-pin\",\"name\":\"Family Room\",\"avatarId\":\"gm-android\",\"pin\":\"1234\"}]"
+              }
+            }
+        """.trimIndent()
+        CloudScenario.MANY_PROFILES -> {
+            val profiles = buildString {
+                append("[")
+                append("{\"id\":\"p-01\",\"name\":\"Main\",\"avatarId\":\"fn-popcorn-fg\"},")
+                append("{\"id\":\"p-long\",\"name\":\"This is a very long profile name for TV bounds verification\",\"avatarId\":\"gm-android\"}")
+                for (i in 2..30) {
+                    append(",{\"id\":\"p-${"%02d".format(i)}\",\"name\":\"Profile ${"%02d".format(i)}\",\"avatarId\":\"an-boy-confident\"}")
+                }
+                append("]")
+            }
+            """{"found":true,"data":{"onnowtv-profiles-v1:testuser":${JSONObject.quote(profiles)}}}"""
+        }
+        CloudScenario.DEFAULT -> """{"found":true,"data":{"onnowtv-profiles-v1:testuser":"[{\"id\":\"p-main\",\"name\":\"Main\"}]"}}"""
+    }
 
     private fun addonsPayload(): String = """
       [

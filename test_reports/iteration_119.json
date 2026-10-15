@@ -1,0 +1,54 @@
+{
+  "summary": "Executed native + external backend regression for vesper-native checkpoint. Added Robolectric coverage for profile-gate/PIN/empty-profile/many-profile states and SavedLibrary projections. testDebugUnitTest + assembleDebug passed; external 5-endpoint read-only contract smoke passed with injected credentials.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/MainActivityRobolectricTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/profile/SavedLibraryTest.kt",
+    "/app/backend/tests/test_vesper_native_external_contract.py",
+    "/app/test_reports/pytest/iteration_119_backend.xml",
+    "/app/test_reports/vesper_native/iteration_119_backend.log",
+    "/app/test_reports/vesper_native/iteration_119_manifest.log",
+    "/app/test_reports/vesper_native/iteration_119_apksigner.log",
+    "/app/test_reports/vesper_native/iteration_119_alignment.log",
+    "/app/test_reports/vesper_native/iteration_119_crc_sha.log"
+  ],
+  "action_items": [
+    "Run physical Android TV validation for focus visuals/performance/Keystore behavior (Robolectric still skips hardware Keystore path).",
+    "If required by security policy, run lockout verification on a disposable real account (not shared testuser) to confirm 429 threshold behavior on existing users.",
+    "Optional: verify seed_admin password-update path in a dedicated non-shared environment (not executed here to avoid account mutation)."
+  ],
+  "critical_code_review_comments": [
+    "Profile gate is enforced at cold start before Home/Library nav; new tests now assert picker-first policy and empty-profile Browse-only state.",
+    "PIN path now has automated coverage for wrong PIN reset/error, cancel-to-picker behavior, and requiring PIN again after Switch profile.",
+    "SavedLibrary projection coverage now validates read-only shaping, malformed-entry filtering, recency ordering, and series episode-id reduction to show-id.",
+    "Avatar bundle parity check passed: native assets count matches frontend icon IDs (75/75); fallback asset present.",
+    "MOCKED test fixtures are confined to unit tests; runtime API smoke used real external backend endpoints."
+  ],
+  "updated_files": [
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/MainActivityRobolectricTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/profile/SavedLibraryTest.kt",
+    "/app/test_reports/pytest/iteration_119_backend.xml",
+    "/app/test_reports/vesper_native/iteration_119_backend.log",
+    "/app/test_reports/vesper_native/iteration_119_manifest.log",
+    "/app/test_reports/vesper_native/iteration_119_apksigner.log",
+    "/app/test_reports/vesper_native/iteration_119_alignment.log",
+    "/app/test_reports/vesper_native/iteration_119_crc_sha.log"
+  ],
+  "success_rate": {
+    "backend": "100% (5/5 external contract smoke pass)",
+    "frontend": "100% for executed scope (native JVM/build 53 pass, 1 hardware skip, 0 failures)"
+  },
+  "seed_data_creation": "None. No cloud push/write/profile mutation executed.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Native baseline now at 54 tests total (53 pass / 1 hardware Keystore skip). Added picker/PIN/many-profile/SavedLibrary coverage in this iteration. External backend smoke remains green with injected VESPER_TEST_* env vars. APK verification artifacts for appId/signature/alignment/CRC/SHA are captured under /app/test_reports/vesper_native/iteration_119_*.",
+  "rca of the issue": "No production regression reproduced in this run. One temporary test-only failure occurred during development (JUnit invalid test signature + incorrect status cast) and was resolved by adjusting test implementation only; app code functionality was not altered in this iteration."
+}
