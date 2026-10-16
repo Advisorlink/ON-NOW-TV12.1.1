@@ -14,9 +14,9 @@ import androidx.core.content.res.ResourcesCompat
 import tv.onnowtv.vespernative.R
 
 object TvUi {
-    val background = Color.rgb(3, 6, 15)
-    val surface = Color.rgb(19, 22, 31)
-    val accent = Color.rgb(0, 184, 255)
+    var background = Color.rgb(3, 6, 15)
+    var surface = Color.rgb(19, 22, 31)
+    var accent = Color.rgb(0, 184, 255)
     val text = Color.rgb(244, 248, 255)
     val muted = Color.rgb(168, 181, 199)
     fun dp(c: Context, value: Int) = (value * c.resources.displayMetrics.density).toInt()
@@ -36,6 +36,7 @@ object TvUi {
     fun text(c: Context, key: String, value: String = "", size: Float = 16f, color: Int = text) = identify(TextView(c), key).apply {
         text = value; textSize = size; setTextColor(color)
         typeface = ResourcesCompat.getFont(c, R.font.geist)
+        includeFontPadding = false
         letterSpacing = 0f
         isFocusable = false
         isClickable = false
@@ -60,4 +61,12 @@ object TvUi {
         typeface = Typeface.create(typeface, Typeface.BOLD)
     }
     fun gap(c: Context, height: Int) = View(c).apply { layoutParams = LinearLayout.LayoutParams(1, dp(c, height)) }
+    fun brand(c: Context, key: String, size: Float = 18f) = row(c).apply {
+        addView(heading(c, "$key-wordmark", "ON NOW T", size))
+        addView(heading(c, "$key-v2", "V2", size + 4).apply { setTextColor(accent) })
+    }
+    fun outline(c: Context, radius: Int = 7) = StateListDrawable().apply {
+        addState(intArrayOf(android.R.attr.state_focused), shape(Color.TRANSPARENT, dp(c, radius).toFloat(), accent, dp(c, 2)))
+        addState(intArrayOf(), shape(Color.TRANSPARENT, dp(c, radius).toFloat(), Color.argb(20, 255, 255, 255), dp(c, 1)))
+    }
 }

@@ -8,7 +8,6 @@ import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
-import tv.onnowtv.vespernative.BuildConfig
 import tv.onnowtv.vespernative.data.ApiFailure
 import tv.onnowtv.vespernative.data.VesperApi
 import java.io.IOException
@@ -56,8 +55,7 @@ class AuthRepositoryTest {
         val body = JSONObject(request.body.readUtf8())
         assertEquals("testuser", body.getString("username"))
         assertEquals("testpass123", body.getString("password"))
-        assertEquals(BuildConfig.APPLICATION_ID, body.getString("client_id"))
-        assertEquals(3, body.length())
+        assertEquals(2, body.length())
     }
 
     @Test

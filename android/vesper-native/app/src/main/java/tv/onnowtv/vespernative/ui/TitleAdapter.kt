@@ -11,7 +11,8 @@ import tv.onnowtv.vespernative.data.Title
 /** Only visible posters are inflated/decoded; native RecyclerView owns D-pad scrolling. */
 class TitleAdapter(private val namespace: String, private val posterHeight: Int,
     private val open: (Title) -> Unit, private val focus: (Title) -> Unit = {},
-    private val upTarget: Int = android.view.View.NO_ID) : RecyclerView.Adapter<TitleAdapter.Holder>() {
+    private val upTarget: Int = android.view.View.NO_ID,
+    private val landscape: Boolean = false) : RecyclerView.Adapter<TitleAdapter.Holder>() {
     var items: List<Title> = emptyList()
         private set
     fun replace(values: List<Title>) { items = values.distinctBy(Title::key); notifyDataSetChanged() }
@@ -21,7 +22,7 @@ class TitleAdapter(private val namespace: String, private val posterHeight: Int,
         val from = items.size; items = items + added; notifyItemRangeInserted(from, added.size)
     }
     override fun getItemCount() = items.size
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = Holder(parent.context, posterHeight)
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = Holder(parent.context, posterHeight, landscape)
     override fun onBindViewHolder(holder: Holder, position: Int) {
         val item = items[position]
         TvUi.identify(holder.itemView, "$namespace-title-${item.key}")
@@ -39,12 +40,14 @@ class TitleAdapter(private val namespace: String, private val posterHeight: Int,
                 view.rootView.findViewById<android.view.View>(upTarget)?.requestFocus() == true
             } else false
         }
-        holder.poster.load(item.poster.takeIf(String::isNotBlank)) { crossfade(false); size(300, 450) }
+        holder.poster.load((if (landscape) item.backdrop.ifBlank { item.poster } else item.poster).takeIf(String::isNotBlank)) {
+            crossfade(false); if(landscape)size(640,360) else size(300,450)
+        }
         holder.itemView.setOnClickListener { open(item) }
         holder.itemView.setOnFocusChangeListener { _, focused -> if (focused) focus(item) }
     }
     override fun onViewRecycled(holder: Holder) { holder.poster.load(null); holder.itemView.onFocusChangeListener = null }
-    class Holder(c: Context, height: Int) : RecyclerView.ViewHolder(TvUi.column(c)) {
+    class Holder(c: Context, height: Int, landscape: Boolean = false) : RecyclerView.ViewHolder(TvUi.column(c)) {
         val poster = ImageView(c).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
         val name = TvUi.text(c, "unbound-name", size = 12f).apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END }
         val sub = TvUi.text(c, "unbound-meta", size = 10f, color = TvUi.muted).apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END }
@@ -58,10 +61,12 @@ class TitleAdapter(private val namespace: String, private val posterHeight: Int,
                     addState(intArrayOf(), TvUi.shape(android.graphics.Color.TRANSPARENT))
                 }
                 setPadding(TvUi.dp(c, 4), TvUi.dp(c, 4), TvUi.dp(c, 4), TvUi.dp(c, 4))
-                layoutParams = RecyclerView.LayoutParams(TvUi.dp(c, height * 2 / 3 + 8), -2).apply {
+                layoutParams = RecyclerView.LayoutParams(TvUi.dp(c, (if(landscape)height*16/9 else height*2/3) + 8), -2).apply {
                     marginEnd = TvUi.dp(c, 10); bottomMargin = TvUi.dp(c, 8)
                 }
                 addView(poster, LinearLayout.LayoutParams(-1, TvUi.dp(c, height)))
+                poster.background = TvUi.shape(TvUi.surface, TvUi.dp(c,6).toFloat()); poster.clipToOutline=true
+                addView(TvUi.gap(c, 6))
                 addView(name); addView(sub)
             }
         }

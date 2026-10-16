@@ -8,6 +8,7 @@ import org.json.JSONObject
 
 /** Instance is scoped to one signed-in session; no account's cache survives sign-out. */
 class CatalogRepository(private val api: VesperApi, private val token: () -> String?) {
+    val browse = BrowseRepository(api, token)
     private var catalogCache: List<Catalog>? = null
     private val rows = linkedMapOf<String, Pair<Long, List<Title>>>()
     private val networkSlots = Semaphore(3)
@@ -69,7 +70,11 @@ class CatalogRepository(private val api: VesperApi, private val token: () -> Str
     }
 
     suspend fun detail(title: Title): Title {
-        val result = api.request(listOf("meta", title.type, title.id), token()) as JSONObject
+        val id = if (title.id.startsWith("tmdb:")) {
+            val resolved = api.request(listOf("tmdb", "imdb", if (title.type == "series") "tv" else "movie", title.id.substringAfter(':')), token()) as JSONObject
+            resolved.text("imdb_id").ifBlank { throw IllegalStateException("Title details are unavailable.") }
+        } else title.id
+        val result = api.request(listOf("meta", title.type, id), token()) as JSONObject
         return Title.parse(result.getJSONObject("data").getJSONObject("meta"), title.type)
             ?: throw IllegalStateException("Title details are unavailable.")
     }

@@ -16,7 +16,7 @@ class LibraryScreen(c: Context, profile: CloudProfile, data: ProfileData,
     private val backButton = TvUi.icon(c, "library-back", "Back", R.drawable.ic_back, back)
     init {
         val saved = SavedLibrary(data)
-        val sections = listOf("Continue Watching" to saved.continueWatching(), "Watch Later" to saved.watchLater(),
+        val sections = listOf("Watch Later" to saved.watchLater(),
             "TV Shows" to saved.favourites("series"), "Movies" to saved.favourites("movie"))
         val content = TvUi.column(c).apply { setPadding(TvUi.dp(c, 36), TvUi.dp(c, 20), TvUi.dp(c, 36), 0) }
         val header = TvUi.row(c)
@@ -65,7 +65,7 @@ private class LibrarySectionsAdapter(private val sections: List<Pair<String, Lis
         holder.heading.text = name
         holder.empty.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
         holder.row.visibility = if (items.isEmpty()) View.GONE else View.VISIBLE
-        holder.row.adapter = TitleAdapter("library-$key", 154, open).apply { replace(items) }
+        holder.row.adapter = TitleAdapter("library-$key", if(name=="Watch Later")130 else 154, open, landscape = name=="Watch Later").apply { replace(items) }
         scrollStates[position]?.let { holder.row.layoutManager?.onRestoreInstanceState(it) }
     }
     override fun onViewRecycled(holder: Holder) {

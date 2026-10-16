@@ -1,0 +1,20 @@
+HTTP/2 200 
+date: Fri, 16 Oct 2026 08:02:09 GMT
+content-type: application/vnd.android.package-archive
+content-length: 12395449
+cf-ray: a4b58a2b6e435f2d-ATL
+cf-cache-status: DYNAMIC
+access-control-allow-origin: *
+cache-control: no-store, no-cache, must-revalidate
+content-disposition: attachment; filename="vesper-native-v0.2.0.apk"
+etag: "efed08e6f26010753c145960ee42ac58"
+last-modified: Fri, 16 Oct 2026 07:36:05 GMT
+server: cloudflare
+via: 1.1 google
+pragma: no-cache
+access-control-allow-headers: *
+access-control-allow-methods: GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH
+access-control-max-age: 300
+set-cookie: __cf_bm=e6VWbeGDYGF0XUlcz3R0SkEw0f53MhqFm3h_H23wSDg-1792137729.8302383-1.0.1.1-ybC2DqecZUQ0XSM.gCQvV_ttJOBv5HP4iekWvEbFT3suB_bhoC_1R9wxSYuwxXGT11bYicEfVbV_YEDajPRK5ttFQ5_kkXnwYrA5V5ALRt_y9bExeVm4HVjvQCOSwtLr; HttpOnly; SameSite=None; Secure; Path=/; Domain=preview.emergentagent.com; Expires=Fri, 16 Oct 2026 08:32:09 GMT
+x-robots-tag: noindex, nofollow
+

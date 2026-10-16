@@ -1,0 +1,65 @@
+{
+  "summary": "Ran full vesper-native JVM/build regression and external preview contract smoke. Fixed obsolete test assumptions (home first row and login payload expectation), then re-ran successfully. Verified download endpoint headers, APK version metadata, and signer digest comparison.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "APK signing compliance verification",
+        "issue": "Built debug APK verifies only v2 signature; apksigner reports v1=false. If parity gate requires both v1+v2, this currently fails.",
+        "affected_selectors": [
+          "N/A"
+        ]
+      },
+      {
+        "flow": "APK zipalign/aapt verification in this container",
+        "issue": "Host build-tools binaries (aapt/zipalign) are incompatible in this environment (Exec format error), so those two checks could not be executed with native binaries.",
+        "affected_selectors": [
+          "N/A"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/MainActivityRobolectricTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/auth/AuthRepositoryTest.kt",
+    "/app/test_reports/vesper_native_parity/iteration_120_build.log",
+    "/app/android/vesper-native/app/build/test-results/testDebugUnitTest/TEST-tv.onnowtv.vespernative.MainActivityRobolectricTest.xml",
+    "/app/android/vesper-native/app/build/test-results/testDebugUnitTest/TEST-tv.onnowtv.vespernative.auth.AuthRepositoryTest.xml",
+    "/app/test_reports/pytest/iteration_120_backend.xml",
+    "/app/test_reports/vesper_native_parity/iteration_120_download_headers.txt",
+    "/app/test_reports/vesper_native_parity/iteration_120_apksigner.log",
+    "/app/test_reports/vesper_native_parity/iteration_120_badging.log",
+    "/app/test_reports/vesper_native_parity/iteration_120_sha256.log",
+    "/app/test_reports/vesper_native_parity/iteration_120_apkanalyzer.log"
+  ],
+  "action_items": [
+    "If release gate requires dual signing, enable/verify v1 signature in addition to v2 for produced artifact.",
+    "Add dedicated regression tests for StreamRepository sorting/header sanitization/URL rejection and for BrowseRepository networks|collections slug + genres|anime parse/error paths (these requested areas are not currently covered by dedicated unit tests).",
+    "Re-run zipalign/aapt checks in an environment with compatible Android build-tools binaries (or provide ARM64-compatible toolchain)."
+  ],
+  "critical_code_review_comments": [
+    "Obsolete test assumptions were the immediate blockers: home first-row tag changed (Networks/Studios first), and auth payload no longer includes client_id in native AuthRepository.",
+    "Read-only cloud contract remains enforced in tested code path (ProfileCloudRepository pull-only GET /api/vesper/sync/pull).",
+    "No runtime WebView references found in vesper-native main sources (grep check clean).",
+    "MOCKED fixtures are used in JVM tests; external backend smoke used real preview endpoints."
+  ],
+  "updated_files": [
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/MainActivityRobolectricTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/auth/AuthRepositoryTest.kt",
+    "/app/test_reports/iteration_120.json"
+  ],
+  "success_rate": {
+    "backend": "100% (5/5 external contract smoke pass)",
+    "frontend": "98.2% pass in native JVM suite (55 pass / 56 total, 1 skip) + assembleDebug pass"
+  },
+  "seed_data_creation": "None. No account/profile/PIN/cloud mutation performed.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Current baseline after fixes: :app:testDebugUnitTest and :app:assembleDebug PASS. External preview contract test file PASS with testuser/testpass123 injected via env vars. Download endpoint returns content-disposition filename vesper-native-v0.2.0.apk and cache-control no-store. BuildConfig/apkanalyzer confirm versionCode=5, versionName=0.2.0-native-dev, API_BASE_URL=https://onnowtv.duckdns.org.",
+  "rca of the issue": "Root cause of native suite failure was outdated test assumptions, not runtime app crash: (1) MainActivity test hardcoded old first shelf tag 'shelf-list-a1-movie-year' despite new first rows (Networks/Studios), causing timeout; (2) AuthRepository test still required client_id while implementation now posts username/password only. After updating tests to dynamic row discovery and current auth payload contract, JVM/build pipeline returned green."
+}

@@ -1,0 +1,26 @@
+{
+  "version": "0.2.0-native-dev",
+  "versionCode": 5,
+  "apk_sha256": "593ab6f9344afc9f28b56e82ce361bc28be8bcb194d534eb6986d95c204cd6fc",
+  "bytes": 12395449,
+  "native_tests": {
+    "tests": 81,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1
+  },
+  "real_preview_api_tests_passed": 5,
+  "frontend_changes": [],
+  "download_matches_artifact": true,
+  "v1_v2_verified": true,
+  "signature_note": "Both schemes verified with range min23-max34; runtime minSdk remains26. Default verifier chooses v2 only.",
+  "zipalign_verified": true,
+  "crc_verified": true,
+  "compact_bounds_retest": "Pass: measured long-title hero controls within960x270 and800x225; typography row heights stabilized; no tolerance added.",
+  "mocked_runtime_apis": false,
+  "mocked_unit_fixtures": true,
+  "native_hardware_verified": false,
+  "pixel_perfect_verified": false,
+  "full_feature_parity_complete": false,
+  "cloud_writes_enabled": false
+}

@@ -16,6 +16,7 @@ import kotlinx.coroutines.*
 import tv.onnowtv.vespernative.data.*
 import tv.onnowtv.vespernative.ui.*
 import tv.onnowtv.vespernative.profile.*
+import tv.onnowtv.vespernative.playback.*
 
 class MainActivity : AppCompatActivity() {
     private lateinit var services: NativeServices
@@ -25,6 +26,8 @@ class MainActivity : AppCompatActivity() {
     private var account: Account? = null
     private var activeProfile: CloudProfile? = null
     private var profileData: ProfileData? = null
+    private var preferences: LocalPreferences? = null
+    private var currentRoute = ""
     private var authJob: Job? = null
     private var invalidating = false
 
@@ -87,23 +90,44 @@ class MainActivity : AppCompatActivity() {
         replace(ProfilePickerScreen(this, services.cloudProfiles(owner), { snapshot, profile ->
             fun activate(data: ProfileData) {
                 activeProfile = profile; profileData = data
+                preferences = LocalPreferences(this, owner.id, profile.id, data).also { it.applyTheme() }
                 repository = CatalogRepository(services.api) { services.auth.token }
                 navigate("home")
             }
             if (profile.requiresPin) push(ProfilePinScreen(this, profile, snapshot, ::activate, ::pop))
             else activate(snapshot.openProfile(profile.id))
-        }, { navigate("home") }, ::signOut, ::failed))
+        }, { preferences = LocalPreferences(this, owner.id, "browse", null).also { it.applyTheme() }; navigate("home") }, ::signOut, ::failed))
     }
     private fun navigate(route: String) {
         val repo = repository ?: return
+        if (route == "home" && screens.size == 1 && screens.lastOrNull() is HomeScreen) return
         when (route) {
-            "home", "movie", "series" -> replace(HomeScreen(this, repo, route.takeUnless { it == "home" }, ::open, ::navigate, ::failed, profileData != null))
+            "home" -> { currentRoute = route; replace(HomeScreen(this, repo, null, ::open, ::navigate, ::failed, profileData != null,
+                ::openBrand, activeProfile, profileData, { openTitle(it, true) }, preferences?.side == true)) }
+            "movie", "series" -> { currentRoute = route; push(BrowseGridScreen(this, repo, route, ::open, ::navigate, ::failed)) }
+            "boxsets" -> { currentRoute = route; push(DirectoryScreen(this, repo, ::openBrand, ::navigate, ::failed)) }
+            "anime" -> { currentRoute = route; push(AnimeScreen(this, repo, ::open, ::navigate, ::failed) { openTitle(it, true) }) }
             "search" -> push(SearchScreen(this, repo, ::open, ::pop, ::failed))
-            "library" -> activeProfile?.let { profile -> profileData?.let { push(LibraryScreen(this, profile, it, ::open, ::pop)) } }
+            "library" -> if (activeProfile != null && profileData != null) push(LibraryScreen(this, activeProfile!!, profileData!!, ::open, ::pop))
+                else showProfiles()
+            "settings" -> preferences?.let { prefs -> push(SettingsScreen(this, prefs, ::pop, { navigate("home") }, ::showProfiles, ::signOut)) }
             "account" -> showAccount()
         }
     }
-    private fun open(title: Title) { repository?.let { push(DetailScreen(this, title, it, ::pop, ::failed)) } }
+    private fun open(title: Title) = openTitle(title, false)
+    private fun openTitle(title: Title, autoplay: Boolean) { repository?.let {
+        push(DetailScreen(this, title, it, ::pop, ::failed, ::streams, { navigate("home") }, autoplay))
+    } }
+    private fun openBrand(brand: Brand) { repository?.let { push(BrowseGridScreen(this, it,
+        if (brand.kind == "networks") "series" else "movie", ::open, ::navigate, ::failed, brand)) } }
+    private fun streams(title: Title, id: String, label: String) {
+        val scope = preferences?.scopeKey ?: return
+        push(StreamScreen(this, label, title.type, id, StreamRepository(services.api) { services.auth.token }, ::pop, { stream ->
+            startActivity(android.content.Intent(this, PlayerActivity::class.java)
+                .putExtra("stream", stream.json().toString()).putExtra("title", label)
+                .putExtra("resume-key", "$scope:${title.type}:$id"))
+        }, ::failed))
+    }
     private fun failed(error: Throwable) {
         if (error is ApiFailure && (error.status == 401 || error.status == 403) && !invalidating) {
             invalidating = true
@@ -120,7 +144,7 @@ class MainActivity : AppCompatActivity() {
     private fun display(screen: NativeScreen) { container.removeAllViews(); container.addView(screen.root, FrameLayout.LayoutParams(-1, -1)); screen.shown() }
     private fun pop() {
         if (screens.size <= 1) return
-        screens.removeAt(screens.lastIndex).dispose(); display(screens.last())
+        screens.removeAt(screens.lastIndex).dispose(); currentRoute = ""; display(screens.last())
     }
     private fun showAccount() {
         val content = TvUi.column(this).apply { setPadding(32, 24, 32, 24) }
@@ -144,13 +168,7 @@ class MainActivity : AppCompatActivity() {
         authJob = lifecycleScope.launch { services.auth.signOut { login() } }
     }
     private fun confirmExit() {
-        val content = TvUi.column(this).apply { setPadding(32, 24, 32, 24) }
-        content.addView(TvUi.heading(this, "exit-title", "Exit Vesper?"))
-        val dialog = AlertDialog.Builder(this).setView(content).create()
-        content.addView(TvUi.button(this, "exit-cancel", "Stay") { dialog.dismiss() })
-        content.addView(TvUi.button(this, "exit-confirm", "Exit") { dialog.dismiss(); finish() })
-        dialog.setOnShowListener { TvUi.identify(dialog.window!!.decorView, "exit-dialog") }
-        dialog.show()
+        ExitDialog.show(this)
     }
     override fun onDestroy() { screens.forEach(NativeScreen::dispose); screens.clear(); super.onDestroy() }
 }

@@ -66,7 +66,12 @@ class MainActivityRobolectricTest {
         val activity = visibleActivity()
         waitUi()
 
-        val row = waitForView(activity.window.decorView, "shelf-list-a1-movie-year") as RecyclerView
+        val homeShelves = waitForView(activity.window.decorView, "home-shelves") as RecyclerView
+        waitUntil { (homeShelves.adapter?.itemCount ?: 0) >= 3 }
+        homeShelves.scrollToPosition(2)
+        layoutActivity(activity)
+
+        val row = waitForRecyclerWithPrefix(activity.window.decorView, "shelf-list-")
         waitUntil { (row.adapter?.itemCount ?: 0) > 0 }
         layoutActivity(activity)
 
@@ -165,7 +170,8 @@ class MainActivityRobolectricTest {
         val activity = visibleActivity()
         waitUi()
 
-        val firstRow = waitForView(activity.window.decorView, "shelf-list-a1-movie-year") as RecyclerView
+        val firstRow = (findByTestTag(activity.window.decorView, "networks-row") as? RecyclerView)
+            ?: waitForRecyclerWithPrefix(activity.window.decorView, "shelf-list-")
         waitUntil { (firstRow.adapter?.itemCount ?: 0) > 0 }
         layoutActivity(activity)
 
@@ -394,6 +400,13 @@ class MainActivityRobolectricTest {
         return requireNotNull(findByTestTag(root, tag))
     }
 
+    private fun waitForRecyclerWithPrefix(root: View, prefix: String): RecyclerView {
+        waitUntil {
+            findFirstByTagPrefix(root, prefix) is RecyclerView
+        }
+        return requireNotNull(findFirstByTagPrefix(root, prefix) as? RecyclerView)
+    }
+
     private fun enterPin(root: View, pin: String) {
         require(pin.length == 4)
         pin.forEachIndexed { index, char ->
@@ -407,6 +420,17 @@ class MainActivityRobolectricTest {
         if (view is android.view.ViewGroup) {
             for (i in 0 until view.childCount) {
                 findByTestTag(view.getChildAt(i), tag)?.let { return it }
+            }
+        }
+        return null
+    }
+
+    private fun findFirstByTagPrefix(view: View, prefix: String): View? {
+        val tag = view.getTag(tv.onnowtv.vespernative.R.id.test_id) as? String
+        if (tag?.startsWith(prefix) == true) return view
+        if (view is android.view.ViewGroup) {
+            for (i in 0 until view.childCount) {
+                findFirstByTagPrefix(view.getChildAt(i), prefix)?.let { return it }
             }
         }
         return null

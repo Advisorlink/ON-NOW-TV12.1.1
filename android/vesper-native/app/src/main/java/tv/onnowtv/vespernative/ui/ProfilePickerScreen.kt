@@ -27,11 +27,14 @@ class ProfilePickerScreen(c: Context, private val cloud: ProfileCloudRepository,
     init {
         val content = TvUi.column(c).apply {
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(TvUi.dp(c, 48), TvUi.dp(c, 28), TvUi.dp(c, 48), TvUi.dp(c, 20))
+            setPadding(TvUi.dp(c, 48), TvUi.dp(c, 32), TvUi.dp(c, 48), TvUi.dp(c, 24))
         }
-        content.addView(TvUi.text(c, "profiles-brand", "ON NOW TV V2", 18f, TvUi.accent))
-        content.addView(TvUi.gap(c, 26))
-        content.addView(TvUi.heading(c, "profiles-title", "Who's ready to watch?", 32f))
+        content.addView(TvUi.brand(c, "profiles-brand", 22f))
+        content.addView(TvUi.gap(c, 60))
+        content.addView(TvUi.heading(c, "profiles-title", "Who's ready to watch?", 36f))
+        content.addView(TvUi.gap(c, 8))
+        content.addView(TvUi.text(c, "profiles-subtitle", "Choose a profile to continue", 13f, TvUi.muted))
+        content.addView(TvUi.gap(c, 24))
         content.addView(status, LinearLayout.LayoutParams(-1, -2))
         content.addView(grid, LinearLayout.LayoutParams(-1, 0, 1f))
         val actions = TvUi.row(c)
@@ -51,6 +54,9 @@ class ProfilePickerScreen(c: Context, private val cloud: ProfileCloudRepository,
                     status.show("No saved Vesper profiles.")
                     emptyBrowse.visibility = View.VISIBLE; emptyBrowse.requestFocus()
                 } else {
+                    val columns = minOf(profiles.size, 5)
+                    (grid.layoutManager as GridLayoutManager).spanCount = columns
+                    grid.layoutParams = LinearLayout.LayoutParams(TvUi.dp(context, columns * 140), 0, 1f)
                     grid.adapter = ProfilesAdapter(profiles) { pick(snapshot!!, it) }
                     status.clear()
                     grid.doOnNextLayout { grid.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() }
@@ -70,10 +76,11 @@ private class ProfilesAdapter(private val profiles: List<CloudProfile>, private 
         val lock = TvUi.text(c, "unbound-profile-lock", size = 11f, color = TvUi.muted).apply { gravity = Gravity.CENTER }
         init { (itemView as LinearLayout).apply {
             gravity = Gravity.CENTER_HORIZONTAL; isFocusable = true; isClickable = true
-            background = TvUi.focus(c, false)
+            foreground = TvUi.outline(c, 12)
             setPadding(12, 12, 12, 12)
             layoutParams = RecyclerView.LayoutParams(-1, TvUi.dp(c, 176)).apply { setMargins(8, 8, 8, 8) }
-            addView(image, LinearLayout.LayoutParams(TvUi.dp(c, 100), TvUi.dp(c, 100)))
+            addView(image, LinearLayout.LayoutParams(TvUi.dp(c, 90), TvUi.dp(c, 90)))
+            addView(TvUi.gap(c, 12))
             addView(name, LinearLayout.LayoutParams(-1, -2)); addView(lock)
         } }
     }

@@ -1,0 +1,72 @@
+{
+  "summary": "Added and executed new vesper-native coverage for requested major flows: StreamRepository ordering/security, BrowseRepository routes/parsing/failure paths, CatalogRepository tmdb->imdb->meta detail resolution, new Robolectric coverage for Browse/Directory/Anime/ExitDialog/StreamScreen/DetailScreen/PlayerActivity/LocalPreferences/layout breakpoints. Native unit suite and assembleDebug pass.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "APK signing verification",
+        "issue": "apksigner verify still reports v1 scheme=false while v2=true for debug APK, despite requested v1+v2 enabling.",
+        "affected_selectors": [
+          "N/A"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/data/BrowseRepositoryTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/playback/StreamRepositoryTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/MainActivityNewFeatureRobolectricTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/ui/StreamAndDetailScreenRobolectricTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/playback/PlayerActivityRobolectricTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/profile/NativeLayoutAndPreferencesRobolectricTest.kt",
+    "/app/android/vesper-native/app/build/test-results/testDebugUnitTest/TEST-tv.onnowtv.vespernative.data.BrowseRepositoryTest.xml",
+    "/app/android/vesper-native/app/build/test-results/testDebugUnitTest/TEST-tv.onnowtv.vespernative.playback.StreamRepositoryTest.xml",
+    "/app/android/vesper-native/app/build/test-results/testDebugUnitTest/TEST-tv.onnowtv.vespernative.MainActivityNewFeatureRobolectricTest.xml",
+    "/app/android/vesper-native/app/build/test-results/testDebugUnitTest/TEST-tv.onnowtv.vespernative.ui.StreamAndDetailScreenRobolectricTest.xml",
+    "/app/android/vesper-native/app/build/test-results/testDebugUnitTest/TEST-tv.onnowtv.vespernative.playback.PlayerActivityRobolectricTest.xml",
+    "/app/android/vesper-native/app/build/test-results/testDebugUnitTest/TEST-tv.onnowtv.vespernative.profile.NativeLayoutAndPreferencesRobolectricTest.xml",
+    "/app/test_reports/vesper_native_parity/iteration_121_apksigner.log",
+    "/app/test_reports/vesper_native_parity/iteration_121_zipalign.log",
+    "/app/test_reports/vesper_native_parity/iteration_121_badging.log",
+    "/app/test_reports/vesper_native_parity/iteration_121_crc.log"
+  ],
+  "action_items": [
+    "Fix APK signing config/tooling so apksigner shows both v1=true and v2=true for produced debug artifact.",
+    "Keep new native tests in regression suite; do not remove existing Keystore hardware-bound skip (pre-existing).",
+    "After signing fix, rerun :app:testDebugUnitTest :app:assembleDebug and re-verify with /usr/bin/apksigner and /usr/bin/zipalign -c 4."
+  ],
+  "critical_code_review_comments": [
+    "StreamRepository now has explicit regression coverage for source cascade ordering, uncached demotion, URL sanitization, and proxy header hardening (Host/CRLF filtering).",
+    "Browse/Catalog read-only route behavior is now covered including AU region propagation, tmdb title mapping, genres/anime rails parsing, and no fabricated fallback data on 500/invalid JSON.",
+    "ExitDialog lifecycle and Back semantics are covered; movie/series Back returns to Home instead of app-exit path.",
+    "PlayerActivity tests validate release lifecycle via reflection, config-cycle survival, and intent guard behavior without claiming physical decoder support.",
+    "Certificate SHA-256 digest is unchanged vs previous-signature.txt; only v1 verification remains failing."
+  ],
+  "updated_files": [
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/data/BrowseRepositoryTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/playback/StreamRepositoryTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/MainActivityNewFeatureRobolectricTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/ui/StreamAndDetailScreenRobolectricTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/playback/PlayerActivityRobolectricTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/profile/NativeLayoutAndPreferencesRobolectricTest.kt",
+    "/app/test_reports/vesper_native_parity/iteration_121_apksigner.log",
+    "/app/test_reports/vesper_native_parity/iteration_121_zipalign.log",
+    "/app/test_reports/vesper_native_parity/iteration_121_badging.log",
+    "/app/test_reports/vesper_native_parity/iteration_121_crc.log",
+    "/app/test_reports/iteration_121.json"
+  ],
+  "success_rate": {
+    "backend": "N/A (native/JVM scope)",
+    "frontend": "97.5% (native JVM suite pass with existing 1 hardware-bound skip; assembleDebug pass)"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Commands executed: ANDROID_HOME=/app/.cache/native-tools/sdk ANDROID_SDK_ROOT=/app/.cache/native-tools/sdk ./gradlew :app:testDebugUnitTest :app:assembleDebug -Pandroid.aapt2FromMavenOverride=/app/.cache/native-tools/aapt2 --console=plain. APK checks used ARM64-safe tools only: /usr/bin/apksigner, /usr/bin/zipalign -c 4, /app/.cache/native-tools/aapt2 dump badging, unzip -t for CRC. Signature digest matches /app/test_reports/vesper_native_parity/previous-signature.txt.",
+  "rca of the issue": "Signing gate issue reproduces consistently: build succeeds and certificate digest remains unchanged, but apksigner verify reports v1=false/v2=true. Likely packaging/signing config path still not emitting JAR signature block for debug artifact or signing config not applied as expected to produced variant."
+}

@@ -4,7 +4,7 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <application android:label="Vesper Native · Dev" android:theme="@style/Theme.VesperNative"
         android:icon="@drawable/app_icon" android:banner="@drawable/tv_banner"
-        android:allowBackup="false" android:usesCleartextTraffic="false"
+        android:allowBackup="false" android:usesCleartextTraffic="true"
         android:supportsRtl="true">
         <!-- LAUNCHER is intentional: generic Android TV boxes may lack Leanback. -->
         <activity android:name=".MainActivity" android:exported="true"
@@ -15,5 +15,8 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Existing provider media can be HTTP; API origins remain HTTPS-only. -->
+        <activity android:name=".playback.PlayerActivity" android:exported="false"
+            android:screenOrientation="landscape" />
     </application>
 </manifest>

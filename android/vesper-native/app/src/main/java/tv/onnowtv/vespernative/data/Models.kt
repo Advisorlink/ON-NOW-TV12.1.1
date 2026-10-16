@@ -21,7 +21,7 @@ data class Title(
     val id: String, val type: String, val name: String, val poster: String = "",
     val backdrop: String = "", val description: String = "", val year: String = "",
     val rating: String = "", val genres: List<String> = emptyList(),
-    val episodes: List<Episode> = emptyList()
+    val episodes: List<Episode> = emptyList(), val runtime: String = "", val logo: String = ""
 ) {
     val key get() = "$type:$id"
     val subtitle get() = listOf(year, rating.takeIf { it.isNotBlank() }?.let { "★ $it" })
@@ -36,19 +36,20 @@ data class Title(
                 json.text("description"), json.text("releaseInfo"), json.text("imdbRating"),
                 (0 until genres.length()).map { genres.optString(it) }.filter(String::isNotBlank),
                 json.optJSONArray("videos")?.objects()?.mapNotNull(Episode::parse)
-                    ?.sortedWith(compareBy({ it.season }, { it.number })) ?: emptyList())
+                    ?.sortedWith(compareBy({ it.season }, { it.number })) ?: emptyList(), json.text("runtime"), json.text("logo"))
         }
     }
 }
 
-data class Episode(val id: String, val season: Int, val number: Int, val name: String, val released: String) {
+data class Episode(val id: String, val season: Int, val number: Int, val name: String, val released: String,
+    val overview: String = "", val thumbnail: String = "") {
     companion object {
         fun parse(json: JSONObject): Episode? {
             val id = json.text("id")
             val season = json.optInt("season", -1)
             val number = json.optInt("episode", -1)
             if (id.isBlank() || season < 0 || number < 0) return null
-            return Episode(id, season, number, json.text("title"), json.text("released"))
+            return Episode(id, season, number, json.text("title"), json.text("released"), json.text("overview"), json.text("thumbnail"))
         }
     }
 }

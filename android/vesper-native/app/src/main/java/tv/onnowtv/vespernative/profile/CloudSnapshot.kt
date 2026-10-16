@@ -89,6 +89,7 @@ class CloudSnapshot private constructor(private val owner: Account, data: JSONOb
 
 /** Accessor exists only after PIN validation; it does not retain or expose PINs. */
 class ProfileData internal constructor(val profileId: String, private val read: (String) -> Any?) {
+    fun string(key: String): String? = (read(key) as? String)?.trim('"')
     fun library(): JSONObject = runCatching { JSONObject(read(ProfileKeys.LIBRARY)?.toString() ?: "{}") }.getOrDefault(JSONObject())
     fun continueWatching(): JSONArray = runCatching { JSONArray(read(ProfileKeys.CONTINUE_WATCHING)?.toString() ?: "[]") }.getOrDefault(JSONArray())
 }
