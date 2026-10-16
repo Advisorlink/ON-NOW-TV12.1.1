@@ -15,8 +15,8 @@ class AuthRepository(private val api: VesperApi, private val sessions: SessionSt
     suspend fun signIn(username: String, password: String): Account {
         require(username.isNotBlank() && password.isNotEmpty()) { "Enter your username and password." }
         val response = api.request(listOf("auth", "login"), body = JSONObject()
-            .put("username", username.trim()).put("password", password)
-            .put("client_id", BuildConfig.APPLICATION_ID).toString()) as JSONObject
+            .put("username", username.trim()).put("password", password.trim())
+            .toString()) as JSONObject
         val candidate = response.text("access_token")
         require(candidate.isNotBlank()) { "Invalid sign-in response. Please try again." }
         val account = parseAccount(response.getJSONObject("account"))
