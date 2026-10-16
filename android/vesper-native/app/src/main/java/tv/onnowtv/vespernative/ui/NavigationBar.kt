@@ -35,7 +35,7 @@ class NavigationBar(c: Context, active: String, private val navigate: (String) -
                     LayoutParams(TvUi.dp(c, 26), TvUi.dp(c,26), Gravity.CENTER))
             } else button.addView(NavIcon(c, route).apply { tint = if (active == route) TvUi.accent else TvUi.muted }, LayoutParams(-1, -1))
             button.setOnClickListener { navigate(route) }
-            button.setOnFocusChangeListener { _, focused ->
+            FocusMotion.bind(button,tile=false,radius=24) { focused ->
                 if (focused) { label.text = name; label.visibility = View.VISIBLE }
                 else label.visibility = View.INVISIBLE
             }

@@ -17,6 +17,7 @@ object TvUi {
     var background = Color.rgb(3, 6, 15)
     var surface = Color.rgb(19, 22, 31)
     var accent = Color.rgb(0, 184, 255)
+    var bright = Color.rgb(92, 223, 255)
     val text = Color.rgb(244, 248, 255)
     val muted = Color.rgb(168, 181, 199)
     fun dp(c: Context, value: Int) = (value * c.resources.displayMetrics.density).toInt()
@@ -48,15 +49,17 @@ object TvUi {
         setOnClickListener { action() }
         maxLines = 1; ellipsize = TextUtils.TruncateAt.END
         contentDescription = label
+        FocusMotion.bind(this,tile=false,radius=24)
     }
     fun icon(c: Context, key: String, label: String, drawable: Int, action: () -> Unit) = identify(ImageButton(c), key).apply {
         setImageResource(drawable); imageTintList = ColorStateList.valueOf(text)
         isFocusable = true; contentDescription = label; tooltipText = label
         background = focus(c); setPadding(dp(c, 10), dp(c, 10), dp(c, 10), dp(c, 10))
         setOnClickListener { action() }
+        FocusMotion.bind(this,tile=false,radius=24)
     }
-    fun column(c: Context) = LinearLayout(c).apply { orientation = LinearLayout.VERTICAL }
-    fun row(c: Context) = LinearLayout(c).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+    fun column(c: Context) = LinearLayout(c).apply { orientation = LinearLayout.VERTICAL; clipChildren=false; clipToPadding=false }
+    fun row(c: Context) = LinearLayout(c).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; clipChildren=false; clipToPadding=false }
     fun heading(c: Context, key: String, value: String, size: Float = 28f) = text(c, key, value, size).apply {
         typeface = Typeface.create(typeface, Typeface.BOLD)
     }

@@ -17,7 +17,7 @@ class BrandAdapter(private var brands: List<Brand>, private val open: (Brand) ->
     fun replace(values: List<Brand>) { brands = values; notifyDataSetChanged() }
     override fun getItemCount() = brands.size
     class Holder(c: Context) : RecyclerView.ViewHolder(FrameLayout(c)) {
-        val art = ImageView(c).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
+        val art = ImageView(c).apply { scaleType = ImageView.ScaleType.CENTER_CROP; background=TvUi.shape(TvUi.surface,TvUi.dp(c,10).toFloat()); clipToOutline=true }
         val logo = ImageView(c).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
         val label = TvUi.heading(c,"brand-label", "", 15f).apply { gravity = Gravity.CENTER; maxLines = 2 }
         init { (itemView as FrameLayout).apply {
@@ -34,6 +34,7 @@ class BrandAdapter(private var brands: List<Brand>, private val open: (Brand) ->
         val b = brands[position]; val key = "${b.kind}-${b.slug}"
         TvUi.identify(h.itemView,key); TvUi.identify(h.art,"$key-art"); TvUi.identify(h.logo,"$key-logo"); TvUi.identify(h.label,"$key-name")
         h.itemView.contentDescription = b.name; h.itemView.nextFocusUpId = upTarget
+        FocusMotion.bind(h.itemView,radius=10)
         h.itemView.setOnClickListener { open(b) }
         h.itemView.setOnKeyListener { v, k, e ->
             if (k == android.view.KeyEvent.KEYCODE_DPAD_UP && e.action == 0 && upTarget != View.NO_ID)
@@ -46,5 +47,5 @@ class BrandAdapter(private var brands: List<Brand>, private val open: (Brand) ->
         h.logo.colorFilter = if (b.treatment == "invert") ColorMatrixColorFilter(ColorMatrix(floatArrayOf(-1f,0f,0f,0f,255f,0f,-1f,0f,0f,255f,0f,0f,-1f,0f,255f,0f,0f,0f,1f,0f))) else null
         h.label.text = b.name; h.label.visibility = if (b.localArt.isBlank() && b.logo.isBlank()) View.VISIBLE else View.GONE
     }
-    override fun onViewRecycled(h: Holder) { h.art.load(null); h.logo.load(null) }
+    override fun onViewRecycled(h: Holder) { h.art.load(null); h.logo.load(null); FocusMotion.reset(h.itemView) }
 }

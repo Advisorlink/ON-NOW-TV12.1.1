@@ -43,7 +43,7 @@ private class LibrarySectionsAdapter(private val sections: List<Pair<String, Lis
         val empty = TvUi.text(c, "unbound-library-empty", "No saved titles.", 14f, TvUi.muted)
         val row = RecyclerView(c).apply {
             layoutManager = LinearLayoutManager(c, RecyclerView.HORIZONTAL, false)
-            itemAnimator = null; clipToPadding = false; setPadding(4, 4, 4, 4)
+            itemAnimator = null; FocusMotion.prepareRail(this)
         }
         var sectionIndex = -1
         init { (itemView as LinearLayout).apply {

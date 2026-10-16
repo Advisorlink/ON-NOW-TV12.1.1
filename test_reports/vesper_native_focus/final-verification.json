@@ -1,0 +1,24 @@
+{
+  "version": "0.2.1-native-private",
+  "version_code": 6,
+  "bytes": 12304238,
+  "apk_sha256": "2096922420d05c72b97a51e6b7858f66973655ce1083419333039aa9dc705222",
+  "native_tests": {
+    "tests": 89,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1
+  },
+  "private_download_backend_tests_passed": 6,
+  "real_private_browser_download": "PASS: fragment cleared; button enabled; correct filename; artifact SHA equality; no localStorage persistence; no capability logged",
+  "release_credentials_empty": true,
+  "source_web_changes": [],
+  "signature_and_alignment_crc": "PASS",
+  "focus_reference": "TV V2 1.07 scale, 120ms ease-out on tiles; pills1.04 instant; glow snaps to avoid ghosting; cached nine-slice texture",
+  "cloud_writes": false,
+  "runtime_mocks": false,
+  "unit_fixtures_mocked": true,
+  "native_hardware_visual_acceptance": "PENDING",
+  "autoplay_and_full_player_parity": "PENDING",
+  "full_parity": "INCOMPLETE"
+}

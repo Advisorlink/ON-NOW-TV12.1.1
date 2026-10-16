@@ -26,7 +26,7 @@ class SearchScreen(c: Context, private val repository: CatalogRepository, open: 
     private val results = TvUi.identify(RecyclerView(c), "search-results").apply {
         layoutManager = GridLayoutManager(c, (c.resources.displayMetrics.widthPixels / TvUi.dp(c, 145)).coerceAtLeast(3))
         adapter = this@SearchScreen.adapter; itemAnimator = null
-        clipToPadding = false; setPadding(4, 4, 4, 4)
+        FocusMotion.prepareRail(this)
     }
     private var job: Job? = null
     init {

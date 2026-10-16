@@ -87,7 +87,7 @@ class ShelfAdapter(private val catalogs: List<Catalog>, private val repository: 
         val recycler = RecyclerView(c).apply {
             layoutManager = LinearLayoutManager(c, RecyclerView.HORIZONTAL, false)
             itemAnimator = null; clipToPadding = false; setHasFixedSize(true)
-            setPadding(TvUi.dp(c, 4), TvUi.dp(c, 4), TvUi.dp(c, 4), TvUi.dp(c, 4))
+            FocusMotion.prepareRail(this)
         }
         val status = StatusBand(c, "unbound-shelf-status")
         var job: Job? = null

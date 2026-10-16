@@ -16,7 +16,7 @@ class SavedRowsAdapter(private val rows: List<Pair<String,List<Title>>>, private
             layoutParams=RecyclerView.LayoutParams(-1,TvUi.dp(c,height)); setPadding(TvUi.dp(c,62),TvUi.dp(c,16),TvUi.dp(c,28),0)
         }
         val heading=TvUi.heading(c,"row-heading","",18f)
-        val list=RecyclerView(c).apply { layoutManager=LinearLayoutManager(c,RecyclerView.HORIZONTAL,false); itemAnimator=null; clipToPadding=false }
+        val list=RecyclerView(c).apply { layoutManager=LinearLayoutManager(c,RecyclerView.HORIZONTAL,false); itemAnimator=null; FocusMotion.prepareRail(this) }
         content.addView(heading); content.addView(TvUi.gap(c,12)); content.addView(list,LinearLayout.LayoutParams(-1,0,1f))
         return Holder(content,heading,list)
     }

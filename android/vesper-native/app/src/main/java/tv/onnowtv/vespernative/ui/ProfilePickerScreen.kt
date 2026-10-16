@@ -21,7 +21,7 @@ class ProfilePickerScreen(c: Context, private val cloud: ProfileCloudRepository,
     private val logout = TvUi.button(c, "profiles-signout", "Sign out", signOut)
     private val grid = TvUi.identify(RecyclerView(c), "profiles-grid").apply {
         layoutManager = GridLayoutManager(c, 4); itemAnimator = null
-        clipToPadding = false; setPadding(8, 8, 8, 8)
+        FocusMotion.prepareRail(this,8)
     }
     private var job: Job? = null
     init {
@@ -87,6 +87,7 @@ private class ProfilesAdapter(private val profiles: List<CloudProfile>, private 
     override fun getItemCount() = profiles.size
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = Holder(parent.context)
     override fun onBindViewHolder(holder: Holder, position: Int) {
+        FocusMotion.bind(holder.itemView,radius=12)
         val profile = profiles[position]
         TvUi.identify(holder.itemView, "profile-${profile.id}")
         TvUi.identify(holder.image, "profile-avatar-${profile.id}")
@@ -99,5 +100,5 @@ private class ProfilesAdapter(private val profiles: List<CloudProfile>, private 
         holder.image.load("file:///android_asset/avatars/$file") { size(200, 200); transformations(CircleCropTransformation()) }
         holder.itemView.setOnClickListener { pick(profile) }
     }
-    override fun onViewRecycled(holder: Holder) { holder.image.load(null) }
+    override fun onViewRecycled(holder: Holder) { holder.image.load(null); FocusMotion.reset(holder.itemView) }
 }

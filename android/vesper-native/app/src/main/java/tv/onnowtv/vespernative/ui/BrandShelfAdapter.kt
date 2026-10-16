@@ -17,14 +17,14 @@ class BrandShelfAdapter(private val repository: BrowseRepository, private val sc
     class Holder(c: Context, height: Int) : RecyclerView.ViewHolder(TvUi.column(c)) {
         val heading = TvUi.heading(c, "brand-heading", "", 18f)
         val count = TvUi.text(c, "brand-count", size = 10f, color = TvUi.muted)
-        val row = RecyclerView(c).apply { layoutManager = LinearLayoutManager(c, RecyclerView.HORIZONTAL, false); itemAnimator = null; clipToPadding = false }
+        val row = RecyclerView(c).apply { layoutManager = LinearLayoutManager(c, RecyclerView.HORIZONTAL, false); itemAnimator = null; FocusMotion.prepareRail(this) }
         var job: Job? = null
         var rowIndex = -1
         init { (itemView as LinearLayout).apply {
             layoutParams = RecyclerView.LayoutParams(-1,TvUi.dp(c,height))
             setPadding(TvUi.dp(c,62), TvUi.dp(c,16), TvUi.dp(c,28), TvUi.dp(c,16))
             val header = TvUi.row(c); header.addView(heading,LinearLayout.LayoutParams(0,-2,1f)); header.addView(count)
-            addView(header); addView(TvUi.gap(c,20)); addView(row,LinearLayout.LayoutParams(-1,TvUi.dp(c,112)))
+            addView(header); addView(TvUi.gap(c,12)); addView(row,LinearLayout.LayoutParams(-1,TvUi.dp(c,144)))
         } }
     }
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = Holder(parent.context,height)

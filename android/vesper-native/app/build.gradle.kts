@@ -7,6 +7,12 @@ plugins {
 
 // Native builds have their own required origin; never silently use preview.
 val nativeEnvironment = rootProject.file(".env")
+fun nativeSetting(key: String): String? = providers.environmentVariable(key).orNull
+    ?: nativeEnvironment.takeIf { it.exists() }?.readLines()?.firstOrNull { it.startsWith("$key=") }?.substringAfter('=')?.trim()?.trim('"', '\'')
+fun buildString(value: String): String = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r") + "\""
+val privatePrefill = nativeSetting("DEBUG_PREFILL_ENABLED") == "true"
+val prefillUsername = if(privatePrefill) requireNotNull(nativeSetting("DEBUG_PREFILL_USERNAME")) { "DEBUG_PREFILL_USERNAME required for private prefill" } else ""
+val prefillPassword = if(privatePrefill) requireNotNull(nativeSetting("DEBUG_PREFILL_PASSWORD")) { "DEBUG_PREFILL_PASSWORD required for private prefill" } else ""
 val backendUrl = providers.environmentVariable("VESPER_API_BASE_URL").orNull
     ?: nativeEnvironment.takeIf { it.exists() }?.readLines()?.firstOrNull { it.startsWith("VESPER_API_BASE_URL=") }
         ?.substringAfter('=')?.trim()?.trim('"', '\'')
@@ -22,9 +28,12 @@ android {
         applicationId = "tv.onnowtv.vespernative"
         minSdk = 26
         targetSdk = 34
-        versionCode = 5
-        versionName = "0.2.0-native-dev"
+        versionCode = 6
+        versionName = "0.2.1-native-private"
         buildConfigField("String", "API_BASE_URL", "\"${backendUrl.trimEnd('/')}\"")
+        buildConfigField("boolean", "DEBUG_PREFILL_ENABLED", "false")
+        buildConfigField("String", "DEBUG_PREFILL_USERNAME", "\"\"")
+        buildConfigField("String", "DEBUG_PREFILL_PASSWORD", "\"\"")
     }
     buildFeatures { buildConfig = true }
     compileOptions {
@@ -37,7 +46,19 @@ android {
         unitTests.all { it.systemProperty("robolectric.conscryptMode", "OFF") }
     }
     signingConfigs { getByName("debug") { enableV1Signing = true; enableV2Signing = true } }
-    buildTypes { getByName("release") { isMinifyEnabled = false } }
+    buildTypes {
+        getByName("debug") {
+            buildConfigField("boolean", "DEBUG_PREFILL_ENABLED", privatePrefill.toString())
+            buildConfigField("String", "DEBUG_PREFILL_USERNAME", buildString(prefillUsername))
+            buildConfigField("String", "DEBUG_PREFILL_PASSWORD", buildString(prefillPassword))
+        }
+        getByName("release") {
+            isMinifyEnabled = false
+            buildConfigField("boolean", "DEBUG_PREFILL_ENABLED", "false")
+            buildConfigField("String", "DEBUG_PREFILL_USERNAME", "\"\"")
+            buildConfigField("String", "DEBUG_PREFILL_PASSWORD", "\"\"")
+        }
+    }
 }
 
 dependencies {

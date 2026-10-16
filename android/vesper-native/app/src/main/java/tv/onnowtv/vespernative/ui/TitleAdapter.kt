@@ -44,30 +44,32 @@ class TitleAdapter(private val namespace: String, private val posterHeight: Int,
             crossfade(false); if(landscape)size(640,360) else size(300,450)
         }
         holder.itemView.setOnClickListener { open(item) }
-        holder.itemView.setOnFocusChangeListener { _, focused -> if (focused) focus(item) }
+        FocusMotion.bind(holder.itemView) { focused -> if (focused) focus(item) }
     }
-    override fun onViewRecycled(holder: Holder) { holder.poster.load(null); holder.itemView.onFocusChangeListener = null }
-    class Holder(c: Context, height: Int, landscape: Boolean = false) : RecyclerView.ViewHolder(TvUi.column(c)) {
+    override fun onViewRecycled(holder: Holder) { holder.poster.load(null); FocusMotion.reset(holder.itemView) }
+    class Holder(c: Context, height: Int, landscape: Boolean = false) : RecyclerView.ViewHolder(FrameLayout(c)) {
         val poster = ImageView(c).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
         val name = TvUi.text(c, "unbound-name", size = 12f).apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END }
         val sub = TvUi.text(c, "unbound-meta", size = 10f, color = TvUi.muted).apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END }
         init {
-            (itemView as LinearLayout).apply {
+            (itemView as FrameLayout).apply {
                 isFocusable = true; isClickable = true
-                // Foreground uses a transparent fill so the poster remains visible.
-                foreground = android.graphics.drawable.StateListDrawable().apply {
-                    addState(intArrayOf(android.R.attr.state_focused), TvUi.shape(android.graphics.Color.TRANSPARENT,
-                        TvUi.dp(c, 6).toFloat(), TvUi.accent, TvUi.dp(c, 2)))
-                    addState(intArrayOf(), TvUi.shape(android.graphics.Color.TRANSPARENT))
+                background=TvUi.shape(TvUi.surface,TvUi.dp(c,6).toFloat())
+                layoutParams = RecyclerView.LayoutParams(TvUi.dp(c, if(landscape)height*16/9 else height*2/3), TvUi.dp(c,height)).apply {
+                    marginEnd = TvUi.dp(c, 14); bottomMargin = TvUi.dp(c, 12)
                 }
-                setPadding(TvUi.dp(c, 4), TvUi.dp(c, 4), TvUi.dp(c, 4), TvUi.dp(c, 4))
-                layoutParams = RecyclerView.LayoutParams(TvUi.dp(c, (if(landscape)height*16/9 else height*2/3) + 8), -2).apply {
-                    marginEnd = TvUi.dp(c, 10); bottomMargin = TvUi.dp(c, 8)
-                }
-                addView(poster, LinearLayout.LayoutParams(-1, TvUi.dp(c, height)))
+                addView(poster, FrameLayout.LayoutParams(-1,-1))
                 poster.background = TvUi.shape(TvUi.surface, TvUi.dp(c,6).toFloat()); poster.clipToOutline=true
-                addView(TvUi.gap(c, 6))
-                addView(name); addView(sub)
+                val labels=TvUi.column(c).apply {
+                    gravity=android.view.Gravity.BOTTOM
+                    setPadding(TvUi.dp(c,8),TvUi.dp(c,16),TvUi.dp(c,8),TvUi.dp(c,8))
+                    background=android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+                        intArrayOf(android.graphics.Color.TRANSPARENT,android.graphics.Color.argb(237,6,8,15),TvUi.background)).apply {
+                            val r=TvUi.dp(c,6).toFloat(); cornerRadii=floatArrayOf(0f,0f,0f,0f,r,r,r,r)
+                        }
+                    addView(name,LinearLayout.LayoutParams(-1,TvUi.dp(c,20))); addView(TvUi.gap(c,3)); addView(sub,LinearLayout.LayoutParams(-1,TvUi.dp(c,14)))
+                }
+                addView(labels,FrameLayout.LayoutParams(-1,TvUi.dp(c,(height*.44f).toInt().coerceAtLeast(64)),android.view.Gravity.BOTTOM))
             }
         }
     }

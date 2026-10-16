@@ -17,6 +17,8 @@ class LocalPreferences(c:Context,accountId:String,profileId:String,private val c
     fun applyTheme() {
         val selected=themes.firstOrNull { it.id==theme } ?: themes.first()
         TvUi.accent=Color.parseColor(selected.accent); TvUi.background=Color.parseColor(selected.background)
+        TvUi.bright=Color.parseColor(mapOf("electric" to "#5CDFFF","magenta" to "#FF7AC9","sunset" to "#FFB270","amethyst" to "#C39BFF",
+            "emerald" to "#7CEDA8","ember" to "#FF8585","gold" to "#FFDC85","mint" to "#92ECDF").getValue(selected.id))
         TvUi.surface=Color.rgb((Color.red(TvUi.background)+16).coerceAtMost(255),(Color.green(TvUi.background)+16).coerceAtMost(255),(Color.blue(TvUi.background)+16).coerceAtMost(255))
     }
     companion object { val themes=listOf(

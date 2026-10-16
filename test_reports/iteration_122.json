@@ -1,0 +1,58 @@
+{
+  "summary": "Executed backend + frontend + native validation for private download and native prefill/focus increment. Added new pytest coverage for /api/download security contract and added Robolectric tests for LoginScreen prefill/manual submit and FocusMotion/FocusBloom basics. Native unit suite passed with expanded count (84 tests, 0 fail, 1 skip), build/version/signing checks passed, and release BuildConfig strips prefill secrets.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "native_download.js generated anchor",
+        "issue": "Uses link.dataset.testid instead of a real data-testid attribute key expected by testability guidelines.",
+        "selector": "link.dataset.testid = 'download-artifact-link'",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Browser helper successful download via real fragment capability",
+        "issue": "Could not run end-to-end success click path in browser automation without exposing secret token in tool parameters/logs. Header-authenticated success was verified via backend API tests and hash match to built APK.",
+        "affected_selectors": [
+          "[data-testid='download-apk-button']",
+          "[data-testid='download-status']"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_native_download_security.py",
+    "/app/test_reports/pytest/iteration_122_backend.xml",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/ui/FocusMotionAndLoginScreenRobolectricTest.kt",
+    "/app/android/vesper-native/app/build/test-results/testDebugUnitTest/TEST-tv.onnowtv.vespernative.ui.FocusMotionAndLoginScreenRobolectricTest.xml"
+  ],
+  "action_items": [
+    "Run one controlled browser E2E with real capability fragment in a secure harness that can inject token without logging it, then verify downloaded APK install artifact explicitly.",
+    "If strict testability policy is required, switch download artifact link marker to an actual data-testid attribute.",
+    "Complete real-device native navigation/focus QA (Home/Search/Library/Profile/nav/hero at 960x540 and 800x450 with long titles) since Robolectric cannot validate GPU/raster clipping fidelity."
+  ],
+  "critical_code_review_comments": [
+    "Release BuildConfig verification is correct: DEBUG_PREFILL_ENABLED=false and both prefill constants empty in generated release BuildConfig.",
+    "Backend private APK route is fail-closed: missing/wrong/query-only token return 404 with no-store headers; valid header token returns APK bytes matching local build hash.",
+    "Focused Robolectric tests now exist for login prefill/manual-submit and base focus-motion behaviour, but not every requested advanced focus reversal/detach/rebind/reduced-motion scenario is covered yet."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_native_download_security.py",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/ui/FocusMotionAndLoginScreenRobolectricTest.kt",
+    "/app/test_reports/iteration_122.json"
+  ],
+  "success_rate": {
+    "backend": "100% (6/6 new download-security tests passed)",
+    "frontend": "85% (helper missing/wrong-token paths + responsive checks passed; real-token browser success path pending secure harness)"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Executed: pytest /app/backend/tests/test_native_download_security.py -v --junitxml=/app/test_reports/pytest/iteration_122_backend.xml; ANDROID_HOME=/app/.cache/native-tools/sdk ANDROID_SDK_ROOT=/app/.cache/native-tools/sdk ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:generateReleaseBuildConfig -Pandroid.aapt2FromMavenOverride=/app/.cache/native-tools/aapt2 --console=plain. Native test totals now 84 tests (0 fail, 1 skipped). APK badging confirms versionCode=6/versionName=0.2.1-native-private. apksigner verify shows v1=true, v2=true, signer SHA-256 matches previous-signature.txt.",
+  "rca of the issue": "Primary gap is test-execution constraint rather than code failure: browser automation tool requires explicit URL input, which would expose capability secret if used for real-fragment success test. Mitigation is secure token injection in a non-logged harness or pre-provisioned ephemeral token flow for automated E2E."
+}

@@ -19,7 +19,7 @@ class DirectoryScreen(c:Context,repo:CatalogRepository,open:(Brand)->Unit,naviga
         val brands=repo.browse.brands(c,"collections").filter { it.group=="boxset" }
         val adapter=BrandAdapter(brands,open)
         val grid=TvUi.identify(RecyclerView(c),"boxsets-grid").apply {
-            layoutManager=GridLayoutManager(c,(c.resources.displayMetrics.widthPixels/TvUi.dp(c,180)).coerceAtLeast(2)); this.adapter=adapter; itemAnimator=null; clipToPadding=false
+            layoutManager=GridLayoutManager(c,(c.resources.displayMetrics.widthPixels/TvUi.dp(c,180)).coerceAtLeast(2)); this.adapter=adapter; itemAnimator=null; FocusMotion.prepareRail(this)
         }
         content.addView(grid,LinearLayout.LayoutParams(-1,0,1f)); root.addView(content,FrameLayout.LayoutParams(-1,-1))
         root.addView(nav,FrameLayout.LayoutParams(-2,TvUi.dp(c,76),Gravity.TOP or Gravity.CENTER_HORIZONTAL))

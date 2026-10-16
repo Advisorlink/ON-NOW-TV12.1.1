@@ -21,7 +21,13 @@ class LoginScreen(c: Context, private val submit: (String, String) -> Unit) : Na
     private val signIn = TvUi.button(c, "login-submit", "Sign in") { send() }
     private val error = TvUi.text(c, "login-error", size = 13f, color = Color.rgb(255, 150, 150))
     private var submitting = false
+    private val prefilled = BuildConfig.DEBUG && BuildConfig.DEBUG_PREFILL_ENABLED &&
+        BuildConfig.DEBUG_PREFILL_USERNAME.isNotBlank() && BuildConfig.DEBUG_PREFILL_PASSWORD.isNotEmpty()
     init {
+        if (prefilled) {
+            username.setText(BuildConfig.DEBUG_PREFILL_USERNAME)
+            password.setText(BuildConfig.DEBUG_PREFILL_PASSWORD)
+        }
         val image = ImageView(c).apply { setImageResource(R.drawable.login_backdrop); scaleType = ImageView.ScaleType.CENTER_CROP }
         root.addView(image, FrameLayout.LayoutParams(-1, -1))
         root.addView(View(c).apply { background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
@@ -90,6 +96,6 @@ class LoginScreen(c: Context, private val submit: (String, String) -> Unit) : Na
         error.text = ""
     }
     fun failed(message: String) { busy(false); error.text = message; password.text.clear(); password.requestFocus() }
-    override fun initialFocus() = username
+    override fun initialFocus() = if (prefilled) signIn else username
     override fun dispose() { password.text.clear(); super.dispose() }
 }
