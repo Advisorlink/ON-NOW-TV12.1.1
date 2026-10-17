@@ -11,9 +11,9 @@ import kotlinx.coroutines.*
 import tv.onnowtv.vespernative.data.*
 
 class AnimeScreen(c:Context,private val repo:CatalogRepository,private val open:(Title)->Unit,navigate:(String)->Unit,
-    private val failed:(Throwable)->Unit,play:(Title)->Unit):NativeScreen(c) {
+    private val failed:(Throwable)->Unit,play:(Title)->Unit,navigation:NavigationBar?=null):NativeScreen(c) {
     private val hero=HeroView(c,open,play) { navigate("library") }
-    private val nav=NavigationBar(c,"anime",navigate)
+    private val nav=navigation ?: NavigationBar(c,"anime",navigate)
     private val status=StatusBand(c,"anime-status")
     private val list=TvUi.identify(RecyclerView(c),"anime-rows").apply { layoutManager=LinearLayoutManager(c); itemAnimator=null }
     private var job:Job?=null

@@ -11,10 +11,11 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import tv.onnowtv.vespernative.data.*
 
-class DirectoryScreen(c:Context,repo:CatalogRepository,open:(Brand)->Unit,navigate:(String)->Unit,failed:(Throwable)->Unit):NativeScreen(c) {
-    private val nav=NavigationBar(c,"boxsets",navigate)
+class DirectoryScreen(c:Context,repo:CatalogRepository,open:(Brand)->Unit,navigate:(String)->Unit,failed:(Throwable)->Unit,navigation:NavigationBar?=null):NativeScreen(c) {
+    private val nav=navigation ?: NavigationBar(c,"boxsets",navigate)
     init {
-        val content=TvUi.column(c).apply { setPadding(TvUi.dp(c,62),TvUi.dp(c,88),TvUi.dp(c,34),TvUi.dp(c,20)) }
+        val content=TvUi.column(c).apply { setPadding(TvUi.dp(c,62),TvUi.dp(c,66),TvUi.dp(c,34),TvUi.dp(c,20)) }
+        content.addView(V2Ui.eyebrow(c,"boxsets-eyebrow","Browse")); content.addView(TvUi.gap(c,6))
         content.addView(TvUi.heading(c,"boxsets-title","Box Sets",32f)); content.addView(TvUi.gap(c,22))
         val brands=repo.browse.brands(c,"collections").filter { it.group=="boxset" }
         val adapter=BrandAdapter(brands,open)

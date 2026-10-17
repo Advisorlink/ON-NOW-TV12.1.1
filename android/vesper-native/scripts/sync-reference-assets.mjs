@@ -17,6 +17,8 @@ fs.writeFileSync(path.join(assets, 'browse-registry.json'), JSON.stringify({
   collections: registry('collections.js', 'COLLECTIONS'),
 }, null, 2));
 fs.cpSync(path.join(root, 'frontend/public/networks'), path.join(assets, 'networks'), {recursive: true});
+fs.mkdirSync(path.join(assets, 'login'), {recursive: true});
+fs.copyFileSync(path.join(root, 'frontend/public/login/vesper-bg.webp'), path.join(assets, 'login/vesper-bg.webp'));
 for (const file of ['layout/dialog_exit_confirm.xml', 'drawable/exit_glow.xml', 'drawable/exit_card_bg.xml',
   'drawable/exit_btn_primary.xml', 'drawable/exit_btn_secondary.xml', 'color/exit_btn_primary_text.xml', 'color/exit_btn_secondary_text.xml']) {
   const dest = path.join(root, 'android/vesper-native/app/src/main/res', file);

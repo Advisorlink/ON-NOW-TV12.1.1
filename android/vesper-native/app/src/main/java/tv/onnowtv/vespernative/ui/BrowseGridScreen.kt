@@ -12,22 +12,23 @@ import tv.onnowtv.vespernative.data.*
 /** Genre selection and paginated native grid; retained view preserves focus on title Back. */
 class BrowseGridScreen(c:Context,private val repo:CatalogRepository,private val type:String,
     open:(Title)->Unit,navigate:(String)->Unit,private val failed:(Throwable)->Unit,
-    private val brand:Brand?=null) : NativeScreen(c) {
+    private val brand:Brand?=null,navigation:NavigationBar?=null) : NativeScreen(c) {
     private var media=if(brand?.moviesOnly==true) "movie" else type
     private var genre=""; private var page=0; private var hasMore=true
     private var job:Job?=null
-    private val nav=NavigationBar(c,if(brand==null)type else "home",navigate)
+    private val nav=navigation ?: NavigationBar(c,if(brand==null)type else "home",navigate)
     private val status=StatusBand(c,"browse-status")
     private val adapter=TitleAdapter("browse",154,open)
     private val filters=TvUi.row(c)
-    private val more=TvUi.button(c,"browse-more","Show more") { load(false) }
+    private val more=V2Ui.pill(c,"browse-more","Show more","plus") { load(false) }
     private val grid=TvUi.identify(RecyclerView(c),"browse-grid").apply {
         layoutManager=GridLayoutManager(c,(c.resources.displayMetrics.widthPixels/TvUi.dp(c,126)).coerceAtLeast(2))
         adapter=this@BrowseGridScreen.adapter; itemAnimator=null; FocusMotion.prepareRail(this)
     }
     init {
-        val content=TvUi.column(c).apply { setPadding(TvUi.dp(c,62),TvUi.dp(c,84),TvUi.dp(c,34),TvUi.dp(c,12)) }
-        content.addView(TvUi.heading(c,"browse-title",brand?.name ?: if(type=="series")"TV Shows" else "Movies",30f))
+        val content=TvUi.column(c).apply { setPadding(TvUi.dp(c,62),TvUi.dp(c,66),TvUi.dp(c,34),TvUi.dp(c,12)) }
+        content.addView(V2Ui.eyebrow(c,"browse-eyebrow",if(brand!=null)"Browse" else "Discover")); content.addView(TvUi.gap(c,6))
+        content.addView(TvUi.heading(c,"browse-title",brand?.name ?: if(type=="series")"TV Shows" else "Movies",32f))
         content.addView(TvUi.gap(c,14))
         content.addView(HorizontalScrollView(c).apply { isHorizontalScrollBarEnabled=false; addView(filters) },LinearLayout.LayoutParams(-1,TvUi.dp(c,44)))
         content.addView(status); content.addView(grid,LinearLayout.LayoutParams(-1,0,1f)); content.addView(more)
@@ -45,7 +46,11 @@ class BrowseGridScreen(c:Context,private val repo:CatalogRepository,private val 
         load(true)
     }
     private fun chip(id:String,label:String,action:()->Unit) {
-        filters.addView(TvUi.button(context,"browse-filter-$id",label) { action() },LinearLayout.LayoutParams(-2,TvUi.dp(context,34)).apply { marginEnd=TvUi.dp(context,8) })
+        val button=V2Ui.pill(context,"browse-filter-$id",label) {
+            for(i in 0 until filters.childCount)filters.getChildAt(i).isSelected=filters.getChildAt(i).getTag(tv.onnowtv.vespernative.R.id.test_id)=="browse-filter-$id"
+            action()
+        }.apply { isSelected=id=="all" }
+        filters.addView(button,LinearLayout.LayoutParams(-2,TvUi.dp(context,28)).apply { marginEnd=TvUi.dp(context,6) })
     }
     private fun load(reset:Boolean) {
         job?.cancel()

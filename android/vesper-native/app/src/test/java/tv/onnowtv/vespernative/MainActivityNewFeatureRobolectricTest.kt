@@ -151,8 +151,10 @@ class MainActivityNewFeatureRobolectricTest {
     }
 
     @Test
-    fun stream_row_starts_player_intent_with_title_and_scoped_resume_key_without_session_token() {
+    fun autoplay_movie_play_starts_player_intent_with_scoped_resume_key_without_session_token() {
         val activity = visibleActivity()
+        val preferencesField=MainActivity::class.java.getDeclaredField("preferences").apply { isAccessible=true }
+        (preferencesField.get(activity) as tv.onnowtv.vespernative.profile.LocalPreferences).autoplay=true
 
         waitForView(activity.window.decorView, "nav-movie").performClick()
         val grid = waitForView(activity.window.decorView, "browse-grid") as RecyclerView
@@ -160,12 +162,13 @@ class MainActivityNewFeatureRobolectricTest {
         layoutRoot(activity.window.decorView)
         val firstMovieTile = requireNotNull(grid.findViewHolderForAdapterPosition(0)?.itemView ?: grid.getChildAt(0))
         firstMovieTile.performClick()
-        waitForView(activity.window.decorView, "detail-play").performClick()
 
-        waitForView(activity.window.decorView, "streams-list")
-        waitForView(activity.window.decorView, "stream-0").performClick()
+        waitUntil {
+            shadowOf(activity).peekNextStartedActivity()?.component?.className ==
+                "tv.onnowtv.vespernative.playback.PlayerActivity"
+        }
 
-        val started = shadowOf(activity).nextStartedActivity
+        val started = shadowOf(activity).peekNextStartedActivity()
         assertNotNull(started)
         assertEquals("tv.onnowtv.vespernative.playback.PlayerActivity", started.component!!.className)
         assertFalse(started.getStringExtra("title").isNullOrBlank())
@@ -185,7 +188,7 @@ class MainActivityNewFeatureRobolectricTest {
         val activity = visibleActivity(autoPickProfile = false)
 
         val longName = waitForView(activity.window.decorView, "profile-name-p-long") as TextView
-        assertEquals(2, longName.maxLines)
+        assertEquals(1, longName.maxLines)
         assertEquals(android.text.TextUtils.TruncateAt.END, longName.ellipsize)
     }
 
@@ -196,6 +199,8 @@ class MainActivityNewFeatureRobolectricTest {
         if (autoPickProfile) {
             waitForView(activity.window.decorView, "profile-p-main").performClick()
             waitForView(activity.window.decorView, "nav-home")
+            val field=MainActivity::class.java.getDeclaredField("preferences").apply { isAccessible=true }
+            (field.get(activity) as tv.onnowtv.vespernative.profile.LocalPreferences).autoplay=false
         }
         return activity
     }

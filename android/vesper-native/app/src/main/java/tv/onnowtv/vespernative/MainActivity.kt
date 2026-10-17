@@ -5,6 +5,7 @@ import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -103,30 +104,35 @@ class MainActivity : AppCompatActivity() {
         if (route == "home" && screens.size == 1 && screens.lastOrNull() is HomeScreen) return
         when (route) {
             "home" -> { currentRoute = route; replace(HomeScreen(this, repo, null, ::open, ::navigate, ::failed, profileData != null,
-                ::openBrand, activeProfile, profileData, { openTitle(it, true) }, preferences?.side == true)) }
-            "movie", "series" -> { currentRoute = route; push(BrowseGridScreen(this, repo, route, ::open, ::navigate, ::failed)) }
-            "boxsets" -> { currentRoute = route; push(DirectoryScreen(this, repo, ::openBrand, ::navigate, ::failed)) }
-            "anime" -> { currentRoute = route; push(AnimeScreen(this, repo, ::open, ::navigate, ::failed) { openTitle(it, true) }) }
-            "search" -> push(SearchScreen(this, repo, ::open, ::pop, ::failed))
-            "library" -> if (activeProfile != null && profileData != null) push(LibraryScreen(this, activeProfile!!, profileData!!, ::open, ::pop))
+                ::openBrand, activeProfile, profileData, { openTitle(it, true) }, preferences?.side == true,preferences,{ openTitle(it,false) })) }
+            "movie", "series" -> { currentRoute = route; push(BrowseGridScreen(this, repo, route, ::open, ::navigate, ::failed,navigation=chrome(route))) }
+            "boxsets" -> { currentRoute = route; push(DirectoryScreen(this, repo, ::openBrand, ::navigate, ::failed,chrome(route))) }
+            "anime" -> { currentRoute = route; push(AnimeScreen(this, repo, ::open, ::navigate, ::failed,{ openTitle(it,true) },chrome(route))) }
+            "search" -> push(SearchScreen(this, repo, ::open, ::pop, ::failed,chrome(route),preferences?.scopeKey))
+            "library" -> if (activeProfile != null && profileData != null) push(LibraryScreen(this, activeProfile!!, profileData!!, ::open, ::pop,chrome(route)))
                 else showProfiles()
-            "settings" -> preferences?.let { prefs -> push(SettingsScreen(this, prefs, ::pop, { navigate("home") }, ::showProfiles, ::signOut)) }
+            "settings" -> preferences?.let { prefs -> push(SettingsScreen(this, prefs, ::pop, { navigate("home"); navigate("settings") }, ::showProfiles, ::signOut,chrome(route))) }
             "account" -> showAccount()
         }
     }
-    private fun open(title: Title) = openTitle(title, false)
+    private fun chrome(route:String)=NavigationBar(this,route,::navigate,activeProfile?.avatarId,
+        autoplay=preferences?.let { { it.autoplay } },toggleAutoplay=preferences?.let { { it.autoplay=!it.autoplay } })
+    private fun open(title: Title) = openTitle(title, title.type=="movie" && preferences?.autoplay==true)
     private fun openTitle(title: Title, autoplay: Boolean) { repository?.let {
         push(DetailScreen(this, title, it, ::pop, ::failed, ::streams, { navigate("home") }, autoplay))
     } }
     private fun openBrand(brand: Brand) { repository?.let { push(BrowseGridScreen(this, it,
-        if (brand.kind == "networks") "series" else "movie", ::open, ::navigate, ::failed, brand)) } }
+        if (brand.kind == "networks") "series" else "movie", ::open, ::navigate, ::failed, brand,chrome("home"))) } }
     private fun streams(title: Title, id: String, label: String) {
         val scope = preferences?.scopeKey ?: return
+        var available=emptyList<Stream>()
         push(StreamScreen(this, label, title.type, id, StreamRepository(services.api) { services.auth.token }, ::pop, { stream ->
-            startActivity(android.content.Intent(this, PlayerActivity::class.java)
-                .putExtra("stream", stream.json().toString()).putExtra("title", label)
-                .putExtra("resume-key", "$scope:${title.type}:$id"))
-        }, ::failed))
+            try {
+                val payload=PlaybackPayload.save(this,title,label,stream,available)
+                startActivity(android.content.Intent(this, PlayerActivity::class.java)
+                    .putExtra("payload",payload).putExtra("title", label).putExtra("resume-key", "$scope:${title.type}:$id"))
+            } catch(_:Exception) { Toast.makeText(this,"Couldn't open this stream. Please choose another.",Toast.LENGTH_LONG).show() }
+        }, ::failed,preferences?.shouldAutoplay(title.type)==true,{ available=it },title))
     }
     private fun failed(error: Throwable) {
         if (error is ApiFailure && (error.status == 401 || error.status == 403) && !invalidating) {
@@ -147,17 +153,10 @@ class MainActivity : AppCompatActivity() {
         screens.removeAt(screens.lastIndex).dispose(); currentRoute = ""; display(screens.last())
     }
     private fun showAccount() {
-        val content = TvUi.column(this).apply { setPadding(32, 24, 32, 24) }
-        content.addView(TvUi.heading(this, "account-name", account?.label.orEmpty()))
-        val dialog = AlertDialog.Builder(this).setView(content).create()
-        content.addView(TvUi.button(this, "account-close", "Back") { dialog.dismiss() })
-        content.addView(TvUi.button(this, "account-profiles", "Switch profile") { dialog.dismiss(); showProfiles() })
-        content.addView(TvUi.button(this, "account-signout", "Sign out") {
-            dialog.dismiss()
-            signOut()
-        })
-        dialog.setOnShowListener { TvUi.identify(dialog.window!!.decorView, "account-dialog") }
-        dialog.show()
+        V2Dialog.show(this,"account-dialog",account?.label.orEmpty(),activeProfile?.name.orEmpty(),listOf(
+            V2Dialog.Action("account-close","Back","back") {},
+            V2Dialog.Action("account-profiles","Switch profile","user",true) { showProfiles() },
+            V2Dialog.Action("account-signout","Sign out","logout") { signOut() }),titleKey="account-name")
     }
     private fun signOut() {
         authJob?.cancel()

@@ -6,6 +6,13 @@ import android.os.Looper
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
+import org.junit.Before
+import org.junit.After
+import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.Dispatcher
+import okhttp3.mockwebserver.RecordedRequest
+import okhttp3.mockwebserver.SocketPolicy
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
@@ -18,6 +25,13 @@ import java.time.Duration
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-mdpi")
 class PlayerActivityRobolectricTest {
+    private lateinit var server:MockWebServer
+    @Before fun startBufferingFixture() {
+        server=MockWebServer(); server.dispatcher=object:Dispatcher() {
+            override fun dispatch(request:RecordedRequest)=MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE)
+        }; server.start()
+    }
+    @After fun stopFixture() { server.shutdown() }
 
     @Test
     fun missing_resume_key_finishes_activity_immediately() {
@@ -31,47 +45,56 @@ class PlayerActivityRobolectricTest {
 
     @Test
     fun on_stop_and_back_release_player_instance() {
+        // No visible()/auto-idle here: Robolectric otherwise waits forever on
+        // Compose's deliberately ongoing loading animation (not a device hang).
         val controller = Robolectric.buildActivity(PlayerActivity::class.java, playableIntent())
-            .create().start().resume().visible()
+            .create().start().resume()
         val activity = controller.get()
-        waitUi()
-
         assertNotNull(readPlayer(activity))
+        assertFalse(activity.isFinishing)
 
         controller.pause().stop()
-        waitUi()
         assertNull(readPlayer(activity))
 
         controller.restart().start().resume()
-        waitUi()
         assertNotNull(readPlayer(activity))
+        val field=PlayerActivity::class.java.getDeclaredField("visuals").apply { isAccessible=true }
+        val visual=field.get(activity) as PlayerVisualState
+        visual.controlsVisible=true
         activity.onBackPressedDispatcher.onBackPressed()
-        waitUi()
+        assertFalse(activity.isFinishing)
+        assertFalse(visual.controlsVisible)
+        assertTrue(visual.hide.value>0)
+        activity.onBackPressedDispatcher.onBackPressed()
         assertTrue(activity.isFinishing)
         controller.pause().stop().destroy()
-        waitUi()
         assertNull(readPlayer(activity))
     }
 
     @Test
     fun saves_instance_state_without_crashing_during_config_cycle() {
         val controller = Robolectric.buildActivity(PlayerActivity::class.java, playableIntent())
-            .create().start().resume().visible()
-        waitUi()
+            .create().start().resume()
+        val player=readPlayer(controller.get()) as androidx.media3.exoplayer.ExoPlayer
+        player.pause()
 
         val bundle = Bundle()
         controller.saveInstanceState(bundle)
         assertTrue(bundle.containsKey("position"))
+        assertTrue(bundle.containsKey("paused"))
+        assertTrue(bundle.getBoolean("paused"))
 
-        controller.configurationChange()
-        waitUi()
-        assertFalse(controller.get().isFinishing)
+        controller.pause().stop().destroy()
+        val restored=Robolectric.buildActivity(PlayerActivity::class.java,playableIntent()).create(bundle).start().resume()
+        assertFalse(restored.get().isFinishing)
+        assertFalse((readPlayer(restored.get()) as androidx.media3.exoplayer.ExoPlayer).playWhenReady)
+        restored.pause().stop().destroy()
     }
 
     private fun playableIntent(): Intent {
         val context = RuntimeEnvironment.getApplication().applicationContext
         val stream = JSONObject()
-            .put("url", "https://cdn.example/video.m3u8")
+            .put("url", server.url("/fixture.m3u8").toString())
             .put("name", "Direct")
             .put("description", "1080p")
             .put("headers", JSONObject().put("User-Agent", "Vesper"))

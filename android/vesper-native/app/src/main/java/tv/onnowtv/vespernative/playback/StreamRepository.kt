@@ -5,8 +5,9 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import tv.onnowtv.vespernative.data.*
 
 data class Stream(val url:String,val name:String,val description:String,val headers:Map<String,String>,
-    val source:Int,val uncached:Boolean,val fhd:Boolean,val size:Double?,val order:Int) {
+    val source:Int,val uncached:Boolean,val fhd:Boolean,val size:Double?,val order:Int,val quality:String="") {
     fun json()=JSONObject().put("url",url).put("name",name).put("description",description).put("headers",JSONObject(headers))
+        .put("_size_gb",size).put("_pm_uncached",uncached).put("_quality",quality.ifBlank { if(fhd)"1080p" else "" }).put("_onnow_direct",source==0)
     companion object {
         fun parse(o:JSONObject,index:Int):Stream? {
             val url=o.text("url"); if(url.toHttpUrlOrNull()==null)return null
@@ -26,7 +27,8 @@ data class Stream(val url:String,val name:String,val description:String,val head
                 key.matches(Regex("[A-Za-z0-9-]+")) && key.lowercase() !in setOf("host","connection","content-length")
             }.mapNotNull { key -> rawHeaders.text(key).takeUnless { '\r' in it || '\n' in it }?.let { key to it } }.toMap()
             return Stream(url,o.text("_addon_name").ifBlank { o.text("name").ifBlank { "Stream" } },description,headers,rank,
-                o.optBoolean("_pm_uncached"),fhd,(o.opt("_size_gb") as? Number)?.toDouble(),index)
+                o.optBoolean("_pm_uncached"),fhd,(o.opt("_size_gb") as? Number)?.toDouble(),index,
+                o.text("_quality").ifBlank { Regex("2160p|1080p|720p|480p|4K",RegexOption.IGNORE_CASE).find(quality)?.value.orEmpty() })
         }
         fun sorted(values:List<Stream>):List<Stream> = values.sortedWith(Comparator { a,b ->
             val blockA=if(a.uncached)5 else a.source; val blockB=if(b.uncached)5 else b.source

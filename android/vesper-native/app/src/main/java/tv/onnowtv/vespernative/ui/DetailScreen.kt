@@ -19,22 +19,23 @@ class DetailScreen(c:Context,private val seed:Title,private val repository:Catal
     private val title=TvUi.heading(c,"detail-title",seed.name,34f).apply { maxLines=2; ellipsize=android.text.TextUtils.TruncateAt.END }
     private val meta=TvUi.text(c,"detail-metadata",size=12f,color=TvUi.accent)
     private val summary=TvUi.text(c,"detail-synopsis",size=13f,color=TvUi.muted).apply { maxLines=5; ellipsize=android.text.TextUtils.TruncateAt.END; setLineSpacing(0f,1.4f) }
-    private val backButton=TvUi.button(c,"detail-back","←  Back",back)
+    private val backButton=V2Ui.pill(c,"detail-back","Back","back",click=back)
     private val status=StatusBand(c,"detail-status")
     private val seasons=TvUi.row(c)
     private val episodes=TvUi.identify(RecyclerView(c),"detail-episodes").apply { layoutManager=LinearLayoutManager(c); itemAnimator=null }
-    private val playButton=TvUi.button(c,"detail-play","▶  Play") { current?.let { play(it,it.id,it.name) } }
+    private val playButton=V2Ui.pill(c,"detail-play","Play","play") { current?.let { play(it,it.id,it.name) } }.apply { V2Ui.stylePill(this,"play",white=true) }
     private var current:Title?=null; private var season=-1; private var job:Job?=null; private var launched=false
     init {
         if (seed.type == "series") summary.maxLines = 2
         root.addView(image,FrameLayout.LayoutParams(-1,-1))
         root.addView(View(c).apply { background=GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,intArrayOf(Color.argb(248,3,6,15),Color.argb(180,3,6,15),Color.argb(70,3,6,15))) },FrameLayout.LayoutParams(-1,-1))
         val content=TvUi.column(c).apply { setPadding(TvUi.dp(c,40),TvUi.dp(c,20),TvUi.dp(c,40),TvUi.dp(c,24)) }
-        val header=TvUi.row(c); header.addView(backButton); header.addView(TvUi.button(c,"detail-home","⌂  Home",home),LinearLayout.LayoutParams(-2,-2).apply { marginStart=TvUi.dp(c,8) })
+        val header=TvUi.row(c); header.addView(backButton); header.addView(V2Ui.pill(c,"detail-home","Home","home",click=home),LinearLayout.LayoutParams(-2,TvUi.dp(c,30)).apply { marginStart=TvUi.dp(c,8) })
         content.addView(header); content.addView(TvUi.gap(c,18))
         content.addView(TvUi.text(c,"detail-type",if(seed.type=="series")"TV SHOW" else "MOVIE",10f,TvUi.accent)); content.addView(TvUi.gap(c,6))
-        content.addView(title,LinearLayout.LayoutParams((c.resources.displayMetrics.widthPixels*.68).toInt(),-2)); content.addView(TvUi.gap(c,10)); content.addView(meta)
-        content.addView(TvUi.gap(c,14)); content.addView(summary,LinearLayout.LayoutParams((c.resources.displayMetrics.widthPixels*.60).toInt(),-2))
+        content.addView(title,LinearLayout.LayoutParams((c.resources.displayMetrics.widthPixels*.58).toInt(),-2)); content.addView(TvUi.gap(c,10)); content.addView(meta)
+        summary.textSize=10f
+        content.addView(TvUi.gap(c,14)); content.addView(summary,LinearLayout.LayoutParams((c.resources.displayMetrics.widthPixels*.44).toInt(),-2))
         content.addView(TvUi.gap(c,18)); content.addView(playButton)
         playButton.visibility=if(seed.type=="series")View.GONE else View.VISIBLE; playButton.isEnabled=false
         content.addView(status)
@@ -52,12 +53,13 @@ class DetailScreen(c:Context,private val seed:Title,private val repository:Catal
             val ids=value.episodes.map(Episode::season).distinct().sortedWith(compareBy({ it==0 },{ it }))
             if(season !in ids)season=ids.first()
             seasons.removeAllViews()
-            ids.forEach { s->seasons.addView(TvUi.button(context,"detail-season-$s",if(s==0)"Specials" else "Season $s") { season=s; showEpisodes(value) },
-                LinearLayout.LayoutParams(-2,TvUi.dp(context,36)).apply { marginEnd=TvUi.dp(context,8) }) }
+            ids.forEach { s->seasons.addView(V2Ui.pill(context,"detail-season-$s",if(s==0)"Specials" else "Season $s") { season=s; showEpisodes(value) },
+                LinearLayout.LayoutParams(-2,TvUi.dp(context,28)).apply { marginEnd=TvUi.dp(context,6) }) }
             showEpisodes(value)
         }
     }
     private fun showEpisodes(value:Title) {
+        for(i in 0 until seasons.childCount)seasons.getChildAt(i).isSelected=seasons.getChildAt(i).getTag(tv.onnowtv.vespernative.R.id.test_id)=="detail-season-$season"
         episodes.adapter=EpisodeAdapter(value.episodes.filter { it.season==season }) { episode ->
             play(value,episode.id,"${value.name} · S${episode.season} E${episode.number} · ${episode.name}")
         }
@@ -73,19 +75,24 @@ class DetailScreen(c:Context,private val seed:Title,private val repository:Catal
     override fun initialFocus():View=backButton
 }
 private class EpisodeAdapter(private val episodes:List<Episode>,private val play:(Episode)->Unit):RecyclerView.Adapter<EpisodeAdapter.Holder>() {
-    class Holder(val row:LinearLayout,val name:TextView,val description:TextView):RecyclerView.ViewHolder(row)
+    class Holder(val row:LinearLayout,val name:TextView,val description:TextView,val art:ImageView):RecyclerView.ViewHolder(row)
     override fun getItemCount()=episodes.size
     override fun onCreateViewHolder(parent:ViewGroup,type:Int):Holder {
-        val c=parent.context; val name=TvUi.heading(c,"episode-name","",14f); val description=TvUi.text(c,"episode-description",size=11f,color=TvUi.muted).apply { maxLines=2; ellipsize=android.text.TextUtils.TruncateAt.END }
-        val row=TvUi.column(c).apply { isFocusable=true; isClickable=true; background=TvUi.focus(c,false)
-            setPadding(TvUi.dp(c,16),TvUi.dp(c,12),TvUi.dp(c,16),TvUi.dp(c,12)); layoutParams=RecyclerView.LayoutParams(-1,-2).apply { topMargin=TvUi.dp(c,8) }
-            addView(name); addView(TvUi.gap(c,6)); addView(description)
-        }; return Holder(row,name,description)
+        val c=parent.context; val name=TvUi.heading(c,"episode-name","",12f).apply { maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END }; val description=TvUi.text(c,"episode-description",size=9f,color=TvUi.muted).apply { maxLines=2; ellipsize=android.text.TextUtils.TruncateAt.END }
+        val art=ImageView(c).apply { scaleType=ImageView.ScaleType.CENTER_CROP; background=TvUi.shape(TvUi.surface,TvUi.dp(c,5).toFloat()); clipToOutline=true }
+        val row=TvUi.row(c).apply { isFocusable=true; isClickable=true; background=TvUi.shape(android.graphics.Color.argb(165,6,8,15),TvUi.dp(c,8).toFloat(),V2Ui.line,1)
+            setPadding(TvUi.dp(c,10),TvUi.dp(c,8),TvUi.dp(c,14),TvUi.dp(c,8)); layoutParams=RecyclerView.LayoutParams(-1,TvUi.dp(c,78)).apply { topMargin=TvUi.dp(c,8) }
+            addView(art,LinearLayout.LayoutParams(TvUi.dp(c,110),-1).apply { marginEnd=TvUi.dp(c,14) })
+            addView(TvUi.column(c).apply { addView(name); addView(TvUi.gap(c,6)); addView(description) },LinearLayout.LayoutParams(0,-2,1f))
+        }; return Holder(row,name,description,art)
     }
     override fun onBindViewHolder(h:Holder,p:Int) {
         val e=episodes[p]; val future=runCatching { java.time.Instant.parse(e.released).isAfter(java.time.Instant.now()) }.getOrDefault(false)
         TvUi.identify(h.row,"detail-episode-${e.id}"); TvUi.identify(h.name,"detail-episode-name-${e.id}"); TvUi.identify(h.description,"detail-episode-description-${e.id}")
+        TvUi.identify(h.art,"detail-episode-art-${e.id}"); h.art.load(e.thumbnail.takeIf(String::isNotBlank)) { size(320,180) }
+        FocusMotion.bind(h.row,tile=false,radius=8)
         h.name.text="${e.number}.  ${e.name}${if(future)" · ${e.released.take(10)}" else ""}"; h.description.text=e.overview
         h.row.contentDescription=h.name.text; h.row.isEnabled=!future; h.row.alpha=if(future).5f else 1f; h.row.setOnClickListener { if(!future)play(e) }
     }
+    override fun onViewRecycled(h:Holder) { h.art.load(null); FocusMotion.reset(h.row) }
 }

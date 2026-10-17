@@ -29,15 +29,16 @@ class ProfilePickerScreen(c: Context, private val cloud: ProfileCloudRepository,
             gravity = Gravity.CENTER_HORIZONTAL
             setPadding(TvUi.dp(c, 48), TvUi.dp(c, 32), TvUi.dp(c, 48), TvUi.dp(c, 24))
         }
-        content.addView(TvUi.brand(c, "profiles-brand", 22f))
-        content.addView(TvUi.gap(c, 60))
+        content.addView(TvUi.brand(c, "profiles-brand", 16f))
+        content.addView(TvUi.gap(c, 55))
         content.addView(TvUi.heading(c, "profiles-title", "Who's ready to watch?", 36f))
         content.addView(TvUi.gap(c, 8))
-        content.addView(TvUi.text(c, "profiles-subtitle", "Choose a profile to continue", 13f, TvUi.muted))
+        content.addView(TvUi.text(c, "profiles-subtitle", "Choose a profile to continue", 9f, TvUi.muted))
         content.addView(TvUi.gap(c, 24))
         content.addView(status, LinearLayout.LayoutParams(-1, -2))
         content.addView(grid, LinearLayout.LayoutParams(-1, 0, 1f))
         val actions = TvUi.row(c)
+        V2Ui.stylePill(logout,"logout"); V2Ui.stylePill(emptyBrowse,"grid")
         actions.addView(emptyBrowse); actions.addView(logout)
         content.addView(actions)
         root.addView(content, FrameLayout.LayoutParams(-1, -1))
@@ -56,7 +57,7 @@ class ProfilePickerScreen(c: Context, private val cloud: ProfileCloudRepository,
                 } else {
                     val columns = minOf(profiles.size, 5)
                     (grid.layoutManager as GridLayoutManager).spanCount = columns
-                    grid.layoutParams = LinearLayout.LayoutParams(TvUi.dp(context, columns * 140), 0, 1f)
+                    grid.layoutParams = LinearLayout.LayoutParams(TvUi.dp(context, columns * 126+16), 0, 1f)
                     grid.adapter = ProfilesAdapter(profiles) { pick(snapshot!!, it) }
                     status.clear()
                     grid.doOnNextLayout { grid.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() }
@@ -72,28 +73,29 @@ private class ProfilesAdapter(private val profiles: List<CloudProfile>, private 
     private var assetNames: Set<String>? = null
     class Holder(c: Context) : RecyclerView.ViewHolder(TvUi.column(c)) {
         val image = ImageView(c)
-        val name = TvUi.text(c, "unbound-profile-name", size = 16f).apply { gravity = Gravity.CENTER; maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END }
-        val lock = TvUi.text(c, "unbound-profile-lock", size = 11f, color = TvUi.muted).apply { gravity = Gravity.CENTER }
+        val name = TvUi.text(c, "unbound-profile-name", size = 11f).apply { gravity = Gravity.CENTER; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }
+        val lock = TvUi.text(c, "unbound-profile-lock", size = 7f, color = TvUi.muted).apply { gravity = Gravity.CENTER }
         init { (itemView as LinearLayout).apply {
             gravity = Gravity.CENTER_HORIZONTAL; isFocusable = true; isClickable = true
             foreground = TvUi.outline(c, 12)
             setPadding(12, 12, 12, 12)
-            layoutParams = RecyclerView.LayoutParams(-1, TvUi.dp(c, 176)).apply { setMargins(8, 8, 8, 8) }
+            layoutParams = RecyclerView.LayoutParams(-1, TvUi.dp(c, 150)).apply { setMargins(8, 8, 8, 8) }
             addView(image, LinearLayout.LayoutParams(TvUi.dp(c, 90), TvUi.dp(c, 90)))
             addView(TvUi.gap(c, 12))
-            addView(name, LinearLayout.LayoutParams(-1, -2)); addView(lock)
+            addView(name, LinearLayout.LayoutParams(-1, TvUi.dp(c,16))); addView(lock,LinearLayout.LayoutParams(-1,TvUi.dp(c,10)))
         } }
     }
     override fun getItemCount() = profiles.size
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = Holder(parent.context)
     override fun onBindViewHolder(holder: Holder, position: Int) {
-        FocusMotion.bind(holder.itemView,radius=12)
+        FocusMotion.bind(holder.itemView,radius=45,halo=holder.image)
         val profile = profiles[position]
         TvUi.identify(holder.itemView, "profile-${profile.id}")
         TvUi.identify(holder.image, "profile-avatar-${profile.id}")
         TvUi.identify(holder.name, "profile-name-${profile.id}")
         TvUi.identify(holder.lock, "profile-lock-${profile.id}")
         holder.name.text = profile.name; holder.lock.text = if (profile.requiresPin) "PIN protected" else ""
+        holder.lock.visibility=if(profile.requiresPin)View.VISIBLE else View.GONE
         holder.itemView.contentDescription = profile.name + if (profile.requiresPin) ", PIN protected" else ""
         val assets = assetNames ?: holder.itemView.context.assets.list("avatars").orEmpty().toSet().also { assetNames = it }
         val file = "${profile.avatarId}.jpg".takeIf { it in assets } ?: "fn-popcorn-fg.jpg"

@@ -1,148 +1,162 @@
 {
-  "project_name": "OnNowTV - Sports Replays Feature & Global Design Guidelines",
-  "version": "2.8.0",
-  "last_updated": "2026-07-01",
-  "theme": "dark",
-  "design_archetype": "THE PERFORMANCE PRO (Tactical Minimalism & High Contrast)",
-  "context": "Native Android TV & Web/Mobile Sports Streaming App - Replays Hub",
-  "color_palette": {
-    "background": "#090B10",
-    "surface": "#121620",
-    "surface_elevated": "#1A202C",
-    "surface_card": "#151A24",
-    "primary_accent": "#FF3B30",
-    "secondary_accent": "#00E5FF",
-    "text_primary": "#FFFFFF",
-    "text_secondary": "#94A3B8",
-    "text_muted": "#64748B",
-    "border_subtle": "rgba(255, 255, 255, 0.1)",
-    "border_focus": "#00E5FF",
-    "focus_glow": "rgba(0, 229, 255, 0.4)",
-    "overlay_gradient": "linear-gradient(180deg, rgba(9,11,16,0.2) 0%, rgba(9,11,16,0.85) 75%, rgba(9,11,16,0.98) 100%)",
-    "tile_faded_overlay": "linear-gradient(135deg, rgba(18, 22, 32, 0.75) 0%, rgba(9, 11, 16, 0.92) 100%)"
+  "project_name": "Vesper V2 Native Android TV App",
+  "app_type": "native_android_tv_app",
+  "design_archetype": "THE PERFORMANCE PRO / NEON-GLASS (V2 Electric)",
+  "reference_viewport": {
+    "web_px": "1920x1080",
+    "native_dp": "960x540",
+    "conversion": "1dp = 2px (divide web px by 2)"
   },
   "typography": {
-    "font_family_heading": "Barlow Condensed, Outfit, sans-serif",
-    "font_family_body": "Inter, DM Sans, sans-serif",
-    "h1_hero": "text-4xl sm:text-5xl lg:text-6xl tracking-tight font-extrabold",
-    "h2_section": "text-2xl sm:text-3xl lg:text-4xl tracking-tight font-bold",
-    "h3_card": "text-lg sm:text-xl font-bold tracking-normal",
-    "label": "text-xs font-semibold uppercase tracking-widest text-slate-400",
-    "body": "text-sm sm:text-base leading-relaxed text-slate-300"
-  },
-  "top_navigation": {
-    "replays_button": {
-      "label": "REPLAYS",
-      "data_testid": "top-nav-replays-button",
-      "position": "Top Navigation Menu alongside Live TV / Sports / Schedule",
-      "style": "px-4 py-2 rounded-lg font-bold text-sm tracking-wider uppercase transition-all duration-200 hover:bg-white/10 focus:ring-2 focus:ring-cyan-400 focus:bg-white/15",
-      "active_state": "bg-red-600 text-white shadow-lg shadow-red-900/40"
+    "font_family_primary": "Geist",
+    "font_family_mono": "Geist Mono / JetBrains Mono",
+    "h1_hero": {
+      "font_size_sp": 30,
+      "web_size_px": 60,
+      "font_weight": "700 (Bold)",
+      "letter_spacing": "-0.025em",
+      "line_height": 1.0
+    },
+    "h2_section": {
+      "font_size_sp": 20,
+      "web_size_px": 40,
+      "font_weight": "700 (Bold)",
+      "letter_spacing": "-0.015em"
+    },
+    "h3_card_title": {
+      "font_size_sp": 14,
+      "web_size_px": 28,
+      "font_weight": "600 (SemiBold)",
+      "letter_spacing": "normal"
+    },
+    "body_text": {
+      "font_size_sp": 12,
+      "web_size_px": 24,
+      "font_weight": "400 (Regular)",
+      "line_height": 1.45
+    },
+    "eyebrow_label": {
+      "font_size_sp": 10,
+      "web_size_px": 20,
+      "font_weight": "500 (Medium)",
+      "letter_spacing": "1.6sp",
+      "text_transform": "uppercase"
     }
   },
-  "sports_replays_hub": {
-    "grid_layout": {
-      "desktop_tv": "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-5 p-6",
-      "mobile_portrait": "grid-cols-2 gap-4 p-4",
-      "aspect_ratio": "aspect-[4/3] or aspect-square",
-      "performance_budget": "Android Canvas / Native Drawables & lightweight CSS. Zero heavy WebGL or unoptimized blur filters for low-end boxes."
-    },
-    "tile_design": {
-      "concept": "Atmospheric Faded Artwork Category Tiles",
-      "rules": [
-        "Consistent square/rectangle dimensions across all 18 categories",
-        "Neutral high-quality generic sport background imagery (no misrepresenting single team as entire sport)",
-        "Dark contrast gradient overlay ensuring 4.5:1 APCA readability for title and subtext",
-        "1px subtle perimeter border with sharp 8px rounded corners",
-        "High visibility D-Pad focus frame (2px cyan/amber outline + scale-105 transition) for TV navigation"
-      ],
-      "hover_focus_state": "transform scale-105 border-cyan-400 shadow-[0_0_20px_rgba(0,229,255,0.3)] duration-200 z-10"
-    },
-    "categories_18": [
-      { "id": "football", "name": "Football (Soccer)", "badge": "SOCCER", "icon": "soccer-ball", "image_url": "https://images.unsplash.com/photo-1522778119026-d647f0596c20?crop=entropy&cs=srgb&fm=jpg&q=85" },
-      { "id": "f1", "name": "Formula 1", "badge": "MOTORSPORT", "icon": "flag-checkered", "image_url": "https://images.unsplash.com/photo-1590227632180-80a3bf110871?crop=entropy&cs=srgb&fm=jpg&q=85" },
-      { "id": "motorsport", "name": "Motorsport", "badge": "RACING", "icon": "car-sport", "image_url": "https://images.unsplash.com/photo-1590227632180-80a3bf110871?crop=entropy&cs=srgb&fm=jpg&q=85" },
-      { "id": "golf", "name": "Golf", "badge": "PGA / LIV", "icon": "golf", "image_url": "https://images.unsplash.com/photo-1535131749006-b7f58c99034b?crop=entropy&cs=srgb&fm=jpg&q=85" },
-      { "id": "cricket", "name": "Cricket", "badge": "TEST / T20", "icon": "cricket-ball", "image_url": "https://images.unsplash.com/photo-1531415074968-036ba1b575da?crop=entropy&cs=srgb&fm=jpg&q=85" },
-      { "id": "tennis", "name": "Tennis", "badge": "GRAND SLAM", "icon": "tennis-ball", "image_url": "https://images.unsplash.com/photo-1595435934249-5df7ed86e1c0?crop=entropy&cs=srgb&fm=jpg&q=85" },
-      { "id": "rugby_union", "name": "Rugby Union", "badge": "UNION", "icon": "rugby-ball", "image_url": "https://images.unsplash.com/photo-1522778119026-d647f0596c20?crop=entropy&cs=srgb&fm=jpg&q=85" },
-      { "id": "rugby_league", "name": "Rugby League", "badge": "NRL / SUPER", "icon": "rugby-ball", "image_url": "https://images.unsplash.com/photo-1522778119026-d647f0596c20?crop=entropy&cs=srgb&fm=jpg&q=85" },
-      { "id": "afl", "name": "AFL", "badge": "FOOTY", "icon": "afl-ball", "image_url": "https://images.unsplash.com/photo-1522778119026-d647f0596c20?crop=entropy&cs=srgb&fm=jpg&q=85" },
-      { "id": "nfl", "name": "NFL", "badge": "AMERICAN FOOTBALL", "icon": "american-football", "image_url": "https://images.unsplash.com/photo-1566577739112-5180d4bf9390?crop=entropy&cs=srgb&fm=jpg&q=85" },
-      { "id": "basketball", "name": "Basketball", "badge": "NBA / NBL", "icon": "basketball", "image_url": "https://images.unsplash.com/photo-1504450758481-7338eba7524a?crop=entropy&cs=srgb&fm=jpg&q=85" },
-      { "id": "hockey", "name": "Hockey", "badge": "NHL / FIELD", "icon": "hockey-puck", "image_url": "https://images.unsplash.com/photo-1580748141549-71748dbe0bdc?crop=entropy&cs=srgb&fm=jpg&q=85" },
-      { "id": "baseball", "name": "Baseball", "badge": "MLB", "icon": "baseball", "image_url": "https://images.unsplash.com/photo-1508802511966-9d4000bc358b?crop=entropy&cs=srgb&fm=jpg&q=85" },
-      { "id": "combat", "name": "Combat Sports", "badge": "UFC / BOXING", "icon": "boxing-glove", "image_url": "https://images.unsplash.com/photo-1549719386-74dfcbf7dbed?crop=entropy&cs=srgb&fm=jpg&q=85" },
-      { "id": "cycling", "name": "Cycling", "badge": "TOUR / UCI", "icon": "bike", "image_url": "https://images.unsplash.com/photo-1485965120184-e220f721d03e?crop=entropy&cs=srgb&fm=jpg&q=85" },
-      { "id": "athletics", "name": "Athletics", "badge": "TRACK & FIELD", "icon": "runner", "image_url": "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?crop=entropy&cs=srgb&fm=jpg&q=85" },
-      { "id": "wwe", "name": "WWE & Pro Wrestling", "badge": "ENTERTAINMENT", "icon": "wrestling-ring", "image_url": "https://images.unsplash.com/photo-1549719386-74dfcbf7dbed?crop=entropy&cs=srgb&fm=jpg&q=85" },
-      { "id": "other", "name": "Other Sports", "badge": "REPLAYS HUB", "icon": "trophy", "image_url": "https://images.unsplash.com/photo-1489944440615-453fc2b6a9a9?crop=entropy&cs=srgb&fm=jpg&q=85" }
-    ]
+  "colors": {
+    "vesper_bg_0": "#06080F",
+    "vesper_bg_1": "#0A0E1A",
+    "vesper_bg_2": "#111827",
+    "vesper_surface": "#1A2238",
+    "vesper_surface_2": "#232C47",
+    "vesper_text_primary": "#F5F7FA",
+    "vesper_text_secondary": "#9BA8C2",
+    "vesper_text_muted": "#5B6580",
+    "vesper_blue_signal": "#5DC8FF",
+    "vesper_blue_bright": "#8DE0FF",
+    "vesper_blue_glow": "rgba(93, 200, 255, 0.55)",
+    "vesper_border_line": "rgba(255, 255, 255, 0.07)",
+    "error_red": "#FF8B7C"
   },
-  "replay_matches_view": {
-    "list_card_layout": "bg-slate-900/90 border border-slate-800 hover:border-cyan-500/50 rounded-xl p-4 transition-all duration-200 cursor-pointer",
-    "metadata_fields": [
-      "Sport Category",
-      "Date & Time Recorded",
-      "Home Team vs Away Team",
-      "Programme Name / Round",
-      "Broadcasting Channel Name",
-      "Duration & Quality Tag (1080p 60fps)"
-    ],
-    "playback_behavior": "Clicking any replay tile triggers immediate native recording playback (direct video player launch with back button control)."
-  },
-  "loading_and_feedback_states": {
-    "prominent_loading_band": {
-      "data_testid": "replays-loading-progress-band",
-      "description": "Large visible animated progress bar + status description spanning top section of screen during recording verification and match index fetch.",
-      "container_style": "w-full bg-slate-900 border-b border-cyan-500/30 p-4 flex flex-col items-center justify-center space-y-2",
-      "progress_bar": "w-full max-w-xl h-2 bg-slate-800 rounded-full overflow-hidden relative"
+  "visual_enhancers": {
+    "focus_ring": {
+      "style": "solid_cyan_outline",
+      "stroke_width_dp": 1.5,
+      "color": "#8DE0FF",
+      "outline_offset_dp": 2,
+      "scale_pop": 1.06,
+      "transition_ms": 120,
+      "easing": "ease-out"
     },
-    "partial_loading": "Progressive rendering showing available categories immediately while background streams fetch remaining recordings.",
-    "empty_state": {
-      "data_testid": "replays-empty-state",
-      "title": "No Replays Currently Available",
-      "subtitle": "Check back shortly after live broadcast completes or select another sport category."
+    "pill_focus": {
+      "scale_pop": 1.04,
+      "border_width_dp": 2,
+      "border_color": "#8DE0FF",
+      "shadow_glow": "0 0 22px 4px rgba(93, 200, 255, 0.55)"
     },
-    "error_state": {
-      "data_testid": "replays-error-state",
-      "title": "Unable to Load Replays",
-      "action_button": "Retry Fetch"
+    "scrim_gradients": {
+      "bottom_dock": "vertical gradient transparent -> rgba(2, 6, 16, 0.6) -> rgba(2, 6, 16, 0.92)",
+      "hero_bottom": "vertical gradient transparent -> #06080F"
     }
   },
-  "accessibility_and_testing": {
-    "rule": "Every interactive element must include explicit kebab-case data-testid attributes",
-    "data_testids": [
-      "top-nav-replays-button",
-      "sport-category-tile-football",
-      "sport-category-tile-f1",
-      "sport-category-tile-motorsport",
-      "sport-category-tile-golf",
-      "sport-category-tile-cricket",
-      "sport-category-tile-tennis",
-      "sport-category-tile-rugby_union",
-      "sport-category-tile-rugby_league",
-      "sport-category-tile-afl",
-      "sport-category-tile-nfl",
-      "sport-category-tile-basketball",
-      "sport-category-tile-hockey",
-      "sport-category-tile-baseball",
-      "sport-category-tile-combat",
-      "sport-category-tile-cycling",
-      "sport-category-tile-athletics",
-      "sport-category-tile-wwe",
-      "sport-category-tile-other",
-      "replay-match-card-item",
-      "replay-player-back-button",
-      "replays-loading-progress-band"
-    ]
+  "grids": {
+    "poster_2_3": {
+      "width_dp": 80,
+      "height_dp": 120,
+      "corner_radius_dp": 6,
+      "gap_dp": 12
+    },
+    "landscape_16_9": {
+      "width_dp": 128,
+      "height_dp": 72,
+      "corner_radius_dp": 6,
+      "gap_dp": 12
+    },
+    "genre_grid": {
+      "columns_native": 6,
+      "gap_dp": 16
+    }
+  },
+  "layouts": {
+    "top_nav": {
+      "height_dp": 36,
+      "padding_horizontal_dp": 24,
+      "item_gap_dp": 8,
+      "active_indicator": "cyan_glow_pill"
+    },
+    "hero_billboard": {
+      "height_dp": 210,
+      "left_inset_dp": 32,
+      "title_size_sp": 22,
+      "synopsis_max_lines": 3
+    },
+    "control_dock": {
+      "height_dp": 180,
+      "padding_horizontal_dp": 32,
+      "padding_bottom_dp": 32,
+      "play_pause_button_size_dp": 40,
+      "action_button_size_dp": 28
+    }
+  },
+  "motion": {
+    "dpad_focus_snap": "120ms ease-out scale pop-out",
+    "scrub_debounce_ms": 220,
+    "dock_autohide_delay_ms": 5000,
+    "reduced_motion_handling": "disable scale animations, preserve sharp cyan outline"
+  },
+  "accessibility": {
+    "min_contrast_ratio": "4.5:1",
+    "test_id_convention": "R.id.test_id / data-testid in kebab-case",
+    "touch_and_remote_hit_target_min_dp": 42
+  },
+  "media": {
+    "engine_support": ["mpv", "vlc", "exo", "exo_ffmpeg"],
+    "player_overlay": "Native PlayerOverlay Compose / Views layout above Media3 PlayerView",
+    "aspect_ratios": ["fit", "fill", "zoom", "stretch"]
+  },
+  "3d_libraries": {
+    "usage": "None (Pure 2D Native TV Performance Focus)"
+  },
+  "image_urls": {
+    "note": "Source of truth artwork is bundled in app resources and assets",
+    "bundled_assets_path": "/app/android/vesper-native/app/src/main/assets/",
+    "bundled_res_path": "/app/android/vesper-native/app/src/main/res/"
+  },
+  "component_path": {
+    "ui_primitives": "/app/android/vesper-native/app/src/main/java/tv/onnowtv/vespernative/ui/TvUi.kt",
+    "focus_motion": "/app/android/vesper-native/app/src/main/java/tv/onnowtv/vespernative/ui/FocusMotion.kt",
+    "player_overlay": "/app/android/vesper-tv/app/src/main/java/tv/vesper/app/PlayerOverlay.kt",
+    "home_screen": "/app/android/vesper-native/app/src/main/java/tv/onnowtv/vespernative/ui/HomeScreen.kt"
   },
   "instructions_to_main_agent": [
-    "Ensure 'REPLAYS' is prominently placed in the top menu header.",
-    "Render the 18 sport categories in a clean responsive grid of high-contrast tiles with atmospheric artwork backgrounds.",
-    "Ensure all 18 categories maintain visual parity while featuring sport-appropriate background photography.",
-    "Include a prominent loading band at the top during replay verification.",
-    "On category selection, list all channel recordings with date, team, programme, and channel details.",
-    "Clicking a match automatically launches replay stream with back navigation.",
-    "Maintain high performance for Android TV D-pad and portrait phone displays using native Canvas/CSS rendering."
+    "Strictly maintain pixel and geometry conversions (1dp = 2px at 1080p).",
+    "Ensure clipChildren=false and clipToPadding=false on all scroll/grid containers to prevent focus ring clipping.",
+    "Retain existing ExoPlayer/Media3 lifecycle and active audio/subtitle track detection without fake active controls.",
+    "Use R.id.test_id or data-testid on every interactive view for automated testing."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "Do not invent new aesthetic directions or gradients.",
+    "Do not add universal transition CSS or Kotlin animations that cause ghosting.",
+    "Ensure all focusable elements have high contrast focus outlines and accessible touch/remote hit targets."
   ]
 }

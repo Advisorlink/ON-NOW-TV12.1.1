@@ -1,0 +1,65 @@
+{
+  "date_utc": "2026-10-17",
+  "status": "PRIVATE_TEST_CHECKPOINT_VERIFIED_NOT_FULL_PARITY",
+  "version_name": "0.3.0-native-private",
+  "version_code": 7,
+  "application_id": "tv.onnowtv.vespernative",
+  "native_tests": {
+    "execution": "Forced fresh testDebugUnitTest --rerun; build dependencies reused",
+    "total": 100,
+    "passed": 99,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1,
+    "skip": "KeystoreSessionStoreRobolectricTest.save_read_clear_round_trip requires Android hardware Keystore",
+    "log": "continuation-tests.log"
+  },
+  "debug_assembly": "PASS",
+  "release_buildconfig": "PASS: prefill disabled; username and password empty",
+  "release_apk_built_this_continuation": false,
+  "private_download_checks": {
+    "total": 6,
+    "passed": 6,
+    "skipped": 0,
+    "report": "continuation-backend.xml",
+    "external_authenticated_bytes_equal_local_apk": true,
+    "missing_wrong_query_only_tokens_denied": true,
+    "browser_helper_smoke": "PASS at 1920x800 and 390x844; no overflow; anonymous download disabled",
+    "browser_capability_click_this_continuation": false,
+    "note": "Earlier v0.3.0 successful capability browser download is recorded in the supplied handoff; not re-claimed as a fresh browser click."
+  },
+  "artifact": {
+    "bytes": 25065413,
+    "sha256": "1d745109e4061bc6c3b82e219e0900f6db7d8f0943837b79f5783344c3a4e3cf",
+    "signer_sha256": "961ed894c510d57d4102bbca44354798413ecc23bf4dad1c8b6021eaf51738bc",
+    "v1_signature": true,
+    "v2_signature": true,
+    "zipalignment": "PASS",
+    "zip_crc": "PASS",
+    "distribution": "Existing private capability helper only; debug artifact contains approved test prefill"
+  },
+  "frontend_integrity": {
+    "baseline": "../vesper_native_parity/frontend-before.json",
+    "files_checked": 515,
+    "mismatches": [],
+    "lockfile_sha256": "f06393f95c76c21805f3a5757e43eff615959a84bcc2f638cc53235f5a580398",
+    "resolution": "Restored four missing existing dependency entries with registry-verified integrity and original Yarn ordering; exact original snapshot hash recovered, no dependency upgrades."
+  },
+  "original_wrapper_changed_against_saved_head": false,
+  "cloud_writes_enabled": false,
+  "credentials_accounts_pins_changed": false,
+  "runtime_mocked_apis": false,
+  "test_fixtures": "MOCKED network fixtures in native tests only",
+  "testing_agent_reference": "../iteration_123.json",
+  "testing_agent_modified_tests_reviewed": true,
+  "full_player_parity": "PENDING",
+  "full_parity": "INCOMPLETE",
+  "device_visual_gpu_codec_remote_keystore_acceptance": "PENDING",
+  "remaining": [
+    "Side-by-side real TV screenshots and rapid D-pad focus/glow/Back/exit checks",
+    "Actual initial-source autoplay and manual fallback with provider media",
+    "Original-player appearance, tracks, playback, decoder and lifecycle on the box",
+    "Full progressive source cascade, next episode, engines, external subtitles and remaining player settings",
+    "Remaining feature matrix; cloud must stay read-only until full migration acceptance"
+  ]
+}

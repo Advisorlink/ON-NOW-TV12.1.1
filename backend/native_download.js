@@ -19,7 +19,7 @@
       const url = URL.createObjectURL(await response.blob());
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'vesper-native-v0.2.1-private.apk';
+      link.download = /filename="([^"]+)"/.exec(response.headers.get('content-disposition') || '')?.[1] || 'vesper-native-private.apk';
       link.setAttribute('data-testid', 'download-artifact-link');
       document.body.appendChild(link);
       link.click();

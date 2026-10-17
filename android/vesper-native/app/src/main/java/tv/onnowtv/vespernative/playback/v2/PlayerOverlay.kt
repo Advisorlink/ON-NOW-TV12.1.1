@@ -1,0 +1,2216 @@
+// Generated from original V2 native UI by scripts/sync-player-reference.py.
+package tv.onnowtv.vespernative.playback.v2
+
+import tv.onnowtv.vespernative.BuildConfig
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.ClosedCaption
+import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.AspectRatio
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Subtitles
+import androidx.compose.material3.CircularProgressIndicator
+import tv.onnowtv.vespernative.playback.v2.TaggedIcon as Icon
+import tv.onnowtv.vespernative.playback.v2.TaggedText as Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
+import tv.onnowtv.vespernative.playback.v2.TaggedImage as AsyncImage
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Palette
+// ─────────────────────────────────────────────────────────────────────────────
+private val NavyBg      = Color(0xFF06080F)
+private val NavyDeep    = Color(0xFF020610)
+private val CyanPrimary = Color(0xFF5DC8FF)
+private val TextPrim    = Color(0xFFFFFFFF)
+private val TextSub     = Color(0xCCC7CFDB)
+private val TextMuted   = Color(0xFFA8B5C7)
+
+data class PlayerInfo(
+    val title: String,
+    val synopsis: String,
+    val year: String,
+    val runtime: String,
+    val rating: String,
+    val backdrop: String,
+    val addonSource: String,
+    val quality: String,
+    val isEnglish: Boolean,
+    val sizeGb: Float,
+    val poster: String = "",
+)
+
+data class TrackOption(val id: String, val label: String, val selected: Boolean)
+data class StreamOption(
+    val idx: Int,
+    val label: String,
+    val selected: Boolean,
+    val addonSource: String = "",
+    val quality: String = "",
+    val pmCached: Boolean = false,
+    val isEnglish: Boolean = false,
+    // v2.13.8 — file size ("1.4 GB") + seeder count chips.
+    val sizeChip: String = "",
+    val seeds: Int = 0,
+)
+
+/**
+ * Root overlay rendered ABOVE ExoPlayer's PlayerView.
+ *
+ * v2.7.44 changes:
+ *   • Status pill border removed (plain cyan text).
+ *   • Loading dots animate at 2.4 s/cycle (was 1.2 s).
+ *   • Mid-playback rebuffering shows a small spinner, NOT the full
+ *     loading splash (tracked via `hasEverPlayed`).
+ *   • All dock buttons are focusable + D-pad-navigable.
+ *   • Audio / Subtitle / Stream picker sheets wired to callbacks.
+ */
+@Composable
+fun PlayerOverlay(
+    // v2.10.40 — `info` is now a reactive StateFlow so mid-playback
+    // episode swaps (skip-next-episode) propagate to the dock title.
+    // Previously this was a one-shot snapshot — the title stayed
+    // stuck at S1E5 even after the activity had swapped to S1E6,
+    // making the user think the swap had "replayed the same episode".
+    infoFlow: StateFlow<PlayerInfo>,
+    // v2.10.40 — Forces the full LoadingScreen (not the tiny corner
+    // spinner) during an in-place episode swap, regardless of
+    // `hasEverPlayed`.
+    isSwappingEpisode: StateFlow<Boolean> = MutableStateFlow(false).asStateFlow(),
+    isPlaying: StateFlow<Boolean>,
+    positionMs: StateFlow<Long>,
+    durationMs: StateFlow<Long>,
+    bufferedPercent: StateFlow<Int>,
+    bufferAheadMs: StateFlow<Long>,
+    bitrateKbps: StateFlow<Long>,
+    isLoading: StateFlow<Boolean>,
+    errorMessage: StateFlow<String?>,
+    audioTracks: StateFlow<List<TrackOption>>,
+    subtitleTracks: StateFlow<List<TrackOption>>,
+    streams: StateFlow<List<StreamOption>>,
+    userActivity: StateFlow<Long>,
+    // v2.7.60 — Native Watch Together voice dock.  Null when not in a
+    // party (or when party_code wasn't supplied via intent extras).
+    // v2.7.73 — Watch Together left-side host menu (slide-in drawer
+    // toggled by the MENU button on the remote).  Owner of this flag
+    // is ExoPlayerActivity; PlayerOverlay reads it and renders the
+    // drawer accordingly.
+    onPlayPause: () -> Unit,
+    onSeekBy: (Long) -> Unit,
+    onSeekTo: (Long) -> Unit,
+    onPickAudio: (String) -> Unit,
+    onPickSubtitle: (String) -> Unit,
+    onPickStream: (Int) -> Unit,
+    // v1.1.0 — BACK-to-hide-controls bridge.  `hideControlsSignal`
+    // bumps when the user hits BACK while the dock is showing;
+    // `onControlsVisibilityChanged` reports dock visibility back so
+    // the Activity knows whether BACK should hide or exit.
+    hideControlsSignal: StateFlow<Long> = MutableStateFlow(0L).asStateFlow(),
+    onControlsVisibilityChanged: (Boolean) -> Unit = {},
+    // v2.10.24 — Skip-Next-Episode dock button (TV shows only).
+    // `hasNextEpisode` flips true ~60s before the credits when we
+    // know there IS a next episode to jump to.  `onNextEpisode`
+    // saves the intent + finishes the activity; MainActivity then
+    // either auto-plays the next ep or opens its episode picker.
+    hasNextEpisode: StateFlow<Boolean> = MutableStateFlow(false).asStateFlow(),
+    nextEpisodeThumbnailUrl: StateFlow<String> = MutableStateFlow("").asStateFlow(),
+    logoUrl: StateFlow<String> = MutableStateFlow("").asStateFlow(),
+    onNextEpisode: () -> Unit = {},
+    // v2.16.42 — In-player engine picker (settings-cog top-right).
+    // `currentEngineToken` matches PlayerEngine.token ("mpv" | "vlc" |
+    // "exo" | "exo_ffmpeg"); onPickEngine persists the choice and
+    // relaunches the activity on the new engine with the same
+    // playback position.
+    currentEngineToken: String = "mpv",
+    onPickEngine: (String) -> Unit = {},
+    // v2.16.48 — In-player aspect-ratio cog (top-right).  Callback
+    // gets one of "fit", "fill", "zoom", "stretch"; hosting activity
+    // applies it to the active engine's video surface.
+    currentAspect: String = "fit",
+    onPickAspect: (String) -> Unit = {},
+    onClose: () -> Unit,
+) {
+    // v2.10.40 — Reactive PlayerInfo so the title / poster / logo
+    // update when the in-place episode swap mutates the underlying
+    // state in ExoPlayerActivity.
+    val info by collectAsStateSafe(
+        infoFlow,
+        PlayerInfo(
+            title = "", synopsis = "", year = "", runtime = "", rating = "",
+            backdrop = "", addonSource = "", quality = "", isEnglish = false,
+            sizeGb = 0f, poster = "",
+        )
+    )
+    val swappingEpisode by collectAsStateSafe(isSwappingEpisode, false)
+    val playing by collectAsStateSafe(isPlaying, false)
+    val pos by collectAsStateSafe(positionMs, 0L)
+    val dur by collectAsStateSafe(durationMs, 0L)
+    val bufAhead by collectAsStateSafe(bufferAheadMs, 0L)
+    // v2.10.80 — Surface buffer-percent + bitrate for the Info sheet
+    // (buffering diagnostics shown when the user taps the new (i)
+    // button in the LEFT dock cluster).
+    val bufferedPercentValue by collectAsStateSafe(bufferedPercent, 0)
+    val bitrate by collectAsStateSafe(bitrateKbps, 0L)
+    val loading by collectAsStateSafe(isLoading, true)
+    val error by collectAsStateSafe(errorMessage, null)
+    val audios by collectAsStateSafe(audioTracks, emptyList())
+    val subs by collectAsStateSafe(subtitleTracks, emptyList())
+    val streamList by collectAsStateSafe(streams, emptyList())
+    val hasNext by collectAsStateSafe(hasNextEpisode, false)
+    val nextEpThumb by collectAsStateSafe(nextEpisodeThumbnailUrl, "")
+    val logoUrlValue by collectAsStateSafe(logoUrl, "")
+    // v2.7.54 — Activity dispatchKeyEvent pumps every D-pad press
+    // here, so the dock auto-hide timer always sees fresh activity.
+    val userActivityTs by collectAsStateSafe(userActivity, System.currentTimeMillis())
+
+    // Track whether we've EVER seen playback running.  Used to switch
+    // mid-playback rebuffer from "full loading screen" → "small spinner".
+    var hasEverPlayed by remember { mutableStateOf(false) }
+    LaunchedEffect(playing, loading) { if (playing || !loading) hasEverPlayed = true }
+
+    // v2.10.40 — `swappingEpisode` overrides the hasEverPlayed gate
+    // so the full LoadingScreen (with episode title + show logo)
+    // re-appears for the duration of the next-episode swap.  This
+    // is the unmissable visual confirmation the user demanded — no
+    // more "tiny corner spinner with the OLD frozen frame" UX that
+    // looked like the same episode was being replayed.
+    val showFullLoader = swappingEpisode || (loading && !hasEverPlayed)
+    val showRebufferSpinner = loading && hasEverPlayed && !swappingEpisode
+
+    // Auto-hide the bottom dock after 5 s without user activity.
+    // v2.7.54 — Driven by userActivityTs (pumped by
+    // Activity.dispatchKeyEvent on every key press) so the dock
+    // re-appears even after auto-hide.
+    var dockVisible by remember { mutableStateOf(true) }
+    var lastActivity by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(userActivityTs) {
+        lastActivity = userActivityTs
+        dockVisible = true
+    }
+    LaunchedEffect(lastActivity, hasEverPlayed, dockVisible) {
+        if (dockVisible) {
+            val timeout = if (!hasEverPlayed) 10_000L else 5_000L
+            delay(timeout)
+            if (System.currentTimeMillis() - lastActivity >= timeout) dockVisible = false
+        }
+    }
+    val bump: () -> Unit = { lastActivity = System.currentTimeMillis(); dockVisible = true }
+
+    // Track picker sheet state
+    var sheet by remember { mutableStateOf<SheetKind>(SheetKind.None) }
+
+    // v1.1.0 — report dock visibility to the Activity + let BACK hide
+    // the dock instantly (a second BACK then exits the player).
+    LaunchedEffect(dockVisible) { onControlsVisibilityChanged(dockVisible) }
+    val hideCtrlTs by collectAsStateSafe(hideControlsSignal, 0L)
+    LaunchedEffect(hideCtrlTs) {
+        if (hideCtrlTs > 0L) { dockVisible = false; sheet = SheetKind.None }
+    }
+
+    Box(modifier = Modifier
+        .fillMaxSize()
+        .onKeyEvent { ev ->
+            // v2.7.51 — Any remote key press re-shows the dock so
+            // the user can navigate again after auto-hide.  We only
+            // intercept on KeyDown to avoid bumping twice per press.
+            // Returning false lets the press continue to focused
+            // children (DockButton handles its own onKeyEvent).
+            if (ev.type == KeyEventType.KeyDown) {
+                bump()
+            }
+            false
+        }
+        // v2.20 — Mouse / touch: tap the video to reveal the dock,
+        // tap again (with no sheet open) to hide it.  Taps on the
+        // dock's own buttons/scrub bar are consumed by them first.
+        .nativeGestureTag().pointerInput(Unit) {
+            detectTapGestures {
+                if (dockVisible && sheet == SheetKind.None) {
+                    dockVisible = false
+                } else {
+                    bump()
+                }
+            }
+        }
+    ) {
+        // ── Full loading screen (first play only) ──────────────────
+        AnimatedVisibility(
+            visible = showFullLoader,
+            enter = fadeIn(tween(200)),
+            exit  = fadeOut(tween(400)),
+        ) { LoadingScreen(info, error, logoUrlValue) }
+
+        // ── Mid-playback rebuffer: tiny corner spinner ─────────────
+        AnimatedVisibility(
+            visible = showRebufferSpinner,
+            enter = fadeIn(tween(200)),
+            exit = fadeOut(tween(200)),
+            modifier = Modifier.align(Alignment.TopStart),
+        ) {
+            RebufferSpinner(
+                modifier = Modifier.padding(top = 28.dp, start = 36.dp),
+            )
+        }
+
+        // ── Top status pill removed (USER SPEC) — the "BUF · ExoPlayer"
+        // badge that used to sit top-right is gone completely.
+
+        // ── Bottom control dock (auto-hide) ────────────────────────
+        // v2.7.73 — In party mode the bottom dock is entirely
+        // suppressed; the new left-side PartyHostDrawer replaces it.
+        // Solo playback keeps the original auto-hide behaviour.
+        val inParty = false // Native solo build; no party transport is fabricated.
+        AnimatedVisibility(
+            visible  = !inParty && !showFullLoader && dockVisible && sheet == SheetKind.None,
+            enter    = fadeIn(tween(220)),
+            exit     = fadeOut(tween(280)),
+            modifier = Modifier.align(Alignment.BottomCenter),
+        ) {
+            ControlDock(
+                info        = info,
+                isPlaying   = playing,
+                positionMs  = pos,
+                durationMs  = dur,
+                bufferedMs  = pos + bufAhead,
+                hasAudio    = audios.size > 1,
+                hasSubs     = subs.isNotEmpty(),
+                hasStreams  = streamList.isNotEmpty(),
+                streamCount = streamList.size,
+                hasNextEp   = hasNext,
+                nextEpThumbnailUrl = nextEpThumb,
+                logoUrl     = logoUrlValue,
+                onPlayPause = { bump(); onPlayPause() },
+                onSeekBy    = { dt -> bump(); onSeekBy(dt) },
+                onSeekTo    = { p -> bump(); onSeekTo(p) },
+                onPickAudio = { bump(); sheet = SheetKind.Audio },
+                onPickSubs  = { bump(); sheet = SheetKind.Subs },
+                onPickStream= { bump(); sheet = SheetKind.Stream },
+                onPickInfo  = { bump(); sheet = SheetKind.Info },
+                onNextEp    = { bump(); onNextEpisode() },
+                onClose     = { bump(); onClose() },
+            )
+        }
+
+        // ── Picker sheet (Audio / Subs / Stream / Info) ───────────
+        AnimatedVisibility(
+            visible = sheet != SheetKind.None,
+            enter = fadeIn(tween(200)),
+            exit = fadeOut(tween(200)),
+        ) {
+            when (sheet) {
+                SheetKind.Audio -> TrackPickerSheet(
+                    title = "Audio track",
+                    options = audios,
+                    onPick = { id ->
+                        onPickAudio(id)
+                        sheet = SheetKind.None
+                        bump()
+                    },
+                    onDismiss = { sheet = SheetKind.None; bump() },
+                )
+                SheetKind.Subs -> TrackPickerSheet(
+                    title = "Subtitles",
+                    options = if (subs.any { it.id == "off" }) subs
+                              else listOf(TrackOption("off", "Off", subs.none { it.selected })) + subs,
+                    onPick = { id ->
+                        if (id == "off") {
+                            // Ask whether to disable permanently or once.
+                            sheet = SheetKind.SubsOff
+                            bump()
+                        } else {
+                            onPickSubtitle(id)
+                            sheet = SheetKind.None
+                            bump()
+                        }
+                    },
+                    onDismiss = { sheet = SheetKind.None; bump() },
+                )
+                SheetKind.SubsOff -> TrackPickerSheet(
+                    title = "Turn subtitles off",
+                    options = listOf(
+                        TrackOption("off_permanent", "Turn off permanently", false),
+                        TrackOption("off", "Just this once", false),
+                    ),
+                    onPick = { id ->
+                        onPickSubtitle(id)
+                        sheet = SheetKind.None
+                        bump()
+                    },
+                    onDismiss = { sheet = SheetKind.Subs; bump() },
+                )
+                SheetKind.Stream -> StreamPickerSheet(
+                    streams = streamList,
+                    onPick = { idx ->
+                        onPickStream(idx)
+                        sheet = SheetKind.None
+                        bump()
+                    },
+                    onDismiss = { sheet = SheetKind.None; bump() },
+                )
+                SheetKind.Info -> BufferingInfoSheet(
+                    bufferAheadMs = bufAhead,
+                    bufferedPercent = bufferedPercentValue,
+                    bitrateKbps = bitrate,
+                    engineToken = currentEngineToken,
+                    currentStream = streamList.firstOrNull { it.selected },
+                    info = info,
+                    canSwap = streamList.size > 1,
+                    onSwapStream = { sheet = SheetKind.Stream; bump() },
+                    onDismiss = { sheet = SheetKind.None; bump() },
+                )
+                SheetKind.Engine -> EnginePickerSheet(
+                    currentToken = currentEngineToken,
+                    onPick = { tok ->
+                        sheet = SheetKind.None
+                        bump()
+                        onPickEngine(tok)
+                    },
+                    onDismiss = { sheet = SheetKind.None; bump() },
+                )
+                SheetKind.Aspect -> AspectPickerSheet(
+                    currentToken = currentAspect,
+                    onPick = { tok ->
+                        sheet = SheetKind.None
+                        bump()
+                        onPickAspect(tok)
+                    },
+                    onDismiss = { sheet = SheetKind.None; bump() },
+                )
+                SheetKind.None -> Unit
+            }
+        }
+
+        // v2.16.42 — Settings cog (top-LEFT, per operator request).
+        // Rides in/out with the rest of the overlay (`dockVisible`),
+        // stays focus-reachable from the dock via D-pad UP.
+        AnimatedVisibility(
+            visible  = !inParty && !showFullLoader && dockVisible && sheet == SheetKind.None,
+            enter    = fadeIn(tween(220)),
+            exit     = fadeOut(tween(280)),
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(top = 40.dp, start = 48.dp)
+                .zIndex(3f),
+        ) {
+            val cogFocus = remember { FocusRequester() }
+            Box(
+                modifier = Modifier
+                    .size(58.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xEE020610))
+                    .border(1.5.dp, Color(0x66FFFFFF), CircleShape)
+                    .focusRequester(cogFocus)
+                    .nativeFocusTag().focusable()
+                    .onFocusChanged { if (it.isFocused) bump() }
+                    .nativeClickTag().clickable {
+                        bump()
+                        sheet = SheetKind.Engine
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Settings,
+                    contentDescription = "Player settings",
+                    tint = Color(0xFFE8F3FF),
+                    modifier = Modifier.size(30.dp),
+                )
+            }
+        }
+
+        // v2.16.48 — Aspect-ratio cog (top-RIGHT), mirrors the
+        // settings cog top-left.  Same visibility gate, cycles the
+        // active engine's video-surface aspect between Fit / Fill /
+        // Zoom / Stretch through the AspectPickerSheet.
+        AnimatedVisibility(
+            visible  = !inParty && !showFullLoader && dockVisible && sheet == SheetKind.None,
+            enter    = fadeIn(tween(220)),
+            exit     = fadeOut(tween(280)),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 40.dp, end = 48.dp)
+                .zIndex(3f),
+        ) {
+            val aspectFocus = remember { FocusRequester() }
+            Box(
+                modifier = Modifier
+                    .size(58.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xEE020610))
+                    .border(1.5.dp, Color(0x66FFFFFF), CircleShape)
+                    .focusRequester(aspectFocus)
+                    .nativeFocusTag().focusable()
+                    .onFocusChanged { if (it.isFocused) bump() }
+                    .nativeClickTag().clickable {
+                        bump()
+                        sheet = SheetKind.Aspect
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.AspectRatio,
+                    contentDescription = "Aspect ratio",
+                    tint = Color(0xFFE8F3FF),
+                    modifier = Modifier.size(30.dp),
+                )
+            }
+        }
+
+        // v2.7.60 — Watch Together voice dock + voice bubbles overlay.
+        // Renders only when partyVoice != null (i.e. an active party).
+
+    }
+}
+
+private enum class SheetKind { None, Audio, Subs, SubsOff, Stream, Info, Engine, Aspect }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Full loading screen (first play only)
+// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun LoadingScreen(info: PlayerInfo, error: String?, logoUrl: String = "") {
+    Box(modifier = Modifier.fillMaxSize().background(NavyBg)) {
+        // v2.13.16 — build stamp so we can verify ON THE BOX which APK
+        // is actually installed when debugging playback issues.
+        Text(
+            text = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+            color = Color.White.copy(alpha = 0.35f),
+            fontSize = 12.sp,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp)
+                .zIndex(4f),
+        )
+        if (info.backdrop.isNotBlank()) {
+            AsyncImage(
+                model = info.backdrop,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().alpha(0.55f),
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(Color.Transparent, NavyBg),
+                        radius = 1600f,
+                    ),
+                ),
+        )
+
+        Row(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(horizontal = 80.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (info.poster.isNotBlank() || info.backdrop.isNotBlank()) {
+                AsyncImage(
+                    model = info.poster.ifBlank { info.backdrop },
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .width(220.dp)
+                        .height(330.dp)
+                        .shadow(24.dp, RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFF101723)),
+                )
+                Spacer(Modifier.width(48.dp))
+            }
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // v2.10.37 — TMDB title logo above the hero text on
+                // the loading screen — matches what the in-dock
+                // overlay does so the user sees the same wordmark
+                // on both screens.  Renders only when the logo
+                // fetch succeeded; until then the giant 44 sp
+                // "Michael" / "Breaking Bad" text below carries
+                // the load.
+                if (logoUrl.isNotBlank()) {
+                    AsyncImage(
+                        model = logoUrl,
+                        contentDescription = info.title,
+                        contentScale = ContentScale.Fit,
+                        alignment = Alignment.CenterStart,
+                        modifier = Modifier
+                            .heightIn(min = 80.dp, max = 120.dp)
+                            .widthIn(max = 480.dp),
+                    )
+                    Spacer(Modifier.height(20.dp))
+                }
+                Text(
+                    text = "NOW PLAYING · ON NOW TV V2",
+                    color = CyanPrimary,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = 2.6.sp,
+                )
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    text = info.title.ifBlank { "Loading…" },
+                    color = TextPrim,
+                    fontSize = 44.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(14.dp))
+                val metaParts = buildList {
+                    if (info.year.isNotBlank()) add(info.year)
+                    if (info.runtime.isNotBlank()) add(info.runtime)
+                    if (info.rating.isNotBlank()) add(info.rating)
+                    add(info.quality)
+                    if (info.isEnglish) add("🇬🇧 ENG")
+                }
+                Text(
+                    text = metaParts.joinToString("  ·  "),
+                    color = TextMuted,
+                    fontSize = 15.sp,
+                    maxLines = 1,
+                )
+                if (info.synopsis.isNotBlank()) {
+                    Spacer(Modifier.height(18.dp))
+                    Text(
+                        text = info.synopsis,
+                        color = TextSub,
+                        fontSize = 15.sp,
+                        lineHeight = 22.sp,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(Modifier.height(28.dp))
+                StatusLabel(error)
+                Spacer(Modifier.height(14.dp))
+                LoadingDots()
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(2.dp)
+                .background(CyanPrimary),
+        )
+    }
+}
+
+@Composable
+private fun StatusLabel(error: String?) {
+    // v2.7.44 — border + background removed per user request.  Just text.
+    val text = if (error.isNullOrBlank()) {
+        "ON NOW TV V2 is loading your program"
+    } else {
+        "Could not start: $error"
+    }
+    Text(
+        text = text,
+        color = if (error.isNullOrBlank()) CyanPrimary else Color(0xFFFF8B7C),
+        fontSize = 13.sp,
+        fontFamily = FontFamily.Monospace,
+        letterSpacing = 1.6.sp,
+    )
+}
+
+@Composable
+private fun LoadingDots() {
+    // v2.7.44 — slower (2.4 s / cycle) per user request.
+    val infinite = rememberInfiniteTransition(label = "dots")
+    val phase by infinite.animateFloat(
+        initialValue = 0f, targetValue = 3f,
+        animationSpec = infiniteRepeatable(
+            tween(2400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "phase",
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        for (i in 0..2) {
+            val active = (phase.toInt() % 3) == i
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(if (active) CyanPrimary else Color(0x335DC8FF)),
+            )
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mid-playback rebuffer spinner (NO full overlay)
+// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun RebufferSpinner(modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .background(Color(0xCC020610), RoundedCornerShape(20.dp))
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CircularProgressIndicator(
+            color = CyanPrimary,
+            strokeWidth = 2.5.dp,
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = "Buffering",
+            color = TextSub,
+            fontSize = 13.sp,
+            fontFamily = FontFamily.Monospace,
+            letterSpacing = 1.2.sp,
+        )
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C01 — Classic Bottom Dock (D-pad navigable)
+// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun ControlDock(
+    info: PlayerInfo,
+    isPlaying: Boolean,
+    positionMs: Long,
+    durationMs: Long,
+    bufferedMs: Long,
+    hasAudio: Boolean,
+    hasSubs: Boolean,
+    hasStreams: Boolean,
+    streamCount: Int = 0,
+    hasNextEp: Boolean = false,
+    nextEpThumbnailUrl: String = "",
+    logoUrl: String = "",
+    onPlayPause: () -> Unit,
+    onSeekBy: (Long) -> Unit,
+    onSeekTo: (Long) -> Unit = {},
+    onPickAudio: () -> Unit,
+    onPickSubs: () -> Unit,
+    onPickStream: () -> Unit,
+    // v2.10.80 — Buffering Info sheet (left-dock, after Stream).
+    onPickInfo: () -> Unit = {},
+    onNextEp: () -> Unit = {},
+    onClose: () -> Unit,
+) {
+    // Default focus → Play/Pause (center button) so D-pad center
+    // immediately toggles playback when the dock appears.
+    val playFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        try { playFocus.requestFocus() } catch (_: Exception) {}
+    }
+
+    // v2.10.34 — Scrub debounce.
+    //
+    // The old "left/right press = immediate player.seekTo" loop made
+    // every rapid scrub feel sluggish: each press triggered a buffer
+    // flush + re-buffer, so 5 quick lefts cost ~5×~400 ms (≈ 2 s) of
+    // visible stalling.  The user complaint was "it's taking too
+    // long for it to re-pick where it's up to."
+    //
+    // New flow: while the user is holding/repeating LEFT or RIGHT on
+    // the scrub bar, we mutate a local `pendingScrubMs` long.  The
+    // playback bar paints from this pending value, so the user sees
+    // instant visual feedback.  220 ms after the LAST keypress the
+    // LaunchedEffect coroutine commits a SINGLE `onSeekTo(pending)`
+    // call — one buffer flush, one re-buffer, regardless of how
+    // many times the user pressed the key.
+    //
+    // v2.10.45 — Idle window tightened 500 → 220 ms.  User feedback:
+    // "scrubbing isn't working as quick as it used to" — half a
+    // second of dead air between releasing the key and the seek
+    // firing read as lag.  220 ms still batches a held-key burst
+    // (auto-repeat fires every ~50-100 ms) but commits almost
+    // immediately after the user lets go.
+    var pendingScrubMs by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(pendingScrubMs) {
+        val target = pendingScrubMs ?: return@LaunchedEffect
+        // Idle window — bumped by every fresh keypress because each
+        // press re-fires this LaunchedEffect via the changed state.
+        delay(220)
+        onSeekTo(target)
+        pendingScrubMs = null
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(360.dp)
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color.Transparent,
+                        Color(0x99020610),
+                        Color(0xEB020610),
+                    ),
+                ),
+            ),
+    ) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                // v2.10.37 — Bumped bottom padding from 40 → 64 dp so
+                // the dock buttons clear projector / TV overscan
+                // safe-zones.  User reported the pause button "getting
+                // cut off a little bit at the bottom" — happens on
+                // sets where the bottom 3-4 % of the screen is
+                // physically masked.
+                .padding(start = 64.dp, end = 64.dp, top = 40.dp, bottom = 64.dp),
+        ) {
+            // v2.10.35 — TMDB title logo above the heading.  Surface
+            // it ONLY when the network resolution succeeded; until
+            // then (typical first-launch cold cache is ~400 ms) we
+            // just show the heading text so the user never sees an
+            // empty placeholder.  Once loaded the logo fades in via
+            // Coil's default crossfade.  Capped at 320×80 dp so even
+            // wide wordmarks (like Star Wars or Game of Thrones)
+            // don't dominate the dock or push the scrub bar down.
+            if (logoUrl.isNotBlank()) {
+                AsyncImage(
+                    model = logoUrl,
+                    contentDescription = info.title,
+                    contentScale = ContentScale.Fit,
+                    alignment = Alignment.CenterStart,
+                    modifier = Modifier
+                        .heightIn(min = 56.dp, max = 80.dp)
+                        .widthIn(max = 360.dp),
+                )
+                Spacer(Modifier.height(10.dp))
+            }
+            // v2.10.35 — Heading bumped from 22 sp / SemiBold to
+            // 30 sp / ExtraBold so it actually reads like a heading
+            // when the user invokes the dock — old size looked
+            // identical to the body line below.  Letter-spacing
+            // tightened slightly so the wider weight stays elegant.
+            Text(
+                text = info.title,
+                color = TextPrim,
+                fontSize = 30.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = (-0.5).sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(6.dp))
+            val metaLine = buildList {
+                if (info.year.isNotBlank()) add(info.year)
+                if (info.runtime.isNotBlank()) add(info.runtime)
+                if (info.rating.isNotBlank()) add(info.rating)
+                add(info.quality)
+                if (info.isEnglish) add("ENG")
+                if (info.sizeGb > 0.5f) add("%.1f GB".format(info.sizeGb))
+            }.joinToString("  ·  ")
+            Text(
+                text = metaLine,
+                color = TextMuted,
+                fontSize = 13.sp,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = 1.1.sp,
+            )
+
+            Spacer(Modifier.height(22.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    // v2.10.34 — Reflect the pending scrub target
+                    // here too so the timecode jumps in lock-step
+                    // with the playhead the user is dragging.
+                    text = formatMs(pendingScrubMs ?: positionMs),
+                    color = if (pendingScrubMs != null) Color(0xFFFFC350) else CyanPrimary,
+                    fontSize = 16.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.2.sp,
+                    modifier = Modifier.width(96.dp),
+                )
+                // v2.20 — Scrub bar: swells + shows a big glowing
+                // playhead thumb when focused (D-pad UP from the dock)
+                // so the user can SEE they're now controlling the bar.
+                // Mouse / touch: tap anywhere to seek there, drag to
+                // scrub.
+                var barFocused by remember { mutableStateOf(false) }
+                var barWidthPx by remember { mutableStateOf(1) }
+                val trackH by animateDpAsState(if (barFocused) 14.dp else 8.dp, label = "trackH")
+                val thumbD by animateDpAsState(if (barFocused) 26.dp else 12.dp, label = "thumbD")
+                val seekToFrac: (Float) -> Unit = { frac ->
+                    val target = (frac.coerceIn(0f, 1f) * durationMs.coerceAtLeast(1L)).toLong()
+                    pendingScrubMs = null
+                    onSeekTo(target)
+                }
+                Box(
+                    contentAlignment = Alignment.CenterStart,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 18.dp)
+                        .height(30.dp)
+                        .onSizeChanged { barWidthPx = it.width.coerceAtLeast(1) }
+                        .onFocusChanged { barFocused = it.isFocused }
+                        .nativeFocusTag().focusable()
+                        .nativeGestureTag().pointerInput(durationMs) {
+                            detectTapGestures { off -> seekToFrac(off.x / size.width.toFloat()) }
+                        }
+                        .nativeGestureTag().pointerInput(durationMs) {
+                            var frac = 0f
+                            detectHorizontalDragGestures(
+                                onDragStart = { off ->
+                                    frac = off.x / size.width.toFloat()
+                                    pendingScrubMs = (frac.coerceIn(0f, 1f) * durationMs).toLong()
+                                },
+                                onHorizontalDrag = { change, _ ->
+                                    frac = change.position.x / size.width.toFloat()
+                                    pendingScrubMs = (frac.coerceIn(0f, 1f) * durationMs).toLong()
+                                },
+                                onDragEnd = { seekToFrac(frac) },
+                                onDragCancel = { pendingScrubMs = null },
+                            )
+                        }
+                        .onKeyEvent { ev ->
+                            if (ev.type != KeyEventType.KeyDown) return@onKeyEvent false
+                            when (ev.key) {
+                                Key.DirectionLeft -> {
+                                    val cur = pendingScrubMs ?: positionMs
+                                    pendingScrubMs = (cur - 10_000L).coerceIn(0L, durationMs)
+                                    true
+                                }
+                                Key.DirectionRight -> {
+                                    val cur = pendingScrubMs ?: positionMs
+                                    pendingScrubMs = (cur + 10_000L).coerceIn(0L, durationMs)
+                                    true
+                                }
+                                Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> {
+                                    pendingScrubMs?.let {
+                                        onSeekTo(it)
+                                        pendingScrubMs = null
+                                    }
+                                    onPlayPause(); true
+                                }
+                                else -> false
+                            }
+                        },
+                ) {
+                    val total = (durationMs.coerceAtLeast(1L)).toFloat()
+                    val bufFrac =
+                        (bufferedMs.coerceAtLeast(0L).toFloat() / total).coerceIn(0f, 1f)
+                    val displayPos = pendingScrubMs ?: positionMs
+                    val playFrac =
+                        (displayPos.coerceAtLeast(0L).toFloat() / total).coerceIn(0f, 1f)
+                    // Track
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(trackH)
+                            .clip(RoundedCornerShape(7.dp))
+                            .background(if (barFocused) Color(0x55FFFFFF) else Color(0x33FFFFFF))
+                            .then(
+                                if (barFocused) Modifier.border(1.dp, Color(0xCC5DC8FF), RoundedCornerShape(7.dp))
+                                else Modifier
+                            ),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(bufFrac)
+                                .background(Color(0x665DC8FF)),
+                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(playFrac)
+                                .background(if (pendingScrubMs != null) Color(0xFFFFC350) else CyanPrimary),
+                        )
+                    }
+                    // Playhead thumb — big + glowing while focused.
+                    val thumbPx = with(LocalDensity.current) { thumbD.roundToPx() }
+                    val thumbX = ((playFrac * barWidthPx).toInt() - thumbPx / 2)
+                        .coerceIn(0, (barWidthPx - thumbPx).coerceAtLeast(0))
+                    Box(
+                        modifier = Modifier
+                            .offset { IntOffset(thumbX, 0) }
+                            .size(thumbD)
+                            .then(if (barFocused) Modifier.shadow(12.dp, CircleShape, ambientColor = CyanPrimary, spotColor = CyanPrimary) else Modifier)
+                            .clip(CircleShape)
+                            .background(if (pendingScrubMs != null) Color(0xFFFFC350) else Color.White)
+                            .then(if (barFocused) Modifier.border(3.dp, CyanPrimary, CircleShape) else Modifier),
+                    )
+                }
+                Text(
+                    text = formatMs(durationMs),
+                    color = Color(0xFF94A3B8),
+                    fontSize = 16.sp,
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = 1.2.sp,
+                    modifier = Modifier.width(96.dp),
+                )
+            }
+
+            Spacer(Modifier.height(26.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                // LEFT cluster: Audio / Subs / Stream picker / Info
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    DockButton(
+                        Icons.Default.Audiotrack,
+                        "Audio",
+                        enabled = hasAudio,
+                        onClick = onPickAudio,
+                    )
+                    DockButton(
+                        Icons.Default.Subtitles,
+                        "Subtitles",
+                        onClick = onPickSubs,
+                    )
+                    /* v2.11.2 — CHOOSE LINKS emphasized.
+                     *
+                     * Operator's #1 recurring pain: "the EXO Player
+                     * isn't showing the section so I can choose what
+                     * link to watch."  In v2.10.96 we added the
+                     * button but rendered it as a plain grey circle
+                     * with a generic icon — indistinguishable at 3 m
+                     * from the surrounding Audio / Subtitles /
+                     * Info circles.  Users literally couldn't spot
+                     * it in the row of five icons.
+                     *
+                     * The fix: wrap it in a cyan-bordered pill with
+                     * the stream count front-and-centre.  Renders as
+                     * a proper "chip" instead of an icon among icons.
+                     * Also fires a brief 3-second glow-pulse when
+                     * the player first appears with >1 stream, so
+                     * the user's eye is drawn to it BEFORE they hunt
+                     * for it.  When there's only 1 stream the chip
+                     * is hidden entirely (not just disabled). */
+                    if (hasStreams) {
+                        StreamPickerChip(
+                            count = streamCount,
+                            onClick = onPickStream,
+                        )
+                    }
+                    // v2.10.80 — (i) Buffering Diagnostics button.
+                    // Always enabled — even when streams=1 the user
+                    // wants to see the buffer-ahead seconds so they
+                    // can judge whether the current link is healthy.
+                    DockButton(
+                        Icons.Default.Info,
+                        "Info",
+                        onClick = onPickInfo,
+                    )
+                }
+                // CENTER cluster: Back10 / PLAY-PAUSE (focused) / Fwd10
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    DockButton(
+                        Icons.Default.Replay10,
+                        "Back 10s",
+                        onClick = { onSeekBy(-10_000) },
+                    )
+                    DockButton(
+                        if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        if (isPlaying) "Pause" else "Play",
+                        large  = true,
+                        // v2.10.37 — User feedback: "I don't want
+                        // the play button to be fully highlighted
+                        // all the time."  Dropped `active = true`
+                        // so the play/pause button matches the
+                        // other dock buttons (glassy translucent
+                        // default, bright cyan ring only on focus).
+                        focusRequester = playFocus,
+                        onClick = onPlayPause,
+                    )
+                    DockButton(
+                        Icons.Default.Forward10,
+                        "Forward 10s",
+                        onClick = { onSeekBy(10_000) },
+                    )
+                }
+                // RIGHT cluster: optional next-episode thumbnail +
+                // "PLAY NEXT EPISODE" pill (series only, ≤120 s from
+                // credits).  v2.10.34 — Added the thumbnail strip
+                // just before the pill so the user knows exactly
+                // which episode is about to play before clicking.
+                // The thumbnail URL comes from metahub's deterministic
+                // episode-image CDN and is wired through from the
+                // activity (see `nextEpThumbnailFlow`).
+                //
+                // The previous trio of CC / NextEp(small) / Fullscreen
+                // was removed in v2.10.30 — Subtitles already live in
+                // the LEFT cluster, Cast was never implemented, and
+                // the player is always fullscreen.
+                //
+                // The widthIn(min) ensures the right slot reserves
+                // visual width even when the pill isn't showing, so
+                // the centre play/pause cluster stays anchored.
+                Box(
+                    modifier = Modifier.widthIn(min = 380.dp),
+                    contentAlignment = Alignment.CenterEnd,
+                ) {
+                    if (hasNextEp) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        ) {
+                            if (nextEpThumbnailUrl.isNotBlank()) {
+                                NextEpisodeThumbnail(url = nextEpThumbnailUrl)
+                            }
+                            NextEpisodePill(onClick = onNextEp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Big "PLAY NEXT EPISODE" call-to-action pill that lives inside the
+ * right slot of the bottom dock during the ≤60 s pre-credits window.
+ *
+ * Design intent (per user direction Feb 10 2026):
+ *   • Inside the dock (not floating above), so it shares the same
+ *     focus row as the other controls — D-pad Right from the
+ *     play/pause centre lands on it directly.
+ *   • Auto-grabs focus when it appears so the user can hit OK
+ *     immediately without navigating to it.
+ *   • Highlight must be unmistakable when focused — bright cyan
+ *     fill, 4 dp glowing border, monospaced uppercase label, and
+ *     a subtle scale animation so it pops against the smaller
+ *     circular dock buttons.  The user explicitly called out that
+ *     the previous small-icon variant looked the same focused or
+ *     not, which is why we made the whole pill swap colours.
+ */
+@Composable
+private fun NextEpisodePill(onClick: () -> Unit) {
+    val focusRequester = remember { FocusRequester() }
+    var focused by remember { mutableStateOf(false) }
+
+    // Auto-focus removed in v2.10.33 per user feedback — they didn't
+    // want the pill to steal focus from whatever they were on (e.g.
+    // mid-scrub).  D-pad Right from the centre Play/Pause now lands
+    // on the pill exactly when the user asks for it, not before.
+
+    // Pulsing glow halo when focused.  Even at rest the pill is
+    // visually loud (cyan fill) — the pulse just confirms "yes,
+    // this is what's selected".  Period chosen long enough to feel
+    // calm but short enough to be perceptible without distracting
+    // from the credits playing behind.
+    val pulseTransition = rememberInfiniteTransition(label = "next-ep-pulse")
+    val pulse by pulseTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "next-ep-pulse-frac",
+    )
+
+    val bg = if (focused) CyanPrimary else Color(0xFF0B2A3D)
+    val fg = if (focused) NavyDeep else CyanPrimary
+    val borderColor = if (focused) {
+        // Bright cyan, slightly oscillating opacity for the glow
+        // effect.  We deliberately keep it ON the brand cyan rather
+        // than going white — sticks to the established palette.
+        Color(0xFF5DC8FF).copy(alpha = 0.55f + 0.45f * pulse)
+    } else {
+        Color(0x665DC8FF)
+    }
+    val borderWidth = if (focused) 4.dp else 2.dp
+    val scale = if (focused) 1.06f else 1.0f
+
+    Row(
+        modifier = Modifier
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .focusRequester(focusRequester)
+            .onFocusChanged { focused = it.isFocused }
+            .focusable(enabled = true)
+            .onKeyEvent { ev ->
+                if (ev.type == KeyEventType.KeyDown
+                    && (ev.key == Key.Enter
+                        || ev.key == Key.DirectionCenter
+                        || ev.key == Key.NumPadEnter)
+                ) { onClick(); true } else false
+            }
+            .nativeClickTag().clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .clip(RoundedCornerShape(28.dp))
+            .background(bg)
+            .border(borderWidth, borderColor, RoundedCornerShape(28.dp))
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Default.SkipNext,
+            contentDescription = "Play next episode",
+            tint = fg,
+            modifier = Modifier.size(26.dp),
+        )
+        Text(
+            text = "PLAY NEXT EPISODE",
+            color = fg,
+            fontSize = 14.sp,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 2.sp,
+        )
+    }
+}
+
+/**
+ * v2.10.34 — Small still image (≈16:9 thumbnail) of the upcoming
+ * episode rendered just before the PLAY NEXT EPISODE pill so the
+ * user can visually verify which episode is about to play before
+ * clicking.
+ *
+ * URL is the deterministic metahub episode CDN
+ * (`https://episodes.metahub.space/{imdb}/{S}/{E}/w780.jpg`) — same
+ * data source the React layer already uses, so an episode that
+ * appears in SeriesEpisodes.jsx is guaranteed to resolve here too.
+ *
+ * Sized roughly 64×96 (16:9 at 96 px wide) to match the pill's
+ * vertical footprint without dominating the dock.  A thin cyan
+ * border + rounded corners visually tether it to the pill.
+ */
+@Composable
+private fun NextEpisodeThumbnail(url: String) {
+    Box(
+        modifier = Modifier
+            .height(54.dp)
+            .width(96.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .border(1.dp, Color(0x665DC8FF), RoundedCornerShape(6.dp))
+            .background(Color(0xFF06080F)),
+    ) {
+        AsyncImage(
+            model = url,
+            contentDescription = "Next episode thumbnail",
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+        )
+    }
+}
+
+/**
+ * v2.11.2 — StreamPickerChip.  Cyan-bordered pill that surfaces
+ * how many alternate streams are available and opens the picker
+ * sheet on tap.  Made visually distinct from the surrounding
+ * icon-only DockButtons so the user can spot it at 3 m from the TV.
+ *
+ * Fires a 3-second glow pulse on first appearance so the user's
+ * eye is drawn to it before they hunt for it — after that the pulse
+ * stops and the chip just holds a subtle cyan border.
+ */
+@Composable
+private fun StreamPickerChip(count: Int, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    // 3-second attention pulse on first mount only.
+    var pulseOn by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(3_000)
+        pulseOn = false
+    }
+    val infinite = androidx.compose.animation.core.rememberInfiniteTransition(label = "streamPulse")
+    val pulseAlpha by infinite.animateFloat(
+        initialValue = 0.55f,
+        targetValue  = 1.0f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(
+                durationMillis = 900,
+                easing = androidx.compose.animation.core.FastOutSlowInEasing,
+            ),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
+        ),
+        label = "streamPulseAlpha",
+    )
+    val borderAlpha = if (pulseOn) pulseAlpha else 0.55f
+
+    val bg = when {
+        focused -> CyanPrimary
+        else    -> Color(0x1A5DC8FF)  // subtle cyan tint
+    }
+    val fg = when {
+        focused -> NavyDeep
+        else    -> Color(0xFF8de0ff)
+    }
+    val border = if (focused)
+        CyanPrimary
+    else
+        CyanPrimary.copy(alpha = borderAlpha)
+
+    Row(
+        modifier = Modifier
+            .height(56.dp)
+            .clip(RoundedCornerShape(28.dp))
+            .background(bg)
+            .border(
+                width = if (focused) 3.dp else 2.dp,
+                color = border,
+                shape = RoundedCornerShape(28.dp),
+            )
+            .onFocusChanged { focused = it.isFocused }
+            .nativeFocusTag().focusable()
+            .onKeyEvent { ev ->
+                if (ev.type == KeyEventType.KeyDown
+                    && (ev.key == Key.Enter ||
+                        ev.key == Key.DirectionCenter ||
+                        ev.key == Key.NumPadEnter)
+                ) { onClick(); true } else false
+            }
+            .nativeClickTag().clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(horizontal = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Default.PlaylistPlay,
+            contentDescription = "Swap Stream",
+            tint = fg,
+            modifier = Modifier.size(22.dp),
+        )
+        Text(
+            text = "SWAP STREAM",
+            color = fg,
+            fontSize = 12.sp,
+            fontFamily = FontFamily.Monospace,
+            letterSpacing = 1.6.sp,
+        )
+        if (count > 1) {
+            Box(
+                modifier = Modifier
+                    .height(22.dp)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(if (focused) NavyDeep.copy(alpha = 0.35f) else Color(0x335DC8FF))
+                    .padding(horizontal = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = count.toString(),
+                    color = fg,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DockButton(
+    icon: ImageVector,
+    contentDescription: String,
+    large: Boolean = false,
+    active: Boolean = false,
+    enabled: Boolean = true,
+    focusRequester: FocusRequester? = null,
+    onClick: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+    val sz = if (large) 80.dp else 56.dp
+    val iconSz = if (large) 40.dp else 26.dp
+    val bg = when {
+        !enabled -> Color(0x0DFFFFFF)
+        focused  -> CyanPrimary
+        active   -> CyanPrimary
+        else     -> Color(0x1AFFFFFF)
+    }
+    val fg = when {
+        !enabled -> Color(0x66FFFFFF)
+        focused || active -> NavyDeep
+        else -> TextPrim
+    }
+    val borderColor =
+        if (focused) CyanPrimary
+        else if (active) Color.Transparent
+        else Color(0x33FFFFFF)
+
+    var mod: Modifier = Modifier
+        .size(sz)
+        .clip(CircleShape)
+        .background(bg)
+        .border(
+            width = if (focused) 3.dp else 1.dp,
+            color = borderColor,
+            shape = CircleShape,
+        )
+    if (focusRequester != null) {
+        mod = mod.focusRequester(focusRequester)
+    }
+    mod = mod
+        .onFocusChanged { focused = it.isFocused }
+        .focusable(enabled = enabled)
+        .onKeyEvent { ev ->
+            if (ev.type == KeyEventType.KeyDown
+                && (ev.key == Key.Enter ||
+                    ev.key == Key.DirectionCenter ||
+                    ev.key == Key.NumPadEnter)
+                && enabled
+            ) { onClick(); true } else false
+        }
+        .nativeClickTag().clickable(
+            enabled = enabled,
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = onClick,
+        )
+
+    Box(modifier = mod, contentAlignment = Alignment.Center) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = fg,
+            modifier = Modifier.size(iconSz),
+        )
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Track picker sheet (Audio / Subtitles)
+// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun TrackPickerSheet(
+    title: String,
+    options: List<TrackOption>,
+    onPick: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val firstFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        try { firstFocus.requestFocus() } catch (_: Exception) {}
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xE6020610))
+            .onKeyEvent { ev ->
+                if (ev.type == KeyEventType.KeyDown
+                    && (ev.key == Key.Back || ev.key == Key.Escape)
+                ) { onDismiss(); true } else false
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier.width(520.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = title.uppercase(),
+                color = CyanPrimary,
+                fontSize = 13.sp,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = 3.sp,
+            )
+            Spacer(Modifier.height(28.dp))
+            if (options.isEmpty()) {
+                Text(
+                    "No tracks available",
+                    color = TextMuted,
+                    fontSize = 14.sp,
+                )
+            } else {
+                options.forEachIndexed { i, opt ->
+                    TrackRow(
+                        label = opt.label,
+                        selected = opt.selected,
+                        focusRequester = if (i == 0) firstFocus else null,
+                        onClick = { onPick(opt.id) },
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+            }
+            Spacer(Modifier.height(20.dp))
+            Text(
+                "Press BACK to close",
+                color = TextMuted,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = 1.4.sp,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun TrackRow(
+    label: String,
+    selected: Boolean,
+    focusRequester: FocusRequester?,
+    onClick: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+    // v2.13.7 — explicit bring-into-view on focus (same fix as
+    // StreamRow) so long audio/subtitle lists scroll with the D-pad.
+    val bringer = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+    val bg = when {
+        focused  -> Color(0x335DC8FF)
+        selected -> Color(0x1A5DC8FF)
+        else     -> Color(0x14FFFFFF)
+    }
+    val border = if (focused) CyanPrimary else if (selected) Color(0x665DC8FF) else Color(0x22FFFFFF)
+    var mod: Modifier = Modifier
+        .fillMaxWidth()
+        .bringIntoViewRequester(bringer)
+        .clip(RoundedCornerShape(10.dp))
+        .background(bg)
+        .border(if (focused) 2.dp else 1.dp, border, RoundedCornerShape(10.dp))
+    if (focusRequester != null) {
+        mod = mod.focusRequester(focusRequester)
+    }
+    mod = mod
+        .onFocusChanged {
+            focused = it.isFocused
+            if (it.isFocused) {
+                scope.launch {
+                    try { bringer.bringIntoView() } catch (_: Exception) {}
+                }
+            }
+        }
+        .nativeFocusTag().focusable()
+        .onKeyEvent { ev ->
+            if (ev.type == KeyEventType.KeyDown
+                && (ev.key == Key.Enter ||
+                    ev.key == Key.DirectionCenter ||
+                    ev.key == Key.NumPadEnter)
+            ) { onClick(); true } else false
+        }
+        .nativeClickTag().clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = onClick,
+        )
+        .padding(horizontal = 18.dp, vertical = 14.dp)
+
+    Row(modifier = mod, verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = label,
+            color = TextPrim,
+            fontSize = 16.sp,
+            modifier = Modifier.weight(1f),
+        )
+        if (selected) {
+            Text(
+                text = "● ACTIVE",
+                color = CyanPrimary,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = 1.4.sp,
+            )
+        }
+    }
+}
+
+/**
+ * v2.10.80 — Buffering Info bottom-sheet.
+ *
+ * Tap (i) in the dock to surface this card.  Shows the live
+ * buffer-ahead (in seconds), buffered-percent of the loaded
+ * portion, and current bitrate — the three numbers that tell the
+ * user at a glance whether the current stream is healthy.
+ */
+@Composable
+private fun BufferingInfoSheet(
+    bufferAheadMs: Long,
+    bufferedPercent: Int,
+    bitrateKbps: Long,
+    engineToken: String = "",
+    currentStream: StreamOption? = null,
+    info: PlayerInfo? = null,
+    canSwap: Boolean = false,
+    onSwapStream: () -> Unit = {},
+    onDismiss: () -> Unit,
+) {
+    val dismissFocus = remember { FocusRequester() }
+    // Which link is actually playing — source (ON NOW TV Direct /
+    // Torrentio / EasyNews++ …), quality + size, and the link's name.
+    val sourceName = currentStream?.addonSource?.ifBlank { null }
+        ?: info?.addonSource?.ifBlank { null }
+        ?: "Unknown source"
+    val linkLabel = currentStream?.label?.ifBlank { null } ?: ""
+    val chips = buildList {
+        (currentStream?.quality?.ifBlank { null } ?: info?.quality?.ifBlank { null })?.let { add(it) }
+        currentStream?.sizeChip?.ifBlank { null }?.let { add(it) }
+        if (currentStream?.pmCached == true) add("Cached")
+        if (currentStream?.isEnglish == true || info?.isEnglish == true) add("ENG")
+        if ((currentStream?.seeds ?: 0) > 0) add("${currentStream?.seeds} seeds")
+    }
+    LaunchedEffect(Unit) {
+        try { dismissFocus.requestFocus() } catch (_: Exception) {}
+    }
+    val bufferSec = (bufferAheadMs / 1000L).toInt()
+    val healthyThreshold = 30
+    val (bufferColor, bufferAdvice) = when {
+        bufferSec >= 60 -> Pair(
+            Color(0xFF7AEB8A),
+            "Excellent — this stream is comfortable, sit back.",
+        )
+        bufferSec >= healthyThreshold -> Pair(
+            Color(0xFF7AEB8A),
+            "Healthy — playback should be smooth.",
+        )
+        bufferSec >= 15 -> Pair(
+            Color(0xFFFFD54F),
+            "Borderline — watch for stalls; consider another link.",
+        )
+        else -> Pair(
+            Color(0xFFFF6B6B),
+            "Low — playback may stall.  Open Stream picker → pick another link.",
+        )
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xE6020610))
+            .onKeyEvent { ev ->
+                if (ev.type == KeyEventType.KeyDown
+                    && (ev.key == Key.Back || ev.key == Key.Escape)
+                ) { onDismiss(); true } else false
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier
+                .width(640.dp)
+                .heightIn(max = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.94f).dp)
+                .background(
+                    Color(0xFF0B1220),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+                )
+                .padding(horizontal = 28.dp, vertical = 22.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.Start,
+        ) {
+            Text(
+                "Buffering diagnostics",
+                color = Color.White,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Live numbers for the stream currently playing.",
+                color = Color.White.copy(alpha = 0.6f),
+                fontSize = 13.sp,
+            )
+            // v2.16.42 — Show the active playback engine right here
+            // so the operator can tell, at a glance in the field,
+            // which engine (MPV / VLC / ExoPlayer / ExoPlayer+FFmpeg)
+            // is drawing the picture.
+            if (engineToken.isNotBlank()) {
+                Spacer(Modifier.height(14.dp))
+                val engineLabel = when (engineToken) {
+                    "mpv" -> "MPV"
+                    "vlc" -> "LibVLC"
+                    "exo" -> "ExoPlayer"
+                    "exo_ffmpeg" -> "ExoPlayer + FFmpeg"
+                    else -> engineToken.uppercase()
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "ENGINE",
+                        color = Color(0xFF5DC8FF),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.4.sp,
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        engineLabel,
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+            Spacer(Modifier.height(18.dp))
+
+            // ── Now playing: the actual link ──
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Color(0xFF11192B),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                    )
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    "NOW PLAYING",
+                    color = Color(0xFF5DC8FF),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.4.sp,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        sourceName,
+                        color = Color.White,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    chips.forEach { chip ->
+                        Spacer(Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    Color.White.copy(alpha = 0.10f),
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
+                                )
+                                .padding(horizontal = 8.dp, vertical = 3.dp),
+                        ) {
+                            Text(
+                                chip,
+                                color = Color.White.copy(alpha = 0.85f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                    }
+                }
+                if (linkLabel.isNotBlank() && linkLabel != sourceName) {
+                    Text(
+                        linkLabel,
+                        color = Color.White.copy(alpha = 0.66f),
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                        maxLines = 2,
+                    )
+                }
+            }
+            Spacer(Modifier.height(18.dp))
+
+            // ── Big number: buffer ahead in seconds ──
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    bufferSec.toString(),
+                    color = bufferColor,
+                    fontSize = 64.sp,
+                    fontWeight = FontWeight.Black,
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "s ahead",
+                    color = Color.White.copy(alpha = 0.72f),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(bottom = 14.dp),
+                )
+            }
+            Spacer(Modifier.height(2.dp))
+            Text(
+                bufferAdvice,
+                color = bufferColor,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+
+            Spacer(Modifier.height(22.dp))
+
+            // ── Secondary numbers row ──
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
+            ) {
+                BufferingStat(label = "Buffered", value = "${bufferedPercent}%")
+                BufferingStat(
+                    label = "Bitrate",
+                    value = if (bitrateKbps > 0) "${bitrateKbps} kbps" else "—",
+                )
+                BufferingStat(label = "Target", value = "${healthyThreshold}s+")
+            }
+
+            Spacer(Modifier.height(22.dp))
+
+            // ── Plain-English explainer ──
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Color(0xFF11192B),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                    )
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    "What does this mean?",
+                    color = Color(0xFF5DC8FF),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.4.sp,
+                )
+                Text(
+                    "The big number is how many seconds of video have been downloaded " +
+                        "AHEAD of where you're watching.  The higher, the safer.",
+                    color = Color.White.copy(alpha = 0.78f),
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                )
+                Text(
+                    "Above ${healthyThreshold}s = comfortable — no stutters likely.\n" +
+                        "Below ${healthyThreshold}s = borderline — the stream may stall.  " +
+                        "Tap the Stream button next to me, pick a different link " +
+                        "(EasyNews++ direct streams or Torrentio debrid-cached ones " +
+                        "usually buffer fastest).",
+                    color = Color.White.copy(alpha = 0.78f),
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                )
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            // ── Actions: Swap stream (opens the Stream picker) + Got it ──
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (canSwap) {
+                    var swapFocused by remember { mutableStateOf(false) }
+                    Box(
+                        modifier = Modifier
+                            .onFocusChanged { swapFocused = it.isFocused }
+                            .nativeFocusTag().focusable()
+                            .nativeClickTag().clickable { onSwapStream() }
+                            .background(
+                                if (swapFocused) Color(0xFF5DC8FF) else Color(0xFF5DC8FF).copy(alpha = 0.16f),
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
+                            )
+                            .border(
+                                1.dp,
+                                Color(0xFF5DC8FF).copy(alpha = if (swapFocused) 1f else 0.45f),
+                                androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
+                            )
+                            .padding(horizontal = 22.dp, vertical = 10.dp),
+                    ) {
+                        Text(
+                            "Swap stream",
+                            color = if (swapFocused) Color(0xFF020610) else Color(0xFF5DC8FF),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                        )
+                    }
+                }
+                var dismissFocused by remember { mutableStateOf(false) }
+                Box(
+                    modifier = Modifier
+                        .focusRequester(dismissFocus)
+                        .onFocusChanged { dismissFocused = it.isFocused }
+                        .nativeFocusTag().focusable()
+                        .nativeClickTag().clickable { onDismiss() }
+                        .background(
+                            if (dismissFocused || !canSwap) Color(0xFF5DC8FF) else Color.White.copy(alpha = 0.10f),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
+                        )
+                        .padding(horizontal = 24.dp, vertical = 10.dp),
+                ) {
+                    Text(
+                        "Got it",
+                        color = if (dismissFocused || !canSwap) Color(0xFF020610) else Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BufferingStat(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.Start) {
+        Text(
+            label.uppercase(),
+            color = Color.White.copy(alpha = 0.5f),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.4.sp,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            value,
+            color = Color.White,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+
+@Composable
+private fun StreamPickerSheet(
+    streams: List<StreamOption>,
+    onPick: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val firstFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        try { firstFocus.requestFocus() } catch (_: Exception) {}
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xE6020610))
+            .onKeyEvent { ev ->
+                if (ev.type == KeyEventType.KeyDown
+                    && (ev.key == Key.Back || ev.key == Key.Escape)
+                ) { onDismiss(); true } else false
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier.width(720.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = "SWAP STREAM",
+                color = CyanPrimary,
+                fontSize = 13.sp,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = 3.sp,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = if (streams.isEmpty())
+                    "No alternate streams"
+                else
+                    "${streams.size} sources · D-pad UP/DOWN · OK to switch",
+                color = TextMuted,
+                fontSize = 12.sp,
+            )
+            Spacer(Modifier.height(28.dp))
+            if (streams.isEmpty()) {
+                Text(
+                    "No alternate streams",
+                    color = TextMuted,
+                    fontSize = 14.sp,
+                )
+            } else {
+                // v2.13.6 — FULL list is scrollable.  Previously the
+                // rows were stacked in a plain Column, so anything
+                // below the viewport was unreachable ("you can't even
+                // scroll on the player").  D-pad focus automatically
+                // pulls each focused row into view.
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 430.dp)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    streams.forEachIndexed { i, s ->
+                        StreamRow(
+                            stream = s,
+                            focusRequester = if (i == 0) firstFocus else null,
+                            onClick = { onPick(s.idx) },
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
+            }
+            Spacer(Modifier.height(20.dp))
+            Text(
+                "Press BACK to close",
+                color = TextMuted,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = 1.4.sp,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Stream picker row — title + addon-source chip + cached chip + ENG chip
+// ─────────────────────────────────────────────────────────────────────────────
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun StreamRow(
+    stream: StreamOption,
+    focusRequester: FocusRequester?,
+    onClick: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+    // v2.13.7 — EXPLICIT bring-into-view on focus.  Some Android TV
+    // WebView/Compose combos don't auto-scroll the parent
+    // verticalScroll column when D-pad focus moves to a clipped row,
+    // which is why the user could "only scroll through a few" — rows
+    // below the fold took focus invisibly.  Now every focus change
+    // scrolls the row into the visible viewport.
+    val bringer = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+    val bg = when {
+        focused         -> Color(0x335DC8FF)
+        stream.selected -> Color(0x1A5DC8FF)
+        else            -> Color(0x14FFFFFF)
+    }
+    val border =
+        if (focused) CyanPrimary
+        else if (stream.selected) Color(0x665DC8FF)
+        else Color(0x22FFFFFF)
+    var mod: Modifier = Modifier
+        .fillMaxWidth()
+        .bringIntoViewRequester(bringer)
+        .clip(RoundedCornerShape(10.dp))
+        .background(bg)
+        .border(if (focused) 2.dp else 1.dp, border, RoundedCornerShape(10.dp))
+    if (focusRequester != null) {
+        mod = mod.focusRequester(focusRequester)
+    }
+    mod = mod
+        .onFocusChanged {
+            focused = it.isFocused
+            if (it.isFocused) {
+                scope.launch {
+                    try { bringer.bringIntoView() } catch (_: Exception) {}
+                }
+            }
+        }
+        .nativeFocusTag().focusable()
+        .onKeyEvent { ev ->
+            if (ev.type == KeyEventType.KeyDown
+                && (ev.key == Key.Enter ||
+                    ev.key == Key.DirectionCenter ||
+                    ev.key == Key.NumPadEnter)
+            ) { onClick(); true } else false
+        }
+        .nativeClickTag().clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = onClick,
+        )
+        .padding(horizontal = 18.dp, vertical = 14.dp)
+
+    Column(modifier = mod) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = stream.label.lineSequence().firstOrNull() ?: stream.label,
+                color = TextPrim,
+                fontSize = 15.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (stream.selected) {
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "● CURRENT",
+                    color = CyanPrimary,
+                    fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = 1.4.sp,
+                )
+            }
+        }
+        // Chip row — only render when at least one chip is non-empty.
+        val hasAnyChip = stream.addonSource.isNotBlank() ||
+                         stream.quality.isNotBlank() ||
+                         stream.sizeChip.isNotBlank() ||
+                         stream.seeds > 0 ||
+                         stream.pmCached ||
+                         stream.isEnglish
+        if (hasAnyChip) {
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (stream.addonSource.isNotBlank()) {
+                    Chip(
+                        text = stream.addonSource,
+                        bg = Color(0x245DC8FF),
+                        border = Color(0x4D5DC8FF),
+                        fg = CyanPrimary,
+                    )
+                }
+                if (stream.quality.isNotBlank()) {
+                    Chip(
+                        text = stream.quality,
+                        bg = Color(0x1AFFFFFF),
+                        border = Color(0x33FFFFFF),
+                        fg = TextPrim,
+                    )
+                }
+                // v2.13.8 — file size + seeders ("needs to show the
+                // file size and everything").
+                if (stream.sizeChip.isNotBlank()) {
+                    Chip(
+                        text = stream.sizeChip,
+                        bg = Color(0x24FFD24A),
+                        border = Color(0x59FFD24A),
+                        fg = Color(0xFFFFD24A),
+                    )
+                }
+                if (stream.seeds > 0) {
+                    Chip(
+                        text = "${stream.seeds} SEEDS",
+                        bg = Color(0x297AEB8A),
+                        border = Color(0x597AEB8A),
+                        fg = Color(0xFF7AEB8A),
+                    )
+                }
+                if (stream.pmCached) {
+                    Chip(
+                        text = "⚡ CACHED",
+                        bg = Color(0x297AEB8A),
+                        border = Color(0x597AEB8A),
+                        fg = Color(0xFF7AEB8A),
+                    )
+                }
+                if (stream.isEnglish) {
+                    Chip(
+                        text = "🇬🇧 ENG",
+                        bg = Color(0x14FFFFFF),
+                        border = Color(0x26FFFFFF),
+                        fg = TextSub,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Chip(text: String, bg: Color, border: Color, fg: Color) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(bg)
+            .border(1.dp, border, RoundedCornerShape(4.dp))
+            .padding(horizontal = 7.dp, vertical = 3.dp),
+    ) {
+        Text(
+            text = text,
+            color = fg,
+            fontSize = 10.sp,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.4.sp,
+        )
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Utilities
+// ─────────────────────────────────────────────────────────────────────────────
+
+private fun formatMs(ms: Long): String {
+    if (ms <= 0) return "00:00"
+    val totalSec = ms / 1000
+    val h = totalSec / 3600
+    val m = (totalSec % 3600) / 60
+    val s = totalSec % 60
+    return if (h > 0) "%02d:%02d:%02d".format(h, m, s)
+           else "%02d:%02d".format(m, s)
+}
+
+@Composable
+private fun <T> collectAsStateSafe(
+    flow: StateFlow<T>,
+    initial: T,
+): androidx.compose.runtime.State<T> {
+    val state = remember { androidx.compose.runtime.mutableStateOf(initial) }
+    LaunchedEffect(flow) { flow.collect { state.value = it } }
+    return state
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v2.7.60 — Native Watch Together voice dock + bubbles
+// ─────────────────────────────────────────────────────────────────────────────
+

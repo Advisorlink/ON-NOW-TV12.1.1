@@ -1,0 +1,55 @@
+{
+  "summary": "Validated requested native+backend scope: fixed obsolete native test contracts around autoplay/default navigation/player lifecycle assumptions, then reran full native unit/build command successfully; backend private-download security regression passed; frontend public login smoke loads cleanly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Native visual parity evidence",
+        "issue": "No real-device/native screenshot capture was produced in this run; Robolectric + build verification passed but cannot prove GPU-perfect visual parity.",
+        "affected_selectors": [
+          "N/A"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/MainActivityRobolectricTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/MainActivityNewFeatureRobolectricTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/playback/PlayerActivityRobolectricTest.kt",
+    "/app/test_reports/pytest/iteration_123_backend.xml",
+    "/app/test_reports/vesper_native_parity/iteration_123_apksigner.log",
+    "/app/test_reports/vesper_native_parity/iteration_123_zipalign.log",
+    "/app/test_reports/vesper_native_parity/iteration_123_badging.log",
+    "/app/test_reports/vesper_native_parity/iteration_123_crc.log",
+    "/app/test_reports/vesper_native_parity/iteration_123_sha256.log"
+  ],
+  "action_items": [
+    "Run real-device Android TV visual pass (960x540 and 800x450) for final parity sign-off; this run verified contracts/build/tests but not physical panel rendering.",
+    "If strict signing warnings policy applies, evaluate META-INF warning set from apksigner output (currently verify passes with v1=true and v2=true)."
+  ],
+  "critical_code_review_comments": [
+    "PlayerOverlay generated file is 2200+ lines; split into smaller focused modules to reduce regression risk and improve maintainability.",
+    "Autoplay defaults ON now materially affect legacy detail/stream tests; keep explicit fixture-level autoplay OFF in tests that require manual stream picker assertions.",
+    "Backend /api/download contract remains fail-closed and token-header bound; no query-token fallback observed."
+  ],
+  "updated_files": [
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/MainActivityRobolectricTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/MainActivityNewFeatureRobolectricTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/playback/PlayerActivityRobolectricTest.kt",
+    "/app/test_reports/iteration_123.json"
+  ],
+  "success_rate": {
+    "backend": "100% (6/6 native_download security tests passed)",
+    "frontend": "98.9% native JVM (89 tests run: 88 pass, 1 skipped, 0 fail) + assembleDebug/generateReleaseBuildConfig pass"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Executed: ANDROID_HOME=/app/.cache/native-tools/sdk ANDROID_SDK_ROOT=/app/.cache/native-tools/sdk ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:generateReleaseBuildConfig -Pandroid.aapt2FromMavenOverride=/app/.cache/native-tools/aapt2 --console=plain. Backend: pytest /app/backend/tests/test_native_download_security.py -v --tb=short --junitxml=/app/test_reports/pytest/iteration_123_backend.xml. APK checks: apksigner verify (v1=true,v2=true), zipalign -c 4 pass, unzip -t CRC pass, badging shows versionCode=7/versionName=0.3.0-native-private.",
+  "rca of the issue": "Initial build failure was test-contract drift, not product runtime defect: legacy tests assumed manual stream picker/detail stability while autoplay now defaults ON and player lifecycle in Robolectric can initialize asynchronously. Updating only test expectations/fixtures (autoplay OFF where manual-detail assertions are intended, autoplay ON assertion where expected) resolved failures without product-code changes."
+}

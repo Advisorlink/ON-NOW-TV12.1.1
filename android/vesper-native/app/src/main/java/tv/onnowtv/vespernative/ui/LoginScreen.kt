@@ -14,6 +14,7 @@ import tv.onnowtv.vespernative.BuildConfig
 import tv.onnowtv.vespernative.R
 import android.text.method.HideReturnsTransformationMethod
 import android.text.method.PasswordTransformationMethod
+import coil.load
 
 class LoginScreen(c: Context, private val submit: (String, String) -> Unit) : NativeScreen(c) {
     private val username = input("login-username", "Username", false)
@@ -28,45 +29,61 @@ class LoginScreen(c: Context, private val submit: (String, String) -> Unit) : Na
             username.setText(BuildConfig.DEBUG_PREFILL_USERNAME)
             password.setText(BuildConfig.DEBUG_PREFILL_PASSWORD)
         }
-        val image = ImageView(c).apply { setImageResource(R.drawable.login_backdrop); scaleType = ImageView.ScaleType.CENTER_CROP }
+        error.apply {
+            visibility=android.view.View.GONE; textSize=8f; maxLines=3; ellipsize=android.text.TextUtils.TruncateAt.END
+            setTextColor(Color.rgb(255,118,134)); setPadding(TvUi.dp(c,8),TvUi.dp(c,6),TvUi.dp(c,8),TvUi.dp(c,6))
+            background=TvUi.shape(Color.argb(28,255,75,100),TvUi.dp(c,6).toFloat(),Color.argb(56,255,75,100),1)
+        }
+        val image = ImageView(c).apply { load("file:///android_asset/login/vesper-bg.webp"); scaleType = ImageView.ScaleType.CENTER_CROP }
         root.addView(image, FrameLayout.LayoutParams(-1, -1))
         root.addView(View(c).apply { background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-            intArrayOf(Color.argb(170, 3, 6, 15), Color.argb(230, 3, 6, 15))) }, FrameLayout.LayoutParams(-1, -1))
-        val row = TvUi.row(c).apply { setPadding(TvUi.dp(c, 48), TvUi.dp(c, 24), TvUi.dp(c, 48), TvUi.dp(c, 24)) }
+            intArrayOf(Color.argb(230, 5, 8, 15), Color.argb(158, 5, 8, 15), Color.argb(140,5,8,15))) }, FrameLayout.LayoutParams(-1, -1))
+        val row = TvUi.row(c).apply { setPadding(TvUi.dp(c, 16), TvUi.dp(c, 14), TvUi.dp(c, 16), TvUi.dp(c, 14)) }
         val brand = TvUi.column(c).apply {
-            addView(TvUi.text(c, "login-brand", "ON NOW TV · V2", 15f, TvUi.accent))
-            addView(TvUi.gap(c, 20))
-            addView(TvUi.heading(c, "login-headline", "Movies, TV shows,\nand everything\nworth watching.", 32f))
-        }
-        row.addView(brand, LinearLayout.LayoutParams(0, -2, 1.2f))
-        val form = TvUi.column(c).apply {
-            background = TvUi.shape(Color.argb(205, 13, 20, 30), TvUi.dp(c, 12).toFloat())
-            setPadding(TvUi.dp(c, 24), TvUi.dp(c, 24), TvUi.dp(c, 24), TvUi.dp(c, 24))
-            addView(TvUi.heading(c, "login-title", "Welcome back", 26f)); addView(TvUi.gap(c, 14))
-            addView(username, LinearLayout.LayoutParams(-1, TvUi.dp(c, 48)))
+            addView(V2Ui.eyebrow(c,"login-brand","ON NOW TV · V2").apply { setTextColor(V2Ui.loginAccent) })
             addView(TvUi.gap(c, 12))
+            addView(TvUi.heading(c, "login-headline", "Movies, TV shows,\nand everything\nworth watching.", 26f))
+            addView(TvUi.gap(c,12))
+            addView(TvUi.text(c,"login-pitch","Sign in with the username and password you were given by ON NOW TV.",8f,TvUi.muted).apply { maxWidth=TvUi.dp(c,270); setLineSpacing(0f,1.4f) })
+            addView(TvUi.gap(c,20))
+            listOf("Movies & full TV series · streaming in HD","Trailers, collections & watchlists","Kids profiles · safe viewing for little ones").forEachIndexed { i,label ->
+                val bullet=TvUi.row(c); bullet.addView(View(c).apply { setBackgroundColor(V2Ui.loginAccent) },LinearLayout.LayoutParams(TvUi.dp(c,3),TvUi.dp(c,3)).apply { marginEnd=TvUi.dp(c,7) })
+                bullet.addView(TvUi.text(c,"login-bullet-$i",label,8f)); addView(bullet); addView(TvUi.gap(c,8))
+            }
+        }
+        row.addView(brand, LinearLayout.LayoutParams(0, -2, 1f))
+        val form = TvUi.identify(TvUi.column(c),"login-panel").apply {
+            background = V2Ui.panel(c)
+            setPadding(TvUi.dp(c, 18), TvUi.dp(c, 20), TvUi.dp(c, 18), TvUi.dp(c, 16))
+            addView(V2Ui.eyebrow(c,"login-step","STEP 01").apply { setTextColor(V2Ui.loginAccent) }); addView(TvUi.gap(c,8))
+            addView(TvUi.heading(c, "login-title", "Sign in to your account", 15f)); addView(TvUi.gap(c, 6))
+            addView(TvUi.text(c,"login-description","Sign in to your account to access movies, TV shows and your library.",7f,TvUi.muted))
+            addView(TvUi.gap(c,18)); addView(V2Ui.eyebrow(c,"login-username-label","USERNAME")); addView(TvUi.gap(c,6))
+            V2Ui.field(username); V2Ui.field(password)
+            username.textSize=9f; password.textSize=9f
+            addView(V2Ui.fieldShell(c,"login-username-shell",username,"user"), LinearLayout.LayoutParams(-1, TvUi.dp(c, 30)))
+            addView(TvUi.gap(c, 12)); addView(V2Ui.eyebrow(c,"login-password-label","PASSWORD")); addView(TvUi.gap(c,6))
             // Password row: field + show/hide toggle
-            val passRow = LinearLayout(c).apply { orientation = LinearLayout.HORIZONTAL }
             var passwordVisible = false
             lateinit var showToggle: android.widget.TextView
-            showToggle = TvUi.button(c, "login-show-password", "Show") {
+            showToggle = TvUi.button(c, "login-show-password", "") {
                 passwordVisible = !passwordVisible
                 password.transformationMethod = if (passwordVisible) HideReturnsTransformationMethod.getInstance() else PasswordTransformationMethod.getInstance()
-                showToggle.text = if (passwordVisible) "Hide" else "Show"
+                showToggle.contentDescription = if (passwordVisible) "Hide password" else "Show password"
+                showToggle.isSelected=passwordVisible
                 password.setSelection(password.text.length)
             }
-            showToggle.textSize = 11f
-            passRow.addView(password, LinearLayout.LayoutParams(0, TvUi.dp(c, 48), 1f))
-            passRow.addView(TvUi.gap(c, 8))
-            passRow.addView(showToggle, LinearLayout.LayoutParams(-2, TvUi.dp(c, 48)))
-            addView(passRow, LinearLayout.LayoutParams(-1, -2))
-            addView(TvUi.gap(c, 14)); addView(signIn, LinearLayout.LayoutParams(-1, TvUi.dp(c, 44)))
+            V2Ui.stylePill(showToggle,"eye"); showToggle.setPadding(TvUi.dp(c,6),0,TvUi.dp(c,6),0); showToggle.contentDescription="Show password"
+            addView(V2Ui.fieldShell(c,"login-password-shell",password,"lock",showToggle), LinearLayout.LayoutParams(-1,TvUi.dp(c,30)))
+            V2Ui.stylePill(signIn,"logout",primary=true)
+            addView(TvUi.gap(c, 12)); addView(signIn, LinearLayout.LayoutParams(-1, TvUi.dp(c, 28)))
             addView(error, LinearLayout.LayoutParams(-1, -2))
-            addView(TvUi.gap(c, 8))
-            addView(TvUi.text(c, "login-server-hint", "server: ${BuildConfig.API_BASE_URL.removePrefix("https://")}", 10f, Color.argb(120, 200, 200, 200)))
+            addView(TvUi.gap(c,14)); addView(V2Ui.divider(c)); addView(TvUi.gap(c,10))
+            addView(TvUi.text(c,"login-help","Need an account? Contact ON NOW TV Support.",8f,TvUi.muted))
+            addView(TvUi.text(c, "login-server-hint", "server: ${BuildConfig.API_BASE_URL.removePrefix("https://")}", 8f, Color.argb(120, 200, 200, 200)))
         }
-        row.addView(form, LinearLayout.LayoutParams(0, -2, 1f))
-        root.addView(row, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER))
+        row.addView(form, LinearLayout.LayoutParams(TvUi.dp(c,240), -2).apply { marginStart=TvUi.dp(c,36) })
+        root.addView(row, FrameLayout.LayoutParams(minOf(TvUi.dp(c,580),c.resources.displayMetrics.widthPixels), -2, Gravity.CENTER))
         username.nextFocusDownId = password.id; password.nextFocusUpId = username.id
         password.nextFocusDownId = signIn.id; signIn.nextFocusUpId = password.id
         password.setOnEditorActionListener { _, action, _ ->
@@ -86,7 +103,7 @@ class LoginScreen(c: Context, private val submit: (String, String) -> Unit) : Na
     private fun send() {
         if (submitting) return
         val user = username.text.toString().trim(); val pass = password.text.toString()
-        if (user.isBlank() || pass.isEmpty()) { error.text = "Enter your username and password."; return }
+        if (user.isBlank() || pass.isEmpty()) { error.text = "Enter your username and password."; error.visibility=android.view.View.VISIBLE; return }
         (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(root.windowToken, 0)
         submit(user, pass)
     }
@@ -94,8 +111,9 @@ class LoginScreen(c: Context, private val submit: (String, String) -> Unit) : Na
         submitting = value; signIn.isEnabled = !value; username.isEnabled = !value; password.isEnabled = !value
         signIn.text = if (value) "Signing in…" else "Sign in"
         error.text = ""
+        error.visibility=android.view.View.GONE
     }
-    fun failed(message: String) { busy(false); error.text = message; password.text.clear(); password.requestFocus() }
+    fun failed(message: String) { busy(false); error.text = message; error.visibility=android.view.View.VISIBLE; password.text.clear(); password.requestFocus() }
     override fun initialFocus() = if (prefilled) signIn else username
     override fun dispose() { password.text.clear(); super.dispose() }
 }

@@ -5,8 +5,8 @@ import android.view.View
 import android.widget.LinearLayout
 
 class StatusBand(c: Context, key: String) : LinearLayout(c) {
-    private val message = TvUi.text(c, "$key-message", size = 16f, color = TvUi.muted)
-    private val retry = TvUi.button(c, "$key-retry", "Retry") { onRetry?.invoke() }
+    private val message = TvUi.text(c, "$key-message", size = 11f, color = TvUi.muted)
+    private val retry = V2Ui.pill(c, "$key-retry", "Retry") { onRetry?.invoke() }
     var onRetry: (() -> Unit)? = null
     init {
         orientation = HORIZONTAL

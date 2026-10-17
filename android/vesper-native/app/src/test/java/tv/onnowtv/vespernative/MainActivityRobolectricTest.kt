@@ -28,6 +28,7 @@ import tv.onnowtv.vespernative.auth.SessionStore
 import tv.onnowtv.vespernative.data.VesperApi
 import tv.onnowtv.vespernative.ui.TvUi
 import java.time.Duration
+import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
 // MainActivity: restore/login/home/detail/search/signout lifecycles, focus/scroll retention, and top-nav focus chain.
@@ -64,6 +65,7 @@ class MainActivityRobolectricTest {
         memoryStore.save("saved-token")
 
         val activity = visibleActivity()
+        setAutoplay(activity, enabled = false)
         waitUi()
 
         val homeShelves = waitForView(activity.window.decorView, "home-shelves") as RecyclerView
@@ -101,6 +103,7 @@ class MainActivityRobolectricTest {
         memoryStore.save("saved-token")
 
         val activity = visibleActivity()
+        setAutoplay(activity, enabled = false)
         waitUi()
 
         val navSearch = waitForView(activity.window.decorView, "nav-search")
@@ -264,7 +267,7 @@ class MainActivityRobolectricTest {
         assertEquals("profile-p-01", focusedTag)
 
         val longName = waitForView(activity.window.decorView, "profile-name-p-long") as TextView
-        assertEquals(2, longName.maxLines)
+        assertEquals(1, longName.maxLines)
         assertEquals(android.text.TextUtils.TruncateAt.END, longName.ellipsize)
     }
 
@@ -324,6 +327,7 @@ class MainActivityRobolectricTest {
         fixture.cloudScenario = CloudScenario.SAVED_LIBRARY
         memoryStore.save("saved-token")
         val activity = visibleActivity()
+        setAutoplay(activity, enabled = false)
         waitForView(activity.window.decorView, "nav-library").performClick()
         val sections = waitForView(activity.window.decorView, "library-sections") as RecyclerView
         sections.scrollToPosition(3)
@@ -445,6 +449,17 @@ class MainActivityRobolectricTest {
         if (view is android.view.ViewGroup) {
             for (i in 0 until view.childCount) collectVisibleTagged(view.getChildAt(i), out)
         }
+    }
+
+    private fun setAutoplay(activity: MainActivity, enabled: Boolean, tvEnabled: Boolean = enabled) {
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest("acc-1\u0000p-main".toByteArray())
+            .joinToString("") { "%02x".format(it) }
+        activity.getSharedPreferences("native-prefs-$digest", android.content.Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean("autoplay", enabled)
+            .putBoolean("autoplay-tv", tvEnabled)
+            .apply()
     }
 }
 

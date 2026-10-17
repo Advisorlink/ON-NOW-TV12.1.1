@@ -14,6 +14,13 @@ class LocalPreferences(c:Context,accountId:String,profileId:String,private val c
     var side:Boolean
         get()=if(prefs.contains("side"))prefs.getBoolean("side",false) else cloud?.string("onnowtv-nav-layout")=="side"
         set(value) { prefs.edit().putBoolean("side",value).apply() }
+    var autoplay:Boolean
+        get()=if(prefs.contains("autoplay"))prefs.getBoolean("autoplay",true) else cloud?.string("onnowtv-autoplay-1080p")!="0"
+        set(value) { prefs.edit().putBoolean("autoplay",value).apply() }
+    var autoplayTV:Boolean
+        get()=if(prefs.contains("autoplay-tv"))prefs.getBoolean("autoplay-tv",true) else cloud?.string("onnowtv-autoplay-tv")!="0"
+        set(value) { prefs.edit().putBoolean("autoplay-tv",value).apply() }
+    fun shouldAutoplay(type:String)=autoplay && (type!="series" || autoplayTV)
     fun applyTheme() {
         val selected=themes.firstOrNull { it.id==theme } ?: themes.first()
         TvUi.accent=Color.parseColor(selected.accent); TvUi.background=Color.parseColor(selected.background)

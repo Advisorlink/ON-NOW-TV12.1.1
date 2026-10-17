@@ -16,13 +16,15 @@ class HomeScreen(c: Context, private val repository: CatalogRepository, private 
     private val open: (Title) -> Unit, navigate: (String) -> Unit,
     private val failed: (Throwable) -> Unit, showLibrary: Boolean = false,
     openBrand: (Brand) -> Unit = {}, profile: CloudProfile? = null, data: ProfileData? = null,
-    play: (Title) -> Unit = open, side: Boolean = false) : NativeScreen(c) {
-    private val hero = HeroView(c, open, play) { navigate("library") }
+    play: (Title) -> Unit = open, side: Boolean = false, preferences:LocalPreferences?=null,
+    moreInfo:(Title)->Unit=open) : NativeScreen(c) {
+    private val hero = HeroView(c, moreInfo, play) { navigate("library") }
     private val status = StatusBand(c,"home-status")
     private val shelves = TvUi.identify(RecyclerView(c),"home-shelves").apply {
         layoutManager = LinearLayoutManager(c); itemAnimator = null; clipToPadding = false; setHasFixedSize(true)
     }
-    private val nav = NavigationBar(c,filter ?: "home",navigate,profile?.avatarId,side)
+    private val nav = NavigationBar(c,filter ?: "home",navigate,profile?.avatarId,side,
+        preferences?.let { { it.autoplay } },preferences?.let { { it.autoplay=!it.autoplay } })
     private var dwell: Job? = null
     private var loadJob: Job? = null
     private val brands = openBrand
