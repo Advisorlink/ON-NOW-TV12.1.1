@@ -22,7 +22,7 @@ class BrowseGridScreen(c:Context,private val repo:CatalogRepository,private val 
     private val filters=TvUi.row(c)
     private val more=V2Ui.pill(c,"browse-more","Show more","plus") { load(false) }
     private val grid=TvUi.identify(RecyclerView(c),"browse-grid").apply {
-        layoutManager=GridLayoutManager(c,(c.resources.displayMetrics.widthPixels/TvUi.dp(c,126)).coerceAtLeast(2))
+        layoutManager=GridLayoutManager(c,TvViewport.browseColumns((c.resources.displayMetrics.widthPixels/c.resources.displayMetrics.density).toInt()))
         adapter=this@BrowseGridScreen.adapter; itemAnimator=null; FocusMotion.prepareRail(this)
     }
     init {

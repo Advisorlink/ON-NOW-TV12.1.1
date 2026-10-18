@@ -59,6 +59,7 @@ class SettingsScreen(c:Context,prefs:LocalPreferences,back:()->Unit,refresh:()->
         }
         toggle(appearance,"settings-side-menu","Side menu",prefs.side) { prefs.side=it; refresh() }
         val playback=section("playback","Playback")
+        toggle(playback,"settings-auto-trailers","Automatic trailers",prefs.autoTrailers) { prefs.autoTrailers=it; refresh() }
         toggle(playback,"settings-autoplay","Autoplay",prefs.autoplay) { prefs.autoplay=it }
         toggle(playback,"settings-autoplay-tv","TV episode autoplay",prefs.autoplayTV) { prefs.autoplayTV=it }
         val account=section("account","Account")

@@ -23,6 +23,7 @@ class BrandShelfAdapter(private val repository: BrowseRepository, private val sc
         var rowIndex = -1
         init { (itemView as LinearLayout).apply {
             layoutParams = RecyclerView.LayoutParams(-1,TvUi.dp(c,height))
+            gravity=android.view.Gravity.BOTTOM
             setPadding(TvUi.dp(c,62), TvUi.dp(c,16), TvUi.dp(c,28), TvUi.dp(c,16))
             val header = TvUi.row(c); header.addView(heading,LinearLayout.LayoutParams(0,-2,1f)); header.addView(count)
             addView(eyebrow); addView(TvUi.gap(c,5)); addView(header); addView(TvUi.gap(c,8)); addView(row,LinearLayout.LayoutParams(-1,TvUi.dp(c,144)))

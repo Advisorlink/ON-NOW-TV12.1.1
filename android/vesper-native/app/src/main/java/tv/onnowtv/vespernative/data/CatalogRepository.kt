@@ -9,6 +9,8 @@ import org.json.JSONObject
 /** Instance is scoped to one signed-in session; no account's cache survives sign-out. */
 class CatalogRepository(private val api: VesperApi, private val token: () -> String?) {
     val browse = BrowseRepository(api, token)
+    val trailers = tv.onnowtv.vespernative.playback.TrailerRepository(api, token)
+    val extras = TitleExtrasRepository(api, token)
     private var catalogCache: List<Catalog>? = null
     private val rows = linkedMapOf<String, Pair<Long, List<Title>>>()
     private val networkSlots = Semaphore(3)

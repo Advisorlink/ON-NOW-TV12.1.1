@@ -1,0 +1,59 @@
+{
+  "summary": "Completed fresh native+backend regression run for Vesper parity scope: full native JVM suite, release/debug assemblies, BuildConfig/version validation, and backend external/native-download/trailer contracts.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Native TV visual parity vs authoritative V2 (rows/hero/details/trailer playback on real TV box)",
+        "issue": "Not provable in this container: no physical Android TV hardware rendering/GPU validation. Robolectric/layout checks and builds passed, but pixel parity and decoder behavior on device remain unverified.",
+        "affected_selectors": [
+          "N/A (native Android views)"
+        ]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Home browse layout",
+        "issues": [
+          "Code review risk: current row geometry math still appears capable of showing more than six posters at normalized width; explicit six-column enforcement is not codified in tests/UI policy yet.",
+          "Code review risk: PagedShelfLayout uses scrollToPositionWithOffset(position, 0) ignoring parent paddingTop, which can reintroduce row/header snap mismatch on some viewport combinations."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/playback/TrailerRepositoryRegressionTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/ui/TvViewportAndTrailerRailRegressionTest.kt",
+    "/app/test_reports/pytest/iteration_124_backend.xml",
+    "/app/test_reports/pytest/iteration_124_trailer_stream.xml",
+    "/app/test_reports/pytest/iteration_124_external_contract.xml"
+  ],
+  "action_items": [
+    "Run real-device Android TV parity pass against authoritative V2 recording (1920x1080 mdpi/xhdpi + 1280x720 + 3840x2160) and capture evidence for hero/rows/details/trailer focus behavior.",
+    "Add/adjust explicit acceptance test for exactly six visible posters on normalized browse width and verify row snap with parent padding preserved.",
+    "Validate NewPipe extraction + decoder playback on hardware (container run used MOCKED/fixture paths for unit-level trailer timing/candidate logic)."
+  ],
+  "critical_code_review_comments": [
+    "TvViewport context override is correctly scoped to MainActivity and not PlayerActivity; release BuildConfig correctly disables private prefill.",
+    "TrailerRepository now has stronger regression coverage for candidate order, fallback, cancellation and URL hardening; however, production parity still depends on on-device extractor/runtime behavior.",
+    "Home row/paging behavior still relies on implicit sizing and offset assumptions; enforcing V2-equivalent six-column and snap invariants needs stronger UI-level assertions."
+  ],
+  "updated_files": [
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/playback/TrailerRepositoryRegressionTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/ui/TvViewportAndTrailerRailRegressionTest.kt",
+    "/app/test_reports/iteration_124.json"
+  ],
+  "success_rate": {
+    "backend": "100% (13/13: native_download 6 + trailer_stream 2 + external_contract 5)",
+    "frontend": "Native JVM/build checks passed (21 test XMLs generated, 0 failing tasks in :app:testDebugUnitTest, assembleDebug, assembleRelease)"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Commands run: 1) ANDROID_HOME=/app/.cache/native-tools/sdk ANDROID_SDK_ROOT=/app/.cache/native-tools/sdk ./gradlew :app:testDebugUnitTest -Pandroid.aapt2FromMavenOverride=/app/.cache/native-tools/aapt2 --console=plain 2) ./gradlew :app:assembleRelease (same env/flags) 3) pytest /app/backend/tests/test_native_download_security.py --junitxml=/app/test_reports/pytest/iteration_124_backend.xml 4) REACT_APP_BACKEND_URL=<public-preview> pytest /app/backend/tests/test_trailer_stream.py --junitxml=/app/test_reports/pytest/iteration_124_trailer_stream.xml 5) VESPER_TEST_USERNAME/VESPER_TEST_PASSWORD set from memory file for test_vesper_native_external_contract.py. BuildConfig checks confirmed versionName 0.4.0-native-private, versionCode 8, debug prefill enabled only for debug, release prefill empty/disabled. Frontend baseline spot-check hashes still match prior baseline for yarn.lock/package.json/src/App.js.",
+  "rca of the issue": "Main remaining blocker is environment fidelity, not immediate test failure: container/Robolectric confirms contract and logic regressions but cannot prove hardware-rendered pixel parity and decoder behavior on TV box. Additional code-review risks indicate likely geometry mismatch roots (implicit row sizing and zero-offset snapping) behind user-reported visual drift from V2."
+}

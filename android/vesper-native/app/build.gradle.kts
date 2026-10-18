@@ -28,8 +28,8 @@ android {
         applicationId = "tv.onnowtv.vespernative"
         minSdk = 26
         targetSdk = 34
-        versionCode = 7
-        versionName = "0.3.0-native-private"
+        versionCode = 8
+        versionName = "0.4.0-native-private"
         buildConfigField("String", "API_BASE_URL", "\"${backendUrl.trimEnd('/')}\"")
         buildConfigField("boolean", "DEBUG_PREFILL_ENABLED", "false")
         buildConfigField("String", "DEBUG_PREFILL_USERNAME", "\"\"")
@@ -38,6 +38,7 @@ android {
     buildFeatures { buildConfig = true; compose = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.10" }
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -63,6 +64,8 @@ android {
 }
 
 dependencies {
+    implementation("com.github.teamnewpipe:NewPipeExtractor:v0.26.3")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.4")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.recyclerview:recyclerview:1.3.2")

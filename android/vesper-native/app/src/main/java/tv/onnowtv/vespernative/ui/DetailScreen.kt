@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.view.View
 import android.view.ViewGroup
+import android.view.Gravity
 import android.widget.*
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -14,40 +15,74 @@ import tv.onnowtv.vespernative.data.*
 
 class DetailScreen(c:Context,private val seed:Title,private val repository:CatalogRepository,
     back:()->Unit,private val failed:(Throwable)->Unit,private val play:(Title,String,String)->Unit={_,_,_->},
-    home:()->Unit=back,private val autoOpen:Boolean=false):NativeScreen(c) {
+    home:()->Unit=back,private val autoOpen:Boolean=false,
+    private val chooseStream:(Title,String,String)->Unit=play,
+    private val preferences:tv.onnowtv.vespernative.profile.LocalPreferences?=null):NativeScreen(c) {
     private val image=TvUi.identify(ImageView(c),"detail-backdrop").apply { scaleType=ImageView.ScaleType.CENTER_CROP }
     private val title=TvUi.heading(c,"detail-title",seed.name,34f).apply { maxLines=2; ellipsize=android.text.TextUtils.TruncateAt.END }
-    private val meta=TvUi.text(c,"detail-metadata",size=12f,color=TvUi.accent)
-    private val summary=TvUi.text(c,"detail-synopsis",size=13f,color=TvUi.muted).apply { maxLines=5; ellipsize=android.text.TextUtils.TruncateAt.END; setLineSpacing(0f,1.4f) }
+    private val meta=TvUi.text(c,"detail-metadata",size=9f,color=TvUi.muted)
+    private val summary=TvUi.text(c,"detail-synopsis",size=8.5f,color=TvUi.muted).apply { maxLines=2; ellipsize=android.text.TextUtils.TruncateAt.END; setLineSpacing(0f,1.45f) }
+    private val logo=TvUi.identify(ImageView(c),"detail-logo").apply { scaleType=ImageView.ScaleType.FIT_START; visibility=View.GONE }
     private val backButton=V2Ui.pill(c,"detail-back","Back","back",click=back)
     private val status=StatusBand(c,"detail-status")
     private val seasons=TvUi.row(c)
     private val episodes=TvUi.identify(RecyclerView(c),"detail-episodes").apply { layoutManager=LinearLayoutManager(c); itemAnimator=null }
     private val playButton=V2Ui.pill(c,"detail-play","Play","play") { current?.let { play(it,it.id,it.name) } }.apply { V2Ui.stylePill(this,"play",white=true) }
+    private val preview=tv.onnowtv.vespernative.playback.TrailerPreview(c,scope,repository.trailers)
+    private var trailerDialog:android.app.Dialog?=null
+    private var actorJob:Job?=null
+    private val cast=CastLane(c,::openActor,::focusActor).apply { visibility=View.GONE }
     private var current:Title?=null; private var season=-1; private var job:Job?=null; private var launched=false
     init {
-        if (seed.type == "series") summary.maxLines = 2
         root.addView(image,FrameLayout.LayoutParams(-1,-1))
         root.addView(View(c).apply { background=GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,intArrayOf(Color.argb(248,3,6,15),Color.argb(180,3,6,15),Color.argb(70,3,6,15))) },FrameLayout.LayoutParams(-1,-1))
-        val content=TvUi.column(c).apply { setPadding(TvUi.dp(c,40),TvUi.dp(c,20),TvUi.dp(c,40),TvUi.dp(c,24)) }
-        val header=TvUi.row(c); header.addView(backButton); header.addView(V2Ui.pill(c,"detail-home","Home","home",click=home),LinearLayout.LayoutParams(-2,TvUi.dp(c,30)).apply { marginStart=TvUi.dp(c,8) })
-        content.addView(header); content.addView(TvUi.gap(c,18))
-        content.addView(TvUi.text(c,"detail-type",if(seed.type=="series")"TV SHOW" else "MOVIE",10f,TvUi.accent)); content.addView(TvUi.gap(c,6))
-        content.addView(title,LinearLayout.LayoutParams((c.resources.displayMetrics.widthPixels*.58).toInt(),-2)); content.addView(TvUi.gap(c,10)); content.addView(meta)
-        summary.textSize=10f
-        content.addView(TvUi.gap(c,14)); content.addView(summary,LinearLayout.LayoutParams((c.resources.displayMetrics.widthPixels*.44).toInt(),-2))
-        content.addView(TvUi.gap(c,18)); content.addView(playButton)
+        val header=TvUi.row(c).apply { setPadding(TvUi.dp(c,16),TvUi.dp(c,15),TvUi.dp(c,16),0) }
+        header.addView(backButton,LinearLayout.LayoutParams(-2,TvUi.dp(c,24)))
+        header.addView(View(c),LinearLayout.LayoutParams(0,1,1f))
+        header.addView(V2Ui.pill(c,"detail-home","Home","home",click=home),LinearLayout.LayoutParams(-2,TvUi.dp(c,24)))
+        root.addView(header,FrameLayout.LayoutParams(-1,TvUi.dp(c,42),Gravity.TOP))
+        val content=TvUi.column(c)
+        root.addView(content,FrameLayout.LayoutParams(TvUi.dp(c,550),-2).apply { topMargin=TvUi.dp(c,68); leftMargin=TvUi.dp(c,34) })
+        content.addView(logo,LinearLayout.LayoutParams(TvUi.dp(c,320),TvUi.dp(c,58)))
+        content.addView(title,LinearLayout.LayoutParams(-1,-2)); content.addView(TvUi.gap(c,5)); content.addView(meta)
+        content.addView(TvUi.gap(c,7)); content.addView(summary,LinearLayout.LayoutParams(TvUi.dp(c,420),-2))
+        content.addView(TvUi.gap(c,10))
+        val actions=TvUi.row(c)
+        fun action(view:View) { actions.addView(view,LinearLayout.LayoutParams(-2,TvUi.dp(c,28)).apply { marginEnd=TvUi.dp(c,8) }) }
+        action(playButton)
+        if(seed.type!="series")action(V2Ui.pill(c,"detail-choose-stream","Choose stream","layers") { current?.let { chooseStream(it,it.id,it.name) } })
+        action(V2Ui.pill(c,"detail-trailer","Trailer","play") { current?.let { trailerDialog=TrailerDialog.show(c,it,preview) } })
+        action(V2Ui.pill(c,"detail-library-readonly","Add to Library","plus") {}.apply { isEnabled=false; alpha=.45f; contentDescription="Add to Library, unavailable while native cloud access is read-only" })
+        for(i in 0 until actions.childCount) { val child=actions.getChildAt(i); val previous=child.onFocusChangeListener
+            child.setOnFocusChangeListener { view,focused->previous?.onFocusChange(view,focused); if(focused) { actorJob?.cancel(); current?.let(::bindText) } }
+        }
+        content.addView(actions)
+        preferences?.let { prefs ->
+            content.addView(TvUi.gap(c,8))
+            lateinit var toggle:TextView
+            fun label()="Autoplay · ${if(prefs.autoplay)"ON" else "OFF"}"
+            toggle=V2Ui.pill(c,"detail-autoplay",label(),"play") { prefs.autoplay=!prefs.autoplay; toggle.text=label() }
+            content.addView(toggle,LinearLayout.LayoutParams(-2,TvUi.dp(c,22)))
+        }
         playButton.visibility=if(seed.type=="series")View.GONE else View.VISIBLE; playButton.isEnabled=false
         content.addView(status)
         content.addView(HorizontalScrollView(c).apply { isHorizontalScrollBarEnabled=false; addView(seasons) },LinearLayout.LayoutParams(-1,-2))
-        content.addView(episodes,LinearLayout.LayoutParams(-1,0,1f))
+        root.addView(episodes,FrameLayout.LayoutParams(-1,TvUi.dp(c,230),Gravity.BOTTOM).apply { leftMargin=TvUi.dp(c,34); rightMargin=TvUi.dp(c,34); bottomMargin=TvUi.dp(c,12) })
         if(seed.type!="series")episodes.visibility=View.GONE
-        root.addView(content,FrameLayout.LayoutParams(-1,-1)); bind(seed); status.onRetry={ load() }; load()
+        root.addView(cast,FrameLayout.LayoutParams(-1,TvUi.dp(c,177),Gravity.BOTTOM).apply { bottomMargin=TvUi.dp(c,16) })
+        bind(seed); status.onRetry={ load() }; load()
+    }
+    private fun bindText(value:Title) {
+        title.text=value.name; title.textSize=if(value.name.length>30)26f else 34f
+        meta.text=listOf(value.subtitle,value.runtime,value.genres.take(3).joinToString(" · ")).filter(String::isNotBlank).joinToString("   ·   ")
+        summary.text=value.description.ifBlank { "No synopsis available." }
+        if(value.logo.isNotBlank()) {
+            logo.visibility=View.VISIBLE; title.visibility=View.GONE
+            logo.load(value.logo) { size(640,116); crossfade(false); listener(onError={_,_->logo.visibility=View.GONE; title.visibility=View.VISIBLE}) }
+        } else { logo.visibility=View.GONE; title.visibility=View.VISIBLE }
     }
     private fun bind(value:Title) {
-        current=value; title.text=value.name
-        meta.text=listOf(value.subtitle,value.runtime,value.genres.take(4).joinToString(" · ")).filter(String::isNotBlank).joinToString(" · ")
-        summary.text=value.description.ifBlank { "No synopsis available." }
+        current=value; bindText(value)
         image.load(value.backdrop.takeIf(String::isNotBlank)) { size(1280,720); crossfade(false) }
         if(value.episodes.isNotEmpty()) {
             val ids=value.episodes.map(Episode::season).distinct().sortedWith(compareBy({ it==0 },{ it }))
@@ -69,10 +104,33 @@ class DetailScreen(c:Context,private val seed:Title,private val repository:Catal
         try {
             val value=repository.detail(seed); bind(value); status.clear(); playButton.isEnabled=true
             if(autoOpen && value.type=="movie" && !launched) { launched=true; play(value,value.id,value.name) }
+            if(value.type=="movie")scope.launch {
+                try { val members=repository.extras.cast(value); if(members.isNotEmpty()) { cast.submit(members); cast.visibility=View.VISIBLE } }
+                catch(e:CancellationException) { throw e } catch(_:Exception) { /* Optional metadata never blocks Play. */ }
+            }
         } catch(e:CancellationException) { throw e }
         catch(e:Exception) { status.show("Couldn't load all title details.",true); failed(e) }
     } }
     override fun initialFocus():View=backButton
+    private fun focusActor(member:CastMember) {
+        title.text=member.name; title.visibility=View.VISIBLE; logo.visibility=View.GONE
+        meta.text=member.character; summary.text=""; actorJob?.cancel()
+        actorJob=scope.launch {
+            try { summary.text=repository.extras.person(member.id).text("biography") }
+            catch(e:CancellationException) { throw e } catch(_:Exception) { }
+        }
+    }
+    private fun openActor(member:CastMember) { scope.launch {
+        try {
+            val data=repository.extras.person(member.id)
+            if(context is androidx.appcompat.app.AppCompatActivity)V2Dialog.show(context,"actor-details",member.name,data.text("biography").take(500),listOf(V2Dialog.Action("actor-close","Close") {}))
+        } catch(e:CancellationException) { throw e } catch(_:Exception) {
+            Toast.makeText(context,"Actor details are unavailable. Please try again.",Toast.LENGTH_SHORT).show()
+        }
+    } }
+    override fun hidden() { super.hidden(); trailerDialog?.dismiss(); preview.stop(); actorJob?.cancel() }
+    override fun backgrounded() { trailerDialog?.dismiss(); preview.stop() }
+    override fun dispose() { trailerDialog?.dismiss(); preview.stop(); super.dispose() }
 }
 private class EpisodeAdapter(private val episodes:List<Episode>,private val play:(Episode)->Unit):RecyclerView.Adapter<EpisodeAdapter.Holder>() {
     class Holder(val row:LinearLayout,val name:TextView,val description:TextView,val art:ImageView):RecyclerView.ViewHolder(row)

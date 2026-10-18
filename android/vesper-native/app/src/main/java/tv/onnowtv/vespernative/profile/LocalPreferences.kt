@@ -17,6 +17,9 @@ class LocalPreferences(c:Context,accountId:String,profileId:String,private val c
     var autoplay:Boolean
         get()=if(prefs.contains("autoplay"))prefs.getBoolean("autoplay",true) else cloud?.string("onnowtv-autoplay-1080p")!="0"
         set(value) { prefs.edit().putBoolean("autoplay",value).apply() }
+    var autoTrailers:Boolean
+        get()=if(prefs.contains("auto-trailers"))prefs.getBoolean("auto-trailers",true) else cloud?.string("onnowtv-auto-trailer")!="0"
+        set(value) { prefs.edit().putBoolean("auto-trailers",value).apply() }
     var autoplayTV:Boolean
         get()=if(prefs.contains("autoplay-tv"))prefs.getBoolean("autoplay-tv",true) else cloud?.string("onnowtv-autoplay-tv")!="0"
         set(value) { prefs.edit().putBoolean("autoplay-tv",value).apply() }

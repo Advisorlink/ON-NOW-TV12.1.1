@@ -19,9 +19,11 @@ class HomeScreen(c: Context, private val repository: CatalogRepository, private 
     play: (Title) -> Unit = open, side: Boolean = false, preferences:LocalPreferences?=null,
     moreInfo:(Title)->Unit=open) : NativeScreen(c) {
     private val hero = HeroView(c, moreInfo, play) { navigate("library") }
+    private val preview=tv.onnowtv.vespernative.playback.TrailerPreview(c,scope,repository.trailers)
+    private val trailersEnabled={ preferences?.autoTrailers!=false }
     private val status = StatusBand(c,"home-status")
     private val shelves = TvUi.identify(RecyclerView(c),"home-shelves").apply {
-        layoutManager = LinearLayoutManager(c); itemAnimator = null; clipToPadding = false; setHasFixedSize(true)
+        layoutManager = PagedShelfLayout(c); itemAnimator = null; clipToPadding = false; setHasFixedSize(true)
     }
     private val nav = NavigationBar(c,filter ?: "home",navigate,profile?.avatarId,side,
         preferences?.let { { it.autoplay } },preferences?.let { { it.autoplay=!it.autoplay } })
@@ -50,7 +52,7 @@ class HomeScreen(c: Context, private val repository: CatalogRepository, private 
         status.onRetry = { load() }; load()
     }
     private fun follow(title: Title) {
-        dwell?.cancel(); dwell = scope.launch { delay(180); hero.bind(title) }
+        dwell?.cancel(); dwell = scope.launch { delay(700); hero.bind(title) }
     }
     private fun load() {
         loadJob?.cancel(); loadJob = scope.launch {
@@ -61,7 +63,7 @@ class HomeScreen(c: Context, private val repository: CatalogRepository, private 
                 val adapters = mutableListOf<RecyclerView.Adapter<out RecyclerView.ViewHolder>>()
                 if(saved.isNotEmpty()) adapters.add(SavedRowsAdapter(listOf("Continue Watching" to saved),height,open,::follow,hero.info.id))
                 adapters.add(BrandShelfAdapter(repository.browse,scope,height,brands,if(saved.isEmpty()) hero.info.id else View.NO_ID,failed))
-                adapters.add(ShelfAdapter(catalogs,repository,scope,height,open,::follow,failed,View.NO_ID))
+                adapters.add(ShelfAdapter(catalogs,repository,scope,height,open,::follow,failed,View.NO_ID,preview,trailersEnabled))
                 shelves.adapter = ConcatAdapter(*adapters.toTypedArray()); status.clear()
                 // Populate the billboard independently of which row starts on screen.
                 catalogs.firstOrNull()?.let { cat -> repository.catalog(cat).firstOrNull()?.let(hero::bind) }
@@ -70,5 +72,7 @@ class HomeScreen(c: Context, private val repository: CatalogRepository, private 
         }
     }
     override fun initialFocus(): View = nav.activeButton
-    override fun hidden() { super.hidden(); dwell?.cancel() }
+    override fun hidden() { super.hidden(); dwell?.cancel(); preview.stop() }
+    override fun backgrounded() { preview.stop() }
+    override fun dispose() { preview.stop(); super.dispose() }
 }

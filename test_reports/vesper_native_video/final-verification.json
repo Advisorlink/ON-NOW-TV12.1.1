@@ -1,0 +1,37 @@
+{
+  "date_utc": "2026-10-18",
+  "status": "PRIVATE_V040_CORRECTION_VERIFIED_HARDWARE_ACCEPTANCE_PENDING",
+  "reference": "First user video NEW native; second user video authoritative existing V2",
+  "comparison_notes": "/app/memory/VESPER_TV_VIDEO_COMPARISON.md",
+  "testing_agent_report": "/app/test_reports/iteration_124.json",
+  "reviewed_agent_changes": ["TrailerRepositoryRegressionTest.kt", "TvViewportAndTrailerRailRegressionTest.kt"],
+  "followup": {
+    "screen_configuration": "Strengthened initial test and implementation to normalize screenWidthDp/screenHeightDp as well as density, preserving physical pixels/base resources/fontScale",
+    "grid": "Exactly six columns at normalized960dp; cell-filling2:3posters measured at720p,1080pmdpi/xhdpi,4K",
+    "paging": "Offset0 relative to padded start is correct; explicit nonzero-padding page alignment regression passes",
+    "details": "Long title/synopsis/action/cast bounds at720p/1080p, read-only library action, Play vs manual Choose stream tested"
+  },
+  "native_tests": {"total": 115, "passed": 114, "failures": 0, "errors": 0, "skipped": 1, "skip": "Existing hardware Android Keystore check", "execution": "Forced fresh --rerun", "log": "final-native.log"},
+  "debug_assembly": "PASS",
+  "release_assembly": "PASS (unsigned release, not distributed)",
+  "prefill": "Debug approved opt-in true; release disabled/empty; credentials unchanged",
+  "backend_agent_checks": {"total": 13, "passed": 13, "suites": ["native_download_security", "trailer_stream", "vesper_native_external_contract"]},
+  "final_download_retest": {"total": 6, "passed": 6, "report": "final-download.xml", "authenticated_bytes_equal_local": true, "anonymous_wrong_query_tokens_denied": true},
+  "download_helper": {"external_page_load": "PASS", "version_label": "v0.4.0", "desktop_mobile_overflow": "None in helper smoke; not native rendering proof"},
+  "artifact": {
+    "application_id": "tv.onnowtv.vespernative", "version_code": 8, "version_name": "0.4.0-native-private",
+    "bytes": 26836919, "sha256": "ef91faf5d51e7d3d56f39a91c610c6d9394b3b1d296b0a59aa6c5a5352207abd",
+    "signer_sha256": "961ed894c510d57d4102bbca44354798413ecc23bf4dad1c8b6021eaf51738bc",
+    "v1_signature": true, "v2_signature": true, "zip_alignment": "PASS", "crc": "PASS",
+    "distribution": "Existing PRIVATE capability helper; contains approved debug test-login prefill"
+  },
+  "frontend_snapshot_files": 515,
+  "frontend_snapshot_mismatches": [],
+  "original_wrapper_modified": false,
+  "cloud_writes_enabled": false,
+  "runtime_mocked_apis": false,
+  "test_fixtures": "MOCKED network/extractor responses only in native tests; existing external backend trailer contract independently tested",
+  "full_visual_parity": "INCOMPLETE_NOT_CLAIMED",
+  "real_device_trailer_extraction_decode_audio_fullscreen_remote_acceptance": "PENDING",
+  "remaining": ["Physical TV comparison against video2 using same profile/title", "Full actor filmography/similar views and remaining feature matrix", "Complete player/control/engine/up-next parity", "Cloud migration only after complete acceptance"]
+}

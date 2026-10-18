@@ -2,9 +2,12 @@
 
 Separate pure-native Kotlin Android Views/RecyclerView/Media3 Android TV-box client, with native Compose for the original player UI. No WebView, JavaScript bridge or React runtime. The original React frontend and `android/vesper-tv` remain unchanged. Package `tv.onnowtv.vespernative` coexists with the current Vesper application.
 
-**v0.3.0 is a PRIVATE, unfinished test build, NOT a pixel-perfect/full-parity release.** It contains the user's explicitly approved test-login prefill. Keep the APK and private download link private.
+**v0.4.0 is a PRIVATE, unfinished test build, NOT a pixel-perfect/full-parity release.** It contains the user's explicitly approved test-login prefill. Keep the APK and private download link private.
 
 ## Implemented
+- V2 TV logical viewport across raw720p/1080p/4K box densities, six-column cell-filling grids and whole shelf paging below fixed hero; original player/global density unchanged.
+- Native wide Home trailer slot,280msdwell, pinned original NewPipe0.26.3 device extraction with existing backend fallback, Media3 texture video/audio, same-player fullscreen/Back, focus/lifecycle cleanup and local auto-trailer preference. No web fallback. Actual device decoding/extraction acceptance pending.
+- Movie detail logo/title/metadata/synopsis/actions, separate top-corner Back/Home, native bottomcast/actorbiography, explicit manual Choose stream. AddtoLibrary visiblydisabled under cloud-read-only constraint.
 - Existing login, encrypted token-only Keystore/DataStore session, saved-profile picker/PIN gate and read-only cloud Library.
 - Native icon navigation, fixed focus-follow billboard, network/studio rails, original artwork/Geist font, Movies/TV genre grids, Box Sets, Anime, title search and detail/season selection.
 - Real stream selection and native Media3 play/pause/seek, source swap, embedded audio/subtitle tracks, aspect, timeout/retry, local account/profile-specific resume and decoder release on Back/background. Original wrapper's Compose overlay/dock/loading/track/source UI adapted into the standalone player; not full engine/feature parity.
@@ -15,7 +18,7 @@ Separate pure-native Kotlin Android Views/RecyclerView/Media3 Android TV-box cli
 - Optional debug-only login prefill from native `.env`; password stays masked/editable and Sign in is manual. Release constants remain empty/disabled. No account credentials or PINs are changed.
 
 ## Still incomplete
-Profile CRUD/custom avatars, library editing/reminders, actor search/cast, full search history, calendars, Watch Together, voice/AI, hover trailers, all layout skins/home arrangements and remaining settings/add-on management. Player visual acceptance and full buffer/speed/SDR controls, progressive source cascade, VLC/MPV engines, external subtitles and up-next remain incomplete. Cloud writes remain disabled.
+Profile CRUD/custom avatars, library editing/reminders, actor search/full filmography/similar views, full search history, calendars, Watch Together, voice/AI, all layout skins/home arrangements and remaining settings/add-on management. Device trailer/visual acceptance, full player buffer/speed/SDR controls, progressive source cascade, VLC/MPV engines, external subtitles and up-next remain incomplete. Cloud writes remain disabled.
 
 Actual TV screenshots, physical remote/Keystore behaviour, playback/codec/DRM compatibility and low-end-box performance are **not verified in this container**. See `../../memory/VESPER_NATIVE_PARITY.md` for the release gates.
 
@@ -37,7 +40,7 @@ ANDROID_HOME=/app/.cache/native-tools/sdk ANDROID_SDK_ROOT=/app/.cache/native-to
 /usr/bin/zipalign -c 4 app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Artifact: `app/build/outputs/apk/debug/app-debug.apk`, versionCode **7**, versionName **0.3.0-native-private**, production origin. Backend `GET /api/download/vesper-native-apk` serves `vesper-native-v0.3.0-private.apk` only with the correct `X-Download-Token` header. Anonymous/wrong/query-only requests404. This is the same development signing identity as earlier native builds, not the old wrapper's release identity.
+Artifact: `app/build/outputs/apk/debug/app-debug.apk`, versionCode **8**, versionName **0.4.0-native-private**, production origin. Backend `GET /api/download/vesper-native-apk` serves `vesper-native-v0.4.0-private.apk` only with the correct `X-Download-Token` header. Anonymous/wrong/query-only requests404. This is the same development signing identity as earlier native builds, not the old wrapper's release identity.
 
 Private browser download: `/api/download/vesper-native#<capability-from-backend-env>`. The fragment is cleared immediately and used only in a fetch header; it never reaches access logs as a URL query. No localStorage/cookie persistence, no-store/no-referrer, restrictive CSP. Do not copy a real capability into source, reports or logs. The old public APK link intentionally no longer works.
 
@@ -51,6 +54,8 @@ This pod's `/root/.gradle` points to `/tmp/vesper-gradle-cache` after the worksp
 Cloud pull is read-only and account/profile scoped; unknown keys are preserved. No native push/profile-save/library-write path exists. Local native preferences/playback positions do not overwrite or upload cloud data. Network failures do not bypass profile/PIN gates. Kids profiles remain excluded. No passwords persisted, backups disabled, API HTTPS-only. Stream media may use existing providers' HTTP URLs; no TLS validation bypass. Provider headers stay on the original stream origin and the account JWT is never sent to media/artwork hosts.
 
 ## Verification
+Latest v0.4.0(2026-10-18):115nativecases **114PASS/1hardwareKeystoreskip/0failures**, debug/releaseassembly pass;13APIchecks viareport124, finaldownload6re-run after final APK. Additional tests prove physicalpixel-preserving density normalization, exactsixcolumn cellgeometry, paddedpage snap, longdetails/cast bounds and manualstreambypass. v1/v2signatures/CRC/alignment pass; prefill debug-only/releasefalse-empty. All515originalfrontend filesmatch, wrapperunchanged. FinaldebugAPK26,836,919bytes SHA256`ef91faf5d51e7d3d56f39a91c610c6d9394b3b1d296b0a59aa6c5a5352207abd`. Evidence`../../test_reports/vesper_native_video/final-verification.json`; uservideo notes`../../memory/VESPER_TV_VIDEO_COMPARISON.md`. RealTVpixels/trailers/decoder/remote acceptance still PENDING, not fullparity.
+
 Latest v0.3.0 (2026-10-17): **99 native tests pass**,1 pre-existing hardware Keystore skip,0 failures/errors (100 total; forced fresh test run);6 real private-download API checks pass including byte equality. Release BuildConfig prefill fields empty/disabled; v1/v2 signature/alignment/CRC verified. Anonymous download helper fits desktop/phone; this is delivery UI smoke, NOT native rendering evidence. All515 original frontend snapshot hashes match after exact lockfile restoration. Evidence: `../../test_reports/vesper_native_visual/final-verification.json`. SHA256 `1d745109e4061bc6c3b82e219e0900f6db7d8f0943837b79f5783344c3a4e3cf` (25,065,413 bytes). Real TV-box visual/player/remote acceptance remains pending.
 
 Previous v0.2.1:88 native tests pass,1 hardware skip;6 download checks and actual browser-click artifact equality pass. Evidence `../../test_reports/vesper_native_focus/final-verification.json`; superseded for current artifact by the v0.3.0 report above.

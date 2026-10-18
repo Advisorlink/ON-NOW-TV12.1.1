@@ -20,6 +20,9 @@ import tv.onnowtv.vespernative.profile.*
 import tv.onnowtv.vespernative.playback.*
 
 class MainActivity : AppCompatActivity() {
+    override fun attachBaseContext(base: android.content.Context) {
+        super.attachBaseContext(TvViewport.context(base))
+    }
     private lateinit var services: NativeServices
     private lateinit var container: FrameLayout
     private var repository: CatalogRepository? = null
@@ -119,11 +122,15 @@ class MainActivity : AppCompatActivity() {
         autoplay=preferences?.let { { it.autoplay } },toggleAutoplay=preferences?.let { { it.autoplay=!it.autoplay } })
     private fun open(title: Title) = openTitle(title, title.type=="movie" && preferences?.autoplay==true)
     private fun openTitle(title: Title, autoplay: Boolean) { repository?.let {
-        push(DetailScreen(this, title, it, ::pop, ::failed, ::streams, { navigate("home") }, autoplay))
+        push(DetailScreen(this, title, it, ::pop, ::failed, ::streams, { navigate("home") }, autoplay,
+            chooseStream={item,id,label->streams(item,id,label,false)},preferences=preferences))
     } }
     private fun openBrand(brand: Brand) { repository?.let { push(BrowseGridScreen(this, it,
         if (brand.kind == "networks") "series" else "movie", ::open, ::navigate, ::failed, brand,chrome("home"))) } }
     private fun streams(title: Title, id: String, label: String) {
+        streams(title,id,label,true)
+    }
+    private fun streams(title: Title, id: String, label: String,allowAutoplay:Boolean) {
         val scope = preferences?.scopeKey ?: return
         var available=emptyList<Stream>()
         push(StreamScreen(this, label, title.type, id, StreamRepository(services.api) { services.auth.token }, ::pop, { stream ->
@@ -132,7 +139,7 @@ class MainActivity : AppCompatActivity() {
                 startActivity(android.content.Intent(this, PlayerActivity::class.java)
                     .putExtra("payload",payload).putExtra("title", label).putExtra("resume-key", "$scope:${title.type}:$id"))
             } catch(_:Exception) { Toast.makeText(this,"Couldn't open this stream. Please choose another.",Toast.LENGTH_LONG).show() }
-        }, ::failed,preferences?.shouldAutoplay(title.type)==true,{ available=it },title))
+        }, ::failed,allowAutoplay && preferences?.shouldAutoplay(title.type)==true,{ available=it },title))
     }
     private fun failed(error: Throwable) {
         if (error is ApiFailure && (error.status == 401 || error.status == 403) && !invalidating) {
@@ -170,4 +177,5 @@ class MainActivity : AppCompatActivity() {
         ExitDialog.show(this)
     }
     override fun onDestroy() { screens.forEach(NativeScreen::dispose); screens.clear(); super.onDestroy() }
+    override fun onStop() { screens.forEach(NativeScreen::backgrounded); super.onStop() }
 }
