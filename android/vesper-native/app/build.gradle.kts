@@ -11,6 +11,8 @@ fun nativeSetting(key: String): String? = providers.environmentVariable(key).orN
     ?: nativeEnvironment.takeIf { it.exists() }?.readLines()?.firstOrNull { it.startsWith("$key=") }?.substringAfter('=')?.trim()?.trim('"', '\'')
 fun buildString(value: String): String = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r") + "\""
 val privatePrefill = nativeSetting("DEBUG_PREFILL_ENABLED") == "true"
+val tmdbImageBase = requireNotNull(nativeSetting("TMDB_IMAGE_BASE_URL")) { "TMDB_IMAGE_BASE_URL is required" }
+require(URI(tmdbImageBase).let{it.scheme=="https" && !it.host.isNullOrBlank() && it.userInfo==null}) { "Invalid TMDB image origin" }
 val prefillUsername = if(privatePrefill) requireNotNull(nativeSetting("DEBUG_PREFILL_USERNAME")) { "DEBUG_PREFILL_USERNAME required for private prefill" } else ""
 val prefillPassword = if(privatePrefill) requireNotNull(nativeSetting("DEBUG_PREFILL_PASSWORD")) { "DEBUG_PREFILL_PASSWORD required for private prefill" } else ""
 val backendUrl = providers.environmentVariable("VESPER_API_BASE_URL").orNull
@@ -28,9 +30,10 @@ android {
         applicationId = "tv.onnowtv.vespernative"
         minSdk = 26
         targetSdk = 34
-        versionCode = 8
-        versionName = "0.4.0-native-private"
+        versionCode = 9
+        versionName = "0.5.0-native-private"
         buildConfigField("String", "API_BASE_URL", "\"${backendUrl.trimEnd('/')}\"")
+        buildConfigField("String", "TMDB_IMAGE_BASE_URL", buildString(tmdbImageBase.trimEnd('/')))
         buildConfigField("boolean", "DEBUG_PREFILL_ENABLED", "false")
         buildConfigField("String", "DEBUG_PREFILL_USERNAME", "\"\"")
         buildConfigField("String", "DEBUG_PREFILL_PASSWORD", "\"\"")

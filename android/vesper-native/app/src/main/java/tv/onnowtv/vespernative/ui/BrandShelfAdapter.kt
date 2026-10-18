@@ -11,9 +11,9 @@ import tv.onnowtv.vespernative.data.*
 
 class BrandShelfAdapter(private val repository: BrowseRepository, private val scope: CoroutineScope,
     private val height: Int, private val open: (Brand) -> Unit, private val up: Int,
-    private val failed: (Throwable) -> Unit) : RecyclerView.Adapter<BrandShelfAdapter.Holder>() {
+    private val failed: (Throwable) -> Unit,private val only:String?=null) : RecyclerView.Adapter<BrandShelfAdapter.Holder>() {
     private val scroll = mutableMapOf<Int, android.os.Parcelable?>()
-    override fun getItemCount() = 2
+    override fun getItemCount() = if(only==null)2 else 1
     class Holder(c: Context, height: Int) : RecyclerView.ViewHolder(TvUi.column(c)) {
         val heading = TvUi.heading(c, "brand-heading", "", 18f)
         val eyebrow=V2Ui.eyebrow(c,"brand-eyebrow","Browse")
@@ -32,12 +32,12 @@ class BrandShelfAdapter(private val repository: BrowseRepository, private val sc
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = Holder(parent.context,height)
     override fun onBindViewHolder(h: Holder, position: Int) {
         h.job?.cancel(); h.rowIndex = position
-        val kind = if (position == 0) "networks" else "collections"
-        val brands = repository.brands(h.itemView.context,kind).filter { position == 0 || it.group == "studio" }
+        val kind = if (only=="networks" || (only==null && position==0)) "networks" else "collections"
+        val brands = repository.brands(h.itemView.context,kind).filter { kind=="networks" || it.group == "studio" }
         TvUi.identify(h.heading,"$kind-heading"); TvUi.identify(h.count,"$kind-count"); TvUi.identify(h.row,"$kind-row")
         TvUi.identify(h.eyebrow,"$kind-eyebrow")
-        h.heading.text = if (position == 0) "By network" else "Studios"
-        h.count.text = "${brands.size} ${if (position == 0) "networks" else "studios"}"
+        h.heading.text = if (kind=="networks") "Browse by Network" else "Studios"
+        h.count.text = "${brands.size} ${if (kind=="networks") "networks" else "studios"}"
         val adapter = BrandAdapter(brands,open,if (position == 0) up else View.NO_ID); h.row.adapter = adapter
         h.row.layoutManager?.onRestoreInstanceState(scroll[position])
         h.job = scope.launch {

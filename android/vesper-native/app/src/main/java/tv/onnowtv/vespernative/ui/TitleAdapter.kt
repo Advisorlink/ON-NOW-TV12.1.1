@@ -13,7 +13,7 @@ class TitleAdapter(private val namespace: String, private val posterHeight: Int,
     private val open: (Title) -> Unit, private val focus: (Title) -> Unit = {},
     private val upTarget: Int = android.view.View.NO_ID,
     private val landscape: Boolean = false,
-    private val trailerRail:TrailerRail?=null) : RecyclerView.Adapter<TitleAdapter.Holder>() {
+    private val trailerRail:TrailerRail?=null,private val keyAction:(Int)->Boolean={false}) : RecyclerView.Adapter<TitleAdapter.Holder>() {
     var items: List<Title> = emptyList()
         private set
     fun replace(values: List<Title>) { items = values.distinctBy(Title::key); notifyDataSetChanged() }
@@ -57,6 +57,7 @@ class TitleAdapter(private val namespace: String, private val posterHeight: Int,
             crossfade(false); if(landscape)size(640,360) else size(300,450)
         }
         holder.itemView.setOnClickListener { open(item) }
+        holder.itemView.setOnKeyListener { _,key,event->event.action==android.view.KeyEvent.ACTION_DOWN && keyAction(key) }
         trailerRail?.bind(holder,item,position,posterHeight)
         FocusMotion.bind(holder.itemView) { focused ->
             trailerRail?.focus(holder,focused)

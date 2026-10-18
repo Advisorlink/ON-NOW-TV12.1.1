@@ -1,0 +1,44 @@
+{
+  "date_utc": "2026-10-18",
+  "status": "V050_PRIVATE_CHECKPOINT_VERIFIED_DEVICE_ACCEPTANCE_PENDING",
+  "reference": "Latest five user screenshots; second of earlier videos is original V2",
+  "testing_agent": "../iteration_125.json",
+  "agent_findings_resolved": {
+    "six_hero_overflow_failures": "Fixed final child geometry before measurement, not onSizeChanged after children measured MATCH_PARENT; all original geometry tests pass",
+    "frontend_lock_drift": "Not reproduced; canonical515-file baseline rechecked repeatedly, exact hashes match"
+  },
+  "additional_real_bug_found_by_new_flow_test": "Raw TMDB person/recommendations fields were incorrectly passed to normalized collection parser, dropping all titles. Dedicated raw mapper now preserves mixedmovie/TVtype and configurableimages.",
+  "reviewed_testing_agent_edits": ["MainActivityNewFeatureRobolectricTest.kt collection route", "NativeLayoutAndPreferencesRobolectricTest.kt legitimate new IDs/five-theme-column bounds", "V2AutoplayTest.kt hero ID"],
+  "native_tests": {"total":125,"passed":124,"failures":0,"errors":0,"skipped":1,"skip":"Existing real Android Keystore-only case","execution":"Forced fresh --rerun","log":"native-tests.log"},
+  "new_native_regressions": [
+    "TextureView is VISIBLE and nonopaque before a player or firstframe exists",
+    "Slow device extraction does not starve working backend; losing task cancelled",
+    "Failed cached source rejected in favor of actual alternate fixture",
+    "Actor opens mixedmovie/TV filmography, selecting film triggers navigation, Down shows similar, Back restores original actor focus",
+    "Original networkgradient/wordmark preserved in registry parser",
+    "Cinemeta name before title and explicit missing-name fallback",
+    "Home order/hide/custom persists perprofile without cross-account leak",
+    "Malformed row JSON normalized beforebackup;restoreatomic;64KiB file limit;noauth/clouddata in backup"
+  ],
+  "builds": {"debug":"PASS","release_unsigned":"PASS;notdistributed","log":"final-build.log"},
+  "backend_tests": {"total":20,"passed":20,"skipped":0,"errors":0,"report":"backend-final.xml","includes":"cast/person/recommendations/collection/network/upcoming/trailer/auth/read-onlysync/privatebytes/publicdenial","runner_note":"Initial main-agent rerun lacked test-account and preview environment variables; reran with existing documented account/current.env, allpassed. Noaccount changes."},
+  "artifact": {
+    "package":"tv.onnowtv.vespernative","version_code":9,"version_name":"0.5.0-native-private",
+    "bytes":26994236,"sha256":"33cf6df663b1affa20f44b28edd6008a3e7464b816abad4e262fd6ee800b0372",
+    "signer_sha256":"961ed894c510d57d4102bbca44354798413ecc23bf4dad1c8b6021eaf51738bc",
+    "v1_signature":true,"v2_signature":true,"crc":"PASS","alignment":"PASS",
+    "private_existing_capability_link_valid":true,"protected_download_equals_artifact":true,
+    "debug_approved_prefill":"unchanged","release_prefill":"disabled/empty and credentialbytes absent fromreleasedex"
+  },
+  "frontend": {"snapshot_files":515,"mismatches":[],"snapshot":"../vesper_native_parity/frontend-before.json"},
+  "original_wrapper_modified":false,
+  "cloud_writes_enabled":false,
+  "accounts_credentials_pins_changed":false,
+  "new_public_build_configuration":"TMDB_IMAGE_BASE_URL in native.env/.env.example, no hardcoded host fallback",
+  "runtime_mocked_apis":false,
+  "native_test_fixtures":"MOCKED network/extractor only; runtimeusesreal APIs",
+  "delivery_smoke":"Privatehelperdesktop1920x800/mobile390x844,nooverflow;NOTAndroidrenderingproof",
+  "explicit_not_migrated": ["Calendar","Watch Together","full layout skins","additionalplayerengines/remainingfull-featurematrix"],
+  "hardware_pending": ["Actual trailerfirstframe/decoder/sound/fullscreen/Back","NativeGPU pixelcomparison/overscan/remote/motion","AndroidSAFfilepicker","Keystore"],
+  "full_pixel_and_feature_parity":"INCOMPLETE_NOT_CLAIMED"
+}

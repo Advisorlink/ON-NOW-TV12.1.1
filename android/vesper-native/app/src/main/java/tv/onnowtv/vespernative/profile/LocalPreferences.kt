@@ -8,6 +8,25 @@ data class NativeColorTheme(val id:String,val name:String,val accent:String,val 
 class LocalPreferences(c:Context,accountId:String,profileId:String,private val cloud:ProfileData?) {
     val scopeKey=java.security.MessageDigest.getInstance("SHA-256").digest("$accountId\u0000$profileId".toByteArray()).joinToString("") { "%02x".format(it) }
     private val prefs=c.getSharedPreferences("native-prefs-$scopeKey",Context.MODE_PRIVATE)
+    var homeRowsJson:String
+        get()=prefs.getString("home-rows",null) ?: cloud?.string("onnowtv-home-rows-v1") ?: "{}"
+        set(value){prefs.edit().putString("home-rows",value).apply()}
+    var settingsSection:String
+        get()=prefs.getString("settings-section","theme")!!
+        set(value){prefs.edit().putString("settings-section",value).apply()}
+    val homeRows get()=HomeRowPreferences(homeRowsJson)
+    var preferredGenres:Set<String>
+        get()=prefs.getStringSet("preferred-genres",emptySet())!!.toSet()
+        set(value){prefs.edit().putStringSet("preferred-genres",value.toSet()).apply()}
+    fun saveRows(value:HomeRowPreferences){homeRowsJson=value.toJson()}
+    fun backup():String=org.json.JSONObject().put("version",1).put("theme",theme).put("side",side).put("autoplay",autoplay).put("autoplayTV",autoplayTV).put("autoTrailers",autoTrailers).put("homeRows",org.json.JSONObject(homeRows.toJson())).toString(2)
+    fun restoreBackup(value:String){
+        require(value.length<=65_536);val data=org.json.JSONObject(value);require(data.optInt("version")==1)
+        val selected=data.getString("theme");require(themes.any{it.id==selected})
+        val rows=HomeRowPreferences(data.getJSONObject("homeRows").toString()).toJson()
+        val sideValue=data.getBoolean("side");val autoValue=data.getBoolean("autoplay");val tvValue=data.getBoolean("autoplayTV");val trailerValue=data.getBoolean("autoTrailers")
+        prefs.edit().putString("theme",selected).putBoolean("side",sideValue).putBoolean("autoplay",autoValue).putBoolean("autoplay-tv",tvValue).putBoolean("auto-trailers",trailerValue).putString("home-rows",rows).apply()
+    }
     var theme:String
         get()=prefs.getString("theme",null) ?: cloud?.string("onnowtv-theme") ?: "electric"
         set(value) { prefs.edit().putString("theme",value).apply() }

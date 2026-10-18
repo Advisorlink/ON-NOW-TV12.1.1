@@ -92,10 +92,10 @@ class MainActivityNewFeatureRobolectricTest {
         val activity = visibleActivity()
         waitForView(activity.window.decorView, "nav-boxsets").performClick()
 
-        val starWars = waitForView(activity.window.decorView, "collections-star-wars")
-        starWars.performClick()
-        val title = waitForView(activity.window.decorView, "browse-title") as TextView
-        assertEquals("Star Wars", title.text.toString())
+        val tile = waitForViewWithTagPrefix(activity.window.decorView, "collections-")
+        tile.performClick()
+        waitForView(activity.window.decorView, "collection-shelves")
+        waitForView(activity.window.decorView, "collection-back")
     }
 
     @Test
@@ -235,6 +235,14 @@ class MainActivityNewFeatureRobolectricTest {
             findByTestTag(root, tag) != null
         }
         return requireNotNull(findByTestTag(root, tag))
+    }
+
+    private fun waitForViewWithTagPrefix(root: View, prefix: String): View {
+        waitUntil {
+            layoutRoot(root)
+            findFirstByTagPrefix(root, prefix) != null
+        }
+        return requireNotNull(findFirstByTagPrefix(root, prefix))
     }
 
     private fun waitForRecyclerWithPrefix(root: View, prefix: String): RecyclerView {

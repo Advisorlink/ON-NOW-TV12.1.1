@@ -34,6 +34,20 @@ class MainActivity : AppCompatActivity() {
     private var currentRoute = ""
     private var authJob: Job? = null
     private var invalidating = false
+    private var pendingBackup:String?=null
+    private var importScope:String?=null
+    private val exportSettings=registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")){uri->
+        val data=pendingBackup;pendingBackup=null
+        if(uri!=null && data!=null)try{contentResolver.openOutputStream(uri,"wt")!!.use{it.write(data.toByteArray())};Toast.makeText(this,"Local settings exported.",Toast.LENGTH_SHORT).show()}
+        catch(_:Exception){Toast.makeText(this,"Couldn't export local settings.",Toast.LENGTH_LONG).show()}
+    }
+    private val importSettings=registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()){uri->
+        val prefs=preferences;val expected=importScope;importScope=null
+        if(uri!=null && prefs!=null && prefs.scopeKey==expected)try{
+            val data=contentResolver.openInputStream(uri)!!.use(LocalBackup::read);prefs.restoreBackup(data);prefs.applyTheme();navigate("home");navigate("settings")
+            Toast.makeText(this,"Local settings restored. Cloud data unchanged.",Toast.LENGTH_SHORT).show()
+        }catch(_:Exception){Toast.makeText(this,"Invalid settings backup. Nothing was changed.",Toast.LENGTH_LONG).show()}
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,6 +60,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(container)
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
+                if(screens.lastOrNull()?.back()==true)return
                 if (screens.size > 1) pop() else confirmExit()
             }
         })
@@ -114,8 +129,11 @@ class MainActivity : AppCompatActivity() {
             "search" -> push(SearchScreen(this, repo, ::open, ::pop, ::failed,chrome(route),preferences?.scopeKey))
             "library" -> if (activeProfile != null && profileData != null) push(LibraryScreen(this, activeProfile!!, profileData!!, ::open, ::pop,chrome(route)))
                 else showProfiles()
-            "settings" -> preferences?.let { prefs -> push(SettingsScreen(this, prefs, ::pop, { navigate("home"); navigate("settings") }, ::showProfiles, ::signOut,chrome(route))) }
+            "settings" -> preferences?.let { prefs -> push(SettingsScreen(this,prefs,{navigate("home")},{navigate("home");navigate("settings")},::showProfiles,::signOut,chrome(route),
+                exportBackup={data->pendingBackup=data;try{exportSettings.launch("vesper-local-settings.json")}catch(_:Exception){pendingBackup=null;Toast.makeText(this,"No file picker is available on this device.",Toast.LENGTH_LONG).show()}},
+                importBackup={importScope=prefs.scopeKey;try{importSettings.launch(arrayOf("application/json","text/plain"))}catch(_:Exception){importScope=null;Toast.makeText(this,"No file picker is available on this device.",Toast.LENGTH_LONG).show()}})) }
             "account" -> showAccount()
+            "calendar", "watch-together" -> V2Dialog.show(this,"native-not-migrated",if(route=="calendar")"Calendar" else "Watch Together","This screen has not been migrated to the native app yet.",listOf(V2Dialog.Action("native-not-migrated-close","Close"){}))
         }
     }
     private fun chrome(route:String)=NavigationBar(this,route,::navigate,activeProfile?.avatarId,
@@ -123,10 +141,12 @@ class MainActivity : AppCompatActivity() {
     private fun open(title: Title) = openTitle(title, title.type=="movie" && preferences?.autoplay==true)
     private fun openTitle(title: Title, autoplay: Boolean) { repository?.let {
         push(DetailScreen(this, title, it, ::pop, ::failed, ::streams, { navigate("home") }, autoplay,
-            chooseStream={item,id,label->streams(item,id,label,false)},preferences=preferences))
+            chooseStream={item,id,label->streams(item,id,label,false)},preferences=preferences,openTitle={related->openTitle(related,false)}))
     } }
-    private fun openBrand(brand: Brand) { repository?.let { push(BrowseGridScreen(this, it,
-        if (brand.kind == "networks") "series" else "movie", ::open, ::navigate, ::failed, brand,chrome("home"))) } }
+    private fun openBrand(brand: Brand) { repository?.let {
+        if(brand.kind=="collections")push(CollectionScreen(this,it,brand,{title->openTitle(title,false)},{title->openTitle(title,true)},::pop,{navigate("home")},preferences,chrome("boxsets")))
+        else push(BrowseGridScreen(this,it,"series",::open,::navigate,::failed,brand,chrome("home")))
+    } }
     private fun streams(title: Title, id: String, label: String) {
         streams(title,id,label,true)
     }

@@ -4,6 +4,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.*
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.schabi.newpipe.extractor.NewPipe
+import org.schabi.newpipe.extractor.MediaFormat
 import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.downloader.Downloader
 import org.schabi.newpipe.extractor.downloader.Request as NpeRequest
@@ -61,8 +62,13 @@ object DeviceTrailerExtractor {
                 if(!initialized) { NewPipe.init(NativeDownloader(),Localization("en","US")); initialized=true }
                 val extractor=ServiceList.YouTube.getStreamExtractor("https://www.youtube.com/watch?v=$key")
                 extractor.fetchPage(); ticket.check()
-                val muxed=extractor.videoStreams?.filter { !it.url.isNullOrBlank() && it.height in 1..720 }?.maxByOrNull { it.height }
-                muxed?.url?.takeIf(TrailerMedia::valid)?.let { TrailerMedia(it,key=key) }
+                val muxed=extractor.videoStreams?.filter { !it.url.isNullOrBlank() && it.height in 1..720 && it.format==MediaFormat.MPEG_4 }?.maxByOrNull { it.height }
+                muxed?.url?.takeIf(TrailerMedia::valid)?.let { TrailerMedia(it,key=key) } ?: run {
+                    // Same HD-pair path as V2; YouTube frequently has no muxed stream.
+                    val video=extractor.videoOnlyStreams?.filter { it.height in 1..720 && it.format==MediaFormat.MPEG_4 && TrailerMedia.valid(it.url.orEmpty()) }?.maxByOrNull { it.height }
+                    val audio=extractor.audioStreams?.filter { it.format==MediaFormat.M4A && TrailerMedia.valid(it.url.orEmpty()) }?.maxByOrNull { it.averageBitrate }
+                    if(video!=null && audio!=null)TrailerMedia(video.url.orEmpty(),audio.url.orEmpty(),key) else null
+                }
             } catch(_:Exception) { null } finally { current.remove() }
             if(continuation.isActive)continuation.resume(result)
         }

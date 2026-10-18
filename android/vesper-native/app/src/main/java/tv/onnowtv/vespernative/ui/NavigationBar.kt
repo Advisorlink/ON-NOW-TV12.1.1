@@ -18,16 +18,17 @@ class NavigationBar(c:Context,active:String,private val navigate:(String)->Unit,
         TvUi.identify(this,"navigation-bar"); clipChildren=false; clipToPadding=false
         val bar=if(side)TvUi.column(c) else TvUi.row(c)
         bar.background=TvUi.shape(Color.argb(235,17,24,39),TvUi.dp(c,22).toFloat(),Color.argb(15,255,255,255),1)
-        bar.setPadding(TvUi.dp(c,5),TvUi.dp(c,4),TvUi.dp(c,5),TvUi.dp(c,4))
-        val label=TvUi.text(c,"nav-focus-label",size=7f).apply {
+        bar.setPadding(TvUi.dp(c,5),TvUi.dp(c,5),TvUi.dp(c,5),TvUi.dp(c,5))
+        val label=TvUi.text(c,"nav-focus-label",size=9f).apply {
             gravity=Gravity.CENTER; visibility=View.INVISIBLE; background=V2Ui.panel(c,12)
             setPadding(TvUi.dp(c,7),TvUi.dp(c,4),TvUi.dp(c,7),TvUi.dp(c,4))
         }
         val entries=listOf("search" to "Search","home" to "Home","series" to "TV Shows","movie" to "Movies",
-            "boxsets" to "Box Sets","anime" to "Anime","library" to "My Library","settings" to "Settings") +
+            "boxsets" to "Box Sets","anime" to "Anime","library" to "My Library","calendar" to "Calendar","watch-together" to "Watch Together","settings" to "Settings") +
             (if(autoplay!=null)listOf("autoplay" to "Autoplay") else emptyList()) + listOf("account" to "Switch profile")
         var selected:View?=null
         entries.forEach { (route,name) ->
+            if(route=="autoplay" && !side)bar.addView(View(c).apply { setBackgroundColor(V2Ui.line) },LinearLayout.LayoutParams(TvUi.dp(c,1),TvUi.dp(c,16)).apply{setMargins(TvUi.dp(c,6),0,TvUi.dp(c,6),0)})
             val button=TvUi.identify(FrameLayout(c),"nav-$route").apply { isFocusable=true; isClickable=true; contentDescription=name; tooltipText=name }
             fun indicator()=route==active || (route=="autoplay" && autoplay?.invoke()==true)
             fun paint() {
@@ -41,7 +42,7 @@ class NavigationBar(c:Context,active:String,private val navigate:(String)->Unit,
             paint()
             if(route=="account" && avatar!=null)button.addView(ImageView(c).apply {
                 load("file:///android_asset/avatars/$avatar.jpg") { transformations(CircleCropTransformation()) }
-            },LayoutParams(TvUi.dp(c,17),TvUi.dp(c,17),Gravity.CENTER))
+            },LayoutParams(TvUi.dp(c,22),TvUi.dp(c,22),Gravity.CENTER))
             else if(route=="autoplay")button.addView(ImageView(c).apply {
                 setImageDrawable(GlyphDrawable("zap",TvUi.dp(c,13),if(indicator())TvUi.accent else TvUi.muted))
             },LayoutParams(TvUi.dp(c,13),TvUi.dp(c,13),Gravity.CENTER))
@@ -62,13 +63,13 @@ class NavigationBar(c:Context,active:String,private val navigate:(String)->Unit,
                     label.post { if(!side)label.translationX=(button.left+button.width/2-bar.width/2).toFloat() }
                 } else label.visibility=View.INVISIBLE
             }
-            bar.addView(button,LinearLayout.LayoutParams(TvUi.dp(c,25),TvUi.dp(c,25)).apply {
-                if(side)bottomMargin=TvUi.dp(c,2) else marginEnd=TvUi.dp(c,2)
+            bar.addView(button,LinearLayout.LayoutParams(TvUi.dp(c,30),TvUi.dp(c,30)).apply {
+                if(side)bottomMargin=TvUi.dp(c,2) else marginEnd=TvUi.dp(c,3)
             })
             buttons.add(button); if(active==route)selected=button
         }
         activeButton=selected ?: buttons[1]
         addView(bar,LayoutParams(-2,-2,if(side)Gravity.CENTER_VERTICAL or Gravity.START else Gravity.TOP or Gravity.CENTER_HORIZONTAL))
-        addView(label,LayoutParams(-2,-2,if(side)Gravity.BOTTOM or Gravity.START else Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { if(!side)topMargin=TvUi.dp(c,38) })
+        addView(label,LayoutParams(-2,-2,if(side)Gravity.BOTTOM or Gravity.START else Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { if(!side)topMargin=TvUi.dp(c,46) })
     }
 }

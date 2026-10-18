@@ -1,162 +1,105 @@
 {
-  "project_name": "Vesper V2 Native Android TV App",
-  "app_type": "native_android_tv_app",
-  "design_archetype": "THE PERFORMANCE PRO / NEON-GLASS (V2 Electric)",
-  "reference_viewport": {
-    "web_px": "1920x1080",
-    "native_dp": "960x540",
-    "conversion": "1dp = 2px (divide web px by 2)"
+  "project_name": "Vesper Native Android TV & Reference V2 UI Parity",
+  "archetype": "THE PERFORMANCE PRO / ELECTRIC V2 TV",
+  "theme": {
+    "background_deep": "#06080F",
+    "background_surface": "#0A0E1A",
+    "surface_elevation_2": "#111827",
+    "accent_cyan": "#5DC8FF",
+    "accent_cyan_bright": "#8DE0FF",
+    "primary_text": "#F5F7FA",
+    "secondary_text": "#9BA8C2",
+    "muted_text": "#5B6580",
+    "warning_red": "#FF8B7C",
+    "network_colors": {
+      "netflix": "#E50914",
+      "hbo_max": "#5822B4",
+      "disney_plus": "#113CCF",
+      "apple_tv": "#1C1C1E",
+      "paramount_plus": "#0064FF",
+      "hulu": "#1CE783",
+      "binge": "#00A8E1",
+      "stan": "#0072CE",
+      "amazon_prime": "#00A8E1"
+    }
   },
   "typography": {
-    "font_family_primary": "Geist",
-    "font_family_mono": "Geist Mono / JetBrains Mono",
-    "h1_hero": {
-      "font_size_sp": 30,
-      "web_size_px": 60,
-      "font_weight": "700 (Bold)",
-      "letter_spacing": "-0.025em",
-      "line_height": 1.0
-    },
-    "h2_section": {
-      "font_size_sp": 20,
-      "web_size_px": 40,
-      "font_weight": "700 (Bold)",
-      "letter_spacing": "-0.015em"
-    },
-    "h3_card_title": {
-      "font_size_sp": 14,
-      "web_size_px": 28,
-      "font_weight": "600 (SemiBold)",
-      "letter_spacing": "normal"
-    },
-    "body_text": {
-      "font_size_sp": 12,
-      "web_size_px": 24,
-      "font_weight": "400 (Regular)",
-      "line_height": 1.45
-    },
-    "eyebrow_label": {
-      "font_size_sp": 10,
-      "web_size_px": 20,
-      "font_weight": "500 (Medium)",
-      "letter_spacing": "1.6sp",
-      "text_transform": "uppercase"
+    "font_family_heading": "Geist, system-ui, sans-serif",
+    "font_family_body": "Geist, system-ui, sans-serif",
+    "font_family_mono": "Geist Mono, JetBrains Mono, monospace",
+    "hierarchy": {
+      "h1_display": "text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight",
+      "h2_section": "text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight",
+      "h3_subsection": "text-xl sm:text-2xl font-semibold",
+      "h4_card_title": "text-lg sm:text-xl font-semibold",
+      "body": "text-base leading-relaxed",
+      "eyebrow_label": "text-xs font-mono uppercase tracking-[0.2em] text-[#5DC8FF]"
     }
   },
-  "colors": {
-    "vesper_bg_0": "#06080F",
-    "vesper_bg_1": "#0A0E1A",
-    "vesper_bg_2": "#111827",
-    "vesper_surface": "#1A2238",
-    "vesper_surface_2": "#232C47",
-    "vesper_text_primary": "#F5F7FA",
-    "vesper_text_secondary": "#9BA8C2",
-    "vesper_text_muted": "#5B6580",
-    "vesper_blue_signal": "#5DC8FF",
-    "vesper_blue_bright": "#8DE0FF",
-    "vesper_blue_glow": "rgba(93, 200, 255, 0.55)",
-    "vesper_border_line": "rgba(255, 255, 255, 0.07)",
-    "error_red": "#FF8B7C"
-  },
-  "visual_enhancers": {
-    "focus_ring": {
-      "style": "solid_cyan_outline",
-      "stroke_width_dp": 1.5,
-      "color": "#8DE0FF",
-      "outline_offset_dp": 2,
-      "scale_pop": 1.06,
-      "transition_ms": 120,
-      "easing": "ease-out"
-    },
-    "pill_focus": {
-      "scale_pop": 1.04,
-      "border_width_dp": 2,
-      "border_color": "#8DE0FF",
-      "shadow_glow": "0 0 22px 4px rgba(93, 200, 255, 0.55)"
-    },
-    "scrim_gradients": {
-      "bottom_dock": "vertical gradient transparent -> rgba(2, 6, 16, 0.6) -> rgba(2, 6, 16, 0.92)",
-      "hero_bottom": "vertical gradient transparent -> #06080F"
-    }
-  },
-  "grids": {
-    "poster_2_3": {
-      "width_dp": 80,
-      "height_dp": 120,
-      "corner_radius_dp": 6,
-      "gap_dp": 12
-    },
-    "landscape_16_9": {
-      "width_dp": 128,
-      "height_dp": 72,
-      "corner_radius_dp": 6,
-      "gap_dp": 12
-    },
-    "genre_grid": {
-      "columns_native": 6,
-      "gap_dp": 16
-    }
-  },
-  "layouts": {
+  "spacing_and_layout": {
+    "viewport_web": "1920x1080px (16:9 TV Canvas)",
+    "viewport_native_dp": "960x540dp (mdpi 1dp = 2px at 1080p)",
     "top_nav": {
+      "height_px": 72,
       "height_dp": 36,
-      "padding_horizontal_dp": 24,
-      "item_gap_dp": 8,
-      "active_indicator": "cyan_glow_pill"
+      "padding_x_px": 48,
+      "item_gap_px": 16,
+      "icons_count": 12
     },
     "hero_billboard": {
+      "height_px": 420,
       "height_dp": 210,
-      "left_inset_dp": 32,
-      "title_size_sp": 22,
-      "synopsis_max_lines": 3
+      "left_inset_px": 64,
+      "trailer_dwell_ms": 280
     },
-    "control_dock": {
-      "height_dp": 180,
-      "padding_horizontal_dp": 32,
-      "padding_bottom_dp": 32,
-      "play_pause_button_size_dp": 40,
-      "action_button_size_dp": 28
+    "poster_tiles": {
+      "portrait_2_3": "160x240px (80x120dp), rounded-xl",
+      "landscape_16_9": "256x144px (128x72dp), rounded-xl",
+      "focus_scale": "1.06x with 120ms ease-out",
+      "focus_ring": "1.5dp signal cyan (#5DC8FF) with 2dp offset bloom"
+    },
+    "settings_layout": {
+      "grid": "grid-cols-[220px_1fr] gap-8",
+      "nav_sections_count": 9
     }
   },
-  "motion": {
-    "dpad_focus_snap": "120ms ease-out scale pop-out",
-    "scrub_debounce_ms": 220,
-    "dock_autohide_delay_ms": 5000,
-    "reduced_motion_handling": "disable scale animations, preserve sharp cyan outline"
-  },
-  "accessibility": {
-    "min_contrast_ratio": "4.5:1",
-    "test_id_convention": "R.id.test_id / data-testid in kebab-case",
-    "touch_and_remote_hit_target_min_dp": 42
-  },
-  "media": {
-    "engine_support": ["mpv", "vlc", "exo", "exo_ffmpeg"],
-    "player_overlay": "Native PlayerOverlay Compose / Views layout above Media3 PlayerView",
-    "aspect_ratios": ["fit", "fill", "zoom", "stretch"]
-  },
-  "3d_libraries": {
-    "usage": "None (Pure 2D Native TV Performance Focus)"
+  "interaction_flow": {
+    "home_screen": "Top Nav (12 icons) -> Hero Billboard (Autoplay 280ms trailer) -> Wide Preview Rail -> Category Shelves",
+    "movie_detail": "Top-left Back+Home buttons -> Title & Meta (MOVIE · TT31049299) -> Autoplay 1080p CTA -> Down to Cast Row (Hover actor updates hero bio) -> Click actor for Filmography -> Down to Similar Movies",
+    "tv_series_detail": "Back+Home adjacent -> Hero info -> Season Selector Pills -> Rich Episode List (Thumbnail, Title, Runtime, Overview, Watched Progress)",
+    "networks_screen": "Branded Network Cards featuring authentic background colors and vectors",
+    "studios_and_boxsets": "Identical layout to Home Screen with Hero Billboard + Wide Preview Trailer Rail"
   },
   "image_urls": {
-    "note": "Source of truth artwork is bundled in app resources and assets",
-    "bundled_assets_path": "/app/android/vesper-native/app/src/main/assets/",
-    "bundled_res_path": "/app/android/vesper-native/app/src/main/res/"
+    "spectre_poster": "https://images.unsplash.com/photo-1616530940355-351fabd9524b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA0MTJ8MHwxfHNlYXJjaHwxfHxtb3ZpZSUyMHN0cmVhbWluZyUyMG5ldHdvcmslMjBsb2dvcyUyMHBvc3RlcnMlMjB0diUyMGNpbmVtYXxlbnwwfHx8fDE3OTIzMzUwMzF8MA&ixlib=rb-4.1.0&q=85",
+    "vhs_grid_poster": "https://images.unsplash.com/photo-1626814026160-2237a95fc5a0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA0MTJ8MHwxfHNlYXJjaHwyfHxtb3ZpZSUyMHN0cmVhbWluZyUyMG5ldHdvcmslMjBsb2dvcyUyMHBvc3RlcnMlMjB0diUyMGNpbmVtYXxlbnwwfHx8fDE3OTIzMzUwMzF8MA&ixlib=rb-4.1.0&q=85",
+    "netflix_brand_icon": "https://images.unsplash.com/photo-1637363990764-de84fd247b7d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA0MTJ8MHwxfHNlYXJjaHwzfHxtb3ZpZSUyMHN0cmVhbWluZyUyMG5ldHdvcmslMjBsb2dvcyUyMHBvc3RlcnMlMjB0diUyMGNpbmVtYXxlbnwwfHx8fDE3OTIzMzUwMzF8MA&ixlib=rb-4.1.0&q=85",
+    "streaming_tv_setup": "https://images.unsplash.com/photo-1663847709955-a2f171c7b54b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA0MTJ8MHwxfHNlYXJjaHw0fHxtb3ZpZSUyMHN0cmVhbWluZyUyMG5ldHdvcmslMjBsb2dvcyUyMHBvc3RlcnMlMjB0diUyMGNpbmVtYXxlbnwwfHx8fDE3OTIzMzUwMzF8MA&ixlib=rb-4.1.0&q=85"
   },
-  "component_path": {
-    "ui_primitives": "/app/android/vesper-native/app/src/main/java/tv/onnowtv/vespernative/ui/TvUi.kt",
-    "focus_motion": "/app/android/vesper-native/app/src/main/java/tv/onnowtv/vespernative/ui/FocusMotion.kt",
-    "player_overlay": "/app/android/vesper-tv/app/src/main/java/tv/vesper/app/PlayerOverlay.kt",
-    "home_screen": "/app/android/vesper-native/app/src/main/java/tv/onnowtv/vespernative/ui/HomeScreen.kt"
+  "component_paths": {
+    "home_page": "/app/frontend/src/pages/Home.jsx",
+    "detail_page": "/app/frontend/src/pages/Detail.jsx",
+    "settings_page": "/app/frontend/src/pages/Settings.jsx",
+    "network_page": "/app/frontend/src/pages/Network.jsx",
+    "collection_page": "/app/frontend/src/pages/Collection.jsx",
+    "boxsets_page": "/app/frontend/src/pages/BoxSets.jsx",
+    "native_home_screen": "/app/android/vesper-native/app/src/main/java/tv/onnowtv/vespernative/ui/HomeScreen.kt",
+    "native_detail_screen": "/app/android/vesper-native/app/src/main/java/tv/onnowtv/vespernative/ui/DetailScreen.kt",
+    "native_settings_screen": "/app/android/vesper-native/app/src/main/java/tv/onnowtv/vespernative/ui/SettingsScreen.kt"
   },
   "instructions_to_main_agent": [
-    "Strictly maintain pixel and geometry conversions (1dp = 2px at 1080p).",
-    "Ensure clipChildren=false and clipToPadding=false on all scroll/grid containers to prevent focus ring clipping.",
-    "Retain existing ExoPlayer/Media3 lifecycle and active audio/subtitle track detection without fake active controls.",
-    "Use R.id.test_id or data-testid on every interactive view for automated testing."
+    "Ensure 100% visual and layout alignment between native Android Kotlin UI and the reference V2 React web frontend.",
+    "Implement exact 12-icon top navigation with signal cyan focus state and Geist Mono labels.",
+    "Support 280ms dwell-triggered inline trailer playback on Hero Billboard, Studios, and Box Sets.",
+    "Apply authentic network brand background colors for Network tiles.",
+    "In Movie Detail, bind Cast card focus to top hero Actor Bio swap, and enable Down D-pad navigation to Filmography and Similar Movies.",
+    "In TV Show Detail, replace giant yellow logo with standard Back+Home header and rich 16:9 episode cards.",
+    "Maintain data-testid attributes on all interactive elements across JS and R.id.test_id tags in Kotlin Views."
   ],
-  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
-    "Do not invent new aesthetic directions or gradients.",
-    "Do not add universal transition CSS or Kotlin animations that cause ghosting.",
-    "Ensure all focusable elements have high contrast focus outlines and accessible touch/remote hit targets."
-  ]
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": {
+    "data_testid_rule": "All interactive and key informational elements MUST include a data-testid attribute.",
+    "no_universal_transition": "Do NOT use transition: all. Specify individual properties (transform, opacity, color).",
+    "no_transparent_header": "Header overlays must use backdrop-blur glassmorphism or semi-solid dark backgrounds, never transparent.",
+    "spacing": "Maintain generous 10-foot TV UI spacing (padding/margins) to avoid text/icon collisions."
+  }
 }

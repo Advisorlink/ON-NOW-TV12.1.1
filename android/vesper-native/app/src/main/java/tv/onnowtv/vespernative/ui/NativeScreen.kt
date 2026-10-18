@@ -23,6 +23,7 @@ abstract class NativeScreen(val context: Context) {
     }
     open fun hidden() { focusKey = root.findFocus()?.getTag(R.id.test_id) as? String }
     open fun backgrounded() {}
+    open fun back():Boolean=false
     open fun dispose() { scope.cancel(); root.removeAllViews() }
 
     private fun <T : View> View.findViewWithTag(tagId: Int, value: String): T? {

@@ -18,6 +18,8 @@ class NavIcon(c: Context, kind: String) : View(c) {
         "boxsets" -> listOf("m12 3 8 4-8 4-8-4Z", "M4 7v10l8 4 8-4V7M12 11v10")
         "anime" -> listOf("m14 3 7 0 0 7-12 12-7-7Z", "m14 3 7 7M3 21l4-4M3 13l8 8")
         "library" -> listOf("M4 4v16M8 4v16M12 4v16m4-16 4 16")
+        "calendar" -> listOf("M4 5h16v16H4ZM8 2v6M16 2v6M4 10h16M8 14h1M12 14h1M16 14h1M8 18h1M12 18h1")
+        "watch-together" -> listOf("M9 3a4 4 0 1 1 0 8a4 4 0 1 1 0-8M2 21v-3a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v3M16 3a4 4 0 0 1 0 8M19 14a4 4 0 0 1 3 4v3")
         "settings" -> listOf("M12 8a4 4 0 1 1 0 8a4 4 0 1 1 0-8", "m10 2 4 0 1 3 3 1 3-1 2 4-2 3 0 2 2 3-2 4-3-1-3 1-1 3h-4l-1-3-3-1-3 1-2-4 2-3v-2L1 9l2-4 3 1 3-1Z")
         else -> listOf("M12 3a4 4 0 1 1 0 8a4 4 0 1 1 0-8", "M4 21v-3a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v3")
     }.mapNotNull(PathParser::createPathFromPathData)

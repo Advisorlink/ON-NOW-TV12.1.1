@@ -1,6 +1,8 @@
 package tv.onnowtv.vespernative.ui
 
 import android.content.Context
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
 import android.widget.*
@@ -26,10 +28,17 @@ class BrowseGridScreen(c:Context,private val repo:CatalogRepository,private val 
         adapter=this@BrowseGridScreen.adapter; itemAnimator=null; FocusMotion.prepareRail(this)
     }
     init {
-        val content=TvUi.column(c).apply { setPadding(TvUi.dp(c,62),TvUi.dp(c,66),TvUi.dp(c,34),TvUi.dp(c,12)) }
-        content.addView(V2Ui.eyebrow(c,"browse-eyebrow",if(brand!=null)"Browse" else "Discover")); content.addView(TvUi.gap(c,6))
-        content.addView(TvUi.heading(c,"browse-title",brand?.name ?: if(type=="series")"TV Shows" else "Movies",32f))
-        content.addView(TvUi.gap(c,14))
+        val content=TvUi.column(c).apply { setPadding(TvUi.dp(c,62),TvUi.dp(c,if(brand==null)66 else 186),TvUi.dp(c,34),TvUi.dp(c,12)) }
+        if(brand!=null) {
+            val colors=Regex("#[0-9a-fA-F]{6}").findAll(brand.background).map{Color.parseColor(it.value)}.toList()
+            val header=TvUi.identify(FrameLayout(c),"browse-network-colors").apply{background=GradientDrawable(GradientDrawable.Orientation.TL_BR,(if(colors.size>=2)colors else listOf(TvUi.background,runCatching{Color.parseColor(brand.accent)}.getOrDefault(TvUi.accent))).toIntArray())}
+            header.addView(TvUi.heading(c,"browse-title",brand.wordmark.ifBlank{brand.name},38f),FrameLayout.LayoutParams(-2,-2).apply{leftMargin=TvUi.dp(c,62);topMargin=TvUi.dp(c,102)})
+            header.addView(TvUi.text(c,"browse-network-subtitle","Movies and shows from ${brand.name}",11f),FrameLayout.LayoutParams(-2,-2).apply{leftMargin=TvUi.dp(c,62);topMargin=TvUi.dp(c,150)})
+            root.addView(header,FrameLayout.LayoutParams(-1,TvUi.dp(c,180)))
+        } else {
+            content.addView(V2Ui.eyebrow(c,"browse-eyebrow","Discover"));content.addView(TvUi.gap(c,6))
+            content.addView(TvUi.heading(c,"browse-title",if(type=="series")"TV Shows" else "Movies",32f));content.addView(TvUi.gap(c,14))
+        }
         content.addView(HorizontalScrollView(c).apply { isHorizontalScrollBarEnabled=false; addView(filters) },LinearLayout.LayoutParams(-1,TvUi.dp(c,44)))
         content.addView(status); content.addView(grid,LinearLayout.LayoutParams(-1,0,1f)); content.addView(more)
         root.addView(content,FrameLayout.LayoutParams(-1,-1)); root.addView(nav,FrameLayout.LayoutParams(-2,TvUi.dp(c,76),Gravity.TOP or Gravity.CENTER_HORIZONTAL))

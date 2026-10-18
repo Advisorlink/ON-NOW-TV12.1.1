@@ -31,17 +31,21 @@ class ShelfAdapter(private val catalogs: List<Catalog>, private val repository: 
         holder.status.identify("shelf-status-${cat.key}")
         holder.more.nextFocusUpId = if (position == 0) firstRowUpTarget else View.NO_ID
         holder.heading.text = cat.name
-        val posterHeight = (rowHeight - 100).coerceIn(90,149)
+        holder.eyebrow.text=if(cat.type=="series")"TV SHOWS" else "MOVIES"
+        TvUi.identify(holder.eyebrow,"shelf-type-${cat.key}");TvUi.identify(holder.count,"shelf-count-${cat.key}")
+        val posterHeight = (rowHeight - 88).coerceIn(90,166)
         val rail=preview?.let { TrailerRail(holder.recycler,it,trailersEnabled,open) }
         val adapter = TitleAdapter(cat.key, posterHeight, open, focus, if (position == 0) firstRowUpTarget else View.NO_ID,trailerRail=rail)
-        holder.recycler.adapter = adapter
+        val endcap=MoreTileAdapter(holder.more,posterHeight)
+        holder.recycler.adapter = androidx.recyclerview.widget.ConcatAdapter(adapter,endcap)
         holder.recycler.layoutManager?.onRestoreInstanceState(state.scroll)
         fun display() {
             adapter.replace(state.all.take(state.visible))
             holder.status.clear()
-            holder.more.visibility = if (state.ended && state.visible >= state.all.size) View.GONE else View.VISIBLE
+            endcap.show(!(state.ended && state.visible >= state.all.size))
             holder.more.isEnabled = true
             holder.heading.text = cat.name
+            holder.count.text="${minOf(state.visible,state.all.size)} OF ${state.all.size} TITLES"
         }
         fun load() {
             if (holder.job?.isActive == true) return
@@ -71,7 +75,7 @@ class ShelfAdapter(private val catalogs: List<Catalog>, private val repository: 
                 val target = state.visible
                 state.visible += 18
                 adapter.append(state.all.take(state.visible).drop(adapter.itemCount))
-                holder.more.visibility = if (state.ended && state.visible >= state.all.size) View.GONE else View.VISIBLE
+                endcap.show(!(state.ended && state.visible >= state.all.size))
                 holder.recycler.scrollToPosition(target)
                 holder.recycler.post { holder.recycler.findViewHolderForAdapterPosition(target)?.itemView?.requestFocus() }
                 holder.heading.text = cat.name
@@ -85,7 +89,9 @@ class ShelfAdapter(private val catalogs: List<Catalog>, private val repository: 
         holder.recycler.adapter = null
     }
     class Holder(c: Context, height: Int) : RecyclerView.ViewHolder(TvUi.column(c)) {
-        val heading = TvUi.heading(c, "unbound-shelf-heading", "", 17f)
+        val heading = TvUi.heading(c, "unbound-shelf-heading", "", 21f)
+        val eyebrow=V2Ui.eyebrow(c,"unbound-shelf-type","")
+        val count=V2Ui.eyebrow(c,"unbound-shelf-count","")
         val more = V2Ui.pill(c, "unbound-shelf-more", "Show more") {}
         val recycler = RecyclerView(c).apply {
             layoutManager = LinearLayoutManager(c, RecyclerView.HORIZONTAL, false)
@@ -100,11 +106,11 @@ class ShelfAdapter(private val catalogs: List<Catalog>, private val repository: 
             (itemView as LinearLayout).apply {
                 layoutParams = RecyclerView.LayoutParams(-1, TvUi.dp(c, height))
                 gravity=android.view.Gravity.BOTTOM
-                setPadding(TvUi.dp(c, 62), TvUi.dp(c, 7), TvUi.dp(c, 40), TvUi.dp(c, 7))
+                setPadding(TvUi.dp(c, 69), TvUi.dp(c, 7), TvUi.dp(c, 40), TvUi.dp(c, 7))
                 val row = TvUi.row(c)
-                row.addView(heading, LinearLayout.LayoutParams(0, -2, 1f)); row.addView(more)
-                addView(row); addView(status, LinearLayout.LayoutParams(-1, -2))
-                addView(recycler, LinearLayout.LayoutParams(-1, TvUi.dp(c,(height-100).coerceIn(90,149)+44)))
+                row.addView(eyebrow,LinearLayout.LayoutParams(TvUi.dp(c,65),-2));row.addView(heading, LinearLayout.LayoutParams(0, -2, 1f)); row.addView(count)
+                addView(row,LinearLayout.LayoutParams(-1,TvUi.dp(c,30))); addView(status, LinearLayout.LayoutParams(-1, -2))
+                addView(recycler, LinearLayout.LayoutParams(-1, TvUi.dp(c,(height-88).coerceIn(90,166)+44)))
             }
         }
     }

@@ -1,6 +1,7 @@
 package tv.onnowtv.vespernative.playback
 
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
 import org.json.JSONObject
 import tv.onnowtv.vespernative.data.*
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -28,9 +29,20 @@ data class TrailerMedia(val video:String,val audio:String="",val key:String="") 
 class TrailerRepository(private val api:VesperApi,private val token:()->String?,
     private val extract:suspend(String)->TrailerMedia?=DeviceTrailerExtractor::extract) {
     private val cache=linkedMapOf<String,Pair<Long,TrailerMedia>>()
-    suspend fun resolve(title:Title):TrailerMedia? {
-        cache[title.key]?.takeIf { System.currentTimeMillis()-it.first<600_000 }?.let { return it.second }
-        return withTimeoutOrNull(40_000) {
+    private val rejected=linkedMapOf<String,MutableSet<TrailerMedia>>()
+    fun reject(title:Title,media:TrailerMedia) {
+        cache.remove(title.key)
+        if(rejected.size>=16)rejected.remove(rejected.keys.first())
+        rejected.getOrPut(title.key) { mutableSetOf() }.add(media)
+    }
+    fun remember(title:Title,media:TrailerMedia) {
+        if(cache.size>=16)cache.remove(cache.keys.first())
+        cache[title.key]=System.currentTimeMillis() to media
+    }
+    suspend fun resolve(title:Title):TrailerMedia?=candidates(title).firstOrNull()?.also { remember(title,it) }
+    fun candidates(title:Title):Flow<TrailerMedia> = channelFlow {
+        cache[title.key]?.takeIf { System.currentTimeMillis()-it.first<600_000 }?.let { send(it.second) }
+        withTimeoutOrNull(30_000) {
             val type=if(title.type=="series")"tv" else "movie"
             val id=if(title.id.startsWith("tmdb:"))title.id.substringAfter(':') else {
                 val found=api.request(listOf("tmdb","find-by-imdb",title.id),token()) as JSONObject
@@ -40,24 +52,23 @@ class TrailerRepository(private val api:VesperApi,private val token:()->String?,
             val data=(api.request(listOf("tmdb","trailer",type,id),token()) as JSONObject).optJSONObject("data") ?: return@withTimeoutOrNull null
             val keys=(data.optJSONArray("candidates")?.objects()?.map { it.text("key") }.orEmpty()+data.text("key"))
                 .filter { it.matches(Regex("[A-Za-z0-9_-]{11}")) }.distinct().take(3)
-            var result:TrailerMedia?=null
-            for(key in keys) {
-                currentCoroutineContext().ensureActive()
-                result=withTimeoutOrNull(12_000) { extract(key) }
-                if(result!=null)break
-            }
-            if(result==null)for(key in keys.take(2)) {
-                try {
-                    val json=api.request(listOf("trailer-stream",key),token(),mapOf("combined" to "1")) as JSONObject
-                    result=TrailerMedia.parse(json,key)
-                    if(result!=null)break
-                } catch(e:CancellationException) { throw e } catch(_:Exception) { /* Try the next actual candidate. */ }
-            }
-            currentCoroutineContext().ensureActive()
-            result?.also {
-                if(cache.size>=16)cache.remove(cache.keys.first())
-                cache[title.key]=System.currentTimeMillis() to it
+            coroutineScope {
+                launch {
+                    for(key in keys.take(2)) {
+                        val result=try { withTimeoutOrNull(7_000) { extract(key) } }
+                        catch(e:CancellationException) { throw e } catch(_:Exception) { null }
+                        result?.takeIf { it !in rejected[title.key].orEmpty() }?.let { send(it) }
+                    }
+                }
+                launch {
+                    for(key in keys.take(2)) {
+                        val result=try { withTimeoutOrNull(10_000) {
+                            TrailerMedia.parse(api.request(listOf("trailer-stream",key),token(),mapOf("combined" to "1")) as JSONObject,key)
+                        } } catch(e:CancellationException) { throw e } catch(_:Exception) { null }
+                        result?.takeIf { it !in rejected[title.key].orEmpty() }?.let { send(it) }
+                    }
+                }
             }
         }
-    }
+    }.distinctUntilChanged()
 }

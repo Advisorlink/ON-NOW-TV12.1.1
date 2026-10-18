@@ -42,14 +42,15 @@ data class Title(
 }
 
 data class Episode(val id: String, val season: Int, val number: Int, val name: String, val released: String,
-    val overview: String = "", val thumbnail: String = "") {
+    val overview: String = "", val thumbnail: String = "",val runtime:String="",val rating:String="") {
     companion object {
         fun parse(json: JSONObject): Episode? {
             val id = json.text("id")
             val season = json.optInt("season", -1)
             val number = json.optInt("episode", -1)
             if (id.isBlank() || season < 0 || number < 0) return null
-            return Episode(id, season, number, json.text("title"), json.text("released"), json.text("overview"), json.text("thumbnail"))
+            return Episode(id, season, number, json.text("name").ifBlank { json.text("title") }.ifBlank { "Episode $number" },
+                json.text("released"), json.text("overview").ifBlank { json.text("description") }, json.text("thumbnail"),json.text("runtime"),json.text("rating"))
         }
     }
 }

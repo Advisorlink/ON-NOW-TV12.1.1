@@ -75,7 +75,7 @@ class V2AutoplayTest {
         val server=MockWebServer(); server.enqueue(MockResponse().setResponseCode(500)); server.start()
         var automatic=0; var manual=0
         val home=HomeScreen(context,CatalogRepository(VesperApi(server.url("/").toString())) { null },null,{automatic++},{},{},moreInfo={manual++})
-        val hero=find(home.root,"hero-billboard") as HeroView
+        val hero=find(home.root,"home-hero") as HeroView
         hero.bind(Title("tt1","movie","Title")); hero.info.performClick()
         assertEquals(1,manual); assertEquals(0,automatic)
         home.dispose(); server.shutdown()

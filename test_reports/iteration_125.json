@@ -1,0 +1,74 @@
+{
+  "summary": "Ran fresh native+backend validation for requested v0.5.0 scope: full native JVM suite, debug/release assembly, frontend public smoke, and external backend contracts (cast/person/recs/collection/network/upcoming/trailer).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "HeroView",
+        "issue": "Hero action/title geometry exceeds hero viewport across 720p/1080p/4K acceptance tests (buttons/text spill outside expected hero frame).",
+        "selector": "hero-title, hero-play, hero-info, hero-library",
+        "priority": "CRITICAL"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Native visual parity acceptance (Home hero bounds)",
+        "issue": "Native unit acceptance still failing: 6/115 tests fail after fixture updates; failures are all hero-boundary geometry checks, not backend API failures.",
+        "affected_selectors": [
+          "hero-title",
+          "hero-play",
+          "hero-info",
+          "hero-library"
+        ]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Home hero (native)",
+        "issues": [
+          "CTA row and title placement overflow hero container bounds in acceptance tests, matching user complaint about screenshot mismatch."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/android/vesper-native/app/build/reports/tests/testDebugUnitTest/index.html",
+    "/app/android/vesper-native/app/build/test-results/testDebugUnitTest/TEST-tv.onnowtv.vespernative.profile.NativeLayoutAndPreferencesRobolectricTest.xml",
+    "/app/android/vesper-native/app/build/test-results/testDebugUnitTest/TEST-tv.onnowtv.vespernative.ui.TvVideoAcceptanceTest.xml",
+    "/app/backend/tests/test_iter125_native_v2_contracts.py",
+    "/app/test_reports/pytest/iteration_125_native_v2_contracts.xml",
+    "/app/test_reports/pytest/iteration_125_trailer_stream.xml",
+    "/app/test_reports/pytest/iteration_125_native_download.xml",
+    "/app/test_reports/pytest/iteration_125_external_contract.xml",
+    "/tmp/vesper-native-050-build.log"
+  ],
+  "action_items": [
+    "Fix HeroView layout math so title/actions always stay inside hero height at normalized TV sizes (720p/1080p/4K acceptance).",
+    "Re-run :app:testDebugUnitTest and clear the 6 remaining geometry failures before claiming exact V2 screenshot parity.",
+    "Investigate and clean frontend/yarn.lock drift before any '515 baseline hashes match' claim."
+  ],
+  "critical_code_review_comments": [
+    "HeroView currently uses aggressive absolute placement/scaling; acceptance evidence shows overflow at multiple resolutions.",
+    "Release/debug assemblies now pass for versionCode 9 / versionName 0.5.0-native-private; release BuildConfig keeps debug-prefill disabled as required.",
+    "Build repeatedly warns Android platform-tools license not accepted in this container; assembly still succeeds but environment should be cleaned for deterministic CI logs."
+  ],
+  "updated_files": [
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/MainActivityNewFeatureRobolectricTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/profile/NativeLayoutAndPreferencesRobolectricTest.kt",
+    "/app/android/vesper-native/app/src/test/java/tv/onnowtv/vespernative/ui/V2AutoplayTest.kt",
+    "/app/backend/tests/test_iter125_native_v2_contracts.py",
+    "/app/test_reports/iteration_125.json"
+  ],
+  "success_rate": {
+    "backend": "100% (20/20 tests passed)",
+    "frontend": "94% (109/115 native tests passed, 6 failed, 1 skipped); assembleDebug + assembleRelease passed"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Executed: 1) ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease (fails unit suite on hero geometry) 2) ./gradlew :app:assembleDebug :app:assembleRelease -x test (passes) 3) pytest trailer/native-download/external-contract/native-v2-contracts (all pass). Remaining native failures are only in NativeLayoutAndPreferencesRobolectricTest + TvVideoAcceptanceTest and point to hero bound overflow.",
+  "rca of the issue": "Repro: run :app:testDebugUnitTest; failing assertions show hero-title and hero action bounds exceed container (e.g., Rect(69,83-1029,353) within 960x270, and action Rect(138,453-230,993) outside 1920x540). Likely cause is HeroView child sizing/placement strategy in a constrained hero height causing controls/text to render outside intended frame. Mitigation: clamp hero child dimensions/positions against measured hero height and verify with existing TvVideoAcceptanceTest + NativeLayoutAndPreferencesRobolectricTest across 720p/1080p/4K qualifiers."
+}

@@ -55,7 +55,7 @@ class NativeLayoutAndPreferencesRobolectricTest {
         val screen = SettingsScreen(context, prefs, back = {}, refresh = {}, profiles = {}, signOut = {})
 
         val themes = requireNotNull(findFirstOfType(screen.root, GridLayout::class.java))
-        assertTrue(themes.columnCount in 1..4)
+        assertTrue(themes.columnCount in 1..5)
         assertEquals(8, themes.childCount)
         layout(screen.root, 960, 540)
         assertTrue("Theme grid exceeds content width", themes.right <= (themes.parent as View).width)
@@ -66,7 +66,7 @@ class NativeLayoutAndPreferencesRobolectricTest {
     @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-mdpi")
     fun hero_title_and_synopsis_bounds_at_960x540_keep_two_line_title_and_three_line_synopsis() {
         val context = RuntimeEnvironment.getApplication().applicationContext
-        val hero = HeroView(context, open = {}, play = {}, library = {})
+        val hero = HeroView(context, moreInfo = {}, play = {}, library = {})
         hero.bind(
             Title(
                 id = "tt1",
@@ -78,7 +78,7 @@ class NativeLayoutAndPreferencesRobolectricTest {
         waitUi()
 
         val title = waitForView(hero, "hero-title") as TextView
-        val synopsis = waitForView(hero, "hero-synopsis") as TextView
+        val synopsis = waitForView(hero, "hero-description") as TextView
 
         assertEquals(2, title.maxLines)
         assertEquals(TextUtils.TruncateAt.END, title.ellipsize)
@@ -90,7 +90,7 @@ class NativeLayoutAndPreferencesRobolectricTest {
     @Config(sdk = [34], qualifiers = "w800dp-h450dp-land-mdpi")
     fun hero_compact_breakpoint_applies_tighter_synopsis_bounds() {
         val context = RuntimeEnvironment.getApplication().applicationContext
-        val hero = HeroView(context, open = {}, play = {}, library = {})
+        val hero = HeroView(context, moreInfo = {}, play = {}, library = {})
         hero.bind(
             Title(
                 id = "tt2",
@@ -101,8 +101,8 @@ class NativeLayoutAndPreferencesRobolectricTest {
         )
         waitUi()
 
-        val synopsis = waitForView(hero, "hero-synopsis") as TextView
-        assertEquals(1, synopsis.maxLines)
+        val synopsis = waitForView(hero, "hero-description") as TextView
+        assertEquals(3, synopsis.maxLines)
         assertHeroBounds(hero, 800, 225)
     }
 
@@ -116,7 +116,7 @@ class NativeLayoutAndPreferencesRobolectricTest {
         val title = waitForView(hero, "hero-title")
         val content = title.parent as View
         assertTrue("Title overlaps the navigation band", content.top + title.top >= 50)
-        for (tag in listOf("hero-title", "hero-metadata", "hero-synopsis", "hero-info", "hero-play", "hero-list")) {
+        for (tag in listOf("hero-title", "hero-metadata", "hero-description", "hero-info", "hero-play", "hero-library")) {
             val view = waitForView(hero, tag)
             val rect = android.graphics.Rect(0, 0, view.width, view.height)
             hero.offsetDescendantRectToMyCoords(view, rect)

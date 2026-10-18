@@ -5,7 +5,7 @@ import org.json.JSONObject
 
 data class Brand(val slug: String, val name: String, val kind: String, val group: String,
     val region: String, val localArt: String, val moviesOnly: Boolean, val accent: String,
-    val logo: String = "", val backdrop: String = "", val treatment: String = "")
+    val logo: String = "", val backdrop: String = "", val treatment: String = "",val background:String="",val wordmark:String="")
 data class BrowsePage(val titles: List<Title>, val hasMore: Boolean)
 
 /** Read-only routes already used by the reference app; no new service or cloud writer. */
@@ -16,7 +16,7 @@ class BrowseRepository(private val api: VesperApi, private val token: () -> Stri
         return source.getJSONArray(kind).objects().map { b ->
             Brand(b.text("slug"), b.text("name"), kind, b.text("group"), b.text("region").ifBlank { "US" },
                 b.text("customLogo").takeIf(String::isNotBlank)?.let { "file:///android_asset${it}" }.orEmpty(),
-                b.optBoolean("moviesOnly"), b.text("accent"))
+                b.optBoolean("moviesOnly"), b.text("accent"),background=b.text("background"),wordmark=b.text("wordmark"))
         }
     }
     suspend fun art(brands: List<Brand>): List<Brand> {
@@ -49,6 +49,10 @@ class BrowseRepository(private val api: VesperApi, private val token: () -> Stri
         return data.optJSONArray("rails")?.objects().orEmpty().map { rail ->
             rail.text("title") to rail.optJSONArray("data")?.objects().orEmpty().mapNotNull { tmdbTitle(it, it.text("type")) }
         }
+    }
+    suspend fun upcoming():List<Title> {
+        val result=api.request(listOf("tmdb","upcoming-movies"),token()) as JSONObject
+        return result.optJSONArray("data")?.objects().orEmpty().mapNotNull { item->tmdbTitle(item,"movie")?.copy(description=item.text("synopsis")) }
     }
     companion object {
         fun tmdbTitle(item: JSONObject, type: String): Title? {

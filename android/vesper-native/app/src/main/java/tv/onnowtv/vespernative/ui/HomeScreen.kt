@@ -16,9 +16,10 @@ class HomeScreen(c: Context, private val repository: CatalogRepository, private 
     private val open: (Title) -> Unit, navigate: (String) -> Unit,
     private val failed: (Throwable) -> Unit, showLibrary: Boolean = false,
     openBrand: (Brand) -> Unit = {}, profile: CloudProfile? = null, data: ProfileData? = null,
-    play: (Title) -> Unit = open, side: Boolean = false, preferences:LocalPreferences?=null,
+    play: (Title) -> Unit = open, side: Boolean = false, private val preferences:LocalPreferences?=null,
     moreInfo:(Title)->Unit=open) : NativeScreen(c) {
-    private val hero = HeroView(c, moreInfo, play) { navigate("library") }
+    private val backdrop=CinematicBackdrop(c,"home-backdrop")
+    private val hero = HeroView(c, moreInfo, play, { navigate("library") },backdrop.image)
     private val preview=tv.onnowtv.vespernative.playback.TrailerPreview(c,scope,repository.trailers)
     private val trailersEnabled={ preferences?.autoTrailers!=false }
     private val status = StatusBand(c,"home-status")
@@ -31,14 +32,15 @@ class HomeScreen(c: Context, private val repository: CatalogRepository, private 
     private var loadJob: Job? = null
     private val brands = openBrand
     private val saved = data?.let { SavedLibrary(it).continueWatching() }.orEmpty()
+    private val favourite=data?.let{SavedLibrary(it).favourites("movie").firstOrNull() ?: SavedLibrary(it).favourites("series").firstOrNull()}
     init {
         val content = TvUi.column(c)
-        content.addView(hero,LinearLayout.LayoutParams(-1,0,1f))
+        content.addView(hero,LinearLayout.LayoutParams(-1,TvUi.dp(c,286)))
         content.addView(status,LinearLayout.LayoutParams(-1,-2))
         content.addView(shelves,LinearLayout.LayoutParams(-1,0,1f))
-        root.addView(content,FrameLayout.LayoutParams(-1,-1).apply { if(side) leftMargin = TvUi.dp(c,52) })
-        root.addView(TvUi.brand(c,"home-brand",14f),FrameLayout.LayoutParams(-2,-2,Gravity.TOP or Gravity.START).apply {
-            leftMargin = TvUi.dp(c,if (side) 68 else 62); topMargin = TvUi.dp(c,15)
+        root.addView(backdrop,FrameLayout.LayoutParams(-1,-1));root.addView(content,FrameLayout.LayoutParams(-1,-1).apply { if(side) leftMargin = TvUi.dp(c,52) })
+        root.addView(TvUi.brand(c,"home-brand",18f),FrameLayout.LayoutParams(-2,-2,Gravity.TOP or Gravity.START).apply {
+            leftMargin = TvUi.dp(c,if (side) 68 else 69); topMargin = TvUi.dp(c,15)
         })
         root.addView(nav,FrameLayout.LayoutParams(if(side) TvUi.dp(c,52) else -2,if(side) -1 else TvUi.dp(c,76),
             if(side) Gravity.START else Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { if(!side) topMargin = TvUi.dp(c,7) })
@@ -59,11 +61,25 @@ class HomeScreen(c: Context, private val repository: CatalogRepository, private 
             status.show("Loading your catalogues…")
             try {
                 val catalogs = repository.homeCatalogs(filter)
-                val height = (context.resources.displayMetrics.heightPixels / context.resources.displayMetrics.density / 2).toInt()
-                val adapters = mutableListOf<RecyclerView.Adapter<out RecyclerView.ViewHolder>>()
-                if(saved.isNotEmpty()) adapters.add(SavedRowsAdapter(listOf("Continue Watching" to saved),height,open,::follow,hero.info.id))
-                adapters.add(BrandShelfAdapter(repository.browse,scope,height,brands,if(saved.isEmpty()) hero.info.id else View.NO_ID,failed))
-                adapters.add(ShelfAdapter(catalogs,repository,scope,height,open,::follow,failed,View.NO_ID,preview,trailersEnabled))
+                val height = (context.resources.displayMetrics.heightPixels / context.resources.displayMetrics.density -286).toInt().coerceAtLeast(200)
+                val rows=linkedMapOf<String,RecyclerView.Adapter<out RecyclerView.ViewHolder>>()
+                val prefs=preferences?.homeRows ?: HomeRowPreferences("{}")
+                fun previewRow(id:String,label:String,eyebrow:String,loader:suspend(Int)->List<Title>){rows[id]=PreviewRowsAdapter(listOf(PreviewRow(id,label,eyebrow,loader,false)),height,scope,preview,trailersEnabled,open,::follow,hero.info.id)}
+                if(saved.isNotEmpty())rows["cw"]=SavedRowsAdapter(listOf("Continue Watching" to saved),height,open,::follow,hero.info.id)
+                val preferred=preferences?.preferredGenres.orEmpty()
+                if(preferred.isNotEmpty())previewRow("foryou","Similar to what you love","FOR YOU"){
+                    val ids=repository.browse.genres("movie").filter{(_,name)->name in preferred || (name=="Science Fiction" && "Sci-Fi" in preferred)}.map{it.first}
+                    if(ids.isEmpty())emptyList() else repository.browse.genre("movie",ids.joinToString(","),1).titles
+                } else favourite?.let { item->previewRow("foryou","Similar to what you love","FOR YOU"){repository.extras.similar(item)} }
+                rows["networks"]=BrandShelfAdapter(repository.browse,scope,height,brands,hero.info.id,failed,"networks")
+                rows["studios"]=BrandShelfAdapter(repository.browse,scope,height,brands,hero.info.id,failed,"studios")
+                HomeRowPreferences.defaults.filter{it.id.startsWith("movie-") || it.id.startsWith("series-")}.forEach { row->
+                    val type=row.id.substringBefore('-');val id=row.id.substringAfter('-')
+                    catalogs.firstOrNull{it.type==type && it.id==id}?.copy(name=row.label)?.let{cat->rows[row.id]=ShelfAdapter(listOf(cat),repository,scope,height,open,::follow,failed,hero.info.id,preview,trailersEnabled)}
+                }
+                previewRow("upcoming","Upcoming movies","COMING SOON"){repository.browse.upcoming()}
+                prefs.custom.forEach { row->previewRow(row.id,row.label,"CATEGORY"){repository.search(row.query)} }
+                val adapters=prefs.order.filter{it !in prefs.hidden}.mapNotNull(rows::get)
                 shelves.adapter = ConcatAdapter(*adapters.toTypedArray()); status.clear()
                 // Populate the billboard independently of which row starts on screen.
                 catalogs.firstOrNull()?.let { cat -> repository.catalog(cat).firstOrNull()?.let(hero::bind) }

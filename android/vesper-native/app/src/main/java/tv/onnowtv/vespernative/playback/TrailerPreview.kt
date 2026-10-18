@@ -11,6 +11,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.firstOrNull
 import tv.onnowtv.vespernative.R
 import tv.onnowtv.vespernative.data.Title
 import tv.onnowtv.vespernative.ui.TvUi
@@ -23,34 +24,64 @@ class TrailerPreview(private val c:Context,private val scope:CoroutineScope,priv
     private var dialog:Dialog?=null
     private var host:FrameLayout?=null
     private var generation=0
+    private var watchdog:Job?=null
     val isPlaying get()=player?.playbackState==Player.STATE_READY
     val fullscreenVisible get()=dialog?.isShowing==true
 
-    fun focus(title:Title,target:FrameLayout,controls:Boolean=false,onState:(String)->Unit={}) {
+    fun focus(title:Title,target:FrameLayout,controls:Boolean=false,onState:(String)->Unit={}) = start(title,target,controls,2,onState)
+    private fun start(title:Title,target:FrameLayout,controls:Boolean,retries:Int,onState:(String)->Unit) {
         stop(); host=target; val token=++generation
         job=scope.launch {
             delay(280)
             onState("Loading trailer…")
             try {
-                val media=repository.resolve(title)
-                ensureActive()
-                if(token!=generation || !target.isAttachedToWindow)return@launch
-                if(media==null) { onState("Trailer unavailable"); return@launch }
-                val surface=LayoutInflater.from(c).inflate(R.layout.trailer_surface,target,false) as PlayerView
-                TvUi.identify(surface,"inline-trailer-video")
-                surface.useController=controls; surface.isFocusable=controls
+                val accepted=repository.candidates(title).firstOrNull { media ->
+                ensureActive(); if(token!=generation || !target.isAttachedToWindow)return@firstOrNull false
+                release()
+                val surface=createTrailerSurface(c,target,controls)
                 val p=ExoPlayer.Builder(c).build(); player=p; view=surface
-                surface.player=p; surface.visibility=View.INVISIBLE; target.addView(surface,0,FrameLayout.LayoutParams(-1,-1))
+                // A hidden TextureView never creates its surface. Keep it visible BEFORE
+                // prepare; a transparent shutter preserves the poster until a frame arrives.
+                surface.player=p; target.addView(surface,0,FrameLayout.LayoutParams(-1,-1))
                 val sources=DefaultMediaSourceFactory(c)
                 val video=sources.createMediaSource(MediaItem.fromUri(media.video))
                 p.setMediaSource(if(media.audio.isNotBlank())MergingMediaSource(video,sources.createMediaSource(MediaItem.fromUri(media.audio))) else video)
-                p.addListener(object:Player.Listener {
-                    override fun onRenderedFirstFrame() { if(token==generation) { surface.visibility=View.VISIBLE; onState(""); if(controls)surface.requestFocus() } }
-                    override fun onPlayerError(error:PlaybackException) { if(token==generation) { release(); onState("Trailer unavailable") } }
-                })
+                val firstFrame=CompletableDeferred<Boolean>()
+                var firstRendered=false
+                val listener=object:Player.Listener {
+                    override fun onRenderedFirstFrame() { if(token==generation) { firstRendered=true; firstFrame.complete(true); onState(""); if(controls)surface.requestFocus() } }
+                    override fun onPlayerError(error:PlaybackException) {
+                        android.util.Log.w("VesperTrailer","playback ${error.errorCodeName}")
+                        firstFrame.complete(false)
+                        if(firstRendered && token==generation)recover(title,media,target,controls,retries,onState)
+                    }
+                }
+                p.addListener(listener)
                 p.prepare(); p.playWhenReady=true
+                val played=withTimeoutOrNull(10_000) { firstFrame.await() }==true
+                if(!played) { android.util.Log.w("VesperTrailer","No first frame; trying another source");repository.reject(title,media); release(); onState("Trying another trailer…") }
+                else {
+                    repository.remember(title,media)
+                    watchdog=scope.launch {
+                        var stalled=0
+                        while(isActive && token==generation) {
+                            delay(1_000)
+                            stalled=if(p.playWhenReady && p.playbackState==Player.STATE_BUFFERING)stalled+1 else 0
+                            if(stalled>=8) { recover(title,media,target,controls,retries,onState); break }
+                        }
+                    }
+                }
+                played
+                }
+                if(accepted==null && token==generation) { release(); onState("Trailer unavailable") }
             } catch(e:CancellationException) { throw e } catch(_:Exception) { if(token==generation)onState("Trailer unavailable") }
         }
+    }
+    private fun recover(title:Title,media:TrailerMedia,target:FrameLayout,controls:Boolean,retries:Int,onState:(String)->Unit) {
+        repository.reject(title,media)
+        val expected=generation
+        if(retries>0)scope.launch { if(expected==generation && target.isAttachedToWindow)start(title,target,controls,retries-1,onState) }
+        else { stop(); onState("Trailer unavailable") }
     }
     fun fullscreen():Boolean {
         val p=player ?: return false; val surface=view ?: return false
@@ -74,5 +105,13 @@ class TrailerPreview(private val c:Context,private val scope:CoroutineScope,priv
         old?.player=null; (old?.parent as? android.view.ViewGroup)?.removeView(old)
         player?.release(); player=null
     }
-    fun stop() { generation++; job?.cancel(); job=null; release(); host=null }
+    fun stop() { generation++; job?.cancel(); job=null; watchdog?.cancel(); watchdog=null; release(); host=null }
 }
+
+internal fun createTrailerSurface(c:Context,target:FrameLayout,controls:Boolean):PlayerView =
+    (LayoutInflater.from(c).inflate(R.layout.trailer_surface,target,false) as PlayerView).apply {
+        TvUi.identify(this,"inline-trailer-video");useController=controls;isFocusable=controls
+        setShutterBackgroundColor(Color.TRANSPARENT)
+        (videoSurfaceView as? TextureView)?.isOpaque=false
+        visibility=View.VISIBLE
+    }
