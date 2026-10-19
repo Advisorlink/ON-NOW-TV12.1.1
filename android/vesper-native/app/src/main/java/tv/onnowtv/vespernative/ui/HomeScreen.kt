@@ -82,13 +82,13 @@ class HomeScreen(c: Context, private val repository: CatalogRepository, private 
                 val adapters=prefs.order.filter{it !in prefs.hidden}.mapNotNull(rows::get)
                 shelves.adapter = ConcatAdapter(*adapters.toTypedArray()); status.clear()
                 // Populate the billboard independently of which row starts on screen.
-                catalogs.firstOrNull()?.let { cat -> repository.catalog(cat).firstOrNull()?.let(hero::bind) }
+                catalogs.firstOrNull()?.let { cat -> repository.catalog(cat).firstOrNull()?.let(hero::bindFeatured) }
             } catch(e: CancellationException) { throw e }
             catch(e: Exception) { status.show("Couldn't load your catalogues.",true); failed(e) }
         }
     }
     override fun initialFocus(): View = nav.activeButton
-    override fun hidden() { super.hidden(); dwell?.cancel(); preview.stop() }
-    override fun backgrounded() { preview.stop() }
-    override fun dispose() { preview.stop(); super.dispose() }
+    override fun hidden() { super.hidden(); dwell?.cancel(); preview.stop(true) }
+    override fun backgrounded() { preview.stop(true) }
+    override fun dispose() { preview.stop(true); super.dispose() }
 }

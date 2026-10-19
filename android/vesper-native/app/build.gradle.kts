@@ -30,8 +30,8 @@ android {
         applicationId = "tv.onnowtv.vespernative"
         minSdk = 26
         targetSdk = 34
-        versionCode = 9
-        versionName = "0.5.0-native-private"
+        versionCode = 10
+        versionName = "0.6.0-native-private"
         buildConfigField("String", "API_BASE_URL", "\"${backendUrl.trimEnd('/')}\"")
         buildConfigField("String", "TMDB_IMAGE_BASE_URL", buildString(tmdbImageBase.trimEnd('/')))
         buildConfigField("boolean", "DEBUG_PREFILL_ENABLED", "false")

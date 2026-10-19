@@ -34,9 +34,10 @@ object V2Ui {
         icon?.let { view.setCompoundDrawablesWithIntrinsicBounds(GlyphDrawable(it,TvUi.dp(c,13),text),null,null,null); view.compoundDrawablePadding=TvUi.dp(c,5) }
         view.layoutParams=LinearLayout.LayoutParams(-2,TvUi.dp(c,30))
     }
-    fun eyebrow(c:Context,id:String,label:String)=TvUi.text(c,id,label.uppercase(),8f,TvUi.muted).apply {
-        typeface=Typeface.MONOSPACE
+    fun eyebrow(c:Context,id:String,label:String)=TvUi.text(c,id,label.uppercase(),8f,TvUi.accent).apply {
+        typeface=ResourcesCompat.getFont(c,R.font.jetbrains_mono);fontVariationSettings="'wght' 500"
     }
+    fun caption(c:Context,id:String,label:String)=eyebrow(c,id,label).apply{setTextColor(TvUi.muted)}
     fun panel(c:Context,radius:Int=12)=GradientDrawable(GradientDrawable.Orientation.TL_BR,intArrayOf(Color.argb(238,14,22,42),Color.argb(248,6,10,22))).apply {
         cornerRadius=TvUi.dp(c,radius).toFloat(); setStroke(1,line)
     }

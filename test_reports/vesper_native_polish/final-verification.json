@@ -1,0 +1,14 @@
+{
+  "date": "2026-10-19",
+  "status": "verified_private_checkpoint_not_full_native_parity",
+  "native": {"tests": 132, "passed": 131, "failures": 0, "errors": 0, "skipped": 1, "skip_reason": "existing hardware-only Android Keystore test", "final_patch_run": "continuation-final.log", "forced_rerun": "iteration_127_native.log"},
+  "builds": {"debug": "pass", "release_unsigned": "pass", "logs": ["continuation-final.log", "iteration_127_assemble.log"]},
+  "backend": {"tests": 20, "passed": 20, "failures": 0, "errors": 0, "skipped": 0, "evidence": "../pytest/iteration_127_backend_native_contracts.xml"},
+  "browser": {"scenarios": 7, "passed": 7, "evidence": "../artifacts_iter127_download_browser/result.json", "script": "/app/tests/test_private_download_helper_browser.py", "note": "Main repaired and ran the saved test locally. Supersedes agent127 tool_results.json with one failure and its contradictory all-pass summary. Real download hashes match before/after reload, replacement fragment and blocked-storage load. Expiry/storage/network cases use test-only simulations. Desktop/mobile helper smoke has no overflow; not native visual evidence."},
+  "artifact": {"package": "tv.onnowtv.vespernative", "versionCode": 10, "versionName": "0.6.0-native-private", "bytes": 26783596, "sha256": "2a6685032694bef78ba381af50ed38145154d8300d2c0375d460e4b2db43d4e4", "signer_sha256": "961ed894c510d57d4102bbca44354798413ecc23bf4dad1c8b6021eaf51738bc", "v1_signature": true, "v2_signature": true, "alignment": "pass", "crc": "pass", "private_download_bytes_match": true, "release_prefill_disabled_and_empty": true, "release_dex_credential_value_matches": []},
+  "preservation": {"frontend_baseline_files": 515, "missing": 0, "mismatches": 0, "original_wrapper_changes": [], "full_movie_player_changes": [], "native_cloud_writes": false, "credentials_changed": false},
+  "runtime_apis_mocked": false,
+  "test_only_mocks": ["native network/extractor fixtures", "browser expiry, blocked storage and transient network simulations"],
+  "not_verified_here": ["physical TV first-frame latency/decoder/audio", "pixel-perfect V2 visuals and focus motion on user's box", "physical Keystore/SAF/overscan"],
+  "remaining_features": ["full layout skins", "Calendar", "Watch Together", "additional player engines/controls", "remaining parity matrix", "cloud writes only after migration and parity acceptance"]
+}

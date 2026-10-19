@@ -1,0 +1,31 @@
+[
+  {
+    "step": "real_download_before_after_reload_hash_match",
+    "status": "PASS"
+  },
+  {
+    "step": "no_cap_and_same_context_new_page_disabled",
+    "status": "FAIL",
+    "error": ""
+  },
+  {
+    "step": "invalid_404_clears_retained_access",
+    "status": "PASS"
+  },
+  {
+    "step": "newer_fragment_precedence_hashchange_restore",
+    "status": "PASS"
+  },
+  {
+    "step": "malformed_expired_storage_and_expired_memory_click",
+    "status": "PASS"
+  },
+  {
+    "step": "sessionstorage_unavailable_still_allows_current_fragment",
+    "status": "PASS"
+  },
+  {
+    "step": "transient_failure_retry_and_pending_no_duplicate",
+    "status": "PASS"
+  }
+]

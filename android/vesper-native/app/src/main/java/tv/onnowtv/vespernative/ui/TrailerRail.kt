@@ -19,6 +19,10 @@ class TrailerRail(private val recycler:RecyclerView,private val preview:TrailerP
     private var menuOpen=false
     fun bind(holder:TitleAdapter.Holder,title:Title,position:Int,height:Int) {
         bound[holder]=Bound(holder,title,position,height); paint(bound.getValue(holder))
+        if(position==0)recycler.post{
+            if(enabled() && recycler.isAttachedToWindow && recycler.getGlobalVisibleRect(android.graphics.Rect()))
+                preview.warm(bound.values.sortedBy{it.position}.take(3).map{it.title})
+        }
         holder.itemView.setOnClickListener {
             if(active!==holder || !preview.isPlaying)open(title) else {
                 val activity=recycler.context as? AppCompatActivity
@@ -55,6 +59,7 @@ class TrailerRail(private val recycler:RecyclerView,private val preview:TrailerP
         if(!enabled())return
         if(active===holder && (menuOpen || preview.isPlaying))return
         val value=bound[holder] ?: return
+        preview.warm(bound.values.filter{it.position in value.position..value.position+2}.sortedBy{it.position}.map{it.title},true)
         active=holder; wide=value.position
         bound.values.forEach(::paint)
         recycler.post {

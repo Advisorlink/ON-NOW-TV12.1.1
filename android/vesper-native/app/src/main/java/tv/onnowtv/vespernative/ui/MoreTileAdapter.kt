@@ -6,7 +6,9 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 
 class MoreTileAdapter(private val button:TextView,private val height:Int):RecyclerView.Adapter<MoreTileAdapter.Holder>() {
-    private var visible=true
+    // Do not advertise a focusable "more" item while the first page is still
+    // loading. Otherwise position0 is a container, not the promised poster.
+    private var visible=false
     class Holder(val frame:FrameLayout):RecyclerView.ViewHolder(frame)
     fun show(show:Boolean){if(show!=visible){visible=show;notifyDataSetChanged()}}
     override fun getItemCount()=if(visible)1 else 0

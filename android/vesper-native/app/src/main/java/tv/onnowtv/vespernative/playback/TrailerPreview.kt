@@ -7,6 +7,7 @@ import android.view.*
 import android.widget.FrameLayout
 import androidx.media3.common.*
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.ui.PlayerView
@@ -25,21 +26,27 @@ class TrailerPreview(private val c:Context,private val scope:CoroutineScope,priv
     private var host:FrameLayout?=null
     private var generation=0
     private var watchdog:Job?=null
+    private val warmup=TrailerWarmup(scope,repository)
+    fun warm(titles:List<Title>,foreground:Boolean=false){warmup.prime(titles,foreground)}
     val isPlaying get()=player?.playbackState==Player.STATE_READY
     val fullscreenVisible get()=dialog?.isShowing==true
 
     fun focus(title:Title,target:FrameLayout,controls:Boolean=false,onState:(String)->Unit={}) = start(title,target,controls,2,onState)
     private fun start(title:Title,target:FrameLayout,controls:Boolean,retries:Int,onState:(String)->Unit) {
         stop(); host=target; val token=++generation
+        val prepared=warmup.focus(title)
         job=scope.launch {
             delay(280)
             onState("Loading trailer…")
             try {
-                val accepted=repository.candidates(title).firstOrNull { media ->
+                val accepted=repository.candidates(title,prepared).firstOrNull { media ->
                 ensureActive(); if(token!=generation || !target.isAttachedToWindow)return@firstOrNull false
                 release()
                 val surface=createTrailerSurface(c,target,controls)
-                val p=ExoPlayer.Builder(c).build(); player=p; view=surface
+                val p=ExoPlayer.Builder(c).setLoadControl(DefaultLoadControl.Builder()
+                    .setBufferDurationsMs(2_000,8_000,400,800)
+                    .setBackBuffer(0,false).setPrioritizeTimeOverSizeThresholds(true).build()).build()
+                player=p; view=surface
                 // A hidden TextureView never creates its surface. Keep it visible BEFORE
                 // prepare; a transparent shutter preserves the poster until a frame arrives.
                 surface.player=p; target.addView(surface,0,FrameLayout.LayoutParams(-1,-1))
@@ -79,6 +86,7 @@ class TrailerPreview(private val c:Context,private val scope:CoroutineScope,priv
     }
     private fun recover(title:Title,media:TrailerMedia,target:FrameLayout,controls:Boolean,retries:Int,onState:(String)->Unit) {
         repository.reject(title,media)
+        warmup.invalidate(title)
         val expected=generation
         if(retries>0)scope.launch { if(expected==generation && target.isAttachedToWindow)start(title,target,controls,retries-1,onState) }
         else { stop(); onState("Trailer unavailable") }
@@ -105,7 +113,7 @@ class TrailerPreview(private val c:Context,private val scope:CoroutineScope,priv
         old?.player=null; (old?.parent as? android.view.ViewGroup)?.removeView(old)
         player?.release(); player=null
     }
-    fun stop() { generation++; job?.cancel(); job=null; watchdog?.cancel(); watchdog=null; release(); host=null }
+    fun stop(cancelWarm:Boolean=false) { generation++; job?.cancel(); job=null; watchdog?.cancel(); watchdog=null; release(); host=null;if(cancelWarm)warmup.clear() }
 }
 
 internal fun createTrailerSurface(c:Context,target:FrameLayout,controls:Boolean):PlayerView =

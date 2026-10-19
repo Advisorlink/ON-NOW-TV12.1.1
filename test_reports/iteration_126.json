@@ -1,0 +1,69 @@
+{
+  "summary": "Executed requested native/backend regression pass for v0.6.0 scope: reran native unit tests and assembleDebug/assembleRelease, validated 20 backend native contracts against external preview URL, ran frontend smoke load, and verified artifact metadata/signature/alignment/CRC outputs.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Native unit regression (:app:testDebugUnitTest)",
+        "issue": "Intermittent failure in MainActivityRobolectricTest.restore_to_home_open_detail_and_back_restores_focus_and_scroll; fails in full suite with focus acquisition assertion and Robolectric reports unexecuted main-looper runnables.",
+        "affected_selectors": [
+          "home-shelves",
+          "shelf-list-*"
+        ]
+      },
+      {
+        "flow": "Trailer warmup prefetch breadth",
+        "issue": "Code review found TrailerWarmup.prime() and TrailerRail warm calls limiting prewarm input to 2 titles (take(2)), but requirement specifies current + next 2 (max 3).",
+        "affected_selectors": [
+          "TrailerWarmup.prime",
+          "TrailerRail.bind/focus"
+        ]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Native TV rendering parity",
+        "issues": [
+          "Container cannot prove real Android TV decoder/first-frame latency or pixel-perfect typography/spacing; browser smoke is only login-page load evidence."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/pytest/iteration_126_backend_native_contracts.xml",
+    "/app/test_reports/vesper_native_polish/iteration_126_native.log",
+    "/app/test_reports/vesper_native_polish/iteration_126_native_rerun.log",
+    "/app/test_reports/vesper_native_polish/iteration_126_assemble.log",
+    "/app/android/vesper-native/app/build/test-results/testDebugUnitTest/TEST-tv.onnowtv.vespernative.MainActivityRobolectricTest.xml",
+    "/app/test_reports/vesper_native_polish/iteration_126_release_badging_full.txt",
+    "/app/test_reports/vesper_native_polish/iteration_126_release_apk_sha256.txt",
+    "/app/test_reports/vesper_native_polish/iteration_126_debug_signer.txt"
+  ],
+  "action_items": [
+    "Fix native test flake/root cause around focus readiness in MainActivityRobolectricTest path (likely pending main-looper tasks before requestFocus).",
+    "Update trailer warmup logic to include current + next two titles (max 3) as per approved behavior, then add explicit regression assertion.",
+    "If final deliverable needs signed release artifact, run signing step after assembleRelease (current output is app-release-unsigned.apk, expected unsigned at this build stage).",
+    "Resolve Android platform-tools license warning in CI/container for cleaner deterministic build logs."
+  ],
+  "critical_code_review_comments": [
+    "Trailer warmup scope currently under-prefetches (2 instead of required 3 titles), risking slower trailer start on rapid directional navigation.",
+    "MainActivity focus restoration test is unstable in suite runs and may mask real focus race conditions.",
+    "Release BuildConfig correctly keeps DEBUG_PREFILL disabled and empty while debug keeps prefill enabled (expected split)."
+  ],
+  "updated_files": [
+    "/app/test_reports/iteration_126.json"
+  ],
+  "success_rate": {
+    "backend": "100% (20/20 passed)",
+    "frontend": "Frontend smoke passed; native unit suite unstable (129/130 passed, 1 intermittent failure), assembleDebug+assembleRelease passed"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Used REACT_APP_BACKEND_URL from frontend/.env and VESPER_TEST_USERNAME/VESPER_TEST_PASSWORD from memory/test_credentials.md. Commands run: 1) gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease (failed with 1 intermittent focus test) 2) gradlew targeted test for failing case (passed) 3) gradlew :app:testDebugUnitTest rerun (same intermittent failure) 4) gradlew :app:assembleDebug :app:assembleRelease -x test (passed) 5) pytest on four required backend files (20/20 pass). Artifact metadata confirms versionCode 10/versionName 0.6.0-native-private. Debug signer digest unchanged. Release artifact from this run is unsigned.",
+  "rca of the issue": "Intermittent unit failure reproduces only in full-suite context; failure assertion is at focus request for first poster tile, and junit includes Robolectric warning about queued unexecuted runnables. This indicates a UI scheduling race rather than deterministic logic break. Separate critical miss from code review: trailer warmup currently calls take(2), which conflicts with requirement to preload current+next2 and can directly reduce warmup effectiveness under rapid D-pad movement. Also, native unit network/extractor fixtures are MOCKED in tests; runtime integrations are real."
+}

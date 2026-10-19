@@ -61,7 +61,8 @@ object TvUi {
     fun column(c: Context) = LinearLayout(c).apply { orientation = LinearLayout.VERTICAL; clipChildren=false; clipToPadding=false }
     fun row(c: Context) = LinearLayout(c).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; clipChildren=false; clipToPadding=false }
     fun heading(c: Context, key: String, value: String, size: Float = 28f) = text(c, key, value, size).apply {
-        typeface = Typeface.create(typeface, Typeface.BOLD)
+        if(android.os.Build.VERSION.SDK_INT>=28)typeface=Typeface.create(typeface,600,false)
+        fontVariationSettings = "'wght' 600"
     }
     fun gap(c: Context, height: Int) = View(c).apply { layoutParams = LinearLayout.LayoutParams(1, dp(c, height)) }
     fun brand(c: Context, key: String, size: Float = 18f) = row(c).apply {

@@ -14,7 +14,7 @@ object TrailerDialog {
         val root=TvUi.identify(FrameLayout(c),"detail-trailer-dialog").apply { setBackgroundColor(Color.BLACK) }
         val status=TvUi.text(c,"detail-trailer-status","Loading trailer…",16f).apply { gravity=Gravity.CENTER }
         root.addView(status,FrameLayout.LayoutParams(-1,-1))
-        dialog.setContentView(root); dialog.setOnDismissListener { preview.stop() }
+        dialog.setContentView(root); dialog.setOnDismissListener { preview.stop(true) }
         dialog.show(); dialog.window?.setLayout(-1,-1)
         preview.focus(title,root,true) { status.text=it }
         return dialog

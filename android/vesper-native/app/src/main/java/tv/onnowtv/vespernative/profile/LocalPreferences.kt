@@ -19,6 +19,8 @@ class LocalPreferences(c:Context,accountId:String,profileId:String,private val c
         get()=prefs.getStringSet("preferred-genres",emptySet())!!.toSet()
         set(value){prefs.edit().putStringSet("preferred-genres",value.toSet()).apply()}
     fun saveRows(value:HomeRowPreferences){homeRowsJson=value.toJson()}
+    fun lastSeason(title:String):Int?=if(prefs.contains("season-$title"))prefs.getInt("season-$title",1)else null
+    fun rememberSeason(title:String,season:Int){prefs.edit().putInt("season-$title",season).apply()}
     fun backup():String=org.json.JSONObject().put("version",1).put("theme",theme).put("side",side).put("autoplay",autoplay).put("autoplayTV",autoplayTV).put("autoTrailers",autoTrailers).put("homeRows",org.json.JSONObject(homeRows.toJson())).toString(2)
     fun restoreBackup(value:String){
         require(value.length<=65_536);val data=org.json.JSONObject(value);require(data.optInt("version")==1)

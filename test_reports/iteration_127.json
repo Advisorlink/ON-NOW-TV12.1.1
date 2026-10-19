@@ -1,0 +1,53 @@
+{
+  "summary": "Completed requested native/backend/browser validation for the V060 continuation: reran full native unit suite with forced execution, reran required 4 backend contract files against external URL, validated private download helper real-click flows with SHA256 equality, and rechecked artifact/security constraints.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Native TV runtime parity claims",
+        "issues": [
+          "Container/browser/JVM tests cannot prove real TV pixel parity or decoder first-frame latency; only code/test contract validation is possible here."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/pytest/iteration_127_backend_native_contracts.xml",
+    "/app/test_reports/vesper_native_polish/iteration_127_native.log",
+    "/app/test_reports/vesper_native_polish/iteration_127_assemble.log",
+    "/app/android/vesper-native/app/build/test-results/testDebugUnitTest/TEST-tv.onnowtv.vespernative.ui.V060SeasonFocusTest.xml",
+    "/app/android/vesper-native/app/build/test-results/testDebugUnitTest/TEST-tv.onnowtv.vespernative.ui.V060TypographyTest.xml",
+    "/app/test_reports/vesper_native_polish/iteration_127_debug_badging_full.txt",
+    "/app/test_reports/vesper_native_polish/iteration_127_release_badging_full.txt",
+    "/app/test_reports/vesper_native_polish/iteration_127_release_dex_prefill_scan.txt",
+    "/app/test_reports/artifacts_iter127_download_browser/tool_results.json"
+  ],
+  "action_items": [
+    "No functional regression found in covered scope; proceed to final user validation on physical TV hardware for perceived focus-to-play trailer latency and visual pixel parity.",
+    "If signed release APK distribution is required, perform signing step after assembleRelease (current artifact remains unsigned by design at this stage)."
+  ],
+  "critical_code_review_comments": [
+    "TrailerWarmup now uses bounded queueing as requested (distinct + take(3), pending cap 3, semaphore slots 2) and keeps focus cleanup paths in place.",
+    "native_download.js correctly keeps capability in sessionStorage only, strips fragment via history.replaceState, and clears retained capability on 404 revoke/unavailable responses.",
+    "Frontend baseline integrity check against saved 515-file manifest returned zero mismatches (wrapper baseline preserved)."
+  ],
+  "updated_files": [
+    "/app/tests/test_private_download_helper_browser.py",
+    "/app/tests/check_frontend_baseline.py",
+    "/app/test_reports/iteration_127.json"
+  ],
+  "success_rate": {
+    "backend": "100% (20/20 required contract tests passed)",
+    "frontend": "100% for covered helper/browser flows; native runtime visual/decoder latency not measurable in this environment"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Executed native tests with forced rerun: GRADLE_USER_HOME=/tmp/vesper-gradle-cache ./gradlew :app:testDebugUnitTest --rerun-tasks ... ; suite summary from junit XML aggregation: 132 tests, 0 failures, 0 errors. Required V060SeasonFocusTest and V060TypographyTest XML outputs present. Backend required files all passed and JUnit saved at /app/test_reports/pytest/iteration_127_backend_native_contracts.xml. Browser helper checks included real valid capability download click before+after reload with SHA match against local debug APK, plus labeled simulated checks for expiry/storage/network/pending-click behaviors. APK metadata confirms versionCode 10 and versionName 0.6.0-native-private in debug+release badging. Release BuildConfig prefill fields verified false/empty; release DEX string scan for prefill markers returned zero lines.",
+  "rca of the issue": "Only observed failure was test-harness level in first browser script attempt (unsupported exact= parameter in get_by_test_id for this runner), not product behavior. After selector fix and focused rerun, helper flows passed including real download/hash checks and simulated edge conditions. Simulated checks are MOCKED by route/storage/time interception and are labeled as such."
+}

@@ -31,7 +31,7 @@ class ShelfAdapter(private val catalogs: List<Catalog>, private val repository: 
         holder.status.identify("shelf-status-${cat.key}")
         holder.more.nextFocusUpId = if (position == 0) firstRowUpTarget else View.NO_ID
         holder.heading.text = cat.name
-        holder.eyebrow.text=if(cat.type=="series")"TV SHOWS" else "MOVIES"
+        holder.eyebrow.text=if(cat.type=="series")"SERIES" else "MOVIES"
         TvUi.identify(holder.eyebrow,"shelf-type-${cat.key}");TvUi.identify(holder.count,"shelf-count-${cat.key}")
         val posterHeight = (rowHeight - 88).coerceIn(90,166)
         val rail=preview?.let { TrailerRail(holder.recycler,it,trailersEnabled,open) }
@@ -61,7 +61,6 @@ class ShelfAdapter(private val catalogs: List<Catalog>, private val repository: 
                     if (adapter.itemCount > 0) state.visible += 18
                     display()
                     if (state.all.isEmpty()) holder.status.show("No titles available.")
-                    else if (position == 0) focus(state.all.first())
                 } catch (e: CancellationException) { throw e
                 } catch (e: Exception) {
                     holder.more.isEnabled = true
@@ -91,7 +90,7 @@ class ShelfAdapter(private val catalogs: List<Catalog>, private val repository: 
     class Holder(c: Context, height: Int) : RecyclerView.ViewHolder(TvUi.column(c)) {
         val heading = TvUi.heading(c, "unbound-shelf-heading", "", 21f)
         val eyebrow=V2Ui.eyebrow(c,"unbound-shelf-type","")
-        val count=V2Ui.eyebrow(c,"unbound-shelf-count","")
+        val count=V2Ui.caption(c,"unbound-shelf-count","")
         val more = V2Ui.pill(c, "unbound-shelf-more", "Show more") {}
         val recycler = RecyclerView(c).apply {
             layoutManager = LinearLayoutManager(c, RecyclerView.HORIZONTAL, false)

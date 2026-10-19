@@ -31,7 +31,7 @@ class CollectionScreen(c:Context,repo:CatalogRepository,brand:Brand,open:(Title)
         scope.launch{try{repo.browse.page(brand,"movie",1).titles.firstOrNull()?.let(hero::bind)}catch(e:CancellationException){throw e}catch(_:Exception){}}
     }
     override fun initialFocus()=if(hero.info.isEnabled)hero.info else backButton
-    override fun hidden(){super.hidden();preview.stop();dwell?.cancel()}
-    override fun backgrounded(){preview.stop()}
-    override fun dispose(){preview.stop();super.dispose()}
+    override fun hidden(){super.hidden();preview.stop(true);dwell?.cancel()}
+    override fun backgrounded(){preview.stop(true)}
+    override fun dispose(){preview.stop(true);super.dispose()}
 }
