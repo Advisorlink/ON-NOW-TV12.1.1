@@ -155,13 +155,14 @@ class MainActivity : AppCompatActivity() {
     /** Autoplay never shows the stream picker: it opens the player's loading screen directly. */
     private fun autoplay(title:Title,id:String,label:String) {
         val scope=preferences?.scopeKey ?: return; val repo=streamRepository() ?: return
+        if(pendingAutoplay!=null)return
         StreamPrefetch.get(repo,title.type,id)
         try {
             val payload=PlaybackPayload.save(this,title,label,null,emptyList())
             pendingAutoplay=Triple(title,id,label)
             autoplayResult.launch(android.content.Intent(this,PlayerActivity::class.java).putExtra("payload",payload).putExtra("title",label)
                 .putExtra("resume-key","$scope:${title.type}:$id").putExtra("resolve-key",StreamPrefetch.key(title.type,id)))
-        } catch(_:Exception) { streams(title,id,label,false) }
+        } catch(_:Exception) { pendingAutoplay=null; streams(title,id,label,false) }
     }
     private fun openBrand(brand: Brand) { repository?.let {
         if(brand.kind=="collections")push(CollectionScreen(this,it,brand,{title->openTitle(title,false)},{title->openTitle(title,true)},::pop,{navigate("home")},preferences,chrome("boxsets")))

@@ -41,6 +41,7 @@ class PlayerActivity:AppCompatActivity() {
     private var selected=0
     private val payload by lazy { PlaybackPayload.read(this,intent.getStringExtra("payload")) }
     private var queue:List<Stream> = emptyList()
+    private var savedSelected:Int?=null
     private val resolveKey by lazy { intent.getStringExtra("resolve-key").orEmpty() }
     private val stream get()=queue.getOrNull(selected)
     private val key by lazy { intent.getStringExtra("resume-key").orEmpty() }
@@ -90,12 +91,14 @@ class PlayerActivity:AppCompatActivity() {
             if(visuals.controlsVisible) { visuals.hide.value=System.currentTimeMillis(); visuals.controlsVisible=false } else finish()
         } })
         updateStreams()
+        savedSelected=savedInstanceState?.getInt("selected")
         pending?.let(::resolve)
     }
     /** V2 Autoplay: the player's loading screen is shown while the first playable stream resolves. */
     private fun resolve(pending:kotlinx.coroutines.Deferred<List<Stream>>) { lifecycleScope.launch {
         val streams=runCatching { pending.await() }.getOrNull().orEmpty()
-        val first=streams.indexOfFirst { !it.uncached }
+        val restored=savedSelected?.takeIf { it in streams.indices && !streams[it].uncached }
+        val first=restored ?: streams.indexOfFirst { !it.uncached }
         if(first<0) { setResult(RESULT_CHOOSE_STREAM); finish(); return@launch }
         queue=streams; selected=first; updateStreams()
         if(lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED))prepare()

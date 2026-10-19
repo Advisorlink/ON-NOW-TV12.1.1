@@ -121,7 +121,7 @@ class TrailerPreview(private val c:Context,private val scope:CoroutineScope,priv
         old?.player=null; (old?.parent as? android.view.ViewGroup)?.removeView(old)
         player?.release(); player=null
     }
-    fun stop(cancelWarm:Boolean=false) { generation++; job?.cancel(); job=null; watchdog?.cancel(); watchdog=null; release(); host=null;if(cancelWarm)warmup.clear() }
+    fun stop(cancelWarm:Boolean=false) { generation++; job?.cancel(); job=null; watchdog?.cancel(); watchdog=null; release(); host=null;if(cancelWarm){warmup.clear();preloads.values.forEach(Job::cancel);preloads.clear()} }
 }
 
 internal fun createTrailerSurface(c:Context,target:FrameLayout,controls:Boolean):PlayerView =

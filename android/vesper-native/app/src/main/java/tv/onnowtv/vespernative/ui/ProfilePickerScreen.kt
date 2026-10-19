@@ -68,7 +68,7 @@ class ProfilePickerScreen(c: Context, private val cloud: ProfileCloudRepository,
                 } else {
                     val columns = minOf(profiles.size, 5)
                     (grid.layoutManager as GridLayoutManager).spanCount = columns
-                    grid.layoutParams = LinearLayout.LayoutParams(TvUi.dp(context, columns * 143+16), -2)
+                    grid.layoutParams = LinearLayout.LayoutParams(TvUi.dp(context, columns * 143+16), if(profiles.size>columns) TvUi.dp(context,190) else -2)
                     grid.adapter = ProfilesAdapter(profiles) { pick(snapshot!!, it) }
                     status.clear()
                     grid.doOnNextLayout { grid.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() }
@@ -91,7 +91,7 @@ private class ProfilesAdapter(private val profiles: List<CloudProfile>, private 
             gravity = Gravity.CENTER_HORIZONTAL; isFocusable = true; isClickable = true
             foreground = TvUi.outline(c, 12)
             setPadding(12, 12, 12, 12)
-            layoutParams = RecyclerView.LayoutParams(-1, TvUi.dp(c, 166)).apply { setMargins(8, 8, 8, 8) }
+            layoutParams = RecyclerView.LayoutParams(-1, TvUi.dp(c, 166)).apply { setMargins(TvUi.dp(c,8), TvUi.dp(c,8), TvUi.dp(c,8), TvUi.dp(c,8)) }
             addView(image, LinearLayout.LayoutParams(TvUi.dp(c, 98), TvUi.dp(c, 98)))
             addView(TvUi.gap(c, 12))
             addView(name, LinearLayout.LayoutParams(-1, TvUi.dp(c,20))); addView(TvUi.gap(c,3)); addView(lock,LinearLayout.LayoutParams(-1,TvUi.dp(c,11)))

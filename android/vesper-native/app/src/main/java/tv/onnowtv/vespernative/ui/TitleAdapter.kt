@@ -51,13 +51,12 @@ class TitleAdapter(private val namespace: String, private val posterHeight: Int,
             if (upTarget != android.view.View.NO_ID && key == android.view.KeyEvent.KEYCODE_DPAD_UP &&
                 event.action == android.view.KeyEvent.ACTION_DOWN) {
                 view.rootView.findViewById<android.view.View>(upTarget)?.requestFocus() == true
-            } else false
+            } else event.action==android.view.KeyEvent.ACTION_DOWN && keyAction(key)
         }
         holder.poster.load((if (landscape) item.backdrop.ifBlank { item.poster } else item.poster).takeIf(String::isNotBlank)) {
             crossfade(false); if(landscape)size(640,360) else size(300,450)
         }
         holder.itemView.setOnClickListener { open(item) }
-        holder.itemView.setOnKeyListener { _,key,event->event.action==android.view.KeyEvent.ACTION_DOWN && keyAction(key) }
         trailerRail?.bind(holder,item,position,posterHeight)
         FocusMotion.bind(holder.itemView) { focused ->
             trailerRail?.focus(holder,focused)

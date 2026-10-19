@@ -59,7 +59,7 @@ class ShelfAdapter(private val catalogs: List<Catalog>, private val repository: 
                 holder.more.isEnabled = false
                 holder.status.show("Loading ${cat.name.lowercase()}…")
                 try {
-                    val page = if (state.offset == 0) try { initial(cat).await() } catch (e: Exception) { state.initial = null; throw e } else repository.catalog(cat, state.offset)
+                    val page = if (state.offset == 0) try { initial(cat).await() } catch (e: CancellationException) { throw e } catch (e: Exception) { state.initial = null; throw e } else repository.catalog(cat, state.offset)
                     val existing = state.all.map(Title::key).toHashSet()
                     val new = page.filter { existing.add(it.key) }
                     state.offset += page.size; state.ended = new.isEmpty() || page.size < 18

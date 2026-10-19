@@ -9,6 +9,8 @@ import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
@@ -27,10 +29,13 @@ object TrailerCache {
         cache ?: SimpleCache(File(c.cacheDir,"trailer-media"),LeastRecentlyUsedCacheEvictor(160L shl 20),StandaloneDatabaseProvider(c)).also { cache=it }
     }
     fun factory(c:Context):CacheDataSource.Factory = CacheDataSource.Factory().setCache(get(c.applicationContext))
-        .setUpstreamDataSourceFactory(OkHttpDataSource.Factory(client)).setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        .setUpstreamDataSourceFactory(OkHttpDataSource.Factory(client).setUserAgent(androidx.media3.common.MediaLibraryInfo.VERSION_SLASHY)).setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
     suspend fun preload(c:Context,media:TrailerMedia) = withContext(Dispatchers.IO) { slots.withPermit {
         listOf(media.video to 1_500_000L,media.audio to 350_000L).filter { it.first.startsWith("http") }.forEach { (url,bytes) ->
-            runCatching { CacheWriter(factory(c).createDataSource(),DataSpec.Builder().setUri(url).setPosition(0).setLength(bytes).build(),null,null).cache() }
+            ensureActive()
+            val writer=CacheWriter(factory(c).createDataSource(),DataSpec.Builder().setUri(url).setPosition(0).setLength(bytes).build(),null,null)
+            val cancel=coroutineContext[Job]?.invokeOnCompletion { writer.cancel() }
+            try { runCatching { writer.cache() } } finally { cancel?.dispose() }
         }
     } }
 }

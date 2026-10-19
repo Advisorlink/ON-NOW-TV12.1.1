@@ -32,7 +32,7 @@ class PreviewRowsAdapter(private val rows:List<PreviewRow>,private val height:In
         fun display(){adapter.replace(state.titles);h.count.text="${state.titles.size} TITLES";more.show(!state.ended);h.status.clear();if(state.titles.isEmpty())h.status.show("No titles available.")}
         fun load(){if(h.job?.isActive==true)return;h.job=scope.launch{
             h.status.show("Loading titles…");h.more.isEnabled=false
-            try { val page=if(state.page==1)try{initial(row).await()}catch(e:Exception){state.initial=null;throw e} else row.loader(state.page);val seen=state.titles.map(Title::key).toHashSet();val added=page.filter{seen.add(it.key)}
+            try { val page=if(state.page==1)try{initial(row).await()}catch(e:CancellationException){throw e}catch(e:Exception){state.initial=null;throw e} else row.loader(state.page);val seen=state.titles.map(Title::key).toHashSet();val added=page.filter{seen.add(it.key)}
                 state.page++;state.ended=!row.paged || added.isEmpty();state.titles+=added;display()
             }catch(e:CancellationException){throw e}catch(_:Exception){h.status.show("Couldn't load this row.",true)}finally{h.more.isEnabled=true}
         }}

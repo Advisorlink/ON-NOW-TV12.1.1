@@ -82,8 +82,10 @@ class HomeScreen(c: Context, private val repository: CatalogRepository, private 
                 val adapters=prefs.order.filter{it !in prefs.hidden}.mapNotNull(rows::get)
                 shelves.adapter = ConcatAdapter(*adapters.toTypedArray()); status.clear()
                 // Populate the billboard independently of which row starts on screen.
-                catalogs.firstOrNull()?.let { cat -> repository.catalog(cat).firstOrNull()?.let(hero::bindFeatured) }
-                adapters.forEach { when(it) { is ShelfAdapter->it.prefetch(context).join(); is PreviewRowsAdapter->it.prefetch(context).join() } }
+                // All rows below the fold start loading at once, so Down never waits on the network.
+                adapters.forEach { when(it) { is ShelfAdapter->it.prefetch(context); is PreviewRowsAdapter->it.prefetch(context) } }
+                try { catalogs.firstOrNull()?.let { cat -> repository.catalog(cat).firstOrNull()?.let(hero::bindFeatured) } }
+                catch(e: CancellationException) { throw e } catch(e: Exception) { failed(e) }
             } catch(e: CancellationException) { throw e }
             catch(e: Exception) { status.show("Couldn't load your catalogues.",true); failed(e) }
         }
