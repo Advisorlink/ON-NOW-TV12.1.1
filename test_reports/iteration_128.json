@@ -1,0 +1,43 @@
+{
+  "summary": "Validated private APK download reliability scope end-to-end: backend ticket/range contracts, helper browser flows (real downloads), timeout/retry behavior, and baseline hash integrity.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_native_download_security.py",
+    "/app/backend/tests/test_native_download_ticket_api.py",
+    "/app/tests/test_private_download_helper_browser.py",
+    "/app/test_reports/pytest/iteration_128_native_download.xml",
+    "/app/test_reports/artifacts_iter128_download_browser/result.json",
+    "/app/tests/check_frontend_baseline.py"
+  ],
+  "action_items": [
+    "No blocking defects found in the requested private download reliability scope.",
+    "Upstream/proxy log redaction cannot be verified from this environment; only app-level uvicorn access log filter behavior was unit-tested."
+  ],
+  "critical_code_review_comments": [
+    "Helper script now correctly targets /api/download/vesper-native-ticket for 404 and intercepted-request scenarios; old /vesper-native-apk expectation was stale.",
+    "Browser flow confirms no JS fetch/xhr for full APK endpoints during valid downloads (browser-managed download handoff path used).",
+    "Ticket log redaction filter masks only ticket-query targets and preserves non-ticket access log targets in unit checks."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_native_download_ticket_api.py",
+    "/app/tests/test_private_download_helper_browser.py",
+    "/app/test_reports/iteration_128.json"
+  ],
+  "success_rate": {
+    "backend": "100% (25/25)",
+    "frontend": "100% (9/9 helper scenarios)"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Executed backend pytest file pair with JUnit output at /app/test_reports/pytest/iteration_128_native_download.xml; all passed. Browser helper run via /tmp/vesper-browser-check/bin/python produced 9 PASS at /app/test_reports/artifacts_iter128_download_browser/result.json including real APK save+hash checks before/after reload, manual direct-link click, timeout retry, stale response discard, and cross-origin ticket URL rejection checks. Frontend baseline hash checker returned baseline_entries=515, missing=0, mismatches=0.",
+  "rca of the issue": "Primary historical reliability gap was helper behavior around delayed ticket preparation and stale client harness assumptions. Current implementation behavior validates: short ticket POST, browser-managed file transfer, 10s AbortController timeout with retry re-enable, and retained capability handling. Test-only simulations for timeout/network/storage/time are MOCKED within Playwright route/JS interception; actual APK transfer and integrity verification were real."
+}

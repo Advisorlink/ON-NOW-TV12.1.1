@@ -1,13 +1,14 @@
 """Private test artifact delivery. Capability stays in a header, never a query."""
 import html
 import json
-import os
 import re
 import secrets
 from pathlib import Path
 
-from fastapi import APIRouter, Header
-from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi import APIRouter, Header, Request
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from native_download_ticket import TICKET_PATH, TICKET_TTL, authorized_capability, issue_ticket, valid_ticket
+from native_download_stream import apk_response
 
 router = APIRouter(prefix="/api/download")
 APK = Path(__file__).parent.parent / "android/vesper-native/app/build/outputs/apk/debug/app-debug.apk"
@@ -24,11 +25,37 @@ def artifact_version():
 
 @router.get("/vesper-native-apk")
 async def download_vesper_native_apk(x_download_token: str | None = Header(default=None)):
-    expected = os.environ.get("APK_DOWNLOAD_CAPABILITY_TOKEN")
-    if not expected or not x_download_token or not secrets.compare_digest(x_download_token.encode(), expected.encode()) or not APK.is_file():
+    if not authorized_capability(x_download_token) or not APK.is_file():
         return Response(status_code=404, headers=NO_STORE)
     return FileResponse(APK, filename=f"vesper-native-v{artifact_version()}-private.apk",
         media_type="application/vnd.android.package-archive", headers=NO_STORE)
+
+
+@router.post("/vesper-native-ticket")
+async def prepare_vesper_native_download(x_download_token: str | None = Header(default=None)):
+    if not authorized_capability(x_download_token):
+        return Response(status_code=404, headers=NO_STORE)
+    try:
+        stat = APK.stat()
+        if not APK.is_file():
+            raise OSError()
+        ticket = issue_ticket(stat)
+    except (OSError, ValueError):
+        return Response(status_code=404, headers=NO_STORE)
+    return JSONResponse({"url": f"{TICKET_PATH}?ticket={ticket}", "expiresIn": TICKET_TTL,
+                         "filename": f"vesper-native-v{artifact_version()}-private.apk", "bytes": stat.st_size}, headers=NO_STORE)
+
+
+@router.api_route("/vesper-native-file", methods=["GET", "HEAD"])
+async def stream_vesper_native_download(request: Request, ticket: str | None = None):
+    try:
+        stat = APK.stat()
+        allowed = APK.is_file() and valid_ticket(ticket, stat)
+    except OSError:
+        allowed = False
+    if not allowed:
+        return Response(status_code=404, headers=NO_STORE)
+    return apk_response(APK, f"vesper-native-v{artifact_version()}-private.apk", stat, request, NO_STORE)
 
 
 @router.get("/vesper-native")

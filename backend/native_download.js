@@ -4,11 +4,21 @@
   const retentionMs = 15 * 60 * 1000;
   const button = document.getElementById('download');
   const status = document.getElementById('status');
+  const direct = document.getElementById('direct-download');
+  const directHelp = document.getElementById('direct-help');
   let access = null;
   let downloading = false;
+  let ticketExpiresAt = 0;
+
+  function clearDirectLink() {
+    direct.removeAttribute('href');
+    directHelp.hidden = true;
+    ticketExpiresAt = 0;
+  }
 
   function forgetAccess() {
     access = null;
+    clearDirectLink();
     try { sessionStorage.removeItem(storageKey); } catch (_) {}
   }
 
@@ -42,6 +52,13 @@
 
   restoreAccess();
   window.addEventListener('hashchange', restoreAccess);
+  direct.addEventListener('click', event => {
+    if (!ticketExpiresAt || Date.now() >= ticketExpiresAt) {
+      event.preventDefault();
+      clearDirectLink();
+      status.textContent = 'The direct link expired. Tap Download APK for a new one.';
+    }
+  });
   button.addEventListener('click', async () => {
     if (downloading) return;
     if (!valid(access)) {
@@ -51,32 +68,43 @@
       return;
     }
     const currentAccess = access;
+    clearDirectLink();
     downloading = true;
     button.disabled = true;
-    status.textContent = 'Preparing your APK…';
+    status.textContent = 'Getting your private download link…';
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 10000);
     try {
-      const response = await fetch('/api/download/vesper-native-apk', {
-        headers: { 'X-Download-Token': currentAccess.token }, cache: 'no-store', credentials: 'omit'
+      const response = await fetch('/api/download/vesper-native-ticket', {
+        method: 'POST', headers: { 'X-Download-Token': currentAccess.token, 'Accept': 'application/json' },
+        cache: 'no-store', credentials: 'omit', signal: controller.signal
       });
+      if (access !== currentAccess) return;
       if (response.status === 404) {
         if (access === currentAccess) forgetAccess();
         status.textContent = 'Download unavailable. Reopen the complete private link from your chat.';
         return;
       }
       if (!response.ok) throw new Error('Download unavailable');
-      const url = URL.createObjectURL(await response.blob());
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = /filename="([^"]+)"/.exec(response.headers.get('content-disposition') || '')?.[1] || 'vesper-native-private.apk';
-      link.setAttribute('data-testid', 'download-artifact-link');
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
-      status.textContent = 'Download started. Open the APK on your Android TV box to install the update.';
-    } catch {
-      status.textContent = 'Download interrupted. Check your connection, then try again.';
+      const data = await response.json();
+      if (access !== currentAccess) return;
+      const url = new URL(data.url, window.location.origin);
+      if (url.origin !== window.location.origin || url.pathname !== '/api/download/vesper-native-file' ||
+          !url.searchParams.get('ticket') || !Number.isFinite(data.expiresIn) || data.expiresIn <= 0 || data.expiresIn > 300) {
+        throw new Error('Invalid download link');
+      }
+      direct.href = url.href;
+      direct.download = data.filename;
+      ticketExpiresAt = Date.now() + data.expiresIn * 1000;
+      directHelp.hidden = false;
+      status.textContent = 'Your APK is ready. Check your browser’s Downloads, or tap Download directly below.';
+      direct.click();
+    } catch (error) {
+      if (access === currentAccess) status.textContent = error.name === 'AbortError' ?
+        'The download request timed out. Tap Download APK to retry.' :
+        'Download interrupted. Check your connection, then try again.';
     } finally {
+      window.clearTimeout(timeout);
       downloading = false;
       button.disabled = !valid(access);
     }

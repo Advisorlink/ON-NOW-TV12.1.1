@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import json
+import re
 from pathlib import Path
 
 from playwright.async_api import async_playwright, expect
@@ -34,7 +35,7 @@ async def run() -> int:
         raise RuntimeError("Local debug APK missing; assembleDebug before running this test")
     local_sha = hashlib.sha256(local_apk.read_bytes()).hexdigest()
 
-    out_dir = Path("/app/test_reports/artifacts_iter127_download_browser")
+    out_dir = Path("/app/test_reports/artifacts_iter128_download_browser")
     out_dir.mkdir(parents=True, exist_ok=True)
     results = []
 
@@ -44,7 +45,7 @@ async def run() -> int:
             results.append({"step": name, "status": "PASS"})
             print(f"PASS: {name}")
         except Exception as exc:  # noqa: BLE001
-            detail = str(exc).replace(token, "[redacted]")
+            detail = re.sub(r"ticket=[A-Za-z0-9_.%-]+", "ticket=[redacted]", str(exc).replace(token, "[redacted]"))
             results.append({"step": name, "status": "FAIL", "error": detail})
             print(f"FAIL: {name} -> {detail}")
 
@@ -57,6 +58,17 @@ async def run() -> int:
         await page.set_viewport_size({"width": 1920, "height": 800})
 
         async def valid_click_and_reload_hash_match():
+            bad_js_fetches = []
+            ticket_posts = {"n": 0}
+
+            def _capture(req):
+                url = req.url
+                if url.endswith('/api/download/vesper-native-ticket') and req.method == 'POST':
+                    ticket_posts["n"] += 1
+                if ('/api/download/vesper-native-file' in url or '/api/download/vesper-native-apk' in url) and req.resource_type in ('fetch', 'xhr'):
+                    bad_js_fetches.append((url, req.resource_type, req.method))
+
+            page.on("request", _capture)
             await page.goto(f"{base_url}/api/download/vesper-native#{token}", wait_until="domcontentloaded")
             await page.wait_for_selector('[data-testid="download-apk-button"]', timeout=20000)
             assert not await page.get_by_test_id("download-apk-button").is_disabled()
@@ -74,6 +86,9 @@ async def run() -> int:
             await page.go_back(wait_until="domcontentloaded")
             assert not await page.get_by_test_id("download-apk-button").is_disabled()
             assert "#" not in page.url
+            assert ticket_posts["n"] >= 2
+            assert bad_js_fetches == []
+            page.remove_listener("request", _capture)
 
         await step("real_valid_download_before_and_after_reload", valid_click_and_reload_hash_match)
 
@@ -99,7 +114,7 @@ async def run() -> int:
             await p3.goto(f"{base_url}/api/download/vesper-native#{invalid}", wait_until="domcontentloaded")
             await p3.wait_for_selector('[data-testid="download-apk-button"]', timeout=15000)
             assert not await p3.get_by_test_id("download-apk-button").is_disabled()
-            async with p3.expect_response(lambda r: r.url.endswith('/api/download/vesper-native-apk')) as response_info:
+            async with p3.expect_response(lambda r: r.url.endswith('/api/download/vesper-native-ticket')) as response_info:
                 await p3.get_by_test_id("download-apk-button").click()
             assert (await response_info.value).status == 404
             await expect(p3.get_by_test_id("download-status")).to_contain_text("Download unavailable")
@@ -185,6 +200,151 @@ async def run() -> int:
 
         await step("session_storage_unavailable_still_downloads_for_current_fragment", unavailable_session_storage_still_allows_current_fragment_download)
 
+        async def direct_link_visible_manual_click_and_expiry_guard():
+            c6 = await browser.new_context(accept_downloads=True)
+            p8 = await c6.new_page()
+            await p8.set_viewport_size({"width": 1920, "height": 800})
+            await p8.goto(f"{base_url}/api/download/vesper-native#{token}", wait_until="domcontentloaded")
+            await p8.wait_for_selector('[data-testid="download-apk-button"]', timeout=15000)
+
+            await p8.add_init_script("""(() => {
+                const original = HTMLAnchorElement.prototype.click;
+                HTMLAnchorElement.prototype.click = function () {
+                    if (this && this.id === 'direct-download') return;
+                    return original.apply(this, arguments);
+                };
+            })();""")
+
+            # force same-tab non-download flow by changing direct-link behavior post-load
+            await p8.evaluate("""() => {
+                const link = document.getElementById('direct-download');
+                if (link) {
+                    link.click = () => {};
+                }
+            }""")
+
+            async with p8.expect_response(lambda r: r.url.endswith('/api/download/vesper-native-ticket')) as ticket_info:
+                await p8.get_by_test_id("download-apk-button").click()
+            ticket_resp = await ticket_info.value
+            assert ticket_resp.status == 200
+            payload = await ticket_resp.json()
+            assert isinstance(payload, dict)
+            assert isinstance(payload.get("bytes"), int)
+
+            await expect(p8.get_by_test_id("download-direct-help")).to_be_visible()
+            await p8.screenshot(path=str(out_dir / "ready_desktop_1920x800.jpeg"), full_page=False, quality=40)
+
+            overflow = await p8.evaluate("""() => document.documentElement.scrollWidth > document.documentElement.clientWidth""")
+            assert overflow is False
+
+            async with p8.expect_download(timeout=120000) as dl_info:
+                await p8.get_by_test_id("download-direct-link").click()
+            dl = await dl_info.value
+            manual_path = out_dir / "download_manual_direct_click.apk"
+            await dl.save_as(str(manual_path))
+            assert hashlib.sha256(manual_path.read_bytes()).hexdigest() == local_sha
+
+            await p8.set_viewport_size({"width": 390, "height": 844})
+            await expect(p8.get_by_test_id("download-direct-help")).to_be_visible()
+            await p8.screenshot(path=str(out_dir / "ready_mobile_390x844.jpeg"), full_page=False, quality=40)
+            overflow_mobile = await p8.evaluate("""() => document.documentElement.scrollWidth > document.documentElement.clientWidth""")
+            assert overflow_mobile is False
+
+            await p8.evaluate("""() => {
+                const real = Date.now;
+                Date.now = () => real() + 301000;
+            }""")
+            await p8.get_by_test_id("download-direct-link").click()
+            await expect(p8.get_by_test_id("download-status")).to_contain_text("expired")
+
+            await c6.close()
+
+        await step("direct_link_visible_manual_click_and_expiry_guard", direct_link_visible_manual_click_and_expiry_guard)
+
+        async def ticket_timeout_retry_and_cross_origin_rejected_and_stale_response_discarded():
+            c7 = await browser.new_context(accept_downloads=True)
+            p9 = await c7.new_page()
+            await p9.goto(f"{base_url}/api/download/vesper-native#{token}", wait_until="domcontentloaded")
+            await p9.wait_for_selector('[data-testid="download-apk-button"]', timeout=15000)
+
+            await p9.evaluate("""() => {
+                window.__realFetchTicketTest = window.fetch.bind(window);
+                window.fetch = (input, init = {}) => {
+                    const url = typeof input === 'string' ? input : String(input?.url || '');
+                    if (!url.endsWith('/api/download/vesper-native-ticket')) return window.__realFetchTicketTest(input, init);
+                    return new Promise((_, reject) => {
+                        if (init.signal) {
+                            init.signal.addEventListener('abort', () => {
+                                const err = new Error('Aborted');
+                                err.name = 'AbortError';
+                                reject(err);
+                            }, { once: true });
+                        }
+                    });
+                };
+            }""")
+            await p9.get_by_test_id("download-apk-button").click()
+            await expect(p9.get_by_test_id("download-status")).to_contain_text("timed out", timeout=15000)
+            assert not await p9.get_by_test_id("download-apk-button").is_disabled()
+            await p9.evaluate("""() => {
+                if (window.__realFetchTicketTest) {
+                    window.fetch = window.__realFetchTicketTest;
+                    delete window.__realFetchTicketTest;
+                }
+            }""")
+
+            stale_hits = {"n": 0}
+
+            async def stale_response(route):
+                if route.request.url.endswith("/api/download/vesper-native-ticket") and stale_hits["n"] == 0:
+                    stale_hits["n"] += 1
+                    await asyncio.sleep(1.0)
+                    await route.fulfill(
+                        status=200,
+                        content_type="application/json",
+                        body=json.dumps({
+                            "url": "/api/download/vesper-native-file?ticket=stale-response",
+                            "expiresIn": 300,
+                            "filename": "stale.apk",
+                            "bytes": 1,
+                        }),
+                    )
+                    return
+                await route.continue_()
+
+            await p9.route("**/api/download/vesper-native-ticket", stale_response)
+            click_task = asyncio.create_task(p9.get_by_test_id("download-apk-button").click())
+            await asyncio.sleep(0.15)
+            await p9.evaluate("() => { location.hash = '#BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB'; }")
+            await click_task
+            await p9.wait_for_timeout(1300)
+            href = await p9.get_by_test_id("download-direct-link").get_attribute("href")
+            assert href in (None, "")
+            await p9.unroute("**/api/download/vesper-native-ticket", stale_response)
+
+            async def cross_origin(route):
+                if route.request.url.endswith("/api/download/vesper-native-ticket"):
+                    await route.fulfill(
+                        status=200,
+                        content_type="application/json",
+                        body=json.dumps({
+                            "url": "https://evil.example.com/file.apk",
+                            "expiresIn": 300,
+                            "filename": "bad.apk",
+                            "bytes": 100,
+                        }),
+                    )
+                    return
+                await route.continue_()
+
+            await p9.route("**/api/download/vesper-native-ticket", cross_origin)
+            await p9.get_by_test_id("download-apk-button").click()
+            await expect(p9.get_by_test_id("download-status")).to_contain_text("interrupted")
+            await p9.unroute("**/api/download/vesper-native-ticket", cross_origin)
+            await c7.close()
+
+        await step("ticket_timeout_retry_cross_origin_reject_stale_discard", ticket_timeout_retry_and_cross_origin_rejected_and_stale_response_discarded)
+
         async def transient_network_failure_retains_retry_and_pending_click_not_duplicated():
             c5 = await browser.new_context(accept_downloads=True)
             p7 = await c5.new_page()
@@ -193,34 +353,35 @@ async def run() -> int:
 
             first_fail = {"done": False}
             async def fail_once(route):
-                if route.request.url.endswith("/api/download/vesper-native-apk") and not first_fail["done"]:
+                if route.request.url.endswith("/api/download/vesper-native-ticket") and not first_fail["done"]:
                     first_fail["done"] = True
                     await route.abort()
                 else:
                     await route.continue_()
 
-            await p7.route("**/api/download/vesper-native-apk", fail_once)
+            await p7.route("**/api/download/vesper-native-ticket", fail_once)
             await p7.get_by_test_id("download-apk-button").click()
             await expect(p7.get_by_test_id("download-status")).to_contain_text("interrupted")
             status = await p7.get_by_test_id("download-status").inner_text()
             assert "interrupted" in status.lower()
             assert not await p7.get_by_test_id("download-apk-button").is_disabled()
-            await p7.unroute("**/api/download/vesper-native-apk", fail_once)
+            await p7.unroute("**/api/download/vesper-native-ticket", fail_once)
 
             hit_counter = {"n": 0}
             async def slow_once(route):
-                if route.request.url.endswith("/api/download/vesper-native-apk"):
+                if route.request.url.endswith("/api/download/vesper-native-ticket"):
                     hit_counter["n"] += 1
                     await asyncio.sleep(1.2)
                 await route.continue_()
 
-            await p7.route("**/api/download/vesper-native-apk", slow_once)
+            await p7.route("**/api/download/vesper-native-ticket", slow_once)
             dl_task = asyncio.create_task(_download_and_hash(p7, out_dir / "download_pending_once.apk"))
             await expect(p7.get_by_test_id("download-apk-button")).to_be_disabled()
             await p7.get_by_test_id("download-apk-button").dispatch_event("click")
             pending_sha = await dl_task
             assert pending_sha == local_sha
             assert hit_counter["n"] == 1
+            await p7.unroute("**/api/download/vesper-native-ticket", slow_once)
             await c5.close()
 
         await step("transient_network_failure_retry_and_pending_no_duplicate", transient_network_failure_retains_retry_and_pending_click_not_duplicated)
@@ -228,7 +389,7 @@ async def run() -> int:
         await context.close()
         await browser.close()
 
-    Path("/app/test_reports/artifacts_iter127_download_browser/result.json").write_text(
+    Path("/app/test_reports/artifacts_iter128_download_browser/result.json").write_text(
         json.dumps(results, indent=2), encoding="utf-8"
     )
     return 0 if all(r["status"] == "PASS" for r in results) else 1

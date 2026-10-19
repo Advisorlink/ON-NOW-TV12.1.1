@@ -1,0 +1,38 @@
+[
+  {
+    "step": "real_valid_download_before_and_after_reload",
+    "status": "PASS"
+  },
+  {
+    "step": "no_cap_disabled_and_fresh_context_disabled",
+    "status": "PASS"
+  },
+  {
+    "step": "invalid_or_revoked_404_forgets_access",
+    "status": "PASS"
+  },
+  {
+    "step": "newer_fragment_precedence_and_hashchange_restore",
+    "status": "PASS"
+  },
+  {
+    "step": "malformed_or_expired_storage_and_expired_memory_click",
+    "status": "PASS"
+  },
+  {
+    "step": "session_storage_unavailable_still_downloads_for_current_fragment",
+    "status": "PASS"
+  },
+  {
+    "step": "direct_link_visible_manual_click_and_expiry_guard",
+    "status": "PASS"
+  },
+  {
+    "step": "ticket_timeout_retry_cross_origin_reject_stale_discard",
+    "status": "PASS"
+  },
+  {
+    "step": "transient_network_failure_retry_and_pending_no_duplicate",
+    "status": "PASS"
+  }
+]
