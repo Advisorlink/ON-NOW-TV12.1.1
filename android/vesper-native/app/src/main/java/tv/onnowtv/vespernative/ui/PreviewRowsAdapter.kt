@@ -12,8 +12,10 @@ data class PreviewRow(val id:String,val label:String,val eyebrow:String,val load
 class PreviewRowsAdapter(private val rows:List<PreviewRow>,private val height:Int,private val scope:CoroutineScope,
     private val preview:TrailerPreview,private val enabled:()->Boolean,private val open:(Title)->Unit,
     private val focus:(Title)->Unit,private val up:Int):RecyclerView.Adapter<ShelfAdapter.Holder>() {
-    private data class State(var titles:List<Title> = emptyList(),var page:Int=1,var ended:Boolean=false,var scroll:android.os.Parcelable?=null)
+    private data class State(var titles:List<Title> = emptyList(),var page:Int=1,var ended:Boolean=false,var scroll:android.os.Parcelable?=null,var initial:Deferred<List<Title>>?=null)
     private val states=rows.associate { it.id to State() }
+    private fun initial(row:PreviewRow)=states.getValue(row.id).let{s->s.initial ?: scope.async{row.loader(1)}.also{s.initial=it}}
+    fun prefetch(c:android.content.Context)=scope.launch{rows.forEach{row->try{PosterPrefetch.enqueue(c,initial(row).await())}catch(e:CancellationException){throw e}catch(_:Exception){states.getValue(row.id).initial=null}}}
     override fun getItemCount()=rows.size
     override fun onCreateViewHolder(parent:ViewGroup,type:Int)=ShelfAdapter.Holder(parent.context,height)
     override fun onBindViewHolder(h:ShelfAdapter.Holder,index:Int) {
@@ -30,7 +32,7 @@ class PreviewRowsAdapter(private val rows:List<PreviewRow>,private val height:In
         fun display(){adapter.replace(state.titles);h.count.text="${state.titles.size} TITLES";more.show(!state.ended);h.status.clear();if(state.titles.isEmpty())h.status.show("No titles available.")}
         fun load(){if(h.job?.isActive==true)return;h.job=scope.launch{
             h.status.show("Loading titles…");h.more.isEnabled=false
-            try { val page=row.loader(state.page);val seen=state.titles.map(Title::key).toHashSet();val added=page.filter{seen.add(it.key)}
+            try { val page=if(state.page==1)try{initial(row).await()}catch(e:Exception){state.initial=null;throw e} else row.loader(state.page);val seen=state.titles.map(Title::key).toHashSet();val added=page.filter{seen.add(it.key)}
                 state.page++;state.ended=!row.paged || added.isEmpty();state.titles+=added;display()
             }catch(e:CancellationException){throw e}catch(_:Exception){h.status.show("Couldn't load this row.",true)}finally{h.more.isEnabled=true}
         }}

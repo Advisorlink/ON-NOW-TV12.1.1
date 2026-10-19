@@ -16,13 +16,13 @@ class TrailerWarmup(private val scope:CoroutineScope,private val repo:TrailerRep
     private val pending=linkedMapOf<String,PreparedTrailer>()
     private var active:String?=null
     val pendingCount get()=pending.size
-    fun prime(titles:List<Title>,foreground:Boolean=false){
+    fun prime(titles:List<Title>,foreground:Boolean=false):List<PreparedTrailer>{
         val items=titles.distinctBy(Title::key).take(3)
         if(foreground)active=items.firstOrNull()?.key
-        if(!foreground && active!=null && items.none{it.key==active})return
+        if(!foreground && active!=null && items.none{it.key==active})return emptyList()
         val keep=(items.map{it.key}+listOfNotNull(active)).toSet()
         pending.keys.filter{it !in keep}.forEach{key->pending.remove(key)?.let{it.keys.cancel();it.media.cancel()}}
-        items.forEach(::request)
+        return items.map(::request)
     }
     fun focus(title:Title):PreparedTrailer{active=title.key;return request(title)}
     private fun request(title:Title):PreparedTrailer {

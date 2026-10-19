@@ -27,7 +27,15 @@ class TrailerPreview(private val c:Context,private val scope:CoroutineScope,priv
     private var generation=0
     private var watchdog:Job?=null
     private val warmup=TrailerWarmup(scope,repository)
-    fun warm(titles:List<Title>,foreground:Boolean=false){warmup.prime(titles,foreground)}
+    private val preloads=mutableMapOf<String,Job>()
+    fun warm(titles:List<Title>,foreground:Boolean=false){
+        warmup.prime(titles,foreground).forEach { prepared -> scope.launch {
+            val media=runCatching { prepared.media.await() }.getOrNull() ?: return@launch
+            if(media.video in preloads)return@launch
+            if(preloads.size>24)preloads.keys.take(12).forEach(preloads::remove)
+            preloads[media.video]=scope.launch { TrailerCache.preload(c,media) }
+        } }
+    }
     val isPlaying get()=player?.playbackState==Player.STATE_READY
     val fullscreenVisible get()=dialog?.isShowing==true
 
@@ -50,7 +58,7 @@ class TrailerPreview(private val c:Context,private val scope:CoroutineScope,priv
                 // A hidden TextureView never creates its surface. Keep it visible BEFORE
                 // prepare; a transparent shutter preserves the poster until a frame arrives.
                 surface.player=p; target.addView(surface,0,FrameLayout.LayoutParams(-1,-1))
-                val sources=DefaultMediaSourceFactory(c)
+                val sources=DefaultMediaSourceFactory(TrailerCache.factory(c))
                 val video=sources.createMediaSource(MediaItem.fromUri(media.video))
                 p.setMediaSource(if(media.audio.isNotBlank())MergingMediaSource(video,sources.createMediaSource(MediaItem.fromUri(media.audio))) else video)
                 val firstFrame=CompletableDeferred<Boolean>()

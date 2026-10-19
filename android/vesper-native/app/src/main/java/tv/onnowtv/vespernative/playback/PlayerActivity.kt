@@ -8,6 +8,8 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -30,6 +32,7 @@ import tv.onnowtv.vespernative.playback.v2.StreamOption
 
 /** Working Media3 transport, now driven by the actual original V2 native UI. */
 class PlayerActivity:AppCompatActivity() {
+    companion object { const val RESULT_CHOOSE_STREAM=RESULT_FIRST_USER }
     private var player:ExoPlayer?=null
     private lateinit var video:PlayerView
     private lateinit var visuals:PlayerVisualState
@@ -37,9 +40,8 @@ class PlayerActivity:AppCompatActivity() {
     private var position=0L; private var completed=false; private var paused=false; private var bufferingSince=0L
     private var selected=0
     private val payload by lazy { PlaybackPayload.read(this,intent.getStringExtra("payload")) }
-    private val queue by lazy { PlaybackPayload.streams(payload).ifEmpty {
-        runCatching { Stream.parse(JSONObject(intent.getStringExtra("stream") ?: "{}"),0) }.getOrNull()?.let(::listOf).orEmpty()
-    } }
+    private var queue:List<Stream> = emptyList()
+    private val resolveKey by lazy { intent.getStringExtra("resolve-key").orEmpty() }
     private val stream get()=queue.getOrNull(selected)
     private val key by lazy { intent.getStringExtra("resume-key").orEmpty() }
     private val prefs by lazy { getSharedPreferences("native-playback-local",MODE_PRIVATE) }
@@ -61,8 +63,12 @@ class PlayerActivity:AppCompatActivity() {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         WindowCompat.getInsetsController(window,window.decorView).apply { systemBarsBehavior=WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE; hide(WindowInsetsCompat.Type.systemBars()) }
+        queue=PlaybackPayload.streams(payload).ifEmpty {
+            runCatching { Stream.parse(JSONObject(intent.getStringExtra("stream") ?: "{}"),0) }.getOrNull()?.let(::listOf).orEmpty()
+        }
         selected=(savedInstanceState?.getInt("selected") ?: payload?.optInt("selected",0) ?: 0).coerceIn(0,(queue.size-1).coerceAtLeast(0))
-        if(stream==null || key.isBlank()) { finish(); return }
+        val pending=if(queue.isEmpty() && resolveKey.isNotBlank())StreamPrefetch.peek(resolveKey) else null
+        if((stream==null && pending==null) || key.isBlank()) { setResult(RESULT_CHOOSE_STREAM); finish(); return }
         position=savedInstanceState?.getLong("position") ?: prefs.getLong(key,0)
         paused=savedInstanceState?.getBoolean("paused") ?: false
         visuals=PlayerVisualState(payload,intent.getStringExtra("title").orEmpty())
@@ -84,7 +90,16 @@ class PlayerActivity:AppCompatActivity() {
             if(visuals.controlsVisible) { visuals.hide.value=System.currentTimeMillis(); visuals.controlsVisible=false } else finish()
         } })
         updateStreams()
+        pending?.let(::resolve)
     }
+    /** V2 Autoplay: the player's loading screen is shown while the first playable stream resolves. */
+    private fun resolve(pending:kotlinx.coroutines.Deferred<List<Stream>>) { lifecycleScope.launch {
+        val streams=runCatching { pending.await() }.getOrNull().orEmpty()
+        val first=streams.indexOfFirst { !it.uncached }
+        if(first<0) { setResult(RESULT_CHOOSE_STREAM); finish(); return@launch }
+        queue=streams; selected=first; updateStreams()
+        if(lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED))prepare()
+    } }
     override fun onStart() { super.onStart(); if(stream!=null && key.isNotBlank())prepare() }
     private fun prepare() {
         if(player!=null)return
@@ -162,7 +177,7 @@ class PlayerActivity:AppCompatActivity() {
         release(); visuals.error.value=message; visuals.loading.value=true
         V2Dialog.show(this,"player-error-dialog","Stream unavailable",message,listOf(
             V2Dialog.Action("player-error-retry","Retry","play",true) { prepare() },
-            V2Dialog.Action("player-error-streams","Choose another stream","back") { finish() }))
+            V2Dialog.Action("player-error-streams","Choose another stream","back") { if(resolveKey.isNotBlank())setResult(RESULT_CHOOSE_STREAM); finish() }))
     }
     override fun dispatchKeyEvent(e:KeyEvent):Boolean {
         if(e.action==KeyEvent.ACTION_DOWN && player!=null && ::visuals.isInitialized) {

@@ -138,22 +138,42 @@ class MainActivity : AppCompatActivity() {
     }
     private fun chrome(route:String)=NavigationBar(this,route,::navigate,activeProfile?.avatarId,
         autoplay=preferences?.let { { it.autoplay } },toggleAutoplay=preferences?.let { { it.autoplay=!it.autoplay } })
-    private fun open(title: Title) = openTitle(title, title.type=="movie" && preferences?.autoplay==true)
+    // V2 PosterTile: a movie tap is an explicit autoplay (loading screen → player, no picker).
+    private fun open(title: Title) = openTitle(title, title.type=="movie")
     private fun openTitle(title: Title, autoplay: Boolean) { repository?.let {
         push(DetailScreen(this, title, it, ::pop, ::failed, ::streams, { navigate("home") }, autoplay,
-            chooseStream={item,id,label->streams(item,id,label,false)},preferences=preferences,openTitle={related->openTitle(related,false)}))
+            chooseStream={item,id,label->streams(item,id,label,false)},preferences=preferences,openTitle={related->openTitle(related,false)},
+            prefetchStreams={item,id->streamRepository()?.let { repo->StreamPrefetch.get(repo,item.type,id) } },autoplayNow=::autoplay))
     } }
+    private var streamRepo:StreamRepository?=null
+    private fun streamRepository()=streamRepo ?: repository?.let { StreamRepository(services.api) { services.auth.token }.also { streamRepo=it } }
+    private var pendingAutoplay:Triple<Title,String,String>?=null
+    private val autoplayResult=registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { result ->
+        val pending=pendingAutoplay; pendingAutoplay=null
+        if(result.resultCode==PlayerActivity.RESULT_CHOOSE_STREAM && pending!=null)streams(pending.first,pending.second,pending.third,false)
+    }
+    /** Autoplay never shows the stream picker: it opens the player's loading screen directly. */
+    private fun autoplay(title:Title,id:String,label:String) {
+        val scope=preferences?.scopeKey ?: return; val repo=streamRepository() ?: return
+        StreamPrefetch.get(repo,title.type,id)
+        try {
+            val payload=PlaybackPayload.save(this,title,label,null,emptyList())
+            pendingAutoplay=Triple(title,id,label)
+            autoplayResult.launch(android.content.Intent(this,PlayerActivity::class.java).putExtra("payload",payload).putExtra("title",label)
+                .putExtra("resume-key","$scope:${title.type}:$id").putExtra("resolve-key",StreamPrefetch.key(title.type,id)))
+        } catch(_:Exception) { streams(title,id,label,false) }
+    }
     private fun openBrand(brand: Brand) { repository?.let {
         if(brand.kind=="collections")push(CollectionScreen(this,it,brand,{title->openTitle(title,false)},{title->openTitle(title,true)},::pop,{navigate("home")},preferences,chrome("boxsets")))
         else push(BrowseGridScreen(this,it,"series",::open,::navigate,::failed,brand,chrome("home")))
     } }
     private fun streams(title: Title, id: String, label: String) {
-        streams(title,id,label,true)
+        if(preferences?.shouldAutoplay(title.type)==true)autoplay(title,id,label) else streams(title,id,label,false)
     }
     private fun streams(title: Title, id: String, label: String,allowAutoplay:Boolean) {
         val scope = preferences?.scopeKey ?: return
         var available=emptyList<Stream>()
-        push(StreamScreen(this, label, title.type, id, StreamRepository(services.api) { services.auth.token }, ::pop, { stream ->
+        push(StreamScreen(this, label, title.type, id, streamRepository() ?: return, ::pop, { stream ->
             try {
                 val payload=PlaybackPayload.save(this,title,label,stream,available)
                 startActivity(android.content.Intent(this, PlayerActivity::class.java)
@@ -190,7 +210,7 @@ class MainActivity : AppCompatActivity() {
         screens.forEach(NativeScreen::dispose); screens.clear(); container.removeAllViews()
         container.addView(StatusBand(this, "signout-status").apply { show("Signing out…") },
             FrameLayout.LayoutParams(-1, -2, Gravity.CENTER))
-        repository = null; account = null; activeProfile = null; profileData = null
+        repository = null; account = null; activeProfile = null; profileData = null; streamRepo = null; StreamPrefetch.clear()
         authJob = lifecycleScope.launch { services.auth.signOut { login() } }
     }
     private fun confirmExit() {

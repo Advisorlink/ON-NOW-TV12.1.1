@@ -24,7 +24,7 @@ class HomeScreen(c: Context, private val repository: CatalogRepository, private 
     private val trailersEnabled={ preferences?.autoTrailers!=false }
     private val status = StatusBand(c,"home-status")
     private val shelves = TvUi.identify(RecyclerView(c),"home-shelves").apply {
-        layoutManager = PagedShelfLayout(c); itemAnimator = null; clipToPadding = false; setHasFixedSize(true)
+        layoutManager = PagedShelfLayout(c); itemAnimator = null; clipToPadding = false; setHasFixedSize(true); setItemViewCacheSize(4)
     }
     private val nav = NavigationBar(c,filter ?: "home",navigate,profile?.avatarId,side,
         preferences?.let { { it.autoplay } },preferences?.let { { it.autoplay=!it.autoplay } })
@@ -83,6 +83,7 @@ class HomeScreen(c: Context, private val repository: CatalogRepository, private 
                 shelves.adapter = ConcatAdapter(*adapters.toTypedArray()); status.clear()
                 // Populate the billboard independently of which row starts on screen.
                 catalogs.firstOrNull()?.let { cat -> repository.catalog(cat).firstOrNull()?.let(hero::bindFeatured) }
+                adapters.forEach { when(it) { is ShelfAdapter->it.prefetch(context).join(); is PreviewRowsAdapter->it.prefetch(context).join() } }
             } catch(e: CancellationException) { throw e }
             catch(e: Exception) { status.show("Couldn't load your catalogues.",true); failed(e) }
         }

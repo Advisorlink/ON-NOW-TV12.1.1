@@ -16,8 +16,14 @@ class ShelfAdapter(private val catalogs: List<Catalog>, private val repository: 
     private val preview:tv.onnowtv.vespernative.playback.TrailerPreview?=null,
     private val trailersEnabled:()->Boolean={true}) : RecyclerView.Adapter<ShelfAdapter.Holder>() {
     private data class ShelfState(var all: List<Title> = emptyList(), var visible: Int = 18,
-        var offset: Int = 0, var ended: Boolean = false, var scroll: android.os.Parcelable? = null)
+        var offset: Int = 0, var ended: Boolean = false, var scroll: android.os.Parcelable? = null,
+        var initial: Deferred<List<Title>>? = null)
     private val states = catalogs.associate { it.key to ShelfState() }
+    private fun initial(cat: Catalog) = states.getValue(cat.key).let { s -> s.initial ?: scope.async { repository.catalog(cat, 0) }.also { s.initial = it } }
+    /** Rows below the fold are fetched and their posters cached before the user presses Down. */
+    fun prefetch(c: Context) = scope.launch {
+        catalogs.forEach { cat -> try { PosterPrefetch.enqueue(c, initial(cat).await()) } catch (e: CancellationException) { throw e } catch (_: Exception) { states.getValue(cat.key).initial = null } }
+    }
     override fun getItemCount() = catalogs.size
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = Holder(parent.context, rowHeight)
     override fun onBindViewHolder(holder: Holder, position: Int) {
@@ -53,7 +59,7 @@ class ShelfAdapter(private val catalogs: List<Catalog>, private val repository: 
                 holder.more.isEnabled = false
                 holder.status.show("Loading ${cat.name.lowercase()}…")
                 try {
-                    val page = repository.catalog(cat, state.offset)
+                    val page = if (state.offset == 0) try { initial(cat).await() } catch (e: Exception) { state.initial = null; throw e } else repository.catalog(cat, state.offset)
                     val existing = state.all.map(Title::key).toHashSet()
                     val new = page.filter { existing.add(it.key) }
                     state.offset += page.size; state.ended = new.isEmpty() || page.size < 18

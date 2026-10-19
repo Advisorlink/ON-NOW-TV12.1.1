@@ -1,6 +1,7 @@
 package tv.onnowtv.vespernative.playback
 
 import org.json.JSONObject
+import kotlinx.coroutines.async
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import tv.onnowtv.vespernative.data.*
 
@@ -49,4 +50,18 @@ class StreamRepository(private val api:VesperApi,private val token:()->String?) 
         val response=api.request(listOf("streams",type,id),token()) as JSONObject
         return Stream.sorted(response.optJSONArray("streams")?.objects().orEmpty().mapIndexedNotNull { index,json -> Stream.parse(json,index) })
     }
+}/** Detail pages resolve streams in the background (as V2 does), so Autoplay opens the player at once. */
+object StreamPrefetch {
+    private val scope=kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob()+kotlinx.coroutines.Dispatchers.Main.immediate)
+    private val entries=linkedMapOf<String,Pair<Long,kotlinx.coroutines.Deferred<List<Stream>>>>()
+    fun key(type:String,id:String)="$type:$id"
+    fun get(repository:StreamRepository,type:String,id:String):kotlinx.coroutines.Deferred<List<Stream>> {
+        val key=key(type,id)
+        entries[key]?.let { (at,value)-> val failed=value.isCompleted && (value.isCancelled || runCatching{value.getCompleted().isEmpty()}.getOrDefault(true))
+            if(!failed && System.currentTimeMillis()-at<240_000)return value }
+        while(entries.size>=12)entries.remove(entries.keys.first())
+        return scope.async { repository.streams(type,id) }.also { entries[key]=System.currentTimeMillis() to it }
+    }
+    fun peek(key:String)=entries[key]?.second
+    fun clear() { entries.values.forEach { it.second.cancel() }; entries.clear() }
 }

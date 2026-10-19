@@ -48,7 +48,7 @@ object V2Ui {
     }
     fun fieldShell(c:Context,id:String,edit:EditText,icon:String,trailing:View?=null):LinearLayout = TvUi.identify(TvUi.row(c),id).apply {
         setPadding(TvUi.dp(c,10),0,TvUi.dp(c,8),0)
-        background=TvUi.shape(Color.argb(195,10,16,30),TvUi.dp(c,8).toFloat(),line,1)
+        background=TvUi.shape(Color.argb(191,10,16,30),TvUi.dp(c,10).toFloat(),Color.argb(26,255,255,255),1)
         addView(ImageView(c).apply { setImageDrawable(GlyphDrawable(icon,TvUi.dp(c,14),TvUi.muted)) },LinearLayout.LayoutParams(TvUi.dp(c,14),TvUi.dp(c,14)))
         addView(edit,LinearLayout.LayoutParams(0,-1,1f)); trailing?.let { addView(it,LinearLayout.LayoutParams(TvUi.dp(c,28),-1)) }
         val glow=FocusBloomDrawable(c,8); foreground=glow

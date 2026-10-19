@@ -21,18 +21,21 @@ class ProfilePinScreen(c: Context, profile: CloudProfile, private val snapshot: 
         filters = arrayOf(InputFilter.LengthFilter(1), android.text.method.DigitsKeyListener.getInstance("0123456789"))
         isSaveEnabled = false; importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
         isLongClickable = false; setSingleLine(); gravity = Gravity.CENTER
-        setTextColor(TvUi.text); textSize = 28f; background = TvUi.focus(c, false)
+        setTextColor(TvUi.text); textSize = 22.5f
+        background = android.graphics.drawable.StateListDrawable().apply {
+            addState(intArrayOf(android.R.attr.state_focused),TvUi.shape(android.graphics.Color.argb(36,93,200,255),TvUi.dp(c,9).toFloat(),TvUi.bright,TvUi.dp(c,2)))
+            addState(intArrayOf(),TvUi.shape(android.graphics.Color.argb(15,255,255,255),TvUi.dp(c,9).toFloat(),android.graphics.Color.argb(46,255,255,255),1)) }
         contentDescription = "PIN digit ${index + 1}"
     } }
     init {
         root.setBackgroundColor(android.graphics.Color.rgb(3,6,15))
-        val content = TvUi.column(c).apply { gravity = Gravity.CENTER; setPadding(TvUi.dp(c,24),TvUi.dp(c,24),TvUi.dp(c,24),TvUi.dp(c,24)); background=V2Ui.panel(c) }
-        content.addView(TvUi.text(c, "profile-pin-label", "PROFILE LOCKED", 12f, TvUi.accent))
-        content.addView(TvUi.heading(c, "profile-pin-title", "Enter ${profile.name}'s PIN", 22f).apply { maxLines = 2; gravity = Gravity.CENTER })
+        val content = TvUi.column(c).apply { gravity = Gravity.CENTER; setPadding(TvUi.dp(c,24),TvUi.dp(c,24),TvUi.dp(c,24),TvUi.dp(c,24)); background=V2Ui.panel(c,18) }
+        content.addView(V2Ui.eyebrow(c, "profile-pin-label", "PROFILE LOCKED").apply { textSize=8.25f; letterSpacing=.32f })
+        content.addView(TvUi.heading(c, "profile-pin-title", "Enter ${profile.name}'s PIN", 21f).apply { maxLines = 2; gravity = Gravity.CENTER })
         content.addView(TvUi.gap(c, 24))
         val row = TvUi.row(c)
         digits.forEachIndexed { index, field ->
-            row.addView(field, LinearLayout.LayoutParams(TvUi.dp(c, 42), TvUi.dp(c, 48)).apply { setMargins(6, 0, 6, 0) })
+            row.addView(field, LinearLayout.LayoutParams(TvUi.dp(c, 42), TvUi.dp(c, 52)).apply { setMargins(TvUi.dp(c,4), 0, TvUi.dp(c,4), 0) })
             field.doAfterTextChanged {
                 if (!resetting && !completed) {
                     error.text = ""
@@ -46,7 +49,7 @@ class ProfilePinScreen(c: Context, profile: CloudProfile, private val snapshot: 
         }
         content.addView(row); content.addView(error); content.addView(TvUi.gap(c, 20))
         content.addView(V2Ui.pill(c, "profile-pin-cancel", "Cancel",click=cancel))
-        root.addView(content, FrameLayout.LayoutParams(TvUi.dp(c,340),-2,Gravity.CENTER))
+        root.addView(content, FrameLayout.LayoutParams(TvUi.dp(c,330),-2,Gravity.CENTER))
     }
     private fun submit() {
         val entered = digits.joinToString("") { it.text.toString() }

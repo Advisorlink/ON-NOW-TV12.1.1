@@ -19,6 +19,7 @@ class GlyphDrawable(kind:String,private val pixels:Int,private val ink:Int=TvUi.
         "eye" -> listOf("M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z", "M15 12a3 3 0 1 1-6 0a3 3 0 1 1 6 0")
         "lock" -> listOf("M6 10h12v11H6Z", "M8 10V6a4 4 0 0 1 8 0v4")
         "user" -> listOf("M16 6a4 4 0 1 1-8 0a4 4 0 1 1 8 0", "M4 21v-3a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v3")
+        "film" -> listOf("M3 3h18v18H3Z","M7 3v18M17 3v18M3 7.5h4M3 12h18M3 16.5h4M17 7.5h4M17 16.5h4")
         "zap" -> listOf("m13 2-9 12h7l-1 8 10-12h-7Z")
         "logout" -> listOf("M9 3H4v18h5M9 12h12m-5-5 5 5-5 5")
         "home" -> listOf("m3 10 9-7 9 7v10h-6v-7H9v7H3Z")

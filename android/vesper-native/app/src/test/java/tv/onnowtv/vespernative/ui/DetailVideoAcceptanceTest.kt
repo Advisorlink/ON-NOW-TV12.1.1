@@ -50,12 +50,12 @@ class DetailVideoAcceptanceTest {
             val cast=find(screen.root,"detail-cast-lane")!!
             assertEquals(View.VISIBLE,cast.visibility)
             val castRect=rect(screen.root,cast)
-            for(tag in listOf("detail-back","detail-home","detail-title","detail-metadata","detail-synopsis","detail-play","detail-choose-stream","detail-trailer","detail-library-readonly","detail-autoplay")) {
+            for(tag in listOf("detail-back","detail-home","detail-title","detail-metadata","detail-synopsis","detail-play","detail-choose-stream","detail-trailer","detail-library-readonly")) {
                 val view=find(screen.root,tag)!!;val bounds=rect(screen.root,view)
                 assertTrue("$tag clipped $bounds",bounds.left>=0 && bounds.right<=width && bounds.top>=0 && bounds.bottom<=height)
                 assertTrue("$tag overlaps cast $bounds vs $castRect",bounds.bottom<=castRect.top)
             }
-            assertFalse(find(screen.root,"detail-library-readonly")!!.isEnabled)
+            assertFalse(find(screen.root,"detail-library-readonly")!!.isEnabled);assertNull("Movies have no separate autoplay toggle (V2)",find(screen.root,"detail-autoplay"))
             find(screen.root,"detail-choose-stream")!!.performClick();assertEquals(1,choices);assertEquals(0,plays)
             find(screen.root,"detail-play")!!.performClick();assertEquals(1,plays)
         } finally { screen.dispose();server.shutdown() }

@@ -99,3 +99,11 @@ class TitleAdapter(private val namespace: String, private val posterHeight: Int,
         }
     }
 }
+object PosterPrefetch {
+    fun enqueue(c:android.content.Context,titles:List<Title>,count:Int=10) {
+        val loader=coil.Coil.imageLoader(c)
+        fun get(url:String,w:Int,h:Int){if(url.isNotBlank())loader.enqueue(coil.request.ImageRequest.Builder(c).data(url).crossfade(false).size(w,h).build())}
+        titles.firstOrNull()?.let{get(it.backdrop.ifBlank{it.poster},640,360)}
+        titles.take(count).forEach{get(it.poster,300,450)}
+    }
+}

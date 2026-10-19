@@ -10,14 +10,14 @@ import java.util.UUID
 
 /** Avoid large Binder intents: URLs/headers stay in a private, bounded cache. */
 object PlaybackPayload {
-    fun save(c:Context,title:Title,label:String,selected:Stream,streams:List<Stream>):String {
+    fun save(c:Context,title:Title,label:String,selected:Stream?,streams:List<Stream>):String {
         val directory=File(c.cacheDir,"playback").apply { mkdirs() }
         directory.listFiles()?.filter { System.currentTimeMillis()-it.lastModified()>86_400_000 }?.forEach(File::delete)
-        val queue=(streams+selected).distinctBy { it.url to it.headers }
+        val queue=(streams+listOfNotNull(selected)).distinctBy { it.url to it.headers }
         val payload=JSONObject().put("title",label).put("year",title.year).put("backdrop",title.backdrop)
             .put("poster",title.poster).put("logo",title.logo).put("rating",title.rating).put("runtime",title.runtime).put("type",title.type)
             .put("overview",title.description).put("genres",title.genres.joinToString(" · "))
-            .put("streams",JSONArray(queue.map(Stream::json))).put("selected",queue.indexOfFirst { it.url==selected.url && it.headers==selected.headers })
+            .put("streams",JSONArray(queue.map(Stream::json))).put("selected",queue.indexOfFirst { it.url==selected?.url && it.headers==selected?.headers }.coerceAtLeast(0))
         val text=payload.toString(); require(text.toByteArray().size<2_000_000) { "Stream selection is too large." }
         val id=UUID.randomUUID().toString(); File(directory,"$id.json").writeText(text); return id
     }
