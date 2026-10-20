@@ -17,7 +17,7 @@ class TicketLogFilter(logging.Filter):
     def filter(self, record):
         if isinstance(record.args, tuple) and len(record.args) == 5:
             address, method, target, protocol, status = record.args
-            if isinstance(target, str) and "?" in target and target.partition("?")[0] in (TICKET_PATH, "/api/download/vesper-native-apk"):
+            if isinstance(target, str) and "?" in target and target.partition("?")[0] in (TICKET_PATH, "/api/download/vesper-native-apk", "/api/download/vesper-tv-file"):
                 record.args = (address, method, target.partition("?")[0] + "?[redacted]", protocol, status)
         return True
 

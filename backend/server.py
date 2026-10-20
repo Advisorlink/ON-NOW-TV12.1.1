@@ -607,6 +607,14 @@ def _detect_addon_source(s: Dict[str, Any]) -> str:
     return first
 
 
+_UHD_RE = re.compile(r"(?<![a-z0-9])(2160p?|4k|uhd)(?![a-z0-9])", re.I)
+
+
+def _drop_uhd(streams: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    # 2026-10-19 — operator spec: no 4K / 2160p sources (HK1 boxes buffer on them).
+    return [s for s in streams if not _UHD_RE.search(_stream_haystack(s))]
+
+
 def _detect_quality(s: Dict[str, Any]) -> str:
     txt = _stream_haystack(s).lower()
     if "2160p" in txt or " 4k" in txt or "uhd" in txt:
@@ -895,9 +903,9 @@ async def streams_aggregate(type_: str, item_id: str):
         # the rollout doesn't have to wait for cache expiry.
         return {
             "cached": True,
-            "streams": _filter_episode_mismatch(
+            "streams": _drop_uhd(_filter_episode_mismatch(
                 _size_band_easynews(_filter_and_tag_english(cached), type_), type_, item_id
-            ),
+            )),
         }
 
     addons = await db.addons.find(
@@ -950,6 +958,7 @@ async def streams_aggregate(type_: str, item_id: str):
     out = _size_band_easynews(out, type_)
     # Never serve a stream whose release name is a different episode.
     out = _filter_episode_mismatch(out, type_, item_id)
+    out = _drop_uhd(out)
 
     # v2.13.18 — never cache an aggregate with NO playable stream
     # (url/infoHash).  A single slow/failed Torrentio fetch used to
@@ -5488,7 +5497,7 @@ async def _seed_default_addons() -> None:
     if premiumize_key:
         torrentio_url = (
             "https://torrentio.strem.fun/"
-            "sort=qualitysize%7Cqualityfilter=scr,cam,unknown,480p,720p"
+            "sort=qualitysize%7Cqualityfilter=scr,cam,unknown,480p,720p,4k"
             f"%7Clanguage={foreign_langs}"
             f"%7Cpremiumize={premiumize_key}/manifest.json"
         )
@@ -5498,7 +5507,7 @@ async def _seed_default_addons() -> None:
         # knows playback won't work on libVLC Android.
         torrentio_url = (
             "https://torrentio.strem.fun/"
-            "sort=qualitysize%7Cqualityfilter=scr,cam,unknown,480p,720p"
+            "sort=qualitysize%7Cqualityfilter=scr,cam,unknown,480p,720p,4k"
             f"%7Clanguage={foreign_langs}"
             "/manifest.json"
         )

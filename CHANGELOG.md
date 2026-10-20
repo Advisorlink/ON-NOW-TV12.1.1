@@ -1,5 +1,12 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.76 — Player buffering fix + 4K sources removed (2026-10-20)
+
+User report: movies buffer every few minutes on the HK1 boxes while the same links play smoothly in Stremio.
+
+- **Native player memory cap.** ExoPlayer used to keep 50–120 s of video in memory with no byte limit. A remux could fill hundreds of MB of the Java heap, and the GC thrash plus low-memory kills stalled playback. The buffer is now capped in bytes at 25% of the device heap (32–100 MB), the Stremio-style approach. Playback starts after 2.5 s of buffer and resumes after 5 s instead of 10 s.
+- **No 4K.** 2160p / 4K / UHD sources are filtered out of every stream list: backend `/api/streams`, browser-direct addon probes, and the Torrentio `qualityfilter`.
+
 ## v2.10.75 — Install/Update: centred blue progress bar that stays + auto-uninstall (2026-02-27)
 
 User report: *"When it's doing the install or when it's doing the update, it only shows the loading for a few seconds and then the percentage thing disappears.  Can we have that loading bar, that nice blue loading bar that we used to have in the middle, and make sure it lasts all the way until the actual install page pops up.  Also should automatically be uninstalling the previous app because I don't want them to have to click Uninstall as well."*

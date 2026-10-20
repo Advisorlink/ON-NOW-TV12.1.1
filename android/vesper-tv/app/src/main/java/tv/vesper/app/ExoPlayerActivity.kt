@@ -995,7 +995,7 @@ class ExoPlayerActivity : ComponentActivity(),
      *  (only extracted so the VLC path can skip it wholesale). */
     private fun buildExoEngine() {
         // ─── Beefed-up ExoPlayer ─────────────────────────────────
-        val bandwidth = DefaultBandwidthMeter.Builder(this).build()
+        val bandwidth = DefaultBandwidthMeter.Builder(this).setInitialBitrateEstimate(20_000_000L).build()
         // v2.7.52 — Tuning revisit per user feedback.  v2.7.43 set
         // bufferForPlaybackMs=20_000 to "pre-buffer hard", which made
         // autoplay feel slow (10-15 s before the first frame).
@@ -1022,16 +1022,27 @@ class ExoPlayerActivity : ComponentActivity(),
         // the generic 10 s post-rebuffer wait every seek or dip meant a
         // long spinner.  Those URLs get a deeper forward buffer and a
         // 3-4 s resume; debrid/torrent streams keep the proven profile.
+        // 2026-10-19 — Mid-movie buffering on HK1 boxes.  The old profile
+        // (50 s minimum, 120 s ceiling, time-over-size, no byte cap) let a
+        // remux pile hundreds of MB into the Java heap; the GC thrash and
+        // low-memory kills stalled the decoder/network loop every few
+        // minutes.  Now the buffer is capped in BYTES from the device's real
+        // heap (Stremio-style), playback resumes after a short refill, and a
+        // dip never forces a 10 s spinner.
         val directVod = isXtreamVodUrl(streamUrl)
+        val heap = Runtime.getRuntime().maxMemory()
+        val bufferBytes = (heap / 4).coerceIn(32L shl 20, 100L shl 20).toInt()
+        Log.i(TAG, "load control: heap=${heap shr 20}MB bufferCap=${bufferBytes shr 20}MB directVod=$directVod")
         val loadControl = DefaultLoadControl.Builder()
+            .setAllocator(androidx.media3.exoplayer.upstream.DefaultAllocator(true, C.DEFAULT_BUFFER_SEGMENT_SIZE))
             .setBufferDurationsMs(
-                if (directVod) 60_000 else 50_000,    // minBufferMs — keep refilling toward this
-                120_000,                              // maxBufferMs — long soak room
-                if (directVod) 3_000 else 6_000,      // bufferForPlaybackMs — match Kids (was 2_000)
-                if (directVod) 4_000 else 10_000,     // bufferForPlaybackAfterRebufferMs — match Kids (was 3_000)
+                50_000,                               // minBufferMs — keep refilling toward this
+                90_000,                               // maxBufferMs — bounded by bufferBytes below
+                2_500,                                // bufferForPlaybackMs
+                5_000,                                // bufferForPlaybackAfterRebufferMs (was 10 s)
             )
-            .setPrioritizeTimeOverSizeThresholds(true)
-            .setTargetBufferBytes(C.LENGTH_UNSET)
+            .setTargetBufferBytes(bufferBytes)
+            .setPrioritizeTimeOverSizeThresholds(false)
             .build()
 
         // v2.7.43 — OkHttp datasource (HTTP/2, smart pooling, fewer

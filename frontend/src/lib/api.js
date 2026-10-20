@@ -3,6 +3,12 @@ import { tagStreams } from '@/lib/streamTags';
 import { filterEpisodeStreams } from '@/lib/episodeMatch';
 import { getToken } from '@/lib/auth';
 
+const UHD_RE = /(^|[^a-z0-9])(2160p?|4k|uhd)([^a-z0-9]|$)/i;
+export function isUhdStream(s) {
+    const hay = [s?.name, s?.title, s?.description, s?.behaviorHints?.filename, s?._quality_label].filter(Boolean).join(' ');
+    return UHD_RE.test(hay);
+}
+
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
 
@@ -348,7 +354,9 @@ export const Vesper = {
             for (const arr of byAddon.values()) out.push(...arr);
             // Drop streams whose release name names a DIFFERENT
             // episode (Easynews++ strays) — see lib/episodeMatch.
-            return filterEpisodeStreams(out, type, itemId);
+            // 2026-10-19 — 4K / 2160p sources removed (operator spec):
+            // the HK1 boxes can't sustain them without buffering.
+            return filterEpisodeStreams(out, type, itemId).filter((s) => !isUhdStream(s));
         };
         const emit = () => {
             if (typeof onPartial !== 'function') return;

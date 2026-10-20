@@ -66,3 +66,44 @@ async def private_download_page():
     page = page.replace("{{NONCE}}", nonce).replace("{{SCRIPT}}", directory.joinpath("native_download.js").read_text())
     headers = {**NO_STORE, "Content-Security-Policy": f"default-src 'none'; script-src 'nonce-{nonce}'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'", "X-Content-Type-Options": "nosniff"}
     return HTMLResponse(page, headers=headers)
+
+# 2026-10-20 — private test build of the V2 Vesper TV app (buffering fix); same capability + ticket flow.
+TV_APK = Path(__file__).parent.parent / "android/vesper-tv/test-artifacts/vesper-tv-2.10.76-buffer-test.apk"
+TV_NAME = "vesper-tv-v2.10.76-buffer-test.apk"
+
+
+@router.post("/vesper-tv-ticket")
+async def prepare_vesper_tv_download(x_download_token: str | None = Header(default=None)):
+    if not authorized_capability(x_download_token):
+        return Response(status_code=404, headers=NO_STORE)
+    try:
+        stat = TV_APK.stat()
+        ticket = issue_ticket(stat)
+    except (OSError, ValueError):
+        return Response(status_code=404, headers=NO_STORE)
+    return JSONResponse({"url": f"/api/download/vesper-tv-file?ticket={ticket}", "expiresIn": TICKET_TTL,
+                         "filename": TV_NAME, "bytes": stat.st_size}, headers=NO_STORE)
+
+
+@router.api_route("/vesper-tv-file", methods=["GET", "HEAD"])
+async def stream_vesper_tv_download(request: Request, ticket: str | None = None):
+    try:
+        stat = TV_APK.stat()
+        allowed = TV_APK.is_file() and valid_ticket(ticket, stat)
+    except OSError:
+        allowed = False
+    if not allowed:
+        return Response(status_code=404, headers=NO_STORE)
+    return apk_response(TV_APK, TV_NAME, stat, request, NO_STORE)
+
+
+@router.get("/vesper-tv")
+async def private_tv_download_page():
+    nonce = secrets.token_urlsafe(24)
+    directory = Path(__file__).parent
+    script = directory.joinpath("native_download.js").read_text().replace("vesper-native-ticket", "vesper-tv-ticket") \
+        .replace("vesper-native-file", "vesper-tv-file").replace("vesper-native-download-v1", "vesper-tv-download-v1")
+    page = directory.joinpath("native_download.html").read_text().replace("{{VERSION}}", "2.10.76 (V2 buffering fix)")
+    page = page.replace("Vesper Native", "Vesper TV (V2)").replace("{{NONCE}}", nonce).replace("{{SCRIPT}}", script)
+    headers = {**NO_STORE, "Content-Security-Policy": f"default-src 'none'; script-src 'nonce-{nonce}'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'", "X-Content-Type-Options": "nosniff"}
+    return HTMLResponse(page, headers=headers)
