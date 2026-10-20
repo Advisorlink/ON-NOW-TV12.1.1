@@ -1,5 +1,14 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.77 — ON NOW TV Direct only on own lines + mid-movie stall pop-up (2026-10-20)
+
+- **Diagnosis:** ON NOW TV Direct files are fine. They are 1080p HEVC Main10 with AAC stereo at about 2.9 Mbps, the server supports byte ranges and sustained about 21 Mbps in tests. The managed Xtream line built into the app allows **max_connections = 1**, and 195 of 312 production accounts had no line of their own, so households kicked each other off mid-movie.
+- **Fix:** `/api/vod/match` now returns Direct only for accounts that have their own Xtream line (`reason: no_own_line` otherwise). Adding a line in the admin panel turns Direct on for that account.
+- **Mid-movie stalls:** buffering for more than 8 s after playback has started, or a connection loss, now shows a pop-up: "Please check your internet connection or swap stream". It has three buttons:
+  - **Run speed test:** download speed and ping via Cloudflare's speed endpoints, because Ookla has no public API. If the Speedtest by Ookla app is installed, an **Open Speedtest by Ookla** button also appears.
+  - **Swap stream:** opens the stream sheet.
+  - **Keep waiting:** snoozes the pop-up for 60 s.
+
 ## v2.10.76 — Player buffering fix + 4K sources removed (2026-10-20)
 
 User report: movies buffer every few minutes on the HK1 boxes while the same links play smoothly in Stremio.

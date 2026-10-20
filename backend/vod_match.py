@@ -229,15 +229,17 @@ async def vod_match(
     cands.sort(key=lambda e: (0 if (year and e["year"] == year) else 1, -e["rating"], -e["added"]))
     cands = cands[:3]
 
-    # Whose credentials go in the URL — the caller's own Xtream mapping
-    # when the Vesper account has one, else the managed subscription.
+    # 2026-10-20 — operator spec: Direct is offered ONLY to accounts with
+    # their own ON NOW TV line.  The managed line allows 1 connection and is
+    # shared, so households on it were cut off mid-movie.
     p = _provider()
-    user, pwd = p["username"], p["password"]
     acct_id = _account_from_bearer(authorization)
+    row = None
     if acct_id and _db is not None:
         row = await _db.vesper_accounts.find_one({"id": acct_id}, {"_id": 0, "xtream_username": 1, "xtream_password": 1})
-        if row and row.get("xtream_username") and row.get("xtream_password"):
-            user, pwd = row["xtream_username"], row["xtream_password"]
+    if not (row and (row.get("xtream_username") or "").strip() and (row.get("xtream_password") or "").strip()):
+        return {"matches": [], "streams": [], "reason": "no_own_line"}
+    user, pwd = row["xtream_username"].strip(), row["xtream_password"].strip()
     base = _ib._base_url(p)
 
     streams = []

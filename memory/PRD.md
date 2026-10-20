@@ -391,3 +391,12 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - **Test APK:** built locally from the React bundle (pointed at onnowhub.com) using the same stable keystore. Its certificate SHA-256 `0e16e297…d103` matches the live release, so it installs over the existing app. Saved at `android/vesper-tv/test-artifacts/vesper-tv-2.10.76-buffer-test.apk` (gitignored). Download page: `/api/download/vesper-tv`, using the same capability fragment + ticket flow as the native page.
 - **Production:** onnowhub.com backend only gets the 4K filter after Save to GitHub → deploy-backend. CI APK builds will take v2.10.76 from the CHANGELOG.
 - **Frontend baseline** was updated for `src/lib/api.js`, an intentional V2 change requested by the user.
+
+## V2 v2.10.77 (code 1091): ON NOW TV Direct diagnosis + stall pop-up — 2026-10-20
+- **Root cause of Direct buffering:** the managed Xtream line hard-coded in `instant_bundle._MANAGED_PROVIDER_FALLBACK` allows `max_connections=1`, and 195 of 312 production accounts had no line of their own. Households on the shared line cut each other off mid-movie. The files themselves are fine: 1080p HEVC Main10 + AAC at about 2.9 Mbps, the relay supports byte ranges and sustained about 21 Mbps.
+- **Direct gating:** `/api/vod/match` returns Direct only when the Vesper account has its own `xtream_username`/`xtream_password`; otherwise it returns `reason: no_own_line`. The positive path was verified with a temporary account.
+- **Stall pop-up:** `StallHelpDialog.kt` appears when buffering lasts more than 8 s after the first frame, or the connection drops mid-movie.
+  - Buttons: Run speed test (Cloudflare endpoints, because Ookla has no public API), Open Speedtest by Ookla when that app is installed, Swap stream (opens the stream sheet via `openStreamsSignal`), Keep waiting (60 s snooze).
+- **Test APK:** `android/vesper-tv/test-artifacts/vesper-tv-2.10.77-buffer-test.apk`, served by `/api/download/vesper-tv`.
+- **Building vesper-tv locally:** `/app/.cache` can disappear after an environment restore. Re-run `scripts/ensure-native-arm64-sdk.sh`, then `ln -s /app/.cache/native-tools/sdk /android-sdk`, then build with `app/build` symlinked to /tmp. Remove that symlink afterwards; it is not gitignored.
+- **Production:** these changes reach onnowhub.com only after Save to GitHub (deploy-backend + CI APK build).

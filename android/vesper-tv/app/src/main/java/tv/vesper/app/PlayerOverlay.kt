@@ -194,6 +194,8 @@ fun PlayerOverlay(
     // `onControlsVisibilityChanged` reports dock visibility back so
     // the Activity knows whether BACK should hide or exit.
     hideControlsSignal: StateFlow<Long> = MutableStateFlow(0L).asStateFlow(),
+    // 2026-10-20 — "Swap stream" from the stall pop-up opens the stream sheet.
+    openStreamsSignal: StateFlow<Long> = MutableStateFlow(0L).asStateFlow(),
     onControlsVisibilityChanged: (Boolean) -> Unit = {},
     // v2.10.24 — Skip-Next-Episode dock button (TV shows only).
     // `hasNextEpisode` flips true ~60s before the credits when we
@@ -288,6 +290,10 @@ fun PlayerOverlay(
     val hideCtrlTs by collectAsStateSafe(hideControlsSignal, 0L)
     LaunchedEffect(hideCtrlTs) {
         if (hideCtrlTs > 0L) { dockVisible = false; sheet = SheetKind.None }
+    }
+    val openStreamsTs by collectAsStateSafe(openStreamsSignal, 0L)
+    LaunchedEffect(openStreamsTs) {
+        if (openStreamsTs > 0L) { dockVisible = true; bump(); sheet = SheetKind.Stream }
     }
 
     Box(modifier = Modifier

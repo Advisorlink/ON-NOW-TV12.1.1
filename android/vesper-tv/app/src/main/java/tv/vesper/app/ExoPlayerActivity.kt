@@ -494,6 +494,28 @@ class ExoPlayerActivity : ComponentActivity(),
     private val bufferedPercentFlow = MutableStateFlow(0)
     private val bufferAheadMsFlow = MutableStateFlow(0L)
     private val bitrateKbpsFlow = MutableStateFlow(0L)
+    // 2026-10-20 — mid-movie stall pop-up (check connection / swap stream / speed test).
+    private val openStreamsFlow = MutableStateFlow(0L)
+    private var midStallJob: Job? = null
+    private var stallSnoozeUntil = 0L
+    private val stallHelp by lazy {
+        StallHelpDialog(this, lifecycleScope,
+            neededMbps = {
+                runCatching {
+                    val v = player.videoFormat; val a = player.audioFormat
+                    val bits = listOf(v?.bitrate, v?.peakBitrate, a?.bitrate).filterNotNull().filter { it > 0 }
+                    val total = (v?.bitrate?.takeIf { it > 0 } ?: v?.peakBitrate?.takeIf { it > 0 } ?: 0) + (a?.bitrate?.takeIf { it > 0 } ?: 0)
+                    if (bits.isEmpty() || total <= 0) null else total / 1e6
+                }.getOrNull()
+            },
+            onSwap = { openStreamsFlow.value = System.currentTimeMillis() },
+            onWait = { stallSnoozeUntil = System.currentTimeMillis() + 60_000L })
+    }
+    private fun showStallHelp(reason: String) {
+        if (System.currentTimeMillis() < stallSnoozeUntil || isFinishing) return
+        Log.w(TAG, "Mid-playback stall pop-up: $reason")
+        stallHelp.show(reason)
+    }
     private val isLoadingFlow = MutableStateFlow(true)
     private val errorMessageFlow = MutableStateFlow<String?>(null)
     private val audioTracksFlow = MutableStateFlow<List<TrackOption>>(emptyList())
@@ -1139,6 +1161,10 @@ class ExoPlayerActivity : ComponentActivity(),
         player.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
                 Log.e(TAG, "ExoPlayer error: ${error.errorCodeName}", error)
+                if (firstReadyReachedForCurrentStream) {
+                    midStallJob?.cancel()
+                    showStallHelp("The connection to this stream was lost part-way through the movie.")
+                }
                 errorMessageFlow.value = error.errorCodeName
                 isLoadingFlow.value = false
                 // v2.7.64 — On mobile, hardware codec failures
@@ -1232,6 +1258,17 @@ class ExoPlayerActivity : ComponentActivity(),
             override fun onPlaybackStateChanged(state: Int) {
                 isLoadingFlow.value = (state == Player.STATE_BUFFERING ||
                                        state == Player.STATE_IDLE)
+                if (state == Player.STATE_BUFFERING && firstReadyReachedForCurrentStream) {
+                    midStallJob?.cancel()
+                    midStallJob = lifecycleScope.launch {
+                        delay(8_000L)
+                        if (player.playbackState == Player.STATE_BUFFERING) {
+                            showStallHelp("The stream stopped loading part-way through the movie.")
+                        }
+                    }
+                } else if (state != Player.STATE_BUFFERING) {
+                    midStallJob?.cancel()
+                }
                 if (state == Player.STATE_READY) {
                     durationMsFlow.value = player.duration.coerceAtLeast(0L)
                     // v2.10.80 — First successful READY for this
@@ -1437,6 +1474,7 @@ class ExoPlayerActivity : ComponentActivity(),
                     userActivity    = userActivityFlow.asStateFlow(),
                     // v1.1.0 — BACK-to-hide-controls bridge.
                     hideControlsSignal = hideControlsFlow.asStateFlow(),
+                    openStreamsSignal = openStreamsFlow.asStateFlow(),
                     onControlsVisibilityChanged = { visible ->
                         controlsVisibleFlow.value = visible
                     },
@@ -2119,6 +2157,8 @@ class ExoPlayerActivity : ComponentActivity(),
     override fun onPause()   { super.onPause();   try { pbPause() } catch (_: Exception) {} }
     override fun onResume()  { super.onResume();  hideSystemUi(); try { pbPlay() } catch (_: Exception) {} }
     override fun onDestroy() {
+        midStallJob?.cancel()
+        runCatching { stallHelp.dismiss() }
         super.onDestroy()
         // v2.16.31 — Drop the row from the launcher-admin Live tab.
         try { tv.vesper.app.data.VesperPresenceReporter.stop(this) } catch (_: Throwable) {}
