@@ -104,6 +104,6 @@ async def private_tv_download_page():
     script = directory.joinpath("native_download.js").read_text().replace("vesper-native-ticket", "vesper-tv-ticket") \
         .replace("vesper-native-file", "vesper-tv-file").replace("vesper-native-download-v1", "vesper-tv-download-v1")
     page = directory.joinpath("native_download.html").read_text().replace("{{VERSION}}", "2.10.77 (V2 buffering fix)")
-    page = page.replace("Vesper Native", "Vesper TV (V2)").replace("{{NONCE}}", nonce).replace("{{SCRIPT}}", script)
+    page = page.replace("Vesper Native", "Vesper TV (V2)").replace("This test build contains your prefilled login. ", "").replace("{{NONCE}}", nonce).replace("{{SCRIPT}}", script)
     headers = {**NO_STORE, "Content-Security-Policy": f"default-src 'none'; script-src 'nonce-{nonce}'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'", "X-Content-Type-Options": "nosniff"}
     return HTMLResponse(page, headers=headers)

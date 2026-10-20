@@ -9,7 +9,7 @@ import re
 import secrets
 import time
 
-TICKET_TTL = 300
+TICKET_TTL = 3600
 TICKET_PATH = "/api/download/vesper-native-file"
 
 

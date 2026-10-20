@@ -118,7 +118,7 @@ def test_ticket_post_returns_small_no_store_metadata(http_session, capability_to
     assert "no-store" in response.headers.get("Cache-Control", "")
     payload = response.json()
     assert payload["url"].startswith("/api/download/vesper-native-file?ticket=")
-    assert int(payload["expiresIn"]) == 300
+    assert int(payload["expiresIn"]) == TICKET_TTL == 3600
     assert isinstance(payload["bytes"], int) and payload["bytes"] > 1024
 
 

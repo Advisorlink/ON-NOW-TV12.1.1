@@ -90,7 +90,7 @@
       if (access !== currentAccess) return;
       const url = new URL(data.url, window.location.origin);
       if (url.origin !== window.location.origin || url.pathname !== '/api/download/vesper-native-file' ||
-          !url.searchParams.get('ticket') || !Number.isFinite(data.expiresIn) || data.expiresIn <= 0 || data.expiresIn > 300) {
+          !url.searchParams.get('ticket') || !Number.isFinite(data.expiresIn) || data.expiresIn <= 0 || data.expiresIn > 3600) {
         throw new Error('Invalid download link');
       }
       direct.href = url.href;
