@@ -409,3 +409,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
   - Direct `/movie/` and `/series/` URLs are forced to HTTP/1.1.
 - **Download link:** tickets now last 3600 s (the page JS limit was raised to match). The preview ingress cuts single downloads at about 113 s, so slow phones must tap Resume.
 - **Test APK:** `test-artifacts/vesper-tv-2.10.78-buffer-test.apk`, 174,353,218 bytes.
+
+## V2 v2.10.80 (code 1094): animated speed test, also in the Info sheet — 2026-10-20
+- **SpeedGaugeView:** custom dial. A glowing sweep spins during the ping phase (best of 3 pings). During the download phase (Cloudflare, about 8 s) a needle and glowing arc follow the live Mbps every 150 ms on a log scale from 0 to 500. When done the dial turns green if the speed is at least 1.5× the movie's bitrate, otherwise amber.
+- **Info sheet:** "Run speed test" pill between Swap stream and Got it. It opens `StallHelpDialog.showSpeedTest()` (eyebrow "CONNECTION CHECK", the test starts automatically, the button reads "Close").
+- **Test APK:** `test-artifacts/vesper-tv-2.10.80-buffer-test.apk`, 174,369,600 bytes.

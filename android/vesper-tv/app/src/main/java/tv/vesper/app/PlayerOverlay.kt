@@ -196,6 +196,7 @@ fun PlayerOverlay(
     hideControlsSignal: StateFlow<Long> = MutableStateFlow(0L).asStateFlow(),
     // 2026-10-20 — "Swap stream" from the stall pop-up opens the stream sheet.
     openStreamsSignal: StateFlow<Long> = MutableStateFlow(0L).asStateFlow(),
+    onSpeedTest: () -> Unit = {},
     onControlsVisibilityChanged: (Boolean) -> Unit = {},
     // v2.10.24 — Skip-Next-Episode dock button (TV shows only).
     // `hasNextEpisode` flips true ~60s before the credits when we
@@ -445,6 +446,7 @@ fun PlayerOverlay(
                     info = info,
                     canSwap = streamList.size > 1,
                     onSwapStream = { sheet = SheetKind.Stream; bump() },
+                    onSpeedTest = { sheet = SheetKind.None; onSpeedTest() },
                     onDismiss = { sheet = SheetKind.None; bump() },
                 )
                 SheetKind.Engine -> EnginePickerSheet(
@@ -1643,6 +1645,7 @@ private fun BufferingInfoSheet(
     info: PlayerInfo? = null,
     canSwap: Boolean = false,
     onSwapStream: () -> Unit = {},
+    onSpeedTest: () -> Unit = {},
     onDismiss: () -> Unit,
 ) {
     val dismissFocus = remember { FocusRequester() }
@@ -1913,6 +1916,30 @@ private fun BufferingInfoSheet(
                             fontSize = 14.sp,
                         )
                     }
+                }
+                var speedFocused by remember { mutableStateOf(false) }
+                Box(
+                    modifier = Modifier
+                        .onFocusChanged { speedFocused = it.isFocused }
+                        .focusable()
+                        .clickable { onSpeedTest() }
+                        .background(
+                            if (speedFocused) Color(0xFF5DC8FF) else Color(0xFF5DC8FF).copy(alpha = 0.16f),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
+                        )
+                        .border(
+                            1.dp,
+                            Color(0xFF5DC8FF).copy(alpha = if (speedFocused) 1f else 0.45f),
+                            androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
+                        )
+                        .padding(horizontal = 22.dp, vertical = 10.dp),
+                ) {
+                    Text(
+                        "Run speed test",
+                        color = if (speedFocused) Color(0xFF020610) else Color(0xFF5DC8FF),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                    )
                 }
                 var dismissFocused by remember { mutableStateOf(false) }
                 Box(

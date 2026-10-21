@@ -1,5 +1,10 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.80 — Animated speed test, also in the player Info sheet (2026-10-20)
+
+- The stall pop-up's speed test now shows a live dial. A glowing sweep spins while ping is measured. A needle and glowing arc then follow the measured Mbps in real time as the download runs, with a live counter. The dial turns green or amber depending on whether the connection is fast enough for the movie.
+- The player's Info sheet now has a **Run speed test** button next to **Swap stream**. It opens the same dial and starts the test straight away.
+
 ## v2.10.78 — ON NOW TV line released the instant a movie ends (2026-10-20)
 
 - **Problem:** after leaving a movie, the ON NOW TV provider still showed the stream as playing. Lines allow one connection, so the next movie was refused.

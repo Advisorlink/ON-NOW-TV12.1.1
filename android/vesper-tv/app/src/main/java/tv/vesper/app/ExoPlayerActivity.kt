@@ -1499,6 +1499,7 @@ class ExoPlayerActivity : ComponentActivity(),
                     // v1.1.0 — BACK-to-hide-controls bridge.
                     hideControlsSignal = hideControlsFlow.asStateFlow(),
                     openStreamsSignal = openStreamsFlow.asStateFlow(),
+                    onSpeedTest = { if (!stallHelp.isShowing) stallHelp.showSpeedTest() },
                     onControlsVisibilityChanged = { visible ->
                         controlsVisibleFlow.value = visible
                     },

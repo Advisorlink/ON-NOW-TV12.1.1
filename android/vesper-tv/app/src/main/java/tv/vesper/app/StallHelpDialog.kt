@@ -47,7 +47,9 @@ class StallHelpDialog(
         setColor(color); cornerRadius = dp(r).toFloat(); if (stroke != 0) setStroke(dp(1), stroke)
     }
 
-    fun show(reason: String) {
+    fun showSpeedTest() = show("Checking how fast this box's internet connection is right now.", "CONNECTION CHECK", "Speed test", autoRun = true)
+
+    fun show(reason: String, eyebrow: String = "PLAYBACK INTERRUPTED", title: String = "Please check your internet connection or swap stream", autoRun: Boolean = false) {
         if (isShowing || activity.isFinishing) return
         val accent = Color.rgb(0, 184, 255)
         val result = TextView(activity).apply {
@@ -64,9 +66,10 @@ class StallHelpDialog(
             }
             setPadding(dp(20), 0, dp(20), 0); setOnClickListener { click(this) }
         }
-        val speed = button("Run speed test", true) { runTest(it, result) }
+        val gauge = SpeedGaugeView(activity).apply { visibility = View.GONE }
+        val speed = button("Run speed test", true) { runTest(it, result, gauge) }
         val swap = button("Swap stream", false) { dismiss(); onSwap() }
-        val wait = button("Keep waiting", false) { dismiss(); onWait() }
+        val wait = button(if (autoRun) "Close" else "Keep waiting", false) { dismiss(); if (!autoRun) onWait() }
         val row = LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(22), 0, 0)
             listOf(speed, swap, wait).forEach { addView(it, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(48)).apply { marginEnd = dp(12) }) }
@@ -75,9 +78,10 @@ class StallHelpDialog(
         val card = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL; setPadding(dp(32), dp(28), dp(32), dp(28))
             background = round(Color.argb(245, 10, 16, 30), 20, Color.argb(70, 0, 184, 255))
-            addView(TextView(activity).apply { text = "PLAYBACK INTERRUPTED"; setTextColor(accent); textSize = 12f; letterSpacing = .28f })
-            addView(TextView(activity).apply { text = "Please check your internet connection or swap stream"; setTextColor(Color.WHITE); textSize = 24f; setPadding(0, dp(8), 0, 0) })
+            addView(TextView(activity).apply { text = eyebrow; setTextColor(accent); textSize = 12f; letterSpacing = .28f })
+            addView(TextView(activity).apply { text = title; setTextColor(Color.WHITE); textSize = 24f; setPadding(0, dp(8), 0, 0) })
             addView(TextView(activity).apply { text = reason; setTextColor(Color.rgb(155, 168, 194)); textSize = 14f; setPadding(0, dp(8), 0, 0) })
+            addView(gauge, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(190)).apply { topMargin = dp(14) })
             addView(result); addView(row)
             ookla?.let { addView(it, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(44)).apply { topMargin = dp(12) }) }
         }
@@ -86,7 +90,7 @@ class StallHelpDialog(
             setContentView(card, ViewGroup.LayoutParams(dp(640), ViewGroup.LayoutParams.WRAP_CONTENT))
             window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT)); window?.setGravity(Gravity.CENTER)
             setOnCancelListener { testJob?.cancel(); onWait() }
-            setOnShowListener { swap.requestFocus() }
+            setOnShowListener { if (autoRun) { speed.requestFocus(); runTest(speed, result, gauge) } else swap.requestFocus() }
             show()
         }
     }
@@ -96,39 +100,50 @@ class StallHelpDialog(
     private fun ooklaIntent(): Intent? = listOf("org.zwanoo.android.speedtest", "com.ookla.speedtest")
         .firstNotNullOfOrNull { activity.packageManager.getLaunchIntentForPackage(it) }
 
-    private fun runTest(button: Button, result: TextView) {
+    private fun runTest(button: Button, result: TextView, gauge: SpeedGaugeView) {
         if (testJob?.isActive == true) return
-        result.visibility = View.VISIBLE; result.setTextColor(Color.WHITE); result.text = "Testing your connection…"; button.isEnabled = false
+        gauge.visibility = View.VISIBLE; gauge.alpha = 0f; gauge.animate().alpha(1f).setDuration(250).start(); gauge.ping()
+        result.visibility = View.VISIBLE; result.setTextColor(Color.WHITE); result.text = "Checking your connection…"
+        button.isEnabled = false; button.text = "Testing…"
         testJob = scope.launch {
-            val (ping, mbps) = withContext(Dispatchers.IO) { measure() }
-            val need = neededMbps()
+            val ping = withContext(Dispatchers.IO) { measurePing() }
+            gauge.pinged(ping)
+            result.text = if (ping > 0) "Ping $ping ms · measuring download speed…" else "Measuring download speed…"
+            kotlinx.coroutines.delay(600)
+            gauge.download(0.0)
+            val mbps = withContext(Dispatchers.IO) { measureDownload { live -> scope.launch { gauge.download(live) } } }
+            val need = neededMbps(); val ok = need == null || mbps >= need * 1.5
+            gauge.done(mbps, mbps > 0 && ok)
             result.text = buildString {
                 append(if (mbps > 0) "Download: ${"%.1f".format(mbps)} Mbps" else "Speed test failed — your connection may be down.")
                 if (ping > 0) append("   ·   Ping: $ping ms")
                 need?.let { append("\nThis movie needs about ${"%.1f".format(it)} Mbps — ") ; append(if (mbps >= it * 1.5) "your connection is fast enough, try swapping stream." else "your connection is too slow for it right now.") }
             }
-            result.setTextColor(if (need == null || mbps >= need * 1.5) Color.rgb(122, 235, 138) else Color.rgb(255, 196, 92))
+            result.setTextColor(if (mbps > 0 && ok) Color.rgb(122, 235, 138) else Color.rgb(255, 196, 92))
             button.isEnabled = true; button.text = "Run again"
         }
     }
 
-    private suspend fun measure(): Pair<Long, Double> {
-        val client = OkHttpClient.Builder().connectTimeout(6, TimeUnit.SECONDS).readTimeout(10, TimeUnit.SECONDS).build()
-        val ping = runCatching {
+    private val client by lazy { OkHttpClient.Builder().connectTimeout(6, TimeUnit.SECONDS).readTimeout(10, TimeUnit.SECONDS).build() }
+
+    private fun measurePing(): Long = runCatching {
+        (0 until 3).minOf {
             val t = System.nanoTime()
             client.newCall(Request.Builder().url("https://speed.cloudflare.com/__down?bytes=0").build()).execute().use { }
             (System.nanoTime() - t) / 1_000_000
-        }.getOrDefault(-1L)
-        val mbps = runCatching {
-            client.newCall(Request.Builder().url("https://speed.cloudflare.com/__down?bytes=50000000").build()).execute().use { r ->
-                val input = r.body!!.byteStream(); val buf = ByteArray(64 * 1024)
-                val start = System.nanoTime(); var total = 0L
-                while (kotlin.coroutines.coroutineContext.isActive && System.nanoTime() - start < 8_000_000_000L) {
-                    val n = input.read(buf); if (n < 0) break; total += n
-                }
-                total * 8.0 / ((System.nanoTime() - start) / 1e9) / 1e6
+        }
+    }.getOrDefault(-1L)
+
+    private suspend fun measureDownload(live: (Double) -> Unit): Double = runCatching {
+        client.newCall(Request.Builder().url("https://speed.cloudflare.com/__down?bytes=100000000").build()).execute().use { r ->
+            val input = r.body!!.byteStream(); val buf = ByteArray(64 * 1024)
+            val start = System.nanoTime(); var total = 0L; var lastTick = start
+            while (kotlin.coroutines.coroutineContext.isActive && System.nanoTime() - start < 8_000_000_000L) {
+                val n = input.read(buf); if (n < 0) break; total += n
+                val now = System.nanoTime()
+                if (now - lastTick > 150_000_000L) { lastTick = now; live(total * 8.0 / ((now - start) / 1e9) / 1e6) }
             }
-        }.getOrDefault(0.0)
-        return ping to mbps
-    }
+            total * 8.0 / ((System.nanoTime() - start) / 1e9) / 1e6
+        }
+    }.getOrDefault(0.0)
 }
