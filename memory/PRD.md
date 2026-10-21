@@ -502,3 +502,11 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - **Test:** JVM unit test `app/src/test/.../SpeedTestGatedLoadControlTest.kt` passes (`testImplementation junit:4.13.2`, `unitTests.isReturnDefaultValues`).
 - **Lesson:** never use `by` delegation for Java interfaces that have default methods, such as media3 LoadControl.
 - **APK:** `test-artifacts/vesper-tv-2.10.86-playback-fix.apk`.
+
+## V2 v2.10.87 (code 1101): autoplay still dropped to Details on v2.10.86 (2026-10-21)
+- **User report (on 86):** the loading screen shows, then the Details page; the movie never plays. There are no device logs, so these are hardening changes, not a confirmed root cause.
+  1. Reverted the v2.10.83 deferred init (OnDrawListener → post). Engine and UI are built synchronously in onCreate again, as in the last known-good v2.10.81/82. The instant loader view is still set first and re-added on top of root until Compose draws.
+  2. **singleTop self-restart bug:** every same-class `startActivity(ExoPlayerActivity)` followed by `finish()` (engine fallback, fatal-error MPV fallback, next-episode restart, settings engine switch) was handed to the same instance through onNewIntent and dropped, so the player just closed. The new `restartSelf()` finishes first, then starts a fresh instance. It is capped at 3 hops through `EXTRA_RESTART_HOPS`, so EXO/VLC fallbacks can't loop.
+  3. **Diagnostic:** non-user exits set `exitReason` (start-up error, playback error code, engine failure, no stream link, sent to background within 5 s). `finish()` shows a long Toast "Player closed: …", so the user can report the exact cause.
+- **APK:** `test-artifacts/vesper-tv-2.10.87-autoplay-fix.apk`.
+- **Not verified on a device.**

@@ -784,6 +784,7 @@ class ExoPlayerActivity : ComponentActivity(),
             // with the engine forced to VLC (proven, safe) so the
             // user still gets the modern Compose overlay.
             Log.e(TAG, "ExoPlayer init failed — relaunching with VLC engine", t)
+            exitReason = "start-up error: ${t.javaClass.simpleName}: ${t.message}"
             try {
                 val comingFrom = intent.getStringExtra(EXTRA_FORCE_ENGINE)
                 val nextEngine = when (comingFrom) {
@@ -798,7 +799,7 @@ class ExoPlayerActivity : ComponentActivity(),
                     Intent.FLAG_ACTIVITY_NO_ANIMATION
                             or Intent.FLAG_ACTIVITY_NO_HISTORY
                 )
-                startActivity(fallback)
+                restartSelf(fallback)
             } catch (_: Throwable) { /* nothing more to try */ }
             finish()
         }
@@ -1043,7 +1044,7 @@ class ExoPlayerActivity : ComponentActivity(),
             )
         }
 
-        if (streamUrl.isBlank()) { finish(); return }
+        if (streamUrl.isBlank()) { exitReason = "no stream link was received"; finish(); return }
 
         // ─── v2.16.42 — pick the playback engine ────────────────
         // 4-way selection: MPV (default) / VLC / ExoPlayer /
@@ -1060,29 +1061,26 @@ class ExoPlayerActivity : ComponentActivity(),
             else -> PlayerEngine.read(this)
         }
         Log.i(TAG, "playback engine: ${engine.label} (forced=$forcedEngine)")
-        // Let the instant loader reach the screen before the heavy
-        // engine + Compose setup blocks the main thread.
-        val decor = window.decorView
-        decor.viewTreeObserver.addOnDrawListener(object : android.view.ViewTreeObserver.OnDrawListener {
-            var fired = false
-            override fun onDraw() {
-                if (fired) return
-                fired = true
-                decor.post {
-                    decor.viewTreeObserver.removeOnDrawListener(this)
-                    if (isFinishing || isDestroyed) return@post
-                    try {
-                        if (engine == PlayerEngine.EXO || engine == PlayerEngine.EXO_FFMPEG) {
-                            buildExoEngine()
-                        }
-                        buildUiAndStart()
-                        uiReady = true
-                    } catch (t: Throwable) {
-                        relaunchWithFallbackEngine(t)
-                    }
-                }
-            }
-        })
+        if (engine == PlayerEngine.EXO || engine == PlayerEngine.EXO_FFMPEG) {
+            buildExoEngine()
+        }
+        buildUiAndStart()
+        uiReady = true
+    }
+
+    private var exitReason: String? = null
+    private var restarting = false
+    // singleTop would hand a same-class startActivity to this instance
+    // (silently dropped) and the following finish() closed the player.
+    // Finishing first makes Android create a fresh instance.
+    private fun restartSelf(next: Intent, countHop: Boolean = true) {
+        val hops = intent.getIntExtra(EXTRA_RESTART_HOPS, 0)
+        if (countHop && hops >= 3) return
+        next.putExtra(EXTRA_RESTART_HOPS, if (countHop) hops + 1 else 0)
+        restarting = true
+        finish()
+        startActivity(next)
+        @Suppress("DEPRECATION") overridePendingTransition(0, 0)
     }
 
     private var instantLoader: View? = null
@@ -1290,7 +1288,7 @@ class ExoPlayerActivity : ComponentActivity(),
                             // Intent extras were already updated to
                             // the new episode by jumpToPrimedNextEpisode
                             // so this re-launch picks up the right URL.
-                            startActivity(restart)
+                            restartSelf(restart)
                         } catch (_: Throwable) { /* */ }
                         finish()
                         return
@@ -1306,7 +1304,8 @@ class ExoPlayerActivity : ComponentActivity(),
                         fallback.setClass(this@ExoPlayerActivity, ExoPlayerActivity::class.java)
                         fallback.putExtra(EXTRA_FORCE_ENGINE, PlayerEngine.MPV.token)
                         fallback.putExtra(VlcPlayerActivity.EXTRA_START_AT_MS, pbPositionMs())
-                        startActivity(fallback)
+                        exitReason = "playback error: ${error.errorCodeName}"
+                        restartSelf(fallback)
                     } catch (_: Throwable) { /* */ }
                     finish()
                 } else if (altStreams.size > 1) {
@@ -2295,6 +2294,11 @@ class ExoPlayerActivity : ComponentActivity(),
             setResult(RESULT_OK, data)
         } catch (_: Exception) {}
         closeStreamNow("finish")
+        if (!restarting) exitReason?.let {
+            Log.w(TAG, "player closed: $it")
+            android.widget.Toast.makeText(applicationContext, "Player closed: $it", android.widget.Toast.LENGTH_LONG).show()
+            exitReason = null
+        }
         super.finish()
     }
 
@@ -2302,7 +2306,10 @@ class ExoPlayerActivity : ComponentActivity(),
         super.onStop()
         // Leaving the player (Home, another app, screen off) ends the
         // movie and frees the line; Continue Watching keeps the spot.
-        if (!isChangingConfigurations && !launchingHelperApp && !isFinishing) finish()
+        if (!isChangingConfigurations && !launchingHelperApp && !isFinishing) {
+            if (!uiReady || pbPositionMs() < 5_000L) exitReason = "the player was sent to the background"
+            finish()
+        }
     }
     override fun onRestart() { super.onRestart(); launchingHelperApp = false }
 
@@ -2498,7 +2505,8 @@ class ExoPlayerActivity : ComponentActivity(),
             val restart = Intent(intent)
             restart.setClass(this, ExoPlayerActivity::class.java)
             restart.putExtra(EXTRA_FORCE_ENGINE, next.token)
-            startActivity(restart)
+            exitReason = "${from.label} could not start this stream"
+            restartSelf(restart)
         } catch (_: Throwable) { /* nothing more to try */ }
         finish()
     }
@@ -2879,6 +2887,7 @@ class ExoPlayerActivity : ComponentActivity(),
         // v2.16.40 — Per-launch engine override ("exo" | "vlc") used
         // by the engine-fallback restarts and the trailer path.
         const val EXTRA_FORCE_ENGINE = "force_engine"
+        const val EXTRA_RESTART_HOPS = "restart_hops"
 
         /** v2.16.40 — LibVLC is the MAIN engine again (user demand),
          *  rendered inside THIS activity with the identical Compose
@@ -3005,7 +3014,7 @@ class ExoPlayerActivity : ComponentActivity(),
         relaunch.putExtra(EXTRA_FORCE_ENGINE, chosen.token)
         relaunch.putExtra(VlcPlayerActivity.EXTRA_START_AT_MS, pos)
         Log.i(TAG, "onSettingsCog: switching engine ${engine.label} → ${chosen.label} @ ${pos}ms")
-        startActivity(relaunch)
+        restartSelf(relaunch, countHop = false)
         finish()
     }
 
