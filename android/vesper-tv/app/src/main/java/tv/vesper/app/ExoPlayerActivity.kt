@@ -1212,10 +1212,7 @@ class ExoPlayerActivity : ComponentActivity(),
             }
         player = ExoPlayer.Builder(this, renderersFactory)
             .setBandwidthMeter(bandwidth)
-            .setLoadControl(object : androidx.media3.exoplayer.LoadControl by loadControl {
-                override fun shouldContinueLoading(parameters: androidx.media3.exoplayer.LoadControl.Parameters) =
-                    !holdLoadingForSpeedTest && loadControl.shouldContinueLoading(parameters)
-            })
+            .setLoadControl(SpeedTestGatedLoadControl(loadControl) { holdLoadingForSpeedTest })
             .setMediaSourceFactory(mediaSourceFactory)
             .build()
             .apply {

@@ -494,3 +494,11 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - **APK:** `test-artifacts/vesper-tv-2.10.85-location-signout.apk`.
 - **Live server:** the location endpoint and admin changes reach onnowhub.com and the launcher admin only after Save to GitHub and a deploy. Until then the box can't report location.
 - **Not verified on a device:** the location dialog and the location fix itself. Many boxes have no GPS or network location provider.
+
+## V2 v2.10.86 (code 1100): playback regression fixed (2026-10-21)
+- **Bug:** from v2.10.84, movies wouldn't play; the player kept dropping back to Details.
+- **Root cause:** the v2.10.84 speed-test LoadControl wrapper used Kotlin `by` delegation over a Java interface. Kotlin delegates only abstract methods (javap showed only getAllocator plus the override), so ExoPlayer hit the interface defaults. `shouldStartPlayback` threw "not implemented" and onPrepared/onTracksSelected never reached DefaultLoadControl, so the playback error path closed the player.
+- **Fix:** new `SpeedTestGatedLoadControl.kt` forwards all 9 DefaultLoadControl methods explicitly.
+- **Test:** JVM unit test `app/src/test/.../SpeedTestGatedLoadControlTest.kt` passes (`testImplementation junit:4.13.2`, `unitTests.isReturnDefaultValues`).
+- **Lesson:** never use `by` delegation for Java interfaces that have default methods, such as media3 LoadControl.
+- **APK:** `test-artifacts/vesper-tv-2.10.86-playback-fix.apk`.
