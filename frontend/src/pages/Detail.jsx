@@ -82,12 +82,17 @@ export default function Detail() {
         [location.search]
     );
     const directBackRef = useRef(false);
+    const nativeLaunchedRef = useRef(false);
+    const [directShowPage, setDirectShowPage] = useState(false);
     const launchAutoplay = (s) => {
+        nativeLaunchedRef.current = false;
         const started = playStream(s);
         if (!directPlay) return;
         Promise.resolve(started).finally(() => {
             window.setTimeout(() => {
+                // Step back to Home only when the native player really opened.
                 if (directBackRef.current) return;
+                if (!nativeLaunchedRef.current) { setDirectShowPage(true); return; }
                 if (!window.location.pathname.startsWith('/title')) return;
                 directBackRef.current = true;
                 navigate(-1);
@@ -1745,6 +1750,7 @@ export default function Detail() {
                 })
             ) {
                 if (partyCode) partyBreadcrumb('playStream:native-launched', {});
+                nativeLaunchedRef.current = true;
                 /* v2.7.52 — back-leak fix is no longer needed.
                  *
                  * Old behaviour (v2.6.85): navigate('/') before VLC
@@ -1911,7 +1917,7 @@ export default function Detail() {
                 for a show lands on the episode picker, not autoplay. */}
             {autoplayRequested
                 && type === 'movie'
-                && (!autoplayFired || directPlay)
+                && (!autoplayFired || (directPlay && !directShowPage))
                 && !showUnavailableModal && (
                 <div
                     data-testid="detail-autoplay-loader"

@@ -1,0 +1,31 @@
+{
+  "summary": "Frontend-only test of the Home trailer hover-card actions (TrailerHoverPreview PreviewActions + PosterTile directRef + Detail direct=1), run on the preview web app at 1920x1080 as testuser. All 6 requested items PASS. Layout: Open Trailer, then Play Movie, then a row with Library and Details; Library and Details are both 105px wide with the same top (903), 10px gap, and together they span the Play Movie width (220px). Keyboard: all 12 checked moves landed on the expected button. Left on Library, Left on Open Trailer, Right on Play and Right on Details all close the card and return focus to the poster. Details goes to /title/movie/<id> with no autoplay and no loader. Autoplay ON: Play Movie goes to ?autoplay=1&direct=1, and the detail-autoplay-loader covers the page (checked on tt0111161). Library (+) fires vesper:request-add-to-list with the right imdb id and opens add-to-list-modal ('Where to?'). Headless Chromium cannot play YouTube, so the harness sent a synthetic YouTube 'playing' postMessage (infoDelivery playerState=1) to make the card count as playing. No app code was changed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Play Movie with Autoplay OFF", "issue": "On these tiles Play Movie navigates to /title/movie/tt27419420 with NO autoplay=1. The review expected autoplay=1. Cause: openTitle dispatches vesper:preview-open, which runs PosterTile.onTap. onTap navigates to item.routePath as-is when it exists, and Home rails (useLiveShelves etc.) set routePath=/title/<type>/<id>. The autoplay=1 branch only runs for tiles without routePath. With Autoplay OFF, Play Movie and Details therefore do exactly the same thing. This may be intended (OFF = show Detail page). If not, add autoplay=1 for movies in the openTitle OFF path.", "affected_selectors": ["[data-testid=trailer-hover-open]"]},
+      {"flow": "direct=1 on web when the chosen stream is external", "issue": "On tt0111161 with ?autoplay=1&direct=1, torrentio/plexio fetches were CORS-blocked, so the autoplay fallback (streams[0]) picked an 'external' stream. playStream called window.open(watch.amazon.com...) and then launchAutoplay ran navigate(-1) after 900ms. The user was bounced back to Home with nothing playing (in the browser the popup is blocked). The same silent bounce happens if playStream returns early (for example when playUrl is empty). Detail.jsx launchAutoplay (~85-96) should step back only when a player actually launched (native launch returned true, or the path is /play).", "affected_selectors": ["[data-testid=detail-autoplay-loader]"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Confirm the intended Autoplay OFF behaviour of Play Movie. Today it is identical to Details (no autoplay=1) because PosterTile.onTap follows item.routePath unchanged.",
+    "Detail.jsx launchAutoplay: do not navigate(-1) when playStream did not start a player (external mode, or early return with no playUrl). Make playStream return a 'launched' flag.",
+    "Web only, minor: with direct=1, closing the web /play player returns to /title?...&autoplay=1&direct=1, which remounts and auto-plays again. Consider replace-navigation or removing direct/autoplay from history before opening /play."
+  ],
+  "critical_code_review_comments": [
+    "TrailerHoverPreview.openTitle: Autoplay ON sends series tiles through preview-open, so only movies get the direct path. This matches the spec.",
+    "PosterTile directRef: if onSelect is set, Details and Play both call onSelect(item), so the Details button loses its meaning on those tiles.",
+    "Detail loader condition (!autoplayFired || directPlay): if playback fails after autoplay fires with direct=1, the dark loader stays over the Detail page indefinitely, unless the unavailable modal or the bounce happens.",
+    "TrailerHoverPreview.jsx and Detail.jsx are well over 700 lines. Pre-existing."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped)", "frontend": "100% of requested checks (6/6); 2 behavioural concerns reported"},
+  "test_credentials": "testuser / testpass123 (from /app/memory/test_credentials.md), unchanged",
+  "seed_data_creation": "None. The add-to-list modal was opened for Whalefall but not confirmed. The autoplay pref key onnowtv-autoplay-1080p:p-test-1 was toggled in the test browser's localStorage only and reset to '1'.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Gate order after login: cloud-restore-confirm, then whats-new-skip, then profile-p-test-1, then whats-new-skip again. YouTube never plays in headless; to open the actions card, focus a movie tile, wait for [data-testid=trailer-hover-iframe], then window.dispatchEvent(new MessageEvent('message',{origin:'https://www.youtube.com',data:JSON.stringify({event:'infoDelivery',info:{playerState:1}})})) and press Enter. Many new-release tiles have no streams and show the 'isn't streaming just yet' modal; tt0111161 has streams. Autoplay pref key: onnowtv-autoplay-1080p:<activeProfileId> (p-test-1)."
+}

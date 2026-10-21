@@ -414,3 +414,13 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - **SpeedGaugeView:** custom dial. A glowing sweep spins during the ping phase (best of 3 pings). During the download phase (Cloudflare, about 8 s) a needle and glowing arc follow the live Mbps every 150 ms on a log scale from 0 to 500. When done the dial turns green if the speed is at least 1.5× the movie's bitrate, otherwise amber.
 - **Info sheet:** "Run speed test" pill between Swap stream and Got it. It opens `StallHelpDialog.showSpeedTest()` (eyebrow "CONNECTION CHECK", the test starts automatically, the button reads "Close").
 - **Test APK:** `test-artifacts/vesper-tv-2.10.80-buffer-test.apk`, 174,369,600 bytes.
+
+## V2 v2.10.81 (code 1095) — 2026-10-21
+- **Speed test 0.0 Mbps fix:** Cloudflare `__down` returns 403 for requests over about 50 MB. The test now loops 25 MB chunks for 8 s and checks for HTTP success.
+- **Home trailer card (TrailerHoverPreview PreviewActions):** Open Trailer, then Play Movie, then a row of `+ Library` and `Details` (equal width, LEFT/RIGHT inside the row).
+  - With Autoplay ON, Play Movie fires `vesper:preview-play`. PosterTile navigates to `?autoplay=1&direct=1`. Detail keeps the dark loader up and, 900 ms after the native player launches, steps back to Home.
+  - If no native player opens (external or web), the Detail page is shown.
+  - Details fires `vesper:preview-details`, which opens Detail with no autoplay.
+  - Testing report: `test_reports/iteration_130.json`, 6/6 passed. Its finding about stepping back when nothing launched was fixed afterwards.
+- **Bundle script:** `scripts/bundle-v2-web.sh` (copied from the CI step; `WEB_BUILD` defaults to /tmp/v2web) bundles the web build into the APK assets.
+- **Frontend baseline:** updated for TrailerHoverPreview, PosterTile and Detail (intentional V2 changes).

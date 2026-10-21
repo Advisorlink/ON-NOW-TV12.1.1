@@ -1,5 +1,10 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.81 — Speed test fixed + Play Movie straight from Home (2026-10-21)
+
+- **Speed test:** the download phase now shows the real Mbps. Cloudflare rejected the single 100 MB request (HTTP 403), so the test now streams back-to-back 25 MB chunks for 8 s.
+- **Home trailer card:** with Autoplay ON, **Play Movie** starts the movie immediately with no Detail page, and closing the player lands back on Home. If no player opens, the Detail page is shown instead. A new symmetrical row under Play Movie has **+ Library** and **Details** side by side.
+
 ## v2.10.80 — Animated speed test, also in the player Info sheet (2026-10-20)
 
 - The stall pop-up's speed test now shows a live dial. A glowing sweep spins while ping is measured. A needle and glowing arc then follow the measured Mbps in real time as the download runs, with a live counter. The dial turns green or amber depending on whether the connection is fast enough for the movie.
