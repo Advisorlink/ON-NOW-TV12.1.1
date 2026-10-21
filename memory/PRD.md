@@ -476,3 +476,21 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - **Result:** 313/313 accounts and 155 snapshots copied. Local-only test accounts are kept: testuser/testpass123 still works, and there are now 314 accounts. TRAV26 sign-in on the preview shows the "We found your profiles in the cloud" restore (2 profiles, 57 Continue Watching, 26 Library).
 - **Backup:** the pre-copy preview accounts and sync data are in `/app/memory/preview_accounts_backup.json` (chmod 600).
 - **Not ongoing:** later box changes need a re-run of the script.
+
+## V2 v2.10.85 (code 1099): box location, sign out on profile screen, no Details flash (2026-10-21)
+- **Play from a tile:** the web launch screen used to hide 900 ms after the native launch. It now stays until the page has been hidden (player covering it) and becomes visible again. If the page never goes hidden there is an 8 s fallback. If the native player didn't launch, the old 900 ms reveal is used.
+- **Box location:**
+  - New `BoxLocation.kt`. On every MainActivity launch, until permission is granted, it shows the user's wording in a dialog with Allow and Cancel. Allow opens the system permission prompt; Cancel carries on as normal.
+  - Once granted, it reads LocationManager (last known fix plus a single update) and stores the fix. It sends it when a username is known (also from `setPresenceUser`).
+  - The manifest has the location permissions, and the location hardware is marked not required.
+  - Backend `POST /api/presence/device-location` (X-Presence-Key):
+    - Rejects unknown accounts with 404.
+    - Reverse-geocodes through Nominatim, cached in `geocode_cache` (4-decimal key).
+    - Upserts `device_locations` (username + device_id) and sets `vesper_accounts.location`.
+  - `/presence/admin/active` adds `exact_location`, matched by device_id first, then the latest row for the username. The admin shape includes `location`.
+  - Admin Live tab shows the address as a map link ("Exact", ± accuracy), otherwise the approximate place. The Vesper Logins row has a "Box location" cell.
+- **Profile picker:** new Sign out pill (`profile-sign-out`). It reuses the generalised confirm modal (`sign-out-confirm`, focus on Cancel; Cancel returns focus to the pill).
+- **Tests:** `test_reports/iteration_133.json`, backend 11/11 and frontend 100%. Its minor notes (device_id matching, unknown-user guard, geocode cache, focus return) were fixed afterwards.
+- **APK:** `test-artifacts/vesper-tv-2.10.85-location-signout.apk`.
+- **Live server:** the location endpoint and admin changes reach onnowhub.com and the launcher admin only after Save to GitHub and a deploy. Until then the box can't report location.
+- **Not verified on a device:** the location dialog and the location fix itself. Many boxes have no GPS or network location provider.

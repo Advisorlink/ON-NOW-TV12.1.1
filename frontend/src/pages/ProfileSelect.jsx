@@ -314,7 +314,14 @@ export default function ProfileSelect() {
                     title="Sign out of this box?"
                     body="Your profiles stay saved in the cloud and can be restored when you sign back in."
                     confirmLabel="Sign out"
-                    onCancel={() => setConfirmSignOut(false)}
+                    onCancel={() => {
+                        setConfirmSignOut(false);
+                        requestAnimationFrame(() => {
+                            const btn = document.querySelector('[data-testid="profile-sign-out"]');
+                            btn?.focus({ preventScroll: true });
+                            btn?.setAttribute('data-focused', 'true');
+                        });
+                    }}
                     onConfirm={() => { setConfirmSignOut(false); logout(); }}
                 />
             )}

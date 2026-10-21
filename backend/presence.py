@@ -363,6 +363,18 @@ async def end_session(
 
 
 async def _reverse_geocode(lat: float, lon: float) -> str:
+    db = _require_db()
+    key = f"{lat:.4f},{lon:.4f}"
+    hit = await db.geocode_cache.find_one({"key": key}, {"_id": 0, "address": 1})
+    if hit:
+        return hit["address"]
+    address = await _nominatim(lat, lon)
+    if address:
+        await db.geocode_cache.update_one({"key": key}, {"$set": {"key": key, "address": address}}, upsert=True)
+    return address
+
+
+async def _nominatim(lat: float, lon: float) -> str:
     try:
         async with httpx.AsyncClient(timeout=6.0, headers={"User-Agent": "OnNowTV-admin/1.0"}) as client:
             r = await client.get(
@@ -382,6 +394,8 @@ async def device_location(
     """Exact box location, sent once the viewer allows location access."""
     who = _identify_reporter(None, x_presence_key, body.client_key)
     db = _require_db()
+    if not await db.vesper_accounts.find_one({"username": who["username"]}, {"_id": 1}):
+        raise HTTPException(404, "Unknown account")
     loc = {
         "lat": body.lat,
         "lon": body.lon,
@@ -463,11 +477,13 @@ async def admin_active(
         {"_id": 0},
     ).sort("last_heartbeat_at", -1).to_list(500)
     names = list({r.get("username") for r in rows if r.get("username")})
-    locs: Dict[str, Any] = {}
+    locs: Dict[Any, Any] = {}
     async for d in db.device_locations.find({"username": {"$in": names}}, {"_id": 0}).sort("updated_at", 1):
         locs[d["username"]] = d
+        locs[(d["username"], d.get("device_id") or "")] = d
     for r in rows:
-        r["exact_location"] = locs.get(r.get("username"))
+        u = r.get("username")
+        r["exact_location"] = locs.get((u, r.get("device_id") or "")) or locs.get(u)
     return {
         "count":    len(rows),
         "sessions": [_shape_session(r, now) for r in rows],

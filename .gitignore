@@ -1638,3 +1638,4 @@ android/vesper-tv/app/build/outputs/apk/debug/app-debug.apk
 android/vesper-tv/test-artifacts/vesper-tv-2.10.82-tap-controls.apk
 android/vesper-tv/test-artifacts/vesper-tv-2.10.83-instant-load.apk
 android/vesper-tv/test-artifacts/vesper-tv-2.10.84-resume-library.apk
+android/vesper-tv/test-artifacts/vesper-tv-2.10.85-location-signout.apk

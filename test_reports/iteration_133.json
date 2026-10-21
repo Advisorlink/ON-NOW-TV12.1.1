@@ -1,0 +1,47 @@
+{
+  "summary": "Tested the profile-screen Sign out with its confirm step (mouse and keyboard), the Delete profile confirm (regression), the device-location endpoint, the location field on admin accounts, the exact_location join on admin Live, and the admin static files (code review plus node --check). Backend: 11/11 pytest passed. Frontend: all checks passed. Nothing in the app needs fixing. Item 3 (Play should not flash back to Details) and the Android permission dialog are native Kotlin and were not tested.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/presence/admin/active", "issue": "exact_location is matched by username only, not by device_id. If an account has several boxes, every live session shows the location of the box that reported most recently, even when the session comes from a different box. Prefer the row whose device_id matches the session's device_id, and fall back to the latest row."},
+      {"endpoint": "POST /api/presence/device-location", "issue": "The handler upserts device_locations for any client_key without checking that the account exists. The ingest key ships inside the APK, so anyone who extracts it can write location rows for arbitrary usernames. The vesper_accounts update is a harmless no-op in that case. Low risk."},
+      {"endpoint": "POST /api/presence/device-location", "issue": "Every call triggers a Nominatim reverse-geocode with no cache or rate limit. Nominatim's policy is 1 request per second. Consider caching by rounded lat/lon."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ProfileSelect sign-out confirm", "issue": "After Cancel (or Esc), focus is not returned to the Sign out pill. document.activeElement becomes body, so a D-pad user has to press an arrow key before focus reappears. Minor.", "selector": "[data-testid='sign-out-cancel']", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verified": [
+    "The profile-sign-out pill renders after Load from backup and is reachable with ArrowDown/ArrowRight.",
+    "Clicking the pill or pressing Enter opens the sign-out-confirm modal ('Sign out of this box?', no avatar), with focus on sign-out-cancel. Right/Left move between Cancel and Confirm, and Up keeps focus inside the modal.",
+    "Cancel click, Escape, backdrop click and Enter on Cancel all close the modal without signing out.",
+    "Enter on sign-out-confirm-btn logs out: login-screen appears, and it persists after a reload.",
+    "Regression: Manage profiles -> remove-p-test-1 opens delete-profile-confirm with the avatar, the 'Are you sure you want to delete \"Test\"?' title and 'Yes, delete', with focus on Cancel. Cancel closed it and the profile was kept.",
+    "device-location returns ok:true with the address '260, Elizabeth Street, Greek Precinct, Melbourne, Victoria, 3000, Australia'. No key or a wrong key gives 401; lat 123, lon -500 or a missing client_key gives 422.",
+    "admin/accounts shows testuser.location with lat, lon, address, map_url, accuracy_m and updated_at.",
+    "After a heartbeat, admin/active shows qa-sess-1 with exact_location set (device qa-dev). After /end the session is no longer listed.",
+    "Admin: node --check passes on app.js and on the inline script in index.html. Both renderTable and the Vesper 'Box location' cell escape the address and map_url (esc/escapeAttr) and fall back to the approximate place / 'Not shared yet'."
+  ],
+  "test_report_links": ["/app/backend/tests/test_device_location_iter133.py", "/app/test_reports/pytest/pytest_iter133.xml"],
+  "action_items": [
+    "Optional: in admin_active, match exact_location by session device_id before falling back to username.",
+    "Optional: restore focus to the Sign out pill when the confirm modal closes without signing out.",
+    "Optional: cache reverse-geocode results."
+  ],
+  "critical_code_review_comments": [
+    "presence.py admin_active: the username-only join, which can show the wrong box's location on multi-box accounts.",
+    "index.html renderTable (existing issue, not from this change): esc(s.content_title || '&mdash;') prints the literal text '&mdash;'.",
+    "vesper_accounts.location is overwritten by whichever box reported last. This is fine for one box per account but ambiguous for several."
+  ],
+  "updated_files": ["/app/backend/tests/test_device_location_iter133.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "testuser / testpass123 (unchanged)",
+  "seed_data_creation": "Cleaned up: deleted 2 device_locations rows for testuser (test-dev and qa-dev), removed testuser.location from vesper_accounts, deleted presence_sessions qa-sess-1. No profiles or accounts were changed.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login with ?e2e=1, click cloud-restore-confirm if shown, skip whats-new if shown, and wait for boot-splash to detach before clicking. The ingest key is onnow-presence-ingest-3f9c2a71b8de405e9047ac1d6f8b3e5c. Clean up device_locations and testuser.location after location tests."
+}
