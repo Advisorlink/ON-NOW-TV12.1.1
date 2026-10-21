@@ -1,0 +1,30 @@
+{
+  "summary": "Frontend-only test of the new PlayerLaunchScreen on Detail ?autoplay=1 (and &direct=1). Tested in desktop Chromium at 1920x800 and 390x844 after logging in as testuser, with Playwright route delays on /api/streams and /api/meta. Desktop works: the branded launch screen shows while streams load (NOW PLAYING · ON NOW TV V2, title 'Inception', poster, '2010 · 148 min · 8.8', status text, spinner, backdrop). While metadata loads it shows the same screen titled 'Loading…' with no poster, and 'Loading metadata…' is not rendered. A normal Detail page without autoplay never shows the loader. With &direct=1 the URL stayed on /title/... for 25s and never stepped back to Home, so the old navigate(-1) is gone. No pageerrors and no console errors from Detail.jsx; the only console errors were browser-side Torrentio CORS calls, which were there before. One bug: the layout breaks on mobile.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "PlayerLaunchScreen (390x844 mobile/portrait)", "issue": "The row is not responsive. It uses fixed px-20 (80px each side), gap-12 and a fixed w-[220px] poster in a flex row, which leaves the text column 0px wide (measured title bbox width 0). 'NOW PLAYING · ON NOW TV V2', the title 'The Dark Knight', facts and status wrap one word per line and run off the right edge. The title is not readable.", "selector": "[data-testid='launch-screen-title']", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Detail ?autoplay=1 desktop fallback (preview has only externalUrl streams, e.g. Amazon/Plex for tt0111161)", "issues": ["The launch screen hides once autoplay fires, and the user lands on the Detail page. The primary button reads 'No stream found' while the stream list says '6 found · 6 playable'. Autoplay picks streams[0], an external link, which calls window.open. This behaviour existed before this change. It is acceptable for desktop but confusing."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Make PlayerLaunchScreen responsive: on small widths use flex-col or a smaller poster (e.g. w-[120px] h-[180px] sm:w-[220px] sm:h-[330px]), padding like px-6 md:px-20, gap-6 md:gap-12, a smaller title on mobile (text-2xl md:text-[44px]), and add flex-1 to the text column.",
+    "Optional cleanup: nativeLaunchedRef is now only written and never read after the direct=1 step-back was removed in launchAutoplay. Remove it or use it."
+  ],
+  "critical_code_review_comments": [
+    "Detail.jsx launchAutoplay: setDirectShowPage(true) now runs 900ms after every autoplay launch, direct or not. This is intended. On Android, if the native Activity takes longer than about 900ms to cover the WebView, the Detail UI could show briefly. Consider also gating on nativeLaunchedRef or on the activity's resume or visibility event.",
+    "PlayerLaunchScreen uses pointerEvents:none as an overlay while the Detail UI underneath can still take D-pad focus. Focus could land on hidden buttons during loading. This is minor because native takes over."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped)", "frontend": "90% (4/5 checks passed; mobile layout failed)"},
+  "test_credentials": "testuser / testpass123 (unchanged)",
+  "seed_data_creation": "None (only localStorage profile seed p-test-1 in browser)",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Login via UI, then cloud-restore-confirm and profile-p-test-1. Navigate in-app with history.pushState plus a popstate event to avoid full reload clearing the profile. Delay with page.route('**/api/streams/**') or '**/api/meta/**' and asyncio.sleep to observe the launch screen. /api/streams takes about 8s cold. Preview streams for tt0111161 are external-only, so desktop autoplay never reaches /play.",
+  "rca of the issue": "Mobile overflow: the PlayerLaunchScreen flex row has a fixed 80px horizontal padding, a 48px gap and a 220px shrink-0 poster. That is 476px or more, wider than the 390px viewport, so the min-w-0 text column collapses to 0 width."
+}

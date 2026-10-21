@@ -431,3 +431,24 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - **Build:** debug assemble PASS, version 2.10.82/1096. APK at `test-artifacts/vesper-tv-2.10.82-tap-controls.apk`, 174,370,291 bytes. `native_download.py` now points to it; a ticketed range request returns 206.
 - **Build environment restore after fork:** `/android-sdk` is a symlink to `/app/.cache/native-tools/sdk`. Create `/tmp/vesper-gradle-cache` (`~/.gradle` points there) and give it a `gradle.properties` containing `android.aapt2FromMavenOverride=/app/.cache/native-tools/aapt2`. Run Gradle with nohup.
 - **Not verified on a device:** touch and mouse behaviour.
+
+## V2 v2.10.83 (code 1097): instant loading screen, instant exit, speed-test pause and slow-speed notice (2026-10-21)
+- **Play → loading screen at once:**
+  - Web: Detail `?autoplay=1` used to show a plain dark layer while streams resolved, and "Loading metadata…" before that. Both are replaced by the new `PlayerLaunchScreen.jsx`, which looks like the native loading screen. It stays up for 900 ms after launch.
+  - Native: `InstantPlayerLoader.kt` (plain Views) is set as the content view right after the intent extras are read. The heavy engine and Compose setup is deferred until after its first draw. The loader is re-added on top of root and fades out two frames after the Compose overlay's first composition.
+  - Keys are ignored until the UI is ready, except BACK, which exits.
+- **Instant exit to Details:**
+  - `onBackFromPlayer` uses `overridePendingTransition(0,0)`.
+  - VLC stop/release moved to a background thread (detachViews stays on main).
+  - MainActivity's back-to-details JS only re-navigates when the hash path differs, so there's no Detail reload.
+  - The `direct=1` step-back to Home was removed, so closing the player lands on Detail.
+- **Speed test:**
+  - The first run pauses the movie. Exo is also stopped, because a paused player keeps buffering and skews the reading.
+  - Closing the test re-prepares the player paused, pings the controls and snoozes the stall pop-up for 30 s.
+  - The controls no longer auto-hide while paused.
+  - Under 5 Mbps (or a failed test), the user's notice is shown with the four steps in order and "contact On Now TV Support". The dialog now scrolls.
+- **Xtream answer:** the box streams directly from the provider, not through our server. `closeStreamNow` cancels and evicts the OkHttp sockets on exit.
+- **APK:** `test-artifacts/vesper-tv-2.10.83-instant-load.apk`. The web build used REACT_APP_BACKEND_URL=https://onnowhub.com with BUILD_PATH=/tmp/v2web, then `scripts/bundle-v2-web.sh`.
+- **Tests:** `test_reports/iteration_131.json` passed on desktop. Its mobile 390px overflow on the launch screen was fixed afterwards (poster hidden below sm, smaller padding and title) but not re-tested.
+- **Build tools:** `/app/.cache/native-tools` was wiped (the /app disk was at 92%), so the tools are now at `/opt/native-tools` (`NATIVE_TOOLS_DIR=/opt/native-tools scripts/ensure-native-arm64-sdk.sh`). `/android-sdk` links to `/opt/native-tools/sdk`, and the aapt2 override points to `/opt/native-tools/aapt2`.
+- **Not verified on a device:** all native changes.
