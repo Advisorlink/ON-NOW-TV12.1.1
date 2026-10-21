@@ -452,3 +452,16 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - **Tests:** `test_reports/iteration_131.json` passed on desktop. Its mobile 390px overflow on the launch screen was fixed afterwards (poster hidden below sm, smaller padding and title) but not re-tested.
 - **Build tools:** `/app/.cache/native-tools` was wiped (the /app disk was at 92%), so the tools are now at `/opt/native-tools` (`NATIVE_TOOLS_DIR=/opt/native-tools scripts/ensure-native-arm64-sdk.sh`). `/android-sdk` links to `/opt/native-tools/sdk`, and the aapt2 override points to `/opt/native-tools/aapt2`.
 - **Not verified on a device:** all native changes.
+
+## V2 v2.10.84 (code 1098): instant resume after speed test, Library pop-up fix, Swap always in Info (2026-10-21)
+- **Speed test resume:**
+  - Removed `player.stop()`/`prepare()` (they threw the buffer away, causing a long rebuffer on Play).
+  - Exo's LoadControl is now wrapped (Kotlin `by` delegation). `shouldContinueLoading` returns false while `holdLoadingForSpeedTest` is set. The movie is paused and its buffer kept, so pressing Play resumes instantly. The hold is cleared when the dialog closes.
+- **Library pop-up from the hover card:**
+  - Root cause: the modal ignores the first Enter keyup/mouseup (meant for hold-OK). The hover button's click already fired on keyup, so the user's first press was eaten.
+  - Fix: PosterTile's `vesper:preview-add` sends `armed:true`, and the modal arms after 150 ms.
+  - `addToLibrary` focuses the tile first, so focus returns to the tile.
+  - TrailerHoverPreview no longer hides the preview while focus is inside `add-to-list-modal`, so the trailer keeps playing.
+- **Info sheet:** Swap stream always shows (`canSwap = true`).
+- **Tests:** `test_reports/iteration_132.json`, 100% frontend (keyboard, mouse, hold-OK regression, mobile launch screen).
+- **APK:** `test-artifacts/vesper-tv-2.10.84-resume-library.apk`. Native changes are not verified on a device.

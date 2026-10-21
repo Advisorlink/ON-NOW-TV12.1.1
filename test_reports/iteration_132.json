@@ -1,0 +1,23 @@
+{
+  "summary": "Frontend-only test of the hover-trailer '+ Library' flow in desktop Chromium at 1920x1080, logged in as testuser / profile p-test-1. Headless Chromium can't play the YouTube embed (it shows 'Video unavailable'), so the 'playing' state was triggered with a synthetic YouTube message (origin www.youtube.com, playerState 1), which the YtPreview listener accepts. After that the real key and mouse events ran the flow. KEYBOARD: Enter on the playing tile opens trailer-hover-actions with focus on Open Trailer. Down, Down moves to trailer-hover-add. Enter opens add-to-list-modal with focus on modal-confirm. ONE Enter adds the title, checked in localStorage vesper-library:p-test-1 favorites. This also worked with Enter pressed about 250ms after the modal opened. After the modal closes, document.activeElement is the original poster tile, and the trailer-hover-preview with its iframe stays mounted (ready=true) the whole time, including 1s later. Removing works the same way: the label toggles to 'Remove from Library' and one Enter removes it. MOUSE: hover, click the playing card, click + Library, then ONE click on confirm toggles the title. Tested both add and remove, and the vesper:library-change event fired on the first click. Focus goes back to the tile and the preview stays mounted. HOLD-OK REGRESSION: holding Enter about 1s with repeats on the plain Whalefall tile opens the modal without auto-confirming and without navigating. One more Enter then confirms. CLEANUP: everything added was removed and synced (vesper/sync/push). A fresh session showed no favorites and no watch-later items. MOBILE RE-CHECK: /title/movie/tt1375666?autoplay=1 at 390x844 shows the launch screen with no poster, scrollWidth 390 and no horizontal overflow.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "AddToListModal: in the armed path, Enter presses in the first 150ms after the modal opens are still swallowed. This is acceptable, and a 250ms press worked in testing.",
+    "TrailerHoverPreview.jsx is about 710 lines, over the 700-line guideline. Consider moving PreviewActions, VideoPreview and YtPreview into their own files.",
+    "In PosterTile, the preview-add path calls onLongPressProp(item) when that prop exists, so armed:true is not passed. If a tile with a custom onLongPress is used under the hover preview, the first-click fix won't apply."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped)", "frontend": "100% (keyboard add/remove, mouse add/remove, hold-OK regression, focus restore, preview stays mounted, mobile Detail layout)"},
+  "test_credentials": "testuser / testpass123 (existing, unchanged)",
+  "seed_data_creation": "None left behind. tt27419420 (Street Fighter) and tt28535715 (Whalefall) were added for the tests, then removed and synced.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login with ?e2e=1, then cloud-restore-confirm and profile-p-test-1. Headless YouTube never plays. Fake it with window.dispatchEvent(new MessageEvent('message',{origin:'https://www.youtube.com',data:JSON.stringify({event:'infoDelivery',info:{playerState:1}})})) after the tile's iframe mounts. The focused shelf tile widens, so focus the tile with element.focus() before reading its bounding box for mouse clicks. Otherwise the click lands on a neighbouring tile. Library state is in localStorage 'vesper-library:p-test-1' and syncs to the cloud via /api/vesper/sync/push. Wait a few seconds after cleanup so the push completes."
+}

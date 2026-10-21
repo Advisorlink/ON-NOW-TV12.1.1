@@ -1,0 +1,10 @@
+await page.set_viewport_size({"width": 1920, "height": 1080})
+await page.wait_for_selector('[data-testid="login-username-input"]', timeout=20000)
+await page.fill('[data-testid="login-username-input"]', 'testuser')
+await page.fill('[data-testid="login-password-input"]', 'testpass123')
+await page.click('[data-testid="login-submit"]')
+await asyncio.sleep(4)
+if await page.locator('[data-testid="cloud-restore-confirm"]').count():
+    await page.click('[data-testid="cloud-restore-confirm"]'); await asyncio.sleep(3)
+await page.click('[data-testid="profile-p-test-1"]')
+await asyncio.sleep(6)
