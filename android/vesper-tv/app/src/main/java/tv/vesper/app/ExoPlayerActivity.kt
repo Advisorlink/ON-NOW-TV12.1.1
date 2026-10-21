@@ -538,27 +538,20 @@ class ExoPlayerActivity : ComponentActivity(),
             onTestStart = { pauseForSpeedTest() },
             onClosedAfterTest = { afterSpeedTest() })
     }
-    // Paused AND stopped (Exo keeps filling its buffer while paused)
-    // so the movie's own download doesn't skew the speed reading.
-    private var stoppedForSpeedTest = false
+    // Paused, and Exo's buffer filling is held (a paused player keeps
+    // downloading) so the movie doesn't skew the reading.  The buffer
+    // is kept, so pressing Play resumes instantly.
+    @Volatile private var holdLoadingForSpeedTest = false
     private fun pauseForSpeedTest() {
         midStallJob?.cancel()
         pbPause()
         isPlayingFlow.value = false
-        if ((engine == PlayerEngine.EXO || engine == PlayerEngine.EXO_FFMPEG) && ::player.isInitialized) {
-            stoppedForSpeedTest = true
-            player.playWhenReady = false
-            player.stop()
-        }
+        holdLoadingForSpeedTest = true
     }
     private fun afterSpeedTest() {
+        holdLoadingForSpeedTest = false
         if (isFinishing || isDestroyed) return
         stallSnoozeUntil = System.currentTimeMillis() + 30_000L
-        if (stoppedForSpeedTest && ::player.isInitialized) {
-            stoppedForSpeedTest = false
-            player.playWhenReady = false
-            player.prepare()
-        }
         pingUserActivity()
     }
     private fun showStallHelp(reason: String) {
@@ -1219,7 +1212,10 @@ class ExoPlayerActivity : ComponentActivity(),
             }
         player = ExoPlayer.Builder(this, renderersFactory)
             .setBandwidthMeter(bandwidth)
-            .setLoadControl(loadControl)
+            .setLoadControl(object : androidx.media3.exoplayer.LoadControl by loadControl {
+                override fun shouldContinueLoading(parameters: androidx.media3.exoplayer.LoadControl.Parameters) =
+                    !holdLoadingForSpeedTest && loadControl.shouldContinueLoading(parameters)
+            })
             .setMediaSourceFactory(mediaSourceFactory)
             .build()
             .apply {

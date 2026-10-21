@@ -40,7 +40,7 @@ function PosterTile({ item, onSelect, onLongPress: onLongPressProp, initialFocus
         }
     };
 
-    const fireAddToList = (id) => {
+    const fireAddToList = (id, armed = false) => {
         window.dispatchEvent(
             new CustomEvent('vesper:request-add-to-list', {
                 detail: {
@@ -54,16 +54,17 @@ function PosterTile({ item, onSelect, onLongPress: onLongPressProp, initialFocus
                     year: item.year || item.sub,
                     genres: item.genres,
                     synopsis: item.description,
+                    armed,
                 },
             })
         );
     };
 
-    const onLongPress = () => {
+    const onLongPress = (armed = false) => {
         if (onLongPressProp) { onLongPressProp(item); return; }
         const id = item.imdbId || item.id;
         if (id && id.toString().startsWith('tt')) {
-            fireAddToList(id);
+            fireAddToList(id, armed);
             return;
         }
         // USER SPEC — "Similar to what you love" (For You) tiles come
@@ -77,7 +78,7 @@ function PosterTile({ item, onSelect, onLongPress: onLongPressProp, initialFocus
             .then((r) => r.json())
             .then((data) => {
                 const tt = data?.imdb_id;
-                if (tt && tt.toString().startsWith('tt')) fireAddToList(tt);
+                if (tt && tt.toString().startsWith('tt')) fireAddToList(tt, armed);
             })
             .catch(() => { /* offline — hold just does nothing */ });
     };
@@ -104,7 +105,8 @@ function PosterTile({ item, onSelect, onLongPress: onLongPressProp, initialFocus
         const el = btnRef.current;
         if (!el) return undefined;
         const open = () => tapRef.current();
-        const add = () => holdRef.current();
+        // Opened by a button press (not a hold), so the pop-up takes the first click.
+        const add = () => holdRef.current(true);
         const play = () => directRef.current('play');
         const details = () => directRef.current('details');
         el.addEventListener('vesper:preview-open', open);

@@ -72,6 +72,9 @@ export default function AddToListModal() {
                 lastFocusedTestIdRef.current =
                     document.activeElement?.getAttribute?.('data-testid') || null;
                 armedRef.current = false;
+                // Opened by a finished click (not a held OK): accept the
+                // very next press, once this click's own key-up has passed.
+                if (e.detail.armed) window.setTimeout(() => { armedRef.current = true; }, 150);
                 return e.detail;
             });
         };

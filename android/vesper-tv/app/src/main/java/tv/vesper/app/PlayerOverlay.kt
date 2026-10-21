@@ -449,7 +449,7 @@ fun PlayerOverlay(
                     engineToken = currentEngineToken,
                     currentStream = streamList.firstOrNull { it.selected },
                     info = info,
-                    canSwap = streamList.size > 1,
+                    canSwap = true,
                     onSwapStream = { sheet = SheetKind.Stream; bump() },
                     onSpeedTest = { sheet = SheetKind.None; onSpeedTest() },
                     onDismiss = { sheet = SheetKind.None; bump() },

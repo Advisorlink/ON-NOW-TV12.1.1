@@ -137,7 +137,7 @@ export default function TrailerHoverPreview() {
             const tile = target?.closest?.('[data-preview="true"]');
             if (!tile) {
                 // Focus moved into our own action overlay / modal — keep the card.
-                if (target?.closest?.('[data-testid="trailer-hover-actions"], [data-testid="trailer-modal"]')) return;
+                if (target?.closest?.('[data-testid="trailer-hover-actions"], [data-testid="trailer-modal"], [data-testid="add-to-list-modal"]')) return;
                 hide();
                 return;
             }
@@ -281,6 +281,9 @@ export default function TrailerHoverPreview() {
     };
     const addToLibrary = () => {
         setActions(false);
+        // The Library pop-up hands focus back to the tile, so the
+        // trailer keeps playing when it closes.
+        try { tile.focus({ preventScroll: true }); } catch { /* ignore */ }
         tile.dispatchEvent(new CustomEvent('vesper:preview-add'));
     };
 
