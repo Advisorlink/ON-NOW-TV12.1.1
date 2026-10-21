@@ -36,6 +36,7 @@ class StallHelpDialog(
     private val neededMbps: () -> Double?,
     private val onSwap: () -> Unit,
     private val onWait: () -> Unit,
+    private val beforeExternalApp: () -> Unit = {},
 ) {
     private var dialog: Dialog? = null
     private var testJob: Job? = null
@@ -70,7 +71,7 @@ class StallHelpDialog(
             orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(22), 0, 0)
             listOf(speed, swap, wait).forEach { addView(it, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(48)).apply { marginEnd = dp(12) }) }
         }
-        val ookla = ooklaIntent()?.let { intent -> button("Open Speedtest by Ookla", false) { activity.startActivity(intent) } }
+        val ookla = ooklaIntent()?.let { intent -> button("Open Speedtest by Ookla", false) { beforeExternalApp(); activity.startActivity(intent) } }
         val card = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL; setPadding(dp(32), dp(28), dp(32), dp(28))
             background = round(Color.argb(245, 10, 16, 30), 20, Color.argb(70, 0, 184, 255))

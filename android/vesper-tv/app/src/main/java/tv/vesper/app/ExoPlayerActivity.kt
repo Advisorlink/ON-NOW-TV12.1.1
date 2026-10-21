@@ -496,6 +496,25 @@ class ExoPlayerActivity : ComponentActivity(),
     private val bitrateKbpsFlow = MutableStateFlow(0L)
     // 2026-10-20 — mid-movie stall pop-up (check connection / swap stream / speed test).
     private val openStreamsFlow = MutableStateFlow(0L)
+    // 2026-10-20 — ON NOW TV lines allow ONE connection.  The provider
+    // counts a stream as "playing" while its socket is open, and OkHttp
+    // kept idle sockets for 5 minutes after exit, so the next movie was
+    // refused.  Every exit path now closes the stream immediately.
+    private var okClient: okhttp3.OkHttpClient? = null
+    private var streamClosed = false
+    private var launchingHelperApp = false
+    private fun closeStreamNow(reason: String) {
+        if (streamClosed) return
+        streamClosed = true
+        Log.i(TAG, "closeStreamNow: $reason")
+        try { if (::player.isInitialized) { player.stop(); player.clearMediaItems() } } catch (_: Exception) {}
+        try { vlcEngine?.release() } catch (_: Exception) {}
+        vlcEngine = null
+        try { mpvEngine?.release() } catch (_: Exception) {}
+        mpvEngine = null
+        try { okClient?.dispatcher?.cancelAll() } catch (_: Exception) {}
+        try { okClient?.connectionPool?.evictAll() } catch (_: Exception) {}
+    }
     private var midStallJob: Job? = null
     private var stallSnoozeUntil = 0L
     private val stallHelp by lazy {
@@ -509,7 +528,8 @@ class ExoPlayerActivity : ComponentActivity(),
                 }.getOrNull()
             },
             onSwap = { openStreamsFlow.value = System.currentTimeMillis() },
-            onWait = { stallSnoozeUntil = System.currentTimeMillis() + 60_000L })
+            onWait = { stallSnoozeUntil = System.currentTimeMillis() + 60_000L },
+            beforeExternalApp = { launchingHelperApp = true })
     }
     private fun showStallHelp(reason: String) {
         if (System.currentTimeMillis() < stallSnoozeUntil || isFinishing) return
@@ -1069,7 +1089,7 @@ class ExoPlayerActivity : ComponentActivity(),
 
         // v2.7.43 — OkHttp datasource (HTTP/2, smart pooling, fewer
         // stalls on flaky Wi-Fi).  Same library Stremio uses.
-        val okClient = okhttp3.OkHttpClient.Builder()
+        okClient = okhttp3.OkHttpClient.Builder()
             .connectTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
             .readTimeout(25, java.util.concurrent.TimeUnit.SECONDS)
             .writeTimeout(25, java.util.concurrent.TimeUnit.SECONDS)
@@ -1082,8 +1102,12 @@ class ExoPlayerActivity : ComponentActivity(),
             .connectionPool(
                 okhttp3.ConnectionPool(8, 5, java.util.concurrent.TimeUnit.MINUTES)
             )
+            // ON NOW TV Direct: HTTP/1.1 so closing a stream closes its
+            // socket — an idle HTTP/2 connection kept the 1-connection
+            // line "busy" after the movie ended.
+            .apply { if (directVod) protocols(listOf(okhttp3.Protocol.HTTP_1_1)) }
             .build()
-        val httpFactory = androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(okClient)
+        val httpFactory = androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(okClient!!)
             .setUserAgent("Vesper-ExoPlayer/2.7.43")
             .setDefaultRequestProperties(
                 mapOf(
@@ -2178,7 +2202,9 @@ class ExoPlayerActivity : ComponentActivity(),
         vlcEngine = null
         try { mpvEngine?.release() } catch (_: Exception) {}
         mpvEngine = null
+        closeStreamNow("destroy")
         try { if (::player.isInitialized) player.release() } catch (_: Exception) {}
+        try { okClient?.connectionPool?.evictAll() } catch (_: Exception) {}
     }
 
     override fun finish() {
@@ -2200,8 +2226,17 @@ class ExoPlayerActivity : ComponentActivity(),
             }
             setResult(RESULT_OK, data)
         } catch (_: Exception) {}
+        closeStreamNow("finish")
         super.finish()
     }
+
+    override fun onStop() {
+        super.onStop()
+        // Leaving the player (Home, another app, screen off) ends the
+        // movie and frees the line; Continue Watching keeps the spot.
+        if (!isChangingConfigurations && !launchingHelperApp && !isFinishing) finish()
+    }
+    override fun onRestart() { super.onRestart(); launchingHelperApp = false }
 
     // ── v2.7.74 Live TV helpers ──────────────────────────────────────
     private fun extractLiveStreamId(url: String): String {
@@ -2790,7 +2825,7 @@ class ExoPlayerActivity : ComponentActivity(),
         @Suppress("unused")
         /** Xtream-style VOD link: `…/movie/<user>/<pass>/<id>.<ext>`. */
         fun isXtreamVodUrl(url: String): Boolean =
-            Regex("""^https?://[^/]+/movie/[^/]+/[^/]+/\d+\.[A-Za-z0-9]+(\?.*)?$""").matches(url)
+            Regex("""^https?://[^/]+/(movie|series)/[^/]+/[^/]+/\d+\.[A-Za-z0-9]+(\?.*)?$""").matches(url)
 
         fun shouldUseExoPlayer(ctx: android.content.Context): Boolean {
             // v2.7.88 — UNCONDITIONAL ExoPlayer.  User reports v2.7.87

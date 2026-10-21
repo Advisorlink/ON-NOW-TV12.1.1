@@ -1,5 +1,12 @@
 # CHANGELOG — ON NOW TV TUNES + V2
 
+## v2.10.78 — ON NOW TV line released the instant a movie ends (2026-10-20)
+
+- **Problem:** after leaving a movie, the ON NOW TV provider still showed the stream as playing. Lines allow one connection, so the next movie was refused.
+- **Exiting the player now closes the stream straight away.** Back, finish, Home or switching to another app all stop ExoPlayer/VLC/mpv, cancel every HTTP call and evict OkHttp's pooled sockets. Before this, idle sockets stayed open for 5 minutes and Home left the paused player holding the connection.
+- **HTTP/1.1 for ON NOW TV Direct** (`/movie/` and `/series/`) so closing a stream really closes its socket.
+- **Leaving the app ends the movie.** Continue Watching keeps the position.
+
 ## v2.10.77 — ON NOW TV Direct only on own lines + mid-movie stall pop-up (2026-10-20)
 
 - **Diagnosis:** ON NOW TV Direct files are fine. They are 1080p HEVC Main10 with AAC stereo at about 2.9 Mbps, the server supports byte ranges and sustained about 21 Mbps in tests. The managed Xtream line built into the app allows **max_connections = 1**, and 195 of 312 production accounts had no line of their own, so households kicked each other off mid-movie.

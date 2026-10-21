@@ -400,3 +400,12 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - **Test APK:** `android/vesper-tv/test-artifacts/vesper-tv-2.10.77-buffer-test.apk`, served by `/api/download/vesper-tv`.
 - **Building vesper-tv locally:** `/app/.cache` can disappear after an environment restore. Re-run `scripts/ensure-native-arm64-sdk.sh`, then `ln -s /app/.cache/native-tools/sdk /android-sdk`, then build with `app/build` symlinked to /tmp. Remove that symlink afterwards; it is not gitignored.
 - **Production:** these changes reach onnowhub.com only after Save to GitHub (deploy-backend + CI APK build).
+
+## V2 v2.10.78 (code 1092): ON NOW TV line freed on exit — 2026-10-20
+- **User report:** after leaving a Direct movie, the provider still showed it as playing, so the next movie was refused (lines allow 1 connection).
+- **Fix in ExoPlayerActivity:**
+  - `closeStreamNow()` runs on finish/onDestroy. It stops and clears the player, releases VLC/mpv, then calls `okClient.dispatcher.cancelAll()` and `connectionPool.evictAll()`. Idle pooled sockets used to stay open for 5 minutes.
+  - `onStop` (Home, another app, screen off) now finishes the player; Continue Watching keeps the position. Launching the Ookla app from the stall pop-up is the one exception.
+  - Direct `/movie/` and `/series/` URLs are forced to HTTP/1.1.
+- **Download link:** tickets now last 3600 s (the page JS limit was raised to match). The preview ingress cuts single downloads at about 113 s, so slow phones must tap Resume.
+- **Test APK:** `test-artifacts/vesper-tv-2.10.78-buffer-test.apk`, 174,353,218 bytes.
