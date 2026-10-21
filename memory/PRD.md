@@ -465,3 +465,14 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - **Info sheet:** Swap stream always shows (`canSwap = true`).
 - **Tests:** `test_reports/iteration_132.json`, 100% frontend (keyboard, mouse, hold-OK regression, mobile launch screen).
 - **APK:** `test-artifacts/vesper-tv-2.10.84-resume-library.apk`. Native changes are not verified on a device.
+
+## Preview sign-ins copied from the live box server (2026-10-21)
+- **What the user asked for:** the same username and password should sign in to both the box and the web preview. The user chose a one-time copy that includes profiles, library and Continue Watching.
+- **Script `backend/scripts/copy_prod_accounts.py`:**
+  - Reads the live `GET https://onnowhub.com/api/admin/accounts` (X-Admin-Key; the same ADMIN_KEY works on live).
+  - Upserts each account into the preview `vesper_accounts`, keeping the same `id`. A local row with the same username but a different id is replaced.
+  - Signs in to live as each account and copies its `/api/vesper/sync/pull` snapshot into the preview `vesper_sync`. The JWT secrets differ, so tokens can't be minted.
+  - Writes to live: none apart from normal login-attempt records.
+- **Result:** 313/313 accounts and 155 snapshots copied. Local-only test accounts are kept: testuser/testpass123 still works, and there are now 314 accounts. TRAV26 sign-in on the preview shows the "We found your profiles in the cloud" restore (2 profiles, 57 Continue Watching, 26 Library).
+- **Backup:** the pre-copy preview accounts and sync data are in `/app/memory/preview_accounts_backup.json` (chmod 600).
+- **Not ongoing:** later box changes need a re-run of the script.
