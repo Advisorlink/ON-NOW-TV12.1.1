@@ -1634,3 +1634,5 @@ android/vesper-tv/test-artifacts/vesper-tv-2.10.77-buffer-test.apk
 android/vesper-tv/test-artifacts/vesper-tv-2.10.78-buffer-test.apk
 android/vesper-tv/test-artifacts/vesper-tv-2.10.80-buffer-test.apk
 android/vesper-tv/test-artifacts/vesper-tv-2.10.81-buffer-test.apk
+android/vesper-tv/app/build/outputs/apk/debug/app-debug.apk
+android/vesper-tv/test-artifacts/vesper-tv-2.10.82-tap-controls.apk

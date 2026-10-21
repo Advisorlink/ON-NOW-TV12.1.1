@@ -275,12 +275,16 @@ fun PlayerOverlay(
     var dockVisible by remember { mutableStateOf(true) }
     var lastActivity by remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(userActivityTs) {
-        lastActivity = userActivityTs
+        lastActivity = maxOf(lastActivity, userActivityTs)
         dockVisible = true
+    }
+    // Auto-hide timer restarts on any activity (remote, tap, click).
+    LaunchedEffect(lastActivity, dockVisible) {
+        if (!dockVisible) return@LaunchedEffect
         delay(if (!hasEverPlayed) 10_000L else 5_000L)
         if (System.currentTimeMillis() - lastActivity >= 5000) dockVisible = false
     }
-    val bump: () -> Unit = { lastActivity = System.currentTimeMillis() }
+    val bump: () -> Unit = { lastActivity = System.currentTimeMillis(); dockVisible = true }
 
     // Track picker sheet state
     var sheet by remember { mutableStateOf<SheetKind>(SheetKind.None) }

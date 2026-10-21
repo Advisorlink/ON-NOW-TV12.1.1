@@ -424,3 +424,10 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
   - Testing report: `test_reports/iteration_130.json`, 6/6 passed. Its finding about stepping back when nothing launched was fixed afterwards.
 - **Bundle script:** `scripts/bundle-v2-web.sh` (copied from the CI step; `WEB_BUILD` defaults to /tmp/v2web) bundles the web build into the APK assets.
 - **Frontend baseline:** updated for TrailerHoverPreview, PosterTile and Detail (intentional V2 changes).
+
+## V2 v2.10.82 (code 1096): tap or click to show/hide player controls (2026-10-21)
+- **Bug:** the player overlay already had a tap handler, but `bump()` only updated `lastActivity`, so a tap never brought back a hidden dock.
+- **Fix (`PlayerOverlay.kt`):** `bump()` now sets `dockVisible = true`. The auto-hide timer is keyed on `(lastActivity, dockVisible)`, so taps, clicks and remote presses all restart the 5 s timer. A tap while the dock is showing (and no sheet is open) hides it.
+- **Build:** debug assemble PASS, version 2.10.82/1096. APK at `test-artifacts/vesper-tv-2.10.82-tap-controls.apk`, 174,370,291 bytes. `native_download.py` now points to it; a ticketed range request returns 206.
+- **Build environment restore after fork:** `/android-sdk` is a symlink to `/app/.cache/native-tools/sdk`. Create `/tmp/vesper-gradle-cache` (`~/.gradle` points there) and give it a `gradle.properties` containing `android.aapt2FromMavenOverride=/app/.cache/native-tools/aapt2`. Run Gradle with nohup.
+- **Not verified on a device:** touch and mouse behaviour.
