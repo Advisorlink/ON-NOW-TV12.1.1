@@ -134,16 +134,24 @@ class StallHelpDialog(
         }
     }.getOrDefault(-1L)
 
+    // Cloudflare refuses single requests over ~50 MB (HTTP 403), so the
+    // 8-second test streams back-to-back 25 MB chunks.
     private suspend fun measureDownload(live: (Double) -> Unit): Double = runCatching {
-        client.newCall(Request.Builder().url("https://speed.cloudflare.com/__down?bytes=100000000").build()).execute().use { r ->
-            val input = r.body!!.byteStream(); val buf = ByteArray(64 * 1024)
-            val start = System.nanoTime(); var total = 0L; var lastTick = start
-            while (kotlin.coroutines.coroutineContext.isActive && System.nanoTime() - start < 8_000_000_000L) {
-                val n = input.read(buf); if (n < 0) break; total += n
-                val now = System.nanoTime()
-                if (now - lastTick > 150_000_000L) { lastTick = now; live(total * 8.0 / ((now - start) / 1e9) / 1e6) }
+        val buf = ByteArray(64 * 1024)
+        val start = System.nanoTime(); var total = 0L; var lastTick = start
+        val ctx = kotlin.coroutines.coroutineContext
+        fun elapsed() = System.nanoTime() - start
+        while (ctx.isActive && elapsed() < 8_000_000_000L) {
+            client.newCall(Request.Builder().url("https://speed.cloudflare.com/__down?bytes=25000000").build()).execute().use { r ->
+                check(r.isSuccessful) { "speed test HTTP ${r.code}" }
+                val input = r.body!!.byteStream()
+                while (ctx.isActive && elapsed() < 8_000_000_000L) {
+                    val n = input.read(buf); if (n < 0) break; total += n
+                    val now = System.nanoTime()
+                    if (now - lastTick > 150_000_000L) { lastTick = now; live(total * 8.0 / ((now - start) / 1e9) / 1e6) }
+                }
             }
-            total * 8.0 / ((System.nanoTime() - start) / 1e9) / 1e6
         }
+        total * 8.0 / (elapsed() / 1e9) / 1e6
     }.getOrDefault(0.0)
 }

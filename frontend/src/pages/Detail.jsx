@@ -74,6 +74,26 @@ export default function Detail() {
         () => new URLSearchParams(location.search).get('autoplay') === '1',
         [location.search]
     );
+    // 2026-10-21 — `direct=1` (Home hover "Play Movie"): the player opens
+    // straight from Home and this page steps back so closing the player
+    // lands on Home, never on the Detail page.
+    const directPlay = useMemo(
+        () => new URLSearchParams(location.search).get('direct') === '1',
+        [location.search]
+    );
+    const directBackRef = useRef(false);
+    const launchAutoplay = (s) => {
+        const started = playStream(s);
+        if (!directPlay) return;
+        Promise.resolve(started).finally(() => {
+            window.setTimeout(() => {
+                if (directBackRef.current) return;
+                if (!window.location.pathname.startsWith('/title')) return;
+                directBackRef.current = true;
+                navigate(-1);
+            }, 900);
+        });
+    };
     // Watch Together: when ?party=CODE is in the URL we are a party
     // member.  We force the JS Player path (instead of the native
     // libVLC Activity) so the Player can pipe play/pause/seek
@@ -1332,7 +1352,7 @@ export default function Detail() {
             if (sourceRank(autoplayCandidate) > 1 && easyNewsPending && !enHoldExpired) return;
             autoplayFiredRef.current = true;
             setAutoplayFired(true);
-            window.setTimeout(() => playStream(autoplayCandidate), 0);
+            window.setTimeout(() => launchAutoplay(autoplayCandidate), 0);
             return;
         }
         /* If streams finished loading and there's literally nothing
@@ -1367,7 +1387,7 @@ export default function Detail() {
         if (!chosen) return;
         autoplayFiredRef.current = true;
         setAutoplayFired(true);
-        window.setTimeout(() => playStream(chosen), 0);
+        window.setTimeout(() => launchAutoplay(chosen), 0);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [streams, streamLoading, autoplayRequested, type, autoplayCandidate, partyCode, ratingBlocked, easyNewsPending, enHoldExpired]);
 
@@ -1891,7 +1911,7 @@ export default function Detail() {
                 for a show lands on the episode picker, not autoplay. */}
             {autoplayRequested
                 && type === 'movie'
-                && !autoplayFired
+                && (!autoplayFired || directPlay)
                 && !showUnavailableModal && (
                 <div
                     data-testid="detail-autoplay-loader"

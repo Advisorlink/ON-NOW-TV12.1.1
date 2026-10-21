@@ -89,17 +89,33 @@ function PosterTile({ item, onSelect, onLongPress: onLongPressProp, initialFocus
     tapRef.current = onTap;
     const holdRef = React.useRef(onLongPress);
     holdRef.current = onLongPress;
+    // 2026-10-21 — hover card: "Play Movie" (Autoplay ON) plays from Home
+    // and returns to Home; "Details" opens the title page with no autoplay.
+    const directRef = React.useRef(null);
+    directRef.current = (mode) => {
+        if (onSelect) { onSelect(item); return; }
+        const t = item.type || 'movie';
+        const base = item.routePath || (item.imdbId ? `/title/${t}/${item.imdbId}` : `/title/${item.id}`);
+        if (mode === 'details') { navigate(base); return; }
+        navigate(`${base}${base.includes('?') ? '&' : '?'}autoplay=1&direct=1`);
+    };
     const btnRef = React.useRef(null);
     React.useEffect(() => {
         const el = btnRef.current;
         if (!el) return undefined;
         const open = () => tapRef.current();
         const add = () => holdRef.current();
+        const play = () => directRef.current('play');
+        const details = () => directRef.current('details');
         el.addEventListener('vesper:preview-open', open);
         el.addEventListener('vesper:preview-add', add);
+        el.addEventListener('vesper:preview-play', play);
+        el.addEventListener('vesper:preview-details', details);
         return () => {
             el.removeEventListener('vesper:preview-open', open);
             el.removeEventListener('vesper:preview-add', add);
+            el.removeEventListener('vesper:preview-play', play);
+            el.removeEventListener('vesper:preview-details', details);
         };
     }, []);
 

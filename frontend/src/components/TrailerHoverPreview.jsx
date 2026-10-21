@@ -13,8 +13,8 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Maximize2, Play, Plus } from 'lucide-react';
-import { getAutoTrailer } from '@/lib/prefs';
+import { Info, Maximize2, Play, Plus } from 'lucide-react';
+import { getAutoTrailer, getAutoplay1080p } from '@/lib/prefs';
 import {
     fetchTrailerCandidates,
     isBox,
@@ -268,9 +268,16 @@ export default function TrailerHoverPreview() {
             resume,
         });
     };
+    // 2026-10-21 — operator spec: with Autoplay ON, "Play Movie" starts
+    // the movie straight from Home (no Detail page on the way back).
     const openTitle = () => {
         setActions(false);
-        tile.dispatchEvent(new CustomEvent('vesper:preview-open'));
+        const movie = tile.getAttribute('data-preview-type') !== 'tv';
+        tile.dispatchEvent(new CustomEvent(movie && getAutoplay1080p() ? 'vesper:preview-play' : 'vesper:preview-open'));
+    };
+    const openDetails = () => {
+        setActions(false);
+        tile.dispatchEvent(new CustomEvent('vesper:preview-details'));
     };
     const addToLibrary = () => {
         setActions(false);
@@ -373,6 +380,7 @@ export default function TrailerHoverPreview() {
                     isSeries={tile.getAttribute('data-preview-type') === 'tv'}
                     onFullscreen={openFullscreen}
                     onOpen={openTitle}
+                    onDetails={openDetails}
                     onAdd={addToLibrary}
                     onClose={closeActions}
                 />
@@ -403,7 +411,7 @@ export default function TrailerHoverPreview() {
 /* Three stacked pill actions floated over the playing card (portaled to
  * body so we never nest <button>s).  UP/DOWN moves between them,
  * LEFT/RIGHT or BACK returns to the row.  Own focus trap. */
-function PreviewActions({ tile, isSeries, onFullscreen, onOpen, onAdd, onClose }) {
+function PreviewActions({ tile, isSeries, onFullscreen, onOpen, onDetails, onAdd, onClose }) {
     const [rect, setRect] = useState(() => tile.getBoundingClientRect());
     const firstRef = useRef(null);
     // Android BACK closes the actions instead of leaving Home.
@@ -423,14 +431,28 @@ function PreviewActions({ tile, isSeries, onFullscreen, onOpen, onAdd, onClose }
 
     const onKeyDown = (e) => {
         const k = e.key;
+        // Rows: [Open Trailer] [Play] [Library | Details] — UP/DOWN between
+        // rows, LEFT/RIGHT inside the bottom pair (else back to the row).
+        const rows = Array.from(e.currentTarget.querySelectorAll('[data-action-row]'))
+            .map((r) => Array.from(r.querySelectorAll('button')));
+        const ri = rows.findIndex((r) => r.includes(document.activeElement));
+        const ci = ri >= 0 ? rows[ri].indexOf(document.activeElement) : -1;
         if (k === 'ArrowUp' || k === 'ArrowDown') {
             e.preventDefault();
             e.stopPropagation();
-            const btns = Array.from(e.currentTarget.querySelectorAll('button'));
-            const i = btns.indexOf(document.activeElement);
-            const n = k === 'ArrowDown' ? Math.min(btns.length - 1, i + 1) : Math.max(0, i - 1);
-            btns[n]?.focus({ preventScroll: true });
+            const nr = k === 'ArrowDown' ? Math.min(rows.length - 1, ri + 1) : Math.max(0, ri - 1);
+            const row = rows[nr] || [];
+            row[Math.min(ci, row.length - 1)]?.focus({ preventScroll: true }) || row[0]?.focus({ preventScroll: true });
             return;
+        }
+        if ((k === 'ArrowLeft' || k === 'ArrowRight') && ri >= 0 && rows[ri].length > 1) {
+            const nc = k === 'ArrowRight' ? ci + 1 : ci - 1;
+            if (nc >= 0 && nc < rows[ri].length) {
+                e.preventDefault();
+                e.stopPropagation();
+                rows[ri][nc].focus({ preventScroll: true });
+                return;
+            }
         }
         if (k === 'ArrowLeft' || k === 'ArrowRight') {
             e.preventDefault();
@@ -472,6 +494,7 @@ function PreviewActions({ tile, isSeries, onFullscreen, onOpen, onAdd, onClose }
                 animation: 'vesper-hoverprev-in 160ms ease-out both',
             }}
         >
+            <div data-action-row="trailer" style={{ display: 'contents' }}>
             <button
                 ref={firstRef}
                 type="button"
@@ -484,6 +507,8 @@ function PreviewActions({ tile, isSeries, onFullscreen, onOpen, onAdd, onClose }
             >
                 <Maximize2 size={15} /> Open Trailer
             </button>
+            </div>
+            <div data-action-row="play" style={{ display: 'contents' }}>
             <button
                 type="button"
                 data-testid="trailer-hover-open"
@@ -495,17 +520,35 @@ function PreviewActions({ tile, isSeries, onFullscreen, onOpen, onAdd, onClose }
             >
                 <Play size={15} /> {isSeries ? 'Play Show' : 'Play Movie'}
             </button>
-            <button
-                type="button"
-                data-testid="trailer-hover-add"
-                data-focusable="true"
-                data-focus-style="pill"
-                tabIndex={0}
-                onClick={onAdd}
-                style={btnStyle}
+            </div>
+            <div
+                data-action-row="more"
+                style={{ display: 'flex', gap: compact ? 6 : 10, width: 'min(72%, 220px)' }}
             >
-                <Plus size={15} /> Add to Library
-            </button>
+                <button
+                    type="button"
+                    data-testid="trailer-hover-add"
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
+                    onClick={onAdd}
+                    aria-label="Add to Library"
+                    style={{ ...btnStyle, minWidth: 0, flex: '1 1 0' }}
+                >
+                    <Plus size={16} /> Library
+                </button>
+                <button
+                    type="button"
+                    data-testid="trailer-hover-details"
+                    data-focusable="true"
+                    data-focus-style="pill"
+                    tabIndex={0}
+                    onClick={onDetails}
+                    style={{ ...btnStyle, minWidth: 0, flex: '1 1 0' }}
+                >
+                    <Info size={16} /> Details
+                </button>
+            </div>
         </div>,
         document.body
     );
