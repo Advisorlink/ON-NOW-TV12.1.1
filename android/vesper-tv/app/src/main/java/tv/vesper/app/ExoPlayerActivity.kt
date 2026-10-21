@@ -360,6 +360,11 @@ class ExoPlayerActivity : ComponentActivity(),
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         // Volume keys FIRST — before party/guide logic can touch them.
         if (handleGlobalVolumeKey(this, event, ::softVolumeStep)) return true
+        if (!uiReady) {
+            val back = event.keyCode == KeyEvent.KEYCODE_BACK || event.keyCode == KeyEvent.KEYCODE_ESCAPE
+            if (back && event.action == KeyEvent.ACTION_UP) onBackFromPlayer()
+            return true
+        }
         val inParty = partyVoice != null
         // v2.7.68 — Party mode key dispatcher rebuilt from scratch.
         //
@@ -529,7 +534,32 @@ class ExoPlayerActivity : ComponentActivity(),
             },
             onSwap = { openStreamsFlow.value = System.currentTimeMillis() },
             onWait = { stallSnoozeUntil = System.currentTimeMillis() + 60_000L },
-            beforeExternalApp = { launchingHelperApp = true })
+            beforeExternalApp = { launchingHelperApp = true },
+            onTestStart = { pauseForSpeedTest() },
+            onClosedAfterTest = { afterSpeedTest() })
+    }
+    // Paused AND stopped (Exo keeps filling its buffer while paused)
+    // so the movie's own download doesn't skew the speed reading.
+    private var stoppedForSpeedTest = false
+    private fun pauseForSpeedTest() {
+        midStallJob?.cancel()
+        pbPause()
+        isPlayingFlow.value = false
+        if ((engine == PlayerEngine.EXO || engine == PlayerEngine.EXO_FFMPEG) && ::player.isInitialized) {
+            stoppedForSpeedTest = true
+            player.playWhenReady = false
+            player.stop()
+        }
+    }
+    private fun afterSpeedTest() {
+        if (isFinishing || isDestroyed) return
+        stallSnoozeUntil = System.currentTimeMillis() + 30_000L
+        if (stoppedForSpeedTest && ::player.isInitialized) {
+            stoppedForSpeedTest = false
+            player.playWhenReady = false
+            player.prepare()
+        }
+        pingUserActivity()
     }
     private fun showStallHelp(reason: String) {
         if (System.currentTimeMillis() < stallSnoozeUntil || isFinishing) return
@@ -748,6 +778,12 @@ class ExoPlayerActivity : ComponentActivity(),
         try {
             initExoPlayerActivity(savedInstanceState)
         } catch (t: Throwable) {
+            relaunchWithFallbackEngine(t)
+        }
+    }
+
+    private fun relaunchWithFallbackEngine(t: Throwable) {
+        run {
             // v2.16.44 — CRITICAL FIX: init failure (usually MPV JNI
             // load / init) MUST NOT fall through to the legacy
             // VlcPlayerActivity — that's the OLD XML overlay we
@@ -804,6 +840,10 @@ class ExoPlayerActivity : ComponentActivity(),
         backdrop    = intent.getStringExtra(VlcPlayerActivity.EXTRA_BACKDROP) ?: ""
         poster      = intent.getStringExtra(VlcPlayerActivity.EXTRA_POSTER) ?: ""
         cwId        = intent.getStringExtra(VlcPlayerActivity.EXTRA_CW_ID) ?: ""
+        instantLoader = InstantPlayerLoader.build(this, streamTitle, poster, backdrop,
+            listOf(year, runtime, rating).filter { it.isNotBlank() }.joinToString("  ·  "))
+        setContentView(instantLoader)
+        hideSystemUi()
         // v2.16.31 — Announce this playback to the launcher-admin
         // Live tab.  Native player is the actual viewer on the box,
         // so THIS is the heartbeat that lands in production Mongo
@@ -1027,10 +1067,37 @@ class ExoPlayerActivity : ComponentActivity(),
             else -> PlayerEngine.read(this)
         }
         Log.i(TAG, "playback engine: ${engine.label} (forced=$forcedEngine)")
-        if (engine == PlayerEngine.EXO || engine == PlayerEngine.EXO_FFMPEG) {
-            buildExoEngine()
-        }
-        buildUiAndStart()
+        // Let the instant loader reach the screen before the heavy
+        // engine + Compose setup blocks the main thread.
+        val decor = window.decorView
+        decor.viewTreeObserver.addOnDrawListener(object : android.view.ViewTreeObserver.OnDrawListener {
+            var fired = false
+            override fun onDraw() {
+                if (fired) return
+                fired = true
+                decor.post {
+                    decor.viewTreeObserver.removeOnDrawListener(this)
+                    if (isFinishing || isDestroyed) return@post
+                    try {
+                        if (engine == PlayerEngine.EXO || engine == PlayerEngine.EXO_FFMPEG) {
+                            buildExoEngine()
+                        }
+                        buildUiAndStart()
+                        uiReady = true
+                    } catch (t: Throwable) {
+                        relaunchWithFallbackEngine(t)
+                    }
+                }
+            }
+        })
+    }
+
+    private var instantLoader: View? = null
+    private var uiReady = false
+    private fun hideInstantLoader() {
+        val v = instantLoader ?: return
+        instantLoader = null
+        v.animate().alpha(0f).setDuration(220).withEndAction { (v.parent as? ViewGroup)?.removeView(v) }.start()
     }
 
     /** v2.16.40 — original ExoPlayer construction block, verbatim
@@ -1449,6 +1516,7 @@ class ExoPlayerActivity : ComponentActivity(),
                     this.player = this@ExoPlayerActivity.player
                     setBackgroundColor(0xFF000000.toInt())
                     setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
+                    setKeepContentOnPlayerReset(true)
                     resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
                     layoutParams = FrameLayout.LayoutParams(
                         FrameLayout.LayoutParams.MATCH_PARENT,
@@ -1480,6 +1548,11 @@ class ExoPlayerActivity : ComponentActivity(),
             isFocusableInTouchMode = true
             descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
             setContent {
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    androidx.compose.runtime.withFrameNanos { }
+                    androidx.compose.runtime.withFrameNanos { }
+                    hideInstantLoader()
+                }
                 PlayerOverlay(
                     infoFlow = playerInfoFlow.asStateFlow(),
                     isSwappingEpisode = isSwappingEpisodeFlow.asStateFlow(),
@@ -1558,6 +1631,7 @@ class ExoPlayerActivity : ComponentActivity(),
         }
         root.addView(composeView)
         setContentView(root)
+        instantLoader?.let { (it.parent as? ViewGroup)?.removeView(it); root.addView(it) }
         hideSystemUi()
 
         // v2.7.52 — Force focus on the Compose overlay so D-pad
@@ -2982,6 +3056,7 @@ class ExoPlayerActivity : ComponentActivity(),
     }
 
     private fun onBackFromPlayer() {
+        instantLoader?.visibility = View.GONE
         try {
             val cwId = intent.getStringExtra(VlcPlayerActivity.EXTRA_CW_ID)?.trim().orEmpty()
             val type = intent.getStringExtra(VlcPlayerActivity.EXTRA_TYPE)?.trim().orEmpty()
@@ -2996,5 +3071,6 @@ class ExoPlayerActivity : ComponentActivity(),
             }
         } catch (_: Throwable) {}
         finish()
+        @Suppress("DEPRECATION") overridePendingTransition(0, 0)
     }
 }

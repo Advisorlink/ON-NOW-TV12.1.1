@@ -301,11 +301,17 @@ class VesperVlcEngine(
         if (released) return
         released = true
         mainHandler.removeCallbacksAndMessages(null)
-        try { mediaPlayer?.stop() } catch (_: Throwable) {}
-        try { mediaPlayer?.detachViews() } catch (_: Throwable) {}
-        try { mediaPlayer?.release() } catch (_: Throwable) {}
-        try { libVlc?.release() } catch (_: Throwable) {}
+        val mp = mediaPlayer
+        val lib = libVlc
         mediaPlayer = null
         libVlc = null
+        try { mp?.detachViews() } catch (_: Throwable) {}
+        // stop() can block for seconds on a network stream; doing it off
+        // the main thread lets BACK leave the player instantly.
+        Thread {
+            try { mp?.stop() } catch (_: Throwable) {}
+            try { mp?.release() } catch (_: Throwable) {}
+            try { lib?.release() } catch (_: Throwable) {}
+        }.start()
     }
 }

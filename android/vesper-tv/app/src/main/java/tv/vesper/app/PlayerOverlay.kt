@@ -279,8 +279,9 @@ fun PlayerOverlay(
         dockVisible = true
     }
     // Auto-hide timer restarts on any activity (remote, tap, click).
-    LaunchedEffect(lastActivity, dockVisible) {
-        if (!dockVisible) return@LaunchedEffect
+    // Paused (incl. after a speed test) keeps the controls on screen.
+    LaunchedEffect(lastActivity, dockVisible, playing) {
+        if (!dockVisible || (!playing && hasEverPlayed)) return@LaunchedEffect
         delay(if (!hasEverPlayed) 10_000L else 5_000L)
         if (System.currentTimeMillis() - lastActivity >= 5000) dockVisible = false
     }

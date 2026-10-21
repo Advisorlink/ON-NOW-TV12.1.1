@@ -37,7 +37,10 @@ class StallHelpDialog(
     private val onSwap: () -> Unit,
     private val onWait: () -> Unit,
     private val beforeExternalApp: () -> Unit = {},
+    private val onTestStart: () -> Unit = {},
+    private val onClosedAfterTest: () -> Unit = {},
 ) {
+    private var testRan = false
     private var dialog: Dialog? = null
     private var testJob: Job? = null
     val isShowing get() = dialog?.isShowing == true
@@ -87,9 +90,10 @@ class StallHelpDialog(
         }
         dialog = Dialog(activity).apply {
             requestWindowFeature(Window.FEATURE_NO_TITLE)
-            setContentView(card, ViewGroup.LayoutParams(dp(640), ViewGroup.LayoutParams.WRAP_CONTENT))
+            setContentView(android.widget.ScrollView(activity).apply { isFillViewport = true; addView(card) }, ViewGroup.LayoutParams(dp(640), ViewGroup.LayoutParams.WRAP_CONTENT))
             window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT)); window?.setGravity(Gravity.CENTER)
-            setOnCancelListener { testJob?.cancel(); onWait() }
+            setOnCancelListener { testJob?.cancel(); if (!testRan) onWait() }
+            setOnDismissListener { testJob?.cancel(); if (testRan) { testRan = false; onClosedAfterTest() } }
             setOnShowListener { if (autoRun) { speed.requestFocus(); runTest(speed, result, gauge) } else swap.requestFocus() }
             show()
         }
@@ -102,6 +106,7 @@ class StallHelpDialog(
 
     private fun runTest(button: Button, result: TextView, gauge: SpeedGaugeView) {
         if (testJob?.isActive == true) return
+        if (!testRan) { testRan = true; onTestStart() }
         gauge.visibility = View.VISIBLE; gauge.alpha = 0f; gauge.animate().alpha(1f).setDuration(250).start(); gauge.ping()
         result.visibility = View.VISIBLE; result.setTextColor(Color.WHITE); result.text = "Checking your connection…"
         button.isEnabled = false; button.text = "Testing…"
@@ -120,8 +125,20 @@ class StallHelpDialog(
                 need?.let { append("\nThis movie needs about ${"%.1f".format(it)} Mbps — ") ; append(if (mbps >= it * 1.5) "your connection is fast enough, try swapping stream." else "your connection is too slow for it right now.") }
             }
             result.setTextColor(if (mbps > 0 && ok) Color.rgb(122, 235, 138) else Color.rgb(255, 196, 92))
+            if (mbps < SLOW_MBPS) result.append("\n\n$SLOW_NOTICE")
             button.isEnabled = true; button.text = "Run again"
         }
+    }
+
+    private companion object {
+        const val SLOW_MBPS = 5.0
+        const val SLOW_NOTICE = "There could be an issue with your internet speed. Please check your internet and try again.\n\n" +
+            "Troubleshooting things to try first:\n" +
+            "1. Check your box is still connected to the internet.\n" +
+            "2. See how many devices may be connected to your internet.\n" +
+            "3. Restart the box.\n" +
+            "4. Unplug the router for a few minutes to clear the unused stored data, then try again.\n\n" +
+            "If it is still not working after trying these in order, contact On Now TV Support."
     }
 
     private val client by lazy { OkHttpClient.Builder().connectTimeout(6, TimeUnit.SECONDS).readTimeout(10, TimeUnit.SECONDS).build() }

@@ -776,7 +776,9 @@ class MainActivity : AppCompatActivity() {
         } else {
             "#/title/movie/${cwId}"
         }
-        val js = "window.location.hash = '${hash}';"
+        // Already on this title's page (the usual case) → no re-navigation,
+        // so BACK lands on the details page instantly with no reload.
+        val js = "(function(){var t='${hash}';if(window.location.hash.split('?')[0]!==t.split('?')[0])window.location.hash=t;})();"
         webView.post {
             try { webView.evaluateJavascript(js, null) } catch (_: Throwable) {}
         }

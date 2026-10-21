@@ -17,6 +17,7 @@ import { getAutoplay1080p, setAutoplay1080p, getAutoplayTV, setAutoplayTV } from
 import { isKidsActive, getActiveProfile, isRatingAllowed, getKidsConfig } from '@/lib/profiles';
 import { avatarEmojiById } from '@/lib/avatars';
 import * as cw from '@/lib/continueWatching';
+import { PlayerLaunchScreen } from '@/components/PlayerLaunchScreen';
 import { isInLibrary, isMovieInWatchLater } from '@/lib/library';
 
 const streamMode = (s) => {
@@ -74,29 +75,14 @@ export default function Detail() {
         () => new URLSearchParams(location.search).get('autoplay') === '1',
         [location.search]
     );
-    // 2026-10-21 — `direct=1` (Home hover "Play Movie"): the player opens
-    // straight from Home and this page steps back so closing the player
-    // lands on Home, never on the Detail page.
-    const directPlay = useMemo(
-        () => new URLSearchParams(location.search).get('direct') === '1',
-        [location.search]
-    );
-    const directBackRef = useRef(false);
     const nativeLaunchedRef = useRef(false);
     const [directShowPage, setDirectShowPage] = useState(false);
     const launchAutoplay = (s) => {
         nativeLaunchedRef.current = false;
         const started = playStream(s);
-        if (!directPlay) return;
         Promise.resolve(started).finally(() => {
-            window.setTimeout(() => {
-                // Step back to Home only when the native player really opened.
-                if (directBackRef.current) return;
-                if (!nativeLaunchedRef.current) { setDirectShowPage(true); return; }
-                if (!window.location.pathname.startsWith('/title')) return;
-                directBackRef.current = true;
-                navigate(-1);
-            }, 900);
+            // Reveal the page once the native player covers it.
+            window.setTimeout(() => setDirectShowPage(true), 900);
         });
     };
     // Watch Together: when ?party=CODE is in the URL we are a party
@@ -1847,6 +1833,10 @@ export default function Detail() {
         );
     }
 
+    if (loading && autoplayRequested && type === 'movie') {
+        return <div className="relative w-screen h-[100dvh]"><PlayerLaunchScreen meta={null} /></div>;
+    }
+
     if (loading) {
         return (
             <CenterMsg>
@@ -1917,17 +1907,8 @@ export default function Detail() {
                 for a show lands on the episode picker, not autoplay. */}
             {autoplayRequested
                 && type === 'movie'
-                && (!autoplayFired || (directPlay && !directShowPage))
-                && !showUnavailableModal && (
-                <div
-                    data-testid="detail-autoplay-loader"
-                    className="absolute inset-0 z-50"
-                    style={{
-                        background: 'var(--vesper-bg-0, #06080F)',
-                        pointerEvents: 'none',
-                    }}
-                />
-            )}
+                && (!autoplayFired || !directShowPage)
+                && !showUnavailableModal && <PlayerLaunchScreen meta={meta} />}
 
             <FullscreenButton />
 
