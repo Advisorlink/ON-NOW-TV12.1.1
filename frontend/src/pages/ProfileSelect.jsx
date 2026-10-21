@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Pencil, Lock, Download, CloudUpload } from 'lucide-react';
+import { Plus, Pencil, Lock, Download, CloudUpload, LogOut } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import {
     listProfiles,
@@ -24,6 +25,8 @@ import { API } from '@/lib/api';
 export default function ProfileSelect() {
     useSpatialFocus();
     const navigate = useNavigate();
+    const { logout } = useAuth();
+    const [confirmSignOut, setConfirmSignOut] = useState(false);
     const [profiles, setProfiles] = useState(listProfiles());
     const [editMode, setEditMode] = useState(false);
     const [pinTarget, setPinTarget] = useState(null);   // profile awaiting PIN
@@ -281,8 +284,40 @@ export default function ProfileSelect() {
                         <Download size={14} strokeWidth={2.2} />
                         Load from backup
                     </button>
+                    <button
+                        data-testid="profile-sign-out"
+                        data-focusable="true"
+                        data-focus-style="pill"
+                        tabIndex={0}
+                        onClick={() => setConfirmSignOut(true)}
+                        className="flex items-center gap-2 rounded-full"
+                        style={{
+                            height: 44,
+                            padding: '0 22px',
+                            fontSize: 14,
+                            fontWeight: 600,
+                            background: 'rgba(255,255,255,0.08)',
+                            color: 'var(--vesper-text-2)',
+                            border: '1px solid rgba(255,255,255,0.16)',
+                        }}
+                    >
+                        <LogOut size={14} strokeWidth={2.2} />
+                        Sign out
+                    </button>
                 </div>
             </div>
+
+            {confirmSignOut && (
+                <DeleteProfileConfirm
+                    testid="sign-out"
+                    eyebrow="Sign out"
+                    title="Sign out of this box?"
+                    body="Your profiles stay saved in the cloud and can be restored when you sign back in."
+                    confirmLabel="Sign out"
+                    onCancel={() => setConfirmSignOut(false)}
+                    onConfirm={() => { setConfirmSignOut(false); logout(); }}
+                />
+            )}
 
             {removeTarget && (
                 <DeleteProfileConfirm
@@ -754,7 +789,10 @@ function AddProfileTile({ onClick }) {
 }
 
 
-function DeleteProfileConfirm({ profile, onCancel, onConfirm }) {
+function DeleteProfileConfirm({
+    profile, onCancel, onConfirm, testid = 'delete-profile', eyebrow = 'Delete profile',
+    title, body, confirmLabel = 'Yes, delete',
+}) {
     const cancelRef = React.useRef(null);
 
     // Imperatively focus the Cancel button on mount so the modal
@@ -766,7 +804,7 @@ function DeleteProfileConfirm({ profile, onCancel, onConfirm }) {
             const btn = cancelRef.current;
             if (!btn) return;
             const modal = document.querySelector(
-                '[data-testid="delete-profile-confirm"]'
+                `[data-testid="${testid}-confirm"]`
             );
             document
                 .querySelectorAll('[data-focused="true"]')
@@ -803,7 +841,7 @@ function DeleteProfileConfirm({ profile, onCancel, onConfirm }) {
 
     return (
         <div
-            data-testid="delete-profile-confirm"
+            data-testid={`${testid}-confirm`}
             className="fixed inset-0 z-[70] flex items-center justify-center"
             style={{
                 background: 'rgba(6,8,15,0.78)',
@@ -829,9 +867,11 @@ function DeleteProfileConfirm({ profile, onCancel, onConfirm }) {
                         '0 30px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(var(--vesper-blue-rgb),0.18)',
                 }}
             >
-                <div style={{ marginBottom: 18 }}>
-                    <AvatarCircle avatarId={profile.avatarId} size={92} />
-                </div>
+                {profile && (
+                    <div style={{ marginBottom: 18 }}>
+                        <AvatarCircle avatarId={profile.avatarId} size={92} />
+                    </div>
+                )}
                 <div
                     className="vesper-mono"
                     style={{
@@ -842,7 +882,7 @@ function DeleteProfileConfirm({ profile, onCancel, onConfirm }) {
                         marginBottom: 6,
                     }}
                 >
-                    Delete profile
+                    {eyebrow}
                 </div>
                 <h2
                     className="vesper-display"
@@ -854,7 +894,7 @@ function DeleteProfileConfirm({ profile, onCancel, onConfirm }) {
                         marginBottom: 10,
                     }}
                 >
-                    Are you sure you want to delete &ldquo;{profile.name}&rdquo;?
+                    {title || <>Are you sure you want to delete &ldquo;{profile.name}&rdquo;?</>}
                 </h2>
                 <p
                     style={{
@@ -866,13 +906,13 @@ function DeleteProfileConfirm({ profile, onCancel, onConfirm }) {
                         maxWidth: 380,
                     }}
                 >
-                    All of this profile&apos;s library, watch later list, and
-                    progress will be gone for good. This can&apos;t be undone.
+                    {body || <>All of this profile&apos;s library, watch later list, and
+                    progress will be gone for good. This can&apos;t be undone.</>}
                 </p>
                 <div className="flex" style={{ gap: 12 }}>
                     <button
                         ref={cancelRef}
-                        data-testid="delete-profile-cancel"
+                        data-testid={`${testid}-cancel`}
                         data-focusable="true"
                         data-focus-style="pill"
                         data-initial-focus="true"
@@ -891,7 +931,7 @@ function DeleteProfileConfirm({ profile, onCancel, onConfirm }) {
                         Cancel
                     </button>
                     <button
-                        data-testid="delete-profile-confirm-btn"
+                        data-testid={`${testid}-confirm-btn`}
                         data-focusable="true"
                         data-focus-style="pill"
                         tabIndex={0}
@@ -908,7 +948,7 @@ function DeleteProfileConfirm({ profile, onCancel, onConfirm }) {
                                 '0 8px 24px rgba(220,38,38,0.35)',
                         }}
                     >
-                        Yes, delete
+                        {confirmLabel}
                     </button>
                 </div>
             </div>

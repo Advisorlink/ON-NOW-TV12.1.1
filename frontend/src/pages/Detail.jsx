@@ -81,8 +81,21 @@ export default function Detail() {
         nativeLaunchedRef.current = false;
         const started = playStream(s);
         Promise.resolve(started).finally(() => {
-            // Reveal the page once the native player covers it.
-            window.setTimeout(() => setDirectShowPage(true), 900);
+            if (!nativeLaunchedRef.current) { window.setTimeout(() => setDirectShowPage(true), 900); return; }
+            // Keep the loading screen until the native player has really
+            // covered the app (page hidden) and the viewer comes back.
+            let wasHidden = document.hidden;
+            const reveal = () => {
+                document.removeEventListener('visibilitychange', onVis);
+                window.clearTimeout(fallback);
+                setDirectShowPage(true);
+            };
+            const onVis = () => {
+                if (document.hidden) { wasHidden = true; window.clearTimeout(fallback); return; }
+                if (wasHidden) reveal();
+            };
+            const fallback = window.setTimeout(() => { if (!wasHidden) reveal(); }, 8000);
+            document.addEventListener('visibilitychange', onVis);
         });
     };
     // Watch Together: when ?party=CODE is in the URL we are a party

@@ -106,6 +106,7 @@ class WebAppInterface(private val activity: Activity) {
     fun setPresenceUser(username: String?, apiBaseUrl: String?) {
         try {
             tv.vesper.app.data.VesperPresenceReporter.setUser(activity, username, apiBaseUrl)
+            BoxLocation.send(activity)
         } catch (_: Throwable) { /* best-effort */ }
     }
 

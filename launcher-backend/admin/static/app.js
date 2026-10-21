@@ -2719,6 +2719,12 @@ const Vesper = {
         <span class="v-status ${st.cls}"><span class="dot"></span>${st.label}</span>
         ${iptvPill}
     </div>
+    <div class="v-cell" style="grid-column: 1 / -1;">
+        <span class="v-eyebrow">Box location</span>
+        ${r.location && r.location.address
+            ? `<a class="v-value" data-testid="vesper-location-${r.id}" href="${escapeAttr(r.location.map_url)}" target="_blank" rel="noopener" style="color:var(--accent,#5DC8FF);white-space:normal;">${escapeAttr(r.location.address)}</a>`
+            : `<span class="v-value" style="opacity:.6;">Not shared yet</span>`}
+    </div>
     <div class="v-actions">
         <button data-v-edit="${r.id}">Edit</button>
         <button data-v-delete="${r.id}" class="danger${this.confirmingDeleteId === r.id ? ' confirming' : ''}">

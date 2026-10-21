@@ -111,6 +111,7 @@ def _admin_account_shape(row: Dict[str, Any]) -> Dict[str, Any]:
         **_account_to_public(row),
         "password":        row.get("password", ""),
         "xtream_password": row.get("xtream_password", ""),
+        "location":        row.get("location"),
     }
 
 
