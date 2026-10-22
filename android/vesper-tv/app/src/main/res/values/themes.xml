@@ -22,6 +22,14 @@
         </item>
     </style>
 
+    <!-- Player: no starting window, so the app's loading screen stays on
+         screen until the player's own (identical) loading screen draws. -->
+    <style name="Theme.Vesper.Player" parent="Theme.Vesper.Fullscreen">
+        <item name="android:windowDisablePreview">true</item>
+        <item name="android:windowBackground">@color/vesper_player_bg</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+
     <!--
         v2.16.7 — Cold-start splash.  Applied to MainActivity in the
         manifest so the OS paints @drawable/splash_vesper as the very

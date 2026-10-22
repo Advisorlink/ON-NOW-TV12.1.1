@@ -4,11 +4,6 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-feature android:name="android.hardware.location" android:required="false" />
-    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
-    <uses-feature android:name="android.hardware.location.network" android:required="false" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Required so the in-app Update Gate can launch the APK
          installer for the freshly-downloaded onnowtv-v2-debug.apk.
@@ -126,7 +121,7 @@
             android:exported="false"
             android:launchMode="singleTop"
             android:screenOrientation="landscape"
-            android:theme="@style/Theme.Vesper.Fullscreen" />
+            android:theme="@style/Theme.Vesper.Player" />
 
         <!-- v2.7.39 — ExoPlayer alternative backend (user picks via
              Settings → Video player).  Same intent contract as

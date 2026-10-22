@@ -1,9 +1,10 @@
-// Mirrors the native player's loading screen so pressing Play shows it
-// at once instead of a blank dark layer while the stream resolves.
+// Pixel copy of the native player's LoadingScreen (PlayerOverlay.kt) so
+// Play shows one continuous loading screen until the movie starts.
 export const PlayerLaunchScreen = ({ meta }) => {
     const title = meta?.name || 'Loading…';
     const backdrop = meta?.background || '';
     const poster = meta?.poster || backdrop;
+    const synopsis = meta?.description || '';
     const facts = [meta?.releaseInfo || meta?.year, meta?.runtime, meta?.imdbRating]
         .filter(Boolean)
         .join('  ·  ');
@@ -28,17 +29,30 @@ export const PlayerLaunchScreen = ({ meta }) => {
                     />
                 )}
                 <div className="min-w-0 flex-1">
-                    <div className="font-mono text-xs tracking-[0.2em]" style={{ color: '#5DC8FF' }}>
+                    <div className="font-mono text-xs tracking-[0.216em]" style={{ color: '#5DC8FF' }}>
                         NOW PLAYING · ON NOW TV V2
                     </div>
                     <div data-testid="launch-screen-title" className="mt-3.5 text-white font-bold text-3xl sm:text-[44px] leading-tight line-clamp-2">
                         {title}
                     </div>
-                    {facts && <div className="mt-3.5 text-[15px]" style={{ color: '#8C96AA' }}>{facts}</div>}
-                    <div data-testid="launch-screen-status" className="mt-7 font-mono text-[13px] tracking-[0.12em]" style={{ color: '#5DC8FF' }}>
+                    {facts && <div className="mt-3.5 text-[15px] truncate" style={{ color: '#A8B5C7' }}>{facts}</div>}
+                    {synopsis && (
+                        <div className="mt-[18px] text-[15px] leading-[22px] line-clamp-3" style={{ color: 'rgba(199,207,219,0.8)' }}>
+                            {synopsis}
+                        </div>
+                    )}
+                    <div data-testid="launch-screen-status" className="mt-7 font-mono text-[13px] tracking-[0.123em]" style={{ color: '#5DC8FF' }}>
                         ON NOW TV V2 is loading your program
                     </div>
-                    <div className="mt-3.5 w-7 h-7 rounded-full border-2 border-[#5DC8FF] border-t-transparent vesper-spin" />
+                    <div className="mt-3.5 flex gap-2.5" data-testid="launch-screen-dots">
+                        {[0, 1, 2].map((i) => (
+                            <span
+                                key={i}
+                                className="w-2 h-2 rounded-full vesper-launch-dot"
+                                style={{ animationDelay: `${i * 0.8}s` }}
+                            />
+                        ))}
+                    </div>
                 </div>
             </div>
             <div className="absolute bottom-0 left-0 right-0 h-[2px]" style={{ background: '#5DC8FF' }} />

@@ -1309,11 +1309,8 @@
                     '<td><span class="live-duration">' + esc(fmtDuration(s.duration_secs)) + '</span></td>' +
                     '<td><span class="live-relative">' + esc(fmtRelative(s.started_at)) + '</span></td>' +
                     '<td><span class="live-device">' + esc(s.device_model || s.device_hint || '') + '</span></td>' +
-                    '<td>' + (s.exact_location && s.exact_location.address
-                        ? '<a class="live-place" data-testid="live-exact-location" href="' + esc(s.exact_location.map_url) + '" target="_blank" rel="noopener" style="color:#5DC8FF;">' + esc(s.exact_location.address) + '</a>' +
-                          '<span class="live-ip">Exact (box GPS/Wi-Fi' + (s.exact_location.accuracy_m ? ', ±' + Math.round(s.exact_location.accuracy_m) + ' m' : '') + ')</span>'
-                        : '<span class="live-place">' + esc(s.place || (s.ip ? s.ip : '—')) + '</span>' +
-                          (s.ip && s.place ? '<span class="live-ip">' + esc(s.ip) + ' · approx.</span>' : '')) + '</td>' +
+                    '<td><span class="live-place">' + esc(s.place || (s.ip ? s.ip : '—')) + '</span>' +
+                    (s.ip && s.place ? '<span class="live-ip">' + esc(s.ip) + '</span>' : '') + '</td>' +
                     '</tr>';
             }).join('');
         }

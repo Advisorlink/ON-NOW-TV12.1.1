@@ -3,4 +3,5 @@
     <color name="vesper_bg_dim">#FF0A0E1A</color>
     <color name="vesper_blue">#FF5DC8FF</color>
     <color name="vesper_text">#FFF5F7FA</color>
+    <color name="vesper_player_bg">#FF06080F</color>
 </resources>

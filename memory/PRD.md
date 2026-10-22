@@ -510,3 +510,19 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
   3. **Diagnostic:** non-user exits set `exitReason` (start-up error, playback error code, engine failure, no stream link, sent to background within 5 s). `finish()` shows a long Toast "Player closed: …", so the user can report the exact cause.
 - **APK:** `test-artifacts/vesper-tv-2.10.87-autoplay-fix.apk`.
 - **Not verified on a device.**
+
+## V2 v2.10.88 (code 1102): one loading screen, location removed, network-settings button (2026-10-22)
+- **Location feature removed** (the user said it doesn't work):
+  - `BoxLocation.kt` deleted; MainActivity, WebAppInterface and manifest permissions cleaned up.
+  - Backend `/presence/device-location`, the exact_location join and the account `location` field removed. presence.py and auth_router.py are back to identical with the pre-feature commit.
+  - Admin index.html and app.js Box location UI removed (identical to the pre-feature commit).
+  - Preview `device_locations` and `geocode_cache` collections dropped.
+- **One loading screen (user: "loading screen then another loading screen, flickers"):**
+  - Removed the native InstantPlayerLoader View layer.
+  - ExoPlayerActivity now uses the new `Theme.Vesper.Player`: windowDisablePreview, `#06080F` background, windowAnimationStyle `@null`. WebAppInterface player launches call `overridePendingTransition(0,0)`. Together these keep the web loading screen on screen until the native Compose LoadingScreen draws.
+  - The web PlayerLaunchScreen now copies the native one: colours, letter-spacing, synopsis (3 lines) and the 3-dot 2.4 s indicator (`.vesper-launch-dot` in index.css).
+  - Remaining differences: the native version stamp, the quality/ENG meta, and the logo, which loads async.
+- **Speed test:** when the test fails or shows under 5 Mbps, a "Check network connection" button appears and takes focus. It opens WIFI_SETTINGS, falling back to WIRELESS_SETTINGS, then SETTINGS, and sets `beforeExternalApp()` so the player isn't finished.
+- **Build environment:** the pod wipes `/opt` and `/tmp` (sometimes within minutes). Run `scripts/setup-vesper-build-env.sh`, the web build, `bundle-v2-web.sh` and gradle in ONE nohup chain, then copy the APK straight into `test-artifacts`.
+- **APK:** `test-artifacts/vesper-tv-2.10.88-one-loader.apk`.
+- **Not verified on a device.**

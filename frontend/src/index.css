@@ -2020,3 +2020,13 @@ html[data-theme='paper-editorial'] [data-testid='search-submit']:disabled {
     border: 1px solid rgba(28,25,23,0.20) !important;
     opacity: 1 !important;
 }
+
+/* PlayerLaunchScreen dots: one lit at a time, 2.4 s cycle (matches native LoadingDots). */
+@keyframes vesper-launch-dot {
+    0%, 33.32% { background: #5DC8FF; }
+    33.33%, 100% { background: rgba(93, 200, 255, 0.2); }
+}
+.vesper-launch-dot {
+    background: rgba(93, 200, 255, 0.2);
+    animation: vesper-launch-dot 2.4s steps(1, end) infinite;
+}

@@ -3,6 +3,7 @@ package tv.vesper.app
 import android.app.Activity
 import android.app.Dialog
 import android.content.Intent
+import android.provider.Settings
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
@@ -70,7 +71,9 @@ class StallHelpDialog(
             setPadding(dp(20), 0, dp(20), 0); setOnClickListener { click(this) }
         }
         val gauge = SpeedGaugeView(activity).apply { visibility = View.GONE }
-        val speed = button("Run speed test", true) { runTest(it, result, gauge) }
+        val network = button("Check network connection", true) { beforeExternalApp(); openNetworkSettings() }
+            .apply { visibility = View.GONE }
+        val speed = button("Run speed test", true) { runTest(it, result, gauge, network) }
         val swap = button("Swap stream", false) { dismiss(); onSwap() }
         val wait = button(if (autoRun) "Close" else "Keep waiting", false) { dismiss(); if (!autoRun) onWait() }
         val row = LinearLayout(activity).apply {
@@ -85,7 +88,9 @@ class StallHelpDialog(
             addView(TextView(activity).apply { text = title; setTextColor(Color.WHITE); textSize = 24f; setPadding(0, dp(8), 0, 0) })
             addView(TextView(activity).apply { text = reason; setTextColor(Color.rgb(155, 168, 194)); textSize = 14f; setPadding(0, dp(8), 0, 0) })
             addView(gauge, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(190)).apply { topMargin = dp(14) })
-            addView(result); addView(row)
+            addView(result)
+            addView(network, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(48)).apply { topMargin = dp(14) })
+            addView(row)
             ookla?.let { addView(it, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(44)).apply { topMargin = dp(12) }) }
         }
         dialog = Dialog(activity).apply {
@@ -94,7 +99,7 @@ class StallHelpDialog(
             window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT)); window?.setGravity(Gravity.CENTER)
             setOnCancelListener { testJob?.cancel(); if (!testRan) onWait() }
             setOnDismissListener { testJob?.cancel(); if (testRan) { testRan = false; onClosedAfterTest() } }
-            setOnShowListener { if (autoRun) { speed.requestFocus(); runTest(speed, result, gauge) } else swap.requestFocus() }
+            setOnShowListener { if (autoRun) { speed.requestFocus(); runTest(speed, result, gauge, network) } else swap.requestFocus() }
             show()
         }
     }
@@ -104,12 +109,20 @@ class StallHelpDialog(
     private fun ooklaIntent(): Intent? = listOf("org.zwanoo.android.speedtest", "com.ookla.speedtest")
         .firstNotNullOfOrNull { activity.packageManager.getLaunchIntentForPackage(it) }
 
-    private fun runTest(button: Button, result: TextView, gauge: SpeedGaugeView) {
+    private fun openNetworkSettings() {
+        val pm = activity.packageManager
+        listOf(Settings.ACTION_WIFI_SETTINGS, Settings.ACTION_WIRELESS_SETTINGS, Settings.ACTION_SETTINGS)
+            .map { Intent(it).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+            .firstOrNull { it.resolveActivity(pm) != null }
+            ?.let { runCatching { activity.startActivity(it) } }
+    }
+
+    private fun runTest(button: Button, result: TextView, gauge: SpeedGaugeView, network: Button) {
         if (testJob?.isActive == true) return
         if (!testRan) { testRan = true; onTestStart() }
         gauge.visibility = View.VISIBLE; gauge.alpha = 0f; gauge.animate().alpha(1f).setDuration(250).start(); gauge.ping()
         result.visibility = View.VISIBLE; result.setTextColor(Color.WHITE); result.text = "Checking your connection…"
-        button.isEnabled = false; button.text = "Testing…"
+        button.isEnabled = false; button.text = "Testing…"; network.visibility = View.GONE
         testJob = scope.launch {
             val ping = withContext(Dispatchers.IO) { measurePing() }
             gauge.pinged(ping)
@@ -125,7 +138,11 @@ class StallHelpDialog(
                 need?.let { append("\nThis movie needs about ${"%.1f".format(it)} Mbps — ") ; append(if (mbps >= it * 1.5) "your connection is fast enough, try swapping stream." else "your connection is too slow for it right now.") }
             }
             result.setTextColor(if (mbps > 0 && ok) Color.rgb(122, 235, 138) else Color.rgb(255, 196, 92))
-            if (mbps < SLOW_MBPS) result.append("\n\n$SLOW_NOTICE")
+            if (mbps < SLOW_MBPS) {
+                result.append("\n\n$SLOW_NOTICE")
+                network.visibility = View.VISIBLE
+                network.requestFocus()
+            }
             button.isEnabled = true; button.text = "Run again"
         }
     }

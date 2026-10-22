@@ -183,7 +183,6 @@ class MainActivity : AppCompatActivity() {
         grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        BoxLocation.onPermissionResult(this, requestCode)
         if (requestCode != REQ_WEB_MIC) return
         val req = pendingWebMicRequest ?: return
         pendingWebMicRequest = null
@@ -730,7 +729,6 @@ class MainActivity : AppCompatActivity() {
         setContentView(webView)
         webViewReady = true
         webView.loadUrl(finalBootUrl)
-        BoxLocation.askOnLaunch(this)
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {

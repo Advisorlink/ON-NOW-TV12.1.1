@@ -87,16 +87,6 @@ class HeartbeatBody(BaseModel):
     device_model: Optional[str] = Field(None, description="Hardware model / UA-derived label")
 
 
-class DeviceLocationBody(BaseModel):
-    client_key: str = Field(..., min_length=1, max_length=128)
-    device_id: Optional[str] = Field(None, max_length=128)
-    device_model: Optional[str] = Field(None, max_length=128)
-    lat: float = Field(..., ge=-90, le=90)
-    lon: float = Field(..., ge=-180, le=180)
-    accuracy_m: Optional[float] = Field(None, ge=0)
-    provider: Optional[str] = Field(None, max_length=32)
-
-
 class EndBody(BaseModel):
     session_id: str
     app: str
@@ -362,60 +352,6 @@ async def end_session(
     return {"ok": True}
 
 
-async def _reverse_geocode(lat: float, lon: float) -> str:
-    db = _require_db()
-    key = f"{lat:.4f},{lon:.4f}"
-    hit = await db.geocode_cache.find_one({"key": key}, {"_id": 0, "address": 1})
-    if hit:
-        return hit["address"]
-    address = await _nominatim(lat, lon)
-    if address:
-        await db.geocode_cache.update_one({"key": key}, {"$set": {"key": key, "address": address}}, upsert=True)
-    return address
-
-
-async def _nominatim(lat: float, lon: float) -> str:
-    try:
-        async with httpx.AsyncClient(timeout=6.0, headers={"User-Agent": "OnNowTV-admin/1.0"}) as client:
-            r = await client.get(
-                "https://nominatim.openstreetmap.org/reverse",
-                params={"format": "jsonv2", "lat": lat, "lon": lon, "zoom": 18, "addressdetails": 0},
-            )
-            return (r.json() or {}).get("display_name") or ""
-    except Exception:
-        return ""
-
-
-@router.post("/device-location")
-async def device_location(
-    body: DeviceLocationBody,
-    x_presence_key: Optional[str] = Header(default=None, alias="X-Presence-Key"),
-):
-    """Exact box location, sent once the viewer allows location access."""
-    who = _identify_reporter(None, x_presence_key, body.client_key)
-    db = _require_db()
-    if not await db.vesper_accounts.find_one({"username": who["username"]}, {"_id": 1}):
-        raise HTTPException(404, "Unknown account")
-    loc = {
-        "lat": body.lat,
-        "lon": body.lon,
-        "accuracy_m": body.accuracy_m,
-        "provider": body.provider or "",
-        "address": await _reverse_geocode(body.lat, body.lon),
-        "map_url": f"https://www.google.com/maps?q={body.lat},{body.lon}",
-        "device_id": body.device_id or "",
-        "device_model": body.device_model or "",
-        "updated_at": _now().isoformat(),
-    }
-    await db.device_locations.update_one(
-        {"username": who["username"], "device_id": loc["device_id"]},
-        {"$set": {"username": who["username"], **loc}},
-        upsert=True,
-    )
-    await db.vesper_accounts.update_one({"username": who["username"]}, {"$set": {"location": loc}})
-    return {"ok": True, "address": loc["address"]}
-
-
 # ---------------------------------------------------------------------------
 # Endpoints — admin
 # ---------------------------------------------------------------------------
@@ -453,7 +389,6 @@ def _shape_session(doc: Dict[str, Any], now: datetime) -> Dict[str, Any]:
         "ip":               doc.get("ip") or "",
         "geo":              doc.get("geo") or {},
         "place":            _place(doc.get("geo") or {}),
-        "exact_location":   doc.get("exact_location"),
         "started_at":       started.isoformat() if started else None,
         "last_heartbeat_at": last_hb.isoformat() if last_hb else None,
         "ended_at":         ended.isoformat() if ended else None,
@@ -476,14 +411,6 @@ async def admin_active(
         {"last_heartbeat_at": {"$gte": cutoff}, "ended_at": None},
         {"_id": 0},
     ).sort("last_heartbeat_at", -1).to_list(500)
-    names = list({r.get("username") for r in rows if r.get("username")})
-    locs: Dict[Any, Any] = {}
-    async for d in db.device_locations.find({"username": {"$in": names}}, {"_id": 0}).sort("updated_at", 1):
-        locs[d["username"]] = d
-        locs[(d["username"], d.get("device_id") or "")] = d
-    for r in rows:
-        u = r.get("username")
-        r["exact_location"] = locs.get((u, r.get("device_id") or "")) or locs.get(u)
     return {
         "count":    len(rows),
         "sessions": [_shape_session(r, now) for r in rows],

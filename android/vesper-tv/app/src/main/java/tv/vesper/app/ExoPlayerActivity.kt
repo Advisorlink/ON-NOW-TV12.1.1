@@ -834,10 +834,6 @@ class ExoPlayerActivity : ComponentActivity(),
         backdrop    = intent.getStringExtra(VlcPlayerActivity.EXTRA_BACKDROP) ?: ""
         poster      = intent.getStringExtra(VlcPlayerActivity.EXTRA_POSTER) ?: ""
         cwId        = intent.getStringExtra(VlcPlayerActivity.EXTRA_CW_ID) ?: ""
-        instantLoader = InstantPlayerLoader.build(this, streamTitle, poster, backdrop,
-            listOf(year, runtime, rating).filter { it.isNotBlank() }.joinToString("  ·  "))
-        setContentView(instantLoader)
-        hideSystemUi()
         // v2.16.31 — Announce this playback to the launcher-admin
         // Live tab.  Native player is the actual viewer on the box,
         // so THIS is the heartbeat that lands in production Mongo
@@ -1083,13 +1079,7 @@ class ExoPlayerActivity : ComponentActivity(),
         @Suppress("DEPRECATION") overridePendingTransition(0, 0)
     }
 
-    private var instantLoader: View? = null
     private var uiReady = false
-    private fun hideInstantLoader() {
-        val v = instantLoader ?: return
-        instantLoader = null
-        v.animate().alpha(0f).setDuration(220).withEndAction { (v.parent as? ViewGroup)?.removeView(v) }.start()
-    }
 
     /** v2.16.40 — original ExoPlayer construction block, verbatim
      *  (only extracted so the VLC path can skip it wholesale). */
@@ -1540,11 +1530,6 @@ class ExoPlayerActivity : ComponentActivity(),
             isFocusableInTouchMode = true
             descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
             setContent {
-                androidx.compose.runtime.LaunchedEffect(Unit) {
-                    androidx.compose.runtime.withFrameNanos { }
-                    androidx.compose.runtime.withFrameNanos { }
-                    hideInstantLoader()
-                }
                 PlayerOverlay(
                     infoFlow = playerInfoFlow.asStateFlow(),
                     isSwappingEpisode = isSwappingEpisodeFlow.asStateFlow(),
@@ -1623,7 +1608,6 @@ class ExoPlayerActivity : ComponentActivity(),
         }
         root.addView(composeView)
         setContentView(root)
-        instantLoader?.let { (it.parent as? ViewGroup)?.removeView(it); root.addView(it) }
         hideSystemUi()
 
         // v2.7.52 — Force focus on the Compose overlay so D-pad
@@ -3058,7 +3042,6 @@ class ExoPlayerActivity : ComponentActivity(),
     }
 
     private fun onBackFromPlayer() {
-        instantLoader?.visibility = View.GONE
         try {
             val cwId = intent.getStringExtra(VlcPlayerActivity.EXTRA_CW_ID)?.trim().orEmpty()
             val type = intent.getStringExtra(VlcPlayerActivity.EXTRA_TYPE)?.trim().orEmpty()

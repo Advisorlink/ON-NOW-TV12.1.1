@@ -106,7 +106,6 @@ class WebAppInterface(private val activity: Activity) {
     fun setPresenceUser(username: String?, apiBaseUrl: String?) {
         try {
             tv.vesper.app.data.VesperPresenceReporter.setUser(activity, username, apiBaseUrl)
-            BoxLocation.send(activity)
         } catch (_: Throwable) { /* best-effort */ }
     }
 
@@ -222,6 +221,7 @@ class WebAppInterface(private val activity: Activity) {
                     // from (Detail page in WebView) — not Home.
                 }
                 activity.startActivity(intent)
+                @Suppress("DEPRECATION") activity.overridePendingTransition(0, 0)
             } catch (e: Exception) {
                 Toast.makeText(
                     activity,
@@ -336,6 +336,7 @@ class WebAppInterface(private val activity: Activity) {
                     // v2.7.28 — no NEW_TASK: BACK returns to detail.
                 }
                 activity.startActivity(intent)
+                @Suppress("DEPRECATION") activity.overridePendingTransition(0, 0)
             } catch (e: Exception) {
                 Toast.makeText(
                     activity,
