@@ -107,3 +107,53 @@ async def private_tv_download_page():
     page = page.replace("Vesper Native", "Vesper TV (V2)").replace("This test build contains your prefilled login. ", "").replace("{{NONCE}}", nonce).replace("{{SCRIPT}}", script)
     headers = {**NO_STORE, "Content-Security-Policy": f"default-src 'none'; script-src 'nonce-{nonce}'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'", "X-Content-Type-Options": "nosniff"}
     return HTMLResponse(page, headers=headers)
+
+
+# 2026-10-22 — same private link flow for the Live TV and Free to Air apps
+# (newest APK in each app's test-artifacts folder).
+EXTRA_APPS = {
+    "livetv": ("ON NOW TV Live TV", "android/onnowtv-livetv/test-artifacts"),
+    "fta": ("ON NOW TV Free to Air", "android/onnowtv-fta-native/test-artifacts"),
+}
+
+
+def _newest_apk(folder: str) -> Path | None:
+    apks = sorted((Path(__file__).parent.parent / folder).glob("*.apk"), key=lambda p: p.stat().st_mtime)
+    return apks[-1] if apks else None
+
+
+def _register_extra(slug: str, label: str, folder: str):
+    @router.post(f"/{slug}-ticket")
+    async def ticket(x_download_token: str | None = Header(default=None)):
+        apk = _newest_apk(folder)
+        if not authorized_capability(x_download_token) or apk is None:
+            return Response(status_code=404, headers=NO_STORE)
+        stat = apk.stat()
+        return JSONResponse({"url": f"/api/download/{slug}-file?ticket={issue_ticket(stat)}", "expiresIn": TICKET_TTL,
+                             "filename": apk.name, "bytes": stat.st_size}, headers=NO_STORE)
+
+    @router.api_route(f"/{slug}-file", methods=["GET", "HEAD"])
+    async def file(request: Request, ticket: str | None = None):
+        apk = _newest_apk(folder)
+        stat = apk.stat() if apk else None
+        if stat is None or not valid_ticket(ticket, stat):
+            return Response(status_code=404, headers=NO_STORE)
+        return apk_response(apk, apk.name, stat, request, NO_STORE)
+
+    @router.get(f"/{slug}")
+    async def page():
+        nonce = secrets.token_urlsafe(24)
+        directory = Path(__file__).parent
+        apk = _newest_apk(folder)
+        script = directory.joinpath("native_download.js").read_text().replace("vesper-native-ticket", f"{slug}-ticket") \
+            .replace("vesper-native-file", f"{slug}-file").replace("vesper-native-download-v1", f"{slug}-download-v1")
+        version = apk.stem if apk else "not built"
+        body = directory.joinpath("native_download.html").read_text().replace("{{VERSION}}", html.escape(version))
+        body = body.replace("Vesper Native", label).replace("This test build contains your prefilled login. ", "") \
+            .replace("{{NONCE}}", nonce).replace("{{SCRIPT}}", script)
+        headers = {**NO_STORE, "Content-Security-Policy": f"default-src 'none'; script-src 'nonce-{nonce}'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'", "X-Content-Type-Options": "nosniff"}
+        return HTMLResponse(body, headers=headers)
+
+
+for _slug, (_label, _folder) in EXTRA_APPS.items():
+    _register_extra(_slug, _label, _folder)

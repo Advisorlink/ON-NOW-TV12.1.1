@@ -542,3 +542,9 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
   - Verified: `/cities` includes Gold Coast; `/channels?city=Gold Coast` returns 180 channels with no QLD 9; the stream resolves; the EPG has 32 programmes.
 - **Compile:** both apps pass `compileDebugKotlin`. No device test; both need the CI build (Save to GitHub → build-livetv.yml and build-fta-native.yml). The backend needs a deploy for Gold Coast to reach onnowhub.com.
 - **Build note:** these projects have no gradlew. Use `/app/android/vesper-tv/gradlew -p /app/android/<proj>` with `ANDROID_HOME=/android-sdk`.
+
+## Private download links for Live TV and FTA (2026-10-22)
+- `native_download.py` now has `EXTRA_APPS` (livetv, fta). It serves the newest APK in `android/onnowtv-livetv/test-artifacts` and `android/onnowtv-fta-native/test-artifacts` through the same capability-ticket flow. Links: `/api/download/livetv#<token>` and `/api/download/fta#<token>`. Both folders are gitignored.
+- Builds are assembleRelease signed with `android/onnowtv-launcher/app/onnow-launcher-debug.keystore` (alias and password `onnow-launcher-debug`). This is assumed to match the CI secret LAUNCHER_KEYSTORE (unverified). If the box says "App not installed", uninstall once.
+- versionCode is the git commit count for the folder + 2 (livetv 145, fta 24). versionName: livetv uses the CHANGELOG top entry (2.10.81), fta uses 0.1.24.
+- Build script: `/app/.buildlogs/rel.sh` (env setup, both builds and the copies in one nohup chain).

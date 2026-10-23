@@ -1642,3 +1642,7 @@ android/vesper-tv/test-artifacts/vesper-tv-2.10.85-location-signout.apk
 android/vesper-tv/test-artifacts/vesper-tv-2.10.86-playback-fix.apk
 android/vesper-tv/test-artifacts/vesper-tv-2.10.87-autoplay-fix.apk
 android/vesper-tv/test-artifacts/vesper-tv-2.10.88-one-loader.apk
+android/onnowtv-livetv/test-artifacts/
+android/onnowtv-fta-native/test-artifacts/
+android/onnowtv-livetv/test-artifacts/onnowtv-livetv-2.10.81-145.apk
+android/onnowtv-livetv/app/build/outputs/apk/release/app-release.apk
