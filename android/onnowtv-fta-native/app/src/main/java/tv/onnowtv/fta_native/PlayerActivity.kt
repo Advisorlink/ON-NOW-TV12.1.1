@@ -156,6 +156,10 @@ class PlayerActivity : AppCompatActivity() {
                     Player.STATE_READY -> {
                         status.text = ""
                         view.hideController()
+                        // Channel has started: fade the top-left channel card away.
+                        nowCard.animate().cancel()
+                        nowCard.animate().alpha(0f).setStartDelay(2_500).setDuration(400)
+                            .withEndAction { nowCard.visibility = android.view.View.GONE }.start()
                     }
                     Player.STATE_BUFFERING -> { /* spinner via PlayerView */ }
                     Player.STATE_ENDED -> { status.text = "Stream ended" }

@@ -113,7 +113,7 @@ class LibraryActivity : AppCompatActivity() {
     private fun refresh() {
         val collections = CollectionsStore.load(this)
         val favouriteIds = FavouritesStore.load(this)
-        val bundle = BundleHolder.current
+        val bundle = BundleHolder.current?.let { tv.onnowtv.livetv.data.ParentalLock.visible(this@LibraryActivity, it) }
 
         collectionsAdapter.submit(collections)
         collectionsCount.text = collections.size.toString()

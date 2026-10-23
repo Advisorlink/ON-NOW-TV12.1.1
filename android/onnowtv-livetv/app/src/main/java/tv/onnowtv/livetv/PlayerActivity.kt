@@ -355,7 +355,7 @@ class PlayerActivity : AppCompatActivity() {
             if (channel != null) {
                 // Re-seat PlaybackQueue to the reminder's category
                 // so up/down inside the player works after the jump.
-                val bundle = BundleHolder.current
+                val bundle = BundleHolder.current?.let { tv.onnowtv.livetv.data.ParentalLock.visible(this@PlayerActivity, it) }
                 val siblings = bundle?.channels
                     ?.filter { it.categoryId == channel.categoryId && it.categoryId != null }
                     ?.ifEmpty { bundle.channels } ?: listOf(channel)
@@ -1312,7 +1312,7 @@ class PlayerActivity : AppCompatActivity() {
         // Re-seat the queue if the target lives in a different
         // category, so subsequent CH±/D-pad navigation feels right.
         if (list.none { it.id == target.id }) {
-            val bundle = BundleHolder.current
+            val bundle = BundleHolder.current?.let { tv.onnowtv.livetv.data.ParentalLock.visible(this@PlayerActivity, it) }
             val siblings = bundle?.channels
                 ?.filter { it.categoryId == target.categoryId && it.categoryId != null }
                 ?.ifEmpty { bundle.channels } ?: listOf(target)

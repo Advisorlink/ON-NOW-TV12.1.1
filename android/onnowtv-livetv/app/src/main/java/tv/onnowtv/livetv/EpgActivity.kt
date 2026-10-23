@@ -64,6 +64,7 @@ class EpgActivity : AppCompatActivity() {
     }
 
     private lateinit var bundle: XtreamBundle
+    private lateinit var fullBundle: XtreamBundle
 
     /** Non-null when launched in COLLECTION-MODE. */
     private var currentCollection: tv.onnowtv.livetv.data.LibraryCollection? = null
@@ -229,7 +230,8 @@ class EpgActivity : AppCompatActivity() {
             finish()
             return
         }
-        bundle = held
+        fullBundle = held
+        bundle = tv.onnowtv.livetv.data.ParentalLock.visible(this, held)
         epgCache = tv.onnowtv.livetv.data.SharedSportsGuide.attach(bundle)
         rehydrateReminders()
         favouriteSet.clear()
@@ -325,6 +327,7 @@ class EpgActivity : AppCompatActivity() {
         railFullscreen = findViewById(R.id.rail_fullscreen)
         railPpv      = findViewById(R.id.rail_ppv)
         railSignout  = findViewById(R.id.rail_signout)
+        findViewById<ImageButton>(R.id.rail_settings).setOnClickListener { showLiveTvSettings() }
 
         hero               = findViewById(R.id.hero)
         heroBackdrop       = findViewById(R.id.hero_backdrop)
@@ -2148,6 +2151,110 @@ class EpgActivity : AppCompatActivity() {
             icon = "⊕",
         ) { showAddCategoryToCollectionMenu(category, channelsInCategory) }
 
+        val lock = tv.onnowtv.livetv.data.ParentalLock
+        if (category.id in lock.lockedIds(ctx)) {
+            sheet.item(label = "Unlock this category", icon = "□") {
+                lock.unlock(ctx, category.id)
+                toast("${category.name} unlocked")
+                applyParentalLock()
+            }
+        } else {
+            sheet.item(label = "Lock this category", icon = "▣", trailing = "PIN") {
+                val doLock = {
+                    lock.lock(ctx, category.id)
+                    toast("${category.name} locked. Unlock it in Live TV Settings with your PIN")
+                    applyParentalLock()
+                }
+                if (lock.hasPin(ctx)) doLock() else promptNewPin { doLock() }
+            }
+        }
+
+        sheet.show()
+    }
+
+    // ---- Parental lock -------------------------------------------------
+    private fun toast(msg: String) =
+        android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_LONG).show()
+
+    /** Re-filters the visible bundle after a lock change and redraws. */
+    private fun applyParentalLock() {
+        bundle = tv.onnowtv.livetv.data.ParentalLock.visible(this, fullBundle)
+        val sel = currentCategoryId
+        if (sel != null && !sel.startsWith("__") && bundle.categories.none { it.id == sel }) {
+            currentCategoryId = "__all__"
+        }
+        buildCategories()
+        categoryAdapter.submit(visibleCategoriesForSidebar(), currentCategoryId)
+        applyCategory()
+    }
+
+    private fun promptNewPin(onSet: () -> Unit) {
+        showNameInputDialog("Set a parental PIN", "4 digits · needed to unlock locked categories", "", "PIN", pin = true) { first ->
+            if (!first.matches(Regex("\\d{4}"))) { toast("The PIN must be 4 digits"); return@showNameInputDialog }
+            showNameInputDialog("Enter the PIN again", "CONFIRM YOUR PIN", "", "PIN", pin = true) { second ->
+                if (second != first) { toast("The PINs didn't match. Try again"); return@showNameInputDialog }
+                tv.onnowtv.livetv.data.ParentalLock.setPin(this, first)
+                toast("Parental PIN saved")
+                onSet()
+            }
+        }
+    }
+
+    private fun askPin(subtitle: String, onOk: () -> Unit) {
+        showNameInputDialog("Enter your parental PIN", subtitle, "", "PIN", pin = true) { pin ->
+            if (tv.onnowtv.livetv.data.ParentalLock.checkPin(this, pin)) onOk() else toast("Wrong PIN")
+        }
+    }
+
+    private fun showLiveTvSettings() {
+        val ctx = this
+        val lock = tv.onnowtv.livetv.data.ParentalLock
+        val locked = lock.lockedIds(ctx)
+        val sheet = tv.onnowtv.livetv.ui.ActionSheetDialog(ctx)
+            .title("Live TV Settings")
+            .subtitle("PARENTAL LOCK · ${locked.size} LOCKED")
+        sheet.item(
+            label = if (lock.hasPin(ctx)) "Change parental PIN" else "Set parental PIN",
+            icon = "✱",
+        ) {
+            if (lock.hasPin(ctx)) askPin("CONFIRM YOUR CURRENT PIN") { promptNewPin {} } else promptNewPin {}
+        }
+        if (locked.isNotEmpty()) {
+            sheet.item(label = "Unlock categories…", icon = "□", trailing = "${locked.size}") {
+                if (lock.sessionUnlocked) showUnlockList() else askPin("UNLOCK CATEGORIES") { showUnlockList() }
+            }
+            if (lock.sessionUnlocked) {
+                sheet.item(label = "Hide locked categories again", icon = "▣") {
+                    lock.sessionUnlocked = false
+                    applyParentalLock()
+                }
+            } else {
+                sheet.item(label = "Show locked categories (this visit)", icon = "◎") {
+                    askPin("SHOW UNTIL YOU CLOSE LIVE TV") {
+                        lock.sessionUnlocked = true
+                        applyParentalLock()
+                    }
+                }
+            }
+        }
+        sheet.show()
+    }
+
+    private fun showUnlockList() {
+        val ctx = this
+        val lock = tv.onnowtv.livetv.data.ParentalLock
+        val names = fullBundle.categories.associate { it.id to it.name }
+        val sheet = tv.onnowtv.livetv.ui.ActionSheetDialog(ctx)
+            .title("Unlock a category")
+            .subtitle("PICK ONE TO UNLOCK FOR GOOD")
+        for (id in lock.lockedIds(ctx)) {
+            val name = names[id] ?: id
+            sheet.item(label = name, icon = "▣", trailing = "UNLOCK") {
+                lock.unlock(ctx, id)
+                toast("$name unlocked")
+                applyParentalLock()
+            }
+        }
         sheet.show()
     }
 
@@ -2228,6 +2335,7 @@ class EpgActivity : AppCompatActivity() {
         subtitle: String?,
         initial: String,
         placeholder: String,
+        pin: Boolean = false,
         onSubmit: (String) -> Unit,
     ) {
         val ctx = this
@@ -2247,6 +2355,11 @@ class EpgActivity : AppCompatActivity() {
         input.setText(initial)
         input.setSelection(initial.length)
         input.hint = placeholder
+        if (pin) {
+            input.inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            input.filters = arrayOf(android.text.InputFilter.LengthFilter(4))
+            saveBtn.text = "OK"
+        }
 
         cancelBtn.setOnClickListener { dialog.dismiss() }
         saveBtn.setOnClickListener {
@@ -2439,6 +2552,7 @@ class EpgActivity : AppCompatActivity() {
         searchHandler.removeCallbacksAndMessages(null)
         artJob?.cancel()
         ReminderWatcher.detach(this)
+        if (isFinishing) tv.onnowtv.livetv.data.ParentalLock.sessionUnlocked = false
         super.onDestroy()
     }
 }

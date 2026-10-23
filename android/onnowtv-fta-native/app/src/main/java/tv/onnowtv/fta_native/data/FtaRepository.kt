@@ -87,10 +87,11 @@ object FtaRepository {
         }
     }
 
-    private val DEFAULT_CITIES = listOf("Brisbane", "Sydney", "Melbourne", "Adelaide", "Perth", "Hobart", "Darwin", "Canberra")
+    private val DEFAULT_CITIES = listOf("Brisbane", "Gold Coast", "Sydney", "Melbourne", "Adelaide", "Perth", "Hobart", "Darwin", "Canberra")
+    private fun cityQ(city: String) = java.net.URLEncoder.encode(city, "UTF-8").replace("+", "%20")
 
     fun fetchChannels(city: String = DEFAULT_CITY): List<FtaChannel> {
-        val url = "$BACKEND_BASE/api/fta/channels?city=$city"
+        val url = "$BACKEND_BASE/api/fta/channels?city=${cityQ(city)}"
         val body = httpGet(url) ?: return emptyList()
         val obj = JSONObject(body)
         val arr = obj.optJSONArray("channels") ?: return emptyList()
@@ -144,7 +145,7 @@ object FtaRepository {
     }
 
     fun fetchEpg(city: String = DEFAULT_CITY): Map<String, List<FtaProgramme>> {
-        val url = "$BACKEND_BASE/api/fta/epg?city=$city"
+        val url = "$BACKEND_BASE/api/fta/epg?city=${cityQ(city)}"
         val body = httpGet(url) ?: return emptyMap()
         val obj = JSONObject(body)
         val byChannel = obj.optJSONObject("programmes") ?: return emptyMap()
@@ -188,7 +189,7 @@ object FtaRepository {
         // movies → reality → music → more) AND filters out empty
         // categories.  Fall back to deriving from the channel list
         // if the endpoint is unreachable.
-        val body = httpGet("$BACKEND_BASE/api/fta/categories?city=$city")
+        val body = httpGet("$BACKEND_BASE/api/fta/categories?city=${cityQ(city)}")
         if (body != null) {
             try {
                 val obj = JSONObject(body)
@@ -230,7 +231,7 @@ object FtaRepository {
      *  hits the resolver endpoint. */
     fun resolveStreamUrl(channel: FtaChannel, city: String = DEFAULT_CITY): String? {
         if (!channel.mjhMaster.isNullOrBlank()) return channel.mjhMaster
-        val url = "$BACKEND_BASE/api/fta/streams/${channel.id}?city=$city"
+        val url = "$BACKEND_BASE/api/fta/streams/${channel.id}?city=${cityQ(city)}"
         val body = httpGet(url) ?: return null
         val obj = JSONObject(body)
         return obj.optString("url").takeIf { it.isNotBlank() }

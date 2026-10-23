@@ -526,3 +526,19 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - **Build environment:** the pod wipes `/opt` and `/tmp` (sometimes within minutes). Run `scripts/setup-vesper-build-env.sh`, the web build, `bundle-v2-web.sh` and gradle in ONE nohup chain, then copy the APK straight into `test-artifacts`.
 - **APK:** `test-artifacts/vesper-tv-2.10.88-one-loader.apk`.
 - **Not verified on a device.**
+
+## Live TV parental lock, FTA card auto-hide, FTA Gold Coast (2026-10-22)
+- **Live TV (`android/onnowtv-livetv`):**
+  - New `data/ParentalLock.kt`: SHA-256 PIN (salted "onnow-pin:"), a set of locked category ids, and a `sessionUnlocked` flag that resets when EpgActivity finishes.
+  - EpgActivity keeps `fullBundle` and shows `bundle = ParentalLock.visible(...)`, so locked categories and their channels are hidden everywhere: sidebar, All channels, search, favourites. The PlayerActivity zapping queue and LibraryActivity favourites are filtered too.
+  - Category long-press adds "Lock this category" (asks to set a 4-digit PIN first if none exists) and "Unlock this category" (shown when the session is unlocked).
+  - New rail gear button `rail_settings` (ic_nav_settings) opens Live TV Settings: Set/Change PIN (change needs the current PIN), "Unlock categories…" (PIN, then pick one to unlock for good), "Show locked categories (this visit)" with the PIN, and "Hide locked categories again".
+  - `showNameInputDialog` gained a `pin=true` mode (numberPassword, 4 max, "OK").
+  - The user chose: hidden completely, hidden everywhere, PIN once per visit.
+- **FTA native (`android/onnowtv-fta-native`):** the top-left NOW PLAYING channel card fades out 2.5 s after STATE_READY and is set to GONE. The cause was `controllerAutoShow=false`, so the controller listener never fired. The DEFAULT_CITIES fallback includes Gold Coast, and city query params are URL-encoded.
+- **Backend `fta.py`:**
+  - New "Gold Coast" city using Brisbane feeds (`_FEED_CITY`), with Channel 9 QLD replaced by `mjh-channel-9-gold-coast` (logo, LCN fallback, QLD EPG fallback).
+  - `_normalize_city` is now case-insensitive.
+  - Verified: `/cities` includes Gold Coast; `/channels?city=Gold Coast` returns 180 channels with no QLD 9; the stream resolves; the EPG has 32 programmes.
+- **Compile:** both apps pass `compileDebugKotlin`. No device test; both need the CI build (Save to GitHub → build-livetv.yml and build-fta-native.yml). The backend needs a deploy for Gold Coast to reach onnowhub.com.
+- **Build note:** these projects have no gradlew. Use `/app/android/vesper-tv/gradlew -p /app/android/<proj>` with `ANDROID_HOME=/android-sdk`.

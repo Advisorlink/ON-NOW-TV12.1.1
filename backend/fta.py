@@ -42,6 +42,7 @@ router = APIRouter(prefix="/api/fta", tags=["fta"])
 # EPG share the same `mjh-*` ids but the streams differ by region.
 SUPPORTED_CITIES: Dict[str, str] = {
     "Brisbane":  "https://kangaroostreams.hayd.uk/Brisbane",
+    "Gold Coast": "https://kangaroostreams.hayd.uk/Brisbane",
     "Sydney":    "https://kangaroostreams.hayd.uk/Sydney",
     "Melbourne": "https://kangaroostreams.hayd.uk/Melbourne",
     "Adelaide":  "https://kangaroostreams.hayd.uk/Adelaide",
@@ -52,12 +53,22 @@ SUPPORTED_CITIES: Dict[str, str] = {
 }
 DEFAULT_CITY = "Brisbane"
 
+# Gold Coast has no feed of its own: it uses Brisbane's line-up with
+# Channel 9 swapped for Channel 9 (Gold Coast).
+_FEED_CITY = {"Gold Coast": "Brisbane"}
+_GC_NINE, _QLD_NINE = "mjh-channel-9-gold-coast", "mjh-channel-9-qld"
+
+
+def _feed(city: str) -> str:
+    return _FEED_CITY.get(city, city)
+
+
 def _catalog_url(city: str) -> str:
     base = SUPPORTED_CITIES.get(city, SUPPORTED_CITIES[DEFAULT_CITY])
-    return f"{base}/catalog/tv/iptv-channels-{city}.json"
+    return f"{base}/catalog/tv/iptv-channels-{_feed(city)}.json"
 
 def _epg_url(city: str) -> str:
-    return f"https://i.mjh.nz/au/{city}/epg.xml.gz"
+    return f"https://i.mjh.nz/au/{_feed(city)}/epg.xml.gz"
 
 # Channel ordering reference (Brisbane).  Translated per-city below.
 DEFAULT_FTA_IDS = [
@@ -153,6 +164,7 @@ CHANNEL_LOGOS: Dict[str, str] = {
     "mjh-7flix-bri":      f"{_TV_LOGO_BASE}/7flix-au.png",
     "mjh-7bravo-fast":    f"{_TV_LOGO_BASE}/7bravo-au.png",
     "mjh-channel-9-qld":  f"{_TV_LOGO_BASE}/nine-au.png",
+    "mjh-channel-9-gold-coast": f"{_TV_LOGO_BASE}/nine-au.png",
     "mjh-gem-qld":        f"{_TV_LOGO_BASE}/nine-gem-au.png",
     "mjh-go-qld":         f"{_TV_LOGO_BASE}/nine-go-au.png",
     "mjh-life-qld":       f"{_TV_LOGO_BASE}/nine-life-au.png",
@@ -194,6 +206,8 @@ def _city_to_seven_code(city: str) -> str:
 def _ids_for_city(city: str) -> List[str]:
     if city == "Brisbane":
         return list(DEFAULT_FTA_IDS)
+    if city == "Gold Coast":
+        return [_GC_NINE if cid == _QLD_NINE else cid for cid in DEFAULT_FTA_IDS]
     seven = _city_to_seven_code(city)
     suf = _city_to_state_suffix(city)
     return [
@@ -281,7 +295,7 @@ async def _load_channels(city: str = DEFAULT_CITY) -> List[Dict[str, Any]]:
     if bucket["data"] and now - bucket["ts"] < _CHANNEL_TTL_S:
         return bucket["data"]
 
-    tv_url = f"https://i.mjh.nz/au/{city}/tv.json"
+    tv_url = f"https://i.mjh.nz/au/{_feed(city)}/tv.json"
     try:
         r = await _http_get(tv_url, timeout=15.0)
         raw = r.json() or {}
@@ -297,6 +311,8 @@ async def _load_channels(city: str = DEFAULT_CITY) -> List[Dict[str, Any]]:
     linear_set = set(_ids_for_city(city))
     out: List[Dict[str, Any]] = []
     for cid, meta in raw.items():
+        if city == "Gold Coast" and cid == _QLD_NINE:
+            continue
         name = meta.get("name") or cid
         network = meta.get("network") or "Other"
         is_linear = cid in linear_set
@@ -306,7 +322,7 @@ async def _load_channels(city: str = DEFAULT_CITY) -> List[Dict[str, Any]]:
             "name": name,
             "network": network,
             "logo": _logo_for_id(cid) or meta.get("logo") or "",
-            "lcn": lcn_by_id.get(cid),
+            "lcn": lcn_by_id.get(cid) or (lcn_by_id.get(_QLD_NINE) if cid == _GC_NINE else None),
             "categories": cats,
             "isLinear": is_linear,
             "mjh_master": meta.get("mjh_master", ""),
@@ -428,6 +444,9 @@ async def _load_epg(*, city: str = DEFAULT_CITY, force_channel_only: bool = Fals
         log.exception("EPG XML parse failed")
         raise HTTPException(502, f"EPG_PARSE_FAILED: {exc}") from exc
 
+    if city == "Gold Coast" and _GC_NINE not in programmes and _QLD_NINE in programmes:
+        programmes[_GC_NINE] = programmes[_QLD_NINE]
+
     # Sort each channel's programme list ascending by start.
     for cid in programmes:
         programmes[cid].sort(key=lambda p: p["start"])
@@ -473,8 +492,8 @@ async def _resolve_stream(channel_id: str, city: str = DEFAULT_CITY) -> Optional
 def _normalize_city(name: Optional[str]) -> str:
     if not name:
         return DEFAULT_CITY
-    cap = name.strip().capitalize()
-    return cap if cap in SUPPORTED_CITIES else DEFAULT_CITY
+    want = name.strip().replace("_", " ").lower()
+    return next((c for c in SUPPORTED_CITIES if c.lower() == want), DEFAULT_CITY)
 
 
 # ---------------------------------------------------------------- routes
