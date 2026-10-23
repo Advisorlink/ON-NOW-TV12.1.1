@@ -550,8 +550,8 @@
                 <LinearLayout
                     android:id="@+id/whatson_pill"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:layout_marginBottom="10dp"
+                    android:layout_height="54dp"
+                    android:layout_marginBottom="12dp"
                     android:orientation="horizontal"
                     android:gravity="center_vertical"
                     android:paddingStart="12dp"
@@ -618,7 +618,6 @@
                     android:contentDescription="@string/sports_hub_title"
                     android:layout_width="match_parent"
                     android:layout_height="54dp"
-                    android:layout_marginTop="6dp"
                     android:orientation="horizontal"
                     android:gravity="center_vertical"
                     android:paddingStart="12dp"
@@ -626,7 +625,7 @@
                     android:focusable="true"
                     android:clickable="true"
                     android:nextFocusUp="@id/whatson_pill"
-                    android:nextFocusDown="@id/categories_list"
+                    android:nextFocusDown="@id/catchup_btn"
                     android:background="@drawable/sports_hub_button_bg">
                     <TextView
                         android:layout_width="30dp"
@@ -660,6 +659,63 @@
                         android:letterSpacing="0.14"
                         android:text="›" />
                 </LinearLayout>
+                <!-- Catch Up entry — under Sports Hub -->
+                <LinearLayout
+                    android:id="@+id/catchup_btn"
+                    android:tag="catchup-entry-landscape"
+                    android:contentDescription="Catch Up"
+                    android:layout_width="match_parent"
+                    android:layout_height="54dp"
+                    android:layout_marginTop="12dp"
+                    android:layout_marginBottom="22dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:focusable="true"
+                    android:clickable="true"
+                    android:nextFocusUp="@id/sports_hub_btn"
+                    android:nextFocusDown="@id/categories_list"
+                    android:background="@drawable/catchup_button_bg">
+                    <TextView
+                        android:layout_width="30dp"
+                        android:layout_height="24dp"
+                        android:layout_marginEnd="8dp"
+                        android:background="@drawable/catchup_badge_bg"
+                        android:gravity="center"
+                        android:text="↺"
+                        android:textColor="#1A0E2C"
+                        android:textStyle="bold"
+                        android:textSize="16sp" />
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="monospace"
+                            android:textStyle="bold"
+                            android:textColor="#FFFFFFFF"
+                            android:textSize="14sp"
+                            android:text="CATCH UP" />
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="monospace"
+                            android:textColor="#FFD9C8FF"
+                            android:textSize="8sp"
+                            android:letterSpacing="0.18"
+                            android:text="WHAT YOU MISSED" />
+                    </LinearLayout>
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="›"
+                        android:textColor="#FFB388FF"
+                        android:textSize="20sp" />
+                </LinearLayout>
 
                 <TextView
                     android:layout_width="match_parent"
@@ -682,7 +738,7 @@
                     android:nestedScrollingEnabled="true"
                     android:clipToPadding="false"
                     android:overScrollMode="never"
-                    android:nextFocusUp="@id/whatson_pill"
+                    android:nextFocusUp="@id/catchup_btn"
                     android:nextFocusDown="@id/categories_list"
                     android:nextFocusLeft="@id/rail_signout"
                     android:nextFocusRight="@id/channels_list" />

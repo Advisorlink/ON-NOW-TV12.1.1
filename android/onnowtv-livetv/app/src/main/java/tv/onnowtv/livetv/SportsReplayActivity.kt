@@ -37,6 +37,10 @@ class SportsReplayActivity : AppCompatActivity() {
         fun openProgramme(ctx: Context, entry: SportsReplayCatalogue.Entry) = ctx.startActivity(Intent(ctx, SportsReplayActivity::class.java).apply {
             putExtra("channel", entry.channel.id); putExtra("programme-start", entry.programme.startMs)
         })
+        /** Any archived programme (not only sports) — used by Catch Up. */
+        fun openCatchUp(ctx: Context, channel: Channel, programme: Programme) = ctx.startActivity(Intent(ctx, SportsReplayActivity::class.java).apply {
+            putExtra("channel", channel.id); putExtra("programme-start", programme.startMs); putExtra("catchup", true)
+        })
     }
     private lateinit var playerView: PlayerView
     private lateinit var status: TextView
@@ -95,7 +99,9 @@ class SportsReplayActivity : AppCompatActivity() {
         fetch = lifecycleScope.launch {
             val programme: Programme? = if (intent.hasExtra("programme-start")) {
                 SportsReplayRepository.archiveProgrammes(channel)?.firstOrNull {
-                    it.startMs == intent.getLongExtra("programme-start", -1) && SportsReplayCatalogue.entries(channel, listOf(it)).isNotEmpty()
+                    it.startMs == intent.getLongExtra("programme-start", -1) && (
+                        if (intent.getBooleanExtra("catchup", false)) it.archiveAvailable != false && SportsReplayPolicy.checkProgramme(channel, it).eligible
+                        else SportsReplayCatalogue.entries(channel, listOf(it)).isNotEmpty())
                 }
             } else withContext(Dispatchers.Default) {
                 val game = runCatching { JSONObject(intent.getStringExtra("game").orEmpty()) }.getOrNull()

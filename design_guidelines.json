@@ -1,105 +1,82 @@
 {
-  "project_name": "Vesper Native Android TV & Reference V2 UI Parity",
-  "archetype": "THE PERFORMANCE PRO / ELECTRIC V2 TV",
-  "theme": {
-    "background_deep": "#06080F",
-    "background_surface": "#0A0E1A",
-    "surface_elevation_2": "#111827",
+  "project_name": "ON NOW TV - Catch Up (Native Android TV Spec)",
+  "canvas": {
+    "resolution": "1920x1080",
+    "density": "2x (mdpi base 960x540dp)",
+    "input": "D-pad Remote Only"
+  },
+  "palette": {
+    "bg_main": "#0A0F1A",
+    "bg_alt": "#0E1422",
+    "card_bg": "#141C2A",
+    "card_focused": "#1A2438",
     "accent_cyan": "#5DC8FF",
-    "accent_cyan_bright": "#8DE0FF",
-    "primary_text": "#F5F7FA",
-    "secondary_text": "#9BA8C2",
-    "muted_text": "#5B6580",
-    "warning_red": "#FF8B7C",
-    "network_colors": {
-      "netflix": "#E50914",
-      "hbo_max": "#5822B4",
-      "disney_plus": "#113CCF",
-      "apple_tv": "#1C1C1E",
-      "paramount_plus": "#0064FF",
-      "hulu": "#1CE783",
-      "binge": "#00A8E1",
-      "stan": "#0072CE",
-      "amazon_prime": "#00A8E1"
-    }
+    "accent_red": "#FF2535",
+    "accent_fav": "#FFC850",
+    "text_fg": "#FFFFFF",
+    "text_dim": "#9DA5B5",
+    "separator": "#11FFFFFF",
+    "card_border": "#1AFFFFFF",
+    "catch_up_bg": "#2E1A47",
+    "catch_up_stroke": "#B388FF",
+    "sports_hub_bg": "#173C4D",
+    "sports_hub_stroke": "#6CD0E3",
+    "whats_on_gradient": ["#FF2535", "#FF6B00"]
   },
   "typography": {
-    "font_family_heading": "Geist, system-ui, sans-serif",
-    "font_family_body": "Geist, system-ui, sans-serif",
-    "font_family_mono": "Geist Mono, JetBrains Mono, monospace",
-    "hierarchy": {
-      "h1_display": "text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight",
-      "h2_section": "text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight",
-      "h3_subsection": "text-xl sm:text-2xl font-semibold",
-      "h4_card_title": "text-lg sm:text-xl font-semibold",
-      "body": "text-base leading-relaxed",
-      "eyebrow_label": "text-xs font-mono uppercase tracking-[0.2em] text-[#5DC8FF]"
+    "h1_title": "sans-serif-black, 24sp, #FFFFFF",
+    "h2_heading": "sans-serif, 18sp, bold, #FFFFFF",
+    "h3_subheading": "sans-serif, 14sp, bold, #FFFFFF",
+    "body": "sans-serif, 12sp, #9DA5B5",
+    "eyebrow": "monospace, 10sp, tracking 2dp, #5DC8FF, UPPERCASE"
+  },
+  "layout_regions": {
+    "sidebar": {
+      "width_dp": 120,
+      "bg": "#0E1422",
+      "buttons": [
+        {"name": "What's On Live", "type": "pill", "height_dp": 48, "bg_gradient": ["#FF2535", "#FF6B00"], "margin_bottom_dp": 12},
+        {"name": "Sports Hub", "type": "button", "height_dp": 54, "bg": "#173C4D", "stroke": "#6CD0E3", "margin_bottom_dp": 12},
+        {"name": "Catch Up", "type": "button", "height_dp": 54, "bg": "#2E1A47", "stroke": "#B388FF", "icon": "ic_rewind_calendar", "margin_bottom_dp": 24}
+      ],
+      "categories_heading_gap_dp": 24
+    },
+    "hero_detail_header": {
+      "height_dp": 180,
+      "left_margin_dp": 130,
+      "elements": ["Fan-art backdrop image", "Channel logo (40x40dp)", "Show Title (24sp bold)", "Aired Date/Time & Duration (12sp dim)", "Synopsis (12sp, max 2 lines)", "Play From Start Button (48dp height, Cyan focused)"]
+    },
+    "just_aired_row": {
+      "height_dp": 110,
+      "card_aspect": "16:9 (140x78dp)",
+      "card_style": "TMDB backdrop / poster fallback / gradient + logo, progress bar overlay"
+    },
+    "browser_view": {
+      "channels_column_width_dp": 140,
+      "calendar_strip_height_dp": 40,
+      "schedule_list": "Vertical show list (time, title, duration, 16:9 thumbnail, watched progress bar)"
     }
   },
-  "spacing_and_layout": {
-    "viewport_web": "1920x1080px (16:9 TV Canvas)",
-    "viewport_native_dp": "960x540dp (mdpi 1dp = 2px at 1080p)",
-    "top_nav": {
-      "height_px": 72,
-      "height_dp": 36,
-      "padding_x_px": 48,
-      "item_gap_px": 16,
-      "icons_count": 12
-    },
-    "hero_billboard": {
-      "height_px": 420,
-      "height_dp": 210,
-      "left_inset_px": 64,
-      "trailer_dwell_ms": 280
-    },
-    "poster_tiles": {
-      "portrait_2_3": "160x240px (80x120dp), rounded-xl",
-      "landscape_16_9": "256x144px (128x72dp), rounded-xl",
-      "focus_scale": "1.06x with 120ms ease-out",
-      "focus_ring": "1.5dp signal cyan (#5DC8FF) with 2dp offset bloom"
-    },
-    "settings_layout": {
-      "grid": "grid-cols-[220px_1fr] gap-8",
-      "nav_sections_count": 9
-    }
+  "focus_states": {
+    "scale": "1.06x scale animation (120ms decelerate interpolator)",
+    "ring": "2dp solid #5DC8FF stroke ring",
+    "glow": "8dp radial cyan shadow glow (#5DC8FF, opacity 0.4)",
+    "elevation": "Z-translation +4dp"
   },
-  "interaction_flow": {
-    "home_screen": "Top Nav (12 icons) -> Hero Billboard (Autoplay 280ms trailer) -> Wide Preview Rail -> Category Shelves",
-    "movie_detail": "Top-left Back+Home buttons -> Title & Meta (MOVIE · TT31049299) -> Autoplay 1080p CTA -> Down to Cast Row (Hover actor updates hero bio) -> Click actor for Filmography -> Down to Similar Movies",
-    "tv_series_detail": "Back+Home adjacent -> Hero info -> Season Selector Pills -> Rich Episode List (Thumbnail, Title, Runtime, Overview, Watched Progress)",
-    "networks_screen": "Branded Network Cards featuring authentic background colors and vectors",
-    "studios_and_boxsets": "Identical layout to Home Screen with Hero Billboard + Wide Preview Trailer Rail"
-  },
-  "image_urls": {
-    "spectre_poster": "https://images.unsplash.com/photo-1616530940355-351fabd9524b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA0MTJ8MHwxfHNlYXJjaHwxfHxtb3ZpZSUyMHN0cmVhbWluZyUyMG5ldHdvcmslMjBsb2dvcyUyMHBvc3RlcnMlMjB0diUyMGNpbmVtYXxlbnwwfHx8fDE3OTIzMzUwMzF8MA&ixlib=rb-4.1.0&q=85",
-    "vhs_grid_poster": "https://images.unsplash.com/photo-1626814026160-2237a95fc5a0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA0MTJ8MHwxfHNlYXJjaHwyfHxtb3ZpZSUyMHN0cmVhbWluZyUyMG5ldHdvcmslMjBsb2dvcyUyMHBvc3RlcnMlMjB0diUyMGNpbmVtYXxlbnwwfHx8fDE3OTIzMzUwMzF8MA&ixlib=rb-4.1.0&q=85",
-    "netflix_brand_icon": "https://images.unsplash.com/photo-1637363990764-de84fd247b7d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA0MTJ8MHwxfHNlYXJjaHwzfHxtb3ZpZSUyMHN0cmVhbWluZyUyMG5ldHdvcmslMjBsb2dvcyUyMHBvc3RlcnMlMjB0diUyMGNpbmVtYXxlbnwwfHx8fDE3OTIzMzUwMzF8MA&ixlib=rb-4.1.0&q=85",
-    "streaming_tv_setup": "https://images.unsplash.com/photo-1663847709955-a2f171c7b54b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA0MTJ8MHwxfHNlYXJjaHw0fHxtb3ZpZSUyMHN0cmVhbWluZyUyMG5ldHdvcmslMjBsb2dvcyUyMHBvc3RlcnMlMjB0diUyMGNpbmVtYXxlbnwwfHx8fDE3OTIzMzUwMzF8MA&ixlib=rb-4.1.0&q=85"
-  },
-  "component_paths": {
-    "home_page": "/app/frontend/src/pages/Home.jsx",
-    "detail_page": "/app/frontend/src/pages/Detail.jsx",
-    "settings_page": "/app/frontend/src/pages/Settings.jsx",
-    "network_page": "/app/frontend/src/pages/Network.jsx",
-    "collection_page": "/app/frontend/src/pages/Collection.jsx",
-    "boxsets_page": "/app/frontend/src/pages/BoxSets.jsx",
-    "native_home_screen": "/app/android/vesper-native/app/src/main/java/tv/onnowtv/vespernative/ui/HomeScreen.kt",
-    "native_detail_screen": "/app/android/vesper-native/app/src/main/java/tv/onnowtv/vespernative/ui/DetailScreen.kt",
-    "native_settings_screen": "/app/android/vesper-native/app/src/main/java/tv/onnowtv/vespernative/ui/SettingsScreen.kt"
+  "empty_and_loading_states": {
+    "loading": "ShimmerFrameLayout skeleton layout matching card rows",
+    "no_channels": "Empty state graphic + 'No Catch-Up channels available from provider'",
+    "no_recordings": "Empty state graphic + 'No recordings archived for this date'"
   },
   "instructions_to_main_agent": [
-    "Ensure 100% visual and layout alignment between native Android Kotlin UI and the reference V2 React web frontend.",
-    "Implement exact 12-icon top navigation with signal cyan focus state and Geist Mono labels.",
-    "Support 280ms dwell-triggered inline trailer playback on Hero Billboard, Studios, and Box Sets.",
-    "Apply authentic network brand background colors for Network tiles.",
-    "In Movie Detail, bind Cast card focus to top hero Actor Bio swap, and enable Down D-pad navigation to Filmography and Similar Movies.",
-    "In TV Show Detail, replace giant yellow logo with standard Back+Home header and rich 16:9 episode cards.",
-    "Maintain data-testid attributes on all interactive elements across JS and R.id.test_id tags in Kotlin Views."
+    "Implement native Kotlin XML layout matching 960x540dp canvas budget exactly.",
+    "Ensure sidebar stacked buttons have correct spacing (12dp between buttons, 24dp gap before CATEGORIES).",
+    "Style Catch Up button with purple identity #2E1A47 fill and #B388FF stroke.",
+    "Ensure D-pad focus state on all interactive View elements displays 1.06x scale, 2dp #5DC8FF ring, and glow effect.",
+    "Include data-testid tags (android:tag or custom attribute) on all interactive View components."
   ],
   "UNIVERSAL GUIDELINES FOR MAIN AGENT": {
-    "data_testid_rule": "All interactive and key informational elements MUST include a data-testid attribute.",
-    "no_universal_transition": "Do NOT use transition: all. Specify individual properties (transform, opacity, color).",
-    "no_transparent_header": "Header overlays must use backdrop-blur glassmorphism or semi-solid dark backgrounds, never transparent.",
-    "spacing": "Maintain generous 10-foot TV UI spacing (padding/margins) to avoid text/icon collisions."
+    "data_testid_rule": "All interactive View elements must have android:tag or test attribute set.",
+    "focus_visibility": "D-pad focus must be high-contrast and unmistakable at 10-foot distance."
   }
 }

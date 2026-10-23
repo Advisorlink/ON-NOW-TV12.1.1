@@ -548,3 +548,18 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Builds are assembleRelease signed with `android/onnowtv-launcher/app/onnow-launcher-debug.keystore` (alias and password `onnow-launcher-debug`). This is assumed to match the CI secret LAUNCHER_KEYSTORE (unverified). If the box says "App not installed", uninstall once.
 - versionCode is the git commit count for the folder + 2 (livetv 145, fta 24). versionName: livetv uses the CHANGELOG top entry (2.10.81), fta uses 0.1.24.
 - Build script: `/app/.buildlogs/rel.sh` (env setup, both builds and the copies in one nohup chain).
+
+## Live TV Catch Up (2026-10-22)
+- **Sidebar (landscape and portrait):**
+  - New purple Catch Up button (`catchup_btn`, `catchup_button_bg`, "↺" badge, "CATCH UP / WHAT YOU MISSED").
+  - What's On is now 54dp with a 12dp bottom margin; Sports Hub's extra top margin was removed; Catch Up has a 12dp top and 22dp bottom margin before the CATEGORIES heading.
+  - Focus chain: whatson → sports_hub → catchup → categories_list.
+- **New `CatchUpActivity.kt` (code-built views, following the design spec in `/app/design_guidelines.json`):**
+  - Fan-art hero driven by the focused item: TMDB backdrop from `/api/epg/art`, title, channel · day · time · minutes, synopsis, "PLAY FROM START".
+  - "JUST AIRED" 16:9 card row: last 24 h, from the first 40 catch-up channels in batches of 6, newest 30 shown.
+  - "BROWSE BY CHANNEL": channel list (logo, name, "N DAYS" chip), a day calendar strip (Today, Yesterday, then dated days, each with its count, up to `archiveDays`, max 7) and that day's schedule with thumbnails.
+  - Focus is a 1.06 scale, a cyan ring and +4dp Z.
+  - Data comes from `SportsReplayCatalogue.channels(ParentalLock.visible(bundle))` and `SportsReplayRepository.archiveProgrammes` (`get_simple_data_table`), filtered by `SportsReplayPolicy.checkProgramme` and `archiveAvailable != false`.
+- **Playback:** `SportsReplayActivity.openCatchUp(channel, programme)` passes a `catchup` extra that skips the sports-only filter, so the verified timeshift URL plays.
+- **Build:** compileDebugKotlin and assembleRelease pass. APK: `test-artifacts/onnowtv-livetv-2.10.82-146.apk`, served at `/api/download/livetv`.
+- **Not verified on a device.**

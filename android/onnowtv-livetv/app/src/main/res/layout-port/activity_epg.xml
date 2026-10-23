@@ -518,15 +518,35 @@
             android:clickable="true"
             android:focusable="true"
             android:nextFocusUp="@id/whatson_pill"
-            android:nextFocusDown="@id/categories_list">
+            android:nextFocusDown="@id/catchup_btn">
             <TextView android:layout_width="32dp" android:layout_height="28dp" android:gravity="center" android:background="@drawable/preview_live_badge_bg" android:text="V2" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="16sp" />
             <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="10dp" android:text="SPORTS HUB" android:textSize="14sp" android:textStyle="bold" android:textColor="@color/livetv_fg" />
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="24sp" android:textColor="@color/livetv_accent" />
         </LinearLayout>
+        <LinearLayout
+            android:id="@+id/catchup_btn"
+            android:tag="catchup-entry-portrait"
+            android:contentDescription="Catch Up"
+            android:layout_width="match_parent"
+            android:layout_height="54dp"
+            android:layout_marginBottom="16dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:background="@drawable/catchup_button_bg"
+            android:nextFocusUp="@id/sports_hub_btn"
+            android:nextFocusDown="@id/categories_list">
+            <TextView android:layout_width="32dp" android:layout_height="28dp" android:gravity="center" android:background="@drawable/catchup_badge_bg" android:text="↺" android:textColor="#1A0E2C" android:textStyle="bold" android:textSize="16sp" />
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="10dp" android:text="CATCH UP" android:textSize="14sp" android:textStyle="bold" android:textColor="@color/livetv_fg" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="24sp" android:textColor="#FFB388FF" />
+        </LinearLayout>
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/categories_list"
-            android:nextFocusUp="@id/sports_hub_btn"
+            android:nextFocusUp="@id/catchup_btn"
             android:layout_width="match_parent"
             android:layout_height="40dp"
             android:descendantFocusability="afterDescendants"
