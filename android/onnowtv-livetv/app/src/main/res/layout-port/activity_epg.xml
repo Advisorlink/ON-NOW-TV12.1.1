@@ -112,6 +112,15 @@
             android:focusable="true"
             android:contentDescription="Fullscreen" />
 
+        <ImageButton android:id="@+id/rail_settings"
+            android:layout_width="40dp" android:layout_height="40dp"
+            android:layout_marginStart="4dp"
+            android:padding="9dp"
+            android:src="@drawable/ic_nav_settings"
+            android:background="@drawable/rail_icon_bg"
+            android:focusable="true"
+            android:contentDescription="Live TV settings" />
+
         <ImageButton android:id="@+id/rail_signout"
             android:layout_width="40dp" android:layout_height="40dp"
             android:layout_marginStart="4dp"

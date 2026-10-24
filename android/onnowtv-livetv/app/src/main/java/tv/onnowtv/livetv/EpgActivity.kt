@@ -327,7 +327,7 @@ class EpgActivity : AppCompatActivity() {
         railFullscreen = findViewById(R.id.rail_fullscreen)
         railPpv      = findViewById(R.id.rail_ppv)
         railSignout  = findViewById(R.id.rail_signout)
-        findViewById<ImageButton>(R.id.rail_settings).setOnClickListener { showLiveTvSettings() }
+        findViewById<ImageButton?>(R.id.rail_settings)?.setOnClickListener { showLiveTvSettings() }
 
         hero               = findViewById(R.id.hero)
         heroBackdrop       = findViewById(R.id.hero_backdrop)

@@ -569,3 +569,10 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - **Fix:** the token is kept in localStorage for 30 days, and an expired one-hour direct ticket now fetches a fresh one automatically.
 - **Version label:** extra apps now show "v2.10.82-146" instead of "vonnowtv-…".
 - **Verified:** reopening without the fragment and 20 days later still downloads.
+
+## Live TV 2.10.83 (147): fixed the crash on phones (2026-10-23)
+- **Crash:** EpgActivity hit a NullPointerException in portrait because `rail_settings` only existed in the landscape layout.
+- **Fix:** added `rail_settings` to `layout-port` and made the click hookup null-safe.
+- **Check:** every `R.id` used in EpgActivity now exists in both layouts.
+- **APK:** `test-artifacts/onnowtv-livetv-2.10.83-147.apk`.
+- **Lesson:** livetv has a `layout-port`, so every new view must be added to BOTH layouts.
