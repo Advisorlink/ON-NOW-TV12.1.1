@@ -55,17 +55,24 @@ class CatchUpActivity : AppCompatActivity() {
     private val art = HashMap<String, String>()
     private val programmes = HashMap<String, List<Programme>>()
 
-    private lateinit var backdrop: ImageView
     private lateinit var heroTitle: TextView
     private lateinit var heroMeta: TextView
     private lateinit var heroSynopsis: TextView
     private lateinit var playBtn: TextView
-    private lateinit var justAiredHint: TextView
     private lateinit var dayHint: TextView
     private lateinit var scheduleHint: TextView
     private lateinit var scroll: ScrollView
 
-    private val justAired = Adapter<Show>(::justAiredCard) { v, s -> bindCard(v, s) }
+    private val tilesAdapter = Adapter<String>(::genreTile) { v, g -> bindTile(v, g) }
+    private val featured = Adapter<Show>(::justAiredCard) { v, s -> bindCard(v, s) }
+    private lateinit var featuredTitle: TextView
+    private val loaded = mutableListOf<Show>()
+    private var featuredGenre: String? = null
+    private lateinit var railsHint: TextView
+    private val genreAdapter = Adapter<String>(::dayChip) { v, g -> bindGenre(v, g) }
+    private var allChannels: List<Channel> = emptyList()
+    private var genre = ALL
+    private val genreOf = HashMap<String, String>()
     private val channelsAdapter = Adapter<Channel>(::channelRow) { v, c -> bindChannel(v, c) }
     private val daysAdapter = Adapter<Long>(::dayChip) { v, d -> bindDay(v, d) }
     private val scheduleAdapter = Adapter<Show>(::scheduleRow) { v, s -> bindSchedule(v, s) }
@@ -80,6 +87,8 @@ class CatchUpActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val full = BundleHolder.current ?: run { finish(); return }
+        // Free the single provider connection held by the guide preview.
+        if (LivePreviewSession.isAlive()) LivePreviewSession.release()
         val channels = SportsReplayCatalogue.channels(ParentalLock.visible(this, full))
         setContentView(buildUi())
         if (channels.isEmpty()) {
@@ -87,34 +96,35 @@ class CatchUpActivity : AppCompatActivity() {
             heroMeta.text = "YOUR PROVIDER HASN'T SHARED ANY RECORDED CHANNELS"
             heroSynopsis.text = "When a channel supports catch-up, its last few days of shows will appear here."
             playBtn.visibility = View.GONE
-            justAiredHint.text = "Nothing to show"
+            railsHint.text = "Nothing to show"
             return
         }
+        val catNames = full.categories.associate { it.id to it.name }
+        channels.forEach { genreOf[it.id] = genreFor(catNames[it.categoryId].orEmpty() + " " + it.name) }
+        allChannels = channels
+        val present = GENRES.map { it.first }.filter { g -> channels.any { genreOf[it.id] == g } }
+        genreAdapter.submit(listOf(ALL) + present)
+        tilesAdapter.submit(present + listOf(OTHER).filter { channels.any { c -> genreOf[c.id] == OTHER } })
         channelsAdapter.submit(channels)
         selectChannel(channels.first())
-        loadJustAired(channels)
+        loadRails(channels)
     }
 
     // ---------------------------------------------------------------- UI
     private fun buildUi(): View {
         val root = FrameLayout(this).apply { setBackgroundColor(Color.parseColor("#0A0F1A")) }
-        backdrop = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; alpha = .5f }
-        root.addView(backdrop, FrameLayout.LayoutParams(-1, dp(330)))
-        root.addView(View(this).apply {
-            background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                intArrayOf(Color.parseColor("#F20A0F1A"), Color.parseColor("#990A0F1A"), Color.TRANSPARENT))
-        }, FrameLayout.LayoutParams(-1, dp(330)))
         root.addView(View(this).apply {
             background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(Color.TRANSPARENT, Color.parseColor("#0A0F1A")))
-        }, FrameLayout.LayoutParams(-1, dp(140)).apply { topMargin = dp(190) })
+                intArrayOf(Color.parseColor("#332E1A47"), Color.TRANSPARENT))
+        }, FrameLayout.LayoutParams(-1, dp(260)))
 
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(48), dp(28), dp(48), dp(36)) }
-        col.addView(eyebrow("↺  CATCH UP · WATCH WHAT YOU MISSED", violet))
-        heroTitle = text("Loading catch-up…", 30f, Color.WHITE, Typeface.create("sans-serif-black", Typeface.NORMAL)).apply { maxLines = 2; ellipsize = TextUtils.TruncateAt.END }
+        col.addView(eyebrow("↺  ON NOW TV · CATCH UP", violet))
+        heroTitle = text("Catch Up", 34f, Color.WHITE, Typeface.create("sans-serif-black", Typeface.NORMAL)).apply { maxLines = 2; ellipsize = TextUtils.TruncateAt.END }
         col.addView(heroTitle, LinearLayout.LayoutParams(dp(560), -2).apply { topMargin = dp(10) })
         heroMeta = text("", 11f, cyan, Typeface.MONOSPACE).apply { letterSpacing = .14f }
-        col.addView(heroMeta, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(8) })
+        heroMeta.text = "WATCH WHAT YOU MISSED — UP TO 7 DAYS"
+        col.addView(heroMeta, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(6) })
         heroSynopsis = text("", 13f, Color.parseColor("#C7CFDB"), Typeface.DEFAULT).apply { maxLines = 2; ellipsize = TextUtils.TruncateAt.END; setLineSpacing(0f, 1.2f) }
         col.addView(heroSynopsis, LinearLayout.LayoutParams(dp(520), -2).apply { topMargin = dp(8) })
         playBtn = text("▶   PLAY FROM START", 13f, Color.parseColor("#06101C"), Typeface.DEFAULT_BOLD).apply {
@@ -123,15 +133,24 @@ class CatchUpActivity : AppCompatActivity() {
             background = states(pill(cyan, 0, 0, 22), pill(cyan, Color.WHITE, 3, 22))
             setOnClickListener { hero?.let(::play) }
             focusScale(this)
+            visibility = View.GONE
         }
         col.addView(playBtn, LinearLayout.LayoutParams(-2, dp(44)).apply { topMargin = dp(16) })
 
-        col.addView(eyebrow("JUST AIRED", cyan), LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(26) })
-        justAiredHint = text("Finding recent shows…", 12f, dim, Typeface.DEFAULT)
-        col.addView(justAiredHint, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(4) })
-        col.addView(list(justAired, horizontal = true, tag = "catchup-just-aired"), LinearLayout.LayoutParams(-1, dp(136)).apply { topMargin = dp(6) })
+        railsHint = text("Finding recent shows…", 12f, dim, Typeface.DEFAULT)
+        col.addView(railsHint, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(22) })
+        col.addView(RecyclerView(this).apply {
+            tag = "catchup-tiles"; clipToPadding = false; clipChildren = false; itemAnimator = null; isNestedScrollingEnabled = false
+            setPadding(dp(6), dp(6), dp(6), dp(6))
+            layoutManager = androidx.recyclerview.widget.GridLayoutManager(context, 4)
+            adapter = tilesAdapter
+        }, LinearLayout.LayoutParams(-1, dp(272)).apply { topMargin = dp(6) })
+        featuredTitle = eyebrow("JUST AIRED", cyan)
+        col.addView(featuredTitle, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(14) })
+        col.addView(list(featured, horizontal = true, tag = "catchup-featured"), LinearLayout.LayoutParams(-1, dp(150)).apply { topMargin = dp(4) })
 
-        col.addView(eyebrow("BROWSE BY CHANNEL", cyan), LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(18) })
+        col.addView(eyebrow("BROWSE BY CHANNEL", cyan), LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(22) })
+        col.addView(list(genreAdapter, horizontal = true, tag = "catchup-genres"), LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(6) })
         val browser = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         browser.addView(list(channelsAdapter, horizontal = false, tag = "catchup-channels"), LinearLayout.LayoutParams(dp(230), -1))
         val right = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), 0, 0, 0) }
@@ -142,7 +161,7 @@ class CatchUpActivity : AppCompatActivity() {
         right.addView(scheduleHint, LinearLayout.LayoutParams(-2, -2))
         right.addView(list(scheduleAdapter, horizontal = false, tag = "catchup-schedule"), LinearLayout.LayoutParams(-1, -1).apply { topMargin = dp(4) })
         browser.addView(right, LinearLayout.LayoutParams(0, -1, 1f))
-        col.addView(browser, LinearLayout.LayoutParams(-1, dp(330)).apply { topMargin = dp(10) })
+        col.addView(browser, LinearLayout.LayoutParams(-1, dp(360)).apply { topMargin = dp(8) })
 
         scroll = ScrollView(this).apply { isFillViewport = true; isVerticalScrollBarEnabled = false; addView(col) }
         root.addView(scroll, FrameLayout.LayoutParams(-1, -1))
@@ -180,7 +199,7 @@ class CatchUpActivity : AppCompatActivity() {
 
     // ------------------------------------------------------------- cards
     private fun justAiredCard(parent: ViewGroup): View = FrameLayout(this).apply {
-        layoutParams = RecyclerView.LayoutParams(dp(208), dp(117)).apply { marginEnd = dp(14) }
+        layoutParams = RecyclerView.LayoutParams(dp(232), dp(130)).apply { marginEnd = dp(16) }
         isFocusable = true; isClickable = true; background = cardStates(); clipToOutline = true
         setPadding(dp(2), dp(2), dp(2), dp(2))
         addView(ImageView(context).apply { id = R_ART; scaleType = ImageView.ScaleType.CENTER_CROP }, FrameLayout.LayoutParams(-1, -1))
@@ -312,30 +331,108 @@ class CatchUpActivity : AppCompatActivity() {
         scheduleHint.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
     }
 
-    private fun loadJustAired(channels: List<Channel>) = lifecycleScope.launch {
-        val since = System.currentTimeMillis() - 24 * 3_600_000L
-        val found = mutableListOf<Show>()
-        channels.take(40).chunked(6).forEach { batch ->
-            val rows = batch.map { c -> async { runCatching { shows(c) }.getOrDefault(emptyList()) } }.awaitAll().flatten()
-            found += rows.filter { it.programme.stopMs >= since }
-            val newest = found.distinctBy { it.key }.sortedByDescending { it.programme.stopMs }.take(30)
-            justAired.submit(newest)
-            justAiredHint.visibility = if (newest.isEmpty()) View.VISIBLE else View.GONE
-            if (hero == null) newest.firstOrNull()?.let(::setHero)
+    private fun bindGenre(v: View, g: String) {
+        v.tag = "catchup-genre-$g"
+        v.isActivated = g == genre
+        (v as TextView).text = g.uppercase()
+        v.setOnClickListener {
+            genre = g; genreAdapter.notifyDataSetChanged()
+            val list = if (g == ALL) allChannels else allChannels.filter { genreOf[it.id] == g }
+            channelsAdapter.submit(list)
+            list.firstOrNull()?.let(::selectChannel)
         }
-        if (found.isEmpty()) { justAiredHint.text = "No recordings from the last 24 hours"; justAiredHint.visibility = View.VISIBLE }
+        focusScale(v)
     }
 
-    private fun setHero(s: Show) {
-        hero = s
-        heroTitle.text = s.programme.title
-        heroMeta.text = "${s.channel.name.uppercase()}  ·  ${dayLabel(startOfDay(s.programme.startMs))}  ·  ${time(s.programme.startMs)}  ·  ${minutes(s.programme)} MIN"
-        heroSynopsis.text = s.programme.description.orEmpty()
-        playBtn.visibility = View.VISIBLE
-        artFor(s) { url -> if (hero?.key == s.key) backdrop.load(url) { crossfade(true); crossfade(300) } }
+    private fun genreTile(parent: ViewGroup): View = FrameLayout(this).apply {
+        layoutParams = RecyclerView.LayoutParams(-1, dp(118)).apply { setMargins(dp(7), dp(7), dp(7), dp(7)) }
+        isFocusable = true; isClickable = true; clipToOutline = true
+        background = states(pill(Color.parseColor("#141C2A"), 0, 0, 16), pill(Color.parseColor("#141C2A"), Color.WHITE, 3, 16))
+        setPadding(dp(3), dp(3), dp(3), dp(3))
+        addView(ImageView(context).apply { id = R_ART; scaleType = ImageView.ScaleType.CENTER_CROP }, FrameLayout.LayoutParams(-1, -1))
+        addView(View(context).apply { id = R_TIME }, FrameLayout.LayoutParams(-1, -1))
+        addView(LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL; setPadding(dp(16), 0, dp(12), dp(12))
+            addView(text("", 22f, Color.WHITE, Typeface.create("sans-serif-black", Typeface.NORMAL)).apply { id = R_TITLE; setShadowLayer(8f, 0f, 2f, Color.BLACK) })
+            addView(text("", 10f, Color.WHITE, Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)).apply { id = R_SUB; letterSpacing = .16f; alpha = .9f })
+        }, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
     }
 
-    private fun play(s: Show) = SportsReplayActivity.openCatchUp(this, s.channel, s.programme)
+    private fun bindTile(v: View, g: String) {
+        v.tag = "catchup-tile-$g"
+        val accent = GENRE_ACCENT[g] ?: violet
+        v.findViewById<TextView>(R_TITLE).text = if (g == OTHER) "More" else g
+        val count = loaded.count { genreOf[it.channel.id] == g }
+        val chans = allChannels.count { genreOf[it.id] == g }
+        v.findViewById<TextView>(R_SUB).text = if (count > 0) "$count SHOWS · $chans CHANNELS" else "$chans CHANNELS"
+        v.findViewById<View>(R_TIME).background = GradientDrawable(GradientDrawable.Orientation.BL_TR,
+            intArrayOf((accent and 0x00FFFFFF) or 0xEE000000.toInt(), (accent and 0x00FFFFFF) or 0x66000000, Color.TRANSPARENT))
+        val img = v.findViewById<ImageView>(R_ART)
+        TILE_ART[g]?.let { img.load(it) { crossfade(true) } } ?: img.setImageDrawable(null)
+        v.setOnClickListener { showGenre(g) }
+        focusScale(v)
+    }
+
+    /** Tile press: the row below switches to that category and the channel browser filters to it. */
+    private fun showGenre(g: String) {
+        featuredGenre = if (featuredGenre == g) null else g
+        refreshFeatured()
+        val chip = if (featuredGenre == null) ALL else g
+        genre = chip; genreAdapter.notifyDataSetChanged()
+        val list = if (chip == ALL) allChannels else allChannels.filter { genreOf[it.id] == chip }
+        channelsAdapter.submit(list)
+        list.firstOrNull()?.let(::selectChannel)
+    }
+
+    private fun refreshFeatured() {
+        val now = System.currentTimeMillis()
+        val g = featuredGenre
+        val items = if (g == null) loaded.filter { it.programme.stopMs >= now - 24 * 3_600_000L }
+            else loaded.filter { genreOf[it.channel.id] == g }
+        featured.submit(items.newestPerTitle().take(30))
+        featuredTitle.text = if (g == null) "JUST AIRED" else if (g == OTHER) "MORE TO CATCH UP ON" else "CATCH UP ${g.uppercase()}"
+        featuredTitle.setTextColor(g?.let { GENRE_ACCENT[it] } ?: cyan)
+    }
+
+    /** Loads each genre's channels' archives in batches, filling tile counts and the featured row. */
+    private fun loadRails(channels: List<Channel>) = lifecycleScope.launch {
+        val picked = (GENRES.map { it.first } + OTHER).flatMap { g -> channels.filter { genreOf[it.id] == g }.take(10) }
+        picked.distinctBy { it.id }.chunked(6).forEach { batch ->
+            loaded += batch.map { c -> async { runCatching { shows(c) }.getOrDefault(emptyList()) } }.awaitAll().flatten()
+            refreshFeatured()
+            tilesAdapter.notifyDataSetChanged()
+            railsHint.visibility = if (loaded.isEmpty()) View.VISIBLE else View.GONE
+        }
+        if (loaded.isEmpty()) { railsHint.text = "No recordings available right now"; railsHint.visibility = View.VISIBLE }
+    }
+
+    private fun List<Show>.newestPerTitle() =
+        sortedByDescending { it.programme.stopMs }.distinctBy { it.programme.title.trim().lowercase() }
+
+    private fun genreFor(text: String): String {
+        val t = text.lowercase()
+        return GENRES.firstOrNull { (_, words) -> words.split('|').any { it in t } }?.first ?: OTHER
+    }
+
+    /** Remembers the focused show (Play target). */
+    private fun setHero(s: Show) { hero = s }
+
+    /** Plays in the same player as normal Live TV. */
+    private fun play(s: Show) {
+        lifecycleScope.launch {
+            val url = SportsReplayRepository.catchUpUrl(s.channel, s.programme)
+            if (url == null) {
+                android.widget.Toast.makeText(this@CatchUpActivity, "This recording isn't available from your provider", android.widget.Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            startActivity(android.content.Intent(this@CatchUpActivity, PlayerActivity::class.java).apply {
+                putExtra(PlayerActivity.EXTRA_URL, url)
+                putExtra(PlayerActivity.EXTRA_TITLE, s.programme.title)
+                putExtra(PlayerActivity.EXTRA_SUBTITLE, "CATCH UP · ${s.channel.name} · ${dayLabel(startOfDay(s.programme.startMs))} ${time(s.programme.startMs)}")
+                putExtra(PlayerActivity.EXTRA_STOP_ON_EXIT, true)
+            })
+        }
+    }
 
     /** TMDB backdrop/poster for a show title; channel logo as fallback. */
     private fun artFor(s: Show, onUrl: (String) -> Unit) {
@@ -388,6 +485,33 @@ class CatchUpActivity : AppCompatActivity() {
     }
 
     private companion object {
+        const val ALL = "All"
+        const val OTHER = "Other"
+        val GENRES = listOf(
+            "Sports" to "sport|espn|bein|kayo|fox league|fox footy|fox cricket|racing|tab|nfl|nba|nhl|mlb|afl|nrl|ufc|wwe|golf|tennis|cricket|f1|motor|dazn|optus sport|stan sport",
+            "News" to "news|cnn|cnbc|bloomberg|sky news|al jazeera|weather|parliament",
+            "Reality" to "reality|lifestyle|bravo|tlc|e!|real life|dmax|food|home|living|style|arena|lifetime",
+            "Movies" to "movie|cinema|film|premiere|hbo|showtime|starz|sky cinema|fox classics|thriller|action",
+            "Kids" to "kid|cartoon|nick|disney|junior|boomerang|baby|cbeebies|abc me|family",
+            "Documentaries" to "doc|discovery|history|nat geo|national geographic|animal|science|crime|investigation|planet",
+            "Entertainment" to "entertainment|comedy|drama|showcase|universal|fx|gem|go!|bold|vix|7two|9go|10 peach|peach|seven|nine|channel 10|abc|sbs",
+            "Music" to "music|mtv|vh1|hits|max|country|radio",
+        )
+        val TILE_ART = mapOf(
+            "Sports" to "https://images.pexels.com/photos/30651230/pexels-photo-30651230.jpeg?auto=compress&cs=tinysrgb&w=640",
+            "News" to "https://images.pexels.com/photos/39332193/pexels-photo-39332193.jpeg?auto=compress&cs=tinysrgb&w=640",
+            "Reality" to "https://images.unsplash.com/photo-1581092787765-e3feb951d987?w=640&q=70",
+            "Movies" to "https://images.pexels.com/photos/14746411/pexels-photo-14746411.jpeg?auto=compress&cs=tinysrgb&w=640",
+            "Kids" to "https://images.unsplash.com/photo-1545558014-8692077e9b5c?w=640&q=70",
+            "Documentaries" to "https://images.pexels.com/photos/26924205/pexels-photo-26924205.jpeg?auto=compress&cs=tinysrgb&w=640",
+            "Entertainment" to "https://images.pexels.com/photos/713149/pexels-photo-713149.jpeg?auto=compress&cs=tinysrgb&w=640",
+            "Music" to "https://images.pexels.com/photos/38780318/pexels-photo-38780318.jpeg?auto=compress&cs=tinysrgb&w=640",
+        )
+        val GENRE_ACCENT = mapOf(
+            "Sports" to Color.parseColor("#6CD0E3"), "News" to Color.parseColor("#FF6B6B"), "Reality" to Color.parseColor("#FF8FD1"),
+            "Movies" to Color.parseColor("#FFC850"), "Kids" to Color.parseColor("#7CF29A"), "Documentaries" to Color.parseColor("#8FB8FF"),
+            "Entertainment" to Color.parseColor("#B388FF"), "Music" to Color.parseColor("#FF9F5A"),
+        )
         val R_ART = View.generateViewId()
         val R_TITLE = View.generateViewId()
         val R_SUB = View.generateViewId()

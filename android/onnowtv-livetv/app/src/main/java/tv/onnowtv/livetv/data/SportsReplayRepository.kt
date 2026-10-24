@@ -61,6 +61,20 @@ object SportsReplayRepository {
         cache.put(cacheKey, result, if (result.verified != null) 120_000 else 60_000)
         result
     }
+    /** Timeshift URL for Catch Up, without the probe request (which would
+     *  use up a 1-connection line before the real player connects). */
+    suspend fun catchUpUrl(channel: Channel, programme: Programme): String? {
+        if (!SportsReplayPolicy.checkProgramme(channel, programme).eligible) return null
+        val api = SportsReplayPolicy.providerApi(channel) ?: return null
+        val zoneKey = api.toString().encodeUtf8().sha256().hex()
+        val timezone = timezones.get(zoneKey) ?: request(Request.Builder().url(api).header("User-Agent", USER_AGENT).build()) { response ->
+            val json = JSONObject(response.body?.string().orEmpty())
+            json.optJSONObject("server_info")?.optString("timezone")?.takeIf { it in java.util.TimeZone.getAvailableIDs() }
+        } ?: return null
+        timezones.put(zoneKey, timezone, 600_000)
+        return SportsReplayPolicy.replayUrl(channel, programme, timezone)?.toString()
+    }
+
     private suspend fun probe(channel: Channel, programme: Programme): Result {
         val api = SportsReplayPolicy.providerApi(channel) ?: return Result(message = "This provider's replay URL format is not supported")
         val zoneKey = api.toString().encodeUtf8().sha256().hex()

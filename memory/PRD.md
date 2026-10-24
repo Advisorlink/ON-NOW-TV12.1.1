@@ -576,3 +576,17 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - **Check:** every `R.id` used in EpgActivity now exists in both layouts.
 - **APK:** `test-artifacts/onnowtv-livetv-2.10.83-147.apk`.
 - **Lesson:** livetv has a `layout-port`, so every new view must be added to BOTH layouts.
+
+## Live TV 2.10.84 (148): Catch Up redesign, design 3 "Category Tiles" chosen by the user (2026-10-23)
+- **Mock-ups:** 5 were generated (links are in the chat). The user picked 3 (Category Tiles) with the Calendar Guide underneath.
+- **Layout (`CatchUpActivity`):**
+  - Header "Catch Up · WATCH WHAT YOU MISSED — UP TO 7 DAYS".
+  - A 4-column grid of photo category tiles (Sports, News, Reality, Movies, Kids, Documentaries, Entertainment, Music, More). Photos are Pexels/Unsplash URLs in `TILE_ART`; each tile has a genre-colour gradient and an "N SHOWS · N CHANNELS" count, and a white ring plus scale on focus.
+  - A featured row: "JUST AIRED" by default. Pressing a tile switches it to "CATCH UP <GENRE>" and filters the browser to that genre.
+  - Then the genre chips, the channel list, the day calendar and the schedule (unchanged).
+- **Genres:** keyword mapping (`GENRES`) on the Xtream category name plus the channel name.
+- **Playback:** now uses the normal Live TV `PlayerActivity` (`EXTRA_URL` = timeshift URL from the new probe-free `SportsReplayRepository.catchUpUrl()`, `EXTRA_STOP_ON_EXIT`).
+  - The old SportsReplayActivity path probed the URL first, which uses up the 1-connection slot.
+  - CatchUpActivity releases `LivePreviewSession` on open so the guide preview doesn't hold the provider connection.
+- **APK:** `test-artifacts/onnowtv-livetv-2.10.84-148.apk`. Compile and release build pass.
+- **Not verified on a device.**
