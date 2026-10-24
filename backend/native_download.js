@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const storageKey = 'vesper-native-download-v1';
-  const retentionMs = 15 * 60 * 1000;
+  const retentionMs = 30 * 24 * 60 * 60 * 1000;
   const button = document.getElementById('download');
   const status = document.getElementById('status');
   const direct = document.getElementById('direct-download');
@@ -19,7 +19,7 @@
   function forgetAccess() {
     access = null;
     clearDirectLink();
-    try { sessionStorage.removeItem(storageKey); } catch (_) {}
+    try { localStorage.removeItem(storageKey); } catch (_) {}
   }
 
   function valid(record) {
@@ -37,17 +37,17 @@
         const record = { token: decodeURIComponent(fragment), expiresAt: Date.now() + retentionMs };
         if (valid(record)) {
           access = record;
-          try { sessionStorage.setItem(storageKey, JSON.stringify(record)); } catch (_) {}
+          try { localStorage.setItem(storageKey, JSON.stringify(record)); } catch (_) {}
         }
       } catch (_) {}
     } else {
-      try { access = JSON.parse(sessionStorage.getItem(storageKey)); } catch (_) {}
+      try { access = JSON.parse(localStorage.getItem(storageKey)); } catch (_) {}
     }
     try { history.replaceState(null, '', window.location.pathname); } catch (_) {}
     if (!valid(access)) forgetAccess();
     button.disabled = downloading || !access;
     status.textContent = access ? 'Ready to download your private test APK.' :
-      'Open the complete private download link from your chat. Access lasts 15 minutes in this tab.';
+      'Open the complete private download link from your chat once. This browser then remembers it.';
   }
 
   restoreAccess();
@@ -56,7 +56,7 @@
     if (!ticketExpiresAt || Date.now() >= ticketExpiresAt) {
       event.preventDefault();
       clearDirectLink();
-      status.textContent = 'The direct link expired. Tap Download APK for a new one.';
+      button.click();
     }
   });
   button.addEventListener('click', async () => {

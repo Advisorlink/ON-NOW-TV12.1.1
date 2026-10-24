@@ -147,7 +147,7 @@ def _register_extra(slug: str, label: str, folder: str):
         apk = _newest_apk(folder)
         script = directory.joinpath("native_download.js").read_text().replace("vesper-native-ticket", f"{slug}-ticket") \
             .replace("vesper-native-file", f"{slug}-file").replace("vesper-native-download-v1", f"{slug}-download-v1")
-        version = apk.stem if apk else "not built"
+        version = apk.stem.split("-", 2)[-1] if apk else "not built"
         body = directory.joinpath("native_download.html").read_text().replace("{{VERSION}}", html.escape(version))
         body = body.replace("Vesper Native", label).replace("This test build contains your prefilled login. ", "") \
             .replace("{{NONCE}}", nonce).replace("{{SCRIPT}}", script)

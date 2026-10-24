@@ -563,3 +563,9 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - **Playback:** `SportsReplayActivity.openCatchUp(channel, programme)` passes a `catchup` extra that skips the sports-only filter, so the verified timeshift URL plays.
 - **Build:** compileDebugKotlin and assembleRelease pass. APK: `test-artifacts/onnowtv-livetv-2.10.82-146.apk`, served at `/api/download/livetv`.
 - **Not verified on a device.**
+
+## Download links no longer expire (2026-10-23)
+- **Cause:** `native_download.js` kept the private token for only 15 minutes, in sessionStorage. Reopening or reloading the page later showed "Download access expired".
+- **Fix:** the token is kept in localStorage for 30 days, and an expired one-hour direct ticket now fetches a fresh one automatically.
+- **Version label:** extra apps now show "v2.10.82-146" instead of "vonnowtv-…".
+- **Verified:** reopening without the fragment and 20 days later still downloads.
