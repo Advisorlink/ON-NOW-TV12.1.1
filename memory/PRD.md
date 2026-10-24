@@ -590,3 +590,12 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
   - CatchUpActivity releases `LivePreviewSession` on open so the guide preview doesn't hold the provider connection.
 - **APK:** `test-artifacts/onnowtv-livetv-2.10.84-148.apk`. Compile and release build pass.
 - **Not verified on a device.**
+
+## Live TV 2.10.85 (149): Sports Hub Catch Up replaces Replays (2026-10-24)
+- User choices: Live TV app only; sports list built automatically from what's in catch-up; non-match shows (talk shows, F1 races) appear with sport artwork; goes back as far as each channel's archive allows.
+- Sports Hub top nav: "↺ Replays" is now "↺ Catch Up" (`top-nav-catchup-button`) → new `SportsCatchUpActivity`. `SportsReplaysActivity` is kept in the code but no longer linked.
+- `SportsCatchUpActivity`: header + focus line; 4-column photo sport tiles (`SPORT_ART`, `LiveSportsClassifier` colour/icon, "N GAMES · N SHOWS"); picking a sport shows day chips (TODAY / YESTERDAY / dated, with counts) and a 3-column grid of games. Match cards: home crest + name, VS, away crest + name, background in the team colours, no scores; initials badge if there's no crest. Non-match cards: sport photo + title (any scores stripped). Back clears the selected sport.
+- Data: sports channels from `SportsReplayCatalogue.channels(ParentalLock.visible)` filtered by sports keywords (max 80, in batches of 6), `archiveProgrammes`, sport from `SportsEventPolicy.bucket` → `programmeBucket(title/channel)` → `classify` → other. Playback is the normal `PlayerActivity` via `catchUpUrl`, same as Catch Up.
+- Backend `sports_catchup.py` (mounted on `/api/sportshub`): `POST /api/sportshub/catchup-matches {items:[{title,sport}]}` splits on v/vs/@/at (at only for US sports), and a score between the two names counts as a separator. Teams are matched against ESPN team lists (soccer, AFL, NRL, rugby, NFL, NBA/NBL, NHL, MLB, cached 24h) with a TheSportsDB fallback (max 8 lookups per request). It returns `{match, home{name,logo,color}, away{...}}`.
+- Disk was 99% full: removed the build dirs for vesper-native, vesper-tv and launcher, plus the old livetv 2.10.84 APK.
+- APK: `test-artifacts/onnowtv-livetv-2.10.85-149.apk` (release, verified with aapt). Backend checked with curl. **Not verified on a device.**

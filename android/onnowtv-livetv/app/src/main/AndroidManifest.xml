@@ -96,6 +96,7 @@
             android:screenOrientation="unspecified"
             android:configChanges="keyboardHidden|layoutDirection|locale"
             android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
+        <activity android:name=".SportsCatchUpActivity" android:exported="false" android:label="Sports Catch Up" android:screenOrientation="unspecified" />
         <activity android:name=".CatchUpActivity" android:exported="false" android:label="Catch Up" android:screenOrientation="unspecified" />
         <activity android:name=".SportsReplayActivity" android:exported="false" android:label="@string/sports_hub_title" android:screenOrientation="unspecified" />
         <activity android:name=".SportsReplaysActivity" android:exported="false" android:label="@string/sports_hub_title" android:screenOrientation="unspecified" />

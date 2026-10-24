@@ -1,0 +1,14 @@
++ bash /app/scripts/setup-vesper-build-env.sh
+build env ready
++ export ANDROID_HOME=/android-sdk RELEASE_STORE_FILE=/app/android/onnowtv-launcher/app/onnow-launcher-debug.keystore RELEASE_STORE_PASSWORD=onnow-launcher-debug RELEASE_KEY_ALIAS=onnow-launcher-debug RELEASE_KEY_PASSWORD=onnow-launcher-debug
++ ANDROID_HOME=/android-sdk
++ RELEASE_STORE_FILE=/app/android/onnowtv-launcher/app/onnow-launcher-debug.keystore
++ RELEASE_STORE_PASSWORD=onnow-launcher-debug
++ RELEASE_KEY_ALIAS=onnow-launcher-debug
++ RELEASE_KEY_PASSWORD=onnow-launcher-debug
++ timeout 2400 /app/android/vesper-tv/gradlew -p /app/android/onnowtv-livetv :app:assembleRelease -PversionCode=149 -PversionName=2.10.85 --no-daemon
++ echo EXIT 0
++ cp /app/android/onnowtv-livetv/app/build/outputs/apk/release/app-release.apk /app/android/onnowtv-livetv/test-artifacts/onnowtv-livetv-2.10.85-149.apk
+cp: error copying '/app/android/onnowtv-livetv/app/build/outputs/apk/release/app-release.apk' to '/app/android/onnowtv-livetv/test-artifacts/onnowtv-livetv-2.10.85-149.apk': No space left on device
++ echo ALLDONE
+ALLDONE
