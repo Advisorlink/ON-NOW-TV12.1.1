@@ -31,6 +31,8 @@ object BundleCache {
     /** Maximum age before we consider the cache stale enough to
      *  show a "refreshing" hint.  We still USE the cache; we just
      *  trigger a background refresh sooner. */
+    private const val LEGACY_FULL_EPG_BYTES = 5L * 1024L * 1024L
+
     const val FRESH_MS = 2L * 60L * 60L * 1000L  // 2 hours
 
     fun fileFor(context: Context): File = File(context.filesDir, FILE_NAME)
@@ -69,7 +71,10 @@ object BundleCache {
         val f = fileFor(context)
         if (!f.exists()) return null
         return try {
-            GZIPInputStream(f.inputStream()).bufferedReader(Charsets.UTF_8).use { it.readText() }
+            // Caches written before 2.10.87 hold the full 72 h guide; trim those while streaming.
+            GZIPInputStream(f.inputStream()).bufferedReader(Charsets.UTF_8).use {
+                if (f.length() > LEGACY_FULL_EPG_BYTES) XtreamRepository.trimBundle(it) else it.readText()
+            }
         } catch (t: Throwable) {
             Log.w(TAG, "load failed: ${t.message}")
             null

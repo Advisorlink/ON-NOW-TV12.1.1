@@ -153,13 +153,93 @@ object XtreamRepository {
                 } else {
                     raw
                 }
-                val text = stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-                Log.i(TAG, "bundle fetched: ${text.length} chars")
+                val text = stream.bufferedReader(Charsets.UTF_8).use { trimBundle(it) }
+                Log.i(TAG, "bundle fetched (trimmed): ${text.length} chars")
                 text
             } finally {
                 conn.disconnect()
             }
         }
+
+    /** Streams a bundle and keeps only a short, light EPG window — the full 72 h guide (~90 MB) OOMs 256 MB heaps. */
+    fun trimBundle(reader: java.io.Reader, nowSec: Long = System.currentTimeMillis() / 1000L): String {
+        val out = java.io.StringWriter()
+        val r = android.util.JsonReader(reader)
+        val w = android.util.JsonWriter(out)
+        r.beginObject(); w.beginObject()
+        while (r.hasNext()) {
+            val name = r.nextName()
+            w.name(name)
+            if (name == "epg" && r.peek() == android.util.JsonToken.BEGIN_OBJECT) copyEpg(r, w, nowSec) else copyValue(r, w)
+        }
+        r.endObject(); w.endObject(); w.flush()
+        return out.toString()
+    }
+
+    private fun copyValue(r: android.util.JsonReader, w: android.util.JsonWriter) {
+        when (r.peek()) {
+            android.util.JsonToken.BEGIN_OBJECT -> {
+                r.beginObject(); w.beginObject()
+                while (r.hasNext()) { w.name(r.nextName()); copyValue(r, w) }
+                r.endObject(); w.endObject()
+            }
+            android.util.JsonToken.BEGIN_ARRAY -> {
+                r.beginArray(); w.beginArray()
+                while (r.hasNext()) copyValue(r, w)
+                r.endArray(); w.endArray()
+            }
+            android.util.JsonToken.NUMBER -> w.value(java.math.BigDecimal(r.nextString()))
+            android.util.JsonToken.BOOLEAN -> w.value(r.nextBoolean())
+            android.util.JsonToken.NULL -> { r.nextNull(); w.nullValue() }
+            else -> w.value(r.nextString())
+        }
+    }
+
+    private class LightProgramme(val title: String, val description: String, val start: Long, val stop: Long, val live: Boolean)
+
+    private fun copyEpg(r: android.util.JsonReader, w: android.util.JsonWriter, nowSec: Long) {
+        val floor = nowSec - EPG_KEEP_BEFORE_SEC
+        val ceiling = nowSec + EPG_KEEP_AFTER_SEC
+        r.beginObject(); w.beginObject()
+        while (r.hasNext()) {
+            val key = r.nextName()
+            if (r.peek() != android.util.JsonToken.BEGIN_ARRAY) { r.skipValue(); continue }
+            val keep = ArrayList<LightProgramme>()
+            r.beginArray()
+            while (r.hasNext()) {
+                if (r.peek() != android.util.JsonToken.BEGIN_OBJECT) { r.skipValue(); continue }
+                var title = ""; var desc = ""; var start = 0L; var stop = 0L; var live = false
+                r.beginObject()
+                while (r.hasNext()) {
+                    val f = r.nextName()
+                    if (r.peek() == android.util.JsonToken.NULL) { r.nextNull(); continue }
+                    when (f) {
+                        "title" -> title = r.nextString()
+                        "description" -> desc = r.nextString()
+                        "start" -> start = r.nextString().toDoubleOrNull()?.toLong() ?: 0L
+                        "stop" -> stop = r.nextString().toDoubleOrNull()?.toLong() ?: 0L
+                        "live" -> live = if (r.peek() == android.util.JsonToken.BOOLEAN) r.nextBoolean() else r.nextString() == "true"
+                        else -> r.skipValue()
+                    }
+                }
+                r.endObject()
+                if (stop > floor && start < ceiling) keep += LightProgramme(title, desc.take(EPG_DESC_CHARS), start, stop, live)
+            }
+            r.endArray()
+            if (keep.isEmpty()) continue
+            w.name(key).beginArray()
+            for (p in keep) {
+                w.beginObject().name("title").value(p.title).name("description").value(p.description)
+                    .name("start").value(p.start).name("stop").value(p.stop).name("live").value(p.live).endObject()
+            }
+            w.endArray()
+        }
+        r.endObject(); w.endObject()
+    }
+
+    private const val EPG_KEEP_BEFORE_SEC = 3L * 3600L
+    private const val EPG_KEEP_AFTER_SEC = 12L * 3600L
+    private const val EPG_DESC_CHARS = 100
 
     /** Parse a previously-fetched JSON string into a typed bundle. */
     fun parseBundleJson(json: String): XtreamBundle = parseBundle(json)

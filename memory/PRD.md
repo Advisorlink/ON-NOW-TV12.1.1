@@ -606,3 +606,10 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Both Catch Up screens: "Checking the recording…" toast → play the verified URL in the normal PlayerActivity, or a toast that the recording isn't available, after which the card is removed.
 - Provider check (njala, Europe/London timezone): most sports and entertainment archive channels return real TS up to about 7 days back (the very oldest edge is sometimes gone). Sky Sports Premier League HD (29) and Sky Sports Tennis HD (944) have no recordings even though the guide sets has_archive=1. PL HD → PL SD (30) twin verified working. Tennis has no twin, so its recordings get hidden.
 - APK `test-artifacts/onnowtv-livetv-2.10.86-150.apk`, release, aapt verified. **Not verified on a device.**
+
+## Live TV 2.10.87 (151): fixed OOM crash right after login (2026-10-25)
+- User's emulator (256 MB heap) crashed with OutOfMemoryError after sign-in. Cause: the backend `/api/xtream/instant-bundle` now carries 72 h of EPG for about 3,700 channels (323k programmes, 47 MB of descriptions, about 86 MB of JSON). `XtreamRepository.fetchBundleJson` read it all with `readText()` (about 172 MB as UTF-16) and then built a JSONObject tree.
+- Fix: `XtreamRepository.trimBundle(reader)` streams the bundle with android.util.JsonReader/JsonWriter. It copies provider, categories and channels unchanged and keeps only EPG from now−3h to now+12h, with descriptions cut to 100 chars. The full guide still comes from the XMLTV per-channel EpgCache. Real bundle: 84 MB → 14 MB, all 8,911 channels kept, 65k programmes.
+- `BundleCache.loadJson` trims older caches (>5 MB gz) while streaming them. The manifest now sets `android:largeHeap="true"`.
+- Test: `app/src/test/.../data/BundleTrimTest.kt` (Robolectric; synthetic window test + real /tmp/bundle.json if present). Both pass.
+- APK `test-artifacts/onnowtv-livetv-2.10.87-151.apk`. **Not verified on a device or emulator** (no KVM here).
