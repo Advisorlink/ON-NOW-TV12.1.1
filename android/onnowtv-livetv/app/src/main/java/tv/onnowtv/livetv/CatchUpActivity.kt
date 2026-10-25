@@ -27,6 +27,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import tv.onnowtv.livetv.data.CatchUpResolver
 import tv.onnowtv.livetv.data.Channel
 import tv.onnowtv.livetv.data.ParentalLock
 import tv.onnowtv.livetv.data.Programme
@@ -89,7 +90,7 @@ class CatchUpActivity : AppCompatActivity() {
         val full = BundleHolder.current ?: run { finish(); return }
         // Free the single provider connection held by the guide preview.
         if (LivePreviewSession.isAlive()) LivePreviewSession.release()
-        val channels = SportsReplayCatalogue.channels(ParentalLock.visible(this, full))
+        val channels = SportsReplayCatalogue.channels(ParentalLock.visible(this, full)).map { CatchUpResolver.viewer(this, it) }
         setContentView(buildUi())
         if (channels.isEmpty()) {
             heroTitle.text = "No catch-up channels yet"
@@ -291,7 +292,7 @@ class CatchUpActivity : AppCompatActivity() {
     }
 
     // ------------------------------------------------------------- data
-    private fun eligible(c: Channel, p: Programme) = p.archiveAvailable != false && SportsReplayPolicy.checkProgramme(c, p).eligible
+    private fun eligible(c: Channel, p: Programme) = p.archiveAvailable != false && SportsReplayPolicy.checkProgramme(c, p).eligible && !CatchUpResolver.isMissing(c, p)
 
     private suspend fun shows(c: Channel): List<Show> {
         programmes[c.id]?.let { list -> return list.map { Show(c, it) } }
@@ -419,19 +420,35 @@ class CatchUpActivity : AppCompatActivity() {
 
     /** Plays in the same player as normal Live TV. */
     private fun play(s: Show) {
+        if (resolving) return
+        resolving = true
+        android.widget.Toast.makeText(this, "Checking the recording…", android.widget.Toast.LENGTH_SHORT).show()
         lifecycleScope.launch {
-            val url = SportsReplayRepository.catchUpUrl(s.channel, s.programme)
-            if (url == null) {
-                android.widget.Toast.makeText(this@CatchUpActivity, "This recording isn't available from your provider", android.widget.Toast.LENGTH_LONG).show()
+            val ready = CatchUpResolver.resolve(this@CatchUpActivity, s.channel, s.programme, allChannels)
+            resolving = false
+            if (ready == null) {
+                android.widget.Toast.makeText(this@CatchUpActivity, "Your provider doesn't have this recording, so it's been removed from the list", android.widget.Toast.LENGTH_LONG).show()
+                hideMissing(s)
                 return@launch
             }
             startActivity(android.content.Intent(this@CatchUpActivity, PlayerActivity::class.java).apply {
-                putExtra(PlayerActivity.EXTRA_URL, url)
+                putExtra(PlayerActivity.EXTRA_URL, ready.url)
                 putExtra(PlayerActivity.EXTRA_TITLE, s.programme.title)
-                putExtra(PlayerActivity.EXTRA_SUBTITLE, "CATCH UP · ${s.channel.name} · ${dayLabel(startOfDay(s.programme.startMs))} ${time(s.programme.startMs)}")
+                putExtra(PlayerActivity.EXTRA_SUBTITLE, "CATCH UP · ${ready.channel.name} · ${dayLabel(startOfDay(s.programme.startMs))} ${time(s.programme.startMs)}")
                 putExtra(PlayerActivity.EXTRA_STOP_ON_EXIT, true)
             })
         }
+    }
+
+    private var resolving = false
+
+    private fun hideMissing(s: Show) {
+        programmes[s.channel.id]?.let { list -> programmes[s.channel.id] = list.filter { it.startMs != s.programme.startMs } }
+        loaded.removeAll { it.channel.id == s.channel.id && it.programme.startMs == s.programme.startMs }
+        if (hero == s) hero = null
+        refreshFeatured()
+        tilesAdapter.notifyDataSetChanged()
+        if (channel?.id == s.channel.id) showDay()
     }
 
     /** TMDB backdrop/poster for a show title; channel logo as fallback. */

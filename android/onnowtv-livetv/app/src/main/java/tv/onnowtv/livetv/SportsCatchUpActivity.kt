@@ -30,6 +30,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import tv.onnowtv.livetv.data.CatchUpResolver
 import tv.onnowtv.livetv.data.Channel
 import tv.onnowtv.livetv.data.LiveSportsClassifier
 import tv.onnowtv.livetv.data.ParentalLock
@@ -61,6 +62,8 @@ class SportsCatchUpActivity : AppCompatActivity() {
     private var sport: String? = null
     private var day = 0L
     private var loading = true
+    private var resolving = false
+    private var archive: List<Channel> = emptyList()
 
     private lateinit var status: TextView
     private lateinit var focusLine: TextView
@@ -82,7 +85,8 @@ class SportsCatchUpActivity : AppCompatActivity() {
         if (LivePreviewSession.isAlive()) LivePreviewSession.release()
         setContentView(buildUi())
         val catNames = full.categories.associate { it.id to it.name }
-        val channels = SportsReplayCatalogue.channels(ParentalLock.visible(this, full))
+        archive = SportsReplayCatalogue.channels(ParentalLock.visible(this, full)).map { CatchUpResolver.viewer(this, it) }
+        val channels = archive
             .filter { isSportsChannel(catNames[it.categoryId].orEmpty() + " " + it.name) }
             .sortedBy { if (LiveSportsClassifier.programmeBucket(it.name) != null) 0 else 1 }
             .take(80)
@@ -322,7 +326,7 @@ class SportsCatchUpActivity : AppCompatActivity() {
                 async {
                     runCatching {
                         SportsReplayRepository.archiveProgrammes(c).orEmpty()
-                            .filter { it.stopMs <= now && it.archiveAvailable != false && SportsReplayPolicy.checkProgramme(c, it).eligible }
+                            .filter { it.stopMs <= now && it.archiveAvailable != false && SportsReplayPolicy.checkProgramme(c, it).eligible && !CatchUpResolver.isMissing(c, it) }
                             .mapNotNull { p -> sportFor(c, p)?.let { Game(c, p, it) } }
                     }.getOrDefault(emptyList())
                 }
@@ -395,16 +399,22 @@ class SportsCatchUpActivity : AppCompatActivity() {
     }
 
     private fun play(g: Game) {
+        if (resolving) return
+        resolving = true
+        Toast.makeText(this, "Checking the recording…", Toast.LENGTH_SHORT).show()
         lifecycleScope.launch {
-            val url = SportsReplayRepository.catchUpUrl(g.channel, g.programme)
-            if (url == null) {
-                Toast.makeText(this@SportsCatchUpActivity, "This recording isn't available from your provider", Toast.LENGTH_LONG).show()
+            val ready = CatchUpResolver.resolve(this@SportsCatchUpActivity, g.channel, g.programme, archive)
+            resolving = false
+            if (ready == null) {
+                Toast.makeText(this@SportsCatchUpActivity, "Your provider doesn't have this recording, so it's been removed from the list", Toast.LENGTH_LONG).show()
+                games.removeAll { it.key == g.key }
+                render()
                 return@launch
             }
             startActivity(Intent(this@SportsCatchUpActivity, PlayerActivity::class.java).apply {
-                putExtra(PlayerActivity.EXTRA_URL, url)
+                putExtra(PlayerActivity.EXTRA_URL, ready.url)
                 putExtra(PlayerActivity.EXTRA_TITLE, describe(g))
-                putExtra(PlayerActivity.EXTRA_SUBTITLE, "CATCH UP · ${g.channel.name} · ${dayLabel(startOfDay(g.programme.startMs))} ${time(g.programme.startMs)}")
+                putExtra(PlayerActivity.EXTRA_SUBTITLE, "CATCH UP · ${ready.channel.name} · ${dayLabel(startOfDay(g.programme.startMs))} ${time(g.programme.startMs)}")
                 putExtra(PlayerActivity.EXTRA_STOP_ON_EXIT, true)
             })
         }
