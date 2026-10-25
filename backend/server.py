@@ -5437,6 +5437,14 @@ app.add_middleware(
 from native_download import router as native_download_router
 app.include_router(native_download_router)
 
+from catchup_verifier import router as catchup_router, start as _start_catchup_verifier  # noqa: E402
+app.include_router(catchup_router)
+
+
+@app.on_event("startup")
+async def _start_catchup_check() -> None:
+    _start_catchup_verifier(db)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",

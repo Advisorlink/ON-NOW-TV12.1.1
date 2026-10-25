@@ -613,3 +613,16 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - `BundleCache.loadJson` trims older caches (>5 MB gz) while streaming them. The manifest now sets `android:largeHeap="true"`.
 - Test: `app/src/test/.../data/BundleTrimTest.kt` (Robolectric; synthetic window test + real /tmp/bundle.json if present). Both pass.
 - APK `test-artifacts/onnowtv-livetv-2.10.87-151.apk`. **Not verified on a device or emulator** (no KVM here).
+
+## Live TV 2.10.88 (152) + backend catch-up verifier: only real recordings are listed (2026-10-25)
+- Findings (njala provider): real per-show gaps (~7–10%), whole channels with nothing (GOLD HD, Sky Sports Tennis HD, Sky Sports PL HD). Max 1 connection per account. Running probes in parallel gives massive false 404s (8 parallel: 5/60 ok vs 47/60 sequential), so checks must be sequential at about 2.2 per second.
+- User choice: the server checks in advance, using the accounts customers log in with.
+- Backend `catchup_verifier.py` (started on startup; kill switch `DISABLE_CATCHUP_VERIFIER=1`; Mongo lease `catchup_verifier_lease` keeps it to a single worker):
+  - Picks an idle customer account from `vesper_accounts` (auth=1, Active, active_cons=0).
+  - Every 20 min it lists every archive channel (from instant_bundle `_state`), then probes unchecked shows newest-first, one at a time (Range 0-4095, needs TS sync bytes or #EXTM3U).
+  - A failure only counts if a "control" probe of a known-good recording still works. Otherwise the account is treated as busy and it switches to another.
+  - Verdicts go to `catchup_recordings` {_id sid:start, ok, tries}. Failures are retried after 3h, up to 3 tries, and anything older than 8 days is pruned.
+  - `GET /api/catchup/recordings` returns gzip JSON of confirmed shows only, {at, checking, channels:{sid:[{t,d,s,e}]}}, cached 60 s. `GET /api/catchup/status` shows progress.
+- App: `CatchUpIndex.build()` makes one request (2 min memory cache, 6h disk fallback `catchup_recordings.json`). Both Catch Up screens wait for it, then show everything together; there's no "Checking" toast. Days are built only from days that have recordings. The resolver's quick probe on click stays as an invisible guard, with a 300 ms settle.
+- Preview check: 12/12 random confirmed recordings re-probed 206. The first full sweep takes about 50 min (~6.7k shows).
+- **Production:** onnowhub.com needs Save to GitHub → deploy-backend. Until then the app gets an empty list (shows "No recordings right now").

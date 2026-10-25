@@ -31,7 +31,7 @@ object CatchUpResolver {
     }
 
     // Single-connection lines need the probe socket released before the player connects.
-    private suspend fun settle(url: String, c: Channel): Ready { delay(700); return Ready(url, c) }
+    private suspend fun settle(url: String, c: Channel): Ready { delay(300); return Ready(url, c) }
 
     private fun base(name: String) = name.uppercase()
         .replace(Regex("\\b(FHD|UHD|HD|SD|4K|HEVC|50FPS|60FPS|RAW|VIP|PLUS)\\b"), " ")

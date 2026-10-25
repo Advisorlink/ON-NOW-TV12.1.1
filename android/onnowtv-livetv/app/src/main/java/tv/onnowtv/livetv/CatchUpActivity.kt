@@ -27,6 +27,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import tv.onnowtv.livetv.data.CatchUpIndex
 import tv.onnowtv.livetv.data.CatchUpResolver
 import tv.onnowtv.livetv.data.Channel
 import tv.onnowtv.livetv.data.ParentalLock
@@ -101,14 +102,32 @@ class CatchUpActivity : AppCompatActivity() {
             return
         }
         val catNames = full.categories.associate { it.id to it.name }
-        channels.forEach { genreOf[it.id] = genreFor(catNames[it.categoryId].orEmpty() + " " + it.name) }
         allChannels = channels
-        val present = GENRES.map { it.first }.filter { g -> channels.any { genreOf[it.id] == g } }
-        genreAdapter.submit(listOf(ALL) + present)
-        tilesAdapter.submit(present + listOf(OTHER).filter { channels.any { c -> genreOf[c.id] == OTHER } })
-        channelsAdapter.submit(channels)
-        selectChannel(channels.first())
-        loadRails(channels)
+        heroMeta.text = "CHECKING YOUR RECORDINGS…"
+        railsHint.text = "Checking which recordings your provider has…"
+        lifecycleScope.launch {
+            val index = CatchUpIndex.build(this@CatchUpActivity, channels)
+            // Only channels with recordings that really play are listed.
+            val live = channels.filter { it.id in index }
+            heroMeta.text = "WATCH WHAT YOU MISSED — UP TO 7 DAYS"
+            if (live.isEmpty()) {
+                heroTitle.text = "No recordings right now"
+                heroSynopsis.text = "Your provider isn't serving any catch-up recordings at the moment."
+                playBtn.visibility = View.GONE
+                railsHint.text = "No recordings available right now"
+                return@launch
+            }
+            programmes.putAll(index)
+            live.forEach { c -> genreOf[c.id] = genreFor(catNames[c.categoryId].orEmpty() + " " + c.name); loaded += index.getValue(c.id).map { Show(c, it) } }
+            allChannels = live
+            val present = GENRES.map { it.first }.filter { g -> live.any { genreOf[it.id] == g } }
+            genreAdapter.submit(listOf(ALL) + present)
+            tilesAdapter.submit(present + listOf(OTHER).filter { live.any { c -> genreOf[c.id] == OTHER } })
+            channelsAdapter.submit(live)
+            refreshFeatured()
+            railsHint.visibility = View.GONE
+            selectChannel(live.first())
+        }
     }
 
     // ---------------------------------------------------------------- UI
@@ -292,14 +311,7 @@ class CatchUpActivity : AppCompatActivity() {
     }
 
     // ------------------------------------------------------------- data
-    private fun eligible(c: Channel, p: Programme) = p.archiveAvailable != false && SportsReplayPolicy.checkProgramme(c, p).eligible && !CatchUpResolver.isMissing(c, p)
-
-    private suspend fun shows(c: Channel): List<Show> {
-        programmes[c.id]?.let { list -> return list.map { Show(c, it) } }
-        val rows = SportsReplayRepository.archiveProgrammes(c).orEmpty().filter { eligible(c, it) }.sortedBy { it.startMs }
-        programmes[c.id] = rows
-        return rows.map { Show(c, it) }
-    }
+    private fun shows(c: Channel): List<Show> = programmes[c.id].orEmpty().map { Show(c, it) }
 
     private fun selectChannel(c: Channel) {
         channel = c
@@ -310,9 +322,8 @@ class CatchUpActivity : AppCompatActivity() {
         channelJob = lifecycleScope.launch {
             val list = shows(c)
             if (channel?.id != c.id) return@launch
-            val today = startOfDay(System.currentTimeMillis())
-            val days = (0 until (c.archiveDays ?: 1).coerceIn(1, 7)).map { addDays(today, -it) }
-            dayStart = days.firstOrNull { day -> list.any { startOfDay(it.programme.startMs) == day } } ?: today
+            val days = list.map { startOfDay(it.programme.startMs) }.distinct().sortedDescending()
+            dayStart = days.firstOrNull() ?: startOfDay(System.currentTimeMillis())
             daysAdapter.submit(days)
             showDay()
             if (hero == null) list.lastOrNull()?.let(::setHero)
@@ -395,18 +406,6 @@ class CatchUpActivity : AppCompatActivity() {
         featuredTitle.setTextColor(g?.let { GENRE_ACCENT[it] } ?: cyan)
     }
 
-    /** Loads each genre's channels' archives in batches, filling tile counts and the featured row. */
-    private fun loadRails(channels: List<Channel>) = lifecycleScope.launch {
-        val picked = (GENRES.map { it.first } + OTHER).flatMap { g -> channels.filter { genreOf[it.id] == g }.take(10) }
-        picked.distinctBy { it.id }.chunked(6).forEach { batch ->
-            loaded += batch.map { c -> async { runCatching { shows(c) }.getOrDefault(emptyList()) } }.awaitAll().flatten()
-            refreshFeatured()
-            tilesAdapter.notifyDataSetChanged()
-            railsHint.visibility = if (loaded.isEmpty()) View.VISIBLE else View.GONE
-        }
-        if (loaded.isEmpty()) { railsHint.text = "No recordings available right now"; railsHint.visibility = View.VISIBLE }
-    }
-
     private fun List<Show>.newestPerTitle() =
         sortedByDescending { it.programme.stopMs }.distinctBy { it.programme.title.trim().lowercase() }
 
@@ -422,12 +421,12 @@ class CatchUpActivity : AppCompatActivity() {
     private fun play(s: Show) {
         if (resolving) return
         resolving = true
-        android.widget.Toast.makeText(this, "Checking the recording…", android.widget.Toast.LENGTH_SHORT).show()
         lifecycleScope.launch {
             val ready = CatchUpResolver.resolve(this@CatchUpActivity, s.channel, s.programme, allChannels)
             resolving = false
             if (ready == null) {
                 android.widget.Toast.makeText(this@CatchUpActivity, "Your provider doesn't have this recording, so it's been removed from the list", android.widget.Toast.LENGTH_LONG).show()
+                CatchUpIndex.forget(s.channel, s.programme)
                 hideMissing(s)
                 return@launch
             }

@@ -30,6 +30,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import tv.onnowtv.livetv.data.CatchUpIndex
 import tv.onnowtv.livetv.data.CatchUpResolver
 import tv.onnowtv.livetv.data.Channel
 import tv.onnowtv.livetv.data.LiveSportsClassifier
@@ -117,7 +118,7 @@ class SportsCatchUpActivity : AppCompatActivity() {
         col.addView(eyebrow("↺  SPORTS HUB · CATCH UP", cyan))
         col.addView(text("Sports Catch Up", 34f, Color.WHITE, Typeface.create("sans-serif-black", Typeface.NORMAL)).apply { tag = "sports-catchup-heading" },
             LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(10) })
-        status = text("Finding recent games…", 11f, cyan, Typeface.MONOSPACE).apply { letterSpacing = .14f; tag = "sports-catchup-status" }
+        status = text("CHECKING YOUR RECORDINGS…", 11f, cyan, Typeface.MONOSPACE).apply { letterSpacing = .14f; tag = "sports-catchup-status" }
         col.addView(status, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(6) })
         focusLine = text("Choose a sport to see the games you missed", 13f, Color.parseColor("#C7CFDB"), Typeface.DEFAULT).apply {
             maxLines = 1; ellipsize = TextUtils.TruncateAt.END; tag = "sports-catchup-focus-line"
@@ -319,23 +320,12 @@ class SportsCatchUpActivity : AppCompatActivity() {
             ?: LiveSportsClassifier.OTHER_SPORT
     }
 
+    /** Waits for the verified index (real recordings only) and the team details, then shows everything at once. */
     private fun load(channels: List<Channel>) = lifecycleScope.launch {
-        val now = System.currentTimeMillis()
-        channels.chunked(6).forEach { batch ->
-            val found = batch.map { c ->
-                async {
-                    runCatching {
-                        SportsReplayRepository.archiveProgrammes(c).orEmpty()
-                            .filter { it.stopMs <= now && it.archiveAvailable != false && SportsReplayPolicy.checkProgramme(c, it).eligible && !CatchUpResolver.isMissing(c, it) }
-                            .mapNotNull { p -> sportFor(c, p)?.let { Game(c, p, it) } }
-                    }.getOrDefault(emptyList())
-                }
-            }.awaitAll().flatten()
-            val known = games.map { it.key }.toHashSet()
-            games += found.filter { it.key !in known }
-            fetchMeta(found)
-            render()
-        }
+        val index = CatchUpIndex.build(this@SportsCatchUpActivity, archive)
+        val found = channels.flatMap { c -> index[c.id].orEmpty().mapNotNull { p -> sportFor(c, p)?.let { Game(c, p, it) } } }
+        fetchMeta(found)
+        games += found
         loading = false
         render()
     }
@@ -377,9 +367,8 @@ class SportsCatchUpActivity : AppCompatActivity() {
         val present = LiveSportsClassifier.DISPLAY_ORDER.filter { s -> games.any { it.sport == s } }
         tiles.submit(present)
         status.text = when {
-            games.isEmpty() && loading -> "FINDING RECENT GAMES…"
+            loading -> "CHECKING YOUR RECORDINGS…"
             games.isEmpty() -> "NO RECORDED SPORT FOUND ON YOUR CHANNELS RIGHT NOW"
-            loading -> "${present.size} SPORTS · ${games.size} RECORDINGS · STILL LOOKING…"
             else -> "${present.size} SPORTS · ${games.size} RECORDINGS"
         }
         val s = sport
@@ -401,12 +390,12 @@ class SportsCatchUpActivity : AppCompatActivity() {
     private fun play(g: Game) {
         if (resolving) return
         resolving = true
-        Toast.makeText(this, "Checking the recording…", Toast.LENGTH_SHORT).show()
         lifecycleScope.launch {
             val ready = CatchUpResolver.resolve(this@SportsCatchUpActivity, g.channel, g.programme, archive)
             resolving = false
             if (ready == null) {
                 Toast.makeText(this@SportsCatchUpActivity, "Your provider doesn't have this recording, so it's been removed from the list", Toast.LENGTH_LONG).show()
+                CatchUpIndex.forget(g.channel, g.programme)
                 games.removeAll { it.key == g.key }
                 render()
                 return@launch
