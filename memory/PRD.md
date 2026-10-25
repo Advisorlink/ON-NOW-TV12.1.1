@@ -626,3 +626,7 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - App: `CatchUpIndex.build()` makes one request (2 min memory cache, 6h disk fallback `catchup_recordings.json`). Both Catch Up screens wait for it, then show everything together; there's no "Checking" toast. Days are built only from days that have recordings. The resolver's quick probe on click stays as an invisible guard, with a 300 ms settle.
 - Preview check: 12/12 random confirmed recordings re-probed 206. The first full sweep takes about 50 min (~6.7k shows).
 - **Production:** onnowhub.com needs Save to GitHub → deploy-backend. Until then the app gets an empty list (shows "No recordings right now").
+
+## Live TV 2.10.89 (153): smaller APK after a "problem parsing the package" report (2026-10-25)
+- The server copy of 2.10.88 was valid: zip test OK, v1+v2 signed, zipaligned, and the ticket download had a matching sha256. The parse error was most likely a 196 MB download cut off, or not enough storage, on the emulator.
+- `app/build.gradle.kts` packaging: `jniLibs.useLegacyPackaging = true` (libvlc compressed) and excludes `lib/x86/**`. ABIs are now arm64-v8a, armeabi-v7a, x86_64. APK 196 MB → 71 MB, same signing cert (db4c81a4…), so it installs over the old version.

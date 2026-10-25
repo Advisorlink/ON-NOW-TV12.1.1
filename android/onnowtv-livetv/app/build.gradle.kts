@@ -80,6 +80,9 @@ android {
             "META-INF/DEPENDENCIES", "META-INF/LICENSE",
             "META-INF/NOTICE", "META-INF/*.kotlin_module",
         )
+        // Compress libvlc inside the APK (~196 MB → ~80 MB) so downloads finish reliably; 32-bit x86 is unused.
+        jniLibs.useLegacyPackaging = true
+        jniLibs.excludes += setOf("lib/x86/**")
     }
 }
 
