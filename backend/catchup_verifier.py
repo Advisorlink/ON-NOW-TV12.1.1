@@ -182,7 +182,11 @@ async def _cycle(cl: httpx.AsyncClient) -> None:
             todo.append(r)
         elif d.get("ok"):
             await _col().update_one({"_id": k}, {"$set": {"title": r["title"], "desc": r["desc"], "stop": r["stop"]}})
-    todo.sort(key=lambda r: -r["start"])
+    # Sports first (Sports Catch Up fills fastest), then newest first.
+    from instant_bundle import _state
+    cats = {str(c.get("id")): str(c.get("name") or "").lower() for c in (_state.get("categories") or [])}
+    sports = {c["stream_id"] for c in channels if "sport" in cats.get(str(c.get("category_id")), "") or "sport" in str(c.get("name", "")).lower()}
+    todo.sort(key=lambda r: (r["sid"] not in sports, -r["start"]))
     _status.update(phase="checking", queue=len(todo))
     control: Optional[str] = None
     deadline = time.time() + LISTING_REFRESH_SECS

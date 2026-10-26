@@ -31,6 +31,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import tv.onnowtv.livetv.data.CatchUpIndex
+import tv.onnowtv.livetv.ui.CatchUpLoadingOverlay
 import tv.onnowtv.livetv.data.CatchUpResolver
 import tv.onnowtv.livetv.data.Channel
 import tv.onnowtv.livetv.data.LiveSportsClassifier
@@ -94,6 +95,7 @@ class SportsCatchUpActivity : AppCompatActivity() {
         if (channels.isEmpty()) {
             loading = false
             status.text = "Your provider hasn't shared any recorded sports channels yet"
+            loader.dismiss()
             return
         }
         load(channels)
@@ -109,6 +111,8 @@ class SportsCatchUpActivity : AppCompatActivity() {
     }
 
     // ---------------------------------------------------------------- UI
+    private lateinit var loader: CatchUpLoadingOverlay
+
     private fun buildUi(): View {
         val root = FrameLayout(this).apply { setBackgroundColor(Color.parseColor("#0A0F1A")) }
         root.addView(View(this).apply {
@@ -148,6 +152,8 @@ class SportsCatchUpActivity : AppCompatActivity() {
 
         scroll = ScrollView(this).apply { isFillViewport = true; isVerticalScrollBarEnabled = false; addView(col) }
         root.addView(scroll, FrameLayout.LayoutParams(-1, -1))
+        loader = CatchUpLoadingOverlay(this, "↺  SPORTS HUB · CATCH UP")
+        root.addView(loader, FrameLayout.LayoutParams(-1, -1))
         return root
     }
 
@@ -328,6 +334,8 @@ class SportsCatchUpActivity : AppCompatActivity() {
         games += found
         loading = false
         render()
+        loader.dismiss()
+        tilesList.post { tilesList.getChildAt(0)?.requestFocus() }
     }
 
     private suspend fun fetchMeta(list: List<Game>) {

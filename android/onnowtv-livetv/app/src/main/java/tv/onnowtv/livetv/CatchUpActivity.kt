@@ -28,6 +28,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import tv.onnowtv.livetv.data.CatchUpIndex
+import tv.onnowtv.livetv.ui.CatchUpLoadingOverlay
 import tv.onnowtv.livetv.data.CatchUpResolver
 import tv.onnowtv.livetv.data.Channel
 import tv.onnowtv.livetv.data.ParentalLock
@@ -99,6 +100,7 @@ class CatchUpActivity : AppCompatActivity() {
             heroSynopsis.text = "When a channel supports catch-up, its last few days of shows will appear here."
             playBtn.visibility = View.GONE
             railsHint.text = "Nothing to show"
+            loader.dismiss()
             return
         }
         val catNames = full.categories.associate { it.id to it.name }
@@ -109,6 +111,7 @@ class CatchUpActivity : AppCompatActivity() {
             val index = CatchUpIndex.build(this@CatchUpActivity, channels)
             // Only channels with recordings that really play are listed.
             val live = channels.filter { it.id in index }
+            loader.dismiss()
             heroMeta.text = "WATCH WHAT YOU MISSED — UP TO 7 DAYS"
             if (live.isEmpty()) {
                 heroTitle.text = "No recordings right now"
@@ -131,6 +134,8 @@ class CatchUpActivity : AppCompatActivity() {
     }
 
     // ---------------------------------------------------------------- UI
+    private lateinit var loader: CatchUpLoadingOverlay
+
     private fun buildUi(): View {
         val root = FrameLayout(this).apply { setBackgroundColor(Color.parseColor("#0A0F1A")) }
         root.addView(View(this).apply {
@@ -185,6 +190,8 @@ class CatchUpActivity : AppCompatActivity() {
 
         scroll = ScrollView(this).apply { isFillViewport = true; isVerticalScrollBarEnabled = false; addView(col) }
         root.addView(scroll, FrameLayout.LayoutParams(-1, -1))
+        loader = CatchUpLoadingOverlay(this, "↺  CATCH UP")
+        root.addView(loader, FrameLayout.LayoutParams(-1, -1))
         return root
     }
 
