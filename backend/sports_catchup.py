@@ -91,6 +91,14 @@ async def _team_index(bucket: str) -> List[Dict[str, Any]]:
         return out
 
 
+def _weak(side: str, team: Dict[str, Any]) -> bool:
+    """True when only a one-word nickname matched and the title names a different place/club."""
+    words = norm(side).split()
+    full = set(norm(team["name"]).split())
+    generic = {"fc", "afc", "cf", "sc", "ac", "club", "the", "de", "rlfc", "rufc"}
+    return len(full) == 1 and len(words) > 1 and any(w not in full and w not in generic for w in words)
+
+
 def _match_team(side: str, index: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     padded = f" {norm(side)} "
     best, best_len = None, 0
@@ -123,7 +131,8 @@ async def _sportsdb_team(name: str, bucket: str, client: httpx.AsyncClient) -> O
 
 def split_title(title: str, bucket: str) -> Optional[Tuple[str, str, bool]]:
     """Returns (left, right, right_is_home) or None when the title is not a two-team fixture."""
-    t = _SCORE.sub(" v ", _PAREN_SCORE.sub(" ", f" {title or ''} "))
+    t = unicodedata.normalize("NFKC", title or "").replace("ɪ", "i")  # "ᴸᶦᵛᵉ"/"Lɪve" → "Live"
+    t = _SCORE.sub(" v ", _PAREN_SCORE.sub(" ", f" {t} "))
     seps = r"v|vs|v\.|vs\.|versus|@" + (r"|at" if bucket in AT_SPORTS else "")
     m = re.search(rf"\s+({seps})\s+", t, re.I)
     if not m:
@@ -136,6 +145,8 @@ def split_title(title: str, bucket: str) -> Optional[Tuple[str, str, bool]]:
     if not (2 <= len(left) <= 48 and 2 <= len(right) <= 48):
         return None
     if not (re.search(r"[A-Za-z]", left) and re.search(r"[A-Za-z]", right)):
+        return None
+    if {left.lower(), right.lower()} & {"tba", "tbc", "tbd"}:
         return None
     return left, right, m.group(1).lower() in ("@", "at")
 
@@ -164,7 +175,14 @@ async def describe(title: str, bucket: str, client: httpx.AsyncClient, budget: L
     teams = []
     for raw in (left, right):
         team = _match_team(raw, index)
-        if team is None and bucket in SPORTSDB_SPORT and budget[0] > 0:
+        if team is not None and _weak(raw, team):
+            # Nickname-only hit with an extra place name ("London Broncos" ≠ Brisbane "Broncos"):
+            # never borrow the wrong club's crest; ask TheSportsDB for the exact club instead.
+            exact = await _sportsdb_team(raw, bucket, client) if bucket in SPORTSDB_SPORT and budget[0] > 0 else None
+            if bucket in SPORTSDB_SPORT:
+                budget[0] -= 1
+            team = exact
+        elif team is None and bucket in SPORTSDB_SPORT and budget[0] > 0:
             budget[0] -= 1
             team = await _sportsdb_team(raw, bucket, client)
         teams.append(_side(raw, team))
@@ -189,7 +207,7 @@ class CatchUpRequest(BaseModel):
 @router.post("/catchup-matches")
 async def catchup_matches(body: CatchUpRequest):
     items = body.items[:200]
-    budget = [8]
+    budget = [20]
     async with httpx.AsyncClient(timeout=8, headers={"User-Agent": "Mozilla/5.0 ONNOWTV"}) as client:
         results = [await describe(i.title, i.sport, client, budget) for i in items]
     return {"items": results}

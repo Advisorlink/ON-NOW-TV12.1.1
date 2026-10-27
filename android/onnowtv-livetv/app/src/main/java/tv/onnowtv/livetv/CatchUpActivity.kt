@@ -29,6 +29,8 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import tv.onnowtv.livetv.data.CatchUpIndex
 import tv.onnowtv.livetv.ui.CatchUpLoadingOverlay
+import tv.onnowtv.livetv.ui.CatchUpPlayback
+import tv.onnowtv.livetv.ui.PlayerLoadingOverlay
 import tv.onnowtv.livetv.data.CatchUpResolver
 import tv.onnowtv.livetv.data.Channel
 import tv.onnowtv.livetv.data.ParentalLock
@@ -65,6 +67,7 @@ class CatchUpActivity : AppCompatActivity() {
     private lateinit var dayHint: TextView
     private lateinit var scheduleHint: TextView
     private lateinit var scroll: ScrollView
+    private lateinit var tilesView: RecyclerView
 
     private val tilesAdapter = Adapter<String>(::genreTile) { v, g -> bindTile(v, g) }
     private val featured = Adapter<Show>(::justAiredCard) { v, s -> bindCard(v, s) }
@@ -133,8 +136,20 @@ class CatchUpActivity : AppCompatActivity() {
         }
     }
 
+    @Deprecated("TV remote compatibility")
+    override fun onBackPressed() {
+        if (tilesView.visibility == View.VISIBLE) { super.onBackPressed(); return }
+        val last = featuredGenre
+        tilesView.visibility = View.VISIBLE
+        featuredGenre = null; refreshFeatured()
+        genre = ALL; genreAdapter.notifyDataSetChanged(); channelsAdapter.submit(allChannels)
+        scroll.smoothScrollTo(0, 0)
+        tilesView.post { tilesView.findViewWithTag<View>("catchup-tile-$last")?.requestFocus() }
+    }
+
     // ---------------------------------------------------------------- UI
     private lateinit var loader: CatchUpLoadingOverlay
+    private lateinit var rootView: FrameLayout
 
     private fun buildUi(): View {
         val root = FrameLayout(this).apply { setBackgroundColor(Color.parseColor("#0A0F1A")) }
@@ -164,12 +179,13 @@ class CatchUpActivity : AppCompatActivity() {
 
         railsHint = text("Finding recent shows…", 12f, dim, Typeface.DEFAULT)
         col.addView(railsHint, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(22) })
-        col.addView(RecyclerView(this).apply {
+        tilesView = RecyclerView(this).apply {
             tag = "catchup-tiles"; clipToPadding = false; clipChildren = false; itemAnimator = null; isNestedScrollingEnabled = false
             setPadding(dp(6), dp(6), dp(6), dp(6))
             layoutManager = androidx.recyclerview.widget.GridLayoutManager(context, 4)
             adapter = tilesAdapter
-        }, LinearLayout.LayoutParams(-1, dp(272)).apply { topMargin = dp(6) })
+        }
+        col.addView(tilesView, LinearLayout.LayoutParams(-1, dp(272)).apply { topMargin = dp(6) })
         featuredTitle = eyebrow("JUST AIRED", cyan)
         col.addView(featuredTitle, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(14) })
         col.addView(list(featured, horizontal = true, tag = "catchup-featured"), LinearLayout.LayoutParams(-1, dp(150)).apply { topMargin = dp(4) })
@@ -190,6 +206,7 @@ class CatchUpActivity : AppCompatActivity() {
 
         scroll = ScrollView(this).apply { isFillViewport = true; isVerticalScrollBarEnabled = false; addView(col) }
         root.addView(scroll, FrameLayout.LayoutParams(-1, -1))
+        rootView = root
         loader = CatchUpLoadingOverlay(this, "↺  CATCH UP")
         root.addView(loader, FrameLayout.LayoutParams(-1, -1))
         return root
@@ -383,18 +400,22 @@ class CatchUpActivity : AppCompatActivity() {
         v.findViewById<TextView>(R_TITLE).text = if (g == OTHER) "More" else g
         val count = loaded.count { genreOf[it.channel.id] == g }
         val chans = allChannels.count { genreOf[it.id] == g }
-        v.findViewById<TextView>(R_SUB).text = if (count > 0) "$count SHOWS · $chans CHANNELS" else "$chans CHANNELS"
-        v.findViewById<View>(R_TIME).background = GradientDrawable(GradientDrawable.Orientation.BL_TR,
-            intArrayOf((accent and 0x00FFFFFF) or 0xEE000000.toInt(), (accent and 0x00FFFFFF) or 0x66000000, Color.TRANSPARENT))
-        val img = v.findViewById<ImageView>(R_ART)
-        TILE_ART[g]?.let { img.load(it) { crossfade(true) } } ?: img.setImageDrawable(null)
+        v.findViewById<TextView>(R_SUB).text = if (g == "Sports") "ALL SPORTS · TEAMS · REPLAYS" else if (count > 0) "$count SHOWS · $chans CHANNELS" else "$chans CHANNELS"
+        // Artwork sits on the right; a soft accent wash on the left keeps the title readable.
+        v.findViewById<View>(R_TIME).background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+            intArrayOf(Color.parseColor("#E605080F"), (accent and 0x00FFFFFF) or 0x33000000, Color.TRANSPARENT))
+        v.findViewById<ImageView>(R_ART).setImageResource(TILE_ART[g] ?: R.drawable.img_catchup_more)
         v.setOnClickListener { showGenre(g) }
         focusScale(v)
     }
 
     /** Tile press: the row below switches to that category and the channel browser filters to it. */
     private fun showGenre(g: String) {
-        featuredGenre = if (featuredGenre == g) null else g
+        if (g == "Sports") { startActivity(android.content.Intent(this, SportsCatchUpActivity::class.java)); return }
+        featuredGenre = g
+        // Categories tuck away so the channel picker moves right up.
+        tilesView.visibility = View.GONE
+        scroll.post { scroll.smoothScrollTo(0, (featuredTitle.top - dp(12)).coerceAtLeast(0)) }
         refreshFeatured()
         val chip = if (featuredGenre == null) ALL else g
         genre = chip; genreAdapter.notifyDataSetChanged()
@@ -426,27 +447,9 @@ class CatchUpActivity : AppCompatActivity() {
 
     /** Plays in the same player as normal Live TV. */
     private fun play(s: Show) {
-        if (resolving) return
-        resolving = true
-        lifecycleScope.launch {
-            val ready = CatchUpResolver.resolve(this@CatchUpActivity, s.channel, s.programme, allChannels)
-            resolving = false
-            if (ready == null) {
-                android.widget.Toast.makeText(this@CatchUpActivity, "Your provider doesn't have this recording, so it's been removed from the list", android.widget.Toast.LENGTH_LONG).show()
-                CatchUpIndex.forget(s.channel, s.programme)
-                hideMissing(s)
-                return@launch
-            }
-            startActivity(android.content.Intent(this@CatchUpActivity, PlayerActivity::class.java).apply {
-                putExtra(PlayerActivity.EXTRA_URL, ready.url)
-                putExtra(PlayerActivity.EXTRA_TITLE, s.programme.title)
-                putExtra(PlayerActivity.EXTRA_SUBTITLE, "CATCH UP · ${ready.channel.name} · ${dayLabel(startOfDay(s.programme.startMs))} ${time(s.programme.startMs)}")
-                putExtra(PlayerActivity.EXTRA_STOP_ON_EXIT, true)
-            })
-        }
+        CatchUpPlayback.start(this, rootView, s.channel, s.programme, s.programme.title,
+            "${s.channel.name} · ${dayLabel(startOfDay(s.programme.startMs))} ${time(s.programme.startMs)}", allChannels) { hideMissing(s) }
     }
-
-    private var resolving = false
 
     private fun hideMissing(s: Show) {
         programmes[s.channel.id]?.let { list -> programmes[s.channel.id] = list.filter { it.startMs != s.programme.startMs } }
@@ -521,14 +524,10 @@ class CatchUpActivity : AppCompatActivity() {
             "Music" to "music|mtv|vh1|hits|max|country|radio",
         )
         val TILE_ART = mapOf(
-            "Sports" to "https://images.pexels.com/photos/30651230/pexels-photo-30651230.jpeg?auto=compress&cs=tinysrgb&w=640",
-            "News" to "https://images.pexels.com/photos/39332193/pexels-photo-39332193.jpeg?auto=compress&cs=tinysrgb&w=640",
-            "Reality" to "https://images.unsplash.com/photo-1581092787765-e3feb951d987?w=640&q=70",
-            "Movies" to "https://images.pexels.com/photos/14746411/pexels-photo-14746411.jpeg?auto=compress&cs=tinysrgb&w=640",
-            "Kids" to "https://images.unsplash.com/photo-1545558014-8692077e9b5c?w=640&q=70",
-            "Documentaries" to "https://images.pexels.com/photos/26924205/pexels-photo-26924205.jpeg?auto=compress&cs=tinysrgb&w=640",
-            "Entertainment" to "https://images.pexels.com/photos/713149/pexels-photo-713149.jpeg?auto=compress&cs=tinysrgb&w=640",
-            "Music" to "https://images.pexels.com/photos/38780318/pexels-photo-38780318.jpeg?auto=compress&cs=tinysrgb&w=640",
+            "Sports" to R.drawable.img_catchup_sports, "News" to R.drawable.img_catchup_news,
+            "Reality" to R.drawable.img_catchup_reality, "Movies" to R.drawable.img_catchup_movies,
+            "Kids" to R.drawable.img_catchup_kids, "Documentaries" to R.drawable.img_catchup_documentaries,
+            "Entertainment" to R.drawable.img_catchup_entertainment, "Music" to R.drawable.img_catchup_music,
         )
         val GENRE_ACCENT = mapOf(
             "Sports" to Color.parseColor("#6CD0E3"), "News" to Color.parseColor("#FF6B6B"), "Reality" to Color.parseColor("#FF8FD1"),

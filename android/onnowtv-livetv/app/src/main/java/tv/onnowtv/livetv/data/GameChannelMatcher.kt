@@ -31,6 +31,12 @@ object GameChannelMatcher {
         private val homeOnly = home - away
         private val awayOnly = away - home
         fun inWindow(p: Programme) = start > 0 && p.stopMs > p.startMs && p.stopMs > start && abs(p.startMs - start) <= 90 * 60_000L
+        fun matchesReplay(p: Programme): Boolean {
+            if (start <= 0 || p.startMs < start - 90 * 60_000L || p.startMs > start + 7 * 86_400_000L) return false
+            val title = normalize(p.title)
+            val statedSport = LiveSportsClassifier.programmeBucket(p.title)
+            return (statedSport == null || statedSport == bucket) && mentions(title, homeOnly) && mentions(title, awayOnly)
+        }
         fun matches(p: Programme): Boolean {
             // Reject the rest of the week's guide BEFORE doing any regex/Unicode work.
             if (!inWindow(p)) return false
@@ -40,6 +46,8 @@ object GameChannelMatcher {
         }
     }
     fun isFixtureProgramme(game: JSONObject, programme: Programme) = Fixture(game).matches(programme)
+    /** A confirmed recording of this fixture: its live airing or a later re-air (up to 7 days), both teams named. */
+    fun isFixtureReplay(game: JSONObject, programme: Programme) = Fixture(game).matchesReplay(programme)
     fun find(game: JSONObject, bundle: XtreamBundle, nowMs: Long = System.currentTimeMillis()): List<Match> {
         val fixture = Fixture(game)
         val guide = SharedSportsGuide.rows(bundle)

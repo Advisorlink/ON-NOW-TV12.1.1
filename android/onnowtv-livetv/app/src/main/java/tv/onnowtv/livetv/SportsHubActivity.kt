@@ -179,7 +179,7 @@ class SportsHubActivity : AppCompatActivity() {
             val tag = "hub-mode-${m.name.lowercase()}"
             modes.addView(UI.identify(UI.pill(this, label, mode == m) { mode = m; renderModes(tag); render() }, tag))
         }
-        modes.addView(UI.identify(UI.pill(this, "↺ Catch Up") { startActivity(Intent(this, SportsCatchUpActivity::class.java)) }, "top-nav-catchup-button"))
+        modes.addView(UI.identify(UI.pill(this, "↺ Catch Up & Replays") { startActivity(Intent(this, SportsCatchUpActivity::class.java).putExtra(SportsCatchUpActivity.EXTRA_SPORT, sports.getOrNull(sportIdx)?.optString("bucket"))) }, "top-nav-catchup-button"))
         modes.addView(UI.identify(UI.pill(this, "Fields") { SportsFieldGallery.show(this) }, "hub-fields"))
         focus?.let { modes.findViewWithTag<View>(it)?.requestFocus() }
     }

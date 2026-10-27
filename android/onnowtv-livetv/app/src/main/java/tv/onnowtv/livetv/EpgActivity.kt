@@ -1056,6 +1056,7 @@ class EpgActivity : AppCompatActivity() {
         findViewById<View>(R.id.sports_hub_btn)?.setOnClickListener {
             startActivity(Intent(this, SportsHubActivity::class.java))
         }
+        findViewById<View>(R.id.catchup_btn)?.clipToOutline = true
         findViewById<View>(R.id.catchup_btn)?.setOnClickListener {
             startActivity(Intent(this, CatchUpActivity::class.java))
         }

@@ -59,6 +59,21 @@ object CatchUpIndex {
         }
     }
 
+    class Recording(val channel: Channel, val programme: Programme)
+
+    @Volatile private var flat: Triple<XtreamBundle, Long, List<Recording>>? = null
+
+    /** Every confirmed recording for this guide (viewer credentials, parental lock applied), cached 2 min. */
+    suspend fun recordings(ctx: Context, bundle: XtreamBundle): List<Recording> {
+        val now = System.currentTimeMillis()
+        flat?.let { (b, at, list) -> if (b === bundle && now - at < MEMORY_TTL_MS) return list }
+        val channels = SportsReplayCatalogue.channels(ParentalLock.visible(ctx, bundle)).map { CatchUpResolver.viewer(ctx, it) }
+        val index = build(ctx, channels)
+        val list = channels.flatMap { c -> index[c.id].orEmpty().map { Recording(c, it) } }
+        flat = Triple(bundle, now, list)
+        return list
+    }
+
     /** A recording failed at play time: drop it from the memory copy too. */
     fun forget(c: Channel, p: Programme) {
         memory = memory?.let { (at, map) -> at to map.mapValues { (id, l) -> if (id == c.id) l.filter { it.startMs != p.startMs } else l } }

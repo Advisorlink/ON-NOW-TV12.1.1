@@ -6,8 +6,8 @@ build env ready
 + RELEASE_STORE_PASSWORD=onnow-launcher-debug
 + RELEASE_KEY_ALIAS=onnow-launcher-debug
 + RELEASE_KEY_PASSWORD=onnow-launcher-debug
-+ timeout 2400 /app/android/vesper-tv/gradlew -p /app/android/onnowtv-livetv :app:assembleRelease -PversionCode=154 -PversionName=2.10.90 --no-daemon
++ timeout 2400 /app/android/vesper-tv/gradlew -p /app/android/onnowtv-livetv :app:assembleRelease -PversionCode=155 -PversionName=2.10.91 --no-daemon
 + echo EXIT 0
-+ cp /app/android/onnowtv-livetv/app/build/outputs/apk/release/app-release.apk /app/android/onnowtv-livetv/test-artifacts/onnowtv-livetv-2.10.90-154.apk
++ cp /app/android/onnowtv-livetv/app/build/outputs/apk/release/app-release.apk /app/android/onnowtv-livetv/test-artifacts/onnowtv-livetv-2.10.91-155.apk
 + echo ALLDONE
 ALLDONE

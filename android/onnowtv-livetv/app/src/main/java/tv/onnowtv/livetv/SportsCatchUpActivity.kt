@@ -32,6 +32,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import tv.onnowtv.livetv.data.CatchUpIndex
 import tv.onnowtv.livetv.ui.CatchUpLoadingOverlay
+import tv.onnowtv.livetv.ui.CatchUpPlayback
+import tv.onnowtv.livetv.ui.PlayerLoadingOverlay
 import tv.onnowtv.livetv.data.CatchUpResolver
 import tv.onnowtv.livetv.data.Channel
 import tv.onnowtv.livetv.data.LiveSportsClassifier
@@ -64,7 +66,6 @@ class SportsCatchUpActivity : AppCompatActivity() {
     private var sport: String? = null
     private var day = 0L
     private var loading = true
-    private var resolving = false
     private var archive: List<Channel> = emptyList()
 
     private lateinit var status: TextView
@@ -112,6 +113,7 @@ class SportsCatchUpActivity : AppCompatActivity() {
 
     // ---------------------------------------------------------------- UI
     private lateinit var loader: CatchUpLoadingOverlay
+    private lateinit var rootView: FrameLayout
 
     private fun buildUi(): View {
         val root = FrameLayout(this).apply { setBackgroundColor(Color.parseColor("#0A0F1A")) }
@@ -152,6 +154,7 @@ class SportsCatchUpActivity : AppCompatActivity() {
 
         scroll = ScrollView(this).apply { isFillViewport = true; isVerticalScrollBarEnabled = false; addView(col) }
         root.addView(scroll, FrameLayout.LayoutParams(-1, -1))
+        rootView = root
         loader = CatchUpLoadingOverlay(this, "↺  SPORTS HUB · CATCH UP")
         root.addView(loader, FrameLayout.LayoutParams(-1, -1))
         return root
@@ -335,7 +338,9 @@ class SportsCatchUpActivity : AppCompatActivity() {
         loading = false
         render()
         loader.dismiss()
-        tilesList.post { tilesList.getChildAt(0)?.requestFocus() }
+        val wanted = intent.getStringExtra(EXTRA_SPORT)
+        if (wanted != null && games.any { it.sport == wanted }) selectSport(wanted)
+        tilesList.post { (tilesList.findViewWithTag<View>("sports-catchup-tile-$wanted") ?: tilesList.getChildAt(0))?.requestFocus() }
     }
 
     private suspend fun fetchMeta(list: List<Game>) {
@@ -396,25 +401,11 @@ class SportsCatchUpActivity : AppCompatActivity() {
     }
 
     private fun play(g: Game) {
-        if (resolving) return
-        resolving = true
-        lifecycleScope.launch {
-            val ready = CatchUpResolver.resolve(this@SportsCatchUpActivity, g.channel, g.programme, archive)
-            resolving = false
-            if (ready == null) {
-                Toast.makeText(this@SportsCatchUpActivity, "Your provider doesn't have this recording, so it's been removed from the list", Toast.LENGTH_LONG).show()
-                CatchUpIndex.forget(g.channel, g.programme)
-                games.removeAll { it.key == g.key }
-                render()
-                return@launch
-            }
-            startActivity(Intent(this@SportsCatchUpActivity, PlayerActivity::class.java).apply {
-                putExtra(PlayerActivity.EXTRA_URL, ready.url)
-                putExtra(PlayerActivity.EXTRA_TITLE, describe(g))
-                putExtra(PlayerActivity.EXTRA_SUBTITLE, "CATCH UP · ${ready.channel.name} · ${dayLabel(startOfDay(g.programme.startMs))} ${time(g.programme.startMs)}")
-                putExtra(PlayerActivity.EXTRA_STOP_ON_EXIT, true)
-            })
-        }
+        val m = meta[metaKey(g)]?.takeIf { it.match && it.home != null && it.away != null }
+        fun team(x: Side?) = x?.let { PlayerLoadingOverlay.Team(it.name, it.logo, it.color?.let { c -> UIColor(c, 0) }?.takeIf { v -> v != 0 }) }
+        CatchUpPlayback.start(this, rootView, g.channel, g.programme, describe(g),
+            "${g.channel.name} · ${dayLabel(startOfDay(g.programme.startMs))} ${time(g.programme.startMs)}", archive,
+            team(m?.home), team(m?.away)) { games.removeAll { it.key == g.key }; render() }
     }
 
     // ------------------------------------------------------------- time
@@ -438,7 +429,8 @@ class SportsCatchUpActivity : AppCompatActivity() {
         override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) = bind(holder.itemView, items[position])
     }
 
-    private companion object {
+    companion object {
+        const val EXTRA_SPORT = "sport"
         val SCORE = Regex("\\s\\d{1,3}\\s*[-–]\\s*\\d{1,3}\\s")
         val JUNK = Regex("\\b(teleshopping|infomercial|paid programming|paid program|station close|off air|close down|programming resumes|no programme|to be announced|tba|tbc)\\b")
         val SPORTS_WORDS = listOf("sport", "espn", "bein", "kayo", "fox league", "fox footy", "fox cricket", "racing", "tab", "nfl", "nba", "nhl", "mlb",

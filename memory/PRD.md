@@ -635,3 +635,18 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - New `ui/CatchUpLoadingOverlay.kt`: full-screen spinner + "Loading your programmes…" (`catchup-loading-screen`). It sits on top of both Catch Up screens and fades out once the confirmed list arrives, or when the screen turns out empty.
 - User chose to keep Catch Up to true recordings only. The provider's PPV, UFC ZONE and F1 REPLAYS live channels are NOT added. The provider only archives the Sky Sports, TNT Sports, UK Entertainment/Docs, Ireland and India categories.
 - Verifier now checks sports channels first (category or name contains "sport"), then newest first.
+
+## Live TV 2.10.91 (155): premium Catch Up art, home tile, team loading screens, faster Sports Hub replays (2026-10-27)
+- Catch Up category tiles: 9 generated 3D artworks bundled as `res/drawable-nodpi/img_catchup_{sports,news,reality,movies,kids,documentaries,entertainment,music,more}.webp` (768×515, ~25 KB each), with a left-side accent wash. `TILE_ART` now maps to resource ids.
+- Catch Up: the **Sports** tile opens `SportsCatchUpActivity` and its label reads "ALL SPORTS · TEAMS · REPLAYS". Picking any other category hides the tiles and scrolls up to the channel picker. Back brings the tiles back and refocuses the last tile.
+- Home (EpgActivity sidebar): `catchup_btn` is now a big 112dp artwork tile reading "↺ Catch Up / WITH V2 SPORTS REPLAYS" (`catchup_tile_bg`, `catchup_tile_shade`, clipToOutline).
+- New `ui/PlayerLoadingOverlay` is a branded loading cover: two team crests + VS for games, channel logo + title otherwise, plus a sweeping cyan bar. PlayerActivity shows it on open (not when it adopts the shared preview) and fades it out on the first frame (Exo READY or VLC onReady), on error, or after 30 s at most. New extras: EXTRA_HOME/AWAY_NAME/LOGO/COLOR and EXTRA_LOADING_EYEBROW.
+- New `ui/CatchUpPlayback.start()` is the single catch-up play path for Catch Up, Sports Catch Up and Sports Hub. It shows the same cover inside the current screen, runs a quick resolve, then opens PlayerActivity with the team extras. No toasts unless the recording is missing.
+- The loading overlay no longer shows the "Only recordings that are ready to play…" line.
+- Sports Hub "Watch replay" (`ui/SportsReplayRow`) now uses `CatchUpIndex.recordings()`, the server-confirmed list, cached 2 min, with no per-game probing. It matches with `GameChannelMatcher.isFixtureReplay` (both teams named, from 90 min before kickoff up to 7 days after, which catches re-airs). The hub's "↺ Catch Up & Replays" pill opens Sports Catch Up with the current sport preselected (`EXTRA_SPORT`).
+- Team matching (backend `sports_catchup.py`):
+  - A nickname-only ESPN hit followed by a different place name (e.g. "London Broncos" vs Brisbane "Broncos") is treated as weak. It goes to TheSportsDB for the exact club, or shows initials, so it never borrows the wrong crest. Generic words (fc, afc, cf, sc, ac, club, the, de) don't count as a different place.
+  - Title cleanup: NFKC plus ɪ→i strips "ᴸᶦᵛᵉ"/"Lɪve". TBA/TBC sides are not treated as matches.
+  - TheSportsDB lookups are capped at 20 per request.
+- The NRL "same team all week" was the Super League match "Hull FC v London Broncos", which was showing Brisbane's crest. It's fixed (London Broncos gets its own crest; Hull FC shows initials).
+- Backend changes need Save to GitHub before they reach onnowhub.com. **Not verified on a device.**

@@ -79,6 +79,13 @@ class PlayerActivity : AppCompatActivity() {
          *  to happen with zero buffer hit. */
         const val EXTRA_USE_SHARED_PLAYER = "extra_use_shared_player"
         const val EXTRA_STOP_ON_EXIT = "extra_stop_on_exit"
+        const val EXTRA_LOADING_EYEBROW = "extra_loading_eyebrow"
+        const val EXTRA_HOME_NAME = "extra_home_name"
+        const val EXTRA_HOME_LOGO = "extra_home_logo"
+        const val EXTRA_HOME_COLOR = "extra_home_color"
+        const val EXTRA_AWAY_NAME = "extra_away_name"
+        const val EXTRA_AWAY_LOGO = "extra_away_logo"
+        const val EXTRA_AWAY_COLOR = "extra_away_color"
         /** Sports Hub: when the tuned channel fails, hop to the next channel
          *  in the PlaybackQueue (the other channels carrying the same game). */
         const val EXTRA_FAILOVER_QUEUE = "extra_failover_queue"
@@ -206,6 +213,7 @@ class PlayerActivity : AppCompatActivity() {
     private var failoverHops = 0
     private val numberBuffer = StringBuilder()
     private var currentChannel: Channel? = null
+    private var loadingOverlay: tv.onnowtv.livetv.ui.PlayerLoadingOverlay? = null
     private val clockFmt = SimpleDateFormat("h:mm a", Locale.UK)
     /** Number of consecutive failed attempts on the CURRENT channel.
      *  Resets to 0 whenever the user tunes to a different channel.
@@ -321,6 +329,8 @@ class PlayerActivity : AppCompatActivity() {
                 streamUrl = url,
                 epgChannelId = channelId,
             )
+
+        if (!usingSharedPlayer || backend == PlayerPrefs.Backend.VLC) showLoadingOverlay(title)
 
         if (backend == PlayerPrefs.Backend.VLC) {
             // VLC never adopts the shared Exo preview session — release
@@ -485,16 +495,17 @@ class PlayerActivity : AppCompatActivity() {
                         consecutiveFailures = 0
                         retryHandler.postDelayed({ tuneTo(next) }, 600L)
                     } else {
-                        status.text = buildErrorMessage(error)
+                        status.text = buildErrorMessage(error); loadingOverlay?.dismiss()
                     }
                 } else {
-                    status.text = buildErrorMessage(error)
+                    status.text = buildErrorMessage(error); loadingOverlay?.dismiss()
                 }
             }
             override fun onPlaybackStateChanged(state: Int) {
                 when (state) {
                     Player.STATE_READY -> {
                         status.text = ""
+                        loadingOverlay?.dismiss()
                         consecutiveFailures = 0
                         bufferLoader.visibility = View.GONE
                         // First frame is on screen — hide the
@@ -533,6 +544,30 @@ class PlayerActivity : AppCompatActivity() {
 
     /** Build (or rebuild) the LibVLC controller and flip the video
      *  surfaces so `vlc_video_layout` is the active layer. */
+    /** Team crests for catch-up games, channel logo + name otherwise; gone on the first frame or an error. */
+    private fun showLoadingOverlay(title: String) {
+        val ch = currentChannel ?: return
+        val overlay = tv.onnowtv.livetv.ui.PlayerLoadingOverlay(this)
+        findViewById<android.widget.FrameLayout>(android.R.id.content).addView(overlay, android.widget.FrameLayout.LayoutParams(-1, -1))
+        loadingOverlay = overlay
+        fun team(prefix: String): tv.onnowtv.livetv.ui.PlayerLoadingOverlay.Team? {
+            val name = intent.getStringExtra("extra_${prefix}_name")?.takeIf { it.isNotBlank() } ?: return null
+            val color = intent.getStringExtra("extra_${prefix}_color")?.let { runCatching { android.graphics.Color.parseColor(if (it.startsWith("#")) it else "#$it") }.getOrNull() }
+            return tv.onnowtv.livetv.ui.PlayerLoadingOverlay.Team(name, intent.getStringExtra("extra_${prefix}_logo"), color)
+        }
+        val home = team("home"); val away = team("away")
+        val subtitle = intent.getStringExtra(EXTRA_SUBTITLE)
+        val catchUp = subtitle?.startsWith("CATCH UP") == true
+        overlay.show(
+            eyebrow = intent.getStringExtra(EXTRA_LOADING_EYEBROW) ?: if (catchUp) "↺  CATCH UP" else "●  LIVE TV",
+            title = title.ifBlank { ch.name },
+            subtitle = if (catchUp) subtitle?.removePrefix("CATCH UP · ") else ch.name.takeIf { it != title },
+            home = home, away = away, logo = ch.logoUrl,
+            message = when { home != null && away != null -> "LOADING YOUR GAME…"; catchUp -> "LOADING YOUR PROGRAMME…"; else -> "TUNING IN…" },
+        )
+        overlay.postDelayed({ overlay.dismiss() }, 30_000L)
+    }
+
     private fun buildVlcPlayer() {
         playerView.player = null
         playerView.visibility = View.GONE
@@ -544,6 +579,7 @@ class PlayerActivity : AppCompatActivity() {
                 override fun onReady() {
                     runOnUiThread {
                         status.text = ""
+                        loadingOverlay?.dismiss()
                         consecutiveFailures = 0
                         bufferLoader.visibility = View.GONE
                         hideHandler.removeCallbacksAndMessages(null)

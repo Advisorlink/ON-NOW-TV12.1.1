@@ -35,10 +35,6 @@ class CatchUpLoadingOverlay(ctx: Context, eyebrow: String) : FrameLayout(ctx) {
                 text = "Loading your programmes…"; textSize = 28f; setTextColor(Color.WHITE)
                 typeface = Typeface.create("sans-serif-black", Typeface.NORMAL)
             }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = (8 * dp).toInt() })
-            addView(TextView(ctx).apply {
-                text = "Only recordings that are ready to play will be shown"; textSize = 14f
-                setTextColor(Color.parseColor("#9DA5B5"))
-            }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = (8 * dp).toInt() })
         }, LayoutParams(-2, -2, Gravity.CENTER))
     }
 
