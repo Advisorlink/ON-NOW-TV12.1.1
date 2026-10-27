@@ -31,6 +31,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import tv.onnowtv.livetv.data.CatchUpIndex
+import tv.onnowtv.livetv.data.SportsCatchUpData
 import tv.onnowtv.livetv.ui.CatchUpLoadingOverlay
 import tv.onnowtv.livetv.ui.CatchUpPlayback
 import tv.onnowtv.livetv.ui.PlayerLoadingOverlay
@@ -53,8 +54,6 @@ import java.util.Locale
 
 /** Sports Hub → Catch Up: pick a sport, then a day, then a past game shown as crest-vs-crest (no scores). */
 class SportsCatchUpActivity : AppCompatActivity() {
-    private data class Side(val name: String, val logo: String?, val color: String?)
-    private data class Meta(val match: Boolean, val home: Side? = null, val away: Side? = null)
     private data class Game(val channel: Channel, val programme: Programme, val sport: String) {
         val key get() = "${channel.id}-${programme.startMs}"
     }
@@ -62,7 +61,6 @@ class SportsCatchUpActivity : AppCompatActivity() {
     private val cyan = Color.parseColor("#5DC8FF")
     private val dim = Color.parseColor("#9DA5B5")
     private val games = mutableListOf<Game>()
-    private val meta = HashMap<String, Meta>()
     private var sport: String? = null
     private var day = 0L
     private var loading = true
@@ -80,7 +78,6 @@ class SportsCatchUpActivity : AppCompatActivity() {
     private val cards = Adapter<Game>(::gameCard) { v, g -> bindGame(v, g) }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
-    private fun metaKey(g: Game) = "${g.sport}|${g.programme.title}"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -90,7 +87,7 @@ class SportsCatchUpActivity : AppCompatActivity() {
         val catNames = full.categories.associate { it.id to it.name }
         archive = SportsReplayCatalogue.channels(ParentalLock.visible(this, full)).map { CatchUpResolver.viewer(this, it) }
         val channels = archive
-            .filter { isSportsChannel(catNames[it.categoryId].orEmpty() + " " + it.name) }
+            .filter { SportsCatchUpData.isSportsChannel(catNames[it.categoryId].orEmpty() + " " + it.name) }
             .sortedBy { if (LiveSportsClassifier.programmeBucket(it.name) != null) 0 else 1 }
             .take(80)
         if (channels.isEmpty()) {
@@ -200,13 +197,13 @@ class SportsCatchUpActivity : AppCompatActivity() {
         v.isActivated = s == sport
         val accent = LiveSportsClassifier.colorOf(s)
         val list = games.filter { it.sport == s }
-        val matches = list.count { meta[metaKey(it)]?.match == true }
+        val matches = list.count { SportsCatchUpData.meta(it.sport, it.programme.title)?.match == true }
         v.findViewById<TextView>(R_TITLE).text = LiveSportsClassifier.labelOf(s)
         v.findViewById<TextView>(R_SUB).text = if (matches > 0) "$matches GAMES · ${list.size} SHOWS" else "${list.size} SHOWS"
         v.findViewById<View>(R_SHADE).background = GradientDrawable(GradientDrawable.Orientation.BL_TR,
             intArrayOf((accent and 0x00FFFFFF) or 0xEE000000.toInt(), (accent and 0x00FFFFFF) or 0x55000000, Color.TRANSPARENT))
         v.findViewById<ImageView>(R_ICON).load(LiveSportsClassifier.iconOf(s))
-        v.findViewById<ImageView>(R_ART).load(SPORT_ART[s] ?: SPORT_ART.getValue("other")) { crossfade(true) }
+        v.findViewById<ImageView>(R_ART).setImageResource(SportsCatchUpData.art(s))
         v.setOnClickListener { selectSport(s) }
         focusScale(v) { focusLine.text = "${LiveSportsClassifier.labelOf(s)} · ${list.size} recordings from your channels" }
     }
@@ -263,7 +260,7 @@ class SportsCatchUpActivity : AppCompatActivity() {
 
     private fun bindGame(v: View, g: Game) {
         v.tag = "sports-catchup-game-${g.key}"
-        val m = meta[metaKey(g)]
+        val m = SportsCatchUpData.meta(g.sport, g.programme.title)
         val accent = LiveSportsClassifier.colorOf(g.sport)
         val ring = shape(Color.TRANSPARENT, Color.parseColor("#1AFFFFFF"), 1, 14)
         v.background = states(ring, shape(Color.TRANSPARENT, cyan, 3, 14))
@@ -284,7 +281,7 @@ class SportsCatchUpActivity : AppCompatActivity() {
         } else {
             teams.visibility = View.GONE; title.visibility = View.VISIBLE
             title.text = noScore(g.programme.title)
-            art.load(SPORT_ART[g.sport] ?: SPORT_ART.getValue("other")) { crossfade(true) }
+            art.setImageResource(SportsCatchUpData.art(g.sport))
             shade.background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(
                 (accent and 0x00FFFFFF) or 0x66000000, Color.parseColor("#E6060A12")))
         }
@@ -292,7 +289,7 @@ class SportsCatchUpActivity : AppCompatActivity() {
         focusScale(v) { focusLine.text = describe(g) + " · " + SimpleDateFormat("EEEE d MMMM · h:mm a", Locale.getDefault()).format(Date(g.programme.startMs)) }
     }
 
-    private fun bindSide(v: View, s: Side, logoId: Int, nameId: Int, initId: Int) {
+    private fun bindSide(v: View, s: SportsCatchUpData.Side, logoId: Int, nameId: Int, initId: Int) {
         v.findViewById<TextView>(nameId).text = s.name
         val init = v.findViewById<TextView>(initId)
         val logo = v.findViewById<ImageView>(logoId)
@@ -307,33 +304,18 @@ class SportsCatchUpActivity : AppCompatActivity() {
     private fun UIColor(hex: String?, fallback: Int) = runCatching { Color.parseColor(if (hex!!.startsWith("#")) hex else "#$hex") }.getOrDefault(fallback)
 
     private fun describe(g: Game): String {
-        val m = meta[metaKey(g)]
+        val m = SportsCatchUpData.meta(g.sport, g.programme.title)
         return if (m?.match == true && m.home != null && m.away != null) "${m.home.name} vs ${m.away.name}" else noScore(g.programme.title)
     }
 
     private fun noScore(t: String) = SCORE.replace(" $t ", " v ").trim()
 
     // ------------------------------------------------------------- data
-    private fun isSportsChannel(text: String): Boolean {
-        val t = text.lowercase()
-        return SPORTS_WORDS.any { it in t } || LiveSportsClassifier.programmeBucket(text) != null
-    }
-
-    private fun sportFor(c: Channel, p: Programme): String? {
-        val t = p.title.lowercase()
-        if (JUNK.containsMatchIn(t)) return null
-        return SportsEventPolicy.bucket(p, c)
-            ?: LiveSportsClassifier.programmeBucket(p.title)
-            ?: LiveSportsClassifier.programmeBucket(c.name)
-            ?: LiveSportsClassifier.classify(p.title, c.name)
-            ?: LiveSportsClassifier.OTHER_SPORT
-    }
-
     /** Waits for the verified index (real recordings only) and the team details, then shows everything at once. */
     private fun load(channels: List<Channel>) = lifecycleScope.launch {
         val index = CatchUpIndex.build(this@SportsCatchUpActivity, archive)
-        val found = channels.flatMap { c -> index[c.id].orEmpty().mapNotNull { p -> sportFor(c, p)?.let { Game(c, p, it) } } }
-        fetchMeta(found)
+        val found = channels.flatMap { c -> index[c.id].orEmpty().mapNotNull { p -> SportsCatchUpData.sportFor(c, p)?.let { Game(c, p, it) } } }
+        SportsCatchUpData.fetchMeta(found.map { it.sport to it.programme.title })
         games += found
         loading = false
         render()
@@ -341,32 +323,6 @@ class SportsCatchUpActivity : AppCompatActivity() {
         val wanted = intent.getStringExtra(EXTRA_SPORT)
         if (wanted != null && games.any { it.sport == wanted }) selectSport(wanted)
         tilesList.post { (tilesList.findViewWithTag<View>("sports-catchup-tile-$wanted") ?: tilesList.getChildAt(0))?.requestFocus() }
-    }
-
-    private suspend fun fetchMeta(list: List<Game>) {
-        val pending = list.map { metaKey(it) to it }.distinctBy { it.first }.filter { it.first !in meta }
-        pending.chunked(100).forEach { chunk ->
-            val body = JSONObject().put("items", JSONArray(chunk.map { (_, g) -> JSONObject().put("title", g.programme.title).put("sport", g.sport) }))
-            val rows = withContext(Dispatchers.IO) {
-                runCatching {
-                    val conn = URL("${XtreamRepository.BACKEND_BASE.trimEnd('/')}/api/sportshub/catchup-matches").openConnection() as HttpURLConnection
-                    conn.requestMethod = "POST"; conn.doOutput = true; conn.connectTimeout = 6_000; conn.readTimeout = 20_000
-                    conn.setRequestProperty("Content-Type", "application/json")
-                    try {
-                        conn.outputStream.use { it.write(body.toString().toByteArray()) }
-                        if (conn.responseCode !in 200..299) null else JSONObject(conn.inputStream.bufferedReader().readText()).optJSONArray("items")
-                    } finally { conn.disconnect() }
-                }.getOrNull()
-            } ?: return@forEach
-            chunk.forEachIndexed { i, (key, _) ->
-                val o = rows.optJSONObject(i) ?: return@forEachIndexed
-                meta[key] = Meta(o.optBoolean("match"), side(o.optJSONObject("home")), side(o.optJSONObject("away")))
-            }
-        }
-    }
-
-    private fun side(o: JSONObject?): Side? = o?.let {
-        Side(it.optString("name"), it.optString("logo").takeIf { s -> s.isNotBlank() && s != "null" }, it.optString("color").takeIf { s -> s.isNotBlank() && s != "null" })
     }
 
     private fun selectSport(s: String) {
@@ -392,7 +348,7 @@ class SportsCatchUpActivity : AppCompatActivity() {
         if (day !in dayList) dayList.firstOrNull()?.let { day = it }
         days.submit(dayList)
         val shown = mine.filter { startOfDay(it.programme.startMs) == day }
-            .sortedWith(compareByDescending<Game> { meta[metaKey(it)]?.match == true }.thenByDescending { it.programme.startMs })
+            .sortedWith(compareByDescending<Game> { SportsCatchUpData.meta(it.sport, it.programme.title)?.match == true }.thenByDescending { it.programme.startMs })
         cards.submit(shown)
         sectionTitle.text = "CATCH UP ${LiveSportsClassifier.labelOf(s).uppercase()}"
         sectionTitle.setTextColor(LiveSportsClassifier.colorOf(s).let { if (ColorUtils.calculateLuminance(it) < .12) cyan else it })
@@ -401,8 +357,8 @@ class SportsCatchUpActivity : AppCompatActivity() {
     }
 
     private fun play(g: Game) {
-        val m = meta[metaKey(g)]?.takeIf { it.match && it.home != null && it.away != null }
-        fun team(x: Side?) = x?.let { PlayerLoadingOverlay.Team(it.name, it.logo, it.color?.let { c -> UIColor(c, 0) }?.takeIf { v -> v != 0 }) }
+        val m = SportsCatchUpData.meta(g.sport, g.programme.title)?.takeIf { it.match && it.home != null && it.away != null }
+        fun team(x: SportsCatchUpData.Side?) = x?.let { PlayerLoadingOverlay.Team(it.name, it.logo, it.color?.let { c -> UIColor(c, 0) }?.takeIf { v -> v != 0 }) }
         CatchUpPlayback.start(this, rootView, g.channel, g.programme, describe(g),
             "${g.channel.name} · ${dayLabel(startOfDay(g.programme.startMs))} ${time(g.programme.startMs)}", archive,
             team(m?.home), team(m?.away)) { games.removeAll { it.key == g.key }; render() }
@@ -432,31 +388,6 @@ class SportsCatchUpActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_SPORT = "sport"
         val SCORE = Regex("\\s\\d{1,3}\\s*[-–]\\s*\\d{1,3}\\s")
-        val JUNK = Regex("\\b(teleshopping|infomercial|paid programming|paid program|station close|off air|close down|programming resumes|no programme|to be announced|tba|tbc)\\b")
-        val SPORTS_WORDS = listOf("sport", "espn", "bein", "kayo", "fox league", "fox footy", "fox cricket", "racing", "tab", "nfl", "nba", "nhl", "mlb",
-            "afl", "nrl", "ufc", "wwe", "golf", "tennis", "cricket", "f1", "motor", "dazn", "optus sport", "stan sport", "premier league", "laliga", "serie a", "bundesliga", "football", "soccer", "rugby", "boxing")
-        private fun px(id: String) = "https://images.pexels.com/photos/$id/pexels-photo-$id.jpeg?auto=compress&cs=tinysrgb&w=640"
-        private fun us(id: String) = "https://images.unsplash.com/photo-$id?w=640&q=70&auto=format&fit=crop"
-        val SPORT_ART = mapOf(
-            "soccer" to px("30651230"),
-            "f1" to px("29252129"),
-            "motorsport" to us("1761092993029-70ab4bc9983d"),
-            "golf" to us("1592919505780-303950717480"),
-            "cricket" to us("1730739463889-34c7279277a9"),
-            "tennis" to us("1545151414-8a948e1ea54f"),
-            "rugby" to us("1480099225005-2513c8947aec"),
-            "nrl" to px("35102692"),
-            "afl" to us("1663832886113-3d55ed62d1ca"),
-            "nfl" to us("1663563624897-de8972d7ce93"),
-            "nba" to us("1626003573503-2e088d82c647"),
-            "nhl" to us("1580748141549-71748dbe0bdc"),
-            "mlb" to us("1623947453126-3652fc16b2b0"),
-            "mma" to us("1509563268479-0f004cf3f58b"),
-            "cycling" to us("1567415848125-e3e549f875b6"),
-            "athletics" to px("19787364"),
-            "wwe" to px("36472317"),
-            "other" to us("1705593973313-75de7bf95b56"),
-        )
         val R_ART = View.generateViewId()
         val R_SHADE = View.generateViewId()
         val R_ICON = View.generateViewId()

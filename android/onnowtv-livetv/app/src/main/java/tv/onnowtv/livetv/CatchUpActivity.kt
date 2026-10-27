@@ -113,7 +113,9 @@ class CatchUpActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val index = CatchUpIndex.build(this@CatchUpActivity, channels)
             // Only channels with recordings that really play are listed.
-            val live = channels.filter { it.id in index }
+            // Sports recordings live in Sports Hub & Replays; Catch Up covers everything else.
+            channels.forEach { c -> genreOf[c.id] = genreFor(catNames[c.categoryId].orEmpty() + " " + c.name) }
+            val live = channels.filter { it.id in index && genreOf[it.id] != "Sports" }
             loader.dismiss()
             heroMeta.text = "WATCH WHAT YOU MISSED — UP TO 7 DAYS"
             if (live.isEmpty()) {
@@ -124,7 +126,7 @@ class CatchUpActivity : AppCompatActivity() {
                 return@launch
             }
             programmes.putAll(index)
-            live.forEach { c -> genreOf[c.id] = genreFor(catNames[c.categoryId].orEmpty() + " " + c.name); loaded += index.getValue(c.id).map { Show(c, it) } }
+            live.forEach { c -> loaded += index.getValue(c.id).map { Show(c, it) } }
             allChannels = live
             val present = GENRES.map { it.first }.filter { g -> live.any { genreOf[it.id] == g } }
             genreAdapter.submit(listOf(ALL) + present)

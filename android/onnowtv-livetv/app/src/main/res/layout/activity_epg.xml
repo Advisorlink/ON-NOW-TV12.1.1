@@ -132,6 +132,19 @@
             android:nextFocusRight="@id/categories_list"
             android:contentDescription="Pay-per-view" />
 
+        <!-- Catch Up for TV shows, movies, news (sports replays live in Sports Hub) -->
+        <ImageButton android:id="@+id/rail_catchup"
+            android:tag="rail-catchup"
+            android:layout_width="44dp" android:layout_height="44dp"
+            android:layout_marginTop="14dp"
+            android:src="@drawable/ic_rail_catchup"
+            android:scaleType="center"
+            android:background="@drawable/rail_icon_bg"
+            android:focusable="true"
+            android:nextFocusLeft="@id/rail_catchup"
+            android:nextFocusRight="@id/categories_list"
+            android:contentDescription="Catch Up" />
+
         <ImageButton android:id="@+id/rail_fullscreen"
             android:layout_width="44dp" android:layout_height="44dp"
             android:layout_marginTop="14dp"
@@ -611,71 +624,21 @@
                         android:text="0" />
                 </LinearLayout>
 
-                <!-- Sports Hub entry — sits directly under the What's on pill -->
-                <LinearLayout
+                <!-- Sports Hub & Replays — big cover-art tile under the What's on pill -->
+                <FrameLayout
                     android:id="@+id/sports_hub_btn"
                     android:tag="sports-hub-entry-landscape"
-                    android:contentDescription="@string/sports_hub_title"
-                    android:layout_width="match_parent"
-                    android:layout_height="54dp"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:focusable="true"
-                    android:clickable="true"
-                    android:nextFocusUp="@id/whatson_pill"
-                    android:nextFocusDown="@id/catchup_btn"
-                    android:background="@drawable/sports_hub_button_bg">
-                    <TextView
-                        android:layout_width="30dp"
-                        android:layout_height="24dp"
-                        android:layout_marginEnd="8dp"
-                        android:background="@drawable/sports_brand_badge"
-                        android:gravity="center"
-                        android:text="V2"
-                        android:textColor="#FFFFFF"
-                        android:fontFamily="sans-serif-condensed"
-                        android:textStyle="bold"
-                        android:textSize="15sp" />
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:fontFamily="monospace"
-                        android:textStyle="bold"
-                        android:textColor="#FFFFFFFF"
-                        android:textSize="14sp"
-                        android:letterSpacing="0"
-                        android:text="SPORTS HUB" />
-                    <TextView
-                        android:id="@+id/sports_hub_live"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="monospace"
-                        android:textStyle="bold"
-                        android:textColor="#FFFF4D5E"
-                        android:textSize="10sp"
-                        android:letterSpacing="0.14"
-                        android:text="›" />
-                </LinearLayout>
-                <!-- Catch Up entry — big artwork tile under Sports Hub -->
-                <FrameLayout
-                    android:id="@+id/catchup_btn"
-                    android:tag="catchup-entry-landscape"
-                    android:contentDescription="Catch up with V2 Sports Replays"
+                    android:contentDescription="V2 Sports Hub and Replays"
                     android:layout_width="match_parent"
                     android:layout_height="112dp"
-                    android:layout_marginTop="12dp"
-                    android:layout_marginBottom="22dp"
+                    android:layout_marginBottom="18dp"
                     android:focusable="true"
                     android:clickable="true"
                     android:padding="3dp"
-                    android:nextFocusUp="@id/sports_hub_btn"
+                    android:nextFocusUp="@id/whatson_pill"
                     android:nextFocusDown="@id/categories_list"
                     android:background="@drawable/catchup_tile_bg">
                     <ImageView
-                        android:id="@+id/catchup_tile_art"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:scaleType="centerCrop"
@@ -685,6 +648,17 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:background="@drawable/catchup_tile_shade" />
+                    <TextView
+                        android:layout_width="30dp"
+                        android:layout_height="22dp"
+                        android:layout_margin="10dp"
+                        android:background="@drawable/sports_brand_badge"
+                        android:gravity="center"
+                        android:text="V2"
+                        android:textColor="#FFFFFF"
+                        android:fontFamily="sans-serif-condensed"
+                        android:textStyle="bold"
+                        android:textSize="14sp" />
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -698,10 +672,10 @@
                             android:layout_height="wrap_content"
                             android:fontFamily="sans-serif-black"
                             android:textColor="#FFFFFFFF"
-                            android:textSize="20sp"
+                            android:textSize="19sp"
                             android:shadowColor="#CC000000"
                             android:shadowRadius="6"
-                            android:text="↺ Catch Up" />
+                            android:text="Sports Hub" />
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
@@ -712,9 +686,11 @@
                             android:letterSpacing="0.14"
                             android:shadowColor="#CC000000"
                             android:shadowRadius="4"
-                            android:text="WITH V2 SPORTS REPLAYS" />
+                            android:text="&amp; REPLAYS · SCORES · CATCH UP" />
                     </LinearLayout>
                 </FrameLayout>
+
+
 
                 <TextView
                     android:layout_width="match_parent"
@@ -737,7 +713,7 @@
                     android:nestedScrollingEnabled="true"
                     android:clipToPadding="false"
                     android:overScrollMode="never"
-                    android:nextFocusUp="@id/catchup_btn"
+                    android:nextFocusUp="@id/sports_hub_btn"
                     android:nextFocusDown="@id/categories_list"
                     android:nextFocusLeft="@id/rail_signout"
                     android:nextFocusRight="@id/channels_list" />

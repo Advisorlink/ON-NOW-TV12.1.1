@@ -650,3 +650,15 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
   - TheSportsDB lookups are capped at 20 per request.
 - The NRL "same team all week" was the Super League match "Hull FC v London Broncos", which was showing Brisbane's crest. It's fixed (London Broncos gets its own crest; Hull FC shows initials).
 - Backend changes need Save to GitHub before they reach onnowhub.com. **Not verified on a device.**
+
+## Live TV 2.10.92–2.10.93 (156–157): Sports Hub & Replays home tile, hub hero, sport cover art, Catch Up rail button (2026-10-27)
+- Home sidebar: `sports_hub_btn` is now the big cover-art tile ("V2" badge, "Sports Hub", "& REPLAYS · SCORES · CATCH UP"). The old small Sports Hub row and both sidebar Catch Up buttons are gone, which leaves more room for the categories.
+- General Catch Up is now a rail icon `rail_catchup` (ic_rail_catchup, history arrow) placed directly under PPV, wired in EpgActivity.
+- CatchUpActivity: sports channels are excluded (genre "Sports"), so there's no Sports tile or chip. Sports recordings only appear in Sports Hub & Replays.
+- Sports Hub (TV layout): new `ui/SportsHubHero` under the header has two parts:
+  - A 360×128dp cover tile "Catch Up & Replays" that opens SportsCatchUpActivity with the current sport.
+  - A "LATEST REPLAYS · <SPORT>" strip of up to 20 newest confirmed recordings, as crest-vs-crest cards or sport art cards. Clicking a card plays it through CatchUpPlayback with the team loading screen.
+  - It updates whenever the sport filter changes. The hub's top "Catch Up & Replays" pill was removed in favour of the tile.
+- 18 custom sport cover artworks `res/drawable-nodpi/img_scu_<bucket>.webp`, made with the same 3D style and with letterbox bars trimmed. They're used for the Sports Catch Up tiles and non-match cards via `SportsCatchUpData.art()`. `img_sport_*.png` already existed elsewhere, so the new ones use the img_scu_ prefix.
+- New `data/SportsCatchUpData` holds shared Side/Meta, isSportsChannel, sportFor, the fetchMeta crest cache and ART. SportsCatchUpActivity was refactored to use it.
+- **Not verified on a device.**

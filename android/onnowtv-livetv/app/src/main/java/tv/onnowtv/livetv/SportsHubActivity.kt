@@ -30,6 +30,7 @@ import tv.onnowtv.livetv.data.SportsHubApi
 import tv.onnowtv.livetv.data.SportsHubApi.objects
 import tv.onnowtv.livetv.data.SportsPresentation as Data
 import tv.onnowtv.livetv.ui.SportsFieldGallery
+import tv.onnowtv.livetv.ui.SportsHubHero
 import tv.onnowtv.livetv.ui.SportsMapAdapter
 import tv.onnowtv.livetv.ui.SportsScoreAdapter
 import tv.onnowtv.livetv.ui.SportsUi as UI
@@ -82,6 +83,7 @@ class SportsHubActivity : AppCompatActivity() {
     private var restoredListState: android.os.Parcelable? = null
     private lateinit var loadingBand: SportsLoadingBand
     private var loadingScores = true
+    private var hero: SportsHubHero? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -102,6 +104,7 @@ class SportsHubActivity : AppCompatActivity() {
         if (compact) root.addView(SportsWindow.horizontal(ctx, modes))
         renderModes(); root.addView(UI.divider(ctx))
         loadingBand = SportsLoadingBand(ctx, "hub"); root.addView(loadingBand)
+        if (!handset) { hero = SportsHubHero(this); root.addView(hero, LinearLayout.LayoutParams(-1, -2)) }
         sportsRow = UI.row(ctx, dp(ctx, 7f)); leaguesRow = UI.row(ctx, dp(ctx, 7f))
         fun scroller(row: LinearLayout) = HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false; setPadding(dp(ctx, 3f), dp(ctx, 3f), dp(ctx, 3f), dp(ctx, 3f)); addView(row) }
         filters = UI.col(ctx, dp(ctx, 5f))
@@ -179,7 +182,6 @@ class SportsHubActivity : AppCompatActivity() {
             val tag = "hub-mode-${m.name.lowercase()}"
             modes.addView(UI.identify(UI.pill(this, label, mode == m) { mode = m; renderModes(tag); render() }, tag))
         }
-        modes.addView(UI.identify(UI.pill(this, "↺ Catch Up & Replays") { startActivity(Intent(this, SportsCatchUpActivity::class.java).putExtra(SportsCatchUpActivity.EXTRA_SPORT, sports.getOrNull(sportIdx)?.optString("bucket"))) }, "top-nav-catchup-button"))
         modes.addView(UI.identify(UI.pill(this, "Fields") { SportsFieldGallery.show(this) }, "hub-fields"))
         focus?.let { modes.findViewWithTag<View>(it)?.requestFocus() }
     }
@@ -206,6 +208,7 @@ class SportsHubActivity : AppCompatActivity() {
             // Guide channels are available even if ESPN is slow, offline, or does not cover this sport.
             val guideBundle = BundleHolder.current
             val bucket = sports.getOrNull(sportIdx)?.optString("bucket")
+            if (!quiet) hero?.update(bucket?.takeIf { it.isNotBlank() })
             val live = withContext(Dispatchers.Default) { if (guideBundle == null || dayOffset != 0) emptyList() else SportsLiveGuide.current(guideBundle, bucket) }
             if (generation != requestId || !isActive) return@launch
             programmes = if (BundleHolder.current === guideBundle) live else emptyList()
