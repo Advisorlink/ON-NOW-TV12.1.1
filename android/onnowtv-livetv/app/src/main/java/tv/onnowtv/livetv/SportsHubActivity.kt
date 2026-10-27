@@ -104,7 +104,7 @@ class SportsHubActivity : AppCompatActivity() {
         if (compact) root.addView(SportsWindow.horizontal(ctx, modes))
         renderModes(); root.addView(UI.divider(ctx))
         loadingBand = SportsLoadingBand(ctx, "hub"); root.addView(loadingBand)
-        if (!handset) { hero = SportsHubHero(this); root.addView(hero, LinearLayout.LayoutParams(-1, -2)) }
+        hero = SportsHubHero(this, compact = handset); root.addView(hero, LinearLayout.LayoutParams(-1, -2))
         sportsRow = UI.row(ctx, dp(ctx, 7f)); leaguesRow = UI.row(ctx, dp(ctx, 7f))
         fun scroller(row: LinearLayout) = HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false; setPadding(dp(ctx, 3f), dp(ctx, 3f), dp(ctx, 3f), dp(ctx, 3f)); addView(row) }
         filters = UI.col(ctx, dp(ctx, 5f))

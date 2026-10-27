@@ -662,3 +662,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - 18 custom sport cover artworks `res/drawable-nodpi/img_scu_<bucket>.webp`, made with the same 3D style and with letterbox bars trimmed. They're used for the Sports Catch Up tiles and non-match cards via `SportsCatchUpData.art()`. `img_sport_*.png` already existed elsewhere, so the new ones use the img_scu_ prefix.
 - New `data/SportsCatchUpData` holds shared Side/Meta, isSportsChannel, sportFor, the fetchMeta crest cache and ART. SportsCatchUpActivity was refactored to use it.
 - **Not verified on a device.**
+
+## Live TV 2.10.94 (158): hub "Catch Up & Replays" tile opens the full sport picker (2026-10-27)
+- SportsHubHero's cover tile now opens SportsCatchUpActivity without a preselected sport, so every sport tile is shown first.
+- The hero now also shows on non-TV devices (emulators/phones count as `handset`): in compact mode it stacks vertically with a full-width 120dp tile. Before, it was hidden on handsets.
+- Sports Catch Up sport tiles are bigger (150dp; 3 columns, or 2 under 720dp width) and use a left-side dark wash so the new cover art shows clearly.

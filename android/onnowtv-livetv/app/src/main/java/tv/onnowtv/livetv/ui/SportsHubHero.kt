@@ -32,7 +32,7 @@ import java.util.Date
 import java.util.Locale
 
 /** Sports Hub hero: a big cover-art "Catch Up & Replays" tile plus a strip of the chosen sport's recordings. */
-class SportsHubHero(private val activity: AppCompatActivity) : LinearLayout(activity) {
+class SportsHubHero(private val activity: AppCompatActivity, compact: Boolean = false) : LinearLayout(activity) {
     private val cyan = Color.parseColor("#5DC8FF")
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
     private var sport: String? = null
@@ -42,11 +42,11 @@ class SportsHubHero(private val activity: AppCompatActivity) : LinearLayout(acti
     private val cards = Cards()
 
     init {
-        orientation = HORIZONTAL
+        orientation = if (compact) VERTICAL else HORIZONTAL
         tag = "hub-hero"
         clipChildren = false; clipToPadding = false
         setPadding(dp(4), dp(6), dp(4), dp(6))
-        addView(coverTile(), LayoutParams(dp(360), dp(128)))
+        addView(coverTile(), if (compact) LayoutParams(-1, dp(120)) else LayoutParams(dp(360), dp(128)))
         addView(LinearLayout(activity).apply {
             orientation = VERTICAL; clipChildren = false; clipToPadding = false
             addView(label, LayoutParams(-2, -2).apply { marginStart = dp(8) })
@@ -56,7 +56,7 @@ class SportsHubHero(private val activity: AppCompatActivity) : LinearLayout(acti
                 setPadding(dp(4), dp(4), dp(4), dp(4))
                 layoutManager = LinearLayoutManager(activity, RecyclerView.HORIZONTAL, false); adapter = cards
             }, LayoutParams(-1, dp(112)))
-        }, LayoutParams(0, dp(136), 1f).apply { marginStart = dp(16) })
+        }, if (compact) LayoutParams(-1, dp(136)).apply { topMargin = dp(10) } else LayoutParams(0, dp(136), 1f).apply { marginStart = dp(16) })
     }
 
     private fun text(t: String, size: Float, color: Int, face: Typeface) = TextView(activity).apply {
@@ -83,7 +83,7 @@ class SportsHubHero(private val activity: AppCompatActivity) : LinearLayout(acti
             addView(text("Catch Up & Replays", 23f, Color.WHITE, Typeface.create("sans-serif-black", Typeface.NORMAL)).apply { setShadowLayer(8f, 0f, 2f, Color.BLACK) })
             addView(text("EVERY SPORT · TEAMS · FULL GAMES  ›", 10f, Color.WHITE, Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)).apply { letterSpacing = .14f; alpha = .85f })
         }, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
-        setOnClickListener { activity.startActivity(Intent(activity, SportsCatchUpActivity::class.java).putExtra(SportsCatchUpActivity.EXTRA_SPORT, sport)) }
+        setOnClickListener { activity.startActivity(Intent(activity, SportsCatchUpActivity::class.java)) }
         zoom(this)
     }
 

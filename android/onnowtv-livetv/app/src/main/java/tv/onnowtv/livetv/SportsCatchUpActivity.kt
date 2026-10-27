@@ -130,7 +130,7 @@ class SportsCatchUpActivity : AppCompatActivity() {
 
         tilesList = RecyclerView(this).apply {
             tag = "sports-catchup-tiles"; clipToPadding = false; clipChildren = false; itemAnimator = null; isNestedScrollingEnabled = false
-            setPadding(dp(6), dp(6), dp(6), dp(6)); layoutManager = GridLayoutManager(context, 4); adapter = tiles
+            setPadding(dp(6), dp(6), dp(6), dp(6)); layoutManager = GridLayoutManager(context, if (resources.configuration.screenWidthDp < 720) 2 else 3); adapter = tiles
         }
         col.addView(tilesList, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(18) })
 
@@ -178,7 +178,7 @@ class SportsCatchUpActivity : AppCompatActivity() {
 
     // ------------------------------------------------------------- tiles
     private fun sportTile(parent: ViewGroup): View = FrameLayout(this).apply {
-        layoutParams = RecyclerView.LayoutParams(-1, dp(118)).apply { setMargins(dp(7), dp(7), dp(7), dp(7)) }
+        layoutParams = RecyclerView.LayoutParams(-1, dp(150)).apply { setMargins(dp(8), dp(8), dp(8), dp(8)) }
         isFocusable = true; isClickable = true; clipToOutline = true
         background = states(shape(Color.parseColor("#141C2A"), 0, 0, 16), shape(Color.parseColor("#141C2A"), Color.WHITE, 3, 16))
         setPadding(dp(3), dp(3), dp(3), dp(3))
@@ -200,8 +200,9 @@ class SportsCatchUpActivity : AppCompatActivity() {
         val matches = list.count { SportsCatchUpData.meta(it.sport, it.programme.title)?.match == true }
         v.findViewById<TextView>(R_TITLE).text = LiveSportsClassifier.labelOf(s)
         v.findViewById<TextView>(R_SUB).text = if (matches > 0) "$matches GAMES · ${list.size} SHOWS" else "${list.size} SHOWS"
-        v.findViewById<View>(R_SHADE).background = GradientDrawable(GradientDrawable.Orientation.BL_TR,
-            intArrayOf((accent and 0x00FFFFFF) or 0xEE000000.toInt(), (accent and 0x00FFFFFF) or 0x55000000, Color.TRANSPARENT))
+        // Cover art sits on the right; a dark wash on the left keeps the sport name crisp.
+        v.findViewById<View>(R_SHADE).background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+            intArrayOf(Color.parseColor("#E605080F"), (accent and 0x00FFFFFF) or 0x33000000, Color.TRANSPARENT))
         v.findViewById<ImageView>(R_ICON).load(LiveSportsClassifier.iconOf(s))
         v.findViewById<ImageView>(R_ART).setImageResource(SportsCatchUpData.art(s))
         v.setOnClickListener { selectSport(s) }
