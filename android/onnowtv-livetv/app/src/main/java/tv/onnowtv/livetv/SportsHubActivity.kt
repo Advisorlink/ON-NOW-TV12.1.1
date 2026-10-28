@@ -42,12 +42,19 @@ import tv.onnowtv.livetv.ui.SportsHeaderAdapter
 import tv.onnowtv.livetv.data.SportsLayoutPolicy
 import tv.onnowtv.livetv.data.SportsCategories
 import tv.onnowtv.livetv.data.SportsLiveGuide
+import tv.onnowtv.livetv.data.SportsHubLayout
+import tv.onnowtv.livetv.ui.SportsHubSideMenu
+import tv.onnowtv.livetv.ui.SportsLayoutChooser
+import tv.onnowtv.livetv.ui.SportsSpotlight
 
 /** Real, native V2 Sports Hub. Browser fixtures are never used by this activity. */
 class SportsHubActivity : AppCompatActivity() {
     private enum class Mode { SCORES, MAP, FOLLOWING }
-    private lateinit var modes: LinearLayout
-    private lateinit var sportsRow: LinearLayout
+    private lateinit var menu: SportsHubSideMenu
+    private lateinit var hubLayout: SportsHubLayout
+    private lateinit var heading: TextView
+    private lateinit var eyebrow: TextView
+    private var spotlight: SportsSpotlight? = null
     private lateinit var leaguesRow: LinearLayout
     private lateinit var leagueScroll: HorizontalScrollView
     private lateinit var list: RecyclerView
@@ -94,52 +101,108 @@ class SportsHubActivity : AppCompatActivity() {
         mode = Mode.values().getOrElse(savedInstanceState?.getInt("mode") ?: 0) { Mode.SCORES }
         sportIdx = savedInstanceState?.getInt("sport", -1) ?: -1; leagueIdx = savedInstanceState?.getInt("league", 0) ?: 0
         dayOffset = savedInstanceState?.getInt("day", 0) ?: 0
-        val ctx = this; val width = resources.configuration.screenWidthDp; val compact = width < 900
-        val root = UI.col(ctx, dp(ctx, if (handset) 6f else 12f)).apply { setBackgroundColor(UI.BG); val pad = dp(ctx, if (handset) 12f else 28f); setPadding(pad, dp(ctx, if (handset) 10f else 22f), pad, dp(ctx, 10f)) }
-        val header = UI.row(ctx, dp(ctx, 12f))
-        header.addView(UI.wordmark(ctx, compact), LinearLayout.LayoutParams(0, -2, 1f))
-        modes = UI.row(ctx, dp(ctx, 7f)); if (!compact) header.addView(modes)
-        liveBadge = UI.identify(UI.eyebrow(ctx, "— LIVE", UI.LIVE), "hub-live-count"); if (width >= 600) header.addView(liveBadge)
-        header.addView(UI.identify(UI.pill(ctx, "‹ Guide") { finish() }, "hub-back-guide")); root.addView(header)
-        if (compact) root.addView(SportsWindow.horizontal(ctx, modes))
-        renderModes(); root.addView(UI.divider(ctx))
+        val ctx = this; val width = resources.configuration.screenWidthDp
+        hubLayout = SportsHubLayout.get(this).let { if (width < 600 && it != SportsHubLayout.DOCK) SportsHubLayout.DOCK else it }
+        menu = SportsHubSideMenu(this, hubLayout)
+        val shell = UI.row(ctx).apply { gravity = Gravity.TOP; setBackgroundColor(when (hubLayout) { SportsHubLayout.TICKER -> 0xFF07090F.toInt(); SportsHubLayout.SPOTLIGHT -> 0xFF0B0D1C.toInt(); else -> UI.BG }) }
+        val floating = hubLayout == SportsHubLayout.DOCK || hubLayout == SportsHubLayout.SPOTLIGHT
+        shell.addView(menu, LinearLayout.LayoutParams(dp(ctx, menu.widthDp), -1).apply { if (floating) setMargins(dp(ctx, 14f), dp(ctx, 14f), 0, dp(ctx, 14f)) })
+        val root = UI.col(ctx, dp(ctx, if (handset) 6f else 10f)).apply { val pad = dp(ctx, if (handset) 12f else 26f); setPadding(pad, dp(ctx, if (handset) 10f else 20f), pad, dp(ctx, 10f)) }
+        shell.addView(root, LinearLayout.LayoutParams(0, -1, 1f))
+        val header = UI.row(ctx, dp(ctx, 14f))
+        val titles = UI.col(ctx, dp(ctx, 4f))
+        eyebrow = UI.identify(UI.eyebrow(ctx, "", hubLayout.accent).apply { letterSpacing = .2f }, "hub-eyebrow"); titles.addView(eyebrow)
+        heading = UI.identify(UI.singleLine(UI.text(ctx, "All sports", if (handset) 24f else 34f, android.graphics.Color.WHITE, bold = true)), "hub-heading"); titles.addView(heading)
+        header.addView(titles, LinearLayout.LayoutParams(0, -2, 1f))
+        liveBadge = UI.identify(UI.text(ctx, "— LIVE", 11f, android.graphics.Color.WHITE, bold = true).apply {
+            setPadding(dp(ctx, 12f), dp(ctx, 5f), dp(ctx, 12f), dp(ctx, 5f)); background = UI.bg(UI.LIVE, dp(ctx, if (hubLayout == SportsHubLayout.TICKER) 2f else 12f).toFloat())
+        }, "hub-live-count"); header.addView(liveBadge)
+        root.addView(header)
         loadingBand = SportsLoadingBand(ctx, "hub"); root.addView(loadingBand)
-        hero = SportsHubHero(this, compact = handset); root.addView(hero, LinearLayout.LayoutParams(-1, -2))
-        sportsRow = UI.row(ctx, dp(ctx, 7f)); leaguesRow = UI.row(ctx, dp(ctx, 7f))
+        when (hubLayout) {
+            SportsHubLayout.SPOTLIGHT -> { spotlight = SportsSpotlight(this) { openGame(it) }; root.addView(spotlight, LinearLayout.LayoutParams(-1, dp(ctx, if (handset) 190f else 214f))) }
+            SportsHubLayout.TICKER -> Unit
+            else -> { hero = SportsHubHero(this, compact = handset); root.addView(hero, LinearLayout.LayoutParams(-1, -2)) }
+        }
+        leaguesRow = UI.row(ctx, dp(ctx, 4f))
         fun scroller(row: LinearLayout) = HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false; setPadding(dp(ctx, 3f), dp(ctx, 3f), dp(ctx, 3f), dp(ctx, 3f)); addView(row) }
-        filters = UI.col(ctx, dp(ctx, 5f))
-        filters.addView(scroller(sportsRow)); leagueScroll = scroller(leaguesRow); filters.addView(leagueScroll); renderFilters()
-        val dates = UI.row(ctx, dp(ctx, 8f))
+        filters = UI.col(ctx, dp(ctx, 4f))
+        leagueScroll = scroller(leaguesRow); filters.addView(leagueScroll)
+        val dates = UI.row(ctx, dp(ctx, 4f))
         fun day(delta: Int) { dayOffset = (dayOffset + delta).coerceIn(-14, 7); updateDateLabel(); games = emptyList(); refresh() }
-        dates.addView(UI.identify(UI.pill(ctx, "‹") { day(-1) }, "hub-previous-day"))
-        calendar = UI.row(ctx, dp(ctx, 6f))
-        dates.addView(HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false; setPadding(dp(ctx, 3f), dp(ctx, 3f), dp(ctx, 3f), dp(ctx, 3f)); addView(calendar) }, LinearLayout.LayoutParams(0, -2, 1f))
-        dates.addView(UI.identify(UI.pill(ctx, "›") { day(1) }, "hub-next-day"))
-        dateLabel = UI.identify(UI.text(ctx, "", 12f, UI.ACCENT, mono = true), "hub-fixture-date"); dates.addView(dateLabel)
+        dates.addView(tab("‹", false, "hub-previous-day") { day(-1) })
+        calendar = UI.row(ctx, dp(ctx, 4f))
+        dates.addView(scroller(calendar), LinearLayout.LayoutParams(0, -2, 1f))
+        dates.addView(tab("›", false, "hub-next-day") { day(1) })
+        dateLabel = UI.identify(UI.text(ctx, "", 12f, hubLayout.accent, mono = true), "hub-fixture-date"); dates.addView(dateLabel)
         updateDateLabel(); filters.addView(dates)
         val status = UI.row(ctx, dp(ctx, 12f))
         notice = UI.identify(UI.text(ctx, message, 15f, UI.DIM), "hub-feed-status")
         status.addView(notice, LinearLayout.LayoutParams(0, -2, 1f))
-        retry = UI.identify(UI.pill(ctx, "Retry") { refresh() }, "hub-retry").apply { visibility = View.GONE }; status.addView(retry)
+        retry = tab("↻ Retry", false, "hub-retry") { refresh() }.apply { visibility = View.GONE }; status.addView(retry)
         filters.addView(status)
-        if (width < 600) filters.addView(liveBadge)
-        filterDock = UI.col(ctx); root.addView(filterDock)
+        filterDock = UI.col(ctx); root.addView(filterDock); filterDock.addView(filters)
         filterHeader = FrameLayout(ctx)
-        if (handset) filterHeader.addView(filters) else filterDock.addView(filters)
+        renderFilters()
         val stage = FrameLayout(ctx)
-        val columns = SportsLayoutPolicy.columns(width)
+        val usable = width - menu.widthDp.toInt() - 60
+        val columns = when (hubLayout) {
+            SportsHubLayout.TILES -> 1
+            SportsHubLayout.TICKER -> if (usable >= 760) 2 else 1
+            SportsHubLayout.DOCK -> if (usable < 560) 1 else (SportsLayoutPolicy.columns(usable) + 1).coerceAtMost(4)
+            else -> SportsLayoutPolicy.columns(usable + 200)
+        }
+        scores.rows = hubLayout.rows; scores.rowRadius = if (hubLayout == SportsHubLayout.TICKER) 2f else 14f
         list = RecyclerView(ctx).apply {
-            adapter = if (handset) ConcatAdapter(ConcatAdapter.Config.Builder().setStableIdMode(ConcatAdapter.Config.StableIdMode.NO_STABLE_IDS).build(), SportsHeaderAdapter(filterHeader), scores) else scores
+            adapter = scores
             itemAnimator = null; clipToPadding = true; setPadding(0, 0, 0, dp(ctx, 8f))
-            layoutManager = GridLayoutManager(ctx, columns).apply { spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() { override fun getSpanSize(position: Int): Int { val offset = if (handset) 1 else 0; return if (position < offset || scores.isHeader(position - offset)) columns else 1 } } }
+            layoutManager = GridLayoutManager(ctx, columns).apply { spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() { override fun getSpanSize(position: Int): Int = if (scores.isHeader(position)) columns else 1 } }
         }; UI.identify(list, "hub-score-list"); stage.addView(list, FrameLayout.LayoutParams(-1, -1))
         empty = UI.identify(UI.text(ctx, "", 15f, UI.DIM), "hub-empty-state").apply { gravity = Gravity.CENTER; visibility = View.GONE; setPadding(dp(ctx, 30f), dp(ctx, 24f), dp(ctx, 30f), dp(ctx, 24f)) }
-        // Empty messaging stays below the scrolling filters and never blocks their taps.
         empty.isClickable = false; empty.isFocusable = false
-        if (handset) filters.addView(empty, LinearLayout.LayoutParams(-1, -2))
-        else stage.addView(empty, FrameLayout.LayoutParams(-1, dp(ctx, 100f), Gravity.BOTTOM))
+        stage.addView(empty, FrameLayout.LayoutParams(-1, dp(ctx, 100f), Gravity.BOTTOM))
         buildMap(); stage.addView(mapPanel, FrameLayout.LayoutParams(-1, -1))
-        root.addView(stage, LinearLayout.LayoutParams(-1, 0, 1f)); setContentView(root)
+        root.addView(stage, LinearLayout.LayoutParams(-1, 0, 1f)); setContentView(shell)
+        renderMenu()
+        menu.post { menu.focusSelected() }
+    }
+    /** Text tab with an accent underline when selected: the hub's replacement for pill buttons. */
+    private fun tab(label: String, selected: Boolean, tag: String, onClick: () -> Unit): TextView = UI.identify(UI.text(this, label, 13f, if (selected) android.graphics.Color.WHITE else UI.DIM, bold = true), tag).apply {
+        val ctx = this@SportsHubActivity
+        setPadding(dp(ctx, 12f), dp(ctx, 9f), dp(ctx, 12f), dp(ctx, 9f)); gravity = Gravity.CENTER; isFocusable = true; isClickable = true; isSelected = selected
+        val radius = dp(ctx, if (hubLayout == SportsHubLayout.TICKER) 2f else 10f).toFloat()
+        fun paint(has: Boolean) {
+            setTextColor(if (has || selected) android.graphics.Color.WHITE else UI.DIM)
+            background = when {
+                has -> UI.bg(UI.CARD_FOCUS, radius, dp(ctx, 2f), hubLayout.accent)
+                selected -> android.graphics.drawable.LayerDrawable(arrayOf(UI.bg(androidx.core.graphics.ColorUtils.setAlphaComponent(hubLayout.accent, 28), radius), UI.bg(hubLayout.accent, dp(ctx, 2f).toFloat()))).apply {
+                    setLayerHeight(1, dp(ctx, 3f)); setLayerGravity(1, Gravity.BOTTOM or Gravity.FILL_HORIZONTAL); setLayerInset(1, dp(ctx, 10f), 0, dp(ctx, 10f), 0)
+                }
+                else -> UI.bg(android.graphics.Color.TRANSPARENT, radius)
+            }
+        }
+        paint(false); setOnFocusChangeListener { _, has -> paint(has) }; setOnClickListener { onClick() }
+    }
+    private fun renderMenu() {
+        val pickSport: (Int) -> Unit = { i -> sportIdx = i; leagueIdx = 0; games = emptyList(); renderFilters(); renderMenu(); refresh() }
+        val pickMode: (Mode) -> Unit = { m -> mode = m; renderMenu(); render() }
+        menu.render(listOf(
+            "Sports" to SportsHubSideMenu.sportEntries(sports, sportIdx, pickSport),
+            "View" to listOf(
+                SportsHubSideMenu.Entry("hub-mode-scores", "Scores", R.drawable.ic_hub_scores, true, R.drawable.img_scu_other, mode == Mode.SCORES) { pickMode(Mode.SCORES) },
+                SportsHubSideMenu.Entry("hub-mode-map", "World map", R.drawable.ic_hub_globe, true, null, mode == Mode.MAP) { pickMode(Mode.MAP) },
+                SportsHubSideMenu.Entry("hub-mode-following", "Following", R.drawable.ic_bell, true, null, mode == Mode.FOLLOWING) { pickMode(Mode.FOLLOWING) }),
+            "More" to listOf(
+                SportsHubSideMenu.Entry("hub-my-teams", "My Teams", R.drawable.ic_star, true) { startActivity(Intent(this, SportsTablesActivity::class.java).putExtra(SportsTablesActivity.EXTRA_MODE, SportsTablesActivity.TEAMS)) },
+                SportsHubSideMenu.Entry("hub-standings", "Standings", R.drawable.ic_hub_trophy, true) { startActivity(Intent(this, SportsTablesActivity::class.java).putExtra(SportsTablesActivity.EXTRA_MODE, SportsTablesActivity.STANDINGS)) },
+                SportsHubSideMenu.Entry("hub-replays", "Replays", R.drawable.ic_rail_catchup, true, R.drawable.img_catchup_sports) { startActivity(Intent(this, SportsCatchUpActivity::class.java)) },
+                SportsHubSideMenu.Entry("hub-fields", "Fields", R.drawable.ic_hub_field, true) { SportsFieldGallery.show(this) },
+                SportsHubSideMenu.Entry("hub-choose-layout", "Choose layout", R.drawable.ic_hub_layout, true) { SportsLayoutChooser.show(this) { recreate() } },
+                SportsHubSideMenu.Entry("hub-back-guide", "Back to guide", R.drawable.ic_exit, true) { finish() }),
+        ))
+        val sport = sports.getOrNull(sportIdx)
+        heading.text = sport?.optString("sport") ?: "All sports"
+        eyebrow.text = "V2 SPORTS HUB  ·  " + when (mode) { Mode.SCORES -> "SCORES"; Mode.MAP -> "WORLD MAP"; Mode.FOLLOWING -> "FOLLOWING" } + "  ·  ${hubLayout.title.uppercase()}"
     }
     private fun buildMap() {
         val ctx = this
@@ -191,35 +254,19 @@ class SportsHubActivity : AppCompatActivity() {
             val label = when (off) { 0 -> "TODAY"; -1 -> "YESTERDAY"; 1 -> "TOMORROW"; else -> java.text.SimpleDateFormat("EEE", java.util.Locale.getDefault()).format(d).uppercase() } +
                 " " + java.text.SimpleDateFormat("d MMM", java.util.Locale.getDefault()).format(d).uppercase()
             val tag = "hub-day-$off"
-            calendar.addView(UI.identify(UI.pill(this, label, off == dayOffset) { dayOffset = off; updateDateLabel(); games = emptyList(); refresh() }, tag))
+            calendar.addView(tab(label, off == dayOffset, tag) { dayOffset = off; updateDateLabel(); games = emptyList(); refresh() })
         }
         (focused as? String)?.let { t -> calendar.findViewWithTag<View>("hub-day-$dayOffset")?.takeIf { t.startsWith("hub-day-") }?.requestFocus() }
     }
-    private fun renderModes(focus: String? = null) {
-        modes.removeAllViews()
-        listOf(Mode.SCORES to "Scores", Mode.MAP to "World map", Mode.FOLLOWING to "Following").forEach { (m, label) ->
-            val tag = "hub-mode-${m.name.lowercase()}"
-            modes.addView(UI.identify(UI.pill(this, label, mode == m) { mode = m; renderModes(tag); render() }, tag))
-        }
-        modes.addView(UI.identify(UI.pill(this, "Standings") { startActivity(Intent(this, SportsTablesActivity::class.java).putExtra(SportsTablesActivity.EXTRA_MODE, SportsTablesActivity.STANDINGS)) }, "hub-standings"))
-        modes.addView(UI.identify(UI.pill(this, "My Teams") { startActivity(Intent(this, SportsTablesActivity::class.java).putExtra(SportsTablesActivity.EXTRA_MODE, SportsTablesActivity.TEAMS)) }, "hub-my-teams"))
-        modes.addView(UI.identify(UI.pill(this, "Fields") { SportsFieldGallery.show(this) }, "hub-fields"))
-        focus?.let { modes.findViewWithTag<View>(it)?.requestFocus() }
-    }
     private fun renderFilters(focus: String? = null) {
-        sportsRow.removeAllViews(); leaguesRow.removeAllViews()
-        sportsRow.addView(UI.identify(UI.pill(this, "All sports", sportIdx == -1) { sportIdx = -1; leagueIdx = 0; games = emptyList(); renderFilters("hub-sport-all"); refresh() }, "hub-sport-all"))
-        sports.forEachIndexed { i, sport ->
-            val tag = "hub-sport-${sport.optString("espnSport")}-${i}"
-            sportsRow.addView(UI.identify(UI.pill(this, sport.optString("sport"), sportIdx == i) { sportIdx = i; leagueIdx = 0; games = emptyList(); renderFilters(tag); refresh() }, tag))
-        }
+        leaguesRow.removeAllViews()
         val choices = sports.getOrNull(sportIdx)?.optJSONArray("leagues").objects()
         choices.forEachIndexed { i, league ->
-            val tag = "hub-league-${league.optString("league")}" 
-            leaguesRow.addView(UI.identify(UI.pill(this, league.optString("name"), leagueIdx == i) { leagueIdx = i; games = emptyList(); renderFilters(tag); refresh() }, tag))
+            val tag = "hub-league-${league.optString("league")}"
+            leaguesRow.addView(tab(league.optString("name"), leagueIdx == i, tag) { leagueIdx = i; games = emptyList(); renderFilters(tag); refresh() })
         }
         leagueScroll.visibility = if (choices.isEmpty()) View.GONE else View.VISIBLE
-        focus?.let { sportsRow.findViewWithTag<View>(it)?.requestFocus() ?: leaguesRow.findViewWithTag<View>(it)?.requestFocus() }
+        focus?.let { leaguesRow.findViewWithTag<View>(it)?.requestFocus() }
     }
     private fun refresh(quiet: Boolean = false) {
         fetch?.cancel(); val generation = ++requestId
@@ -239,7 +286,7 @@ class SportsHubActivity : AppCompatActivity() {
                 if (meta == null) { message = "Scores are temporarily unavailable."; failed = true; loadingScores = false; render(); return@launch }
                 sports = SportsCategories.catalogue(meta.optJSONArray("sports").objects()); catalogueLoaded = true
                 if (sportIdx >= sports.size) sportIdx = -1
-                renderFilters()
+                renderFilters(); renderMenu()
             }
             val choice = sports.getOrNull(sportIdx)?.optJSONArray("leagues").objects().getOrNull(leagueIdx)
             if (sportIdx >= 0 && choice == null) {
@@ -269,17 +316,14 @@ class SportsHubActivity : AppCompatActivity() {
     private fun render() {
         if (!::map.isInitialized) return
         loadingBand.show(if (loadingScores) "Loading teams & scores…" else null)
-        if (handset) {
-            val target = if (mode == Mode.MAP) filterDock else filterHeader
-            if (filters.parent !== target) { (filters.parent as? ViewGroup)?.removeView(filters); target.addView(filters) }
-        }
         val followed = SportsFollowStore.all(this).map { it.key }.toSet()
         val visible = if (mode == Mode.FOLLOWING) games.filter { followed.contains(Data.teamKey(it, "home")) || followed.contains(Data.teamKey(it, "away")) } else games
         val bucket = sports.getOrNull(sportIdx)?.optString("bucket")
         val liveProgrammes = if (mode == Mode.SCORES && dayOffset == 0) programmes.filter { bucket == null || it.bucket == bucket } else emptyList()
         val events = tv.onnowtv.livetv.data.SportsLiveEvents.group(liveProgrammes)
         val liveKeys = visible.filter { it.optString("state") == "in" }.map { "fixture-${Data.key(it)}" }.toSet() + events.map { it.key }
-        liveBadge.text = "● ${liveKeys.size} LIVE EVENTS"
+        liveBadge.text = "● ${liveKeys.size} LIVE"
+        spotlight?.apply { visibility = if (mode == Mode.MAP) View.GONE else View.VISIBLE; if (mode != Mode.MAP) show(visible) }
         notice.text = message; notice.visibility = if (message.isEmpty()) View.GONE else View.VISIBLE
         retry.visibility = if (failed || message.startsWith("Some leagues")) View.VISIBLE else View.GONE
         mapPanel.visibility = if (mode == Mode.MAP) View.VISIBLE else View.GONE
@@ -303,30 +347,18 @@ class SportsHubActivity : AppCompatActivity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_DPAD_UP && ::list.isInitialized) {
             val focus = currentFocus ?: window.decorView.findFocus()
-            fun inside(parent: ViewGroup): Boolean {
-                var node = focus
-                while (node != null) { if (node === parent) return true; node = node.parent as? View }
-                return false
-            }
-            fun nav(): Boolean = modes.findViewWithTag<View>("hub-mode-${mode.name.lowercase()}")?.requestFocus() == true
-            if (focus != null && inside(sportsRow)) return nav() || super.dispatchKeyEvent(event)
-            if (focus != null && inside(leaguesRow)) return (sportsRow.getChildAt(0)?.requestFocus() == true) || super.dispatchKeyEvent(event)
-            if (focus != null && inside(filters) && !inside(sportsRow) && !inside(leaguesRow)) {
-                val target = if (leagueScroll.visibility == View.VISIBLE) leaguesRow.getChildAt(leagueIdx) else sportsRow.getChildAt((sportIdx + 1).coerceAtLeast(0))
-                return (target?.requestFocus() == true) || nav() || super.dispatchKeyEvent(event)
-            }
-            if (focus != null && list.visibility == View.VISIBLE && inside(list)) {
+            if (focus != null && list.visibility == View.VISIBLE) {
                 val holder = list.findContainingViewHolder(focus)
                 val position = holder?.absoluteAdapterPosition ?: RecyclerView.NO_POSITION
-                val offset = if (handset) 1 else 0
-                val first = scores.currentList.indexOfFirst { !it.isHeader }.takeIf { it >= 0 }?.plus(offset)
+                val first = scores.currentList.indexOfFirst { !it.isHeader }.takeIf { it >= 0 }
                 val manager = list.layoutManager as? GridLayoutManager
                 if (first != null && manager != null && position >= first && manager.spanSizeLookup.getSpanGroupIndex(position, manager.spanCount) == manager.spanSizeLookup.getSpanGroupIndex(first, manager.spanCount)) {
-                    if (handset) { list.scrollToPosition(0); list.post { if (calendar.findViewWithTag<View>("hub-day-$dayOffset")?.requestFocus() != true) nav() } }
-                    else if (!dateLabel.requestFocus()) nav()
-                    return true
+                    if (calendar.findViewWithTag<View>("hub-day-$dayOffset")?.requestFocus() == true) return true
                 }
             }
+        }
+        if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_BACK && ::menu.isInitialized && !menu.hasFocus()) {
+            if (menu.focusSelected()) return true
         }
         return super.dispatchKeyEvent(event)
     }

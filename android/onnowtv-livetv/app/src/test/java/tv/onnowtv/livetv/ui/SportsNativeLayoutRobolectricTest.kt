@@ -56,7 +56,7 @@ class SportsNativeLayoutRobolectricTest {
         assertTrue(hubBtn.isFocusable)
         assertEquals(dp(context, 54f), hubBtn.layoutParams.height)
         assertEquals(R.id.whatson_pill, hubBtn.nextFocusUpId)
-        assertEquals(R.id.categories_list, hubBtn.nextFocusDownId)
+        assertEquals(R.id.catchup_btn, hubBtn.nextFocusDownId)
 
         val removedReplayButtonId = context.resources.getIdentifier("sports_replays_btn", "id", context.packageName)
         assertEquals(0, removedReplayButtonId)
@@ -72,14 +72,10 @@ class SportsNativeLayoutRobolectricTest {
     fun sports_hub_phone_uses_concat_adapter_and_expected_columns() {
         val activity = Robolectric.buildActivity(SportsHubActivity::class.java).create().get()
         val list = activity.window.decorView.findViewWithTag<RecyclerView>("hub-score-list")
-        val adapter = list.adapter
-        assertTrue(adapter is ConcatAdapter)
-        val concat = adapter as ConcatAdapter
-        assertEquals(2, concat.adapters.size)
-        assertTrue(concat.adapters.first() is SportsHeaderAdapter)
-
+        assertTrue(list.adapter is SportsScoreAdapter)
+        assertNotNull(activity.window.decorView.findViewWithTag<View>("hub-side-menu"))
         val lm = list.layoutManager as GridLayoutManager
-        assertEquals(SportsLayoutPolicy.columns(activity.resources.configuration.screenWidthDp), lm.spanCount)
+        assertEquals(1, lm.spanCount)
 
         val mapMode = activity.window.decorView.findViewWithTag<View>("hub-mode-map")
         mapMode.performClick()
@@ -96,7 +92,7 @@ class SportsNativeLayoutRobolectricTest {
     fun sports_hub_landscape_keeps_concat_adapter_and_two_columns() {
         val activity = Robolectric.buildActivity(SportsHubActivity::class.java).create().get()
         val list = activity.window.decorView.findViewWithTag<RecyclerView>("hub-score-list")
-        assertTrue(list.adapter is ConcatAdapter)
+        assertTrue(list.adapter is SportsScoreAdapter)
         val lm = list.layoutManager as GridLayoutManager
         assertEquals(2, lm.spanCount)
     }
@@ -148,8 +144,8 @@ class SportsNativeLayoutRobolectricTest {
         assertTrue("Focused=${activity.currentFocus?.tag}; position=${recycler.findContainingViewHolder(card)?.absoluteAdapterPosition}; firstItems=${readField<SportsScoreAdapter>(activity, "scores").currentList.map { it.key }}; handset=${readField<Boolean>(activity, "handset")}", consumed)
         Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
 
-        val dateLabel = activity.window.decorView.findViewWithTag<View>("hub-fixture-date")
-        assertTrue(dateLabel.isFocused)
+        val today = activity.window.decorView.findViewWithTag<View>("hub-day-0")
+        assertTrue(today.isFocused)
     }
 
     // Game screen stacked phone layout should keep score/header/button areas measurable and non-overflowing.

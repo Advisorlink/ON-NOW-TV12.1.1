@@ -26,6 +26,8 @@ from sports_official_sources import router as official_sources_router
 router.include_router(official_sources_router)
 from sports_catchup import router as catchup_router
 router.include_router(catchup_router)
+from sports_highlights import router as highlights_router
+router.include_router(highlights_router)
 
 ESPN = "https://site.api.espn.com/apis/site/v2/sports"
 ESPN_V2 = "https://site.api.espn.com/apis/v2/sports"

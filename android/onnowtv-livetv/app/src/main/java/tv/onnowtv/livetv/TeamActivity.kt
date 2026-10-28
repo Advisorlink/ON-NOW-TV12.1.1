@@ -65,6 +65,7 @@ class TeamActivity : AppCompatActivity() {
             games("Latest results", d, "recent", UI.GOLD, "team-results")
             stats(d)
             news(d.optJSONArray("news").objects())
+            d.optJSONArray("recent").objects().firstOrNull()?.let { highlights(it) }
             players(d.optJSONArray("players").objects())
             hero.findViewWithTag<View>("team-follow")?.requestFocus()
         }
@@ -195,6 +196,34 @@ class TeamActivity : AppCompatActivity() {
             row.addView(card, LinearLayout.LayoutParams(dp(300f), dp(282f)))
         }
         page.addView(box, inset())
+    }
+
+    private fun highlights(game: JSONObject) {
+        val (box, row) = Team.shelf(this, "Highlights · ${game.optJSONObject("home")?.optString("short")} v ${game.optJSONObject("away")?.optString("short")}", 0xFFFF3B3B.toInt(), "team-highlights")
+        box.visibility = View.GONE
+        page.addView(box, (page.indexOfChild(page.findViewWithTag("team-news")) + 1).takeIf { it > 0 } ?: page.childCount, inset())
+        lifecycleScope.launch {
+            SportsHubApi.highlights(game)?.optJSONArray("videos").objects().forEachIndexed { i, v ->
+                val card = UI.identify(FrameLayout(this@TeamActivity), "team-highlight-$i").apply { clipToOutline = true }
+                UI.focusable(card, dp(14f).toFloat(), accent = Color.WHITE)
+                card.addView(ImageView(this@TeamActivity).apply { scaleType = ImageView.ScaleType.CENTER_CROP; load(v.optString("thumbnail")) }, FrameLayout.LayoutParams(-1, -1))
+                card.addView(View(this@TeamActivity).apply { background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.TRANSPARENT, 0xE6000000.toInt())) }, FrameLayout.LayoutParams(-1, -1))
+                card.addView(UI.text(this@TeamActivity, "▶", 26f, Color.WHITE, bold = true).apply { gravity = Gravity.CENTER; background = UI.bg(0xFFFF3B3B.toInt(), dp(30f).toFloat()) },
+                    FrameLayout.LayoutParams(dp(60f), dp(60f), Gravity.CENTER))
+                val sec = v.optInt("durationSec")
+                card.addView(UI.text(this@TeamActivity, "%d:%02d".format(sec / 60, sec % 60), 11f, Color.WHITE, mono = true).apply {
+                    setPadding(dp(7f), dp(3f), dp(7f), dp(3f)); background = UI.bg(0xCC000000.toInt(), dp(6f).toFloat())
+                }, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply { setMargins(dp(10f), dp(10f), dp(10f), dp(10f)) })
+                card.addView(UI.col(this@TeamActivity, dp(4f)).apply {
+                    setPadding(dp(14f), 0, dp(14f), dp(12f))
+                    addView(UI.eyebrow(this@TeamActivity, "YOUTUBE · ${v.optString("channel")}", 0xFFFF6B6B.toInt()))
+                    addView(UI.text(this@TeamActivity, v.optString("title"), 14f, Color.WHITE, bold = true).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END })
+                }, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
+                card.setOnClickListener { SportsOfficialReplayActivity.openHighlight(this@TeamActivity, v.optString("videoId")) }
+                row.addView(card, LinearLayout.LayoutParams(dp(400f), dp(225f)))
+                box.visibility = View.VISIBLE
+            }
+        }
     }
 
     private fun ago(iso: String): String = runCatching {

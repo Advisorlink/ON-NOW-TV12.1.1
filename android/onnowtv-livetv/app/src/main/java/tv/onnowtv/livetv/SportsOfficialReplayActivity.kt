@@ -20,6 +20,7 @@ import tv.onnowtv.livetv.ui.SportsUi as UI
 class SportsOfficialReplayActivity : AppCompatActivity() {
     companion object {
         fun open(ctx: Context, sourceId: String) = ctx.startActivity(Intent(ctx, SportsOfficialReplayActivity::class.java).putExtra("source-id", sourceId))
+        fun openHighlight(ctx: Context, videoId: String) = ctx.startActivity(Intent(ctx, SportsOfficialReplayActivity::class.java).putExtra("highlight-id", videoId))
         fun allowedNavigation(url: String, pageUrl: String, mainFrame: Boolean): Boolean {
             if (url == "about:blank") return true
             val uri = Uri.parse(url)
@@ -47,7 +48,9 @@ class SportsOfficialReplayActivity : AppCompatActivity() {
         bar.addView(UI.identify(UI.pill(this, "Retry") { dispose(); load() }, "official-player-retry"))
         content.addView(bar); holder = FrameLayout(this); content.addView(holder, LinearLayout.LayoutParams(-1, 0, 1f)); setContentView(root)
         val id = intent.getStringExtra("source-id").orEmpty()
-        if (Regex("[a-z0-9-]{1,70}").matches(id)) pageUrl = XtreamRepository.BACKEND_BASE.trimEnd('/') + "/api/sportshub/official-replays/$id/player"
+        val highlight = intent.getStringExtra("highlight-id").orEmpty()
+        if (Regex("[A-Za-z0-9_-]{11}").matches(highlight)) { pageUrl = XtreamRepository.BACKEND_BASE.trimEnd('/') + "/api/sportshub/highlights/$highlight/player"; status.text = "Highlights · loading…" }
+        else if (Regex("[a-z0-9-]{1,70}").matches(id)) pageUrl = XtreamRepository.BACKEND_BASE.trimEnd('/') + "/api/sportshub/official-replays/$id/player"
         else status.text = "This official replay is unavailable."
     }
     override fun onResume() { super.onResume(); if (web == null && pageUrl.isNotEmpty()) load() }

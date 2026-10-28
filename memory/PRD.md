@@ -692,3 +692,14 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
   - Players with headshots, jersey number, position and age.
 - Backend: `GET /api/sportshub/team?sport&league&id` covers the ESPN team profile, schedule plus fixtures (scoreboard year fallback, e.g. for NRL), roster, news (team-tagged when there are 3 or more, otherwise league news) and standings. When ESPN has no record it falls back to the stats from the team's ladder row. Needs Save to GitHub before it works on onnowhub.com.
 - AFL and NRL have no roster on ESPN, so the Players shelf is hidden for them. **Not verified on a device.**
+
+## Live TV 2.10.97/2.10.98 (161/162): YouTube highlights + 5 Sports Hub layouts (2026-10-28)
+- `backend/sports_highlights.py` (included in the sportshub router):
+  - `GET /api/sportshub/highlights?home&away&startMs&league` runs a yt-dlp ytsearch15 query (date = start-6h). It keeps only results with highlight/recap/extended in the title, both teams named, 60-2400s long, from an OFFICIAL channel allowlist or a team's own channel, and embeddable per oEmbed. Returns up to 2.
+  - `/highlights/{id}/player` serves official_replay_player.html.
+- Team page: a "Highlights" shelf (team's latest game) under Latest news. It plays through `SportsOfficialReplayActivity.openHighlight`.
+- The Sports Hub now has a side menu (no pill buttons) in 5 layouts (`data/SportsHubLayout`, pref `sports_hub_layout`, default RAIL; phones < 600dp are forced to DOCK). The menu covers sports with icons, View (Scores/Map/Following) and More (My Teams, Standings, Replays, Fields, Choose layout, Back to guide).
+  - Layouts: RAIL (cards), DOCK (icon dock, 4 cols), TILES (artwork tiles + full-width score bars), TICKER (2-col stacked TV score bugs), SPOTLIGHT (featured game `ui/SportsSpotlight`).
+  - Chooser: `ui/SportsLayoutChooser`. League and date filters are underline tabs.
+- Previews at 1920x1080 are faithful HTML replicas built from the app's own dp sizes, colours, fonts, artwork and live data (`/tmp/hubmock/build.py`, Playwright). There is no Android emulator or Robolectric native graphics on this aarch64 host. They are served at `/hub-previews/*.jpg` and also used as the in-app chooser thumbnails.
+- Robolectric: `SportsHubLayoutsRobolectricTest` (all 5 build + menu works). Hub tests were updated for the side menu.

@@ -72,6 +72,7 @@ android {
         unitTests.isIncludeAndroidResources = true
         unitTests.all {
             it.systemProperty("robolectric.conscryptMode", "OFF")
+            listOf("hub.shots", "hub.shots.dir", "hub.wait").forEach { k -> System.getProperty(k)?.let { v -> it.systemProperty(k, v) } }
         }
     }
     packaging {
