@@ -69,7 +69,7 @@ object SportsReplayRow {
             o.optString("color").takeIf { it.isNotBlank() && it != "null" }?.let { c -> runCatching { android.graphics.Color.parseColor("#" + c.removePrefix("#")) }.getOrNull() })
     }
 
-    private fun play(ctx: Context, game: JSONObject, hit: CatchUpIndex.Recording, all: List<CatchUpIndex.Recording>) {
+    fun play(ctx: Context, game: JSONObject, hit: CatchUpIndex.Recording, all: List<CatchUpIndex.Recording>) {
         var c: Context? = ctx
         while (c is android.content.ContextWrapper && c !is AppCompatActivity) c = c.baseContext
         val activity = c as? AppCompatActivity ?: return

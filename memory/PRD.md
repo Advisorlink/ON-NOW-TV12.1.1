@@ -679,3 +679,16 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
   - My Teams: grid of followed teams (tap to remove) plus a "＋ Add Team" card. That opens league chips, then every club's logo and name (tap to add or remove, gold ✓). Uses SportsFollowStore, so the hub's Following filter and kick-off alerts pick them up.
 - Backend: new `GET /api/sportshub/teams?sport&league` (ESPN teams list, cached 24 h). It needs Save to GitHub before it works on onnowhub.com.
 - **Not verified on a device.**
+
+## Live TV 2.10.96 (160): Team pages + My Teams feed (2026-10-28)
+- My Teams (SportsTablesActivity, mode teams): no tick boxes. Followed teams are shown in rows by league ("NBA · 2"), with big crests. OK opens the new `TeamActivity`; holding OK asks to remove the team (AlertDialog).
+- Under the rows is a feed for all followed teams, from `GET /api/sportshub/myteams?teams=sport:league:id,...`. It has Live now, Coming up and Latest results shelves made of crest-vs-crest cards (`ui/SportsTeamUi.gameCard`).
+  - A live game plays the guide-confirmed channel straight away (`SportsTeamUi.watch`). If no channel is confirmed, it opens GameActivity, as other games do.
+- `TeamActivity` (extras sport/league/id/name/logo) has:
+  - A hero with the team colour wash, a faded venue photo, a crest watermark, the record and standing, the venue, and a Follow/Following pill (unfollow asks first).
+  - Shelves for Live now, Coming up, Replays (CatchUpIndex recordings matched with `isFixtureReplay`, played through `SportsReplayRow.play`, which is now public) and Latest results (W/L/D badges).
+  - Season stats tiles with the ladder position, plus a 5-row mini ladder around the team.
+  - Latest news cards with images (OK opens a reader dialog).
+  - Players with headshots, jersey number, position and age.
+- Backend: `GET /api/sportshub/team?sport&league&id` covers the ESPN team profile, schedule plus fixtures (scoreboard year fallback, e.g. for NRL), roster, news (team-tagged when there are 3 or more, otherwise league news) and standings. When ESPN has no record it falls back to the stats from the team's ladder row. Needs Save to GitHub before it works on onnowhub.com.
+- AFL and NRL have no roster on ESPN, so the Players shelf is hidden for them. **Not verified on a device.**

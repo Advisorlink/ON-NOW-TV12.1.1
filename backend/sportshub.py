@@ -594,3 +594,152 @@ async def standings(sport: str, league: str):
 
     walk(data, data.get("name") or LEAGUE_BY_KEY[(sport, league)]["name"])
     return {"league": LEAGUE_BY_KEY[(sport, league)]["name"], "groups": groups}
+
+
+_TEAM_STATS = [("gamesPlayed", "Played"), ("wins", "Wins"), ("losses", "Losses"), ("ties", "Draws"), ("winPercent", "Win %"),
+               ("points", "Points"), ("pointsFor", "Scored"), ("pointsAgainst", "Conceded"), ("pointDifferential", "Difference"),
+               ("avgPointsFor", "Avg scored"), ("avgPointsAgainst", "Avg conceded"), ("streak", "Streak")]
+
+
+async def _safe(coro):
+    try:
+        return await coro
+    except Exception as e:  # noqa: BLE001
+        log.info("team fetch failed: %s", e)
+        return {}
+
+
+def _str(v) -> str:
+    return v if isinstance(v, str) else ""
+
+
+async def _team_games(sport: str, league: str, id: str) -> List[Dict[str, Any]]:
+    meta = LEAGUE_BY_KEY[(sport, league)]
+    base = f"{ESPN}/{sport}/{league}/teams/{id}/schedule"
+    past, fix = await asyncio.gather(_safe(_get(base, None, ttl=120)), _safe(_get(base, {"fixture": "true"}, ttl=120)))
+    events = (past.get("events") or []) + (fix.get("events") or [])
+    if not events:
+        sb = await _safe(_get(f"{ESPN}/{sport}/{league}/scoreboard", {"dates": str(datetime.now(timezone.utc).year), "limit": 500}, ttl=300))
+        events = [e for e in sb.get("events") or []
+                  if any(str(c.get("id")) == id or str((c.get("team") or {}).get("id")) == id for c in ((e.get("competitions") or [{}])[0].get("competitors") or []))]
+    seen, games = set(), []
+    for ev in events:
+        g = _event(ev, meta)
+        if not g or g["id"] in seen:
+            continue
+        seen.add(g["id"])
+        g["statusDetail"] = _str(g.get("statusDetail"))
+        games.append(g)
+    games.sort(key=lambda g: g["startMs"])
+    return games
+
+
+def _split(games: List[Dict[str, Any]], recent: int = 8, upcoming: int = 8) -> Dict[str, List[Dict[str, Any]]]:
+    now = time.time() * 1000
+    return {
+        "live": [g for g in games if g["state"] == "in"],
+        "upcoming": [g for g in games if g["state"] == "pre" and g["startMs"] >= now - 3 * 3600_000][:upcoming],
+        "recent": [g for g in games if g["state"] == "post"][-recent:][::-1],
+    }
+
+
+def _athletes(raw: List[Any]) -> List[Dict[str, Any]]:
+    out = []
+    for a in raw:
+        if isinstance(a, dict) and "items" in a and "id" not in a:
+            out += _athletes(a.get("items") or [])
+            continue
+        if not isinstance(a, dict) or not a.get("id"):
+            continue
+        out.append({"id": str(a["id"]), "name": a.get("displayName") or a.get("fullName"), "jersey": a.get("jersey"),
+                    "position": ((a.get("position") or {}).get("displayName") if isinstance(a.get("position"), dict) else None),
+                    "age": a.get("age"), "height": a.get("displayHeight"),
+                    "headshot": (a.get("headshot") or {}).get("href") if isinstance(a.get("headshot"), dict) else None})
+    return out
+
+
+@router.get("/team")
+async def team(sport: str, league: str, id: str):
+    """Everything for one club: profile, season stats + ladder, live/upcoming/recent games, news and players."""
+    if (sport, league) not in LEAGUE_BY_KEY:
+        raise HTTPException(404, "unknown league")
+    base = f"{ESPN}/{sport}/{league}/teams/{id}"
+    info, games, roster, news, table = await asyncio.gather(
+        _safe(_get(base, None, ttl=600)), _team_games(sport, league, id), _safe(_get(base + "/roster", None, ttl=3600)),
+        _safe(_get(f"{ESPN}/{sport}/{league}/news", {"team": id, "limit": 12}, ttl=600)), _safe(standings(sport, league)))
+    t = info.get("team") or {}
+    if not t and not games:
+        raise HTTPException(404, "team not found")
+    items = (t.get("record") or {}).get("items") or []
+    raw = {s.get("name"): s.get("displayValue") or s.get("value") for s in (items[0].get("stats") if items else []) or []}
+    stats = []
+    for k, label in _TEAM_STATS:
+        v = raw.get(k)
+        if v is None:
+            continue
+        if k == "winPercent" and isinstance(v, (int, float)):
+            v = f"{v * 100:.0f}%"
+        elif k == "streak" and isinstance(v, (int, float)):
+            v = f"{'W' if v > 0 else 'L'}{abs(int(v))}" if v else "–"
+        elif isinstance(v, float):
+            v = f"{v:.1f}".rstrip("0").rstrip(".")
+        stats.append({"label": label, "value": str(v)})
+    ladder = None
+    for g in (table or {}).get("groups") or []:
+        rows = g.get("rows") or []
+        idx = next((i for i, r in enumerate(rows) if r.get("id") == id), None)
+        if idx is not None:
+            lo = max(0, min(idx - 2, len(rows) - 5))
+            ladder = {"title": g.get("title"), "position": idx + 1, "of": len(rows), "start": lo, "rows": rows[lo:lo + 5]}
+            if not stats:
+                me_row = rows[idx]
+                stats = [{"label": label, "value": str(me_row[k])} for k, label in
+                         [("played", "Played"), ("wins", "Wins"), ("losses", "Losses"), ("ties", "Draws"), ("points", "Points"),
+                          ("gd", "Difference"), ("pct", "Win %"), ("streak", "Streak")] if me_row.get(k) not in (None, "")]
+            break
+    venue = (t.get("franchise") or {}).get("venue") or {}
+    logo = ((t.get("logos") or [{}])[0].get("href")) if t.get("logos") else None
+    articles = []
+    raw_articles = news.get("articles") or []
+    tagged = [a for a in raw_articles if any(str(c.get("teamId") or (c.get("team") or {}).get("id") or "") == id for c in a.get("categories") or [] if isinstance(c, dict))]
+    for a in (tagged if len(tagged) >= 3 else raw_articles):
+        img = next((i.get("url") for i in a.get("images") or [] if i.get("url")), None)
+        articles.append({"id": str(a.get("id")), "headline": a.get("headline"), "description": a.get("description"),
+                         "image": img, "published": a.get("published"), "type": a.get("type")})
+    g0 = next((g for g in games if g["home"]["id"] == id or g["away"]["id"] == id), None)
+    me = (g0["home"] if g0["home"]["id"] == id else g0["away"]) if g0 else {}
+    return {
+        "team": {"id": id, "sport": sport, "league": league, "leagueName": LEAGUE_BY_KEY[(sport, league)]["name"],
+                 "name": t.get("displayName") or me.get("name"), "abbr": t.get("abbreviation") or me.get("abbr"),
+                 "logo": logo or me.get("logo"), "color": t.get("color") or me.get("color"), "altColor": t.get("alternateColor"),
+                 "record": items[0].get("summary") if items else me.get("record"), "standing": t.get("standingSummary"),
+                 "venue": {"name": venue.get("fullName"), "city": (venue.get("address") or {}).get("city"),
+                           "image": next((i.get("href") for i in venue.get("images") or [] if i.get("href")), None)}},
+        "stats": stats, "ladder": ladder, **_split(games),
+        "news": articles, "players": _athletes(roster.get("athletes") or [])[:60],
+    }
+
+
+@router.get("/myteams")
+async def my_teams(teams: str = Query(..., description="sport:league:id,sport:league:id")):
+    """Feed for every followed team: live now, coming up and latest results, de-duplicated across teams."""
+    keys = []
+    for k in teams.split(","):
+        p = k.strip().split(":")
+        if len(p) == 3 and (p[0], p[1]) in LEAGUE_BY_KEY:
+            keys.append(p)
+    lists = await asyncio.gather(*[_safe(_team_games(*p)) for p in keys[:30]])
+    feed: Dict[str, List[Dict[str, Any]]] = {"live": [], "upcoming": [], "recent": []}
+    seen = set()
+    for (sport, league, id), games in zip(keys, lists):
+        for part, rows in _split(games or [], recent=3, upcoming=3).items():
+            for g in rows:
+                if g["id"] in seen:
+                    continue
+                seen.add(g["id"])
+                g["followedTeamId"] = id
+                feed[part].append(g)
+    feed["live"].sort(key=lambda g: g["startMs"])
+    feed["upcoming"].sort(key=lambda g: g["startMs"])
+    feed["recent"].sort(key=lambda g: -g["startMs"])
+    return feed

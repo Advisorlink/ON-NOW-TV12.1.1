@@ -46,6 +46,8 @@ object SportsHubApi {
         return snapshots.load(XtreamRepository.BACKEND_BASE + path, forceRefresh, { SportsResponseCache.gameTtl(it) },
             { it.optString("id") == id && it.optString("sport") == sport && it.optString("league") == league && it.optJSONObject("home") != null && it.optJSONObject("away") != null }) { getJson(path) }
     }
+    suspend fun team(sport: String, league: String, id: String): JSONObject? = getJson("/api/sportshub/team?sport=${enc(sport)}&league=${enc(league)}&id=${enc(id)}")
+    suspend fun myTeams(keys: List<String>): JSONObject? = getJson("/api/sportshub/myteams?teams=${enc(keys.joinToString(","))}")
     suspend fun teams(sport: String, league: String): JSONObject? = getJson("/api/sportshub/teams?sport=${enc(sport)}&league=${enc(league)}")
     suspend fun standings(sport: String, league: String, forceRefresh: Boolean = false): JSONObject? {
         val path = "/api/sportshub/standings?sport=${enc(sport)}&league=${enc(league)}"

@@ -18,6 +18,7 @@ import org.json.JSONObject
 import tv.onnowtv.livetv.data.SportsFollowStore
 import tv.onnowtv.livetv.data.SportsHubApi
 import tv.onnowtv.livetv.data.SportsHubApi.objects
+import tv.onnowtv.livetv.ui.SportsTeamUi
 import tv.onnowtv.livetv.ui.SportsUi as UI
 
 /** Sports Hub "Standings" (pick a league → table) and "My Teams" (followed teams + Add Team → league → clubs). */
@@ -125,17 +126,54 @@ class SportsTablesActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() { super.onResume(); if (!standingsMode && !picking && leagues.isNotEmpty()) render() }
+
+    private fun myTeamCard(t: SportsFollowStore.Team, tag: String): View {
+        val card = UI.identify(UI.col(this, dp(8f)), tag).apply { gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(14f), dp(16f), dp(14f), dp(14f)); isLongClickable = true }
+        UI.focusable(card, dp(16f).toFloat(), accent = UI.GOLD)
+        card.addView(UI.logo(this, t.logo, dp(76f)))
+        card.addView(UI.singleLine(UI.text(this, t.name, 14f, Color.WHITE, bold = true)).apply { gravity = Gravity.CENTER })
+        card.setOnClickListener { startActivity(TeamActivity.intent(this, t)) }
+        card.setOnLongClickListener {
+            android.app.AlertDialog.Builder(this).setTitle("Remove ${t.name}?").setMessage("They'll leave My Teams and the Following filter.")
+                .setPositiveButton("Remove") { _, _ -> SportsFollowStore.toggle(this, t); render() }.setNegativeButton("Cancel", null).show(); true
+        }
+        return card.apply { layoutParams = LinearLayout.LayoutParams(dp(168f), -2) }
+    }
+
     private fun showMine() {
         val mine = SportsFollowStore.all(this)
-        val g = grid()
-        g.addView(teamCard("Add Team", "ANY SPORT", null, "my-teams-add", false) { picking = true; render() })
-        mine.forEach { t ->
-            val league = leagues.firstOrNull { it.sport == t.sport && it.key == t.league }?.name ?: t.league.uppercase()
-            g.addView(teamCard(t.name, "$league · TAP TO REMOVE", t.logo, "my-team-${t.key}", true) { SportsFollowStore.toggle(this, t); render() })
+        val top = UI.row(this, dp(16f))
+        top.addView(UI.identify(UI.pill(this, "＋  Add Team", true, UI.GOLD) { picking = true; render() }, "my-teams-add"))
+        top.addView(UI.text(this, if (mine.isEmpty()) "Add the teams you follow — their games, stats and news live here." else "OK opens a team  ·  Hold OK to remove", 13f, UI.DIM))
+        body.addView(top)
+        mine.groupBy { it.sport to it.league }.forEach { (k, teams) ->
+            val league = leagues.firstOrNull { it.sport == k.first && it.key == k.second }?.name ?: k.second.uppercase()
+            val (box, row) = SportsTeamUi.shelf(this, "$league · ${teams.size}", UI.GOLD, "my-teams-${k.first}-${k.second}")
+            teams.forEach { row.addView(myTeamCard(it, "my-team-${it.key}")) }
+            body.addView(box, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(14f) })
         }
-        body.addView(g)
-        if (mine.isEmpty()) note("Add the teams you follow — their games show under Following, with kick-off alerts.")
         body.post { body.findViewWithTag<View>("my-teams-add")?.requestFocus() }
+        if (mine.isEmpty()) return
+        val feed = UI.col(this, dp(18f)); body.addView(feed, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(18f) })
+        feed.addView(UI.identify(UI.text(this, "Loading your teams' games…", 14f, UI.DIM), "my-teams-feed-loading"))
+        job?.cancel(); job = lifecycleScope.launch {
+            val d = SportsHubApi.myTeams(mine.map { "${it.sport}:${it.league}:${it.id}" })
+            feed.removeAllViews()
+            if (d == null) return@launch note("Couldn't load your teams' games right now.")
+            listOf(Triple("live", "Live now", UI.LIVE), Triple("upcoming", "Coming up", UI.ACCENT), Triple("recent", "Latest results", UI.GOLD)).forEach { (key, label, accent) ->
+                val games = d.optJSONArray(key).objects()
+                if (games.isEmpty()) return@forEach
+                val (box, row) = SportsTeamUi.shelf(this@SportsTablesActivity, "$label · your teams", accent, "my-teams-feed-$key")
+                games.forEachIndexed { i, g ->
+                    row.addView(SportsTeamUi.gameCard(this@SportsTablesActivity, g, "my-feed-$key-$i", g.optString("followedTeamId")) {
+                        if (key == "live") SportsTeamUi.watch(this@SportsTablesActivity, g) else SportsTeamUi.openGame(this@SportsTablesActivity, g)
+                    })
+                }
+                feed.addView(box)
+            }
+            if (feed.childCount == 0) feed.addView(UI.text(this@SportsTablesActivity, "No live, upcoming or recent games for your teams right now.", 14f, UI.DIM))
+        }
     }
 
     private fun loadTeams() {
