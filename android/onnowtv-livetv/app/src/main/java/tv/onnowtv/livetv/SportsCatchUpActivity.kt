@@ -22,6 +22,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import coil.dispose
 import coil.load
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -296,7 +297,7 @@ class SportsCatchUpActivity : AppCompatActivity() {
         val logo = v.findViewById<ImageView>(logoId)
         init.text = s.name.split(' ').filter { it.isNotBlank() }.take(2).joinToString("") { it.take(1).uppercase() }
         init.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(UIColor(s.color, Color.parseColor("#2A3547"))); setStroke(dp(2), Color.parseColor("#55FFFFFF")) }
-        logo.setImageDrawable(null)
+        logo.dispose(); logo.setImageDrawable(null)
         if (!s.logo.isNullOrBlank()) logo.load(s.logo) { crossfade(true); listener(onSuccess = { _, _ -> init.visibility = View.INVISIBLE }, onError = { _, _ -> init.visibility = View.VISIBLE }) }
         init.visibility = if (s.logo.isNullOrBlank()) View.VISIBLE else View.INVISIBLE
     }

@@ -734,3 +734,15 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 ## Live TV 2.11.1 (165): Catch Up hero removed from the Sports Hub (2026-10-28)
 - The user said the "Catch Up & Replays" tile and the Latest Replays strip under the Spotlight were unwanted and slow, so I deleted `ui/SportsHubHero.kt` and its use in the hub. The hub list header is now just the Spotlight.
 - Replays still live in the side menu (Replays → SportsCatchUpActivity), in each sport's previous games/replays, and on team pages.
+
+## Live TV 2.11.2 (166): Add Team sport tiles, wide team cards, correct replay logos (2026-10-28)
+- Add a team (SportsTablesActivity, picking mode):
+  - A row of sport icon tiles (SportsCategories.catalogue buckets, tier ≤ 2 leagues), then league pills when a sport has more than one league.
+  - Teams are shown as a 3-column grid of the new wide cards with a "＋ ADD / ✓ IN MY TEAMS" status line.
+- `SportsTeamCrest.card` is now a 264×132 rectangle: crest on the left, name/league on the right, faded crest behind, team-colour wash. It is used in My Teams rows and the picker.
+- Catch Up wrong logos:
+  - Recycled cards kept the previous sport's crest because an in-flight Coil load landed later. `bindSide` now calls `logo.dispose()` first.
+  - Backend `sports_catchup.py`:
+    - TheSportsDB matches require an exact team name or alternate name and the same gender.
+    - National sides fall back to flagcdn country flags (cricket/rugby/nrl/soccer).
+    - `_NOISE` no longer strips "new", which had broken New Zealand and New York.

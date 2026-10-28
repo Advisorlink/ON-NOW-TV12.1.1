@@ -27,6 +27,11 @@ class SportsTablesActivity : AppCompatActivity() {
     companion object { const val EXTRA_MODE = "mode"; const val STANDINGS = "standings"; const val TEAMS = "teams" }
 
     private class League(val sport: String, val key: String, val name: String)
+    /** Add-a-team picker: one tile per sport (icon + name), each with its leagues. */
+    private class SportGroup(val bucket: String, val label: String, val leagues: List<League>)
+    private var groups: List<SportGroup> = emptyList()
+    private var pickSport = 0
+    private var pickLeague = 0
 
     private val standingsMode by lazy { intent.getStringExtra(EXTRA_MODE) == STANDINGS }
     private var picking = false
@@ -56,6 +61,10 @@ class SportsTablesActivity : AppCompatActivity() {
             leagues = data?.optJSONArray("sports").objects().flatMap { s -> s.optJSONArray("leagues").objects() }
                 .filter { it.optInt("tier", 1) <= 2 }
                 .map { League(it.optString("sport"), it.optString("league"), it.optString("name")) }
+            groups = tv.onnowtv.livetv.data.SportsCategories.catalogue(data?.optJSONArray("sports").objects()).mapNotNull { c ->
+                val ls = c.optJSONArray("leagues").objects().filter { it.optInt("tier", 1) <= 2 }.map { League(it.optString("sport"), it.optString("league"), it.optString("name")) }
+                ls.takeIf { it.isNotEmpty() }?.let { SportGroup(c.optString("bucket"), c.optString("sport"), it) }
+            }
             render()
         }
     }
@@ -67,12 +76,13 @@ class SportsTablesActivity : AppCompatActivity() {
         title.text = when { standingsMode -> "Standings"; picking -> "Add a team"; else -> "My Teams" }
         chipScroll.visibility = if (standingsMode || picking) View.VISIBLE else View.GONE
         chips.removeAllViews()
-        leagues.forEachIndexed { i, l ->
+        if (picking) groups.forEachIndexed { i, g -> chips.addView(sportTile(g, i == pickSport) { pickSport = i; pickLeague = 0; render() }) }
+        else leagues.forEachIndexed { i, l ->
             chips.addView(UI.identify(UI.pill(this, l.name, i == selected) { selected = i; render() }, "tables-league-${l.key}"))
         }
         body.removeAllViews()
         if (standingsMode) loadStandings() else if (picking) loadTeams() else showMine()
-        chips.post { chips.getChildAt(selected)?.let { if (standingsMode || picking) it.requestFocus() } }
+        chips.post { chips.getChildAt(if (picking) pickSport else selected)?.let { if (standingsMode || picking) it.requestFocus() } }
     }
 
     private fun note(t: String) = body.addView(UI.identify(UI.text(this, t, 15f, UI.DIM), "tables-note"))
@@ -108,23 +118,6 @@ class SportsTablesActivity : AppCompatActivity() {
         stats.forEachIndexed { i, s -> row.addView(UI.text(this, s, 13f, color, mono = true).apply { gravity = Gravity.END }, LinearLayout.LayoutParams(dp(if (i == stats.lastIndex) 110f else 44f), -2)) }
         if (!header) { row.isFocusable = true; UI.focusable(row, dp(10f).toFloat()) }
         return row
-    }
-
-    private fun grid() = GridLayout(this).apply { columnCount = if (resources.configuration.screenWidthDp < 720) 2 else 4 }
-
-    private fun teamCard(name: String, sub: String, logo: String?, tag: String, added: Boolean, onClick: () -> Unit): View {
-        val card = UI.col(this, dp(6f)).apply { gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(12f), dp(14f), dp(12f), dp(12f)); isFocusable = true; isClickable = true }
-        UI.focusable(card, dp(14f).toFloat(), accent = if (added) UI.GOLD else UI.ACCENT)
-        val box = FrameLayout(this)
-        box.addView(if (logo.isNullOrBlank()) UI.text(this, "＋", 34f, UI.ACCENT, bold = true).apply { gravity = Gravity.CENTER } else UI.logo(this, logo, dp(64f)), FrameLayout.LayoutParams(-1, -1))
-        if (added) box.addView(UI.text(this, "✓", 14f, Color.BLACK, bold = true).apply { gravity = Gravity.CENTER; background = UI.bg(UI.GOLD, dp(11f).toFloat()) }, FrameLayout.LayoutParams(dp(22f), dp(22f), Gravity.TOP or Gravity.END))
-        card.addView(box, LinearLayout.LayoutParams(dp(64f), dp(64f)))
-        card.addView(UI.singleLine(UI.text(this, name, 14f, Color.WHITE, bold = true)).apply { gravity = Gravity.CENTER })
-        card.addView(UI.singleLine(UI.text(this, sub, 10f, if (added) UI.GOLD else UI.DIM, mono = true)).apply { gravity = Gravity.CENTER })
-        card.setOnClickListener { onClick() }
-        return UI.identify(card, tag).apply {
-            layoutParams = GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED, 1f), GridLayout.spec(GridLayout.UNDEFINED, 1f)).apply { width = 0; setMargins(dp(6f), dp(6f), dp(6f), dp(6f)) }
-        }
     }
 
     override fun onResume() { super.onResume(); if (!standingsMode && !picking && leagues.isNotEmpty()) render() }
@@ -175,25 +168,41 @@ class SportsTablesActivity : AppCompatActivity() {
         }
     }
 
+    private fun sportTile(g: SportGroup, on: Boolean, pick: () -> Unit): View {
+        val tile = UI.identify(UI.col(this, dp(6f)), "add-sport-${g.bucket}").apply { gravity = Gravity.CENTER; setPadding(dp(10f), dp(10f), dp(10f), dp(8f)); isFocusable = true; isClickable = true; isSelected = on }
+        UI.focusable(tile, dp(16f).toFloat(), base = if (on) androidx.core.graphics.ColorUtils.blendARGB(UI.CARD, UI.GOLD, .22f) else UI.CARD, accent = UI.GOLD)
+        tile.addView(android.widget.ImageView(this).apply { setImageResource(tv.onnowtv.livetv.data.LiveSportsClassifier.iconOf(g.bucket)); scaleType = android.widget.ImageView.ScaleType.FIT_CENTER },
+            LinearLayout.LayoutParams(dp(44f), dp(44f)))
+        tile.addView(UI.singleLine(UI.text(this, g.label, 12f, if (on) UI.GOLD else Color.WHITE, bold = true)).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(-1, -2))
+        tile.setOnClickListener { pick() }
+        tile.layoutParams = LinearLayout.LayoutParams(dp(104f), dp(92f))
+        return tile
+    }
+
     private fun loadTeams() {
-        val l = leagues.getOrNull(selected) ?: return note("Loading leagues…")
-        note("Loading ${l.name} teams…")
+        val g = groups.getOrNull(pickSport) ?: return note("Loading sports…")
+        if (g.leagues.size > 1) body.addView(UI.row(this, dp(8f)).apply {
+            g.leagues.forEachIndexed { i, l -> addView(UI.identify(UI.pill(this@SportsTablesActivity, l.name, i == pickLeague) { pickLeague = i; render(); body.post { body.findViewWithTag<View>("add-league-${l.key}")?.requestFocus() } }, "add-league-${l.key}")) }
+        }.let { HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false; setPadding(dp(3f), dp(3f), dp(3f), dp(3f)); addView(it) } })
+        val l = g.leagues.getOrNull(pickLeague) ?: g.leagues.first()
+        val status = UI.identify(UI.text(this, "Loading ${l.name} teams…", 15f, UI.DIM), "tables-note"); body.addView(status)
         job?.cancel(); job = lifecycleScope.launch {
             val list = SportsHubApi.teams(l.sport, l.key)?.optJSONArray("teams").objects()
-            body.removeAllViews()
+            body.removeView(status)
             if (list.isEmpty()) return@launch note("No teams listed for ${l.name}.")
-            val g = grid()
+            val grid = GridLayout(this@SportsTablesActivity).apply { columnCount = if (resources.configuration.screenWidthDp < 720) 1 else 3 }
             fun draw() {
-                g.removeAllViews()
+                grid.removeAllViews()
                 list.forEach { t ->
                     val team = SportsFollowStore.Team(l.sport, l.key, t.optString("id"), t.optString("name"), t.optString("logo").takeIf { it.isNotBlank() && it != "null" }, t.optString("color").takeIf { it.isNotBlank() && it != "null" })
                     val added = SportsFollowStore.isFollowed(this@SportsTablesActivity, team.key)
-                    g.addView(teamCard(team.name, if (added) "IN MY TEAMS" else "ADD TO MY TEAMS", team.logo, "add-team-${t.optString("id")}", added) {
-                        SportsFollowStore.toggle(this@SportsTablesActivity, team); val tag = "add-team-${t.optString("id")}"; draw(); g.findViewWithTag<View>(tag)?.requestFocus()
-                    })
+                    val tag = "add-team-${t.optString("id")}"
+                    val card = SportsTeamCrest.card(this@SportsTablesActivity, team.name, l.name, team.logo, team.color, tag, if (added) "✓  IN MY TEAMS" else "＋  ADD TO MY TEAMS", if (added) UI.GOLD else Color.WHITE)
+                    card.setOnClickListener { SportsFollowStore.toggle(this@SportsTablesActivity, team); draw(); grid.findViewWithTag<View>(tag)?.requestFocus() }
+                    grid.addView(card, GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED), GridLayout.spec(GridLayout.UNDEFINED, 1f)).apply { width = 0; height = dp(132f); setMargins(dp(6f), dp(6f), dp(6f), dp(6f)) })
                 }
             }
-            draw(); body.addView(g)
+            draw(); body.addView(grid)
         }
     }
 }

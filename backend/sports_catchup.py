@@ -33,13 +33,27 @@ SPORTSDB_SPORT = {"soccer": "Soccer", "afl": "Australian Football", "nrl": "Rugb
                   "nfl": "American Football", "nba": "Basketball", "nhl": "Ice Hockey", "mlb": "Baseball",
                   "cricket": "Cricket"}
 AT_SPORTS = {"nfl", "nba", "nhl", "mlb"}
+# National sides (cricket/rugby/football internationals) get their country flag rather than a guessed club crest.
+NATIONS = {"australia": "au", "india": "in", "england": "gb-eng", "new zealand": "nz", "south africa": "za", "pakistan": "pk", "sri lanka": "lk",
+           "bangladesh": "bd", "afghanistan": "af", "ireland": "ie", "zimbabwe": "zw", "scotland": "gb-sct", "wales": "gb-wls", "netherlands": "nl",
+           "fiji": "fj", "samoa": "ws", "tonga": "to", "france": "fr", "italy": "it", "argentina": "ar", "japan": "jp", "usa": "us",
+           "united states": "us", "canada": "ca", "nepal": "np", "uae": "ae", "united arab emirates": "ae", "oman": "om", "namibia": "na",
+           "georgia": "ge", "portugal": "pt", "chile": "cl", "uruguay": "uy", "papua new guinea": "pg", "png": "pg", "brazil": "br",
+           "germany": "de", "spain": "es", "mexico": "mx", "kenya": "ke", "uganda": "ug", "hong kong": "hk", "singapore": "sg", "malaysia": "my"}
+_NATION_SUFFIX = re.compile(r"\b(women|womens|men|mens|u19|u19s|under 19s?|a|xi|national team)\b")
+
+
+def _nation(raw: str) -> Optional[Dict[str, Any]]:
+    base = re.sub(r"\s+", " ", _NATION_SUFFIX.sub(" ", norm(raw))).strip()
+    code = NATIONS.get(base)
+    return {"name": raw.strip(), "logo": f"https://flagcdn.com/w320/{code}.png", "color": None} if code else None
 
 _teams: Dict[str, Tuple[float, List[Dict[str, Any]]]] = {}
 _teams_lock = asyncio.Lock()
 _results: Dict[str, Dict[str, Any]] = {}
 _sportsdb: Dict[str, Optional[Dict[str, Any]]] = {}
 
-_NOISE = re.compile(r"\b(live|replay|rpt|delayed|full match|full game|encore|repeat|new|hd|uhd|4k)\b")
+_NOISE = re.compile(r"\b(live|replay|rpt|delayed|full match|full game|encore|repeat|hd|uhd|4k)\b|^\s*new\s*:")
 _SCORE = re.compile(r"\s\d{1,3}\s*[-–:]\s*\d{1,3}\s")
 _PAREN_SCORE = re.compile(r"\(\s*\d+[^)]*\)")
 
@@ -117,11 +131,23 @@ async def _sportsdb_team(name: str, bucket: str, client: httpx.AsyncClient) -> O
     try:
         r = await client.get(f"{SPORTSDB}/searchteams.php", params={"t": name})
         if r.status_code == 200:
+            want = norm(name)
+            women = bool(re.search(r"\b(women|womens|ladies|w)\b", want))
+            best = None
             for t in (r.json() or {}).get("teams") or []:
-                if t.get("strSport") == SPORTSDB_SPORT.get(bucket) and t.get("strBadge"):
-                    found = {"name": t.get("strTeam") or name, "logo": t["strBadge"],
-                             "color": t.get("strColour1") or None}
+                if t.get("strSport") != SPORTSDB_SPORT.get(bucket) or not t.get("strBadge"):
+                    continue
+                if (t.get("strGender") == "Female") != women:
+                    continue
+                names = {norm(t.get("strTeam") or "")} | {norm(a) for a in (t.get("strTeamAlternate") or "").split(",") if a.strip()}
+                # Exact club name only: a near-miss crest is worse than the initials fallback.
+                if want in names:
+                    best = t
                     break
+                if best is None and any(n and (n.startswith(want + " ") or want.startswith(n + " ")) for n in names):
+                    best = t
+            if best:
+                found = {"name": best.get("strTeam") or name, "logo": best["strBadge"], "color": best.get("strColour1") or None}
         if r.status_code in (200, 404):
             _sportsdb[key] = found
     except Exception as exc:
@@ -185,6 +211,8 @@ async def describe(title: str, bucket: str, client: httpx.AsyncClient, budget: L
         elif team is None and bucket in SPORTSDB_SPORT and budget[0] > 0:
             budget[0] -= 1
             team = await _sportsdb_team(raw, bucket, client)
+        if team is None and bucket in ("cricket", "rugby", "nrl", "soccer"):
+            team = _nation(raw)
         teams.append(_side(raw, team))
     home, away = (teams[1], teams[0]) if right_home else (teams[0], teams[1])
     res = {"match": True, "home": home, "away": away}
