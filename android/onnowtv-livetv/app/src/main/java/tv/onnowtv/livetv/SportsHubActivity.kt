@@ -44,6 +44,7 @@ import tv.onnowtv.livetv.data.SportsCategories
 import tv.onnowtv.livetv.data.SportsLiveGuide
 import tv.onnowtv.livetv.data.SportsHubLayout
 import tv.onnowtv.livetv.ui.SportsHubSideMenu
+import tv.onnowtv.livetv.ui.SportsSpotlight
 
 /** Real, native V2 Sports Hub. Browser fixtures are never used by this activity. */
 class SportsHubActivity : AppCompatActivity() {
@@ -51,6 +52,9 @@ class SportsHubActivity : AppCompatActivity() {
     private lateinit var menu: SportsHubSideMenu
     private lateinit var hubLayout: SportsHubLayout
     private lateinit var heading: TextView
+    private lateinit var spotlight: SportsSpotlight
+    private lateinit var listHeader: LinearLayout
+    private var prefetched = false
     private lateinit var eyebrow: TextView
     private lateinit var leaguesRow: LinearLayout
     private lateinit var leagueScroll: HorizontalScrollView
@@ -116,7 +120,13 @@ class SportsHubActivity : AppCompatActivity() {
         }, "hub-live-count"); header.addView(liveBadge)
         root.addView(header)
         loadingBand = SportsLoadingBand(ctx, "hub"); root.addView(loadingBand)
-        hero = SportsHubHero(this, compact = handset); root.addView(hero, LinearLayout.LayoutParams(-1, -2))
+        // Spotlight + replays strip scroll with the games (first list row), so the cards get the full screen once you move down.
+        spotlight = SportsSpotlight(this) { openGame(it) }
+        hero = SportsHubHero(this, compact = handset)
+        listHeader = UI.col(ctx, dp(ctx, 10f)).apply {
+            addView(spotlight, LinearLayout.LayoutParams(-1, dp(ctx, if (handset) 196f else 222f)).apply { setMargins(dp(ctx, 2f), dp(ctx, 4f), dp(ctx, 2f), 0) })
+            addView(hero, LinearLayout.LayoutParams(-1, -2))
+        }
         leaguesRow = UI.row(ctx, dp(ctx, 4f))
         fun scroller(row: LinearLayout) = HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false; setPadding(dp(ctx, 3f), dp(ctx, 3f), dp(ctx, 3f), dp(ctx, 3f)); addView(row) }
         filters = UI.col(ctx, dp(ctx, 4f))
@@ -141,11 +151,11 @@ class SportsHubActivity : AppCompatActivity() {
         val usable = width - menu.widthDp.toInt() - 60
         val columns = if (usable < 560) 1 else SportsLayoutPolicy.columns(usable + 200)
         list = RecyclerView(ctx).apply {
-            adapter = scores
+            adapter = androidx.recyclerview.widget.ConcatAdapter(SportsHeaderAdapter(listHeader), scores)
             // Room around cards so the focus ring is never clipped; cached rows so D-pad scrolling doesn't rebuild cards.
             itemAnimator = null; clipToPadding = false; clipChildren = false; setPadding(dp(ctx, 4f), dp(ctx, 4f), dp(ctx, 4f), dp(ctx, 12f))
             setHasFixedSize(true); setItemViewCacheSize(24)
-            layoutManager = GridLayoutManager(ctx, columns).apply { spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() { override fun getSpanSize(position: Int): Int = if (scores.isHeader(position)) columns else 1 } }
+            layoutManager = GridLayoutManager(ctx, columns).apply { spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() { override fun getSpanSize(position: Int): Int = if (position == 0 || scores.isHeader(position - 1)) columns else 1 } }
         }; UI.identify(list, "hub-score-list"); stage.addView(list, FrameLayout.LayoutParams(-1, -1))
         empty = UI.identify(UI.text(ctx, "", 15f, UI.DIM), "hub-empty-state").apply { gravity = Gravity.CENTER; visibility = View.GONE; setPadding(dp(ctx, 30f), dp(ctx, 24f), dp(ctx, 30f), dp(ctx, 24f)) }
         empty.isClickable = false; empty.isFocusable = false
@@ -281,6 +291,8 @@ class SportsHubActivity : AppCompatActivity() {
                 games = emptyList(); scores.setChannelMatches(emptyMap()); message = ""; failed = false; loadingScores = false; render(); return@launch
             }
             val date = if (dayOffset == 0) null else java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(fixtureDate())
+            val cachedPath = if (choice == null) SportsHubApi.livePath(date) else SportsHubApi.scoreboardPath(choice.optString("sport"), choice.optString("league"), date)
+            SportsHubApi.peek(cachedPath)?.optJSONArray("games")?.objects()?.let { cached -> games = cached; loadingScores = false; message = ""; render() }
             val response = if (choice == null) SportsHubApi.live(date = date) else SportsHubApi.scoreboard(choice.optString("sport"), choice.optString("league"), date)
             if (generation != requestId || !isActive) return@launch
             failed = response == null || response.optString("status") == "unavailable"
@@ -295,10 +307,18 @@ class SportsHubActivity : AppCompatActivity() {
                 val channels = withContext(Dispatchers.Default) { if (bundle == null) emptyMap() else fresh.associate { Data.key(it) to GameChannelMatcher.find(it, bundle) } }
                 if (generation != requestId || !isActive) return@launch
                 games = fresh; scores.setChannelMatches(channels)
+                if (!prefetched) { prefetched = true; prefetchLeagues() }
             }
             message = when { failed -> if (games.isEmpty()) "Scores are temporarily unavailable. Please retry." else "Connection interrupted · showing the last scores."; response?.optString("status") == "partial" -> "Some leagues are temporarily unavailable."; else -> "" }
             loadingScores = false
             render()
+        }
+    }
+    /** Warm every sport's first league in the background so picking a sport in the menu paints instantly. */
+    private fun prefetchLeagues() = lifecycleScope.launch {
+        sports.mapNotNull { it.optJSONArray("leagues").objects().firstOrNull() }.forEach { l ->
+            if (!isActive) return@launch
+            if (SportsHubApi.peek(SportsHubApi.scoreboardPath(l.optString("sport"), l.optString("league"))) == null) SportsHubApi.scoreboard(l.optString("sport"), l.optString("league"))
         }
     }
     private fun render() {
@@ -318,6 +338,7 @@ class SportsHubActivity : AppCompatActivity() {
         list.visibility = if (mode == Mode.MAP) View.GONE else View.VISIBLE
         empty.visibility = if (mode != Mode.MAP && visible.isEmpty() && liveProgrammes.isEmpty() && message.isEmpty()) View.VISIBLE else View.GONE
         empty.text = if (mode == Mode.FOLLOWING) { if (followed.isEmpty()) "No teams followed yet.\nOpen a match and choose Follow." else "No games for your followed teams in this selection." } else "No live programmes or games in this selection."
+        if (mode != Mode.MAP) spotlight.show(visible, followed)
         if (mode == Mode.MAP) { map.setGames(visible); mapRows.show(map.mappedGames()) } else scores.show(visible, liveProgrammes) {
             if (visible.isNotEmpty() || liveProgrammes.isNotEmpty()) restoredListState?.let { list.layoutManager?.onRestoreInstanceState(it); restoredListState = null }
         }
@@ -333,18 +354,6 @@ class SportsHubActivity : AppCompatActivity() {
         overridePendingTransition(0, 0)
     }
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_DPAD_UP && ::list.isInitialized) {
-            val focus = currentFocus ?: window.decorView.findFocus()
-            if (focus != null && list.visibility == View.VISIBLE) {
-                val holder = list.findContainingViewHolder(focus)
-                val position = holder?.absoluteAdapterPosition ?: RecyclerView.NO_POSITION
-                val first = scores.currentList.indexOfFirst { !it.isHeader }.takeIf { it >= 0 }
-                val manager = list.layoutManager as? GridLayoutManager
-                if (first != null && manager != null && position >= first && manager.spanSizeLookup.getSpanGroupIndex(position, manager.spanCount) == manager.spanSizeLookup.getSpanGroupIndex(first, manager.spanCount)) {
-                    if (calendar.findViewWithTag<View>("hub-day-$dayOffset")?.requestFocus() == true) return true
-                }
-            }
-        }
         if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_BACK && ::menu.isInitialized && !menu.hasFocus()) {
             if (menu.focusSelected()) return true
         }

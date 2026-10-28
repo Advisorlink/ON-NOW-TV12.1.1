@@ -72,7 +72,7 @@ class SportsNativeLayoutRobolectricTest {
     fun sports_hub_phone_uses_concat_adapter_and_expected_columns() {
         val activity = Robolectric.buildActivity(SportsHubActivity::class.java).create().get()
         val list = activity.window.decorView.findViewWithTag<RecyclerView>("hub-score-list")
-        assertTrue(list.adapter is SportsScoreAdapter)
+        assertTrue(list.adapter is ConcatAdapter)
         assertNotNull(activity.window.decorView.findViewWithTag<View>("hub-side-menu"))
         val lm = list.layoutManager as GridLayoutManager
         assertEquals(1, lm.spanCount)
@@ -92,7 +92,7 @@ class SportsNativeLayoutRobolectricTest {
     fun sports_hub_landscape_keeps_concat_adapter_and_two_columns() {
         val activity = Robolectric.buildActivity(SportsHubActivity::class.java).create().get()
         val list = activity.window.decorView.findViewWithTag<RecyclerView>("hub-score-list")
-        assertTrue(list.adapter is SportsScoreAdapter)
+        assertTrue(list.adapter is ConcatAdapter)
         val lm = list.layoutManager as GridLayoutManager
         assertEquals(2, lm.spanCount)
     }
@@ -140,12 +140,16 @@ class SportsNativeLayoutRobolectricTest {
         assertTrue(card.requestFocus())
         Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
         assertTrue("The card must hold actual view-tree focus even when the window lookup lags", card === root.findFocus())
-        val consumed = activity.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_DPAD_UP))
-        assertTrue("Focused=${activity.currentFocus?.tag}; position=${recycler.findContainingViewHolder(card)?.absoluteAdapterPosition}; firstItems=${readField<SportsScoreAdapter>(activity, "scores").currentList.map { it.key }}; handset=${readField<Boolean>(activity, "handset")}", consumed)
-        Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
-
-        val today = activity.window.decorView.findViewWithTag<View>("hub-day-0")
-        assertTrue(today.isFocused)
+        // Up from the first games row lands in the Spotlight / replays header that scrolls with the list.
+        val spotlight = root.findViewWithTag<View>("hub-spotlight")
+        assertEquals(View.VISIBLE, spotlight.visibility)
+        val header = readField<android.widget.LinearLayout>(activity, "listHeader")
+        val next = recycler.focusSearch(card, View.FOCUS_UP)
+        assertNotNull(next)
+        var p: android.view.ViewParent? = next!!.parent
+        var inside = next === spotlight
+        while (!inside && p != null) { inside = p === header; p = p.parent }
+        assertTrue("Up went to ${next.tag}", inside)
     }
 
     // Game screen stacked phone layout should keep score/header/button areas measurable and non-overflowing.

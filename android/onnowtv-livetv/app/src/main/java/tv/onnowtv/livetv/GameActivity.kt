@@ -284,7 +284,7 @@ class GameActivity : AppCompatActivity() {
     }
 
     private fun followButton(t: JSONObject): TextView {
-        val team = SportsFollowStore.Team(sport, league, t.optString("id"), t.optString("name"), t.optString("logo").ifBlank { null })
+        val team = SportsFollowStore.Team(sport, league, t.optString("id"), t.optString("name"), t.optString("logo").ifBlank { null }, t.optString("color").takeIf { it.isNotBlank() && it != "null" })
         val on = SportsFollowStore.isFollowed(this, team.key)
         lateinit var button: TextView
         button = SportsUi.identify(SportsUi.pill(this, if (on) "★ Following" else "☆ Follow", on, 0xFFFFC850.toInt()) {

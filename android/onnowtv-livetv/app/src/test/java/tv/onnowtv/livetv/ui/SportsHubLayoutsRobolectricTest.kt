@@ -33,6 +33,18 @@ class SportsHubLayoutsRobolectricTest {
     }
 
     @Test
+    fun myTeamsTravelInTheAccountSnapshot() {
+        val ctx = org.robolectric.RuntimeEnvironment.getApplication()
+        val t = tv.onnowtv.livetv.data.SportsFollowStore.Team("basketball", "nba", "13", "Los Angeles Lakers", "https://x/lal.png", "552583")
+        tv.onnowtv.livetv.data.SportsFollowStore.save(ctx, listOf(t), sync = false)
+        val snap = tv.onnowtv.livetv.data.SyncManager.buildSnapshot(ctx)
+        assertEquals(1, snap.getJSONArray("sportsTeams").length())
+        tv.onnowtv.livetv.data.SportsFollowStore.save(ctx, emptyList(), sync = false)
+        tv.onnowtv.livetv.data.SyncManager.applySnapshot(ctx, snap)
+        assertEquals(listOf(t), tv.onnowtv.livetv.data.SportsFollowStore.all(ctx))
+    }
+
+    @Test
     fun replayTitlesNeverShowTheResult() {
         assertEquals("NRL: Broncos v Storm", SportsCatchUpData.noScore("NRL: Broncos 24 - 18 Storm"))
         assertEquals("Arsenal v Chelsea", SportsCatchUpData.noScore("Arsenal 2-1 Chelsea"))

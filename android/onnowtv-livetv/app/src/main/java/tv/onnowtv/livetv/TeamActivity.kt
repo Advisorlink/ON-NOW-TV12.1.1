@@ -26,6 +26,7 @@ import tv.onnowtv.livetv.data.SportsFollowStore
 import tv.onnowtv.livetv.data.SportsHubApi
 import tv.onnowtv.livetv.data.SportsHubApi.objects
 import tv.onnowtv.livetv.ui.SportsReplayRow
+import tv.onnowtv.livetv.ui.SportsTeamCrest
 import tv.onnowtv.livetv.ui.SportsTeamUi as Team
 import tv.onnowtv.livetv.ui.SportsUi as UI
 
@@ -55,7 +56,8 @@ class TeamActivity : AppCompatActivity() {
         setContentView(ScrollView(this).apply { setBackgroundColor(UI.BG); isFillViewport = true; addView(page) })
         drawHero(JSONObject().put("name", intent.getStringExtra(EXTRA_NAME)).put("logo", intent.getStringExtra(EXTRA_LOGO)))
         lifecycleScope.launch {
-            val d = SportsHubApi.team(sport, league, teamId)
+            // Paint the last copy instantly (same session), then refresh behind it only if nothing was shown.
+            val d = SportsHubApi.peek(SportsHubApi.teamPath(sport, league, teamId)) ?: SportsHubApi.team(sport, league, teamId)
             if (d == null) { status.text = "Couldn't load this team right now. Press BACK and try again."; return@launch }
             page.removeView(status)
             drawHero(d.optJSONObject("team") ?: JSONObject())
@@ -87,7 +89,7 @@ class TeamActivity : AppCompatActivity() {
         hero.addView(View(this).apply { background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.TRANSPARENT, UI.BG)) },
             FrameLayout.LayoutParams(-1, dp(90f), Gravity.BOTTOM))
         val row = UI.row(this, dp(26f)).apply { setPadding(dp(48f), dp(30f), dp(48f), dp(20f)) }
-        row.addView(UI.logo(this, t.optString("logo"), dp(132f)).apply { elevation = dp(8f).toFloat() })
+        row.addView(SportsTeamCrest.view(this, t.optString("logo"), dp(140f)))
         val info = UI.col(this, dp(8f))
         info.addView(UI.eyebrow(this, listOf("V2 Sports Hub", t.optString("leagueName").takeIf { it.isNotBlank() }).filterNotNull().joinToString("  ·  "), UI.ACCENT))
         info.addView(UI.identify(UI.singleLine(UI.text(this, t.optString("name").ifBlank { "Team" }, 46f, Color.WHITE, bold = true)), "team-name"))
@@ -102,7 +104,8 @@ class TeamActivity : AppCompatActivity() {
 
     private fun followPill(t: JSONObject): View {
         val team = SportsFollowStore.Team(sport, league, teamId, t.optString("name").ifBlank { intent.getStringExtra(EXTRA_NAME).orEmpty() },
-            t.optString("logo").takeIf { it.isNotBlank() && it != "null" } ?: intent.getStringExtra(EXTRA_LOGO))
+            t.optString("logo").takeIf { it.isNotBlank() && it != "null" } ?: intent.getStringExtra(EXTRA_LOGO), t.optString("color").takeIf { it.isNotBlank() && it != "null" })
+        SportsFollowStore.update(this, team)
         val on = SportsFollowStore.isFollowed(this, team.key)
         return UI.identify(UI.pill(this, if (on) "★  Following" else "＋  Follow", on, UI.GOLD) {
             if (on) AlertDialog.Builder(this).setTitle("Remove ${team.name}?").setMessage("They'll leave My Teams and the Following filter.")

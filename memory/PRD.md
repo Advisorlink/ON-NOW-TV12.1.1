@@ -717,3 +717,16 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
   - `SportsCatchUpData.noScore()` strips scores, result verbs and FT/result tails. It is used by Catch Up and the hero replay strip.
   - The team page Replays shelf uses spoiler-free `gameCard(spoilerFree = true)` (VS, date · FULL REPLAY).
   - Hub results cards still show scores (Scores view).
+
+## Live TV 2.11.0 (164): Spotlight hub, instant paint, My Teams sync + crest cards (2026-10-28)
+- The ask_human for this turn got no answers, so I went with the recommended options: Spotlight features My Teams' games first, My Teams saves to the V2 login, and teams use "big logo on team colours".
+- Spotlight is the hub's single layout (`ui/SportsSpotlight`).
+  - It is the first row of the hub RecyclerView (ConcatAdapter(SportsHeaderAdapter(listHeader), scores)) with the SportsHubHero replays strip under it, so both scroll away and the cards get the full height.
+  - It features up to 6 games: followed teams first (live → next → latest), then live, then the next 2 kick-offs. ◀ ▶ cycles through them, and LEFT on the first one goes to the menu. Views are built once and only rebound.
+  - Background is the sport cover art (SportsCatchUpData.art), team-colour wash and bare crests. OK on a live game plays it (SportsTeamUi.watch); otherwise it opens the match centre.
+- Instant paint: `SportsHubApi` keeps the last good JSON per path (`peek`, `livePath`/`scoreboardPath`/`teamPath`/`myTeamsPath`).
+  - The hub paints from cache first, then refreshes, and prefetches each sport's first league after the first load.
+  - The team page and the My Teams feed paint from peek when available.
+- My Teams sync: `SportsFollowStore.save` triggers `SyncManager.pushDebounced`. The snapshot field `sportsTeams` is union-merged on restore (`/api/livetv/sync/*`, keyed by the Xtream username like favourites). Team now stores `color`, which is refreshed by `SportsFollowStore.update` when a team page loads.
+- `ui/SportsTeamCrest`: bare crest view (no white disc) plus the My Teams card (team-colour gradient, gloss, watermark crest, 104dp crest, name/league, ring focus). The team page hero uses the bare crest.
+- Tests: SportsHubLayoutsRobolectricTest (menu, sync round trip, noScore) and an updated SportsNativeLayoutRobolectricTest (ConcatAdapter, UP goes into the spotlight header).

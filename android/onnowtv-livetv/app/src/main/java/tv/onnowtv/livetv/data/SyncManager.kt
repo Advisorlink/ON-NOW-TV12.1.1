@@ -170,6 +170,7 @@ object SyncManager {
             })
         }
         out.put("reminders", remArr)
+        out.put("sportsTeams", SportsFollowStore.toJson(SportsFollowStore.all(ctx)))
         return out
     }
 
@@ -250,6 +251,8 @@ object SyncManager {
                 ReminderStore.pruneExpired(ctx, local)
                 ReminderStore.save(ctx, local)
             }
+
+            snap.optJSONArray("sportsTeams")?.takeIf { it.length() > 0 }?.let { SportsFollowStore.merge(ctx, it) }
         } catch (t: Throwable) {
             Log.w(TAG, "applySnapshot failed: ${t.message}")
         }
