@@ -755,3 +755,11 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
   - First card `team-highlight` is always present for the latest result. It shows "Finding video…" first, then the YouTube thumbnail, length and channel, and OK plays it in SportsOfficialReplayActivity. If nothing official is found it says "Not posted yet" and shows a toast.
   - The separate highlights shelf was removed.
 - Robolectric `myTeamsHomeHasSportTilesAcrossTheTop` added.
+
+## Highlights in production (2026-10-28)
+- User report: highlights show "Not posted yet" on the box. https://onnowhub.com/api/sportshub/highlights returns HTTP 500, while preview returns the video.
+- I sent a deployer debug for an RCA (job 6af57209); the suspects are missing SPORTS_YOUTUBE_* env vars in production, or yt-dlp search being blocked on datacenter IPs.
+- Hardening in `sports_highlights.py`:
+  - Search failures are logged and fall back to the official channel RSS feed (`LEAGUE_CHANNELS` ids: NFL/NBA/MLB/NHL/PL/AFL/NRL/F1/UFC).
+  - Official channels are now also matched by channel id, or by a name prefix such as "NRL - National Rugby League".
+  - An oEmbed check that fails is logged and skipped instead of returning 500.
