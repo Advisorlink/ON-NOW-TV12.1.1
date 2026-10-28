@@ -214,6 +214,12 @@ class PlayerActivity : AppCompatActivity() {
     private val numberBuffer = StringBuilder()
     private var currentChannel: Channel? = null
     private var loadingOverlay: tv.onnowtv.livetv.ui.PlayerLoadingOverlay? = null
+    /** Recordings are seekable files, unlike live channels. */
+    private val catchUp by lazy { intent.getStringExtra(EXTRA_SUBTITLE)?.startsWith("CATCH UP") == true }
+    private val seekHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val seekTick = object : Runnable {
+        override fun run() { updateCatchUpProgress(); seekHandler.postDelayed(this, 1_000L) }
+    }
     private val clockFmt = SimpleDateFormat("h:mm a", Locale.UK)
     /** Number of consecutive failed attempts on the CURRENT channel.
      *  Resets to 0 whenever the user tunes to a different channel.
@@ -1152,8 +1158,23 @@ class PlayerActivity : AppCompatActivity() {
                 }
                 return super.onKeyDown(keyCode, event)
             }
+            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
+            KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                if (!catchUp) return super.onKeyDown(keyCode, event)
+                val step = if ((event?.repeatCount ?: 0) > 3) 120_000L else 30_000L
+                seekRelative(if (keyCode == KeyEvent.KEYCODE_MEDIA_REWIND) -step else step)
+                return true
+            }
             KeyEvent.KEYCODE_DPAD_LEFT,
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                // Catch-up: LEFT/RIGHT on the bare picture skips through the recording
+                // (hold to scrub faster); the controls bar shows where you are.
+                if (catchUp && playerOverlay.visibility != View.VISIBLE) {
+                    val held = event?.repeatCount ?: 0
+                    val step = when { held > 12 -> 300_000L; held > 4 -> 60_000L; keyCode == KeyEvent.KEYCODE_DPAD_LEFT -> 10_000L; else -> 30_000L }
+                    seekRelative(if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) -step else step)
+                    return true
+                }
                 // Open controls on L/R from the bare player surface
                 // so it's discoverable.  Once visible the standard
                 // focus-search d-pad logic takes over.
@@ -1419,16 +1440,16 @@ class PlayerActivity : AppCompatActivity() {
             infoDescriptionView.visibility = if (desc.isBlank()) View.GONE else View.VISIBLE
         }
         // Progress bar + elapsed/duration captions
-        if (::infoProgressView.isInitialized) {
+        if (catchUp) { updateCatchUpProgress() } else if (::infoProgressView.isInitialized) {
             val pct = if (now != null) progressPct(now) else 0f
             infoProgressView.progress = (pct * infoProgressView.max).toInt()
         }
-        if (::infoElapsed.isInitialized) {
+        if (::infoElapsed.isInitialized && !catchUp) {
             infoElapsed.text = if (now != null) {
                 fmtSpan((System.currentTimeMillis() - now.startMs).coerceAtLeast(0L))
             } else ""
         }
-        if (::infoDuration.isInitialized) {
+        if (::infoDuration.isInitialized && !catchUp) {
             infoDuration.text = if (now != null) fmtSpan(now.stopMs - now.startMs) else ""
         }
         // UP NEXT card
@@ -1582,13 +1603,16 @@ class PlayerActivity : AppCompatActivity() {
     private fun startClockTicker() {
         clockHandler.removeCallbacks(clockTick)
         clockHandler.post(clockTick)
+        if (catchUp) { seekHandler.removeCallbacks(seekTick); seekHandler.post(seekTick) }
     }
 
     private fun stopClockTicker() {
         clockHandler.removeCallbacks(clockTick)
+        seekHandler.removeCallbacks(seekTick)
     }
 
     private fun seekRelative(deltaMs: Long) {
+        if (catchUp) { seekRecording(deltaMs); return }
         if (backend == PlayerPrefs.Backend.VLC) {
             // Live MPEG-TS — no timeshift buffer on the VLC path.
             status.text = if (deltaMs > 0) "Live · cannot fast-forward" else "Live · cannot rewind"
@@ -1610,6 +1634,34 @@ class PlayerActivity : AppCompatActivity() {
             hideHandler.removeCallbacksAndMessages(null)
             hideHandler.postDelayed({ status.text = "" }, 1_400L)
         }
+    }
+
+    private fun recordingPosition(): Pair<Long, Long> =
+        if (backend == PlayerPrefs.Backend.VLC) (vlcController?.positionMs() ?: -1L) to (vlcController?.lengthMs() ?: -1L)
+        else (player?.currentPosition ?: -1L) to (player?.duration?.takeIf { it != androidx.media3.common.C.TIME_UNSET } ?: -1L)
+
+    private fun seekRecording(deltaMs: Long) {
+        val (pos, dur) = recordingPosition()
+        if (pos < 0) return
+        val target = (pos + deltaMs).coerceAtLeast(0L).let { if (dur > 0) it.coerceAtMost(dur - 2_000L) else it }
+        if (backend == PlayerPrefs.Backend.VLC) vlcController?.seekTo(target) else player?.seekTo(target)
+        val sign = if (deltaMs >= 0) "⏩  +" else "⏪  −"
+        status.text = "$sign${fmtSpan(kotlin.math.abs(deltaMs))}   ${fmtSpan(target)}${if (dur > 0) " / " + fmtSpan(dur) else ""}"
+        hideHandler.removeCallbacksAndMessages(null)
+        hideHandler.postDelayed({ status.text = "" }, 1_600L)
+        if (playerOverlay.visibility != View.VISIBLE) showControlsBar() else bumpControlsHide()
+        updateCatchUpProgress(target)
+    }
+
+    /** For recordings the bar shows position in the file, not the live programme clock. */
+    private fun updateCatchUpProgress(override: Long? = null) {
+        if (!catchUp || !::infoProgressView.isInitialized) return
+        val (pos0, dur) = recordingPosition()
+        val pos = override ?: pos0
+        if (pos < 0 || dur <= 0) return
+        infoProgressView.progress = ((pos.toFloat() / dur) * infoProgressView.max).toInt().coerceIn(0, infoProgressView.max)
+        if (::infoElapsed.isInitialized) infoElapsed.text = fmtSpan(pos)
+        if (::infoDuration.isInitialized) infoDuration.text = fmtSpan(dur)
     }
 
     private fun toggleSubtitles() {

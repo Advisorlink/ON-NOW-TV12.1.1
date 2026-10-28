@@ -303,7 +303,8 @@ class CatchUpActivity : AppCompatActivity() {
         v.tag = "catchup-day-$day"
         v.isActivated = day == dayStart
         val count = dayShows(day).size
-        (v as TextView).text = "${dayLabel(day)}  ·  $count"
+        val date = SimpleDateFormat("EEE d MMM", Locale.getDefault()).format(Date(day)).uppercase()
+        (v as TextView).text = "${if (dayLabel(day) == date) date else dayLabel(day) + " · " + date}  ·  $count"
         v.setOnClickListener { dayStart = day; daysAdapter.notifyDataSetChanged(); showDay() }
         focusScale(v)
     }

@@ -124,6 +124,10 @@ class VlcPlayerController(
      *  Used by PlayerActivity's frozen-frame stall watchdog. */
     fun positionMs(): Long = try { mediaPlayer?.time ?: -1L } catch (_: Throwable) { -1L }
 
+    fun lengthMs(): Long = try { mediaPlayer?.length ?: -1L } catch (_: Throwable) { -1L }
+
+    fun seekTo(ms: Long) { try { mediaPlayer?.time = ms.coerceAtLeast(0L) } catch (_: Throwable) {} }
+
     fun stop() {
         try { mediaPlayer?.stop() } catch (_: Throwable) {}
     }

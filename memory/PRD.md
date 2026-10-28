@@ -667,3 +667,15 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - SportsHubHero's cover tile now opens SportsCatchUpActivity without a preselected sport, so every sport tile is shown first.
 - The hero now also shows on non-TV devices (emulators/phones count as `handset`): in compact mode it stacks vertically with a full-width 120dp tile. Before, it was hidden on handsets.
 - Sports Catch Up sport tiles are bigger (150dp; 3 columns, or 2 under 720dp width) and use a left-side dark wash so the new cover art shows clearly.
+
+## Live TV 2.10.95 (159): catch-up seeking, calendar days, Standings + My Teams (2026-10-27)
+- **Catch-up seeking** (PlayerActivity): `catchUp` is detected from a subtitle starting "CATCH UP".
+  - With the controls hidden, LEFT/RIGHT skips through the recording: −10 s / +30 s, and holding scrubs at 60 s, then 5 min. Media FF/REW skip ±30 s (2 min when held). The on-screen ⏪/⏩ buttons work on recordings too.
+  - Works on both Exo and VLC: `VlcPlayerController.lengthMs()/seekTo()` added. Recordings are byte-range files (Content-Range total known), so Exo can seek and knows the duration.
+  - Status shows "⏩ +30s  12:30 / 1:45:00". The progress bar and elapsed/duration follow the file position (1 s ticker) instead of the live EPG clock.
+- **Sports Hub calendar:** "‹ [7 real date chips: … YESTERDAY 26 OCT · TODAY 27 OCT · TOMORROW 28 OCT …] ›" plus a full date caption (`hub-day-<offset>`, range −14..+7). Both Catch Up screens' day chips now show "TODAY · MON 27 OCT" style labels.
+- **Standings and My Teams:** new `SportsTablesActivity` (EXTRA_MODE standings|teams), opened from the new hub pills "Standings" / "My Teams".
+  - Standings: league chips (tier ≤2 from /api/sportshub/leagues), then group tables showing # / logo / team / P W L D / PTS·GD (or PCT).
+  - My Teams: grid of followed teams (tap to remove) plus a "＋ Add Team" card. That opens league chips, then every club's logo and name (tap to add or remove, gold ✓). Uses SportsFollowStore, so the hub's Following filter and kick-off alerts pick them up.
+- Backend: new `GET /api/sportshub/teams?sport&league` (ESPN teams list, cached 24 h). It needs Save to GitHub before it works on onnowhub.com.
+- **Not verified on a device.**

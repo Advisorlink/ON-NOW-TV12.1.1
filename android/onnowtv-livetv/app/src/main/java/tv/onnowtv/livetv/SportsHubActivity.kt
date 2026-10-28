@@ -111,9 +111,12 @@ class SportsHubActivity : AppCompatActivity() {
         filters.addView(scroller(sportsRow)); leagueScroll = scroller(leaguesRow); filters.addView(leagueScroll); renderFilters()
         val dates = UI.row(ctx, dp(ctx, 8f))
         fun day(delta: Int) { dayOffset = (dayOffset + delta).coerceIn(-14, 7); updateDateLabel(); games = emptyList(); refresh() }
-        dates.addView(UI.identify(UI.pill(ctx, if (width < 600) "‹ Previous" else "‹ Previous day") { day(-1) }, "hub-previous-day"), LinearLayout.LayoutParams(0, -2, 1f))
-        dateLabel = UI.identify(UI.pill(ctx, "Today") { dayOffset = 0; updateDateLabel(); games = emptyList(); refresh() }, "hub-fixture-date"); dates.addView(dateLabel, LinearLayout.LayoutParams(0, -2, 1.3f))
-        dates.addView(UI.identify(UI.pill(ctx, if (width < 600) "Next ›" else "Next day ›") { day(1) }, "hub-next-day"), LinearLayout.LayoutParams(0, -2, 1f)); updateDateLabel(); filters.addView(dates)
+        dates.addView(UI.identify(UI.pill(ctx, "‹") { day(-1) }, "hub-previous-day"))
+        calendar = UI.row(ctx, dp(ctx, 6f))
+        dates.addView(HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false; setPadding(dp(ctx, 3f), dp(ctx, 3f), dp(ctx, 3f), dp(ctx, 3f)); addView(calendar) }, LinearLayout.LayoutParams(0, -2, 1f))
+        dates.addView(UI.identify(UI.pill(ctx, "›") { day(1) }, "hub-next-day"))
+        dateLabel = UI.identify(UI.text(ctx, "", 12f, UI.ACCENT, mono = true), "hub-fixture-date"); dates.addView(dateLabel)
+        updateDateLabel(); filters.addView(dates)
         val status = UI.row(ctx, dp(ctx, 12f))
         notice = UI.identify(UI.text(ctx, message, 15f, UI.DIM), "hub-feed-status")
         status.addView(notice, LinearLayout.LayoutParams(0, -2, 1f))
@@ -175,13 +178,31 @@ class SportsHubActivity : AppCompatActivity() {
     override fun onPause() { poll?.cancel(); fetch?.cancel(); requestId++; super.onPause() }
     override fun onSaveInstanceState(out: Bundle) { out.putInt("mode", mode.ordinal); out.putInt("sport", sportIdx); out.putInt("league", leagueIdx); out.putInt("day", dayOffset); out.putParcelable("scoresScroll", list.layoutManager?.onSaveInstanceState()); super.onSaveInstanceState(out) }
     private fun fixtureDate(): java.util.Date = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DATE, dayOffset) }.time
-    private fun updateDateLabel() { dateLabel.text = java.text.SimpleDateFormat(if (dayOffset == 0) "'Today' · d MMM" else "EEE, d MMM", java.util.Locale.getDefault()).format(fixtureDate()) }
+    private lateinit var calendar: LinearLayout
+    /** Real dates either side of the chosen day, e.g. FRI 24 · SAT 25 · TODAY 27 · TUE 28 … */
+    private fun updateDateLabel() {
+        dateLabel.text = java.text.SimpleDateFormat(if (dayOffset == 0) "'TODAY' · EEE d MMM" else "EEE d MMM yyyy", java.util.Locale.getDefault()).format(fixtureDate()).uppercase()
+        if (!::calendar.isInitialized) return
+        val focused = calendar.findFocus()?.tag
+        calendar.removeAllViews()
+        val first = (dayOffset - 3).coerceIn(-14, 1); val last = (first + 6).coerceAtMost(7)
+        for (off in first..last) {
+            val d = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DATE, off) }.time
+            val label = when (off) { 0 -> "TODAY"; -1 -> "YESTERDAY"; 1 -> "TOMORROW"; else -> java.text.SimpleDateFormat("EEE", java.util.Locale.getDefault()).format(d).uppercase() } +
+                " " + java.text.SimpleDateFormat("d MMM", java.util.Locale.getDefault()).format(d).uppercase()
+            val tag = "hub-day-$off"
+            calendar.addView(UI.identify(UI.pill(this, label, off == dayOffset) { dayOffset = off; updateDateLabel(); games = emptyList(); refresh() }, tag))
+        }
+        (focused as? String)?.let { t -> calendar.findViewWithTag<View>("hub-day-$dayOffset")?.takeIf { t.startsWith("hub-day-") }?.requestFocus() }
+    }
     private fun renderModes(focus: String? = null) {
         modes.removeAllViews()
         listOf(Mode.SCORES to "Scores", Mode.MAP to "World map", Mode.FOLLOWING to "Following").forEach { (m, label) ->
             val tag = "hub-mode-${m.name.lowercase()}"
             modes.addView(UI.identify(UI.pill(this, label, mode == m) { mode = m; renderModes(tag); render() }, tag))
         }
+        modes.addView(UI.identify(UI.pill(this, "Standings") { startActivity(Intent(this, SportsTablesActivity::class.java).putExtra(SportsTablesActivity.EXTRA_MODE, SportsTablesActivity.STANDINGS)) }, "hub-standings"))
+        modes.addView(UI.identify(UI.pill(this, "My Teams") { startActivity(Intent(this, SportsTablesActivity::class.java).putExtra(SportsTablesActivity.EXTRA_MODE, SportsTablesActivity.TEAMS)) }, "hub-my-teams"))
         modes.addView(UI.identify(UI.pill(this, "Fields") { SportsFieldGallery.show(this) }, "hub-fields"))
         focus?.let { modes.findViewWithTag<View>(it)?.requestFocus() }
     }
@@ -301,7 +322,7 @@ class SportsHubActivity : AppCompatActivity() {
                 val first = scores.currentList.indexOfFirst { !it.isHeader }.takeIf { it >= 0 }?.plus(offset)
                 val manager = list.layoutManager as? GridLayoutManager
                 if (first != null && manager != null && position >= first && manager.spanSizeLookup.getSpanGroupIndex(position, manager.spanCount) == manager.spanSizeLookup.getSpanGroupIndex(first, manager.spanCount)) {
-                    if (handset) { list.scrollToPosition(0); list.post { if (!dateLabel.requestFocus()) nav() } }
+                    if (handset) { list.scrollToPosition(0); list.post { if (calendar.findViewWithTag<View>("hub-day-$dayOffset")?.requestFocus() != true) nav() } }
                     else if (!dateLabel.requestFocus()) nav()
                     return true
                 }

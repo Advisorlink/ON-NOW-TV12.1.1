@@ -219,7 +219,8 @@ class SportsCatchUpActivity : AppCompatActivity() {
     private fun bindDay(v: View, d: Long) {
         v.tag = "sports-catchup-day-$d"
         v.isActivated = d == day
-        (v as TextView).text = "${dayLabel(d)}  ·  ${games.count { it.sport == sport && startOfDay(it.programme.startMs) == d }}"
+        val date = SimpleDateFormat("EEE d MMM", Locale.getDefault()).format(Date(d)).uppercase()
+        (v as TextView).text = "${if (dayLabel(d) == date) date else dayLabel(d) + " · " + date}  ·  ${games.count { it.sport == sport && startOfDay(it.programme.startMs) == d }}"
         v.setOnClickListener { day = d; render() }
         focusScale(v)
     }

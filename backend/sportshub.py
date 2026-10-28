@@ -543,6 +543,26 @@ async def game(sport: str, league: str, id: str):
     }
 
 
+@router.get("/teams")
+async def teams(sport: str, league: str):
+    """Every club in a league (for My Teams → Add Team)."""
+    if (sport, league) not in LEAGUE_BY_KEY:
+        raise HTTPException(404, "unknown league")
+    try:
+        data = await _get(f"{ESPN}/{sport}/{league}/teams", None, ttl=86400)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, f"espn teams failed: {e}")
+    rows = []
+    for row in ((data.get("sports") or [{}])[0].get("leagues") or [{}])[0].get("teams") or []:
+        t = row.get("team") or {}
+        if not t.get("id"):
+            continue
+        rows.append({"id": str(t["id"]), "name": t.get("displayName") or t.get("name"), "abbr": t.get("abbreviation"),
+                     "logo": ((t.get("logos") or [{}])[0].get("href")), "color": t.get("color")})
+    rows.sort(key=lambda r: (r["name"] or "").lower())
+    return {"league": LEAGUE_BY_KEY[(sport, league)]["name"], "sport": sport, "leagueKey": league, "teams": rows}
+
+
 @router.get("/standings")
 async def standings(sport: str, league: str):
     if (sport, league) not in LEAGUE_BY_KEY:
