@@ -30,7 +30,6 @@ import tv.onnowtv.livetv.data.SportsHubApi
 import tv.onnowtv.livetv.data.SportsHubApi.objects
 import tv.onnowtv.livetv.data.SportsPresentation as Data
 import tv.onnowtv.livetv.ui.SportsFieldGallery
-import tv.onnowtv.livetv.ui.SportsHubHero
 import tv.onnowtv.livetv.ui.SportsMapAdapter
 import tv.onnowtv.livetv.ui.SportsScoreAdapter
 import tv.onnowtv.livetv.ui.SportsUi as UI
@@ -91,7 +90,6 @@ class SportsHubActivity : AppCompatActivity() {
     private var restoredListState: android.os.Parcelable? = null
     private lateinit var loadingBand: SportsLoadingBand
     private var loadingScores = true
-    private var hero: SportsHubHero? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -120,12 +118,10 @@ class SportsHubActivity : AppCompatActivity() {
         }, "hub-live-count"); header.addView(liveBadge)
         root.addView(header)
         loadingBand = SportsLoadingBand(ctx, "hub"); root.addView(loadingBand)
-        // Spotlight + replays strip scroll with the games (first list row), so the cards get the full screen once you move down.
+        // Spotlight scrolls with the games (first list row), so the cards get the full screen once you move down.
         spotlight = SportsSpotlight(this) { openGame(it) }
-        hero = SportsHubHero(this, compact = handset)
         listHeader = UI.col(ctx, dp(ctx, 10f)).apply {
             addView(spotlight, LinearLayout.LayoutParams(-1, dp(ctx, if (handset) 196f else 222f)).apply { setMargins(dp(ctx, 2f), dp(ctx, 4f), dp(ctx, 2f), 0) })
-            addView(hero, LinearLayout.LayoutParams(-1, -2))
         }
         leaguesRow = UI.row(ctx, dp(ctx, 4f))
         fun scroller(row: LinearLayout) = HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false; setPadding(dp(ctx, 3f), dp(ctx, 3f), dp(ctx, 3f), dp(ctx, 3f)); addView(row) }
@@ -274,7 +270,6 @@ class SportsHubActivity : AppCompatActivity() {
             // Guide channels are available even if ESPN is slow, offline, or does not cover this sport.
             val guideBundle = BundleHolder.current
             val bucket = sports.getOrNull(sportIdx)?.optString("bucket")
-            if (!quiet) hero?.update(bucket?.takeIf { it.isNotBlank() })
             val live = withContext(Dispatchers.Default) { if (guideBundle == null || dayOffset != 0) emptyList() else SportsLiveGuide.current(guideBundle, bucket) }
             if (generation != requestId || !isActive) return@launch
             programmes = if (BundleHolder.current === guideBundle) live else emptyList()

@@ -730,3 +730,7 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - My Teams sync: `SportsFollowStore.save` triggers `SyncManager.pushDebounced`. The snapshot field `sportsTeams` is union-merged on restore (`/api/livetv/sync/*`, keyed by the Xtream username like favourites). Team now stores `color`, which is refreshed by `SportsFollowStore.update` when a team page loads.
 - `ui/SportsTeamCrest`: bare crest view (no white disc) plus the My Teams card (team-colour gradient, gloss, watermark crest, 104dp crest, name/league, ring focus). The team page hero uses the bare crest.
 - Tests: SportsHubLayoutsRobolectricTest (menu, sync round trip, noScore) and an updated SportsNativeLayoutRobolectricTest (ConcatAdapter, UP goes into the spotlight header).
+
+## Live TV 2.11.1 (165): Catch Up hero removed from the Sports Hub (2026-10-28)
+- The user said the "Catch Up & Replays" tile and the Latest Replays strip under the Spotlight were unwanted and slow, so I deleted `ui/SportsHubHero.kt` and its use in the hub. The hub list header is now just the Spotlight.
+- Replays still live in the side menu (Replays → SportsCatchUpActivity), in each sport's previous games/replays, and on team pages.
