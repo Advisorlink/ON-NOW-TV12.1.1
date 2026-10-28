@@ -22,9 +22,6 @@ import tv.onnowtv.livetv.ui.SportsUi.dp
 /** Recycles scorecards; stable keys keep remote focus on the same game during polling. */
 class SportsScoreAdapter(private val owner: LifecycleOwner, private val open: (JSONObject) -> Unit) : ListAdapter<SportsScoreAdapter.Item, SportsScoreAdapter.Holder>(Diff) {
     var openLiveEvent: (SportsLiveEvents.Event) -> Unit = {}
-    /** Scoreboard-bar style (Stadium Tiles / Ticker layouts) instead of cards; radius sets the bar shape. */
-    var rows = false
-    var rowRadius = 14f
     private var broadcasts: Map<String, List<GameChannelMatcher.Match>> = emptyMap()
     fun setChannelMatches(value: Map<String, List<GameChannelMatcher.Match>>) { broadcasts = value }
     data class Item(val key: String, val title: String = "", val color: Int = SportsUi.DIM, val json: String = "", val lineup: String = "", val event: SportsLiveEvents.Event? = null) {
@@ -65,7 +62,6 @@ class SportsScoreAdapter(private val owner: LifecycleOwner, private val open: (J
             surface.setOnClickListener { openLiveEvent(event) }; return
         }
         val g = JSONObject(item.json); val live = g.optString("state") == "in"; val upcoming = g.optString("state") == "pre"
-        if (rows) { bindRow(surface, g, live, upcoming); return }
         root.setPadding(dp(ctx, 14f), dp(ctx, 12f), dp(ctx, 14f), dp(ctx, 10f))
         surface.contentDescription = "${Data.value(g, "name")} · ${Data.value(g, "statusDetail")}"
         val top = SportsUi.row(ctx, dp(ctx, 6f))
@@ -109,62 +105,6 @@ class SportsScoreAdapter(private val owner: LifecycleOwner, private val open: (J
         if (g.optString("state") == "post") root.addView(SportsReplayRow.create(ctx, owner, g, BundleHolder.current,
             "fixture-replay-${g.optString("id")}", { channel -> SportsReplayActivity.open(ctx, g, channel) }),
             LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(ctx, 8f) })
-    }
-    private fun bindRow(surface: FrameLayout, g: JSONObject, live: Boolean, upcoming: Boolean) {
-        val ctx = surface.context
-        surface.removeAllViews()
-        SportsUi.focusable(surface, dp(ctx, rowRadius).toFloat())
-        val compact = rowRadius < 4f
-        val bar = SportsUi.row(ctx, dp(ctx, 10f)).apply { setPadding(0, 0, 0, 0) }
-        fun stripe(key: String) = View(ctx).apply { setBackgroundColor(SportsTeamUi.teamColor(g.optJSONObject(key), SportsUi.BORDER)) }
-        fun team(key: String, end: Boolean) = SportsUi.row(ctx, dp(ctx, 8f)).apply {
-            gravity = (if (end) Gravity.END else Gravity.START) or Gravity.CENTER_VERTICAL
-            val t = g.optJSONObject(key)
-            val logo = SportsUi.logo(ctx, Data.value(t, "logo"), dp(ctx, if (compact) 28f else 34f))
-            val name = SportsUi.singleLine(SportsUi.text(ctx, Data.abbreviation(t), 17f, Color.WHITE, bold = true))
-            if (end) { addView(name); addView(logo) } else { addView(logo); addView(name) }
-        }
-        fun score(key: String): android.widget.TextView { val v = if (upcoming) "" else Data.value(g.optJSONObject(key), "score", "–")
-            return SportsUi.singleLine(SportsUi.text(ctx, v, if (v.length > 5) 16f else 24f, Color.WHITE, bold = true)).apply { gravity = Gravity.CENTER; minWidth = dp(ctx, 46f); maxWidth = dp(ctx, if (compact) 84f else 120f) } }
-        val status = if (upcoming && g.optLong("startMs") > 0) android.text.format.DateFormat.getTimeFormat(ctx).format(java.util.Date(g.optLong("startMs"))) else Data.value(g, "statusDetail", "Final")
-        if (compact) {
-            // TV score-bug: away and home on two stacked lines, status block on the right.
-            val lines = SportsUi.col(ctx, dp(ctx, 4f)).apply { setPadding(0, dp(ctx, 6f), dp(ctx, 10f), dp(ctx, 6f)) }
-            listOf("away", "home").forEach { key ->
-                val t = g.optJSONObject(key)
-                lines.addView(SportsUi.row(ctx, dp(ctx, 8f)).apply {
-                    addView(stripe(key), LinearLayout.LayoutParams(dp(ctx, 4f), dp(ctx, 22f)))
-                    addView(SportsUi.logo(ctx, Data.value(t, "logo"), dp(ctx, 22f)))
-                    addView(SportsUi.singleLine(SportsUi.text(ctx, Data.value(t, "name"), 14f, Color.WHITE, bold = true)), LinearLayout.LayoutParams(0, -2, 1f))
-                    val v = if (upcoming) "" else Data.value(t, "score", "–")
-                    addView(SportsUi.singleLine(SportsUi.text(ctx, v, if (v.length > 5) 14f else 19f, Color.WHITE, bold = true)).apply { gravity = Gravity.END; maxWidth = dp(ctx, 110f) })
-                }, LinearLayout.LayoutParams(-1, -2))
-            }
-            bar.addView(lines, LinearLayout.LayoutParams(0, -2, 1f))
-            bar.addView(SportsUi.text(ctx, (if (live && !status.equals("live", true)) "● LIVE\n" else if (live) "● " else "") + status.uppercase(), 11f, Color.WHITE, mono = true).apply {
-                gravity = Gravity.CENTER; maxLines = 3; setPadding(dp(ctx, 6f), 0, dp(ctx, 6f), 0); setBackgroundColor(if (live) SportsUi.LIVE else SportsUi.PLOT)
-            }, LinearLayout.LayoutParams(dp(ctx, 88f), -1))
-            surface.addView(bar, FrameLayout.LayoutParams(-1, dp(ctx, 68f)))
-            surface.contentDescription = "${Data.value(g, "name")} · ${Data.value(g, "statusDetail")}"
-            surface.setOnClickListener { open(g) }
-            return
-        }
-        bar.addView(stripe("away"), LinearLayout.LayoutParams(dp(ctx, 6f), -1))
-        bar.addView(team("away", false), LinearLayout.LayoutParams(0, -2, 1.3f))
-        bar.addView(score("away"), LinearLayout.LayoutParams(-2, -2))
-        bar.addView(SportsUi.singleLine(SportsUi.text(ctx, (if (live) "● " else "") + status.uppercase(), 11f, Color.WHITE, mono = true)).apply {
-            gravity = Gravity.CENTER; setPadding(dp(ctx, 8f), dp(ctx, 4f), dp(ctx, 8f), dp(ctx, 4f))
-            background = SportsUi.bg(if (live) SportsUi.LIVE else SportsUi.PLOT, dp(ctx, if (rowRadius < 4f) 2f else 8f).toFloat())
-        }, LinearLayout.LayoutParams(dp(ctx, if (compact) 80f else 104f), -2))
-        bar.addView(score("home"), LinearLayout.LayoutParams(-2, -2))
-        bar.addView(team("home", true), LinearLayout.LayoutParams(0, -2, 1.3f))
-        val match = broadcasts[Data.key(g)].orEmpty().firstOrNull()
-        if (!compact) bar.addView(SportsUi.singleLine(SportsUi.text(ctx, match?.channel?.name ?: g.optString("leagueName"), 10f, if (match?.confirmed == true) SportsUi.ACCENT else SportsUi.DIM)).apply { gravity = Gravity.END },
-            LinearLayout.LayoutParams(0, -2, 0.9f))
-        bar.addView(stripe("home"), LinearLayout.LayoutParams(dp(ctx, 6f), -1))
-        surface.addView(bar, FrameLayout.LayoutParams(-1, dp(ctx, 62f)))
-        surface.contentDescription = "${Data.value(g, "name")} · ${Data.value(g, "statusDetail")}"
-        surface.setOnClickListener { open(g) }
     }
     fun show(games: List<JSONObject>, programmes: List<SportsLiveGuide.Entry> = emptyList(), onCommitted: (() -> Unit)? = null) {
         val rows = ArrayList<Item>()

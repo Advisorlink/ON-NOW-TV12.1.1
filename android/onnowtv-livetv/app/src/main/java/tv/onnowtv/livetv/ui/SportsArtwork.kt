@@ -23,7 +23,7 @@ object SportsArtwork {
                 ColorUtils.blendARGB(SportsUi.CARD, tv.onnowtv.livetv.data.LiveSportsClassifier.colorOf(bucket), .14f)))
             val size = SportsUi.dp(ctx, 132f)
             addView(ImageView(ctx).apply {
-                alpha = .22f; scaleType = ImageView.ScaleType.FIT_CENTER
+                imageAlpha = 56; scaleType = ImageView.ScaleType.FIT_CENTER
                 load(tv.onnowtv.livetv.data.LiveSportsClassifier.iconOf(bucket)) { size(size); crossfade(false) }
             }, FrameLayout.LayoutParams(size, size, Gravity.END or Gravity.CENTER_VERTICAL))
         }
@@ -45,7 +45,7 @@ object SportsArtwork {
         listOf("away", "home").forEach { side ->
             val url = game.optJSONObject(side)?.optString("logo").orEmpty()
             if (url.isNotBlank() && url != "null") addView(ImageView(ctx).apply {
-                alpha = if (large) .13f else .12f; rotation = if (side == "home") -9f else 9f
+                imageAlpha = if (large) 33 else 31; rotation = if (side == "home") -9f else 9f
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 load(url) { size(size, size); crossfade(false) }
             }, FrameLayout.LayoutParams(size, size, Gravity.CENTER_VERTICAL or if (side == "home") Gravity.END else Gravity.START).apply {

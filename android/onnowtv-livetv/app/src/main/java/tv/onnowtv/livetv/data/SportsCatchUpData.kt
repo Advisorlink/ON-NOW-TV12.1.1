@@ -73,4 +73,10 @@ object SportsCatchUpData {
     private fun side(o: JSONObject?): Side? = o?.let {
         Side(it.optString("name"), it.optString("logo").takeIf { s -> s.isNotBlank() && s != "null" }, it.optString("color").takeIf { s -> s.isNotBlank() && s != "null" })
     }
+
+    private val SCORE = Regex("\\s\\(?\\d{1,3}\\s*[-–]\\s*\\d{1,3}\\)?(?=\\s|$)")
+    private val VERB = Regex("\\s\\b(beat|beats|def\\.?|defeat(s|ed)?|thrash(es|ed)?|edge(s|d)?|down(s|ed)?|overcome|overcomes|stun(s|ned)?)\\b\\s", RegexOption.IGNORE_CASE)
+    private val TAIL = Regex("\\s*[-–|:(]?\\s*\\b(full[- ]time|final score|ft|result|won|wins|win)\\b.*$", RegexOption.IGNORE_CASE)
+    /** Replays never give away the result: strips "24-18", "(2-1)", "FT", "beat", "won" etc. from a title. */
+    fun noScore(t: String): String = TAIL.replace(VERB.replace(SCORE.replace(" $t ", " v "), " v "), "").replace(Regex("(\\s+v)+\\s+"), " v ").replace(Regex("\\s+v\\s*$"), "").trim().ifBlank { t.trim() }
 }

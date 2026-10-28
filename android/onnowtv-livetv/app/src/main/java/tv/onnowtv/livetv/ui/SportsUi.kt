@@ -67,8 +67,7 @@ object SportsUi {
         fun paint(has: Boolean) { v.background = bg(if (has) CARD_FOCUS else base, radius, dp(v.context, if (has) 2.5f else 1f), if (has) accent else BORDER) }
         paint(v.hasFocus())
         v.setOnFocusChangeListener { view, has ->
-            paint(has); view.animate().cancel()
-            view.animate().scaleX(if (has) 1.025f else 1f).scaleY(if (has) 1.025f else 1f).setDuration(130).start()
+            paint(has)
             onFocus?.invoke(has)
         }
     }

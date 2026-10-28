@@ -140,7 +140,7 @@ class TeamActivity : AppCompatActivity() {
                 recent.mapNotNull { g -> all.filter { GameChannelMatcher.isFixtureReplay(g, it.programme) }.minByOrNull { it.programme.startMs }?.let { g to it } }
             }
             hits.forEachIndexed { i, (g, hit) ->
-                row.addView(Team.gameCard(this@TeamActivity, g, "team-replay-$i", teamId, "↺ REPLAY") { SportsReplayRow.play(this@TeamActivity, g, hit, all) })
+                row.addView(Team.gameCard(this@TeamActivity, g, "team-replay-$i", null, "↺ REPLAY", spoilerFree = true) { SportsReplayRow.play(this@TeamActivity, g, hit, all) })
             }
             if (hits.isNotEmpty()) box.visibility = View.VISIBLE
         }

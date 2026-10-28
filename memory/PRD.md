@@ -703,3 +703,17 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
   - Chooser: `ui/SportsLayoutChooser`. League and date filters are underline tabs.
 - Previews at 1920x1080 are faithful HTML replicas built from the app's own dp sizes, colours, fonts, artwork and live data (`/tmp/hubmock/build.py`, Playwright). There is no Android emulator or Robolectric native graphics on this aarch64 host. They are served at `/hub-previews/*.jpg` and also used as the in-app chooser thumbnails.
 - Robolectric: `SportsHubLayoutsRobolectricTest` (all 5 build + menu works). Hub tests were updated for the side menu.
+
+## Live TV 2.10.99 (163): HK1 speed pass, one layout, spoiler-free replays (2026-10-28)
+- User feedback (HK1 box): the Sports Hub and Catch Up were slow and jerky, card corners were clipped on focus, and the layouts didn't fit. They asked to keep ONE layout.
+- Removed the Tiles/Ticker/Spotlight layouts, the "Choose layout" chooser, the preview images and the adapter's row mode. `SportsHubLayout` is now RAIL (TV) or DOCK (phones under 600dp, picked automatically).
+- Performance:
+  - Focus is a ring/background swap only. All scale and translationZ focus animations are gone (SportsUi.focusable, hero, Catch Up, team cards, side menu). This also fixes the clipped corners.
+  - The hub RecyclerView has padding with clipToPadding/clipChildren off, hasFixedSize, and an itemViewCache of 24.
+  - Watermark crests use imageAlpha, so there is no offscreen layer.
+  - SportsReplayRow memoises the replay lookup per game id while the recordings list is unchanged.
+  - Hero replay filtering and the Catch Up `found` mapping moved to Dispatchers.Default.
+- Spoilers:
+  - `SportsCatchUpData.noScore()` strips scores, result verbs and FT/result tails. It is used by Catch Up and the hero replay strip.
+  - The team page Replays shelf uses spoiler-free `gameCard(spoilerFree = true)` (VS, date · FULL REPLAY).
+  - Hub results cards still show scores (Scores view).

@@ -284,7 +284,7 @@ class SportsNativeLayoutRobolectricTest {
         val crestChildren = (0 until layer.childCount)
             .mapNotNull { layer.getChildAt(it) as? android.widget.ImageView }
         assertTrue(crestChildren.isNotEmpty())
-        assertTrue(crestChildren.all { it.alpha <= 0.13f })
+        assertTrue(crestChildren.all { it.imageAlpha <= 34 && it.alpha == 1f })
     }
 
     @Test

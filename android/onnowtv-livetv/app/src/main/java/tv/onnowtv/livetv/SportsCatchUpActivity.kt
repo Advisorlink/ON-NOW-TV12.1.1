@@ -171,7 +171,6 @@ class SportsCatchUpActivity : AppCompatActivity() {
     }
     private fun focusScale(v: View, onFocus: (() -> Unit)? = null) {
         v.setOnFocusChangeListener { view, has ->
-            view.animate().scaleX(if (has) 1.05f else 1f).scaleY(if (has) 1.05f else 1f).translationZ(if (has) dp(4).toFloat() else 0f).setDuration(120).start()
             if (has) onFocus?.invoke()
         }
     }
@@ -310,13 +309,13 @@ class SportsCatchUpActivity : AppCompatActivity() {
         return if (m?.match == true && m.home != null && m.away != null) "${m.home.name} vs ${m.away.name}" else noScore(g.programme.title)
     }
 
-    private fun noScore(t: String) = SCORE.replace(" $t ", " v ").trim()
+    private fun noScore(t: String) = SportsCatchUpData.noScore(t)
 
     // ------------------------------------------------------------- data
     /** Waits for the verified index (real recordings only) and the team details, then shows everything at once. */
     private fun load(channels: List<Channel>) = lifecycleScope.launch {
         val index = CatchUpIndex.build(this@SportsCatchUpActivity, archive)
-        val found = channels.flatMap { c -> index[c.id].orEmpty().mapNotNull { p -> SportsCatchUpData.sportFor(c, p)?.let { Game(c, p, it) } } }
+        val found = withContext(kotlinx.coroutines.Dispatchers.Default) { channels.flatMap { c -> index[c.id].orEmpty().mapNotNull { p -> SportsCatchUpData.sportFor(c, p)?.let { Game(c, p, it) } } } }
         SportsCatchUpData.fetchMeta(found.map { it.sport to it.programme.title })
         games += found
         loading = false

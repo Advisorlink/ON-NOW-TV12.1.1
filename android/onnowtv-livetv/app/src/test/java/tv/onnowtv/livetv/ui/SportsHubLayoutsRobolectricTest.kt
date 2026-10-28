@@ -1,10 +1,10 @@
 package tv.onnowtv.livetv.ui
 
-import android.content.Context
+import android.os.Looper
 import android.view.View
-import org.robolectric.RuntimeEnvironment
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -13,28 +13,32 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows
 import org.robolectric.annotation.Config
 import tv.onnowtv.livetv.SportsHubActivity
-import tv.onnowtv.livetv.data.SportsHubLayout
+import tv.onnowtv.livetv.data.SportsCatchUpData
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], qualifiers = "w1920dp-h1080dp-land-television")
+@Config(sdk = [34], qualifiers = "w960dp-h540dp-land-television-xhdpi")
 class SportsHubLayoutsRobolectricTest {
     @Test
-    fun everyLayoutBuildsSideMenuAndSwitchesModes() {
-        val ctx = RuntimeEnvironment.getApplication() as Context
-        SportsHubLayout.values().forEach { layout ->
-            SportsHubLayout.set(ctx, layout)
-            val activity = Robolectric.buildActivity(SportsHubActivity::class.java).create().start().resume().visible().get()
-            val root = activity.window.decorView
-            Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
-            listOf("hub-side-menu", "hub-sport-all", "hub-mode-scores", "hub-mode-map", "hub-my-teams", "hub-standings", "hub-replays", "hub-choose-layout", "hub-score-list", "hub-heading")
-                .forEach { assertNotNull("$layout missing $it", root.findViewWithTag<View>(it)) }
-            assertEquals(layout == SportsHubLayout.SPOTLIGHT, root.findViewWithTag<View>("hub-spotlight") != null)
-            root.findViewWithTag<View>("hub-mode-map").performClick()
-            Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
-            assertEquals(View.GONE, root.findViewWithTag<View>("hub-score-list").visibility)
-            assertTrue(root.findViewWithTag<View>("hub-mode-map").isSelected)
-            activity.finish()
-        }
-        SportsHubLayout.set(ctx, SportsHubLayout.RAIL)
+    fun railMenuBuildsAndSwitchesModes() {
+        val activity = Robolectric.buildActivity(SportsHubActivity::class.java).create().start().resume().visible().get()
+        val root = activity.window.decorView
+        Shadows.shadowOf(Looper.getMainLooper()).idle()
+        listOf("hub-side-menu", "hub-sport-all", "hub-mode-scores", "hub-mode-map", "hub-my-teams", "hub-standings", "hub-replays", "hub-score-list", "hub-heading")
+            .forEach { assertNotNull("missing $it", root.findViewWithTag<View>(it)) }
+        assertNull(root.findViewWithTag<View>("hub-choose-layout"))
+        root.findViewWithTag<View>("hub-mode-map").performClick()
+        Shadows.shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(View.GONE, root.findViewWithTag<View>("hub-score-list").visibility)
+        assertTrue(root.findViewWithTag<View>("hub-mode-map").isSelected)
+    }
+
+    @Test
+    fun replayTitlesNeverShowTheResult() {
+        assertEquals("NRL: Broncos v Storm", SportsCatchUpData.noScore("NRL: Broncos 24 - 18 Storm"))
+        assertEquals("Arsenal v Chelsea", SportsCatchUpData.noScore("Arsenal 2-1 Chelsea"))
+        assertEquals("Lakers v Celtics", SportsCatchUpData.noScore("Lakers beat Celtics"))
+        assertEquals("AFL: Swans v Cats", SportsCatchUpData.noScore("AFL: Swans v Cats - Full Time"))
+        assertEquals("Live NRL 7:30 Broncos v Storm", SportsCatchUpData.noScore("Live NRL 7:30 Broncos v Storm"))
+        assertEquals("Formula 1 Grand Prix", SportsCatchUpData.noScore("Formula 1 Grand Prix"))
     }
 }

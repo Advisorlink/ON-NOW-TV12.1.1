@@ -68,9 +68,7 @@ class SportsHubHero(private val activity: AppCompatActivity, compact: Boolean = 
         addState(intArrayOf(), GradientDrawable().apply { cornerRadius = dp(radius).toFloat(); setColor(Color.parseColor("#0A0F1A")); setStroke(dp(1), Color.parseColor("#555DC8FF")) })
     }
 
-    private fun zoom(v: View) = v.setOnFocusChangeListener { view, has ->
-        view.animate().scaleX(if (has) 1.04f else 1f).scaleY(if (has) 1.04f else 1f).translationZ(if (has) dp(6).toFloat() else 0f).setDuration(130).start()
-    }
+    private fun zoom(v: View) = Unit
 
     private fun coverTile() = FrameLayout(activity).apply {
         tag = "hub-catchup-replays-tile"; contentDescription = "Catch Up and Replays"
@@ -98,12 +96,12 @@ class SportsHubHero(private val activity: AppCompatActivity, compact: Boolean = 
             hint.text = "Loading replays…"; hint.visibility = View.VISIBLE
             val catNames = bundle.categories.associate { it.id to it.name }
             val all = CatchUpIndex.recordings(activity, bundle)
-            val picks = all.filter { SportsCatchUpData.isSportsChannel(catNames[it.channel.categoryId].orEmpty() + " " + it.channel.name) }
+            val picks = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { all.filter { SportsCatchUpData.isSportsChannel(catNames[it.channel.categoryId].orEmpty() + " " + it.channel.name) }
                 .mapNotNull { r -> SportsCatchUpData.sportFor(r.channel, r.programme)?.let { s -> Triple(r, s, s) } }
                 .filter { bucket == null || it.second == bucket }
                 .sortedByDescending { it.first.programme.startMs }
                 .distinctBy { it.first.programme.title }
-                .take(20)
+                .take(20) }
             SportsCatchUpData.fetchMeta(picks.map { it.second to it.first.programme.title })
             cards.submit(picks.map { Item(it.first, it.second) }, all)
             hint.text = if (picks.isEmpty()) "No $name replays recorded this week yet" else ""
@@ -146,7 +144,7 @@ class SportsHubHero(private val activity: AppCompatActivity, compact: Boolean = 
             } else {
                 v.addView(ImageView(activity).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setImageResource(SportsCatchUpData.art(item.sport)) }, FrameLayout.LayoutParams(-1, -1))
                 v.addView(View(activity).apply { background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0x22000000, Color.parseColor("#E6060A12"))) }, FrameLayout.LayoutParams(-1, -1))
-                v.addView(text(p.title, 14f, Color.WHITE, Typeface.DEFAULT_BOLD).apply {
+                v.addView(text(SportsCatchUpData.noScore(p.title), 14f, Color.WHITE, Typeface.DEFAULT_BOLD).apply {
                     maxLines = 2; ellipsize = TextUtils.TruncateAt.END; setPadding(dp(12), 0, dp(12), 0); setShadowLayer(6f, 0f, 1f, Color.BLACK)
                 }, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER_VERTICAL))
             }
@@ -156,7 +154,7 @@ class SportsHubHero(private val activity: AppCompatActivity, compact: Boolean = 
             }, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
             v.setOnClickListener {
                 fun team(x: SportsCatchUpData.Side?) = x?.let { s -> PlayerLoadingOverlay.Team(s.name, s.logo, s.color?.let { h -> runCatching { Color.parseColor("#" + h.removePrefix("#")) }.getOrNull() }) }
-                val title = if (m != null) "${m.home!!.name} vs ${m.away!!.name}" else p.title
+                val title = if (m != null) "${m.home!!.name} vs ${m.away!!.name}" else SportsCatchUpData.noScore(p.title)
                 val when_ = SimpleDateFormat("EEE d MMM h:mm a", Locale.getDefault()).format(Date(p.startMs)).uppercase()
                 CatchUpPlayback.start(activity, activity.findViewById(android.R.id.content), item.rec.channel, p, title,
                     "${item.rec.channel.name} · $when_", all.map { it.channel }.distinctBy { it.id }, team(m?.home), team(m?.away))

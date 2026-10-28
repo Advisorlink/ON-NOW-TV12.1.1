@@ -29,6 +29,7 @@ import tv.onnowtv.livetv.ui.SportsUi as UI
  * one cached request, no per-game provider probing, and it plays through the same branded player path.
  */
 object SportsReplayRow {
+    private val memo = java.util.concurrent.ConcurrentHashMap<String, Pair<List<CatchUpIndex.Recording>, CatchUpIndex.Recording?>>()
     fun create(ctx: Context, owner: LifecycleOwner, game: JSONObject, bundle: XtreamBundle?, tag: String,
                @Suppress("UNUSED_PARAMETER") open: (String) -> Unit, onAvailable: () -> Unit = {}): LinearLayout {
         val row = UI.identify(UI.col(ctx, UI.dp(ctx, 5f)), "$tag-container").apply { visibility = View.GONE }
@@ -44,9 +45,10 @@ object SportsReplayRow {
                     owner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                         while (isActive) {
                             val all = CatchUpIndex.recordings(ctx, bundle)
-                            val hit = withContext(Dispatchers.Default) {
+                            val id = game.optString("id")
+                            val hit = memo[id]?.takeIf { it.first === all }?.second ?: withContext(Dispatchers.Default) {
                                 all.filter { GameChannelMatcher.isFixtureReplay(game, it.programme) }.minByOrNull { it.programme.startMs }
-                            }
+                            }.also { memo[id] = all to it }
                             if (hit != null) {
                                 val day = SimpleDateFormat("EEE d MMM · h:mm a", Locale.getDefault()).format(Date(hit.programme.startMs))
                                 source.text = "${hit.channel.name} · $day"

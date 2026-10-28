@@ -50,7 +50,7 @@ object SportsTeamUi {
     }
 
     /** 300×164 card: both club colours as a split wash, crests, score or kick-off, and a status chip. */
-    fun gameCard(act: AppCompatActivity, g: JSONObject, tag: String, focusTeamId: String? = null, badge: String? = null, onClick: () -> Unit): View {
+    fun gameCard(act: AppCompatActivity, g: JSONObject, tag: String, focusTeamId: String? = null, badge: String? = null, spoilerFree: Boolean = false, onClick: () -> Unit): View {
         val home = g.optJSONObject("home"); val away = g.optJSONObject("away")
         val state = g.optString("state")
         val card = UI.identify(FrameLayout(act), tag).apply { isFocusable = true; isClickable = true; clipToOutline = true }
@@ -76,16 +76,17 @@ object SportsTeamUi {
             addView(UI.singleLine(UI.text(act, t?.optString("short")?.ifBlank { null } ?: t?.optString("name").orEmpty(), 12f, if (mine) UI.GOLD else Color.WHITE, bold = true)).apply { gravity = Gravity.CENTER })
         }
         mid.addView(side(home), LinearLayout.LayoutParams(0, -2, 1f))
-        val hasScore = state != "pre" && home?.optString("score").orEmpty().let { it.isNotBlank() && it != "null" }
+        val hasScore = !spoilerFree && state != "pre" && home?.optString("score").orEmpty().let { it.isNotBlank() && it != "null" }
         mid.addView(UI.text(act, if (hasScore) "${home?.optString("score")} – ${away?.optString("score")}" else "VS", if (hasScore) 26f else 20f, if (hasScore) Color.WHITE else UI.ACCENT, bold = true).apply { gravity = Gravity.CENTER })
         mid.addView(side(away), LinearLayout.LayoutParams(0, -2, 1f))
         col.addView(mid)
-        col.addView(UI.singleLine(UI.text(act, whenLabel(g), 11f, if (state == "in") UI.LIVE else UI.ACCENT, mono = true)).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(-1, -2))
+        val label = if (spoilerFree) SimpleDateFormat("EEE d MMM", Locale.getDefault()).format(Date(g.optLong("startMs"))).uppercase() + " · FULL REPLAY" else whenLabel(g)
+        col.addView(UI.singleLine(UI.text(act, label, 11f, if (state == "in") UI.LIVE else UI.ACCENT, mono = true)).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(-1, -2))
         card.addView(col, FrameLayout.LayoutParams(-1, -1))
         val ring = View(act); card.addView(ring, FrameLayout.LayoutParams(-1, -1))
         fun paint(has: Boolean) { ring.background = UI.bg(Color.TRANSPARENT, UI.dp(act, 16f).toFloat(), UI.dp(act, if (has) 3f else 1f), if (has) Color.WHITE else UI.BORDER) }
         paint(false)
-        card.setOnFocusChangeListener { v, has -> paint(has); v.animate().scaleX(if (has) 1.05f else 1f).scaleY(if (has) 1.05f else 1f).setDuration(140).start() }
+        card.setOnFocusChangeListener { _, has -> paint(has) }
         card.setOnClickListener { onClick() }
         card.layoutParams = LinearLayout.LayoutParams(UI.dp(act, 300f), UI.dp(act, 164f))
         return card
