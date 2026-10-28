@@ -763,3 +763,6 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
   - Search failures are logged and fall back to the official channel RSS feed (`LEAGUE_CHANNELS` ids: NFL/NBA/MLB/NHL/PL/AFL/NRL/F1/UFC).
   - Official channels are now also matched by channel id, or by a name prefix such as "NRL - National Rugby League".
   - An oEmbed check that fails is logged and skipped instead of returning 500.
+
+## 2026-06 Deploy
+- Deployed sports_highlights to production (onnowhub.com). Route is live (200 on dummy query). Seahawks vs Rams query returns 500 in prod only (preview 200). Production log diagnosis requested from deployer; fix pending.
