@@ -45,6 +45,30 @@ class SportsHubLayoutsRobolectricTest {
     }
 
     @Test
+    fun myTeamsHomeHasSportTilesAcrossTheTop() {
+        val ctx = org.robolectric.RuntimeEnvironment.getApplication()
+        tv.onnowtv.livetv.data.SportsFollowStore.save(ctx, listOf(
+            tv.onnowtv.livetv.data.SportsFollowStore.Team("basketball", "nba", "13", "Los Angeles Lakers", null),
+            tv.onnowtv.livetv.data.SportsFollowStore.Team("football", "nfl", "12", "Kansas City Chiefs", null)), sync = false)
+        val activity = Robolectric.buildActivity(tv.onnowtv.livetv.SportsTablesActivity::class.java,
+            android.content.Intent(ctx, tv.onnowtv.livetv.SportsTablesActivity::class.java).putExtra(tv.onnowtv.livetv.SportsTablesActivity.EXTRA_MODE, tv.onnowtv.livetv.SportsTablesActivity.TEAMS)).setup().get()
+        val f = tv.onnowtv.livetv.SportsTablesActivity::class.java
+        fun set(name: String, v: Any) = f.getDeclaredField(name).apply { isAccessible = true }.set(activity, v)
+        val groupCls = Class.forName("tv.onnowtv.livetv.SportsTablesActivity\$SportGroup")
+        val mk = groupCls.declaredConstructors.first().apply { isAccessible = true }
+        set("groups", listOf(mk.newInstance("nba", "Basketball", emptyList<Any>()), mk.newInstance("nfl", "NFL", emptyList<Any>())))
+        set("leagues", emptyList<Any>())
+        f.getDeclaredMethod("render").apply { isAccessible = true }.invoke(activity)
+        Shadows.shadowOf(Looper.getMainLooper()).idle()
+        val root = activity.window.decorView
+        listOf("add-sport-all", "add-sport-nba", "add-sport-nfl", "my-teams-grid").forEach { assertNotNull("missing $it", root.findViewWithTag<View>(it)) }
+        root.findViewWithTag<View>("add-sport-nfl").performClick()
+        Shadows.shadowOf(Looper.getMainLooper()).idle()
+        assertNotNull(root.findViewWithTag<View>("my-team-football|nfl|12"))
+        assertNull(root.findViewWithTag<View>("my-team-basketball|nba|13"))
+    }
+
+    @Test
     fun replayTitlesNeverShowTheResult() {
         assertEquals("NRL: Broncos v Storm", SportsCatchUpData.noScore("NRL: Broncos 24 - 18 Storm"))
         assertEquals("Arsenal v Chelsea", SportsCatchUpData.noScore("Arsenal 2-1 Chelsea"))

@@ -32,6 +32,9 @@ class SportsTablesActivity : AppCompatActivity() {
     private var groups: List<SportGroup> = emptyList()
     private var pickSport = 0
     private var pickLeague = 0
+    /** My Teams sport filter (bucket); null = all your teams. */
+    private var mineSport: String? = null
+    private fun bucketOf(t: SportsFollowStore.Team) = tv.onnowtv.livetv.data.SportsCategories.bucket(JSONObject().put("sport", t.sport).put("league", t.league))
 
     private val standingsMode by lazy { intent.getStringExtra(EXTRA_MODE) == STANDINGS }
     private var picking = false
@@ -74,15 +77,25 @@ class SportsTablesActivity : AppCompatActivity() {
 
     private fun render() {
         title.text = when { standingsMode -> "Standings"; picking -> "Add a team"; else -> "My Teams" }
-        chipScroll.visibility = if (standingsMode || picking) View.VISIBLE else View.GONE
+        val mineBuckets = if (!standingsMode && !picking) SportsFollowStore.all(this).map { bucketOf(it) }.toSet() else emptySet()
+        if (mineSport != null && mineSport !in mineBuckets) mineSport = null
+        chipScroll.visibility = if (standingsMode || picking || mineBuckets.size > 1) View.VISIBLE else View.GONE
         chips.removeAllViews()
         if (picking) groups.forEachIndexed { i, g -> chips.addView(sportTile(g, i == pickSport) { pickSport = i; pickLeague = 0; render() }) }
+        else if (!standingsMode) {
+            // Only sports you actually follow a team in, along the top like Add Team.
+            if (mineBuckets.size > 1) {
+                chips.addView(sportTile(SportGroup("all", "All teams", emptyList()), mineSport == null) { mineSport = null; render() })
+                groups.filter { it.bucket in mineBuckets }.forEach { g -> chips.addView(sportTile(g, mineSport == g.bucket) { mineSport = g.bucket; render() }) }
+            }
+        }
         else leagues.forEachIndexed { i, l ->
             chips.addView(UI.identify(UI.pill(this, l.name, i == selected) { selected = i; render() }, "tables-league-${l.key}"))
         }
         body.removeAllViews()
         if (standingsMode) loadStandings() else if (picking) loadTeams() else showMine()
         chips.post { chips.getChildAt(if (picking) pickSport else selected)?.let { if (standingsMode || picking) it.requestFocus() } }
+        if (!standingsMode && !picking) chips.post { chips.findViewWithTag<View>("add-sport-${mineSport ?: "all"}")?.requestFocus() ?: body.findViewWithTag<View>("my-teams-add")?.requestFocus() }
     }
 
     private fun note(t: String) = body.addView(UI.identify(UI.text(this, t, 15f, UI.DIM), "tables-note"))
@@ -133,19 +146,19 @@ class SportsTablesActivity : AppCompatActivity() {
     }
 
     private fun showMine() {
-        val mine = SportsFollowStore.all(this)
+        val all = SportsFollowStore.all(this)
+        val mine = all.filter { mineSport == null || bucketOf(it) == mineSport }
         val top = UI.row(this, dp(16f))
         top.addView(UI.identify(UI.pill(this, "＋  Add Team", true, UI.GOLD) { picking = true; render() }, "my-teams-add"))
-        top.addView(UI.text(this, if (mine.isEmpty()) "Add the teams you follow — their games, stats and news live here." else "OK opens a team  ·  Hold OK to remove", 13f, UI.DIM))
+        top.addView(UI.text(this, if (all.isEmpty()) "Add the teams you follow — their games, stats and news live here." else "OK opens a team  ·  Hold OK to remove", 13f, UI.DIM))
         body.addView(top)
-        mine.groupBy { it.sport to it.league }.forEach { (k, teams) ->
-            val league = leagues.firstOrNull { it.sport == k.first && it.key == k.second }?.name ?: k.second.uppercase()
-            val (box, row) = SportsTeamUi.shelf(this, "$league · ${teams.size}", UI.GOLD, "my-teams-${k.first}-${k.second}")
-            teams.forEach { row.addView(myTeamCard(it, "my-team-${it.key}")) }
-            body.addView(box, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(14f) })
-        }
-        body.post { body.findViewWithTag<View>("my-teams-add")?.requestFocus() }
         if (mine.isEmpty()) return
+        val grid = GridLayout(this).apply { columnCount = if (resources.configuration.screenWidthDp < 720) 1 else 3 }
+        UI.identify(grid, "my-teams-grid")
+        mine.forEach { t ->
+            grid.addView(myTeamCard(t, "my-team-${t.key}"), GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED), GridLayout.spec(GridLayout.UNDEFINED, 1f)).apply { width = 0; height = dp(132f); setMargins(dp(6f), dp(6f), dp(6f), dp(6f)) })
+        }
+        body.addView(grid, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8f) })
         val feed = UI.col(this, dp(18f)); body.addView(feed, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(18f) })
         feed.addView(UI.identify(UI.text(this, "Loading your teams' games…", 14f, UI.DIM), "my-teams-feed-loading"))
         job?.cancel(); job = lifecycleScope.launch {
@@ -171,7 +184,7 @@ class SportsTablesActivity : AppCompatActivity() {
     private fun sportTile(g: SportGroup, on: Boolean, pick: () -> Unit): View {
         val tile = UI.identify(UI.col(this, dp(6f)), "add-sport-${g.bucket}").apply { gravity = Gravity.CENTER; setPadding(dp(10f), dp(10f), dp(10f), dp(8f)); isFocusable = true; isClickable = true; isSelected = on }
         UI.focusable(tile, dp(16f).toFloat(), base = if (on) androidx.core.graphics.ColorUtils.blendARGB(UI.CARD, UI.GOLD, .22f) else UI.CARD, accent = UI.GOLD)
-        tile.addView(android.widget.ImageView(this).apply { setImageResource(tv.onnowtv.livetv.data.LiveSportsClassifier.iconOf(g.bucket)); scaleType = android.widget.ImageView.ScaleType.FIT_CENTER },
+        tile.addView(android.widget.ImageView(this).apply { setImageResource(if (g.bucket == "all") R.drawable.ic_star else tv.onnowtv.livetv.data.LiveSportsClassifier.iconOf(g.bucket)); scaleType = android.widget.ImageView.ScaleType.FIT_CENTER; if (g.bucket == "all") setColorFilter(UI.GOLD) },
             LinearLayout.LayoutParams(dp(44f), dp(44f)))
         tile.addView(UI.singleLine(UI.text(this, g.label, 12f, if (on) UI.GOLD else Color.WHITE, bold = true)).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(-1, -2))
         tile.setOnClickListener { pick() }

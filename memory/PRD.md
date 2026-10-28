@@ -746,3 +746,12 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
     - TheSportsDB matches require an exact team name or alternate name and the same gender.
     - National sides fall back to flagcdn country flags (cricket/rugby/nrl/soccer).
     - `_NOISE` no longer strips "new", which had broken New Zealand and New York.
+
+## Live TV 2.11.3 (167): My Teams sport tiles + highlights first in the news row (2026-10-28)
+- My Teams home:
+  - A sport-tile row across the top shows only sports you follow a team in, plus "All teams" (star). It appears when 2 or more sports are followed. `mineSport` filters the 3-column grid of wide team cards and the live/upcoming/results feed.
+  - The vertical league shelves are gone. Tile tags: `add-sport-{bucket}`; grid tag `my-teams-grid`.
+- Team page: the shelf is now "Highlights & news".
+  - First card `team-highlight` is always present for the latest result. It shows "Finding video…" first, then the YouTube thumbnail, length and channel, and OK plays it in SportsOfficialReplayActivity. If nothing official is found it says "Not posted yet" and shows a toast.
+  - The separate highlights shelf was removed.
+- Robolectric `myTeamsHomeHasSportTilesAcrossTheTop` added.
