@@ -35,7 +35,10 @@ object BoxBoost {
     private const val PREFS = "box_boost"
     private const val KEY_LAST_PROMPT = "last_prompt"
     private const val CHECK_EVERY_MS = 45_000L
-    private const val PROMPT_COOLDOWN_MS = 30 * 60_000L
+    // Only for genuine emergencies: at most every 6 h, and 12 h after "Not now".
+    private const val PROMPT_COOLDOWN_MS = 6 * 60 * 60_000L
+    private const val SNOOZE_MS = 12 * 60 * 60_000L
+    private const val KEY_SNOOZE = "snooze_until"
     private const val MB = 1024L * 1024L
 
     /** App-specific extra trimming (e.g. Coil memory cache, WebView RAM cache). */
@@ -47,13 +50,18 @@ object BoxBoost {
     private var resumed: WeakReference<Activity>? = null
     private var showing: Dialog? = null
 
-    data class Memory(val availMb: Long, val totalMb: Long, val low: Boolean)
+    data class Memory(val availMb: Long, val totalMb: Long, val low: Boolean, val critical: Boolean = false)
+
+    private var criticalStreak = 0
+    @Volatile private var systemCritical = false
 
     fun memory(ctx: Context): Memory {
         val am = ctx.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
         val mi = ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
         val low = mi.lowMemory || mi.availMem < maxOf((mi.threshold * 1.3).toLong(), mi.totalMem / 8)
-        return Memory(mi.availMem / MB, mi.totalMem / MB, low)
+        // Critical = Android itself is at its kill line (it is already closing apps to survive).
+        val critical = mi.lowMemory || mi.availMem <= (mi.threshold * 1.1).toLong()
+        return Memory(mi.availMem / MB, mi.totalMem / MB, low, critical)
     }
 
     fun install(app: Application) {
@@ -68,10 +76,10 @@ object BoxBoost {
         })
         app.registerComponentCallbacks(object : ComponentCallbacks2 {
             override fun onTrimMemory(level: Int) {
-                if (level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW || level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) schedule(0L)
+                if (level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) { systemCritical = true; schedule(0L) }
             }
             override fun onConfigurationChanged(c: Configuration) {}
-            @Deprecated("Deprecated in Java") override fun onLowMemory() { schedule(0L) }
+            @Deprecated("Deprecated in Java") override fun onLowMemory() { systemCritical = true; schedule(0L) }
         })
     }
 
@@ -83,10 +91,17 @@ object BoxBoost {
         val a = resumed?.get() ?: return
         if (a.isFinishing || isPlayback(a) || showing?.isShowing == true) return
         val m = runCatching { memory(a) }.getOrNull() ?: return
-        if (!m.low) return
+        // Must stay critical across two checks (~45 s apart) — a brief dip never prompts —
+        // unless Android itself just signalled RUNNING_CRITICAL / onLowMemory.
+        criticalStreak = if (m.critical) criticalStreak + 1 else 0
+        val urgent = (systemCritical && m.low) || criticalStreak >= 2
+        systemCritical = false
+        if (!urgent) return
         val prefs = a.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        if (System.currentTimeMillis() - prefs.getLong(KEY_LAST_PROMPT, 0L) < PROMPT_COOLDOWN_MS) return
-        prefs.edit().putLong(KEY_LAST_PROMPT, System.currentTimeMillis()).apply()
+        val now = System.currentTimeMillis()
+        if (now - prefs.getLong(KEY_LAST_PROMPT, 0L) < PROMPT_COOLDOWN_MS || now < prefs.getLong(KEY_SNOOZE, 0L)) return
+        prefs.edit().putLong(KEY_LAST_PROMPT, now).apply()
+        criticalStreak = 0
         show(a, auto = true)
     }
 
@@ -138,7 +153,7 @@ object BoxBoost {
             background = GradientDrawable().apply { setColor(0xF2121722.toInt()); cornerRadius = dp(22f).toFloat(); setStroke(dp(1f), 0x33FFFFFF) }
         }
         card.addView(text(if (auto) "RUNNING LOW ON MEMORY" else "BOOST BOX", 12f, gold, bold = true).apply { letterSpacing = 0.18f; tag = "boost-eyebrow" })
-        card.addView(text(if (auto) "Your box is slowing down" else "Free up memory", 24f, Color.WHITE, bold = true).apply { setPadding(0, dp(6f), 0, dp(10f)) })
+        card.addView(text(if (auto) "Your box is almost out of memory" else "Free up memory", 24f, Color.WHITE, bold = true).apply { setPadding(0, dp(6f), 0, dp(10f)) })
         val pct = if (m.totalMb > 0) (m.availMb * 100 / m.totalMb).toInt() else 0
         card.addView(text("${m.availMb} MB free of ${m.totalMb} MB ($pct%)", 15f, if (m.low) 0xFFFF8E8E.toInt() else 0xFFB8C2D6.toInt(), bold = true).apply { tag = "boost-memory" })
         card.addView(FrameLayout(activity).apply {
@@ -147,7 +162,7 @@ object BoxBoost {
                 FrameLayout.LayoutParams(0, -1))
             post { getChildAt(0).layoutParams = FrameLayout.LayoutParams(width * pct.coerceIn(2, 100) / 100, -1) }
         }, LinearLayout.LayoutParams(-1, dp(8f)).apply { topMargin = dp(8f); bottomMargin = dp(14f) })
-        val why = if (auto) "When free memory runs low, menus lag, channels take longer to open and video can stutter. " else "Keeps menus quick and channels opening fast. "
+        val why = if (auto) "Android has started closing apps to keep running — this is what makes menus freeze, channels fail to load and video buffer. " else "Keeps menus quick and channels opening fast. "
         val body = text(why + "Boost box closes other apps left running in the background and clears temporary picture memory. Your sign-in, favourites and settings are not touched.", 15f, 0xFFD6DCE8.toInt())
         card.addView(body, LinearLayout.LayoutParams(dp(520f), -2))
         val row = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.END; setPadding(0, dp(20f), 0, 0) }
@@ -179,7 +194,10 @@ object BoxBoost {
             setOwnerActivity(activity)
             setOnDismissListener { if (showing === this) showing = null }
         }
-        later.setOnClickListener { dialog.dismiss() }
+        later.setOnClickListener {
+            if (auto) activity.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putLong(KEY_SNOOZE, System.currentTimeMillis() + SNOOZE_MS).apply()
+            dialog.dismiss()
+        }
         go.setOnClickListener {
             go.isEnabled = false; later.isEnabled = false; go.text = "Boosting…"
             boost(activity) { freed ->
