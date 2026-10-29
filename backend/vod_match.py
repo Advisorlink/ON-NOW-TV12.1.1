@@ -64,9 +64,10 @@ def _norm(title: str) -> str:
 
 
 def _split_name(name: str):
-    m = _YEAR_RE.search(name or "")
-    year = int(re.search(r"(19|20)\d{2}", m.group(0)).group(0)) if m else None
-    title = _YEAR_RE.sub("", name or "").strip()
+    title, year = (name or "").strip(), None
+    while (m := _YEAR_RE.search(title)):
+        year = year or int(re.search(r"(19|20)\d{2}", m.group(0)).group(0))
+        title = title[: m.start()].strip()
     return title, year
 
 
@@ -128,7 +129,7 @@ async def _refresh(force: bool = False) -> None:
         _fetched_at = time.time()
         if _db is not None:
             await _db.xtream_vod_index.update_one(
-                {"_id": "managed"},
+                {"_id": "managed_v2"},
                 {"$set": {"index": idx, "fetched_at": _fetched_at, "titles": len(idx)}},
                 upsert=True,
             )
@@ -145,7 +146,7 @@ async def _ensure_catalog() -> None:
         return
     async with _lock:
         if not _index and _db is not None:
-            doc = await _db.xtream_vod_index.find_one({"_id": "managed"})
+            doc = await _db.xtream_vod_index.find_one({"_id": "managed_v2"})
             if doc and doc.get("index"):
                 _index = doc["index"]
                 _fetched_at = float(doc.get("fetched_at") or 0)

@@ -29,7 +29,7 @@ class VesperExoFfmpegRenderersFactory(context: Context) :
 
     init {
         setEnableDecoderFallback(true)
-        setExtensionRendererMode(EXTENSION_RENDERER_MODE_PREFER)
+        setExtensionRendererMode(EXTENSION_RENDERER_MODE_OFF)
     }
 
     override fun buildAudioRenderers(
@@ -42,8 +42,7 @@ class VesperExoFfmpegRenderersFactory(context: Context) :
         eventListener: AudioRendererEventListener,
         out: ArrayList<Renderer>,
     ) {
-        // FFmpeg first — hits DTS/TrueHD/etc. before MediaCodec sees them.
-        out.add(FfmpegAudioRenderer(eventHandler, eventListener, audioSink))
+        // Hardware first (like TiviMate); FFmpeg only picks up what the box can't decode.
         super.buildAudioRenderers(
             context,
             extensionRendererMode,
@@ -54,5 +53,6 @@ class VesperExoFfmpegRenderersFactory(context: Context) :
             eventListener,
             out,
         )
+        out.add(FfmpegAudioRenderer(eventHandler, eventListener, audioSink))
     }
 }
