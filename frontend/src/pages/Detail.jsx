@@ -1094,6 +1094,8 @@ export default function Detail() {
     const closeStreamPicker = React.useCallback(() => {
         setShowStreamPicker(false);
     }, []);
+    // A different title must never inherit the previous title's open picker.
+    useEffect(() => { setShowStreamPicker(false); }, [type, id]);
     const handleStreamPick = React.useCallback(
         (stream) => {
             setShowStreamPicker(false);

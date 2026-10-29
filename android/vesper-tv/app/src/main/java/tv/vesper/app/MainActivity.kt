@@ -1102,6 +1102,9 @@ class MainActivity : AppCompatActivity() {
                     }
                     return@evaluateJavascript
                 }
+                // An open popup (e.g. Select stream) closes itself instead of leaving the page.
+                webView.evaluateJavascript("(function(){try{return window.__vesperBack&&window.__vesperBack()?'1':''}catch(e){return ''}})()") { popRaw ->
+                if ((popRaw?.trim('"') ?: "") == "1") return@evaluateJavascript
                 webView.evaluateJavascript("(window.__vesperOnHome||'')") { raw ->
                     val flag = raw?.trim('"') ?: ""
                     runOnUiThread {
@@ -1113,6 +1116,7 @@ class MainActivity : AppCompatActivity() {
                             }
                         }
                     }
+                }
                 }
             }
             return true

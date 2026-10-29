@@ -69,6 +69,15 @@ export default function StreamPickerModal({
 }) {
     const listRef = useRef(null);
     const cardRef = useRef(null);
+    const onCloseRef = useRef(onClose);
+    onCloseRef.current = onClose;
+
+    // Remote BACK (native wrapper calls window.__vesperBack first) closes this popup only.
+    useEffect(() => {
+        const prev = window.__vesperBack;
+        window.__vesperBack = () => { onCloseRef.current?.(); return true; };
+        return () => { window.__vesperBack = prev; };
+    }, []);
 
     // Auto-focus the first stream as soon as the modal mounts.  We
     // use a microtask + rAF so the DOM nodes are mounted before we
