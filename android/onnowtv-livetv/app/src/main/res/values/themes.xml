@@ -17,6 +17,14 @@
         <item name="windowNoTitle">true</item>
     </style>
 
+    <!-- Full-screen live controls over the guide's grown video window. -->
+    <style name="Theme.OnNowLiveTV.LiveOverlay" parent="Theme.OnNowLiveTV.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+
     <!-- Keep the rendered hub visible until the lightweight match window can draw. -->
     <style name="Theme.OnNowLiveTV.Match" parent="Theme.OnNowLiveTV.NoActionBar">
         <item name="android:windowDisablePreview">true</item>

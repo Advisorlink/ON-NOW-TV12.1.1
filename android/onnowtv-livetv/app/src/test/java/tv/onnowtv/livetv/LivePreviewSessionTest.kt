@@ -3,9 +3,11 @@ package tv.onnowtv.livetv
 import android.app.Activity
 import android.os.Looper
 import android.view.LayoutInflater
+import android.view.View
 import android.widget.FrameLayout
 import androidx.media3.ui.PlayerView
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -50,15 +52,43 @@ class LivePreviewSessionTest {
         assertSame("dropping the stale preview binding leaves full screen playing", p, full.player)
     }
 
-    @Test fun shrinking_back_waits_for_the_preview_texture_instead_of_going_surfaceless() {
-        val preview = view(R.layout.activity_epg, R.id.preview_player_view) // texture_view
-        val tv = preview.videoSurfaceView as android.view.TextureView
-        assertTrue(!tv.isAvailable)
+    @Test fun guide_preview_is_a_surface_view_like_tivimate() {
+        val preview = view(R.layout.activity_epg, R.id.preview_player_view)
+        assertTrue(preview.videoSurfaceView is android.view.SurfaceView)
+    }
 
-        LivePreviewSession.attachTo(preview)
-        assertNull("not bound while its SurfaceTexture doesn't exist yet", preview.player)
+    @Test fun full_screen_grows_the_same_view_and_shrinks_back() {
+        val root = FrameLayout(activity)
+        val card = FrameLayout(activity)
+        val video = PlayerView(activity)
+        card.addView(video, FrameLayout.LayoutParams(-1, -1))
+        root.addView(card, FrameLayout.LayoutParams(400, 225).apply { leftMargin = 100; topMargin = 50 })
+        activity.setContentView(root)
+        val layout = {
+            root.measure(View.MeasureSpec.makeMeasureSpec(1920, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY))
+            root.layout(0, 0, 1920, 1080)
+        }
+        layout()
+        LivePreviewSession.attachTo(video)
+        layout()
+        val p = LivePreviewSession.getOrCreate(activity)
+        val surface = video.videoSurfaceView
 
-        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
-        assertSame("binds after the bounded wait", LivePreviewSession.getOrCreate(activity), preview.player)
+        val grow = tv.onnowtv.livetv.ui.PreviewGrow(video, root)
+        grow.grow()
+        layout()
+        assertEquals(1920, video.layoutParams.width)
+        assertEquals(1080, video.layoutParams.height)
+        assertEquals(-100f, video.translationX)
+        assertEquals(-50f, video.translationY)
+        assertTrue(!card.clipChildren)
+        assertSame("same player, same surface — nothing handed over", p, video.player)
+        assertSame(surface, video.videoSurfaceView)
+
+        grow.shrink()
+        assertEquals(-1, video.layoutParams.width)
+        assertEquals(0f, video.translationX)
+        assertTrue(card.clipChildren)
+        assertSame(p, video.player)
     }
 }

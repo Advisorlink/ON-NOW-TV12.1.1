@@ -262,6 +262,11 @@ object LivePreviewSession {
 
     fun isAlive(): Boolean = player != null
 
+    /** The guide's video view while it is grown to full screen (see [LiveOverlayActivity]). */
+    private var fullscreenHost: java.lang.ref.WeakReference<PlayerView>? = null
+    fun setFullscreenHost(view: PlayerView?) { fullscreenHost = view?.let { java.lang.ref.WeakReference(it) } }
+    fun fullscreenHost(): PlayerView? = fullscreenHost?.get()
+
     /** Explicit teardown, including returning from a sports-owned player (not ordinary guide Back). */
     fun release() {
         synchronized(this) {

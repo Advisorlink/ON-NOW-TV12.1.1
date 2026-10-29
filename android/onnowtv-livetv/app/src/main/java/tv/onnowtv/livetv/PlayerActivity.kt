@@ -7,6 +7,7 @@ import android.os.Looper
 import android.util.Log
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
@@ -67,7 +68,7 @@ import java.util.concurrent.TimeUnit
  * Intent extras OR resolved on the fly from [PlaybackQueue] when
  * we zap to an adjacent channel.
  */
-class PlayerActivity : AppCompatActivity() {
+open class PlayerActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_URL = "extra_url"
@@ -224,9 +225,24 @@ class PlayerActivity : AppCompatActivity() {
      *  503 (concurrent-stream limit, rate-limit, etc.). */
     private var consecutiveFailures = 0
 
+    private val overlayMode: Boolean get() = this is LiveOverlayActivity
+
+    /** The view actually showing the picture: the guide's grown window in overlay mode. */
+    private fun videoView(): PlayerView =
+        (if (overlayMode && usingSharedPlayer) LivePreviewSession.fullscreenHost() else null) ?: playerView
+
+    private fun makeOpaque() {
+        if (!overlayMode) return
+        findViewById<ViewGroup>(android.R.id.content).getChildAt(0).setBackgroundColor(android.graphics.Color.BLACK)
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_player)
+        if (overlayMode) {
+            // The guide's own video window is already full screen underneath us.
+            (findViewById<ViewGroup>(android.R.id.content).getChildAt(0)).background = null
+            findViewById<View>(R.id.player_view).visibility = View.GONE
+        }
 
         // v2.10.15 — Per-channel EPG warms lazily.  The previous
         // bulk `EpgCache.load` was a no-op against the new v3
@@ -388,9 +404,13 @@ class PlayerActivity : AppCompatActivity() {
     private fun attachSharedPlayer(channel: Channel) {
         val p = LivePreviewSession.getOrCreate(this)
         player = p
-        // Full rebind + picture guard (a plain `playerView.player = p` could keep a stale surface).
-        if (playerView.isLaidOut && playerView.width > 0) LivePreviewSession.attachTo(playerView)
-        else { playerView.player = p; playerView.doOnLayout { LivePreviewSession.attachTo(playerView) } }
+        if (overlayMode) {
+            LivePreviewSession.fullscreenHost()?.let { if (it.player !== p) LivePreviewSession.attachTo(it) }
+        } else {
+            // Full rebind + picture guard (a plain `playerView.player = p` could keep a stale surface).
+            if (playerView.isLaidOut && playerView.width > 0) LivePreviewSession.attachTo(playerView)
+            else { playerView.player = p; playerView.doOnLayout { LivePreviewSession.attachTo(playerView) } }
+        }
         // Per user request: full-screen playback must stay full
         // colour — no controller overlay, no dimming.
         playerView.useController = false
@@ -649,6 +669,7 @@ class PlayerActivity : AppCompatActivity() {
             if (usingSharedPlayer) {
                 // Free the shared Exo session's upstream slot before
                 // VLC opens its own connection (single-stream account).
+                makeOpaque()
                 playerView.player = null
                 LivePreviewSession.release()
                 usingSharedPlayer = false
@@ -1657,7 +1678,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun cycleAspectMode() {
         aspectModeIndex = (aspectModeIndex + 1) % aspectModes.size
-        playerView.resizeMode = aspectModes[aspectModeIndex]
+        videoView().resizeMode = aspectModes[aspectModeIndex]
         status.text = "Aspect · ${aspectLabels[aspectModeIndex]}"
         hideHandler.removeCallbacksAndMessages(null)
         hideHandler.postDelayed({ status.text = "" }, 1_400L)
@@ -1779,13 +1800,15 @@ class PlayerActivity : AppCompatActivity() {
             // channel this activity was launched for.
             val sessionAlive = LivePreviewSession.isAlive()
             val p = LivePreviewSession.getOrCreate(this)
-            if (playerView.player !== p) playerView.player = p
             val ch = currentChannel
             if (ch != null && (!sessionAlive || (stopOnExit && p.mediaItemCount == 0))) {
                 // Session was released — restart this channel from
                 // scratch.  Single restart per HOME→re-open cycle.
                 LivePreviewSession.setChannel(this, ch)
             }
+            val host = videoView()
+            if (host !== playerView) { if (host.player !== p) LivePreviewSession.attachTo(host) }
+            else if (playerView.player !== p) playerView.player = p
             p.playWhenReady = true
             return
         }

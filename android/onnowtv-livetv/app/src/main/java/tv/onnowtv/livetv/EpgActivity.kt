@@ -9,6 +9,7 @@ import android.text.TextWatcher
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageButton
@@ -96,6 +97,9 @@ class EpgActivity : AppCompatActivity() {
 
     // Preview-card refs (in-hero live mini player)
     private lateinit var previewPlayerView: PlayerView
+    private val previewGrow by lazy {
+        tv.onnowtv.livetv.ui.PreviewGrow(previewPlayerView, findViewById<ViewGroup>(android.R.id.content).getChildAt(0) as ViewGroup)
+    }
     private lateinit var previewBufferLoader: tv.onnowtv.livetv.ui.OrbitalLoaderView
     private lateinit var previewThumbnail: ImageView
     private lateinit var previewIdleHint: View
@@ -1918,7 +1922,18 @@ class EpgActivity : AppCompatActivity() {
 
         PlaybackQueue.setQueue(visibleList, ch.id)
 
-        val intent = Intent(this, PlayerActivity::class.java).apply {
+        val grow = tv.onnowtv.livetv.data.PlayerPrefs.getBackend(this) == tv.onnowtv.livetv.data.PlayerPrefs.Backend.EXO
+        if (grow) {
+            // TiviMate-style: the preview window itself grows to full screen — same picture
+            // surface, nothing re-buffers. The controls open as a see-through layer on top.
+            if (previewPlayerView.visibility != View.VISIBLE) startPreview(ch)
+            previewBufferLoader.visibility = View.GONE
+            previewLiveBadge.visibility = View.GONE
+            previewMiniBar.visibility = View.GONE
+            previewGrow.grow()
+            LivePreviewSession.setFullscreenHost(previewPlayerView)
+        }
+        val intent = Intent(this, if (grow) LiveOverlayActivity::class.java else PlayerActivity::class.java).apply {
             putExtra(PlayerActivity.EXTRA_URL, ch.streamUrl)
             putExtra(PlayerActivity.EXTRA_TITLE, ch.name)
             putExtra(PlayerActivity.EXTRA_CHANNEL_ID, ch.id)
@@ -1927,6 +1942,8 @@ class EpgActivity : AppCompatActivity() {
             putExtra(PlayerActivity.EXTRA_SUBTITLE, live?.title ?: "")
         }
         startActivity(intent)
+        @Suppress("DEPRECATION")
+        if (grow) overridePendingTransition(0, 0)
     }
 
     private fun computeProgress(p: Programme): Float {
@@ -2470,6 +2487,21 @@ class EpgActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         startGuideGuard()
+        // Back from the grown full screen: just shrink — the picture never left this view.
+        val keptSurface = previewGrow.grown && LivePreviewSession.isAlive() &&
+            previewPlayerView.player === LivePreviewSession.getOrCreate(this)
+        if (previewGrow.grown) {
+            previewGrow.shrink()
+            previewPlayerView.resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+            LivePreviewSession.setFullscreenHost(null)
+        }
+        if (keptSurface) {
+            previewLiveBadge.visibility = View.VISIBLE
+            previewMiniBar.visibility = View.VISIBLE
+            LivePreviewSession.getOrCreate(this).playWhenReady = true
+            LivePreviewSession.currentChannel?.let { if (it.id != focusedChannel?.id) { focusedChannel = it; updateHero(it); loadGuideForChannel(it) } }
+            return
+        }
         // Returning from full-screen / Library / background — re-bind
         // the shared player to our preview surface so playback
         // continues seamlessly in the hero card (no buffer hit, no
