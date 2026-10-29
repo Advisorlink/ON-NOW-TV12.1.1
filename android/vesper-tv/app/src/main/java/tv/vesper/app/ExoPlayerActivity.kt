@@ -631,6 +631,8 @@ class ExoPlayerActivity : ComponentActivity(),
     // from slow-but-working links that a manual pick (25 s window)
     // played fine, which made autoplay look dead while manual clicks
     // worked.  Autoplay now gets a full 30 s to first frame.
+    private var vodResolver: VodRelayResolver? = null
+    private var directRecoveries = 0
     private val BUFFER_STALL_TIMEOUT_MS = 30_000L
     // v2.13.8 — Explicit user picks get a LONGER stall window: a deep
     // resume-position seek into a fresh HTTP stream (MKV cues at the
@@ -1163,8 +1165,12 @@ class ExoPlayerActivity : ComponentActivity(),
                     "Connection"      to "keep-alive",
                 ),
             )
+        // ON NOW TV Direct: skip the London gateway hop on every open/seek (see VodRelayResolver).
+        val upstream: androidx.media3.datasource.DataSource.Factory = if (directVod)
+            androidx.media3.datasource.ResolvingDataSource.Factory(httpFactory, VodRelayResolver(okClient!!, "Vesper-ExoPlayer/2.7.43").also { vodResolver = it })
+        else httpFactory
         val mediaSourceFactory =
-            DefaultMediaSourceFactory(this).setDataSourceFactory(httpFactory)
+            DefaultMediaSourceFactory(this).setDataSourceFactory(upstream)
         // v2.13.21 — Reverted the v2.13.20 PCM-only audio-sink override.
         // Rationale (per operator, Feb 2026): silent playback on a
         // DTS / TrueHD / Atmos-only movie rip is worse UX than a
@@ -1233,6 +1239,15 @@ class ExoPlayerActivity : ComponentActivity(),
         player.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
                 Log.e(TAG, "ExoPlayer error: ${error.errorCodeName}", error)
+                // Direct relay link expired / dropped: fetch a fresh one and carry on from the same spot.
+                val resolver = vodResolver
+                if (resolver != null && error.errorCode in 2000..2999 && directRecoveries < 3) {
+                    directRecoveries++
+                    Log.w(TAG, "Direct stream dropped (${error.errorCodeName}) — re-resolving relay, attempt $directRecoveries")
+                    resolver.invalidate()
+                    player.prepare(); player.play()
+                    return
+                }
                 if (firstReadyReachedForCurrentStream) {
                     midStallJob?.cancel()
                     showStallHelp("The connection to this stream was lost part-way through the movie.")
