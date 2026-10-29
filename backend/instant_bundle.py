@@ -30,6 +30,7 @@ import asyncio
 import base64
 import gzip
 import hashlib
+import io
 import json
 import logging
 import os
@@ -276,13 +277,12 @@ async def _rebuild_cached_payload() -> None:
         "channels_fetched_at": _state["channels_fetched_at"],
         "epg_fetched_at":      _state["epg_fetched_at"],
     }
-    body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-    gz = gzip.compress(body, compresslevel=6)
+    gz, raw_len = _gz_json(payload)
     _state["cached_payload_gz"] = gz
     _state["cached_payload_at"] = int(time.time())
     log.info(
         "instant_bundle: cached payload built (gz=%d KB, raw=%d KB)",
-        len(gz) // 1024, len(body) // 1024,
+        len(gz) // 1024, raw_len // 1024,
     )
     # v2.16.37 — Also build the epg-only companion payload so
     # `GET /instant-bundle/epg-only` can serve mobile clients that
@@ -291,22 +291,52 @@ async def _rebuild_cached_payload() -> None:
     # boot without a second call).  Compressed together with the
     # main bundle because the two payloads share `remapped_epg`,
     # so we get the compression work out of the way once.
-    epg_only_body = json.dumps(
+    epg_only_gz, epg_raw_len = _gz_json(
         {
             "epg":                 remapped_epg,
             "epg_fetched_at":      _state["epg_fetched_at"],
             "generated_at":        _state["generated_at"],
-        },
-        separators=(",", ":"),
-    ).encode("utf-8")
-    epg_only_gz = gzip.compress(epg_only_body, compresslevel=6)
+        }
+    )
     _state["cached_epg_only_gz"] = epg_only_gz
     log.info(
         "instant_bundle: epg-only payload built (gz=%d KB, raw=%d KB, buckets=%d)",
-        len(epg_only_gz) // 1024, len(epg_only_body) // 1024, len(remapped_epg),
+        len(epg_only_gz) // 1024, epg_raw_len // 1024, len(remapped_epg),
     )
-    # Body bytes go out of scope here; only the gz bytes (and the
-    # underlying _state dicts) remain in memory.
+    del remapped_epg, payload
+    _trim()
+
+
+def _trim() -> None:
+    """Hand freed arenas back to the OS so the pod's RSS drops after each rebuild."""
+    import ctypes
+    import gc
+    gc.collect()
+    try:
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except OSError:
+        pass
+
+
+def _gz_json(obj: Any) -> tuple:
+    """Stream JSON straight into gzip so the ~90 MB raw body never sits in memory (512Mi prod pods)."""
+    buf = io.BytesIO()
+    raw_len = 0
+    pending: List[str] = []
+    size = 0
+    with gzip.GzipFile(fileobj=buf, mode="wb", compresslevel=6) as f:
+        for chunk in json.JSONEncoder(separators=(",", ":")).iterencode(obj):
+            pending.append(chunk)
+            size += len(chunk)
+            if size >= 1 << 20:
+                data = "".join(pending).encode("utf-8")
+                raw_len += len(data)
+                f.write(data)
+                pending, size = [], 0
+        data = "".join(pending).encode("utf-8")
+        raw_len += len(data)
+        f.write(data)
+    return buf.getvalue(), raw_len
 
 
 async def _persist() -> None:
@@ -321,18 +351,9 @@ async def _persist() -> None:
     """
     if _collection is None:
         return
-    chans_blob = gzip.compress(
-        json.dumps(_state["channels"], separators=(",", ":")).encode("utf-8"),
-        compresslevel=6,
-    )
-    epg_blob = gzip.compress(
-        json.dumps(_state["epg"], separators=(",", ":")).encode("utf-8"),
-        compresslevel=6,
-    )
-    cats_blob = gzip.compress(
-        json.dumps(_state["categories"], separators=(",", ":")).encode("utf-8"),
-        compresslevel=6,
-    )
+    chans_blob = _gz_json(_state["channels"])[0]
+    epg_blob = _gz_json(_state["epg"])[0]
+    cats_blob = _gz_json(_state["categories"])[0]
     chunks = [epg_blob[i:i + _EPG_CHUNK_BYTES]
               for i in range(0, len(epg_blob), _EPG_CHUNK_BYTES)] or [b""]
     doc = {
@@ -379,7 +400,7 @@ def _maybe_decode(doc: Dict[str, Any], key: str, default: Any) -> Any:
     gz = doc.get(key + "_gz")
     if gz:
         try:
-            return json.loads(gzip.decompress(gz).decode("utf-8"))
+            return json.loads(gzip.decompress(gz))
         except Exception as exc:  # noqa: BLE001
             log.warning("instant_bundle: failed to decode %s_gz: %s", key, exc)
     return doc.get(key) or default
@@ -408,8 +429,10 @@ async def _restore_from_db() -> None:
                     raise RuntimeError(f"missing epg chunk {i}/{n_chunks}")
                 parts.append(bytes(cd["blob"]))
             blob = b"".join(parts)
+            del parts
             if blob:
-                epg_restored = json.loads(gzip.decompress(blob).decode("utf-8"))
+                epg_restored = json.loads(gzip.decompress(blob))
+            del blob
         except Exception as exc:  # noqa: BLE001
             log.warning("instant_bundle: epg chunk restore failed: %s", exc)
             epg_restored = None

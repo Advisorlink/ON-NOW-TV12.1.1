@@ -673,6 +673,12 @@ def _tag_addon_quality_premium(s: Dict[str, Any]) -> None:
 # FastAPI app
 # ---------------------------------------------------------------------------
 app = FastAPI(title="ON NOW TV V2")
+
+
+@app.get("/health")
+@app.get("/api/health")
+async def _health() -> Dict[str, str]:
+    return {"status": "ok"}
 api = APIRouter(prefix="/api")
 
 
@@ -5672,6 +5678,8 @@ async def _start_music_home_warmer() -> None:
     a 1 h TTL the FIRST user after every expiry stared at skeletons.
     Re-warm every 50 min so the cache never lapses."""
     async def _loop():
+        # Let the instant-bundle warm-start finish first; overlapping both bursts OOMs a 512Mi pod.
+        await asyncio.sleep(180)
         while True:
             try:
                 from music_api import music_home

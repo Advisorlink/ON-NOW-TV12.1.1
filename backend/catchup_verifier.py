@@ -223,7 +223,7 @@ async def _cycle(cl: httpx.AsyncClient) -> None:
 
 
 async def _loop() -> None:
-    await asyncio.sleep(30)
+    await asyncio.sleep(240)
     async with httpx.AsyncClient(timeout=15, follow_redirects=True, headers={"User-Agent": "V2LiveTV/CatchUpCheck"}) as cl:
         while True:
             try:

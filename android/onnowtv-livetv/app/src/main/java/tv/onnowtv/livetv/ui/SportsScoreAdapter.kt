@@ -93,13 +93,15 @@ class SportsScoreAdapter(private val owner: LifecycleOwner, private val open: (J
         root.addView(SportsUi.divider(ctx), LinearLayout.LayoutParams(-1, dp(ctx, 1f)).apply { topMargin = dp(ctx, 11f); bottomMargin = dp(ctx, 9f) })
         val foot = SportsUi.row(ctx, dp(ctx, 5f))
         val matches = broadcasts[Data.key(g)].orEmpty(); val match = matches.firstOrNull()
+        val strip = SportsUi.row(ctx, dp(ctx, 4f)).apply { gravity = Gravity.CENTER_VERTICAL }
+        val hasStrip = SportsChannelStrip.fill(ctx, strip, g, matches, max = 3, size = 20f)
         if (match != null) {
-            foot.addView(SportsUi.logo(ctx, match.channel.logoUrl, dp(ctx, 25f)))
             foot.addView(SportsUi.col(ctx, dp(ctx, 3f)).apply {
-                addView(SportsUi.text(ctx, listOfNotNull(match.channel.lcn, match.channel.name).joinToString(" · ") + if (matches.size > 1) " +${matches.size - 1}" else "", 10f, bold = true).apply { maxLines = 2 })
-                addView(SportsUi.text(ctx, if (match.confirmed) "Guide confirmed" else "Possible broadcast", 9f, if (match.confirmed) SportsUi.ACCENT else SportsUi.DIM))
+                addView(strip)
+                addView(SportsUi.singleLine(SportsUi.text(ctx, listOfNotNull(match.channel.lcn, match.channel.name).joinToString(" · ") + if (match.confirmed) " · Guide confirmed" else " · Possible broadcast", 9f, if (match.confirmed) SportsUi.ACCENT else SportsUi.DIM)))
             }, LinearLayout.LayoutParams(0, -2, 1f))
-        } else foot.addView(SportsUi.text(ctx, "Channel not confirmed", 10f, SportsUi.DIM), LinearLayout.LayoutParams(0, -2, 1f))
+        } else if (hasStrip) foot.addView(strip, LinearLayout.LayoutParams(0, -2, 1f))
+        else foot.addView(SportsUi.text(ctx, "Channel not confirmed", 10f, SportsUi.DIM), LinearLayout.LayoutParams(0, -2, 1f))
         foot.addView(SportsUi.text(ctx, if (upcoming) "Preview  ›" else if (live) "Match centre  ›" else "Full result  ›", 10f, SportsUi.ACCENT))
         root.addView(foot); surface.setOnClickListener { open(g) }
         if (g.optString("state") == "post") root.addView(SportsReplayRow.create(ctx, owner, g, BundleHolder.current,

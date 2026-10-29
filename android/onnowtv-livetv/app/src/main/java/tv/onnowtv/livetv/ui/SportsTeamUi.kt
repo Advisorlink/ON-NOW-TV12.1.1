@@ -67,6 +67,7 @@ object SportsTeamUi {
             setPadding(UI.dp(act, 8f), UI.dp(act, 3f), UI.dp(act, 8f), UI.dp(act, 3f))
             background = UI.bg(if (state == "in") UI.LIVE else if (badge == "W") 0xFF1FA36A.toInt() else if (badge == "L") 0xFF8A2A35.toInt() else UI.BORDER, UI.dp(act, 10f).toFloat())
         })
+        if (!spoilerFree && SportsChannelStrip.wants(g)) top.addView(SportsChannelStrip.create(act, g, max = 2, size = 18f))
         col.addView(top)
         val mid = UI.row(act, UI.dp(act, 10f)).apply { gravity = Gravity.CENTER }
         fun side(t: JSONObject?) = UI.col(act, UI.dp(act, 5f)).apply {

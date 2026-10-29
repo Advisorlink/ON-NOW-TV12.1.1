@@ -40,6 +40,7 @@ class SportsSpotlight(private val act: AppCompatActivity, private val open: (JSO
     private val score = UI.text(act, "", 52f, Color.WHITE, bold = true).apply { gravity = Gravity.CENTER; setShadowLayer(10f, 0f, 3f, Color.BLACK) }
     private val foot = UI.singleLine(UI.text(act, "", 11f, gold, mono = true))
     private val dots = UI.row(act, dp(6f)).apply { gravity = Gravity.CENTER }
+    private val watchOn = UI.identify(UI.row(act, dp(6f)), "hub-spotlight-watch-on").apply { gravity = Gravity.CENTER; visibility = View.GONE }
     private val ring = View(act)
     private val idleRing = UI.bg(Color.TRANSPARENT, dp(22f).toFloat(), dp(1f), 0x33FFFFFF)
     private val focusRing = UI.bg(Color.TRANSPARENT, dp(22f).toFloat(), dp(3f), gold)
@@ -62,6 +63,7 @@ class SportsSpotlight(private val act: AppCompatActivity, private val open: (JSO
         mid.addView(side(crestHome, nameHome), LinearLayout.LayoutParams(dp(210f), -2))
         col.addView(mid); col.addView(UI.identify(foot, "hub-spotlight-footer")); col.addView(dots)
         addView(col, LayoutParams(-1, -1))
+        addView(watchOn, LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply { topMargin = dp(14f); marginEnd = dp(20f) })
         ring.background = idleRing; addView(ring, LayoutParams(-1, -1))
         setOnFocusChangeListener { _, has -> ring.background = if (has) focusRing else idleRing }
         setOnClickListener { featured.getOrNull(index)?.let { if (it.optString("state") == "in") SportsTeamUi.watch(act, it) else open(it) } }
@@ -108,6 +110,7 @@ class SportsSpotlight(private val act: AppCompatActivity, private val open: (JSO
         if (state == "pre") { score.textSize = 26f; score.text = SimpleDateFormat("EEE h:mm a", Locale.getDefault()).format(Date(g.optLong("startMs"))).uppercase() }
         else { score.textSize = if ("${Data.value(away, "score")}${Data.value(home, "score")}".length > 8) 30f else 52f; score.text = "${Data.value(away, "score", "–")}  –  ${Data.value(home, "score", "–")}" }
         foot.text = g.optString("leagueName").uppercase() + "   ·   " + (if (state == "in") "OK · WATCH NOW" else "OK · MATCH CENTRE") + if (featured.size > 1) "   ·   ◀ ▶ MORE" else ""
+        SportsChannelStrip.load(act, watchOn, g, max = 4, size = 26f)
         dots.removeAllViews()
         if (featured.size > 1) featured.indices.forEach { i ->
             dots.addView(View(act).apply { background = UI.bg(if (i == index) gold else 0x55FFFFFF, dp(3f).toFloat()) }, LinearLayout.LayoutParams(dp(if (i == index) 18f else 6f), dp(6f)))
