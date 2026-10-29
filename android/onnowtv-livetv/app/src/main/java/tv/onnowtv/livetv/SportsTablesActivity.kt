@@ -192,35 +192,99 @@ class SportsTablesActivity : AppCompatActivity() {
         return tile
     }
 
+    private var searchQuery = ""
+    private var searchJob: Job? = null
+
     private fun loadTeams() {
         val g = groups.getOrNull(pickSport) ?: return note("Loading sports…")
-        if (g.leagues.size > 1) body.addView(UI.row(this, dp(8f)).apply {
+        val content = UI.col(this, dp(8f))
+        body.addView(searchField(content))
+        body.addView(content)
+        if (searchQuery.length >= 2) runSearch(content, searchQuery) else showLeague(content, g)
+    }
+
+    /** One box across every sport + league ("University of Houston" → Houston Cougars in each NCAA league). */
+    private fun searchField(content: LinearLayout): View {
+        val field = UI.identify(android.widget.EditText(this), "add-team-search-input").apply {
+            setText(searchQuery); setSelection(searchQuery.length)
+            hint = "Search every team — e.g. Houston women, Seahawks, Arsenal"
+            setHintTextColor(UI.DIM); setTextColor(Color.WHITE); textSize = 16f; isSingleLine = true
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+            setPadding(dp(18f), dp(12f), dp(18f), dp(12f))
+            background = UI.bg(UI.CARD, dp(14f).toFloat(), dp(2f), 0x33FFFFFF)
+            setOnFocusChangeListener { v, has -> v.background = UI.bg(UI.CARD, dp(14f).toFloat(), dp(2f), if (has) UI.GOLD else 0x33FFFFFF) }
+            setCompoundDrawablesRelativeWithIntrinsicBounds(android.R.drawable.ic_menu_search, 0, 0, 0); compoundDrawablePadding = dp(10f)
+        }
+        fun go(now: Boolean) {
+            val q = field.text.toString().trim()
+            if (q == searchQuery && !now) return
+            searchQuery = q
+            searchJob?.cancel(); searchJob = lifecycleScope.launch {
+                if (!now) kotlinx.coroutines.delay(450)
+                content.removeAllViews()
+                if (q.length >= 2) runSearch(content, q) else groups.getOrNull(pickSport)?.let { showLeague(content, it) }
+            }
+        }
+        field.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) = go(false)
+        })
+        field.setOnEditorActionListener { v, _, _ ->
+            go(true)
+            (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).hideSoftInputFromWindow(v.windowToken, 0)
+            content.post { content.findViewWithTag<View>("add-search-first")?.requestFocus() }
+            true
+        }
+        return field.also { it.layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(4f) } }
+    }
+
+    private fun runSearch(content: LinearLayout, q: String) {
+        val status = UI.identify(UI.text(this, "Searching every league for “$q”…", 15f, UI.DIM), "add-search-status"); content.addView(status)
+        job?.cancel(); job = lifecycleScope.launch {
+            val list = SportsHubApi.searchTeams(q)?.optJSONArray("results").objects()
+            if (q != searchQuery) return@launch
+            content.removeAllViews()
+            if (list.isEmpty()) return@launch content.addView(UI.identify(UI.text(this@SportsTablesActivity, "No teams match “$q”. Try the city or nickname, e.g. Houston or Cougars — add “women” for women's teams.", 15f, UI.DIM), "add-search-empty"))
+            content.addView(UI.identify(UI.text(this@SportsTablesActivity, "${list.size} team${if (list.size == 1) "" else "s"} across all sports", 13f, UI.DIM), "add-search-count"))
+            val grid = teamGrid()
+            list.forEachIndexed { i, t -> grid.addView(teamCard(grid, t, t.optString("sport"), t.optString("leagueKey"), t.optString("league"), if (i == 0) "add-search-first" else null)) }
+            content.addView(grid)
+        }
+    }
+
+    private fun teamGrid() = GridLayout(this).apply { columnCount = if (resources.configuration.screenWidthDp < 720) 1 else 3 }
+
+    private fun teamCard(grid: GridLayout, t: JSONObject, sport: String, leagueKey: String, leagueName: String, tagOverride: String? = null): View {
+        val team = SportsFollowStore.Team(sport, leagueKey, t.optString("id"), t.optString("name"), t.optString("logo").takeIf { it.isNotBlank() && it != "null" }, t.optString("color").takeIf { it.isNotBlank() && it != "null" })
+        val added = SportsFollowStore.isFollowed(this, team.key)
+        val tag = tagOverride ?: "add-team-$leagueKey-${t.optString("id")}"
+        val card = SportsTeamCrest.card(this, team.name, leagueName, team.logo, team.color, tag, if (added) "✓  IN MY TEAMS" else "＋  ADD TO MY TEAMS", if (added) UI.GOLD else Color.WHITE)
+        card.layoutParams = GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED), GridLayout.spec(GridLayout.UNDEFINED, 1f)).apply { width = 0; height = dp(132f); setMargins(dp(6f), dp(6f), dp(6f), dp(6f)) }
+        card.setOnClickListener {
+            SportsFollowStore.toggle(this, team)
+            val i = grid.indexOfChild(card); grid.removeViewAt(i); grid.addView(teamCard(grid, t, sport, leagueKey, leagueName, tagOverride), i); grid.getChildAt(i).requestFocus()
+        }
+        return card
+    }
+
+    private fun showLeague(content: LinearLayout, g: SportGroup) {
+        if (g.leagues.size > 1) content.addView(UI.row(this, dp(8f)).apply {
             g.leagues.forEachIndexed { i, l -> addView(UI.identify(UI.pill(this@SportsTablesActivity, l.name, i == pickLeague) { pickLeague = i; render(); body.post { body.findViewWithTag<View>("add-league-${l.key}")?.requestFocus() } }, "add-league-${l.key}")) }
         }.let { HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false; setPadding(dp(3f), dp(3f), dp(3f), dp(3f)); addView(it) } })
         val l = g.leagues.getOrNull(pickLeague) ?: g.leagues.first()
-        val status = UI.identify(UI.text(this, "Loading ${l.name} teams…", 15f, UI.DIM), "tables-note"); body.addView(status)
+        val status = UI.identify(UI.text(this, "Loading ${l.name} teams…", 15f, UI.DIM), "tables-note"); content.addView(status)
         job?.cancel(); job = lifecycleScope.launch {
             val list = SportsHubApi.teams(l.sport, l.key)?.optJSONArray("teams").objects()
-            body.removeView(status)
-            if (list.isEmpty()) return@launch note("No teams listed for ${l.name}.")
-            val grid = GridLayout(this@SportsTablesActivity).apply { columnCount = if (resources.configuration.screenWidthDp < 720) 1 else 3 }
+            content.removeView(status)
+            if (list.isEmpty()) return@launch content.addView(UI.identify(UI.text(this@SportsTablesActivity, "No teams listed for ${l.name}.", 15f, UI.DIM), "tables-note"))
+            val grid = teamGrid()
             // Big college leagues (300-700+ teams) are split A–Z so the HK1 never inflates hundreds of crests at once.
             val letters = if (list.size > 60) list.map { it.optString("name").trim().firstOrNull()?.uppercaseChar() ?: '#' }.distinct().sorted() else emptyList()
-            fun cardFor(t: org.json.JSONObject): View {
-                val team = SportsFollowStore.Team(l.sport, l.key, t.optString("id"), t.optString("name"), t.optString("logo").takeIf { it.isNotBlank() && it != "null" }, t.optString("color").takeIf { it.isNotBlank() && it != "null" })
-                val added = SportsFollowStore.isFollowed(this@SportsTablesActivity, team.key)
-                val tag = "add-team-${t.optString("id")}"
-                val card = SportsTeamCrest.card(this@SportsTablesActivity, team.name, l.name, team.logo, team.color, tag, if (added) "✓  IN MY TEAMS" else "＋  ADD TO MY TEAMS", if (added) UI.GOLD else Color.WHITE)
-                card.layoutParams = GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED), GridLayout.spec(GridLayout.UNDEFINED, 1f)).apply { width = 0; height = dp(132f); setMargins(dp(6f), dp(6f), dp(6f), dp(6f)) }
-                card.setOnClickListener {
-                    SportsFollowStore.toggle(this@SportsTablesActivity, team)
-                    val i = grid.indexOfChild(card); grid.removeViewAt(i); grid.addView(cardFor(t), i); grid.getChildAt(i).requestFocus()
-                }
-                return card
-            }
             fun draw(letter: Char?) {
                 grid.removeAllViews()
-                list.filter { letter == null || (it.optString("name").trim().firstOrNull()?.uppercaseChar() ?: '#') == letter }.forEach { grid.addView(cardFor(it)) }
+                list.filter { letter == null || (it.optString("name").trim().firstOrNull()?.uppercaseChar() ?: '#') == letter }
+                    .forEach { grid.addView(teamCard(grid, it, l.sport, l.key, l.name, "add-team-${it.optString("id")}")) }
             }
             if (letters.isNotEmpty()) {
                 val bar = UI.row(this@SportsTablesActivity, dp(6f))
@@ -229,10 +293,10 @@ class SportsTablesActivity : AppCompatActivity() {
                     letters.forEach { c -> bar.addView(UI.identify(UI.pill(this@SportsTablesActivity, c.toString(), c == sel) { paint(c); draw(c); bar.findViewWithTag<View>("add-letter-$c")?.requestFocus() }, "add-letter-$c")) }
                 }
                 paint(letters.first())
-                body.addView(HorizontalScrollView(this@SportsTablesActivity).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false; setPadding(dp(3f), dp(3f), dp(3f), dp(3f)); addView(bar) })
+                content.addView(HorizontalScrollView(this@SportsTablesActivity).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false; setPadding(dp(3f), dp(3f), dp(3f), dp(3f)); addView(bar) })
                 draw(letters.first())
             } else draw(null)
-            body.addView(grid)
+            content.addView(grid)
         }
     }
 }

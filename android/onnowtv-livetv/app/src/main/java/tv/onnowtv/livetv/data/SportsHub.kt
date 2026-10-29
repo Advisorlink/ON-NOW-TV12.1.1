@@ -59,6 +59,7 @@ object SportsHubApi {
         "&away=${enc(game.optJSONObject("away")?.optString("name").orEmpty())}&startMs=${game.optLong("startMs")}&league=${enc(game.optString("leagueName"))}")
     suspend fun myTeams(keys: List<String>): JSONObject? = getJson(myTeamsPath(keys))
     suspend fun teams(sport: String, league: String): JSONObject? = getJson("/api/sportshub/teams?sport=${enc(sport)}&league=${enc(league)}")
+    suspend fun searchTeams(q: String): JSONObject? = getJson("/api/sportshub/teams/search?q=${enc(q)}")
     suspend fun standings(sport: String, league: String, forceRefresh: Boolean = false): JSONObject? {
         val path = "/api/sportshub/standings?sport=${enc(sport)}&league=${enc(league)}"
         return snapshots.load(XtreamRepository.BACKEND_BASE + path, forceRefresh, { 300_000L },

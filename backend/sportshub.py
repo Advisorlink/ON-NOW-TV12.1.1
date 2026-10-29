@@ -545,24 +545,96 @@ async def game(sport: str, league: str, id: str):
     }
 
 
-@router.get("/teams")
-async def teams(sport: str, league: str):
-    """Every club in a league (for My Teams → Add Team)."""
-    if (sport, league) not in LEAGUE_BY_KEY:
-        raise HTTPException(404, "unknown league")
-    try:
-        data = await _get(f"{ESPN}/{sport}/{league}/teams", {"limit": 1000}, ttl=86400)
-    except Exception as e:  # noqa: BLE001
-        raise HTTPException(502, f"espn teams failed: {e}")
+# Compact rows only (raw ESPN team payloads are ~2 MB each; 69 leagues of them would sink a 512Mi pod).
+_TEAMS: Dict[Tuple[str, str], Tuple[float, List[Dict[str, Any]]]] = {}
+_TEAMS_SEM = asyncio.Semaphore(6)
+
+
+async def _league_teams(sport: str, league: str) -> List[Dict[str, Any]]:
+    hit = _TEAMS.get((sport, league))
+    if hit and hit[0] > time.time():
+        return hit[1]
+    async with _TEAMS_SEM:
+        async with httpx.AsyncClient(timeout=12) as client:
+            r = await client.get(f"{ESPN}/{sport}/{league}/teams", params={"limit": 1000}, headers={"User-Agent": "Mozilla/5.0 ONNOWTV"})
+            r.raise_for_status()
+            data = r.json()
     rows = []
     for row in ((data.get("sports") or [{}])[0].get("leagues") or [{}])[0].get("teams") or []:
         t = row.get("team") or {}
         if not t.get("id"):
             continue
         rows.append({"id": str(t["id"]), "name": t.get("displayName") or t.get("name"), "abbr": t.get("abbreviation"),
-                     "logo": ((t.get("logos") or [{}])[0].get("href")), "color": t.get("color")})
+                     "logo": ((t.get("logos") or [{}])[0].get("href")), "color": t.get("color"),
+                     "location": t.get("location") or ""})
+    del data
     rows.sort(key=lambda r: (r["name"] or "").lower())
+    _TEAMS[(sport, league)] = (time.time() + 86400, rows)
+    return rows
+
+
+@router.get("/teams")
+async def teams(sport: str, league: str):
+    """Every club in a league (for My Teams → Add Team)."""
+    if (sport, league) not in LEAGUE_BY_KEY:
+        raise HTTPException(404, "unknown league")
+    try:
+        rows = await _league_teams(sport, league)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, f"espn teams failed: {e}")
     return {"league": LEAGUE_BY_KEY[(sport, league)]["name"], "sport": sport, "leagueKey": league, "teams": rows}
+
+
+_FILLER = re.compile(r"\b(university|univ|of|the|college|fc|cf|sc)\b")
+
+
+def _norm(text: str) -> str:
+    return " ".join(_FILLER.sub(" ", re.sub(r"[^a-z0-9 ]", " ", (text or "").lower())).split())
+
+
+def _search_label(l: Dict[str, Any]) -> str:
+    name, sport = l["name"], l.get("label") or l["sport"]
+    return name if any(w in name.lower() for w in sport.lower().split()) else f"{name} · {sport}"
+
+
+@router.get("/teams/search")
+async def teams_search(q: str, limit: int = 60):
+    """One box, every league: "University of Houston" → Houston Cougars in NCAA basketball, football, baseball…"""
+    womens = bool(re.search(r"\b(women'?s?|womens|girls?|ladies|lady|female|w)\b", q.lower()))
+    mens = bool(re.search(r"\b(men'?s?|mens|boys?|male)\b", q.lower()))
+    needle = _norm(re.sub(r"\b(women'?s?|womens|girls?|ladies|lady|female|men'?s?|mens|boys?|male|w)\b", " ", q.lower()))
+    if len(needle) < 2:
+        return {"query": q, "results": []}
+
+    async def one(l: Dict[str, Any]):
+        try:
+            return l, await _league_teams(l["sport"], l["league"])
+        except Exception:  # noqa: BLE001
+            _TEAMS[(l["sport"], l["league"])] = (time.time() + 3600, [])
+            return l, []
+
+    collegey = bool(re.search(r"\b(university|univ|college|state)\b", q.lower()))
+    hits = []
+    for l, rows in await asyncio.gather(*(one(l) for l in LEAGUES)):
+        is_w = "women" in l["league"] or ".w." in l["league"] or l["league"] in ("wnba", "usa.nwsl")
+        college_boost = (-1 if collegey and "college" in l["league"] else 0) + (-2 if womens and is_w else 0) + (2 if (womens and not is_w) or (mens and is_w) else 0)
+        for t in rows:
+            name, loc = _norm(t["name"]), _norm(t.get("location"))
+            abbr = (t.get("abbr") or "").lower()
+            if loc == needle or abbr == needle or name == needle:
+                score = 0
+            elif name.startswith(needle):
+                score = 1
+            elif any(w.startswith(needle) for w in name.split()) or loc.startswith(needle):
+                score = 2
+            elif needle in name:
+                score = 3
+            else:
+                continue
+            hits.append((score + college_boost, l.get("tier", 3), t["name"] or "", {**t, "sport": l["sport"], "leagueKey": l["league"],
+                                                                     "league": _search_label(l), "label": l.get("label") or l["sport"]}))
+    hits.sort(key=lambda h: (h[0], h[1], h[2].lower()))
+    return {"query": q, "results": [h[3] for h in hits[:max(1, min(limit, 120))]]}
 
 
 @router.get("/standings")
