@@ -97,10 +97,6 @@ class PlayerActivity : AppCompatActivity() {
         /** Buffer thresholds — verbatim copy of Vesper's
          *  ExoPlayerActivity (which has been playing these exact
          *  Xtream `.ts` feeds reliably for months). */
-        private const val MIN_BUFFER_MS              = 50_000
-        private const val MAX_BUFFER_MS              = 120_000
-        private const val BUFFER_FOR_PLAYBACK_MS     = LivePreviewSession.BUFFER_FOR_PLAYBACK_MS
-        private const val BUFFER_FOR_REBUFFER_MS     = LivePreviewSession.BUFFER_FOR_REBUFFER_MS
 
         /** User-Agent — exact string Vesper uses.  The provider is
          *  known to accept it. */
@@ -423,16 +419,7 @@ class PlayerActivity : AppCompatActivity() {
     /* ─────────────────── ExoPlayer ─────────────────── */
 
     private fun buildPlayer() {
-        val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(
-                MIN_BUFFER_MS,
-                MAX_BUFFER_MS,
-                BUFFER_FOR_PLAYBACK_MS,
-                BUFFER_FOR_REBUFFER_MS,
-            )
-            .setPrioritizeTimeOverSizeThresholds(true)
-            .setTargetBufferBytes(C.LENGTH_UNSET)
-            .build()
+        val loadControl = TiviMateProfile.loadControl()
 
         // OkHttp data source — EXACT copy of Vesper's working
         // config.  Keep-alive ON (5-minute pool TTL) — Vesper has
@@ -466,7 +453,7 @@ class PlayerActivity : AppCompatActivity() {
 
         val bandwidth = DefaultBandwidthMeter.Builder(this).build()
 
-        val p = ExoPlayer.Builder(this)
+        val p = ExoPlayer.Builder(this, TiviMateProfile.renderersFactory(this))
             .setLoadControl(loadControl)
             .setMediaSourceFactory(mediaSourceFactory)
             .setBandwidthMeter(bandwidth)
@@ -476,6 +463,7 @@ class PlayerActivity : AppCompatActivity() {
                     .setPreferredAudioLanguages("eng", "en", "english")
                     .setPreferredTextLanguages("eng", "en", "english")
                     .build()
+                TiviMateProfile.apply(this)
             }
 
         playerView.player = p
@@ -1127,14 +1115,6 @@ class PlayerActivity : AppCompatActivity() {
             KeyEvent.KEYCODE_CHANNEL_UP,
             KeyEvent.KEYCODE_PAGE_UP -> {
                 if (playerOverlay.visibility == View.VISIBLE) {
-                    // v2.16.38 — first UP hops focus to the settings
-                    // cog (top-left); a second UP dismisses the
-                    // overlay.  Keeps the cog D-pad reachable.
-                    if (keyCode == KeyEvent.KEYCODE_DPAD_UP && !settingsCog.hasFocus()) {
-                        settingsCog.requestFocus()
-                        bumpControlsHide()
-                        return true
-                    }
                     hideControlsBar(); return true
                 }
                 PlaybackQueue.prev()?.let { tuneTo(it) }
@@ -1150,13 +1130,6 @@ class PlayerActivity : AppCompatActivity() {
                 // are hidden).
                 if (playerOverlay.visibility != View.VISIBLE) {
                     showControlsBar()
-                    return true
-                }
-                // v2.16.38 — DOWN from the cog returns focus to the
-                // control row.
-                if (settingsCog.hasFocus()) {
-                    btnPlayPause.requestFocus()
-                    bumpControlsHide()
                     return true
                 }
                 return super.onKeyDown(keyCode, event)
@@ -1243,7 +1216,7 @@ class PlayerActivity : AppCompatActivity() {
         listOf(
             btnRewind, btnPlayPause, btnForward,
             btnChUp, btnChDown, btnSwap,
-            btnSubtitles, btnFavorite, settingsCog,
+            btnSubtitles, btnFavorite, settingsCog, btnAspect,
         ).forEach { b ->
             b.setOnFocusChangeListener { _, hasFocus -> if (hasFocus) bumpControlsHide() }
         }
@@ -1283,12 +1256,6 @@ class PlayerActivity : AppCompatActivity() {
             clockBlock.visibility = View.VISIBLE
             clockBlock.animate().alpha(1f).setDuration(180L).start()
         }
-        // v2.16.38 — settings cog rides along with the overlay.
-        if (settingsCog.visibility != View.VISIBLE) {
-            settingsCog.alpha = 0f
-            settingsCog.visibility = View.VISIBLE
-            settingsCog.animate().alpha(1f).setDuration(180L).start()
-        }
         controlsBar.alpha = 1f
         controlsBar.visibility = View.VISIBLE
         // Always sync the Play/Pause label to the current state.
@@ -1307,9 +1274,6 @@ class PlayerActivity : AppCompatActivity() {
         }.start()
         clockBlock.animate().alpha(0f).setDuration(180L).withEndAction {
             clockBlock.visibility = View.GONE
-        }.start()
-        settingsCog.animate().alpha(0f).setDuration(180L).withEndAction {
-            settingsCog.visibility = View.GONE
         }.start()
     }
 

@@ -44,10 +44,8 @@ object LivePreviewSession {
 
     /** Buffer thresholds (shared with [PlayerActivity]). Start after 1.5 s of video instead of
      *  6 s — that wait was most of every zap; the deep 50–120 s buffer still builds behind it. */
-    private const val MIN_BUFFER_MS              = 50_000
-    private const val MAX_BUFFER_MS              = 120_000
-    const val BUFFER_FOR_PLAYBACK_MS             = 1_500
-    const val BUFFER_FOR_REBUFFER_MS             = 4_000
+    const val BUFFER_FOR_PLAYBACK_MS             = TiviMateProfile.BUFFER_FOR_PLAYBACK_MS
+    const val BUFFER_FOR_REBUFFER_MS             = TiviMateProfile.BUFFER_FOR_REBUFFER_MS
 
     @Volatile private var player: ExoPlayer? = null
     private var httpClient: OkHttpClient? = null
@@ -65,16 +63,7 @@ object LivePreviewSession {
             player?.let { return it }
             val appCtx = ctx.applicationContext
 
-            val loadControl = DefaultLoadControl.Builder()
-                .setBufferDurationsMs(
-                    MIN_BUFFER_MS,
-                    MAX_BUFFER_MS,
-                    BUFFER_FOR_PLAYBACK_MS,
-                    BUFFER_FOR_REBUFFER_MS,
-                )
-                .setPrioritizeTimeOverSizeThresholds(true)
-                .setTargetBufferBytes(C.LENGTH_UNSET)
-                .build()
+            val loadControl = TiviMateProfile.loadControl()
 
             val ok = OkHttpClient.Builder()
                 .connectTimeout(20, TimeUnit.SECONDS)
@@ -99,7 +88,7 @@ object LivePreviewSession {
             val mediaSourceFactory = DefaultMediaSourceFactory(appCtx)
                 .setDataSourceFactory(httpFactory)
 
-            val p = ExoPlayer.Builder(appCtx)
+            val p = ExoPlayer.Builder(appCtx, TiviMateProfile.renderersFactory(appCtx))
                 .setLoadControl(loadControl)
                 .setMediaSourceFactory(mediaSourceFactory)
                 .build()
@@ -108,6 +97,7 @@ object LivePreviewSession {
                         .setPreferredAudioLanguages("eng", "en", "english")
                         .setPreferredTextLanguages("eng", "en", "english")
                         .build()
+                    TiviMateProfile.apply(this)
                     playWhenReady = true
                 }
             player = p
