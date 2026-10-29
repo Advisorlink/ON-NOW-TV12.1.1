@@ -15,8 +15,6 @@ import androidx.work.WorkRequest
 import androidx.work.WorkerParameters
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
 
 /**
  * v2.10.14 — Background EPG refresh worker.
@@ -71,51 +69,12 @@ class EpgRefreshWorker(
         val wantedIds = bundle.channels
             .mapNotNull { it.epgChannelId?.takeIf { id -> id.isNotBlank() } }
             .toHashSet()
-        val wantedNames = bundle.channels
-            .map { XmlTvFetcher.normaliseChannelName(it.name) }
-            .filter { it.isNotBlank() }
-            .toHashSet()
-
         return try {
-            // 1) Server guide FIRST — small, pre-built, 3 days deep. This alone keeps every box's
-            //    guide alive; the old order only tried it after the 145 MB XMLTV failed, and
-            //    a worker killed mid-XMLTV (10-min cap on slow boxes) never reached it at all.
-            val serverMerged = GuideKeeper.mergeFromServer(ctx, session, wantedIds)
-            val serverOk = serverMerged >= GuideKeeper.MIN_CHANNELS || serverMerged == -1
-            if (serverOk && EpgCache.xmltvAgeMs(ctx) < XMLTV_EVERY_MS) {
-                Log.i(TAG, "server guide refreshed ($serverMerged channels) — XMLTV fresh enough, skipping")
-                return Result.success()
-            }
-
-            // 2) Direct XMLTV (extra channels the server doesn't carry) — at most once a day and
-            //    never fatal when the server guide already landed.
-            val writer = EpgCache.openStreamingWriter(ctx, session)
-            val parsed = try {
-                XmlTvFetcher.fetchEpgForChannels(
-                    ctx,
-                    wantedIds,
-                    wantedNames,
-                    writer = writer,
-                ) { _, _ -> /* no UI to drive — silent worker */ }
-            } catch (t: Throwable) {
-                writer.abort()
-                if (t is CancellationException) throw t
-                Log.w(TAG, "XMLTV direct fetch failed: ${t.message}")
-                null
-            }
-            if (parsed == null || parsed.totalProgrammes == 0) {
-                if (parsed != null) writer.abort()
-                return if (serverOk || !GuideKeeper.needsRefresh(ctx)) Result.success() else Result.retry()
-            }
-            currentCoroutineContext().ensureActive()
-            val r = writer.finish(parsed.displayNameToEpgId)
-            Log.i(
-                TAG,
-                "EPG refresh ok: ${r.channelsFlushed} channels persisted to cache " +
-                    "(${parsed.displayNameToEpgId.size} xmltv display names seen, " +
-                    "${parsed.totalProgrammes} programmes total)",
-            )
-            Result.success()
+            // Server guide only: small (~12 MB), pre-built, 3 days deep. The provider's 145 MB
+            // XMLTV is no longer downloaded in the background — it bogged down budget boxes.
+            val merged = GuideKeeper.mergeFromServer(ctx, session, wantedIds)
+            Log.i(TAG, "server guide top-up: $merged channels")
+            if (merged >= GuideKeeper.MIN_CHANNELS || merged == -1 || !GuideKeeper.needsRefresh(ctx)) Result.success() else Result.retry()
         } catch (t: Throwable) {
             if (t is CancellationException) throw t
             Log.w(TAG, "refresh failed: ${t.message}")
@@ -126,8 +85,6 @@ class EpgRefreshWorker(
     companion object {
         private const val TAG = "EpgRefreshWorker"
 
-        /** Direct XMLTV (145 MB) only once a day once the server guide is flowing. */
-        private const val XMLTV_EVERY_MS = 24L * 60L * 60L * 1000L
         const val UNIQUE_NAME = "onnowtv.livetv.epg-refresh"
         const val UNIQUE_NAME_ONESHOT = "onnowtv.livetv.epg-refresh-now"
         const val TAG_WORK = "onnowtv-epg-refresh"
