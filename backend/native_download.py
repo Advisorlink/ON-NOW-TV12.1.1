@@ -68,8 +68,8 @@ async def private_download_page():
     return HTMLResponse(page, headers=headers)
 
 # 2026-10-20 — private test build of the V2 Vesper TV app (buffering fix); same capability + ticket flow.
-TV_APK = Path(__file__).parent.parent / "android/vesper-tv/test-artifacts/vesper-tv-2.10.88-one-loader.apk"
-TV_NAME = "vesper-tv-v2.10.88-one-loader.apk"
+TV_APK = Path(__file__).parent.parent / "android/vesper-tv/test-artifacts/vesper-tv-2.10.89-boost-box.apk"
+TV_NAME = "vesper-tv-v2.10.89-boost-box.apk"
 
 
 @router.post("/vesper-tv-ticket")

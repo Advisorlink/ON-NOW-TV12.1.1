@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, Check, ShieldCheck,
     Cloud, Download, Upload, Copy, Loader2, KeyRound, AlertTriangle,
-    Sparkles, Lightbulb, LogOut, Heart, Palette, Play, LayoutGrid, HelpCircle, Database, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Plus, Trash2, X, Search, Gift } from 'lucide-react';
+    Sparkles, Lightbulb, LogOut, Heart, Palette, Play, LayoutGrid, HelpCircle, Database, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Plus, Trash2, X, Search, Gift, Zap } from 'lucide-react';
 import WhatsNewTour from '@/components/WhatsNewTour';
 import { APP_VERSION, WHATS_NEW } from '@/lib/appVersion';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
@@ -529,6 +529,7 @@ export default function Settings() {
                 title="Sign out"
                 icon={LogOut}
             />
+            <BoostBoxRow />
             <SignOutRow />
             </div>
             </div>
@@ -986,6 +987,72 @@ function AddCategoryPanel({ existing, onAdd }) {
             {error && (
                 <p data-testid="add-category-error" style={{ marginTop: 10, fontSize: 12, color: '#fca5a5' }}>{error}</p>
             )}
+        </div>
+    );
+}
+
+function readMemory() {
+    try {
+        const raw = window.OnNowTV?.memoryStatus?.();
+        return raw ? JSON.parse(raw) : null;
+    } catch (_) {
+        return null;
+    }
+}
+
+/* Native TV box only: opens the app's "Boost box" pop-up (closes background apps, clears picture memory). */
+function BoostBoxRow() {
+    const [mem, setMem] = React.useState(readMemory);
+    React.useEffect(() => {
+        if (!window.OnNowTV?.boostBox) return undefined;
+        const t = setInterval(() => setMem(readMemory()), 5000);
+        return () => clearInterval(t);
+    }, []);
+    if (typeof window === 'undefined' || !window.OnNowTV?.boostBox) return null;
+    const low = !!mem?.low;
+    return (
+        <div
+            data-testid="boost-box-row"
+            className="vesper-glass rounded-2xl flex items-center gap-4"
+            style={{ padding: '18px 22px', marginBottom: 18 }}
+        >
+            <div
+                className="flex items-center justify-center shrink-0"
+                style={{
+                    width: 44, height: 44, borderRadius: '50%',
+                    background: 'linear-gradient(135deg, rgba(245,196,81,0.30) 0%, rgba(245,196,81,0.06) 100%)',
+                    border: '1px solid rgba(245,196,81,0.5)',
+                }}
+            >
+                <Zap size={20} style={{ color: '#f5c451' }} />
+            </div>
+            <div className="flex-1 min-w-0">
+                <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--vesper-text)' }}>Boost box</div>
+                <div data-testid="boost-box-memory" style={{ fontSize: 13, color: low ? '#ff8e8e' : 'var(--vesper-text-2)', marginTop: 2 }}>
+                    {mem ? `${mem.availMb} MB free of ${mem.totalMb} MB${low ? ' — running low' : ''}. ` : ''}
+                    Closes apps left running in the background and clears temporary picture memory so menus stay quick.
+                </div>
+            </div>
+            <button
+                data-testid="settings-boost-box"
+                data-focusable="true"
+                data-focus-style="pill"
+                tabIndex={0}
+                onClick={() => window.OnNowTV.boostBox()}
+                className="flex items-center gap-2 rounded-full font-sans shrink-0"
+                style={{
+                    padding: '10px 22px',
+                    background: 'linear-gradient(135deg, #f5c451 0%, #d9a433 100%)',
+                    color: '#1a1405',
+                    border: 'none',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                }}
+            >
+                <Zap size={15} />
+                Boost box
+            </button>
         </div>
     );
 }

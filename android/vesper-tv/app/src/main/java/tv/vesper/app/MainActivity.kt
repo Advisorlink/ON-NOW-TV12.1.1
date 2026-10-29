@@ -599,6 +599,11 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             addJavascriptInterface(WebAppInterface(this@MainActivity), "OnNowTV")
+            val boostTarget = java.lang.ref.WeakReference(this)
+            BoxBoost.trimOwnCaches = {
+                boostTarget.get()?.clearCache(false)
+                runCatching { coil.Coil.imageLoader(this@MainActivity).memoryCache?.clear() }
+            }
 
             isFocusable = true
             isFocusableInTouchMode = true

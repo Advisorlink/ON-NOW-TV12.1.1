@@ -2221,6 +2221,9 @@ class EpgActivity : AppCompatActivity() {
         val sheet = tv.onnowtv.livetv.ui.ActionSheetDialog(ctx)
             .title("Live TV Settings")
             .subtitle("PARENTAL LOCK · ${locked.size} LOCKED")
+        sheet.item(label = "Boost box — free up memory", icon = "⚡", trailing = "${BoxBoost.memory(ctx).availMb} MB FREE") {
+            BoxBoost.show(this, auto = false)
+        }
         sheet.item(
             label = if (lock.hasPin(ctx)) "Change parental PIN" else "Set parental PIN",
             icon = "✱",

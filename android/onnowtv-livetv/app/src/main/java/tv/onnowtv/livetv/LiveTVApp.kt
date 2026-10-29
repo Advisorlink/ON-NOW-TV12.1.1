@@ -27,6 +27,9 @@ class LiveTVApp : Application() {
         val manager = getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager
         val processName = manager.runningAppProcesses?.firstOrNull { it.pid == Process.myPid() }?.processName
         if (processName?.endsWith(":crash") == true) return
+        BoxBoost.trimOwnCaches = { coil.Coil.imageLoader(this).memoryCache?.clear() }
+        BoxBoost.isPlayback = { a -> a is PlayerActivity || a is StatsPlayerActivity || a is GameActivity || a is SportsReplayActivity || a is SportsOfficialReplayActivity }
+        BoxBoost.install(this)
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             try {

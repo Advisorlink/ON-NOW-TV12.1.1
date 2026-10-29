@@ -48,6 +48,8 @@ class OnNowApplication : Application() {
             // the legitimate app.  Soft failures are tolerated;
             // hard failures already exited via exitProcess().
         }
+        BoxBoost.isPlayback = { a -> a is ExoPlayerActivity || a is VlcPlayerActivity }
+        BoxBoost.install(this)
     }
 
     override fun attachBaseContext(base: Context?) {

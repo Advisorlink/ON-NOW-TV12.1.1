@@ -90,6 +90,19 @@ class WebAppInterface(private val activity: Activity) {
     @JavascriptInterface
     fun getHostPackage(): String = activity.packageName
 
+    /** Settings → "Boost box": opens the native memory pop-up. */
+    @JavascriptInterface
+    fun boostBox() {
+        activity.runOnUiThread { BoxBoost.show(activity, auto = false) }
+    }
+
+    /** {"availMb":..,"totalMb":..,"low":..} for the Settings row. */
+    @JavascriptInterface
+    fun memoryStatus(): String {
+        val m = BoxBoost.memory(activity)
+        return org.json.JSONObject().put("availMb", m.availMb).put("totalMb", m.totalMb).put("low", m.low).toString()
+    }
+
     /**
      * v2.16.31 — React AuthContext calls this once at login and after
      * every profile switch so the native player (which has no access
