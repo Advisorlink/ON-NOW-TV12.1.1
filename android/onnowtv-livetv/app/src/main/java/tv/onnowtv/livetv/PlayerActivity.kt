@@ -23,6 +23,7 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
+import androidx.core.view.doOnLayout
 import androidx.media3.ui.PlayerView
 import androidx.appcompat.app.AlertDialog
 import org.videolan.libvlc.util.VLCVideoLayout
@@ -98,8 +99,8 @@ class PlayerActivity : AppCompatActivity() {
          *  Xtream `.ts` feeds reliably for months). */
         private const val MIN_BUFFER_MS              = 50_000
         private const val MAX_BUFFER_MS              = 120_000
-        private const val BUFFER_FOR_PLAYBACK_MS     = 6_000
-        private const val BUFFER_FOR_REBUFFER_MS     = 10_000
+        private const val BUFFER_FOR_PLAYBACK_MS     = LivePreviewSession.BUFFER_FOR_PLAYBACK_MS
+        private const val BUFFER_FOR_REBUFFER_MS     = LivePreviewSession.BUFFER_FOR_REBUFFER_MS
 
         /** User-Agent — exact string Vesper uses.  The provider is
          *  known to accept it. */
@@ -391,7 +392,9 @@ class PlayerActivity : AppCompatActivity() {
     private fun attachSharedPlayer(channel: Channel) {
         val p = LivePreviewSession.getOrCreate(this)
         player = p
-        playerView.player = p
+        // Full rebind + picture guard (a plain `playerView.player = p` could keep a stale surface).
+        if (playerView.isLaidOut && playerView.width > 0) LivePreviewSession.attachTo(playerView)
+        else { playerView.player = p; playerView.doOnLayout { LivePreviewSession.attachTo(playerView) } }
         // Per user request: full-screen playback must stay full
         // colour — no controller overlay, no dimming.
         playerView.useController = false

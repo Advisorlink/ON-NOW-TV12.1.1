@@ -42,11 +42,12 @@ object LivePreviewSession {
     /** Browser-style UA the upstream Xtream provider accepts. */
     private const val UA = "Vesper-ExoPlayer/2.7.43"
 
-    /** Buffer thresholds — verbatim from [PlayerActivity]. */
+    /** Buffer thresholds (shared with [PlayerActivity]). Start after 1.5 s of video instead of
+     *  6 s — that wait was most of every zap; the deep 50–120 s buffer still builds behind it. */
     private const val MIN_BUFFER_MS              = 50_000
     private const val MAX_BUFFER_MS              = 120_000
-    private const val BUFFER_FOR_PLAYBACK_MS     = 6_000
-    private const val BUFFER_FOR_REBUFFER_MS     = 10_000
+    const val BUFFER_FOR_PLAYBACK_MS             = 1_500
+    const val BUFFER_FOR_REBUFFER_MS             = 4_000
 
     @Volatile private var player: ExoPlayer? = null
     private var httpClient: OkHttpClient? = null
@@ -145,6 +146,8 @@ object LivePreviewSession {
         p.setMediaItem(MediaItem.fromUri(playUrl))
         p.prepare()
         p.playWhenReady = true
+        // New channel = new first frame to wait for on whichever screen is showing it.
+        watched?.get()?.let { if (it.player === p) watchFrames(it) }
     }
 
     /** Manually override the cached "current channel" — used by
@@ -189,31 +192,74 @@ object LivePreviewSession {
      *  `setVideoTextureView(tv)` directly here forces ExoPlayer to
      *  re-read the current SurfaceTexture. */
     fun attachTo(view: PlayerView) {
+        rebind(view, force = false)
+        watchFrames(view)
+    }
+
+    // ── "Is the picture really on screen?" guard ────────────────────────────────────────
+    // A surface handed over mid-layout (preview just un-hidden, activity swap) can leave the
+    // player decoding into nothing: sound, no picture. After every attach / zap we wait for
+    // onRenderedFirstFrame; if the stream is READY with video but no frame lands, rebind.
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+    private var watched: java.lang.ref.WeakReference<PlayerView>? = null
+    private var framesFlowing = false
+    private var watchTries = 0
+    private var forcedRebinds = 0
+    private var frameListenerOn: ExoPlayer? = null
+    private val frameCheck: Runnable = object : Runnable {
+        override fun run() {
+            val p = player ?: return
+            val v = watched?.get() ?: return
+            if (framesFlowing || !v.isAttachedToWindow || v.player !== p) return
+            if (++watchTries > 30) return
+            if (p.playbackState == Player.STATE_READY && p.playWhenReady && p.videoFormat != null) {
+                if (++forcedRebinds > 3) return
+                android.util.Log.w("LivePreviewSession", "no picture on screen — rebinding surface (try $forcedRebinds)")
+                rebind(v, force = true)
+                main.postDelayed(this, 1_200L)
+            } else {
+                main.postDelayed(this, 600L)
+            }
+        }
+    }
+
+    private val frameListener = object : Player.Listener {
+        override fun onRenderedFirstFrame() {
+            framesFlowing = true
+            main.removeCallbacks(frameCheck)
+        }
+    }
+    private fun watchFrames(view: PlayerView) {
+        val p = player ?: return
+        if (frameListenerOn !== p) { p.addListener(frameListener); frameListenerOn = p }
+        watched = java.lang.ref.WeakReference(view)
+        framesFlowing = false
+        watchTries = 0
+        forcedRebinds = 0
+        main.removeCallbacks(frameCheck)
+        main.postDelayed(frameCheck, 900L)
+    }
+
+    /** Point the player at [view]'s surface. Normal hand-overs (preview ⇄ full screen) switch
+     *  surface in ONE step — never via "no surface", which makes some TV-box decoders reset
+     *  (the re-buffer on expand). [force] (picture guard only) unbinds first to beat
+     *  PlayerView's same-player short-circuit. */
+    private fun rebind(view: PlayerView, force: Boolean, waits: Int = 0) {
         val p = getOrCreate(view.context)
-        // 1. Tell the player it has NO video output anymore.  This is
-        //    safe even if the player was previously bound to another
-        //    PlayerView (e.g. PlayerActivity's playerView that just
-        //    got destroyed).
-        p.clearVideoSurface()
-        // 2. Tell THIS PlayerView to forget any cached player so the
-        //    next assignment runs the full bind path.
-        view.player = null
-        // 3. Re-assign.  PlayerView.setPlayer(p) now sees this.player
-        //    == null and runs the full bind: it registers the
-        //    SurfaceTextureListener AND calls p.setVideoTextureView()
-        //    against the live SurfaceTexture.
-        view.player = p
-        // 4. v2.16.16 — Force a direct rebind of the underlying
-        //    video surface, in case PlayerView's setPlayer path
-        //    lost the SurfaceTexture race.  If the surface was
-        //    already bound correctly this is an internal no-op
-        //    inside ExoPlayerImpl (`if (this.textureView ==
-        //    textureView) return;`), so it's safe to spam.
+        // Shrinking back: the guide's TextureView recreates its SurfaceTexture a beat after
+        // resume. Keep the full-screen surface until it exists instead of going surface-less.
+        val tv = view.videoSurfaceView as? android.view.TextureView
+        if (!force && tv != null && !tv.isAvailable && waits < 20) {
+            main.postDelayed({ rebind(view, false, waits + 1) }, 50L)
+            return
+        }
+        if (force) { p.clearVideoSurface(); view.player = null }
         when (val surface = view.videoSurfaceView) {
             is android.view.TextureView -> p.setVideoTextureView(surface)
             is android.view.SurfaceView -> p.setVideoSurfaceView(surface)
-            else -> { /* no surface exposed — nothing else to do */ }
+            else -> {}
         }
+        if (view.player !== p) view.player = p
     }
 
     /** Detach [view] from the shared player WITHOUT releasing the
@@ -232,6 +278,9 @@ object LivePreviewSession {
             try { player?.playWhenReady = false; player?.stop(); player?.clearMediaItems() } catch (_: Throwable) {}
             try { player?.release() } catch (_: Throwable) {}
             try { httpClient?.dispatcher?.cancelAll(); httpClient?.connectionPool?.evictAll() } catch (_: Throwable) {}
+            main.removeCallbacks(frameCheck)
+            watched = null
+            frameListenerOn = null
             player = null
             httpClient = null
             currentChannel = null

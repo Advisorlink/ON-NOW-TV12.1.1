@@ -1835,6 +1835,11 @@ class EpgActivity : AppCompatActivity() {
         previewBufferLoader.visibility = View.VISIBLE
         LivePreviewSession.setChannel(this, ch)
         LivePreviewSession.attachTo(previewPlayerView)
+        // The preview may have been GONE until a moment ago — its TextureView gets a live
+        // SurfaceTexture only after the next layout pass, so bind again once it exists.
+        if (!previewPlayerView.isLaidOut || previewPlayerView.width == 0) {
+            previewPlayerView.doOnLayout { LivePreviewSession.attachTo(previewPlayerView) }
+        }
         attachPreviewBufferListenerOnce()
         focusedChannel = ch
         updateHero(ch)
@@ -1878,9 +1883,8 @@ class EpgActivity : AppCompatActivity() {
         if (LivePreviewSession.currentChannel?.id != ch.id) {
             LivePreviewSession.setChannel(this, ch)
         }
-        // Detach from the preview surface so the full-screen
-        // PlayerView can pick it up cleanly.
-        LivePreviewSession.detachWithoutRelease(previewPlayerView)
+        // Don't detach the preview here: PlayerActivity switches the surface over in one step
+        // (detaching first left the decoder with no surface → re-buffer on expand).
 
         // Hand the player the same channel list that's currently
         // showing in the middle column so D-pad UP/DOWN inside the
@@ -2401,9 +2405,8 @@ class EpgActivity : AppCompatActivity() {
         // preview shows nothing.  Setting it to null guarantees the
         // next attachTo() is a fresh assignment that triggers the
         // surface re-binding path inside PlayerView.
-        if (LivePreviewSession.isAlive()) {
-            LivePreviewSession.detachWithoutRelease(previewPlayerView)
-        }
+        // (Surface release moved to onStop: by then the next screen has already switched the
+        //  player onto its own surface, so there is never a moment with no surface.)
     }
 
     /** An in-memory list whose every programme has ended is as good as no guide. */
@@ -2613,6 +2616,13 @@ class EpgActivity : AppCompatActivity() {
                     ?.itemView?.requestFocus()
             }
         }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // The next screen has already moved the shared player onto its own surface, so this
+        // only drops our stale binding (a no-op for the player's current output).
+        if (LivePreviewSession.isAlive()) LivePreviewSession.detachWithoutRelease(previewPlayerView)
     }
 
     override fun onDestroy() {
