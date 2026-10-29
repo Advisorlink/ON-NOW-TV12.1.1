@@ -248,8 +248,8 @@ class MainActivity : AppCompatActivity() {
                                 // staging writer keeps the current
                                 // cache intact until the new one is
                                 // fully committed.
-                                if (EpgCache.ageMs(this) > 24 * 60 * 60 * 1000L) {
-                                    Log.i("MainActivity", "EPG cache >24h old — enqueueing immediate refresh")
+                                if (tv.onnowtv.livetv.data.GuideKeeper.needsRefresh(this)) {
+                                    Log.i("MainActivity", "EPG running short / stale — enqueueing immediate refresh")
                                     tv.onnowtv.livetv.data.EpgRefreshWorker
                                         .refreshNow(applicationContext)
                                 }
@@ -876,20 +876,9 @@ class MainActivity : AppCompatActivity() {
                 try {
                     headline.text = "Loading guide from server…"
                     substatus.text = "Provider guide unavailable — using cached server guide"
-                    val epgOnly = tv.onnowtv.livetv.data.XtreamRepository.fetchEpgOnlyMap(
-                        windowHours = 8,
-                        keepIds = wantedChannelIds,
-                    )
-                    var merged = 0
-                    for ((sid, progs) in epgOnly) {
-                        currentCoroutineContext().ensureActive()
-                        if (progs.isEmpty()) continue
-                        tv.onnowtv.livetv.data.AuthStore.withSession(applicationContext, session) {
-                            EpgCache.mergeChannel(applicationContext, sid, progs)
-                        } ?: throw CancellationException("Session changed")
-                        merged++
-                    }
-                    if (merged > 0) EpgCache.touchTimestamp(applicationContext)
+                    // Full 3-day server guide (was an 8 h window that ran dry overnight).
+                    val merged = tv.onnowtv.livetv.data.GuideKeeper
+                        .mergeFromServer(applicationContext, session, wantedChannelIds)
                     Log.i("MainActivity", "backend EPG fallback: $merged channels merged")
                 } catch (t: Throwable) {
                     if (t is CancellationException) throw t
@@ -904,8 +893,8 @@ class MainActivity : AppCompatActivity() {
         try {
             tv.onnowtv.livetv.data.EpgRefreshWorker.schedulePeriodic(applicationContext)
             // v2.16.39 — same staleness safety net as the fast path.
-            if (haveCachedEpg && EpgCache.ageMs(applicationContext) > 24 * 60 * 60 * 1000L) {
-                Log.i("MainActivity", "EPG cache >24h old — enqueueing immediate refresh")
+            if (haveCachedEpg && tv.onnowtv.livetv.data.GuideKeeper.needsRefresh(applicationContext)) {
+                Log.i("MainActivity", "EPG running short / stale — enqueueing immediate refresh")
                 tv.onnowtv.livetv.data.EpgRefreshWorker.refreshNow(applicationContext)
             }
         } catch (t: Throwable) {

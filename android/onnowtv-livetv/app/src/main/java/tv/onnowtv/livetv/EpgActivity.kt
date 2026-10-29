@@ -18,6 +18,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.doOnLayout
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.media3.ui.PlayerView
@@ -1092,7 +1093,7 @@ class EpgActivity : AppCompatActivity() {
 
         val toLoad: List<String> = bundle.channels
             .mapNotNull { it.epgChannelId?.takeIf { s -> s.isNotBlank() } }
-            .filter { epgCache[it].isNullOrEmpty() }
+            .filter { !hasUpcoming(epgCache[it]) }
             .distinct()
 
         if (toLoad.isEmpty()) {
@@ -1642,7 +1643,7 @@ class EpgActivity : AppCompatActivity() {
     private fun lazyFetchForChannel(ch: Channel) {
         val sid = ch.epgChannelId ?: return
         if (sid.isBlank()) return
-        if (epgCache[sid]?.isNotEmpty() == true) return
+        if (hasUpcoming(epgCache[sid])) return
         if (epgKnownEmpty.contains(sid)) return  // already tried, nothing there
         if (!pendingEpgFetch.add(sid)) return
         lifecycleScope.launch(Dispatchers.IO) {
@@ -1696,12 +1697,15 @@ class EpgActivity : AppCompatActivity() {
     private fun loadGuideForChannel(ch: Channel) {
         val sid = ch.epgChannelId ?: return
         val cached = epgCache[sid]
-        if (!cached.isNullOrEmpty()) {
-            guideAdapter.submit(cached)
+        if (hasUpcoming(cached)) {
+            guideAdapter.submit(cached!!)
         } else {
             guideAdapter.submit(emptyList())
             lifecycleScope.launch(Dispatchers.IO) {
-                val fetched = XtreamRepository.fetchEpgForChannel(sid, ctx = applicationContext)
+                // Disk first: the background refresh may already hold a newer guide than memory.
+                val fetched = tv.onnowtv.livetv.data.EpgCache.loadChannel(applicationContext, sid)
+                    ?.takeIf { hasUpcoming(it) }
+                    ?: XtreamRepository.fetchEpgForChannel(sid, ctx = applicationContext)
                 if (fetched.isNotEmpty()) {
                     epgCache[sid] = fetched
                     // v2.9.12 — Persist (see lazyFetchForChannel).
@@ -2399,8 +2403,67 @@ class EpgActivity : AppCompatActivity() {
         }
     }
 
+    /** An in-memory list whose every programme has ended is as good as no guide. */
+    private fun hasUpcoming(list: List<Programme>?): Boolean {
+        if (list.isNullOrEmpty()) return false
+        val now = System.currentTimeMillis()
+        return list.any { it.stopMs > now }
+    }
+
+    private var guideGuardStarted = false
+
+    /** While this screen is open (a TV box can sit here for days): every 30 min, top the
+     *  disk guide up from the server when it runs short, then swap in fresher disk lists
+     *  for anything memory is about to run out of. No WorkManager dependency. */
+    private fun startGuideGuard() {
+        if (guideGuardStarted) return
+        guideGuardStarted = true
+        lifecycleScope.launch {
+            repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+                while (true) {
+                    runCatching { keepGuideFresh() }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+                    kotlinx.coroutines.delay(30 * 60 * 1000L)
+                }
+            }
+        }
+    }
+
+    private suspend fun keepGuideFresh() = withContext(Dispatchers.IO) {
+        val ctx = applicationContext
+        val ids = bundle.channels.mapNotNull { it.epgChannelId?.takeIf { s -> s.isNotBlank() } }.toHashSet()
+        if (ids.isEmpty()) return@withContext
+        if (tv.onnowtv.livetv.data.AuthStore.isSignedIn(ctx) && tv.onnowtv.livetv.data.GuideKeeper.needsRefresh(ctx)) {
+            val n = tv.onnowtv.livetv.data.GuideKeeper.mergeFromServer(ctx, tv.onnowtv.livetv.data.AuthStore.sessionId(ctx), ids)
+            Log.i("EpgActivity", "guide guard: server merge $n channels")
+        }
+        val soon = System.currentTimeMillis() + 12 * 60 * 60 * 1000L
+        val short = ids.filter { sid -> (epgCache[sid]?.maxOfOrNull { it.stopMs } ?: 0L) < soon }
+        if (short.isEmpty()) return@withContext
+        val now = System.currentTimeMillis()
+        var changed = 0
+        for ((sid, list) in tv.onnowtv.livetv.data.EpgCache.loadAllChannels(ctx, short)) {
+            val diskEnd = list.maxOfOrNull { it.stopMs } ?: 0L
+            if (diskEnd > now && diskEnd > (epgCache[sid]?.maxOfOrNull { it.stopMs } ?: 0L)) { epgCache[sid] = list; changed++ }
+        }
+        epgKnownEmpty.clear()
+        Log.i("EpgActivity", "guide guard: ${short.size} channels running short, $changed refreshed from disk")
+        if (changed == 0) return@withContext
+        val (rows, byBucket) = computeWhatsOnRows()
+        withContext(Dispatchers.Main) {
+            whatsOnRows = rows
+            whatsOnChannelsByBucket = byBucket
+            if (currentCategoryId == "__whatson__") {
+                whatsOnAdapter.submit(whatsOnRows, whatsOnActiveSport)
+                paintWhatsOnChannelsIncremental()
+            }
+            channelAdapter.notifyDataSetChanged()
+            focusedChannel?.let { loadGuideForChannel(it); updateHero(it) }
+        }
+    }
+
     override fun onResume() {
         super.onResume()
+        startGuideGuard()
         // Returning from full-screen / Library / background — re-bind
         // the shared player to our preview surface so playback
         // continues seamlessly in the hero card (no buffer hit, no

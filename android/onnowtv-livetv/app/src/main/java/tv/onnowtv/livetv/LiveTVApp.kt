@@ -106,7 +106,7 @@ class LiveTVApp : Application() {
                 val ageMs = tv.onnowtv.livetv.data.EpgCache.ageMs(applicationContext)
                 // Kick a one-shot when the cache is empty (ageMs
                 // returns Long.MAX_VALUE) OR older than 6 h.
-                if (ageMs > 6L * 60L * 60L * 1000L) {
+                if (tv.onnowtv.livetv.data.GuideKeeper.needsRefresh(applicationContext)) {
                     Log.i(
                         "LiveTVApp",
                         "EPG age=${ageMs / 3_600_000}h — silent refreshNow on app start",

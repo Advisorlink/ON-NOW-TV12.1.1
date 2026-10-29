@@ -51,6 +51,9 @@ object EpgCache {
     private const val TS_FILE = ".timestamp"
     private const val DIR_DONE_FILE = ".done"
     private const val NAMEMAP_FILE = ".namemap.json"
+    /** Median "guide runs out at" (epoch ms) across channels — what staleness checks key off. */
+    private const val HORIZON_FILE = ".horizon"
+    private const val XMLTV_FILE = ".xmltv"
 
     /**
      * Schema-version stamp.  Bump whenever the per-channel file
@@ -148,6 +151,18 @@ object EpgCache {
         if (!f.exists()) return null
         return f.readText().trim().toIntOrNull()
     }
+
+    /** When the typical channel's guide runs out; 0 when unknown (legacy cache → treated as stale). */
+    fun horizonMs(ctx: Context): Long =
+        runCatching { File(cacheDir(ctx), HORIZON_FILE).readText().trim().toLong() }.getOrDefault(0L)
+
+    fun setHorizon(ctx: Context, stopMs: Long) {
+        runCatching { cacheDir(ctx).mkdirs(); File(cacheDir(ctx), HORIZON_FILE).writeText(stopMs.toString()) }
+    }
+
+    /** Age of the last successful direct-provider XMLTV parse (Long.MAX_VALUE when never). */
+    fun xmltvAgeMs(ctx: Context): Long =
+        runCatching { System.currentTimeMillis() - File(cacheDir(ctx), XMLTV_FILE).readText().trim().toLong() }.getOrDefault(Long.MAX_VALUE)
 
     fun ageMs(ctx: Context): Long {
         val ts = tsFile(ctx)
@@ -365,8 +380,10 @@ object EpgCache {
         private var bufferedProgrammes = 0
         private var totalProgrammes = 0
         private var totalChannelsFlushed = 0
+        private val lastStop = HashMap<String, Long>(4096)
 
         fun addProgramme(channelId: String, p: Programme) {
+            if (p.stopMs > (lastStop[channelId] ?: 0L)) lastStop[channelId] = p.stopMs
             val list = buffers.getOrPut(channelId) { ArrayList(64) }
             list.add(p)
             bufferedProgrammes += 1
@@ -452,6 +469,11 @@ object EpgCache {
                 File(dir, SCHEMA_FILE).writeText(CURRENT_SCHEMA_VERSION.toString())
                 File(dir, TS_FILE).writeText(System.currentTimeMillis().toString())
                 File(dir, DIR_DONE_FILE).writeText(System.currentTimeMillis().toString())
+                File(dir, XMLTV_FILE).writeText(System.currentTimeMillis().toString())
+                // Carry the server-guide horizon over if it is later than what this parse covers.
+                val ends = lastStop.values.sorted()
+                val parsed = if (ends.isEmpty()) 0L else ends[ends.size / 2]
+                File(dir, HORIZON_FILE).writeText(maxOf(parsed, horizonMs(ctx)).toString())
             } catch (t: Throwable) {
                 Log.w(TAG, "stamp failed: ${t.message}")
                 abort()

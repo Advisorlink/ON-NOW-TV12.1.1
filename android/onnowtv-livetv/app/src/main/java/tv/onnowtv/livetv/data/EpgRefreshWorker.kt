@@ -77,11 +77,18 @@ class EpgRefreshWorker(
             .toHashSet()
 
         return try {
-            // v2.10.15 — Stream programmes to disk via the per-channel
-            // writer so the periodic refresh never accumulates more
-            // than ~5 MB of programme data in memory.  Critical for
-            // budget Android TV boxes where the WorkManager process
-            // shares the same 256 MB heap as the foreground app.
+            // 1) Server guide FIRST — small, pre-built, 3 days deep. This alone keeps every box's
+            //    guide alive; the old order only tried it after the 145 MB XMLTV failed, and
+            //    a worker killed mid-XMLTV (10-min cap on slow boxes) never reached it at all.
+            val serverMerged = GuideKeeper.mergeFromServer(ctx, session, wantedIds)
+            val serverOk = serverMerged >= GuideKeeper.MIN_CHANNELS || serverMerged == -1
+            if (serverOk && EpgCache.xmltvAgeMs(ctx) < XMLTV_EVERY_MS) {
+                Log.i(TAG, "server guide refreshed ($serverMerged channels) — XMLTV fresh enough, skipping")
+                return Result.success()
+            }
+
+            // 2) Direct XMLTV (extra channels the server doesn't carry) — at most once a day and
+            //    never fatal when the server guide already landed.
             val writer = EpgCache.openStreamingWriter(ctx, session)
             val parsed = try {
                 XmlTvFetcher.fetchEpgForChannels(
@@ -93,31 +100,13 @@ class EpgRefreshWorker(
             } catch (t: Throwable) {
                 writer.abort()
                 if (t is CancellationException) throw t
-                Log.w(TAG, "XMLTV direct fetch failed: ${t.message} — trying backend EPG fallback")
+                Log.w(TAG, "XMLTV direct fetch failed: ${t.message}")
                 null
             }
-
             if (parsed == null || parsed.totalProgrammes == 0) {
-                if (parsed != null) {
-                    writer.abort()
-                    Log.w(TAG, "refresh returned 0 programmes — trying backend EPG fallback")
-                }
-                // v2.19.10 — THE GUIDE MUST NEVER DIE.  The direct
-                // xmltv.php download (145 MB from the provider) is the
-                // fragile link: when the provider throttles/firewalls
-                // it, this worker used to just Result.retry() the same
-                // dead path forever while the disk cache aged out —
-                // the "EPG gone after 24 h" blackout.  The backend
-                // keeps its own pre-warmed, gzip-cached EPG (refreshed
-                // server-side every 2 h with wipe guards), so merge its
-                // window instead and stamp the cache fresh.
-                val merged = mergeBackendEpg(ctx, wantedIds, session)
-                return if (merged >= MIN_FALLBACK_CHANNELS) Result.success() else Result.retry()
+                if (parsed != null) writer.abort()
+                return if (serverOk || !GuideKeeper.needsRefresh(ctx)) Result.success() else Result.retry()
             }
-
-            // Commit the new cache to disk.  EpgActivity will pick
-            // it up via per-channel loadChannel() lookups on next
-            // cold boot.
             currentCoroutineContext().ensureActive()
             val r = writer.finish(parsed.displayNameToEpgId)
             Log.i(
@@ -126,60 +115,19 @@ class EpgRefreshWorker(
                     "(${parsed.displayNameToEpgId.size} xmltv display names seen, " +
                     "${parsed.totalProgrammes} programmes total)",
             )
-            // v2.16.51 — Also refresh the near-term (8 h) EPG window
-            // from the backend's epg-only endpoint.  This keeps the
-            // channels that XMLTV does NOT cover (provider quality
-            // variants, docu/entertainment channels whose guide only
-            // arrives via the lazy per-channel fetch) warm on disk, so
-            // the What's On hub and channel rows are fully populated
-            // the instant the app opens — with no network wait.
-            // mergeChannel() UNION-merges, so multi-day XMLTV guides
-            // are never truncated by this window.
-            mergeBackendEpg(ctx, wantedIds, session)
             Result.success()
         } catch (t: Throwable) {
             if (t is CancellationException) throw t
             Log.w(TAG, "refresh failed: ${t.message}")
-            Result.retry()
-        }
-    }
-
-    /** v2.19.10 — Merge the backend's pre-warmed 8 h EPG window into
-     *  the on-disk cache (union merge — never truncates multi-day
-     *  XMLTV guides).  Returns the number of channels merged (0 on
-     *  failure).  Stamps the cache timestamp fresh when the merge is
-     *  substantial so the boot staleness check passes. */
-    private suspend fun mergeBackendEpg(ctx: Context, wantedIds: Set<String>, session: String): Int {
-        return try {
-            val epgOnly = XtreamRepository.fetchEpgOnlyMap(
-                windowHours = 8,
-                keepIds = wantedIds,
-            )
-            var merged = 0
-            for ((sid, progs) in epgOnly) {
-                currentCoroutineContext().ensureActive()
-                if (progs.isEmpty()) continue
-                AuthStore.withSession(ctx, session) {
-                    EpgCache.mergeChannel(ctx, sid, progs)
-                } ?: throw CancellationException("Session changed")
-                merged++
-            }
-            if (merged >= MIN_FALLBACK_CHANNELS) EpgCache.touchTimestamp(ctx)
-            Log.i(TAG, "backend epg-only merge: refreshed $merged channels")
-            merged
-        } catch (t: Throwable) {
-            if (t is CancellationException) throw t
-            Log.w(TAG, "backend epg-only merge failed: ${t.message}")
-            0
+            if (GuideKeeper.needsRefresh(ctx)) Result.retry() else Result.success()
         }
     }
 
     companion object {
         private const val TAG = "EpgRefreshWorker"
 
-        /** Minimum channels a backend epg-only merge must produce to
-         *  count as a SUCCESSFUL refresh (stamps the cache fresh). */
-        private const val MIN_FALLBACK_CHANNELS = 100
+        /** Direct XMLTV (145 MB) only once a day once the server guide is flowing. */
+        private const val XMLTV_EVERY_MS = 24L * 60L * 60L * 1000L
         const val UNIQUE_NAME = "onnowtv.livetv.epg-refresh"
         const val UNIQUE_NAME_ONESHOT = "onnowtv.livetv.epg-refresh-now"
         const val TAG_WORK = "onnowtv-epg-refresh"
