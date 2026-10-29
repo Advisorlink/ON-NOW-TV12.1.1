@@ -204,18 +204,35 @@ class SportsTablesActivity : AppCompatActivity() {
             body.removeView(status)
             if (list.isEmpty()) return@launch note("No teams listed for ${l.name}.")
             val grid = GridLayout(this@SportsTablesActivity).apply { columnCount = if (resources.configuration.screenWidthDp < 720) 1 else 3 }
-            fun draw() {
-                grid.removeAllViews()
-                list.forEach { t ->
-                    val team = SportsFollowStore.Team(l.sport, l.key, t.optString("id"), t.optString("name"), t.optString("logo").takeIf { it.isNotBlank() && it != "null" }, t.optString("color").takeIf { it.isNotBlank() && it != "null" })
-                    val added = SportsFollowStore.isFollowed(this@SportsTablesActivity, team.key)
-                    val tag = "add-team-${t.optString("id")}"
-                    val card = SportsTeamCrest.card(this@SportsTablesActivity, team.name, l.name, team.logo, team.color, tag, if (added) "✓  IN MY TEAMS" else "＋  ADD TO MY TEAMS", if (added) UI.GOLD else Color.WHITE)
-                    card.setOnClickListener { SportsFollowStore.toggle(this@SportsTablesActivity, team); draw(); grid.findViewWithTag<View>(tag)?.requestFocus() }
-                    grid.addView(card, GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED), GridLayout.spec(GridLayout.UNDEFINED, 1f)).apply { width = 0; height = dp(132f); setMargins(dp(6f), dp(6f), dp(6f), dp(6f)) })
+            // Big college leagues (300-700+ teams) are split A–Z so the HK1 never inflates hundreds of crests at once.
+            val letters = if (list.size > 60) list.map { it.optString("name").trim().firstOrNull()?.uppercaseChar() ?: '#' }.distinct().sorted() else emptyList()
+            fun cardFor(t: org.json.JSONObject): View {
+                val team = SportsFollowStore.Team(l.sport, l.key, t.optString("id"), t.optString("name"), t.optString("logo").takeIf { it.isNotBlank() && it != "null" }, t.optString("color").takeIf { it.isNotBlank() && it != "null" })
+                val added = SportsFollowStore.isFollowed(this@SportsTablesActivity, team.key)
+                val tag = "add-team-${t.optString("id")}"
+                val card = SportsTeamCrest.card(this@SportsTablesActivity, team.name, l.name, team.logo, team.color, tag, if (added) "✓  IN MY TEAMS" else "＋  ADD TO MY TEAMS", if (added) UI.GOLD else Color.WHITE)
+                card.layoutParams = GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED), GridLayout.spec(GridLayout.UNDEFINED, 1f)).apply { width = 0; height = dp(132f); setMargins(dp(6f), dp(6f), dp(6f), dp(6f)) }
+                card.setOnClickListener {
+                    SportsFollowStore.toggle(this@SportsTablesActivity, team)
+                    val i = grid.indexOfChild(card); grid.removeViewAt(i); grid.addView(cardFor(t), i); grid.getChildAt(i).requestFocus()
                 }
+                return card
             }
-            draw(); body.addView(grid)
+            fun draw(letter: Char?) {
+                grid.removeAllViews()
+                list.filter { letter == null || (it.optString("name").trim().firstOrNull()?.uppercaseChar() ?: '#') == letter }.forEach { grid.addView(cardFor(it)) }
+            }
+            if (letters.isNotEmpty()) {
+                val bar = UI.row(this@SportsTablesActivity, dp(6f))
+                fun paint(sel: Char) {
+                    bar.removeAllViews()
+                    letters.forEach { c -> bar.addView(UI.identify(UI.pill(this@SportsTablesActivity, c.toString(), c == sel) { paint(c); draw(c); bar.findViewWithTag<View>("add-letter-$c")?.requestFocus() }, "add-letter-$c")) }
+                }
+                paint(letters.first())
+                body.addView(HorizontalScrollView(this@SportsTablesActivity).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false; setPadding(dp(3f), dp(3f), dp(3f), dp(3f)); addView(bar) })
+                draw(letters.first())
+            } else draw(null)
+            body.addView(grid)
         }
     }
 }

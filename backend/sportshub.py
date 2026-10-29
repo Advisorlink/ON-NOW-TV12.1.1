@@ -551,7 +551,7 @@ async def teams(sport: str, league: str):
     if (sport, league) not in LEAGUE_BY_KEY:
         raise HTTPException(404, "unknown league")
     try:
-        data = await _get(f"{ESPN}/{sport}/{league}/teams", None, ttl=86400)
+        data = await _get(f"{ESPN}/{sport}/{league}/teams", {"limit": 1000}, ttl=86400)
     except Exception as e:  # noqa: BLE001
         raise HTTPException(502, f"espn teams failed: {e}")
     rows = []

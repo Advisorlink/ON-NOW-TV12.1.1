@@ -766,3 +766,4 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 
 ## 2026-06 Deploy
 - Deployed sports_highlights to production (onnowhub.com). Route is live (200 on dummy query). Seahawks vs Rams query returns 500 in prod only (preview 200). Production log diagnosis requested from deployer; fix pending.
+- 2026-06 Teams list fix: /api/sportshub/teams now requests ESPN limit=1000 (was capped at 50 → Houston Cougars missing; NCAAM/NCAAW now 362, CFB 762). Live TV Add Teams: A–Z letter tabs when >60 teams, only the toggled card is redrawn. Built 2.11.4 (168), signed with launcher keystore (db4c81a4…), at test-artifacts/onnowtv-livetv-2.11.4-168.apk. Build in /tmp/ltbuild copy (livetv has no gradlew; copy from vesper-tv; /android-sdk/licenses needed). Backend change needs production deploy.
