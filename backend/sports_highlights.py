@@ -11,7 +11,6 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 import httpx
-import yt_dlp
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse
 
@@ -84,6 +83,7 @@ async def _rss(client: httpx.AsyncClient, league: str) -> list:
 
 
 def _search(query: str) -> list:
+    import yt_dlp  # lazy: ~32 MB resident, only paid when a highlight lookup actually runs
     with yt_dlp.YoutubeDL({"quiet": True, "extract_flat": True, "skip_download": True, "noplaylist": True}) as y:
         return (y.extract_info(f"ytsearch15:{query}", download=False) or {}).get("entries") or []
 

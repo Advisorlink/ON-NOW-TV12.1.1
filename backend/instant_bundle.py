@@ -34,6 +34,7 @@ import io
 import json
 import logging
 import os
+import sys
 import time
 from typing import Any, Dict, List, Optional
 
@@ -250,19 +251,9 @@ async def _rebuild_cached_payload() -> None:
     #
     # Fix: remap on serialization so the wire format matches the
     # per-channel endpoint AND the client parser.
-    remapped_epg: Dict[str, List[Dict[str, Any]]] = {}
-    for sid, progs in (_state["epg"] or {}).items():
-        remapped_epg[sid] = [
-            {
-                "title":       it.get("title", ""),
-                "description": it.get("desc", ""),
-                "start":       it.get("startTimestamp", 0),
-                "stop":        it.get("stopTimestamp",  0),
-                "live":        bool(it.get("live", False)),
-            }
-            for it in progs
-        ]
-    payload = {
+    # Each channel's list is remapped + encoded one at a time, so no second 333k-dict copy of the guide is built.
+    epg = _state["epg"] or {}
+    head = {
         "provider": {
             "id":     p.get("id", "managed"),
             "name":   "On Now TV",
@@ -272,39 +263,71 @@ async def _rebuild_cached_payload() -> None:
         },
         "categories":          _state["categories"],
         "channels":            _state["channels"],
-        "epg":                 remapped_epg,
         "generated_at":        _state["generated_at"],
         "channels_fetched_at": _state["channels_fetched_at"],
         "epg_fetched_at":      _state["epg_fetched_at"],
     }
-    gz, raw_len = _gz_json(payload)
+    gz, raw_len = _gz_with_epg(head, epg)
     _state["cached_payload_gz"] = gz
     _state["cached_payload_at"] = int(time.time())
     log.info(
         "instant_bundle: cached payload built (gz=%d KB, raw=%d KB)",
         len(gz) // 1024, raw_len // 1024,
     )
-    # v2.16.37 — Also build the epg-only companion payload so
-    # `GET /instant-bundle/epg-only` can serve mobile clients that
-    # need JUST the EPG (see DirectProviderFetcher flow — it ships
-    # empty EPG so the client can't populate the WhatsOn hub on
-    # boot without a second call).  Compressed together with the
-    # main bundle because the two payloads share `remapped_epg`,
-    # so we get the compression work out of the way once.
-    epg_only_gz, epg_raw_len = _gz_json(
-        {
-            "epg":                 remapped_epg,
-            "epg_fetched_at":      _state["epg_fetched_at"],
-            "generated_at":        _state["generated_at"],
-        }
+    # v2.16.37 — epg-only companion for `GET /instant-bundle/epg-only` (mobile DirectProviderFetcher flow).
+    epg_only_gz, epg_raw_len = _gz_with_epg(
+        {"epg_fetched_at": _state["epg_fetched_at"], "generated_at": _state["generated_at"]}, epg,
     )
     _state["cached_epg_only_gz"] = epg_only_gz
     log.info(
         "instant_bundle: epg-only payload built (gz=%d KB, raw=%d KB, buckets=%d)",
-        len(epg_only_gz) // 1024, epg_raw_len // 1024, len(remapped_epg),
+        len(epg_only_gz) // 1024, epg_raw_len // 1024, len(epg),
     )
-    del remapped_epg, payload
+    del head
     _trim()
+
+
+def _wire_prog(it: Dict[str, Any]) -> Dict[str, Any]:
+    # Client parsers read start/stop/description, not the internal startTimestamp/stopTimestamp/desc.
+    return {
+        "title":       it.get("title", ""),
+        "description": it.get("desc", ""),
+        "start":       it.get("startTimestamp", 0),
+        "stop":        it.get("stopTimestamp",  0),
+        "live":        bool(it.get("live", False)),
+    }
+
+
+def _gz_with_epg(head: Dict[str, Any], epg: Dict[str, List[Dict[str, Any]]]) -> tuple:
+    """gzip of `head` plus an "epg" key, streamed per channel."""
+    enc = json.JSONEncoder(separators=(",", ":"))
+    buf = io.BytesIO()
+    raw_len = 0
+    with gzip.GzipFile(fileobj=buf, mode="wb", compresslevel=6) as f:
+        pending: List[str] = []
+        size = 0
+
+        def put(text: str) -> None:
+            nonlocal size, raw_len
+            pending.append(text)
+            size += len(text)
+            if size >= 1 << 20:
+                data = "".join(pending).encode("utf-8")
+                raw_len += len(data)
+                f.write(data)
+                pending.clear()
+                size = 0
+
+        h = enc.encode(head)
+        put(h[:-1] + ("," if len(h) > 2 else "") + '"epg":{')
+        del h
+        for i, (sid, progs) in enumerate(epg.items()):
+            put(("," if i else "") + enc.encode(sid) + ":" + enc.encode([_wire_prog(it) for it in progs]))
+        put("}}")
+        data = "".join(pending).encode("utf-8")
+        raw_len += len(data)
+        f.write(data)
+    return buf.getvalue(), raw_len
 
 
 def _trim() -> None:
@@ -316,6 +339,38 @@ def _trim() -> None:
         ctypes.CDLL("libc.so.6").malloc_trim(0)
     except OSError:
         pass
+
+
+def _intern(v: str) -> str:
+    """Repeats / HD-SD-FHD variants share one string object instead of ~3 copies each."""
+    return sys.intern(v) if v else ""
+
+
+def _intern_prog(d: Dict[str, Any]) -> Dict[str, Any]:
+    for k in ("title", "desc", "category"):
+        v = d.get(k)
+        if isinstance(v, str):
+            d[k] = _intern(v)
+    return d
+
+
+def _share_epg_lists(epg: Dict[str, List[Dict[str, Any]]], channels: List[Dict[str, Any]]) -> int:
+    """JSON can't carry references, so HD/SD copies of one guide come back as separate lists; re-share identical ones."""
+    by_eid: Dict[str, List[Dict[str, Any]]] = {}
+    shared = 0
+    for ch in channels:
+        eid = (ch.get("epg_channel_id") or "").strip()
+        sid = str(ch.get("stream_id"))
+        lst = epg.get(sid)
+        if not eid or not lst:
+            continue
+        first = by_eid.get(eid)
+        if first is None:
+            by_eid[eid] = lst
+        elif first is not lst and first == lst:
+            epg[sid] = first
+            shared += 1
+    return shared
 
 
 def _gz_json(obj: Any) -> tuple:
@@ -400,7 +455,7 @@ def _maybe_decode(doc: Dict[str, Any], key: str, default: Any) -> Any:
     gz = doc.get(key + "_gz")
     if gz:
         try:
-            return json.loads(gzip.decompress(gz))
+            return json.loads(gzip.decompress(gz), object_hook=_intern_prog)
         except Exception as exc:  # noqa: BLE001
             log.warning("instant_bundle: failed to decode %s_gz: %s", key, exc)
     return doc.get(key) or default
@@ -431,7 +486,7 @@ async def _restore_from_db() -> None:
             blob = b"".join(parts)
             del parts
             if blob:
-                epg_restored = json.loads(gzip.decompress(blob))
+                epg_restored = json.loads(gzip.decompress(blob), object_hook=_intern_prog)
             del blob
         except Exception as exc:  # noqa: BLE001
             log.warning("instant_bundle: epg chunk restore failed: %s", exc)
@@ -444,6 +499,10 @@ async def _restore_from_db() -> None:
         _state["generated_at"]        = int(doc.get("generated_at")        or 0)
         _state["channels_fetched_at"] = int(doc.get("channels_fetched_at") or 0)
         _state["epg_fetched_at"]      = int(doc.get("epg_fetched_at")      or 0)
+        del doc, epg_restored
+        _shared = _share_epg_lists(_state["epg"], _state["channels"])
+        _trim()
+        log.info("instant_bundle: restore re-shared %d duplicate guide lists", _shared)
         # v2.7.79 — One-time migration of the persisted bundle to
         # `stream_id`-keyed EPG.  Older builds stored EPG keyed by
         # `epg_channel_id` (XMLTV id), which made every client-side
@@ -476,7 +535,6 @@ async def _restore_from_db() -> None:
                 # fetches don't get short-circuited by stale keys.
                 if by_stream_id:
                     _state["epg"] = by_stream_id
-                    _state["epg_by_xmltv_id"] = old_epg
                     log.info(
                         "instant_bundle: migrated persisted EPG to stream_id keys "
                         "(xmltv_channels=%d → stream_id_channels=%d)",
@@ -633,6 +691,8 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
         return 0
 
     epg_by_channel: Dict[str, List[Dict[str, Any]]] = {}
+    now_sec = int(time.time())
+    horizon = now_sec + EPG_HORIZON_SECS
 
     tmp = tempfile.NamedTemporaryFile(prefix="vesper-epg-", suffix=".xml", delete=False)
     tmp_path = tmp.name
@@ -650,9 +710,14 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
         # memory is one programme element at a time, not the whole
         # DOM.
         try:
-            for _event, el in ET.iterparse(tmp_path, events=("end",)):
-                if el.tag != "programme":
+            root = None
+            for _event, el in ET.iterparse(tmp_path, events=("start", "end")):
+                if root is None:
+                    root = el
+                if _event != "end" or el.tag != "programme":
                     continue
+                # el.clear() alone leaves an empty shell per programme hanging off <tv>; drop them as we go.
+                root.clear()
                 ch = (el.attrib.get("channel") or "").strip()
                 if not ch:
                     el.clear()
@@ -672,6 +737,10 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
                 else:
                     start_ts = _parse_ts(el.attrib.get("start", ""))
                     stop_ts  = _parse_ts(el.attrib.get("stop", ""))
+                # Drop out-of-window programmes now, not after holding the whole multi-day feed in RAM.
+                if stop_ts < now_sec or start_ts > horizon:
+                    el.clear()
+                    continue
                 title_el = el.find("title")
                 desc_el  = el.find("desc")
                 cat_el   = el.find("category")
@@ -686,9 +755,9 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
                     body = (live_el.text or "").strip().lower()
                     is_live = body not in ("0", "false", "no")
                 programme = {
-                    "title":           (title_el.text or "").strip() if title_el is not None else "",
-                    "desc":            (desc_el.text or "").strip() if desc_el is not None else "",
-                    "category":        (cat_el.text or "").strip() if cat_el is not None else "",
+                    "title":           _intern((title_el.text or "").strip() if title_el is not None else ""),
+                    "desc":            _intern((desc_el.text or "").strip() if desc_el is not None else ""),
+                    "category":        _intern((cat_el.text or "").strip() if cat_el is not None else ""),
                     "startTimestamp":  start_ts,
                     "stopTimestamp":   stop_ts,
                     "live":            is_live,
@@ -706,8 +775,6 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
             pass
 
     # Sort + trim to next 72 hours (now → now+72 h).
-    now_sec = int(time.time())
-    horizon = now_sec + EPG_HORIZON_SECS
     trimmed: Dict[str, List[Dict[str, Any]]] = {}
     for ch_id, lst in epg_by_channel.items():
         lst.sort(key=lambda p: p["startTimestamp"])
@@ -890,8 +957,8 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
                 except Exception:
                     desc = desc_b64
                 kept.append({
-                    "title": title,
-                    "desc":  desc,
+                    "title": _intern(title),
+                    "desc":  _intern(desc),
                     "category": "",
                     "startTimestamp": start_ts,
                     "stopTimestamp":  stop_ts,
@@ -947,7 +1014,6 @@ async def _refresh_epg(p: Dict[str, Any]) -> None:
         # Diagnostic: legacy XMLTV-id-keyed map kept on the side
         # so we can debug provider XMLTV alignment issues without
         # re-parsing the whole feed.  Not shipped to clients.
-        _state["epg_by_xmltv_id"] = trimmed
         _state["epg_fetched_at"] = int(time.time())
         _state["generated_at"]   = int(time.time())
         _state["last_error"]     = None
@@ -1318,8 +1384,8 @@ async def epg_for_channel(stream_id: str) -> Dict[str, Any]:
     if progs:
         _state.setdefault("epg", {})[str(stream_id)] = [
             {
-                "title": pr["title"],
-                "desc":  pr["description"],
+                "title": _intern(pr["title"]),
+                "desc":  _intern(pr["description"]),
                 "category": "",
                 "startTimestamp": pr["start"],
                 "stopTimestamp":  pr["stop"],
