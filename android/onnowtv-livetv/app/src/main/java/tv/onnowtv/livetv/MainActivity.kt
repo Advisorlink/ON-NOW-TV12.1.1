@@ -58,6 +58,11 @@ import java.net.URL
  */
 class MainActivity : AppCompatActivity() {
 
+    companion object {
+        /** Skip the saved-channels fast path and re-scan everything (rail Refresh). */
+        const val EXTRA_FULL_RELOAD = "full_reload"
+    }
+
     private lateinit var headline: TextView
     private lateinit var substatus: TextView
     private lateinit var statusCounters: TextView
@@ -132,7 +137,7 @@ class MainActivity : AppCompatActivity() {
 
         // FAST PATH — the disk cache is read off the main thread behind a
         // "Loading your programmes…" screen (it used to block on a blank window).
-        if (BundleCache.exists(this)) {
+        if (BundleCache.exists(this) && !intent.getBooleanExtra(EXTRA_FULL_RELOAD, false)) {
             showQuickLoader()
             lifecycleScope.launch {
                 val merged = withContext(Dispatchers.IO) { fastPathBundle() }
@@ -173,13 +178,14 @@ class MainActivity : AppCompatActivity() {
                         // channels whose provider-supplied id is
                         // blank, so the per-channel disk reads land
                         // on the right file.
-                        val cachedEpg = EpgCache.load(this)
-                        if (cachedEpg == null) {
-                            Log.i(
-                                "MainActivity",
-                                "fast-path skipped: EPG cache absent or schema mismatch — falling through to loader",
-                            )
-                        } else {
+                        val cachedEpg = EpgCache.load(this) ?: run {
+                            // Saved channels are enough to open now; the guide fills in from
+                            // GuideKeeper / per-channel loads. A full rescan is only for a
+                            // fresh install, sign-in, or the rail Refresh button.
+                            Log.i("MainActivity", "fast-path: EPG cache absent — opening saved channels anyway")
+                            emptyMap()
+                        }
+                        run {
                             // Apply name-based id patching using
                             // the persisted XMLTV display-name map.
                             val nameMap = EpgCache.loadNameMap(applicationContext)

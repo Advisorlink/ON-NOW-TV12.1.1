@@ -740,7 +740,19 @@ class EpgActivity : AppCompatActivity() {
     private fun wireRail() {
         railHome.setOnClickListener { finish() }
         railSearch.setOnClickListener { openSearchOverlay() }
-        railRefresh.setOnClickListener { applyCategory() }
+        railRefresh.setOnClickListener {
+            // Full reload: re-scan every channel and the guide from the provider.
+            LivePreviewSession.release()
+            BundleHolder.current = null
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .putExtra(MainActivity.EXTRA_FULL_RELOAD, true)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+            )
+            @Suppress("DEPRECATION")
+            overridePendingTransition(0, 0)
+            finish()
+        }
         railLibrary.setOnClickListener {
             startActivity(android.content.Intent(this, LibraryActivity::class.java))
         }

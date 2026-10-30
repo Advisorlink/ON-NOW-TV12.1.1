@@ -153,6 +153,7 @@
             android:background="@drawable/rail_icon_bg"
             android:focusable="true"
             android:nextFocusLeft="@id/rail_fullscreen"
+            android:nextFocusDown="@id/rail_settings"
             android:nextFocusRight="@id/categories_list"
             android:contentDescription="Fullscreen" />
 
@@ -167,6 +168,8 @@
             android:background="@drawable/rail_icon_bg"
             android:focusable="true"
             android:nextFocusLeft="@id/rail_settings"
+            android:nextFocusUp="@id/rail_fullscreen"
+            android:nextFocusDown="@id/rail_signout"
             android:nextFocusRight="@id/categories_list"
             android:contentDescription="Live TV settings" />
 
@@ -176,6 +179,7 @@
             android:src="@drawable/ic_nav_signout"
             android:background="@drawable/rail_icon_bg"
             android:focusable="true"
+            android:nextFocusUp="@id/rail_settings"
             android:nextFocusDown="@id/rail_signout"
             android:nextFocusLeft="@id/rail_signout"
             android:nextFocusRight="@id/categories_list"
