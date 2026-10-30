@@ -1269,16 +1269,22 @@ class EpgActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             val t0 = System.currentTimeMillis()
-            val fetched = try {
+            // Disk first: the launch only pre-loads the first channels, the rest are on disk.
+            val fromDisk = try {
+                tv.onnowtv.livetv.data.EpgCache.loadAllChannels(applicationContext, wantedSids)
+            } catch (_: Throwable) { emptyMap() }
+            for ((sid, progs) in fromDisk) epgCache[sid] = progs
+            val stillMissing = wantedSids - fromDisk.keys
+            val fetched = if (stillMissing.isEmpty()) emptyMap() else try {
                 XtreamRepository.fetchEpgOnlyMap(
                     windowHours = 8,
-                    keepIds = wantedSids,
+                    keepIds = stillMissing,
                 )
             } catch (t: Throwable) {
                 android.util.Log.w("EpgActivity", "epg-only prewarm failed: ${t.message}")
                 emptyMap()
             }
-            if (fetched.isEmpty()) return@launch
+            if (fetched.isEmpty() && fromDisk.isEmpty()) return@launch
             // Merge into the in-memory cache and persist each
             // channel's programmes to disk so subsequent boots
             // pick them up from the fast local hydrate.

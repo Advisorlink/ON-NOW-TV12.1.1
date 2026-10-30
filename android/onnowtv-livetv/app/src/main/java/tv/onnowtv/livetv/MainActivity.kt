@@ -61,6 +61,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         /** Skip the saved-channels fast path and re-scan everything (rail Refresh). */
         const val EXTRA_FULL_RELOAD = "full_reload"
+        private const val FAST_HYDRATE_MAX = 250
     }
 
     private lateinit var headline: TextView
@@ -135,9 +136,22 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        val fullReload = intent.getBooleanExtra(EXTRA_FULL_RELOAD, false)
+        // App still in memory (just exited and came back): open the guide straight away.
+        val held = BundleHolder.current
+        if (held != null && held.channels.isNotEmpty() && !fullReload) {
+            startActivity(Intent(this, EpgActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            })
+            @Suppress("DEPRECATION")
+            overridePendingTransition(0, 0)
+            finish()
+            return
+        }
+
         // FAST PATH — the disk cache is read off the main thread behind a
         // "Loading your programmes…" screen (it used to block on a blank window).
-        if (BundleCache.exists(this) && !intent.getBooleanExtra(EXTRA_FULL_RELOAD, false)) {
+        if (BundleCache.exists(this) && !fullReload) {
             showQuickLoader()
             lifecycleScope.launch {
                 val merged = withContext(Dispatchers.IO) { fastPathBundle() }
@@ -232,8 +246,14 @@ class MainActivity : AppCompatActivity() {
                                 bundle.epg.isNotEmpty()  -> bundle.epg     // backend served EPG
                                 else -> {
                                     val t0 = System.currentTimeMillis()
-                                    val wanted = patchedChannels
+                                    // Only the first channels are pre-loaded so the loader stays
+                                    // to a second or two (and memory low on HK1-class boxes); every
+                                    // other channel's guide loads from disk when it scrolls into view.
+                                    val wanted = patchedChannels.asSequence()
                                         .mapNotNull { it.epgChannelId?.takeIf { s -> s.isNotBlank() } }
+                                        .distinct()
+                                        .take(FAST_HYDRATE_MAX)
+                                        .toList()
                                     val hydrated = EpgCache.loadAllChannels(applicationContext, wanted)
                                     Log.i(
                                         "MainActivity",
