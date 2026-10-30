@@ -596,6 +596,28 @@ class EpgActivity : AppCompatActivity() {
         containVerticalKeyNav(guideList)
     }
 
+    /** The four D-pad columns: rail, channel groups, channels, guide. */
+    private val columnGuard = tv.onnowtv.livetv.ui.ColumnGuard {
+        listOfNotNull(
+            findViewById<View>(R.id.rail_home)?.parent as? View,
+            findViewById(R.id.categories_sidebar),
+            channelsList.parent as? View,
+            guideList.parent as? View,
+        )
+    }
+
+    /** Strict columns: UP/DOWN never leaves the focused column (top/bottom just stop);
+     *  only LEFT/RIGHT crosses. What's On Live and the sport chips sit inside their columns. */
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        val up = event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP
+        val down = event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_DOWN
+        if ((up || down) && event.action == android.view.KeyEvent.ACTION_DOWN) {
+            val f = currentFocus
+            if (f != null && columnGuard.blocks(f, if (up) View.FOCUS_UP else View.FOCUS_DOWN)) return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
     /**
      * Block D-pad UP when the currently-focused row is the first
      * one in [list] and D-pad DOWN when it's the last.  Without
@@ -1069,9 +1091,11 @@ class EpgActivity : AppCompatActivity() {
             currentCategoryId = "__whatson__"
             whatsOnActiveSport = null
             applyCategory()
-            channelsList.post {
-                channelsList.findViewHolderForAdapterPosition(0)
-                    ?.itemView?.requestFocus()
+            // Land on the first sport category ("All Sport"); DOWN then enters the channels.
+            whatsOnSportRow.scrollToPosition(0)
+            whatsOnSportRow.post {
+                whatsOnSportRow.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
+                    ?: channelsList.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
             }
         }
 

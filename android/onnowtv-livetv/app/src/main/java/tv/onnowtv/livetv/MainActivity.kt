@@ -130,8 +130,28 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // FAST PATH — try the disk cache before we even inflate the loader.
+        // FAST PATH — the disk cache is read off the main thread behind a
+        // "Loading your programmes…" screen (it used to block on a blank window).
         if (BundleCache.exists(this)) {
+            showQuickLoader()
+            lifecycleScope.launch {
+                val merged = withContext(Dispatchers.IO) { fastPathBundle() }
+                if (merged != null) openGuide(merged) else startSlowPath()
+            }
+            return
+        }
+        startSlowPath()
+    }
+
+    private fun showQuickLoader() {
+        setContentView(R.layout.activity_main)
+        findViewById<TextView>(R.id.loader_headline).text = "Loading your programmes…"
+        findViewById<View>(R.id.loader_actions)?.visibility = View.GONE
+        findViewById<ProgressBar>(R.id.loader_progress)?.isIndeterminate = true
+    }
+
+    /** Cached bundle ready for the guide, or null when the full loader must run. */
+    private fun fastPathBundle(): XtreamBundle? {
             try {
                 val json = BundleCache.loadJson(this)
                 if (!json.isNullOrBlank()) {
@@ -220,13 +240,24 @@ class MainActivity : AppCompatActivity() {
                                 channels = patchedChannels,
                                 epg = effectiveEpg,
                             )
-                            BundleHolder.current = merged
                             Log.i(
                                 "MainActivity",
                                 "fast-path: ${merged.channels.size} channels / " +
                                     "epg=${effectiveEpg.size} buckets " +
                                     "(cache age=${BundleCache.ageMs(this) / 1000}s)",
                             )
+                            return merged
+                        }
+                    }
+                }
+            } catch (t: Throwable) {
+                Log.w("MainActivity", "fast-path failed, falling back to loader: ${t.message}")
+            }
+        return null
+    }
+
+    private fun openGuide(merged: XtreamBundle) {
+                            BundleHolder.current = merged
                             // If either cache is stale, schedule a
                             // background refresh after EpgActivity opens.
                             scheduleBackgroundRefresh()
@@ -270,15 +301,9 @@ class MainActivity : AppCompatActivity() {
                             })
                             overridePendingTransition(0, 0)
                             finish()
-                            return
-                        }
-                    }
-                }
-            } catch (t: Throwable) {
-                Log.w("MainActivity", "fast-path failed, falling back to loader: ${t.message}")
-            }
-        }
+    }
 
+    private fun startSlowPath() {
         // SLOW PATH — first install (or corrupted cache).  Show loader.
         setContentView(R.layout.activity_main)
         setTheme(R.style.Theme_OnNowLiveTV_NoActionBar)
