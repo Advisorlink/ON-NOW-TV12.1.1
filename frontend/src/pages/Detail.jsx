@@ -248,6 +248,10 @@ export default function Detail() {
         (async () => {
             setLoading(true);
             setErr(null);
+            // New title (only the :id param changed, e.g. actor → film):
+            // drop the previous title's meta so Play / the native
+            // loading screen never carries the OLD poster + synopsis.
+            setMeta(null);
             try {
                 const m = await Vesper.getMeta(type, id);
                 if (!cancel) setMeta(m?.data?.meta || null);
@@ -282,8 +286,8 @@ export default function Detail() {
     const [ratingBlocked, setRatingBlocked] = useState(false);
     useEffect(() => {
         let cancel = false;
+        setTmdbInfo(null);
         if (!id || !id.startsWith('tt')) {
-            setTmdbInfo(null);
             return undefined;
         }
         (async () => {

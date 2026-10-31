@@ -61,6 +61,8 @@ class VesperMpvEngine(
     private var pendingStartAtMs = 0L
     private var pendingSubUrl = ""
     private var fpsFired = false
+    @Volatile private var restoreHrSeek = false
+
 
     // Declared BEFORE the init block so `MPVLib.addObserver(mpvObserver)`
     // and `holder.addCallback(surfaceCallback)` in init don't trip the
@@ -119,6 +121,10 @@ class VesperMpvEngine(
         override fun event(eventId: Int) {
             when (eventId) {
                 MPVLib.MPV_EVENT_PLAYBACK_RESTART -> handler.post {
+                    if (restoreHrSeek) {
+                        restoreHrSeek = false
+                        try { MPVLib.setPropertyString("hr-seek", "default") } catch (_: Throwable) {}
+                    }
                     listener.onMpvBuffering(false)
                     listener.onMpvPlaying()
                 }
@@ -261,6 +267,15 @@ class VesperMpvEngine(
     private fun loadInternal(url: String, startAtMs: Long, subUrl: String) {
         try {
             if (startAtMs > 5_000L) {
+                // Resume: keyframe seek for the start position.  The
+                // default precise seek decodes every frame from the
+                // previous keyframe up to the exact position (up to a
+                // whole GOP, 5–10 s of 1080p through mediacodec-copy)
+                // before the first frame shows — the "Continue Watching
+                // takes forever to start" stall.  Restored to precise
+                // on the first playback-restart so FF/RW stay exact.
+                MPVLib.setPropertyString("hr-seek", "no")
+                restoreHrSeek = true
                 MPVLib.setPropertyString("start", "%.3f".format(startAtMs / 1000.0))
             } else {
                 MPVLib.setPropertyString("start", "0")

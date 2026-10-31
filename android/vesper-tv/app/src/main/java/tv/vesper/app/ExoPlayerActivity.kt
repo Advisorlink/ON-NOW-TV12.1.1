@@ -749,6 +749,12 @@ class ExoPlayerActivity : ComponentActivity(),
             if (cur >= 0) currentStreamIdx = cur
             publishStreams()
             Log.i(TAG, "alt streams refreshed: ${merged.size} (sid=$sid)")
+            // Single-link launch whose link is dead or still not
+            // showing a frame: walk the fresh list from the same spot.
+            if (autoAdvanceLimit == Int.MAX_VALUE && !firstReadyReachedForCurrentStream && merged.size > 1) {
+                if (errorBeforeReady) scheduleErrorAdvance()
+                else if (bufferStallJob?.isActive != true) armBufferStallWatchdog(timeoutMs = 15_000L)
+            }
         }
     }
 
@@ -791,10 +797,16 @@ class ExoPlayerActivity : ComponentActivity(),
     private var errorAdvanceCount = 0
     private var errorAdvanceJob: Job? = null
     private var autoAdvanceMode = true
+    // Streams the web handed over at launch are the only auto-advance
+    // candidates; links fetched later by refreshAltStreamsFromBackend
+    // are picker-only — EXCEPT for a single-link launch (Continue
+    // Watching), where hopping beats an infinite loading screen.
+    private var autoAdvanceLimit = Int.MAX_VALUE
+    private var errorBeforeReady = false
 
     private fun nextAdvanceIndexAfter(idx: Int): Int? {
         val next = idx + 1
-        return if (next in altStreams.indices) next else null
+        return if (next in altStreams.indices && next < autoAdvanceLimit) next else null
     }
 
     /** Dig the real HTTP status out of a PlaybackException cause
@@ -1183,6 +1195,7 @@ class ExoPlayerActivity : ComponentActivity(),
         // Full-list refresh: Continue Watching resumes carry one URL and
         // Detail autoplay can fire while the web list is still partial.
         parseStreamsMeta(streamsJson)
+        autoAdvanceLimit = if (altStreams.size <= 1) Int.MAX_VALUE else altStreams.size
         if (altStreams.size <= 1 || streamsMetaPending) refreshAltStreamsFromBackend()
 
         // ─── v2.16.42 — pick the playback engine ────────────────
@@ -1482,6 +1495,10 @@ class ExoPlayerActivity : ComponentActivity(),
                     } else {
                         Log.w(TAG, "Non-fatal error: waiting for watchdog (${error.errorCodeName})")
                     }
+                } else if (!firstReadyReachedForCurrentStream) {
+                    // Single link (Continue Watching): remember so the
+                    // refreshed list can hop as soon as it lands.
+                    errorBeforeReady = true
                 }
             }
             override fun onPlaybackStateChanged(state: Int) {
@@ -2267,6 +2284,8 @@ class ExoPlayerActivity : ComponentActivity(),
                 // Swap picker: the old episode's links are stale now.
                 altStreams = listOf(StreamEntry(primedUrl, "Stream 1", "", "", false, false))
                 currentStreamIdx = 0
+                autoAdvanceLimit = Int.MAX_VALUE
+                errorBeforeReady = false
                 publishStreams()
                 streamsMetaStremioId = ""
                 refreshAltStreamsFromBackend()
@@ -3000,6 +3019,7 @@ class ExoPlayerActivity : ComponentActivity(),
         }
         currentStreamIdx = idx
         streamUrl = entry.url
+        errorBeforeReady = false
         streamsFlow.value = altStreams.mapIndexed { i, s ->
             StreamOption(
                 idx         = i,
