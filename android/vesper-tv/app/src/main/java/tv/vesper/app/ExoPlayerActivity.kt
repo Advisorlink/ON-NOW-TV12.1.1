@@ -35,6 +35,7 @@ import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import androidx.media3.ui.PlayerView
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
@@ -616,6 +617,141 @@ class ExoPlayerActivity : ComponentActivity(),
     private var altStreams: List<StreamEntry> = emptyList()
     private var currentStreamIdx: Int = -1
 
+    // Trailing `_meta` row of EXTRA_STREAMS_JSON (web host.js): login
+    // token + Stremio id so the player can fetch the full list itself.
+    private var streamsMetaToken: String = ""
+    private var streamsMetaStremioId: String = ""
+    private var streamsMetaPending: Boolean = false
+    private var altStreamsRefreshJob: Job? = null
+    private val UHD_RE = Regex("(^|[^0-9a-z])(2160p|4k|uhd)([^0-9a-z]|$)", RegexOption.IGNORE_CASE)
+    private val SIZE_RE = Regex("(\\d+(?:[.,]\\d+)?)\\s*(GB|MB)\\b", RegexOption.IGNORE_CASE)
+
+    private fun parseStreamsMeta(json: String?) {
+        if (json.isNullOrBlank()) return
+        try {
+            val arr = org.json.JSONArray(json)
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                if (!o.optBoolean("_meta", false)) continue
+                streamsMetaToken = o.optString("token", "")
+                streamsMetaStremioId = o.optString("stremioId", "")
+                streamsMetaPending = o.optBoolean("pending", false)
+            }
+        } catch (_: Exception) {}
+    }
+
+    private fun stremioIdFromCwId(): String {
+        val imdb = cwId.substringBefore(":")
+        if (!imdb.startsWith("tt")) return ""
+        val m = seasonEpisodeRegex.matchEntire(cwId) ?: return imdb
+        val s = m.groupValues[1].ifBlank { m.groupValues[3] }
+        val e = m.groupValues[2].ifBlank { m.groupValues[4] }
+        return "$imdb:${s.toIntOrNull() ?: s}:${e.toIntOrNull() ?: e}"
+    }
+
+    private fun publishStreams() {
+        streamsFlow.value = altStreams.mapIndexed { i, s ->
+            StreamOption(
+                idx = i, label = s.label, selected = i == currentStreamIdx,
+                addonSource = s.addonSource, quality = s.quality, pmCached = s.pmCached,
+                isEnglish = s.isEnglish, sizeChip = s.sizeChip, seeds = s.seeds,
+            )
+        }
+    }
+
+    /** Mirrors web streamOrder: ON NOW/GORILLA Direct → Torrentio →
+     *  MediaFusion → EasyNews → rest; 1080p, cached, English first. */
+    private fun backendStreamScore(s: org.json.JSONObject): Int {
+        val addon = s.optString("_addon_id", "").lowercase()
+        val hay = "$addon ${s.optString("_addon_name", "")} ${s.optString("_addon_source", "")} ${s.optString("name", "")}".lowercase()
+        val src = when {
+            s.optBoolean("_onnow_direct", false) || addon == "onnowtv-direct" || addon == "gorilla-direct" -> 0
+            hay.contains("torrentio") -> 1
+            hay.contains("mediafusion") || hay.contains("media fusion") -> 2
+            hay.contains("easynews") || hay.contains("easy news") -> 3
+            else -> 4
+        }
+        val q = s.optString("_quality_label", "").lowercase()
+        val ten = if (q.contains("1080") || q == "hd") 0 else 20
+        val cached = if (s.optBoolean("_pm_cached", false)) 0 else 4
+        val eng = if (s.optBoolean("_is_english", true)) 0 else 1
+        val dl = if (s.optBoolean("_pm_uncached", false)) 1000 else 0
+        return dl + src * 100 + ten + cached + eng
+    }
+
+    private fun backendStreamEntry(s: org.json.JSONObject): StreamEntry? {
+        val url = s.optString("url", "").ifBlank { s.optString("externalUrl", "") }.trim()
+        if (!url.startsWith("http", ignoreCase = true)) return null
+        val title = s.optString("title", "").ifBlank { s.optString("name", "") }
+        val desc = s.optString("description", "")
+        if (UHD_RE.containsMatchIn("$title ${s.optString("name", "")} $desc ${s.optString("_quality_label", "")}")) return null
+        val size = SIZE_RE.find("$title ${s.optString("name", "")} $desc")
+            ?.let { "${it.groupValues[1].replace(',', '.')} ${it.groupValues[2].uppercase()}" } ?: ""
+        val seeds = s.optInt("_seeders", s.optInt("seeders", 0)).coerceAtLeast(0)
+        return StreamEntry(
+            url = url,
+            label = title.ifBlank { "Stream" }.take(200),
+            addonSource = s.optString("_addon_source", ""),
+            quality = s.optString("_quality_label", ""),
+            pmCached = s.optBoolean("_pm_cached", false),
+            isEnglish = s.optBoolean("_is_english", false),
+            sizeChip = size,
+            seeds = seeds,
+        )
+    }
+
+    /** Fetch every stream the web app would list (addon aggregate +
+     *  ON NOW Direct + test provider) and merge into the picker. */
+    private fun refreshAltStreamsFromBackend() {
+        if (isLive) return
+        val typeSlug = if (intent.getStringExtra(VlcPlayerActivity.EXTRA_TYPE)?.lowercase() == "series" || isSeriesEpisode) "series" else "movie"
+        val sid = streamsMetaStremioId.ifBlank { stremioIdFromCwId() }
+        if (sid.isBlank()) return
+        val base = readBackendBase()
+        val token = streamsMetaToken
+        val imdb = sid.substringBefore(":")
+        altStreamsRefreshJob?.cancel()
+        altStreamsRefreshJob = pollScope.launch {
+            delay(1_500)
+            val ranked = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val fetched: List<org.json.JSONObject?> = kotlinx.coroutines.coroutineScope {
+                    val addons = async { httpGetJson("$base/api/streams/$typeSlug/$sid") }
+                    val direct = async {
+                        if (token.isNotBlank() && typeSlug == "movie") httpGetJson("$base/api/vod/match?imdb_id=$imdb", token) else null
+                    }
+                    val test = async {
+                        if (token.isNotBlank()) httpGetJson("$base/api/vod/test-direct?type=$typeSlug&id=${android.net.Uri.encode(sid)}", token, 25_000) else null
+                    }
+                    listOf(direct.await(), test.await(), addons.await())
+                }
+                val rows = mutableListOf<Pair<Int, StreamEntry>>()
+                for (json in fetched) {
+                    val arr = json?.optJSONArray("streams") ?: continue
+                    for (i in 0 until arr.length()) {
+                        val o = arr.optJSONObject(i) ?: continue
+                        val e = backendStreamEntry(o) ?: continue
+                        rows.add(backendStreamScore(o) to e)
+                    }
+                }
+                rows.sortedBy { it.first }.map { it.second }
+            }
+            if (ranked.isEmpty()) return@launch
+            val merged = altStreams.toMutableList()
+            for (e in ranked) {
+                val at = merged.indexOfFirst { it.url == e.url }
+                if (at >= 0) {
+                    if (merged[at].addonSource.isBlank() && merged[at].quality.isBlank()) merged[at] = e
+                } else merged.add(e)
+            }
+            if (merged.size == altStreams.size && merged == altStreams) return@launch
+            altStreams = merged
+            val cur = merged.indexOfFirst { it.url == streamUrl }
+            if (cur >= 0) currentStreamIdx = cur
+            publishStreams()
+            Log.i(TAG, "alt streams refreshed: ${merged.size} (sid=$sid)")
+        }
+    }
+
     // v2.10.80 — Buffer-stall watchdog.  When we call prepare() on a
     // stream URL, arm a 10-second timer.  If STATE_READY never fires
     // within that window, auto-advance to the NEXT entry in
@@ -1043,6 +1179,11 @@ class ExoPlayerActivity : ComponentActivity(),
         }
 
         if (streamUrl.isBlank()) { exitReason = "no stream link was received"; finish(); return }
+
+        // Full-list refresh: Continue Watching resumes carry one URL and
+        // Detail autoplay can fire while the web list is still partial.
+        parseStreamsMeta(streamsJson)
+        if (altStreams.size <= 1 || streamsMetaPending) refreshAltStreamsFromBackend()
 
         // ─── v2.16.42 — pick the playback engine ────────────────
         // 4-way selection: MPV (default) / VLC / ExoPlayer /
@@ -2022,15 +2163,16 @@ class ExoPlayerActivity : ComponentActivity(),
     /** Tiny blocking HTTP GET that parses JSON.  No OkHttp dep, no
      *  retries — fail silently and let the caller fall back to the
      *  legacy intent path.  Always runs on Dispatchers.IO. */
-    private fun httpGetJson(urlStr: String): org.json.JSONObject? {
+    private fun httpGetJson(urlStr: String, bearer: String = "", readTimeoutMs: Int = 12_000): org.json.JSONObject? {
         return try {
             val u = java.net.URL(urlStr)
             val c = u.openConnection() as java.net.HttpURLConnection
             try {
                 c.connectTimeout = 8_000
-                c.readTimeout = 12_000
+                c.readTimeout = readTimeoutMs
                 c.requestMethod = "GET"
                 c.setRequestProperty("Accept", "application/json")
+                if (bearer.isNotBlank()) c.setRequestProperty("Authorization", "Bearer $bearer")
                 if (c.responseCode !in 200..299) return null
                 val body = c.inputStream.bufferedReader().use { it.readText() }
                 org.json.JSONObject(body)
@@ -2122,6 +2264,12 @@ class ExoPlayerActivity : ComponentActivity(),
                 hasNextEpisodeFlow.value = false
                 lastProgressSaveAt = 0L
                 nextEpisodePrimeStartedFor = ""   // allow a new prime to fire for THIS new ep
+                // Swap picker: the old episode's links are stale now.
+                altStreams = listOf(StreamEntry(primedUrl, "Stream 1", "", "", false, false))
+                currentStreamIdx = 0
+                publishStreams()
+                streamsMetaStremioId = ""
+                refreshAltStreamsFromBackend()
 
                 // v2.10.40 — Show the FULL-screen LoadingScreen
                 // immediately so the user sees an unmissable visual
@@ -2249,6 +2397,7 @@ class ExoPlayerActivity : ComponentActivity(),
     override fun onResume()  { super.onResume();  hideSystemUi(); try { pbPlay() } catch (_: Exception) {} }
     override fun onDestroy() {
         midStallJob?.cancel()
+        altStreamsRefreshJob?.cancel()
         runCatching { stallHelp.dismiss() }
         super.onDestroy()
         // v2.16.31 — Drop the row from the launcher-admin Live tab.

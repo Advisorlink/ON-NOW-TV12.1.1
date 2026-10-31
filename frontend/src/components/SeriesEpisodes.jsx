@@ -281,7 +281,7 @@ export default function SeriesEpisodes({
                     { signal: ctrl.signal }
                 );
                 const streamsArr = res?.streams || [];
-                partialsMetaRef.current[ep.id] = { easyNewsPending: false };
+                partialsMetaRef.current[ep.id] = { easyNewsPending: false, settled: true };
                 if (mountedRef.current) {
                     setEpisodeStreams((s) => ({
                         ...s,
@@ -716,6 +716,7 @@ export default function SeriesEpisodes({
                     // index of the stream we're about to play.
                     streamsList: ordered,
                     currentStreamIdx: currentIdx,
+                    streamsPending: !partialsMetaRef.current[ep.id]?.settled,
                 })
             ) return;
             navigate(

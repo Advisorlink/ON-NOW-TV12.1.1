@@ -1748,6 +1748,7 @@ export default function Detail() {
                         ? orderStreams(streamsOverride)
                         : orderedStreams
                     ).findIndex((s) => s === stream),
+                    streamsPending: !(streamsOverride && streamsOverride.length) && streamLoading,
                 })
             ) {
                 if (partyCode) partyBreadcrumb('playStream:native-launched', {});

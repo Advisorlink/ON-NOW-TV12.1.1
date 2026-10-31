@@ -8,6 +8,12 @@ import React, { useEffect, useRef, useState } from 'react';
  * This is a critical perf win for HK1: 5+ shelves * 20+ posters each
  * means 100+ off-screen <img> tags decoding on mount.  Deferring all
  * but the first 1–2 shelves cuts initial paint by ~3x on cheap boxes.
+ *
+ * `nearOnly` (Settings → "Load rows as you reach them"): a row mounts
+ * only when it is on screen or the very next page down.  Driven by
+ * the scroller's scroll events (not IntersectionObserver) so it is
+ * deterministic on boxes whose IO viewport lags the real one, and
+ * there is NO timer that mounts everything after 1.5 s.
  */
 export default function Lazy({
     minHeight = 300,
@@ -17,13 +23,14 @@ export default function Lazy({
        navigation — never a placeholder. */
     rootMargin = '2400px 0px',
     eager = false,
+    nearOnly = false,
     children,
 }) {
     const ref = useRef(null);
     const [shown, setShown] = useState(eager);
 
     useEffect(() => {
-        if (shown) return;
+        if (shown || nearOnly) return;
         const el = ref.current;
         if (!el) return;
         // Fallback if IntersectionObserver isn't available (very old
@@ -56,12 +63,44 @@ export default function Lazy({
             io.disconnect();
             clearTimeout(safety);
         };
-    }, [shown, rootMargin]);
+    }, [shown, rootMargin, nearOnly]);
+
+    useEffect(() => {
+        if (shown || !nearOnly) return;
+        const el = ref.current;
+        if (!el) return;
+        const scroller = findScrollParent(el);
+        let raf = 0;
+        const check = () => {
+            raf = 0;
+            const node = ref.current;
+            if (!node) return;
+            const vh = window.innerHeight || 1080;
+            const top = node.getBoundingClientRect().top;
+            // On screen, or the next page down (so DOWN always has a
+            // mounted row to land on and it is already painted).
+            if (top < vh * 1.3) setShown(true);
+        };
+        const onScroll = () => { if (!raf) raf = requestAnimationFrame(check); };
+        check();
+        (scroller || window).addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('resize', onScroll);
+        // Focus moving into a row below the fold scrolls the snap
+        // page; a keydown re-check covers boxes that scroll late.
+        window.addEventListener('keyup', onScroll);
+        return () => {
+            if (raf) cancelAnimationFrame(raf);
+            (scroller || window).removeEventListener('scroll', onScroll);
+            window.removeEventListener('resize', onScroll);
+            window.removeEventListener('keyup', onScroll);
+        };
+    }, [shown, nearOnly]);
 
     if (shown) return children;
     return (
         <div
             ref={ref}
+            data-testid="lazy-row-placeholder"
             aria-hidden="true"
             style={{
                 width: '100%',
@@ -70,4 +109,14 @@ export default function Lazy({
             }}
         />
     );
+}
+
+function findScrollParent(el) {
+    let p = el.parentElement;
+    while (p && p !== document.body) {
+        const oy = getComputedStyle(p).overflowY;
+        if (oy === 'auto' || oy === 'scroll') return p;
+        p = p.parentElement;
+    }
+    return null;
 }

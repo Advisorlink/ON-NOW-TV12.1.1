@@ -104,6 +104,25 @@ export function setNavLayout(layout) {
     try { window.dispatchEvent(new Event('vesper:nav-layout-change')); } catch { /* ignore */ }
 }
 
+/**
+ * Load Home rows as you reach them — only the row in view (and the
+ * next one) mounts its posters; the rest wait until you scroll down.
+ * Defaults ON.
+ */
+const KEY_LAZY_ROWS = 'onnowtv-lazy-rows';
+export function getLazyRows() {
+    try {
+        const v = readScopedString(KEY_LAZY_ROWS);
+        return v === null || v === undefined ? true : v === '1';
+    } catch {
+        return true;
+    }
+}
+export function setLazyRows(enabled) {
+    try { writeScopedString(KEY_LAZY_ROWS, enabled ? '1' : '0'); } catch { /* ignore */ }
+    try { window.dispatchEvent(new Event('vesper:lazy-rows-change')); } catch { /* ignore */ }
+}
+
 const KEY_SHOW_COLLECTIONS = 'onnowtv-show-collections';
 export function getShowCollections() {
     try {

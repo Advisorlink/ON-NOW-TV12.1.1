@@ -11,7 +11,7 @@ import useBackHandler from '@/hooks/useBackHandler';
 import FullscreenButton from '@/components/FullscreenButton';
 import { THEMES } from '@/themes/themes';
 import { useTheme } from '@/themes/ThemeProvider';
-import { getAutoplay1080p, setAutoplay1080p, getAutoTrailer, setAutoTrailer, getNavLayout, setNavLayout } from '@/lib/prefs';
+import { getAutoplay1080p, setAutoplay1080p, getAutoTrailer, setAutoTrailer, getNavLayout, setNavLayout, getLazyRows, setLazyRows } from '@/lib/prefs';
 import { getHomeRows, getHomeRowPrefs, moveHomeRow, toggleHomeRow, resetHomeRows, addCustomHomeRow, removeCustomHomeRow, CATEGORY_GENRES } from '@/lib/homeRows';
 import { API } from '@/lib/api';
 import { clearActiveProfile, getActiveProfile } from '@/lib/profiles';
@@ -31,6 +31,12 @@ export default function Settings() {
     const { themeId, setThemeId } = useTheme();
     const [autoplay, setAutoplay] = React.useState(getAutoplay1080p());
     const [autoTrailer, setAutoTrailerState] = React.useState(getAutoTrailer());
+    const [lazyRows, setLazyRowsState] = React.useState(getLazyRows());
+    const toggleLazyRows = () => {
+        const next = !lazyRows;
+        setLazyRows(next);
+        setLazyRowsState(next);
+    };
     const [topNav, setTopNavState] = React.useState(getNavLayout() === 'top');
     const toggleTopNav = () => {
         const next = !topNav;
@@ -208,6 +214,13 @@ export default function Settings() {
                 description="Netflix-style preview: focusing a movie or show on the Home rails expands it and starts its trailer (English).  On your TV box it plays with sound; in the browser preview it starts muted until you press OK once."
                 value={autoTrailer}
                 onToggle={toggleAutoTrailer}
+            />
+            <ToggleRow
+                testid="lazy-rows"
+                title="Load rows as you reach them"
+                description="ON: the Home page only loads the posters for the row you are on and the next one down — each row below loads the moment you move to it, so scrolling stays quick.  OFF: every row loads straight away."
+                value={lazyRows}
+                onToggle={toggleLazyRows}
             />
             </div>
 

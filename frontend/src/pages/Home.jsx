@@ -21,6 +21,7 @@ import { useAddons } from '@/hooks/useAddons';
 import { useLiveShelves } from '@/hooks/useLiveShelves';
 import { useLiveHeroes } from '@/hooks/useLiveHeroes';
 import Lazy from '@/components/Lazy';
+import { getLazyRows } from '@/lib/prefs';
 import { getEntries as listContinueWatching, hydrateMissingArt as hydrateCwArt } from '@/lib/continueWatching';
 import { Vesper } from '@/lib/api';
 import { getViewingStyle } from '@/lib/viewingStyle';
@@ -409,6 +410,13 @@ export default function Home() {
         try { return listContinueWatching().length > 0; }
         catch { return false; }
     });
+    // Settings → "Load rows as you reach them".
+    const [lazyRows, setLazyRows] = useState(() => getLazyRows());
+    useEffect(() => {
+        const sync = () => setLazyRows(getLazyRows());
+        window.addEventListener('vesper:lazy-rows-change', sync);
+        return () => window.removeEventListener('vesper:lazy-rows-change', sync);
+    }, []);
     const [hasViewingStyle, setHasViewingStyle] = useState(() => {
         try {
             const vs = getViewingStyle();
@@ -564,36 +572,33 @@ export default function Home() {
                             hasViewingStyle && { id: 'foryou', node: <ForYouShelf /> },
                             { id: 'networks', node: <NetworksShelf /> },
                             { id: 'studios', node: <CollectionsShelf /> },
-                            addons.length === 0 && { id: 'empty-addons', node: <EmptyAddonsBanner /> },
+                            addons.length === 0 && { id: 'empty-addons', node: <EmptyAddonsBanner />, eager: true },
                             ...getHomeRowPrefs().custom.map((row) => ({
                                 id: row.id,
-                                node: (
-                                    <Lazy minHeight={340} eager={false}>
-                                        <CustomRowShelf row={row} />
-                                    </Lazy>
-                                ),
+                                node: <CustomRowShelf row={row} />,
                             })),
-                            ...shelves.map((shelf, i) => ({
+                            ...shelves.map((shelf) => ({
                                 id: shelf.rowId || shelf.id,
-                                node: (
-                                    <Lazy minHeight={340} eager={i < 3}>
-                                        <Shelf shelf={shelf} />
-                                    </Lazy>
-                                ),
+                                node: <Shelf shelf={shelf} />,
                             })),
                             // Upcoming Movies — TMDB next-60-day window via
                             // /api/tmdb/upcoming-movies (Detail renders the
                             // trailer + "Notify me" CTA when no streams exist).
-                            {
-                                id: 'upcoming',
-                                node: (
-                                    <Lazy minHeight={340} eager={false}>
-                                        <UpcomingMoviesShelf />
-                                    </Lazy>
-                                ),
-                            },
-                        ]).map((row) => (
-                            <ShelfPage key={row.id} height={shelfPageHeight} isMobile={isMobile}>{row.node}</ShelfPage>
+                            { id: 'upcoming', node: <UpcomingMoviesShelf /> },
+                        ]).map((row, i) => (
+                            <ShelfPage key={row.id} height={shelfPageHeight} isMobile={isMobile}>
+                                {/* Lazy rows ON: only the first row mounts up
+                                    front; each next row mounts as you reach
+                                    the one above it.  OFF: first four rows
+                                    eager, the rest mount within ~1.5 s. */}
+                                <Lazy
+                                    minHeight={340}
+                                    nearOnly={lazyRows}
+                                    eager={row.eager || (lazyRows ? i === 0 : i < 4)}
+                                >
+                                    {row.node}
+                                </Lazy>
+                            </ShelfPage>
                         ))}
 
                         <footer

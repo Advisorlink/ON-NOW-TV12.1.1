@@ -12,6 +12,20 @@
  */
 
 import { sizeLabel } from '@/lib/streamMeta';
+import { getToken } from '@/lib/auth';
+
+/** Stremio stream id for the native player's own stream fetch:
+ *  movies → "tt123"; episodes "tt123:s1e3" / "tt123:1:3" → "tt123:1:3". */
+export function stremioIdFor(type, cwId) {
+    const id = String(cwId || '');
+    if (!/^tt\d+/.test(id)) return '';
+    if (type !== 'series') return id.split(':')[0];
+    let m = id.match(/^([^:]+):s(\d+)e(\d+)$/i);
+    if (m) return `${m[1]}:${Number(m[2])}:${Number(m[3])}`;
+    m = id.match(/^([^:]+):(\d+):(\d+)$/);
+    if (m) return `${m[1]}:${m[2]}:${m[3]}`;
+    return '';
+}
 
 const Host = (() => {
     const a = typeof window !== 'undefined' ? window.OnNowTV : null;
@@ -62,6 +76,9 @@ const Host = (() => {
         // match after filtering out unplayable torrent entries.
         streamsList,
         currentStreamIdx, // eslint-disable-line no-unused-vars
+        // True when the web list is still resolving (partial) — the
+        // native player then fetches the full list itself.
+        streamsPending = false,
     } = {}) => {
         if (!url) return false;
         // Internal libVLC player (native, every codec, in-app).
@@ -143,7 +160,17 @@ const Host = (() => {
                         }))
                         .filter((e) => /^https?:\/\//i.test(e.url))
                     : [];
-                const streamsJson = rows.length > 0 ? JSON.stringify(rows) : '';
+                // Trailing meta row (no `url`, so older native parsers
+                // skip it): lets the player fetch the FULL stream list
+                // itself when the web list was partial or missing
+                // (Continue Watching resumes carry a single URL).
+                const metaRow = {
+                    _meta: true,
+                    token: getToken() || '',
+                    stremioId: stremioIdFor(type, cwId),
+                    pending: !!streamsPending || rows.length === 0,
+                };
+                const streamsJson = JSON.stringify([...rows, metaRow]);
                 const curIdx = rows.findIndex((e) => e.url === url);
                 a.playInternalRichV2(
                     url,
