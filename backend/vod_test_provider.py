@@ -31,8 +31,16 @@ def _cfg() -> Optional[Dict[str, str]]:
 
 async def _allowed(authorization: Optional[str]) -> bool:
     allowed = {a.strip().lower() for a in os.environ.get("VOD_TEST_ACCOUNTS", "").split(",") if a.strip()}
-    acct = _vm._account_from_bearer(authorization)
-    if not (allowed and acct and _vm._db is not None):
+    if not allowed or not authorization or not authorization.lower().startswith("bearer "):
+        return False
+    try:
+        payload = _vm.jwt.decode(authorization.split(" ", 1)[1].strip(), _vm._jwt_secret(), algorithms=[_vm.JWT_ALG])
+    except Exception:  # noqa: BLE001
+        return False
+    if (payload.get("username") or "").strip().lower() in allowed:
+        return True
+    acct = payload.get("sub")
+    if not (acct and _vm._db is not None):
         return False
     row = await _vm._db.vesper_accounts.find_one({"id": acct}, {"_id": 0, "username": 1})
     return bool(row and (row.get("username") or "").strip().lower() in allowed)
