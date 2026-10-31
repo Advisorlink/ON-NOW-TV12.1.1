@@ -1,0 +1,47 @@
+{
+  "summary": "Frontend-only E2E of 3 Home changes (HD wide card, TopNav Auto play/Speed up, expand-in-place trailer). Almost everything passes. One real bug: pressing Enter/OK on the expanded 'Back' button shrinks the trailer on keydown, then the keyup lands on the tile and opens the trailer actions overlay again. Escape and Backspace shrink cleanly.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "TrailerHoverPreview ExpandedControls (Back) + onPressEnd", "issue": "Enter on [data-testid=trailer-hover-shrink] shrinks on keydown (ExpandedControls.onKeyDown -> onShrink -> shrink() focuses tile). The keyup of the same press then reaches the document capture listener onPressEnd with target=tile. shouldIntercept() is true (preview playing, actions closed), so setActions(true) runs and the actions overlay reopens with focus on 'Open Trailer'. Reproduced 2/2 times, including with separate keyboard.down/up. On a TV remote, OK on Back never returns the user to the bare tile. Pressing ArrowRight afterwards only closes the overlay, so it takes one extra press to move on.", "selector": "[data-testid='trailer-hover-shrink']", "priority": "HIGH"}
+    ],
+    "integration_issues": [
+      {"flow": "Browser (no bridge) TrailerModal fallback", "issue": "Not verifiable. In headless Chromium the YouTube iframe [data-testid=trailer-hover-iframe] mounts but never reaches 'playing' (waited 9s), so Enter goes through normal tile press and navigates to /title/movie/<id>. The review request allows this.", "affected_selectors": ["[data-testid='trailer-hover-iframe']", "[data-testid='trailer-modal']"]}
+    ],
+    "design_issues": [
+      {"screen": "Expanded trailer (fullscreen)", "issues": ["The PreviewStreamCheck badge (e.g. 'CAM COPY - 1' / 'NO STREAMS YET') floats alone at the very top-left corner of the full-screen overlay at small size. Consider hiding it or repositioning it while expanded.", "Subtitle/year text stays at clamp(9px,0.62vw,11px) when expanded and is tiny on a 1920 screen."]},
+      {"screen": "Mobile 390x844 Home (likely pre-existing)", "issues": ["The 'ON NOW TV V2' logo overlaps the hero title, and the hero title is clipped under the floating nav.", "The hero carousel dots overlap the 'More Info' button."]}
+    ]
+  },
+  "passed_tests": [
+    "Login testuser/testpass123 + profile seed + Skip tour -> Home with [data-testid=top-nav]",
+    "top-nav-autoplay svg = 'lucide lucide-circle-play' (no lucide-zap); top-nav-speed-up is its nextElementSibling with 'lucide lucide-rocket'",
+    "Autoplay aria-label toggles 'Auto play · ON' <-> 'Auto play · OFF'",
+    "Speed up without bridge -> sonner toast 'Speed up runs on the TV box app — it frees memory so menus stay quick.'",
+    "Speed up with mocked OnNowTV.boostBox -> window.__boosted === true, no toast",
+    "Mobile 390x844: top-nav-more opens compact-nav-menu with autoplay (circle-play) + Speed up (rocket); clicking Speed up closes the menu and shows the toast",
+    "Wide card: src always metahub '/background/medium/'. A MutationObserver saw 8 wide src observations with zero '/poster/', '/small/' or 'w342' values. Each ArrowRight (evaluated right after the press) gives a fresh <img> with the backdrop src, and the previous tile goes back to '/poster/small/'.",
+    "Hover preview card appears inside the focused tile; its <img> src === the wide tile src",
+    "Preload: backdrops for tiles N+1..N+4 all show up in performance resource entries",
+    "Expand-in-place (mocked bridge): video is playing inside the tile; Enter opens actions with focus on trailer-hover-fullscreen; Enter again expands. Same video element (===), no trailer-modal, currentTime continues (3.09->3.71->4.96), box is 1920x800, host is a direct child of body, focus is on trailer-hover-shrink. Arrow keys are swallowed while expanded.",
+    "Escape and Backspace shrink: same element back inside the tile, still playing, focus back on the original tile, no host left on body",
+    "After shrinking, ArrowRight tears down and a new video starts on the next tile (~3s)",
+    "Shelf navigation: Left/Right/Down move correctly; no console errors from TrailerHoverPreview/PosterTile/Shelf/TopNav (only third-party addon CORS errors, plexio/kangaroostreams)"
+  ],
+  "test_report_links": ["/app/tests/home_trailer_e2e/login_snip.py"],
+  "action_items": [
+    "Fix the Enter-on-Back reopen: either shrink on keyup in ExpandedControls, or set a one-shot 'suppressNextPressEnd' flag in shrink() that onPressEnd consumes (ignore the next Enter keyup / mouseup on the tile)",
+    "Optional: hide or reposition the PreviewStreamCheck badge and enlarge the subtitle when expanded"
+  ],
+  "critical_code_review_comments": [
+    "TrailerHoverPreview.jsx is ~820 lines; consider splitting ExpandedControls/ActionOverlay/VideoPreview/YtPreview into separate files.",
+    "The same keydown/keyup race as the Back bug may affect any future control that moves focus back to the tile on Enter keydown. Consider keeping keyup-based activation consistent across the actions overlay and the expanded controls."
+  ],
+  "updated_files": ["/app/tests/home_trailer_e2e/login_snip.py"],
+  "success_rate": {"backend": "N/A (not requested)", "frontend": "93% (13/14 checks; TrailerModal fallback not verifiable in headless)"},
+  "seed_data_creation": "None (localStorage profile seed only)",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Home poster shelves are lazy: press ArrowDown 3x from top-nav-home to reach the first poster row (New movies, shelf-row-com.linvo.cinemeta-movie-year). Mock bridge via add_init_script before goto. To verify the fix, expand, press Enter on Back, then assert trailer-hover-actions is absent and activeElement is the tile.",
+  "rca of the issue": "ExpandedControls.onKeyDown handles Enter on keydown -> onShrink -> shrink() moves focus to tile. The keyup of the same keystroke then fires document-level capture onPressEnd (line ~205) with e.target=tile. shouldIntercept returns true because preview.playing && !actions && tile===p.tile, so setActions(true). Mitigation: shrink on keyup, or set a suppress ref in shrink() that onPressEnd checks and clears."
+}

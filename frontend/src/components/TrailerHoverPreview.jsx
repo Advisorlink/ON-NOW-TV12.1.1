@@ -387,7 +387,9 @@ export default function TrailerHoverPreview() {
                     )}
                     {/* Live stream-count verdict — starts only once the
                         trailer is actually playing, aborted on move-off. */}
-                    <PreviewStreamCheck tile={tile} active={!!preview.playing} />
+                    <div style={{ display: expanded ? 'none' : 'contents' }}>
+                        <PreviewStreamCheck tile={tile} active={!!preview.playing} />
+                    </div>
                     <div
                         style={{
                             position: 'absolute',
@@ -417,7 +419,7 @@ export default function TrailerHoverPreview() {
                                 className="vesper-mono"
                                 style={{
                                     marginTop: 3,
-                                    fontSize: 'clamp(9px, 0.62vw, 11px)',
+                                    fontSize: expanded ? 'clamp(12px, 0.9vw, 16px)' : 'clamp(9px, 0.62vw, 11px)',
                                     letterSpacing: '0.16em',
                                     textTransform: 'uppercase',
                                     color: 'rgba(220,230,255,0.82)',
@@ -641,15 +643,11 @@ function ExpandedControls({ onShrink }) {
     }, []);
     const onKeyDown = (e) => {
         const k = e.key;
-        if (k.startsWith('Arrow')) {
+        if (k.startsWith('Arrow') || k === 'Enter' || k === ' ') {
+            // Enter shrinks on KEYUP so the release never reaches the tile
+            // (where it would re-open the actions).
             e.preventDefault();
             e.stopPropagation();
-            return;
-        }
-        if (k === 'Enter' || k === ' ') {
-            e.preventDefault();
-            e.stopPropagation();
-            onShrink();
             return;
         }
         if (k === 'Escape' || k === 'Backspace' || k === 'GoBack' || e.keyCode === 27 || e.keyCode === 8) {
@@ -658,11 +656,18 @@ function ExpandedControls({ onShrink }) {
             triggerTrapBack();
         }
     };
+    const onKeyUp = (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        e.stopPropagation();
+        onShrink();
+    };
     return (
         <div
             data-testid="trailer-hover-expanded"
             data-focus-trap="true"
             onKeyDown={onKeyDown}
+            onKeyUp={onKeyUp}
             style={{ position: 'absolute', inset: 0, pointerEvents: 'auto' }}
         >
             <button
