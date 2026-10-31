@@ -5429,6 +5429,8 @@ configure_collections(_tmdb_get, cache)
 from vod_match import router as vod_router, configure_vod  # noqa: E402
 app.include_router(vod_router)
 configure_vod(db, _tmdb_get)
+from vod_test_provider import router as vod_test_router  # noqa: E402
+app.include_router(vod_test_router)
 
 
 app.add_middleware(

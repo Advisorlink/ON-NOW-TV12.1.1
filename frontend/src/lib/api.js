@@ -388,6 +388,28 @@ export const Vesper = {
             }
         })();
 
+        // Test provider (TRAV26 only, decided server-side) — extra picks in Swap stream.
+        const testDirectP = (async () => {
+            if (!/^tt\d+/.test(String(itemId))) return;
+            const token = getToken();
+            if (!token) return;
+            try {
+                const r = await api.get(`/vod/test-direct?type=${encodeURIComponent(type)}&id=${encodeURIComponent(itemId)}`, {
+                    signal,
+                    timeout: 20000,
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                const ts = r.data?.streams || [];
+                if (ts.length) {
+                    backendOwned.add('gorilla-direct');
+                    byAddon.set('gorilla-direct', ts);
+                    emit();
+                }
+            } catch (_e) {
+                // not allowed / not in that catalogue
+            }
+        })();
+
         const backendP = (async () => {
             try {
                 const r = await api.get(`/streams/${type}/${itemId}`, { signal });
