@@ -554,6 +554,11 @@ class EpgActivity : AppCompatActivity() {
         channelsList.layoutManager = LinearLayoutManager(this)
         channelsList.adapter = channelAdapter
         channelsList.itemAnimator = null
+        // Focus that falls out of its column during UP/DOWN (a list refreshing under
+        // the highlight) is sent straight back to the row you were on.
+        window.decorView.viewTreeObserver.addOnGlobalFocusChangeListener { _, newFocus ->
+            columnGuard.onFocusChanged(newFocus)
+        }
 
         guideAdapter = GuideRowAdapter(
             onActivate = { /* no-op: tap is handled via the reminder toggle */ },
@@ -598,7 +603,9 @@ class EpgActivity : AppCompatActivity() {
 
     /** The four D-pad columns: rail, channel groups, channels, guide. */
     private val columnGuard = tv.onnowtv.livetv.ui.ColumnGuard {
-        listOfNotNull(
+        // Phone portrait stacks the sections vertically — no column rule there.
+        if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) emptyList()
+        else listOfNotNull(
             findViewById<View>(R.id.rail_home)?.parent as? View,
             findViewById(R.id.categories_sidebar),
             channelsList.parent as? View,
@@ -613,8 +620,12 @@ class EpgActivity : AppCompatActivity() {
         val down = event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_DOWN
         if ((up || down) && event.action == android.view.KeyEvent.ACTION_DOWN) {
             val f = currentFocus
-            if (f != null && columnGuard.blocks(f, if (up) View.FOCUS_UP else View.FOCUS_DOWN)) return true
+            if (f != null && columnGuard.blocks(f, if (up) View.FOCUS_UP else View.FOCUS_DOWN)) {
+                columnGuard.onKeyDown(event.keyCode)
+                return true
+            }
         }
+        if (event.action == android.view.KeyEvent.ACTION_DOWN) columnGuard.onKeyDown(event.keyCode)
         return super.dispatchKeyEvent(event)
     }
 

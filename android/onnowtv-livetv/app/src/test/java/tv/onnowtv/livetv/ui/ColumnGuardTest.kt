@@ -37,4 +37,32 @@ class ColumnGuardTest {
         assertTrue(guard.blocks(right.getChildAt(7), View.FOCUS_DOWN))
         assertFalse("views outside the columns are never touched", guard.blocks(row, View.FOCUS_DOWN))
     }
+
+    @Test fun focus_falling_into_another_column_after_up_down_is_sent_back() {
+        val a = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val row = LinearLayout(a).apply { orientation = LinearLayout.HORIZONTAL }
+        val rail = LinearLayout(a).apply {
+            orientation = LinearLayout.VERTICAL
+            repeat(3) { addView(Button(a).apply { isFocusable = true }, LinearLayout.LayoutParams(100, 100)) }
+        }
+        val middle = LinearLayout(a).apply {
+            orientation = LinearLayout.VERTICAL
+            repeat(5) { addView(Button(a).apply { isFocusable = true }, LinearLayout.LayoutParams(200, 100)) }
+        }
+        row.addView(rail); row.addView(middle)
+        a.setContentView(row)
+        val guard = ColumnGuard { listOf(rail, middle) }
+        val channel = middle.getChildAt(3)
+        channel.requestFocus(); guard.onFocusChanged(channel)
+
+        guard.onKeyDown(android.view.KeyEvent.KEYCODE_DPAD_DOWN)
+        rail.getChildAt(0).requestFocus()
+        assertTrue("jump into the rail after DOWN is undone", guard.onFocusChanged(rail.getChildAt(0)))
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        assertTrue(channel.isFocused)
+
+        guard.onKeyDown(android.view.KeyEvent.KEYCODE_DPAD_LEFT)
+        rail.getChildAt(0).requestFocus()
+        assertFalse("LEFT into the rail is allowed", guard.onFocusChanged(rail.getChildAt(0)))
+    }
 }
