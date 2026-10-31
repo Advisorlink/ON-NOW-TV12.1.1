@@ -36,6 +36,7 @@ import tv.onnowtv.livetv.data.Category
 import tv.onnowtv.livetv.data.Channel
 import tv.onnowtv.livetv.data.FavouritesStore
 import tv.onnowtv.livetv.data.Programme
+import tv.onnowtv.livetv.data.RecentSearches
 import tv.onnowtv.livetv.data.ReminderStore
 import tv.onnowtv.livetv.data.XtreamBundle
 import tv.onnowtv.livetv.data.XtreamRepository
@@ -617,6 +618,13 @@ class EpgActivity : AppCompatActivity() {
     /** Strict columns: UP/DOWN never leaves the focused column (top/bottom just stop);
      *  only LEFT/RIGHT crosses. What's On Live and the sport chips sit inside their columns. */
     override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        // Remote mic / search key → voice search.
+        if (event.action == android.view.KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
+            (event.keyCode == android.view.KeyEvent.KEYCODE_SEARCH || event.keyCode == android.view.KeyEvent.KEYCODE_VOICE_ASSIST)) {
+            if (searchOverlay.visibility != View.VISIBLE) openSearchOverlay()
+            startVoiceSearch()
+            return true
+        }
         val up = event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP
         val down = event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_DOWN
         if ((up || down) && event.action == android.view.KeyEvent.ACTION_DOWN) {
@@ -878,22 +886,76 @@ class EpgActivity : AppCompatActivity() {
             override fun afterTextChanged(s: Editable?) {}
         })
         searchOverlayClose.setOnClickListener { closeSearchOverlay() }
+        findViewById<View>(R.id.search_overlay_mic).setOnClickListener { startVoiceSearch() }
+    }
+
+    private val voiceSearch = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { res ->
+        val said = res.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+        if (!said.isNullOrBlank()) {
+            if (searchOverlay.visibility != View.VISIBLE) openSearchOverlay()
+            searchOverlayInput.setText(said)
+            searchOverlayInput.setSelection(said.length)
+            RecentSearches.add(this, said)
+        }
+    }
+
+    /** Google voice input; boxes without a speech service get a short message. */
+    private fun startVoiceSearch() {
+        val i = Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Say a show, film, team or channel")
+        try { voiceSearch.launch(i) } catch (_: android.content.ActivityNotFoundException) {
+            android.widget.Toast.makeText(this, "Voice search isn't available on this box — install Google app / Google voice", android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun renderRecentSearches() {
+        val row = findViewById<LinearLayout>(R.id.search_recent_row)
+        val scroll = findViewById<View>(R.id.search_recent_scroll)
+        row.removeAllViews()
+        val recent = RecentSearches.list(this)
+        scroll.visibility = if (recent.isEmpty()) View.GONE else View.VISIBLE
+        val dp = resources.displayMetrics.density
+        for (q in recent) {
+            row.addView(TextView(this).apply {
+                text = q
+                setTextColor(getColor(R.color.livetv_fg))
+                textSize = 14f
+                setPadding((16 * dp).toInt(), (8 * dp).toInt(), (16 * dp).toInt(), (8 * dp).toInt())
+                setBackgroundResource(R.drawable.channel_pill_bg)
+                isFocusable = true
+                isClickable = true
+                setOnClickListener { searchOverlayInput.setText(q); searchOverlayInput.setSelection(q.length) }
+            }, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = (10 * dp).toInt() })
+        }
+    }
+
+    /** The guide behind the search screen must never take the remote's highlight. */
+    private fun guideFocusBlocked(blocked: Boolean) {
+        val main = findViewById<View>(R.id.rail_home)?.parent?.parent as? ViewGroup ?: return
+        main.descendantFocusability = if (blocked) ViewGroup.FOCUS_BLOCK_DESCENDANTS else ViewGroup.FOCUS_AFTER_DESCENDANTS
     }
 
     private fun openSearchOverlay() {
         searchOverlay.visibility = View.VISIBLE
-        searchOverlayInput.setText("")
+        guideFocusBlocked(true)
+        renderRecentSearches()
+        val last = RecentSearches.last(this)
         searchOverlayCount.text = ""
         searchOverlayEmpty.visibility = View.VISIBLE
         searchOverlayResults.visibility = View.GONE
         searchResultsAdapter.submit(emptyList())
+        searchOverlayInput.setText(last)
+        searchOverlayInput.setSelection(last.length)
         searchOverlayInput.requestFocus()
     }
 
     private fun closeSearchOverlay() {
         searchHandler.removeCallbacksAndMessages(null)
         searchJob?.cancel()
+        searchOverlayInput.text?.toString()?.let { RecentSearches.add(this, it) }
         searchOverlay.visibility = View.GONE
+        guideFocusBlocked(false)
         // Restore focus to the channels column.
         channelsList.post {
             channelsList.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
@@ -1892,7 +1954,9 @@ class EpgActivity : AppCompatActivity() {
     }
 
     /** Swap the in-hero preview to [ch] (no full-screen). */
+    private var lastPreviewChannel: Channel? = null
     private fun startPreview(ch: Channel) {
+        lastPreviewChannel = ch
         // Hide the idle TMDB-art placeholder and reveal the player.
         previewThumbnail.visibility = View.GONE
         previewThumbFade.visibility = View.GONE
@@ -2567,6 +2631,11 @@ class EpgActivity : AppCompatActivity() {
             previewMiniBar.visibility = View.VISIBLE
             LivePreviewSession.getOrCreate(this).playWhenReady = true
             LivePreviewSession.currentChannel?.let { if (it.id != focusedChannel?.id) { focusedChannel = it; updateHero(it); loadGuideForChannel(it) } }
+            return
+        }
+        // Back from a catch-up (which freed the line): bring the live preview back.
+        if (!LivePreviewSession.isAlive() && previewPlayerView.visibility == View.VISIBLE) {
+            (lastPreviewChannel ?: focusedChannel)?.let { startPreview(it) }
             return
         }
         // Returning from full-screen / Library / background — re-bind

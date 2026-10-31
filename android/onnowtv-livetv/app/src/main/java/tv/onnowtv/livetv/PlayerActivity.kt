@@ -309,6 +309,7 @@ open class PlayerActivity : AppCompatActivity() {
         infoDescriptionView = findViewById(R.id.player_info_description)
         infoTimeRange     = findViewById(R.id.player_info_time_range)
         infoProgressView  = findViewById(R.id.player_info_progress)
+        if (catchUp) setUpCatchUpScrubber()
         infoNextTitle     = findViewById(R.id.player_info_next_title)
         infoNextDescription = findViewById(R.id.player_info_next_description)
         infoNextTime      = findViewById(R.id.player_info_next_time)
@@ -434,6 +435,8 @@ open class PlayerActivity : AppCompatActivity() {
         ensureEpgFor(channel)
         // Surface stays clean — no transient "Tuning…" because the
         // user already saw the stream in the preview.
+        // Open with the banner up: channel, programme, timeline and description.
+        playerOverlay.post { if (!isFinishing) showControlsBar() }
     }
 
     /* ─────────────────── ExoPlayer ─────────────────── */
@@ -1597,6 +1600,33 @@ open class PlayerActivity : AppCompatActivity() {
     private fun stopClockTicker() {
         clockHandler.removeCallbacks(clockTick)
         seekHandler.removeCallbacks(seekTick)
+    }
+
+    /** Catch-up: the timeline is a focusable scrubber — it lights up and grows when
+     *  highlighted, LEFT/RIGHT skip back/forward (hold to go faster). */
+    private fun setUpCatchUpScrubber() {
+        val bar = infoProgressView
+        bar.isFocusable = true
+        bar.isFocusableInTouchMode = false
+        bar.setBackgroundResource(R.drawable.scrubber_focus_bg)
+        bar.layoutParams = bar.layoutParams.apply { height = (18 * resources.displayMetrics.density).toInt() }
+        bar.setPadding(0, (7 * resources.displayMetrics.density).toInt(), 0, (7 * resources.displayMetrics.density).toInt())
+        bar.setOnFocusChangeListener { v, has ->
+            v.animate().scaleY(if (has) 1.9f else 1f).setDuration(140L).start()
+            if (has) {
+                status.text = "◀  ▶  SKIP  ·  HOLD TO GO FASTER"
+                hideHandler.removeCallbacksAndMessages(null)
+                hideHandler.postDelayed({ status.text = "" }, 2_200L)
+            }
+        }
+        bar.setOnKeyListener { _, keyCode, e ->
+            if (e.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+            if (keyCode != KeyEvent.KEYCODE_DPAD_LEFT && keyCode != KeyEvent.KEYCODE_DPAD_RIGHT) return@setOnKeyListener false
+            val held = e.repeatCount
+            val step = when { held > 12 -> 300_000L; held > 4 -> 60_000L; else -> 30_000L }
+            seekRecording(if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) -step else step)
+            true
+        }
     }
 
     private fun seekRelative(deltaMs: Long) {

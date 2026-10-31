@@ -964,6 +964,17 @@
             android:focusableInTouchMode="true" />
 
         <ImageButton
+            android:id="@+id/search_overlay_mic"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginEnd="8dp"
+            android:padding="11dp"
+            android:src="@drawable/ic_mic"
+            android:background="@drawable/rail_icon_bg"
+            android:focusable="true"
+            android:contentDescription="Voice search" />
+
+        <ImageButton
             android:id="@+id/search_overlay_close"
             android:layout_width="44dp"
             android:layout_height="44dp"
@@ -973,6 +984,22 @@
             android:focusable="true"
             android:contentDescription="Close" />
     </LinearLayout>
+
+    <HorizontalScrollView
+        android:id="@+id/search_recent_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:scrollbars="none"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:id="@+id/search_recent_row"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical" />
+    </HorizontalScrollView>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/search_overlay_results"

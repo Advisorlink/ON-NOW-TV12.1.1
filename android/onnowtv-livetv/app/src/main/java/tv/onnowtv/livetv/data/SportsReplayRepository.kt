@@ -71,7 +71,7 @@ object SportsReplayRepository {
             val json = JSONObject(response.body?.string().orEmpty())
             json.optJSONObject("server_info")?.optString("timezone")?.takeIf { it in java.util.TimeZone.getAvailableIDs() }
         } ?: return null
-        timezones.put(zoneKey, timezone, 600_000)
+        timezones.put(zoneKey, timezone, 6 * 3_600_000)
         return SportsReplayPolicy.replayUrl(channel, programme, timezone)?.toString()
     }
 

@@ -27,6 +27,8 @@ object CatchUpPlayback {
         cover.bringToFront()
         val message = if (home != null && away != null) "LOADING YOUR GAME…" else "LOADING YOUR PROGRAMME…"
         cover.show("↺  CATCH UP", title, subtitle, home, away, channel.logoUrl, message)
+        // Free the line (1-connection accounts) before the recording connects.
+        tv.onnowtv.livetv.LivePreviewSession.release()
         activity.lifecycleScope.launch {
             val ready = try { CatchUpResolver.resolve(activity, channel, programme, all) } finally { busy = false }
             if (ready == null) {

@@ -1394,6 +1394,7 @@ class ExoPlayerActivity : ComponentActivity(),
                     } catch (_: Exception) {}
                 }
                 refreshTrackLists(tracks)
+                preferLightAudio(tracks)
             }
         })
 
@@ -2762,6 +2763,40 @@ class ExoPlayerActivity : ComponentActivity(),
         } catch (e: Exception) {
             Log.w(TAG, "selectTrack failed for $id", e)
         }
+    }
+
+    /** TrueHD / DTS-HD as the main track → switch once per file to the same-language
+     *  Dolby Digital Plus / Dolby Digital track (box hardware decodes it; starts like ON NOW Direct). */
+    private var lightAudioCheckedFor: String? = null
+    private fun preferLightAudio(tracks: androidx.media3.common.Tracks) {
+        val mid = player.currentMediaItem?.mediaId ?: return
+        if (lightAudioCheckedFor == mid) return
+        val audio = tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
+        val sel = audio.firstOrNull { it.isSelected } ?: return
+        val selFmt = (0 until sel.length).firstOrNull { sel.isTrackSelected(it) }?.let { sel.getTrackFormat(it) } ?: return
+        lightAudioCheckedFor = mid
+        val heavy = setOf(androidx.media3.common.MimeTypes.AUDIO_TRUEHD, androidx.media3.common.MimeTypes.AUDIO_DTS_HD)
+        if (selFmt.sampleMimeType !in heavy) return
+        val order = listOf(
+            androidx.media3.common.MimeTypes.AUDIO_E_AC3_JOC, androidx.media3.common.MimeTypes.AUDIO_E_AC3,
+            androidx.media3.common.MimeTypes.AUDIO_AC3, androidx.media3.common.MimeTypes.AUDIO_DTS,
+            androidx.media3.common.MimeTypes.AUDIO_AAC,
+        )
+        var best: Pair<androidx.media3.common.Tracks.Group, Int>? = null
+        var bestRank = Int.MAX_VALUE
+        for (g in audio) for (i in 0 until g.length) {
+            if (!g.isTrackSupported(i)) continue
+            val f = g.getTrackFormat(i)
+            val r = order.indexOf(f.sampleMimeType)
+            if (r < 0) continue
+            val rank = r + if (selFmt.language == null || f.language == null || f.language == selFmt.language) 0 else 10
+            if (rank < bestRank) { bestRank = rank; best = g to i }
+        }
+        val (g, i) = best ?: return
+        Log.i(TAG, "audio: ${selFmt.sampleMimeType} → ${g.getTrackFormat(i).sampleMimeType} for a hardware-decoded start")
+        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+            .setOverrideForType(androidx.media3.common.TrackSelectionOverride(g.mediaTrackGroup, listOf(i)))
+            .build()
     }
 
     private fun subsOffPermanent(): Boolean =

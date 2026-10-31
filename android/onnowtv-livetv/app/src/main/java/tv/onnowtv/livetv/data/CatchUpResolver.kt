@@ -18,6 +18,11 @@ object CatchUpResolver {
 
     suspend fun resolve(ctx: Context, channel: Channel, p: Programme, all: List<Channel>): Ready? {
         val own = viewer(ctx, channel)
+        // Provider already lists this recording → skip the test request and play straight
+        // away (the probe made the provider spin the recording up twice).
+        if (p.archiveAvailable == true && own.archiveEnabled) {
+            SportsReplayRepository.catchUpUrl(own, p)?.let { return Ready(it, own) }
+        }
         SportsReplayRepository.verifyProgramme(own, p).verified?.let { return settle(it.url, own) }
         for (twin in twins(channel, all)) {
             val t = viewer(ctx, twin)
