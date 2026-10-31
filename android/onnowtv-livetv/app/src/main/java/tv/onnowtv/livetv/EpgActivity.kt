@@ -29,6 +29,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import tv.onnowtv.livetv.data.Category
@@ -211,7 +212,7 @@ class EpgActivity : AppCompatActivity() {
         val sid = focusedChannel?.epgChannelId ?: ""
         return "$sid:${p.startMs}"
     }
-    private val tmdbArtCache = mutableMapOf<String, String>()  // title → backdrop url
+    private val tmdbArtCache = java.util.concurrent.ConcurrentHashMap<String, String>()  // title → backdrop url
     private var artJob: Job? = null
     // Channels currently being lazy-fetched.  Prevents the same
     // channel from being requested twice when the RecyclerView
@@ -706,8 +707,8 @@ class EpgActivity : AppCompatActivity() {
      * process restart and the watcher can pop a banner when the
      * programme is about to start.
      */
-    private fun persistAddReminder(key: String, p: Programme) {
-        val channel = focusedChannel ?: return
+    private fun persistAddReminder(key: String, p: Programme, ch: Channel? = null) {
+        val channel = ch ?: focusedChannel ?: return
         val map = ReminderStore.load(this)
         map[key] = ReminderStore.Reminder(
             key = key,
@@ -849,18 +850,15 @@ class EpgActivity : AppCompatActivity() {
     }
 
     private fun wireSearch() {
-        // Set up the full-screen search overlay (was previously the
-        // inline EditText above the channel list).
         searchResultsAdapter = tv.onnowtv.livetv.ui.SearchResultsAdapter(
-            onActivate = { r ->
-                closeSearchOverlay()
-                if (r.channel.epgChannelId != null) {
-                    epgCache[r.channel.epgChannelId] = epgCache[r.channel.epgChannelId] ?: emptyList()
-                }
-                // Search results are an explicit "play this" — go
-                // straight to full-screen via the shared player.
-                openFullscreen(r.channel)
+            onShow = { ch, p, live ->
+                if (live) { closeSearchOverlay(); openFullscreen(ch) }
+                else toggleSearchReminder(ch, p)
             },
+            onShowLongPress = { ch -> closeSearchOverlay(); openFullscreen(ch) },
+            onChannel = { ch -> closeSearchOverlay(); openFullscreen(ch) },
+            hasReminder = { ch, p -> reminderSet.contains("${ch.epgChannelId ?: ""}:${p.startMs}") },
+            loadArt = { title, into, fallback -> loadSearchArt(title, into, fallback) },
         )
         searchOverlayResults.layoutManager = LinearLayoutManager(this)
         searchOverlayResults.adapter = searchResultsAdapter
@@ -894,6 +892,7 @@ class EpgActivity : AppCompatActivity() {
 
     private fun closeSearchOverlay() {
         searchHandler.removeCallbacksAndMessages(null)
+        searchJob?.cancel()
         searchOverlay.visibility = View.GONE
         // Restore focus to the channels column.
         channelsList.post {
@@ -901,58 +900,73 @@ class EpgActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Run the search query against ALL channels (name match) and
-     * ALL cached EPG buckets (programme title match).  We cap the
-     * result list at 200 rows so super-broad queries ("the") don't
-     * lock the UI thread.
-     */
+    /** Grouped search (On Now / Coming Up / Channels) over every channel and every
+     *  cached programme — computed off the main thread so typing never stutters. */
+    private var searchJob: Job? = null
+    private val searchArtGate = kotlinx.coroutines.sync.Semaphore(4)
+
     private fun runSearch(query: String) {
+        searchJob?.cancel()
         if (query.length < 2) {
             searchResultsAdapter.submit(emptyList())
+            searchOverlayEmpty.text = "Start typing to search every channel and every programme."
             searchOverlayEmpty.visibility = View.VISIBLE
             searchOverlayResults.visibility = View.GONE
             searchOverlayCount.text = ""
             return
         }
-        val q = query.lowercase(Locale.UK)
-        val now = System.currentTimeMillis()
-        val results = mutableListOf<tv.onnowtv.livetv.ui.SearchResult>()
-        val seenChannels = HashSet<String>()
-
-        // Channel-name matches first (boosted to top of list).
-        for (ch in bundle.channels) {
-            if (ch.name.lowercase(Locale.UK).contains(q)) {
-                results.add(tv.onnowtv.livetv.ui.SearchResult(channel = ch))
-                seenChannels.add(ch.id)
-                if (results.size >= 60) break
+        val channels = bundle.channels
+        searchJob = lifecycleScope.launch(Dispatchers.Default) {
+            val rows = tv.onnowtv.livetv.ui.SearchEngine.search(query, channels, epgCache)
+            withContext(Dispatchers.Main) {
+                if (searchOverlay.visibility != View.VISIBLE) return@withContext
+                val hits = rows.count { it !is tv.onnowtv.livetv.ui.SearchRow.Header }
+                if (hits == 0) {
+                    searchResultsAdapter.submit(emptyList())
+                    searchOverlayEmpty.text = "Nothing on the guide matches “$query”."
+                    searchOverlayEmpty.visibility = View.VISIBLE
+                    searchOverlayResults.visibility = View.GONE
+                    searchOverlayCount.text = "0 RESULTS"
+                } else {
+                    searchResultsAdapter.submit(rows)
+                    searchOverlayResults.scrollToPosition(0)
+                    searchOverlayEmpty.visibility = View.GONE
+                    searchOverlayResults.visibility = View.VISIBLE
+                    searchOverlayCount.text = "${"%,d".format(hits)} RESULTS"
+                }
             }
         }
+    }
 
-        // EPG programme-title matches.  Scan cached buckets only —
-        // we don't fan out to the backend for every keystroke.
-        epgLoop@ for ((sid, progs) in epgCache) {
-            val ch = bundle.channels.firstOrNull { it.epgChannelId == sid } ?: continue
-            for (p in progs) {
-                if (p.stopMs < now) continue
-                if (!p.title.lowercase(Locale.UK).contains(q)) continue
-                val kind = if (p.startMs <= now && p.stopMs > now) "NOW" else "UPCOMING"
-                results.add(tv.onnowtv.livetv.ui.SearchResult(channel = ch, programme = p, kind = kind))
-                if (results.size >= 200) break@epgLoop
-            }
-        }
-
-        if (results.isEmpty()) {
-            searchResultsAdapter.submit(emptyList())
-            searchOverlayEmpty.text = "No channels or programmes match “$query”."
-            searchOverlayEmpty.visibility = View.VISIBLE
-            searchOverlayResults.visibility = View.GONE
-            searchOverlayCount.text = "0 RESULTS"
+    private fun toggleSearchReminder(ch: Channel, p: Programme) {
+        val key = "${ch.epgChannelId ?: ""}:${p.startMs}"
+        val time = java.text.SimpleDateFormat("EEE h:mm a", Locale.UK).format(java.util.Date(p.startMs))
+        if (reminderSet.remove(key)) {
+            persistRemoveReminder(key)
+            android.widget.Toast.makeText(this, "Reminder removed: ${p.title}", android.widget.Toast.LENGTH_SHORT).show()
         } else {
-            searchResultsAdapter.submit(results)
-            searchOverlayEmpty.visibility = View.GONE
-            searchOverlayResults.visibility = View.VISIBLE
-            searchOverlayCount.text = "${"%,d".format(results.size)} RESULTS"
+            reminderSet.add(key)
+            persistAddReminder(key, p, ch)
+            android.widget.Toast.makeText(this, "Reminder set: ${p.title} · $time on ${ch.name}", android.widget.Toast.LENGTH_SHORT).show()
+        }
+        searchResultsAdapter.refresh(ch, p)
+    }
+
+    /** Cover art for a search card: TMDB art by title (cached), channel logo meanwhile. */
+    private fun loadSearchArt(title: String, into: android.widget.ImageView, fallback: String?) {
+        val key = title.trim().lowercase(Locale.UK)
+        into.tag = key
+        val cached = tmdbArtCache[key]
+        if (!cached.isNullOrBlank()) { into.load(cached) { crossfade(true) }; return }
+        if (!fallback.isNullOrBlank()) into.load(fallback) else into.setImageDrawable(null)
+        if (cached != null) return
+        lifecycleScope.launch(Dispatchers.IO) {
+            val url = searchArtGate.withPermit {
+                tmdbArtCache[key] ?: fetchTmdbBackdrop(title).also { tmdbArtCache[key] = it }
+            }
+            if (url.isNotBlank()) withContext(Dispatchers.Main) {
+                if (into.tag == key) into.load(url) { crossfade(true); crossfade(200) }
+            }
         }
     }
 

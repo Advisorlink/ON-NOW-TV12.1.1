@@ -956,7 +956,7 @@
             android:textColorHint="@color/livetv_fg_dimmer"
             android:textSize="20sp"
             android:fontFamily="sans-serif-medium"
-            android:hint="Search every channel and every programme…"
+            android:hint="Search shows, films, sport or channels…"
             android:singleLine="true"
             android:imeOptions="actionSearch"
             android:inputType="text"
