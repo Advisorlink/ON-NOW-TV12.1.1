@@ -46,6 +46,8 @@ export const isEasyNews = (s) =>
 
 /** "ON NOW TV Direct" — the user's own IPTV VOD link.  Always first. */
 export const isOnNowDirect = (s) => s?._onnow_direct === true || s?._addon_id === 'onnowtv-direct';
+/** GORILLA DIRECT test provider (TRAV26 only) — listed right under ON NOW Direct. */
+export const isGorillaDirect = (s) => s?._addon_id === 'gorilla-direct';
 export const isTorrentio = (s) =>
     /torrentio/i.test(`${s?._addon_id || ''} ${s?._addon_name || ''}`);
 export const isMediaFusion = (s) =>
@@ -115,7 +117,7 @@ export function orderStreams(streams) {
     // Sixth bucket: uncached debrid downloads sink below EVERY source.
     const groups = [[], [], [], [], [], []];
     streams.forEach((s, i) =>
-        groups[isUncachedDownload(s) ? 5 : sourceRank(s)].push({ s, i, key: scoreStream(s) })
+        groups[isUncachedDownload(s) ? 5 : isGorillaDirect(s) ? 0 : sourceRank(s)].push({ s, i, key: scoreStream(s) })
     );
     const bySmallestFhd = (a, b) => {
         const fa = is1080p(a.s) && !is4K(a.s) && !isAV1(a.s) ? 0 : 1;
@@ -130,7 +132,8 @@ export function orderStreams(streams) {
         const gb = typeof b.s?._size_gb === 'number' ? b.s._size_gb : Number.MAX_VALUE;
         return ga - gb || a.key - b.key || a.i - b.i;
     };
-    groups[0].sort((a, b) => a.i - b.i);
+    // ON NOW Direct first, then the GORILLA DIRECT test provider, in arrival order.
+    groups[0].sort((a, b) => (isOnNowDirect(a.s) ? 0 : 1) - (isOnNowDirect(b.s) ? 0 : 1) || a.i - b.i);
     for (let g = 1; g < groups.length; g += 1) groups[g].sort(bySmallestFhd);
     return groups.flat().map((x) => x.s);
 }
