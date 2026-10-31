@@ -58,6 +58,19 @@ export function backdrop(url) {
  * Pass `lossless=true` for the absolute best quality (skips every
  * downscale).
  */
+/* Pre-fetch + decode an image so the wide card paints sharp on first frame.
+ * Keeps the last 40 Image objects alive so the decoded bitmaps stay cached. */
+const warmed = new Map();
+export function warm(url) {
+    if (!url || typeof Image === 'undefined' || warmed.has(url)) return;
+    const im = new Image();
+    im.decoding = 'async';
+    im.src = url;
+    if (typeof im.decode === 'function') im.decode().catch(() => { /* keeps the fetch in cache */ });
+    warmed.set(url, im);
+    if (warmed.size > 40) warmed.delete(warmed.keys().next().value);
+}
+
 export function heroBackdrop(url, lossless = false) {
     if (!url) return url;
     if (lossless || !isLite()) return url;

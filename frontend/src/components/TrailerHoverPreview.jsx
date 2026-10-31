@@ -11,9 +11,9 @@
  * iframe in the browser.  Pressing OK on a playing trailer shows two
  * actions inside the card: "Play Full Screen" and "Open to Play".
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Info, Maximize2, Play, Plus } from 'lucide-react';
+import { Info, Maximize2, Minimize2, Play, Plus } from 'lucide-react';
 import { getAutoTrailer, getAutoplay1080p } from '@/lib/prefs';
 import {
     fetchTrailerCandidates,
@@ -45,6 +45,20 @@ export default function TrailerHoverPreview() {
     const [preview, setPreview] = useState(null);
     const [actions, setActions] = useState(false);
     const [fullscreen, setFullscreen] = useState(null); // {candidates, source, title, backdrop}
+    // "Open Trailer" on the box grows the SAME <video> to fill the screen
+    // (no re-buffer): the card's DOM host moves from the tile to <body>.
+    const [expanded, setExpanded] = useState(false);
+    const expandedRef = useRef(false);
+    expandedRef.current = expanded;
+    const hostRef = useRef(null);
+    const getHost = () => {
+        if (!hostRef.current) {
+            const d = document.createElement('div');
+            d.setAttribute('data-testid', 'trailer-hover-host');
+            hostRef.current = d;
+        }
+        return hostRef.current;
+    };
     const tokenRef = useRef(0);
     const previewRef = useRef(null);
     const actionsRef = useRef(false);
@@ -88,6 +102,7 @@ export default function TrailerHoverPreview() {
             tokenRef.current += 1;
             setPreview(null);
             setActions(false);
+            setExpanded(false);
         };
 
         const startTile = (tile, token) => {
@@ -137,7 +152,7 @@ export default function TrailerHoverPreview() {
             const tile = target?.closest?.('[data-preview="true"]');
             if (!tile) {
                 // Focus moved into our own action overlay / modal — keep the card.
-                if (target?.closest?.('[data-testid="trailer-hover-actions"], [data-testid="trailer-modal"], [data-testid="add-to-list-modal"]')) return;
+                if (target?.closest?.('[data-testid="trailer-hover-actions"], [data-testid="trailer-hover-expanded"], [data-testid="trailer-modal"], [data-testid="add-to-list-modal"]')) return;
                 hide();
                 return;
             }
@@ -148,6 +163,7 @@ export default function TrailerHoverPreview() {
             tokenRef.current += 1;
             setPreview(null);
             setActions(false);
+            setExpanded(false);
             const token = tokenRef.current;
             expandTimer = setTimeout(() => startTile(tile, token), PREVIEW_DWELL_MS);
         };
@@ -156,7 +172,7 @@ export default function TrailerHoverPreview() {
         // mousemove (not mouseover) so layout shifting under a
         // stationary cursor never hijacks the D-pad focus preview.
         const onMove = (e) => {
-            if (actionsRef.current || document.querySelector('[data-testid="trailer-modal"]')) return;
+            if (expandedRef.current || actionsRef.current || document.querySelector('[data-testid="trailer-modal"]')) return;
             const tile = e.target?.closest?.('[data-preview="true"]');
             // One selected card, even with a mouse: don't widen a hovered
             // card while Shelf still considers another card the wide one.
@@ -237,11 +253,39 @@ export default function TrailerHoverPreview() {
         return () => clearTimeout(timer);
     }, [preview?.tile, preview?.playing, preview?.media]);
 
+    // Park the card host inside the tile, or on <body> while expanded.
+    // Moving the host keeps the mounted <video> playing — no reload.
+    const previewTile = preview?.tile || null;
+    useLayoutEffect(() => {
+        const host = getHost();
+        if (!previewTile) { host.remove(); return undefined; }
+        const s = host.style;
+        s.top = '0'; s.left = '0'; s.right = '0'; s.bottom = '0';
+        if (expanded) {
+            s.position = 'fixed'; s.zIndex = '70'; s.pointerEvents = 'auto'; s.background = '#000';
+            if (host.parentNode !== document.body) document.body.appendChild(host);
+        } else {
+            s.position = 'absolute'; s.zIndex = '3'; s.pointerEvents = 'none'; s.background = '#05070d';
+            if (host.parentNode !== previewTile) previewTile.appendChild(host);
+        }
+        return undefined;
+    }, [previewTile, expanded]);
+    useEffect(() => () => hostRef.current?.remove(), []);
+    const shrink = () => {
+        setExpanded(false);
+        const t = previewRef.current?.tile;
+        try { t?.focus({ preventScroll: true }); } catch { /* ignore */ }
+    };
+    useNativeBackTrap(expanded, () => { shrink(); return false; });
+
     if (!enabled || !preview) return null;
 
     const { tile, title, sub, backdrop, media } = preview;
     const patch = (fn) => setPreview((p) => (p?.tile === tile ? fn(p) : p));
-    const onEnded = () => patch((p) => ({ ...p, media: null, playing: false, ended: true }));
+    const onEnded = () => {
+        if (expandedRef.current) shrink();
+        patch((p) => ({ ...p, media: null, playing: false, ended: true }));
+    };
 
     const closeActions = () => {
         setActions(false);
@@ -249,6 +293,12 @@ export default function TrailerHoverPreview() {
     };
     const openFullscreen = () => {
         setActions(false);
+        // A playing muxed <video> simply grows to the full screen — same
+        // element, same second, no second buffer.
+        if (media?.kind === 'video' && preview.playing) {
+            setExpanded(true);
+            return;
+        }
         const resume = media;
         // Carry the exact second the little card is up to, so the
         // fullscreen version continues instead of restarting.
@@ -292,12 +342,13 @@ export default function TrailerHoverPreview() {
             {createPortal(
                 <div
                     data-testid="trailer-hover-preview"
+                    data-expanded={expanded ? 'true' : undefined}
                     style={{
                         position: 'absolute',
                         inset: 0,
                         zIndex: 3,
                         pointerEvents: 'none',
-                        background: '#05070d',
+                        background: expanded ? '#000' : '#05070d',
                     }}
                 >
                     <style>{`@keyframes vesper-hoverprev-in{from{opacity:0}to{opacity:1}}`}</style>
@@ -305,12 +356,13 @@ export default function TrailerHoverPreview() {
                         <img
                             src={backdrop}
                             alt=""
+                            decoding="async"
                             style={{
                                 position: 'absolute',
                                 inset: 0,
                                 width: '100%',
                                 height: '100%',
-                                objectFit: 'cover',
+                                objectFit: expanded ? 'contain' : 'cover',
                             }}
                         />
                     )}
@@ -318,6 +370,7 @@ export default function TrailerHoverPreview() {
                         <VideoPreview
                             url={media.url}
                             startAt={media.startAt || 0}
+                            fit={expanded ? 'contain' : 'cover'}
                             onPlaying={() => patch((p) => ({ ...p, playing: true }))}
                             onEnded={onEnded}
                             onFail={() => patch((p) => ({ ...p, media: null, playing: false }))}
@@ -339,7 +392,7 @@ export default function TrailerHoverPreview() {
                         style={{
                             position: 'absolute',
                             inset: 'auto 0 0 0',
-                            padding: '20px 14px 12px',
+                            padding: expanded ? '40px 48px 36px' : '20px 14px 12px',
                             background:
                                 'linear-gradient(180deg, rgba(5,7,13,0) 0%, rgba(5,7,13,0.85) 70%, rgba(5,7,13,0.96) 100%)',
                         }}
@@ -347,7 +400,7 @@ export default function TrailerHoverPreview() {
                         <div
                             style={{
                                 fontWeight: 700,
-                                fontSize: 'clamp(13px, 1vw, 16px)',
+                                fontSize: expanded ? 'clamp(20px, 1.8vw, 30px)' : 'clamp(13px, 1vw, 16px)',
                                 color: '#fff',
                                 lineHeight: 1.15,
                                 letterSpacing: '-0.01em',
@@ -374,8 +427,9 @@ export default function TrailerHoverPreview() {
                             </div>
                         )}
                     </div>
+                    {expanded && <ExpandedControls onShrink={shrink} />}
                 </div>,
-                tile
+                getHost()
             )}
             {actions && (
                 <PreviewActions
@@ -577,9 +631,66 @@ const actionBtnStyle = {
     WebkitBackdropFilter: 'blur(6px)',
 };
 
+/* Focus trap shown over the full-screen card: swallows D-pad arrows so the
+ * row behind never moves; OK / BACK shrink the trailer back into its card. */
+function ExpandedControls({ onShrink }) {
+    const ref = useRef(null);
+    useEffect(() => {
+        const t = setTimeout(() => ref.current?.focus({ preventScroll: true }), 30);
+        return () => clearTimeout(t);
+    }, []);
+    const onKeyDown = (e) => {
+        const k = e.key;
+        if (k.startsWith('Arrow')) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
+        if (k === 'Enter' || k === ' ') {
+            e.preventDefault();
+            e.stopPropagation();
+            onShrink();
+            return;
+        }
+        if (k === 'Escape' || k === 'Backspace' || k === 'GoBack' || e.keyCode === 27 || e.keyCode === 8) {
+            e.preventDefault();
+            e.stopPropagation();
+            triggerTrapBack();
+        }
+    };
+    return (
+        <div
+            data-testid="trailer-hover-expanded"
+            data-focus-trap="true"
+            onKeyDown={onKeyDown}
+            style={{ position: 'absolute', inset: 0, pointerEvents: 'auto' }}
+        >
+            <button
+                ref={ref}
+                type="button"
+                data-testid="trailer-hover-shrink"
+                data-focusable="true"
+                data-focus-style="pill"
+                tabIndex={0}
+                onClick={onShrink}
+                style={{
+                    ...actionBtnStyle,
+                    position: 'absolute',
+                    right: 40,
+                    top: 28,
+                    minWidth: 0,
+                    animation: 'vesper-hoverprev-in 160ms ease-out both',
+                }}
+            >
+                <Minimize2 size={15} /> Back
+            </button>
+        </div>
+    );
+}
+
 /* Native (TV box) path — muxed googlevideo URL in a plain <video>,
  * unmuted, plays ONCE.  Fades in over the backdrop once frames flow. */
-function VideoPreview({ url, startAt = 0, onPlaying, onEnded, onFail }) {
+function VideoPreview({ url, startAt = 0, fit = 'cover', onPlaying, onEnded, onFail }) {
     const [playing, setPlaying] = useState(false);
     return (
         <video
@@ -604,7 +715,7 @@ function VideoPreview({ url, startAt = 0, onPlaying, onEnded, onFail }) {
                 inset: 0,
                 width: '100%',
                 height: '100%',
-                objectFit: 'cover',
+                objectFit: fit,
                 opacity: playing ? 1 : 0,
                 transition: 'opacity 150ms ease-in',
             }}

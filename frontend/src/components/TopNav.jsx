@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Zap, MoreHorizontal } from 'lucide-react';
+import { CirclePlay, MoreHorizontal, Rocket } from 'lucide-react';
 import { getAutoplay1080p, setAutoplay1080p } from '@/lib/prefs';
+import { speedUp } from '@/lib/speedUp';
 import { getActiveProfile } from '@/lib/profiles';
 import { AvatarCircle } from '@/lib/avatars';
 import { CompactNavMenu } from '@/components/CompactNavMenu';
@@ -120,14 +121,23 @@ export default function TopNav({ items }) {
                     label="More"
                     active={moreOpen || items.slice(4).some(isActive)}
                     onClick={() => setMoreOpen((open) => !open)}
-                /> : <TopNavItem
-                    testid="top-nav-autoplay"
-                    icon={Zap}
-                    label={autoplay ? 'Auto play · ON' : 'Auto play · OFF'}
-                    active={autoplay}
-                    accent
-                    onClick={toggleAutoplay}
-                />}
+                /> : <>
+                    <TopNavItem
+                        testid="top-nav-autoplay"
+                        icon={CirclePlay}
+                        label={autoplay ? 'Auto play · ON' : 'Auto play · OFF'}
+                        active={autoplay}
+                        accent
+                        onClick={toggleAutoplay}
+                    />
+                    <TopNavItem
+                        testid="top-nav-speed-up"
+                        icon={Rocket}
+                        label="Speed up"
+                        active={false}
+                        onClick={speedUp}
+                    />
+                </>}
                 <button
                     type="button"
                     data-focusable="true"

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { Zap } from 'lucide-react';
+import { CirclePlay, Rocket } from 'lucide-react';
 import { useNativeBackTrap, triggerTrapBack } from '@/hooks/useNativeBackTrap';
+import { speedUp } from '@/lib/speedUp';
 
 export const CompactNavMenu = ({ items, isActive, go, autoplay, toggleAutoplay, onClose }) => {
     const root = useRef(null);
@@ -52,7 +53,16 @@ export const CompactNavMenu = ({ items, isActive, go, autoplay, toggleAutoplay, 
                     aria-pressed={autoplay}
                     style={{ ...rowStyle, color: autoplay ? '#FFC350' : 'var(--vesper-text)' }}
                 >
-                    <Zap size={20} /> Auto play · {autoplay ? 'ON' : 'OFF'}
+                    <CirclePlay size={20} /> Auto play · {autoplay ? 'ON' : 'OFF'}
+                </button>
+                <button
+                    data-testid="top-nav-speed-up"
+                    data-focusable="true"
+                    data-focus-style="quiet"
+                    onClick={() => { onClose(); speedUp(); }}
+                    style={{ ...rowStyle, color: 'var(--vesper-text)' }}
+                >
+                    <Rocket size={20} /> Speed up
                 </button>
             </div>
         </>

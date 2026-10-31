@@ -16,7 +16,7 @@ import ReleaseTagBadge, { releaseTagKey, useReleaseTag } from '@/components/Rele
  * Press-and-hold OK (or mouse) to fire the global "Add to My List"
  * modal — short-tap still navigates to the detail page.
  */
-function PosterTile({ item, onSelect, onLongPress: onLongPressProp, initialFocus = false, wide = false }) {
+function PosterTile({ item, onSelect, onLongPress: onLongPressProp, initialFocus = false, wide = false, warm = false }) {
     const navigate = useNavigate();
 
     // v2.19.4 — CINEMA / HD / CAM tag on recent movie covers.
@@ -127,7 +127,14 @@ function PosterTile({ item, onSelect, onLongPress: onLongPressProp, initialFocus
     const previewType = routeMatch
         ? routeMatch[1]
         : (item.type === 'series' || item.type === 'tv' ? 'tv' : 'movie');
-    const previewBackdrop = item.background ? img.backdrop(item.background) : '';
+    // Same hi-res URL as the hero wallpaper, so one fetch serves both and
+    // the wide card never shows a soft small-size version first.
+    const previewBackdrop = item.background ? img.heroBackdrop(item.background) : '';
+    // Neighbours of the wide slot pre-decode their backdrop so the card
+    // is sharp on the very first frame when focus reaches them.
+    React.useEffect(() => {
+        if ((warm || wide) && previewBackdrop) img.warm(previewBackdrop);
+    }, [warm, wide, previewBackdrop]);
 
     return (
         <button
@@ -190,6 +197,7 @@ function PosterTile({ item, onSelect, onLongPress: onLongPressProp, initialFocus
         >
             {wide && previewBackdrop ? (
                 <img
+                    key="wide-art"
                     src={previewBackdrop}
                     alt={item.title}
                     decoding="async"
@@ -198,6 +206,7 @@ function PosterTile({ item, onSelect, onLongPress: onLongPressProp, initialFocus
                 />
             ) : item.poster ? (
                 <img
+                    key="poster-art"
                     src={img.poster(item.poster)}
                     alt={item.title}
                     loading="lazy"

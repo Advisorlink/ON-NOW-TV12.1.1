@@ -3,7 +3,7 @@
  * the app opens.  Bump APP_VERSION and prepend a new entry to
  * WHATS_NEW whenever a release ships user-facing changes.
  */
-export const APP_VERSION = '1.5.2';
+export const APP_VERSION = '1.5.3';
 // The boot "What's new" tour covers every release from this version up
 // to APP_VERSION (user: start at 1.4.0 this time).  Bump the floor to the
 // current version when shipping the next update so only new work shows.
@@ -27,6 +27,28 @@ export function releasesForTour() {
 // Most-recent version first.  Only the entry matching APP_VERSION is
 // shown in the "What's New" popup.  `icon` = lucide icon name.
 export const WHATS_NEW = {
+    '1.5.3': {
+        date: 'October 2026',
+        headline: 'Sharp covers, instant full-screen trailers and a Speed up button',
+        items: [
+            {
+                icon: 'eye', accent: '#7CF1A1',
+                title: 'Sharp trailer window, every move',
+                detail: 'The wide card now shows the full-quality artwork from the first frame — no soft version first. Covers next to the one you are on are prepared ahead of time, so moving along a row stays smooth.',
+            },
+            {
+                icon: 'clapperboard', accent: '#FFD36B',
+                title: 'Open Trailer grows in place',
+                detail: 'Open Trailer on a playing preview expands that same trailer to fill the screen — no reload, no pause — exactly like Live TV. BACK or OK shrinks it back into the row.',
+            },
+            {
+                icon: 'gauge', accent: '#9FE870',
+                title: 'Speed up from the top menu',
+                detail: 'A new rocket button sits beside Auto play in the top bar. Press it to close background apps and clear temporary picture memory so menus stay quick.',
+                how: 'The Auto play button now uses a play-circle icon.',
+            },
+        ],
+    },
     '1.5.2': {
         date: 'October 2026',
         headline: 'Smarter picks, a tidier Library and more control in the player',

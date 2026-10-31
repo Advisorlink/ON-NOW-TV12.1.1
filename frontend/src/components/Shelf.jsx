@@ -171,6 +171,7 @@ export default function Shelf({ shelf, onSelect, onLongPress, firstTileInitialFo
                                 onSelect={onSelect}
                                 onLongPress={onLongPress}
                                 wide={trailers && idx === wideIndex}
+                                warm={trailers && idx >= wideIndex - 2 && idx <= wideIndex + 4}
                                 posterSize={perf.posterSize}
                                 initialFocus={firstTileInitialFocus && idx === 0}
                             />
