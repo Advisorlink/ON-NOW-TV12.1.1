@@ -87,11 +87,13 @@ export default function Lazy({
         window.addEventListener('resize', onScroll);
         // Focus moving into a row below the fold scrolls the snap
         // page; a keydown re-check covers boxes that scroll late.
+        window.addEventListener('keydown', onScroll);
         window.addEventListener('keyup', onScroll);
         return () => {
             if (raf) cancelAnimationFrame(raf);
             (scroller || window).removeEventListener('scroll', onScroll);
             window.removeEventListener('resize', onScroll);
+            window.removeEventListener('keydown', onScroll);
             window.removeEventListener('keyup', onScroll);
         };
     }, [shown, nearOnly]);

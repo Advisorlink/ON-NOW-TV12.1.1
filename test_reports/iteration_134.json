@@ -1,0 +1,25 @@
+{
+  "summary": "Frontend-only test of the Home 'Load rows as you reach them' setting plus regression checks, run at 1920x1080 in one browser context, plus the 3 jest suites. Everything passed. Login (testuser) -> Restore profiles -> profile-p-test-1 with Enter -> Skip tour -> Home. Lazy rows ON (default): 7 shelf-pages, 5 placeholders at the start. Placeholders per ArrowDown: 4,3,2,1,0, then 0 after that. Focus moved to the next row on every press until the last row (Upcoming), where it stays. In one fast run (1.1 s between presses) one press after the last placeholder mounted did not move focus, and the next press did. With 1.8 s between presses there was no stall. Settings -> Home screen -> Home behaviour: toggle-lazy-rows is ON by default. Turning it OFF stores onnowtv-lazy-rows:p-test-1='0' and the switch shows OFF; Home then had 2 placeholders at 0.8 s and 0 at 2.8 s. Turning it back ON: Home shows 5 placeholders again. ArrowUp/Left/Right also move focus. Enter on a poster opens /title/movie/... Detail. For Shawshank, Swap stream opened stream-picker-modal with '130 FOUND' and listed streams; Escape closed it. No page errors. Jest: 3 suites / 5 tests passed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Optional: the review request named the toggle data-testid as 'lazy-rows', but in the DOM it is 'toggle-lazy-rows' (ToggleRow adds the 'toggle-' prefix). Not a bug; it is a documentation mismatch.",
+    "Optional: when a nearOnly row mounts while focus is moving, one ArrowDown press was ignored when presses came 1.1 s apart. This happened once. Consider re-trying focus after the row mounts. Low priority, could not reproduce at 1.8 s spacing."
+  ],
+  "critical_code_review_comments": [
+    "Lazy.jsx: useState(eager) ignores later changes to the eager prop. This is fine today because the nearOnly->false switch falls back to IO plus a 1.5 s safety timer, but switching ON again does not unmount rows that are already mounted until Home remounts. This is acceptable.",
+    "Settings.jsx is very large (>1700 lines). Consider splitting it.",
+    "The Detail console shows CORS errors from third-party addon stream URLs (plexio.stream, kangaroostreams). These come from outside the app and were already there."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (not requested)", "frontend": "100%"},
+  "seed_data_creation": "None. The 'Restore my profiles' dialog restored the existing cloud profile p-test-1.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Flow: open /?e2e=1, log in with login-username-input/login-password-input/login-submit, click the 'Restore my profiles' text, focus profile-p-test-1 and press Enter, click 'Skip'. Navigate between pages with history.pushState + popstate (no full reload). The lazy toggle is [data-testid=toggle-lazy-rows] under settings-nav-home. Move the mouse to the top (960,5) before opening Detail, or hovering the cast lane hides the Play buttons. The Home rows are networks, studios, 4 catalogue shelves and upcoming."
+}
