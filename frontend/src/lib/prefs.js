@@ -82,6 +82,59 @@ export function setAutoTrailer(enabled) {
 }
 
 /**
+ * Home row style — how the wide 16:9 "trailer rectangle" appears:
+ *  'instant' → the cover you land on is already wide (original)
+ *  'pause'   → plain covers; stop on one for getHomePauseMs() and it slides open
+ *  'covers'  → never widens, no trailer window
+ * Falls back to the old Auto-trailer toggle (OFF → 'covers').
+ */
+const KEY_HOME_LOOK = 'onnowtv-home-look';
+const KEY_HOME_PAUSE = 'onnowtv-home-pause-ms';
+export const HOME_LOOKS = ['instant', 'pause', 'covers'];
+export const HOME_PAUSE_OPTIONS = [500, 1000, 1500];
+
+export function getHomeLook() {
+    try {
+        const v = readScopedString(KEY_HOME_LOOK);
+        if (HOME_LOOKS.includes(v)) return v;
+        return getAutoTrailer() ? 'instant' : 'covers';
+    } catch {
+        return 'instant';
+    }
+}
+
+export function setHomeLook(look) {
+    try {
+        writeScopedString(KEY_HOME_LOOK, HOME_LOOKS.includes(look) ? look : 'instant');
+        writeScopedString(KEY_AUTO_TRAILER, look === 'covers' ? '0' : '1');
+    } catch {
+        /* ignore */
+    }
+}
+
+export function getHomePauseMs() {
+    try {
+        const n = Number(readScopedString(KEY_HOME_PAUSE));
+        return HOME_PAUSE_OPTIONS.includes(n) ? n : 1000;
+    } catch {
+        return 1000;
+    }
+}
+
+export function setHomePauseMs(ms) {
+    try {
+        writeScopedString(KEY_HOME_PAUSE, String(HOME_PAUSE_OPTIONS.includes(ms) ? ms : 1000));
+    } catch {
+        /* ignore */
+    }
+}
+
+/** Dwell before the hover trailer starts: short normally, after the pause in 'pause' mode. */
+export function getPreviewDwellMs() {
+    return getHomeLook() === 'pause' ? getHomePauseMs() + 150 : 280;
+}
+
+/**
  * Navigation layout — 'side' (classic left rail) or 'top' (glass
  * icon bar centred along the top; labels slide out on focus).
  */

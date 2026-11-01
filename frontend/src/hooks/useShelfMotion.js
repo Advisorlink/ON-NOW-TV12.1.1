@@ -1,7 +1,8 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { getPerf } from '@/lib/perfLab';
 
 const DURATION = 180;
+const OPEN_DURATION = 240;
 const EASING = 'cubic-bezier(0.22, 1, 0.36, 1)';
 
 /** One owner for a shelf's horizontal position. Commit geometry once, then
@@ -14,6 +15,16 @@ export default function useShelfMotion(scroller, count, wide) {
     const before = useRef(null);
     const animations = useRef(new Map());
     const hasFocused = useRef(false);
+    const prevWide = useRef(wide);
+
+    // Record every cell's current visual position right before a width
+    // change the caller is about to commit (the 'pause' slide-open).
+    const snapshot = useCallback(() => {
+        const rail = scroller.current;
+        if (!rail || !hasFocused.current) return;
+        const cells = Array.from(rail.querySelectorAll(':scope > [data-shelf-cell]'));
+        before.current = new Map(cells.map((el) => [el, el.getBoundingClientRect().left]));
+    }, [scroller]);
 
     const cancelMotion = () => {
         animations.current.forEach((animation) => animation.cancel());
@@ -41,6 +52,8 @@ export default function useShelfMotion(scroller, count, wide) {
     };
 
     useLayoutEffect(() => {
+        const opening = wide && !prevWide.current;
+        prevWide.current = wide;
         const rail = scroller.current;
         if (!rail || !hasFocused.current) return;
         const cells = Array.from(rail.querySelectorAll(':scope > [data-shelf-cell]'));
@@ -61,8 +74,27 @@ export default function useShelfMotion(scroller, count, wide) {
         const scroll = rail.scrollLeft;
         const previous = before.current;
         before.current = null;
-        if (!previous || getPerf('shelfMotion') === 'instant') return;
+        if (!previous) return;
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        // The slide-open always animates (it is the point of 'pause' mode);
+        // ordinary row glides follow the Performance-lab choice.
+        if (!opening && getPerf('shelfMotion') === 'instant') return;
+        const duration = opening ? OPEN_DURATION : DURATION;
+        if (opening) {
+            const tile = cells[index].querySelector('[data-preview="true"]');
+            const narrowWidth = narrow?.offsetWidth || 0;
+            if (tile?.animate && narrowWidth && cells[index].offsetWidth > narrowWidth) {
+                const hidden = Math.round((1 - narrowWidth / cells[index].offsetWidth) * 100);
+                const reveal = tile.animate([
+                    { clipPath: `inset(0 ${hidden}% 0 0 round 12px)` },
+                    { clipPath: 'inset(0 0 0 0 round 12px)' },
+                ], { duration, easing: EASING });
+                animations.current.set(tile, reveal);
+                reveal.onfinish = () => {
+                    if (animations.current.get(tile) === reveal) animations.current.delete(tile);
+                };
+            }
+        }
         geometry.forEach(({ el, left, width }, i) => {
             const end = bounds.left + left - scroll;
             const start = previous.get(el);
@@ -75,7 +107,7 @@ export default function useShelfMotion(scroller, count, wide) {
             const animation = el.animate([
                 { transform: `translate3d(${dx}px, 0, 0)` },
                 { transform: 'translate3d(0, 0, 0)' },
-            ], { duration: DURATION, easing: EASING });
+            ], { duration, easing: EASING });
             animations.current.set(el, animation);
             animation.onfinish = () => {
                 if (animations.current.get(el) === animation) animations.current.delete(el);
@@ -97,5 +129,5 @@ export default function useShelfMotion(scroller, count, wide) {
         };
     }, [scroller]);
 
-    return { wideIndex: Math.min(selection.index, count - 1), onFocus };
+    return { wideIndex: Math.min(selection.index, count - 1), onFocus, snapshot };
 }

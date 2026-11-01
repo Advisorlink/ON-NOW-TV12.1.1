@@ -11,7 +11,7 @@ import useBackHandler from '@/hooks/useBackHandler';
 import FullscreenButton from '@/components/FullscreenButton';
 import { THEMES } from '@/themes/themes';
 import { useTheme } from '@/themes/ThemeProvider';
-import { getAutoplay1080p, setAutoplay1080p, getAutoTrailer, setAutoTrailer, getNavLayout, setNavLayout, getLazyRows, setLazyRows } from '@/lib/prefs';
+import { getAutoplay1080p, setAutoplay1080p, getNavLayout, setNavLayout, getLazyRows, setLazyRows, getHomeLook, setHomeLook, getHomePauseMs, setHomePauseMs, HOME_PAUSE_OPTIONS } from '@/lib/prefs';
 import { getHomeRows, getHomeRowPrefs, moveHomeRow, toggleHomeRow, resetHomeRows, addCustomHomeRow, removeCustomHomeRow, CATEGORY_GENRES } from '@/lib/homeRows';
 import { API } from '@/lib/api';
 import { clearActiveProfile, getActiveProfile } from '@/lib/profiles';
@@ -30,7 +30,6 @@ export default function Settings() {
     const navigate = useNavigate();
     const { themeId, setThemeId } = useTheme();
     const [autoplay, setAutoplay] = React.useState(getAutoplay1080p());
-    const [autoTrailer, setAutoTrailerState] = React.useState(getAutoTrailer());
     const [lazyRows, setLazyRowsState] = React.useState(getLazyRows());
     const toggleLazyRows = () => {
         const next = !lazyRows;
@@ -95,13 +94,6 @@ export default function Settings() {
         const next = !autoplay;
         setAutoplay1080p(next);
         setAutoplay(next);
-    };
-
-    const toggleAutoTrailer = () => {
-        const next = !autoTrailer;
-        setAutoTrailer(next);
-        setAutoTrailerState(next);
-        window.dispatchEvent(new Event('vesper:auto-trailer-change'));
     };
 
     return (
@@ -208,13 +200,7 @@ export default function Settings() {
                 value={topNav}
                 onToggle={toggleTopNav}
             />
-            <ToggleRow
-                testid="auto-trailer"
-                title="Auto-play trailers on Home"
-                description="Netflix-style preview: focusing a movie or show on the Home rails expands it and starts its trailer (English).  On your TV box it plays with sound; in the browser preview it starts muted until you press OK once."
-                value={autoTrailer}
-                onToggle={toggleAutoTrailer}
-            />
+            <HomeLookRow />
             <ToggleRow
                 testid="lazy-rows"
                 title="Load rows as you reach them"
@@ -1758,6 +1744,82 @@ function ToggleRow({ testid, title, description, value, onToggle }) {
                 />
             </span>
         </button>
+    );
+}
+
+const HOME_LOOK_CHOICES = [
+    { id: 'instant', label: 'Open straight away', sub: 'wide card on the cover you land on' },
+    { id: 'pause', label: 'Open after a pause', sub: 'covers slide open when you stop' },
+    { id: 'covers', label: 'Covers only', sub: 'no wide card, no trailers' },
+];
+
+function HomeLookRow() {
+    const [look, setLook] = React.useState(() => getHomeLook());
+    const [pause, setPause] = React.useState(() => getHomePauseMs());
+    const pick = (id) => {
+        setHomeLook(id);
+        setLook(id);
+        window.dispatchEvent(new Event('vesper:auto-trailer-change'));
+    };
+    const pickPause = (ms) => {
+        setHomePauseMs(ms);
+        setPause(ms);
+        window.dispatchEvent(new Event('vesper:auto-trailer-change'));
+    };
+    return (
+        <div
+            data-testid="home-look-row"
+            style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 10,
+                padding: '14px 18px',
+                marginBottom: 8,
+            }}
+        >
+            <div style={{ fontSize: 13, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--vesper-text)' }}>
+                Home row style
+            </div>
+            <div style={{ marginTop: 3, fontSize: 11, lineHeight: 1.4, color: 'var(--vesper-text-2)', maxWidth: '70ch' }}>
+                How the wide trailer window appears as you move along a row.  <strong>Open straight away</strong> is
+                the original look.  <strong>Open after a pause</strong> keeps every cover small so you can fly along
+                the row; rest on one and it slides open in place, then its trailer starts.  <strong>Covers only</strong>{' '}
+                never widens and never plays a trailer.
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                {HOME_LOOK_CHOICES.map((c) => (
+                    <PlayerBackendPill
+                        key={c.id}
+                        label={c.label}
+                        sub={c.sub}
+                        active={look === c.id}
+                        onClick={() => pick(c.id)}
+                        testid={`home-look-${c.id}`}
+                        accent="#5DC8FF"
+                    />
+                ))}
+            </div>
+            {look === 'pause' && (
+                <div data-testid="home-pause-options" style={{ marginTop: 14 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--vesper-text)' }}>
+                        Pause before it opens
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                        {HOME_PAUSE_OPTIONS.map((ms) => (
+                            <PlayerBackendPill
+                                key={ms}
+                                label={`${ms / 1000}s`}
+                                sub={ms === 500 ? 'quick' : ms === 1000 ? 'default' : 'relaxed'}
+                                active={pause === ms}
+                                onClick={() => pickPause(ms)}
+                                testid={`home-pause-${ms}`}
+                                accent="#7CF1F1"
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
     );
 }
 

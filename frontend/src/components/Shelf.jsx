@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import PosterTile from './PosterTile';
-import { getAutoTrailer } from '@/lib/prefs';
+import { getHomeLook, getHomePauseMs } from '@/lib/prefs';
 import useShelfMotion from '@/hooks/useShelfMotion';
 import { getPerf, PERF_CHANGE } from '@/lib/perfLab';
 import { fetchShelfItems } from '@/hooks/useLiveShelves';
@@ -18,10 +18,11 @@ import { fetchShelfItems } from '@/hooks/useLiveShelves';
  */
 export default function Shelf({ shelf, onSelect, onLongPress, firstTileInitialFocus = false }) {
     const scroller = useRef(null);
-    // Trailers OFF in Settings → no wide rectangle, plain covers only.
-    const [trailers, setTrailers] = useState(() => getAutoTrailer());
+    // Home row style (Settings): 'instant' wide card, 'pause' (covers that
+    // slide open after a dwell) or 'covers' (never widens, no trailers).
+    const [look, setLook] = useState(() => getHomeLook());
     useEffect(() => {
-        const sync = () => setTrailers(getAutoTrailer());
+        const sync = () => setLook(getHomeLook());
         window.addEventListener('vesper:auto-trailer-change', sync);
         window.addEventListener('vesper:profile-change', sync);
         return () => {
@@ -29,6 +30,10 @@ export default function Shelf({ shelf, onSelect, onLongPress, firstTileInitialFo
             window.removeEventListener('vesper:profile-change', sync);
         };
     }, []);
+    const trailers = look !== 'covers';
+    // 'pause' mode: the card opens only after the user rests on a cover.
+    const [focusTick, setFocusTick] = useState(0);
+    const [open, setOpen] = useState(look === 'instant');
     // Lazy row-loading strategy: a pending stub fetches its own items
     // once this Shelf mounts (Home's <Lazy> mounts rows near the screen).
     const [lazyItems, setLazyItems] = useState(null);
@@ -76,7 +81,26 @@ export default function Shelf({ shelf, onSelect, onLongPress, firstTileInitialFo
         const btn = cell?.querySelector('[data-focusable="true"]');
         if (btn) requestAnimationFrame(() => btn.focus({ preventScroll: true }));
     }, [items.length]);
-    const { wideIndex, onFocus } = useShelfMotion(scroller, items.length + (showMore ? 1 : 0), trailers);
+    const wide = trailers && open;
+    const { wideIndex, onFocus: onMotionFocus, snapshot } = useShelfMotion(scroller, items.length + (showMore ? 1 : 0), wide);
+    const onFocus = (e) => {
+        onMotionFocus(e);
+        if (look === 'pause') setFocusTick((t) => t + 1);
+    };
+    // Leaving the row (DOWN/UP to another rail) folds the card back to a cover.
+    const onBlur = (e) => {
+        if (look !== 'pause') return;
+        if (e.relatedTarget && scroller.current?.contains(e.relatedTarget)) return;
+        setFocusTick(0);
+        setOpen(false);
+    };
+    useEffect(() => {
+        if (look !== 'pause') { setOpen(look === 'instant'); return undefined; }
+        setOpen(false);
+        if (!focusTick) return undefined;
+        const t = setTimeout(() => { snapshot(); setOpen(true); }, getHomePauseMs());
+        return () => clearTimeout(t);
+    }, [look, focusTick, wideIndex, snapshot]);
     // Lazy row whose catalog came back empty / dead → collapse it.
     const collapsed = shelf.pending && lazyItems && lazyItems.length === 0 && !shelf.empty;
     // RecyclerView-style windowing: only tiles near the focused slot get
@@ -136,6 +160,8 @@ export default function Shelf({ shelf, onSelect, onLongPress, firstTileInitialFo
                 ref={scroller}
                 className="vesper-shelf vesper-motion-shelf flex"
                 onFocus={onFocus}
+                onBlur={onBlur}
+                data-home-look={look}
                 data-focus-scroll="shelf"
                 data-testid={`shelf-row-${shelf.id || shelf.title}`}
                 style={{
@@ -163,14 +189,14 @@ export default function Shelf({ shelf, onSelect, onLongPress, firstTileInitialFo
                         data-shelf-cell="true"
                         data-testid={`shelf-cell-${shelf.id}-${item.id}`}
                         className="vesper-shelf-cell shrink-0"
-                        style={{ zIndex: trailers && idx === wideIndex ? 2 : 0 }}
+                        style={{ zIndex: wide && idx === wideIndex ? 2 : 0 }}
                     >
                         {mounted(idx) ? (
                             <PosterTile
                                 item={item}
                                 onSelect={onSelect}
                                 onLongPress={onLongPress}
-                                wide={trailers && idx === wideIndex}
+                                wide={wide && idx === wideIndex}
                                 warm={trailers && idx >= wideIndex - 2 && idx <= wideIndex + 4}
                                 posterSize={perf.posterSize}
                                 initialFocus={firstTileInitialFocus && idx === 0}

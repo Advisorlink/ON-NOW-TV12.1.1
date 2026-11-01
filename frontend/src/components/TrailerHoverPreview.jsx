@@ -14,7 +14,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Info, Maximize2, Minimize2, Play, Plus } from 'lucide-react';
-import { getAutoTrailer, getAutoplay1080p } from '@/lib/prefs';
+import { getAutoTrailer, getAutoplay1080p, getPreviewDwellMs } from '@/lib/prefs';
 import {
     fetchTrailerCandidates,
     isBox,
@@ -26,7 +26,6 @@ import { useNativeBackTrap, triggerTrapBack } from '@/hooks/useNativeBackTrap';
 import { peekHd, prefetchHd } from '@/lib/trailerEngine';
 import PreviewStreamCheck from '@/components/PreviewStreamCheck';
 
-const PREVIEW_DWELL_MS = 280;
 
 /* Keep the widened tile fully visible inside its horizontal shelf. */
 function revealInShelf(tile) {
@@ -165,7 +164,7 @@ export default function TrailerHoverPreview() {
             setActions(false);
             setExpanded(false);
             const token = tokenRef.current;
-            expandTimer = setTimeout(() => startTile(tile, token), PREVIEW_DWELL_MS);
+            expandTimer = setTimeout(() => startTile(tile, token), getPreviewDwellMs());
         };
 
         const onFocusIn = (e) => onEnter(e.target);

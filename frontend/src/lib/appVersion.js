@@ -3,7 +3,7 @@
  * the app opens.  Bump APP_VERSION and prepend a new entry to
  * WHATS_NEW whenever a release ships user-facing changes.
  */
-export const APP_VERSION = '1.5.3';
+export const APP_VERSION = '1.5.4';
 // The boot "What's new" tour covers every release from this version up
 // to APP_VERSION (user: start at 1.4.0 this time).  Bump the floor to the
 // current version when shipping the next update so only new work shows.
@@ -27,6 +27,18 @@ export function releasesForTour() {
 // Most-recent version first.  Only the entry matching APP_VERSION is
 // shown in the "What's New" popup.  `icon` = lucide icon name.
 export const WHATS_NEW = {
+    '1.5.4': {
+        date: 'October 2026',
+        headline: 'Choose how Home rows open',
+        items: [
+            {
+                icon: 'layout-grid', accent: '#5DC8FF',
+                title: 'Home row style setting',
+                detail: 'Settings → Home screen → Home row style. "Open straight away" is the original wide card. "Open after a pause" keeps every cover small so you can fly along a row — rest on one and it slides open in place, then its trailer starts. "Covers only" never widens.',
+                how: 'With "Open after a pause" you also pick the pause: 0.5s, 1s or 1.5s.',
+            },
+        ],
+    },
     '1.5.3': {
         date: 'October 2026',
         headline: 'Sharp covers, instant full-screen trailers and a Speed up button',
