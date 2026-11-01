@@ -3,7 +3,7 @@
  * the app opens.  Bump APP_VERSION and prepend a new entry to
  * WHATS_NEW whenever a release ships user-facing changes.
  */
-export const APP_VERSION = '1.5.4';
+export const APP_VERSION = '1.5.5';
 // The boot "What's new" tour covers every release from this version up
 // to APP_VERSION (user: start at 1.4.0 this time).  Bump the floor to the
 // current version when shipping the next update so only new work shows.
@@ -27,6 +27,22 @@ export function releasesForTour() {
 // Most-recent version first.  Only the entry matching APP_VERSION is
 // shown in the "What's New" popup.  `icon` = lucide icon name.
 export const WHATS_NEW = {
+    '1.5.5': {
+        date: 'October 2026',
+        headline: 'Locked-down release build',
+        items: [
+            {
+                icon: 'shield', accent: '#7CF1A1',
+                title: 'Hardened against copying',
+                detail: 'This build now ships as a fully obfuscated release: class and method names are scrambled, logs stripped, and built-in tamper checks shut the app down if it is re-signed, re-packaged or run under a debugger. Screen capture of the app is also blocked.',
+            },
+            {
+                icon: 'map-pin', accent: '#FFD36B',
+                title: 'Location approval on launch',
+                detail: 'The app now asks for location access the first time it opens and will not continue until it is approved.',
+            },
+        ],
+    },
     '1.5.4': {
         date: 'October 2026',
         headline: 'Choose how Home rows open',

@@ -170,6 +170,7 @@ class MainActivity : AppCompatActivity() {
         // v2.13.3 — request code for the deferred RECORD_AUDIO
         // runtime prompt (fired on first WebView mic request).
         private const val REQ_WEB_MIC = 9203
+        private const val REQ_LOCATION = 9204
     }
 
     /* v2.13.3 — WebView mic request parked while the system
@@ -177,12 +178,39 @@ class MainActivity : AppCompatActivity() {
      * onRequestPermissionsResult. */
     private var pendingWebMicRequest: android.webkit.PermissionRequest? = null
 
+    /** True once the user has ticked "Don't allow" so the OS stops
+     *  showing the location prompt — the gate then routes to Settings. */
+    private var locationBlockedInSettings: Boolean = false
+
+    private fun hasLocationPermission(): Boolean {
+        return checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED ||
+            checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+    }
+
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
         grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        // SECURITY GATE — location permission result.
+        if (requestCode == REQ_LOCATION) {
+            if (hasLocationPermission()) {
+                // Approved — boot the app cleanly by re-running onCreate.
+                recreate()
+            } else {
+                // Denied — if the OS will no longer show the prompt the
+                // only way forward is the system App-info screen.
+                val canAskAgain =
+                    shouldShowRequestPermissionRationale(android.Manifest.permission.ACCESS_FINE_LOCATION) ||
+                        shouldShowRequestPermissionRationale(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                locationBlockedInSettings = !canAskAgain
+                showLocationGate(autoRequest = false)
+            }
+            return
+        }
         if (requestCode != REQ_WEB_MIC) return
         val req = pendingWebMicRequest ?: return
         pendingWebMicRequest = null
@@ -236,7 +264,13 @@ class MainActivity : AppCompatActivity() {
         // mobile touch / player bugs.  Re-enable in a future build
         // once the bugs are fixed.  The single-line toggle below
         // is the ONLY place to flip this.
-        val secureFlagEnabled = false
+        // v2.10.101 SECURITY HANDOVER — FLAG_SECURE re-enabled so a
+        // tester cannot screenshot, screen-record or cast-mirror the
+        // UI to lift brand assets / screens.  (HDMI output to a real
+        // TV is unaffected; only OS screen-capture is blocked.)  If
+        // video ever shows black on a specific box, flip this one
+        // toggle back to false.
+        val secureFlagEnabled = true
         if (secureFlagEnabled) {
             window.setFlags(
                 android.view.WindowManager.LayoutParams.FLAG_SECURE,
@@ -253,6 +287,15 @@ class MainActivity : AppCompatActivity() {
         val prevCrash = OnNowApplication.lastCrash
         if (prevCrash != null && savedInstanceState == null) {
             showCrashReport(prevCrash)
+            return
+        }
+
+        /* SECURITY GATE — the app will not load until the user has
+           approved location access.  Shown on every cold start until
+           granted; once approved, onCreate re-runs cleanly (the
+           migrations below are all idempotent). */
+        if (!hasLocationPermission()) {
+            showLocationGate(autoRequest = savedInstanceState == null)
             return
         }
 
@@ -1186,6 +1229,84 @@ class MainActivity : AppCompatActivity() {
      *  and Share / Copy / Dismiss buttons.  Dismiss clears the
      *  on-disk crash log and re-launches MainActivity so the user
      *  can try to boot normally again. */
+    /**
+     * SECURITY GATE screen.  Blocks the app until the user approves
+     * location access.  On first show it fires the system permission
+     * dialog; after a denial it offers a Retry button (or routes to
+     * the system App-info screen once the OS stops prompting).
+     */
+    private fun showLocationGate(autoRequest: Boolean) {
+        val root = android.widget.ScrollView(this).apply {
+            setBackgroundColor(android.graphics.Color.parseColor("#06080F"))
+            isFillViewport = true
+        }
+        val col = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            gravity = android.view.Gravity.CENTER
+            setPadding(64, 96, 64, 96)
+        }
+        val title = android.widget.TextView(this).apply {
+            text = "Location access required"
+            setTextColor(android.graphics.Color.WHITE)
+            textSize = 24f
+            gravity = android.view.Gravity.CENTER
+            setPadding(0, 0, 0, 16)
+        }
+        val sub = android.widget.TextView(this).apply {
+            text = if (locationBlockedInSettings) {
+                "ON NOW TV needs location access to continue.  You've " +
+                    "blocked the prompt, so please enable Location for " +
+                    "this app in system Settings, then come back."
+            } else {
+                "ON NOW TV needs location access to continue.  Please " +
+                    "approve the permission request to start using the app."
+            }
+            setTextColor(android.graphics.Color.parseColor("#A8B5C7"))
+            textSize = 15f
+            gravity = android.view.Gravity.CENTER
+            setPadding(0, 0, 0, 28)
+        }
+        val btn = android.widget.Button(this).apply {
+            text = if (locationBlockedInSettings) "Open settings" else "Grant location access"
+            isFocusable = true
+            isFocusableInTouchMode = true
+            setOnClickListener {
+                if (locationBlockedInSettings) {
+                    try {
+                        val i = android.content.Intent(
+                            android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            android.net.Uri.fromParts("package", packageName, null),
+                        )
+                        startActivity(i)
+                    } catch (_: Throwable) { /* no settings activity */ }
+                } else {
+                    requestPermissions(
+                        arrayOf(
+                            android.Manifest.permission.ACCESS_FINE_LOCATION,
+                            android.Manifest.permission.ACCESS_COARSE_LOCATION,
+                        ),
+                        REQ_LOCATION,
+                    )
+                }
+            }
+        }
+        col.addView(title)
+        col.addView(sub)
+        col.addView(btn)
+        root.addView(col)
+        setContentView(root)
+        btn.requestFocus()
+        if (autoRequest && !locationBlockedInSettings) {
+            requestPermissions(
+                arrayOf(
+                    android.Manifest.permission.ACCESS_FINE_LOCATION,
+                    android.Manifest.permission.ACCESS_COARSE_LOCATION,
+                ),
+                REQ_LOCATION,
+            )
+        }
+    }
+
     private fun showCrashReport(crashText: String) {
         val root = android.widget.ScrollView(this).apply {
             setBackgroundColor(android.graphics.Color.parseColor("#06080F"))

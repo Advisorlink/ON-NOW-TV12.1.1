@@ -5,6 +5,12 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- SECURITY GATE — location approval is required on first launch
+         before the app will load (handled in MainActivity). -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
     <!-- Required so the in-app Update Gate can launch the APK
          installer for the freshly-downloaded onnowtv-v2-debug.apk.
          On Android 8+ the user is prompted once to allow our app

@@ -76,6 +76,18 @@
 -keep class org.videolan.libvlc.** { *; }
 -dontwarn org.videolan.libvlc.**
 
+# libmpv (dev.jdtech.mpv) — the MPVLib JNI layer calls back into
+# these Java methods BY NAME from native code (event callbacks,
+# property observers).  Obfuscating them silently breaks MPV
+# playback (the MAIN engine), so keep the whole tree.
+-keep class dev.jdtech.mpv.** { *; }
+-dontwarn dev.jdtech.mpv.**
+
+# Jellyfin Media3 FFmpeg audio decoder extension — ships a native
+# .so whose renderer is discovered by Media3 via class name.
+-keep class org.jellyfin.media3.** { *; }
+-dontwarn org.jellyfin.media3.**
+
 # OkHttp — uses reflection for certificate pinning + DNS overrides.
 -dontwarn okhttp3.**
 -dontwarn okio.**
@@ -125,4 +137,12 @@
 # Keep NewPipeExtractor entry points reachable from our Kotlin code.
 -keep class org.schabi.newpipe.extractor.** { *; }
 -dontwarn org.schabi.newpipe.extractor.**
+
+# Rhino (bundled by NewPipeExtractor) references desktop-JVM APIs
+# (java.beans, javax.script, jdk.dynalink) that don't exist on
+# Android.  They're only touched by Rhino's optional scripting
+# front-ends we never use, so silence R8's missing-class errors.
+-dontwarn java.beans.**
+-dontwarn javax.script.**
+-dontwarn jdk.dynalink.**
 

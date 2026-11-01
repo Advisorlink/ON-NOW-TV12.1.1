@@ -186,12 +186,13 @@ object IntegrityGuard {
                     if (isXposedPresent())         failHard("late Xposed")
                     if (!signingCertMatches(ctx))  failHard("late signing cert")
                     if (!isOurOwnProcess(ctx))     failHard("foreign process owns our pid")
-                    // v2.7.82 — independent TLS pin verification.
-                    // Defends against an attacker who patches
-                    // network_security_config.xml to remove the pin.
-                    // Runs only on a real network refresh — failures
-                    // due to no network return true (lenient).
-                    if (!verifyBackendPin())       failHard("backend pin mismatch")
+                    // NOTE: the independent TLS leaf-pin verifier
+                    // (verifyBackendPin) is intentionally NOT called
+                    // here.  It targeted a legacy backend domain and a
+                    // fail-closed leaf pin would brick clients on the
+                    // next Let's Encrypt key rotation.  Transport
+                    // security is enforced by network_security_config
+                    // (HTTPS-only, system trust anchors) instead.
                 } catch (_: InterruptedException) { return@Thread }
                 catch (_: Throwable) { /* never crash from inside the guard */ }
             }

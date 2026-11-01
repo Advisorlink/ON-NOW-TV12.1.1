@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
     Sparkles, Check, ChevronRight, X, Bookmark, Film, Layers, Clapperboard, Gauge, Radio,
     ListOrdered, Info, PlusCircle, Zap, Search, Settings2, Gift, Lightbulb, EyeOff, Users, Sword,
-    MoveHorizontal, LayoutGrid, Eye, Tv, Library,
+    MoveHorizontal, LayoutGrid, Eye, Tv, Library, Shield, MapPin,
 } from 'lucide-react';
 import { useNativeBackTrap, triggerTrapBack } from '@/hooks/useNativeBackTrap';
 
@@ -12,6 +12,7 @@ const ICONS = {
     'list-ordered': ListOrdered, info: Info, 'plus-circle': PlusCircle, zap: Zap, search: Search,
     'settings-2': Settings2, gift: Gift, lightbulb: Lightbulb, 'eye-off': EyeOff, users: Users, sword: Sword,
     movement: MoveHorizontal, 'layout-grid': LayoutGrid, eye: Eye, tv: Tv, library: Library, sparkles: Sparkles,
+    shield: Shield, 'map-pin': MapPin,
 };
 const ACCENTS = ['#5DC8FF', '#7CF1A1', '#FFD36B', '#FF8FAB', '#C4A3FF', '#FF9B6B', '#6BE3E3', '#9FE870'];
 const hex = (h, a) => `${h}${Math.round(a * 255).toString(16).padStart(2, '0')}`;
