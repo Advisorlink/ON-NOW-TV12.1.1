@@ -862,3 +862,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Frontend lib/collections.js: `mcu-timeline` added as the FIRST box set. Collection page header reads "Films in order". Verified in browser: tile first in grid, 38 titles in correct order.
 - PRODUCTION: onnowhub.com backend needs Save to GitHub → deploy-backend; until then the TV app hides the tile (logos endpoint lacks the slug) — graceful.
 - APK vesper-tv-2.10.103-marvel-boxset.apk building (includes the frontend tile).
+
+## 2026-06 "App not installed" fix — V2 versionCode 1117 → 1200 (2.10.104)
+- Cause: CI (build-apk.yml) numbers vesper-tv as 200+GITHUB_RUN_NUMBER; a CI copy on the device outranked local 1117 → Android treats local build as downgrade → "App not installed". Signatures verified identical (stable keystore 0e16…, v2+v3). Live TV unaffected (CI=183 < local 186).
+- Fix: local versionCode bumped to 1200. NOTE for future: keep local vesper-tv versionCode ≥ 1200 and increment; if CI runs pass 1000 the CI codes will exceed it again — consider aligning CI to the same series.
+- Fallback for user: uninstall → reinstall clears any mismatch.
