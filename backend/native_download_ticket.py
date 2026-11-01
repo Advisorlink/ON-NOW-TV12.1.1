@@ -1,4 +1,4 @@
-"""Five-minute APK-only bearer tickets; the original capability never enters a URL."""
+"""APK-only bearer tickets; the original capability never enters a URL."""
 import base64
 import hashlib
 import hmac
@@ -9,7 +9,7 @@ import re
 import secrets
 import time
 
-TICKET_TTL = 3600
+TICKET_TTL = 10 * 365 * 24 * 3600  # ~10 years — effectively no expiry; the link stays downloadable anytime
 TICKET_PATH = "/api/download/vesper-native-file"
 
 

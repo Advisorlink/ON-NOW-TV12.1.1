@@ -160,9 +160,13 @@ export default function TrailerHoverPreview() {
             collapse();
             activeEl = tile;
             tokenRef.current += 1;
-            setPreview(null);
-            setActions(false);
-            setExpanded(false);
+            // Only touch React state if something is actually open — while
+            // flying across covers (nothing opened yet) this does ZERO
+            // re-render work, so fast scroll matches the covers-only Kids
+            // feel even on a low-end box.
+            if (previewRef.current) setPreview(null);
+            if (actionsRef.current) setActions(false);
+            if (expandedRef.current) setExpanded(false);
             const token = tokenRef.current;
             expandTimer = setTimeout(() => startTile(tile, token), getPreviewDwellMs());
         };

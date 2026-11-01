@@ -828,3 +828,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - proguard-rules.pro: added keeps for `dev.jdtech.mpv.**` (MPV JNI callbacks — main engine) + `org.jellyfin.media3.**`, and `-dontwarn java.beans/javax.script/jdk.dynalink` (Rhino desktop refs) to pass R8.
 - LOCATION GATE (new, MainActivity): ACCESS_FINE/COARSE_LOCATION added to manifest (hardware.location not-required). On cold start, if not granted, `showLocationGate()` blocks the app and fires the system prompt; grant → recreate() boots normally; deny → Retry, or Open-settings once the OS stops prompting.
 - APK: test-artifacts/vesper-tv-2.10.101-locked-down.apk (157 MB). NOT yet run on hardware — release build + IntegrityGuard self-kill behaviour must be sanity-checked on a real box.
+
+## 2026-06 V2 2.10.102 (1116): no-expiry download + fast cover scroll
+- Download link no longer times out: native_download_ticket.TICKET_TTL 3600s → ~10 years (issue + validate both use it). The /api/download/vesper-tv page already minted a fresh ticket per visit; now any direct file URL also stays valid.
+- Cover navigation: measured MAIN pause-mode scrolling = 0 long-tasks, 0 wide cards during fast scroll (already jank-free, same as Kids covers). Added a guard in TrailerHoverPreview.onEnter so the per-move setState resets only fire when something is actually open — fast scroll through covers now does ZERO React work until the user rests, matching the Kids covers-only feel on low-end boxes. The heaviness the user felt was the default 'instant' home-look (wide card always open); 'pause' mode is the fast path.
+- APK: test-artifacts/vesper-tv-2.10.102-locked-down.apk (150 MB), served by /api/download/vesper-tv. Not hardware-verified.
