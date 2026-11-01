@@ -886,7 +886,8 @@ class EpgActivity : AppCompatActivity() {
             override fun afterTextChanged(s: Editable?) {}
         })
         searchOverlayClose.setOnClickListener { closeSearchOverlay() }
-        findViewById<View>(R.id.search_overlay_mic).setOnClickListener { startVoiceSearch() }
+        // Null-safe: the phone (layout-port) variant has no mic button.
+        findViewById<View?>(R.id.search_overlay_mic)?.setOnClickListener { startVoiceSearch() }
     }
 
     private val voiceSearch = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { res ->
@@ -910,8 +911,8 @@ class EpgActivity : AppCompatActivity() {
     }
 
     private fun renderRecentSearches() {
-        val row = findViewById<LinearLayout>(R.id.search_recent_row)
-        val scroll = findViewById<View>(R.id.search_recent_scroll)
+        val row = findViewById<LinearLayout?>(R.id.search_recent_row) ?: return
+        val scroll = findViewById<View?>(R.id.search_recent_scroll) ?: return
         row.removeAllViews()
         val recent = RecentSearches.list(this)
         scroll.visibility = if (recent.isEmpty()) View.GONE else View.VISIBLE

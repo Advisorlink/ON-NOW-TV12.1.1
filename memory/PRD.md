@@ -849,3 +849,10 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Device coverage verified: minSdk 23 (Android 6+), native-code arm64-v8a + armeabi-v7a + x86_64, leanback & touchscreen not required, LAUNCHER + LEANBACK_LAUNCHER. Covers Fire TV Stick 3rd-gen/Lite/4K/4K-Max (Fire OS 6+), Google TV, Android TV boxes, phones/tablets. NOT the oldest 2nd-gen Fire Stick (Fire OS 5 = API22) — can lower minSdk to 21 if needed.
 - APK onnowtv-livetv-2.11.21-185-stable-secure.apk (68MB), /api/download/livetv. NOT hardware-verified for the crash fix.
 - NOTE: vesper-tv (WebView shell) keeps R8 obfuscation safely; only the native Live TV app had it removed.
+
+## 2026-06 Live TV 2.11.22 (186): REAL crash cause found & fixed (not obfuscation)
+- Crash screenshot showed: EpgActivity onCreate NPE "setOnClickListener on null reference" — readable class names, so NOT obfuscation.
+- Root cause (pre-existing, phone-portrait only): layout-port/activity_epg.xml lacks views present in landscape. EpgActivity wired `R.id.search_overlay_mic` (line 889) and used `R.id.search_recent_row`/`search_recent_scroll` (renderRecentSearches) NON-null-safely → NPE on phones in portrait.
+- Fix: made search_overlay_mic setOnClickListener null-safe (`?.`); renderRecentSearches early-returns if row/scroll null. (rail_catchup already null-safe.) Landscape-only ids audited: rail_catchup, search_overlay_mic, search_recent_row, search_recent_scroll — all now safe.
+- Obfuscation stays OFF (2.11.21 change) since it was an unnecessary risk; the crash was unrelated to it.
+- APK onnowtv-livetv-2.11.22-186-stable-secure.apk (68MB). Cert/perms/non-debuggable verified. Needs phone re-test to confirm EpgActivity now launches.
