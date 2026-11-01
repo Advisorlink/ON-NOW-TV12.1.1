@@ -1,0 +1,31 @@
+{
+  "summary": "Frontend-only test of the new Settings 'Home row style' (instant / pause / covers) + 'Pause before it opens' (0.5/1/1.5s) and its behaviour on Home rows. All requested checks passed on the public preview URL (?e2e=1, testuser). Settings left on 'instant' at the end.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Settings left nav", "issues": ["After clicking 'Home screen', the 'Appearance' item still has its bright focus outline, so two nav items look highlighted at once (cosmetic, it was already like this)"]}
+    ]
+  },
+  "verified": [
+    "Settings: home-look-row visible after clicking 'Home screen'. 'instant' is active by default ('● ' prefix). home-pause-options is not rendered while 'instant' is selected. Clicking pause makes it active and shows home-pause-500/1000/1500 with 1000 active by default. Clicking 500 makes it active. After a reload, pause + 500 are still selected (localStorage onnowtv-home-look:p-test-1=pause, onnowtv-home-pause-ms:p-test-1=500). toggle-auto-trailer count = 0.",
+    "Pause 500ms: 0 wide-art before focus. Still 0 while pressing ArrowRight twice 150ms apart. About 570ms after the last press, exactly 1 wide-art, inside document.activeElement, cell width 528 vs neighbour 198 (ratio 2.667). getAnimations 10 at open, versus 2 at idle. trailer-hover-preview appears inside the focused tile after about 1.5s. ArrowRight sets wide to 0 at once, and it is 1 again on the new tile after 700ms. ArrowDown gives rows [0,0,0] at once, then [0,1,0] after 780ms (the previous row stays closed).",
+    "Pause 1500ms: 0 wide-art at 900ms, 1 at 1800ms (on the focused tile, hover card present).",
+    "Instant: before any focus, rows [1,1,1] (one parked wide card per row). During 4x ArrowRight, sampled at 40ms and 240ms after each press: always exactly 1 per row, and the focused tile holds it. Down and Left navigation work.",
+    "Covers: 0 wide-art and 0 trailer-hover-preview before focus, at 1s rest, 2s after ArrowRight, and 2s after ArrowDown.",
+    "No console errors and no pageerrors at all across all flows."
+  ],
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Shelf reads the look once with useState(getHomeLook()), so changing the setting only takes effect after Home remounts. That is fine with route navigation, but it would not update live if Settings were ever shown as an overlay over Home.",
+    "Test note: Home poster shelves are lazy and mount only after scrolling (the first rows are Networks), so tests must scroll or wheel before querying [data-shelf-cell]."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "100%"},
+  "seed_data_creation": "None. Profile seed in localStorage only; home look reset to 'instant'.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Prefs keys are scoped per profile: onnowtv-home-look:<profileId>, onnowtv-home-pause-ms:<profileId>. Rows expose data-home-look. Focus tiles with JS .focus() on '[data-shelf-cell] [data-preview=\"true\"]' after mouse.wheel down/up to mount the lazy shelves, then use the keyboard."
+}
