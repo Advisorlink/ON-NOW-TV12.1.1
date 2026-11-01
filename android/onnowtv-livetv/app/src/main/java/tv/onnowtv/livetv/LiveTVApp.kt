@@ -27,6 +27,9 @@ class LiveTVApp : Application() {
         val manager = getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager
         val processName = manager.runningAppProcesses?.firstOrNull { it.pid == Process.myPid() }?.processName
         if (processName?.endsWith(":crash") == true) return
+        // SECURITY — tamper / re-sign / debugger / Frida / Xposed checks.
+        // No-op on debug builds; hard-kills a compromised release build.
+        try { tv.onnowtv.livetv.security.IntegrityGuard.runChecks(this) } catch (_: Throwable) { }
         BoxBoost.trimOwnCaches = { coil.Coil.imageLoader(this).memoryCache?.clear() }
         BoxBoost.isPlayback = { a -> a is PlayerActivity || a is StatsPlayerActivity || a is GameActivity || a is SportsReplayActivity || a is SportsOfficialReplayActivity }
         BoxBoost.install(this)

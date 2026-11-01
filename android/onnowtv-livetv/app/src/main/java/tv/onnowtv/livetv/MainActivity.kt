@@ -119,8 +119,107 @@ class MainActivity : AppCompatActivity() {
     private val TIP_INTERVAL_MS = 7_500L
     private var tipIndex = 0
 
+    private val REQ_LOCATION = 9311
+    private var locationBlockedInSettings = false
+
+    private fun hasLocationPermission(): Boolean =
+        checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED ||
+            checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != REQ_LOCATION) return
+        if (hasLocationPermission()) {
+            recreate()
+        } else {
+            val canAskAgain =
+                shouldShowRequestPermissionRationale(android.Manifest.permission.ACCESS_FINE_LOCATION) ||
+                    shouldShowRequestPermissionRationale(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+            locationBlockedInSettings = !canAskAgain
+            showLocationGate(false)
+        }
+    }
+
+    private fun requestLocation() {
+        requestPermissions(
+            arrayOf(
+                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION,
+            ),
+            REQ_LOCATION,
+        )
+    }
+
+    private fun showLocationGate(autoRequest: Boolean) {
+        val root = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            gravity = android.view.Gravity.CENTER
+            setBackgroundColor(android.graphics.Color.parseColor("#06080F"))
+            setPadding(64, 96, 64, 96)
+        }
+        val title = android.widget.TextView(this).apply {
+            text = "Location access required"
+            setTextColor(android.graphics.Color.WHITE)
+            textSize = 24f
+            gravity = android.view.Gravity.CENTER
+            setPadding(0, 0, 0, 16)
+        }
+        val sub = android.widget.TextView(this).apply {
+            text = if (locationBlockedInSettings) {
+                "ON NOW TV Live needs location access to continue.  You've blocked the prompt — please enable Location for this app in system Settings, then come back."
+            } else {
+                "ON NOW TV Live needs location access to continue.  Please approve the permission request to start using the app."
+            }
+            setTextColor(android.graphics.Color.parseColor("#A8B5C7"))
+            textSize = 15f
+            gravity = android.view.Gravity.CENTER
+            setPadding(0, 0, 0, 28)
+        }
+        val btn = android.widget.Button(this).apply {
+            text = if (locationBlockedInSettings) "Open settings" else "Grant location access"
+            isFocusable = true
+            isFocusableInTouchMode = true
+            setOnClickListener {
+                if (locationBlockedInSettings) {
+                    try {
+                        startActivity(
+                            Intent(
+                                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                android.net.Uri.fromParts("package", packageName, null),
+                            )
+                        )
+                    } catch (_: Throwable) { }
+                } else {
+                    requestLocation()
+                }
+            }
+        }
+        root.addView(title)
+        root.addView(sub)
+        root.addView(btn)
+        setContentView(root)
+        btn.requestFocus()
+        if (autoRequest && !locationBlockedInSettings) requestLocation()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // SECURITY — block screenshot / screen-record / cast-mirror.
+        window.setFlags(
+            android.view.WindowManager.LayoutParams.FLAG_SECURE,
+            android.view.WindowManager.LayoutParams.FLAG_SECURE,
+        )
+        // SECURITY GATE — require location approval before the app loads.
+        if (!hasLocationPermission()) {
+            showLocationGate(savedInstanceState == null)
+            return
+        }
         if (intent.getBooleanExtra(CrashActivity.EXTRA_RESET_LOGIN, false)) {
             sendBackToLogin("Please log in again to reload your guide.")
             return

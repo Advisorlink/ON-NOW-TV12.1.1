@@ -833,3 +833,12 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Download link no longer times out: native_download_ticket.TICKET_TTL 3600s → ~10 years (issue + validate both use it). The /api/download/vesper-tv page already minted a fresh ticket per visit; now any direct file URL also stays valid.
 - Cover navigation: measured MAIN pause-mode scrolling = 0 long-tasks, 0 wide cards during fast scroll (already jank-free, same as Kids covers). Added a guard in TrailerHoverPreview.onEnter so the per-move setState resets only fire when something is actually open — fast scroll through covers now does ZERO React work until the user rests, matching the Kids covers-only feel on low-end boxes. The heaviness the user felt was the default 'instant' home-look (wide card always open); 'pause' mode is the fast path.
 - APK: test-artifacts/vesper-tv-2.10.102-locked-down.apk (150 MB), served by /api/download/vesper-tv. Not hardware-verified.
+
+## 2026-06 Live TV 2.11.20 (184) hardened + download-link fix
+- BUG (self-inflicted): raising TICKET_TTL made the JSON expiresIn=315360000, but native_download.js rejected expiresIn>3600 → "Download interrupted" on BOTH pages. Fixed the client guard to `> 400000000`. Links work again; ticket stays ~10yr.
+- Live TV (onnowtv-livetv, native Kotlin) now ships the same protection as V2:
+  - release: isMinifyEnabled+shrinkResources ON; new app/proguard-rules.pro (keeps media3, libVLC, WorkManager workers, coil, okhttp, kotlin, parcelable; manifest components auto-kept). mapping.txt = 295k lines, classes renamed. APK 196→65MB.
+  - security/IntegrityGuard.kt ported (pkg tv.onnowtv.livetv, cert hash DB:4C:81…5C:D1 of onnow-launcher-debug.keystore, XOR-masked); called from LiveTVApp.onCreate. Hard-kill on re-sign/wrong-pkg/debugger/Frida/Xposed/foreign-UID + periodic recheck. No backend pin (avoids brick).
+  - MainActivity: FLAG_SECURE + location gate (ACCESS_FINE/COARSE added; blocks launch until granted, recreate on grant, settings route on permanent deny).
+  - manifest allowBackup=false. Kept usesCleartextTraffic=true (IPTV http streams).
+  - /root/lt_build.sh → versionCode 184 / 2.11.20, assembleRelease, signed with launcher keystore. Served by /api/download/livetv (newest apk in test-artifacts). NOT hardware-verified.
