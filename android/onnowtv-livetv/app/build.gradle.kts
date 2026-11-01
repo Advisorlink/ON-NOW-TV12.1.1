@@ -40,12 +40,16 @@ android {
 
     buildTypes {
         getByName("release") {
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            // v2.11.21 — R8 minify DISABLED for the native Live TV app.
+            // Obfuscating this large native codebase (media3, libVLC,
+            // coroutines, many activities) blind — the build's unit
+            // tests run un-minified so they never exercise the R8
+            // output — risked runtime crashes across devices.  The
+            // real anti-theft protection (re-sign kill-switch,
+            // screen-capture block, non-debuggable, backups off) does
+            // NOT depend on minify and stays on.
+            isMinifyEnabled = false
+            isShrinkResources = false
             signingConfig = if (hasReleaseKeystore) {
                 signingConfigs.getByName("release")
             } else {

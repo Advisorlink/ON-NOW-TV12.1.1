@@ -842,3 +842,10 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
   - MainActivity: FLAG_SECURE + location gate (ACCESS_FINE/COARSE added; blocks launch until granted, recreate on grant, settings route on permanent deny).
   - manifest allowBackup=false. Kept usesCleartextTraffic=true (IPTV http streams).
   - /root/lt_build.sh → versionCode 184 / 2.11.20, assembleRelease, signed with launcher keystore. Served by /api/download/livetv (newest apk in test-artifacts). NOT hardware-verified.
+
+## 2026-06 Live TV 2.11.21 (185): crash fix — obfuscation removed, protections kept
+- Live TV crashed on device (reported on phone). Root cause: R8 minify on the large NATIVE app was enabled blind (unit tests run un-minified → never exercised the R8 output). Reverted isMinifyEnabled=false / isShrinkResources=false. App is the known-good non-minified release again.
+- KEPT (no crash risk): IntegrityGuard re-sign/debugger/Frida/Xposed kill, FLAG_SECURE, location gate, allowBackup=false, non-debuggable. Code is readable again but can't be re-signed/redistributed.
+- Device coverage verified: minSdk 23 (Android 6+), native-code arm64-v8a + armeabi-v7a + x86_64, leanback & touchscreen not required, LAUNCHER + LEANBACK_LAUNCHER. Covers Fire TV Stick 3rd-gen/Lite/4K/4K-Max (Fire OS 6+), Google TV, Android TV boxes, phones/tablets. NOT the oldest 2nd-gen Fire Stick (Fire OS 5 = API22) — can lower minSdk to 21 if needed.
+- APK onnowtv-livetv-2.11.21-185-stable-secure.apk (68MB), /api/download/livetv. NOT hardware-verified for the crash fix.
+- NOTE: vesper-tv (WebView shell) keeps R8 obfuscation safely; only the native Live TV app had it removed.
