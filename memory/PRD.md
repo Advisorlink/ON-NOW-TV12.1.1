@@ -856,3 +856,9 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Fix: made search_overlay_mic setOnClickListener null-safe (`?.`); renderRecentSearches early-returns if row/scroll null. (rail_catchup already null-safe.) Landscape-only ids audited: rail_catchup, search_overlay_mic, search_recent_row, search_recent_scroll — all now safe.
 - Obfuscation stays OFF (2.11.21 change) since it was an unnecessary risk; the crash was unrelated to it.
 - APK onnowtv-livetv-2.11.22-186-stable-secure.apk (68MB). Cert/perms/non-debuggable verified. Needs phone re-test to confirm EpgActivity now launches.
+
+## 2026-06 Marvel Cinematic Universe box set (story order) + V2 2.10.103
+- Backend collections_api.py: new collection kind `"list"` = explicit ordered TMDB movie ids. `mcu-timeline` → 38 MCU films in STORY-timeline order (First Avenger → Captain Marvel → Iron Man … → Fantastic Four: First Steps → Avengers: Doomsday). `_tile_for` list → Marvel Studios wordmark (company 420) + Endgame backdrop; `collection_titles` list → fetch /movie/{id} concurrently, keep order, drop no-poster. Logos cache key bumped v2→v3 so the tile appears.
+- Frontend lib/collections.js: `mcu-timeline` added as the FIRST box set. Collection page header reads "Films in order". Verified in browser: tile first in grid, 38 titles in correct order.
+- PRODUCTION: onnowhub.com backend needs Save to GitHub → deploy-backend; until then the TV app hides the tile (logos endpoint lacks the slug) — graceful.
+- APK vesper-tv-2.10.103-marvel-boxset.apk building (includes the frontend tile).

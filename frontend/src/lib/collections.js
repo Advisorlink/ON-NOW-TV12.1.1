@@ -8,6 +8,7 @@ export const COLLECTIONS = [
     { slug: "dc", name: "DC", group: "studio", moviesOnly: false, accent: "#0476f2" },
     { slug: "disney", name: "Disney", group: "studio", moviesOnly: false, accent: "#1a6ef5" },
     { slug: "pixar", name: "Pixar", group: "studio", moviesOnly: false, accent: "#2bd1ff" },
+    { slug: "mcu-timeline", name: "Marvel Cinematic Universe", group: "boxset", moviesOnly: true, accent: "#e23636" },
     { slug: "star-wars", name: "Star Wars", group: "boxset", moviesOnly: false, accent: "#ffe81f" },
     { slug: "wizarding-world", name: "Wizarding World", group: "boxset", moviesOnly: true, accent: "#c9a24b" },
     { slug: "middle-earth", name: "Middle-earth", group: "boxset", moviesOnly: true, accent: "#d4af37" },

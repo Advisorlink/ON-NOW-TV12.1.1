@@ -34,6 +34,48 @@ COLLECTIONS: Dict[str, Dict[str, Any]] = {
     "dc":              {"label": "DC",                     "kind": "company",    "ids": [9993, 128064, 429], "logo_id": 429},
     "disney":          {"label": "Disney",                 "kind": "company",    "ids": [2]},
     "pixar":           {"label": "Pixar",                  "kind": "company",    "ids": [3]},
+    # Marvel Cinematic Universe in STORY-timeline order (not release order).
+    "mcu-timeline":    {"label": "Marvel Cinematic Universe", "kind": "list", "logo_id": 420, "backdrop_movie": 299534,
+                        "movie_ids": [
+                            1771,    # Captain America: The First Avenger (1940s)
+                            299537,  # Captain Marvel (1995)
+                            1726,    # Iron Man
+                            10138,   # Iron Man 2
+                            1724,    # The Incredible Hulk
+                            10195,   # Thor
+                            24428,   # The Avengers
+                            76338,   # Thor: The Dark World
+                            68721,   # Iron Man 3
+                            100402,  # Captain America: The Winter Soldier
+                            118340,  # Guardians of the Galaxy
+                            283995,  # Guardians of the Galaxy Vol. 2
+                            99861,   # Avengers: Age of Ultron
+                            102899,  # Ant-Man
+                            271110,  # Captain America: Civil War
+                            497698,  # Black Widow
+                            284054,  # Black Panther
+                            315635,  # Spider-Man: Homecoming
+                            284052,  # Doctor Strange
+                            284053,  # Thor: Ragnarok
+                            363088,  # Ant-Man and the Wasp
+                            299536,  # Avengers: Infinity War
+                            299534,  # Avengers: Endgame
+                            566525,  # Shang-Chi and the Legend of the Ten Rings
+                            429617,  # Spider-Man: Far From Home
+                            524434,  # Eternals
+                            634649,  # Spider-Man: No Way Home
+                            453395,  # Doctor Strange in the Multiverse of Madness
+                            616037,  # Thor: Love and Thunder
+                            505642,  # Black Panther: Wakanda Forever
+                            640146,  # Ant-Man and the Wasp: Quantumania
+                            447365,  # Guardians of the Galaxy Vol. 3
+                            609681,  # The Marvels
+                            533535,  # Deadpool & Wolverine
+                            822119,  # Captain America: Brave New World
+                            986056,  # Thunderbolts*
+                            617126,  # The Fantastic Four: First Steps
+                            1003596, # Avengers: Doomsday
+                        ]},
     "star-wars":       {"label": "Star Wars",              "kind": "collection", "ids": [10],     "tv_company": 1},
     "wizarding-world": {"label": "Wizarding World",        "kind": "collection", "ids": [1241, 435259]},
     "middle-earth":    {"label": "Middle-earth",           "kind": "collection", "ids": [119, 121938]},
@@ -265,6 +307,22 @@ async def _logo_treatment(url: str) -> str:
 async def _tile_for(slug: str, cfg: Dict[str, Any]) -> Dict[str, Any]:
     out: Dict[str, Any] = {"name": cfg["label"], "kind": cfg["kind"], "logo": None, "backdrop": None,
                            "group": "studio" if cfg["kind"] == "company" else "boxset"}
+    if cfg["kind"] == "list":
+        try:
+            co = await _tmdb(f"/company/{cfg['logo_id']}")
+            if co.get("logo_path"):
+                out["logo"] = f"{IMG}/w500{co['logo_path']}"
+                out["logo_treatment"] = await _logo_treatment(out["logo"])
+        except HTTPException:
+            pass
+        try:
+            mv = await _tmdb(f"/movie/{cfg['backdrop_movie']}")
+            if mv.get("backdrop_path"):
+                out["backdrop"] = f"{IMG}/w780{mv['backdrop_path']}"
+        except HTTPException:
+            pass
+        out["logo_style"] = "wordmark"
+        return out
     if cfg["kind"] == "company":
         cid = cfg.get("logo_id") or cfg["ids"][0]
         try:
@@ -302,7 +360,7 @@ async def _tile_for(slug: str, cfg: Dict[str, Any]) -> Dict[str, Any]:
 
 @router.get("/logos")
 async def collection_logos():
-    key = "collections:logos:v2"
+    key = "collections:logos:v3"
     cached = await _cache.get(key)
     if cached:
         return {"cached": True, "data": cached}
@@ -310,7 +368,7 @@ async def collection_logos():
 
 
 async def _build_logos() -> Dict[str, Any]:
-    key = "collections:logos:v2"
+    key = "collections:logos:v3"
     sem = asyncio.Semaphore(6)
 
     async def one(slug: str, cfg: Dict[str, Any]):
@@ -328,7 +386,7 @@ async def _prewarm_logos() -> None:
     async def run():
         await asyncio.sleep(15)
         try:
-            if not await _cache.get("collections:logos:v2"):
+            if not await _cache.get("collections:logos:v3"):
                 await _build_logos()
         except Exception:
             pass
@@ -355,7 +413,21 @@ async def collection_titles(
     results: List[Dict[str, Any]] = []
     total_pages, total_results = 1, 0
 
-    if cfg["kind"] == "collection" and not is_tv:
+    if cfg["kind"] == "list":
+        if not is_tv:
+            sem = asyncio.Semaphore(8)
+
+            async def one(mid: int):
+                async with sem:
+                    try:
+                        return await _tmdb(f"/movie/{mid}")
+                    except HTTPException:
+                        return None
+
+            movies = await asyncio.gather(*[one(m) for m in cfg["movie_ids"]])
+            results = [_shape(m, False) for m in movies if m and m.get("id") and m.get("poster_path")]
+        total_results = len(results)
+    elif cfg["kind"] == "collection" and not is_tv:
         cols = await asyncio.gather(*[_collection_parts(c) for c in cfg["ids"]])
         seen = set()
         parts: List[Dict[str, Any]] = []
