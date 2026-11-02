@@ -63,7 +63,7 @@ object LivePreviewSession {
             player?.let { return it }
             val appCtx = ctx.applicationContext
 
-            val loadControl = TiviMateProfile.loadControl()
+            val loadControl = TiviMateProfile.loadControl(appCtx)
 
             val ok = OkHttpClient.Builder()
                 .connectTimeout(20, TimeUnit.SECONDS)

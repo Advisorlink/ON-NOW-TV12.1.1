@@ -101,12 +101,15 @@ class ChannelPillAdapter(
         fun bind(channel: Channel) {
             itemView.foreground = androidx.core.content.ContextCompat.getDrawable(itemView.context, R.drawable.channel_focus_outline)
             itemView.clipToOutline = true
-            if (!channel.logoUrl.isNullOrBlank()) {
+            if (!channel.logoUrl.isNullOrBlank() && tv.onnowtv.livetv.data.Settings.showLogos) {
                 logo.load(channel.logoUrl)
+                logo.visibility = View.VISIBLE
             } else {
                 logo.setImageDrawable(null)
+                logo.visibility = if (tv.onnowtv.livetv.data.Settings.showLogos) View.VISIBLE else View.GONE
             }
-            numV.text = channel.lcn ?: ""
+            numV.text = if (tv.onnowtv.livetv.data.Settings.showNumbers) channel.lcn ?: "" else ""
+            numV.visibility = if (tv.onnowtv.livetv.data.Settings.showNumbers) View.VISIBLE else View.GONE
             nameV.text = channel.name
 
             val now = nowResolver(channel)

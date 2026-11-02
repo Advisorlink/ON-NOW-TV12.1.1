@@ -71,6 +71,17 @@
             android:launchMode="singleTop"
             android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
 
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:configChanges="keyboardHidden|layoutDirection|locale"
+            android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
+        <activity
+            android:name=".ListEditActivity"
+            android:exported="false"
+            android:configChanges="keyboardHidden|layoutDirection|locale"
+            android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
+
         <!-- v2.9.5 — first-launch login screen.  MainActivity (the
              splash) checks AuthStore on resume and routes here when
              no credentials are saved.  Sign-out from the EPG also

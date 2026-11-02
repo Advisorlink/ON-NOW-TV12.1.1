@@ -11,6 +11,7 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
+import android.widget.Toast
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -69,6 +70,8 @@ import java.util.concurrent.TimeUnit
  * we zap to an adjacent channel.
  */
 open class PlayerActivity : AppCompatActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(tv.onnowtv.livetv.data.Settings.wrap(newBase))
+
 
     companion object {
         const val EXTRA_URL = "extra_url"
@@ -180,10 +183,10 @@ open class PlayerActivity : AppCompatActivity() {
     private lateinit var btnFavorite: ImageButton
     private lateinit var btnPlayPauseLabel: TextView
     private val clockHandler = Handler(Looper.getMainLooper())
-    private val clockHourFmt = SimpleDateFormat("h:mm", Locale.UK)
+    private val clockHourFmt get() = tv.onnowtv.livetv.data.Settings.hourFmt(this)
     private val clockAmPmFmt = SimpleDateFormat("a", Locale.UK)
     private val clockDateFmt = SimpleDateFormat("EEE, MMM d", Locale.UK)
-    private val timeRangeFmt = SimpleDateFormat("h:mm a", Locale.UK)
+    private val timeRangeFmt get() = tv.onnowtv.livetv.data.Settings.timeFmt(this)
     /** Id of the channel we were watching immediately before the
      *  current one.  `null` on first boot.  Powers a strict two-
      *  channel toggle for the SWAP BACK button — pressing it flips
@@ -218,7 +221,7 @@ open class PlayerActivity : AppCompatActivity() {
     private val seekTick = object : Runnable {
         override fun run() { updateCatchUpProgress(); seekHandler.postDelayed(this, 1_000L) }
     }
-    private val clockFmt = SimpleDateFormat("h:mm a", Locale.UK)
+    private val clockFmt get() = tv.onnowtv.livetv.data.Settings.timeFmt(this)
     /** Number of consecutive failed attempts on the CURRENT channel.
      *  Resets to 0 whenever the user tunes to a different channel.
      *  Used to back off if the upstream provider keeps returning
@@ -442,7 +445,7 @@ open class PlayerActivity : AppCompatActivity() {
     /* ─────────────────── ExoPlayer ─────────────────── */
 
     private fun buildPlayer() {
-        val loadControl = TiviMateProfile.loadControl()
+        val loadControl = TiviMateProfile.loadControl(this)
 
         // OkHttp data source — EXACT copy of Vesper's working
         // config.  Keep-alive ON (5-minute pool TTL) — Vesper has
@@ -482,9 +485,12 @@ open class PlayerActivity : AppCompatActivity() {
             .setBandwidthMeter(bandwidth)
             .build()
             .apply {
+                val aLang = tv.onnowtv.livetv.data.Settings.audioLanguage
+                val sLang = tv.onnowtv.livetv.data.Settings.subtitleLanguage
                 trackSelectionParameters = trackSelectionParameters.buildUpon()
-                    .setPreferredAudioLanguages("eng", "en", "english")
-                    .setPreferredTextLanguages("eng", "en", "english")
+                    .apply { if (aLang != "any") setPreferredAudioLanguages(aLang, aLang.take(2)) }
+                    .setPreferredTextLanguages(sLang, sLang.take(2))
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !tv.onnowtv.livetv.data.Settings.subtitlesOn)
                     .build()
                 TiviMateProfile.apply(this)
             }
@@ -784,6 +790,11 @@ open class PlayerActivity : AppCompatActivity() {
         // channel that is now playing; the singleton internally
         // rolls the previous entry so we always know the last two.
         PreviousChannelMemory.rememberTunedChannel(channel.id)
+        if (!catchUp) tv.onnowtv.livetv.data.Settings.lastChannelId = channel.id
+        if (initial) {
+            aspectModeIndex = tv.onnowtv.livetv.data.Settings.defaultAspect.coerceIn(0, aspectModes.size - 1)
+            try { videoView().resizeMode = aspectModes[aspectModeIndex] } catch (_: Throwable) {}
+        }
         if (currentChannel?.id != channel.id) {
             consecutiveFailures = 0
             retryHandler.removeCallbacksAndMessages(null)
@@ -1153,6 +1164,10 @@ open class PlayerActivity : AppCompatActivity() {
                 // separately in the case label above when controls
                 // are hidden).
                 if (playerOverlay.visibility != View.VISIBLE) {
+                    if (tv.onnowtv.livetv.data.Settings.playerUpDown == "channels" && keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                        PlaybackQueue.next()?.let { tuneTo(it) }
+                        return true
+                    }
                     showControlsBar()
                     return true
                 }
@@ -1218,7 +1233,7 @@ open class PlayerActivity : AppCompatActivity() {
         btnForward.setOnClickListener { seekRelative(+10_000L); bumpControlsHide() }
         btnSubtitles.setOnClickListener { toggleSubtitles(); bumpControlsHide() }
         // v2.16.38 — settings cog opens the backend picker
-        settingsCog.setOnClickListener { showBackendPicker(); bumpControlsHide() }
+        settingsCog.setOnClickListener { playerSettingsMenu().show(); bumpControlsHide() }
         // v2.10 — new design buttons
         btnChUp.setOnClickListener { channelStep(forward = true); bumpControlsHide() }
         btnChDown.setOnClickListener { channelStep(forward = false); bumpControlsHide() }
@@ -1706,6 +1721,36 @@ open class PlayerActivity : AppCompatActivity() {
         hideHandler.postDelayed({ status.text = "" }, 1_400L)
     }
 
+    private var sleepMinutes = 0
+    private val sleepHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    private fun setSleepTimer(minutes: Int) {
+        sleepMinutes = minutes
+        sleepHandler.removeCallbacksAndMessages(null)
+        if (minutes > 0) sleepHandler.postDelayed({ Toast.makeText(this, "Sleep timer — goodnight", Toast.LENGTH_SHORT).show(); finish() }, minutes * 60_000L)
+    }
+
+    /** Tear down and rebuild the current engine so buffer / decoder changes apply now. */
+    private fun rebuildCurrentEngine() {
+        val b = backend
+        val other = if (b == PlayerPrefs.Backend.VLC) PlayerPrefs.Backend.EXO else PlayerPrefs.Backend.VLC
+        switchBackend(other)
+        switchBackend(b)
+    }
+
+    private fun playerSettingsMenu() = PlayerSettingsMenu(
+        activity = this,
+        exo = { player },
+        vlc = { vlcController },
+        backend = { backend },
+        aspectLabel = { aspectLabels[aspectModeIndex] },
+        onAspect = { i -> aspectModeIndex = i; videoView().resizeMode = aspectModes[i]; status.text = "Aspect · ${aspectLabels[i]}"; hideHandler.postDelayed({ status.text = "" }, 1_400L) },
+        onBackend = { nb -> PlayerPrefs.setBackend(this, nb); switchBackend(nb) },
+        onRebuild = { rebuildCurrentEngine() },
+        onSleep = { m -> setSleepTimer(m) },
+        sleepMinutes = { sleepMinutes },
+    )
+
     private fun cycleAspectMode() {
         aspectModeIndex = (aspectModeIndex + 1) % aspectModes.size
         videoView().resizeMode = aspectModes[aspectModeIndex]
@@ -1873,6 +1918,7 @@ open class PlayerActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        sleepHandler.removeCallbacksAndMessages(null)
         stopSportsPlayback()
         // v2.18.0 — Clear the phone Companion now-playing card.
         try {

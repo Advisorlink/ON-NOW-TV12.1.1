@@ -32,6 +32,11 @@ class EpgBootReceiver : BroadcastReceiver() {
             return
         }
         Log.i(TAG, "boot received: action=$action — kicking EPG refresh")
+        if (action != Intent.ACTION_MY_PACKAGE_REPLACED && Settings.autoStartOnBoot && AuthStore.isSignedIn(context)) {
+            try {
+                context.startActivity(Intent(context, tv.onnowtv.livetv.MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            } catch (t: Throwable) { Log.w(TAG, "auto-start failed: ${t.message}") }
+        }
         try {
             if (!AuthStore.isSignedIn(context)) {
                 Log.i(TAG, "skip boot refresh: no saved credentials")

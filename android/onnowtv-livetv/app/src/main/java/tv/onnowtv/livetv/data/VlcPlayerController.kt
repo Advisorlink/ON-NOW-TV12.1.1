@@ -100,7 +100,7 @@ class VlcPlayerController(
             media.addOption(":live-caching=200")
             media.addOption(":clock-jitter=0")
             media.addOption(":clock-synchro=0")
-            media.setHWDecoderEnabled(true, false)
+            media.setHWDecoderEnabled(!Settings.softwareDecoding, Settings.softwareDecoding)
             player.media = media
             media.release()
             player.play()
@@ -135,6 +135,25 @@ class VlcPlayerController(
     /** Toggle subtitle (SPU) tracks.  Returns `true` when the
      *  request could be applied — `false` when enabling was asked
      *  but the stream carries no subtitle track. */
+    fun spuTracks(): List<Triple<Int, String, Boolean>> {
+        val p = mediaPlayer ?: return emptyList()
+        return try {
+            val cur = p.spuTrack
+            p.spuTracks?.filter { it.id >= 0 }?.map { Triple(it.id, it.name ?: "Track ${it.id}", it.id == cur) } ?: emptyList()
+        } catch (_: Throwable) { emptyList() }
+    }
+
+    fun audioTracks(): List<Triple<Int, String, Boolean>> {
+        val p = mediaPlayer ?: return emptyList()
+        return try {
+            val cur = p.audioTrack
+            p.audioTracks?.filter { it.id >= 0 }?.map { Triple(it.id, it.name ?: "Track ${it.id}", it.id == cur) } ?: emptyList()
+        } catch (_: Throwable) { emptyList() }
+    }
+
+    fun setSpuTrack(id: Int) { try { mediaPlayer?.setSpuTrack(id) } catch (_: Throwable) {} }
+    fun setAudioTrack(id: Int) { try { mediaPlayer?.setAudioTrack(id) } catch (_: Throwable) {} }
+
     fun setSubtitlesEnabled(enabled: Boolean): Boolean {
         val player = mediaPlayer ?: return false
         return try {

@@ -18,9 +18,12 @@ import kotlin.system.exitProcess
  * where adb logcat is awkward.
  */
 class LiveTVApp : Application() {
+    companion object { lateinit var instance: LiveTVApp }
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
+        tv.onnowtv.livetv.data.Settings.init(this)
         // CrashActivity already lives in :crash. Do NOT start the same
         // provider refresh/player lifecycle in this recovery process, or
         // the fault can repeat before the recovery buttons are usable.

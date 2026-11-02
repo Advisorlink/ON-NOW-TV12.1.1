@@ -26,7 +26,7 @@ class SearchResultsAdapter(
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     private val items = mutableListOf<SearchRow>()
-    private val timeFmt = SimpleDateFormat("h:mm a", Locale.UK)
+    private val timeFmt get() = tv.onnowtv.livetv.data.Settings.timeFmtApp()
     private val dayFmt = SimpleDateFormat("EEE d MMM", Locale.UK)
 
     init { setHasStableIds(true) }

@@ -18,8 +18,8 @@ object TiviMateProfile {
     const val BUFFER_FOR_PLAYBACK_MS = 2_000
     const val BUFFER_FOR_REBUFFER_MS = 5_000
 
-    fun loadControl(): DefaultLoadControl = DefaultLoadControl.Builder()
-        .setBufferDurationsMs(MIN_BUFFER_MS, MAX_BUFFER_MS, BUFFER_FOR_PLAYBACK_MS, BUFFER_FOR_REBUFFER_MS)
+    fun loadControl(ctx: Context): DefaultLoadControl = tv.onnowtv.livetv.data.Settings.bufferMs(ctx).let { b -> DefaultLoadControl.Builder()
+        .setBufferDurationsMs(b[0], b[1], b[2], b[3]) }
         .setPrioritizeTimeOverSizeThresholds(true)
         .setTargetBufferBytes(C.LENGTH_UNSET)
         .build()
@@ -35,6 +35,13 @@ object TiviMateProfile {
     }
         .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
         .setEnableDecoderFallback(true)
+        .setMediaCodecSelector(if (tv.onnowtv.livetv.data.Settings.softwareDecoding) softwareFirst else androidx.media3.exoplayer.mediacodec.MediaCodecSelector.DEFAULT)
+
+    /** Puts software (c2.android / OMX.google) decoders ahead of the hardware ones. */
+    private val softwareFirst = androidx.media3.exoplayer.mediacodec.MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
+        androidx.media3.exoplayer.mediacodec.MediaCodecUtil.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
+            .sortedByDescending { it.softwareOnly }
+    }
 
     fun apply(p: ExoPlayer) {
         p.videoChangeFrameRateStrategy = C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF

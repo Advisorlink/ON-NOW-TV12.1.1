@@ -195,7 +195,7 @@ object EpgCache {
                     )
                 }
             }
-            out
+            shift(out)
         } catch (t: Throwable) {
             Log.w(TAG, "loadChannel($channelId) failed: ${t.message}")
             null
@@ -247,6 +247,13 @@ object EpgCache {
             pool.shutdown()
         }
         return out
+    }
+
+    /** Apply the user's EPG time offset (Settings → Playlist & EPG). */
+    fun shift(list: List<Programme>): List<Programme> {
+        val off = Settings.epgOffsetMinutes * 60_000L
+        if (off == 0L) return list
+        return list.map { it.copy(startMs = it.startMs + off, stopMs = it.stopMs + off) }
     }
 
     /** Persist a single channel's programmes.  Called by the

@@ -60,7 +60,7 @@ class LibraryActivity : AppCompatActivity() {
     private lateinit var favouritesAdapter: FavouriteTileAdapter
 
     private val clockHandler = Handler(Looper.getMainLooper())
-    private val clockFmt = SimpleDateFormat("h:mm a", Locale.UK)
+    private val clockFmt get() = tv.onnowtv.livetv.data.Settings.timeFmt(this)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

@@ -39,7 +39,7 @@ class GuideRowAdapter(
     }
 
     private val rows = mutableListOf<Row>()
-    private val timeFmt = SimpleDateFormat("h:mm a", Locale.UK)
+    private val timeFmt get() = tv.onnowtv.livetv.data.Settings.timeFmtApp()
     private val dayFmt = SimpleDateFormat("dd MMM", Locale.UK)
     // v2.9.9 — Day-of-week formatter for the day-divider header so
     // crossing midnight reads "TOMORROW · WED 10 JUN" / future days

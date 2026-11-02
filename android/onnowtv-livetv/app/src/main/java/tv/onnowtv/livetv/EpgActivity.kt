@@ -55,8 +55,11 @@ import java.util.Locale
  * layout rationale.
  */
 class EpgActivity : AppCompatActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(tv.onnowtv.livetv.data.Settings.wrap(newBase))
+
 
     companion object {
+        @JvmStatic var startedOnLastChannel = false
         /** Intent extra used by [LibraryActivity] to deep-link into a
          *  saved Collection — when present, that category becomes
          *  the initial selection instead of "All channels". */
@@ -223,7 +226,7 @@ class EpgActivity : AppCompatActivity() {
     private val clockHandler = Handler(Looper.getMainLooper())
     private val categoryFocusHandler = Handler(Looper.getMainLooper())
     private val channelFocusHandler = Handler(Looper.getMainLooper())
-    private val clockFmt = SimpleDateFormat("h:mm a", Locale.UK)
+    private val clockFmt get() = tv.onnowtv.livetv.data.Settings.timeFmt(this)
     private val dateFmt = SimpleDateFormat("EEE dd MMM", Locale.UK)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -238,7 +241,10 @@ class EpgActivity : AppCompatActivity() {
             return
         }
         fullBundle = held
-        bundle = tv.onnowtv.livetv.data.ParentalLock.visible(this, held)
+        bundle = tv.onnowtv.livetv.data.ParentalLock.visible(this, held).let { b ->
+            val b2 = if (tv.onnowtv.livetv.data.Settings.nameCleanup) b.copy(channels = b.channels.map { it.copy(name = tv.onnowtv.livetv.data.Settings.cleanName(this, it.name)) }) else b
+            if (tv.onnowtv.livetv.data.Settings.epgOffsetMinutes != 0) b2.copy(epg = b2.epg.mapValues { tv.onnowtv.livetv.data.EpgCache.shift(it.value) }) else b2
+        }
         epgCache = tv.onnowtv.livetv.data.SharedSportsGuide.attach(bundle)
         rehydrateReminders()
         favouriteSet.clear()
@@ -259,6 +265,12 @@ class EpgActivity : AppCompatActivity() {
         // channel.  Tune it the moment the guide is wired up.
         // v2.18.8 — INSTANT FULL SCREEN (launchPlayer's first tap only
         // starts the small preview) + never dead-end on unknown ids.
+        if (tv.onnowtv.livetv.data.Settings.openLastChannel && !startedOnLastChannel && intent?.getStringExtra("companion_stream_id") == null) {
+            startedOnLastChannel = true
+            bundle.channels.firstOrNull { it.id == tv.onnowtv.livetv.data.Settings.lastChannelId }?.let { ch ->
+                window.decorView.post { companionTune(ch) }
+            }
+        }
         intent?.getStringExtra("companion_stream_id")?.let { sid ->
             val nm = intent.getStringExtra("companion_stream_name")
             intent.removeExtra("companion_stream_id")
@@ -334,7 +346,7 @@ class EpgActivity : AppCompatActivity() {
         railFullscreen = findViewById(R.id.rail_fullscreen)
         railPpv      = findViewById(R.id.rail_ppv)
         railSignout  = findViewById(R.id.rail_signout)
-        findViewById<ImageButton?>(R.id.rail_settings)?.setOnClickListener { showLiveTvSettings() }
+        findViewById<ImageButton?>(R.id.rail_settings)?.setOnClickListener { SettingsActivity.open(this) }
 
         hero               = findViewById(R.id.hero)
         heroBackdrop       = findViewById(R.id.hero_backdrop)
@@ -399,9 +411,12 @@ class EpgActivity : AppCompatActivity() {
         val reminders = Category(id = "__reminders__", name = "Reminders", channelCount = reminderSet.size)
 
         // Real categories with counts (filter junk separator rows).
+        val hiddenGroups = tv.onnowtv.livetv.data.Settings.hiddenGroups(this)
+        val groupOrder = tv.onnowtv.livetv.data.Settings.groupOrder(this)
         val real = bundle.categories
             .map { it.copy(channelCount = countsByCat[it.id] ?: 0) }
-            .filter { it.channelCount > 0 && !it.name.contains("#####") }
+            .filter { it.channelCount > 0 && !it.name.contains("#####") && it.id !in hiddenGroups }
+            .sortedBy { c -> groupOrder.indexOf(c.id).let { if (it < 0) Int.MAX_VALUE else it } }
 
         allCategoriesWithCounts = listOf(favourites, recents, reminders, virtualAll) + real
         // Smart default: highest EPG coverage ratio in real categories.
@@ -418,7 +433,9 @@ class EpgActivity : AppCompatActivity() {
         // the user asked the app to open STRAIGHT into the live-
         // sports view with the sport chip row already expanded
         // (v2.16.2).  Deep links below still override this.
-        currentCategoryId = "__whatson__"
+        currentCategoryId = tv.onnowtv.livetv.data.Settings.defaultCategoryId.takeIf { d ->
+            d.startsWith("__") || allCategoriesWithCounts.any { it.id == d }
+        } ?: "__whatson__"
 
         // Deep-link override: LibraryActivity passes the saved
         // Collection's category id here so opening a tile lands the
@@ -547,8 +564,8 @@ class EpgActivity : AppCompatActivity() {
                     loadGuideForChannel(ch)
                 }, 1_000L)
             },
-            onActivate = { ch -> launchPlayer(ch) },
-            onLongPress = { ch -> showChannelActionsMenu(ch) },
+            onActivate = { ch -> if (tv.onnowtv.livetv.data.Settings.okAction == "menu") showChannelActionsMenu(ch) else launchPlayer(ch) },
+            onLongPress = { ch -> if (tv.onnowtv.livetv.data.Settings.longOkAction == "favourite") toggleFavourite(ch) else showChannelActionsMenu(ch) },
             onBound = { ch -> lazyFetchForChannel(ch) },
             isKnownEmpty = { ch -> epgKnownEmpty.contains(ch.epgChannelId ?: "") },
             sportsMode = { currentCategoryId == "__whatson__" },
@@ -760,19 +777,7 @@ class EpgActivity : AppCompatActivity() {
     private fun wireRail() {
         railHome.setOnClickListener { finish() }
         railSearch.setOnClickListener { openSearchOverlay() }
-        railRefresh.setOnClickListener {
-            // Full reload: re-scan every channel and the guide from the provider.
-            LivePreviewSession.release()
-            BundleHolder.current = null
-            startActivity(
-                Intent(this, MainActivity::class.java)
-                    .putExtra(MainActivity.EXTRA_FULL_RELOAD, true)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
-            )
-            @Suppress("DEPRECATION")
-            overridePendingTransition(0, 0)
-            finish()
-        }
+        railRefresh.setOnClickListener { RefreshActions.showMenu(this) }
         railLibrary.setOnClickListener {
             startActivity(android.content.Intent(this, LibraryActivity::class.java))
         }
@@ -1003,7 +1008,7 @@ class EpgActivity : AppCompatActivity() {
 
     private fun toggleSearchReminder(ch: Channel, p: Programme) {
         val key = "${ch.epgChannelId ?: ""}:${p.startMs}"
-        val time = java.text.SimpleDateFormat("EEE h:mm a", Locale.UK).format(java.util.Date(p.startMs))
+        val time = tv.onnowtv.livetv.data.Settings.timeFmt(this, withDay = true).format(java.util.Date(p.startMs))
         if (reminderSet.remove(key)) {
             persistRemoveReminder(key)
             android.widget.Toast.makeText(this, "Reminder removed: ${p.title}", android.widget.Toast.LENGTH_SHORT).show()
@@ -1108,7 +1113,11 @@ class EpgActivity : AppCompatActivity() {
 
         val channels: List<Channel> = when (sel) {
             "__all__", null -> bundle.channels
-            "__favourites__" -> bundle.channels.filter { favouriteSet.contains(it.id) }
+            "__favourites__" -> {
+                val order = tv.onnowtv.livetv.data.Settings.favouritesOrder(this)
+                bundle.channels.filter { favouriteSet.contains(it.id) }
+                    .sortedBy { c -> order.indexOf(c.id).let { if (it < 0) Int.MAX_VALUE else it } }
+            }
             "__recents__" -> emptyList()
             "__collection__" -> {
                 // Preserve the user's add-order within the collection
@@ -1117,7 +1126,9 @@ class EpgActivity : AppCompatActivity() {
                 val byId = bundle.channels.associateBy { it.id }
                 ids.mapNotNull { byId[it] }
             }
-            else -> bundle.channels.filter { it.categoryId == sel }
+            else -> bundle.channels.filter { it.categoryId == sel }.let { l ->
+                if (tv.onnowtv.livetv.data.Settings.channelSort == "az") l.sortedBy { it.name.lowercase() } else l
+            }
         }
         val visible = channels.take(500)
         currentChannelList = visible
@@ -2361,70 +2372,14 @@ class EpgActivity : AppCompatActivity() {
         }
     }
 
+    fun askPinThen(onOk: () -> Unit) = askPin("SETTINGS ARE PIN-PROTECTED", onOk)
+
     private fun askPin(subtitle: String, onOk: () -> Unit) {
         showNameInputDialog("Enter your parental PIN", subtitle, "", "PIN", pin = true) { pin ->
             if (tv.onnowtv.livetv.data.ParentalLock.checkPin(this, pin)) onOk() else toast("Wrong PIN")
         }
     }
 
-    private fun showScreenFit() {
-        val current = ScreenFit.get(this)
-        val sheet = tv.onnowtv.livetv.ui.ActionSheetDialog(this)
-            .title("Screen fit")
-            .subtitle("PICK THE LARGEST SIZE WHERE ALL FOUR EDGES ARE VISIBLE")
-        for (pct in ScreenFit.options) {
-            val label = when (pct) { 100 -> "100% — full screen"; 95 -> "95% — most TVs"; else -> "$pct%" }
-            sheet.item(label = label, icon = if (pct == current) "✓" else "○") {
-                ScreenFit.set(this, pct)
-                ScreenFit.apply(this)
-                android.widget.Toast.makeText(this, "Screen fit $pct%", android.widget.Toast.LENGTH_SHORT).show()
-            }
-        }
-        sheet.show()
-    }
-
-    private fun showLiveTvSettings() {
-        val ctx = this
-        val lock = tv.onnowtv.livetv.data.ParentalLock
-        val locked = lock.lockedIds(ctx)
-        val sheet = tv.onnowtv.livetv.ui.ActionSheetDialog(ctx)
-            .title("Live TV Settings")
-            .subtitle("PARENTAL LOCK · ${locked.size} LOCKED")
-        sheet.item(label = "Boost box — free up memory", icon = "⚡", trailing = "${BoxBoost.memory(ctx).availMb} MB FREE") {
-            BoxBoost.show(this, auto = false)
-        }
-        sheet.item(label = "Speed test — check your internet", icon = "◔") {
-            SpeedTest.show(this)
-        }
-        sheet.item(label = "Screen fit — shrink if edges are cut off", icon = "⛶", trailing = "${ScreenFit.get(ctx)}%") {
-            showScreenFit()
-        }
-        sheet.item(
-            label = if (lock.hasPin(ctx)) "Change parental PIN" else "Set parental PIN",
-            icon = "✱",
-        ) {
-            if (lock.hasPin(ctx)) askPin("CONFIRM YOUR CURRENT PIN") { promptNewPin {} } else promptNewPin {}
-        }
-        if (locked.isNotEmpty()) {
-            sheet.item(label = "Unlock categories…", icon = "□", trailing = "${locked.size}") {
-                if (lock.sessionUnlocked) showUnlockList() else askPin("UNLOCK CATEGORIES") { showUnlockList() }
-            }
-            if (lock.sessionUnlocked) {
-                sheet.item(label = "Hide locked categories again", icon = "▣") {
-                    lock.sessionUnlocked = false
-                    applyParentalLock()
-                }
-            } else {
-                sheet.item(label = "Show locked categories (this visit)", icon = "◎") {
-                    askPin("SHOW UNTIL YOU CLOSE LIVE TV") {
-                        lock.sessionUnlocked = true
-                        applyParentalLock()
-                    }
-                }
-            }
-        }
-        sheet.show()
-    }
 
     private fun showUnlockList() {
         val ctx = this

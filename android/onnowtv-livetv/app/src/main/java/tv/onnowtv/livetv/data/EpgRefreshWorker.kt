@@ -124,8 +124,9 @@ class EpgRefreshWorker(
                 .setRequiresDeviceIdle(false)
                 .setRequiresCharging(false)
                 .build()
+            val hours = Settings.epgIntervalHours.toLong().coerceAtLeast(3)
             val request = PeriodicWorkRequestBuilder<EpgRefreshWorker>(
-                6, TimeUnit.HOURS,
+                hours, TimeUnit.HOURS,
                 1, TimeUnit.HOURS,
             )
                 .setConstraints(constraints)
