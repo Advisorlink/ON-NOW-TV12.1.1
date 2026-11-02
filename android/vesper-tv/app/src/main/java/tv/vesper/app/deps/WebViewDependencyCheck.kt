@@ -36,8 +36,14 @@ object WebViewDependencyCheck {
     private const val PREFS = "vesper-webview-dep-v1"
     private const val KEY_DISMISSED_FOR_VERSION = "dismissed_for_minor_version"
 
-    /** Required major version (e.g. 138 → Chrome 138 / WebView 138). */
-    const val REQUIRED_MAJOR = 138
+    /** Minimum Chromium major the React UI genuinely needs (CSS :has, container
+     *  queries, dvh units all land ≤ 108).  Was 138 — far newer than any Fire OS
+     *  Amazon WebView ships, which made every Fire Stick nag for an impossible install. */
+    const val REQUIRED_MAJOR = 100
+
+    /** Fire OS uses Amazon's own WebView; the provider cannot be swapped, so an
+     *  "Install" offer there can never work — only a system update helps. */
+    private val isFireOs: Boolean get() = Build.MANUFACTURER.equals("Amazon", ignoreCase = true)
 
     /** Implicit action handled by the Launcher's InstallApkmActivity. */
     private const val ACTION_INSTALL_APKM = "tv.onnow.launcher.ACTION_INSTALL_APKM"
@@ -135,30 +141,27 @@ object WebViewDependencyCheck {
     /* ───────── internals ───────── */
 
     private fun showPrompt(activity: android.app.Activity, currentMajor: Int?) {
-        val title = "WebView $REQUIRED_MAJOR required"
+        val canInstall = !isFireOs && activity.packageManager.resolveActivity(Intent(ACTION_INSTALL_APKM), 0) != null
+        val title = if (currentMajor == null) "Browser engine missing" else "Browser engine is out of date"
         val msg = buildString {
-            if (currentMajor == null) {
-                append("Android System WebView is missing on this device.  ")
-            } else {
-                append("Your current WebView is version $currentMajor.  ")
+            if (currentMajor == null) append("Android System WebView is missing on this device.  ")
+            else append("This device's WebView is version $currentMajor; ON NOW TV works best with $REQUIRED_MAJOR or newer.  ")
+            when {
+                isFireOs -> append("Update your Fire TV: Settings → My Fire TV → About → Check for updates.")
+                canInstall -> append("Install the update now?")
+                else -> append("Update \"Android System WebView\" from the Play Store.")
             }
-            append("Vesper needs version $REQUIRED_MAJOR or newer to render videos correctly.  ")
-            append("Install now?")
         }
-        AlertDialog.Builder(activity)
-            .setTitle(title)
-            .setMessage(msg)
-            .setCancelable(true)
-            .setPositiveButton("Install") { _, _ ->
-                launchInstaller(activity)
-            }
-            .setNegativeButton("Not now") { _, _ ->
-                activity.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                    .edit()
-                    .putInt(KEY_DISMISSED_FOR_VERSION, currentMajor ?: 0)
-                    .apply()
-            }
-            .show()
+        val b = AlertDialog.Builder(activity).setTitle(title).setMessage(msg).setCancelable(true)
+        val dismiss = { activity.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt(KEY_DISMISSED_FOR_VERSION, currentMajor ?: 0).apply() }
+        if (canInstall) {
+            b.setPositiveButton("Install") { _, _ -> launchInstaller(activity) }
+            b.setNegativeButton("Not now") { _, _ -> dismiss() }
+        } else {
+            b.setPositiveButton("OK") { _, _ -> dismiss() }
+        }
+        b.setOnCancelListener { dismiss() }
+        b.show()
     }
 
     private fun launchInstaller(activity: android.app.Activity) {
@@ -192,6 +195,7 @@ object WebViewDependencyCheck {
         val pkg = currentProviderPackage(ctx)
         val candidates = listOfNotNull(
             pkg,
+            "com.amazon.webview.chromium",
             "com.google.android.webview",
             "com.android.webview",
             "com.android.chrome",
