@@ -331,6 +331,7 @@ open class PlayerActivity : AppCompatActivity() {
         val url = intent.getStringExtra(EXTRA_URL)
         val title = intent.getStringExtra(EXTRA_TITLE) ?: ""
         val channelId = intent.getStringExtra(EXTRA_CHANNEL_ID)
+        volumeControlStream = android.media.AudioManager.STREAM_MUSIC
         usingSharedPlayer = intent.getBooleanExtra(EXTRA_USE_SHARED_PLAYER, false)
 
         if (url.isNullOrBlank()) {

@@ -213,7 +213,7 @@ class VesperWebViewClient : WebViewClient() {
     }
 
     companion object {
-        private const val CANVAS_1920_JS = "(function(){try{if(window.innerWidth>=1900)return;var m=document.querySelector('meta[name=viewport]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}m.setAttribute('content','width=1920');}catch(e){}})();"
+        private const val CANVAS_1920_JS = "(function(){try{if(window.innerWidth>=1270)return;var m=document.querySelector('meta[name=viewport]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}m.setAttribute('content','width=1280');}catch(e){}})();"
 
         // Hosts whose scripts inject the "You're viewing a static
         // preview" banner / "Made with Emergent" badge / PostHog

@@ -211,7 +211,7 @@ class SettingsActivity : AppCompatActivity() {
             Section("look", "◐", "Appearance", "Interface size, text size, clock and screen fit.") {
                 listOf(
                     Row("Interface size", "Fixes boxes that draw everything too big or too small", { Settings.uiSize.uppercase() }) {
-                        pick("Interface size", listOf("normal" to "Normal — same on every box (recommended)", "medium" to "Medium — a bit bigger", "large" to "Large — biggest", "auto" to "Auto — whatever the box reports"), Settings.uiSize) { Settings.uiSize = it; recreate() }
+                        pick("Interface size", listOf("medium" to "Medium — recommended for Fire TV / Shield", "normal" to "Normal — smaller, more on screen", "large" to "Large — biggest", "auto" to "Auto — whatever the box reports (HK1 default)"), Settings.uiSize) { Settings.uiSize = it; recreate() }
                     },
                     Row("Text size", "Applies the next time a screen opens", { Settings.fontScale.uppercase() }) {
                         pick("Text size", listOf("small" to "Small", "normal" to "Normal", "large" to "Large"), Settings.fontScale) { Settings.fontScale = it; recreate() }

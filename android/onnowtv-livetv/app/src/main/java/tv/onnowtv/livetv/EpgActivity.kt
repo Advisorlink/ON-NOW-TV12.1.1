@@ -240,6 +240,7 @@ class EpgActivity : AppCompatActivity() {
             finish()
             return
         }
+        volumeControlStream = android.media.AudioManager.STREAM_MUSIC
         fullBundle = held
         bundle = tv.onnowtv.livetv.data.ParentalLock.visible(this, held).let { b ->
             val b2 = if (tv.onnowtv.livetv.data.Settings.nameCleanup) b.copy(channels = b.channels.map { it.copy(name = tv.onnowtv.livetv.data.Settings.cleanName(this, it.name)) }) else b
@@ -2065,7 +2066,9 @@ class EpgActivity : AppCompatActivity() {
 
         PlaybackQueue.setQueue(visibleList, ch.id)
 
-        val grow = tv.onnowtv.livetv.data.PlayerPrefs.getBackend(this) == tv.onnowtv.livetv.data.PlayerPrefs.Backend.EXO
+        // The translucent grow-to-fullscreen overlay goes black on Fire TV / Shield (the EPG surface is torn down
+        // under the overlay) — only the HK1 keeps it; every other box opens the opaque player directly.
+        val grow = tv.onnowtv.livetv.data.PlayerPrefs.getBackend(this) == tv.onnowtv.livetv.data.PlayerPrefs.Backend.EXO && DeviceProfile.isHk1
         if (grow) {
             // TiviMate-style: the preview window itself grows to full screen — same picture
             // surface, nothing re-buffers. The controls open as a see-through layer on top.

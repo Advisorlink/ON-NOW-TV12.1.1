@@ -37,7 +37,11 @@ object Settings {
 
     // ---- Appearance ----------------------------------------------------
     var fontScale by str("font_scale", "normal")                // small | normal | large
-    var uiSize by str("ui_size", "normal")                      // normal(1920dp, = HK1) | medium(1280dp) | large(960dp, Android TV default) | auto
+    /** normal(1920dp) | medium(1280dp) | large(960dp) | auto. Default: HK1 → auto (untouched), every other box → medium. */
+    var uiSize: String
+        get() = p().getString("ui_size", null) ?: defaultUiSize()
+        set(v) { p().edit().putString("ui_size", v).apply(); dirty = true }
+    private fun defaultUiSize() = if (tv.onnowtv.livetv.DeviceProfile.isHk1) "auto" else "medium"
     var panelTransparency by int("panel_alpha", 0)              // 0 | 20 | 40  (% see-through)
     var clock24 by bool("clock_24", false)
 
@@ -80,7 +84,7 @@ object Settings {
     /** Boxes report wildly different densities for the same 1080p picture (HK1 160 dpi vs Shield/Fire TV 320 dpi),
      *  so the UI came out 2× bigger on some. Pin the layout width in dp so every TV box lays out identically. */
     fun normalisedDpi(base: Context): Int? {
-        val targetDp = when (prefs(base).getString("ui_size", "normal")) { "medium" -> 1280; "large" -> 960; "auto" -> return null; else -> 1920 }
+        val targetDp = when (prefs(base).getString("ui_size", null) ?: defaultUiSize()) { "medium" -> 1280; "large" -> 960; "auto" -> return null; else -> 1920 }
         val wm = base.getSystemService(Context.WINDOW_SERVICE) as? android.view.WindowManager ?: return null
         val dm = android.util.DisplayMetrics()
         @Suppress("DEPRECATION") wm.defaultDisplay.getRealMetrics(dm)

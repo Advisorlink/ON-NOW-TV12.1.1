@@ -240,9 +240,16 @@ class MainActivity : AppCompatActivity() {
         @Suppress("DEPRECATION") windowManager.defaultDisplay.getRealMetrics(dm)
         val w = maxOf(dm.widthPixels, dm.heightPixels); val h = minOf(dm.widthPixels, dm.heightPixels)
         if (w < 1280 || w <= h) return this
+        if (isHk1Box()) return this            // reference device — never touch it
         val cfg = Configuration(resources.configuration)
-        cfg.densityDpi = Math.round(160f * w / 1920f)
+        cfg.densityDpi = Math.round(160f * w / 1280f)   // "Medium" canvas on every other box
         return createConfigurationContext(cfg)
+    }
+
+    private fun isHk1Box(): Boolean {
+        val tags = listOf(Build.MODEL, Build.DEVICE, Build.PRODUCT, Build.BOARD, Build.MANUFACTURER).joinToString(" ").uppercase()
+        val brandedBox = listOf("Amazon", "NVIDIA", "Google").any { Build.MANUFACTURER.equals(it, ignoreCase = true) }
+        return tags.contains("HK1") || (!brandedBox && android.content.res.Resources.getSystem().displayMetrics.densityDpi <= 160)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -433,6 +440,7 @@ class MainActivity : AppCompatActivity() {
         // onWindowFocusChanged() below to apply immersive mode once
         // the WebView has been attached.
 
+        volumeControlStream = android.media.AudioManager.STREAM_MUSIC
         webView = try {
             WebView(webCanvasContext())
         } catch (e: Throwable) {

@@ -894,3 +894,11 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Vesper 2.10.107 (1203): `MainActivity.webCanvasContext()` gives the WebView a context with densityDpi = 160·w/1920 → page always 1920 CSS px wide on landscape ≥1280 px screens; `VesperWebViewClient` CANVAS_1920_JS viewport fallback.
 - Live TV 2.12.1 (191): `Settings.normalisedDpi()` inside `Settings.wrap()` (attachBaseContext on EVERY activity) pins layout width; Appearance → Interface size: normal(1920, default = HK1) / medium(1280) / large(960) / auto. ScreenFit now true scale (content scaleX/Y) for overscan only.
 - Phones / portrait untouched (w<1280 or portrait → no override).
+
+## 2026-06 Device profile — Vesper 2.10.109 (1205) / Live TV 2.12.2 (192)
+- `DeviceProfile.isHk1` (Live TV) / `MainActivity.isHk1Box()` (Vesper): Build tags contain "HK1" OR (not Amazon/NVIDIA/Google AND densityDpi ≤ 160). HK1 = reference, never altered.
+- Non-HK1 defaults: Live TV Interface size = medium (1280 dp), Screen fit 100 %; Vesper WebView canvas = 1280 CSS px (JS viewport fallback width=1280).
+- Live TV fullscreen-black on Fire TV/Shield: translucent LiveOverlayActivity "grow" path tears down the EPG preview surface → now `grow` only on HK1; others open opaque PlayerActivity with the shared player.
+- Volume keys on Fire TV: `volumeControlStream = STREAM_MUSIC` in EpgActivity, PlayerActivity, Vesper MainActivity.
+- WebView gate lowered 138 → 100, Fire OS-aware (no impossible Install), recognises com.amazon.webview.chromium.
+- Unverified on hardware: black-screen fix, volume keys, trailer slowness on old Fire Stick.
