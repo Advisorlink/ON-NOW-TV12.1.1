@@ -2367,6 +2367,22 @@ class EpgActivity : AppCompatActivity() {
         }
     }
 
+    private fun showScreenFit() {
+        val current = ScreenFit.get(this)
+        val sheet = tv.onnowtv.livetv.ui.ActionSheetDialog(this)
+            .title("Screen fit")
+            .subtitle("PICK THE LARGEST SIZE WHERE ALL FOUR EDGES ARE VISIBLE")
+        for (pct in ScreenFit.options) {
+            val label = when (pct) { 100 -> "100% — full screen"; 95 -> "95% — most TVs"; else -> "$pct%" }
+            sheet.item(label = label, icon = if (pct == current) "✓" else "○") {
+                ScreenFit.set(this, pct)
+                ScreenFit.apply(this)
+                android.widget.Toast.makeText(this, "Screen fit $pct%", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+        sheet.show()
+    }
+
     private fun showLiveTvSettings() {
         val ctx = this
         val lock = tv.onnowtv.livetv.data.ParentalLock
@@ -2379,6 +2395,9 @@ class EpgActivity : AppCompatActivity() {
         }
         sheet.item(label = "Speed test — check your internet", icon = "◔") {
             SpeedTest.show(this)
+        }
+        sheet.item(label = "Screen fit — shrink if edges are cut off", icon = "⛶", trailing = "${ScreenFit.get(ctx)}%") {
+            showScreenFit()
         }
         sheet.item(
             label = if (lock.hasPin(ctx)) "Change parental PIN" else "Set parental PIN",
