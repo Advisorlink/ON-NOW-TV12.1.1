@@ -18,6 +18,8 @@ import tv.onnowtv.livetv.ui.SportsUi as UI
 
 /** Supported provider iframe in our fullscreen shell. Never hands off to another app. */
 class SportsOfficialReplayActivity : AppCompatActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(tv.onnowtv.livetv.data.Settings.wrap(newBase))
+
     companion object {
         fun open(ctx: Context, sourceId: String) = ctx.startActivity(Intent(ctx, SportsOfficialReplayActivity::class.java).putExtra("source-id", sourceId))
         fun openHighlight(ctx: Context, videoId: String) = ctx.startActivity(Intent(ctx, SportsOfficialReplayActivity::class.java).putExtra("highlight-id", videoId))

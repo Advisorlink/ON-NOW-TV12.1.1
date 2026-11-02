@@ -44,6 +44,8 @@ import java.net.URL
  * unchanged since v2.9.14.
  */
 class LoginActivity : AppCompatActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(tv.onnowtv.livetv.data.Settings.wrap(newBase))
+
 
     private lateinit var usernameField: EditText
     private lateinit var passwordField: EditText

@@ -208,15 +208,18 @@ class SettingsActivity : AppCompatActivity() {
                     },
                 )
             },
-            Section("look", "◐", "Appearance", "Text size, clock and screen fit.") {
+            Section("look", "◐", "Appearance", "Interface size, text size, clock and screen fit.") {
                 listOf(
+                    Row("Interface size", "Fixes boxes that draw everything too big or too small", { Settings.uiSize.uppercase() }) {
+                        pick("Interface size", listOf("normal" to "Normal — same on every box (recommended)", "medium" to "Medium — a bit bigger", "large" to "Large — biggest", "auto" to "Auto — whatever the box reports"), Settings.uiSize) { Settings.uiSize = it; recreate() }
+                    },
                     Row("Text size", "Applies the next time a screen opens", { Settings.fontScale.uppercase() }) {
                         pick("Text size", listOf("small" to "Small", "normal" to "Normal", "large" to "Large"), Settings.fontScale) { Settings.fontScale = it; recreate() }
                     },
                     Row("Clock format", null, { if (Settings.clock24) "24-HOUR" else "12-HOUR" }) {
                         pick("Clock format", listOf("12" to "12-hour (7:30 pm)", "24" to "24-hour (19:30)"), if (Settings.clock24) "24" else "12") { Settings.clock24 = it == "24" }
                     },
-                    Row("Screen fit", "Shrink the picture if your TV cuts off the edges", { "${ScreenFit.get(ctx)}%" }) {
+                    Row("Screen fit", "Shrink the whole picture if your TV cuts off the edges", { "${ScreenFit.get(ctx)}%" }) {
                         pick("Screen fit", ScreenFit.options.map { it.toString() to (if (it == 100) "100% — full screen" else if (it == 95) "95% — most TVs" else "$it%") }, ScreenFit.get(ctx).toString()) { ScreenFit.set(ctx, it.toInt()); ScreenFit.apply(this) }
                     },
                 )

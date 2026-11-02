@@ -56,6 +56,8 @@ import kotlin.math.max
  *   • pulsing LIVE pill
  */
 class StatsPlayerActivity : AppCompatActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(tv.onnowtv.livetv.data.Settings.wrap(newBase))
+
 
     companion object {
         const val EXTRA_CHANNEL_ID = "extra_channel_id"

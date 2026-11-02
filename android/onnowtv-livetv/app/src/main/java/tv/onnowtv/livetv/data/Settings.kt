@@ -37,6 +37,7 @@ object Settings {
 
     // ---- Appearance ----------------------------------------------------
     var fontScale by str("font_scale", "normal")                // small | normal | large
+    var uiSize by str("ui_size", "normal")                      // normal(1920dp, = HK1) | medium(1280dp) | large(960dp, Android TV default) | auto
     var panelTransparency by int("panel_alpha", 0)              // 0 | 20 | 40  (% see-through)
     var clock24 by bool("clock_24", false)
 
@@ -68,10 +69,24 @@ object Settings {
     /** Wrap an Activity base context so every sp/dp text size follows the chosen font scale. */
     fun wrap(base: Context): Context {
         val scale = fontScaleValue(base)
-        if (scale == 1f) return base
+        val dpi = normalisedDpi(base)
+        if (scale == 1f && dpi == null) return base
         val cfg = Configuration(base.resources.configuration)
         cfg.fontScale = scale
+        if (dpi != null) cfg.densityDpi = dpi
         return base.createConfigurationContext(cfg)
+    }
+
+    /** Boxes report wildly different densities for the same 1080p picture (HK1 160 dpi vs Shield/Fire TV 320 dpi),
+     *  so the UI came out 2× bigger on some. Pin the layout width in dp so every TV box lays out identically. */
+    fun normalisedDpi(base: Context): Int? {
+        val targetDp = when (prefs(base).getString("ui_size", "normal")) { "medium" -> 1280; "large" -> 960; "auto" -> return null; else -> 1920 }
+        val wm = base.getSystemService(Context.WINDOW_SERVICE) as? android.view.WindowManager ?: return null
+        val dm = android.util.DisplayMetrics()
+        @Suppress("DEPRECATION") wm.defaultDisplay.getRealMetrics(dm)
+        val w = maxOf(dm.widthPixels, dm.heightPixels); val h = minOf(dm.widthPixels, dm.heightPixels)
+        if (w < 1280 || w <= h) return null            // phones / portrait: leave alone
+        return Math.round(160f * w / targetDp)
     }
 
     fun timeFmt(ctx: Context, withDay: Boolean = false): SimpleDateFormat {

@@ -57,6 +57,8 @@ import java.net.URL
  *   4) A subtle pulsing glow on the V2 wordmark.
  */
 class MainActivity : AppCompatActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(tv.onnowtv.livetv.data.Settings.wrap(newBase))
+
 
     companion object {
         /** Skip the saved-channels fast path and re-scan everything (rail Refresh). */

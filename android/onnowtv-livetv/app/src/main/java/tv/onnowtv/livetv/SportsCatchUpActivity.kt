@@ -55,6 +55,8 @@ import java.util.Locale
 
 /** Sports Hub → Catch Up: pick a sport, then a day, then a past game shown as crest-vs-crest (no scores). */
 class SportsCatchUpActivity : AppCompatActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(tv.onnowtv.livetv.data.Settings.wrap(newBase))
+
     private data class Game(val channel: Channel, val programme: Programme, val sport: String) {
         val key get() = "${channel.id}-${programme.startMs}"
     }

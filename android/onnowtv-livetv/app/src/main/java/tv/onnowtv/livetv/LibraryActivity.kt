@@ -47,6 +47,8 @@ import java.util.Locale
  * always in sync with the latest Xtream bundle.
  */
 class LibraryActivity : AppCompatActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(tv.onnowtv.livetv.data.Settings.wrap(newBase))
+
 
     private lateinit var clock: TextView
     private lateinit var collectionsList: RecyclerView

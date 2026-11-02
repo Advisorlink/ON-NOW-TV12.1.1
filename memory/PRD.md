@@ -888,3 +888,9 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Player cog: Subtitles (Exo TrackSelectionOverride / VLC spu), Audio track, Aspect, Engine, Buffer, Decoding (rebuildCurrentEngine), Sleep timer.
 - Dropped "Panel transparency" (no real effect in this layout). Unit tests pass; R8 release. NOT yet run on hardware.
 - Vesper "App not installed" on Fire TV Cube 2 (Fire OS 7.7.1.3): APK verified clean (sig v1+v2+v3, aligned, no conflicts); real cause unknown — need `adb install` error or Live TV differential test. Proxy cuts transfers >~70 s (Vesper 157 MB) → Dropbox route for big downloads.
+
+## 2026-06 ROOT CAUSE "zoomed UI" on Shield / Fire Stick — density, not overscan
+- HK1 reports 160 dpi (1920 dp wide); Shield + Fire TV report 320 dpi (960 dp). Both apps laid out at half width → 2× size.
+- Vesper 2.10.107 (1203): `MainActivity.webCanvasContext()` gives the WebView a context with densityDpi = 160·w/1920 → page always 1920 CSS px wide on landscape ≥1280 px screens; `VesperWebViewClient` CANVAS_1920_JS viewport fallback.
+- Live TV 2.12.1 (191): `Settings.normalisedDpi()` inside `Settings.wrap()` (attachBaseContext on EVERY activity) pins layout width; Appearance → Interface size: normal(1920, default = HK1) / medium(1280) / large(960) / auto. ScreenFit now true scale (content scaleX/Y) for overscan only.
+- Phones / portrait untouched (w<1280 or portrait → no override).

@@ -50,6 +50,8 @@ import kotlin.math.roundToInt
  * channel), Follow buttons and league standings.
  */
 class GameActivity : AppCompatActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(tv.onnowtv.livetv.data.Settings.wrap(newBase))
+
     companion object {
         const val EXTRA_SPORT = "sport"; const val EXTRA_LEAGUE = "league"; const val EXTRA_ID = "id"; const val EXTRA_SEED = "seed"
     }

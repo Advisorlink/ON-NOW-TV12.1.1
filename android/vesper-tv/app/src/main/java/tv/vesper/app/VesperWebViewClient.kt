@@ -198,6 +198,13 @@ class VesperWebViewClient : WebViewClient() {
     override fun onPageFinished(view: WebView?, url: String?) {
         super.onPageFinished(view, url)
         view?.evaluateJavascript(BADGE_NUKE_JS, null)
+        // Belt-and-braces for the 1920-wide TV canvas (see MainActivity.webCanvasContext):
+        // if the box still laid the page out narrower, pin the viewport to 1920 CSS px.
+        view?.let { v ->
+            val dm = v.resources.displayMetrics
+            val landscapeTv = maxOf(dm.widthPixels, dm.heightPixels) >= 1280 && dm.widthPixels > dm.heightPixels
+            if (landscapeTv) v.evaluateJavascript(CANVAS_1920_JS, null)
+        }
         // Re-set in case the bundle nuked it during hydration.
         view?.evaluateJavascript(
             "window.__APP_VERSION__ = '" + BuildConfig.VERSION_NAME + "';",
@@ -206,6 +213,8 @@ class VesperWebViewClient : WebViewClient() {
     }
 
     companion object {
+        private const val CANVAS_1920_JS = "(function(){try{if(window.innerWidth>=1900)return;var m=document.querySelector('meta[name=viewport]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}m.setAttribute('content','width=1920');}catch(e){}})();"
+
         // Hosts whose scripts inject the "You're viewing a static
         // preview" banner / "Made with Emergent" badge / PostHog
         // session recording.  Blocked at network level so they

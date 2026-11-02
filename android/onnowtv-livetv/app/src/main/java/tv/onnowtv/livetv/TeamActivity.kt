@@ -32,6 +32,8 @@ import tv.onnowtv.livetv.ui.SportsUi as UI
 
 /** A followed club's full page: hero, live/upcoming, replays, results, season stats + ladder, news and players. */
 class TeamActivity : AppCompatActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(tv.onnowtv.livetv.data.Settings.wrap(newBase))
+
     companion object {
         const val EXTRA_SPORT = "sport"; const val EXTRA_LEAGUE = "league"; const val EXTRA_ID = "id"
         const val EXTRA_NAME = "name"; const val EXTRA_LOGO = "logo"

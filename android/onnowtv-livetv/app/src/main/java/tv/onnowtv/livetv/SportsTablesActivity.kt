@@ -24,6 +24,8 @@ import tv.onnowtv.livetv.ui.SportsUi as UI
 
 /** Sports Hub "Standings" (pick a league → table) and "My Teams" (followed teams + Add Team → league → clubs). */
 class SportsTablesActivity : AppCompatActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(tv.onnowtv.livetv.data.Settings.wrap(newBase))
+
     companion object { const val EXTRA_MODE = "mode"; const val STANDINGS = "standings"; const val TEAMS = "teams" }
 
     private class League(val sport: String, val key: String, val name: String)

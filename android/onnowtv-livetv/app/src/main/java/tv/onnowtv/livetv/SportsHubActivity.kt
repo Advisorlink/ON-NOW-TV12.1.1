@@ -47,6 +47,8 @@ import tv.onnowtv.livetv.ui.SportsSpotlight
 
 /** Real, native V2 Sports Hub. Browser fixtures are never used by this activity. */
 class SportsHubActivity : AppCompatActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(tv.onnowtv.livetv.data.Settings.wrap(newBase))
+
     private enum class Mode { SCORES, MAP, FOLLOWING }
     private lateinit var menu: SportsHubSideMenu
     private lateinit var hubLayout: SportsHubLayout

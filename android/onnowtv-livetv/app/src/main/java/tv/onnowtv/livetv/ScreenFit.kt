@@ -22,12 +22,14 @@ object ScreenFit {
     fun apply(activity: Activity) {
         val content = activity.findViewById<View>(android.R.id.content) ?: return
         val pct = get(activity)
-        val dm = activity.resources.displayMetrics
-        val px = dm.widthPixels * (100 - pct) / 200
-        val py = dm.heightPixels * (100 - pct) / 200
-        if (content.paddingLeft == px && content.paddingTop == py) return
+        val s = pct / 100f
         content.setBackgroundColor(Color.BLACK)
-        content.setPadding(px, py, px, py)
+        (content.parent as? View)?.setBackgroundColor(Color.BLACK)
+        val run = Runnable {
+            content.pivotX = content.width / 2f; content.pivotY = content.height / 2f
+            content.scaleX = s; content.scaleY = s
+        }
+        if (content.width > 0) run.run() else content.post(run)
     }
 
     fun install(app: Application) {

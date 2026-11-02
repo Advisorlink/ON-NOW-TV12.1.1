@@ -228,6 +228,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     @SuppressLint("SetJavaScriptEnabled")
+    /**
+     * TV boxes report wildly different densities for the same 1080p
+     * picture (HK1 = 160 dpi → 1920 CSS px wide; Shield / Fire TV =
+     * 320 dpi → 960 CSS px, so the whole UI drew at 2×).  Give the
+     * WebView a context whose density makes the page exactly 1920
+     * CSS px wide on every TV, so it lays out like the HK1 everywhere.
+     */
+    private fun webCanvasContext(): android.content.Context {
+        val dm = android.util.DisplayMetrics()
+        @Suppress("DEPRECATION") windowManager.defaultDisplay.getRealMetrics(dm)
+        val w = maxOf(dm.widthPixels, dm.heightPixels); val h = minOf(dm.widthPixels, dm.heightPixels)
+        if (w < 1280 || w <= h) return this
+        val cfg = Configuration(resources.configuration)
+        cfg.densityDpi = Math.round(160f * w / 1920f)
+        return createConfigurationContext(cfg)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // v2.16.7 — Restore the normal Fullscreen theme AFTER the
         // manifest-declared Splash theme has already painted its
@@ -417,7 +434,7 @@ class MainActivity : AppCompatActivity() {
         // the WebView has been attached.
 
         webView = try {
-            WebView(this)
+            WebView(webCanvasContext())
         } catch (e: Throwable) {
             // Some phones (especially Huawei without GMS, certain
             // custom ROMs) can throw `MissingWebViewPackageException`

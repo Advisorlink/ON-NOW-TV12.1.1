@@ -25,6 +25,8 @@ import tv.onnowtv.livetv.ui.SportsUi as UI
 
 /** Full details-page fallback for guide-only events, never a channel-picker popup or auto-play. */
 class SportsLiveDetailsActivity : AppCompatActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(tv.onnowtv.livetv.data.Settings.wrap(newBase))
+
     private lateinit var status: TextView
     private lateinit var channels: LinearLayout
     private lateinit var loading: SportsLoadingBand

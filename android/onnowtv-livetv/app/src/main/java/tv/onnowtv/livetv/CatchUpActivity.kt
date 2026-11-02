@@ -50,6 +50,8 @@ import java.util.Locale
 /** Catch Up: "Just aired" art row + channel → day → show browser over the
  *  provider's archive. Playback goes through SportsReplayActivity. */
 class CatchUpActivity : AppCompatActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(tv.onnowtv.livetv.data.Settings.wrap(newBase))
+
     private data class Show(val channel: Channel, val programme: Programme) {
         val key get() = "${channel.id}-${programme.startMs}"
     }

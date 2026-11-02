@@ -30,6 +30,8 @@ import tv.onnowtv.livetv.ui.SportsUi.dp
 
 /** One replay, one player. No credential-bearing URLs in intents, logs or persistent state. */
 class SportsReplayActivity : AppCompatActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(tv.onnowtv.livetv.data.Settings.wrap(newBase))
+
     companion object {
         fun open(ctx: Context, game: JSONObject, channelId: String) = ctx.startActivity(Intent(ctx, SportsReplayActivity::class.java).apply {
             putExtra("game", game.toString()); putExtra("channel", channelId)

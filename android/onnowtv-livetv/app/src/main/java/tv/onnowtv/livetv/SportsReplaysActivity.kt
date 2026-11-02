@@ -24,6 +24,8 @@ import tv.onnowtv.livetv.ui.SportsUi.dp
 
 /** Categories appear only after a real recording is verified. Selection reuses one discovery index. */
 class SportsReplaysActivity : AppCompatActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(tv.onnowtv.livetv.data.Settings.wrap(newBase))
+
     private lateinit var heading: TextView
     private lateinit var status: TextView
     private lateinit var more: TextView
