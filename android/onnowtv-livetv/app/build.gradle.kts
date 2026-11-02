@@ -40,16 +40,17 @@ android {
 
     buildTypes {
         getByName("release") {
-            // v2.11.21 — R8 minify DISABLED for the native Live TV app.
-            // Obfuscating this large native codebase (media3, libVLC,
-            // coroutines, many activities) blind — the build's unit
-            // tests run un-minified so they never exercise the R8
-            // output — risked runtime crashes across devices.  The
-            // real anti-theft protection (re-sign kill-switch,
-            // screen-capture block, non-debuggable, backups off) does
-            // NOT depend on minify and stays on.
-            isMinifyEnabled = false
-            isShrinkResources = false
+            // v2.11.23 SECURITY — R8 obfuscation + resource shrink ON,
+            // matching the main TV app.  Safe here: the codebase has no
+            // reflection-by-name (no XML onClick, getIdentifier,
+            // Class.forName or reflective JSON).  The earlier crash was
+            // an unrelated portrait-layout NPE (fixed in 2.11.22).
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
             signingConfig = if (hasReleaseKeystore) {
                 signingConfigs.getByName("release")
             } else {

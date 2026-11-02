@@ -5444,6 +5444,8 @@ app.add_middleware(
 # ── Vesper Native APK download ─────────────────────────────────────────────
 from native_download import router as native_download_router
 app.include_router(native_download_router)
+from native_download_short import router as native_download_short_router
+app.include_router(native_download_short_router)
 
 from catchup_verifier import router as catchup_router, start as _start_catchup_verifier  # noqa: E402
 app.include_router(catchup_router)

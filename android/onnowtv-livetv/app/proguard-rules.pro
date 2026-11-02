@@ -16,8 +16,24 @@
     public static *** w(...);
 }
 
--allowaccessmodification
--repackageclasses ''
+# Conservative obfuscation: rename classes/members but don't repackage
+# or widen access (fewer edge cases on a native app).
+
+# Enums — keep values()/valueOf() so any name-based lookup survives.
+-keepclassmembers enum * {
+    public static **[] values();
+    public static ** valueOf(java.lang.String);
+}
+
+# Serializable contracts.
+-keepclassmembers class * implements java.io.Serializable {
+    static final long serialVersionUID;
+    private static final java.io.ObjectStreamField[] serialPersistentFields;
+    private void writeObject(java.io.ObjectOutputStream);
+    private void readObject(java.io.ObjectInputStream);
+    java.lang.Object writeReplace();
+    java.lang.Object readResolve();
+}
 
 # Manifest-declared components (activities, receiver, application) are
 # auto-kept by the AGP-generated rules.  IntegrityGuard is called
