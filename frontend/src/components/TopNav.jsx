@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { CirclePlay, MoreHorizontal, Rocket } from 'lucide-react';
+import { CirclePlay, Gauge, MoreHorizontal, Rocket } from 'lucide-react';
+import SpeedTestModal from '@/components/SpeedTestModal';
 import { getAutoplay1080p, setAutoplay1080p } from '@/lib/prefs';
 import { speedUp } from '@/lib/speedUp';
 import { getActiveProfile } from '@/lib/profiles';
@@ -34,6 +35,11 @@ export default function TopNav({ items }) {
     const navigate = useNavigate();
     const currentFilter = new URLSearchParams(location.search).get('filter');
     const [autoplay, setAutoplay] = useState(getAutoplay1080p());
+    const [speedTestOpen, setSpeedTestOpen] = useState(false);
+    const closeSpeedTest = () => {
+        setSpeedTestOpen(false);
+        document.querySelector('[data-testid="top-nav-speed-test"], [data-testid="top-nav-more"]')?.focus({ preventScroll: true });
+    };
     const [profileRev, setProfileRev] = useState(0);
     useEffect(() => {
         const onChange = () => setProfileRev((r) => r + 1);
@@ -137,6 +143,13 @@ export default function TopNav({ items }) {
                         active={false}
                         onClick={speedUp}
                     />
+                    <TopNavItem
+                        testid="top-nav-speed-test"
+                        icon={Gauge}
+                        label="Speed test"
+                        active={speedTestOpen}
+                        onClick={() => setSpeedTestOpen(true)}
+                    />
                 </>}
                 <button
                     type="button"
@@ -151,7 +164,8 @@ export default function TopNav({ items }) {
                     <AvatarCircle avatarId={activeProfile?.avatarId} size={28} />
                 </button>
             </div>
-            {compact && moreOpen && <CompactNavMenu items={items.slice(4)} isActive={isActive} go={go} autoplay={autoplay} toggleAutoplay={toggleAutoplay} onClose={closeMore} />}
+            {compact && moreOpen && <CompactNavMenu items={items.slice(4)} isActive={isActive} go={go} autoplay={autoplay} toggleAutoplay={toggleAutoplay} openSpeedTest={() => setSpeedTestOpen(true)} onClose={closeMore} />}
+            {speedTestOpen && <SpeedTestModal onClose={closeSpeedTest} />}
         </nav>
     );
 }

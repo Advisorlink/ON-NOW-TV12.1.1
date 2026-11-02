@@ -3,7 +3,7 @@
  * the app opens.  Bump APP_VERSION and prepend a new entry to
  * WHATS_NEW whenever a release ships user-facing changes.
  */
-export const APP_VERSION = '1.5.5';
+export const APP_VERSION = '1.5.6';
 // The boot "What's new" tour covers every release from this version up
 // to APP_VERSION (user: start at 1.4.0 this time).  Bump the floor to the
 // current version when shipping the next update so only new work shows.
@@ -27,6 +27,18 @@ export function releasesForTour() {
 // Most-recent version first.  Only the entry matching APP_VERSION is
 // shown in the "What's New" popup.  `icon` = lucide icon name.
 export const WHATS_NEW = {
+    '1.5.6': {
+        date: 'October 2026',
+        headline: 'Speed test in the top bar',
+        items: [
+            {
+                icon: 'gauge', accent: '#5DC8FF',
+                title: 'Check your internet in one press',
+                detail: 'A new Speed test button sits beside Speed up in the top bar. It measures ping and download speed in about ten seconds, then ticks off 720p, 1080p and 4K so you can see exactly what the line can handle.',
+                how: 'BACK or Close shuts it. Test again re-runs it.',
+            },
+        ],
+    },
     '1.5.5': {
         date: 'October 2026',
         headline: 'Locked-down release build',

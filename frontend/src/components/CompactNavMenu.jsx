@@ -1,9 +1,9 @@
 import React, { useEffect, useRef } from 'react';
-import { CirclePlay, Rocket } from 'lucide-react';
+import { CirclePlay, Gauge, Rocket } from 'lucide-react';
 import { useNativeBackTrap, triggerTrapBack } from '@/hooks/useNativeBackTrap';
 import { speedUp } from '@/lib/speedUp';
 
-export const CompactNavMenu = ({ items, isActive, go, autoplay, toggleAutoplay, onClose }) => {
+export const CompactNavMenu = ({ items, isActive, go, autoplay, toggleAutoplay, openSpeedTest, onClose }) => {
     const root = useRef(null);
     useNativeBackTrap(true, () => { onClose(); return false; });
     useEffect(() => { root.current?.querySelector('button')?.focus({ preventScroll: true }); }, []);
@@ -63,6 +63,15 @@ export const CompactNavMenu = ({ items, isActive, go, autoplay, toggleAutoplay, 
                     style={{ ...rowStyle, color: 'var(--vesper-text)' }}
                 >
                     <Rocket size={20} /> Speed up
+                </button>
+                <button
+                    data-testid="top-nav-speed-test"
+                    data-focusable="true"
+                    data-focus-style="quiet"
+                    onClick={() => { onClose(); openSpeedTest(); }}
+                    style={{ ...rowStyle, color: 'var(--vesper-text)' }}
+                >
+                    <Gauge size={20} /> Speed test
                 </button>
             </div>
         </>

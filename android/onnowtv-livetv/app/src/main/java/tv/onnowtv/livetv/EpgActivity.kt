@@ -2377,6 +2377,9 @@ class EpgActivity : AppCompatActivity() {
         sheet.item(label = "Boost box — free up memory", icon = "⚡", trailing = "${BoxBoost.memory(ctx).availMb} MB FREE") {
             BoxBoost.show(this, auto = false)
         }
+        sheet.item(label = "Speed test — check your internet", icon = "◔") {
+            SpeedTest.show(this)
+        }
         sheet.item(
             label = if (lock.hasPin(ctx)) "Change parental PIN" else "Set parental PIN",
             icon = "✱",
