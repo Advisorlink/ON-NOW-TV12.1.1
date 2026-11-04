@@ -15,6 +15,7 @@
  */
 
 import { applyAccountIptv, preloadLiveTv } from '@/lib/liveAccount';
+import { prefetchNativeLiveTv, prefersNativeLiveTv } from '@/lib/liveTv';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 const TOKEN_KEY = 'vesper-auth-token-v1';
@@ -124,7 +125,7 @@ export async function apiLogin(username, password) {
     try { window.OnNowTV?.onLogin?.(username, password, JSON.stringify(data.iptv || {})); } catch { /* web */ }
     try {
         const p = applyAccountIptv(data.iptv, username, password);
-        if (p) preloadLiveTv(p, { force: true });
+        if (p && !prefetchNativeLiveTv()) preloadLiveTv(p, { force: true });
     } catch { /* live tv optional */ }
     return data;
 }
@@ -146,7 +147,7 @@ export async function apiMe() {
     if (data?.account) setAccountQuiet(data.account);
     try {
         const p = applyAccountIptv(data?.iptv, data?.account?.username, null);
-        if (p) preloadLiveTv(p);
+        if (p && !prefersNativeLiveTv()) preloadLiveTv(p);
     } catch { /* live tv optional */ }
     return data?.account || null;
 }

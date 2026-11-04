@@ -63,6 +63,8 @@ class MainActivity : AppCompatActivity() {
     companion object {
         /** Skip the saved-channels fast path and re-scan everything (rail Refresh). */
         const val EXTRA_FULL_RELOAD = "full_reload"
+        /** Reborn Play: load channels + guide after sign-in, then hand back to the host (no guide). */
+        const val EXTRA_PREFETCH_ONLY = "reborn_prefetch_only"
         private const val FAST_HYDRATE_MAX = 250
     }
 
@@ -73,6 +75,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var retry: TextView
     private lateinit var loginAgain: TextView
     private var loaderJob: Job? = null
+    private var prefetchOnly = false
     @Volatile private var recovering = false
     @Volatile private var loadAttempt = 0
     private lateinit var tip: TextView
@@ -238,9 +241,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         val fullReload = intent.getBooleanExtra(EXTRA_FULL_RELOAD, false)
+        prefetchOnly = intent.getBooleanExtra(EXTRA_PREFETCH_ONLY, false)
         // App still in memory (just exited and came back): open the guide straight away.
         val held = BundleHolder.current
         if (held != null && held.channels.isNotEmpty() && !fullReload) {
+            if (prefetchOnly) { finish(); return }
             startActivity(Intent(this, EpgActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             })
@@ -417,6 +422,7 @@ class MainActivity : AppCompatActivity() {
                                     "fast-path epg worker enqueue failed: ${t.message}",
                                 )
                             }
+                            if (prefetchOnly) { finish(); return }
                             startActivity(Intent(this, EpgActivity::class.java).apply {
                                 addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                                 intent?.getStringExtra("companion_stream_id")?.let {

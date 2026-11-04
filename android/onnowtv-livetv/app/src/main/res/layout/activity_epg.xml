@@ -48,7 +48,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="V2"
+            android:text="@string/brand_rail_mark"
             android:textColor="@color/livetv_accent_red"
             android:textSize="22sp"
             android:textStyle="bold"
@@ -658,7 +658,7 @@
                         android:layout_margin="10dp"
                         android:background="@drawable/sports_brand_badge"
                         android:gravity="center"
-                        android:text="V2"
+                        android:text="@string/brand_rail_mark"
                         android:textColor="#FFFFFF"
                         android:fontFamily="sans-serif-condensed"
                         android:textStyle="bold"

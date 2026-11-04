@@ -220,5 +220,5 @@
         android:textColor="#3A4E6E"
         android:textSize="9sp"
         android:letterSpacing="0.18"
-        android:text="V2 LIVE TV · BUILD 2.9.15" />
+        android:text="@string/brand_loader_footer" />
 </FrameLayout>

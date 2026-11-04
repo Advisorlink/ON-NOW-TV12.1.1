@@ -8,8 +8,12 @@ export function hasLiveTv() {
 }
 /** True when the guide should be the native module rather than the in-app web guide. */
 export function prefersNativeLiveTv() {
-    if (isRebornBrand()) return false;
     try { return !!window.OnNowTV?.hasLiveTv?.(); } catch { return false; }
+}
+/** Reborn Play: pull channels + guide natively right after sign-in (shows the loading screen). */
+export function prefetchNativeLiveTv() {
+    try { if (window.OnNowTV?.hasLiveTv?.()) { window.OnNowTV.prefetchLiveTv?.(); return true; } } catch { /* web */ }
+    return false;
 }
 export function openLiveTv() {
     try { window.OnNowTV?.openLiveTv?.(); return true; } catch { return false; }

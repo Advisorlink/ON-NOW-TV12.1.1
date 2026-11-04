@@ -21,6 +21,8 @@ import android.widget.Toast
  */
 class WebAppInterface(private val activity: Activity) {
 
+    @JavascriptInterface fun prefetchLiveTv() { activity.runOnUiThread { LiveTvEntry.prefetch(activity) } }
+
     // ---- Live TV preview window (Reborn Play web guide) ---------------------------
     @JavascriptInterface fun hasLivePreview(): Boolean = (activity as? MainActivity)?.livePreview != null
     @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)

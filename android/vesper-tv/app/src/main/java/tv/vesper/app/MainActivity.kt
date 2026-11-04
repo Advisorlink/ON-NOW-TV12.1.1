@@ -895,6 +895,14 @@ class MainActivity : AppCompatActivity() {
      */
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
+        // Reborn Play: native Live TV top menu hands a route back to the web shell.
+        intent.getStringExtra("reborn_route")?.takeIf { it.isNotBlank() }?.let { route ->
+            if (webViewReady) {
+                val safe = route.replace("'", "")
+                webView.post { try { webView.evaluateJavascript("window.location.hash='#$safe'", null) } catch (_: Throwable) {} }
+            }
+            return
+        }
         try {
             val routeExtra = intent.getStringExtra("vesper_route").orEmpty()
             val dataQuery  = intent.data?.encodedQuery.orEmpty()

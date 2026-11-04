@@ -1,5 +1,4 @@
-import rebornWordmark from '@/assets/brand/reborn-play.png';
-import rebornMark from '@/assets/brand/reborn-mark.png';
+import { REBORN_WORDMARK_DATA as rebornWordmark, REBORN_MARK_DATA as rebornMark } from '@/assets/brand/rebornAssets';
 
 // Reborn Play = the combined VOD + Live TV app (tv.onnowtv.one).
 export const REBORN_PACKAGE = 'tv.onnowtv.one';

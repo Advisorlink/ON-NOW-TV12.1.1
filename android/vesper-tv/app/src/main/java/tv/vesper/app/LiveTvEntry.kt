@@ -30,6 +30,13 @@ object LiveTvEntry {
     }
 
     /** Hand the ON NOW login to Live TV: the operator-mapped Xtream creds if present, else the typed ones. */
+    /** Sign-in: load channels + guide now (shows the Live TV loading screen, then returns). */
+    fun prefetch(activity: Activity) {
+        val i = intent(activity, ACTION_OPEN) ?: return
+        i.putExtra("reborn_prefetch_only", true)
+        activity.startActivity(i)
+    }
+
     fun onLogin(ctx: Context, username: String, password: String, iptvJson: String?) {
         if (!available(ctx)) return
         var u = username; var p = password

@@ -229,6 +229,14 @@ class EpgActivity : AppCompatActivity() {
     private val clockFmt get() = tv.onnowtv.livetv.data.Settings.timeFmt(this)
     private val dateFmt = SimpleDateFormat("EEE dd MMM", Locale.UK)
 
+    /** Reborn Play (embedded) — one-app top menu above the guide. */
+    private fun installRebornTopNav() {
+        if (!LiveTvRuntime.embedded) return
+        val root = (findViewById<android.view.ViewGroup>(android.R.id.content)).getChildAt(0) as? android.widget.FrameLayout ?: return
+        val content = root.getChildAt(0) ?: return
+        RebornTopNav.install(this, root, content)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_epg)
@@ -252,6 +260,7 @@ class EpgActivity : AppCompatActivity() {
         favouriteSet.addAll(FavouritesStore.load(this))
 
         wireViews()
+        installRebornTopNav()
         buildCategories()
         setupAdapters()
         setupWhatsOnHub()

@@ -16,4 +16,8 @@
     <color name="livetv_now_line">#49B2FF</color>
     <color name="livetv_row_separator">#11FFFFFF</color>
     <color name="livetv_card_border">#1AFFFFFF</color>
+    <string name="brand_v2">REBORN</string>
+    <string name="brand_suffix">PLAY · LIVE TV</string>
+    <string name="brand_rail_mark">R</string>
+    <string name="brand_loader_footer">REBORN PLAY · LIVE TV</string>
 </resources>
