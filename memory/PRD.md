@@ -913,3 +913,7 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Container restarted mid-build (likely memory) and wiped /tmp incl. SDK + gradle cache; `one_build.sh` re-provisions via `scripts/setup-vesper-build-env.sh`. Run web build and Gradle sequentially, not together.
 - Artifact: `/app/android/onnow-one/test-artifacts/reborn-play-1.0.1-2.apk` (160 MB, v2+v3 signed, arm64+armeabi-v7a, minSdk 26). Direct download route added: `/api/dl/one/<code>` (SLUGS in `backend/native_download_short.py`).
 - NOT yet verified on hardware: unified login → IPTV mapping, Live TV nav entry, embedded Live TV exit stopping playback, kids PIN-locked groups, Live TV settings inside Vesper Settings.
+
+## 2026-11-04 — Reborn Play "not opening on phone" fix
+- Root cause: Vesper `security/IntegrityGuard.runChecks` (release only) exits the process when `packageName != tv.onnowtv.app`. Reborn Play is `tv.onnowtv.one`, so v1.0.1 silently died on launch. Fix: guard now also accepts the masked `tv.onnowtv.one` (`expectedOnePackage()`); signing cert check unchanged (same keystore). Live TV's own guard only runs in `LiveTVApp.onCreate`, which the one-app does not use.
+- Rebuilt: `reborn-play-1.0.2-3.apk` (versionCode 3). Same `/api/dl/one/<code>` link serves the newest APK.

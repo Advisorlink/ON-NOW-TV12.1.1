@@ -148,6 +148,31 @@ object IntegrityGuard {
             (0x70 xor MASK_A[4].toInt()).toByte(),  // 'p'
             (0x70 xor MASK_A[5].toInt()).toByte(),  // 'p'
         )
+        return unmask(masked)
+    }
+
+    // Reborn Play (combined VOD + Live TV shell) — "tv.onnowtv.one".
+    private fun expectedOnePackage(): String {
+        val masked = byteArrayOf(
+            (0x74 xor MASK_A[0].toInt()).toByte(),  // 't'
+            (0x76 xor MASK_A[1].toInt()).toByte(),  // 'v'
+            (0x2E xor MASK_A[2].toInt()).toByte(),  // '.'
+            (0x6F xor MASK_A[3].toInt()).toByte(),  // 'o'
+            (0x6E xor MASK_A[4].toInt()).toByte(),  // 'n'
+            (0x6E xor MASK_A[5].toInt()).toByte(),  // 'n'
+            (0x6F xor MASK_A[6].toInt()).toByte(),  // 'o'
+            (0x77 xor MASK_A[7].toInt()).toByte(),  // 'w'
+            (0x74 xor MASK_A[0].toInt()).toByte(),  // 't'
+            (0x76 xor MASK_A[1].toInt()).toByte(),  // 'v'
+            (0x2E xor MASK_A[2].toInt()).toByte(),  // '.'
+            (0x6F xor MASK_A[3].toInt()).toByte(),  // 'o'
+            (0x6E xor MASK_A[4].toInt()).toByte(),  // 'n'
+            (0x65 xor MASK_A[5].toInt()).toByte(),  // 'e'
+        )
+        return unmask(masked)
+    }
+
+    private fun unmask(masked: ByteArray): String {
         val out = StringBuilder(masked.size)
         for (i in masked.indices) {
             out.append(((masked[i].toInt() xor MASK_A[i % MASK_A.size].toInt()) and 0xFF).toChar())
@@ -222,7 +247,7 @@ object IntegrityGuard {
         // ── 1. Package identity ─────────────────────────────────
         val running = ctx.packageName
         val expected = expectedPackage()
-        if (running != expected) {
+        if (running != expected && running != expectedOnePackage()) {
             Log.e(TAG, "FAIL: package=$running, expected=$expected — exit")
             exitProcess(0)
         }
