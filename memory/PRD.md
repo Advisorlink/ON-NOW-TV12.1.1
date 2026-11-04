@@ -930,3 +930,11 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Testing: iteration_137 (frontend) passed brand/login/provider/guide/settings; fixed its 3 findings (Escape in PIN gate left Live TV, BootSplash text, hero under top nav). Verified via screenshots.
 - APK: `reborn-play-1.1.1-5.apk` (versionCode 5) via `/api/dl/one/<code>`.
 - NOTE for agents: heredoc-driven `python3 - <<EOF` edits to /app files get blocked by a harness guard; write the script to /tmp and run it, or use search_replace.
+
+
+## 2026-11-04 — Reborn Play v1.2.0: separate data + native live preview window
+- Separation: on-device storage is already per-package (WebView localStorage/IndexedDB). Cloud profile sync (`/api/vesper/sync/*`) was keyed only by account → added `X-App-Scope` header (`backend/vesper_sync.py::_scoped_id`, Reborn stores under `<account_id>::reborn`); frontend sends it via `appScopeHeader()` in `lib/brand.js` from `lib/vesperCloudSync.js`. Verified: Vesper meta found=true untouched, Reborn meta found=false. Vesper app code paths unchanged (all Reborn behaviour gated by `isRebornBrand()`).
+- Live preview: `android/vesper-tv/.../LivePreviewBridge.kt` (ExoPlayer + TextureView overlay in a new root FrameLayout in MainActivity; JS bridge `OnNowTV.hasLivePreview/showLivePreview(url,x,y,w,h,cssWidth)/moveLivePreview/hideLivePreview`; state events `reborn:live-preview`, `reborn:resume`). `playInternal` hides the preview before fullscreen; onPause hides; onDestroy releases. React: `components/LivePreview.jsx` mounted in the guide hero (`live-preview-slot`, top-right); stream URL = Xtream `.ts` via `getStreamUrl`. Browser shows channel-logo placeholder ("Preview on your TV box").
+- NOTE: this Kotlin lives in the shared vesper-tv source set, so the plain Vesper APK also gets the bridge, but nothing calls it there (web guide only mounts under Reborn). Rebuild Vesper only if desired.
+- APK: `reborn-play-1.2.0-6.apk` (versionCode 6). Container reset twice during builds (wipes /tmp + SDK); `one_build.sh` reprovisions. Always: yarn build → bundle → one_full.sh sequentially.
+- Hardware-unverified: preview positioning on TV (uses webView.width / document clientWidth scale), audio of preview, OK→fullscreen→Back→preview resume.

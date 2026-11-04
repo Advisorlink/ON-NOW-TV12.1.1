@@ -28,6 +28,11 @@ import androidx.webkit.WebViewFeature
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
+    /** Root frame hosting the WebView plus native overlays (Live TV preview). */
+    private var rootFrame: android.widget.FrameLayout? = null
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    var livePreview: LivePreviewBridge? = null
+        private set
     /* Public accessor used by [WebAppInterface] when it needs to
      * post update-progress events back into the page via
      * `evaluateJavascript`.  Returns null until the WebView has
@@ -799,7 +804,18 @@ class MainActivity : AppCompatActivity() {
             url
         }
 
-        setContentView(webView)
+        val frame = android.widget.FrameLayout(this).apply {
+            addView(
+                webView,
+                android.widget.FrameLayout.LayoutParams(
+                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                ),
+            )
+        }
+        rootFrame = frame
+        setContentView(frame)
+        livePreview = createLivePreview(frame)
         webViewReady = true
         webView.loadUrl(finalBootUrl)
     }
@@ -814,7 +830,10 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         applyImmersiveMode()
-        if (webViewReady) webView.onResume()
+        if (webViewReady) {
+            webView.onResume()
+            webView.evaluateJavascript("window.dispatchEvent(new Event('reborn:resume'))", null)
+        }
         consumeNextEpisodeIntent()
         consumeBackToDetailsIntent()
     }
@@ -1013,8 +1032,22 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    private fun createLivePreview(frame: android.widget.FrameLayout): LivePreviewBridge =
+        LivePreviewBridge(this, frame, webView).also { bridge ->
+            bridge.setStateListener { state ->
+                runOnUiThread {
+                    if (webViewReady) webView.evaluateJavascript(
+                        "window.dispatchEvent(new CustomEvent('reborn:live-preview',{detail:'$state'}))", null,
+                    )
+                }
+            }
+        }
+
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     override fun onPause() {
         super.onPause()
+        livePreview?.hide()
         if (webViewReady) webView.onPause()
         // v2.7.46 — persist current WebView URL so we can restore it
         // if Android kills MainActivity during ExoPlayer playback
@@ -1242,7 +1275,10 @@ class MainActivity : AppCompatActivity() {
         dialog.show()
     }
 
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     override fun onDestroy() {
+        livePreview?.release()
+        livePreview = null
         if (webViewReady) {
             webView.stopLoading()
             webView.destroy()

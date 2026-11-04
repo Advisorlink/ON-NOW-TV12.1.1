@@ -68,6 +68,7 @@ import useProgrammeBackdrop from '@/hooks/useProgrammeBackdrop';
 import useBackHandler from '@/hooks/useBackHandler';
 import ConfirmModal from '@/components/ConfirmModal';
 import PinGate from '@/components/PinGate';
+import LivePreview from '@/components/LivePreview';
 import { visibleGroups, isGroupLocked, lockPinProfile } from '@/lib/livePrefs';
 import { checkProfilePin } from '@/lib/profiles';
 import Host from '@/lib/host';
@@ -1370,6 +1371,8 @@ function Grid({ provider, onLogout }) {
                 onToggleFav={onToggleFav}
                 onRefresh={onRefresh}
                 onLogout={onLogout}
+                provider={provider}
+                previewPaused={!!pinFor || !!pendingConfirm}
             />
             <div style={{
                 display: 'grid',
@@ -1605,6 +1608,7 @@ function Grid({ provider, onLogout }) {
 const Hero = React.memo(function Hero({
     channel, now, next, isFav, syncing,
     onToggleFav, onRefresh, onLogout,
+    provider, previewPaused,
 }) {
     const tmdb = useProgrammeBackdrop(now?.title || '', channel?.name || '');
     const backdropUrl = tmdb?.backdrop
@@ -1618,8 +1622,8 @@ const Hero = React.memo(function Hero({
     return (
         <section style={{
             position: 'relative',
-            minHeight: 240,
             padding: getNavLayout() === 'top' ? '84px 32px 14px 32px' : '24px 32px 14px 32px',
+            minHeight: 'clamp(240px, 20vw, 360px)',
             overflow: 'hidden',
             flexShrink: 0,
         }}>
@@ -1668,6 +1672,15 @@ const Hero = React.memo(function Hero({
                     <LogOut size={15} color="var(--vesper-text-2)" />
                 </HeroIconButton>
             </div>
+
+            {/* Live preview window — native ExoPlayer overlay in the APK */}
+            {channel && (
+                <div data-testid="live-preview-slot" style={{
+                    position: 'absolute', right: 32, top: 72, width: 'clamp(300px, 26vw, 480px)', zIndex: 2,
+                }}>
+                    <LivePreview provider={provider} channel={channel} paused={previewPaused} />
+                </div>
+            )}
 
             <div style={{ position: 'relative', maxWidth: 720, zIndex: 1 }}>
                 <div style={{

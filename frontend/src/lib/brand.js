@@ -29,3 +29,6 @@ export const REBORN_MARK = rebornMark;
 
 export function brandName() { return isRebornBrand() ? 'Reborn Play' : 'ON NOW TV'; }
 export function brandFull() { return isRebornBrand() ? 'Reborn Play' : 'ON NOW TV V2'; }
+
+/** Cloud-sync scope: Reborn Play keeps its own cloud profiles, never Vesper's. */
+export function appScopeHeader() { return isRebornBrand() ? { 'X-App-Scope': 'reborn' } : {}; }

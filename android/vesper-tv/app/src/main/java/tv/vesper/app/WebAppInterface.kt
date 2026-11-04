@@ -21,6 +21,20 @@ import android.widget.Toast
  */
 class WebAppInterface(private val activity: Activity) {
 
+    // ---- Live TV preview window (Reborn Play web guide) ---------------------------
+    @JavascriptInterface fun hasLivePreview(): Boolean = (activity as? MainActivity)?.livePreview != null
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    @JavascriptInterface fun showLivePreview(url: String, x: Float, y: Float, w: Float, h: Float, cssWidth: Float) {
+        if (url.isBlank()) return
+        (activity as? MainActivity)?.livePreview?.show(url, x, y, w, h, cssWidth)
+    }
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    @JavascriptInterface fun moveLivePreview(x: Float, y: Float, w: Float, h: Float, cssWidth: Float) {
+        activity.runOnUiThread { (activity as? MainActivity)?.livePreview?.move(x, y, w, h, cssWidth) }
+    }
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    @JavascriptInterface fun hideLivePreview() { (activity as? MainActivity)?.livePreview?.hide() }
+
     // ---- Live TV module (ON NOW one-app build) ------------------------------------
     @JavascriptInterface fun hasLiveTv(): Boolean = LiveTvEntry.available(activity)
     @JavascriptInterface fun openLiveTv() { activity.runOnUiThread { LiveTvEntry.open(activity) } }
@@ -224,9 +238,11 @@ class WebAppInterface(private val activity: Activity) {
     }
 
     @JavascriptInterface
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     fun playInternal(url: String, title: String?, subtitleUrl: String?) {
         if (url.isBlank()) return
         activity.runOnUiThread {
+            (activity as? MainActivity)?.livePreview?.hide()
             try {
                 // v2.7.61 — Honour user's player preference here too.
                 val useExo = ExoPlayerActivity.shouldUseExoPlayer(activity)

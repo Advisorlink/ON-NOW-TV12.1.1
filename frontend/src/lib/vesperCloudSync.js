@@ -23,6 +23,7 @@
 
 import { getToken } from '@/lib/auth';
 import { collectBackupPayload } from '@/lib/profileBackup';
+import { appScopeHeader } from '@/lib/brand';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 const DEBOUNCE_MS = 2500;
@@ -129,6 +130,7 @@ export async function pushNow(silent = false) {
             headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${token}`,
+                ...appScopeHeader(),
             },
             body: JSON.stringify({
                 data: payload,
@@ -159,7 +161,7 @@ export async function pullOnce() {
     if (!token) return null;
     try {
         const res = await fetch(`${API}/api/vesper/sync/pull`, {
-            headers: { Authorization: `Bearer ${token}` },
+            headers: { Authorization: `Bearer ${token}`, ...appScopeHeader() },
         });
         if (!res.ok) return null;
         const j = await res.json();
@@ -176,7 +178,7 @@ export async function fetchMeta() {
     if (!token) return null;
     try {
         const res = await fetch(`${API}/api/vesper/sync/meta`, {
-            headers: { Authorization: `Bearer ${token}` },
+            headers: { Authorization: `Bearer ${token}`, ...appScopeHeader() },
         });
         if (!res.ok) return null;
         const j = await res.json();

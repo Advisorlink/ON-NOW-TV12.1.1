@@ -102,15 +102,25 @@ def _approx_bytes(data: Dict[str, Any]) -> int:
         return 0
 
 
+def _scoped_id(account_id: str, app_scope: Optional[str]) -> str:
+    """Separate cloud slot per app: Vesper keeps the bare id, other apps get a suffix."""
+    scope = (app_scope or "").strip().lower()
+    if not scope or scope == "vesper":
+        return account_id
+    safe = "".join(ch for ch in scope if ch.isalnum() or ch in "-_")[:32]
+    return f"{account_id}::{safe}"
+
+
 # ── endpoints ───────────────────────────────────────────────────────
 
 @router.post("/push", response_model=PushResponse)
 async def push(
     body: PushRequest = Body(...),
     authorization: Optional[str] = Header(default=None),
+    x_app_scope: Optional[str] = Header(default=None),
 ) -> PushResponse:
     account = await _account(authorization)
-    account_id = str(account["id"]).strip()
+    account_id = _scoped_id(str(account["id"]).strip(), x_app_scope)
     now_ms = int(time.time() * 1000)
     approx = _approx_bytes(body.data)
     key_count = len(body.data or {})
@@ -139,9 +149,10 @@ async def push(
 @router.get("/pull", response_model=PullResponse)
 async def pull(
     authorization: Optional[str] = Header(default=None),
+    x_app_scope: Optional[str] = Header(default=None),
 ) -> PullResponse:
     account = await _account(authorization)
-    account_id = str(account["id"]).strip()
+    account_id = _scoped_id(str(account["id"]).strip(), x_app_scope)
     doc = await _coll().find_one(
         {"account_id": account_id},
         {"_id": 0, "data": 1, "updated_at": 1, "approx_bytes": 1, "key_count": 1},
@@ -160,9 +171,10 @@ async def pull(
 @router.get("/meta", response_model=MetaResponse)
 async def meta(
     authorization: Optional[str] = Header(default=None),
+    x_app_scope: Optional[str] = Header(default=None),
 ) -> MetaResponse:
     account = await _account(authorization)
-    account_id = str(account["id"]).strip()
+    account_id = _scoped_id(str(account["id"]).strip(), x_app_scope)
     doc = await _coll().find_one(
         {"account_id": account_id},
         {"_id": 0, "updated_at": 1, "approx_bytes": 1, "key_count": 1},
