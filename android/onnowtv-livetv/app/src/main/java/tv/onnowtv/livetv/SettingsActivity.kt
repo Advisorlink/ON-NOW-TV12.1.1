@@ -288,7 +288,7 @@ class SettingsActivity : AppCompatActivity() {
             },
             Section("about", "ⓘ", "About", "Version and account.") {
                 listOf(
-                    Row("Version", null, { BuildConfig.VERSION_NAME }) { },
+                    Row("Version", null, { try { packageManager.getPackageInfo(packageName, 0).versionName ?: "" } catch (_: Throwable) { "" } }) { },
                     Row("Sign out", "Return to the login screen") {
                         tv.onnowtv.livetv.data.AuthStore.signOut(ctx); startActivity(Intent(ctx, LoginActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)); finishAffinity()
                     },

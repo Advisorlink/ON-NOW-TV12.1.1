@@ -902,3 +902,14 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Volume keys on Fire TV: `volumeControlStream = STREAM_MUSIC` in EpgActivity, PlayerActivity, Vesper MainActivity.
 - WebView gate lowered 138 → 100, Fire OS-aware (no impossible Install), recognises com.amazon.webview.chromium.
 - Unverified on hardware: black-screen fix, volume keys, trailer slowness on old Fire Stick.
+
+
+## 2026-11-04 — Reborn Play (combined VOD + Live TV app) branding + first signed build
+- Combined app `/app/android/onnow-one` is now branded **Reborn Play** (package `tv.onnowtv.one`, label "Reborn Play").
+- Logos supplied by the user were cut out to PNG: launcher icon (R mark, all mipmap densities), round icon, TV banner (`reborn_banner`), plus web wordmark/mark in `frontend/src/assets/brand/`. Generator: `/tmp/reborn_assets.py` (source JPGs in /tmp, lost on container restart).
+- Web UI brand switch: `frontend/src/lib/brand.js` (`isRebornBrand()` = host package `tv.onnowtv.one`, or `?brand=reborn` for browser preview). Applies to LoginScreen (logo, copy), SideNav brand mark, ProfileSelect logo, and a new default `reborn` theme (logo blue #1E88F0/#49B2FF) in `themes/themes.js`. Vesper / Kids branding unchanged when not in the one-app shell.
+- Live TV re-skin colours in `onnow-one/app/src/main/res/values/livetv_reskin.xml` moved to the logo blue.
+- Gradle build dirs for onnow-one redirected to `/tmp/one-build/*` (root build.gradle.kts) because `/app` is a 9.8 GB volume and filled up ("No space left on device" during packageRelease). Deleted old test_report browser artifacts to free space.
+- Container restarted mid-build (likely memory) and wiped /tmp incl. SDK + gradle cache; `one_build.sh` re-provisions via `scripts/setup-vesper-build-env.sh`. Run web build and Gradle sequentially, not together.
+- Artifact: `/app/android/onnow-one/test-artifacts/reborn-play-1.0.1-2.apk` (160 MB, v2+v3 signed, arm64+armeabi-v7a, minSdk 26). Direct download route added: `/api/dl/one/<code>` (SLUGS in `backend/native_download_short.py`).
+- NOT yet verified on hardware: unified login → IPTV mapping, Live TV nav entry, embedded Live TV exit stopping playback, kids PIN-locked groups, Live TV settings inside Vesper Settings.

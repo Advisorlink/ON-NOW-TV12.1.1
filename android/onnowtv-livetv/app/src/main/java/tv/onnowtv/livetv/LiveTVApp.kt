@@ -18,12 +18,11 @@ import kotlin.system.exitProcess
  * where adb logcat is awkward.
  */
 class LiveTVApp : Application() {
-    companion object { lateinit var instance: LiveTVApp }
+    companion object { lateinit var instance: Application }
 
     override fun onCreate() {
         super.onCreate()
-        instance = this
-        tv.onnowtv.livetv.data.Settings.init(this)
+        LiveTvRuntime.init(this, embedded = false)
         // CrashActivity already lives in :crash. Do NOT start the same
         // provider refresh/player lifecycle in this recovery process, or
         // the fault can repeat before the recovery buttons are usable.
@@ -33,10 +32,6 @@ class LiveTVApp : Application() {
         // SECURITY — tamper / re-sign / debugger / Frida / Xposed checks.
         // No-op on debug builds; hard-kills a compromised release build.
         try { tv.onnowtv.livetv.security.IntegrityGuard.runChecks(this) } catch (_: Throwable) { }
-        BoxBoost.trimOwnCaches = { coil.Coil.imageLoader(this).memoryCache?.clear() }
-        BoxBoost.isPlayback = { a -> a is PlayerActivity || a is StatsPlayerActivity || a is GameActivity || a is SportsReplayActivity || a is SportsOfficialReplayActivity }
-        BoxBoost.install(this)
-        ScreenFit.install(this)
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             try {

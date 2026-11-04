@@ -23,7 +23,7 @@ from native_download_stream import apk_response
 
 router = APIRouter(prefix="/api/dl")
 ROOT = Path(__file__).parent.parent / "android"
-SLUGS = {"tv": "vesper-tv", "live": "onnowtv-livetv"}
+SLUGS = {"tv": "vesper-tv", "live": "onnowtv-livetv", "one": "onnow-one"}
 NO_STORE = {"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache", "Referrer-Policy": "no-referrer"}
 
 

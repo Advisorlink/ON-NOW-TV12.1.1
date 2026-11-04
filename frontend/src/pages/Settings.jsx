@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, Check, ShieldCheck,
     Cloud, Download, Upload, Copy, Loader2, KeyRound, AlertTriangle,
-    Sparkles, Lightbulb, LogOut, Heart, Palette, Play, LayoutGrid, HelpCircle, Database, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Plus, Trash2, X, Search, Gift, Zap } from 'lucide-react';
+    Sparkles, Lightbulb, LogOut, Heart, Palette, Play, LayoutGrid, HelpCircle, Database, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Plus, Trash2, X, Search, Gift, Zap, RadioTower, Settings2, RefreshCw } from 'lucide-react';
+import { hasLiveTv, openLiveTv, openLiveTvSettings } from '@/lib/liveTv';
 import WhatsNewTour from '@/components/WhatsNewTour';
 import { APP_VERSION, WHATS_NEW } from '@/lib/appVersion';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
@@ -437,6 +438,15 @@ export default function Settings() {
             </div>
 
             {/* ---- WELCOME TOUR ---- */}
+            {hasLiveTv() && (
+            <div data-testid="shelf-page" data-settings-section="livetv" hidden={section !== 'livetv'}>
+            <SectionHeader eyebrow="Settings · Live TV" title="Channels, guide and player" icon={RadioTower} />
+            <LiveTvActionRow testid="livetv-open-settings" icon={Settings2} title="Live TV settings" description="Channel groups (reorder, hide, favourites), guide refresh and time offset, player engine, buffer and decoding, subtitles and audio language, interface size, startup, remote buttons, parental PIN, backup." onClick={openLiveTvSettings} />
+            <LiveTvActionRow testid="livetv-open-guide" icon={RadioTower} title="Open the channel guide" description="Jump straight into Live TV." onClick={openLiveTv} />
+            <LiveTvActionRow testid="livetv-refresh" icon={RefreshCw} title="Refresh channels and guide" description="Opens Live TV where the Refresh button on the rail offers EPG only, playlist only, or everything." onClick={openLiveTv} />
+            </div>
+            )}
+
             <div data-testid="shelf-page" data-settings-section="welcome-tour" hidden={section !== 'welcome-tour'}>
             <SectionHeader
                 eyebrow="Settings · Help"
@@ -538,10 +548,32 @@ export default function Settings() {
     );
 }
 
+function LiveTvActionRow({ testid, icon: Icon, title, description, onClick }) {
+    return (
+        <button
+            type="button"
+            data-testid={testid}
+            data-focusable="true"
+            onClick={onClick}
+            className="vesper-glass rounded-2xl flex items-center gap-4 w-full text-left"
+            style={{ padding: '18px 22px', marginBottom: 14, cursor: 'pointer', color: 'inherit' }}
+        >
+            <div className="flex items-center justify-center shrink-0" style={{ width: 44, height: 44, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(93,200,255,0.28) 0%, rgba(93,200,255,0.06) 100%)', border: '1px solid rgba(93,200,255,0.45)' }}>
+                <Icon size={20} style={{ color: 'var(--vesper-blue-bright)' }} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 16 }}>{title}</div>
+                <div style={{ opacity: 0.7, fontSize: 13, marginTop: 4 }}>{description}</div>
+            </div>
+        </button>
+    );
+}
+
 const SETTINGS_SECTIONS = [
     { id: 'theme',              label: 'Appearance',   hint: 'Themes & skins',            icon: Palette },
     { id: 'home',               label: 'Home screen',  hint: 'Row order, show / hide',    icon: LayoutGrid },
     { id: 'playback',           label: 'Playback',     hint: 'Auto play, trailers, menu', icon: Play },
+    ...(hasLiveTv() ? [{ id: 'livetv', label: 'Live TV', hint: 'Channels, guide, player', icon: RadioTower }] : []),
     { id: 'viewing-preference', label: 'Personalise',  hint: 'Your viewing style',        icon: Sparkles },
     { id: 'welcome-tour',       label: 'Help',         hint: 'Welcome tour',              icon: HelpCircle },
     { id: 'tips',               label: 'Tips',         hint: 'Remote shortcuts',            icon: Lightbulb },

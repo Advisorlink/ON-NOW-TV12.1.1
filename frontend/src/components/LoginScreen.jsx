@@ -21,6 +21,7 @@ import useSpatialFocus from '@/hooks/useSpatialFocus';
 import { useAuth } from '@/contexts/AuthContext';
 import { isMusicApp } from '@/lib/profiles';
 import Host from '@/lib/host';
+import { isRebornBrand, REBORN_WORDMARK } from '@/lib/brand';
 
 /* ------------------------------------------------------------------ *
  * Per-app themes (Live TV look, product-specific art + copy)
@@ -42,6 +43,24 @@ const THEMES = {
         ],
         cardSub: 'Sign in to your account to access movies, TV shows and your library.',
         brandLine: 'ON NOW TV · V2',
+    },
+    reborn: {
+        eyebrow: 'REBORN PLAY',
+        logo: REBORN_WORDMARK,
+        accent: '#49B2FF',
+        accentRgb: '73, 178, 255',
+        btnGradient: 'linear-gradient(135deg, #49B2FF 0%, #1E88F0 100%)',
+        btnText: '#04101e',
+        bg: 'login/vesper-bg.webp',
+        headline: 'Movies, TV shows\nand Live TV.\nAll in one place.',
+        pitchSub: 'Sign in with the username and password you were given by Reborn Play.',
+        bullets: [
+            'Movies & full TV series · streaming in HD',
+            'Live TV with a full programme guide',
+            'Kids profiles · safe viewing for little ones',
+        ],
+        cardSub: 'One sign-in loads your movies, TV shows and live channels.',
+        brandLine: 'REBORN PLAY',
     },
     music: {
         eyebrow: 'ON NOW · V2 MUSIC',
@@ -95,6 +114,7 @@ function resolveTheme() {
         })();
         if (kids) return THEMES.kids;
         if (isMusicApp()) return THEMES.music;
+        if (isRebornBrand()) return THEMES.reborn;
     }
     return THEMES.vesper;
 }
@@ -171,9 +191,18 @@ export default function LoginScreen() {
                 {/* LEFT: brand pitch */}
                 <div className="onnow-login-pitch" style={{ animation: 'vesperLoginFade 600ms ease both' }}>
                     {/* Brand chip */}
+                    {theme.logo && (
+                        <img
+                            data-testid="login-brand-logo-reborn"
+                            src={theme.logo}
+                            alt="Reborn Play"
+                            draggable={false}
+                            style={{ height: 'clamp(64px, 7vw, 96px)', width: 'auto', marginBottom: 18, filter: `drop-shadow(0 0 22px rgba(${theme.accentRgb}, 0.45))` }}
+                        />
+                    )}
                     <div
                         style={{
-                            display: 'inline-flex',
+                            display: theme.logo ? 'none' : 'inline-flex',
                             alignItems: 'center',
                             gap: 9,
                             padding: '7px 14px',
@@ -461,7 +490,7 @@ export default function LoginScreen() {
                             letterSpacing: '0.02em',
                         }}
                     >
-                        <span>Need an account? Contact ON NOW TV Support.</span>
+                        <span>Need an account? Contact {theme.logo ? 'Reborn Play' : 'ON NOW TV'} Support.</span>
                         <span
                             className="vesper-mono"
                             style={{

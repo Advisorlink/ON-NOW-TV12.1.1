@@ -21,6 +21,16 @@ import android.widget.Toast
  */
 class WebAppInterface(private val activity: Activity) {
 
+    // ---- Live TV module (ON NOW one-app build) ------------------------------------
+    @JavascriptInterface fun hasLiveTv(): Boolean = LiveTvEntry.available(activity)
+    @JavascriptInterface fun openLiveTv() { activity.runOnUiThread { LiveTvEntry.open(activity) } }
+    @JavascriptInterface fun openLiveTvSettings() { activity.runOnUiThread { LiveTvEntry.open(activity, settings = true) } }
+    @JavascriptInterface fun onLogin(username: String?, password: String?, iptvJson: String?) {
+        if (!username.isNullOrBlank() && !password.isNullOrBlank()) LiveTvEntry.onLogin(activity, username, password, iptvJson)
+    }
+    @JavascriptInterface fun onLogout() { LiveTvEntry.onLogout(activity) }
+
+
     /**
      * Phone-remote keyboard bridge.  The web app reports whenever a
      * text field gains/loses focus; we broadcast it so the launcher's

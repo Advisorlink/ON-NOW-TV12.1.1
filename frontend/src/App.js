@@ -14,6 +14,7 @@ import Resolve from '@/pages/Resolve';
 import V2AIResolve from '@/pages/V2AIResolve';
 import V2AI from '@/pages/V2AI';
 import Settings from '@/pages/Settings';
+import LiveTv from '@/pages/LiveTv';
 import Library from '@/pages/Library';
 import CalendarPage from '@/pages/CalendarPage';
 import ProfileSelect from '@/pages/ProfileSelect';
@@ -102,6 +103,7 @@ function GlobalYouTubeHost() {
 import useKidsBackGuard from '@/hooks/useKidsBackGuard';
 import useKidsKioskGuard from '@/hooks/useKidsKioskGuard';
 import { runNotifyScanner } from '@/lib/notifyScanner';
+import { applyBrand } from '@/lib/brand';
 
 /* Live TV plumbing removed per user request — every bundle / EPG /
  * native-guide bootstrap has been deleted with it.  The /live-tv
@@ -192,6 +194,7 @@ if (typeof window !== 'undefined') {
             return '';
         })();
         window.__vesperHostPackage = hostPackage;
+        applyBrand();
         const isVesperHost = hostPackage === 'tv.onnowtv.app';
         const isKidsHost   = hostPackage === 'tv.onnowtv.kids';
 
@@ -929,6 +932,7 @@ function App() {
                                 <Route path="/networks/:slug" element={<RequireProfile><Network /></RequireProfile>} />
                                 <Route path="/collections/:slug" element={<RequireProfile><Collection /></RequireProfile>} />
                                 <Route path="/boxsets" element={<RequireProfile><BoxSets /></RequireProfile>} />
+                                <Route path="/live" element={<RequireProfile><LiveTv /></RequireProfile>} />
                                 <Route path="/anime" element={<RequireProfile><Anime /></RequireProfile>} />
                                 <Route path="/resolve/:type/:id" element={<RequireProfile><Resolve /></RequireProfile>} />
                                 <Route path="/v2ai-play" element={<RequireProfile><V2AIResolve /></RequireProfile>} />

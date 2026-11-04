@@ -102,6 +102,7 @@ const FONTS = {
 
 export const THEMES = [
     /* -------- Colour themes (accent swaps, dark base) -------- */
+    color('reborn', 'Reborn Play', 'Logo blue · brushed steel · the Reborn Play signature', '#1E88F0', '#49B2FF', 'rgba(30,136,240,0.55)', '#070D1A'),
     color('electric', 'On Now TV Electric', 'Pure electric blue · the signature On Now TV vibe', '#00B8FF', '#5CDFFF', 'rgba(0,184,255,0.55)', '#03060F'),
     color('magenta', 'Hot Magenta', 'Cyber pink · bold and bright · neon nightclub vibe', '#FF4DB8', '#FF7AC9', 'rgba(255,77,184,0.55)', '#0A0610'),
     color('sunset', 'Sunset Orange', 'Warm tangerine · golden glow · arcade marquee energy', '#FF8A3D', '#FFB270', 'rgba(255,138,61,0.55)', '#0F0805'),
@@ -193,7 +194,8 @@ export const THEMES = [
 ];
 
 export const DEFAULT_THEME_ID = 'electric';
+export const REBORN_THEME_ID = 'reborn';
 
 export function getTheme(id) {
-    return THEMES.find((t) => t.id === id) || THEMES[0];
+    return THEMES.find((t) => t.id === id) || getTheme(DEFAULT_THEME_ID);
 }

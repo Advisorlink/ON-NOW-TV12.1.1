@@ -771,7 +771,7 @@ class EpgActivity : AppCompatActivity() {
         // case a future layout brings the view back.
         btnLogout?.setOnClickListener {
             LivePreviewSession.release()
-            finishAffinity()
+            exitLiveTv()
         }
     }
 
@@ -829,7 +829,7 @@ class EpgActivity : AppCompatActivity() {
                             ),
                     )
                     overridePendingTransition(0, 0)
-                    finishAffinity()
+                    exitLiveTv()
                 }
                 .item("Cancel", icon = "✕") { /* dismiss */ }
                 .show()
@@ -2373,6 +2373,12 @@ class EpgActivity : AppCompatActivity() {
                 onSet()
             }
         }
+    }
+
+    /** Standalone: quit the app.  Embedded in ON NOW: just close Live TV and return to the movies menu. */
+    private fun exitLiveTv() {
+        LivePreviewSession.release()
+        if (LiveTvRuntime.embedded) finish() else finishAffinity()
     }
 
     fun askPinThen(onOk: () -> Unit) = askPin("SETTINGS ARE PIN-PROTECTED", onOk)

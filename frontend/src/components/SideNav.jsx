@@ -11,7 +11,9 @@ import {
     Users,
     UserCircle2,
     CalendarDays,
-    Check, Boxes, Sword } from 'lucide-react';
+    Check, Boxes, Sword, RadioTower } from 'lucide-react';
+import { hasLiveTv } from '@/lib/liveTv';
+import { isRebornBrand, REBORN_WORDMARK, REBORN_MARK } from '@/lib/brand';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getAutoplay1080p, setAutoplay1080p, getNavLayout } from '@/lib/prefs';
 import TopNav from '@/components/TopNav';
@@ -29,6 +31,8 @@ const NAV = [
     { id: 'home', label: 'Home', icon: HomeIcon, path: '/' },
     { id: 'tv', label: 'TV Shows', icon: Tv, path: '/?filter=series' },
     { id: 'movies', label: 'Movies', icon: Film, path: '/?filter=movie' },
+    // ON NOW one-app build: the native Live TV module sits behind this entry (hidden when not bundled).
+    ...(hasLiveTv() ? [{ id: 'live', label: 'Live TV', icon: RadioTower, path: '/live' }] : []),
     { id: 'boxsets', label: 'Box Sets', icon: Boxes, path: '/boxsets' },
     { id: 'anime', label: 'Anime', icon: Sword, path: '/anime' },
     { id: 'library', label: 'My Library', icon: Library, path: '/library' },
@@ -238,6 +242,23 @@ function SideRail() {
                 is expanded; when collapsed only the glowing "V2"
                 emblem is visible. */}
             <div className="flex items-baseline pl-3 pr-3 mb-10 select-none" style={{ height: 56 }}>
+                {isRebornBrand() ? (
+                    <img
+                        data-testid="brand-logo-reborn"
+                        src={isExpanded ? REBORN_WORDMARK : REBORN_MARK}
+                        alt="Reborn Play"
+                        draggable={false}
+                        style={{
+                            height: isExpanded ? 44 : 48,
+                            width: 'auto',
+                            maxWidth: isExpanded ? 210 : 56,
+                            objectFit: 'contain',
+                            alignSelf: 'center',
+                            filter: 'drop-shadow(0 0 14px rgba(var(--vesper-blue-rgb), 0.45))',
+                            transition: 'opacity 200ms ease',
+                        }}
+                    />
+                ) : (<>
                 <div
                     className="vesper-display whitespace-nowrap overflow-hidden"
                     style={{
@@ -277,6 +298,7 @@ function SideRail() {
                 >
                     V2
                 </div>
+                </>)}
             </div>
 
             {/* Items */}

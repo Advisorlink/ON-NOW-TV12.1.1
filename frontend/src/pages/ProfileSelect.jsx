@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Pencil, Lock, Download, CloudUpload, LogOut } from 'lucide-react';
+import { isRebornBrand, REBORN_WORDMARK } from '@/lib/brand';
 import { useAuth } from '@/contexts/AuthContext';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
 import {
@@ -141,6 +142,20 @@ export default function ProfileSelect() {
                     lineHeight: 1,
                 }}
             >
+                {isRebornBrand() ? (
+                    <img
+                        data-testid="profile-brand-logo-reborn"
+                        src={REBORN_WORDMARK}
+                        alt="Reborn Play"
+                        draggable={false}
+                        style={{
+                            height: 'clamp(72px, 9vw, 120px)',
+                            width: 'auto',
+                            objectFit: 'contain',
+                            filter: 'drop-shadow(0 0 22px rgba(var(--vesper-blue-rgb), 0.45))',
+                        }}
+                    />
+                ) : (<>
                 <span
                     style={{
                         fontSize: 'clamp(26px, 2.6vw, 38px)',
@@ -163,6 +178,7 @@ export default function ProfileSelect() {
                 >
                     V2
                 </span>
+                </>)}
             </div>
 
             {/* Headline + profiles centred in the remaining space so

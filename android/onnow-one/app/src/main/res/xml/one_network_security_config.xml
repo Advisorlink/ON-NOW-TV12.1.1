@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Network security policy for V2 Live TV.
+
+    Why this exists:
+      Our Xtream IPTV provider's HTTPS endpoint (`njala.ddns.me:8443`)
+      redirects (HTTP 302) every `.ts` stream request to a CLEARTEXT
+      HTTP backend on a numeric IP + non-standard port (e.g.
+      `http://80.82.65.180:8989/...`).  By default Android blocks
+      cleartext traffic, so OkHttp / ExoPlayer report
+      `ERROR_CODE_IO_NETWORK_CONNECTION_FAILED` the moment the
+      redirect lands.
+
+    Policy:
+      • Allow cleartext globally — IPTV feeds need it.
+      • Keep the system trust store so HTTPS to our own backend
+        (onnowtv.duckdns.org) is still validated.
+      • If the user is on hostile Wi-Fi this widens the threat
+        surface slightly, but the alternative (no live TV at all)
+        is unacceptable.  Vesper uses the same trade-off.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

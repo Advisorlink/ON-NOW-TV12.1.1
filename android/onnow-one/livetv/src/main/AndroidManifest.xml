@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <application>
+        <activity
+            android:name=".MainActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale"
+            android:launchMode="standard"
+            android:theme="@style/Theme.OnNowLiveTV.Splash">
+            <intent-filter><action android:name="tv.onnowtv.one.LIVE_TV" /><category android:name="android.intent.category.DEFAULT" /></intent-filter>
+        </activity>
+        <activity
+            android:name=".EpgActivity"
+            android:exported="false"
+            android:configChanges="keyboardHidden|layoutDirection|locale"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:configChanges="keyboardHidden|layoutDirection|locale"
+            android:theme="@style/Theme.OnNowLiveTV.NoActionBar">
+            <intent-filter><action android:name="tv.onnowtv.one.LIVE_TV_SETTINGS" /><category android:name="android.intent.category.DEFAULT" /></intent-filter>
+        </activity>
+        <activity
+            android:name=".ListEditActivity"
+            android:exported="false"
+            android:configChanges="keyboardHidden|layoutDirection|locale"
+            android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
+        <activity
+            android:name=".LoginActivity"
+            android:exported="false"
+            android:configChanges="keyboardHidden|layoutDirection|locale"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.OnNowLiveTV.Splash" />
+        <activity
+            android:name=".PlayerActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale|smallestScreenSize|screenLayout|uiMode"
+            android:screenOrientation="sensorLandscape"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
+        <activity
+            android:name=".LiveOverlayActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale|smallestScreenSize|screenLayout|uiMode"
+            android:screenOrientation="sensorLandscape"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.OnNowLiveTV.LiveOverlay" />
+        <activity
+            android:name=".StatsPlayerActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale|smallestScreenSize|screenLayout|uiMode"
+            android:screenOrientation="sensorLandscape"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
+        <activity
+            android:name=".LibraryActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|layoutDirection|locale"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
+        <activity
+            android:name=".SportsHubActivity"
+            android:label="@string/sports_hub_title"
+            android:exported="false"
+            android:screenOrientation="unspecified"
+            android:configChanges="keyboardHidden|layoutDirection|locale"
+            android:theme="@style/Theme.OnNowLiveTV.NoActionBar" />
+        <activity android:theme="@style/Theme.OnNowLiveTV" android:name=".TeamActivity" android:exported="false" android:label="Team" android:screenOrientation="unspecified" />
+        <activity android:theme="@style/Theme.OnNowLiveTV" android:name=".SportsTablesActivity" android:exported="false" android:label="Standings" android:screenOrientation="unspecified" />
+        <activity android:theme="@style/Theme.OnNowLiveTV" android:name=".SportsCatchUpActivity" android:exported="false" android:label="Sports Catch Up" android:screenOrientation="unspecified" />
+        <activity android:theme="@style/Theme.OnNowLiveTV" android:name=".CatchUpActivity" android:exported="false" android:label="Catch Up" android:screenOrientation="unspecified" />
+        <activity android:theme="@style/Theme.OnNowLiveTV" android:name=".SportsReplayActivity" android:exported="false" android:label="@string/sports_hub_title" android:screenOrientation="unspecified" />
+        <activity android:theme="@style/Theme.OnNowLiveTV" android:name=".SportsReplaysActivity" android:exported="false" android:label="@string/sports_hub_title" android:screenOrientation="unspecified" />
+        <activity android:theme="@style/Theme.OnNowLiveTV" android:name=".SportsLiveDetailsActivity" android:exported="false" android:label="@string/sports_hub_title" android:screenOrientation="unspecified" />
+        <activity android:theme="@style/Theme.OnNowLiveTV" android:name=".SportsOfficialReplayActivity" android:exported="false" android:label="@string/sports_hub_title" android:screenOrientation="unspecified" />
+        <activity
+            android:name=".GameActivity"
+            android:label="@string/sports_hub_title"
+            android:exported="false"
+            android:screenOrientation="unspecified"
+            android:configChanges="keyboardHidden|layoutDirection|locale"
+            android:theme="@style/Theme.OnNowLiveTV.Match" />
+        <activity
+            android:name=".CrashActivity"
+            android:exported="false"
+            android:theme="@style/Theme.OnNowLiveTV.NoActionBar"
+            android:launchMode="singleTask"
+            android:process=":crash" />
+        <receiver
+            android:name=".data.EpgBootReceiver"
+            android:enabled="true"
+            android:exported="true"
+            android:directBootAware="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+            <provider
+            android:name=".LiveTvInitProvider"
+            android:authorities="tv.onnowtv.one.livetv-init"
+            android:exported="false"
+            android:initOrder="90" />
+    </application>
+</manifest>

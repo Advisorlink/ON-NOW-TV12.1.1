@@ -119,6 +119,7 @@ export async function apiLogin(username, password) {
     }
     setToken(data.access_token);
     setAccount(data.account);
+    try { window.OnNowTV?.onLogin?.(username, password, JSON.stringify(data.iptv || {})); } catch { /* web */ }
     return data;
 }
 
@@ -141,6 +142,7 @@ export async function apiMe() {
 }
 
 export async function apiLogout() {
+    try { window.OnNowTV?.onLogout?.(); } catch { /* web */ }
     const t = getToken();
     if (t) {
         try {

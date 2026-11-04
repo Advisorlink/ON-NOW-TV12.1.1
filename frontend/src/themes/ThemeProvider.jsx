@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { DEFAULT_THEME_ID, THEMES, getTheme } from './themes';
+import { DEFAULT_THEME_ID, REBORN_THEME_ID, THEMES, getTheme } from './themes';
+import { isRebornBrand } from '@/lib/brand';
+
+const fallbackTheme = () => (isRebornBrand() ? REBORN_THEME_ID : DEFAULT_THEME_ID);
 import { readScopedString, writeScopedString } from '@/lib/profileScope';
 
 const STORAGE_KEY = 'onnowtv-theme';
@@ -14,9 +17,9 @@ function loadTheme() {
         const saved = readScopedString(STORAGE_KEY);
         return saved && THEMES.some((t) => t.id === saved)
             ? saved
-            : DEFAULT_THEME_ID;
+            : fallbackTheme();
     } catch {
-        return DEFAULT_THEME_ID;
+        return fallbackTheme();
     }
 }
 

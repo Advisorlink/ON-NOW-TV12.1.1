@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ON NOW one-app: re-skin the embedded Live TV module in Vesper's palette.
+     App resources override the library's values of the same name. -->
+<resources>
+    <color name="livetv_bg">#070D1A</color>
+    <color name="livetv_bg_alt">#0B1222</color>
+    <color name="livetv_bg_card">#1A2238</color>
+    <color name="livetv_bg_focused">#232C47</color>
+    <color name="livetv_bg_live">#1A2238</color>
+    <color name="livetv_accent">#49B2FF</color>
+    <color name="livetv_blue">#49B2FF</color>
+    <color name="livetv_fg">#F5F7FA</color>
+    <color name="livetv_fg_bright">#F5F7FA</color>
+    <color name="livetv_fg_dim">#9BA8C2</color>
+    <color name="livetv_fg_dimmer">#5B6580</color>
+    <color name="livetv_now_line">#49B2FF</color>
+    <color name="livetv_row_separator">#11FFFFFF</color>
+    <color name="livetv_card_border">#1AFFFFFF</color>
+</resources>
