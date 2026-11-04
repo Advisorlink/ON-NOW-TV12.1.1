@@ -21,6 +21,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { isKidsApp, isMusicApp, isTriviaApp } from '@/lib/profiles';
+import { isRebornBrand, REBORN_WORDMARK } from '@/lib/brand';
 
 export default function BootSplash({ minDurationMs = 1800, hardCapMs = 2200 }) {
     const kids = isKidsApp();
@@ -33,7 +34,9 @@ export default function BootSplash({ minDurationMs = 1800, hardCapMs = 2200 }) {
     const tagline    = kids ? 'Welcome to ON\u00A0NOW\u00A0Kids'
         : music ? 'Welcome to ON\u00A0NOW\u00A0V2\u00A0Music'
         : trivia ? 'Phones ready \u2014 it\u2019s game time'
+        : isRebornBrand() ? 'Welcome to Reborn\u00A0Play'
         : 'Welcome to ON\u00A0NOW\u00A0V2';
+    const reborn = isRebornBrand();
     // Sunshine-yellow accent for Kids, hot pink for the Music app,
     // electric cyan for Trivia, the existing cyan for V2.
     const accentColor       = kids ? '#FFD24A' : music ? '#FF5CA8' : trivia ? 'var(--vesper-blue, #5DC8FF)' : 'var(--vesper-blue-bright, #5DC8FF)';
@@ -111,6 +114,15 @@ export default function BootSplash({ minDurationMs = 1800, hardCapMs = 2200 }) {
                         'vesper-splash-rise 700ms cubic-bezier(.16,1,.3,1) both',
                 }}
             >
+                {reborn ? (
+                    <img
+                        data-testid="splash-brand-logo-reborn"
+                        src={REBORN_WORDMARK}
+                        alt="Reborn Play"
+                        draggable={false}
+                        style={{ height: 'clamp(110px, 16vw, 220px)', width: 'auto', filter: 'drop-shadow(0 0 32px rgba(73,178,255,0.45))' }}
+                    />
+                ) : (<>
                 <span>ON&nbsp;NOW</span>
                 <span
                     style={{
@@ -121,6 +133,7 @@ export default function BootSplash({ minDurationMs = 1800, hardCapMs = 2200 }) {
                 >
                     {accentMark}
                 </span>
+                </>)}
                 {music && (
                     <span
                         aria-hidden="true"

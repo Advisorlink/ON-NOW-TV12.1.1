@@ -29,7 +29,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Star, Calendar, Bell, RefreshCw, LogOut, Search } from 'lucide-react';
+import { Star, Calendar, Bell, RefreshCw, LogOut, Search, Lock } from 'lucide-react';
 import SideNav from '@/components/SideNav';
 import DPadHint from '@/components/DPadHint';
 import XtreamLogin from '@/components/XtreamLogin';
@@ -71,6 +71,7 @@ import PinGate from '@/components/PinGate';
 import { visibleGroups, isGroupLocked, lockPinProfile } from '@/lib/livePrefs';
 import { checkProfilePin } from '@/lib/profiles';
 import Host from '@/lib/host';
+import { getNavLayout } from '@/lib/prefs';
 
 const ROW_H = 32;            // category row height
 const CHAN_H = 54;           // channel card height
@@ -91,7 +92,14 @@ export default function LiveTV() {
     // Remote BACK key → Home.  Mounted at the SHELL level (not inside
     // the auth-gated <Grid/> block) so the user can also press BACK
     // on the LiveTVAuth screen to bail out.
-    useBackHandler('/');
+    const navigate = useNavigate();
+    useBackHandler(() => {
+        if (document.querySelector('[data-testid="live-group-pin-gate"]')) {
+            window.dispatchEvent(new CustomEvent('reborn:live-pin-cancel'));
+            return;
+        }
+        navigate('/');
+    });
 
     return (
         <div data-testid="livetv-page" style={{
@@ -104,7 +112,7 @@ export default function LiveTV() {
             <SideNav />
             <main style={{
                 position: 'absolute',
-                inset: '0 0 0 clamp(92px, 6.5vw, 132px)',
+                inset: getNavLayout() === 'top' ? '0' : '0 0 0 clamp(92px, 6.5vw, 132px)',
                 display: 'flex',
                 flexDirection: 'column',
                 overflow: 'hidden',
@@ -269,6 +277,11 @@ function Grid({ provider, onLogout }) {
     const [pinFor, setPinFor] = useState(null);
     const [pinError, setPinError] = useState('');
     const [pinReset, setPinReset] = useState(0);
+    useEffect(() => {
+        const cancel = () => setPinFor(null);
+        window.addEventListener('reborn:live-pin-cancel', cancel);
+        return () => window.removeEventListener('reborn:live-pin-cancel', cancel);
+    }, [sidebarCats]);
 
     const allChannels = useMemo(() => {
         const cat = sidebarCats[sel.catIdx];
@@ -280,13 +293,13 @@ function Grid({ provider, onLogout }) {
         return channelsByCat.current.get(cat.id) || EMPTY_ARRAY;
     }, [sel.catIdx, favs, recents, reminderStreamIds, sidebarCats, channelsByCat.current.size, unlocked]);
 
-    useEffect(() => {
+    const lockedCatFocused = useCallback(() => {
         const cat = sidebarCats[sel.catIdx];
-        if (!cat || cat.kind === 'header') return;
-        if (isGroupLocked(cat.id) && !unlocked.has(String(cat.id))) setPinFor(cat);
-        else setPinFor(null);
-    }, [sel.catIdx, sidebarCats, unlocked]);
+        if (!cat || cat.kind === 'header') return null;
+        return isGroupLocked(cat.id) && !unlocked.has(String(cat.id)) ? cat : null;
+    }, [sidebarCats, sel.catIdx, unlocked]);
 
+    const lockedHint = lockedCatFocused();
     const channels = useMemo(() => {
         const q = query.trim().toLowerCase();
         if (!q) return allChannels;
@@ -1172,6 +1185,10 @@ function Grid({ provider, onLogout }) {
             /* Enter / Space — track repeat count.  Action fires on
              * keyup; long-press toggles favourite. */
             if (key === 'Enter' || key === ' ') {
+                if (sel.col === 0) {
+                    const lockedCat = lockedCatFocused();
+                    if (lockedCat) { setPinFor(lockedCat); return; }
+                }
                 const p = pressRef.current;
                 if (p.key !== key) {
                     p.key = key;
@@ -1219,6 +1236,10 @@ function Grid({ provider, onLogout }) {
                 }
                 if (key === 'ArrowRight') {
                     if (s.col === 2) return s;
+                    if (s.col === 0) {
+                        const lockedCat = lockedCatFocused();
+                        if (lockedCat) { setTimeout(() => setPinFor(lockedCat), 0); return s; }
+                    }
                     if (s.col === 0 && channels.length === 0) return s;
                     return { ...s, col: s.col + 1 };
                 }
@@ -1265,7 +1286,7 @@ function Grid({ provider, onLogout }) {
             window.removeEventListener('keyup', onKeyUp, true);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sel, channels, guideGroups, focusedChannel, provider, query, sidebarCats, onToggleFav, onToggleReminder, playChannel, pendingConfirm]);
+    }, [sel, channels, guideGroups, focusedChannel, provider, query, sidebarCats, onToggleFav, onToggleReminder, playChannel, pendingConfirm, lockedCatFocused]);
 
     useEffect(() => { setSel((s) => ({ ...s, chanIdx: 0, guideIdx: 0 })); }, [sel.catIdx]);
     useEffect(() => { setSel((s) => ({ ...s, guideIdx: 0 })); }, [sel.chanIdx, allChannels]);
@@ -1433,6 +1454,12 @@ function Grid({ provider, onLogout }) {
                         resultCount={channels.length}
                         totalCount={allChannels.length}
                     />
+                    {lockedHint && (
+                        <div data-testid="live-group-locked-hint" className="vesper-glass rounded-2xl flex items-center gap-3" style={{ padding: '14px 18px', color: 'var(--vesper-text-2)', fontSize: 13 }}>
+                            <Lock size={16} style={{ color: 'var(--vesper-blue-bright)' }} />
+                            <span><b style={{ color: 'var(--vesper-text)' }}>{lockedHint.name}</b> is PIN locked — press OK to unlock it.</span>
+                        </div>
+                    )}
                     <Column
                         testid="channels"
                         isFocused={sel.col === 1}
@@ -1551,7 +1578,7 @@ function Grid({ provider, onLogout }) {
                         subtitle="Enter your profile PIN to open this channel group"
                         error={pinError}
                         resetSignal={pinReset}
-                        onCancel={() => { setPinFor(null); setSel((s) => ({ ...s, col: 0, catIdx: prevNavigableIdx(sidebarCats, s.catIdx) })); }}
+                        onCancel={() => setPinFor(null)}
                         onSuccess={(entered) => {
                             const prof = lockPinProfile();
                             if (!prof || checkProfilePin(prof, entered)) {
@@ -1592,7 +1619,7 @@ const Hero = React.memo(function Hero({
         <section style={{
             position: 'relative',
             minHeight: 240,
-            padding: '24px 32px 14px 32px',
+            padding: getNavLayout() === 'top' ? '84px 32px 14px 32px' : '24px 32px 14px 32px',
             overflow: 'hidden',
             flexShrink: 0,
         }}>

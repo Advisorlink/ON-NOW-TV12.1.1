@@ -1,0 +1,47 @@
+{
+  "summary": "Frontend-only E2E of Reborn Play brand (TRAV26 login, ?brand=reborn) on desktop 1920x1080. Tested: login branding, auto IPTV provider setup, guide preload, profile picker + Home Reborn logos, Live TV top-nav, the web guide (groups, channel counts, keyboard nav, hero updates), Settings > Live TV (hide/lock pills), PIN gate, and the non-brand regression. Nearly everything works. One functional bug: pressing Escape on the Live TV PIN gate leaves Live TV and goes Home. Also, the boot splash still says 'Welcome to ON NOW V2' when the Reborn brand is on.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "LiveTV PIN gate (pages/LiveTV.jsx + components/PinGate.jsx)", "issue": "Pressing Escape while the PIN gate is open navigates to Home ('/') and leaves Live TV. Expected: close the gate and move selection to the previous group. Clicking the X (pin-gate-close) works correctly: the gate closes and selection moves up.", "selector": "[data-testid='live-group-pin-gate']", "priority": "HIGH"},
+      {"component": "BootSplash (components/BootSplash.jsx)", "issue": "The boot splash ignores the Reborn brand. It still renders the 'V2' accent and the tagline 'Welcome to ON NOW V2' (found in the DOM on /?brand=reborn at boot). The spec says no 'ON NOW TV'/'V2' text when the Reborn brand is active.", "selector": "BootSplash", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Live TV guide /live", "issues": ["The floating top-nav pill overlaps the hero channel title (e.g. 'Sky Cinema Premiere HD', '##### UK CHANNELS #####' run under the nav bar).", "Default group is Favourites with 0 channels and an empty middle column, with no empty-state hint (e.g. 'No favourites yet – press F').", "The provider separator group '==== UK CHANNELS ====' (1 channel) is listed as a normal group."]},
+      {"screen": "PinGate modal", "issues": ["The X close button overlaps the 'PROFILE LOCKED' eyebrow text."]},
+      {"screen": "Settings > Live TV", "issues": ["When the Live TV section is active, the 'Appearance' nav item still shows the strong focus ring, so two items look selected."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "LiveTV.jsx line 94: useBackHandler('/') fires on Escape even while pinFor is set. Pass a callback instead: if pinFor, run the same cancel logic as PinGate onCancel (setPinFor(null) + move catIdx to prevNavigableIdx); otherwise navigate('/'). Alternatively, have PinGate's Escape handler use a capture-phase listener with stopImmediatePropagation.",
+    "BootSplash.jsx: when isRebornBrand() is true, show the Reborn wordmark and a 'Welcome to Reborn Play' tagline instead of the 'V2' / 'Welcome to ON NOW V2' text.",
+    "Live TV hero: add top padding or offset so the title does not sit under the top-nav pill.",
+    "Optional: add an empty state for Favourites, and fix the overlap between the PinGate X button and the eyebrow text."
+  ],
+  "critical_code_review_comments": [
+    "pages/LiveTV.jsx is 2357 lines; it should be split (hero, sidebar, channel list, keyboard handler, PIN-gate logic).",
+    "pages/LiveTv.jsx and pages/LiveTV.jsx are separate files whose names differ only by case. This breaks on case-insensitive filesystems (macOS/Windows checkouts) and makes it easy to import the wrong one. Rename one of them (e.g. NativeLiveTvHandoff.jsx).",
+    "The review request says the Live TV nav item is 'anchor href=/live', but TopNav items are buttons (data-testid top-nav-live, aria-label 'Live TV'), not anchors. It works; only the description is inaccurate.",
+    "In the non-brand (ON NOW TV) login, the account IPTV provider is also auto-set (onnowtv-xtream-active-id='account'). This is harmless, but check that it is intended for the non-Reborn build."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend only)", "frontend": "92% (12/13 checks passed; Escape on the PIN gate failed)"},
+  "verified_passing": [
+    "Login /?brand=reborn: login-brand-logo-reborn present, no 'ON NOW TV' text on the login screen, title 'Reborn Play'.",
+    "After login: onnowtv-xtream-active-id='account'; providers list contains id 'account' with host, username and password set (password not printed); reborn-live-preloaded-at set right after login.",
+    "/profiles shows profile-brand-logo-reborn; the seeded profile-tester opens Home.",
+    "Home shows home-brand-logo-reborn; top-nav-live ('Live TV') present; clicking it opens /live with data-testid livetv-page (web guide, no native hand-off).",
+    "Channel groups load (UK | Entertainment 81, UK | Sky Cinema 45, ...). ArrowDown x7 lands on Sky Cinema with the label '45 CHANNELS' and channel logos and names. ArrowRight then ArrowDown moves from CH 193 to CH 194 and the hero updates. 12 further groups all had counts > 0; no 0-channel groups seen apart from the empty Favourites.",
+    "Settings > Live TV: livetv-web-settings shows 'Open the channel guide', 'Refresh channels and guide' and 126 groups with Shown/Hidden and Unlocked/PIN locked pills.",
+    "Hiding 'UK | Regional' (id 40) removes it from the Live TV sidebar; reverting restores it.",
+    "Locking 'UK | Entertainment' (id 1) shows live-group-pin-gate on ArrowDown. X close moves selection to the previous group. Entering 1234 (profile has no PIN) unlocks the group (81 channels).",
+    "Regression without ?brand in a fresh context: 'ON NOW TV · V2' branding, no reborn logos, no top-nav-live, title 'ON NOW TV V2'."
+  ],
+  "seed_data_creation": "Only localStorage in throwaway Playwright contexts (profile 'tester'; reborn-live-prefs-v1 reset to empty hidden/locked lists at the end). No server data was changed.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Use /?brand=reborn&e2e=1 for the start URL. Dismiss 'Start fresh' and 'whats-new-skip', seed the profile, reload, click profile-tester. Live nav = [data-testid=top-nav-live]. Settings has no top nav: go to /live via livetv-open-guide and to settings via top-nav-settings, then settings-nav-livetv. Group ids: UK | Entertainment=1, UK | Regional=40. In the guide, click (960,1050) then use the arrow keys. Retest Escape on the PIN gate and the BootSplash branding.",
+  "rca of the issue": "PIN gate Escape: LiveTV registers useBackHandler('/'), a window keydown listener that calls preventDefault/stopPropagation and navigate('/') on Escape. PinGate's own window Escape listener runs onCancel, but the back handler also runs (same target, no stopImmediatePropagation), so the route changes to Home. Repro: lock a group in Settings, open Live TV, ArrowDown onto the group, press Escape, and you land on '/'. Fix: make the LiveTV back handler aware of the PIN gate (see action_items)."
+}
