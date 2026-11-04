@@ -80,7 +80,7 @@ const THEMES = {
         brandLine: 'ON NOW TV · V2 MUSIC',
     },
     kids: {
-        eyebrow: 'ON NOW · KIDS',
+        eyebrow: isRebornBrand() ? 'REBORN PLAY · KIDS' : 'ON NOW · KIDS',
         accent: '#5DC8FF',
         accentRgb: '93, 200, 255',
         btnGradient: 'linear-gradient(135deg, #5DC8FF 0%, #2EA8E8 100%)',
@@ -94,7 +94,7 @@ const THEMES = {
             'Your own profile · your own favourites',
         ],
         cardSub: 'Sign in to start watching shows just for you.',
-        brandLine: 'ON NOW · KIDS',
+        brandLine: isRebornBrand() ? 'REBORN PLAY · KIDS' : 'ON NOW · KIDS',
     },
 };
 

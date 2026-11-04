@@ -1,82 +1,168 @@
 {
-  "project_name": "ON NOW TV - Catch Up (Native Android TV Spec)",
-  "canvas": {
-    "resolution": "1920x1080",
-    "density": "2x (mdpi base 960x540dp)",
-    "input": "D-pad Remote Only"
-  },
-  "palette": {
-    "bg_main": "#0A0F1A",
-    "bg_alt": "#0E1422",
-    "card_bg": "#141C2A",
-    "card_focused": "#1A2438",
-    "accent_cyan": "#5DC8FF",
-    "accent_red": "#FF2535",
-    "accent_fav": "#FFC850",
-    "text_fg": "#FFFFFF",
-    "text_dim": "#9DA5B5",
-    "separator": "#11FFFFFF",
-    "card_border": "#1AFFFFFF",
-    "catch_up_bg": "#2E1A47",
-    "catch_up_stroke": "#B388FF",
-    "sports_hub_bg": "#173C4D",
-    "sports_hub_stroke": "#6CD0E3",
-    "whats_on_gradient": ["#FF2535", "#FF6B00"]
-  },
-  "typography": {
-    "h1_title": "sans-serif-black, 24sp, #FFFFFF",
-    "h2_heading": "sans-serif, 18sp, bold, #FFFFFF",
-    "h3_subheading": "sans-serif, 14sp, bold, #FFFFFF",
-    "body": "sans-serif, 12sp, #9DA5B5",
-    "eyebrow": "monospace, 10sp, tracking 2dp, #5DC8FF, UPPERCASE"
-  },
-  "layout_regions": {
-    "sidebar": {
-      "width_dp": 120,
-      "bg": "#0E1422",
-      "buttons": [
-        {"name": "What's On Live", "type": "pill", "height_dp": 48, "bg_gradient": ["#FF2535", "#FF6B00"], "margin_bottom_dp": 12},
-        {"name": "Sports Hub", "type": "button", "height_dp": 54, "bg": "#173C4D", "stroke": "#6CD0E3", "margin_bottom_dp": 12},
-        {"name": "Catch Up", "type": "button", "height_dp": 54, "bg": "#2E1A47", "stroke": "#B388FF", "icon": "ic_rewind_calendar", "margin_bottom_dp": 24}
-      ],
-      "categories_heading_gap_dp": 24
-    },
-    "hero_detail_header": {
-      "height_dp": 180,
-      "left_margin_dp": 130,
-      "elements": ["Fan-art backdrop image", "Channel logo (40x40dp)", "Show Title (24sp bold)", "Aired Date/Time & Duration (12sp dim)", "Synopsis (12sp, max 2 lines)", "Play From Start Button (48dp height, Cyan focused)"]
-    },
-    "just_aired_row": {
-      "height_dp": 110,
-      "card_aspect": "16:9 (140x78dp)",
-      "card_style": "TMDB backdrop / poster fallback / gradient + logo, progress bar overlay"
-    },
-    "browser_view": {
-      "channels_column_width_dp": 140,
-      "calendar_strip_height_dp": 40,
-      "schedule_list": "Vertical show list (time, title, duration, 16:9 thumbnail, watched progress bar)"
+  "project_name": "Reborn Play",
+  "archetype": "THE PERFORMANCE PRO / SWISS HIGH-CONTRAST / ELECTRIC FUTURISM",
+  "app_type": "tv_app_10ft_ui_hybrid",
+  "branding": {
+    "app_title": "Reborn Play",
+    "logo_spec": "Silver/chrome 'R' monogram icon with electric-blue swoosh accent, accompanied by 'REBORN' in brushed silver caps with 'PLAY' in small electric-blue letterspaced caps.",
+    "brand_colors": {
+      "dark_navy_bg": "#070D1A",
+      "dark_navy_surface": "#0C1527",
+      "dark_navy_card": "#111E36",
+      "electric_blue_primary": "#1E88F0",
+      "electric_blue_highlight": "#49B2FF",
+      "electric_blue_glow": "rgba(73, 178, 255, 0.35)",
+      "silver_chrome": "#E2E8F0",
+      "silver_chrome_dim": "#94A3B8",
+      "status_live_red": "#EF4444",
+      "kids_accent_amber": "#F59E0B"
     }
   },
-  "focus_states": {
-    "scale": "1.06x scale animation (120ms decelerate interpolator)",
-    "ring": "2dp solid #5DC8FF stroke ring",
-    "glow": "8dp radial cyan shadow glow (#5DC8FF, opacity 0.4)",
-    "elevation": "Z-translation +4dp"
+  "typography": {
+    "headings_font": "Barlow Condensed, sans-serif",
+    "body_font": "Outfit, sans-serif",
+    "mono_font": "JetBrains Mono, monospace",
+    "weights": {
+      "display_heavy": "800",
+      "heading_bold": "700",
+      "subheading_medium": "600",
+      "body_regular": "400"
+    },
+    "font_imports": "@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,700&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');"
   },
-  "empty_and_loading_states": {
-    "loading": "ShimmerFrameLayout skeleton layout matching card rows",
-    "no_channels": "Empty state graphic + 'No Catch-Up channels available from provider'",
-    "no_recordings": "Empty state graphic + 'No recordings archived for this date'"
+  "dpad_focus_system": {
+    "focus_ring": "outline: 3px solid #49B2FF; outline-offset: 4px; box-shadow: 0 0 24px rgba(73, 178, 255, 0.55), inset 0 0 12px rgba(73, 178, 255, 0.2); transform: scale(1.04); transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease-out;",
+    "focus_ring_class": "focus-visible:outline-none focus:ring-4 focus:ring-[#49B2FF] focus:ring-offset-2 focus:ring-offset-[#070D1A] focus:scale-[1.03] transition-all duration-200 z-30",
+    "audio_feedback_trigger": "playSubtleClickOnFocusChange()",
+    "remote_keys_supported": ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Enter", "Backspace", "Escape", "MediaPlayPause", "ChannelUp", "ChannelDown"]
+  },
+  "three_design_directions": [
+    {
+      "id": "direction_1_command_center",
+      "name": "Direction 1: Apex Command Center (Dark Tactical Precision)",
+      "pitch": "A high-density 10-foot command bridge that treats Live TV channels and VOD media as an integrated tactical dashboard with zero-latency previewing.",
+      "palette": {
+        "bg": "#070D1A",
+        "surface": "#0D182E",
+        "border": "rgba(73, 178, 255, 0.18)",
+        "accent": "#1E88F0",
+        "glow": "#49B2FF",
+        "text_main": "#F8FAFC",
+        "text_muted": "#94A3B8"
+      },
+      "typography_pairing": "Barlow Condensed (Headings) + Outfit (Body)",
+      "epg_guide_layout_1080p": {
+        "left_rail": "Width 280px: Vertical Channel Groups (All Channels, Sports, Cinema, News, Kids, Documentaries, Local) with live channel counters and PIN icons.",
+        "channel_list": "Width 320px: Vertical list showing channel logo + number + current program name + live progress bar.",
+        "epg_timeline_grid": "Flex Fill: Horizontal 2-hour timeline header (00:00, 00:30, 01:00...) with program blocks scaled proportionately to duration. 'NOW' vertical indicator line pulsing in electric blue (#49B2FF).",
+        "preview_pip_window": "Top Right Floating / Embedded: 480x270px live preview window showing full motion stream of currently highlighted channel with audio toggle, resolution indicator (4K HDR / 1080p), and instant 'FULLSCREEN (OK)' action."
+      },
+      "vod_unification_strategy": "VOD items use the same dense card geometry with electric blue status indicators (e.g., 'RESUME 42m', 'EXPIRES IN 2d'). The top nav bar remains static, retaining active channel metadata when browsing movies.",
+      "motion_notes": "Snappy spring physics (stiffness 380, damping 28). Cards expand outward by 4% on D-pad focus without pushing neighboring elements.",
+      "sdxl_image_prompt": "UI design mockup of a sleek 10ft smart TV streaming application named REBORN PLAY, dark navy background #070D1A, live sports broadcast in top right preview pane, electric blue guide selection grid, high contrast program schedule timetable, neon electric blue accents, brushed silver logo, hyper-detailed 8k render."
+    },
+    {
+      "id": "direction_2_cinematic_glass",
+      "name": "Direction 2: Cinematic Prism Glass (Immersive Ambient Flow)",
+      "pitch": "A luxury translucent layout featuring multi-layered backdrop blurs, dynamically tinted glow rings, and ambient glassmorphism that blends live video under guide panels.",
+      "palette": {
+        "bg": "#050914",
+        "surface": "rgba(12, 21, 39, 0.72)",
+        "border": "rgba(255, 255, 255, 0.12)",
+        "accent": "#49B2FF",
+        "glow": "rgba(30, 136, 240, 0.45)",
+        "text_main": "#FFFFFF",
+        "text_muted": "#CBD5E1"
+      },
+      "typography_pairing": "Outfit (Headings) + JetBrains Mono (EPG Metadata)",
+      "epg_guide_layout_1080p": {
+        "left_rail": "Width 240px: Glass vertical pill bar with glowing icons for channel categories.",
+        "channel_list": "Width 280px: Translucent cards showing channel watermarks, live viewer counts, and audio track flags.",
+        "epg_timeline_grid": "Flex Fill: Frosted glass grid cards with backdrop blur 20px. Focused program card illuminates with a double-layered electric blue ring and reveals expanded synopsis.",
+        "preview_pip_window": "Full Canvas Video Layer with overlay scrim: Active channel plays under transparent EPG grid; focusing a program renders 60% translucent guide while video audio remains synchronized."
+      },
+      "vod_unification_strategy": "VOD posters float on a frosted glass canvas with light-swoosh backdrop gradients matching the Reborn Play logo artwork.",
+      "motion_notes": "Fluid backdrop transitions with 300ms cubic-bezier easing. Focus transitions morph the glowing outline smoothly between adjacent cells.",
+      "sdxl_image_prompt": "1080p TV screen screenshot of Reborn Play IPTV app, cinematic glassmorphism user interface, frosted glass EPG guide, electric blue neon highlights, silver REBORN PLAY logo top left, live TV preview background, premium TV UI layout."
+    },
+    {
+      "id": "direction_3_swiss_broadcaster",
+      "name": "Direction 3: Swiss Broadcast Grid (High-Efficiency Clarity)",
+      "pitch": "An ultra-legible, zero-fluff broadcast grid inspired by Swiss poster design, offering maximum density and instant D-pad navigation for power users.",
+      "palette": {
+        "bg": "#080E1C",
+        "surface": "#101B30",
+        "border": "#1E2D4A",
+        "accent": "#1E88F0",
+        "glow": "#38BDF8",
+        "text_main": "#FFFFFF",
+        "text_muted": "#8EA0C0"
+      },
+      "typography_pairing": "Barlow Condensed (Grid Labels) + JetBrains Mono (Times & Badges)",
+      "epg_guide_layout_1080p": {
+        "left_rail": "Horizontal top sub-bar for groups (Sport, Movies, News, Kids, Ent).",
+        "channel_list": "Width 300px: High contrast vertical table column with strict 1px grid borders.",
+        "epg_timeline_grid": "Grid Matrix: Clean rectangular blocks with sharp 4px radii, mono-spaced start/end timestamps, and instant D-pad jump to 'NOW' button.",
+        "preview_pip_window": "Fixed Bottom Left Pane: 400x225px compact window with quick channel switcher buttons and direct EPG recording trigger."
+      },
+      "vod_unification_strategy": "VOD movies and TV shows are displayed in identical crisp 1px bordered grid modules, keeping component DOM structure 100% unified with EPG cells.",
+      "motion_notes": "Instant non-animated focus state changes for zero input lag, enhanced with sharp contrast invert effects on active cells.",
+      "sdxl_image_prompt": "Minimalist Swiss style TV guide user interface, Reborn Play IPTV branding, sharp grid layout, silver and electric blue color scheme, dark blue background, clear channel schedule matrix."
+    }
+  ],
+  "recommended_direction": "direction_1_command_center",
+  "shared_component_system": {
+    "top_navigation": {
+      "path": "src/components/Navigation/TopNav.jsx",
+      "items": ["Home", "Movies", "TV Shows", "Live TV", "Kids", "Search", "Settings"],
+      "logo_component": "RebornLogo.jsx",
+      "features": "Integrated D-pad horizontal loop, active route swoosh glow badge, mini profile switcher, PIN indicator when in Kids mode"
+    },
+    "poster_card": {
+      "path": "src/components/VOD/PosterCard.jsx",
+      "specs": "Aspect ratio 2:3 for movies, 16:9 for live events/shows. Features D-pad focus scaling, progress bar for partially watched content, quality tag (4K HDR / HD), and quick play trigger."
+    },
+    "epg_grid_item": {
+      "path": "src/components/LiveTV/EPGGridItem.jsx",
+      "specs": "Flexible duration width calculation (e.g. 1 min = 4px width). Shows title, remaining time badge, category dot, and focus highlight ring."
+    },
+    "pip_player": {
+      "path": "src/components/Player/PiPPlayer.jsx",
+      "specs": "Custom HTML5 video simulator component with stream info overlay, channel logo, resolution badge, and instant full-screen transition on OK press."
+    },
+    "settings_panel": {
+      "path": "src/components/Settings/TwoPaneSettings.jsx",
+      "categories": ["Appearance & UI", "Playback & Audio", "Live TV & EPG", "Parental Controls (PIN)", "Account & Subscription", "Network Speed Test"]
+    }
+  },
+  "image_urls": {
+    "movie_posters": [
+      "https://images.unsplash.com/photo-1653045474061-075ba29db54f?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "https://images.unsplash.com/photo-1653082379311-0e72bca7ddb2?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "https://images.unsplash.com/photo-1790619451922-feced14b555c?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "https://images.unsplash.com/photo-1780764818559-1dd2205ea2c5?crop=entropy&cs=srgb&fm=jpg&q=85"
+    ],
+    "live_sports": [
+      "https://images.unsplash.com/photo-1522778119026-d647f0596c20?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "https://images.unsplash.com/photo-1599158150601-1417ebbaafdd?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "https://images.unsplash.com/photo-1569531955323-33c6b2dca44b?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "https://images.unsplash.com/photo-1434648957308-5e6a859697e8?crop=entropy&cs=srgb&fm=jpg&q=85"
+    ]
   },
   "instructions_to_main_agent": [
-    "Implement native Kotlin XML layout matching 960x540dp canvas budget exactly.",
-    "Ensure sidebar stacked buttons have correct spacing (12dp between buttons, 24dp gap before CATEGORIES).",
-    "Style Catch Up button with purple identity #2E1A47 fill and #B388FF stroke.",
-    "Ensure D-pad focus state on all interactive View elements displays 1.06x scale, 2dp #5DC8FF ring, and glow effect.",
-    "Include data-testid tags (android:tag or custom attribute) on all interactive View components."
+    "Build the frontend as a React 10-foot TV experience supporting both D-pad remote key navigation (Arrow keys, Enter, Backspace) and mouse/touch inputs.",
+    "Implement the unified Reborn Play visual theme using dark navy #070D1A, electric blue #1E88F0 / #49B2FF glow accents, and silver chrome text/logo details across both VOD and Live TV sides.",
+    "Ensure the top nav bar (Home, Movies, TV Shows, Live TV, Kids, Search, Settings) is consistently rendered on all screens.",
+    "In Kids mode (or Kids profiles), filter Live TV categories to show only PIN-locked or family-friendly groups with a modal prompt for PIN unlock.",
+    "Include a functional EPG guide timeline with channel selection, category filtering (Sports, Cinema, News, Kids), 'Now Playing' progress indicator, and PiP live preview window.",
+    "Provide design direction toggling or style switching so users/evaluators can preview all 3 distinct design directions directly within the Reborn Play interface.",
+    "Ensure all key buttons, inputs, channels, and cards feature proper data-testid attributes for automated verification."
   ],
-  "UNIVERSAL GUIDELINES FOR MAIN AGENT": {
-    "data_testid_rule": "All interactive View elements must have android:tag or test attribute set.",
-    "focus_visibility": "D-pad focus must be high-contrast and unmistakable at 10-foot distance."
-  }
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "Do NOT use transparent backgrounds for headers, dropdowns, or overlays.",
+    "Ensure contrast ratios meet WCAG AA standards using electric blue highlights over dark navy surfaces.",
+    "All interactive elements MUST include data-testid attributes (kebab-case).",
+    "Avoid Inter/Roboto font families; use Barlow Condensed for TV headers and Outfit for body text.",
+    "Implement clear D-pad focus indicators with scale-up and glowing electric-blue outlines on focused items."
+  ]
 }

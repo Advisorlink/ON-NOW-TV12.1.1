@@ -11,6 +11,7 @@ import { useKidsShelves } from '@/hooks/useKidsShelves';
 import { useKidsHeroes } from '@/hooks/useKidsHeroes';
 import { getKidsConfig } from '@/lib/profiles';
 import Lazy from '@/components/Lazy';
+import { isRebornBrand } from '@/lib/brand';
 
 /**
  * Kids-mode home page.
@@ -254,7 +255,7 @@ export default function KidsHome() {
                                 textTransform: 'uppercase',
                             }}
                         >
-                            ON NOW · KIDS
+                            {isRebornBrand() ? 'REBORN PLAY · KIDS' : 'ON NOW · KIDS'}
                         </div>
                         <div
                             className="vesper-mono"

@@ -83,6 +83,17 @@ def _create_access_token(account_id: str, username: str) -> str:
     return jwt.encode(payload, _jwt_secret(), algorithm=JWT_ALG)
 
 
+def _iptv_block(row: Dict[str, Any]) -> Dict[str, str]:
+    """Xtream mapping + provider endpoint so one Vesper login also loads Live TV."""
+    return {
+        "xtream_username": row.get("xtream_username", "") or "",
+        "xtream_password": row.get("xtream_password", "") or "",
+        "scheme": os.environ.get("LIVETV_SCHEME", "").strip(),
+        "host": os.environ.get("LIVETV_HOST", "").strip(),
+        "port": os.environ.get("LIVETV_PORT", "").strip(),
+    }
+
+
 def _account_to_public(row: Dict[str, Any]) -> Dict[str, Any]:
     """Public shape — never includes the raw password.
 
@@ -372,15 +383,12 @@ def build_auth_router(db_provider) -> APIRouter:
             "token_type":   "bearer",
             "expires_in":   ACCESS_TTL_DAYS * 24 * 3600,
             "account":      _account_to_public(row),
-            "iptv": {
-                "xtream_username": row.get("xtream_username", "") or "",
-                "xtream_password": row.get("xtream_password", "") or "",
-            },
+            "iptv": _iptv_block(row),
         }
 
     @router.get("/auth/me")
     async def me(account: Dict[str, Any] = Depends(get_current_account)):
-        return {"account": _account_to_public(account)}
+        return {"account": _account_to_public(account), "iptv": _iptv_block(account)}
 
     @router.post("/auth/logout")
     async def logout(

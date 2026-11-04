@@ -4,7 +4,8 @@ import {
     ArrowLeft, Check, ShieldCheck,
     Cloud, Download, Upload, Copy, Loader2, KeyRound, AlertTriangle,
     Sparkles, Lightbulb, LogOut, Heart, Palette, Play, LayoutGrid, HelpCircle, Database, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Plus, Trash2, X, Search, Gift, Zap, RadioTower, Settings2, RefreshCw } from 'lucide-react';
-import { hasLiveTv, openLiveTv, openLiveTvSettings } from '@/lib/liveTv';
+import { hasLiveTv, openLiveTv, openLiveTvSettings, prefersNativeLiveTv } from '@/lib/liveTv';
+import LiveTvSettingsSection from '@/components/LiveTvSettingsSection';
 import WhatsNewTour from '@/components/WhatsNewTour';
 import { APP_VERSION, WHATS_NEW } from '@/lib/appVersion';
 import useSpatialFocus from '@/hooks/useSpatialFocus';
@@ -441,9 +442,12 @@ export default function Settings() {
             {hasLiveTv() && (
             <div data-testid="shelf-page" data-settings-section="livetv" hidden={section !== 'livetv'}>
             <SectionHeader eyebrow="Settings · Live TV" title="Channels, guide and player" icon={RadioTower} />
+            {!prefersNativeLiveTv() && <LiveTvSettingsSection />}
+            {prefersNativeLiveTv() && (<>
             <LiveTvActionRow testid="livetv-open-settings" icon={Settings2} title="Live TV settings" description="Channel groups (reorder, hide, favourites), guide refresh and time offset, player engine, buffer and decoding, subtitles and audio language, interface size, startup, remote buttons, parental PIN, backup." onClick={openLiveTvSettings} />
             <LiveTvActionRow testid="livetv-open-guide" icon={RadioTower} title="Open the channel guide" description="Jump straight into Live TV." onClick={openLiveTv} />
             <LiveTvActionRow testid="livetv-refresh" icon={RefreshCw} title="Refresh channels and guide" description="Opens Live TV where the Refresh button on the rail offers EPG only, playlist only, or everything." onClick={openLiveTv} />
+            </>)}
             </div>
             )}
 

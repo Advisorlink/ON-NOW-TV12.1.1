@@ -19,6 +19,7 @@ import { avatarEmojiById } from '@/lib/avatars';
 import * as cw from '@/lib/continueWatching';
 import { PlayerLaunchScreen } from '@/components/PlayerLaunchScreen';
 import { isInLibrary, isMovieInWatchLater } from '@/lib/library';
+import { isRebornBrand } from '@/lib/brand';
 
 const streamMode = (s) => {
     if (s?.url) return 'direct';
@@ -3054,7 +3055,7 @@ export default function Detail() {
                             margin: '0 0 12px',
                             fontWeight: 700,
                         }}>
-                            Not for ON NOW Kids
+                            Not for {isRebornBrand() ? 'Reborn' : 'ON NOW'} Kids
                         </h2>
                         <p style={{
                             fontSize: 16,

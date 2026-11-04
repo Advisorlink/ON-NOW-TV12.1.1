@@ -11,7 +11,10 @@ export function isRebornBrand() {
             return String(window.OnNowTV.getHostPackage() || '') === REBORN_PACKAGE;
         }
     } catch { /* not in a native shell */ }
-    return new URLSearchParams(window.location.search).get('brand') === 'reborn';
+    try {
+        if (new URLSearchParams(window.location.search).get('brand') === 'reborn') sessionStorage.setItem('reborn-brand', '1');
+        return sessionStorage.getItem('reborn-brand') === '1';
+    } catch { return false; }
 }
 
 export function applyBrand() {
@@ -23,3 +26,6 @@ export function applyBrand() {
 
 export const REBORN_WORDMARK = rebornWordmark;
 export const REBORN_MARK = rebornMark;
+
+export function brandName() { return isRebornBrand() ? 'Reborn Play' : 'ON NOW TV'; }
+export function brandFull() { return isRebornBrand() ? 'Reborn Play' : 'ON NOW TV V2'; }

@@ -1,3 +1,4 @@
+import { brandFull } from '@/lib/brand';
 // Pixel copy of the native player's LoadingScreen (PlayerOverlay.kt) so
 // Play shows one continuous loading screen until the movie starts.
 export const PlayerLaunchScreen = ({ meta }) => {
@@ -30,7 +31,7 @@ export const PlayerLaunchScreen = ({ meta }) => {
                 )}
                 <div className="min-w-0 flex-1">
                     <div className="font-mono text-xs tracking-[0.216em]" style={{ color: '#5DC8FF' }}>
-                        NOW PLAYING · ON NOW TV V2
+                        NOW PLAYING · {brandFull().toUpperCase()}
                     </div>
                     <div data-testid="launch-screen-title" className="mt-3.5 text-white font-bold text-3xl sm:text-[44px] leading-tight line-clamp-2">
                         {title}
@@ -42,7 +43,7 @@ export const PlayerLaunchScreen = ({ meta }) => {
                         </div>
                     )}
                     <div data-testid="launch-screen-status" className="mt-7 font-mono text-[13px] tracking-[0.123em]" style={{ color: '#5DC8FF' }}>
-                        ON NOW TV V2 is loading your program
+                        {brandFull()} is loading your program
                     </div>
                     <div className="mt-3.5 flex gap-2.5" data-testid="launch-screen-dots">
                         {[0, 1, 2].map((i) => (

@@ -104,6 +104,7 @@ import useKidsBackGuard from '@/hooks/useKidsBackGuard';
 import useKidsKioskGuard from '@/hooks/useKidsKioskGuard';
 import { runNotifyScanner } from '@/lib/notifyScanner';
 import { applyBrand } from '@/lib/brand';
+import { prefersNativeLiveTv } from '@/lib/liveTv';
 
 /* Live TV plumbing removed per user request — every bundle / EPG /
  * native-guide bootstrap has been deleted with it.  The /live-tv
@@ -537,6 +538,7 @@ function RequireProfile({ children }) {
             '/kids/exit-pin',
             '/kids/settings',
             '/kids/setup',
+            '/live',
         ];
         const ok = allowedKids.some((p) =>
             p === '/' ? location.pathname === '/' : location.pathname.startsWith(p)
@@ -932,7 +934,7 @@ function App() {
                                 <Route path="/networks/:slug" element={<RequireProfile><Network /></RequireProfile>} />
                                 <Route path="/collections/:slug" element={<RequireProfile><Collection /></RequireProfile>} />
                                 <Route path="/boxsets" element={<RequireProfile><BoxSets /></RequireProfile>} />
-                                <Route path="/live" element={<RequireProfile><LiveTv /></RequireProfile>} />
+                                <Route path="/live" element={<RequireProfile>{prefersNativeLiveTv() ? <LiveTv /> : <LiveTV />}</RequireProfile>} />
                                 <Route path="/anime" element={<RequireProfile><Anime /></RequireProfile>} />
                                 <Route path="/resolve/:type/:id" element={<RequireProfile><Resolve /></RequireProfile>} />
                                 <Route path="/v2ai-play" element={<RequireProfile><V2AIResolve /></RequireProfile>} />

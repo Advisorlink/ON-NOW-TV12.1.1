@@ -27,6 +27,7 @@ import React, { useEffect, useState } from 'react';
 import { Download, RefreshCw, ExternalLink, Tv2, X } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import axios from 'axios';
+import { brandFull } from '@/lib/brand';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;  // 6 h
@@ -357,7 +358,7 @@ export default function UpdateGate() {
                                 textTransform: 'uppercase',
                             }}
                         >
-                            ON NOW TV V2
+                            {brandFull()}
                         </span>
                         <span
                             style={{

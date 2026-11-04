@@ -7,6 +7,7 @@ import useSpatialFocus from '@/hooks/useSpatialFocus';
 import useBackHandler from '@/hooks/useBackHandler';
 import { useAddons } from '@/hooks/useAddons';
 import { Vesper } from '@/lib/api';
+import { brandFull } from '@/lib/brand';
 
 export default function Sources() {
     useSpatialFocus();
@@ -76,7 +77,7 @@ export default function Sources() {
                             marginTop: 14,
                         }}
                     >
-                        Paste any Stremio addon manifest URL and ON NOW TV V2 will pull its
+                        Paste any Stremio addon manifest URL and {brandFull()} will pull its
                         catalogues straight onto your home screen. Plex &amp; Jellyfin
                         connectors are coming next.
                     </p>

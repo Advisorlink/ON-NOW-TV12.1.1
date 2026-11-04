@@ -1,4 +1,5 @@
 import React from 'react';
+import { isRebornBrand } from '@/lib/brand';
 
 /**
  * Top-level error boundary so an exception in ANY component does
@@ -203,8 +204,8 @@ export default class ErrorBoundary extends React.Component {
                             marginBottom: 16,
                         }}
                     >
-                        ON NOW T
-                        <span
+                        {isRebornBrand() ? 'Reborn Play' : 'ON NOW T'}
+                        {!isRebornBrand() && <span
                             style={{
                                 color: 'var(--vesper-blue-bright)',
                                 textShadow:
@@ -212,7 +213,7 @@ export default class ErrorBoundary extends React.Component {
                             }}
                         >
                             V2
-                        </span>{' '}
+                        </span>}{' '}
                         hit a snag
                     </h1>
                     <p

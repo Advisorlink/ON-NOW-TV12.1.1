@@ -14,6 +14,8 @@
  * need to hit the API should call `authHeader()` to grab the bearer.
  */
 
+import { applyAccountIptv, preloadLiveTv } from '@/lib/liveAccount';
+
 const API = process.env.REACT_APP_BACKEND_URL;
 const TOKEN_KEY = 'vesper-auth-token-v1';
 const ACCOUNT_KEY = 'vesper-auth-account-v1';
@@ -120,6 +122,10 @@ export async function apiLogin(username, password) {
     setToken(data.access_token);
     setAccount(data.account);
     try { window.OnNowTV?.onLogin?.(username, password, JSON.stringify(data.iptv || {})); } catch { /* web */ }
+    try {
+        const p = applyAccountIptv(data.iptv, username, password);
+        if (p) preloadLiveTv(p, { force: true });
+    } catch { /* live tv optional */ }
     return data;
 }
 
@@ -138,6 +144,10 @@ export async function apiMe() {
     // Quiet update — don't broadcast or we infinite-loop the
     // AuthContext refresh listener.
     if (data?.account) setAccountQuiet(data.account);
+    try {
+        const p = applyAccountIptv(data?.iptv, data?.account?.username, null);
+        if (p) preloadLiveTv(p);
+    } catch { /* live tv optional */ }
     return data?.account || null;
 }
 

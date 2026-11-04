@@ -29,6 +29,7 @@ import Host from '@/lib/host';
 import { API } from '@/lib/api';
 import { getActiveProfile } from '@/lib/profiles';
 import { getAvatar } from '@/lib/avatars';
+import { brandFull } from '@/lib/brand';
 
 /** Convert OpenSubtitles SRT body into WebVTT the <track> element can read. */
 function srtToVtt(srt) {
@@ -1642,7 +1643,7 @@ export default function Player() {
                                         color: 'var(--vesper-blue)',
                                     }}
                                 >
-                                    Now playing · ON NOW TV V2
+                                    Now playing · {brandFull()}
                                 </div>
                                 <h1
                                     className="vesper-display"

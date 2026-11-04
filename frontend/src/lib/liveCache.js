@@ -49,7 +49,7 @@ async function hydrateFromIdb() {
     }
     try {
         const activeId = (typeof localStorage !== 'undefined'
-            ? localStorage.getItem('onnowtv-xtream-active') : '') || '';
+            ? localStorage.getItem('onnowtv-xtream-active-id') : '') || '';
         if (!activeId) {
             _hydrationDone = true;
             return;

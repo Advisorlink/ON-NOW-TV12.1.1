@@ -28,6 +28,8 @@ import { getViewingStyle } from '@/lib/viewingStyle';
 import { APP_VERSION } from '@/lib/appVersion';
 import useIsMobile from '@/lib/useIsMobile';
 import { paceDpad } from '@/lib/dpadPacer';
+import { BrandWordmark } from '@/components/BrandWordmark';
+import { brandName, brandFull } from '@/lib/brand';
 
 export default function Home() {
     useSpatialFocus();
@@ -469,7 +471,7 @@ export default function Home() {
             {!isFilterView && (
                 <div
                     data-testid="home-brand-logo"
-                    aria-label="ON NOW TV2"
+                    aria-label={brandFull()}
                     className="absolute flex items-baseline pointer-events-none select-none"
                     style={{
                         top: 'clamp(14px, 1.4vw, 24px)',
@@ -477,6 +479,7 @@ export default function Home() {
                         zIndex: 30,
                     }}
                 >
+                    <BrandWordmark height="clamp(22px, 1.7vw, 30px)" testid="home-brand-logo-reborn">
                     <span
                         className="vesper-display whitespace-nowrap"
                         style={{
@@ -505,6 +508,7 @@ export default function Home() {
                     >
                         V2
                     </span>
+                    </BrandWordmark>
                 </div>
             )}
 
@@ -619,7 +623,7 @@ export default function Home() {
                                     textTransform: 'uppercase',
                                 }}
                             >
-                                ON NOW TV V2 · v{APP_VERSION}
+                                {brandFull()} · v{APP_VERSION}
                             </div>
                             <div
                                 className="vesper-mono"
@@ -679,7 +683,7 @@ function EmptyAddonsBanner() {
                     className="vesper-display mt-1"
                     style={{ fontSize: 22, letterSpacing: '-0.02em' }}
                 >
-                    On Now TV is currently offline.
+                    {brandName()} is currently offline.
                 </div>
                 <div
                     style={{

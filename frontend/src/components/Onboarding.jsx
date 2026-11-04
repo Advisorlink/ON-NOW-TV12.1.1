@@ -40,6 +40,7 @@ import {
     KeyRound,
 } from 'lucide-react';
 import Host from '@/lib/host';
+import { brandName } from '@/lib/brand';
 
 const STORAGE_KEY = 'vesper-onboarding-seen-v1';
 
@@ -56,7 +57,7 @@ const STEPS = [
         glow: 'center',
         scene: 'dpad',
         icon: Sparkles,
-        eyebrow: 'Welcome to On Now TV',
+        eyebrow: `Welcome to ${brandName()}`,
         title: 'A 60-second tour',
         body:
             "We'll show you the controls and every shortcut we've built so you can move through the app like a pro. Skip anytime, replay from Settings.",
