@@ -95,6 +95,27 @@
         tools:replace="android:usesCleartextTraffic">
 
         <activity
+            android:name="tv.rebornplay.RebornActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:icon="@mipmap/reborn_icon"
+            android:roundIcon="@mipmap/reborn_icon_round"
+            android:label="Reborn Play"
+            android:banner="@drawable/reborn_banner"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|screenLayout|smallestScreenSize|navigation|uiMode|locale|fontScale|density"
+            android:theme="@style/Theme.Vesper.Fullscreen">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="tv.onnowtv.one.HOST_NAVIGATE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        <activity
             android:name=".MainActivity"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|screenLayout|smallestScreenSize|navigation|uiMode|locale|fontScale|density"
             android:exported="true"
@@ -119,20 +140,8 @@
                  filters — splitting them is the most defensive
                  pattern and matches what Google's own AOSP samples
                  use for "TV apps that also run on phones". -->
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
 
             <!-- Android TV / Leanback launcher entry. -->
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="tv.onnowtv.one.HOST_NAVIGATE" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
         </activity>
 
         <activity

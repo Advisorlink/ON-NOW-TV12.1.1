@@ -9,7 +9,7 @@ android {
 
     sourceSets.getByName("main") {
         manifest.srcFile("src/main/AndroidManifest.xml")
-        java.setSrcDirs(listOf("../../vesper-tv/app/src/main/java"))
+        java.setSrcDirs(listOf("../../vesper-tv/app/src/main/java", "src/main/java"))
         res.setSrcDirs(listOf("../../vesper-tv/app/src/main/res", "src/main/res"))
         assets.setSrcDirs(listOf("../../vesper-tv/app/src/main/assets"))
     }
@@ -248,6 +248,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.activity:activity-compose:1.9.0")
     implementation("io.coil-kt:coil-compose:2.6.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
 
     // v2.11.8 — NewPipeExtractor for native YouTube trailer
     // extraction.  Runs on the operator's device, extracting direct
