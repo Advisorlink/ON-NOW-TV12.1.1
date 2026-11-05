@@ -101,5 +101,5 @@ fun routeToNav(r: String): Route? = when {
     r.startsWith("/movies") -> Route.Tab("movie"); r.startsWith("/tv") -> Route.Tab("series")
     r.startsWith("/search") -> Route.Search; r.startsWith("/boxsets") -> Route.BoxSets; r.startsWith("/anime") -> Route.Anime
     r.startsWith("/library") -> Route.Library; r.startsWith("/calendar") -> Route.Calendar; r.startsWith("/watch-together") -> Route.WatchTogether
-    r.startsWith("/settings") -> Route.Settings; else -> Route.Home
+    r.startsWith("/settings") -> Route.Settings; r.startsWith("/live") -> Route.Live; else -> Route.Home
 }

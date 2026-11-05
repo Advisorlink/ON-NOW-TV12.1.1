@@ -31,9 +31,10 @@ object LiveTvEntry {
 
     /** Hand the ON NOW login to Live TV: the operator-mapped Xtream creds if present, else the typed ones. */
     /** Sign-in: load channels + guide now (shows the Live TV loading screen, then returns). */
-    fun prefetch(activity: Activity) {
+    fun prefetch(activity: Activity, fullReload: Boolean = false) {
         val i = intent(activity, ACTION_OPEN) ?: return
         i.putExtra("reborn_prefetch_only", true)
+        if (fullReload) i.putExtra("full_reload", true)
         activity.startActivity(i)
     }
 

@@ -30,7 +30,7 @@ import kotlinx.coroutines.withContext
 import tv.vesper.app.LiveTvEntry
 
 @Composable
-fun SettingsScreen(activity: Activity, autoplay: Boolean, onAutoplay: () -> Unit, onProfiles: () -> Unit, onSignOut: () -> Unit) {
+fun SettingsScreen(activity: Activity, autoplay: Boolean, onAutoplay: () -> Unit, onProfiles: () -> Unit, onSignOut: () -> Unit, onRefreshLive: () -> Unit) {
     val ctx = LocalContext.current
     val user = remember { RebornSession.username(ctx) ?: "" }
     val profile = remember { Profiles.active(ctx) }
@@ -53,7 +53,7 @@ fun SettingsScreen(activity: Activity, autoplay: Boolean, onAutoplay: () -> Unit
         } }
         item { Section("Live TV") {
             SettingRow(Icons.Outlined.CellTower, "Live TV settings", "Player engine, subtitles, aspect ratio, buffer, parental PIN, hidden groups", action = "Open") { LiveTvEntry.open(activity, settings = true) }
-            SettingRow(Icons.Outlined.Refresh, "Refresh channels & guide", "Re-downloads your channel list and the programme guide", action = "Refresh") { LiveTvEntry.prefetch(activity) }
+            SettingRow(Icons.Outlined.Refresh, "Refresh channels & guide", "Re-downloads your channel list and the programme guide", action = "Refresh", onClick = onRefreshLive)
         } }
         item { Section("Home") {
             SettingRow(Icons.Outlined.Autorenew, "Refresh home content", "Clears cached shelves so the latest titles show up", action = "Refresh") { Cache.clear() }

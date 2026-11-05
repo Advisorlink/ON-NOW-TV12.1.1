@@ -17,6 +17,7 @@ sealed class Route {
     object Calendar : Route()
     object WatchTogether : Route()
     object Settings : Route()
+    object Live : Route()
     data class Detail(val item: Item) : Route()
     data class Browse(val kind: String, val brand: Brand) : Route()   // networks | collections
 }
@@ -28,7 +29,7 @@ val NAV_ITEMS = listOf(
     NavItem("home", "Home", Icons.Outlined.Home, Route.Home),
     NavItem("tv", "TV Shows", Icons.Outlined.Tv, Route.Tab("series")),
     NavItem("movies", "Movies", Icons.Outlined.Movie, Route.Tab("movie")),
-    NavItem("live", "Live TV", Icons.Outlined.CellTower, null),
+    NavItem("live", "Live TV", Icons.Outlined.CellTower, Route.Live),
     NavItem("boxsets", "Box Sets", Icons.Outlined.Inventory2, Route.BoxSets),
     NavItem("anime", "Anime", Icons.Outlined.AutoAwesome, Route.Anime),
     NavItem("library", "My Library", Icons.Outlined.VideoLibrary, Route.Library),

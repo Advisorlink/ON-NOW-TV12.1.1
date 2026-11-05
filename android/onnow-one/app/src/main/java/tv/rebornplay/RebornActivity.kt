@@ -53,7 +53,8 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var token by remember { mutableStateOf(RebornSession.token(ctx)) }
-    var stage by remember { mutableStateOf(if (token == null) "login" else if (Profiles.active(ctx) == null) "profiles" else "main") }
+    var stage by remember { mutableStateOf(if (token == null) "login" else "loading") }
+    var prefetching by remember { mutableStateOf(false) }
     var autoplay by remember { mutableStateOf(Prefs.autoplay(ctx)) }
     var profileKey by remember { mutableStateOf(0) }
     var toast by remember { mutableStateOf<String?>(null) }
@@ -66,18 +67,40 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
         if (target == null) stage = "profiles" else { nav.go(target); if (stage == "profiles") stage = "main" }
         consumeRoute()
     }
-    // Back from the Live TV prefetch (channels + guide loaded) → profiles.
-    LaunchedEffect(resumeTick) { if (stage == "loading" && resumeTick > 1) stage = "profiles" }
+    // Boot / sign-in: channels + guide (disk fast path, else the full Live TV loader) and the Home shelves, then profiles.
+    LaunchedEffect(stage) {
+        if (stage != "loading") return@LaunchedEffect
+        val tok = token ?: run { stage = "login"; return@LaunchedEffect }
+        val live = launch { if (!LiveStore.ensureLoaded(ctx) && LiveTvEntry.available(ctx) && !prefetching) { prefetching = true; LiveTvEntry.prefetch(activity) } }
+        val home = launch { if (Cache.home == null) Cache.home = kotlinx.coroutines.withTimeoutOrNull(15_000) { runCatching { loadHome(tok) }.getOrNull() } }
+        live.join(); home.join()
+        if (!prefetching) stage = "profiles"
+    }
+    // Back from the Live TV loader → pick up its bundle and continue.
+    LaunchedEffect(resumeTick) {
+        if (stage == "loading" && prefetching && resumeTick > 1) {
+            prefetching = false
+            LiveStore.refreshFromHolder(ctx)
+            if (LiveStore.bundle.value == null) LiveStore.ensureLoaded(ctx)
+            stage = "profiles"
+        }
+    }
     toast?.let { LaunchedEffect(it) { Toast.makeText(ctx, it, Toast.LENGTH_SHORT).show(); toast = null } }
 
-    val signOut = { RebornSession.clear(ctx); Profiles.setActive(ctx, null); LiveTvEntry.onLogout(ctx); Cache.clear(); token = null; nav.go(Route.Home); stage = "login" }
+    val signOut = { tv.onnowtv.livetv.LivePreviewSession.release(); RebornSession.clear(ctx); Profiles.setActive(ctx, null); LiveTvEntry.onLogout(ctx); Cache.clear(); token = null; nav.go(Route.Home); stage = "login" }
+    val refreshLive = {
+        tv.onnowtv.livetv.LivePreviewSession.release()
+        tv.onnowtv.livetv.BundleHolder.current = null; LiveStore.bundle.value = null; LiveStore.epg.clear()
+        tv.onnowtv.livetv.data.BundleCache.delete(ctx)
+        prefetching = true; LiveTvEntry.prefetch(activity, fullReload = true); stage = "loading"
+    }
 
     Box(Modifier.fillMaxSize().background(Bg0)) {
         when (stage) {
             "login" -> LoginScreen { tok, user, pass, iptv ->
                 RebornSession.save(ctx, tok, user); token = tok
                 LiveTvEntry.onLogin(ctx, user, pass, iptv.toString())
-                if (LiveTvEntry.available(ctx)) { stage = "loading"; LiveTvEntry.prefetch(activity) } else stage = "profiles"
+                stage = "loading"
             }
             "loading" -> LoadingScreen()
             "profiles" -> ProfilesScreen(token!!, onPick = { profileKey++; nav.go(Route.Home); stage = "main" }, onSignOut = signOut)
@@ -108,14 +131,15 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                             is Route.Search -> SearchScreen { nav.go(Route.Detail(it)) }
                             is Route.Anime -> AnimeScreen { nav.go(Route.Detail(it)) }
                             is Route.Library -> LibraryScreen { nav.go(Route.Detail(it)) }
+                            is Route.Live -> LiveTvScreen(activity, onRefresh = refreshLive)
                             is Route.BoxSets -> ComingSoonScreen("Box Sets", "Franchise box sets are coming to the native app in the next update.")
                             is Route.Calendar -> ComingSoonScreen("Calendar", "Your episode calendar is coming to the native app in the next update.")
                             is Route.WatchTogether -> ComingSoonScreen("Watch Together", "Watch parties are coming to the native app in the next update.")
-                            is Route.Settings -> SettingsScreen(activity, autoplay, onAutoplay = { autoplay = !autoplay; Prefs.setAutoplay(ctx, autoplay) }, onProfiles = { stage = "profiles" }, onSignOut = signOut)
+                            is Route.Settings -> SettingsScreen(activity, autoplay, onAutoplay = { autoplay = !autoplay; Prefs.setAutoplay(ctx, autoplay) }, onProfiles = { stage = "profiles" }, onSignOut = signOut, onRefreshLive = refreshLive)
                             else -> {}
                         }
                         val activeId = when (val top = nav.stack.first()) { is Route.Home -> "home"; is Route.Tab -> if (top.type == "movie") "movies" else "tv"; else -> NAV_ITEMS.firstOrNull { it.route == top }?.id ?: "" }
-                        TopNav(activeId, autoplay, onItem = { item -> if (item.route == null) LiveTvEntry.open(activity) else nav.go(item.route) },
+                        TopNav(activeId, autoplay, onItem = { item -> item.route?.let { nav.go(it) } },
                             onAutoplay = { autoplay = !autoplay; Prefs.setAutoplay(ctx, autoplay); toast = if (autoplay) "Auto play ON" else "Auto play OFF" }, onSpeedUp = { BoxBoost.show(activity, auto = false) },
                             onSpeedTest = { toast = "Speed test lives in Live TV → Settings for now" }, onProfile = { stage = "profiles" })
                     }
