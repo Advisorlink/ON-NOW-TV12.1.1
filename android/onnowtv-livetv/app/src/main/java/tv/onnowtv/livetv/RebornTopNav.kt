@@ -22,6 +22,8 @@ object RebornTopNav {
     const val ACTION_HOST_NAVIGATE = "tv.onnowtv.one.HOST_NAVIGATE"
     const val EXTRA_ROUTE = "reborn_route"
     const val BAR_HEIGHT_DP = 56
+    /** Host app may supply its own bar (Reborn Play installs its Compose menu here). Returns the view + its height in dp. */
+    var hostBar: ((Activity, (String) -> Unit) -> Pair<View, Int>)? = null
 
     private val ITEMS = listOf(
         "Home" to "/", "Movies" to "/movies", "TV Shows" to "/tv",
@@ -31,6 +33,12 @@ object RebornTopNav {
     fun install(activity: Activity, root: FrameLayout, content: View) {
         if (!LiveTvRuntime.embedded) return
         val dp = { v: Int -> TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v.toFloat(), activity.resources.displayMetrics).toInt() }
+        hostBar?.let { factory ->
+            val (view, h) = factory(activity) { route -> navigateHost(activity, route) }
+            root.addView(view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(h), Gravity.TOP))
+            (content.layoutParams as? FrameLayout.LayoutParams)?.let { it.topMargin = dp(h); content.layoutParams = it }
+            return
+        }
         val bar = LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
