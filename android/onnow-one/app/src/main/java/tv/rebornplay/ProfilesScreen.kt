@@ -4,6 +4,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -68,13 +71,14 @@ fun ProfilesScreen(token: String, onPick: (Profile) -> Unit, onSignOut: () -> Un
             }, onDelete = if (p.id.isEmpty()) null else ({ persist(profiles.filter { it.id != p.id }); editing = null; backup("Profile removed") }))
             return
         }
-        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Spacer(Modifier.height(36.dp)); BrandLogo(36.dp)
-            Spacer(Modifier.height(90.dp))
-            Text("Who's ready to watch?", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 54.sp, letterSpacing = (-2).sp)
-            Spacer(Modifier.height(8.dp))
-            Text(if (manage) "Pick a profile to rename or remove it" else "Choose a profile to continue", color = Txt2, fontFamily = Geist, fontSize = 15.sp)
-            Spacer(Modifier.height(40.dp))
+        val compact = isCompact()
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Spacer(Modifier.height(if (compact) 18.dp else 36.dp)); BrandLogo(if (compact) 26.dp else 36.dp)
+            Spacer(Modifier.height(if (compact) 18.dp else 90.dp))
+            Text("Who's ready to watch?", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = if (compact) 30.sp else 54.sp, letterSpacing = (-1.5).sp)
+            Spacer(Modifier.height(6.dp))
+            Text(if (manage) "Pick a profile to rename or remove it" else "Choose a profile to continue", color = Txt2, fontFamily = Geist, fontSize = 14.sp)
+            Spacer(Modifier.height(if (compact) 18.dp else 40.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(44.dp), contentPadding = PaddingValues(horizontal = 80.dp)) {
                 items(profiles, key = { it.id }) { p ->
                     AvatarTile(p.name, Avatars.url(p.avatarId), requester = if (p == profiles.firstOrNull()) first else null, badge = if (manage) Icons.Outlined.Edit else null) {
@@ -83,8 +87,8 @@ fun ProfilesScreen(token: String, onPick: (Profile) -> Unit, onSignOut: () -> Un
                 }
                 item { AvatarTile("Add Profile", null, requester = if (profiles.isEmpty()) first else null) { editing = Profile("", "", Avatars.ALL.first()) } }
             }
-            Spacer(Modifier.height(52.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Spacer(Modifier.height(if (compact) 22.dp else 52.dp))
+            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Pill(if (manage) "Done" else "Manage profiles", icon = if (manage) Icons.Outlined.Check else Icons.Outlined.Edit, height = 40.dp, fontSize = 13.sp) { manage = !manage }
                 Pill("Back up profiles", icon = Icons.Outlined.CloudUpload, height = 40.dp, fontSize = 13.sp) { backup() }
                 Pill("Load from backup", icon = Icons.Outlined.CloudDownload, height = 40.dp, fontSize = 13.sp) {
@@ -102,7 +106,7 @@ private fun AvatarTile(label: String, url: String?, requester: FocusRequester? =
     var focused by remember { mutableStateOf(false) }
     Focusable(onClick = onClick, requester = requester, onFocus = { focused = it }) { _ ->
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(Modifier.size(126.dp).focusScale(focused, 1.08f).then(if (focused) Modifier.shadow(30.dp, CircleShape, ambientColor = Blue, spotColor = Blue) else Modifier)
+            Box(Modifier.size(if (isCompact()) 92.dp else 126.dp).focusScale(focused, 1.08f).then(if (focused) Modifier.shadow(30.dp, CircleShape, ambientColor = Blue, spotColor = Blue) else Modifier)
                 .clip(CircleShape).background(Bg2).border(if (focused) 3.dp else 0.dp, if (focused) Blue else Color.Transparent, CircleShape), contentAlignment = Alignment.Center) {
                 if (url != null) AsyncImage(url, label, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 else {
@@ -121,8 +125,8 @@ private fun AvatarTile(label: String, url: String?, requester: FocusRequester? =
 private fun CloudPrompt(found: List<Profile>, onRestore: () -> Unit, onFresh: () -> Unit) {
     val req = remember { FocusRequester() }
     FocusOnShow(req, Unit)
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(Modifier.width(560.dp).clip(RoundedCornerShape(22.dp)).background(Bg1.copy(alpha = 0.92f)).border(1.dp, Line, RoundedCornerShape(22.dp)).padding(32.dp)) {
+    Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), contentAlignment = Alignment.Center) {
+        Column(Modifier.width(560.dp).padding(vertical = 20.dp).clip(RoundedCornerShape(22.dp)).background(Bg1.copy(alpha = 0.92f)).border(1.dp, Line, RoundedCornerShape(22.dp)).padding(32.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(Blue.copy(alpha = 0.12f)).border(1.dp, Blue.copy(alpha = 0.3f), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.CloudSync, null, Modifier.size(24.dp), tint = Blue) }
                 Spacer(Modifier.width(14.dp))
@@ -151,16 +155,24 @@ private fun ProfileEditor(p: Profile, onCancel: () -> Unit, onSave: (Profile) ->
     val nameReq = remember { FocusRequester() }
     FocusOnShow(nameReq, Unit)
     BackHandler(onBack = onCancel)
-    Column(Modifier.fillMaxSize().padding(horizontal = 80.dp, vertical = 40.dp)) {
-        Eyebrow(if (p.id.isEmpty()) "New profile" else "Edit profile"); Spacer(Modifier.height(8.dp))
-        Text(if (p.id.isEmpty()) "Who's watching?" else "Edit ${p.name}", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 36.sp, letterSpacing = (-1).sp)
-        Spacer(Modifier.height(26.dp))
+    val compact = isCompact()
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = if (compact) 28.dp else 80.dp, vertical = if (compact) 20.dp else 40.dp)) {
+        Eyebrow(if (p.id.isEmpty()) "New profile" else "Edit profile"); Spacer(Modifier.height(6.dp))
+        Text(if (p.id.isEmpty()) "Who's watching?" else "Edit ${p.name}", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = if (compact) 26.sp else 36.sp, letterSpacing = (-1).sp)
+        Spacer(Modifier.height(if (compact) 14.dp else 26.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            AsyncImage(Avatars.url(avatar), null, Modifier.size(96.dp).clip(CircleShape).border(2.dp, Blue, CircleShape), contentScale = ContentScale.Crop)
-            Spacer(Modifier.width(26.dp))
-            Column(Modifier.width(360.dp)) { Mono("Name", 10.sp, Txt2); Spacer(Modifier.height(6.dp)); Field(name, { if (it.length <= 20) name = it }, "Profile name", Icons.Outlined.Person, requester = nameReq) }
+            AsyncImage(Avatars.url(avatar), null, Modifier.size(if (compact) 64.dp else 96.dp).clip(CircleShape).border(2.dp, Blue, CircleShape), contentScale = ContentScale.Crop)
+            Spacer(Modifier.width(20.dp))
+            Column(Modifier.width(320.dp)) { Mono("Name", 10.sp, Txt2); Spacer(Modifier.height(6.dp)); Field(name, { if (it.length <= 20) name = it }, "Profile name", Icons.Outlined.Person, requester = nameReq) }
         }
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(16.dp))
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Pill("Save profile", icon = Icons.Outlined.Check, primary = true, enabled = name.isNotBlank()) { onSave(Profile(p.id.ifEmpty { Profiles.newId() }, name.trim(), avatar, p.kids)) }
+            Pill("Cancel", onClick = onCancel)
+            if (onDelete != null) Pill("Remove profile", icon = Icons.Outlined.Delete, onClick = onDelete)
+        }
+        Spacer(Modifier.height(22.dp))
+        Mono("Pick an avatar", 10.sp, Blue, modifier = Modifier.padding(bottom = 10.dp))
         Avatars.CATEGORIES.forEach { (cat, ids) ->
             Mono(cat, 10.sp, Txt3, modifier = Modifier.padding(bottom = 8.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(bottom = 16.dp)) {
@@ -170,12 +182,6 @@ private fun ProfileEditor(p: Profile, onCancel: () -> Unit, onSave: (Profile) ->
                     }
                 }
             }
-        }
-        Spacer(Modifier.weight(1f))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Pill("Save", icon = Icons.Outlined.Check, primary = true, enabled = name.isNotBlank()) { onSave(Profile(p.id.ifEmpty { Profiles.newId() }, name.trim(), avatar, p.kids)) }
-            Pill("Cancel", onClick = onCancel)
-            if (onDelete != null) Pill("Remove profile", icon = Icons.Outlined.Delete, onClick = onDelete)
         }
     }
 }

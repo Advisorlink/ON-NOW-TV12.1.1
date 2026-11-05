@@ -3,6 +3,8 @@ package tv.rebornplay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -62,11 +64,12 @@ fun LoginScreen(onDone: (token: String, user: String, pass: String, iptv: JSONOb
     }
     Box(Modifier.fillMaxSize()) {
         ScreenBackdrop()
-        Row(Modifier.fillMaxSize().padding(horizontal = 80.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                BrandLogo(44.dp)
-                Spacer(Modifier.height(30.dp))
-                Text("Movies, TV shows,\nand everything\nworth watching.", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 44.sp, lineHeight = 48.sp, letterSpacing = (-1.6).sp)
+        val compact = isCompact()
+        Row(Modifier.fillMaxSize().padding(horizontal = if (compact) 28.dp else 80.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(vertical = 20.dp), verticalArrangement = Arrangement.Center) {
+                BrandLogo(if (compact) 30.dp else 44.dp)
+                Spacer(Modifier.height(if (compact) 16.dp else 30.dp))
+                Text("Movies, TV shows,\nand everything\nworth watching.", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = if (compact) 26.sp else 44.sp, lineHeight = if (compact) 30.sp else 48.sp, letterSpacing = (-1.2).sp)
                 Spacer(Modifier.height(18.dp))
                 Text("Sign in with the username and password you were given.", color = Txt2, fontFamily = Geist, fontSize = 14.sp, modifier = Modifier.width(380.dp))
                 Spacer(Modifier.height(26.dp))
@@ -74,8 +77,9 @@ fun LoginScreen(onDone: (token: String, user: String, pass: String, iptv: JSONOb
                     Row(Modifier.padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(6.dp).background(Blue)); Spacer(Modifier.width(12.dp)); Text(it, color = Txt, fontFamily = Geist, fontSize = 13.sp) }
                 }
             }
-            Spacer(Modifier.width(60.dp))
-            Column(Modifier.width(380.dp).clip(RoundedCornerShape(18.dp)).background(Bg1.copy(alpha = 0.88f)).border(1.dp, Line, RoundedCornerShape(18.dp)).padding(28.dp)) {
+            Spacer(Modifier.width(if (compact) 24.dp else 60.dp))
+            Column(Modifier.width(if (compact) 340.dp else 380.dp).fillMaxHeight().verticalScroll(rememberScrollState()).padding(vertical = 16.dp), verticalArrangement = Arrangement.Center) {
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Bg1.copy(alpha = 0.88f)).border(1.dp, Line, RoundedCornerShape(18.dp)).padding(28.dp)) {
                 Eyebrow("Step 01"); Spacer(Modifier.height(6.dp))
                 Text("Sign in to your account", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 24.sp, letterSpacing = (-0.6).sp)
                 Spacer(Modifier.height(4.dp))
@@ -99,8 +103,8 @@ fun LoginScreen(onDone: (token: String, user: String, pass: String, iptv: JSONOb
                 Spacer(Modifier.height(16.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) { Text("Need an account? Contact support.", color = Txt3, fontFamily = Geist, fontSize = 11.sp); Spacer(Modifier.weight(1f)); Mono("Secure", 9.sp, Blue) }
             }
+            }
         }
-        Mono("Reborn Play", 9.sp, Txt3, modifier = Modifier.align(Alignment.BottomStart).padding(start = 80.dp, bottom = 28.dp))
     }
 }
 

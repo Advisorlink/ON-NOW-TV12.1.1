@@ -158,6 +158,10 @@ fun FocusOnShow(req: FocusRequester, vararg keys: Any?) {
     LaunchedEffect(*keys) { withFrameNanos { }; runCatching { req.requestFocus() } }
 }
 
+/** Phones in landscape are ~360-420dp tall: tighten vertical rhythm so nothing falls off screen. */
+@Composable
+fun isCompact(): Boolean = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 560
+
 @Composable
 fun rememberScale(focused: Boolean, to: Float = 1.06f) = animateFloatAsState(if (focused) to else 1f, tween(160), label = "s").value
 

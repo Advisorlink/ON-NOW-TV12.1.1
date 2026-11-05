@@ -972,3 +972,7 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Boot flow: `stage=loading` on every launch/sign-in → LiveStore.ensureLoaded ∥ loadHome (15 s cap) → profiles → Home; tabs switch instantly from memory. Live TV menu item = in-app `Route.Live` (module EpgActivity no longer opened). Refresh (hero/Settings) wipes bundle cache and runs the module loader once.
 - Not done: the module's first-install loader screen is still the Live TV layout (Reborn strings); catch-up, sports hub, reminders, recents from the module are not in the Reborn guide yet. Hardware-unverified.
 - APK `reborn-play-2.2.0-13.apk` via `/api/dl/one/<code>`.
+
+## 2026-11-05 — v2.2.1 phone fix
+- Bug: on a phone (landscape, ~360-400dp tall) the profile picker/editor, login card and title page overflowed with no scrolling → Save/Next unreachable.
+- Fix: `isCompact()` (height < 560dp) in Ui.kt; Profiles/Editor/Login/CloudPrompt now `verticalScroll`, editor actions moved under the name field, button rows `horizontalScroll`; Detail page is a LazyColumn; TopNav pill scrolls + hides logo under 1000dp wide; Home/Live hero compact sizes; Live guide column hidden when compact.

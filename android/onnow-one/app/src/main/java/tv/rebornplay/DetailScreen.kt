@@ -5,6 +5,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -112,52 +114,59 @@ fun DetailScreen(token: String, activity: Activity, initial: Item, autoplay: Boo
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Bg0.copy(alpha = 0.45f), 0.3f to Bg0.copy(alpha = 0.2f), 0.7f to Bg0.copy(alpha = 0.35f), 1f to Bg0.copy(alpha = 0.65f))))
         Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Bg0.copy(alpha = 0.92f), 0.3f to Bg0.copy(alpha = 0.7f), 0.55f to Bg0.copy(alpha = 0.2f), 0.75f to Color.Transparent)))
 
-        Column(Modifier.fillMaxSize().padding(start = 80.dp, end = 80.dp, top = 40.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Pill("Back", icon = Icons.Outlined.ArrowBack, mono = true, height = 44.dp, onClick = onBack)
-                Pill("Home", icon = Icons.Outlined.Home, mono = true, height = 44.dp, onClick = onHome)
-                if (inList) Row(Modifier.height(44.dp).clip(CircleShape).background(Blue.copy(alpha = 0.12f)).border(1.dp, Blue.copy(alpha = 0.3f), CircleShape).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Check, null, Modifier.size(14.dp), tint = Blue); Spacer(Modifier.width(8.dp)); Mono("In my list", 11.sp, Blue, 0.18f)
-                }
-            }
-            Spacer(Modifier.height(22.dp))
-            Column(Modifier.fillMaxWidth(0.68f)) {
-                if (meta.id.startsWith("tt")) Eyebrow("${meta.type} · ${meta.id}")
-                Spacer(Modifier.height(10.dp))
-                Text(meta.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 56.sp, lineHeight = 58.sp, letterSpacing = (-2).sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(14.dp))
-                MetaLine(meta, 18.sp)
-                Spacer(Modifier.height(16.dp))
-                Text(meta.description.orEmpty(), color = Txt2, fontFamily = Geist, fontSize = 16.sp, lineHeight = 24.sp, maxLines = if (isSeries) 3 else 5, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth(0.9f))
-                Spacer(Modifier.height(26.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (!isSeries) {
-                        val label = when { finding || (streams == null && error == null) -> "Finding stream…"; streams.isNullOrEmpty() -> "No stream found"; autoplay -> "Autoplay"; else -> "Choose stream" }
-                        Pill(label, icon = Icons.Filled.PlayArrow, primary = true, height = 54.dp, fontSize = 17.sp, requester = primary, enabled = !streams.isNullOrEmpty()) { playVideo(meta.id, meta.name, !autoplay) }
-                        if (!streams.isNullOrEmpty() && autoplay) Pill("Swap stream (${streams!!.size})", height = 54.dp, fontSize = 16.sp) { playVideo(meta.id, meta.name, true) }
-                    } else Pill("Season $season", icon = Icons.Filled.PlayArrow, primary = true, height = 54.dp, fontSize = 17.sp, requester = primary) {
-                        episodes.firstOrNull { it.season == season }?.let { playVideo(it.id, "${meta.name} · S${it.season} E${it.episode}", false) }
+        val compact = isCompact()
+        val pad = if (compact) 28.dp else 80.dp
+        val seasons = episodes.map { it.season }.distinct().sorted()
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = pad, end = pad, top = if (compact) 20.dp else 40.dp, bottom = 40.dp)) {
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Pill("Back", icon = Icons.Outlined.ArrowBack, mono = true, height = 44.dp, onClick = onBack)
+                    Pill("Home", icon = Icons.Outlined.Home, mono = true, height = 44.dp, onClick = onHome)
+                    if (inList) Row(Modifier.height(44.dp).clip(CircleShape).background(Blue.copy(alpha = 0.12f)).border(1.dp, Blue.copy(alpha = 0.3f), CircleShape).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.Check, null, Modifier.size(14.dp), tint = Blue); Spacer(Modifier.width(8.dp)); Mono("In my list", 11.sp, Blue, 0.18f)
                     }
-                    Pill(if (trailerBusy) "Loading…" else "Trailer", icon = Icons.Outlined.Theaters, height = 54.dp, fontSize = 16.sp) { playTrailer() }
-                    Pill(if (inList) "In My List" else "My List", icon = if (inList) Icons.Outlined.Check else Icons.Outlined.Add, height = 54.dp, fontSize = 16.sp) { inList = Library.toggle(ctx, meta) }
                 }
-                if (error != null) { Spacer(Modifier.height(12.dp)); Text(error!!, color = Color(0xFFFF8A8A), fontFamily = Geist, fontSize = 13.sp) }
+                Spacer(Modifier.height(if (compact) 14.dp else 22.dp))
+                Column(Modifier.fillMaxWidth(if (compact) 0.85f else 0.68f)) {
+                    if (meta.id.startsWith("tt")) Eyebrow("${meta.type} · ${meta.id}")
+                    Spacer(Modifier.height(8.dp))
+                    Text(meta.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = if (compact) 32.sp else 56.sp, lineHeight = if (compact) 34.sp else 58.sp, letterSpacing = (-1.5).sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(12.dp))
+                    MetaLine(meta, if (compact) 14.sp else 18.sp)
+                    Spacer(Modifier.height(12.dp))
+                    Text(meta.description.orEmpty(), color = Txt2, fontFamily = Geist, fontSize = if (compact) 13.sp else 16.sp, lineHeight = if (compact) 18.sp else 24.sp, maxLines = if (isSeries || compact) 3 else 5, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth(0.9f))
+                    Spacer(Modifier.height(if (compact) 16.dp else 26.dp))
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        val h = if (compact) 46.dp else 54.dp
+                        if (!isSeries) {
+                            val label = when { finding || (streams == null && error == null) -> "Finding stream…"; streams.isNullOrEmpty() -> "No stream found"; autoplay -> "Autoplay"; else -> "Choose stream" }
+                            Pill(label, icon = Icons.Filled.PlayArrow, primary = true, height = h, fontSize = 16.sp, requester = primary, enabled = !streams.isNullOrEmpty()) { playVideo(meta.id, meta.name, !autoplay) }
+                            if (!streams.isNullOrEmpty() && autoplay) Pill("Swap stream (${streams!!.size})", height = h, fontSize = 15.sp) { playVideo(meta.id, meta.name, true) }
+                        } else Pill("Season $season", icon = Icons.Filled.PlayArrow, primary = true, height = h, fontSize = 16.sp, requester = primary) {
+                            episodes.firstOrNull { it.season == season }?.let { playVideo(it.id, "${meta.name} · S${it.season} E${it.episode}", false) }
+                        }
+                        Pill(if (trailerBusy) "Loading…" else "Trailer", icon = Icons.Outlined.Theaters, height = h, fontSize = 15.sp) { playTrailer() }
+                        Pill(if (inList) "In My List" else "My List", icon = if (inList) Icons.Outlined.Check else Icons.Outlined.Add, height = h, fontSize = 15.sp) { inList = Library.toggle(ctx, meta) }
+                    }
+                    if (error != null) { Spacer(Modifier.height(12.dp)); Text(error!!, color = Color(0xFFFF8A8A), fontFamily = Geist, fontSize = 13.sp) }
+                }
             }
             if (isSeries && episodes.isNotEmpty()) {
-                Spacer(Modifier.height(26.dp))
-                val seasons = episodes.map { it.season }.distinct().sorted()
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(seasons) { s ->
-                        Focusable(onClick = { season = s }) { f ->
-                            val active = s == season
-                            Text(if (s == 0) "Specials" else "Season $s", color = if (f || active) Bg0 else Txt2, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
-                                modifier = Modifier.clip(CircleShape).background(if (f) BlueBright else if (active) Blue else Color.White.copy(alpha = 0.08f)).padding(horizontal = 16.dp, vertical = 9.dp))
+                item {
+                    Spacer(Modifier.height(if (compact) 16.dp else 26.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(seasons) { s ->
+                            Focusable(onClick = { season = s }) { f ->
+                                val active = s == season
+                                Text(if (s == 0) "Specials" else "Season $s", color = if (f || active) Bg0 else Txt2, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
+                                    modifier = Modifier.clip(CircleShape).background(if (f) BlueBright else if (active) Blue else Color.White.copy(alpha = 0.08f)).padding(horizontal = 16.dp, vertical = 9.dp))
+                            }
                         }
                     }
+                    Spacer(Modifier.height(14.dp))
                 }
-                Spacer(Modifier.height(14.dp))
-                LazyColumn(Modifier.weight(1f).fillMaxWidth(0.68f), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 40.dp)) {
-                    items(episodes.filter { it.season == season }, key = { it.id }) { e -> EpisodeRow(e) { playVideo(e.id, "${meta.name} · S${e.season} E${e.episode} · ${e.title}", false) } }
+                items(episodes.filter { it.season == season }, key = { it.id }) { e ->
+                    Box(Modifier.fillMaxWidth(if (compact) 1f else 0.68f).padding(bottom = 8.dp)) { EpisodeRow(e) { playVideo(e.id, "${meta.name} · S${e.season} E${e.episode} · ${e.title}", false) } }
                 }
             }
         }

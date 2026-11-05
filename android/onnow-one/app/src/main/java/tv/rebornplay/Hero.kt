@@ -39,17 +39,18 @@ fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusReque
     var inList by remember(hero.item.id, idx) { mutableStateOf(Library.has(ctx, hero.item.id)) }
     if (playRequester != null) FocusOnShow(playRequester, Unit)
 
-    Box(Modifier.fillMaxWidth().height(330.dp)) {
+    val compact = isCompact()
+    Box(Modifier.fillMaxWidth().height(if (compact) 300.dp else 330.dp)) {
         Crossfade(hero, animationSpec = tween(600), label = "hero") { h ->
-            AsyncImage(h.item.background ?: h.item.poster, null, Modifier.fillMaxSize().padding(start = 360.dp), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
+            AsyncImage(h.item.background ?: h.item.poster, null, Modifier.fillMaxSize().padding(start = if (compact) 200.dp else 360.dp), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
         }
         Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Bg0, 0.42f to Bg0.copy(alpha = 0.96f), 0.62f to Bg0.copy(alpha = 0.35f), 0.85f to Color.Transparent)))
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Bg0.copy(alpha = 0.55f), 0.35f to Color.Transparent, 0.75f to Bg0.copy(alpha = 0.4f), 1f to Bg0)))
 
-        Column(Modifier.align(Alignment.BottomStart).padding(start = 64.dp, bottom = 22.dp).width(640.dp)) {
+        Column(Modifier.align(Alignment.BottomStart).padding(start = if (compact) 28.dp else 64.dp, bottom = 22.dp).width(if (compact) 480.dp else 640.dp)) {
             Eyebrow("$eyebrow · ${hero.item.genres.firstOrNull() ?: hero.item.type}")
             Spacer(Modifier.height(6.dp))
-            Text(hero.item.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 52.sp, lineHeight = 54.sp, letterSpacing = (-1.8).sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(hero.item.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = if (compact) 34.sp else 52.sp, lineHeight = if (compact) 36.sp else 54.sp, letterSpacing = (-1.8).sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(10.dp))
             MetaLine(hero.item, 17.sp)
             Spacer(Modifier.height(12.dp))

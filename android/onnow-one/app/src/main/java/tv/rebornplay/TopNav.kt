@@ -3,6 +3,8 @@ package tv.rebornplay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.PlayCircle
@@ -35,9 +37,10 @@ fun TopNav(activeId: String, autoplay: Boolean, onItem: (NavItem) -> Unit, onAut
     var hover by remember { mutableStateOf<Pair<String, Float>?>(null) }   // label + centre x (px)
     val hv: (String, Float, Boolean) -> Unit = { l, x, f -> if (f) hover = l to x else if (hover?.first == l) hover = null }
     val density = LocalDensity.current
-    Box(Modifier.fillMaxWidth().padding(top = 14.dp).zIndex(10f)) {
-        BrandLogo(30.dp, Modifier.align(Alignment.TopStart).padding(start = 64.dp, top = 6.dp))
-        Row(Modifier.align(Alignment.TopCenter).glass().padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    val wide = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 1000
+    Box(Modifier.fillMaxWidth().padding(top = if (wide) 14.dp else 8.dp).zIndex(10f)) {
+        if (wide) BrandLogo(30.dp, Modifier.align(Alignment.TopStart).padding(start = 64.dp, top = 6.dp))
+        Row(Modifier.align(Alignment.TopCenter).then(if (wide) Modifier else Modifier.padding(horizontal = 8.dp).horizontalScroll(rememberScrollState())).glass().padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             NAV_ITEMS.forEach { item ->
                 NavButton(item.icon, item.label, item.id == activeId, onHover = hv) { onItem(item) }
             }

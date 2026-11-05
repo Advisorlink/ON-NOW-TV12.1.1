@@ -59,6 +59,7 @@ import java.util.Date
 
 private val CatW = 230.dp
 private val GuideW = 320.dp
+private val CatWCompact = 150.dp
 private val RowShape = RoundedCornerShape(14.dp)
 
 /** Live TV guide in the Reborn look — hero + preview window, categories | channels | programme guide. */
@@ -138,10 +139,11 @@ fun LiveTvScreen(activity: Activity, onRefresh: () -> Unit) {
         catId = id; focused = null; Settings.prefs(ctx).edit().putString("reborn_last_cat", id).apply()
     }
 
+    val compact = isCompact()
     Column(Modifier.fillMaxSize().background(Bg0)) {
         LiveHero(current, favs, fmt, tick, onFav = { current?.let { LiveStore.toggleFavourite(ctx, it.id) } }, onRefresh = onRefresh,
             onSettings = { LiveTvEntry.open(activity, settings = true) }) { v -> playerView = v }
-        Row(Modifier.weight(1f).fillMaxWidth().padding(start = 32.dp, end = 32.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(Modifier.weight(1f).fillMaxWidth().padding(start = if (compact) 16.dp else 32.dp, end = if (compact) 16.dp else 32.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             CategoryColumn(cats, catId, locked, unlocked, favCount = favs.size, total = b.channels.size, onFocus = { focusedCat = it }, onSelect = { selectCategory(it) })
             Column(Modifier.weight(1f)) {
                 Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -152,7 +154,7 @@ fun LiveTvScreen(activity: Activity, onRefresh: () -> Unit) {
                 }
                 ChannelColumn(channels, favs, current?.id, firstRow, fmt, tick, onFocus = { focused = it }, onOpen = { LiveStore.openFullscreen(activity, it, channels) })
             }
-            GuideColumn(current, fmt, tick)
+            if (!isCompact()) GuideColumn(current, fmt, tick)
         }
     }
     gate?.let { c -> PinGate(c.name, onClose = { gate = null }) { unlocked += c.id; gate = null; selectCategory(c) } }
@@ -162,7 +164,8 @@ fun LiveTvScreen(activity: Activity, onRefresh: () -> Unit) {
 private fun LiveHero(ch: Channel?, favs: Set<String>, fmt: SimpleDateFormat, tick: Long, onFav: () -> Unit, onRefresh: () -> Unit, onSettings: () -> Unit, onPlayerView: (PlayerView) -> Unit) {
     val ctx = LocalContext.current
     val (now, next) = remember(ch?.id, LiveStore.epg[ch?.let { LiveStore.key(it) } ?: ""], tick) { ch?.let { LiveStore.nowNext(it) } ?: (null to null) }
-    Box(Modifier.fillMaxWidth().height(290.dp)) {
+    val compact = isCompact()
+    Box(Modifier.fillMaxWidth().height(if (compact) 200.dp else 290.dp)) {
         if (ch?.logoUrl != null) {
             AsyncImage(ch.logoUrl, null, Modifier.align(Alignment.CenterEnd).padding(end = 520.dp).size(260.dp), contentScale = ContentScale.Fit, alpha = 0.06f)
         }
@@ -170,26 +173,26 @@ private fun LiveHero(ch: Channel?, favs: Set<String>, fmt: SimpleDateFormat, tic
         Column(Modifier.align(Alignment.BottomStart).padding(start = 32.dp, bottom = 18.dp).fillMaxWidth(0.55f)) {
             Mono("Live TV${ch?.lcn?.let { " · CH $it" } ?: ""}", 11.sp, Blue, 0.32f)
             Spacer(Modifier.height(8.dp))
-            Text(ch?.let { Settings.cleanName(ctx, it.name) } ?: "Live TV", color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 44.sp, letterSpacing = (-1.2).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(ch?.let { Settings.cleanName(ctx, it.name) } ?: "Live TV", color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = if (compact) 26.sp else 44.sp, letterSpacing = (-1.2).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(10.dp))
             if (now != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Mono("Now · ${fmt.format(Date(now.startMs))}", 10.sp, Blue, 0.24f); Spacer(Modifier.width(12.dp))
                     Text(now.title, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                if (!now.description.isNullOrBlank()) { Spacer(Modifier.height(6.dp)); Text(now.description!!, color = Txt2, fontFamily = Geist, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+                if (!compact && !now.description.isNullOrBlank()) { Spacer(Modifier.height(6.dp)); Text(now.description!!, color = Txt2, fontFamily = Geist, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis) }
                 Spacer(Modifier.height(10.dp))
-                ProgressBar(now, Modifier.width(420.dp), 3.dp)
+                ProgressBar(now, Modifier.width(if (compact) 260.dp else 420.dp), 3.dp)
                 if (next != null) { Spacer(Modifier.height(8.dp)); Mono("Up next · ${fmt.format(Date(next.startMs))} · ${next.title}", 10.sp, Txt2, 0.2f, upper = false) }
             } else Mono("No programme information", 11.sp, Txt3, 0.24f)
         }
-        Row(Modifier.align(Alignment.TopEnd).padding(top = 70.dp, end = 32.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.align(Alignment.TopEnd).padding(top = if (compact) 58.dp else 70.dp, end = 32.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val fav = ch != null && ch.id in favs
             HeroIcon(if (fav) Icons.Filled.Star else Icons.Outlined.StarBorder, if (fav) "Unfavourite" else "Favourite", if (fav) Amber else null, onFav)
             HeroIcon(Icons.Outlined.Refresh, "Refresh", null, onRefresh)
             HeroIcon(Icons.Outlined.Settings, "Live TV settings", null, onSettings)
         }
-        Box(Modifier.align(Alignment.TopEnd).padding(top = 112.dp, end = 32.dp).width(300.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp)).background(Color.Black).border(1.dp, Line, RoundedCornerShape(12.dp))) {
+        Box(Modifier.align(Alignment.TopEnd).padding(top = if (compact) 96.dp else 112.dp, end = 32.dp).width(if (compact) 180.dp else 300.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp)).background(Color.Black).border(1.dp, Line, RoundedCornerShape(12.dp))) {
             AndroidView(factory = { c -> PlayerView(c).apply { useController = false; resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT; setShutterBackgroundColor(android.graphics.Color.BLACK); onPlayerView(this) } }, modifier = Modifier.fillMaxSize())
             Row(Modifier.align(Alignment.TopStart).padding(8.dp).clip(CircleShape).background(Color(0xFFE0245E)).padding(horizontal = 8.dp, vertical = 3.dp)) { Mono("Live", 8.sp, Color.White, 0.2f) }
             Mono("OK · Full screen", 8.sp, Txt2, 0.18f, Modifier.align(Alignment.BottomEnd).padding(8.dp))
@@ -227,7 +230,7 @@ private fun SearchBox(q: String, onChange: (String) -> Unit) {
 
 @Composable
 private fun CategoryColumn(cats: List<Category>, selected: String, locked: Set<String>, unlocked: List<String>, favCount: Int, total: Int, onFocus: (String?) -> Unit, onSelect: (Category?) -> Unit) {
-    Column(Modifier.width(CatW)) {
+    Column(Modifier.width(if (isCompact()) CatWCompact else CatW)) {
         Mono("Groups", 10.sp, Txt3, modifier = Modifier.padding(start = 14.dp, bottom = 10.dp, top = 8.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             item { CategoryRow("Favourites", favCount, selected == LiveStore.FAVS, false, onFocus = { onFocus(LiveStore.FAVS) }) { onSelect(Category(LiveStore.FAVS, "Favourites")) } }
