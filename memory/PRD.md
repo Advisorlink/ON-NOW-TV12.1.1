@@ -981,3 +981,11 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Cause: `tv.vesper.app.MainActivity` (old WebView host) is still in the one-app and exported; Android TV launchers cache the previously-known launch component for a package, so after updating they kept launching the old activity → "looks like the old version" on TV while the phone (fresh launcher entry) opened RebornActivity.
 - Fix: vesper MainActivity.onCreate and livetv MainActivity.onCreate (ACTION_MAIN only) redirect to `tv.rebornplay.RebornActivity` when packageName == tv.onnowtv.one. Tell the user: after installing, open from the TV app row once (or reboot) if it still shows the old look.
 - Artifact: reborn-play-2.2.2-15.apk. Container reset wiped /tmp + SDK again mid-rebuild; artifact from the completed build is intact.
+
+## 2026-11-06 — v2.3.0: TV D-pad up/down, TV safe-area, network banners, Live TV upgrades
+- `RowNav` (Ui.kt): explicit up/down between TopNav (row -1) and horizontal rows (Home: hero/networks/studios/shelves/upcoming; Anime rails). Each tile registers/updates its FocusRequester; root `rowNavKeys` intercepts DPAD_UP/DOWN, scrolls the LazyColumn so the target row sits under the menu (84dp) then focuses the remembered tile. Falls through to Compose default when no row is known (grids, lists).
+- `isTv()/safeInset()` = 24dp overscan inset on TV builds (TopNav, shelves, grids, settings, live). Home LazyColumn bottom padding 200dp so focused rows never hug the bottom edge.
+- Networks shelf: full-bleed brand banners from `<BASE>/networks/<slug>.webp` + the per-network gradients from `lib/networks.js` (NETWORKS map in Shelves.kt), ordered like the web; TMDB logo as error fallback.
+- Live TV: preview window moved to the LEFT of the hero; hero backdrop = TMDB programme art via `/api/epg/art?title=` (debounced 500 ms, cached in LiveStore.art); "What's on live" rail above the channel list (SportsLiveGuide.current → SportsLiveEvents.group; click plays the channel); "Sports Hub" pill opens the module's native `SportsHubActivity`.
+- Loading screen now lists steps (Movies & TV shows / Live TV channels / TV guide) with ticks.
+- APK reborn-play-2.3.0-16.apk.

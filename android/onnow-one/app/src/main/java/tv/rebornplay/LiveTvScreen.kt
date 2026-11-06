@@ -17,6 +17,7 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.SportsSoccer
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -142,8 +143,10 @@ fun LiveTvScreen(activity: Activity, onRefresh: () -> Unit) {
     val compact = isCompact()
     Column(Modifier.fillMaxSize().background(Bg0)) {
         LiveHero(current, favs, fmt, tick, onFav = { current?.let { LiveStore.toggleFavourite(ctx, it.id) } }, onRefresh = onRefresh,
-            onSettings = { LiveTvEntry.open(activity, settings = true) }) { v -> playerView = v }
-        Row(Modifier.weight(1f).fillMaxWidth().padding(start = if (compact) 16.dp else 32.dp, end = if (compact) 16.dp else 32.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            onSettings = { LiveTvEntry.open(activity, settings = true) },
+            onSportsHub = { activity.startActivity(android.content.Intent(activity, tv.onnowtv.livetv.SportsHubActivity::class.java)) }) { v -> playerView = v }
+        val inset = safeInset()
+        Row(Modifier.weight(1f).fillMaxWidth().padding(start = (if (compact) 16.dp else 32.dp) + inset, end = (if (compact) 16.dp else 32.dp) + inset, bottom = 16.dp + inset), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             CategoryColumn(cats, catId, locked, unlocked, favCount = favs.size, total = b.channels.size, onFocus = { focusedCat = it }, onSelect = { selectCategory(it) })
             Column(Modifier.weight(1f)) {
                 Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -152,6 +155,8 @@ fun LiveTvScreen(activity: Activity, onRefresh: () -> Unit) {
                     Spacer(Modifier.weight(1f))
                     Box(Modifier.width(260.dp)) { SearchBox(query) { query = it } }
                 }
+                val liveNow = remember(b, tick, catId) { if (catId == LiveStore.FAVS) emptyList() else LiveStore.whatsOnLive() }
+                if (liveNow.isNotEmpty()) WhatsOnLiveRail(liveNow, onFocus = { focused = it }, onOpen = { LiveStore.openFullscreen(activity, it, channels) })
                 ChannelColumn(channels, favs, current?.id, firstRow, fmt, tick, onFocus = { focused = it }, onOpen = { LiveStore.openFullscreen(activity, it, channels) })
             }
             if (!isCompact()) GuideColumn(current, fmt, tick)
@@ -161,41 +166,68 @@ fun LiveTvScreen(activity: Activity, onRefresh: () -> Unit) {
 }
 
 @Composable
-private fun LiveHero(ch: Channel?, favs: Set<String>, fmt: SimpleDateFormat, tick: Long, onFav: () -> Unit, onRefresh: () -> Unit, onSettings: () -> Unit, onPlayerView: (PlayerView) -> Unit) {
+private fun LiveHero(ch: Channel?, favs: Set<String>, fmt: SimpleDateFormat, tick: Long, onFav: () -> Unit, onRefresh: () -> Unit, onSettings: () -> Unit, onSportsHub: () -> Unit, onPlayerView: (PlayerView) -> Unit) {
     val ctx = LocalContext.current
-    val (now, next) = remember(ch?.id, LiveStore.epg[ch?.let { LiveStore.key(it) } ?: ""], tick) { ch?.let { LiveStore.nowNext(it) } ?: (null to null) }
     val compact = isCompact()
-    Box(Modifier.fillMaxWidth().height(if (compact) 200.dp else 290.dp)) {
-        if (ch?.logoUrl != null) {
-            AsyncImage(ch.logoUrl, null, Modifier.align(Alignment.CenterEnd).padding(end = 520.dp).size(260.dp), contentScale = ContentScale.Fit, alpha = 0.06f)
+    val inset = safeInset()
+    val (now, next) = remember(ch?.id, LiveStore.epg[ch?.let { LiveStore.key(it) } ?: ""], tick) { ch?.let { LiveStore.nowNext(it) } ?: (null to null) }
+    // TMDB programme art (debounced, cached by title) — same as the web guide's hero backdrop.
+    var art by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(now?.title) {
+        val t = now?.title?.takeIf { it.isNotBlank() } ?: run { art = null; return@LaunchedEffect }
+        art = LiveStore.art[t]
+        if (art == null) { delay(500); val a = LiveStore.fetchArt(t); if (now?.title == t) art = a }
+    }
+    val heroH = if (compact) 210.dp else 300.dp
+    Box(Modifier.fillMaxWidth().height(heroH)) {
+        if (art != null) {
+            AsyncImage(art, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
+            Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Bg0, 0.45f to Bg0.copy(alpha = 0.85f), 1f to Bg0.copy(alpha = 0.25f))))
+        } else if (ch?.logoUrl != null) {
+            AsyncImage(ch.logoUrl, null, Modifier.align(Alignment.CenterEnd).padding(end = 120.dp).size(220.dp), contentScale = ContentScale.Fit, alpha = 0.06f)
         }
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.7f to Color.Transparent, 1f to Bg0)))
-        Column(Modifier.align(Alignment.BottomStart).padding(start = 32.dp, bottom = 18.dp).fillMaxWidth(0.55f)) {
-            Mono("Live TV${ch?.lcn?.let { " · CH $it" } ?: ""}", 11.sp, Blue, 0.32f)
-            Spacer(Modifier.height(8.dp))
-            Text(ch?.let { Settings.cleanName(ctx, it.name) } ?: "Live TV", color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = if (compact) 26.sp else 44.sp, letterSpacing = (-1.2).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(10.dp))
-            if (now != null) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Mono("Now · ${fmt.format(Date(now.startMs))}", 10.sp, Blue, 0.24f); Spacer(Modifier.width(12.dp))
-                    Text(now.title, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                if (!compact && !now.description.isNullOrBlank()) { Spacer(Modifier.height(6.dp)); Text(now.description!!, color = Txt2, fontFamily = Geist, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis) }
-                Spacer(Modifier.height(10.dp))
-                ProgressBar(now, Modifier.width(if (compact) 260.dp else 420.dp), 3.dp)
-                if (next != null) { Spacer(Modifier.height(8.dp)); Mono("Up next · ${fmt.format(Date(next.startMs))} · ${next.title}", 10.sp, Txt2, 0.2f, upper = false) }
-            } else Mono("No programme information", 11.sp, Txt3, 0.24f)
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Bg0.copy(alpha = 0.5f), 0.3f to Color.Transparent, 0.7f to Color.Transparent, 1f to Bg0)))
+        Row(Modifier.align(Alignment.BottomStart).padding(start = 32.dp + inset, bottom = 16.dp, end = 32.dp + inset).fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+            // Preview window — LEFT, like the web guide.
+            Box(Modifier.width(if (compact) 200.dp else 320.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp)).background(Color.Black).border(1.dp, Line, RoundedCornerShape(12.dp))) {
+                AndroidView(factory = { c -> PlayerView(c).apply { useController = false; resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT; setShutterBackgroundColor(android.graphics.Color.BLACK); onPlayerView(this) } }, modifier = Modifier.fillMaxSize())
+                Row(Modifier.align(Alignment.TopStart).padding(8.dp).clip(CircleShape).background(Color(0xFFE0245E)).padding(horizontal = 8.dp, vertical = 3.dp)) { Mono("Live", 8.sp, Color.White, 0.2f) }
+                Mono("OK · Full screen", 8.sp, Txt2, 0.18f, Modifier.align(Alignment.BottomEnd).padding(8.dp))
+            }
+            Spacer(Modifier.width(24.dp))
+            Column(Modifier.weight(1f)) {
+                Mono("Live TV${ch?.lcn?.let { " · CH $it" } ?: ""}", 11.sp, Blue, 0.32f)
+                Spacer(Modifier.height(6.dp))
+                Text(ch?.let { Settings.cleanName(ctx, it.name) } ?: "Live TV", color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = if (compact) 24.sp else 38.sp, letterSpacing = (-1.2).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(8.dp))
+                if (now != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Mono("Now · ${fmt.format(Date(now.startMs))}", 10.sp, Blue, 0.24f); Spacer(Modifier.width(12.dp))
+                        Text(now.title, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    if (!compact && !now.description.isNullOrBlank()) { Spacer(Modifier.height(6.dp)); Text(now.description!!, color = Txt2, fontFamily = Geist, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth(0.8f)) }
+                    Spacer(Modifier.height(10.dp))
+                    ProgressBar(now, Modifier.width(if (compact) 220.dp else 380.dp), 3.dp)
+                    if (next != null) { Spacer(Modifier.height(8.dp)); Mono("Up next · ${fmt.format(Date(next.startMs))} · ${next.title}", 10.sp, Txt2, 0.2f, upper = false) }
+                } else Mono("No programme information", 11.sp, Txt3, 0.24f)
+            }
         }
-        Row(Modifier.align(Alignment.TopEnd).padding(top = if (compact) 58.dp else 70.dp, end = 32.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.align(Alignment.TopEnd).padding(top = if (compact) 58.dp else 70.dp, end = 32.dp + inset), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val fav = ch != null && ch.id in favs
+            HeroPill(Icons.Outlined.SportsSoccer, "Sports Hub", onSportsHub)
             HeroIcon(if (fav) Icons.Filled.Star else Icons.Outlined.StarBorder, if (fav) "Unfavourite" else "Favourite", if (fav) Amber else null, onFav)
             HeroIcon(Icons.Outlined.Refresh, "Refresh", null, onRefresh)
             HeroIcon(Icons.Outlined.Settings, "Live TV settings", null, onSettings)
         }
-        Box(Modifier.align(Alignment.TopEnd).padding(top = if (compact) 96.dp else 112.dp, end = 32.dp).width(if (compact) 180.dp else 300.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp)).background(Color.Black).border(1.dp, Line, RoundedCornerShape(12.dp))) {
-            AndroidView(factory = { c -> PlayerView(c).apply { useController = false; resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT; setShutterBackgroundColor(android.graphics.Color.BLACK); onPlayerView(this) } }, modifier = Modifier.fillMaxSize())
-            Row(Modifier.align(Alignment.TopStart).padding(8.dp).clip(CircleShape).background(Color(0xFFE0245E)).padding(horizontal = 8.dp, vertical = 3.dp)) { Mono("Live", 8.sp, Color.White, 0.2f) }
-            Mono("OK · Full screen", 8.sp, Txt2, 0.18f, Modifier.align(Alignment.BottomEnd).padding(8.dp))
+    }
+}
+
+@Composable
+private fun HeroPill(icon: ImageVector, label: String, onClick: () -> Unit) {
+    Focusable(onClick = onClick) { f ->
+        Row(Modifier.height(36.dp).clip(CircleShape).background(if (f) BlueBright else Bg1.copy(alpha = 0.8f)).border(1.dp, if (f) Color.Transparent else Line, CircleShape).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, label, Modifier.size(15.dp), tint = if (f) Bg0 else Blue); Spacer(Modifier.width(8.dp))
+            Mono(label, 10.sp, if (f) Bg0 else Txt, 0.16f)
         }
     }
 }
@@ -351,6 +383,41 @@ private fun PinGate(groupName: String, onClose: () -> Unit, onUnlock: () -> Unit
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Pill("Unlock", primary = true, height = 42.dp, fontSize = 14.sp) { if (ParentalLock.checkPin(ctx, pin)) onUnlock() else { err = true; pin = "" } }
                 Pill("Cancel", height = 42.dp, fontSize = 14.sp, onClick = onClose)
+            }
+        }
+    }
+}
+
+/** "What's on live" — real live sport right now, grouped per event (SportsLiveGuide + SportsLiveEvents). */
+@Composable
+private fun WhatsOnLiveRail(events: List<tv.onnowtv.livetv.data.SportsLiveEvents.Event>, onFocus: (Channel) -> Unit, onOpen: (Channel) -> Unit) {
+    val ctx = LocalContext.current
+    Column(Modifier.padding(bottom = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
+            Box(Modifier.size(7.dp).clip(CircleShape).background(Color(0xFFE0245E))); Spacer(Modifier.width(8.dp))
+            Mono("What's on live", 11.sp, Txt, 0.24f); Spacer(Modifier.width(10.dp)); Mono("${events.size} live now", 10.sp, Txt3)
+        }
+        androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(events, key = { it.key }) { ev ->
+                val src = ev.representative
+                Focusable(onClick = { onOpen(src.channel) }, onFocus = { if (it) onFocus(src.channel) }) { f ->
+                    Column(Modifier.width(230.dp).clip(RoundedCornerShape(12.dp)).background(if (f) Blue.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.04f))
+                        .border(1.dp, if (f) Blue else Color.White.copy(alpha = 0.07f), RoundedCornerShape(12.dp)).padding(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.clip(RoundedCornerShape(3.dp)).background(if (f) Blue else Color.White.copy(alpha = 0.1f)).padding(horizontal = 6.dp, vertical = 2.dp)) { Mono(ev.bucket, 7.sp, if (f) Bg0 else Txt2, 0.14f) }
+                            Spacer(Modifier.weight(1f))
+                            if (ev.sources.size > 1) Mono("${ev.sources.size} channels", 8.sp, Txt3, 0.1f, upper = false)
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text(ev.title, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 13.sp, lineHeight = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Spacer(Modifier.height(6.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (src.channel.logoUrl != null) { AsyncImage(src.channel.logoUrl, null, Modifier.width(26.dp).height(16.dp), contentScale = ContentScale.Fit); Spacer(Modifier.width(6.dp)) }
+                            Mono(Settings.cleanName(ctx, src.channel.name), 9.sp, Txt2, 0.06f, upper = false)
+                        }
+                        Spacer(Modifier.height(6.dp)); ProgressBar(src.programme, Modifier.fillMaxWidth(), 2.dp)
+                    }
+                }
             }
         }
     }

@@ -12,6 +12,7 @@ import tv.onnowtv.livetv.LivePreviewSession
 import tv.onnowtv.livetv.PlaybackQueue
 import tv.onnowtv.livetv.PlayerActivity
 import tv.onnowtv.livetv.data.*
+import org.json.JSONObject
 
 /** In-memory Live TV state shared by the loading screen and the guide — loaded once at app start. */
 object LiveStore {
@@ -85,6 +86,19 @@ object LiveStore {
             putExtra(PlayerActivity.EXTRA_USE_SHARED_PLAYER, true)
             putExtra(PlayerActivity.EXTRA_SUBTITLE, nowNext(ch).first?.title ?: "")
         })
+    }
+
+    val art = HashMap<String, String?>()
+    suspend fun fetchArt(title: String): String? = withContext(Dispatchers.IO) {
+        art[title] ?: runCatching {
+            val o = JSONObject(java.net.URL(XtreamRepository.BACKEND_BASE.trimEnd('/') + "/api/epg/art?title=" + java.net.URLEncoder.encode(title, "UTF-8")).readText())
+            o.optString("backdrop").ifBlank { o.optString("poster") }.ifBlank { null }
+        }.getOrNull().also { art[title] = it }
+    }
+
+    fun whatsOnLive(): List<SportsLiveEvents.Event> {
+        val b = bundle.value ?: return emptyList()
+        return runCatching { SportsLiveEvents.group(SportsLiveGuide.current(b)) }.getOrDefault(emptyList())
     }
 
     const val ALL = "__all__"

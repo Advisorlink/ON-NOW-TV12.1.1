@@ -9,6 +9,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -132,12 +134,15 @@ fun LibraryScreen(onOpen: (Item) -> Unit) {
 }
 
 @Composable
-fun AnimeScreen(onOpen: (Item) -> Unit) {
+fun AnimeScreen(rowNav: RowNav, onOpen: (Item) -> Unit) {
     var rails by remember { mutableStateOf(Cache.anime) }
+    val list = rememberLazyListState()
+    val density = androidx.compose.ui.platform.LocalDensity.current
     LaunchedEffect(Unit) { if (rails == null) { rails = withContext(Dispatchers.IO) { runCatching { RebornApi.anime() }.getOrDefault(emptyList()) }; Cache.anime = rails } }
     val r = rails ?: run { Spinner("Loading anime"); return }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 84.dp, bottom = 60.dp)) {
-        items(r, key = { it.id }) { rail -> PosterShelf(rail.eyebrow, rail.title, rail.items, onOpen = onOpen) }
+    rowNav.rowCount = r.size; rowNav.list = list; rowNav.topOffsetPx = with(density) { 84.dp.roundToPx() }
+    LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(top = 84.dp, bottom = 200.dp)) {
+        itemsIndexed(r, key = { _, it -> it.id }) { i, rail -> PosterShelf(rail.eyebrow, rail.title, rail.items, row = i, rowNav = rowNav, onOpen = onOpen) }
     }
 }
 

@@ -2,6 +2,7 @@ package tv.rebornplay
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -43,19 +44,25 @@ suspend fun loadHome(token: String): HomeData = coroutineScope {
 }
 
 @Composable
-fun HomeScreen(token: String, nav: Nav, onPlayHero: (Hero) -> Unit, onFocusItem: (Item?) -> Unit) {
+fun HomeScreen(token: String, nav: Nav, rowNav: RowNav, onPlayHero: (Hero) -> Unit, onFocusItem: (Item?) -> Unit) {
     var data by remember { mutableStateOf(Cache.home) }
     val playReq = remember { FocusRequester() }
+    val list = rememberLazyListState()
+    val density = androidx.compose.ui.platform.LocalDensity.current
     LaunchedEffect(Unit) {
         if (data == null) { data = loadHome(token); Cache.home = data }
     }
     val d = data ?: run { Spinner("Loading your home"); return }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 60.dp)) {
-        item { HeroBillboard(d.heroes, "Featured", playReq, onPlay = onPlayHero, onInfo = { nav.go(Route.Detail(it.item)) }) }
+    // rows: 0 hero · 1 networks · 2 studios · 3.. shelves · last upcoming  (list index = row + 1 after the hero spacer)
+    rowNav.rowCount = 3 + d.rows.size + (if (d.upcoming.isNotEmpty()) 1 else 0)
+    rowNav.list = list
+    rowNav.topOffsetPx = with(density) { 84.dp.roundToPx() }
+    LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 200.dp)) {
+        item { HeroBillboard(d.heroes, "Featured", playReq, rowNav, onPlay = onPlayHero, onInfo = { nav.go(Route.Detail(it.item)) }) }
         item { Spacer(Modifier.height(26.dp)) }
-        item { BrandShelf("By network", "networks", d.networks) { nav.go(Route.Browse("networks", it)) } }
-        item { BrandShelf("Studios", "collections", d.studios) { nav.go(Route.Browse("collections", it)) } }
-        items(d.rows.size) { i -> val (eye, title, list) = d.rows[i]; PosterShelf(eye, title, list.take(30), list.size, onFocusItem = onFocusItem) { nav.go(Route.Detail(it)) } }
-        item { PosterShelf("Coming soon", "Upcoming movies", d.upcoming.take(30), d.upcoming.size, onFocusItem = onFocusItem) { nav.go(Route.Detail(it)) } }
+        item { BrandShelf("By network", "networks", d.networks, 1, rowNav) { nav.go(Route.Browse("networks", it)) } }
+        item { BrandShelf("Studios", "collections", d.studios, 2, rowNav) { nav.go(Route.Browse("collections", it)) } }
+        items(d.rows.size) { i -> val (eye, title, l) = d.rows[i]; PosterShelf(eye, title, l.take(30), l.size, onFocusItem = onFocusItem, row = 3 + i, rowNav = rowNav) { nav.go(Route.Detail(it)) } }
+        item { PosterShelf("Coming soon", "Upcoming movies", d.upcoming.take(30), d.upcoming.size, onFocusItem = onFocusItem, row = 3 + d.rows.size, rowNav = rowNav) { nav.go(Route.Detail(it)) } }
     }
 }

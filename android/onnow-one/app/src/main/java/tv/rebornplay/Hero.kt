@@ -29,7 +29,7 @@ import kotlinx.coroutines.delay
 
 /** Rotating billboard — same layout as HeroBillboard.jsx (title, meta line, synopsis, Play / More Info / My List, dots). */
 @Composable
-fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusRequester?, onPlay: (Hero) -> Unit, onInfo: (Hero) -> Unit) {
+fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusRequester?, rowNav: RowNav? = null, onPlay: (Hero) -> Unit, onInfo: (Hero) -> Unit) {
     if (heroes.isEmpty()) { Spacer(Modifier.height(80.dp)); return }
     val ctx = LocalContext.current
     var idx by remember(heroes) { mutableStateOf(0) }
@@ -47,7 +47,7 @@ fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusReque
         Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Bg0, 0.42f to Bg0.copy(alpha = 0.96f), 0.62f to Bg0.copy(alpha = 0.35f), 0.85f to Color.Transparent)))
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Bg0.copy(alpha = 0.55f), 0.35f to Color.Transparent, 0.75f to Bg0.copy(alpha = 0.4f), 1f to Bg0)))
 
-        Column(Modifier.align(Alignment.BottomStart).padding(start = if (compact) 28.dp else 64.dp, bottom = 22.dp).width(if (compact) 480.dp else 640.dp)) {
+        Column(Modifier.align(Alignment.BottomStart).padding(start = (if (compact) 28.dp else 64.dp) + safeInset(), bottom = 22.dp).width(if (compact) 480.dp else 640.dp)) {
             Eyebrow("$eyebrow · ${hero.item.genres.firstOrNull() ?: hero.item.type}")
             Spacer(Modifier.height(6.dp))
             Text(hero.item.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = if (compact) 34.sp else 52.sp, lineHeight = if (compact) 36.sp else 54.sp, letterSpacing = (-1.8).sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -56,10 +56,13 @@ fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusReque
             Spacer(Modifier.height(12.dp))
             Text(hero.item.description.orEmpty(), color = Txt2, fontFamily = Geist, fontSize = 14.sp, lineHeight = 21.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(560.dp))
             Spacer(Modifier.height(18.dp))
+            val playReq = playRequester ?: remember { FocusRequester() }
+            val infoReq = remember { FocusRequester() }; val listReq = remember { FocusRequester() }
+            rowNav?.register(0, playReq)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Pill("Play", icon = Icons.Filled.PlayArrow, white = true, requester = playRequester) { onPlay(hero) }
-                Pill("More Info", icon = Icons.Outlined.Info) { onInfo(hero) }
-                Pill(if (inList) "In My List" else "My List", icon = if (inList) Icons.Outlined.Check else Icons.Outlined.Add) { inList = Library.toggle(ctx, hero.item) }
+                Pill("Play", icon = Icons.Filled.PlayArrow, white = true, requester = playReq, onFocus = { if (it) rowNav?.focused(0, playReq) }) { onPlay(hero) }
+                Pill("More Info", icon = Icons.Outlined.Info, requester = infoReq, onFocus = { if (it) rowNav?.focused(0, infoReq) }) { onInfo(hero) }
+                Pill(if (inList) "In My List" else "My List", icon = if (inList) Icons.Outlined.Check else Icons.Outlined.Add, requester = listReq, onFocus = { if (it) rowNav?.focused(0, listReq) }) { inList = Library.toggle(ctx, hero.item) }
             }
         }
         Row(Modifier.align(Alignment.BottomEnd).padding(end = 48.dp, bottom = 34.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {

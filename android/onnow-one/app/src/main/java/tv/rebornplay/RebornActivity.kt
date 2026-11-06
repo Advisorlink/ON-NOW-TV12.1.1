@@ -9,6 +9,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -55,6 +58,8 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
     var token by remember { mutableStateOf(RebornSession.token(ctx)) }
     var stage by remember { mutableStateOf(if (token == null) "login" else "loading") }
     var prefetching by remember { mutableStateOf(false) }
+    var homeReady by remember { mutableStateOf(Cache.home != null) }
+    var liveReady by remember { mutableStateOf(LiveStore.bundle.value != null) }
     var autoplay by remember { mutableStateOf(Prefs.autoplay(ctx)) }
     var profileKey by remember { mutableStateOf(0) }
     var toast by remember { mutableStateOf<String?>(null) }
@@ -71,8 +76,8 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
     LaunchedEffect(stage) {
         if (stage != "loading") return@LaunchedEffect
         val tok = token ?: run { stage = "login"; return@LaunchedEffect }
-        val live = launch { if (!LiveStore.ensureLoaded(ctx) && LiveTvEntry.available(ctx) && !prefetching) { prefetching = true; LiveTvEntry.prefetch(activity) } }
-        val home = launch { if (Cache.home == null) Cache.home = kotlinx.coroutines.withTimeoutOrNull(15_000) { runCatching { loadHome(tok) }.getOrNull() } }
+        val live = launch { if (LiveStore.ensureLoaded(ctx)) liveReady = true else if (LiveTvEntry.available(ctx) && !prefetching) { prefetching = true; LiveTvEntry.prefetch(activity) } }
+        val home = launch { if (Cache.home == null) Cache.home = kotlinx.coroutines.withTimeoutOrNull(15_000) { runCatching { loadHome(tok) }.getOrNull() }; homeReady = true }
         live.join(); home.join()
         if (!prefetching) stage = "profiles"
     }
@@ -82,6 +87,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
             prefetching = false
             LiveStore.refreshFromHolder(ctx)
             if (LiveStore.bundle.value == null) LiveStore.ensureLoaded(ctx)
+            liveReady = true
             stage = "profiles"
         }
     }
@@ -102,7 +108,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                 LiveTvEntry.onLogin(ctx, user, pass, iptv.toString())
                 stage = "loading"
             }
-            "loading" -> LoadingScreen()
+            "loading" -> LoadingScreen(homeReady, liveReady)
             "profiles" -> ProfilesScreen(token!!, onPick = { profileKey++; nav.go(Route.Home); stage = "main" }, onSignOut = signOut)
             else -> key(profileKey) {
                 val tok = token!!
@@ -120,26 +126,28 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                     }
                 }
                 val cur = nav.current
+                val rowNav = remember(cur) { RowNav { if (it == 0) 0 else it + 1 } }
                 BackHandler(enabled = nav.stack.size > 1 || cur !is Route.Home) { if (!nav.back()) nav.go(Route.Home) }
                 when (cur) {
                     is Route.Detail -> DetailScreen(tok, activity, cur.item, autoplay, onBack = { nav.back() }, onHome = { nav.go(Route.Home) }, onOpen = { nav.go(Route.Detail(it)) })
-                    else -> Box(Modifier.fillMaxSize()) {
+                    else -> Box(Modifier.fillMaxSize().rowNavKeys(rowNav, scope)) {
+                        val inset = safeInset()
                         when (cur) {
-                            is Route.Home -> HomeScreen(tok, nav, playHero) {}
-                            is Route.Tab -> TabGridScreen(tok, cur.type) { nav.go(Route.Detail(it)) }
-                            is Route.Browse -> BrowseScreen(cur.kind, cur.brand) { nav.go(Route.Detail(it)) }
-                            is Route.Search -> SearchScreen { nav.go(Route.Detail(it)) }
-                            is Route.Anime -> AnimeScreen { nav.go(Route.Detail(it)) }
-                            is Route.Library -> LibraryScreen { nav.go(Route.Detail(it)) }
+                            is Route.Home -> HomeScreen(tok, nav, rowNav, playHero) {}
+                            is Route.Tab -> Box(Modifier.padding(horizontal = inset)) { TabGridScreen(tok, cur.type) { nav.go(Route.Detail(it)) } }
+                            is Route.Browse -> Box(Modifier.padding(horizontal = inset)) { BrowseScreen(cur.kind, cur.brand) { nav.go(Route.Detail(it)) } }
+                            is Route.Search -> Box(Modifier.padding(horizontal = inset)) { SearchScreen { nav.go(Route.Detail(it)) } }
+                            is Route.Anime -> AnimeScreen(rowNav) { nav.go(Route.Detail(it)) }
+                            is Route.Library -> Box(Modifier.padding(horizontal = inset)) { LibraryScreen { nav.go(Route.Detail(it)) } }
                             is Route.Live -> LiveTvScreen(activity, onRefresh = refreshLive)
                             is Route.BoxSets -> ComingSoonScreen("Box Sets", "Franchise box sets are coming to the native app in the next update.")
                             is Route.Calendar -> ComingSoonScreen("Calendar", "Your episode calendar is coming to the native app in the next update.")
                             is Route.WatchTogether -> ComingSoonScreen("Watch Together", "Watch parties are coming to the native app in the next update.")
-                            is Route.Settings -> SettingsScreen(activity, autoplay, onAutoplay = { autoplay = !autoplay; Prefs.setAutoplay(ctx, autoplay) }, onProfiles = { stage = "profiles" }, onSignOut = signOut, onRefreshLive = refreshLive)
+                            is Route.Settings -> Box(Modifier.padding(horizontal = inset)) { SettingsScreen(activity, autoplay, onAutoplay = { autoplay = !autoplay; Prefs.setAutoplay(ctx, autoplay) }, onProfiles = { stage = "profiles" }, onSignOut = signOut, onRefreshLive = refreshLive) }
                             else -> {}
                         }
                         val activeId = when (val top = nav.stack.first()) { is Route.Home -> "home"; is Route.Tab -> if (top.type == "movie") "movies" else "tv"; else -> NAV_ITEMS.firstOrNull { it.route == top }?.id ?: "" }
-                        TopNav(activeId, autoplay, onItem = { item -> item.route?.let { nav.go(it) } },
+                        TopNav(activeId, autoplay, rowNav, onItem = { item -> item.route?.let { nav.go(it) } },
                             onAutoplay = { autoplay = !autoplay; Prefs.setAutoplay(ctx, autoplay); toast = if (autoplay) "Auto play ON" else "Auto play OFF" }, onSpeedUp = { BoxBoost.show(activity, auto = false) },
                             onSpeedTest = { toast = "Speed test lives in Live TV → Settings for now" }, onProfile = { stage = "profiles" })
                     }
@@ -150,16 +158,29 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
 }
 
 @Composable
-fun LoadingScreen() {
+fun LoadingScreen(homeReady: Boolean, liveReady: Boolean) {
+    val compact = isCompact()
     Box(Modifier.fillMaxSize()) {
         ScreenBackdrop()
         Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
-            BrandLogo(120.dp)
-            Spacer(Modifier.height(34.dp))
-            androidx.compose.material3.CircularProgressIndicator(color = Blue, strokeWidth = 3.dp, modifier = Modifier.size(36.dp))
-            Spacer(Modifier.height(18.dp))
-            Text("Loading your channels and guide…", color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-            Spacer(Modifier.height(6.dp)); Mono("Live TV · Movies · TV shows", 10.sp, Txt3)
+            BrandLogo(if (compact) 70.dp else 110.dp)
+            Spacer(Modifier.height(if (compact) 18.dp else 30.dp))
+            androidx.compose.material3.CircularProgressIndicator(color = Blue, strokeWidth = 3.dp, modifier = Modifier.size(32.dp))
+            Spacer(Modifier.height(16.dp))
+            Text("Getting everything ready…", color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+            Spacer(Modifier.height(14.dp))
+            LoadStep("Movies & TV shows", homeReady)
+            LoadStep("Live TV channels", liveReady)
+            LoadStep("TV guide", liveReady)
         }
+    }
+}
+
+@Composable
+private fun LoadStep(label: String, done: Boolean) {
+    androidx.compose.foundation.layout.Row(Modifier.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+        androidx.compose.material3.Icon(if (done) Icons.Outlined.CheckCircle else Icons.Outlined.Schedule, null, Modifier.size(15.dp), tint = if (done) Blue else Txt3)
+        Spacer(Modifier.width(10.dp))
+        Mono(label, 11.sp, if (done) Txt else Txt3, 0.14f, upper = false)
     }
 }

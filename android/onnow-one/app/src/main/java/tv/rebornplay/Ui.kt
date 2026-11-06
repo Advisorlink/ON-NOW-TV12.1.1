@@ -33,6 +33,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import kotlinx.coroutines.launch
 import tv.vesper.app.R
 
 /* Palette — identical to the web app's CSS variables. */
@@ -93,9 +97,10 @@ fun Pill(
     mono: Boolean = false,
     requester: FocusRequester? = null,
     enabled: Boolean = true,
+    onFocus: ((Boolean) -> Unit)? = null,
     onClick: () -> Unit,
 ) {
-    Focusable(modifier, onClick = { if (enabled) onClick() }, requester = requester) { f ->
+    Focusable(modifier, onClick = { if (enabled) onClick() }, requester = requester, onFocus = onFocus) { f ->
         val bg = when {
             f -> BlueBright
             white -> Color.White
@@ -166,3 +171,55 @@ fun isCompact(): Boolean = androidx.compose.ui.platform.LocalConfiguration.curre
 fun rememberScale(focused: Boolean, to: Float = 1.06f) = animateFloatAsState(if (focused) to else 1f, tween(160), label = "s").value
 
 fun Modifier.focusScale(focused: Boolean, to: Float = 1.06f): Modifier = composed { scale(animateFloatAsState(if (focused) to else 1f, tween(160), label = "s").value) }
+
+/** TV overscan: panels hide ~3-5% at the edges, so TV builds get a safe-area inset. */
+@Composable
+fun isTv(): Boolean {
+    val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+    return (cfg.uiMode and android.content.res.Configuration.UI_MODE_TYPE_MASK) == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION
+}
+
+@Composable
+fun safeInset(): Dp = if (isTv()) 24.dp else 0.dp
+
+/**
+ * Explicit up/down between horizontal rows (TopNav = row -1, then content rows 0..n).
+ * Compose's spatial search is unreliable across LazyRow-in-LazyColumn on TV boxes, so each
+ * row registers an entry FocusRequester and remembers the last focused tile.
+ */
+class RowNav(val listIndexOf: (Int) -> Int = { it }) {
+    private val entries = HashMap<Int, FocusRequester>()
+    var current: Int? = null
+    var rowCount = 0
+    var list: androidx.compose.foundation.lazy.LazyListState? = null
+    var topOffsetPx = 0
+    fun register(row: Int, first: FocusRequester) { if (entries[row] == null) entries[row] = first }
+    fun focused(row: Int, r: FocusRequester) { entries[row] = r; current = row }
+    fun clear() { entries.clear(); current = null }
+
+    /** Returns true when the key was handled (focus moved or a scroll+focus was scheduled). */
+    fun move(dir: Int, scope: kotlinx.coroutines.CoroutineScope): Boolean {
+        val cur = current ?: return false
+        val target = cur + dir
+        if (target < -1 || target >= rowCount) return false
+        val entry = entries[target]
+        if (target == -1) return entry?.let { runCatching { it.requestFocus() }.isSuccess } ?: false
+        scope.launch {
+            list?.let { runCatching { it.animateScrollToItem(listIndexOf(target), -topOffsetPx) } }
+            withFrameNanos { }
+            (entries[target] ?: entry)?.let { runCatching { it.requestFocus() } }
+        }
+        return true
+    }
+}
+
+fun Modifier.rowNavKeys(nav: RowNav, scope: kotlinx.coroutines.CoroutineScope): Modifier = this.then(
+    Modifier.onPreviewKeyEvent { e ->
+        if (e.type != androidx.compose.ui.input.key.KeyEventType.KeyDown) return@onPreviewKeyEvent false
+        when (e.key) {
+            androidx.compose.ui.input.key.Key.DirectionDown -> nav.move(1, scope)
+            androidx.compose.ui.input.key.Key.DirectionUp -> nav.move(-1, scope)
+            else -> false
+        }
+    }
+)
