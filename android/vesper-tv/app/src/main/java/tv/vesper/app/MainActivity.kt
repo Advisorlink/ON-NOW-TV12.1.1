@@ -1,5 +1,6 @@
 package tv.vesper.app
 
+import android.content.Intent
 import android.annotation.SuppressLint
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
@@ -265,6 +266,11 @@ class MainActivity : AppCompatActivity() {
         // chrome and don't accidentally repaint the splash artwork.
         setTheme(R.style.Theme_Vesper_Fullscreen)
         super.onCreate(savedInstanceState)
+        // Reborn Play: TV launchers cache the old launch component — send them to the native shell.
+        if (packageName == "tv.onnowtv.one") {
+            runCatching { startActivity(Intent(this, Class.forName("tv.rebornplay.RebornActivity")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)) }
+            finish(); return
+        }
         // Without this, Android picks the "currently active" stream,
         // which on a TV-box-WebView combo with no audio actively
         // playing falls back to STREAM_RING.  STREAM_RING typically

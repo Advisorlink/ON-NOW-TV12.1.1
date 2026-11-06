@@ -976,3 +976,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 ## 2026-11-05 — v2.2.1 phone fix
 - Bug: on a phone (landscape, ~360-400dp tall) the profile picker/editor, login card and title page overflowed with no scrolling → Save/Next unreachable.
 - Fix: `isCompact()` (height < 560dp) in Ui.kt; Profiles/Editor/Login/CloudPrompt now `verticalScroll`, editor actions moved under the name field, button rows `horizontalScroll`; Detail page is a LazyColumn; TopNav pill scrolls + hides logo under 1000dp wide; Home/Live hero compact sizes; Live guide column hidden when compact.
+
+## 2026-11-05 — v2.2.2: TV box opened the OLD WebView shell
+- Cause: `tv.vesper.app.MainActivity` (old WebView host) is still in the one-app and exported; Android TV launchers cache the previously-known launch component for a package, so after updating they kept launching the old activity → "looks like the old version" on TV while the phone (fresh launcher entry) opened RebornActivity.
+- Fix: vesper MainActivity.onCreate and livetv MainActivity.onCreate (ACTION_MAIN only) redirect to `tv.rebornplay.RebornActivity` when packageName == tv.onnowtv.one. Tell the user: after installing, open from the TV app row once (or reboot) if it still shows the old look.
+- Artifact: reborn-play-2.2.2-15.apk. Container reset wiped /tmp + SDK again mid-rebuild; artifact from the completed build is intact.

@@ -215,6 +215,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Reborn Play host: a stale launcher shortcut (ACTION_MAIN) must open the Reborn shell, not this loader.
+        if (packageName == "tv.onnowtv.one" && intent?.action == Intent.ACTION_MAIN) {
+            runCatching { startActivity(Intent(this, Class.forName("tv.rebornplay.RebornActivity")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)) }
+            finish(); return
+        }
         // SECURITY — block screenshot / screen-record / cast-mirror.
         window.setFlags(
             android.view.WindowManager.LayoutParams.FLAG_SECURE,
