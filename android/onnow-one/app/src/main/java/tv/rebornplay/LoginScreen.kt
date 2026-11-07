@@ -67,7 +67,7 @@ fun LoginScreen(onDone: (token: String, user: String, pass: String, iptv: JSONOb
         val compact = isCompact()
         Row(Modifier.fillMaxSize().padding(horizontal = if (compact) 28.dp else 80.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(vertical = 20.dp), verticalArrangement = Arrangement.Center) {
-                BrandLogo(if (compact) 30.dp else 44.dp)
+                BrandLogo(if (compact) 44.dp else 72.dp)
                 Spacer(Modifier.height(if (compact) 16.dp else 30.dp))
                 Text("Movies, TV shows,\nand everything\nworth watching.", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = if (compact) 26.sp else 44.sp, lineHeight = if (compact) 30.sp else 48.sp, letterSpacing = (-1.2).sp)
                 Spacer(Modifier.height(18.dp))

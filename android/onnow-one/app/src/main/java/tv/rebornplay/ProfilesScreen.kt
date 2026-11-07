@@ -73,7 +73,7 @@ fun ProfilesScreen(token: String, onPick: (Profile) -> Unit, onSignOut: () -> Un
         }
         val compact = isCompact()
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Spacer(Modifier.height(if (compact) 18.dp else 36.dp)); BrandLogo(if (compact) 26.dp else 36.dp)
+            Spacer(Modifier.height(if (compact) 18.dp else 36.dp)); BrandLogo(if (compact) 36.dp else 56.dp)
             Spacer(Modifier.height(if (compact) 18.dp else 90.dp))
             Text("Who's ready to watch?", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = if (compact) 30.sp else 54.sp, letterSpacing = (-1.5).sp)
             Spacer(Modifier.height(6.dp))

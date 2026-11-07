@@ -165,7 +165,10 @@ fun LoadingScreen(homeReady: Boolean, liveReady: Boolean) {
     Box(Modifier.fillMaxSize()) {
         ScreenBackdrop()
         Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
-            BrandLogo(if (compact) 70.dp else 110.dp)
+            Box(contentAlignment = Alignment.Center) {
+                Box(Modifier.size(if (compact) 360.dp else 620.dp, if (compact) 160.dp else 260.dp).background(androidx.compose.ui.graphics.Brush.radialGradient(listOf(Blue.copy(alpha = 0.22f), androidx.compose.ui.graphics.Color.Transparent))))
+                BrandLogo(if (compact) 84.dp else 140.dp)
+            }
             Spacer(Modifier.height(if (compact) 18.dp else 30.dp))
             androidx.compose.material3.CircularProgressIndicator(color = Blue, strokeWidth = 3.dp, modifier = Modifier.size(32.dp))
             Spacer(Modifier.height(16.dp))

@@ -84,7 +84,7 @@
         android:extractNativeLibs="false"
         android:icon="@mipmap/reborn_icon"
         android:roundIcon="@mipmap/reborn_icon_round"
-        android:banner="@drawable/reborn_banner"
+        android:banner="@drawable/reborn_tv_banner"
         android:label="Reborn Play"
         android:hardwareAccelerated="true"
         android:largeHeap="true"
@@ -101,7 +101,7 @@
             android:icon="@mipmap/reborn_icon"
             android:roundIcon="@mipmap/reborn_icon_round"
             android:label="Reborn Play"
-            android:banner="@drawable/reborn_banner"
+            android:banner="@drawable/reborn_tv_banner"
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|screenLayout|smallestScreenSize|navigation|uiMode|locale|fontScale|density"
             android:theme="@style/Theme.Vesper.Fullscreen">
