@@ -1013,3 +1013,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Tiles size to the screen: `tileH = screenH - heroH - 86dp` clamped 150–240dp (no cut-off covers); hero text tightens when hero < 290dp. Phones keep the scrolling LazyColumn.
 - `Cache.homePage` restores the shelf you were on when returning from a title.
 - Artifact: test-artifacts/reborn-play-3.1.0-23.apk (download /api/dl/one/ZY3CDNN247). NOT device-verified yet.
+
+## 2026-11-07 — v3.1.1: Home "no content" fix
+- Root cause (reproduced the data path): get_vod_streams is a 20 MB JSON; Gorilla loaded it as a String + org.json JSONArray → OOM/throw on TV boxes, swallowed by runCatching → infinite "Loading your home" spinner.
+- Fix: `Gorilla.cachedFile` streams the response to disk; `parseList` uses android.util.JsonReader (constant memory). Errors now logged (tag Reborn) and Home shows "Couldn't load…" + Try again (clears cache). Hero info fetched in parallel. Empty-rows guard in PagedHome.
+- Artifact: reborn-play-3.1.1-24.apk. Needs device confirmation.

@@ -11,7 +11,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 
 class HomeData(val heroes: List<Hero>, val rows: List<Triple<String, String, List<Item>>>)
@@ -29,7 +32,7 @@ suspend fun loadHome(ctx: android.content.Context): HomeData {
     val newMovies = c.movies.sortedByDescending { it.added }
     val newSeries = c.series.sortedByDescending { it.added }
     val heroItems = newMovies.filter { it.poster != null }.take(6)
-    val heroes = withContext(Dispatchers.IO) { heroItems.map { Hero(runCatching { Gorilla.movieInfo(ctx, it) }.getOrDefault(it), 0L) } }
+    val heroes = withContext(Dispatchers.IO) { heroItems.map { async { Hero(runCatching { Gorilla.movieInfo(ctx, it) }.getOrDefault(it), 0L) } }.awaitAll() }
     val rows = ArrayList<Triple<String, String, List<Item>>>()
     rows += Triple("Movies", "New movies", newMovies.take(40))
     rows += Triple("Series", "New series", newSeries.take(40))
@@ -42,12 +45,31 @@ suspend fun loadHome(ctx: android.content.Context): HomeData {
 fun HomeScreen(nav: Nav, rowNav: RowNav, onPlayHero: (Hero) -> Unit) {
     val ctx = LocalContext.current
     var data by remember { mutableStateOf(Cache.home) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var attempt by remember { mutableStateOf(0) }
     val playReq = remember { FocusRequester() }
     val list = rememberLazyListState()
     val density = androidx.compose.ui.platform.LocalDensity.current
-    LaunchedEffect(Unit) { if (data == null) { data = runCatching { loadHome(ctx) }.getOrNull(); Cache.home = data } }
+    LaunchedEffect(attempt) {
+        if (data == null) {
+            error = null
+            runCatching { loadHome(ctx) }.onSuccess { data = it; Cache.home = it }
+                .onFailure { android.util.Log.e("Reborn", "home load failed", it); error = it.message ?: "Couldn't load the catalogue" }
+        }
+    }
     DisposableEffect(Unit) { onDispose { TrailerPlayer.stop() } }
-    val d = data ?: run { Spinner("Loading your home"); return }
+    val d = data ?: run {
+        val err = error
+        if (err == null) Spinner("Loading your home")
+        else Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            androidx.compose.material3.Text("Couldn't load your movies & shows", color = Txt, fontFamily = Geist, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, fontSize = 22.sp)
+            Spacer(Modifier.height(8.dp)); androidx.compose.material3.Text(err, color = Txt2, fontFamily = Geist, fontSize = 14.sp)
+            Spacer(Modifier.height(22.dp))
+            val retryReq = remember { FocusRequester() }; FocusOnShow(retryReq, err)
+            Pill("Try again", white = true, requester = retryReq) { Gorilla.clearCache(ctx); attempt++ }
+        }
+        return
+    }
     rowNav.rowCount = 1 + d.rows.size
     val compact = isCompact()
     if (compact) {
@@ -67,6 +89,7 @@ fun HomeScreen(nav: Nav, rowNav: RowNav, onPlayHero: (Hero) -> Unit) {
 /** TV layout (Vesper): hero is static, exactly one shelf sits under it and Down/Up swaps the shelf in place. */
 @Composable
 private fun PagedHome(d: HomeData, nav: Nav, rowNav: RowNav, playReq: FocusRequester, onPlayHero: (Hero) -> Unit) {
+    if (d.rows.isEmpty()) { Column(Modifier.fillMaxSize()) { HeroBillboard(d.heroes, "New on Reborn", playReq, rowNav, onPlay = onPlayHero, onInfo = { nav.go(Route.Detail(it.item)) }); Spinner("No titles available on your service yet") }; return }
     rowNav.paged = true
     val restore = remember { Cache.homePage.coerceIn(0, (d.rows.size - 1).coerceAtLeast(0)) }
     remember { rowNav.page = restore; if (restore > 0) rowNav.showRow(restore + 1); 0 }

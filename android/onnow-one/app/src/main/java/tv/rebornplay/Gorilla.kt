@@ -1,6 +1,9 @@
 package tv.rebornplay
 
 import android.content.Context
+import android.util.JsonReader
+import android.util.JsonToken
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -8,6 +11,7 @@ import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.InputStreamReader
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 import tv.onnowtv.livetv.data.AuthStore
@@ -44,10 +48,18 @@ object Gorilla {
 
     // ---- disk cache for instant boot --------------------------------------------------------
     private fun cacheFile(ctx: Context, name: String) = File(ctx.filesDir, "gorilla_$name.json")
-    private fun cached(ctx: Context, name: String, url: String, maxAgeMs: Long): String {
+    /** Streams the response straight to disk (never holds the 20 MB catalogue as a String). */
+    private fun cachedFile(ctx: Context, name: String, url: String, maxAgeMs: Long): File {
         val f = cacheFile(ctx, name)
-        if (f.exists() && System.currentTimeMillis() - f.lastModified() < maxAgeMs) return f.readText()
-        val body = get(url); f.writeText(body); return body
+        if (f.exists() && f.length() > 2 && System.currentTimeMillis() - f.lastModified() < maxAgeMs) return f
+        val tmp = File(f.path + ".tmp")
+        http.newCall(Request.Builder().url(url).header("User-Agent", "RebornPlay/2.5 Android").build()).execute().use { r ->
+            if (!r.isSuccessful) throw IllegalStateException("Service error HTTP ${r.code}")
+            val body = r.body ?: throw IllegalStateException("Empty response from service")
+            body.byteStream().use { i -> tmp.outputStream().buffered().use { o -> i.copyTo(o) } }
+        }
+        if (!tmp.renameTo(f)) { tmp.copyTo(f, overwrite = true); tmp.delete() }
+        return f
     }
     fun clearCache(ctx: Context) { ctx.filesDir.listFiles { _, n -> n.startsWith("gorilla_") }?.forEach { it.delete() }; catalog = null }
 
@@ -55,36 +67,89 @@ object Gorilla {
         if (!force) catalog?.let { return@withContext it }
         if (force) clearCache(ctx)
         val ttl = 6 * 3_600_000L
-        val mc = cats(JSONArray(cached(ctx, "vod_cats", api(ctx, "get_vod_categories"), ttl)))
-        val sc = cats(JSONArray(cached(ctx, "series_cats", api(ctx, "get_series_categories"), ttl)))
-        val movies = parseList(JSONArray(cached(ctx, "vod", api(ctx, "get_vod_streams"), ttl)), "movie", mc.toMap(), ctx)
-        val series = parseList(JSONArray(cached(ctx, "series", api(ctx, "get_series"), ttl)), "series", sc.toMap(), ctx)
-        Catalog(movies, series, mc, sc).also { catalog = it }
+        try {
+            val mc = cats(JSONArray(cachedFile(ctx, "vod_cats", api(ctx, "get_vod_categories"), ttl).readText()))
+            val sc = cats(JSONArray(cachedFile(ctx, "series_cats", api(ctx, "get_series_categories"), ttl).readText()))
+            val movies = parseList(cachedFile(ctx, "vod", api(ctx, "get_vod_streams"), ttl), "movie", mc.toMap(), ctx)
+            val series = parseList(cachedFile(ctx, "series", api(ctx, "get_series"), ttl), "series", sc.toMap(), ctx)
+            Log.i("Reborn", "catalog: ${movies.size} movies, ${series.size} series")
+            Catalog(movies, series, mc, sc).also { catalog = it }
+        } catch (t: Throwable) {
+            Log.e("Reborn", "catalog load failed", t)
+            // A corrupt/partial cache must never wedge the app: drop it so the next attempt re-downloads.
+            if (t !is IllegalStateException) clearCache(ctx)
+            throw if (t is IllegalStateException) t else IllegalStateException(t.message ?: t.javaClass.simpleName, t)
+        }
     }
 
     private fun cats(a: JSONArray) = (0 until a.length()).map { i -> val o = a.getJSONObject(i); o.optString("category_id") to o.optString("category_name") }
 
-    private fun parseList(a: JSONArray, type: String, catNames: Map<String, String>, ctx: Context): List<Item> {
-        val out = ArrayList<Item>(a.length())
-        for (i in 0 until a.length()) {
-            val o = a.optJSONObject(i) ?: continue
-            val id = if (type == "movie") o.optString("stream_id") else o.optString("series_id")
-            if (id.isBlank()) continue
-            val name = o.optString("title").ifBlank { o.optString("name") }.replace(Regex("\\s*\\(\\d{4}\\)\\s*$"), "")
-            val genres = o.optString("genre").split(",").map { it.trim() }.filter { it.isNotBlank() }
-            val cat = catNames[o.optString("category_id")]
-            val rating = o.optDouble("rating", 0.0).takeIf { it > 0 }?.let { String.format("%.1f", it) }
-            val backdrop = o.optJSONArray("backdrop_path")?.optString(0)?.takeIf { it.startsWith("http") }
-                ?: o.optString("backdrop_path").takeIf { it.startsWith("http") }
-            val runtime = o.optString("episode_run_time").toIntOrNull()?.takeIf { it > 0 }?.let { if (type == "movie") "${it / 60}h ${it % 60}m" else "${it}m" }
-            val ext = o.optString("container_extension", "mp4").ifBlank { "mp4" }
-            val playUrl = if (type == "movie") o.optString("direct_source").takeIf { it.startsWith("http") && it.contains("/$id.") } ?: "$BASE/movie/${user(ctx)}/${pass(ctx)}/$id.$ext" else null
-            out += Item(
-                id = "$type:$id", type = type, name = name, poster = (if (type == "movie") o.optString("stream_icon") else o.optString("cover")).takeIf { it.startsWith("http") },
-                background = backdrop, description = o.optString("plot").takeIf { it.isNotBlank() }, year = o.optString("year").take(4).ifBlank { o.optString("release_date").take(4) }.takeIf { it.isNotBlank() },
-                rating = rating, runtime = runtime, genres = genres, trailerYt = o.optString("youtube_trailer").takeIf { it.isNotBlank() },
-                category = cat, categoryId = o.optString("category_id"), added = o.optLong("added", 0L).takeIf { it > 0 } ?: o.optLong("last_modified", 0L), playUrl = playUrl,
-            )
+    private fun str(r: JsonReader): String = when (r.peek()) {
+        JsonToken.NULL -> { r.nextNull(); "" }
+        JsonToken.STRING, JsonToken.NUMBER -> r.nextString()
+        JsonToken.BOOLEAN -> r.nextBoolean().toString()
+        else -> { r.skipValue(); "" }
+    }
+    private fun firstUrl(r: JsonReader): String? = if (r.peek() == JsonToken.BEGIN_ARRAY) {
+        r.beginArray(); var first: String? = null
+        while (r.hasNext()) { val s = str(r); if (first == null && s.startsWith("http")) first = s }
+        r.endArray(); first
+    } else str(r).takeIf { it.startsWith("http") }
+
+    /** Streaming parse of get_vod_streams / get_series — constant memory regardless of catalogue size. */
+    private fun parseList(f: File, type: String, catNames: Map<String, String>, ctx: Context): List<Item> {
+        val out = ArrayList<Item>(if (type == "movie") 24_000 else 5_000)
+        val u = user(ctx); val p = pass(ctx)
+        val yearRx = Regex("\\s*\\(\\d{4}\\)\\s*$")
+        JsonReader(InputStreamReader(f.inputStream().buffered(1 shl 16), Charsets.UTF_8)).use { r ->
+            r.isLenient = true
+            if (r.peek() != JsonToken.BEGIN_ARRAY) throw IllegalStateException("Unexpected response from service")
+            r.beginArray()
+            while (r.hasNext()) {
+                if (r.peek() != JsonToken.BEGIN_OBJECT) { r.skipValue(); continue }
+                r.beginObject()
+                var id = ""; var name = ""; var title = ""; var icon = ""; var cover = ""; var plot = ""; var year = ""; var release = ""
+                var rating = 0.0; var genre = ""; var runtime = ""; var ext = "mp4"; var catId = ""; var added = 0L; var lastMod = 0L
+                var backdrop: String? = null; var direct = ""; var trailer = ""
+                while (r.hasNext()) {
+                    when (r.nextName()) {
+                        "stream_id", "series_id" -> id = str(r)
+                        "name" -> name = str(r)
+                        "title" -> title = str(r)
+                        "stream_icon" -> icon = str(r)
+                        "cover" -> cover = str(r)
+                        "plot" -> plot = str(r)
+                        "year" -> year = str(r)
+                        "release_date", "releaseDate" -> release = str(r)
+                        "rating" -> rating = str(r).toDoubleOrNull() ?: 0.0
+                        "genre" -> genre = str(r)
+                        "episode_run_time" -> runtime = str(r)
+                        "container_extension" -> ext = str(r)
+                        "category_id" -> catId = str(r)
+                        "added" -> added = str(r).toLongOrNull() ?: 0L
+                        "last_modified" -> lastMod = str(r).toLongOrNull() ?: 0L
+                        "backdrop_path" -> backdrop = firstUrl(r)
+                        "direct_source" -> direct = str(r)
+                        "youtube_trailer" -> trailer = str(r)
+                        else -> r.skipValue()
+                    }
+                }
+                r.endObject()
+                if (id.isBlank()) continue
+                val rt = runtime.toIntOrNull()?.takeIf { it > 0 }?.let { if (type == "movie") "${it / 60}h ${it % 60}m" else "${it}m" }
+                val e = ext.ifBlank { "mp4" }
+                val playUrl = if (type == "movie") direct.takeIf { it.startsWith("http") && it.contains("/$id.") } ?: "$BASE/movie/$u/$p/$id.$e" else null
+                out += Item(
+                    id = "$type:$id", type = type, name = title.ifBlank { name }.replace(yearRx, ""),
+                    poster = (if (type == "movie") icon else cover).takeIf { it.startsWith("http") },
+                    background = backdrop, description = plot.takeIf { it.isNotBlank() },
+                    year = year.take(4).ifBlank { release.take(4) }.takeIf { it.isNotBlank() },
+                    rating = rating.takeIf { it > 0 }?.let { String.format("%.1f", it) }, runtime = rt,
+                    genres = genre.split(",").map { it.trim() }.filter { it.isNotBlank() }, trailerYt = trailer.takeIf { it.isNotBlank() },
+                    category = catNames[catId], categoryId = catId, added = if (added > 0) added else lastMod, playUrl = playUrl,
+                )
+            }
+            r.endArray()
         }
         return out
     }
