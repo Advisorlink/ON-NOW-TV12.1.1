@@ -995,3 +995,4 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - `TrailerPlayer.kt`: shared ExoPlayer; resting 1.8 s on a poster resolves its trailer (meta.trailers → tmdb trailer key → YouTubeTrailerExtractor, HD video+audio MergingMediaSource) and plays it inside the expanded cover; stops on focus loss / leaving Home / onPause. `LocalToken` CompositionLocal supplies the auth token to tiles.
 - Live TV: no stream starts on focus any more. OK on a channel/live-event card = preview in the window; OK again on the same channel = full screen. Preview box shows "Press OK on a channel to preview".
 - APK reborn-play-2.3.1-17.apk.
+- 2026-11-07 v2.3.2: removed the What's on live rail from the Reborn Play Live TV guide (LiveTvScreen.kt); Sports Hub button kept.

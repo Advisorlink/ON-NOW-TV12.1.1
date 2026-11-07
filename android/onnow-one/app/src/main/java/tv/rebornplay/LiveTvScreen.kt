@@ -153,8 +153,6 @@ fun LiveTvScreen(activity: Activity, onRefresh: () -> Unit) {
                     Spacer(Modifier.weight(1f))
                     Box(Modifier.width(260.dp)) { SearchBox(query) { query = it } }
                 }
-                val liveNow = remember(b, tick, catId) { if (catId == LiveStore.FAVS) emptyList() else LiveStore.whatsOnLive() }
-                if (liveNow.isNotEmpty()) WhatsOnLiveRail(liveNow, onFocus = { focused = it }, onOpen = { openChannel(it, channels) })
                 ChannelColumn(channels, favs, current?.id, firstRow, fmt, tick, onFocus = { focused = it }, onOpen = { openChannel(it, channels) })
             }
             if (!isCompact()) GuideColumn(current, fmt, tick)
@@ -382,41 +380,6 @@ private fun PinGate(groupName: String, onClose: () -> Unit, onUnlock: () -> Unit
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Pill("Unlock", primary = true, height = 42.dp, fontSize = 14.sp) { if (ParentalLock.checkPin(ctx, pin)) onUnlock() else { err = true; pin = "" } }
                 Pill("Cancel", height = 42.dp, fontSize = 14.sp, onClick = onClose)
-            }
-        }
-    }
-}
-
-/** "What's on live" — real live sport right now, grouped per event (SportsLiveGuide + SportsLiveEvents). */
-@Composable
-private fun WhatsOnLiveRail(events: List<tv.onnowtv.livetv.data.SportsLiveEvents.Event>, onFocus: (Channel) -> Unit, onOpen: (Channel) -> Unit) {
-    val ctx = LocalContext.current
-    Column(Modifier.padding(bottom = 12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
-            Box(Modifier.size(7.dp).clip(CircleShape).background(Color(0xFFE0245E))); Spacer(Modifier.width(8.dp))
-            Mono("What's on live", 11.sp, Txt, 0.24f); Spacer(Modifier.width(10.dp)); Mono("${events.size} live now", 10.sp, Txt3)
-        }
-        androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(events, key = { it.key }) { ev ->
-                val src = ev.representative
-                Focusable(onClick = { onOpen(src.channel) }, onFocus = { if (it) onFocus(src.channel) }) { f ->
-                    Column(Modifier.width(230.dp).clip(RoundedCornerShape(12.dp)).background(if (f) Blue.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.04f))
-                        .border(1.dp, if (f) Blue else Color.White.copy(alpha = 0.07f), RoundedCornerShape(12.dp)).padding(12.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.clip(RoundedCornerShape(3.dp)).background(if (f) Blue else Color.White.copy(alpha = 0.1f)).padding(horizontal = 6.dp, vertical = 2.dp)) { Mono(ev.bucket, 7.sp, if (f) Bg0 else Txt2, 0.14f) }
-                            Spacer(Modifier.weight(1f))
-                            if (ev.sources.size > 1) Mono("${ev.sources.size} channels", 8.sp, Txt3, 0.1f, upper = false)
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Text(ev.title, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 13.sp, lineHeight = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Spacer(Modifier.height(6.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (src.channel.logoUrl != null) { AsyncImage(src.channel.logoUrl, null, Modifier.width(26.dp).height(16.dp), contentScale = ContentScale.Fit); Spacer(Modifier.width(6.dp)) }
-                            Mono(Settings.cleanName(ctx, src.channel.name), 9.sp, Txt2, 0.06f, upper = false)
-                        }
-                        Spacer(Modifier.height(6.dp)); ProgressBar(src.programme, Modifier.fillMaxWidth(), 2.dp)
-                    }
-                }
             }
         }
     }
