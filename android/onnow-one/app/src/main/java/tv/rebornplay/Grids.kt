@@ -3,7 +3,6 @@ package tv.rebornplay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -13,6 +12,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,8 +29,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 /** Grid cell — poster with the title + sub gradient plate at the bottom (MorphTile in TabGridView.jsx). */
 @Composable
@@ -64,25 +63,35 @@ fun GenreChips(genres: List<String>, selected: String, onSelect: (String) -> Uni
     }
 }
 
-/** Movies / TV Shows tab: genre chips + newest-first grid of every catalogue. */
+/** Movies / TV Shows tab: the service's own categories as chips + newest-first grid. */
 @Composable
-fun TabGridScreen(token: String, type: String, onOpen: (Item) -> Unit) {
-    var data by remember(type) { mutableStateOf(Cache.tabs[type]) }
+fun TabGridScreen(type: String, onOpen: (Item) -> Unit) {
+    val ctx = LocalContext.current
+    var cat by remember(type) { mutableStateOf(Gorilla.catalog) }
     var genre by remember(type) { mutableStateOf("") }
     val first = remember { FocusRequester() }
-    LaunchedEffect(type) {
-        if (data == null) { data = runCatching { RebornApi.tabCatalog(token, type) }.getOrDefault(emptyList<Item>() to emptyList()); Cache.tabs[type] = data!! }
-    }
-    if (data != null) FocusOnShow(first, type)
-    val d = data ?: run { Spinner("Loading ${if (type == "movie") "movies" else "tv shows"}") ; return }
-    val shown = if (genre.isEmpty()) d.first.take(100) else d.first.filter { it.genres.contains(genre) }
+    LaunchedEffect(type) { if (cat == null) cat = runCatching { Gorilla.loadCatalog(ctx) }.getOrNull() }
+    if (cat != null) FocusOnShow(first, type)
+    val c = cat ?: run { Spinner("Loading ${if (type == "movie") "movies" else "tv shows"}"); return }
+    val all = if (type == "movie") c.movies else c.series
+    val cats = if (type == "movie") c.movieCats else c.seriesCats
+    val shown = remember(all, genre) { (if (genre.isEmpty()) all else all.filter { it.categoryId == genre }).sortedByDescending { it.added }.take(if (genre.isEmpty()) 300 else 1000) }
     Column(Modifier.fillMaxSize().padding(top = 80.dp)) {
         Row(Modifier.padding(start = 64.dp, bottom = 14.dp), verticalAlignment = Alignment.Bottom) {
             Eyebrow("Browse", Modifier.padding(bottom = 7.dp)); Spacer(Modifier.width(14.dp))
             Text(if (type == "movie") "Movies" else "TV Shows", color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 26.sp)
-            Spacer(Modifier.width(18.dp)); Mono(if (genre.isEmpty()) "${shown.size} newest" else "${shown.size} titles", 10.sp, Txt3, modifier = Modifier.padding(bottom = 8.dp))
+            Spacer(Modifier.width(18.dp)); Mono("${shown.size} titles", 10.sp, Txt3, modifier = Modifier.padding(bottom = 8.dp))
         }
-        GenreChips(d.second.take(24), genre) { genre = it }
+        LazyRow(contentPadding = PaddingValues(start = 64.dp, end = 48.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 20.dp)) {
+            items(listOf("" to "All") + cats) { (id, name) ->
+                val active = id == genre
+                Focusable(onClick = { genre = id }) { f ->
+                    Text(name, color = if (f || active) Bg0 else Txt2, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
+                        modifier = Modifier.clip(CircleShape).background(if (f) BlueBright else if (active) Blue else Color.White.copy(alpha = 0.05f))
+                            .border(1.dp, if (f || active) Color.Transparent else Color.White.copy(alpha = 0.08f), CircleShape).padding(horizontal = 16.dp, vertical = 9.dp))
+                }
+            }
+        }
         TitleGrid(shown, first, onOpen)
     }
 }
@@ -94,27 +103,6 @@ fun TitleGrid(items: List<Item>, first: FocusRequester? = null, onOpen: (Item) -
         horizontalArrangement = Arrangement.spacedBy(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         val list = items.distinctBy { it.id }
         items(list, key = { it.id }) { it -> GridTile(it, if (list.firstOrNull() == it) first else null) { onOpen(it) } }
-    }
-}
-
-/** Network / Studio page: brand header + grid of its titles. */
-@Composable
-fun BrowseScreen(kind: String, brand: Brand, onOpen: (Item) -> Unit) {
-    val key = "$kind/${brand.slug}"
-    var list by remember(key) { mutableStateOf(Cache.brandTitles[key]) }
-    val first = remember { FocusRequester() }
-    LaunchedEffect(key) {
-        if (list == null) { list = withContext(Dispatchers.IO) { runCatching { (1..3).flatMap { RebornApi.brandTitles(kind, brand.slug, it) } }.getOrDefault(emptyList()) }; Cache.brandTitles[key] = list!! }
-    }
-    if (list != null) FocusOnShow(first, key)
-    Column(Modifier.fillMaxSize().padding(top = 80.dp)) {
-        Row(Modifier.padding(start = 64.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (brand.logo != null) AsyncImage(brand.logo, brand.name, Modifier.height(40.dp).widthIn(max = 160.dp), contentScale = ContentScale.Fit)
-            Spacer(Modifier.width(18.dp))
-            Column { Eyebrow(if (kind == "networks") "Network" else "Studio"); Text(brand.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 26.sp) }
-        }
-        val l = list ?: run { Spinner("Loading ${brand.name}"); return }
-        TitleGrid(l, first, onOpen)
     }
 }
 
@@ -133,30 +121,27 @@ fun LibraryScreen(onOpen: (Item) -> Unit) {
     }
 }
 
+/** Search — local, over everything the service has. */
 @Composable
-fun AnimeScreen(rowNav: RowNav, onOpen: (Item) -> Unit) {
-    var rails by remember { mutableStateOf(Cache.anime) }
-    val list = rememberLazyListState()
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    LaunchedEffect(Unit) { if (rails == null) { rails = withContext(Dispatchers.IO) { runCatching { RebornApi.anime() }.getOrDefault(emptyList()) }; Cache.anime = rails } }
-    DisposableEffect(Unit) { onDispose { TrailerPlayer.stop() } }
-    val r = rails ?: run { Spinner("Loading anime"); return }
-    rowNav.rowCount = r.size; rowNav.list = list; rowNav.topOffsetPx = with(density) { 84.dp.roundToPx() }
-    LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(top = 84.dp, bottom = 200.dp)) {
-        itemsIndexed(r, key = { _, it -> it.id }) { i, rail -> PosterShelf(rail.eyebrow, rail.title, rail.items, row = i, rowNav = rowNav, onOpen = onOpen) }
+fun SearchScreen(onOpen: (Item) -> Unit) {
+    val ctx = LocalContext.current
+    var q by remember { mutableStateOf("") }
+    val cat = Gorilla.catalog
+    val req = remember { FocusRequester() }
+    FocusOnShow(req, Unit)
+    val results = remember(q, cat) {
+        val t = q.trim().lowercase()
+        if (t.length < 2 || cat == null) emptyList() else (cat.movies + cat.series).filter { it.name.lowercase().contains(t) }.sortedByDescending { it.added }.take(200)
     }
-}
-
-/** Sections that are still on the web app only — same chrome, honest message. */
-@Composable
-fun ComingSoonScreen(title: String, blurb: String) {
-    Box(Modifier.fillMaxSize().padding(top = 80.dp), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Eyebrow("Reborn Play")
-            Spacer(Modifier.height(10.dp))
-            Text(title, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 34.sp)
-            Spacer(Modifier.height(10.dp))
-            Text(blurb, color = Txt2, fontFamily = Geist, fontSize = 15.sp)
+    Column(Modifier.fillMaxSize().padding(top = 80.dp)) {
+        Row(Modifier.padding(start = 64.dp, end = 48.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column { Eyebrow("Search"); Text("Find anything", color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 26.sp) }
+            Spacer(Modifier.width(30.dp))
+            Box(Modifier.width(520.dp)) { Field(q, { q = it }, "Movies, shows…", Icons.Outlined.Search, requester = req) }
+            Spacer(Modifier.width(18.dp))
+            Mono(if (results.isNotEmpty()) "${results.size} results" else "", 10.sp, Txt3)
         }
+        if (q.trim().length < 2) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Start typing to search movies and TV shows", color = Txt3, fontFamily = Geist, fontSize = 15.sp) }
+        else TitleGrid(results, null, onOpen)
     }
 }

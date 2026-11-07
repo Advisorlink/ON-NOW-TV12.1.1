@@ -20,9 +20,11 @@ object AuthStore {
     private const val KEY_PASS = "xtream_password"
     private const val KEY_SESSION = "session_generation"
 
-    const val HOST = "njala.ddns.me"
-    const val PORT = "8443"
-    const val SCHEME = "https"
+    @JvmStatic var HOST = "njala.ddns.me"
+    @JvmStatic var PORT = "8443"
+    @JvmStatic var SCHEME = "https"
+    /** Host apps (Reborn Play) point the module at their own Xtream server. */
+    fun configure(scheme: String, host: String, port: String) { SCHEME = scheme; HOST = host; PORT = port }
 
     private fun prefs(ctx: Context) =
         ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

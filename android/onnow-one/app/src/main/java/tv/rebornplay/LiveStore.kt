@@ -40,7 +40,7 @@ object LiveStore {
         epg[k]?.takeIf { l -> l.any { it.stopMs > System.currentTimeMillis() } }?.let { return it }
         val list = withContext(Dispatchers.IO) {
             runCatching { EpgCache.loadChannel(ctx, k) }.getOrNull()?.takeIf { it.isNotEmpty() }
-                ?: runCatching { XtreamRepository.fetchEpgForChannel(k, ctx = ctx) }.getOrDefault(emptyList())
+                ?: runCatching { DirectProviderFetcher.fetchShortEpg(ctx, ch.id) }.getOrDefault(emptyList())
         }
         if (list.isNotEmpty()) epg[k] = list
         return list
@@ -89,12 +89,7 @@ object LiveStore {
     }
 
     val art = HashMap<String, String?>()
-    suspend fun fetchArt(title: String): String? = withContext(Dispatchers.IO) {
-        art[title] ?: runCatching {
-            val o = JSONObject(java.net.URL(XtreamRepository.BACKEND_BASE.trimEnd('/') + "/api/epg/art?title=" + java.net.URLEncoder.encode(title, "UTF-8")).readText())
-            o.optString("backdrop").ifBlank { o.optString("poster") }.ifBlank { null }
-        }.getOrNull().also { art[title] = it }
-    }
+    suspend fun fetchArt(title: String): String? = null   // no third-party lookups: service data only
 
     fun whatsOnLive(): List<SportsLiveEvents.Event> {
         val b = bundle.value ?: return emptyList()

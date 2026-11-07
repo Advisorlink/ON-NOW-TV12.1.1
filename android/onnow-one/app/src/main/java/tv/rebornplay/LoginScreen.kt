@@ -44,7 +44,7 @@ import org.json.JSONObject
 
 /** Sign-in — the same two-column layout as LoginScreen.jsx, Reborn-branded. */
 @Composable
-fun LoginScreen(onDone: (token: String, user: String, pass: String, iptv: JSONObject) -> Unit) {
+fun LoginScreen(onDone: (user: String, pass: String) -> Unit) {
     var user by remember { mutableStateOf("") }; var pass by remember { mutableStateOf("") }
     var show by remember { mutableStateOf(false) }
     var err by remember { mutableStateOf<String?>(null) }; var busy by remember { mutableStateOf(false) }
@@ -55,8 +55,8 @@ fun LoginScreen(onDone: (token: String, user: String, pass: String, iptv: JSONOb
         if (!busy && user.isNotBlank() && pass.isNotBlank()) {
             busy = true; err = null
             scope.launch {
-                runCatching { withContext(Dispatchers.IO) { RebornApi.login(user.trim(), pass) } }
-                    .onSuccess { (tok, iptv) -> onDone(tok, user.trim(), pass, iptv) }
+                runCatching { withContext(Dispatchers.IO) { Gorilla.login(user.trim(), pass.trim()) } }
+                    .onSuccess { onDone(user.trim(), pass.trim()) }
                     .onFailure { err = it.message ?: "Sign-in failed" }
                 busy = false
             }
@@ -71,9 +71,9 @@ fun LoginScreen(onDone: (token: String, user: String, pass: String, iptv: JSONOb
                 Spacer(Modifier.height(if (compact) 16.dp else 30.dp))
                 Text("Movies, TV shows,\nand everything\nworth watching.", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = if (compact) 26.sp else 44.sp, lineHeight = if (compact) 30.sp else 48.sp, letterSpacing = (-1.2).sp)
                 Spacer(Modifier.height(18.dp))
-                Text("Sign in with the username and password you were given.", color = Txt2, fontFamily = Geist, fontSize = 14.sp, modifier = Modifier.width(380.dp))
+                Text("Enter the username and password for your Reborn subscription.", color = Txt2, fontFamily = Geist, fontSize = 14.sp, modifier = Modifier.width(380.dp))
                 Spacer(Modifier.height(26.dp))
-                listOf("Movies & full TV series · streaming in HD", "Live TV with a full guide · loaded at sign-in", "Trailers, collections & watchlists").forEach {
+                listOf("Movies & full TV series", "Live TV with a full guide", "Everything loads at sign-in").forEach {
                     Row(Modifier.padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(6.dp).background(Blue)); Spacer(Modifier.width(12.dp)); Text(it, color = Txt, fontFamily = Geist, fontSize = 13.sp) }
                 }
             }

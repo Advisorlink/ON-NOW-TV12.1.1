@@ -37,7 +37,7 @@ import org.json.JSONObject
 
 /** "Who's ready to watch?" — Reborn-only profiles (never Vesper's), with Reborn-only cloud backup. */
 @Composable
-fun ProfilesScreen(token: String, onPick: (Profile) -> Unit, onSignOut: () -> Unit) {
+fun ProfilesScreen(onPick: (Profile) -> Unit, onSignOut: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var profiles by remember { mutableStateOf(Profiles.all(ctx)) }
@@ -48,15 +48,10 @@ fun ProfilesScreen(token: String, onPick: (Profile) -> Unit, onSignOut: () -> Un
     var toast by remember { mutableStateOf<String?>(null) }
     val first = remember { FocusRequester() }
 
-    LaunchedEffect(Unit) {
-        if (profiles.isEmpty()) cloud = withContext(Dispatchers.IO) { runCatching { RebornApi.cloudPull(token) }.getOrNull() }?.takeIf { Profiles.parse(it.optJSONArray("reborn-profiles")?.toString()).isNotEmpty() }
-        checkedCloud = true
-    }
+    LaunchedEffect(Unit) { checkedCloud = true }
     if (checkedCloud && cloud == null && editing == null) FocusOnShow(first, profiles.size, manage)
     fun persist(list: List<Profile>) { profiles = list; Profiles.save(ctx, list) }
-    fun backup(msg: String = "Profiles backed up") = scope.launch {
-        toast = withContext(Dispatchers.IO) { runCatching { RebornApi.cloudPush(token, Profiles.snapshot(ctx)) }.fold({ msg }, { "Backup failed: ${it.message}" }) }
-    }
+    fun backup(msg: String = "Saved") { toast = msg }
 
     Box(Modifier.fillMaxSize()) {
         ScreenBackdrop()
@@ -90,10 +85,6 @@ fun ProfilesScreen(token: String, onPick: (Profile) -> Unit, onSignOut: () -> Un
             Spacer(Modifier.height(if (compact) 22.dp else 52.dp))
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Pill(if (manage) "Done" else "Manage profiles", icon = if (manage) Icons.Outlined.Check else Icons.Outlined.Edit, height = 40.dp, fontSize = 13.sp) { manage = !manage }
-                Pill("Back up profiles", icon = Icons.Outlined.CloudUpload, height = 40.dp, fontSize = 13.sp) { backup() }
-                Pill("Load from backup", icon = Icons.Outlined.CloudDownload, height = 40.dp, fontSize = 13.sp) {
-                    scope.launch { val d = withContext(Dispatchers.IO) { runCatching { RebornApi.cloudPull(token) }.getOrNull() }; if (d == null) toast = "No backup found for this account" else { Profiles.restore(ctx, d); profiles = Profiles.all(ctx); toast = "Profiles restored" } }
-                }
                 Pill("Sign out", icon = Icons.Outlined.Logout, height = 40.dp, fontSize = 13.sp, onClick = onSignOut)
             }
         }

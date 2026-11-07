@@ -33,10 +33,6 @@ object FastBundle {
             val merged = bundle.copy(channels = channels, epg = epg)
             BundleHolder.current = merged
             BundleHolder.needsBackgroundRefresh = true
-            runCatching {
-                EpgRefreshWorker.schedulePeriodic(ctx.applicationContext)
-                if (GuideKeeper.needsRefresh(ctx)) EpgRefreshWorker.refreshNow(ctx.applicationContext)
-            }
             merged
         } catch (t: Throwable) {
             Log.w("FastBundle", "fast path failed: ${t.message}"); null

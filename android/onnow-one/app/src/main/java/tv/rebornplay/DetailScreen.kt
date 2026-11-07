@@ -40,34 +40,21 @@ import org.json.JSONObject
 import tv.vesper.app.WebAppInterface
 import tv.vesper.app.YouTubeTrailerExtractor
 
-/** Resolve a TMDB-sourced tile to its IMDb id, then pull the full Cinemeta meta. */
-suspend fun resolveMeta(token: String, item: Item): Pair<Item, List<Episode>> = withContext(Dispatchers.IO) {
-    val imdb = if (item.id.startsWith("tt")) item.id else item.tmdbId?.let { RebornApi.imdbFor(item.type, it) } ?: throw IllegalStateException("No IMDb match")
-    val (m, eps) = RebornApi.meta(token, item.type, imdb)
-    m.copy(poster = m.poster ?: item.poster, background = m.background ?: item.background, description = m.description ?: item.description, tmdbId = item.tmdbId ?: m.tmdbMediaId) to eps
-}
-
-fun streamsJson(list: List<Stream>): String = JSONArray().apply {
-    list.forEach { put(JSONObject().put("url", it.url).put("label", it.title.ifBlank { it.name }).put("addonSource", it.name).put("quality", it.quality).put("pmCached", it.cached).put("isEnglish", it.english).put("size", it.size)) }
-}.toString()
-
-fun launchPlayer(activity: Activity, meta: Item, title: String, streams: List<Stream>, idx: Int, cwId: String) {
-    val s = streams[idx]
-    WebAppInterface(activity).playInternalRichV2(s.url, title, null, meta.poster, meta.background, meta.description, meta.year, meta.rating, meta.runtime,
-        meta.genres.joinToString(", "), meta.type, 0L, cwId, streamsJson(streams), idx)
+fun launchPlayer(activity: Activity, meta: Item, title: String, url: String, cwId: String) {
+    val one = JSONArray().put(JSONObject().put("url", url).put("label", "Reborn").put("addonSource", "Reborn").put("quality", "").put("pmCached", true).put("isEnglish", true).put("size", "")).toString()
+    WebAppInterface(activity).playInternalRichV2(url, title, null, meta.poster, meta.background, meta.description, meta.year, meta.rating, meta.runtime,
+        meta.genres.joinToString(", "), meta.type, 0L, cwId, one, 0)
 }
 
 /** Title page — same structure as Detail.jsx: backdrop, Back/Home, title, meta, synopsis, CTA row, seasons + episodes. */
 @Composable
-fun DetailScreen(token: String, activity: Activity, initial: Item, autoplay: Boolean, onBack: () -> Unit, onHome: () -> Unit, onOpen: (Item) -> Unit) {
+fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var meta by remember { mutableStateOf(initial) }
     var episodes by remember { mutableStateOf<List<Episode>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
-    var streams by remember { mutableStateOf<List<Stream>?>(null) }
-    var finding by remember { mutableStateOf(false) }
-    var picker by remember { mutableStateOf<Pair<String, List<Stream>>?>(null) }   // title + list
+    var ready by remember { mutableStateOf(false) }
     var season by remember { mutableStateOf(1) }
     var inList by remember { mutableStateOf(Library.has(ctx, initial.id)) }
     var trailerBusy by remember { mutableStateOf(false) }
@@ -75,34 +62,21 @@ fun DetailScreen(token: String, activity: Activity, initial: Item, autoplay: Boo
     val isSeries = initial.type == "series"
 
     LaunchedEffect(initial.id) {
-        runCatching { resolveMeta(token, initial) }
-            .onSuccess { (m, eps) -> meta = m; episodes = eps; season = eps.firstOrNull { it.season > 0 }?.season ?: 1
-                if (!isSeries) streams = withContext(Dispatchers.IO) { runCatching { RebornApi.rankStreams(RebornApi.streams(token, "movie", m.id)) }.getOrDefault(emptyList()) } }
+        runCatching { if (isSeries) Gorilla.seriesInfo(ctx, initial).also { (m, eps) -> meta = m; episodes = eps; season = eps.firstOrNull { it.season > 0 }?.season ?: 1 } else meta = Gorilla.movieInfo(ctx, initial) }
             .onFailure { error = it.message }
+        ready = true
     }
     FocusOnShow(primary, Unit)
-    BackHandler { if (picker != null) picker = null else onBack() }
+    BackHandler(onBack = onBack)
 
-    fun playVideo(videoId: String, title: String, forcePicker: Boolean) {
-        if (finding) return
-        finding = true
-        scope.launch {
-            val list = if (!isSeries && streams != null) streams!! else withContext(Dispatchers.IO) { runCatching { RebornApi.rankStreams(RebornApi.streams(token, meta.type, videoId)) }.getOrDefault(emptyList()) }
-            finding = false
-            when {
-                list.isEmpty() -> error = "No stream found for this title yet"
-                forcePicker || !autoplay -> picker = title to list
-                else -> launchPlayer(activity, meta, title, list, 0, videoId)
-            }
-        }
-    }
+    fun playMovie() { val url = meta.playUrl ?: run { error = "This title has no playable file yet"; return }; launchPlayer(activity, meta, meta.name, url, meta.id) }
+    fun playEpisode(e: Episode) { val url = e.url ?: run { error = "This episode has no playable file yet"; return }; launchPlayer(activity, meta, "${meta.name} · S${e.season} E${e.episode} · ${e.title}", url, e.id) }
 
     fun playTrailer() {
-        val tmdb = meta.tmdbId ?: meta.tmdbMediaId
         if (trailerBusy) return
         trailerBusy = true
         scope.launch {
-            val key = withContext(Dispatchers.IO) { meta.trailerYt ?: tmdb?.let { runCatching { RebornApi.trailerKey(meta.type, it) }.getOrNull() } }
+            val key = meta.trailerYt
             val ts = key?.let { k -> withContext(Dispatchers.IO) { runCatching { YouTubeTrailerExtractor.extract(k) ?: YouTubeTrailerExtractor.extractMuxed(k) }.getOrNull() } }
             trailerBusy = false
             if (ts == null) error = "No trailer available" else WebAppInterface(activity).playTrailerFullscreen(ts.videoUrl, ts.audioUrl ?: "", "${meta.name} — Trailer")
@@ -128,7 +102,7 @@ fun DetailScreen(token: String, activity: Activity, initial: Item, autoplay: Boo
                 }
                 Spacer(Modifier.height(if (compact) 14.dp else 22.dp))
                 Column(Modifier.fillMaxWidth(if (compact) 0.85f else 0.68f)) {
-                    if (meta.id.startsWith("tt")) Eyebrow("${meta.type} · ${meta.id}")
+                    Eyebrow(listOfNotNull(if (isSeries) "Series" else "Movie", meta.category).joinToString(" · "))
                     Spacer(Modifier.height(8.dp))
                     Text(meta.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = if (compact) 32.sp else 56.sp, lineHeight = if (compact) 34.sp else 58.sp, letterSpacing = (-1.5).sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Spacer(Modifier.height(12.dp))
@@ -138,12 +112,9 @@ fun DetailScreen(token: String, activity: Activity, initial: Item, autoplay: Boo
                     Spacer(Modifier.height(if (compact) 16.dp else 26.dp))
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         val h = if (compact) 46.dp else 54.dp
-                        if (!isSeries) {
-                            val label = when { finding || (streams == null && error == null) -> "Finding stream…"; streams.isNullOrEmpty() -> "No stream found"; autoplay -> "Autoplay"; else -> "Choose stream" }
-                            Pill(label, icon = Icons.Filled.PlayArrow, primary = true, height = h, fontSize = 16.sp, requester = primary, enabled = !streams.isNullOrEmpty()) { playVideo(meta.id, meta.name, !autoplay) }
-                            if (!streams.isNullOrEmpty() && autoplay) Pill("Swap stream (${streams!!.size})", height = h, fontSize = 15.sp) { playVideo(meta.id, meta.name, true) }
-                        } else Pill("Season $season", icon = Icons.Filled.PlayArrow, primary = true, height = h, fontSize = 16.sp, requester = primary) {
-                            episodes.firstOrNull { it.season == season }?.let { playVideo(it.id, "${meta.name} · S${it.season} E${it.episode}", false) }
+                        if (!isSeries) Pill(if (!ready) "Loading…" else "Play movie", icon = Icons.Filled.PlayArrow, primary = true, height = h, fontSize = 16.sp, requester = primary, enabled = ready && meta.playUrl != null) { playMovie() }
+                        else Pill(if (!ready) "Loading…" else "Play S$season E${episodes.firstOrNull { it.season == season }?.episode ?: 1}", icon = Icons.Filled.PlayArrow, primary = true, height = h, fontSize = 16.sp, requester = primary, enabled = ready && episodes.isNotEmpty()) {
+                            episodes.firstOrNull { it.season == season }?.let { playEpisode(it) }
                         }
                         Pill(if (trailerBusy) "Loading…" else "Trailer", icon = Icons.Outlined.Theaters, height = h, fontSize = 15.sp) { playTrailer() }
                         Pill(if (inList) "In My List" else "My List", icon = if (inList) Icons.Outlined.Check else Icons.Outlined.Add, height = h, fontSize = 15.sp) { inList = Library.toggle(ctx, meta) }
@@ -166,12 +137,10 @@ fun DetailScreen(token: String, activity: Activity, initial: Item, autoplay: Boo
                     Spacer(Modifier.height(14.dp))
                 }
                 items(episodes.filter { it.season == season }, key = { it.id }) { e ->
-                    Box(Modifier.fillMaxWidth(if (compact) 1f else 0.68f).padding(bottom = 8.dp)) { EpisodeRow(e) { playVideo(e.id, "${meta.name} · S${e.season} E${e.episode} · ${e.title}", false) } }
+                    Box(Modifier.fillMaxWidth(if (compact) 1f else 0.68f).padding(bottom = 8.dp)) { EpisodeRow(e) { playEpisode(e) } }
                 }
             }
         }
-        if (finding) Box(Modifier.align(Alignment.TopEnd).padding(40.dp).glass().padding(horizontal = 16.dp, vertical = 10.dp)) { Mono("Finding the best stream…", 11.sp, Txt2, 0.18f) }
-        picker?.let { (title, list) -> StreamPicker(title, list, onClose = { picker = null }) { i -> picker = null; launchPlayer(activity, meta, title, list, i, meta.id) } }
     }
 }
 
@@ -190,35 +159,6 @@ private fun EpisodeRow(e: Episode, onClick: () -> Unit) {
                 Spacer(Modifier.height(4.dp))
                 Text(e.title, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (!e.overview.isNullOrBlank()) { Spacer(Modifier.height(3.dp)); Text(e.overview.trim(), color = Txt2, fontFamily = Geist, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis) }
-            }
-        }
-    }
-}
-
-/** Stream picker — the "Swap stream" sheet. */
-@Composable
-fun StreamPicker(title: String, list: List<Stream>, onClose: () -> Unit, onPick: (Int) -> Unit) {
-    val first = remember { FocusRequester() }
-    FocusOnShow(first, Unit)
-    Dialog(onDismissRequest = onClose, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(Modifier.width(720.dp).heightIn(max = 560.dp).glass(RoundedCornerShape(20.dp)).background(Bg1.copy(alpha = 0.97f)).padding(26.dp)) {
-            Eyebrow("Choose a stream"); Spacer(Modifier.height(6.dp))
-            Text(title, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 22.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(6.dp)); Mono("${list.size} links · best first", 10.sp, Txt3); Spacer(Modifier.height(16.dp))
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(list.size) { i ->
-                    val s = list[i]
-                    Focusable(onClick = { onPick(i) }, requester = if (i == 0) first else null) { f ->
-                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(if (f) Blue.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.04f))
-                            .border(1.dp, if (f) Blue else Color.Transparent, RoundedCornerShape(10.dp)).padding(horizontal = 14.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Mono(s.quality.ifBlank { "SD" }, 10.sp, if (f) BlueBright else Blue, 0.12f, Modifier.width(56.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(s.title.ifBlank { s.name }, color = Txt, fontFamily = Geist, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Mono(listOfNotNull(s.name, s.size.takeIf { it.isNotBlank() }, if (s.cached) "Cached" else null, if (s.english) "English" else null).joinToString("  ·  "), 9.sp, Txt3, 0.12f, upper = false)
-                            }
-                        }
-                    }
-                }
             }
         }
     }

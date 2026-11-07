@@ -35,8 +35,7 @@ fun PosterTile(item: Item, requester: FocusRequester? = null, onFocus: ((Item) -
     val w by animateDpAsState(if (focused) EXPANDED_W else POSTER_W, tween(220), label = "w")
     val req = requester ?: remember { FocusRequester() }
     if (first) rowNav?.register(row, req)
-    val token = LocalToken.current
-    if (token.isNotEmpty()) TrailerDwell(token, item, focused)
+    TrailerDwell(item, focused)
     val trailerOn = focused && TrailerPlayer.playingId == item.id
     Focusable(onClick = onClick, requester = req, onFocus = { focused = it; if (it) { onFocus?.invoke(item); rowNav?.focused(row, req) } }) { _ ->
         Box(Modifier.width(w).height(POSTER_H).clip(TileShape).background(Bg2)

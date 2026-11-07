@@ -22,12 +22,13 @@ data class Item(
     val description: String? = null, val year: String? = null, val rating: String? = null,
     val runtime: String? = null, val genres: List<String> = emptyList(),
     val tmdbId: Long? = null, val trailerYt: String? = null, val tmdbMediaId: Long? = null,
+    val category: String? = null, val categoryId: String? = null, val added: Long = 0L, val playUrl: String? = null,
 ) {
     val sub: String get() = listOfNotNull(year, rating?.let { "★ $it" }).joinToString(" · ")
     val yearInt: Int get() = Regex("(19|20)\\d{2}").find(year.orEmpty())?.value?.toIntOrNull() ?: 0
 }
 
-data class Episode(val id: String, val season: Int, val episode: Int, val title: String, val thumb: String?, val overview: String?, val released: String?)
+data class Episode(val id: String, val season: Int, val episode: Int, val title: String, val thumb: String?, val overview: String?, val released: String?, val url: String? = null)
 data class Stream(val url: String, val name: String, val title: String, val quality: String, val english: Boolean, val cached: Boolean, val size: String)
 data class Hero(val item: Item, val tmdbId: Long)
 data class Brand(val slug: String, val name: String, val logo: String?, val backdrop: String?)

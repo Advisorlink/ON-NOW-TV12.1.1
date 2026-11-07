@@ -46,7 +46,6 @@ fun TopNav(activeId: String, autoplay: Boolean, rowNav: RowNav? = null, onItem: 
                 NavButton(item.icon, item.label, item.id == activeId, onHover = hv, rowNav = rowNav, isHome = item.id == "home") { onItem(item) }
             }
             Spacer(Modifier.width(6.dp)); Box(Modifier.width(1.dp).height(22.dp).background(Line)); Spacer(Modifier.width(6.dp))
-            NavButton(Icons.Outlined.PlayCircle, if (autoplay) "Auto play · ON" else "Auto play · OFF", autoplay, accent = true, onHover = hv, rowNav = rowNav, onClick = onAutoplay)
             NavButton(Icons.Outlined.RocketLaunch, "Speed up", false, onHover = hv, rowNav = rowNav, onClick = onSpeedUp)
             NavButton(Icons.Outlined.Speed, "Speed test", false, onHover = hv, rowNav = rowNav, onClick = onSpeedTest)
             Focusable(Modifier.padding(start = 2.dp), onClick = onProfile, onFocus = { if (it) hover = "Switch profile" to -1f else if (hover?.first == "Switch profile") hover = null }) { f ->
@@ -105,7 +104,6 @@ fun routeFor(item: NavItem) = when (item.id) { "home" -> "/"; "tv" -> "/tv"; "mo
 fun routeToNav(r: String): Route? = when {
     r.startsWith("/profiles") -> null
     r.startsWith("/movies") -> Route.Tab("movie"); r.startsWith("/tv") -> Route.Tab("series")
-    r.startsWith("/search") -> Route.Search; r.startsWith("/boxsets") -> Route.BoxSets; r.startsWith("/anime") -> Route.Anime
-    r.startsWith("/library") -> Route.Library; r.startsWith("/calendar") -> Route.Calendar; r.startsWith("/watch-together") -> Route.WatchTogether
+    r.startsWith("/search") -> Route.Search; r.startsWith("/library") -> Route.Library
     r.startsWith("/settings") -> Route.Settings; r.startsWith("/live") -> Route.Live; else -> Route.Home
 }

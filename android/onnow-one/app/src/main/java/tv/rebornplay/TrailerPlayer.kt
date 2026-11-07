@@ -36,23 +36,16 @@ object TrailerPlayer {
         repeatMode = Player.REPEAT_MODE_ONE; volume = 1f
     }.also { player = it }
 
-    suspend fun resolveKey(token: String, item: Item): String? {
+    suspend fun resolveKey(ctx: Context, item: Item): String? {
         if (keyCache.containsKey(item.id)) return keyCache[item.id]
-        val key = withContext(Dispatchers.IO) {
-            runCatching {
-                item.trailerYt ?: run {
-                    val (m, _) = resolveMeta(token, item)
-                    m.trailerYt ?: (m.tmdbId ?: m.tmdbMediaId)?.let { RebornApi.trailerKey(m.type, it) }
-                }
-            }.getOrNull()
-        }
+        val key = item.trailerYt ?: if (item.type == "movie") runCatching { Gorilla.movieInfo(ctx, item).trailerYt }.getOrNull() else null
         keyCache[item.id] = key
         return key
     }
 
     /** Resolve + start playback for `item`. Returns false when no trailer could be found. */
-    suspend fun play(ctx: Context, token: String, item: Item): Boolean {
-        val key = resolveKey(token, item) ?: return false
+    suspend fun play(ctx: Context, item: Item): Boolean {
+        val key = resolveKey(ctx, item) ?: return false
         val ts = withContext(Dispatchers.IO) { runCatching { YouTubeTrailerExtractor.extract(key) ?: YouTubeTrailerExtractor.extractMuxed(key) }.getOrNull() } ?: return false
         val p = get(ctx)
         val http = DefaultHttpDataSource.Factory().setUserAgent("Mozilla/5.0 (Linux; Android 11) RebornPlay").setAllowCrossProtocolRedirects(true)
@@ -81,11 +74,11 @@ fun TrailerSurface(modifier: Modifier = Modifier) {
 
 /** Starts the trailer after the user rests on `item` for `dwellMs`; stops when focus leaves. */
 @Composable
-fun TrailerDwell(token: String, item: Item, focused: Boolean, dwellMs: Long = 1800) {
+fun TrailerDwell(item: Item, focused: Boolean, dwellMs: Long = 1800) {
     val ctx = LocalContext.current
     LaunchedEffect(focused, item.id) {
         if (!focused) { if (TrailerPlayer.playingId == item.id) TrailerPlayer.stop(); return@LaunchedEffect }
         delay(dwellMs)
-        TrailerPlayer.play(ctx, token, item)
+        TrailerPlayer.play(ctx, item)
     }
 }

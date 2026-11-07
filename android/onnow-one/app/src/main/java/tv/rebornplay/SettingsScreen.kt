@@ -48,15 +48,12 @@ fun SettingsScreen(activity: Activity, autoplay: Boolean, onAutoplay: () -> Unit
             SettingRow(Icons.Outlined.Groups, "Profile", profile?.name ?: "—", action = "Switch", onClick = onProfiles)
             SettingRow(Icons.Outlined.Logout, "Sign out", "Clears this device's sign-in. Profiles stay backed up in the cloud.", action = "Sign out", onClick = onSignOut)
         } }
-        item { Section("Playback") {
-            SettingRow(Icons.Outlined.PlayCircle, "Autoplay best stream", if (autoplay) "Press Play and the best link starts straight away" else "Press Play to pick a link first", action = if (autoplay) "ON" else "OFF", accent = autoplay, onClick = onAutoplay)
-        } }
         item { Section("Live TV") {
             SettingRow(Icons.Outlined.CellTower, "Live TV settings", "Player engine, subtitles, aspect ratio, buffer, parental PIN, hidden groups", action = "Open") { LiveTvEntry.open(activity, settings = true) }
             SettingRow(Icons.Outlined.Refresh, "Refresh channels & guide", "Re-downloads your channel list and the programme guide", action = "Refresh", onClick = onRefreshLive)
         } }
         item { Section("Home") {
-            SettingRow(Icons.Outlined.Autorenew, "Refresh home content", "Clears cached shelves so the latest titles show up", action = "Refresh") { Cache.clear() }
+            SettingRow(Icons.Outlined.Autorenew, "Refresh movies & shows", "Re-downloads the catalogue from the service", action = "Refresh") { Cache.clear(); Gorilla.clearCache(ctx) }
         } }
         item { Section("About") { SettingRow(Icons.Outlined.Info, "Reborn Play", "Version $version · native build") {} } }
     }
@@ -83,32 +80,5 @@ private fun SettingRow(icon: ImageVector, title: String, sub: String, action: St
                 Mono(action, 10.sp, if (accent) Amber else if (f) Bg0 else Txt, 0.16f)
             }
         }
-    }
-}
-
-/** Search — results grid from TMDB search, typing debounced like the web. */
-@Composable
-fun SearchScreen(onOpen: (Item) -> Unit) {
-    var q by remember { mutableStateOf("") }
-    var results by remember { mutableStateOf<List<Item>>(emptyList()) }
-    var busy by remember { mutableStateOf(false) }
-    val req = remember { FocusRequester() }
-    FocusOnShow(req, Unit)
-    LaunchedEffect(q) {
-        if (q.trim().length < 2) { results = emptyList(); return@LaunchedEffect }
-        delay(350); busy = true
-        results = withContext(Dispatchers.IO) { runCatching { RebornApi.search(q.trim()) }.getOrDefault(emptyList()) }
-        busy = false
-    }
-    Column(Modifier.fillMaxSize().padding(top = 80.dp)) {
-        Row(Modifier.padding(start = 64.dp, end = 48.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column { Eyebrow("Search"); Text("Find anything", color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 26.sp) }
-            Spacer(Modifier.width(30.dp))
-            Box(Modifier.width(520.dp)) { Field(q, { q = it }, "Movies, shows, people…", Icons.Outlined.Search, requester = req) }
-            Spacer(Modifier.width(18.dp))
-            Mono(if (busy) "Searching…" else if (results.isNotEmpty()) "${results.size} results" else "", 10.sp, Txt3)
-        }
-        if (q.trim().length < 2) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Start typing to search movies and TV shows", color = Txt3, fontFamily = Geist, fontSize = 15.sp) }
-        else TitleGrid(results, null, onOpen)
     }
 }
