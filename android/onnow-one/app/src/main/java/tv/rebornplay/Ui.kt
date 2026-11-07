@@ -193,8 +193,15 @@ class RowNav(val listIndexOf: (Int) -> Int = { it }) {
     var rowCount = 0
     var list: androidx.compose.foundation.lazy.LazyListState? = null
     var topOffsetPx = 0
+    var scope: kotlinx.coroutines.CoroutineScope? = null
     fun register(row: Int, first: FocusRequester) { if (entries[row] == null) entries[row] = first }
-    fun focused(row: Int, r: FocusRequester) { entries[row] = r; current = row }
+    /** Row-by-row: whenever focus lands in a different row, snap that row under the menu (Vesper behaviour). */
+    fun focused(row: Int, r: FocusRequester) {
+        entries[row] = r
+        val changed = current != row
+        current = row
+        if (changed && row >= 0) scope?.launch { list?.let { runCatching { it.animateScrollToItem(listIndexOf(row), -topOffsetPx) } } }
+    }
     fun clear() { entries.clear(); current = null }
 
     /** Returns true when the key was handled (focus moved or a scroll+focus was scheduled). */
@@ -204,6 +211,7 @@ class RowNav(val listIndexOf: (Int) -> Int = { it }) {
         if (target < -1 || target >= rowCount) return false
         val entry = entries[target]
         if (target == -1) return entry?.let { runCatching { it.requestFocus() }.isSuccess } ?: false
+        current = target
         scope.launch {
             list?.let { runCatching { it.animateScrollToItem(listIndexOf(target), -topOffsetPx) } }
             withFrameNanos { }
@@ -223,3 +231,5 @@ fun Modifier.rowNavKeys(nav: RowNav, scope: kotlinx.coroutines.CoroutineScope): 
         }
     }
 )
+
+val LocalToken = compositionLocalOf { "" }

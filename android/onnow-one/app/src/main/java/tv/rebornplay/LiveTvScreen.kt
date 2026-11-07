@@ -101,12 +101,10 @@ fun LiveTvScreen(activity: Activity, onRefresh: () -> Unit) {
     }
     val current = focused ?: channels.firstOrNull()
 
-    // Preview follows the focused channel after a short settle (same as the native guide).
-    LaunchedEffect(focused?.id) {
-        val ch = focused ?: return@LaunchedEffect
-        LiveStore.programmes(ctx, ch)
-        delay(450)
-        preview = ch
+    // Nothing streams until the user asks: OK = preview in the window, OK again = full screen.
+    LaunchedEffect(focused?.id) { focused?.let { LiveStore.programmes(ctx, it) } }
+    fun openChannel(ch: Channel, list: List<Channel>) {
+        if (preview?.id == ch.id && LivePreviewSession.isAlive()) LiveStore.openFullscreen(activity, ch, list) else { focused = ch; preview = ch }
     }
     LaunchedEffect(preview?.id, playerView) {
         val ch = preview ?: return@LaunchedEffect
@@ -142,7 +140,7 @@ fun LiveTvScreen(activity: Activity, onRefresh: () -> Unit) {
 
     val compact = isCompact()
     Column(Modifier.fillMaxSize().background(Bg0)) {
-        LiveHero(current, favs, fmt, tick, onFav = { current?.let { LiveStore.toggleFavourite(ctx, it.id) } }, onRefresh = onRefresh,
+        LiveHero(current, preview != null && preview?.id == current?.id, favs, fmt, tick, onFav = { current?.let { LiveStore.toggleFavourite(ctx, it.id) } }, onRefresh = onRefresh,
             onSettings = { LiveTvEntry.open(activity, settings = true) },
             onSportsHub = { activity.startActivity(android.content.Intent(activity, tv.onnowtv.livetv.SportsHubActivity::class.java)) }) { v -> playerView = v }
         val inset = safeInset()
@@ -156,8 +154,8 @@ fun LiveTvScreen(activity: Activity, onRefresh: () -> Unit) {
                     Box(Modifier.width(260.dp)) { SearchBox(query) { query = it } }
                 }
                 val liveNow = remember(b, tick, catId) { if (catId == LiveStore.FAVS) emptyList() else LiveStore.whatsOnLive() }
-                if (liveNow.isNotEmpty()) WhatsOnLiveRail(liveNow, onFocus = { focused = it }, onOpen = { LiveStore.openFullscreen(activity, it, channels) })
-                ChannelColumn(channels, favs, current?.id, firstRow, fmt, tick, onFocus = { focused = it }, onOpen = { LiveStore.openFullscreen(activity, it, channels) })
+                if (liveNow.isNotEmpty()) WhatsOnLiveRail(liveNow, onFocus = { focused = it }, onOpen = { openChannel(it, channels) })
+                ChannelColumn(channels, favs, current?.id, firstRow, fmt, tick, onFocus = { focused = it }, onOpen = { openChannel(it, channels) })
             }
             if (!isCompact()) GuideColumn(current, fmt, tick)
         }
@@ -166,7 +164,7 @@ fun LiveTvScreen(activity: Activity, onRefresh: () -> Unit) {
 }
 
 @Composable
-private fun LiveHero(ch: Channel?, favs: Set<String>, fmt: SimpleDateFormat, tick: Long, onFav: () -> Unit, onRefresh: () -> Unit, onSettings: () -> Unit, onSportsHub: () -> Unit, onPlayerView: (PlayerView) -> Unit) {
+private fun LiveHero(ch: Channel?, previewing: Boolean, favs: Set<String>, fmt: SimpleDateFormat, tick: Long, onFav: () -> Unit, onRefresh: () -> Unit, onSettings: () -> Unit, onSportsHub: () -> Unit, onPlayerView: (PlayerView) -> Unit) {
     val ctx = LocalContext.current
     val compact = isCompact()
     val inset = safeInset()
@@ -191,8 +189,9 @@ private fun LiveHero(ch: Channel?, favs: Set<String>, fmt: SimpleDateFormat, tic
             // Preview window — LEFT, like the web guide.
             Box(Modifier.width(if (compact) 200.dp else 320.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp)).background(Color.Black).border(1.dp, Line, RoundedCornerShape(12.dp))) {
                 AndroidView(factory = { c -> PlayerView(c).apply { useController = false; resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT; setShutterBackgroundColor(android.graphics.Color.BLACK); onPlayerView(this) } }, modifier = Modifier.fillMaxSize())
-                Row(Modifier.align(Alignment.TopStart).padding(8.dp).clip(CircleShape).background(Color(0xFFE0245E)).padding(horizontal = 8.dp, vertical = 3.dp)) { Mono("Live", 8.sp, Color.White, 0.2f) }
-                Mono("OK · Full screen", 8.sp, Txt2, 0.18f, Modifier.align(Alignment.BottomEnd).padding(8.dp))
+                if (previewing) Row(Modifier.align(Alignment.TopStart).padding(8.dp).clip(CircleShape).background(Color(0xFFE0245E)).padding(horizontal = 8.dp, vertical = 3.dp)) { Mono("Live", 8.sp, Color.White, 0.2f) }
+                else Mono("Press OK on a channel to preview", 8.sp, Txt3, 0.14f, Modifier.align(Alignment.Center), upper = false)
+                Mono(if (previewing) "OK again · Full screen" else "", 8.sp, Txt2, 0.18f, Modifier.align(Alignment.BottomEnd).padding(8.dp))
             }
             Spacer(Modifier.width(24.dp))
             Column(Modifier.weight(1f)) {

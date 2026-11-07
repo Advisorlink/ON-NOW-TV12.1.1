@@ -48,6 +48,8 @@ class RebornActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); pendingRoute = intent.getStringExtra("reborn_route") }
     override fun onResume() { super.onResume(); resumeTick++ }
+    override fun onPause() { super.onPause(); TrailerPlayer.stop() }
+    override fun onDestroy() { super.onDestroy(); TrailerPlayer.release() }
     override fun dispatchKeyEvent(event: KeyEvent): Boolean = handleGlobalVolumeKey(this, event) || super.dispatchKeyEvent(event)
 }
 
@@ -126,11 +128,11 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                     }
                 }
                 val cur = nav.current
-                val rowNav = remember(cur) { RowNav { if (it == 0) 0 else it + 1 } }
+                val rowNav = remember(cur) { RowNav { if (it == 0) 0 else it + 1 }.also { it.scope = scope } }
                 BackHandler(enabled = nav.stack.size > 1 || cur !is Route.Home) { if (!nav.back()) nav.go(Route.Home) }
                 when (cur) {
                     is Route.Detail -> DetailScreen(tok, activity, cur.item, autoplay, onBack = { nav.back() }, onHome = { nav.go(Route.Home) }, onOpen = { nav.go(Route.Detail(it)) })
-                    else -> Box(Modifier.fillMaxSize().rowNavKeys(rowNav, scope)) {
+                    else -> CompositionLocalProvider(LocalToken provides tok) { Box(Modifier.fillMaxSize().rowNavKeys(rowNav, scope)) {
                         val inset = safeInset()
                         when (cur) {
                             is Route.Home -> HomeScreen(tok, nav, rowNav, playHero) {}
@@ -150,7 +152,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                         TopNav(activeId, autoplay, rowNav, onItem = { item -> item.route?.let { nav.go(it) } },
                             onAutoplay = { autoplay = !autoplay; Prefs.setAutoplay(ctx, autoplay); toast = if (autoplay) "Auto play ON" else "Auto play OFF" }, onSpeedUp = { BoxBoost.show(activity, auto = false) },
                             onSpeedTest = { toast = "Speed test lives in Live TV → Settings for now" }, onProfile = { stage = "profiles" })
-                    }
+                    } }
                 }
             }
         }

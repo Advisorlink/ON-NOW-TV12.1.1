@@ -35,12 +35,16 @@ fun PosterTile(item: Item, requester: FocusRequester? = null, onFocus: ((Item) -
     val w by animateDpAsState(if (focused) EXPANDED_W else POSTER_W, tween(220), label = "w")
     val req = requester ?: remember { FocusRequester() }
     if (first) rowNav?.register(row, req)
+    val token = LocalToken.current
+    if (token.isNotEmpty()) TrailerDwell(token, item, focused)
+    val trailerOn = focused && TrailerPlayer.playingId == item.id
     Focusable(onClick = onClick, requester = req, onFocus = { focused = it; if (it) { onFocus?.invoke(item); rowNav?.focused(row, req) } }) { _ ->
         Box(Modifier.width(w).height(POSTER_H).clip(TileShape).background(Bg2)
             .border(if (focused) 2.dp else 1.dp, if (focused) Blue else Color.White.copy(alpha = 0.05f), TileShape)) {
             if (w > POSTER_W + 40.dp && item.background != null)
                 AsyncImage(item.background, item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             else AsyncImage(item.poster, item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            if (trailerOn) TrailerSurface(Modifier.fillMaxSize())
             if (focused) {
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Bg0.copy(alpha = 0.92f))))
                 Column(Modifier.align(Alignment.BottomStart).padding(14.dp)) {

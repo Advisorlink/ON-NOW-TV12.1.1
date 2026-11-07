@@ -52,6 +52,7 @@ fun HomeScreen(token: String, nav: Nav, rowNav: RowNav, onPlayHero: (Hero) -> Un
     LaunchedEffect(Unit) {
         if (data == null) { data = loadHome(token); Cache.home = data }
     }
+    DisposableEffect(Unit) { onDispose { TrailerPlayer.stop() } }
     val d = data ?: run { Spinner("Loading your home"); return }
     // rows: 0 hero · 1 networks · 2 studios · 3.. shelves · last upcoming  (list index = row + 1 after the hero spacer)
     rowNav.rowCount = 3 + d.rows.size + (if (d.upcoming.isNotEmpty()) 1 else 0)

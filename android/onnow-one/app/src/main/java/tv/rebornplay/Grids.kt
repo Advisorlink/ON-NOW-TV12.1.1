@@ -139,6 +139,7 @@ fun AnimeScreen(rowNav: RowNav, onOpen: (Item) -> Unit) {
     val list = rememberLazyListState()
     val density = androidx.compose.ui.platform.LocalDensity.current
     LaunchedEffect(Unit) { if (rails == null) { rails = withContext(Dispatchers.IO) { runCatching { RebornApi.anime() }.getOrDefault(emptyList()) }; Cache.anime = rails } }
+    DisposableEffect(Unit) { onDispose { TrailerPlayer.stop() } }
     val r = rails ?: run { Spinner("Loading anime"); return }
     rowNav.rowCount = r.size; rowNav.list = list; rowNav.topOffsetPx = with(density) { 84.dp.roundToPx() }
     LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(top = 84.dp, bottom = 200.dp)) {

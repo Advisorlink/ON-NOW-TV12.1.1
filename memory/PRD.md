@@ -989,3 +989,9 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Live TV: preview window moved to the LEFT of the hero; hero backdrop = TMDB programme art via `/api/epg/art?title=` (debounced 500 ms, cached in LiveStore.art); "What's on live" rail above the channel list (SportsLiveGuide.current → SportsLiveEvents.group; click plays the channel); "Sports Hub" pill opens the module's native `SportsHubActivity`.
 - Loading screen now lists steps (Movies & TV shows / Live TV channels / TV guide) with ticks.
 - APK reborn-play-2.3.0-16.apk.
+
+## 2026-11-07 — v2.3.1: row-by-row snapping, dwell trailers, Live TV click-to-preview
+- RowNav.focused() snaps the newly focused row under the menu even when Compose moved focus itself (true row-by-row like Vesper).
+- `TrailerPlayer.kt`: shared ExoPlayer; resting 1.8 s on a poster resolves its trailer (meta.trailers → tmdb trailer key → YouTubeTrailerExtractor, HD video+audio MergingMediaSource) and plays it inside the expanded cover; stops on focus loss / leaving Home / onPause. `LocalToken` CompositionLocal supplies the auth token to tiles.
+- Live TV: no stream starts on focus any more. OK on a channel/live-event card = preview in the window; OK again on the same channel = full screen. Preview box shows "Press OK on a channel to preview".
+- APK reborn-play-2.3.1-17.apk.
