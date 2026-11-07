@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -30,17 +31,18 @@ val EXPANDED_W = 430.dp
 
 /** Poster that expands into its landscape backdrop when focused — the "covers" look of the web Shelf. */
 @Composable
-fun PosterTile(item: Item, requester: FocusRequester? = null, onFocus: ((Item) -> Unit)? = null, row: Int = -2, rowNav: RowNav? = null, first: Boolean = false, onClick: () -> Unit) {
+fun PosterTile(item: Item, requester: FocusRequester? = null, onFocus: ((Item) -> Unit)? = null, row: Int = -2, rowNav: RowNav? = null, first: Boolean = false, tileH: Dp = POSTER_H, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
-    val w by animateDpAsState(if (focused) EXPANDED_W else POSTER_W, tween(220), label = "w")
+    val posterW = tileH * 2 / 3
+    val w by animateDpAsState(if (focused) tileH * 1.9f else posterW, tween(220), label = "w")
     val req = requester ?: remember { FocusRequester() }
     if (first) rowNav?.register(row, req)
     TrailerDwell(item, focused)
     val trailerOn = focused && TrailerPlayer.playingId == item.id
     Focusable(onClick = onClick, requester = req, onFocus = { focused = it; if (it) { onFocus?.invoke(item); rowNav?.focused(row, req) } }) { _ ->
-        Box(Modifier.width(w).height(POSTER_H).clip(TileShape).background(Bg2)
+        Box(Modifier.width(w).height(tileH).clip(TileShape).background(Bg2)
             .border(if (focused) 2.dp else 1.dp, if (focused) Blue else Color.White.copy(alpha = 0.05f), TileShape)) {
-            if (w > POSTER_W + 40.dp && item.background != null)
+            if (w > posterW + 40.dp && item.background != null)
                 AsyncImage(item.background, item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             else AsyncImage(item.poster, item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             if (trailerOn) TrailerSurface(Modifier.fillMaxSize())
@@ -56,13 +58,14 @@ fun PosterTile(item: Item, requester: FocusRequester? = null, onFocus: ((Item) -
 }
 
 @Composable
-fun PosterShelf(eyebrow: String, title: String, items: List<Item>, total: Int = items.size, firstRequester: FocusRequester? = null, onFocusItem: ((Item) -> Unit)? = null, row: Int = -2, rowNav: RowNav? = null, onOpen: (Item) -> Unit) {
+fun PosterShelf(eyebrow: String, title: String, items: List<Item>, total: Int = items.size, firstRequester: FocusRequester? = null, onFocusItem: ((Item) -> Unit)? = null, row: Int = -2, rowNav: RowNav? = null, tileH: Dp = POSTER_H, bottomPad: Dp = 30.dp, onOpen: (Item) -> Unit) {
     if (items.isEmpty()) return
     val inset = safeInset()
-    Column(Modifier.padding(bottom = 30.dp)) {
+    if (rowNav != null) DisposableEffect(row) { onDispose { rowNav.forget(row) } }
+    Column(Modifier.padding(bottom = bottomPad)) {
         SectionHeader(eyebrow, title, "${items.size} of $total titles", Modifier.padding(horizontal = inset))
         LazyRow(contentPadding = PaddingValues(start = 64.dp + inset, end = 48.dp + inset), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            itemsIndexed(items.distinctBy { it.id }, key = { _, it -> it.id }) { i, it -> PosterTile(it, if (i == 0) firstRequester else null, onFocusItem, row, rowNav, i == 0) { onOpen(it) } }
+            itemsIndexed(items.distinctBy { it.id }, key = { _, it -> it.id }) { i, it -> PosterTile(it, if (i == 0) firstRequester else null, onFocusItem, row, rowNav, i == 0, tileH) { onOpen(it) } }
         }
     }
 }

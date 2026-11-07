@@ -1,9 +1,12 @@
 package tv.rebornplay
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
@@ -16,7 +19,8 @@ class HomeData(val heroes: List<Hero>, val rows: List<Triple<String, String, Lis
 /** In-memory caches so Back from a title is instant. */
 object Cache {
     var home: HomeData? = null
-    fun clear() { home = null; Gorilla.catalog = null }
+    var homePage = 0
+    fun clear() { home = null; homePage = 0; Gorilla.catalog = null }
 }
 
 /** Home is built purely from the service catalogue: newest movies/series, then the service's own categories. */
@@ -45,11 +49,46 @@ fun HomeScreen(nav: Nav, rowNav: RowNav, onPlayHero: (Hero) -> Unit) {
     DisposableEffect(Unit) { onDispose { TrailerPlayer.stop() } }
     val d = data ?: run { Spinner("Loading your home"); return }
     rowNav.rowCount = 1 + d.rows.size
-    rowNav.list = list
-    rowNav.topOffsetPx = with(density) { 84.dp.roundToPx() }
-    LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 200.dp)) {
-        item { HeroBillboard(d.heroes, "New on Reborn", playReq, rowNav, onPlay = onPlayHero, onInfo = { nav.go(Route.Detail(it.item)) }) }
-        item { Spacer(Modifier.height(26.dp)) }
-        items(d.rows.size) { i -> val (eye, title, l) = d.rows[i]; PosterShelf(eye, title, l, l.size, row = 1 + i, rowNav = rowNav) { nav.go(Route.Detail(it)) } }
+    val compact = isCompact()
+    if (compact) {
+        rowNav.paged = false
+        rowNav.list = list
+        rowNav.topOffsetPx = with(density) { 84.dp.roundToPx() }
+        LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 200.dp)) {
+            item { HeroBillboard(d.heroes, "New on Reborn", playReq, rowNav, onPlay = onPlayHero, onInfo = { nav.go(Route.Detail(it.item)) }) }
+            item { Spacer(Modifier.height(26.dp)) }
+            items(d.rows.size) { i -> val (eye, title, l) = d.rows[i]; PosterShelf(eye, title, l, l.size, row = 1 + i, rowNav = rowNav) { nav.go(Route.Detail(it)) } }
+        }
+        return
+    }
+    PagedHome(d, nav, rowNav, playReq, onPlayHero)
+}
+
+/** TV layout (Vesper): hero is static, exactly one shelf sits under it and Down/Up swaps the shelf in place. */
+@Composable
+private fun PagedHome(d: HomeData, nav: Nav, rowNav: RowNav, playReq: FocusRequester, onPlayHero: (Hero) -> Unit) {
+    rowNav.paged = true
+    val restore = remember { Cache.homePage.coerceIn(0, (d.rows.size - 1).coerceAtLeast(0)) }
+    remember { rowNav.page = restore; if (restore > 0) rowNav.showRow(restore + 1); 0 }
+    LaunchedEffect(rowNav.page) { Cache.homePage = rowNav.page }
+    LaunchedEffect(rowNav.focusTick) { if (rowNav.focusTick > 0) { withFrameNanos { }; withFrameNanos { }; rowNav.focusPending() } }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val heroH = maxHeight * 0.46f
+        val tileH = (maxHeight - heroH - 86.dp).coerceIn(150.dp, 240.dp)
+        Column(Modifier.fillMaxSize()) {
+            HeroBillboard(d.heroes, "New on Reborn", if (restore > 0) null else playReq, rowNav, height = heroH, onPlay = onPlayHero, onInfo = { nav.go(Route.Detail(it.item)) })
+            Box(Modifier.fillMaxWidth().weight(1f)) {
+                AnimatedContent(rowNav.page.coerceIn(0, d.rows.size - 1), label = "shelf", transitionSpec = {
+                    val down = targetState > initialState
+                    (slideInVertically(tween(260)) { if (down) it / 3 else -it / 3 } + fadeIn(tween(220))) togetherWith
+                        (slideOutVertically(tween(200)) { if (down) -it / 3 else it / 3 } + fadeOut(tween(160)))
+                }) { i ->
+                    val (eye, title, l) = d.rows[i]
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
+                        PosterShelf(eye, title, l, l.size, row = 1 + i, rowNav = rowNav, tileH = tileH, bottomPad = 18.dp) { nav.go(Route.Detail(it)) }
+                    }
+                }
+            }
+        }
     }
 }

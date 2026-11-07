@@ -29,7 +29,7 @@ import kotlinx.coroutines.delay
 
 /** Rotating billboard — same layout as HeroBillboard.jsx (title, meta line, synopsis, Play / More Info / My List, dots). */
 @Composable
-fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusRequester?, rowNav: RowNav? = null, onPlay: (Hero) -> Unit, onInfo: (Hero) -> Unit) {
+fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusRequester?, rowNav: RowNav? = null, height: androidx.compose.ui.unit.Dp? = null, onPlay: (Hero) -> Unit, onInfo: (Hero) -> Unit) {
     if (heroes.isEmpty()) { Spacer(Modifier.height(80.dp)); return }
     val ctx = LocalContext.current
     var idx by remember(heroes) { mutableStateOf(0) }
@@ -40,22 +40,24 @@ fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusReque
     if (playRequester != null) FocusOnShow(playRequester, Unit)
 
     val compact = isCompact()
-    Box(Modifier.fillMaxWidth().height(if (compact) 300.dp else 330.dp)) {
+    val h = height ?: if (compact) 300.dp else 330.dp
+    val short = h < 290.dp
+    Box(Modifier.fillMaxWidth().height(h)) {
         Crossfade(hero, animationSpec = tween(600), label = "hero") { h ->
             AsyncImage(h.item.background ?: h.item.poster, null, Modifier.fillMaxSize().padding(start = if (compact) 200.dp else 360.dp), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
         }
         Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Bg0, 0.42f to Bg0.copy(alpha = 0.96f), 0.62f to Bg0.copy(alpha = 0.35f), 0.85f to Color.Transparent)))
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Bg0.copy(alpha = 0.55f), 0.35f to Color.Transparent, 0.75f to Bg0.copy(alpha = 0.4f), 1f to Bg0)))
 
-        Column(Modifier.align(Alignment.BottomStart).padding(start = (if (compact) 28.dp else 64.dp) + safeInset(), bottom = 22.dp).width(if (compact) 480.dp else 640.dp)) {
+        Column(Modifier.align(Alignment.BottomStart).padding(start = (if (compact) 28.dp else 64.dp) + safeInset(), bottom = if (short) 14.dp else 22.dp).width(if (compact) 480.dp else 640.dp)) {
             Eyebrow("$eyebrow · ${hero.item.genres.firstOrNull() ?: hero.item.type}")
             Spacer(Modifier.height(6.dp))
-            Text(hero.item.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = if (compact) 34.sp else 52.sp, lineHeight = if (compact) 36.sp else 54.sp, letterSpacing = (-1.8).sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(10.dp))
-            MetaLine(hero.item, 17.sp)
-            Spacer(Modifier.height(12.dp))
-            Text(hero.item.description.orEmpty(), color = Txt2, fontFamily = Geist, fontSize = 14.sp, lineHeight = 21.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(560.dp))
-            Spacer(Modifier.height(18.dp))
+            Text(hero.item.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = if (compact) 34.sp else if (short) 40.sp else 52.sp, lineHeight = if (compact) 36.sp else if (short) 42.sp else 54.sp, letterSpacing = (-1.8).sp, maxLines = if (short) 1 else 2, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(if (short) 6.dp else 10.dp))
+            MetaLine(hero.item, if (short) 15.sp else 17.sp)
+            Spacer(Modifier.height(if (short) 8.dp else 12.dp))
+            Text(hero.item.description.orEmpty(), color = Txt2, fontFamily = Geist, fontSize = 14.sp, lineHeight = 21.sp, maxLines = if (short) 2 else 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(560.dp))
+            Spacer(Modifier.height(if (short) 12.dp else 18.dp))
             val playReq = playRequester ?: remember { FocusRequester() }
             val infoReq = remember { FocusRequester() }; val listReq = remember { FocusRequester() }
             rowNav?.register(0, playReq)

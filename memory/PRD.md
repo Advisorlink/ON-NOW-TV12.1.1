@@ -1006,3 +1006,10 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Live TV: `AuthStore.HOST/PORT/SCHEME` became vars + `configure()` (set to gorillaposition.xyz:443 https in RebornActivity.onCreate); creds saved via AuthStore.saveCredentials. `LiveLoader.kt` loads channels straight from the provider (DirectProviderFetcher) + guide via XmlTvFetcher streaming writer → EpgCache, saves BundleCache for the FastBundle fast path. FastBundle no longer schedules the backend EPG worker; per-channel EPG fallback = DirectProviderFetcher.fetchShortEpg; TMDB art lookup disabled (service data only).
 - Verified via curl: auth OK, 22.6k movies / 4.7k series / 11.4k live channels, xmltv 32 MB, movie URL serves (302 → CDN).
 - APK reborn-play-3.0.0-22.apk. Untested on hardware. Old module's MainActivity loader is no longer used.
+
+## 2026-11-07 — v3.1.0: Vesper paged Home on TV (static hero, one shelf at a time)
+- TV Home no longer scrolls: `HomeScreen.kt` → `PagedHome`. Hero fixed at 46% of screen height; exactly one shelf sits under it, bottom-aligned. D-pad Down/Up swaps the shelf in place (AnimatedContent slide/fade), matching the web ShelfPage scroll-snap.
+- `RowNav.paged` (Ui.kt): `showRow()` sets `page`, `focusTick` → Home requests focus on the new row's first tile two frames later. Shelves call `rowNav.forget(row)` on dispose so stale FocusRequesters never win.
+- Tiles size to the screen: `tileH = screenH - heroH - 86dp` clamped 150–240dp (no cut-off covers); hero text tightens when hero < 290dp. Phones keep the scrolling LazyColumn.
+- `Cache.homePage` restores the shelf you were on when returning from a title.
+- Artifact: test-artifacts/reborn-play-3.1.0-23.apk (download /api/dl/one/ZY3CDNN247). NOT device-verified yet.

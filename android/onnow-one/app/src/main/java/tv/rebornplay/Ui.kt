@@ -194,15 +194,24 @@ class RowNav(val listIndexOf: (Int) -> Int = { it }) {
     var list: androidx.compose.foundation.lazy.LazyListState? = null
     var topOffsetPx = 0
     var scope: kotlinx.coroutines.CoroutineScope? = null
+    /** Paged mode (TV Home): hero stays put, only one shelf (page) is shown underneath and Down/Up swaps it. */
+    var paged = false
+    var page by mutableStateOf(0)
+    var focusTick by mutableStateOf(0)
+    private var pendingRow = 0
     fun register(row: Int, first: FocusRequester) { if (entries[row] == null) entries[row] = first }
+    fun forget(row: Int) { entries.remove(row) }
     /** Row-by-row: whenever focus lands in a different row, snap that row under the menu (Vesper behaviour). */
     fun focused(row: Int, r: FocusRequester) {
         entries[row] = r
         val changed = current != row
         current = row
+        if (paged) { if (row >= 1) page = row - 1; return }
         if (changed && row >= 0) scope?.launch { list?.let { runCatching { it.animateScrollToItem(listIndexOf(row), -topOffsetPx) } } }
     }
     fun clear() { entries.clear(); current = null }
+    fun showRow(row: Int) { current = row; page = maxOf(0, row - 1); pendingRow = row; focusTick++ }
+    fun focusPending() { entries[pendingRow]?.let { runCatching { it.requestFocus() } } }
 
     /** Returns true when the key was handled (focus moved or a scroll+focus was scheduled). */
     fun move(dir: Int, scope: kotlinx.coroutines.CoroutineScope): Boolean {
@@ -211,6 +220,7 @@ class RowNav(val listIndexOf: (Int) -> Int = { it }) {
         if (target < -1 || target >= rowCount) return false
         val entry = entries[target]
         if (target == -1) return entry?.let { runCatching { it.requestFocus() }.isSuccess } ?: false
+        if (paged) { showRow(target); return true }
         current = target
         scope.launch {
             list?.let { runCatching { it.animateScrollToItem(listIndexOf(target), -topOffsetPx) } }
