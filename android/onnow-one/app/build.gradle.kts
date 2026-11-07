@@ -14,6 +14,8 @@ android {
         assets.setSrcDirs(listOf("../../vesper-tv/app/src/main/assets"))
     }
     compileSdk = 34
+    // Reborn Play is fully native: the 24 MB React bundle under assets/web is dead weight.
+    androidResources { ignoreAssetsPattern = "!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:!web" }
 
     defaultConfig {
         applicationId = "tv.onnowtv.one"

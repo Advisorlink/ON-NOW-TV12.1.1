@@ -996,3 +996,4 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Live TV: no stream starts on focus any more. OK on a channel/live-event card = preview in the window; OK again on the same channel = full screen. Preview box shows "Press OK on a channel to preview".
 - APK reborn-play-2.3.1-17.apk.
 - 2026-11-07 v2.3.2: removed the What's on live rail from the Reborn Play Live TV guide (LiveTvScreen.kt); Sports Hub button kept.
+- 2026-11-07 v2.3.3: install failure report ('package… something went wrong'). APK verified valid (v1/v2/v3, same cert 0e16e2…, download hash matches). Dropped dead assets/web (24 MB) via androidResources.ignoreAssetsPattern in one-app build.gradle.kts → smaller APK. Advice: uninstall old Reborn Play if 'App not installed' persists; check device storage; use arm64 box.
