@@ -83,6 +83,10 @@ android {
     // exact same ABI-compatible libc++ runtime.
     packaging {
         jniLibs {
+            // Compress the .so files (libVLC alone is 41 MB per ABI uncompressed) so the
+            // sideload download finishes well inside the proxy's ~60 s window.
+            useLegacyPackaging = true
+            excludes += setOf("lib/x86/**", "lib/x86_64/**")
             pickFirsts += setOf(
                 "**/libc++_shared.so",
                 // Same story for libssl / libcrypto — OkHttp's

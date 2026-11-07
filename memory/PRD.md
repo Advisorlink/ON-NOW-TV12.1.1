@@ -1024,3 +1024,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Fix: new module `/app/android/onnow-one/installer` → **Reborn Setup** (tv.rebornplay.setup, 620 KB, plain Activity, Leanback + normal launcher). Downloads the full APK from BuildConfig.APK_URL (injected at build: -PdlBase/-PdlCode) with HTTP Range resume (loops on dropped connections, restarts if a newer build changes the size), then ACTION_INSTALL_PACKAGE via FileProvider; handles REQUEST_INSTALL_PACKAGES permission prompt; launches Reborn Play when the installed versionCode rises.
 - Backend: `/api/dl/setup/<code>` serves `installer/test-artifacts` (SLUGS["setup"]). Setup link: /api/dl/setup/7Hf58oDiX7 ; main APK link unchanged /api/dl/one/ZY3CDNN247.
 - `/root/one_build.sh` now builds + re-signs both APKs (env VC/VN for app, SVC/SVN for setup). Artifacts: reborn-play-3.1.1-24.apk, reborn-setup-1.0-1.apk. Setup not yet device-tested.
+
+## 2026-11-07 — v3.1.2: direct link made reliable again (APK 139 → 71 MB)
+- User rejected the Setup-installer route; wants the plain Downloader link. Measured: preview proxy severs responses after ~70–85 s regardless of speed → the 139 MB APK only survived at ≥2.5 MB/s. Now `jniLibs.useLegacyPackaging = true` + `extractNativeLibs="true"` (compressed .so, x86 excluded) → 71 MB, completes at ≥1 MB/s (verified through the proxy at 1000 KB/s; cut at 700 KB/s).
+- Further option if still flaky: drop libVLC (opt-in engine; Exo is default) → ~35 MB. Not done.
+- Artifact: test-artifacts/reborn-play-3.1.2-25.apk via /api/dl/one/ZY3CDNN247. Setup installer module kept in repo (installer/) but not promoted.

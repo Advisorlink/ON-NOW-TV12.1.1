@@ -81,7 +81,7 @@
         android:allowBackup="false"
         android:fullBackupContent="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
-        android:extractNativeLibs="false"
+        android:extractNativeLibs="true"
         android:icon="@mipmap/reborn_icon"
         android:roundIcon="@mipmap/reborn_icon_round"
         android:banner="@drawable/reborn_tv_banner"
