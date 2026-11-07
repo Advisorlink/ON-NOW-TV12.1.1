@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Reborn Setup</string>
+    <color name="bg0">#FF06080F</color>
+    <color name="bg2">#FF111827</color>
+    <color name="txt">#FFF5F7FA</color>
+    <color name="txt2">#FF9BA8C2</color>
+    <color name="txt3">#FF5B6580</color>
+    <color name="blue">#FF5DC8FF</color>
+    <color name="blue_bright">#FF8DE0FF</color>
+
+    <style name="Theme.RebornSetup" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/bg0</item>
+        <item name="android:colorAccent">@color/blue</item>
+        <item name="android:colorPrimary">@color/bg0</item>
+        <item name="android:colorPrimaryDark">@color/bg0</item>
+        <item name="android:statusBarColor">@color/bg0</item>
+        <item name="android:navigationBarColor">@color/bg0</item>
+    </style>
+</resources>

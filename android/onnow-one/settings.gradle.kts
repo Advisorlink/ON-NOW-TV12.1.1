@@ -20,4 +20,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "OnNowOne"
-include(":app", ":livetv")
+include(":app", ":livetv", ":installer")

@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg0">
+
+    <LinearLayout
+        android:layout_width="520dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:gravity="start"
+        android:padding="24dp">
+
+        <ImageView
+            android:id="@+id/logo"
+            android:layout_width="260dp"
+            android:layout_height="62dp"
+            android:scaleType="fitStart"
+            android:contentDescription="@string/app_name"
+            android:src="@drawable/reborn_banner" />
+
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="Setting up Reborn Play"
+            android:textColor="@color/txt"
+            android:textSize="26sp"
+            android:fontFamily="sans-serif-medium" />
+
+        <TextView
+            android:id="@+id/status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Connecting…"
+            android:textColor="@color/txt2"
+            android:textSize="15sp" />
+
+        <ProgressBar
+            android:id="@+id/progress"
+            style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="8dp"
+            android:layout_marginTop="22dp"
+            android:max="1000"
+            android:progressDrawable="@drawable/progress" />
+
+        <TextView
+            android:id="@+id/detail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text=""
+            android:textColor="@color/txt3"
+            android:textSize="12sp"
+            android:letterSpacing="0.12"
+            android:textAllCaps="true" />
+
+        <Button
+            android:id="@+id/action"
+            android:layout_width="wrap_content"
+            android:layout_height="46dp"
+            android:layout_marginTop="26dp"
+            android:paddingStart="28dp"
+            android:paddingEnd="28dp"
+            android:background="@drawable/pill"
+            android:text="Install Reborn Play"
+            android:textAllCaps="false"
+            android:textColor="@color/bg0"
+            android:textSize="15sp"
+            android:fontFamily="sans-serif-medium"
+            android:stateListAnimator="@null"
+            android:visibility="gone" />
+    </LinearLayout>
+</FrameLayout>

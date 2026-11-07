@@ -1018,3 +1018,9 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Root cause (reproduced the data path): get_vod_streams is a 20 MB JSON; Gorilla loaded it as a String + org.json JSONArray → OOM/throw on TV boxes, swallowed by runCatching → infinite "Loading your home" spinner.
 - Fix: `Gorilla.cachedFile` streams the response to disk; `parseList` uses android.util.JsonReader (constant memory). Errors now logged (tag Reborn) and Home shows "Couldn't load…" + Try again (clears cache). Hero info fetched in parallel. Empty-rows guard in PagedHome.
 - Artifact: reborn-play-3.1.1-24.apk. Needs device confirmation.
+
+## 2026-11-07 — "App not installed" ROOT CAUSE + Reborn Setup installer
+- Reproduced: the preview ingress severs long downloads (140 MB APK at 700 KB/s cut at 60 MB after 82 s; at 300 KB/s cut at 35 MB after 115 s). Backend streaming on localhost is fine. Slow TV-box downloads via Downloader therefore arrive truncated → "App not installed". Signatures/alignment/ABIs verified OK (v2+v3, cert 0e16e297…).
+- Fix: new module `/app/android/onnow-one/installer` → **Reborn Setup** (tv.rebornplay.setup, 620 KB, plain Activity, Leanback + normal launcher). Downloads the full APK from BuildConfig.APK_URL (injected at build: -PdlBase/-PdlCode) with HTTP Range resume (loops on dropped connections, restarts if a newer build changes the size), then ACTION_INSTALL_PACKAGE via FileProvider; handles REQUEST_INSTALL_PACKAGES permission prompt; launches Reborn Play when the installed versionCode rises.
+- Backend: `/api/dl/setup/<code>` serves `installer/test-artifacts` (SLUGS["setup"]). Setup link: /api/dl/setup/7Hf58oDiX7 ; main APK link unchanged /api/dl/one/ZY3CDNN247.
+- `/root/one_build.sh` now builds + re-signs both APKs (env VC/VN for app, SVC/SVN for setup). Artifacts: reborn-play-3.1.1-24.apk, reborn-setup-1.0-1.apk. Setup not yet device-tested.
