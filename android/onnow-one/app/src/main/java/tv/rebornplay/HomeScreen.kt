@@ -29,16 +29,22 @@ object Cache {
 /** Home is built purely from the service catalogue: newest movies/series, then the service's own categories. */
 suspend fun loadHome(ctx: android.content.Context): HomeData {
     val c = Gorilla.loadCatalog(ctx)
+    val heroItems = c.movies.sortedByDescending { it.added }.filter { it.poster != null }.take(6)
+    val heroes = withContext(Dispatchers.IO) { heroItems.map { async { Hero(runCatching { Gorilla.movieInfo(ctx, it) }.getOrDefault(it), 0L) } }.awaitAll() }
+    return HomeData(heroes, loadHomeRows(c))
+}
+
+fun loadHomeRows(c: Gorilla.Catalog): List<Triple<String, String, List<Item>>> {
     val newMovies = c.movies.sortedByDescending { it.added }
     val newSeries = c.series.sortedByDescending { it.added }
-    val heroItems = newMovies.filter { it.poster != null }.take(6)
-    val heroes = withContext(Dispatchers.IO) { heroItems.map { async { Hero(runCatching { Gorilla.movieInfo(ctx, it) }.getOrDefault(it), 0L) } }.awaitAll() }
     val rows = ArrayList<Triple<String, String, List<Item>>>()
     rows += Triple("Movies", "New movies", newMovies.take(40))
     rows += Triple("Series", "New series", newSeries.take(40))
-    c.movieCats.forEach { (id, name) -> val l = c.movies.filter { it.categoryId == id }; if (l.size >= 4) rows += Triple("Movies", name, l.sortedByDescending { it.added }.take(40)) }
-    c.seriesCats.forEach { (id, name) -> val l = c.series.filter { it.categoryId == id }; if (l.size >= 4) rows += Triple("Series", name, l.sortedByDescending { it.added }.take(40)) }
-    return HomeData(heroes, rows.take(24))
+    val mRows = c.movieCats.mapNotNull { (id, name) -> val l = c.movies.filter { it.categoryId == id }; if (l.size >= 4) Triple("Movies", name, l.sortedByDescending { it.added }.take(40)) else null }
+    val sRows = c.seriesCats.mapNotNull { (id, name) -> val l = c.series.filter { it.categoryId == id }; if (l.size >= 4) Triple("Series", name, l.sortedByDescending { it.added }.take(40)) else null }
+    // Alternate the service's movie and series categories so both reach the screen early.
+    for (i in 0 until maxOf(mRows.size, sRows.size)) { mRows.getOrNull(i)?.let { rows += it }; sRows.getOrNull(i)?.let { rows += it } }
+    return rows
 }
 
 @Composable

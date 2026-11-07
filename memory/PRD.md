@@ -1029,3 +1029,10 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - User rejected the Setup-installer route; wants the plain Downloader link. Measured: preview proxy severs responses after ~70–85 s regardless of speed → the 139 MB APK only survived at ≥2.5 MB/s. Now `jniLibs.useLegacyPackaging = true` + `extractNativeLibs="true"` (compressed .so, x86 excluded) → 71 MB, completes at ≥1 MB/s (verified through the proxy at 1000 KB/s; cut at 700 KB/s).
 - Further option if still flaky: drop libVLC (opt-in engine; Exo is default) → ~35 MB. Not done.
 - Artifact: test-artifacts/reborn-play-3.1.2-25.apk via /api/dl/one/ZY3CDNN247. Setup installer module kept in repo (installer/) but not promoted.
+
+## 2026-11-07 — v3.1.4: Home/movies double-check
+- Service re-verified live (auth OK, 22,602 movies / 4,690 series, 6 parallel info calls + concurrent m3u/xmltv all 200). Parse assumptions validated against a full dump (every movie has stream_id/category/added; 72 rows would result).
+- Likely cause of "Home not showing server movies": the box was still running a pre-3.0 build because the 139 MB installs kept failing (pre-3.0 Home used backend/Vesper catalogues). Version now printed bottom-right of the loading screen ("Reborn Play vX") so the user can confirm.
+- Loading screen now shows the catalogue counts when loaded, or the exact failure reason ("Movies & TV shows — …"); preload failure logged (tag Reborn). Home rows no longer capped at 24 — movie and series categories alternate (all service categories with ≥4 titles).
+- Robolectric attempt to unit-test Gorilla parsing was skipped by the runner on this aarch64 host (no reason reported) — removed; don't repeat.
+- Artifact: reborn-play-3.1.4-27.apk (71 MB) via /api/dl/one/ZY3CDNN247.

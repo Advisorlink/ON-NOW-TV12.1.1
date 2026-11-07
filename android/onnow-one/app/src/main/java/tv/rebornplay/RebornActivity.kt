@@ -63,6 +63,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
     var homeReady by remember { mutableStateOf(Cache.home != null) }
     var liveReady by remember { mutableStateOf(LiveStore.bundle.value != null) }
     var loadError by remember { mutableStateOf<String?>(null) }
+    var homeError by remember { mutableStateOf<String?>(null) }
     var autoplay by remember { mutableStateOf(Prefs.autoplay(ctx)) }
     var profileKey by remember { mutableStateOf(0) }
     var toast by remember { mutableStateOf<String?>(null) }
@@ -79,13 +80,17 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
     LaunchedEffect(stage) {
         if (stage != "loading") return@LaunchedEffect
         if (token == null) { stage = "login"; return@LaunchedEffect }
-        loadError = null
+        loadError = null; homeError = null
         val live = launch {
             if (LiveStore.ensureLoaded(ctx)) liveReady = true
             else runCatching { LiveLoader.load(ctx) { }; LiveStore.refreshFromHolder(ctx) }.onSuccess { liveReady = true }
                 .onFailure { if (it is LiveLoader.BadLogin) loadError = it.message else liveReady = true }
         }
-        val home = launch { if (Cache.home == null) Cache.home = runCatching { loadHome(ctx) }.getOrNull(); homeReady = true }
+        val home = launch {
+            if (Cache.home == null) runCatching { loadHome(ctx) }.onSuccess { Cache.home = it }
+                .onFailure { android.util.Log.e("Reborn", "preload home failed", it); homeError = it.message ?: "couldn't load" }
+            homeReady = true
+        }
         live.join(); home.join()
         if (loadError != null) { signOutQuiet(ctx); token = null; stage = "login" } else stage = "profiles"
     }
@@ -107,7 +112,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                 Cache.clear(); Gorilla.clearCache(ctx)
                 stage = "loading"
             }
-            "loading" -> LoadingScreen(homeReady, liveReady)
+            "loading" -> LoadingScreen(homeReady, liveReady, homeError)
             "profiles" -> ProfilesScreen(onPick = { profileKey++; nav.go(Route.Home); stage = "main" }, onSignOut = signOut)
             else -> key(profileKey) {
                 val playHero: (Hero) -> Unit = { h ->
@@ -142,8 +147,11 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
 }
 
 @Composable
-fun LoadingScreen(homeReady: Boolean, liveReady: Boolean) {
+fun LoadingScreen(homeReady: Boolean, liveReady: Boolean, homeError: String? = null) {
     val compact = isCompact()
+    val ctx = LocalContext.current
+    val version = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "" }
+    val counts = Gorilla.catalog?.let { "${"%,d".format(it.movies.size)} movies · ${"%,d".format(it.series.size)} series" }
     Box(Modifier.fillMaxSize()) {
         ScreenBackdrop()
         Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -156,10 +164,11 @@ fun LoadingScreen(homeReady: Boolean, liveReady: Boolean) {
             Spacer(Modifier.height(16.dp))
             Text("Getting everything ready…", color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
             Spacer(Modifier.height(14.dp))
-            LoadStep("Movies & TV shows", homeReady)
+            LoadStep(if (homeError != null) "Movies & TV shows — $homeError" else if (homeReady && counts != null) "Movies & TV shows · $counts" else "Movies & TV shows", homeReady && homeError == null)
             LoadStep("Live TV channels", liveReady)
             LoadStep("TV guide", liveReady)
         }
+        Mono("Reborn Play v$version", 10.sp, Txt3, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 28.dp + safeInset(), bottom = 20.dp + safeInset()))
     }
 }
 
