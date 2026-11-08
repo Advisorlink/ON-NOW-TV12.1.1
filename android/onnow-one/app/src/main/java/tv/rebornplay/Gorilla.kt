@@ -65,7 +65,7 @@ object Gorilla {
             val c = open(url)
             try {
                 val code = c.responseCode
-                if (code == 401 || code == 403) throw IllegalStateException("Service refused the login (HTTP $code)")
+                if (code == 401 || code == 403 || code == 404) throw IllegalStateException("the service didn't accept this login (HTTP $code) — sign out and sign in again")
                 if (code !in 200..299) throw IOException("Service error HTTP $code")
                 return read(c)
             } catch (e: SSLException) {
@@ -82,7 +82,7 @@ object Gorilla {
     /** player_api auth. Throws with a human message on bad credentials. */
     fun login(user: String, pass: String): JSONObject {
         val body = runCatching { get("$BASE/player_api.php?username=${enc(user)}&password=${enc(pass)}") }
-            .getOrElse { throw IllegalStateException("Can't reach the service right now") }
+            .getOrElse { throw IllegalStateException(if (it.message?.contains("HTTP 40") == true) "Wrong username or password" else "Can't reach the service right now") }
         val o = runCatching { JSONObject(body) }.getOrElse { throw IllegalStateException("Wrong username or password") }
         val info = o.optJSONObject("user_info") ?: throw IllegalStateException("Wrong username or password")
         if (info.optInt("auth", 0) != 1) throw IllegalStateException("Wrong username or password")

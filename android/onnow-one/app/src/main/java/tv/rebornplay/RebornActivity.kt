@@ -59,7 +59,13 @@ class RebornActivity : ComponentActivity() {
 fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit, resumeTick: Int) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-    var token by remember { mutableStateOf(RebornSession.token(ctx)) }
+    // Only a service login (token "xtream" + saved credentials) counts; anything older (pre-3.0 builds) is wiped and sent to sign-in.
+    var token by remember {
+        val t = RebornSession.token(ctx)
+        val valid = t == "xtream" && tv.onnowtv.livetv.data.AuthStore.isSignedIn(ctx)
+        if (t != null && !valid) signOutQuiet(ctx)
+        mutableStateOf(if (valid) t else null)
+    }
     var stage by remember { mutableStateOf(if (token == null) "login" else "loading") }
     var homeReady by remember { mutableStateOf(Cache.home != null) }
     var liveReady by remember { mutableStateOf(LiveStore.bundle.value != null) }
@@ -83,6 +89,13 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
         if (stage != "loading") return@LaunchedEffect
         if (token == null) { stage = "login"; return@LaunchedEffect }
         loadError = null; homeError = null
+        // Check the saved login against the service first (the service answers 404 for unknown accounts).
+        val auth = withContext(Dispatchers.IO) { runCatching { Gorilla.login(Gorilla.user(ctx), Gorilla.pass(ctx)) } }
+        auth.exceptionOrNull()?.let { e ->
+            if (e.message?.startsWith("Wrong") == true || e.message?.startsWith("Account") == true) {
+                signOutQuiet(ctx); token = null; toast = e.message; stage = "login"; return@LaunchedEffect
+            }
+        }
         val live = launch {
             if (LiveStore.ensureLoaded(ctx)) liveReady = true
             else runCatching { LiveLoader.load(ctx) { }; LiveStore.refreshFromHolder(ctx) }.onSuccess { liveReady = true }
@@ -110,9 +123,10 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
     Box(Modifier.fillMaxSize().background(Bg0)) {
         when (stage) {
             "login" -> LoginScreen { user, pass ->
+                signOutQuiet(ctx)   // drop anything cached under a previous account (old channels, old catalogue)
                 RebornSession.save(ctx, "xtream", user); token = "xtream"
                 tv.onnowtv.livetv.data.AuthStore.saveCredentials(ctx, user, pass)
-                Cache.clear(); Gorilla.clearCache(ctx)
+                homeReady = false; liveReady = false
                 stage = "loading"
             }
             "loading" -> LoadingScreen(homeReady, liveReady, homeError,
@@ -200,5 +214,6 @@ fun signOutQuiet(ctx: android.content.Context) {
     RebornSession.clear(ctx); Profiles.setActive(ctx, null)
     tv.onnowtv.livetv.data.AuthStore.signOut(ctx)
     tv.onnowtv.livetv.BundleHolder.current = null; LiveStore.bundle.value = null; LiveStore.epg.clear()
+    runCatching { tv.onnowtv.livetv.data.BundleCache.delete(ctx) }
     Cache.clear(); Gorilla.clearCache(ctx)
 }

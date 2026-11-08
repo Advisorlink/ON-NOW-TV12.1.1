@@ -1043,3 +1043,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Boot now WAITS for the catalogue: if it fails the loading screen shows the exact reason with "Try again" (clears cache, re-runs) and "Continue to Live TV". bootTick re-triggers the boot effect.
 - Service also answers on plain http://gorillaposition.xyz (port 80) — fallback option if TLS is still the blocker. Movie streams 302 → https://honda.comebackaround.xyz (chain YR1 → Root YR → X1 cross).
 - Artifact: reborn-play-3.2.0-28.apk (71 MB) via /api/dl/one/ZY3CDNN247.
+
+## 2026-11-08 — v3.2.1: "Movies & TV shows — HTTP 404" on the TV box (phone fine) — ROOT CAUSE
+- Service returns HTTP 404 (nginx HTML) for unknown/empty credentials (verified). The box still had a pre-3.0 `reborn_session` token (old backend login) so it skipped the new sign-in; AuthStore held no/old creds → VOD 404, while Live "loaded" from the stale BundleCache of the old provider.
+- Fix: boot only trusts token=="xtream" && AuthStore.isSignedIn (else signOutQuiet → login); boot verifies the saved login with Gorilla.login first (Wrong/Account → login screen + toast); login clears all previous caches (incl. BundleCache) before saving; signOutQuiet deletes BundleCache; Gorilla maps 401/403/404 to a "sign out and sign in again" message and login maps HTTP 40x to "Wrong username or password".
+- Artifact: reborn-play-3.2.1-29.apk via /api/dl/one/ZY3CDNN247.
