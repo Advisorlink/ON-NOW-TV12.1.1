@@ -1,5 +1,7 @@
 package tv.rebornplay
 
+import com.composables.icons.lucide.*
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -10,12 +12,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.Login
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.Visibility
-import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -86,17 +82,17 @@ fun LoginScreen(onDone: (user: String, pass: String) -> Unit) {
                 Text("Sign in to access movies, TV shows, Live TV and your library.", color = Txt2, fontFamily = Geist, fontSize = 12.sp)
                 Spacer(Modifier.height(22.dp))
                 Mono("Username", 10.sp, Txt2); Spacer(Modifier.height(6.dp))
-                Field(user, { user = it }, "Enter your username", Icons.Outlined.Person, requester = userReq)
+                Field(user, { user = it }, "Enter your username", Lucide.User, requester = userReq)
                 Spacer(Modifier.height(14.dp))
                 Mono("Password", 10.sp, Txt2); Spacer(Modifier.height(6.dp))
-                Field(pass, { pass = it }, "Enter your password", Icons.Outlined.Lock, password = !show, onDone = { submit() }, trailing = {
-                    Focusable(onClick = { show = !show }) { f -> Icon(if (show) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility, "Show password", Modifier.size(20.dp), tint = if (f) BlueBright else Txt2) }
+                Field(pass, { pass = it }, "Enter your password", Lucide.Lock, password = !show, onDone = { submit() }, trailing = {
+                    Focusable(onClick = { show = !show }) { f -> Icon(if (show) Lucide.EyeOff else Lucide.Eye, "Show password", Modifier.size(20.dp), tint = if (f) BlueBright else Txt2) }
                 })
                 if (err != null) { Spacer(Modifier.height(10.dp)); Text(err!!, color = Color(0xFFFF8A8A), fontFamily = Geist, fontSize = 12.sp) }
                 Spacer(Modifier.height(20.dp))
                 Focusable(Modifier.fillMaxWidth(), onClick = { submit() }) { f ->
                     Row(Modifier.fillMaxWidth().height(50.dp).clip(CircleShape).background(Brush.horizontalGradient(listOf(if (f) BlueBright else Blue, Color(0xFF3FB0F0)))), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.Login, null, Modifier.size(18.dp), tint = Bg0); Spacer(Modifier.width(10.dp))
+                        Icon(Lucide.LogIn, null, Modifier.size(18.dp), tint = Bg0); Spacer(Modifier.width(10.dp))
                         Text(if (busy) "Signing in…" else "Sign in", color = Bg0, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     }
                 }

@@ -12,9 +12,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.CellTower
+import com.composables.icons.lucide.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -38,8 +36,8 @@ fun GridTile(item: Item, requester: FocusRequester? = null, onClick: () -> Unit)
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(12.dp)
     Focusable(onClick = onClick, requester = requester, onFocus = { focused = it }) { _ ->
-        Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).focusScale(focused, 1.05f).clip(shape).background(Bg2)
-            .border(if (focused) 2.dp else 1.dp, if (focused) Blue else Color.White.copy(alpha = 0.05f), shape)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).focusScale(focused, 1.06f).tileFocus(focused, 12.dp).clip(shape).background(Bg2)
+            .border(1.dp, Color.White.copy(alpha = 0.05f), shape)) {
             if (item.poster != null) AsyncImage(item.poster, item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             else Text(item.name.take(1), color = Blue.copy(alpha = 0.18f), fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 64.sp, modifier = Modifier.align(Alignment.Center))
             Box(Modifier.fillMaxWidth().fillMaxHeight(0.42f).align(Alignment.BottomCenter).background(Brush.verticalGradient(listOf(Color.Transparent, Bg0.copy(alpha = 0.93f), Bg0))))
@@ -57,9 +55,9 @@ fun GenreChips(genres: List<String>, selected: String, onSelect: (String) -> Uni
         items(listOf("All") + genres) { g ->
             val active = (g == "All" && selected.isEmpty()) || g == selected
             Focusable(onClick = { onSelect(if (g == "All") "" else g) }) { f ->
-                Text(g, color = if (f) Bg0 else if (active) Bg0 else Txt2, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
-                    modifier = Modifier.clip(CircleShape).background(if (f) BlueBright else if (active) Blue else Color.White.copy(alpha = 0.05f))
-                        .border(1.dp, if (f || active) Color.Transparent else Color.White.copy(alpha = 0.08f), CircleShape).padding(horizontal = 16.dp, vertical = 9.dp))
+                Text(g, color = if (active) Bg0 else Txt2, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
+                    modifier = Modifier.focusScale(f, 1.04f).pillFocus(f).clip(CircleShape).background(if (active) Blue else Color.White.copy(alpha = 0.05f))
+                        .border(1.dp, if (active) Color.Transparent else Color.White.copy(alpha = 0.08f), CircleShape).padding(horizontal = 16.dp, vertical = 9.dp))
             }
         }
     }
@@ -88,9 +86,9 @@ fun TabGridScreen(type: String, onOpen: (Item) -> Unit) {
             items(listOf("" to "All") + cats) { (id, name) ->
                 val active = id == genre
                 Focusable(onClick = { genre = id }) { f ->
-                    Text(name, color = if (f || active) Bg0 else Txt2, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
-                        modifier = Modifier.clip(CircleShape).background(if (f) BlueBright else if (active) Blue else Color.White.copy(alpha = 0.05f))
-                            .border(1.dp, if (f || active) Color.Transparent else Color.White.copy(alpha = 0.08f), CircleShape).padding(horizontal = 16.dp, vertical = 9.dp))
+                    Text(name, color = if (active) Bg0 else Txt2, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
+                        modifier = Modifier.focusScale(f, 1.04f).pillFocus(f).clip(CircleShape).background(if (active) Blue else Color.White.copy(alpha = 0.05f))
+                            .border(1.dp, if (active) Color.Transparent else Color.White.copy(alpha = 0.08f), CircleShape).padding(horizontal = 16.dp, vertical = 9.dp))
                 }
             }
         }
@@ -108,18 +106,52 @@ fun TitleGrid(items: List<Item>, first: FocusRequester? = null, onOpen: (Item) -
     }
 }
 
+/** Library.jsx — "Your collection / My Library" header, then eyebrow + icon-titled sections with cover rows. */
 @Composable
-fun LibraryScreen(onOpen: (Item) -> Unit) {
+fun LibraryScreen(onBack: () -> Unit = {}, onResume: (CwEntry) -> Unit = {}, onOpen: (Item) -> Unit) {
     val ctx = LocalContext.current
     val items = remember { Library.items(ctx).reversed() }
-    Column(Modifier.fillMaxSize().padding(top = 80.dp)) {
-        SectionHeader("My Library", "My List", "${items.size} titles")
-        if (items.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Your list is empty", color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 22.sp)
-                Spacer(Modifier.height(8.dp)); Text("Press + My List on any title to keep it here.", color = Txt2, fontFamily = Geist, fontSize = 14.sp)
-            }
-        } else TitleGrid(items, null, onOpen)
+    val cw = remember { ContinueWatching.entries(ctx) }
+    val series = items.filter { it.type == "series" }
+    val movies = items.filter { it.type != "series" }
+    val back = remember { FocusRequester() }
+    FocusOnShow(back, Unit)
+    val inset = safeInset()
+    androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 84.dp, bottom = 100.dp)) {
+        item { Box(Modifier.padding(start = 64.dp + inset, end = 48.dp + inset)) { PageHeader("Your collection", "My Library", backRequester = back, right = "${items.size} titles", onBack = onBack) } }
+        item { LibrarySection("My library · Continue watching" + if (cw.isNotEmpty()) " · ${cw.size}" else "", "Continue Watching", Lucide.History) {
+            if (cw.isEmpty()) EmptyNote("Nothing in progress — anything you start shows up here with a resume bar.")
+            else LazyRow(contentPadding = PaddingValues(start = 64.dp + inset, end = 48.dp + inset), horizontalArrangement = Arrangement.spacedBy(12.dp)) { items(cw, key = { it.cwId }) { e -> CwCard(e, 150.dp) { onResume(e) } } }
+        } }
+        item { LibrarySection("My library · Series", "TV Shows", Lucide.Tv) {
+            if (series.isEmpty()) EmptyNote("No shows saved yet. Press My List on any series to keep it here.")
+            else LazyRow(contentPadding = PaddingValues(start = 64.dp + inset, end = 48.dp + inset), horizontalArrangement = Arrangement.spacedBy(12.dp)) { items(series, key = { it.id }) { PosterTile(it, tileH = 210.dp) { onOpen(it) } } }
+        } }
+        item { LibrarySection("My library · Movies", "Movies", Lucide.Film) {
+            if (movies.isEmpty()) EmptyNote("No movies saved yet. Press My List on any film to keep it here.")
+            else LazyRow(contentPadding = PaddingValues(start = 64.dp + inset, end = 48.dp + inset), horizontalArrangement = Arrangement.spacedBy(12.dp)) { items(movies, key = { it.id }) { PosterTile(it, tileH = 210.dp) { onOpen(it) } } }
+        } }
+    }
+}
+
+@Composable
+private fun LibrarySection(eyebrow: String, title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, content: @Composable () -> Unit) {
+    val inset = safeInset()
+    Column(Modifier.padding(bottom = 44.dp)) {
+        Mono(eyebrow, 11.sp, Blue, 0.32f, Modifier.padding(start = 64.dp + inset + 36.dp, bottom = 10.dp))
+        Row(Modifier.padding(start = 64.dp + inset, bottom = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, Modifier.size(24.dp), tint = Blue); Spacer(Modifier.width(12.dp))
+            Text(title, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 32.sp, lineHeight = 32.sp, letterSpacing = (-0.8).sp)
+        }
+        content()
+    }
+}
+
+@Composable
+private fun EmptyNote(text: String) {
+    val inset = safeInset()
+    Box(Modifier.padding(start = 64.dp + inset, end = 48.dp + inset).fillMaxWidth(0.6f).glass(RoundedCornerShape(12.dp)).padding(horizontal = 18.dp, vertical = 16.dp)) {
+        Text(text, color = Txt2, fontFamily = Geist, fontSize = 14.sp, lineHeight = 20.sp)
     }
 }
 
@@ -143,7 +175,7 @@ fun SearchScreen(onOpen: (Item) -> Unit, onOpenChannel: (tv.onnowtv.livetv.data.
         Row(Modifier.padding(start = 64.dp, end = 48.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
             Column { Eyebrow("Search"); Text("Find anything", color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 26.sp) }
             Spacer(Modifier.width(30.dp))
-            Box(Modifier.width(520.dp)) { Field(q, { q = it }, "Movies, shows, live channels…", Icons.Outlined.Search, requester = req) }
+            Box(Modifier.width(520.dp)) { Field(q, { q = it }, "Movies, shows, live channels…", Lucide.Search, requester = req) }
             Spacer(Modifier.width(18.dp))
             Mono(if (results.isNotEmpty() || channels.isNotEmpty()) "${results.size} titles · ${channels.size} channels" else "", 10.sp, Txt3)
         }
@@ -165,10 +197,10 @@ fun SearchScreen(onOpen: (Item) -> Unit, onOpenChannel: (tv.onnowtv.livetv.data.
 @Composable
 private fun ChannelTile(ch: tv.onnowtv.livetv.data.Channel, onClick: () -> Unit) {
     Focusable(onClick = onClick) { f ->
-        Column(Modifier.width(150.dp).clip(TileShape).background(if (f) Blue.copy(alpha = 0.16f) else Bg2).border(if (f) 2.dp else 1.dp, if (f) Blue else Color.White.copy(alpha = 0.05f), TileShape).padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.width(150.dp).focusScale(f, 1.06f).tileFocus(f, 12.dp).clip(TileShape).background(Bg2).border(1.dp, Color.White.copy(alpha = 0.05f), TileShape).padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(Modifier.fillMaxWidth().height(64.dp), contentAlignment = Alignment.Center) {
                 if (ch.logoUrl != null) AsyncImage(ch.logoUrl, ch.name, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-                else Icon(Icons.Outlined.CellTower, null, Modifier.size(28.dp), tint = Txt3)
+                else Icon(Lucide.RadioTower, null, Modifier.size(28.dp), tint = Txt3)
             }
             Spacer(Modifier.height(8.dp))
             Text(ch.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
@@ -178,36 +210,3 @@ private fun ChannelTile(ch: tv.onnowtv.livetv.data.Channel, onClick: () -> Unit)
 }
 
 
-/** A Box Set: every film in the franchise the service carries, oldest first. */
-@Composable
-fun BoxSetScreen(id: String, onOpen: (Item) -> Unit) {
-    val set = BoxSets.sets[id]
-    val first = remember { FocusRequester() }
-    Column(Modifier.fillMaxSize().padding(top = 80.dp)) {
-        Column(Modifier.padding(start = 64.dp, end = 48.dp, bottom = 14.dp)) {
-            Eyebrow("Box Set · ${set?.second?.size ?: 0} films")
-            Text(set?.first ?: "Collection", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 34.sp, letterSpacing = (-1).sp)
-        }
-        if (set == null) Text("This collection isn't available any more.", color = Txt3, fontFamily = Geist, fontSize = 14.sp, modifier = Modifier.padding(start = 64.dp))
-        else TitleGrid(set.second, first, onOpen)
-    }
-}
-
-
-/** Top-nav Box Sets page (Vesper's collection grid): every franchise the service carries, as collection tiles. */
-@Composable
-fun BoxSetsScreen(onOpenSet: (String) -> Unit) {
-    val ctx = LocalContext.current
-    val tiles = remember(Gorilla.catalog) { Gorilla.catalog?.let { BoxSets.build(it.movies) } ?: emptyList() }
-    val first = remember { FocusRequester() }
-    FocusOnShow(first, tiles.isNotEmpty())
-    Column(Modifier.fillMaxSize().padding(top = 80.dp)) {
-        Column(Modifier.padding(start = 64.dp, end = 48.dp, bottom = 14.dp)) {
-            Eyebrow("Collections · ${tiles.size} box sets")
-            Text("Box Sets", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 34.sp, letterSpacing = (-1).sp)
-            Spacer(Modifier.height(4.dp))
-            Text("Complete film series from your service — every instalment in one place.", color = Txt2, fontFamily = Geist, fontSize = 13.sp)
-        }
-        if (tiles.isEmpty()) Spinner("Building your box sets") else TitleGrid(tiles, first) { onOpenSet(it.id) }
-    }
-}

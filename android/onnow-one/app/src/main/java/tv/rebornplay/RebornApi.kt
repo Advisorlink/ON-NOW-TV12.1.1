@@ -49,7 +49,7 @@ object RebornApi {
         body
     }
 
-    private fun obj(path: String, token: String? = null) = JSONObject(raw(path, token))
+    fun obj(path: String, token: String? = null) = JSONObject(raw(path, token))
     private fun JSONObject.data(): JSONObject = optJSONObject("data") ?: this
     private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
 

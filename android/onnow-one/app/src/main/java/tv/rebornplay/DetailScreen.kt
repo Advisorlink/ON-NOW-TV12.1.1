@@ -1,5 +1,7 @@
 package tv.rebornplay
 
+import com.composables.icons.lucide.*
+
 import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -12,9 +14,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -101,10 +100,10 @@ fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: 
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = pad, end = pad, top = if (compact) 20.dp else 40.dp, bottom = 40.dp)) {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Pill("Back", icon = Icons.Outlined.ArrowBack, mono = true, height = 44.dp, onClick = onBack)
-                    Pill("Home", icon = Icons.Outlined.Home, mono = true, height = 44.dp, onClick = onHome)
+                    Pill("Back", icon = Lucide.ArrowLeft, mono = true, height = 44.dp, onClick = onBack)
+                    Pill("Home", icon = Lucide.House, mono = true, height = 44.dp, onClick = onHome)
                     if (inList) Row(Modifier.height(44.dp).clip(CircleShape).background(Blue.copy(alpha = 0.12f)).border(1.dp, Blue.copy(alpha = 0.3f), CircleShape).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.Check, null, Modifier.size(14.dp), tint = Blue); Spacer(Modifier.width(8.dp)); Mono("In my list", 11.sp, Blue, 0.18f)
+                        Icon(Lucide.Check, null, Modifier.size(14.dp), tint = Blue); Spacer(Modifier.width(8.dp)); Mono("In my list", 11.sp, Blue, 0.18f)
                     }
                 }
                 Spacer(Modifier.height(if (compact) 14.dp else 22.dp))
@@ -119,12 +118,12 @@ fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: 
                     Spacer(Modifier.height(if (compact) 16.dp else 26.dp))
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         val h = if (compact) 46.dp else 54.dp
-                        if (!isSeries) Pill(if (!ready) "Loading…" else "Play movie", icon = Icons.Filled.PlayArrow, primary = true, height = h, fontSize = 16.sp, requester = primary, enabled = ready && meta.playUrl != null) { playMovie() }
-                        else Pill(if (!ready) "Loading…" else "Play S$season E${episodes.firstOrNull { it.season == season }?.episode ?: 1}", icon = Icons.Filled.PlayArrow, primary = true, height = h, fontSize = 16.sp, requester = primary, enabled = ready && episodes.isNotEmpty()) {
+                        if (!isSeries) Pill(if (!ready) "Loading…" else "Play movie", icon = Lucide.Play, primary = true, height = h, fontSize = 16.sp, requester = primary, enabled = ready && meta.playUrl != null) { playMovie() }
+                        else Pill(if (!ready) "Loading…" else "Play S$season E${episodes.firstOrNull { it.season == season }?.episode ?: 1}", icon = Lucide.Play, primary = true, height = h, fontSize = 16.sp, requester = primary, enabled = ready && episodes.isNotEmpty()) {
                             episodes.firstOrNull { it.season == season }?.let { playEpisode(it) }
                         }
-                        Pill(if (trailerBusy) "Loading…" else "Trailer", icon = Icons.Outlined.Theaters, height = h, fontSize = 15.sp) { playTrailer() }
-                        Pill(if (inList) "In My List" else "My List", icon = if (inList) Icons.Outlined.Check else Icons.Outlined.Add, height = h, fontSize = 15.sp) { inList = Library.toggle(ctx, meta) }
+                        Pill(if (trailerBusy) "Loading…" else "Trailer", icon = Lucide.Clapperboard, height = h, fontSize = 15.sp) { playTrailer() }
+                        Pill(if (inList) "In My List" else "My List", icon = if (inList) Lucide.Check else Lucide.Plus, height = h, fontSize = 15.sp) { inList = Library.toggle(ctx, meta) }
                     }
                     if (error != null) { Spacer(Modifier.height(12.dp)); Text(error!!, color = Color(0xFFFF8A8A), fontFamily = Geist, fontSize = 13.sp) }
                 }
@@ -158,7 +157,7 @@ private fun EpisodeRow(e: Episode, onClick: () -> Unit) {
             .border(1.dp, if (f) Blue else Color.White.copy(alpha = 0.06f), RoundedCornerShape(12.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.width(168.dp).height(94.dp).clip(RoundedCornerShape(8.dp)).background(Bg2)) {
                 if (e.thumb != null) AsyncImage(e.thumb, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                Icon(Icons.Filled.PlayArrow, null, Modifier.align(Alignment.Center).size(30.dp), tint = Color.White.copy(alpha = if (f) 1f else 0.7f))
+                Icon(Lucide.Play, null, Modifier.align(Alignment.Center).size(30.dp), tint = Color.White.copy(alpha = if (f) 1f else 0.7f))
             }
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {

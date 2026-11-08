@@ -9,13 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Movie
-import androidx.compose.material.icons.outlined.LiveTv
-import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material.icons.outlined.Schedule
+import com.composables.icons.lucide.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -112,6 +106,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
             if (Cache.home == null) runCatching { loadHome(ctx) }.onSuccess { Cache.home = it }
                 .onFailure { android.util.Log.e("Reborn", "preload home failed", it); homeError = it.message ?: "couldn't load" }
             homeReady = true
+            if (homeError == null) launch(Dispatchers.IO) { runCatching { BoxSets.ensure(ctx) } }
         }
         live.join(); home.join()
         if (loadError != null) { signOutQuiet(ctx); token = null; stage = "login" }
@@ -150,17 +145,17 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                 BackHandler(enabled = nav.stack.size > 1 || cur !is Route.Home) { if (!nav.back()) nav.go(Route.Home) }
                 when (cur) {
                     is Route.Detail -> DetailScreen(activity, cur.item, onBack = { nav.back() }, onHome = { nav.go(Route.Home) })
-                    is Route.BoxSet -> BoxSetScreen(cur.id, onOpen = { nav.go(Route.Detail(it)) })
+                    is Route.BoxSet -> BoxSetScreen(cur.id, onBack = { nav.back() }, onOpen = { nav.go(Route.Detail(it)) }, onPlay = { it.playUrl?.let { url -> launchPlayer(activity, it, it.name, url, it.id) } ?: nav.go(Route.Detail(it)) })
                     else -> CompositionLocalProvider(LocalToken provides "xtream") { Box(Modifier.fillMaxSize().rowNavKeys(rowNav, scope)) {
                         val inset = safeInset()
                         when (cur) {
                             is Route.Home -> HomeScreen(nav, rowNav, playHero, onResume = { resumeEntry(activity, it) }, onChannel = { ch -> LiveStore.openFullscreen(activity, ch, LiveStore.bundle.value?.channels ?: listOf(ch)) })
                             is Route.Tab -> Box(Modifier.padding(horizontal = inset)) { TabGridScreen(cur.type) { nav.go(Route.Detail(it)) } }
-                            is Route.BoxSets -> Box(Modifier.padding(horizontal = inset)) { BoxSetsScreen(onOpenSet = { nav.go(Route.BoxSet(it)) }) }
+                            is Route.BoxSets -> BoxSetsScreen(onOpenSet = { nav.go(Route.BoxSet(it)) })
                             is Route.Search -> Box(Modifier.padding(horizontal = inset)) { SearchScreen(onOpen = { nav.go(Route.Detail(it)) }, onOpenChannel = { ch -> LiveStore.openFullscreen(activity, ch, LiveStore.bundle.value?.channels ?: listOf(ch)) }) }
-                            is Route.Library -> Box(Modifier.padding(horizontal = inset)) { LibraryScreen { nav.go(Route.Detail(it)) } }
+                            is Route.Library -> LibraryScreen(onBack = { nav.go(Route.Home) }, onResume = { resumeEntry(activity, it) }) { nav.go(Route.Detail(it)) }
                             is Route.Live -> LiveTvScreen(activity, onRefresh = refreshLive)
-                            is Route.Settings -> Box(Modifier.padding(horizontal = inset)) { SettingsScreen(activity, autoplay, onAutoplay = { autoplay = !autoplay; Prefs.setAutoplay(ctx, autoplay) }, onProfiles = { stage = "profiles" }, onSignOut = signOut, onRefreshLive = refreshLive, onHomeRows = { nav.go(Route.HomeRows) }, onPickLiveCategory = { nav.go(Route.LiveCategoryPick) }) }
+                            is Route.Settings -> Box(Modifier.padding(horizontal = inset)) { SettingsScreen(activity, autoplay, onAutoplay = { autoplay = !autoplay; Prefs.setAutoplay(ctx, autoplay) }, onProfiles = { stage = "profiles" }, onSignOut = signOut, onRefreshLive = refreshLive, onHomeRows = { nav.go(Route.HomeRows) }, onPickLiveCategory = { nav.go(Route.LiveCategoryPick) }, onBack = { nav.go(Route.Home) }) }
                             is Route.LiveCategoryPick -> Box(Modifier.padding(horizontal = inset)) { LiveCategoryPickScreen(onDone = { nav.go(Route.Settings) }) }
                             is Route.HomeRows -> Box(Modifier.padding(horizontal = inset)) { HomeRowsScreen(onBack = { nav.go(Route.Settings) }) }
                             else -> {}
@@ -197,13 +192,13 @@ fun LoadingScreen(homeReady: Boolean, liveReady: Boolean, homeError: String? = n
             Text(if (failed) "Couldn't load your movies & TV shows" else "Getting everything ready…", color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
             Spacer(Modifier.height(16.dp))
             Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(18.dp)).padding(horizontal = 18.dp, vertical = 12.dp)) {
-                LoadStep(Icons.Outlined.Movie, "Movies & TV shows", when {
+                LoadStep(Lucide.Film, "Movies & TV shows", when {
                     failed -> homeError.orEmpty()
                     homeReady && cat != null -> "${"%,d".format(cat.movies.size)} movies · ${"%,d".format(cat.series.size)} series"
                     else -> "Downloading your catalogue"
                 }, homeReady && !failed, failed)
-                LoadStep(Icons.Outlined.LiveTv, "Live TV channels", if (liveReady) "${"%,d".format(channels)} channels ready" else "Fetching channels", liveReady, false)
-                LoadStep(Icons.Outlined.CalendarMonth, "TV guide", if (liveReady) "Programme guide ready" else "Loading today's schedule", liveReady, false)
+                LoadStep(Lucide.Tv, "Live TV channels", if (liveReady) "${"%,d".format(channels)} channels ready" else "Fetching channels", liveReady, false)
+                LoadStep(Lucide.CalendarDays, "TV guide", if (liveReady) "Programme guide ready" else "Loading today's schedule", liveReady, false)
                 Spacer(Modifier.height(10.dp))
                 Box(Modifier.fillMaxWidth().height(3.dp).clip(CircleShape).background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.10f))) {
                     Box(Modifier.fillMaxHeight().fillMaxWidth(progress.coerceAtLeast(0.04f)).background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Blue, BlueBright))))
@@ -233,8 +228,8 @@ private fun LoadStep(icon: androidx.compose.ui.graphics.vector.ImageVector, labe
             Text(label, color = if (done) Txt else Txt2, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
             Mono(detail, 9.sp, if (failed) Amber else Txt3, 0.08f, upper = false)
         }
-        if (done) androidx.compose.material3.Icon(Icons.Outlined.CheckCircle, null, Modifier.size(18.dp), tint = BlueBright)
-        else if (failed) androidx.compose.material3.Icon(Icons.Outlined.ErrorOutline, null, Modifier.size(18.dp), tint = Amber)
+        if (done) androidx.compose.material3.Icon(Lucide.CircleCheck, null, Modifier.size(18.dp), tint = BlueBright)
+        else if (failed) androidx.compose.material3.Icon(Lucide.CircleAlert, null, Modifier.size(18.dp), tint = Amber)
         else androidx.compose.material3.CircularProgressIndicator(color = Blue, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
     }
 }

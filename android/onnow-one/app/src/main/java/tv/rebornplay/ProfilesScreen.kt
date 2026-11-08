@@ -1,5 +1,7 @@
 package tv.rebornplay
 
+import com.composables.icons.lucide.*
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -11,8 +13,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -76,7 +76,7 @@ fun ProfilesScreen(onPick: (Profile) -> Unit, onSignOut: () -> Unit) {
             Spacer(Modifier.height(if (compact) 18.dp else 40.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(44.dp), contentPadding = PaddingValues(horizontal = 80.dp)) {
                 items(profiles, key = { it.id }) { p ->
-                    AvatarTile(p.name, Avatars.url(p.avatarId), requester = if (p == profiles.firstOrNull()) first else null, badge = if (manage) Icons.Outlined.Edit else null) {
+                    AvatarTile(p.name, Avatars.url(p.avatarId), requester = if (p == profiles.firstOrNull()) first else null, badge = if (manage) Lucide.Pencil else null) {
                         if (manage) editing = p else { Profiles.setActive(ctx, p.id); onPick(p) }
                     }
                 }
@@ -84,8 +84,8 @@ fun ProfilesScreen(onPick: (Profile) -> Unit, onSignOut: () -> Unit) {
             }
             Spacer(Modifier.height(if (compact) 22.dp else 52.dp))
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Pill(if (manage) "Done" else "Manage profiles", icon = if (manage) Icons.Outlined.Check else Icons.Outlined.Edit, height = 40.dp, fontSize = 13.sp) { manage = !manage }
-                Pill("Sign out", icon = Icons.Outlined.Logout, height = 40.dp, fontSize = 13.sp, onClick = onSignOut)
+                Pill(if (manage) "Done" else "Manage profiles", icon = if (manage) Lucide.Check else Lucide.Pencil, height = 40.dp, fontSize = 13.sp) { manage = !manage }
+                Pill("Sign out", icon = Lucide.LogOut, height = 40.dp, fontSize = 13.sp, onClick = onSignOut)
             }
         }
         toast?.let { Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 34.dp).glass().padding(horizontal = 18.dp, vertical = 10.dp)) { Text(it, color = Txt, fontFamily = Geist, fontSize = 13.sp) }; LaunchedEffect(it) { kotlinx.coroutines.delay(2600); toast = null } }
@@ -102,7 +102,7 @@ private fun AvatarTile(label: String, url: String?, requester: FocusRequester? =
                 if (url != null) AsyncImage(url, label, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 else {
                     androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) { drawCircle(Txt3, style = Stroke(3f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 12f)))) }
-                    Icon(Icons.Outlined.Add, null, Modifier.size(40.dp), tint = Txt2)
+                    Icon(Lucide.Plus, null, Modifier.size(40.dp), tint = Txt2)
                 }
                 if (badge != null) Box(Modifier.fillMaxSize().background(Bg0.copy(alpha = 0.55f)), contentAlignment = Alignment.Center) { Icon(badge, null, Modifier.size(34.dp), tint = Txt) }
             }
@@ -119,7 +119,7 @@ private fun CloudPrompt(found: List<Profile>, onRestore: () -> Unit, onFresh: ()
     Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), contentAlignment = Alignment.Center) {
         Column(Modifier.width(560.dp).padding(vertical = 20.dp).clip(RoundedCornerShape(22.dp)).background(Bg1.copy(alpha = 0.92f)).border(1.dp, Line, RoundedCornerShape(22.dp)).padding(32.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(Blue.copy(alpha = 0.12f)).border(1.dp, Blue.copy(alpha = 0.3f), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.CloudSync, null, Modifier.size(24.dp), tint = Blue) }
+                Box(Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(Blue.copy(alpha = 0.12f)).border(1.dp, Blue.copy(alpha = 0.3f), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) { Icon(Lucide.CloudDownload, null, Modifier.size(24.dp), tint = Blue) }
                 Spacer(Modifier.width(14.dp))
                 Column { Eyebrow("Welcome back"); Text("We found your profiles in the cloud", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 22.sp) }
             }
@@ -127,13 +127,13 @@ private fun CloudPrompt(found: List<Profile>, onRestore: () -> Unit, onFresh: ()
             Text("Everyone signed in to this account is already set up and waiting — avatars and lists included.", color = Txt2, fontFamily = Geist, fontSize = 14.sp, lineHeight = 20.sp)
             Spacer(Modifier.height(18.dp))
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Bg0.copy(alpha = 0.6f)).border(1.dp, Line, RoundedCornerShape(12.dp)).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Groups, null, Modifier.size(22.dp), tint = Blue); Spacer(Modifier.width(14.dp))
+                Icon(Lucide.UsersRound, null, Modifier.size(22.dp), tint = Blue); Spacer(Modifier.width(14.dp))
                 Column { Text("${found.size} profile${if (found.size == 1) "" else "s"}", color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 14.sp); Text(found.joinToString(", ") { it.name }, color = Txt2, fontFamily = Geist, fontSize = 12.sp) }
             }
             Spacer(Modifier.height(22.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Pill("Restore my profiles", icon = Icons.Outlined.Check, primary = true, height = 48.dp, requester = req, onClick = onRestore)
-                Pill("Start fresh", icon = Icons.Outlined.Close, height = 48.dp, onClick = onFresh)
+                Pill("Restore my profiles", icon = Lucide.Check, primary = true, height = 48.dp, requester = req, onClick = onRestore)
+                Pill("Start fresh", icon = Lucide.X, height = 48.dp, onClick = onFresh)
             }
         }
     }
@@ -154,13 +154,13 @@ private fun ProfileEditor(p: Profile, onCancel: () -> Unit, onSave: (Profile) ->
         Row(verticalAlignment = Alignment.CenterVertically) {
             AsyncImage(Avatars.url(avatar), null, Modifier.size(if (compact) 64.dp else 96.dp).clip(CircleShape).border(2.dp, Blue, CircleShape), contentScale = ContentScale.Crop)
             Spacer(Modifier.width(20.dp))
-            Column(Modifier.width(320.dp)) { Mono("Name", 10.sp, Txt2); Spacer(Modifier.height(6.dp)); Field(name, { if (it.length <= 20) name = it }, "Profile name", Icons.Outlined.Person, requester = nameReq) }
+            Column(Modifier.width(320.dp)) { Mono("Name", 10.sp, Txt2); Spacer(Modifier.height(6.dp)); Field(name, { if (it.length <= 20) name = it }, "Profile name", Lucide.User, requester = nameReq) }
         }
         Spacer(Modifier.height(16.dp))
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Pill("Save profile", icon = Icons.Outlined.Check, primary = true, enabled = name.isNotBlank()) { onSave(Profile(p.id.ifEmpty { Profiles.newId() }, name.trim(), avatar, p.kids)) }
+            Pill("Save profile", icon = Lucide.Check, primary = true, enabled = name.isNotBlank()) { onSave(Profile(p.id.ifEmpty { Profiles.newId() }, name.trim(), avatar, p.kids)) }
             Pill("Cancel", onClick = onCancel)
-            if (onDelete != null) Pill("Remove profile", icon = Icons.Outlined.Delete, onClick = onDelete)
+            if (onDelete != null) Pill("Remove profile", icon = Lucide.Trash2, onClick = onDelete)
         }
         Spacer(Modifier.height(22.dp))
         Mono("Pick an avatar", 10.sp, Blue, modifier = Modifier.padding(bottom = 10.dp))

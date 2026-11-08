@@ -5,15 +5,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,76 +21,164 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
+import com.composables.icons.lucide.*
 import tv.vesper.app.LiveTvEntry
 
+private data class Sec(val id: String, val label: String, val hint: String, val icon: ImageVector)
+private val SECTIONS = listOf(
+    Sec("home", "Home screen", "Row order, show / hide", Lucide.LayoutGrid),
+    Sec("playback", "Playback", "Auto play, trailers", Lucide.Play),
+    Sec("livetv", "Live TV", "Channels, guide, player", Lucide.RadioTower),
+    Sec("profiles", "Profiles", "Who's watching", Lucide.UsersRound),
+    Sec("catalogue", "Catalogue", "Movies & shows data", Lucide.Database),
+    Sec("about", "About", "Version & build", Lucide.Info),
+    Sec("signout", "Sign out", "End this session", Lucide.LogOut),
+)
+
+/** Settings.jsx — Back pill, sticky glass section rail on the left, compact setting cards on the right. */
 @Composable
-fun SettingsScreen(activity: Activity, autoplay: Boolean, onAutoplay: () -> Unit, onProfiles: () -> Unit, onSignOut: () -> Unit, onRefreshLive: () -> Unit, onHomeRows: () -> Unit = {}, onPickLiveCategory: () -> Unit = {}) {
+fun SettingsScreen(activity: Activity, autoplay: Boolean, onAutoplay: () -> Unit, onProfiles: () -> Unit, onSignOut: () -> Unit, onRefreshLive: () -> Unit, onHomeRows: () -> Unit = {}, onPickLiveCategory: () -> Unit = {}, onBack: () -> Unit = {}) {
     val ctx = LocalContext.current
-    val user = remember { RebornSession.username(ctx) ?: "" }
-    val profile = remember { Profiles.active(ctx) }
-    val version = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "" }
+    var section by rememberSaveable { mutableStateOf("home") }
     val first = remember { FocusRequester() }
     FocusOnShow(first, Unit)
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 64.dp, end = 64.dp, top = 84.dp, bottom = 60.dp)) {
-        item {
-            Eyebrow("Settings"); Spacer(Modifier.height(6.dp))
-            Text("Make it yours", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 36.sp, letterSpacing = (-1).sp)
-            Spacer(Modifier.height(28.dp))
+    val inset = safeInset()
+    Column(Modifier.fillMaxSize().padding(start = 64.dp + inset, end = 48.dp + inset, top = 84.dp)) {
+        Pill("Back", icon = Lucide.ArrowLeft, mono = true, height = 34.dp, onClick = onBack)
+        Spacer(Modifier.height(18.dp))
+        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(40.dp)) {
+            Column(Modifier.width(250.dp).glass(RoundedCornerShape(18.dp)).padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                SECTIONS.forEachIndexed { i, s -> RailItem(s, section == s.id, if (i == 0) first else null) { section = s.id } }
+            }
+            LazyColumn(Modifier.weight(1f).fillMaxHeight(), contentPadding = PaddingValues(bottom = 80.dp)) {
+                item {
+                    when (section) {
+                        "home" -> HomeSection(onHomeRows, onPickLiveCategory)
+                        "playback" -> PlaybackSection(autoplay, onAutoplay)
+                        "livetv" -> {
+                            SectionHead("Settings · Live TV", "Channels, guide and player", Lucide.RadioTower)
+                            ActionRow("Live TV settings", "Channel groups (reorder, hide, favourites), guide refresh and time offset, player engine, buffer and decoding, subtitles and audio language, interface size, parental PIN.", "Open") { LiveTvEntry.open(activity, settings = true) }
+                            ActionRow("Refresh channels and guide", "Re-downloads your channel list and the programme guide from the service.", "Refresh", onClick = onRefreshLive)
+                        }
+                        "profiles" -> {
+                            val user = remember { RebornSession.username(ctx) ?: "" }
+                            val profile = remember { Profiles.active(ctx) }
+                            SectionHead("Settings · Profiles", "Who's watching", Lucide.UsersRound)
+                            ActionRow("Signed in as", user, null) {}
+                            ActionRow("Profile", "Each profile keeps its own My List and Continue Watching.", profile?.name ?: "Switch", onClick = onProfiles)
+                        }
+                        "catalogue" -> {
+                            SectionHead("Settings · Catalogue", "Movies & shows data", Lucide.Database)
+                            val c = Gorilla.catalog
+                            ActionRow("Refresh movies & shows", if (c != null) "${"%,d".format(c.movies.size)} movies · ${"%,d".format(c.series.size)} series cached on this device." else "Re-downloads the catalogue from the service.", "Refresh") { Cache.clear(); Gorilla.clearCache(ctx); BoxSets.reset() }
+                        }
+                        "about" -> {
+                            val version = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "" }
+                            SectionHead("Settings · About", "Reborn Play", Lucide.Info)
+                            ActionRow("Version", "Reborn Play $version · native build", null) {}
+                        }
+                        "signout" -> {
+                            SectionHead("Settings · Account", "Sign out", Lucide.LogOut)
+                            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color.White.copy(alpha = 0.04f)).border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(10.dp)).padding(14.dp)) {
+                                Text("Clears this device's sign-in. Your profiles and lists stay backed up in the cloud and come straight back when you sign in again.", color = Txt2, fontFamily = Geist, fontSize = 12.sp, lineHeight = 17.sp)
+                                Spacer(Modifier.height(14.dp))
+                                Pill("Sign out", icon = Lucide.LogOut, height = 40.dp, fontSize = 14.sp, onClick = onSignOut)
+                            }
+                        }
+                    }
+                }
+            }
         }
-        item { Section("Account") {
-            SettingRow(Icons.Outlined.Person, "Signed in as", user, requester = first) {}
-            SettingRow(Icons.Outlined.Groups, "Profile", profile?.name ?: "—", action = "Switch", onClick = onProfiles)
-            SettingRow(Icons.Outlined.Logout, "Sign out", "Clears this device's sign-in. Profiles stay backed up in the cloud.", action = "Sign out", onClick = onSignOut)
-        } }
-        item { Section("Live TV") {
-            SettingRow(Icons.Outlined.CellTower, "Live TV settings", "Player engine, subtitles, aspect ratio, buffer, parental PIN, hidden groups", action = "Open") { LiveTvEntry.open(activity, settings = true) }
-            SettingRow(Icons.Outlined.Refresh, "Refresh channels & guide", "Re-downloads your channel list and the programme guide", action = "Refresh", onClick = onRefreshLive)
-        } }
-        item { Section("Trailers & tiles") {
-            var delay by remember { mutableStateOf(Prefs.trailerDelayMs(ctx)) }
-            var speed by remember { mutableStateOf(Prefs.expandMs(ctx)) }
-            SettingRow(Icons.Outlined.Timer, "Trailer delay", "How long you rest on a title before its trailer starts playing in the cover", action = Prefs.trailerDelayLabel(delay)) { delay = Prefs.cycleTrailerDelay(ctx) }
-            SettingRow(Icons.Outlined.OpenInFull, "Pop-out speed", "How quickly a focused cover expands", action = Prefs.expandLabel(speed)) { speed = Prefs.cycleExpandMs(ctx) }
-        } }
-        item { Section("Live TV row on Home") {
-            var src by remember { mutableStateOf(LiveRowPrefs.source(ctx)) }
-            var look by remember { mutableStateOf(LiveRowPrefs.style(ctx)) }
-            val catName = LiveStore.categories(ctx).firstOrNull { it.id == LiveRowPrefs.categoryId(ctx) }?.name ?: "Not set"
-            SettingRow(Icons.Outlined.LiveTv, "What the row shows", "Favourites · live sport right now · what's on now · or one category of your choice", action = LiveRowPrefs.sourceLabel(src)) { src = LiveRowPrefs.cycleSource(ctx); Cache.home = null }
-            SettingRow(Icons.Outlined.Category, "Category for the row", "Used when the row is set to \"A category I pick\"", action = catName, onClick = onPickLiveCategory)
-            SettingRow(Icons.Outlined.Style, "How the row looks", "Three looks — change it and check Home", action = LiveRowPrefs.styleLabel(look)) { look = LiveRowPrefs.cycleStyle(ctx); Cache.home = null }
-        } }
-        item { Section("Home screen") {
-            SettingRow(Icons.Outlined.ViewAgenda, "Home rows", "Move rows up or down and hide the ones you skip — just like Vesper", action = "Customise", onClick = onHomeRows)
-            SettingRow(Icons.Outlined.Autorenew, "Refresh movies & shows", "Re-downloads the catalogue from the service", action = "Refresh") { Cache.clear(); Gorilla.clearCache(ctx) }
-        } }
-        item { Section("About") { SettingRow(Icons.Outlined.Info, "Reborn Play", "Version $version · native build") {} } }
     }
 }
 
 @Composable
-private fun Section(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.padding(bottom = 26.dp)) {
-        Mono(title, 10.sp, Txt3, modifier = Modifier.padding(bottom = 10.dp))
-        Column(Modifier.fillMaxWidth(0.72f).clip(RoundedCornerShape(16.dp)).background(Bg1.copy(alpha = 0.7f)).border(1.dp, Line, RoundedCornerShape(16.dp)), content = content)
+private fun HomeSection(onHomeRows: () -> Unit, onPickLiveCategory: () -> Unit) {
+    val ctx = LocalContext.current
+    SectionHead("Settings · Home screen", "Arrange your For You page", Lucide.LayoutGrid)
+    ActionRow("Home rows", "Move rows up or down and hide the ones you skip — the Live TV row can sit on any line.", "Customise", onClick = onHomeRows)
+    SubHead("Live TV row")
+    var src by remember { mutableStateOf(LiveRowPrefs.source(ctx)) }
+    var look by remember { mutableStateOf(LiveRowPrefs.style(ctx)) }
+    val catName = LiveStore.categories(ctx).firstOrNull { it.id == LiveRowPrefs.categoryId(ctx) }?.name ?: "Not set"
+    ActionRow("What the row shows", "Favourites · live sport right now · what's on now · or one category of your choice.", LiveRowPrefs.sourceLabel(src)) { src = LiveRowPrefs.cycleSource(ctx); Cache.home = null }
+    ActionRow("Category for the row", "Used when the row is set to \"A category I pick\".", catName, onClick = onPickLiveCategory)
+    ActionRow("How the row looks", "Channel cards, big programme cards or compact logos.", LiveRowPrefs.styleLabel(look)) { look = LiveRowPrefs.cycleStyle(ctx); Cache.home = null }
+}
+
+@Composable
+private fun PlaybackSection(autoplay: Boolean, onAutoplay: () -> Unit) {
+    val ctx = LocalContext.current
+    SectionHead("Settings · Playback", "Auto play & trailers", Lucide.Play)
+    ToggleRow("Auto play", "Play straight away from the hero and Continue Watching; off asks first.", autoplay, onAutoplay)
+    var delay by remember { mutableStateOf(Prefs.trailerDelayMs(ctx)) }
+    var speed by remember { mutableStateOf(Prefs.expandMs(ctx)) }
+    ActionRow("Trailer delay", "How long you rest on a title before its trailer starts playing in the cover.", Prefs.trailerDelayLabel(delay)) { delay = Prefs.cycleTrailerDelay(ctx) }
+    ActionRow("Pop-out speed", "How quickly a focused cover slides open into its wide card.", Prefs.expandLabel(speed)) { speed = Prefs.cycleExpandMs(ctx) }
+}
+
+@Composable
+private fun RailItem(s: Sec, active: Boolean, requester: FocusRequester?, onPick: () -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
+    Focusable(onClick = onPick, requester = requester, onFocus = { if (it) onPick() }) { f ->
+        Row(Modifier.fillMaxWidth().tileFocus(f, 12.dp).clip(shape).background(if (active) Blue.copy(alpha = 0.16f) else Color.Transparent)
+            .border(1.dp, if (active) Blue.copy(alpha = 0.45f) else Color.Transparent, shape).padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(if (active) Blue else Color.White.copy(alpha = 0.06f)), contentAlignment = Alignment.Center) {
+                Icon(s.icon, null, Modifier.size(16.dp), tint = if (active) Bg0 else Txt)
+            }
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text(s.label, color = if (active) Txt else Txt2, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, lineHeight = 16.sp)
+                Text(s.hint, color = Txt3, fontFamily = Geist, fontSize = 11.sp, lineHeight = 13.sp, maxLines = 1)
+            }
+        }
     }
 }
 
 @Composable
-private fun SettingRow(icon: ImageVector, title: String, sub: String, action: String? = null, accent: Boolean = false, requester: FocusRequester? = null, onClick: () -> Unit) {
-    Focusable(onClick = onClick, requester = requester) { f ->
-        Row(Modifier.fillMaxWidth().background(if (f) Blue.copy(alpha = 0.12f) else Color.Transparent).padding(horizontal = 18.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, Modifier.size(20.dp), tint = if (f) Blue else Txt2); Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                Text(sub, color = Txt2, fontFamily = Geist, fontSize = 12.sp, maxLines = 2)
-            }
-            if (action != null) Box(Modifier.clip(CircleShape).background(if (accent) Amber.copy(alpha = 0.16f) else if (f) BlueBright else Color.White.copy(alpha = 0.08f)).padding(horizontal = 14.dp, vertical = 6.dp)) {
-                Mono(action, 10.sp, if (accent) Amber else if (f) Bg0 else Txt, 0.16f)
-            }
+private fun SectionHead(eyebrow: String, title: String, icon: ImageVector) {
+    Mono(eyebrow, 10.sp, Blue, 0.32f, Modifier.padding(top = 4.dp, bottom = 6.dp))
+    Row(Modifier.padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, Modifier.size(16.dp), tint = Blue); Spacer(Modifier.width(8.dp))
+        Text(title, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 21.sp, letterSpacing = (-0.4).sp)
+    }
+}
+
+@Composable
+private fun SubHead(title: String) = Text(title, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 18.sp, letterSpacing = (-0.3).sp, modifier = Modifier.padding(top = 24.dp, bottom = 10.dp))
+
+@Composable
+private fun Card(onClick: () -> Unit, content: @Composable RowScope.(Boolean) -> Unit) {
+    val shape = RoundedCornerShape(10.dp)
+    Focusable(Modifier.padding(bottom = 8.dp), onClick = onClick) { f ->
+        Row(Modifier.fillMaxWidth().tileFocus(f, 10.dp).clip(shape).background(Color.White.copy(alpha = if (f) 0.07f else 0.04f)).border(1.dp, Color.White.copy(alpha = 0.08f), shape)
+            .padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) { content(f) }
+    }
+}
+
+/** ToggleRow (Settings.jsx) — title + description + the 38×22 switch. */
+@Composable
+private fun ToggleRow(title: String, desc: String, value: Boolean, onToggle: () -> Unit) = Card(onToggle) { _ ->
+    Column(Modifier.weight(1f)) {
+        Text(title, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+        Text(desc, color = Txt2, fontFamily = Geist, fontSize = 11.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 3.dp))
+    }
+    Spacer(Modifier.width(16.dp))
+    Box(Modifier.size(38.dp, 22.dp).clip(CircleShape).background(if (value) Blue else Color.White.copy(alpha = 0.12f))) {
+        Box(Modifier.padding(3.dp).size(16.dp).align(if (value) Alignment.CenterEnd else Alignment.CenterStart).clip(CircleShape).background(Color.White))
+    }
+}
+
+@Composable
+private fun ActionRow(title: String, desc: String, action: String?, onClick: () -> Unit) = Card(onClick) { f ->
+    Column(Modifier.weight(1f)) {
+        Text(title, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+        if (desc.isNotBlank()) Text(desc, color = Txt2, fontFamily = Geist, fontSize = 11.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 3.dp))
+    }
+    if (action != null) {
+        Spacer(Modifier.width(16.dp))
+        Box(Modifier.clip(CircleShape).background(if (f) Blue else Color.White.copy(alpha = 0.08f)).border(1.dp, if (f) Color.Transparent else Color.White.copy(alpha = 0.12f), CircleShape).padding(horizontal = 12.dp, vertical = 6.dp)) {
+            Mono(action, 10.sp, if (f) Bg0 else Txt, 0.16f)
         }
     }
 }

@@ -1083,3 +1083,13 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - v3.7.0: Box Sets moved to the top nav (NavItem "boxsets" → Route.BoxSets → BoxSetsScreen grid; BoxSet detail grid pushes). Box Sets Home row removed. Live row tiles smaller than Continue Watching (h = tileH×0.62 clamped 84–110 dp). Hero follows the focused cover (HomeScreen `preview` → HeroBillboard(preview) shows that title's HD backdrop/text, rotation paused; resets when focus returns to hero/menu via RowNav.currentRow).
 - v3.7.1 (user photos: content squeezed to top, glow "out of control", menu hard to read, eyebrow under logo): glow softened to 4 faint halos (tiles only; pills & nav no glow); menu = Vesper style (darker glass Bg0@0.72, 44 dp buttons, 22 dp white icons, active = light disc, focus = white disc, logo 40 dp); covers now fill the lower half: tileH = screenH − hero − 60 dp − 8 % clamped 140–260 dp; TV hero title clamped to 1 line so it can't rise under the logo.
 - Artifact: reborn-play-3.7.1-35.apk via /api/dl/one/ZY3CDNN247. Device verification pending.
+
+
+## 2026-11-08 — v3.8.0 (36): Vesper look ported 1:1 into native Reborn Play
+- Icons: lucide (com.composables:icons-lucide) everywhere — identical glyphs to Vesper's TopNav/SideNav/Settings/Library.
+- Focus: Vesper `tile` (scale 1.06 + 1.5dp blue-bright ring 2dp outside + blurred cyan bloom) and `pill` (2dp ring + glow + 1.04) styles via Modifier.tileFocus / pillFocus; buttons keep their own colour on focus.
+- TopNav: glass pill, 40dp buttons, active = blue on 14% wash (Auto play amber), label pops under focused icon, Auto play / Speed up / Speed test / avatar.
+- Home (TV): hero 52%, shelf anchored to the bottom 5% margin (no dead band), Continue Watching cards bigger, Live row stays compact.
+- Box Sets: Vesper's franchise list + title-treatment logos/backdrops from /api/collections/logos, films matched to the service catalogue by title/year in franchise order (BoxSets.ensure runs at boot); grid of 16:9 CollectionTiles; Box Set page = focus-follow billboard + "Films in order" shelf + Back pill.
+- Settings: Vesper two-column (glass section rail + SectionHead/ToggleRow/ActionRow cards); Library: Vesper header + eyebrow/icon sections (Continue Watching, TV Shows, Movies).
+- Artifact: test-artifacts/reborn-play-3.8.0-36.apk (71 MB). Device verification pending (no emulator in this environment).

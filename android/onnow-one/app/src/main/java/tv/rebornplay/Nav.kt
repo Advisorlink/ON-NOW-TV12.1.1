@@ -3,9 +3,7 @@ package tv.rebornplay
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material.icons.filled.*
+import com.composables.icons.lucide.*
 
 sealed class Route {
     object Home : Route()
@@ -23,15 +21,16 @@ sealed class Route {
 
 data class NavItem(val id: String, val label: String, val icon: ImageVector, val route: Route?)
 
+/** Same order + lucide glyphs as SideNav.jsx / TopNav.jsx. */
 val NAV_ITEMS = listOf(
-    NavItem("search", "Search", Icons.Outlined.Search, Route.Search),
-    NavItem("home", "Home", Icons.Outlined.Home, Route.Home),
-    NavItem("tv", "TV Shows", Icons.Outlined.Tv, Route.Tab("series")),
-    NavItem("movies", "Movies", Icons.Outlined.Movie, Route.Tab("movie")),
-    NavItem("live", "Live TV", Icons.Outlined.CellTower, Route.Live),
-    NavItem("boxsets", "Box Sets", Icons.Outlined.Inventory2, Route.BoxSets),
-    NavItem("library", "My Library", Icons.Outlined.VideoLibrary, Route.Library),
-    NavItem("settings", "Settings", Icons.Outlined.Settings, Route.Settings),
+    NavItem("search", "Search", Lucide.Search, Route.Search),
+    NavItem("home", "Home", Lucide.House, Route.Home),
+    NavItem("tv", "TV Shows", Lucide.Tv, Route.Tab("series")),
+    NavItem("movies", "Movies", Lucide.Film, Route.Tab("movie")),
+    NavItem("live", "Live TV", Lucide.RadioTower, Route.Live),
+    NavItem("boxsets", "Box Sets", Lucide.Boxes, Route.BoxSets),
+    NavItem("library", "My Library", Lucide.Library, Route.Library),
+    NavItem("settings", "Settings", Lucide.Settings, Route.Settings),
 )
 
 /** Tiny back stack — the top is what's on screen. */

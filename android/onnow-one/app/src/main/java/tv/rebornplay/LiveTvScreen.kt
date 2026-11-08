@@ -1,5 +1,7 @@
 package tv.rebornplay
 
+import com.composables.icons.lucide.*
+
 import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -11,14 +13,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.SportsSoccer
-import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -27,7 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.material.icons.outlined.Close
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -214,10 +207,10 @@ private fun LiveHero(ch: Channel?, previewing: Boolean, favs: Set<String>, fmt: 
         }
         Row(Modifier.align(Alignment.TopEnd).padding(top = if (compact) 58.dp else 70.dp, end = 32.dp + inset), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val fav = ch != null && ch.id in favs
-            HeroPill(Icons.Outlined.SportsSoccer, "Sports Hub", onSportsHub)
-            HeroIcon(if (fav) Icons.Filled.Star else Icons.Outlined.StarBorder, if (fav) "Unfavourite" else "Favourite", if (fav) Amber else null, onFav)
-            HeroIcon(Icons.Outlined.Refresh, "Refresh", null, onRefresh)
-            HeroIcon(Icons.Outlined.Settings, "Live TV settings", null, onSettings)
+            HeroPill(Lucide.Trophy, "Sports Hub", onSportsHub)
+            HeroIcon(if (fav) Lucide.Star else Lucide.Star, if (fav) "Unfavourite" else "Favourite", if (fav) Amber else null, onFav)
+            HeroIcon(Lucide.RefreshCw, "Refresh", null, onRefresh)
+            HeroIcon(Lucide.Settings, "Live TV settings", null, onSettings)
         }
     }
 }
@@ -254,7 +247,7 @@ private fun SearchBox(q: String, open: Boolean, onOpen: () -> Unit, onClose: () 
     if (!open) {
         Focusable(onClick = onOpen) { f ->
             Row(Modifier.height(36.dp).clip(CircleShape).background(if (f) BlueBright else Bg1.copy(alpha = 0.7f)).border(1.dp, if (f) BlueBright else Line, CircleShape).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Search, null, Modifier.size(14.dp), tint = if (f) Bg0 else Txt3); Spacer(Modifier.width(8.dp))
+                Icon(Lucide.Search, null, Modifier.size(14.dp), tint = if (f) Bg0 else Txt3); Spacer(Modifier.width(8.dp))
                 Mono("Search", 10.sp, if (f) Bg0 else Txt2, 0.12f)
             }
         }
@@ -264,7 +257,7 @@ private fun SearchBox(q: String, open: Boolean, onOpen: () -> Unit, onClose: () 
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     LaunchedEffect(Unit) { withFrameNanos { }; runCatching { req.requestFocus() }; keyboard?.show() }
     Row(Modifier.width(300.dp).height(36.dp).clip(CircleShape).background(Bg1.copy(alpha = 0.7f)).border(1.dp, Blue, CircleShape).padding(start = 12.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Outlined.Search, null, Modifier.size(14.dp), tint = Blue); Spacer(Modifier.width(8.dp))
+        Icon(Lucide.Search, null, Modifier.size(14.dp), tint = Blue); Spacer(Modifier.width(8.dp))
         Box(Modifier.weight(1f)) {
             if (q.isEmpty()) Mono("Search channels", 10.sp, Txt3, 0.12f, upper = false)
             androidx.compose.foundation.text.BasicTextField(q, onChange, Modifier.fillMaxWidth().focusRequester(req), singleLine = true,
@@ -272,7 +265,7 @@ private fun SearchBox(q: String, open: Boolean, onOpen: () -> Unit, onClose: () 
         }
         Focusable(onClick = onClose) { f ->
             Box(Modifier.size(26.dp).clip(CircleShape).background(if (f) BlueBright else Color.White.copy(alpha = 0.08f)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Outlined.Close, null, Modifier.size(14.dp), tint = if (f) Bg0 else Txt2)
+                Icon(Lucide.X, null, Modifier.size(14.dp), tint = if (f) Bg0 else Txt2)
             }
         }
     }
@@ -298,7 +291,7 @@ private fun CategoryRow(name: String, count: Int, active: Boolean, isLocked: Boo
             .border(1.dp, if (f) Blue else if (active) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.06f), RoundedCornerShape(10.dp)).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             if (active) { Box(Modifier.width(3.dp).height(16.dp).clip(CircleShape).background(Blue)); Spacer(Modifier.width(8.dp)) }
             Text(name, color = if (f || active) Txt else Txt2, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            if (isLocked) Icon(Icons.Outlined.Lock, "Locked", Modifier.size(12.dp), tint = Amber) else if (count > 0) Mono("$count", 10.sp, if (f) Blue else Txt3, 0.1f)
+            if (isLocked) Icon(Lucide.Lock, "Locked", Modifier.size(12.dp), tint = Amber) else if (count > 0) Mono("$count", 10.sp, if (f) Blue else Txt3, 0.1f)
         }
     }
 }
@@ -340,7 +333,7 @@ private fun ChannelRow(ch: Channel, fav: Boolean, active: Boolean, requester: Fo
                         Mono(now?.let { "${fmt.format(Date(it.startMs))} · ${it.title}" } ?: "No guide data", 9.sp, if (now == null) Txt3 else Txt2, 0.06f, upper = false)
                     }
                 }
-                if (fav) Icon(Icons.Filled.Star, null, Modifier.size(13.dp), tint = Amber)
+                if (fav) Icon(Lucide.Star, null, Modifier.size(13.dp), tint = Amber)
             }
             if (now != null) ProgressBar(now, Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(bottom = 6.dp), 2.dp)
         }
@@ -388,12 +381,12 @@ private fun PinGate(groupName: String, onClose: () -> Unit, onUnlock: () -> Unit
     if (!ParentalLock.hasPin(ctx)) { LaunchedEffect(Unit) { onUnlock() }; return }
     Dialog(onDismissRequest = onClose) {
         Column(Modifier.width(420.dp).glass(RoundedCornerShape(20.dp)).background(Bg1.copy(alpha = 0.97f)).padding(26.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Outlined.Lock, null, Modifier.size(18.dp), tint = Amber); Spacer(Modifier.width(10.dp)); Eyebrow("Locked group") }
+            Row(verticalAlignment = Alignment.CenterVertically) { Icon(Lucide.Lock, null, Modifier.size(18.dp), tint = Amber); Spacer(Modifier.width(10.dp)); Eyebrow("Locked group") }
             Spacer(Modifier.height(8.dp))
             Text(groupName, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 22.sp)
             Spacer(Modifier.height(6.dp)); Text("Enter your Live TV PIN to open this group.", color = Txt2, fontFamily = Geist, fontSize = 13.sp)
             Spacer(Modifier.height(16.dp))
-            Field(pin, { if (it.length <= 6 && it.all { c -> c.isDigit() }) { pin = it; err = false } }, "PIN", Icons.Outlined.Lock, password = true, requester = req, onDone = {
+            Field(pin, { if (it.length <= 6 && it.all { c -> c.isDigit() }) { pin = it; err = false } }, "PIN", Lucide.Lock, password = true, requester = req, onDone = {
                 if (ParentalLock.checkPin(ctx, pin)) onUnlock() else { err = true; pin = "" }
             })
             if (err) { Spacer(Modifier.height(8.dp)); Text("Wrong PIN — try again", color = Color(0xFFFF8A8A), fontFamily = Geist, fontSize = 12.sp) }

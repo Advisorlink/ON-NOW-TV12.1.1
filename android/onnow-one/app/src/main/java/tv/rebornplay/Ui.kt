@@ -8,6 +8,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -39,6 +42,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import kotlinx.coroutines.launch
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.ArrowLeft
 import tv.vesper.app.R
 
 /* Palette — identical to the web app's CSS variables. */
@@ -66,7 +71,7 @@ fun Mono(text: String, size: TextUnit = 11.sp, color: Color = Txt3, tracking: Fl
     Text(if (upper) text.uppercase() else text, modifier, color = color, fontFamily = GeistMono, fontSize = size, letterSpacing = (size.value * tracking).sp)
 
 @Composable
-fun Eyebrow(text: String, modifier: Modifier = Modifier) = Mono(text, 11.sp, Blue, modifier = modifier)
+fun Eyebrow(text: String, modifier: Modifier = Modifier) = Mono(text, 10.sp, Blue, 0.32f, modifier = modifier)
 
 /** Focus-aware wrapper used by every interactive element — mirrors `data-focusable` + the blue focus ring. */
 @Composable
@@ -104,19 +109,16 @@ fun Pill(
     onClick: () -> Unit,
 ) {
     Focusable(modifier, onClick = { if (enabled) onClick() }, requester = requester, onFocus = onFocus) { f ->
+        // Vesper `data-focus-style="pill"`: the button keeps its own colour; focus = crisp ring + soft cyan glow + 1.04 scale.
         val bg = when {
-            f -> BlueBright
             white -> Color.White
             primary -> Blue
-            else -> Color.White.copy(alpha = 0.10f)
+            else -> Color.White.copy(alpha = 0.06f)
         }
-        val fg = when {
-            f || white || primary -> Bg0
-            else -> Txt
-        }
+        val fg = if (white || primary) Bg0 else Txt
         Row(
-            Modifier.height(height).clip(CircleShape).background(bg)
-                .border(1.dp, if (f || white || primary) Color.Transparent else Color.White.copy(alpha = 0.18f), CircleShape)
+            Modifier.height(height).focusScale(f, 1.04f).pillFocus(f).clip(CircleShape).background(bg)
+                .border(1.dp, if (white || primary) Color.Transparent else Color.White.copy(alpha = 0.12f), CircleShape)
                 .padding(horizontal = 22.dp).alpha(if (enabled) 1f else 0.6f),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -142,16 +144,76 @@ fun SectionHeader(eyebrow: String, title: String, right: String? = null, modifie
     }
 }
 
-/** Vesper's cyan focus glow: layered translucent halos drawn behind the element (place before clip/background). */
+/** Vesper's cyan focus glow — real blurred bloom (`0 8px 24px 2px .34` + `0 0 30px 6px .20`); layered rings on Android < 9. */
 fun Modifier.blueGlow(on: Boolean, shape: androidx.compose.ui.graphics.Shape, radius: Dp = 14.dp, strength: Float = 1f): Modifier =
     if (!on) this else this.drawBehind {
         val r = radius.toPx()
-        for (i in 1..4) {
+        if (android.os.Build.VERSION.SDK_INT >= 28) {
+            drawIntoCanvas { c ->
+                fun layer(alpha: Float, blur: Dp, spread: Dp, dy: Dp) {
+                    val p = android.graphics.Paint().apply { isAntiAlias = true; color = android.graphics.Color.argb((alpha * strength * 255).toInt(), 93, 200, 255); maskFilter = android.graphics.BlurMaskFilter(blur.toPx(), android.graphics.BlurMaskFilter.Blur.NORMAL) }
+                    val s = spread.toPx(); val y = dy.toPx()
+                    c.nativeCanvas.drawRoundRect(-s, -s + y, size.width + s, size.height + s + y, r + s, r + s, p)
+                }
+                layer(0.34f, 12.dp, 2.dp, 8.dp); layer(0.20f, 15.dp, 6.dp, 0.dp)
+            }
+        } else for (i in 1..4) {
             val spread = i * 2.5f.dp.toPx()
             drawRoundRect(BlueBright.copy(alpha = (0.14f - i * 0.028f) * strength), topLeft = androidx.compose.ui.geometry.Offset(-spread, -spread),
                 size = androidx.compose.ui.geometry.Size(size.width + 2 * spread, size.height + 2 * spread), cornerRadius = androidx.compose.ui.geometry.CornerRadius(r + spread))
         }
     }
+
+/** `[data-focus-style='tile']` — glow + 1.5dp blue-bright outline sitting 2dp outside the tile. Place BEFORE clip/background. */
+fun Modifier.tileFocus(on: Boolean, radius: Dp = 12.dp): Modifier = if (!on) this else blueGlow(true, RoundedCornerShape(radius), radius).drawBehind {
+    val o = 2.dp.toPx() + 0.75.dp.toPx(); val r = radius.toPx() + o
+    drawRoundRect(BlueBright, topLeft = androidx.compose.ui.geometry.Offset(-o, -o), size = androidx.compose.ui.geometry.Size(size.width + 2 * o, size.height + 2 * o),
+        cornerRadius = androidx.compose.ui.geometry.CornerRadius(r), style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
+}
+
+/** `[data-focus-style='pill']` — 2dp blue-bright ring hugging the pill + glow. */
+fun Modifier.pillFocus(on: Boolean): Modifier = if (!on) this else drawBehind {
+    val r = size.height / 2
+    if (android.os.Build.VERSION.SDK_INT >= 28) drawIntoCanvas { c ->
+        fun layer(alpha: Float, blur: Dp, spread: Dp) {
+            val p = android.graphics.Paint().apply { isAntiAlias = true; color = android.graphics.Color.argb((alpha * 255).toInt(), 93, 200, 255); maskFilter = android.graphics.BlurMaskFilter(blur.toPx(), android.graphics.BlurMaskFilter.Blur.NORMAL) }
+            val s = spread.toPx(); c.nativeCanvas.drawRoundRect(-s, -s, size.width + s, size.height + s, r + s, r + s, p)
+        }
+        layer(0.55f, 11.dp, 4.dp); layer(0.25f, 22.dp, 10.dp)
+    } else drawRoundRect(Blue.copy(alpha = 0.25f), topLeft = androidx.compose.ui.geometry.Offset(-6.dp.toPx(), -6.dp.toPx()), size = androidx.compose.ui.geometry.Size(size.width + 12.dp.toPx(), size.height + 12.dp.toPx()), cornerRadius = androidx.compose.ui.geometry.CornerRadius(r + 6.dp.toPx()))
+    val o = 1.dp.toPx()
+    drawRoundRect(BlueBright, topLeft = androidx.compose.ui.geometry.Offset(-o, -o), size = androidx.compose.ui.geometry.Size(size.width + 2 * o, size.height + 2 * o),
+        cornerRadius = androidx.compose.ui.geometry.CornerRadius(r + o), style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
+}
+
+/** Round glass icon button (Library / Box Sets back button, section toggles). */
+@Composable
+fun CircleBtn(icon: ImageVector, label: String, size: Dp = 46.dp, requester: FocusRequester? = null, onClick: () -> Unit) {
+    Focusable(onClick = onClick, requester = requester) { f ->
+        Box(Modifier.size(size).focusScale(f, 1.04f).pillFocus(f).clip(CircleShape).background(Color.White.copy(alpha = 0.06f)).border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape), contentAlignment = Alignment.Center) {
+            androidx.compose.material3.Icon(icon, label, Modifier.size(size * 0.43f), tint = Txt2)
+        }
+    }
+}
+
+/** Vesper page title block: back circle + eyebrow + display heading (Library / Box Sets headers). */
+@Composable
+fun PageHeader(eyebrow: String, title: String, icon: ImageVector? = null, right: String? = null, backRequester: FocusRequester? = null, onBack: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(bottom = 30.dp), verticalAlignment = Alignment.CenterVertically) {
+        CircleBtn(Lucide.ArrowLeft, "Back", requester = backRequester, onClick = onBack)
+        Spacer(Modifier.width(20.dp))
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (icon != null) { androidx.compose.material3.Icon(icon, null, Modifier.size(13.dp), tint = BlueBright); Spacer(Modifier.width(6.dp)) }
+                Mono(eyebrow, 11.sp, BlueBright, 0.32f)
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(title, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 44.sp, lineHeight = 44.sp, letterSpacing = (-1.5).sp)
+        }
+        Spacer(Modifier.weight(1f))
+        if (right != null) Mono(right, 10.sp, Txt3, 0.22f)
+    }
+}
 
 @Composable
 fun BrandLogo(height: Dp = 30.dp, modifier: Modifier = Modifier) =

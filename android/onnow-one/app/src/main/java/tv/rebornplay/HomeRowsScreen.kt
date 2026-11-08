@@ -1,5 +1,7 @@
 package tv.rebornplay
 
+import com.composables.icons.lucide.*
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -7,8 +9,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -48,8 +48,8 @@ fun HomeRowsScreen(onBack: () -> Unit) {
             Text("Put the rows you use most at the top and hide the ones you don't. Changes apply the next time Home opens.", color = Txt2, fontFamily = Geist, fontSize = 14.sp)
             Spacer(Modifier.height(18.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Pill("Back to settings", icon = Icons.Outlined.ArrowBack, onClick = onBack)
-                Pill("Reset to default order", icon = Icons.Outlined.RestartAlt) { HomeRowPrefs.reset(ctx); Cache.home = null; tick++ }
+                Pill("Back to settings", icon = Lucide.ArrowLeft, onClick = onBack)
+                Pill("Reset to default order", icon = Lucide.RotateCcw) { HomeRowPrefs.reset(ctx); Cache.home = null; tick++ }
             }
             Spacer(Modifier.height(22.dp))
             if (rows.isEmpty()) Text("Your catalogue hasn't loaded yet.", color = Txt3, fontFamily = Geist, fontSize = 14.sp)
@@ -62,9 +62,9 @@ fun HomeRowsScreen(onBack: () -> Unit) {
                     Text(row.second, color = if (isHidden) Txt3 else Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, textDecoration = if (isHidden) TextDecoration.LineThrough else null)
                     Text(if (isHidden) "Hidden from Home" else "${row.first} · ${row.third.size} titles", color = Txt3, fontFamily = Geist, fontSize = 11.sp)
                 }
-                IconBtn(Icons.Outlined.KeyboardArrowUp, i > 0, if (i == 0) first else null) { move(i, -1) }
-                IconBtn(Icons.Outlined.KeyboardArrowDown, i < rows.lastIndex) { move(i, 1) }
-                IconBtn(if (isHidden) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility, true) { HomeRowPrefs.toggleHidden(ctx, key); Cache.home = null; tick++ }
+                IconBtn(Lucide.ChevronUp, i > 0, if (i == 0) first else null) { move(i, -1) }
+                IconBtn(Lucide.ChevronDown, i < rows.lastIndex) { move(i, 1) }
+                IconBtn(if (isHidden) Lucide.EyeOff else Lucide.Eye, true) { HomeRowPrefs.toggleHidden(ctx, key); Cache.home = null; tick++ }
             }
         }
     }
@@ -92,7 +92,7 @@ fun LiveCategoryPickScreen(onDone: () -> Unit) {
         item {
             Eyebrow("Settings · Live TV row"); Spacer(Modifier.height(6.dp))
             Text("Which category should the Home Live TV row show?", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 30.sp, letterSpacing = (-1).sp)
-            Spacer(Modifier.height(14.dp)); Pill("Back to settings", icon = Icons.Outlined.ArrowBack, onClick = onDone); Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(14.dp)); Pill("Back to settings", icon = Lucide.ArrowLeft, onClick = onDone); Spacer(Modifier.height(18.dp))
         }
         itemsIndexed(cats, key = { _, c -> c.id }) { i, c ->
             val sel = c.id == current
@@ -100,7 +100,7 @@ fun LiveCategoryPickScreen(onDone: () -> Unit) {
                 Row(Modifier.fillMaxWidth(0.7f).blueGlow(f, RoundedCornerShape(12.dp)).clip(RoundedCornerShape(12.dp)).background(if (f) BlueBright else if (sel) Blue.copy(alpha = 0.16f) else Bg1.copy(alpha = 0.7f)).border(1.dp, if (f || sel) BlueBright else Line, RoundedCornerShape(12.dp)).padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(c.name, color = if (f) Bg0 else Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f))
                     Mono("${c.channelCount} ch", 9.sp, if (f) Bg0 else Txt3, 0.1f, upper = false)
-                    if (sel) { Spacer(Modifier.width(10.dp)); Icon(Icons.Outlined.CheckCircle, null, Modifier.size(16.dp), tint = if (f) Bg0 else BlueBright) }
+                    if (sel) { Spacer(Modifier.width(10.dp)); Icon(Lucide.CircleCheck, null, Modifier.size(16.dp), tint = if (f) Bg0 else BlueBright) }
                 }
             }
         }

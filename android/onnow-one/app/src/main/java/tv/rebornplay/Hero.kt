@@ -1,5 +1,7 @@
 package tv.rebornplay
 
+import com.composables.icons.lucide.*
+
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -8,11 +10,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.border
 import androidx.compose.material3.Icon
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -68,9 +65,9 @@ fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusReque
             val infoReq = remember { FocusRequester() }; val listReq = remember { FocusRequester() }
             rowNav?.register(0, playReq)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Pill("Play", icon = Icons.Filled.PlayArrow, white = true, requester = playReq, onFocus = { if (it) rowNav?.focused(0, playReq) }) { onPlay(hero) }
-                Pill("More Info", icon = Icons.Outlined.Info, requester = infoReq, onFocus = { if (it) rowNav?.focused(0, infoReq) }) { onInfo(hero) }
-                Pill(if (inList) "In My List" else "My List", icon = if (inList) Icons.Outlined.Check else Icons.Outlined.Add, requester = listReq, onFocus = { if (it) rowNav?.focused(0, listReq) }) { inList = Library.toggle(ctx, hero.item) }
+                Pill("Play", icon = Lucide.Play, white = true, requester = playReq, onFocus = { if (it) rowNav?.focused(0, playReq) }) { onPlay(hero) }
+                Pill("More Info", icon = Lucide.Info, requester = infoReq, onFocus = { if (it) rowNav?.focused(0, infoReq) }) { onInfo(hero) }
+                Pill(if (inList) "In My List" else "My List", icon = if (inList) Lucide.Check else Lucide.Plus, requester = listReq, onFocus = { if (it) rowNav?.focused(0, listReq) }) { inList = Library.toggle(ctx, hero.item) }
             }
         }
         // Soft blue glow bleeding up from the shelf line (Vesper feel).
@@ -113,7 +110,7 @@ fun ResumeCard(e: CwEntry, short: Boolean, rowNav: RowNav?, modifier: Modifier =
             Spacer(Modifier.height(if (short) 8.dp else 12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(if (short) 26.dp else 32.dp).clip(CircleShape).background(if (f) BlueBright else Color.White), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.PlayArrow, null, Modifier.size(if (short) 16.dp else 20.dp), tint = Bg0)
+                    Icon(Lucide.Play, null, Modifier.size(if (short) 16.dp else 20.dp), tint = Bg0)
                 }
                 Spacer(Modifier.width(10.dp))
                 Text("Resume", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = if (short) 18.sp else 24.sp)

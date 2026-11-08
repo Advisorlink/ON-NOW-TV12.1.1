@@ -254,6 +254,8 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.activity:activity-compose:1.9.0")
     implementation("io.coil-kt:coil-compose:2.6.0")
+    // Vesper's icon set (lucide) so every glyph matches the web app exactly.
+    implementation("com.composables:icons-lucide:1.1.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
 
     // v2.11.8 — NewPipeExtractor for native YouTube trailer
