@@ -14,6 +14,7 @@ sealed class Route {
     object Library : Route()
     object Settings : Route()
     object HomeRows : Route()
+    data class BoxSet(val id: String) : Route()
     object Live : Route()
     data class Detail(val item: Item) : Route()
 }
@@ -35,7 +36,7 @@ class Nav {
     val stack = mutableStateListOf<Route>(Route.Home)
     val current get() = stack.last()
     var focusHomeNav = mutableStateOf(false)
-    fun go(r: Route) { if (r is Route.Detail) stack.add(r) else { stack.clear(); stack.add(r) } }
+    fun go(r: Route) { if (r is Route.Detail || r is Route.BoxSet) stack.add(r) else { stack.clear(); stack.add(r) } }
     fun back(): Boolean { if (stack.size <= 1) return false; stack.removeAt(stack.lastIndex); return true }
     fun isTop(r: Route) = current == r
 }

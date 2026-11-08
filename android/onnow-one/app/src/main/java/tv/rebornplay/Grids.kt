@@ -176,3 +176,19 @@ private fun ChannelTile(ch: tv.onnowtv.livetv.data.Channel, onClick: () -> Unit)
         }
     }
 }
+
+
+/** A Box Set: every film in the franchise the service carries, oldest first. */
+@Composable
+fun BoxSetScreen(id: String, onOpen: (Item) -> Unit) {
+    val set = BoxSets.sets[id]
+    val first = remember { FocusRequester() }
+    Column(Modifier.fillMaxSize().padding(top = 80.dp)) {
+        Column(Modifier.padding(start = 64.dp, end = 48.dp, bottom = 14.dp)) {
+            Eyebrow("Box Set · ${set?.second?.size ?: 0} films")
+            Text(set?.first ?: "Collection", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 34.sp, letterSpacing = (-1).sp)
+        }
+        if (set == null) Text("This collection isn't available any more.", color = Txt3, fontFamily = Geist, fontSize = 14.sp, modifier = Modifier.padding(start = 64.dp))
+        else TitleGrid(set.second, first, onOpen)
+    }
+}

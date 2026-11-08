@@ -1064,3 +1064,10 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Settings → "Trailers & tiles": Trailer delay (0.5/1/1.8/3 s/Off) and Pop-out speed (Fast/Normal/Slow) → Prefs.trailerDelayMs / expandMs used by PosterTile.
 - `Modifier.blueGlow(on, shape)` (coloured shadow) on focused poster/CW/Live tiles and the Resume card.
 - Artifact: reborn-play-3.4.0-31.apk via /api/dl/one/ZY3CDNN247. Device verification pending.
+
+## 2026-11-08 — v3.5.0: match Vesper Home look (user photos side-by-side)
+- Resume card removed from hero (user dislikes). Hero now 50 % of height, text bottom padding 8/4 dp (lower like Vesper); shelf TOP-aligned under hero; covers Vesper-sized: tileH = screenH − hero − 96 dp clamped 120–160 dp (was 150–240). Every poster shows title + year/★ on a bottom fade (focused card bigger text), border 2.5 dp BlueBright.
+- Glow: `Modifier.blueGlow(on, shape, radius, strength)` now draws 7 layered translucent halos (drawBehind) — applied to poster/CW/Live tiles, Pills (Play/More Info/My List etc.), TopNav buttons + profile avatar.
+- Box Sets (BoxSets.kt): franchise grouping from the service's own movie names (strip ": subtitle", numerals, roman numerals, Part N, Returns/Begins…; ≥3 distinct films) → 441 sets on current catalogue (Batman 23, Star Trek 13, Resident Evil 11…). "Box Sets" is the first shelf row (key "boxsets", HomeRowPrefs-manageable); tile → Route.BoxSet(id) → BoxSetScreen grid (pushes on nav stack). `Nav.open(item)` routes boxset vs detail.
+- Loading screen: glass card with icon rows (Movies & TV shows / Live TV channels / TV guide) showing live detail (counts, "Downloading your catalogue", "Programme guide ready"), per-row spinner → check, animated overall progress bar, version bottom-right.
+- Artifact: reborn-play-3.5.0-32.apk via /api/dl/one/ZY3CDNN247. Device verification pending.

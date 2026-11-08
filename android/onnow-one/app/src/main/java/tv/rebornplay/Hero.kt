@@ -52,7 +52,7 @@ fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusReque
         Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Bg0, 0.42f to Bg0.copy(alpha = 0.96f), 0.62f to Bg0.copy(alpha = 0.35f), 0.85f to Color.Transparent)))
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Bg0.copy(alpha = 0.55f), 0.35f to Color.Transparent, 0.75f to Bg0.copy(alpha = 0.4f), 1f to Bg0)))
 
-        Column(Modifier.align(Alignment.BottomStart).padding(start = (if (compact) 28.dp else 64.dp) + safeInset(), bottom = if (short) 6.dp else 10.dp).width(if (compact) 480.dp else 640.dp)) {
+        Column(Modifier.align(Alignment.BottomStart).padding(start = (if (compact) 28.dp else 64.dp) + safeInset(), bottom = if (short) 4.dp else 8.dp).width(if (compact) 480.dp else 640.dp)) {
             Eyebrow("$eyebrow · ${hero.item.genres.firstOrNull() ?: hero.item.type}")
             Spacer(Modifier.height(6.dp))
             Text(hero.item.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = if (compact) 34.sp else if (short) 40.sp else 52.sp, lineHeight = if (compact) 36.sp else if (short) 42.sp else 54.sp, letterSpacing = (-1.8).sp, maxLines = if (short) 1 else 2, overflow = TextOverflow.Ellipsis)
@@ -70,7 +70,6 @@ fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusReque
                 Pill(if (inList) "In My List" else "My List", icon = if (inList) Icons.Outlined.Check else Icons.Outlined.Add, requester = listReq, onFocus = { if (it) rowNav?.focused(0, listReq) }) { inList = Library.toggle(ctx, hero.item) }
             }
         }
-        if (resume != null && !compact) ResumeCard(resume, short, rowNav, Modifier.align(Alignment.CenterEnd).padding(end = 48.dp + safeInset(), top = if (short) 54.dp else 64.dp)) { onResume(resume) }
         // Soft blue glow bleeding up from the shelf line (Vesper feel).
         Box(Modifier.align(Alignment.BottomStart).fillMaxWidth(0.55f).height(if (short) 60.dp else 90.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Blue.copy(alpha = 0.10f)))))
         Row(Modifier.align(Alignment.BottomEnd).padding(end = 48.dp, bottom = 34.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {

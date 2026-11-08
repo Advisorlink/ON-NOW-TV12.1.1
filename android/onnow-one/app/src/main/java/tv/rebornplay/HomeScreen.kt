@@ -39,6 +39,7 @@ fun allHomeRows(c: Gorilla.Catalog): List<Pair<String, Triple<String, String, Li
     val newMovies = c.movies.sortedByDescending { it.added }
     val newSeries = c.series.sortedByDescending { it.added }
     val rows = ArrayList<Pair<String, Triple<String, String, List<Item>>>>()
+    BoxSets.build(c.movies).takeIf { it.isNotEmpty() }?.let { rows += "boxsets" to Triple("Collections", "Box Sets", it.take(40)) }
     rows += "new_movies" to Triple("Movies", "New movies", newMovies.take(40))
     rows += "new_series" to Triple("Series", "New series", newSeries.take(40))
     val mRows = c.movieCats.mapNotNull { (id, name) -> val l = c.movies.filter { it.categoryId == id }; if (l.size >= 4) "mcat:$id" to Triple("Movies", name, l.sortedByDescending { it.added }.take(40)) else null }
@@ -49,6 +50,8 @@ fun allHomeRows(c: Gorilla.Catalog): List<Pair<String, Triple<String, String, Li
 }
 
 fun loadHomeRows(c: Gorilla.Catalog): List<Triple<String, String, List<Item>>> = allHomeRows(c).map { it.second }
+
+fun Nav.open(it: Item) = go(if (it.type == "boxset") Route.BoxSet(it.id) else Route.Detail(it))
 
 @Composable
 fun HomeScreen(nav: Nav, rowNav: RowNav, onPlayHero: (Hero) -> Unit, onResume: (CwEntry) -> Unit = {}, onChannel: (tv.onnowtv.livetv.data.Channel) -> Unit = {}) {
@@ -95,11 +98,11 @@ fun HomeScreen(nav: Nav, rowNav: RowNav, onPlayHero: (Hero) -> Unit, onResume: (
         rowNav.list = list
         rowNav.topOffsetPx = with(density) { 84.dp.roundToPx() }
         LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 200.dp)) {
-            item { HeroBillboard(d.heroes, "New on Reborn", playReq, rowNav, resume = cw.firstOrNull(), onResume = onResume, onPlay = onPlayHero, onInfo = { nav.go(Route.Detail(it.item)) }) }
+            item { HeroBillboard(d.heroes, "New on Reborn", playReq, rowNav, onPlay = onPlayHero, onInfo = { nav.go(Route.Detail(it.item)) }) }
             item { Spacer(Modifier.height(26.dp)) }
             val extra = if (cw.isNotEmpty() || liveNow.isNotEmpty()) 1 else 0
             if (extra == 1) item { CwLiveRow(cw, liveNow, 1, rowNav, 200.dp, onResume, onChannel) }
-            items(d.rows.size) { i -> val (eye, title, l) = d.rows[i]; PosterShelf(eye, title, l, l.size, row = 1 + extra + i, rowNav = rowNav) { nav.go(Route.Detail(it)) } }
+            items(d.rows.size) { i -> val (eye, title, l) = d.rows[i]; PosterShelf(eye, title, l, l.size, row = 1 + extra + i, rowNav = rowNav) { nav.open(it) } }
         }
         return
     }
@@ -127,21 +130,21 @@ private fun PagedHome(d: HomeData, cw: List<CwEntry>, liveNow: List<tv.onnowtv.l
     LaunchedEffect(rowNav.page) { Cache.homePage = rowNav.page }
     LaunchedEffect(rowNav.focusTick) { if (rowNav.focusTick > 0) { withFrameNanos { }; withFrameNanos { }; rowNav.focusPending() } }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val heroH = maxHeight * 0.46f
-        val tileH = (maxHeight - heroH - 86.dp).coerceIn(150.dp, 240.dp)
+        val heroH = maxHeight * 0.50f
+        val tileH = (maxHeight - heroH - 96.dp).coerceIn(120.dp, 160.dp)   // Vesper-sized covers
         Column(Modifier.fillMaxSize()) {
-            HeroBillboard(d.heroes, "New on Reborn", if (restore > 0) null else playReq, rowNav, height = heroH, resume = cw.firstOrNull(), onResume = onResume, onPlay = onPlayHero, onInfo = { nav.go(Route.Detail(it.item)) })
+            HeroBillboard(d.heroes, "New on Reborn", if (restore > 0) null else playReq, rowNav, height = heroH, onPlay = onPlayHero, onInfo = { nav.go(Route.Detail(it.item)) })
             Box(Modifier.fillMaxWidth().weight(1f)) {
                 AnimatedContent(rowNav.page.coerceIn(0, pages - 1), label = "shelf", transitionSpec = {
                     val down = targetState > initialState
                     (slideInVertically(tween(260)) { if (down) it / 3 else -it / 3 } + fadeIn(tween(220))) togetherWith
                         (slideOutVertically(tween(200)) { if (down) -it / 3 else it / 3 } + fadeOut(tween(160)))
                 }) { i ->
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
                         if (hasCw && i == 0) CwLiveRow(cw, liveNow, 1, rowNav, tileH, onResume, onChannel)
                         else {
                             val (eye, title, l) = d.rows[i - (if (hasCw) 1 else 0)]
-                            PosterShelf(eye, title, l, l.size, row = 1 + i, rowNav = rowNav, tileH = tileH, bottomPad = 18.dp) { nav.go(Route.Detail(it)) }
+                            PosterShelf(eye, title, l, l.size, row = 1 + i, rowNav = rowNav, tileH = tileH, bottomPad = 18.dp) { nav.open(it) }
                         }
                     }
                 }

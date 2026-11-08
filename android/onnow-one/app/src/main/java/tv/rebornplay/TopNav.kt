@@ -49,7 +49,7 @@ fun TopNav(activeId: String, autoplay: Boolean, rowNav: RowNav? = null, onItem: 
             NavButton(Icons.Outlined.RocketLaunch, "Speed up", false, onHover = hv, rowNav = rowNav, onClick = onSpeedUp)
             NavButton(Icons.Outlined.Speed, "Speed test", false, onHover = hv, rowNav = rowNav, onClick = onSpeedTest)
             Focusable(Modifier.padding(start = 2.dp), onClick = onProfile, onFocus = { if (it) hover = "Switch profile" to -1f else if (hover?.first == "Switch profile") hover = null }) { f ->
-                Box(Modifier.size(40.dp).clip(CircleShape).border(if (f) 2.dp else 0.dp, if (f) BlueBright else Color.Transparent, CircleShape), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(40.dp).blueGlow(f, CircleShape, 20.dp, 0.8f).clip(CircleShape).border(if (f) 2.dp else 0.dp, if (f) BlueBright else Color.Transparent, CircleShape), contentAlignment = Alignment.Center) {
                     if (profile != null) AsyncImage(Avatars.url(profile.avatarId), profile.name, Modifier.size(28.dp).clip(CircleShape), contentScale = ContentScale.Crop)
                     else Box(Modifier.size(28.dp).clip(CircleShape).background(Bg2))
                 }
@@ -74,7 +74,7 @@ private fun NavButton(icon: ImageVector, label: String, active: Boolean, accent:
     Focusable(Modifier.onGloballyPositioned { cx = it.positionInRoot().x + it.size.width / 2f }, onClick = onClick, requester = req,
         onFocus = { onHover(label, cx, it); if (it) rowNav?.focused(-1, req) }) { f ->
         val color = if (active) (if (accent) Amber else Blue) else Txt2
-        Box(Modifier.size(40.dp).clip(CircleShape)
+        Box(Modifier.size(40.dp).blueGlow(f, CircleShape, 20.dp, 0.8f).clip(CircleShape)
             .background(if (f) BlueBright else if (active) color.copy(alpha = 0.14f) else Color.Transparent), contentAlignment = Alignment.Center) {
             Icon(icon, label, Modifier.size(20.dp), tint = if (f) Bg0 else color)
         }

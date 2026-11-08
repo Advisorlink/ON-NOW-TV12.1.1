@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
@@ -114,7 +115,7 @@ fun Pill(
             else -> Txt
         }
         Row(
-            Modifier.height(height).clip(CircleShape).background(bg)
+            Modifier.height(height).blueGlow(f, CircleShape, height / 2, 0.9f).clip(CircleShape).background(bg)
                 .border(1.dp, if (f || white || primary) Color.Transparent else Color.White.copy(alpha = 0.18f), CircleShape)
                 .padding(horizontal = 22.dp).alpha(if (enabled) 1f else 0.6f),
             verticalAlignment = Alignment.CenterVertically,
@@ -141,9 +142,16 @@ fun SectionHeader(eyebrow: String, title: String, right: String? = null, modifie
     }
 }
 
-/** Vesper's blue focus glow (coloured shadow; place before clip/background). */
-fun Modifier.blueGlow(on: Boolean, shape: androidx.compose.ui.graphics.Shape, elevation: Dp = 22.dp): Modifier =
-    if (on) this.shadow(elevation, shape, ambientColor = Blue, spotColor = Blue) else this
+/** Vesper's cyan focus glow: layered translucent halos drawn behind the element (place before clip/background). */
+fun Modifier.blueGlow(on: Boolean, shape: androidx.compose.ui.graphics.Shape, radius: Dp = 14.dp, strength: Float = 1f): Modifier =
+    if (!on) this else this.drawBehind {
+        val r = radius.toPx()
+        for (i in 1..7) {
+            val spread = i * 3.dp.toPx()
+            drawRoundRect(BlueBright.copy(alpha = (0.26f - i * 0.032f) * strength), topLeft = androidx.compose.ui.geometry.Offset(-spread, -spread),
+                size = androidx.compose.ui.geometry.Size(size.width + 2 * spread, size.height + 2 * spread), cornerRadius = androidx.compose.ui.geometry.CornerRadius(r + spread))
+        }
+    }
 
 @Composable
 fun BrandLogo(height: Dp = 30.dp, modifier: Modifier = Modifier) =

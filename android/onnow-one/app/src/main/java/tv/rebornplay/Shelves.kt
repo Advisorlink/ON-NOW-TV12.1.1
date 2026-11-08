@@ -51,18 +51,17 @@ fun PosterTile(item: Item, requester: FocusRequester? = null, onFocus: ((Item) -
     if (dwell > 0) TrailerDwell(item, focused, dwell)
     val trailerOn = focused && TrailerPlayer.playingId == item.id
     Focusable(onClick = onClick, requester = req, onFocus = { focused = it; if (it) { onFocus?.invoke(item); rowNav?.focused(row, req) } }) { _ ->
-        Box(Modifier.width(w).height(tileH).blueGlow(focused, TileShape).clip(TileShape).background(Bg2)
-            .border(if (focused) 2.dp else 1.dp, if (focused) Blue else Color.White.copy(alpha = 0.05f), TileShape)) {
+        Box(Modifier.width(w).height(tileH).blueGlow(focused, TileShape, 12.dp).clip(TileShape).background(Bg2)
+            .border(if (focused) 2.5.dp else 1.dp, if (focused) BlueBright else Color.White.copy(alpha = 0.05f), TileShape)) {
             if (w > posterW + 40.dp && rich.background != null)
                 AsyncImage(rich.background, item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             else AsyncImage(item.poster, item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             if (trailerOn) TrailerSurface(Modifier.fillMaxSize())
-            if (focused) {
-                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Bg0.copy(alpha = 0.92f))))
-                Column(Modifier.align(Alignment.BottomStart).padding(14.dp)) {
-                    Text(item.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    if (item.sub.isNotBlank()) Mono(item.sub, 9.sp, Txt2, 0.14f, Modifier.padding(top = 3.dp), upper = false)
-                }
+            // Vesper: every poster carries its title + year/rating on a bottom fade; the focused card gets a larger one.
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient((if (focused) 0.45f else 0.55f) to Color.Transparent, 1f to Bg0.copy(alpha = if (focused) 0.92f else 0.88f))))
+            Column(Modifier.align(Alignment.BottomStart).padding(if (focused) 14.dp else 9.dp)) {
+                Text(item.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = if (focused) 15.sp else 11.sp, lineHeight = if (focused) 18.sp else 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (item.sub.isNotBlank()) Mono(item.sub, if (focused) 9.sp else 8.sp, Txt2, 0.12f, Modifier.padding(top = 3.dp), upper = false)
             }
         }
     }
@@ -169,7 +168,7 @@ private fun CwTile(e: CwEntry, h: Dp, first: Boolean, row: Int, rowNav: RowNav?,
     val req = remember { FocusRequester() }
     if (first) rowNav?.register(row, req)
     Focusable(onClick = onClick, requester = req, onFocus = { if (it) rowNav?.focused(row, req) }) { f ->
-        Box(Modifier.width(h * 16 / 9).height(h).blueGlow(f, TileShape).clip(TileShape).background(Bg2).border(if (f) 2.dp else 1.dp, if (f) Blue else Color.White.copy(alpha = 0.06f), TileShape)) {
+        Box(Modifier.width(h * 16 / 9).height(h).blueGlow(f, TileShape, 12.dp).clip(TileShape).background(Bg2).border(if (f) 2.5.dp else 1.dp, if (f) BlueBright else Color.White.copy(alpha = 0.06f), TileShape)) {
             AsyncImage(e.item.background ?: e.item.poster, e.item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.4f to Color.Transparent, 1f to Bg0.copy(alpha = 0.92f))))
             Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(12.dp)) {
@@ -194,7 +193,7 @@ private fun LiveNowTile(ch: tv.onnowtv.livetv.data.Channel, h: Dp, first: Boolea
     val (now, _) = LiveStore.nowNext(ch)
     val frac = now?.let { ((System.currentTimeMillis() - it.startMs).toFloat() / (it.stopMs - it.startMs).coerceAtLeast(1)).coerceIn(0f, 1f) } ?: 0f
     Focusable(onClick = onClick, requester = req, onFocus = { if (it) rowNav?.focused(row, req) }) { f ->
-        Column(Modifier.width(h * 1.45f).height(h).blueGlow(f, TileShape).clip(TileShape).background(Bg1).border(if (f) 2.dp else 1.dp, if (f) Blue else Color.White.copy(alpha = 0.06f), TileShape).padding(12.dp)) {
+        Column(Modifier.width(h * 1.45f).height(h).blueGlow(f, TileShape, 12.dp).clip(TileShape).background(Bg1).border(if (f) 2.5.dp else 1.dp, if (f) BlueBright else Color.White.copy(alpha = 0.06f), TileShape).padding(12.dp)) {
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 if (ch.logoUrl != null) AsyncImage(ch.logoUrl, ch.name, Modifier.fillMaxSize(0.8f), contentScale = ContentScale.Fit)
                 else Text(ch.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)

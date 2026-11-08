@@ -11,6 +11,10 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Movie
+import androidx.compose.material.icons.outlined.LiveTv
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
@@ -19,6 +23,9 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -143,6 +150,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                 BackHandler(enabled = nav.stack.size > 1 || cur !is Route.Home) { if (!nav.back()) nav.go(Route.Home) }
                 when (cur) {
                     is Route.Detail -> DetailScreen(activity, cur.item, onBack = { nav.back() }, onHome = { nav.go(Route.Home) })
+                    is Route.BoxSet -> BoxSetScreen(cur.id, onOpen = { nav.go(Route.Detail(it)) })
                     else -> CompositionLocalProvider(LocalToken provides "xtream") { Box(Modifier.fillMaxSize().rowNavKeys(rowNav, scope)) {
                         val inset = safeInset()
                         when (cur) {
@@ -171,25 +179,36 @@ fun LoadingScreen(homeReady: Boolean, liveReady: Boolean, homeError: String? = n
     val compact = isCompact()
     val ctx = LocalContext.current
     val version = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "" }
-    val counts = Gorilla.catalog?.let { "${"%,d".format(it.movies.size)} movies · ${"%,d".format(it.series.size)} series" }
+    val cat = Gorilla.catalog
+    val channels = LiveStore.bundle.value?.channels?.size ?: 0
     val failed = homeError != null && homeReady
+    val done = (if (homeReady && !failed) 1 else 0) + (if (liveReady) 2 else 0)
+    val progress by androidx.compose.animation.core.animateFloatAsState(done / 3f, androidx.compose.animation.core.tween(600), label = "p")
     Box(Modifier.fillMaxSize()) {
         ScreenBackdrop()
-        Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.align(Alignment.Center).width(if (compact) 340.dp else 520.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(contentAlignment = Alignment.Center) {
-                Box(Modifier.size(if (compact) 360.dp else 620.dp, if (compact) 160.dp else 260.dp).background(androidx.compose.ui.graphics.Brush.radialGradient(listOf(Blue.copy(alpha = 0.22f), androidx.compose.ui.graphics.Color.Transparent))))
-                BrandLogo(if (compact) 84.dp else 140.dp)
+                Box(Modifier.size(if (compact) 360.dp else 620.dp, if (compact) 150.dp else 220.dp).background(androidx.compose.ui.graphics.Brush.radialGradient(listOf(Blue.copy(alpha = 0.24f), androidx.compose.ui.graphics.Color.Transparent))))
+                BrandLogo(if (compact) 76.dp else 116.dp)
             }
-            Spacer(Modifier.height(if (compact) 18.dp else 30.dp))
-            if (!failed) androidx.compose.material3.CircularProgressIndicator(color = Blue, strokeWidth = 3.dp, modifier = Modifier.size(32.dp))
+            Spacer(Modifier.height(if (compact) 10.dp else 18.dp))
+            Text(if (failed) "Couldn't load your movies & TV shows" else "Getting everything ready…", color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
             Spacer(Modifier.height(16.dp))
-            Text(if (failed) "Couldn't load your movies & TV shows" else "Getting everything ready…", color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-            Spacer(Modifier.height(14.dp))
-            LoadStep(if (failed) "Movies & TV shows — $homeError" else if (homeReady && counts != null) "Movies & TV shows · $counts" else "Movies & TV shows", homeReady && !failed)
-            LoadStep("Live TV channels", liveReady)
-            LoadStep("TV guide", liveReady)
+            Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(18.dp)).padding(horizontal = 18.dp, vertical = 12.dp)) {
+                LoadStep(Icons.Outlined.Movie, "Movies & TV shows", when {
+                    failed -> homeError.orEmpty()
+                    homeReady && cat != null -> "${"%,d".format(cat.movies.size)} movies · ${"%,d".format(cat.series.size)} series"
+                    else -> "Downloading your catalogue"
+                }, homeReady && !failed, failed)
+                LoadStep(Icons.Outlined.LiveTv, "Live TV channels", if (liveReady) "${"%,d".format(channels)} channels ready" else "Fetching channels", liveReady, false)
+                LoadStep(Icons.Outlined.CalendarMonth, "TV guide", if (liveReady) "Programme guide ready" else "Loading today's schedule", liveReady, false)
+                Spacer(Modifier.height(10.dp))
+                Box(Modifier.fillMaxWidth().height(3.dp).clip(CircleShape).background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.10f))) {
+                    Box(Modifier.fillMaxHeight().fillMaxWidth(progress.coerceAtLeast(0.04f)).background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Blue, BlueBright))))
+                }
+            }
             if (failed) {
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(22.dp))
                 val retryReq = remember { FocusRequester() }; FocusOnShow(retryReq, homeError)
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Pill("Try again", white = true, requester = retryReq, onClick = onRetry)
@@ -202,11 +221,19 @@ fun LoadingScreen(homeReady: Boolean, liveReady: Boolean, homeError: String? = n
 }
 
 @Composable
-private fun LoadStep(label: String, done: Boolean) {
-    androidx.compose.foundation.layout.Row(Modifier.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-        androidx.compose.material3.Icon(if (done) Icons.Outlined.CheckCircle else Icons.Outlined.Schedule, null, Modifier.size(15.dp), tint = if (done) Blue else Txt3)
-        Spacer(Modifier.width(10.dp))
-        Mono(label, 11.sp, if (done) Txt else Txt3, 0.14f, upper = false)
+private fun LoadStep(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, detail: String, done: Boolean, failed: Boolean) {
+    androidx.compose.foundation.layout.Row(Modifier.padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(34.dp).clip(CircleShape).background(if (done) Blue.copy(alpha = 0.18f) else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.06f)), contentAlignment = Alignment.Center) {
+            androidx.compose.material3.Icon(icon, null, Modifier.size(17.dp), tint = if (done) BlueBright else if (failed) Amber else Txt2)
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(label, color = if (done) Txt else Txt2, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Mono(detail, 9.sp, if (failed) Amber else Txt3, 0.08f, upper = false)
+        }
+        if (done) androidx.compose.material3.Icon(Icons.Outlined.CheckCircle, null, Modifier.size(18.dp), tint = BlueBright)
+        else if (failed) androidx.compose.material3.Icon(Icons.Outlined.ErrorOutline, null, Modifier.size(18.dp), tint = Amber)
+        else androidx.compose.material3.CircularProgressIndicator(color = Blue, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
     }
 }
 
