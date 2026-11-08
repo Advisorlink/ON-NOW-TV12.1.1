@@ -1036,3 +1036,10 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Loading screen now shows the catalogue counts when loaded, or the exact failure reason ("Movies & TV shows — …"); preload failure logged (tag Reborn). Home rows no longer capped at 24 — movie and series categories alternate (all service categories with ≥4 titles).
 - Robolectric attempt to unit-test Gorilla parsing was skipped by the runner on this aarch64 host (no reason reported) — removed; don't repeat.
 - Artifact: reborn-play-3.1.4-27.apk (71 MB) via /api/dl/one/ZY3CDNN247.
+
+## 2026-11-08 — v3.2.0: Movies/TV not loading while Live loads
+- Key clue: Live loads, VOD doesn't, same host. Live TV's DirectProviderFetcher uses HttpURLConnection with trust-all TLS; Gorilla used OkHttp (strict TLS, h2). Service cert chain is the new Let's Encrypt 2026 hierarchy (YE1 → Root YE → X2 → X1 cross) — plausible trust failure on some boxes.
+- Fix: Gorilla now uses HttpURLConnection (HTTP/1.1), 4 attempts with backoff, automatic relaxed-TLS fallback after an SSLException, Content-Length check (retries cut-off downloads), JSON head sanity check. OkHttp removed from Gorilla.
+- Boot now WAITS for the catalogue: if it fails the loading screen shows the exact reason with "Try again" (clears cache, re-runs) and "Continue to Live TV". bootTick re-triggers the boot effect.
+- Service also answers on plain http://gorillaposition.xyz (port 80) — fallback option if TLS is still the blocker. Movie streams 302 → https://honda.comebackaround.xyz (chain YR1 → Root YR → X1 cross).
+- Artifact: reborn-play-3.2.0-28.apk (71 MB) via /api/dl/one/ZY3CDNN247.

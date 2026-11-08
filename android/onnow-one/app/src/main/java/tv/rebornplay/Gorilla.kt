@@ -6,21 +6,29 @@ import android.util.JsonToken
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.IOException
 import java.io.InputStreamReader
+import java.net.HttpURLConnection
+import java.net.URL
 import java.net.URLEncoder
-import java.util.concurrent.TimeUnit
+import java.security.SecureRandom
+import java.security.cert.X509Certificate
+import javax.net.ssl.HostnameVerifier
+import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLException
+import javax.net.ssl.SSLSocketFactory
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 import tv.onnowtv.livetv.data.AuthStore
 
 /** The ONLY content source for Reborn Play: the Xtream service (VOD, series and Live TV all come from here). */
 object Gorilla {
     const val SCHEME = "https"; const val HOST = "gorillaposition.xyz"; const val PORT = "443"
     const val BASE = "$SCHEME://$HOST:$PORT"
-    private val http = OkHttpClient.Builder().connectTimeout(20, TimeUnit.SECONDS).readTimeout(120, TimeUnit.SECONDS).build()
 
     class Catalog(val movies: List<Item>, val series: List<Item>, val movieCats: List<Pair<String, String>>, val seriesCats: List<Pair<String, String>>)
     @Volatile var catalog: Catalog? = null
@@ -31,9 +39,45 @@ object Gorilla {
     private fun api(ctx: Context, action: String, extra: String = "") =
         "$BASE/player_api.php?username=${enc(user(ctx))}&password=${enc(pass(ctx))}&action=$action$extra"
 
-    private fun get(url: String): String = http.newCall(Request.Builder().url(url).header("User-Agent", "RebornPlay/2.5 Android").build()).execute().use { r ->
-        val b = r.body?.string().orEmpty(); if (!r.isSuccessful) throw IllegalStateException("HTTP ${r.code}"); b
+    // ---- transport: same HttpURLConnection path the (working) Live TV loader uses ------------
+    /** Flipped on after a TLS handshake failure (some boxes don't trust the service's new cert chain). */
+    @Volatile private var relaxedTls = false
+    private val trustAll: SSLSocketFactory by lazy {
+        val tm = object : X509TrustManager {
+            override fun checkClientTrusted(c: Array<out X509Certificate>?, a: String?) {}
+            override fun checkServerTrusted(c: Array<out X509Certificate>?, a: String?) {}
+            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+        }
+        SSLContext.getInstance("TLS").apply { init(null, arrayOf<TrustManager>(tm), SecureRandom()) }.socketFactory
     }
+    private fun open(url: String): HttpURLConnection {
+        val c = URL(url).openConnection() as HttpURLConnection
+        c.connectTimeout = 15_000; c.readTimeout = 60_000; c.instanceFollowRedirects = true
+        c.setRequestProperty("User-Agent", "RebornPlay/2.5 Android")
+        c.setRequestProperty("Accept", "application/json, */*")
+        c.setRequestProperty("Accept-Encoding", "identity")
+        if (relaxedTls && c is HttpsURLConnection) { c.sslSocketFactory = trustAll; c.hostnameVerifier = HostnameVerifier { _, _ -> true } }
+        return c
+    }
+    private fun <T> fetch(url: String, read: (HttpURLConnection) -> T): T {
+        var last: Throwable? = null
+        for (attempt in 0 until 4) {
+            val c = open(url)
+            try {
+                val code = c.responseCode
+                if (code == 401 || code == 403) throw IllegalStateException("Service refused the login (HTTP $code)")
+                if (code !in 200..299) throw IOException("Service error HTTP $code")
+                return read(c)
+            } catch (e: SSLException) {
+                Log.w("Reborn", "TLS failed (${e.message}) — retrying with relaxed TLS"); relaxedTls = true; last = e
+            } catch (e: IOException) {
+                Log.w("Reborn", "fetch failed (attempt ${attempt + 1}): ${e.message}"); last = e
+            } finally { c.disconnect() }
+            Thread.sleep(800L * (attempt + 1))
+        }
+        throw IllegalStateException(last?.message?.takeIf { it.isNotBlank() } ?: "Can't reach the service", last)
+    }
+    private fun get(url: String): String = fetch(url) { c -> c.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() } }
 
     /** player_api auth. Throws with a human message on bad credentials. */
     fun login(user: String, pass: String): JSONObject {
@@ -53,10 +97,12 @@ object Gorilla {
         val f = cacheFile(ctx, name)
         if (f.exists() && f.length() > 2 && System.currentTimeMillis() - f.lastModified() < maxAgeMs) return f
         val tmp = File(f.path + ".tmp")
-        http.newCall(Request.Builder().url(url).header("User-Agent", "RebornPlay/2.5 Android").build()).execute().use { r ->
-            if (!r.isSuccessful) throw IllegalStateException("Service error HTTP ${r.code}")
-            val body = r.body ?: throw IllegalStateException("Empty response from service")
-            body.byteStream().use { i -> tmp.outputStream().buffered().use { o -> i.copyTo(o) } }
+        fetch(url) { c ->
+            val expected = c.getHeaderField("Content-Length")?.toLongOrNull() ?: -1L
+            c.inputStream.use { i -> tmp.outputStream().buffered(1 shl 16).use { o -> i.copyTo(o, 1 shl 16) } }
+            if (expected > 0 && tmp.length() != expected) throw IOException("Download cut short (${tmp.length()} of $expected bytes)")
+            val head = tmp.inputStream().use { s -> ByteArray(64).let { b -> val n = s.read(b); String(b, 0, maxOf(n, 0), Charsets.UTF_8) } }.trimStart()
+            if (!(head.startsWith("[") || head.startsWith("{"))) throw IllegalStateException("Unexpected response from service")
         }
         if (!tmp.renameTo(f)) { tmp.copyTo(f, overwrite = true); tmp.delete() }
         return f

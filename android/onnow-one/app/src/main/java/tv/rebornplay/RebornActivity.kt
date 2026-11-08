@@ -19,6 +19,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -64,6 +65,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
     var liveReady by remember { mutableStateOf(LiveStore.bundle.value != null) }
     var loadError by remember { mutableStateOf<String?>(null) }
     var homeError by remember { mutableStateOf<String?>(null) }
+    var bootTick by remember { mutableStateOf(0) }
     var autoplay by remember { mutableStateOf(Prefs.autoplay(ctx)) }
     var profileKey by remember { mutableStateOf(0) }
     var toast by remember { mutableStateOf<String?>(null) }
@@ -77,7 +79,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
         consumeRoute()
     }
     // Boot / sign-in: channels + guide (disk fast path, else the full Live TV loader) and the Home shelves, then profiles.
-    LaunchedEffect(stage) {
+    LaunchedEffect(stage, bootTick) {
         if (stage != "loading") return@LaunchedEffect
         if (token == null) { stage = "login"; return@LaunchedEffect }
         loadError = null; homeError = null
@@ -92,7 +94,8 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
             homeReady = true
         }
         live.join(); home.join()
-        if (loadError != null) { signOutQuiet(ctx); token = null; stage = "login" } else stage = "profiles"
+        if (loadError != null) { signOutQuiet(ctx); token = null; stage = "login" }
+        else if (homeError == null) stage = "profiles"   // else: stay here and show the reason + Try again
     }
     toast?.let { LaunchedEffect(it) { Toast.makeText(ctx, it, Toast.LENGTH_SHORT).show(); toast = null } }
 
@@ -112,7 +115,9 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                 Cache.clear(); Gorilla.clearCache(ctx)
                 stage = "loading"
             }
-            "loading" -> LoadingScreen(homeReady, liveReady, homeError)
+            "loading" -> LoadingScreen(homeReady, liveReady, homeError,
+                onRetry = { Gorilla.clearCache(ctx); Cache.home = null; homeReady = false; bootTick++ },
+                onContinue = { stage = "profiles" })
             "profiles" -> ProfilesScreen(onPick = { profileKey++; nav.go(Route.Home); stage = "main" }, onSignOut = signOut)
             else -> key(profileKey) {
                 val playHero: (Hero) -> Unit = { h ->
@@ -147,11 +152,12 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
 }
 
 @Composable
-fun LoadingScreen(homeReady: Boolean, liveReady: Boolean, homeError: String? = null) {
+fun LoadingScreen(homeReady: Boolean, liveReady: Boolean, homeError: String? = null, onRetry: () -> Unit = {}, onContinue: () -> Unit = {}) {
     val compact = isCompact()
     val ctx = LocalContext.current
     val version = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "" }
     val counts = Gorilla.catalog?.let { "${"%,d".format(it.movies.size)} movies · ${"%,d".format(it.series.size)} series" }
+    val failed = homeError != null && homeReady
     Box(Modifier.fillMaxSize()) {
         ScreenBackdrop()
         Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -160,13 +166,21 @@ fun LoadingScreen(homeReady: Boolean, liveReady: Boolean, homeError: String? = n
                 BrandLogo(if (compact) 84.dp else 140.dp)
             }
             Spacer(Modifier.height(if (compact) 18.dp else 30.dp))
-            androidx.compose.material3.CircularProgressIndicator(color = Blue, strokeWidth = 3.dp, modifier = Modifier.size(32.dp))
+            if (!failed) androidx.compose.material3.CircularProgressIndicator(color = Blue, strokeWidth = 3.dp, modifier = Modifier.size(32.dp))
             Spacer(Modifier.height(16.dp))
-            Text("Getting everything ready…", color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+            Text(if (failed) "Couldn't load your movies & TV shows" else "Getting everything ready…", color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
             Spacer(Modifier.height(14.dp))
-            LoadStep(if (homeError != null) "Movies & TV shows — $homeError" else if (homeReady && counts != null) "Movies & TV shows · $counts" else "Movies & TV shows", homeReady && homeError == null)
+            LoadStep(if (failed) "Movies & TV shows — $homeError" else if (homeReady && counts != null) "Movies & TV shows · $counts" else "Movies & TV shows", homeReady && !failed)
             LoadStep("Live TV channels", liveReady)
             LoadStep("TV guide", liveReady)
+            if (failed) {
+                Spacer(Modifier.height(24.dp))
+                val retryReq = remember { FocusRequester() }; FocusOnShow(retryReq, homeError)
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Pill("Try again", white = true, requester = retryReq, onClick = onRetry)
+                    Pill("Continue to Live TV", onClick = onContinue)
+                }
+            }
         }
         Mono("Reborn Play v$version", 10.sp, Txt3, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 28.dp + safeInset(), bottom = 20.dp + safeInset()))
     }
