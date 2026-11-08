@@ -26,6 +26,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -74,6 +76,7 @@ fun LiveTvScreen(activity: Activity, onRefresh: () -> Unit) {
     var catId by remember { mutableStateOf(Settings.prefs(ctx).getString("reborn_last_cat", LiveStore.ALL) ?: LiveStore.ALL) }
     var focusedCat by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
+    var searchOpen by remember { mutableStateOf(false) }
     var gate by remember { mutableStateOf<Category?>(null) }
     val unlocked = remember { mutableStateListOf<String>() }
     var focused by remember { mutableStateOf<Channel?>(null) }
@@ -151,7 +154,7 @@ fun LiveTvScreen(activity: Activity, onRefresh: () -> Unit) {
                     Mono(when (catId) { LiveStore.ALL -> "All channels"; LiveStore.FAVS -> "Favourites"; else -> cats.firstOrNull { it.id == catId }?.name ?: "Channels" }, 11.sp, Blue, 0.24f)
                     Spacer(Modifier.width(12.dp)); Mono("${channels.size} channels", 10.sp, Txt3)
                     Spacer(Modifier.weight(1f))
-                    Box(Modifier.width(260.dp)) { SearchBox(query) { query = it } }
+                    SearchBox(query, searchOpen, onOpen = { searchOpen = true }, onClose = { query = ""; searchOpen = false }) { query = it }
                 }
                 ChannelColumn(channels, favs, current?.id, firstRow, fmt, tick, onFocus = { focused = it }, onOpen = { openChannel(it, channels) })
             }
@@ -245,14 +248,32 @@ private fun ProgressBar(p: Programme, modifier: Modifier, height: androidx.compo
     Box(modifier.height(height).clip(CircleShape).background(Color.White.copy(alpha = 0.08f))) { Box(Modifier.fillMaxHeight().fillMaxWidth(frac).background(Blue)) }
 }
 
+/** Collapsed to a plain "Search" button so passing over it with the D-pad never pops the keyboard; OK expands it and focuses the field. */
 @Composable
-private fun SearchBox(q: String, onChange: (String) -> Unit) {
-    Row(Modifier.fillMaxWidth().height(36.dp).clip(CircleShape).background(Bg1.copy(alpha = 0.7f)).border(1.dp, Line, CircleShape).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Outlined.Search, null, Modifier.size(14.dp), tint = Txt3); Spacer(Modifier.width(8.dp))
+private fun SearchBox(q: String, open: Boolean, onOpen: () -> Unit, onClose: () -> Unit, onChange: (String) -> Unit) {
+    if (!open) {
+        Focusable(onClick = onOpen) { f ->
+            Row(Modifier.height(36.dp).clip(CircleShape).background(if (f) BlueBright else Bg1.copy(alpha = 0.7f)).border(1.dp, if (f) BlueBright else Line, CircleShape).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Search, null, Modifier.size(14.dp), tint = if (f) Bg0 else Txt3); Spacer(Modifier.width(8.dp))
+                Mono("Search", 10.sp, if (f) Bg0 else Txt2, 0.12f)
+            }
+        }
+        return
+    }
+    val req = remember { FocusRequester() }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) { withFrameNanos { }; runCatching { req.requestFocus() }; keyboard?.show() }
+    Row(Modifier.width(300.dp).height(36.dp).clip(CircleShape).background(Bg1.copy(alpha = 0.7f)).border(1.dp, Blue, CircleShape).padding(start = 12.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Outlined.Search, null, Modifier.size(14.dp), tint = Blue); Spacer(Modifier.width(8.dp))
         Box(Modifier.weight(1f)) {
             if (q.isEmpty()) Mono("Search channels", 10.sp, Txt3, 0.12f, upper = false)
-            androidx.compose.foundation.text.BasicTextField(q, onChange, Modifier.fillMaxWidth(), singleLine = true,
+            androidx.compose.foundation.text.BasicTextField(q, onChange, Modifier.fillMaxWidth().focusRequester(req), singleLine = true,
                 textStyle = androidx.compose.ui.text.TextStyle(color = Txt, fontFamily = Geist, fontSize = 13.sp), cursorBrush = androidx.compose.ui.graphics.SolidColor(Blue))
+        }
+        Focusable(onClick = onClose) { f ->
+            Box(Modifier.size(26.dp).clip(CircleShape).background(if (f) BlueBright else Color.White.copy(alpha = 0.08f)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Outlined.Close, null, Modifier.size(14.dp), tint = if (f) Bg0 else Txt2)
+            }
         }
     }
 }

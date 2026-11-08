@@ -30,7 +30,7 @@ import kotlinx.coroutines.withContext
 import tv.vesper.app.LiveTvEntry
 
 @Composable
-fun SettingsScreen(activity: Activity, autoplay: Boolean, onAutoplay: () -> Unit, onProfiles: () -> Unit, onSignOut: () -> Unit, onRefreshLive: () -> Unit) {
+fun SettingsScreen(activity: Activity, autoplay: Boolean, onAutoplay: () -> Unit, onProfiles: () -> Unit, onSignOut: () -> Unit, onRefreshLive: () -> Unit, onHomeRows: () -> Unit = {}) {
     val ctx = LocalContext.current
     val user = remember { RebornSession.username(ctx) ?: "" }
     val profile = remember { Profiles.active(ctx) }
@@ -52,7 +52,8 @@ fun SettingsScreen(activity: Activity, autoplay: Boolean, onAutoplay: () -> Unit
             SettingRow(Icons.Outlined.CellTower, "Live TV settings", "Player engine, subtitles, aspect ratio, buffer, parental PIN, hidden groups", action = "Open") { LiveTvEntry.open(activity, settings = true) }
             SettingRow(Icons.Outlined.Refresh, "Refresh channels & guide", "Re-downloads your channel list and the programme guide", action = "Refresh", onClick = onRefreshLive)
         } }
-        item { Section("Home") {
+        item { Section("Home screen") {
+            SettingRow(Icons.Outlined.ViewAgenda, "Home rows", "Move rows up or down and hide the ones you skip — just like Vesper", action = "Customise", onClick = onHomeRows)
             SettingRow(Icons.Outlined.Autorenew, "Refresh movies & shows", "Re-downloads the catalogue from the service", action = "Refresh") { Cache.clear(); Gorilla.clearCache(ctx) }
         } }
         item { Section("About") { SettingRow(Icons.Outlined.Info, "Reborn Play", "Version $version · native build") {} } }

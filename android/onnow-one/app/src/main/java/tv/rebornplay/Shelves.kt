@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
@@ -24,7 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 
-private val TileShape = RoundedCornerShape(12.dp)
+val TileShape = RoundedCornerShape(12.dp)
 val POSTER_W = 150.dp
 val POSTER_H = 225.dp
 val EXPANDED_W = 430.dp
@@ -33,6 +34,10 @@ val EXPANDED_W = 430.dp
 @Composable
 fun PosterTile(item: Item, requester: FocusRequester? = null, onFocus: ((Item) -> Unit)? = null, row: Int = -2, rowNav: RowNav? = null, first: Boolean = false, tileH: Dp = POSTER_H, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
+    val ctx = LocalContext.current
+    // HD backdrop + trailer key arrive from the service's info call the moment the tile is rested on.
+    var rich by remember(item.id) { mutableStateOf(Gorilla.cachedInfo(item) ?: item) }
+    LaunchedEffect(focused, item.id) { if (focused && rich.background == null) runCatching { Gorilla.enrich(ctx, item) }.getOrNull()?.let { rich = it } }
     val posterW = tileH * 2 / 3
     val w by animateDpAsState(if (focused) tileH * 1.9f else posterW, tween(220), label = "w")
     val req = requester ?: remember { FocusRequester() }
@@ -42,8 +47,8 @@ fun PosterTile(item: Item, requester: FocusRequester? = null, onFocus: ((Item) -
     Focusable(onClick = onClick, requester = req, onFocus = { focused = it; if (it) { onFocus?.invoke(item); rowNav?.focused(row, req) } }) { _ ->
         Box(Modifier.width(w).height(tileH).clip(TileShape).background(Bg2)
             .border(if (focused) 2.dp else 1.dp, if (focused) Blue else Color.White.copy(alpha = 0.05f), TileShape)) {
-            if (w > posterW + 40.dp && item.background != null)
-                AsyncImage(item.background, item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            if (w > posterW + 40.dp && rich.background != null)
+                AsyncImage(rich.background, item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             else AsyncImage(item.poster, item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             if (trailerOn) TrailerSurface(Modifier.fillMaxSize())
             if (focused) {

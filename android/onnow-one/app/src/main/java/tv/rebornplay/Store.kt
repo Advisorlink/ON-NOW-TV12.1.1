@@ -79,3 +79,20 @@ object Prefs {
     fun autoplay(ctx: Context) = p(ctx).getBoolean("autoplay", true)
     fun setAutoplay(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("autoplay", v).apply()
 }
+
+/** Vesper-style Home customisation: row order + hidden rows. Row keys: new_movies, new_series, mcat:<id>, scat:<id>. */
+object HomeRowPrefs {
+    private fun p(ctx: Context) = ctx.getSharedPreferences("reborn_home_rows", Context.MODE_PRIVATE)
+    fun order(ctx: Context): List<String> = p(ctx).getString("order", "").orEmpty().split('\n').filter { it.isNotBlank() }
+    fun hidden(ctx: Context): Set<String> = p(ctx).getStringSet("hidden", emptySet()).orEmpty()
+    fun setOrder(ctx: Context, keys: List<String>) = p(ctx).edit().putString("order", keys.joinToString("\n")).apply()
+    fun toggleHidden(ctx: Context, key: String) { val h = hidden(ctx).toMutableSet(); if (!h.remove(key)) h.add(key); p(ctx).edit().putStringSet("hidden", h).apply() }
+    fun reset(ctx: Context) = p(ctx).edit().clear().apply()
+    /** Applies the saved order (unknown rows keep their natural place at the end) and drops hidden rows. */
+    fun <T> apply(ctx: Context, rows: List<Pair<String, T>>, includeHidden: Boolean = false): List<Pair<String, T>> {
+        val order = order(ctx); val hidden = hidden(ctx)
+        val byKey = rows.associateBy { it.first }
+        val sorted = order.mapNotNull { byKey[it] } + rows.filter { it.first !in order }
+        return if (includeHidden) sorted else sorted.filter { it.first !in hidden }
+    }
+}

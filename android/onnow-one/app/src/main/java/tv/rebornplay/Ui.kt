@@ -73,6 +73,7 @@ fun Focusable(
     onClick: () -> Unit,
     requester: FocusRequester? = null,
     onFocus: ((Boolean) -> Unit)? = null,
+    enabled: Boolean = true,
     content: @Composable BoxScope.(focused: Boolean) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -80,7 +81,7 @@ fun Focusable(
     Box(
         (if (requester != null) modifier.focusRequester(requester) else modifier)
             .onFocusChanged { focused = it.isFocused; onFocus?.invoke(it.isFocused) }
-            .clickable(interactionSource = src, indication = null, onClick = onClick),
+            .clickable(interactionSource = src, indication = null, enabled = enabled, onClick = onClick),
     ) { content(focused) }
 }
 

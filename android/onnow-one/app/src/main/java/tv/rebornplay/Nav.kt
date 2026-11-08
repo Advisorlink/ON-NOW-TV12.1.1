@@ -13,6 +13,7 @@ sealed class Route {
     object Search : Route()
     object Library : Route()
     object Settings : Route()
+    object HomeRows : Route()
     object Live : Route()
     data class Detail(val item: Item) : Route()
 }

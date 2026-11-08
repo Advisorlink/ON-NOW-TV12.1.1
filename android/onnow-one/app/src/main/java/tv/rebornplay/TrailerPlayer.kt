@@ -38,7 +38,7 @@ object TrailerPlayer {
 
     suspend fun resolveKey(ctx: Context, item: Item): String? {
         if (keyCache.containsKey(item.id)) return keyCache[item.id]
-        val key = item.trailerYt ?: if (item.type == "movie") runCatching { Gorilla.movieInfo(ctx, item).trailerYt }.getOrNull() else null
+        val key = item.trailerYt ?: runCatching { Gorilla.enrich(ctx, item).trailerYt }.getOrNull()
         keyCache[item.id] = key
         return key
     }
@@ -46,7 +46,8 @@ object TrailerPlayer {
     /** Resolve + start playback for `item`. Returns false when no trailer could be found. */
     suspend fun play(ctx: Context, item: Item): Boolean {
         val key = resolveKey(ctx, item) ?: return false
-        val ts = withContext(Dispatchers.IO) { runCatching { YouTubeTrailerExtractor.extract(key) ?: YouTubeTrailerExtractor.extractMuxed(key) }.getOrNull() } ?: return false
+        val ts = withContext(Dispatchers.IO) { runCatching { YouTubeTrailerExtractor.extract(key) ?: YouTubeTrailerExtractor.extractMuxed(key) }.onFailure { android.util.Log.w("Reborn", "trailer extract failed for $key: ${it.message}") }.getOrNull() }
+        if (ts == null) { android.util.Log.w("Reborn", "no trailer streams for $key"); return false }
         val p = get(ctx)
         val http = DefaultHttpDataSource.Factory().setUserAgent("Mozilla/5.0 (Linux; Android 11) RebornPlay").setAllowCrossProtocolRedirects(true)
         val factory = ProgressiveMediaSource.Factory(http)
@@ -58,17 +59,32 @@ object TrailerPlayer {
         return true
     }
 
+    fun player(): ExoPlayer? = player
     fun stop() { player?.stop(); player?.clearMediaItems(); playingId = null }
     fun release() { stop(); player?.release(); player = null }
 }
 
-/** Surface shown inside the expanded cover once the trailer is playing. */
+/** Surface shown inside the expanded cover once the trailer is playing (TextureView: clips and animates cleanly inside a row). */
 @Composable
 fun TrailerSurface(modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
     Box(modifier.background(Color.Black)) {
-        AndroidView(factory = { c -> PlayerView(c).apply { useController = false; resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM; setShutterBackgroundColor(android.graphics.Color.BLACK); player = TrailerPlayer.get(ctx) } },
-            update = { it.player = TrailerPlayer.get(ctx) }, onRelease = { it.player = null }, modifier = Modifier.fillMaxSize())
+        AndroidView(factory = { c ->
+            val tv = android.view.TextureView(c)
+            val player = TrailerPlayer.get(ctx)
+            fun fit() {
+                val vs = player.videoSize; if (vs.width == 0 || vs.height == 0 || tv.width == 0 || tv.height == 0) return
+                val vw = vs.width * vs.pixelWidthHeightRatio; val vh = vs.height.toFloat()
+                val scale = maxOf(tv.width / vw, tv.height / vh)          // centre-crop like RESIZE_MODE_ZOOM
+                val m = android.graphics.Matrix()
+                m.setScale(vw * scale / tv.width, vh * scale / tv.height, tv.width / 2f, tv.height / 2f)
+                tv.setTransform(m)
+            }
+            player.addListener(object : Player.Listener { override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) { fit() } })
+            tv.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> fit() }
+            player.setVideoTextureView(tv)
+            tv
+        }, update = { TrailerPlayer.get(ctx).setVideoTextureView(it) }, onRelease = { TrailerPlayer.player()?.clearVideoTextureView(it) }, modifier = Modifier.fillMaxSize())
     }
 }
 

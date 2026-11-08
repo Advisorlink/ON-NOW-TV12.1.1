@@ -263,7 +263,7 @@ dependencies {
     // "Watch on YouTube", 403s on iframe-blocked trailers).
     // Bundled size: ~4 MB.  Includes Mozilla Rhino for JavaScript
     // decoding of YouTube's obfuscated signature ciphers.
-    implementation("com.github.teamnewpipe:NewPipeExtractor:v0.26.3")
+    implementation("com.github.teamnewpipe:NewPipeExtractor:v0.27.0")
 
     // v2.11.8 — Required by NewPipeExtractor when minSdk < 33.
     // Provides java.nio backports (Path, Files, etc.) via

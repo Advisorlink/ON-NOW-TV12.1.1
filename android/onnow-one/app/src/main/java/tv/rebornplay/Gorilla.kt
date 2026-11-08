@@ -187,8 +187,8 @@ object Gorilla {
                 val playUrl = if (type == "movie") direct.takeIf { it.startsWith("http") && it.contains("/$id.") } ?: "$BASE/movie/$u/$p/$id.$e" else null
                 out += Item(
                     id = "$type:$id", type = type, name = title.ifBlank { name }.replace(yearRx, ""),
-                    poster = (if (type == "movie") icon else cover).takeIf { it.startsWith("http") },
-                    background = backdrop, description = plot.takeIf { it.isNotBlank() },
+                    poster = (if (type == "movie") icon else cover).takeIf { it.startsWith("http") }?.let { posterSize(it) },
+                    background = backdrop?.let { hd(it) }, description = plot.takeIf { it.isNotBlank() },
                     year = year.take(4).ifBlank { release.take(4) }.takeIf { it.isNotBlank() },
                     rating = rating.takeIf { it > 0 }?.let { String.format("%.1f", it) }, runtime = rt,
                     genres = genre.split(",").map { it.trim() }.filter { it.isNotBlank() }, trailerYt = trailer.takeIf { it.isNotBlank() },
@@ -200,21 +200,36 @@ object Gorilla {
         return out
     }
 
+    private val urlRx = Regex("https?://[^'\"\\]\\s,]+")
+    /** The service sometimes sends backdrop_path as a stringified list ("['https://…']") — pull the first URL out of anything. */
+    private fun firstHttp(o: JSONObject, key: String): String? {
+        val a = o.optJSONArray(key)
+        if (a != null) for (i in 0 until a.length()) urlRx.find(a.optString(i))?.value?.let { return hd(it) }
+        return urlRx.find(o.optString(key))?.value?.let { hd(it) }
+    }
+    /** TMDB sizes: w1280 for backdrops (HD on a TV, a fraction of 'original'), w500 for posters. */
+    fun hd(u: String) = u.replace("/t/p/original/", "/t/p/w1280/").replace("/t/p/w300/", "/t/p/w1280/").replace("/t/p/w780/", "/t/p/w1280/")
+    fun posterSize(u: String) = u.replace("/t/p/original/", "/t/p/w500/").replace("/t/p/w780/", "/t/p/w500/")
+
+    /** Focus-time enrichment (HD backdrop + trailer key) shared by tiles, hero and trailer player. */
+    private val infoCache = java.util.concurrent.ConcurrentHashMap<String, Item>()
+    fun cachedInfo(item: Item): Item? = infoCache[item.id]
+    suspend fun enrich(ctx: Context, item: Item): Item = infoCache[item.id] ?: if (item.type == "movie") movieInfo(ctx, item) else seriesInfo(ctx, item).first.also { infoCache[item.id] = it }
+
     /** Movie details (backdrop, plot, trailer, duration) — one call, cached in memory. */
-    private val infoCache = HashMap<String, Item>()
     suspend fun movieInfo(ctx: Context, item: Item): Item = withContext(Dispatchers.IO) {
         infoCache[item.id]?.let { return@withContext it }
         val sid = item.id.substringAfter(':')
         val o = runCatching { JSONObject(get(api(ctx, "get_vod_info", "&vod_id=$sid"))) }.getOrNull() ?: return@withContext item
         val info = o.optJSONObject("info") ?: JSONObject(); val md = o.optJSONObject("movie_data") ?: JSONObject()
-        val backdrop = info.optJSONArray("backdrop_path")?.optString(0)?.takeIf { it.startsWith("http") }
+        val backdrop = firstHttp(info, "backdrop_path") ?: firstHttp(info, "cover_big")
         val ext = md.optString("container_extension", "mp4").ifBlank { "mp4" }
         item.copy(
             background = backdrop ?: item.background, description = info.optString("plot").ifBlank { info.optString("description") }.takeIf { it.isNotBlank() } ?: item.description,
             trailerYt = info.optString("youtube_trailer").takeIf { it.isNotBlank() } ?: item.trailerYt,
             runtime = info.optString("duration").takeIf { it.matches(Regex("\\d\\d:\\d\\d:\\d\\d")) }?.let { val (h, m) = it.split(":"); "${h.toInt()}h ${m}m" } ?: item.runtime,
             rating = info.optDouble("rating", 0.0).takeIf { it > 0 }?.let { String.format("%.1f", it) } ?: item.rating,
-            poster = info.optString("movie_image").takeIf { it.startsWith("http") } ?: item.poster,
+            poster = info.optString("movie_image").takeIf { it.startsWith("http") }?.let { posterSize(it) } ?: item.poster,
             playUrl = md.optString("direct_source").takeIf { it.startsWith("http") && it.contains("/$sid.") } ?: "$BASE/movie/${user(ctx)}/${pass(ctx)}/$sid.$ext",
         ).also { infoCache[item.id] = it }
     }
@@ -235,7 +250,7 @@ object Gorilla {
                     url = e.optString("direct_source").takeIf { it.startsWith("http") && it.contains("/${e.optString("id")}.") } ?: "$BASE/series/${user(ctx)}/${pass(ctx)}/${e.optString("id")}.$ext")
             }
         }
-        val backdrop = info.optJSONArray("backdrop_path")?.optString(0)?.takeIf { it.startsWith("http") }
+        val backdrop = firstHttp(info, "backdrop_path") ?: firstHttp(info, "cover_big")
         item.copy(background = backdrop ?: item.background, description = info.optString("plot").takeIf { it.isNotBlank() } ?: item.description,
             trailerYt = info.optString("youtube_trailer").takeIf { it.isNotBlank() } ?: item.trailerYt) to eps.sortedWith(compareBy({ it.season }, { it.episode }))
     }

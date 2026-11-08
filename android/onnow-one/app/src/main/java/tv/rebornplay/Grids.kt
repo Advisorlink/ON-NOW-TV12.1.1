@@ -14,6 +14,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.CellTower
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -123,25 +125,54 @@ fun LibraryScreen(onOpen: (Item) -> Unit) {
 
 /** Search — local, over everything the service has. */
 @Composable
-fun SearchScreen(onOpen: (Item) -> Unit) {
+fun SearchScreen(onOpen: (Item) -> Unit, onOpenChannel: (tv.onnowtv.livetv.data.Channel) -> Unit = {}) {
     val ctx = LocalContext.current
     var q by remember { mutableStateOf("") }
     val cat = Gorilla.catalog
+    val live = LiveStore.bundle.value
     val req = remember { FocusRequester() }
     FocusOnShow(req, Unit)
+    val t = q.trim().lowercase()
     val results = remember(q, cat) {
-        val t = q.trim().lowercase()
         if (t.length < 2 || cat == null) emptyList() else (cat.movies + cat.series).filter { it.name.lowercase().contains(t) }.sortedByDescending { it.added }.take(200)
+    }
+    val channels = remember(q, live) {
+        if (t.length < 2 || live == null) emptyList() else live.channels.filter { it.name.lowercase().contains(t) }.take(30)
     }
     Column(Modifier.fillMaxSize().padding(top = 80.dp)) {
         Row(Modifier.padding(start = 64.dp, end = 48.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
             Column { Eyebrow("Search"); Text("Find anything", color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 26.sp) }
             Spacer(Modifier.width(30.dp))
-            Box(Modifier.width(520.dp)) { Field(q, { q = it }, "Movies, shows…", Icons.Outlined.Search, requester = req) }
+            Box(Modifier.width(520.dp)) { Field(q, { q = it }, "Movies, shows, live channels…", Icons.Outlined.Search, requester = req) }
             Spacer(Modifier.width(18.dp))
-            Mono(if (results.isNotEmpty()) "${results.size} results" else "", 10.sp, Txt3)
+            Mono(if (results.isNotEmpty() || channels.isNotEmpty()) "${results.size} titles · ${channels.size} channels" else "", 10.sp, Txt3)
         }
-        if (q.trim().length < 2) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Start typing to search movies and TV shows", color = Txt3, fontFamily = Geist, fontSize = 15.sp) }
-        else TitleGrid(results, null, onOpen)
+        if (t.length < 2) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Start typing to search movies, TV shows and live channels", color = Txt3, fontFamily = Geist, fontSize = 15.sp) }
+        else if (results.isEmpty() && channels.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Nothing matches “${q.trim()}”", color = Txt3, fontFamily = Geist, fontSize = 15.sp) }
+        else Column(Modifier.fillMaxSize()) {
+            if (channels.isNotEmpty()) {
+                SectionHeader("Live TV", "Channels", "${channels.size} found", Modifier.padding(horizontal = 64.dp))
+                androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(start = 64.dp, end = 48.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(channels, key = { it.id }) { ch -> ChannelTile(ch) { onOpenChannel(ch) } }
+                }
+                Spacer(Modifier.height(22.dp))
+            }
+            if (results.isNotEmpty()) Box(Modifier.weight(1f)) { TitleGrid(results, null, onOpen) }
+        }
+    }
+}
+
+@Composable
+private fun ChannelTile(ch: tv.onnowtv.livetv.data.Channel, onClick: () -> Unit) {
+    Focusable(onClick = onClick) { f ->
+        Column(Modifier.width(150.dp).clip(TileShape).background(if (f) Blue.copy(alpha = 0.16f) else Bg2).border(if (f) 2.dp else 1.dp, if (f) Blue else Color.White.copy(alpha = 0.05f), TileShape).padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(Modifier.fillMaxWidth().height(64.dp), contentAlignment = Alignment.Center) {
+                if (ch.logoUrl != null) AsyncImage(ch.logoUrl, ch.name, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                else Icon(Icons.Outlined.CellTower, null, Modifier.size(28.dp), tint = Txt3)
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(ch.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Mono("Live", 9.sp, if (f) Blue else Txt3, 0.2f)
+        }
     }
 }

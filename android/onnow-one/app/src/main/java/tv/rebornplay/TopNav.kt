@@ -40,7 +40,7 @@ fun TopNav(activeId: String, autoplay: Boolean, rowNav: RowNav? = null, onItem: 
     val density = LocalDensity.current
     val wide = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 1000
     Box(Modifier.fillMaxWidth().padding(top = (if (wide) 14.dp else 8.dp) + safeInset() / 2, start = safeInset(), end = safeInset()).zIndex(10f)) {
-        if (wide) BrandLogo(46.dp, Modifier.align(Alignment.TopStart).padding(start = 56.dp, top = 2.dp))
+        if (wide) BrandLogo(38.dp, Modifier.align(Alignment.TopStart).padding(start = 56.dp, top = 6.dp))
         Row(Modifier.align(Alignment.TopCenter).then(if (wide) Modifier else Modifier.padding(horizontal = 8.dp).horizontalScroll(rememberScrollState())).glass().padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             NAV_ITEMS.forEach { item ->
                 NavButton(item.icon, item.label, item.id == activeId, onHover = hv, rowNav = rowNav, isHome = item.id == "home") { onItem(item) }
