@@ -5,6 +5,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.border
+import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.Add
@@ -29,7 +32,7 @@ import kotlinx.coroutines.delay
 
 /** Rotating billboard — same layout as HeroBillboard.jsx (title, meta line, synopsis, Play / More Info / My List, dots). */
 @Composable
-fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusRequester?, rowNav: RowNav? = null, height: androidx.compose.ui.unit.Dp? = null, onPlay: (Hero) -> Unit, onInfo: (Hero) -> Unit) {
+fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusRequester?, rowNav: RowNav? = null, height: androidx.compose.ui.unit.Dp? = null, resume: CwEntry? = null, onResume: (CwEntry) -> Unit = {}, onPlay: (Hero) -> Unit, onInfo: (Hero) -> Unit) {
     if (heroes.isEmpty()) { Spacer(Modifier.height(80.dp)); return }
     val ctx = LocalContext.current
     var idx by remember(heroes) { mutableStateOf(0) }
@@ -67,6 +70,9 @@ fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusReque
                 Pill(if (inList) "In My List" else "My List", icon = if (inList) Icons.Outlined.Check else Icons.Outlined.Add, requester = listReq, onFocus = { if (it) rowNav?.focused(0, listReq) }) { inList = Library.toggle(ctx, hero.item) }
             }
         }
+        if (resume != null && !compact) ResumeCard(resume, short, rowNav, Modifier.align(Alignment.CenterEnd).padding(end = 48.dp + safeInset(), top = if (short) 54.dp else 64.dp)) { onResume(resume) }
+        // Soft blue glow bleeding up from the shelf line (Vesper feel).
+        Box(Modifier.align(Alignment.BottomStart).fillMaxWidth(0.55f).height(if (short) 60.dp else 90.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Blue.copy(alpha = 0.10f)))))
         Row(Modifier.align(Alignment.BottomEnd).padding(end = 48.dp, bottom = 34.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             heroes.take(6).forEachIndexed { i, _ ->
                 Box(Modifier.height(3.dp).width(if (i == idx) 26.dp else 6.dp).clip(CircleShape).background(if (i == idx) Blue else Txt3.copy(alpha = 0.6f)))
@@ -87,6 +93,37 @@ fun MetaLine(item: Item, size: androidx.compose.ui.unit.TextUnit) {
         parts.forEachIndexed { i, (t, c) ->
             if (i > 0) Text("  ·  ", color = Txt3, fontFamily = Geist, fontSize = size)
             Text(t, color = c, fontFamily = Geist, fontSize = size)
+        }
+    }
+}
+
+/** "Resume" card on the right of the hero: last thing the user was watching — one click reopens it where they left off. */
+@Composable
+fun ResumeCard(e: CwEntry, short: Boolean, rowNav: RowNav?, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val req = remember { FocusRequester() }
+    val shape = RoundedCornerShape(18.dp)
+    Focusable(onClick = onClick, requester = req, onFocus = { if (it) rowNav?.focused(0, req) }, modifier = modifier) { f ->
+        Column(Modifier.width(if (short) 300.dp else 360.dp).blueGlow(f, shape).clip(shape).background(Bg1.copy(alpha = 0.78f)).border(if (f) 2.dp else 1.dp, if (f) Blue else Color.White.copy(alpha = 0.12f), shape).padding(12.dp)) {
+            Box(Modifier.fillMaxWidth().height(if (short) 90.dp else 140.dp).clip(RoundedCornerShape(12.dp)).background(Bg2)) {
+                AsyncImage(e.item.background ?: e.item.poster, e.item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Bg0.copy(alpha = 0.7f))))
+            }
+            Spacer(Modifier.height(if (short) 8.dp else 12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(if (short) 26.dp else 32.dp).clip(CircleShape).background(if (f) BlueBright else Color.White), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.PlayArrow, null, Modifier.size(if (short) 16.dp else 20.dp), tint = Bg0)
+                }
+                Spacer(Modifier.width(10.dp))
+                Text("Resume", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = if (short) 18.sp else 24.sp)
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(if (e.item.type == "series") "${e.label.ifBlank { e.item.name }}" else e.item.name, color = Txt2, fontFamily = Geist, fontSize = if (short) 12.sp else 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(if (short) 6.dp else 10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f).height(4.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.14f))) { Box(Modifier.fillMaxHeight().fillMaxWidth(e.fraction).background(Blue)) }
+                Spacer(Modifier.width(12.dp))
+                Mono("${e.minutesLeft} min left", 10.sp, Txt2, 0.08f, upper = false)
+            }
         }
     }
 }

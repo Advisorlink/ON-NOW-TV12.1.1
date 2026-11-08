@@ -78,6 +78,54 @@ object Prefs {
     private fun p(ctx: Context) = ctx.getSharedPreferences("reborn_prefs", Context.MODE_PRIVATE)
     fun autoplay(ctx: Context) = p(ctx).getBoolean("autoplay", true)
     fun setAutoplay(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("autoplay", v).apply()
+    /** How long you rest on a tile before its trailer starts (0 = trailers off). */
+    val TRAILER_DELAYS = listOf(500L, 1000L, 1800L, 3000L, 0L)
+    fun trailerDelayMs(ctx: Context) = p(ctx).getLong("trailer_delay", 1800L)
+    fun cycleTrailerDelay(ctx: Context): Long { val i = TRAILER_DELAYS.indexOf(trailerDelayMs(ctx)); val v = TRAILER_DELAYS[(i + 1) % TRAILER_DELAYS.size]; p(ctx).edit().putLong("trailer_delay", v).apply(); return v }
+    fun trailerDelayLabel(ms: Long) = if (ms == 0L) "Off" else "${"%.1f".format(ms / 1000.0).removeSuffix(".0")} s"
+    /** Tile expand animation duration. */
+    val EXPAND_SPEEDS = listOf(120, 220, 400)
+    fun expandMs(ctx: Context) = p(ctx).getInt("expand_ms", 220)
+    fun cycleExpandMs(ctx: Context): Int { val i = EXPAND_SPEEDS.indexOf(expandMs(ctx)); val v = EXPAND_SPEEDS[(i + 1) % EXPAND_SPEEDS.size]; p(ctx).edit().putInt("expand_ms", v).apply(); return v }
+    fun expandLabel(ms: Int) = when (ms) { 120 -> "Fast"; 400 -> "Slow"; else -> "Normal" }
+}
+
+/** A title the user started: what to show on the Resume card / Continue Watching row and how to relaunch it. */
+data class CwEntry(val cwId: String, val item: Item, val label: String, val url: String, val positionMs: Long, val durationMs: Long, val updatedAt: Long) {
+    val fraction get() = if (durationMs > 0) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
+    val minutesLeft get() = if (durationMs > 0) ((durationMs - positionMs) / 60000L).coerceAtLeast(1) else 0L
+}
+
+/** Continue Watching — entries written when playback starts; progress comes from the players' "onnowtv_progress" store (keyed by cwId). */
+object ContinueWatching {
+    private fun p(ctx: Context) = ctx.getSharedPreferences("reborn_cw", Context.MODE_PRIVATE)
+    private fun key(ctx: Context) = "cw:" + (Profiles.active(ctx)?.id ?: "default")
+    private fun progress(ctx: Context, cwId: String): Pair<Long, Long>? = runCatching {
+        val o = JSONObject(ctx.getSharedPreferences("onnowtv_progress", Context.MODE_PRIVATE).getString(cwId, null) ?: return null)
+        o.optLong("positionMs") to o.optLong("durationMs")
+    }.getOrNull()
+    fun record(ctx: Context, cwId: String, item: Item, label: String, url: String) {
+        val a = JSONArray(p(ctx).getString(key(ctx), "[]"))
+        val rest = (0 until a.length()).map { a.getJSONObject(it) }.filter { it.optString("cwId") != cwId && it.optString("itemId") != item.id }.take(19)
+        val o = JSONObject().put("cwId", cwId).put("itemId", item.id).put("type", item.type).put("name", item.name).put("poster", item.poster).put("background", item.background)
+            .put("year", item.year).put("rating", item.rating).put("label", label).put("url", url).put("updatedAt", System.currentTimeMillis())
+        p(ctx).edit().putString(key(ctx), JSONArray().apply { put(o); rest.forEach { put(it) } }.toString()).apply()
+    }
+    /** Most recent first; finished titles (>95 %) and never-started ones are dropped. */
+    fun entries(ctx: Context): List<CwEntry> = runCatching {
+        val a = JSONArray(p(ctx).getString(key(ctx), "[]"))
+        (0 until a.length()).mapNotNull { i ->
+            val o = a.getJSONObject(i); val cwId = o.getString("cwId")
+            val (pos, dur) = progress(ctx, cwId) ?: (0L to 0L)
+            if (pos < 30_000L || (dur > 0 && pos.toFloat() / dur > 0.95f)) return@mapNotNull null
+            val item = Item(o.getString("itemId"), o.optString("type"), o.optString("name"), o.optString("poster", null), o.optString("background", null), year = o.optString("year", null), rating = o.optString("rating", null))
+            CwEntry(cwId, item, o.optString("label"), o.optString("url"), pos, dur, o.optLong("updatedAt"))
+        }.sortedByDescending { it.updatedAt }
+    }.getOrDefault(emptyList())
+    fun remove(ctx: Context, cwId: String) {
+        val a = JSONArray(p(ctx).getString(key(ctx), "[]"))
+        p(ctx).edit().putString(key(ctx), JSONArray().apply { (0 until a.length()).map { a.getJSONObject(it) }.filter { it.optString("cwId") != cwId }.forEach { put(it) } }.toString()).apply()
+    }
 }
 
 /** Vesper-style Home customisation: row order + hidden rows. Row keys: new_movies, new_series, mcat:<id>, scat:<id>. */

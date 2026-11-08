@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -139,6 +140,10 @@ fun SectionHeader(eyebrow: String, title: String, right: String? = null, modifie
         if (right != null) Mono(right, 10.sp, Txt3, modifier = Modifier.padding(bottom = 6.dp))
     }
 }
+
+/** Vesper's blue focus glow (coloured shadow; place before clip/background). */
+fun Modifier.blueGlow(on: Boolean, shape: androidx.compose.ui.graphics.Shape, elevation: Dp = 22.dp): Modifier =
+    if (on) this.shadow(elevation, shape, ambientColor = Blue, spotColor = Blue) else this
 
 @Composable
 fun BrandLogo(height: Dp = 30.dp, modifier: Modifier = Modifier) =

@@ -8,6 +8,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,13 +43,15 @@ fun PosterTile(item: Item, requester: FocusRequester? = null, onFocus: ((Item) -
     var rich by remember(item.id) { mutableStateOf(Gorilla.cachedInfo(item) ?: item) }
     LaunchedEffect(focused, item.id) { if (focused && rich.background == null) runCatching { Gorilla.enrich(ctx, item) }.getOrNull()?.let { rich = it } }
     val posterW = tileH * 2 / 3
-    val w by animateDpAsState(if (focused) tileH * 1.9f else posterW, tween(220), label = "w")
+    val expandMs = remember { Prefs.expandMs(ctx) }
+    val dwell = remember { Prefs.trailerDelayMs(ctx) }
+    val w by animateDpAsState(if (focused) tileH * 1.9f else posterW, tween(expandMs), label = "w")
     val req = requester ?: remember { FocusRequester() }
     if (first) rowNav?.register(row, req)
-    TrailerDwell(item, focused)
+    if (dwell > 0) TrailerDwell(item, focused, dwell)
     val trailerOn = focused && TrailerPlayer.playingId == item.id
     Focusable(onClick = onClick, requester = req, onFocus = { focused = it; if (it) { onFocus?.invoke(item); rowNav?.focused(row, req) } }) { _ ->
-        Box(Modifier.width(w).height(tileH).clip(TileShape).background(Bg2)
+        Box(Modifier.width(w).height(tileH).blueGlow(focused, TileShape).clip(TileShape).background(Bg2)
             .border(if (focused) 2.dp else 1.dp, if (focused) Blue else Color.White.copy(alpha = 0.05f), TileShape)) {
             if (w > posterW + 40.dp && rich.background != null)
                 AsyncImage(rich.background, item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
@@ -129,6 +135,73 @@ fun BrandShelf(title: String, kind: String, brands: List<Brand>, row: Int = -2, 
         SectionHeader("Browse", title, "${list.size} ${if (kind == "networks") "networks" else "studios"}", Modifier.padding(horizontal = inset))
         LazyRow(contentPadding = PaddingValues(start = 64.dp + inset, end = 48.dp + inset), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             itemsIndexed(list, key = { _, it -> it.slug }) { i, b -> BrandTile(b, kind == "collections", row, rowNav, i == 0) { onOpen(b) } }
+        }
+    }
+}
+
+
+/** Row 1 of the redesigned Home: Continue Watching (landscape tiles with progress) on the left, Live Now on the right. */
+@Composable
+fun CwLiveRow(cw: List<CwEntry>, live: List<tv.onnowtv.livetv.data.Channel>, row: Int, rowNav: RowNav?, tileH: Dp, onResume: (CwEntry) -> Unit, onChannel: (tv.onnowtv.livetv.data.Channel) -> Unit) {
+    val ctx = LocalContext.current
+    val inset = safeInset()
+    if (rowNav != null) DisposableEffect(row) { onDispose { rowNav.forget(row) } }
+    LaunchedEffect(live) { live.forEach { ch -> runCatching { LiveStore.programmes(ctx, ch) } } }
+    val h = (tileH * 0.78f).coerceAtMost(170.dp)
+    Row(Modifier.fillMaxWidth().padding(start = 64.dp + inset, end = 48.dp + inset, bottom = 18.dp), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+        if (cw.isNotEmpty()) Column(Modifier.weight(1.4f)) {
+            SectionHeader("Pick up where you left off", "Continue Watching", "${cw.size} in progress")
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                itemsIndexed(cw, key = { _, e -> e.cwId }) { i, e -> CwTile(e, h, i == 0 && row >= 0, row, rowNav) { onResume(e) } }
+            }
+        }
+        if (live.isNotEmpty()) Column(Modifier.weight(1f)) {
+            SectionHeader("On air right now", "Live Now", "${live.size} channels")
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                itemsIndexed(live, key = { _, c -> c.id }) { i, ch -> LiveNowTile(ch, h, cw.isEmpty() && i == 0, row, rowNav) { onChannel(ch) } }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CwTile(e: CwEntry, h: Dp, first: Boolean, row: Int, rowNav: RowNav?, onClick: () -> Unit) {
+    val req = remember { FocusRequester() }
+    if (first) rowNav?.register(row, req)
+    Focusable(onClick = onClick, requester = req, onFocus = { if (it) rowNav?.focused(row, req) }) { f ->
+        Box(Modifier.width(h * 16 / 9).height(h).blueGlow(f, TileShape).clip(TileShape).background(Bg2).border(if (f) 2.dp else 1.dp, if (f) Blue else Color.White.copy(alpha = 0.06f), TileShape)) {
+            AsyncImage(e.item.background ?: e.item.poster, e.item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.4f to Color.Transparent, 1f to Bg0.copy(alpha = 0.92f))))
+            Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(12.dp)) {
+                Text(e.item.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(22.dp).clip(CircleShape).background(if (f) BlueBright else Color.White.copy(alpha = 0.9f)), contentAlignment = Alignment.Center) { Icon(Icons.Filled.PlayArrow, null, Modifier.size(14.dp), tint = Bg0) }
+                    Spacer(Modifier.width(8.dp))
+                    Box(Modifier.weight(1f).height(3.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.18f))) { Box(Modifier.fillMaxHeight().fillMaxWidth(e.fraction).background(Blue)) }
+                    Spacer(Modifier.width(8.dp))
+                    Mono(e.label.substringBefore(" · ").ifBlank { "${e.minutesLeft}m left" }, 9.sp, Txt2, 0.06f, upper = false)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LiveNowTile(ch: tv.onnowtv.livetv.data.Channel, h: Dp, first: Boolean, row: Int, rowNav: RowNav?, onClick: () -> Unit) {
+    val req = remember { FocusRequester() }
+    if (first) rowNav?.register(row, req)
+    val (now, _) = LiveStore.nowNext(ch)
+    val frac = now?.let { ((System.currentTimeMillis() - it.startMs).toFloat() / (it.stopMs - it.startMs).coerceAtLeast(1)).coerceIn(0f, 1f) } ?: 0f
+    Focusable(onClick = onClick, requester = req, onFocus = { if (it) rowNav?.focused(row, req) }) { f ->
+        Column(Modifier.width(h * 1.45f).height(h).blueGlow(f, TileShape).clip(TileShape).background(Bg1).border(if (f) 2.dp else 1.dp, if (f) Blue else Color.White.copy(alpha = 0.06f), TileShape).padding(12.dp)) {
+            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                if (ch.logoUrl != null) AsyncImage(ch.logoUrl, ch.name, Modifier.fillMaxSize(0.8f), contentScale = ContentScale.Fit)
+                else Text(ch.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            Text(now?.title ?: ch.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(6.dp))
+            Box(Modifier.fillMaxWidth().height(3.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.18f))) { Box(Modifier.fillMaxHeight().fillMaxWidth(frac).background(Color(0xFFE5484D))) }
         }
     }
 }

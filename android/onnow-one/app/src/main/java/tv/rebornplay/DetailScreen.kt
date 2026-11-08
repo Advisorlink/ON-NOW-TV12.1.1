@@ -40,10 +40,17 @@ import org.json.JSONObject
 import tv.vesper.app.WebAppInterface
 import tv.vesper.app.YouTubeTrailerExtractor
 
-fun launchPlayer(activity: Activity, meta: Item, title: String, url: String, cwId: String) {
+fun launchPlayer(activity: Activity, meta: Item, title: String, url: String, cwId: String, startAtMs: Long = 0L) {
+    ContinueWatching.record(activity, cwId, meta, title.substringAfter(" · ", "").ifBlank { meta.runtime ?: "" }, url)
     val one = JSONArray().put(JSONObject().put("url", url).put("label", "Reborn").put("addonSource", "Reborn").put("quality", "").put("pmCached", true).put("isEnglish", true).put("size", "")).toString()
     WebAppInterface(activity).playInternalRichV2(url, title, null, meta.poster, meta.background, meta.description, meta.year, meta.rating, meta.runtime,
-        meta.genres.joinToString(", "), meta.type, 0L, cwId, one, 0)
+        meta.genres.joinToString(", "), meta.type, startAtMs, cwId, one, 0)
+}
+
+/** Relaunch a Continue Watching entry exactly where it was left. */
+fun resumeEntry(activity: Activity, e: CwEntry) {
+    val title = if (e.item.type == "series" && e.label.isNotBlank()) "${e.item.name} · ${e.label}" else e.item.name
+    launchPlayer(activity, e.item, title, e.url, e.cwId, e.positionMs)
 }
 
 /** Title page — same structure as Detail.jsx: backdrop, Back/Home, title, meta, synopsis, CTA row, seasons + episodes. */

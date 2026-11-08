@@ -1056,3 +1056,11 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Settings → Home screen → "Home rows" (Route.HomeRows / HomeRowsScreen): move up/down, hide/show, reset; HomeRowPrefs (SharedPreferences "reborn_home_rows") applied in loadHome via allHomeRows(). Focusable gained `enabled`.
 - Hero text bottom padding 22→10dp (short: 14→6); TopNav logo 46→38dp.
 - Artifact: reborn-play-3.3.0-30.apk via /api/dl/one/ZY3CDNN247. Device verification pending.
+
+## 2026-11-08 — v3.4.0: Home redesign (mockup: hero + Resume card, Continue Watching + Live Now row, glow, trailer settings)
+- Top nav + Reborn logo unchanged (user requirement). Hero: left text/Play/More Info/My List; right **Resume card** (`ResumeCard` in Hero.kt) for the newest Continue Watching entry — click relaunches at the saved position (`resumeEntry` → launchPlayer(startAtMs)). Blue glow gradient at hero base.
+- `ContinueWatching` (Store.kt, prefs "reborn_cw" per profile): `launchPlayer` records cwId/item/label/url; progress read from players' "onnowtv_progress" (positionMs/durationMs by cwId); entries <30 s or >95 % dropped. Home re-reads on ON_RESUME.
+- Row 1 (`CwLiveRow`, Shelves.kt): Continue Watching 16:9 tiles with progress + play badge (left) and **Live Now** channel tiles (favourites first, else first category; now-programme + red progress) (right). Paged Home: page 0 = CwLive row when present, then shelves; rowNav row = 1 + page.
+- Settings → "Trailers & tiles": Trailer delay (0.5/1/1.8/3 s/Off) and Pop-out speed (Fast/Normal/Slow) → Prefs.trailerDelayMs / expandMs used by PosterTile.
+- `Modifier.blueGlow(on, shape)` (coloured shadow) on focused poster/CW/Live tiles and the Resume card.
+- Artifact: reborn-play-3.4.0-31.apk via /api/dl/one/ZY3CDNN247. Device verification pending.

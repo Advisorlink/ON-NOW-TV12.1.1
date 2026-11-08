@@ -52,6 +52,12 @@ fun SettingsScreen(activity: Activity, autoplay: Boolean, onAutoplay: () -> Unit
             SettingRow(Icons.Outlined.CellTower, "Live TV settings", "Player engine, subtitles, aspect ratio, buffer, parental PIN, hidden groups", action = "Open") { LiveTvEntry.open(activity, settings = true) }
             SettingRow(Icons.Outlined.Refresh, "Refresh channels & guide", "Re-downloads your channel list and the programme guide", action = "Refresh", onClick = onRefreshLive)
         } }
+        item { Section("Trailers & tiles") {
+            var delay by remember { mutableStateOf(Prefs.trailerDelayMs(ctx)) }
+            var speed by remember { mutableStateOf(Prefs.expandMs(ctx)) }
+            SettingRow(Icons.Outlined.Timer, "Trailer delay", "How long you rest on a title before its trailer starts playing in the cover", action = Prefs.trailerDelayLabel(delay)) { delay = Prefs.cycleTrailerDelay(ctx) }
+            SettingRow(Icons.Outlined.OpenInFull, "Pop-out speed", "How quickly a focused cover expands", action = Prefs.expandLabel(speed)) { speed = Prefs.cycleExpandMs(ctx) }
+        } }
         item { Section("Home screen") {
             SettingRow(Icons.Outlined.ViewAgenda, "Home rows", "Move rows up or down and hide the ones you skip — just like Vesper", action = "Customise", onClick = onHomeRows)
             SettingRow(Icons.Outlined.Autorenew, "Refresh movies & shows", "Re-downloads the catalogue from the service", action = "Refresh") { Cache.clear(); Gorilla.clearCache(ctx) }
