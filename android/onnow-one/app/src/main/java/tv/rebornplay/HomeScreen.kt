@@ -39,7 +39,7 @@ fun allHomeRows(c: Gorilla.Catalog): List<Pair<String, Triple<String, String, Li
     val newMovies = c.movies.sortedByDescending { it.added }
     val newSeries = c.series.sortedByDescending { it.added }
     val rows = ArrayList<Pair<String, Triple<String, String, List<Item>>>>()
-    BoxSets.build(c.movies).takeIf { it.isNotEmpty() }?.let { rows += "boxsets" to Triple("Collections", "Box Sets", it.take(40)) }
+    BoxSets.build(c.movies)                                                  // populates BoxSets.sets for the Box Sets page (top nav)
     rows += "live" to Triple("Live TV", "Live TV", emptyList())            // rendered by LiveRow (source/look from Settings)
     rows += "new_movies" to Triple("Movies", "New movies", newMovies.take(40))
     rows += "new_series" to Triple("Series", "New series", newSeries.take(40))
@@ -134,11 +134,13 @@ private fun PagedHome(d: HomeData, cw: List<CwEntry>, liveNow: List<tv.onnowtv.l
     remember { rowNav.page = restore; if (restore > 0) rowNav.showRow(restore + 1); 0 }
     LaunchedEffect(rowNav.page) { Cache.homePage = rowNav.page }
     LaunchedEffect(rowNav.focusTick) { if (rowNav.focusTick > 0) { withFrameNanos { }; withFrameNanos { }; rowNav.focusPending() } }
+    var preview by remember { mutableStateOf<Item?>(null) }
+    LaunchedEffect(rowNav.currentRow) { if (rowNav.currentRow <= 0) preview = null }   // back on the hero / menu → rotating billboard again
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val heroH = maxHeight * 0.50f
-        val tileH = (maxHeight - heroH - 96.dp).coerceIn(120.dp, 160.dp)   // Vesper-sized covers
+        val tileH = (maxHeight - heroH - 60.dp - maxHeight * 0.08f).coerceIn(140.dp, 260.dp)   // header + Vesper's bottom margin; covers fill the rest
         Column(Modifier.fillMaxSize()) {
-            HeroBillboard(d.heroes, "New on Reborn", if (restore > 0) null else playReq, rowNav, height = heroH, onPlay = onPlayHero, onInfo = { nav.go(Route.Detail(it.item)) })
+            HeroBillboard(d.heroes, "New on Reborn", if (restore > 0) null else playReq, rowNav, height = heroH, preview = preview, onPlay = onPlayHero, onInfo = { nav.open(it.item) })
             Box(Modifier.fillMaxWidth().weight(1f)) {
                 AnimatedContent(rowNav.page.coerceIn(0, pages - 1), label = "shelf", transitionSpec = {
                     val down = targetState > initialState
@@ -150,7 +152,7 @@ private fun PagedHome(d: HomeData, cw: List<CwEntry>, liveNow: List<tv.onnowtv.l
                         else {
                             val (key, r) = d.rows[i - (if (hasCw) 1 else 0)]
                             if (key == "live") LiveRow(1 + i, rowNav, tileH, onChannel)
-                            else PosterShelf(r.first, r.second, r.third, r.third.size, row = 1 + i, rowNav = rowNav, tileH = tileH, bottomPad = 18.dp) { nav.open(it) }
+                            else PosterShelf(r.first, r.second, r.third, r.third.size, onFocusItem = { preview = it }, row = 1 + i, rowNav = rowNav, tileH = tileH, bottomPad = 18.dp) { nav.open(it) }
                         }
                     }
                 }

@@ -192,3 +192,22 @@ fun BoxSetScreen(id: String, onOpen: (Item) -> Unit) {
         else TitleGrid(set.second, first, onOpen)
     }
 }
+
+
+/** Top-nav Box Sets page (Vesper's collection grid): every franchise the service carries, as collection tiles. */
+@Composable
+fun BoxSetsScreen(onOpenSet: (String) -> Unit) {
+    val ctx = LocalContext.current
+    val tiles = remember(Gorilla.catalog) { Gorilla.catalog?.let { BoxSets.build(it.movies) } ?: emptyList() }
+    val first = remember { FocusRequester() }
+    FocusOnShow(first, tiles.isNotEmpty())
+    Column(Modifier.fillMaxSize().padding(top = 80.dp)) {
+        Column(Modifier.padding(start = 64.dp, end = 48.dp, bottom = 14.dp)) {
+            Eyebrow("Collections · ${tiles.size} box sets")
+            Text("Box Sets", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 34.sp, letterSpacing = (-1).sp)
+            Spacer(Modifier.height(4.dp))
+            Text("Complete film series from your service — every instalment in one place.", color = Txt2, fontFamily = Geist, fontSize = 13.sp)
+        }
+        if (tiles.isEmpty()) Spinner("Building your box sets") else TitleGrid(tiles, first) { onOpenSet(it.id) }
+    }
+}

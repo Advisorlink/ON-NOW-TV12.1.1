@@ -115,7 +115,7 @@ fun Pill(
             else -> Txt
         }
         Row(
-            Modifier.height(height).blueGlow(f, CircleShape, height / 2, 0.9f).clip(CircleShape).background(bg)
+            Modifier.height(height).clip(CircleShape).background(bg)
                 .border(1.dp, if (f || white || primary) Color.Transparent else Color.White.copy(alpha = 0.18f), CircleShape)
                 .padding(horizontal = 22.dp).alpha(if (enabled) 1f else 0.6f),
             verticalAlignment = Alignment.CenterVertically,
@@ -129,7 +129,7 @@ fun Pill(
 
 /** Glass surface used by the top bar + popovers (`.vesper-glass`). */
 fun Modifier.glass(shape: androidx.compose.ui.graphics.Shape = CircleShape) =
-    clip(shape).background(Bg1.copy(alpha = 0.78f)).border(1.dp, Line, shape)
+    clip(shape).background(Bg0.copy(alpha = 0.72f)).border(1.dp, Color.White.copy(alpha = 0.10f), shape)
 
 @Composable
 fun SectionHeader(eyebrow: String, title: String, right: String? = null, modifier: Modifier = Modifier) {
@@ -146,9 +146,9 @@ fun SectionHeader(eyebrow: String, title: String, right: String? = null, modifie
 fun Modifier.blueGlow(on: Boolean, shape: androidx.compose.ui.graphics.Shape, radius: Dp = 14.dp, strength: Float = 1f): Modifier =
     if (!on) this else this.drawBehind {
         val r = radius.toPx()
-        for (i in 1..7) {
-            val spread = i * 3.dp.toPx()
-            drawRoundRect(BlueBright.copy(alpha = (0.26f - i * 0.032f) * strength), topLeft = androidx.compose.ui.geometry.Offset(-spread, -spread),
+        for (i in 1..4) {
+            val spread = i * 2.5f.dp.toPx()
+            drawRoundRect(BlueBright.copy(alpha = (0.14f - i * 0.028f) * strength), topLeft = androidx.compose.ui.geometry.Offset(-spread, -spread),
                 size = androidx.compose.ui.geometry.Size(size.width + 2 * spread, size.height + 2 * spread), cornerRadius = androidx.compose.ui.geometry.CornerRadius(r + spread))
         }
     }
@@ -216,10 +216,11 @@ class RowNav(val listIndexOf: (Int) -> Int = { it }) {
     fun register(row: Int, first: FocusRequester) { if (entries[row] == null) entries[row] = first }
     fun forget(row: Int) { entries.remove(row) }
     /** Row-by-row: whenever focus lands in a different row, snap that row under the menu (Vesper behaviour). */
+    var currentRow by mutableStateOf(-2)
     fun focused(row: Int, r: FocusRequester) {
         entries[row] = r
         val changed = current != row
-        current = row
+        current = row; currentRow = row
         if (paged) { if (row >= 1) page = row - 1; return }
         if (changed && row >= 0) scope?.launch { list?.let { runCatching { it.animateScrollToItem(listIndexOf(row), -topOffsetPx) } } }
     }

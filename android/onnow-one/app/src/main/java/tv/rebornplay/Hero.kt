@@ -32,13 +32,16 @@ import kotlinx.coroutines.delay
 
 /** Rotating billboard — same layout as HeroBillboard.jsx (title, meta line, synopsis, Play / More Info / My List, dots). */
 @Composable
-fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusRequester?, rowNav: RowNav? = null, height: androidx.compose.ui.unit.Dp? = null, resume: CwEntry? = null, onResume: (CwEntry) -> Unit = {}, onPlay: (Hero) -> Unit, onInfo: (Hero) -> Unit) {
+fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusRequester?, rowNav: RowNav? = null, height: androidx.compose.ui.unit.Dp? = null, resume: CwEntry? = null, onResume: (CwEntry) -> Unit = {}, preview: Item? = null, onPlay: (Hero) -> Unit, onInfo: (Hero) -> Unit) {
     if (heroes.isEmpty()) { Spacer(Modifier.height(80.dp)); return }
     val ctx = LocalContext.current
     var idx by remember(heroes) { mutableStateOf(0) }
     var paused by remember { mutableStateOf(false) }
-    LaunchedEffect(heroes, paused) { while (!paused) { delay(9000); idx = (idx + 1) % heroes.size } }
-    val hero = heroes[idx]
+    LaunchedEffect(heroes, paused, preview) { while (!paused && preview == null) { delay(9000); idx = (idx + 1) % heroes.size } }
+    // Vesper: while you browse the covers the billboard follows the focused title (HD backdrop arrives from the service info call).
+    var rich by remember(preview?.id) { mutableStateOf(preview?.let { Gorilla.cachedInfo(it) ?: it }) }
+    LaunchedEffect(preview?.id) { val p = preview ?: return@LaunchedEffect; if (p.background == null && p.type != "boxset") runCatching { Gorilla.enrich(ctx, p) }.getOrNull()?.let { if (preview?.id == it.id) rich = it } }
+    val hero = rich?.let { Hero(it, 0L) } ?: heroes[idx]
     var inList by remember(hero.item.id, idx) { mutableStateOf(Library.has(ctx, hero.item.id)) }
     if (playRequester != null) FocusOnShow(playRequester, Unit)
 
@@ -53,9 +56,9 @@ fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusReque
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Bg0.copy(alpha = 0.55f), 0.35f to Color.Transparent, 0.75f to Bg0.copy(alpha = 0.4f), 1f to Bg0)))
 
         Column(Modifier.align(Alignment.BottomStart).padding(start = (if (compact) 28.dp else 64.dp) + safeInset(), bottom = if (short) 4.dp else 8.dp).width(if (compact) 480.dp else 640.dp)) {
-            Eyebrow("$eyebrow · ${hero.item.genres.firstOrNull() ?: hero.item.type}")
+            Eyebrow("${if (rich != null) (if (rich!!.type == "series") "Series" else if (rich!!.type == "boxset") "Box Set" else "Movie") else eyebrow} · ${hero.item.genres.firstOrNull() ?: hero.item.type}")
             Spacer(Modifier.height(6.dp))
-            Text(hero.item.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = if (compact) 34.sp else if (short) 40.sp else 52.sp, lineHeight = if (compact) 36.sp else if (short) 42.sp else 54.sp, letterSpacing = (-1.8).sp, maxLines = if (short) 1 else 2, overflow = TextOverflow.Ellipsis)
+            Text(hero.item.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = if (compact) 34.sp else if (short) 40.sp else 52.sp, lineHeight = if (compact) 36.sp else if (short) 42.sp else 54.sp, letterSpacing = (-1.8).sp, maxLines = if (compact) 2 else 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(if (short) 6.dp else 10.dp))
             MetaLine(hero.item, if (short) 15.sp else 17.sp)
             Spacer(Modifier.height(if (short) 8.dp else 12.dp))

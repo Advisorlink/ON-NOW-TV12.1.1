@@ -143,7 +143,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
             else -> key(profileKey) {
                 val playHero: (Hero) -> Unit = { h ->
                     val url = h.item.playUrl
-                    if (url == null) nav.go(Route.Detail(h.item)) else launchPlayer(activity, h.item, h.item.name, url, h.item.id)
+                    if (url == null) nav.open(h.item) else launchPlayer(activity, h.item, h.item.name, url, h.item.id)
                 }
                 val cur = nav.current
                 val rowNav = remember(cur) { RowNav { if (it == 0) 0 else it + 1 }.also { it.scope = scope } }
@@ -156,6 +156,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                         when (cur) {
                             is Route.Home -> HomeScreen(nav, rowNav, playHero, onResume = { resumeEntry(activity, it) }, onChannel = { ch -> LiveStore.openFullscreen(activity, ch, LiveStore.bundle.value?.channels ?: listOf(ch)) })
                             is Route.Tab -> Box(Modifier.padding(horizontal = inset)) { TabGridScreen(cur.type) { nav.go(Route.Detail(it)) } }
+                            is Route.BoxSets -> Box(Modifier.padding(horizontal = inset)) { BoxSetsScreen(onOpenSet = { nav.go(Route.BoxSet(it)) }) }
                             is Route.Search -> Box(Modifier.padding(horizontal = inset)) { SearchScreen(onOpen = { nav.go(Route.Detail(it)) }, onOpenChannel = { ch -> LiveStore.openFullscreen(activity, ch, LiveStore.bundle.value?.channels ?: listOf(ch)) }) }
                             is Route.Library -> Box(Modifier.padding(horizontal = inset)) { LibraryScreen { nav.go(Route.Detail(it)) } }
                             is Route.Live -> LiveTvScreen(activity, onRefresh = refreshLive)
@@ -164,7 +165,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                             is Route.HomeRows -> Box(Modifier.padding(horizontal = inset)) { HomeRowsScreen(onBack = { nav.go(Route.Settings) }) }
                             else -> {}
                         }
-                        val activeId = when (val top = nav.stack.first()) { is Route.Home -> "home"; is Route.Tab -> if (top.type == "movie") "movies" else "tv"; is Route.HomeRows, is Route.LiveCategoryPick -> "settings"; else -> NAV_ITEMS.firstOrNull { it.route == top }?.id ?: "" }
+                        val activeId = when (val top = nav.stack.first()) { is Route.Home -> "home"; is Route.Tab -> if (top.type == "movie") "movies" else "tv"; is Route.HomeRows, is Route.LiveCategoryPick -> "settings"; is Route.BoxSet -> "boxsets"; else -> NAV_ITEMS.firstOrNull { it.route == top }?.id ?: "" }
                         TopNav(activeId, autoplay, rowNav, onItem = { item -> item.route?.let { nav.go(it) } },
                             onAutoplay = { autoplay = !autoplay; Prefs.setAutoplay(ctx, autoplay); toast = if (autoplay) "Auto play ON" else "Auto play OFF" }, onSpeedUp = { BoxBoost.show(activity, auto = false) },
                             onSpeedTest = { toast = "Speed test lives in Live TV → Settings for now" }, onProfile = { stage = "profiles" })

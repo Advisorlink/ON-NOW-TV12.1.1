@@ -1078,3 +1078,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Settings → "Live TV row on Home": What the row shows (cycle), Category for the row (→ Route.LiveCategoryPick / LiveCategoryPickScreen list), How the row looks (cycle). Changing clears Cache.home.
 - CwLiveRow no longer receives Live Now channels (liveNow = empty) — the Live row replaces it; CW row still shows when there are entries.
 - Artifact: reborn-play-3.6.0-33.apk via /api/dl/one/ZY3CDNN247. Device verification pending.
+
+## 2026-11-08 — v3.7.0 / v3.7.1
+- v3.7.0: Box Sets moved to the top nav (NavItem "boxsets" → Route.BoxSets → BoxSetsScreen grid; BoxSet detail grid pushes). Box Sets Home row removed. Live row tiles smaller than Continue Watching (h = tileH×0.62 clamped 84–110 dp). Hero follows the focused cover (HomeScreen `preview` → HeroBillboard(preview) shows that title's HD backdrop/text, rotation paused; resets when focus returns to hero/menu via RowNav.currentRow).
+- v3.7.1 (user photos: content squeezed to top, glow "out of control", menu hard to read, eyebrow under logo): glow softened to 4 faint halos (tiles only; pills & nav no glow); menu = Vesper style (darker glass Bg0@0.72, 44 dp buttons, 22 dp white icons, active = light disc, focus = white disc, logo 40 dp); covers now fill the lower half: tileH = screenH − hero − 60 dp − 8 % clamped 140–260 dp; TV hero title clamped to 1 line so it can't rise under the logo.
+- Artifact: reborn-play-3.7.1-35.apk via /api/dl/one/ZY3CDNN247. Device verification pending.

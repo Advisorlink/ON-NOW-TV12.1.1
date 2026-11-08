@@ -53,7 +53,7 @@ fun PosterTile(item: Item, requester: FocusRequester? = null, onFocus: ((Item) -
     val trailerOn = focused && TrailerPlayer.playingId == item.id
     Focusable(onClick = onClick, requester = req, onFocus = { focused = it; if (it) { onFocus?.invoke(item); rowNav?.focused(row, req) } }) { _ ->
         Box(Modifier.width(w).height(tileH).blueGlow(focused, TileShape, 12.dp).clip(TileShape).background(Bg2)
-            .border(if (focused) 2.5.dp else 1.dp, if (focused) BlueBright else Color.White.copy(alpha = 0.05f), TileShape)) {
+            .border(if (focused) 2.dp else 1.dp, if (focused) BlueBright else Color.White.copy(alpha = 0.05f), TileShape)) {
             if (w > posterW + 40.dp && rich.background != null)
                 AsyncImage(rich.background, item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             else AsyncImage(item.poster, item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
@@ -218,6 +218,7 @@ fun LiveRow(row: Int, rowNav: RowNav?, tileH: Dp, onChannel: (tv.onnowtv.livetv.
     val (title, channels) = remember(LiveStore.bundle.value, LiveStore.favourites.value, epgTick) { liveRowChannels(ctx) }
     LaunchedEffect(channels) { channels.take(24).forEach { ch -> runCatching { LiveStore.programmes(ctx, ch) } }; epgTick++ }
     val eyebrow = when (LiveRowPrefs.source(ctx)) { "favourites" -> "Live TV · favourites"; "sports" -> "Live TV · sport"; "category" -> "Live TV · category"; else -> "Live TV · on now" }
+    val h = (tileH * 0.62f).coerceIn(84.dp, 110.dp)   // deliberately smaller than Continue Watching / covers: just logo + a bit of art
     Column(Modifier.padding(bottom = 18.dp)) {
         SectionHeader(eyebrow, title, if (channels.isEmpty()) "nothing here yet" else "${channels.size} channels", Modifier.padding(horizontal = inset))
         if (channels.isEmpty()) {
@@ -227,9 +228,9 @@ fun LiveRow(row: Int, rowNav: RowNav?, tileH: Dp, onChannel: (tv.onnowtv.livetv.
         LazyRow(contentPadding = PaddingValues(start = 64.dp + inset, end = 48.dp + inset), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             itemsIndexed(channels, key = { _, c -> c.id }) { i, ch ->
                 when (style) {
-                    "art" -> ProgrammeCard(ch, tileH, i == 0, row, rowNav) { onChannel(ch) }
-                    "logos" -> LogoTile(ch, tileH, i == 0, row, rowNav) { onChannel(ch) }
-                    else -> LiveNowTile(ch, tileH, i == 0, row, rowNav) { onChannel(ch) }
+                    "art" -> ProgrammeCard(ch, h, i == 0, row, rowNav) { onChannel(ch) }
+                    "logos" -> LogoTile(ch, h, i == 0, row, rowNav) { onChannel(ch) }
+                    else -> LiveNowTile(ch, h, i == 0, row, rowNav) { onChannel(ch) }
                 }
             }
         }
