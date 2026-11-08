@@ -78,3 +78,31 @@ private fun IconBtn(icon: ImageVector, enabled: Boolean, requester: FocusRequest
         }
     }
 }
+
+
+/** Settings → Live TV row → pick the category it shows. */
+@Composable
+fun LiveCategoryPickScreen(onDone: () -> Unit) {
+    val ctx = LocalContext.current
+    val cats = remember { LiveStore.categories(ctx) }
+    val current = remember { LiveRowPrefs.categoryId(ctx) }
+    val first = remember { FocusRequester() }
+    FocusOnShow(first, cats.isNotEmpty())
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 64.dp, end = 64.dp, top = 84.dp, bottom = 60.dp)) {
+        item {
+            Eyebrow("Settings · Live TV row"); Spacer(Modifier.height(6.dp))
+            Text("Which category should the Home Live TV row show?", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 30.sp, letterSpacing = (-1).sp)
+            Spacer(Modifier.height(14.dp)); Pill("Back to settings", icon = Icons.Outlined.ArrowBack, onClick = onDone); Spacer(Modifier.height(18.dp))
+        }
+        itemsIndexed(cats, key = { _, c -> c.id }) { i, c ->
+            val sel = c.id == current
+            Focusable(onClick = { LiveRowPrefs.setCategory(ctx, c.id); Cache.home = null; onDone() }, requester = if (i == 0) first else null, modifier = Modifier.padding(bottom = 6.dp)) { f ->
+                Row(Modifier.fillMaxWidth(0.7f).blueGlow(f, RoundedCornerShape(12.dp)).clip(RoundedCornerShape(12.dp)).background(if (f) BlueBright else if (sel) Blue.copy(alpha = 0.16f) else Bg1.copy(alpha = 0.7f)).border(1.dp, if (f || sel) BlueBright else Line, RoundedCornerShape(12.dp)).padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(c.name, color = if (f) Bg0 else Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                    Mono("${c.channelCount} ch", 9.sp, if (f) Bg0 else Txt3, 0.1f, upper = false)
+                    if (sel) { Spacer(Modifier.width(10.dp)); Icon(Icons.Outlined.CheckCircle, null, Modifier.size(16.dp), tint = if (f) Bg0 else BlueBright) }
+                }
+            }
+        }
+    }
+}

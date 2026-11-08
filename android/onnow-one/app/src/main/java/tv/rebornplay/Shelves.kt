@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -201,6 +202,85 @@ private fun LiveNowTile(ch: tv.onnowtv.livetv.data.Channel, h: Dp, first: Boolea
             Text(now?.title ?: ch.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(6.dp))
             Box(Modifier.fillMaxWidth().height(3.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.18f))) { Box(Modifier.fillMaxHeight().fillMaxWidth(frac).background(Color(0xFFE5484D))) }
+        }
+    }
+}
+
+
+/** Home Live TV row — source and look come from Settings → Live TV row. Fits the page like every other shelf. */
+@Composable
+fun LiveRow(row: Int, rowNav: RowNav?, tileH: Dp, onChannel: (tv.onnowtv.livetv.data.Channel) -> Unit) {
+    val ctx = LocalContext.current
+    val inset = safeInset()
+    if (rowNav != null) DisposableEffect(row) { onDispose { rowNav.forget(row) } }
+    val style = remember { LiveRowPrefs.style(ctx) }
+    var epgTick by remember { mutableStateOf(0) }
+    val (title, channels) = remember(LiveStore.bundle.value, LiveStore.favourites.value, epgTick) { liveRowChannels(ctx) }
+    LaunchedEffect(channels) { channels.take(24).forEach { ch -> runCatching { LiveStore.programmes(ctx, ch) } }; epgTick++ }
+    val eyebrow = when (LiveRowPrefs.source(ctx)) { "favourites" -> "Live TV · favourites"; "sports" -> "Live TV · sport"; "category" -> "Live TV · category"; else -> "Live TV · on now" }
+    Column(Modifier.padding(bottom = 18.dp)) {
+        SectionHeader(eyebrow, title, if (channels.isEmpty()) "nothing here yet" else "${channels.size} channels", Modifier.padding(horizontal = inset))
+        if (channels.isEmpty()) {
+            Text(when (LiveRowPrefs.source(ctx)) { "favourites" -> "Add favourites in Live TV and they'll show here."; "category" -> "Pick a category in Settings → Live TV row."; else -> "Live TV hasn't loaded yet." }, color = Txt3, fontFamily = Geist, fontSize = 13.sp, modifier = Modifier.padding(start = 64.dp + inset, top = 6.dp))
+            return
+        }
+        LazyRow(contentPadding = PaddingValues(start = 64.dp + inset, end = 48.dp + inset), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            itemsIndexed(channels, key = { _, c -> c.id }) { i, ch ->
+                when (style) {
+                    "art" -> ProgrammeCard(ch, tileH, i == 0, row, rowNav) { onChannel(ch) }
+                    "logos" -> LogoTile(ch, tileH, i == 0, row, rowNav) { onChannel(ch) }
+                    else -> LiveNowTile(ch, tileH, i == 0, row, rowNav) { onChannel(ch) }
+                }
+            }
+        }
+    }
+}
+
+/** Big "what's on" card: programme title + time window, channel logo badge, live/progress bar. */
+@Composable
+private fun ProgrammeCard(ch: tv.onnowtv.livetv.data.Channel, h: Dp, first: Boolean, row: Int, rowNav: RowNav?, onClick: () -> Unit) {
+    val req = remember { FocusRequester() }
+    if (first) rowNav?.register(row, req)
+    val (now, next) = LiveStore.nowNext(ch)
+    val t = System.currentTimeMillis()
+    val frac = now?.let { ((t - it.startMs).toFloat() / (it.stopMs - it.startMs).coerceAtLeast(1)).coerceIn(0f, 1f) } ?: 0f
+    val fmt = remember { java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()) }
+    Focusable(onClick = onClick, requester = req, onFocus = { if (it) rowNav?.focused(row, req) }) { f ->
+        Box(Modifier.width(h * 16 / 9).height(h).blueGlow(f, TileShape, 12.dp).clip(TileShape).background(Brush.linearGradient(listOf(Bg2, Bg1))).border(if (f) 2.5.dp else 1.dp, if (f) BlueBright else Color.White.copy(alpha = 0.06f), TileShape)) {
+            if (ch.logoUrl != null) AsyncImage(ch.logoUrl, null, Modifier.fillMaxSize().padding(h / 4).alpha(0.16f), contentScale = ContentScale.Fit)
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.3f to Color.Transparent, 1f to Bg0.copy(alpha = 0.9f))))
+            Row(Modifier.align(Alignment.TopStart).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(34.dp).clip(RoundedCornerShape(8.dp)).background(Color.White.copy(alpha = 0.9f)), contentAlignment = Alignment.Center) {
+                    if (ch.logoUrl != null) AsyncImage(ch.logoUrl, ch.name, Modifier.fillMaxSize().padding(3.dp), contentScale = ContentScale.Fit)
+                }
+                Spacer(Modifier.width(8.dp))
+                Mono(ch.name, 9.sp, Txt2, 0.08f, upper = false)
+                if (now?.live == true) { Spacer(Modifier.width(8.dp)); Box(Modifier.clip(CircleShape).background(Color(0xFFE5484D)).padding(horizontal = 6.dp, vertical = 2.dp)) { Mono("LIVE", 8.sp, Color.White, 0.18f) } }
+            }
+            Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(12.dp)) {
+                Text(now?.title ?: ch.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, lineHeight = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(4.dp))
+                Text(if (now != null) "${fmt.format(now.startMs)} – ${fmt.format(now.stopMs)}" + (next?.let { "  ·  next: ${it.title}" } ?: "") else "No guide data", color = Txt3, fontFamily = GeistMono, fontSize = 8.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(6.dp))
+                Box(Modifier.fillMaxWidth().height(3.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.18f))) { Box(Modifier.fillMaxHeight().fillMaxWidth(frac).background(if (f) BlueBright else Blue)) }
+            }
+        }
+    }
+}
+
+/** Compact square logo tile. */
+@Composable
+private fun LogoTile(ch: tv.onnowtv.livetv.data.Channel, h: Dp, first: Boolean, row: Int, rowNav: RowNav?, onClick: () -> Unit) {
+    val req = remember { FocusRequester() }
+    if (first) rowNav?.register(row, req)
+    val side = (h * 0.8f)
+    Focusable(onClick = onClick, requester = req, onFocus = { if (it) rowNav?.focused(row, req) }) { f ->
+        Column(Modifier.width(side).height(h).blueGlow(f, TileShape, 12.dp).clip(TileShape).background(if (f) Blue.copy(alpha = 0.14f) else Bg2).border(if (f) 2.5.dp else 1.dp, if (f) BlueBright else Color.White.copy(alpha = 0.06f), TileShape).padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                if (ch.logoUrl != null) AsyncImage(ch.logoUrl, ch.name, Modifier.fillMaxSize(0.85f), contentScale = ContentScale.Fit)
+                else Text(ch.name.take(3).uppercase(), color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            }
+            Text(ch.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
     }
 }

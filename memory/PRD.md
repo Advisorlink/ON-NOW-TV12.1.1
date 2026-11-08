@@ -1071,3 +1071,10 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Box Sets (BoxSets.kt): franchise grouping from the service's own movie names (strip ": subtitle", numerals, roman numerals, Part N, Returns/Begins…; ≥3 distinct films) → 441 sets on current catalogue (Batman 23, Star Trek 13, Resident Evil 11…). "Box Sets" is the first shelf row (key "boxsets", HomeRowPrefs-manageable); tile → Route.BoxSet(id) → BoxSetScreen grid (pushes on nav stack). `Nav.open(item)` routes boxset vs detail.
 - Loading screen: glass card with icon rows (Movies & TV shows / Live TV channels / TV guide) showing live detail (counts, "Downloading your catalogue", "Programme guide ready"), per-row spinner → check, animated overall progress bar, version bottom-right.
 - Artifact: reborn-play-3.5.0-32.apk via /api/dl/one/ZY3CDNN247. Device verification pending.
+
+## 2026-11-08 — v3.6.0: configurable Live TV row on Home
+- HomeData.rows are now keyed (Pair<key, Triple>); key "live" (default 2nd row after Box Sets, reorder/hide via Home rows) renders `LiveRow` (Shelves.kt) sized like every other shelf.
+- `LiveRowPrefs` (prefs "reborn_live_row"): source = favourites | sports (sport-named categories, channels whose now-programme is <live/> first) | now (favourites + first category) | category:<id>; style = cards (LiveNowTile: logo+now+progress) | art (ProgrammeCard: big what's-on card, LIVE badge, time window, next) | logos (compact). `liveRowChannels(ctx)` in HomeScreen.kt.
+- Settings → "Live TV row on Home": What the row shows (cycle), Category for the row (→ Route.LiveCategoryPick / LiveCategoryPickScreen list), How the row looks (cycle). Changing clears Cache.home.
+- CwLiveRow no longer receives Live Now channels (liveNow = empty) — the Live row replaces it; CW row still shows when there are entries.
+- Artifact: reborn-play-3.6.0-33.apk via /api/dl/one/ZY3CDNN247. Device verification pending.

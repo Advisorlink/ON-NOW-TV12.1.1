@@ -30,7 +30,7 @@ import kotlinx.coroutines.withContext
 import tv.vesper.app.LiveTvEntry
 
 @Composable
-fun SettingsScreen(activity: Activity, autoplay: Boolean, onAutoplay: () -> Unit, onProfiles: () -> Unit, onSignOut: () -> Unit, onRefreshLive: () -> Unit, onHomeRows: () -> Unit = {}) {
+fun SettingsScreen(activity: Activity, autoplay: Boolean, onAutoplay: () -> Unit, onProfiles: () -> Unit, onSignOut: () -> Unit, onRefreshLive: () -> Unit, onHomeRows: () -> Unit = {}, onPickLiveCategory: () -> Unit = {}) {
     val ctx = LocalContext.current
     val user = remember { RebornSession.username(ctx) ?: "" }
     val profile = remember { Profiles.active(ctx) }
@@ -57,6 +57,14 @@ fun SettingsScreen(activity: Activity, autoplay: Boolean, onAutoplay: () -> Unit
             var speed by remember { mutableStateOf(Prefs.expandMs(ctx)) }
             SettingRow(Icons.Outlined.Timer, "Trailer delay", "How long you rest on a title before its trailer starts playing in the cover", action = Prefs.trailerDelayLabel(delay)) { delay = Prefs.cycleTrailerDelay(ctx) }
             SettingRow(Icons.Outlined.OpenInFull, "Pop-out speed", "How quickly a focused cover expands", action = Prefs.expandLabel(speed)) { speed = Prefs.cycleExpandMs(ctx) }
+        } }
+        item { Section("Live TV row on Home") {
+            var src by remember { mutableStateOf(LiveRowPrefs.source(ctx)) }
+            var look by remember { mutableStateOf(LiveRowPrefs.style(ctx)) }
+            val catName = LiveStore.categories(ctx).firstOrNull { it.id == LiveRowPrefs.categoryId(ctx) }?.name ?: "Not set"
+            SettingRow(Icons.Outlined.LiveTv, "What the row shows", "Favourites · live sport right now · what's on now · or one category of your choice", action = LiveRowPrefs.sourceLabel(src)) { src = LiveRowPrefs.cycleSource(ctx); Cache.home = null }
+            SettingRow(Icons.Outlined.Category, "Category for the row", "Used when the row is set to \"A category I pick\"", action = catName, onClick = onPickLiveCategory)
+            SettingRow(Icons.Outlined.Style, "How the row looks", "Three looks — change it and check Home", action = LiveRowPrefs.styleLabel(look)) { look = LiveRowPrefs.cycleStyle(ctx); Cache.home = null }
         } }
         item { Section("Home screen") {
             SettingRow(Icons.Outlined.ViewAgenda, "Home rows", "Move rows up or down and hide the ones you skip — just like Vesper", action = "Customise", onClick = onHomeRows)

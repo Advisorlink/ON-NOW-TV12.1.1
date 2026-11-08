@@ -15,6 +15,7 @@ sealed class Route {
     object Settings : Route()
     object HomeRows : Route()
     data class BoxSet(val id: String) : Route()
+    object LiveCategoryPick : Route()
     object Live : Route()
     data class Detail(val item: Item) : Route()
 }

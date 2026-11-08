@@ -90,6 +90,21 @@ object Prefs {
     fun expandLabel(ms: Int) = when (ms) { 120 -> "Fast"; 400 -> "Slow"; else -> "Normal" }
 }
 
+/** Home → Live TV row: what it shows and how it looks (Settings → Live TV row). */
+object LiveRowPrefs {
+    private fun p(ctx: Context) = ctx.getSharedPreferences("reborn_live_row", Context.MODE_PRIVATE)
+    val SOURCES = listOf("favourites", "sports", "now", "category")
+    fun source(ctx: Context) = p(ctx).getString("source", "now") ?: "now"
+    fun cycleSource(ctx: Context): String { val v = SOURCES[(SOURCES.indexOf(source(ctx)) + 1) % SOURCES.size]; p(ctx).edit().putString("source", v).apply(); return v }
+    fun sourceLabel(v: String) = when (v) { "favourites" -> "My favourites"; "sports" -> "Live sport right now"; "category" -> "A category I pick"; else -> "What's on now" }
+    fun categoryId(ctx: Context): String? = p(ctx).getString("category", null)
+    fun setCategory(ctx: Context, id: String) = p(ctx).edit().putString("category", id).putString("source", "category").apply()
+    val STYLES = listOf("cards", "art", "logos")
+    fun style(ctx: Context) = p(ctx).getString("style", "cards") ?: "cards"
+    fun cycleStyle(ctx: Context): String { val v = STYLES[(STYLES.indexOf(style(ctx)) + 1) % STYLES.size]; p(ctx).edit().putString("style", v).apply(); return v }
+    fun styleLabel(v: String) = when (v) { "art" -> "Programme cards (big, what's on)"; "logos" -> "Channel logos (compact)"; else -> "Channel cards (logo + now + progress)" }
+}
+
 /** A title the user started: what to show on the Resume card / Continue Watching row and how to relaunch it. */
 data class CwEntry(val cwId: String, val item: Item, val label: String, val url: String, val positionMs: Long, val durationMs: Long, val updatedAt: Long) {
     val fraction get() = if (durationMs > 0) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f

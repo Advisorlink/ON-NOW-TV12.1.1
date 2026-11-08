@@ -17,7 +17,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 
-class HomeData(val heroes: List<Hero>, val rows: List<Triple<String, String, List<Item>>>)
+class HomeData(val heroes: List<Hero>, val rows: List<Pair<String, Triple<String, String, List<Item>>>>)
 
 /** In-memory caches so Back from a title is instant. */
 object Cache {
@@ -31,7 +31,7 @@ suspend fun loadHome(ctx: android.content.Context): HomeData {
     val c = Gorilla.loadCatalog(ctx)
     val heroItems = c.movies.sortedByDescending { it.added }.filter { it.poster != null }.take(6)
     val heroes = withContext(Dispatchers.IO) { heroItems.map { async { Hero(runCatching { Gorilla.movieInfo(ctx, it) }.getOrDefault(it), 0L) } }.awaitAll() }
-    return HomeData(heroes, HomeRowPrefs.apply(ctx, allHomeRows(c)).map { it.second })
+    return HomeData(heroes, HomeRowPrefs.apply(ctx, allHomeRows(c)))
 }
 
 /** Every possible Home row keyed for the Settings → Home screen customiser. */
@@ -40,6 +40,7 @@ fun allHomeRows(c: Gorilla.Catalog): List<Pair<String, Triple<String, String, Li
     val newSeries = c.series.sortedByDescending { it.added }
     val rows = ArrayList<Pair<String, Triple<String, String, List<Item>>>>()
     BoxSets.build(c.movies).takeIf { it.isNotEmpty() }?.let { rows += "boxsets" to Triple("Collections", "Box Sets", it.take(40)) }
+    rows += "live" to Triple("Live TV", "Live TV", emptyList())            // rendered by LiveRow (source/look from Settings)
     rows += "new_movies" to Triple("Movies", "New movies", newMovies.take(40))
     rows += "new_series" to Triple("Series", "New series", newSeries.take(40))
     val mRows = c.movieCats.mapNotNull { (id, name) -> val l = c.movies.filter { it.categoryId == id }; if (l.size >= 4) "mcat:$id" to Triple("Movies", name, l.sortedByDescending { it.added }.take(40)) else null }
@@ -78,7 +79,7 @@ fun HomeScreen(nav: Nav, rowNav: RowNav, onPlayHero: (Hero) -> Unit, onResume: (
         owner.lifecycle.addObserver(obs); onDispose { owner.lifecycle.removeObserver(obs) }
     }
     val cw = remember(data, cwTick) { ContinueWatching.entries(ctx) }
-    val liveNow = remember(LiveStore.bundle.value, LiveStore.favourites.value) { liveNowChannels(ctx) }
+    val liveNow = emptyList<tv.onnowtv.livetv.data.Channel>()
     val d = data ?: run {
         val err = error
         if (err == null) Spinner("Loading your home")
@@ -102,7 +103,11 @@ fun HomeScreen(nav: Nav, rowNav: RowNav, onPlayHero: (Hero) -> Unit, onResume: (
             item { Spacer(Modifier.height(26.dp)) }
             val extra = if (cw.isNotEmpty() || liveNow.isNotEmpty()) 1 else 0
             if (extra == 1) item { CwLiveRow(cw, liveNow, 1, rowNav, 200.dp, onResume, onChannel) }
-            items(d.rows.size) { i -> val (eye, title, l) = d.rows[i]; PosterShelf(eye, title, l, l.size, row = 1 + extra + i, rowNav = rowNav) { nav.open(it) } }
+            items(d.rows.size) { i ->
+                val (key, r) = d.rows[i]
+                if (key == "live") LiveRow(1 + extra + i, rowNav, 200.dp, onChannel)
+                else PosterShelf(r.first, r.second, r.third, r.third.size, row = 1 + extra + i, rowNav = rowNav) { nav.open(it) }
+            }
         }
         return
     }
@@ -143,12 +148,32 @@ private fun PagedHome(d: HomeData, cw: List<CwEntry>, liveNow: List<tv.onnowtv.l
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
                         if (hasCw && i == 0) CwLiveRow(cw, liveNow, 1, rowNav, tileH, onResume, onChannel)
                         else {
-                            val (eye, title, l) = d.rows[i - (if (hasCw) 1 else 0)]
-                            PosterShelf(eye, title, l, l.size, row = 1 + i, rowNav = rowNav, tileH = tileH, bottomPad = 18.dp) { nav.open(it) }
+                            val (key, r) = d.rows[i - (if (hasCw) 1 else 0)]
+                            if (key == "live") LiveRow(1 + i, rowNav, tileH, onChannel)
+                            else PosterShelf(r.first, r.second, r.third, r.third.size, row = 1 + i, rowNav = rowNav, tileH = tileH, bottomPad = 18.dp) { nav.open(it) }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+
+/** Channels for the Home Live TV row, per Settings → Live TV row. */
+fun liveRowChannels(ctx: android.content.Context): Pair<String, List<tv.onnowtv.livetv.data.Channel>> {
+    val b = LiveStore.bundle.value ?: return "Live TV" to emptyList()
+    val cats = LiveStore.categories(ctx)
+    return when (LiveRowPrefs.source(ctx)) {
+        "favourites" -> "My favourites" to b.channels.filter { it.id in LiveStore.favourites.value }.take(30)
+        "sports" -> {
+            val sportCats = cats.filter { it.name.contains("sport", true) }.map { it.id }.toSet()
+            val chans = b.channels.filter { it.categoryId in sportCats }
+            // Channels whose current programme is flagged live (or at least has something on) first.
+            val now = System.currentTimeMillis()
+            "Live sport right now" to chans.sortedByDescending { ch -> LiveStore.nowNext(ch).first?.let { p -> if (p.live) 2 else if (p.isLiveAt(now)) 1 else 0 } ?: 0 }.take(30)
+        }
+        "category" -> { val c = cats.firstOrNull { it.id == LiveRowPrefs.categoryId(ctx) }; (c?.name ?: "Live TV") to b.channels.filter { it.categoryId == c?.id }.take(30) }
+        else -> "What's on now" to (b.channels.filter { it.id in LiveStore.favourites.value } + (cats.firstOrNull()?.let { c -> b.channels.filter { it.categoryId == c.id } } ?: b.channels)).distinctBy { it.id }.take(30)
     }
 }
