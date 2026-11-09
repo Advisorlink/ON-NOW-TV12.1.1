@@ -111,6 +111,8 @@ private fun PlaybackSection(autoplay: Boolean, onAutoplay: () -> Unit) {
     val ctx = LocalContext.current
     SectionHead("Settings · Playback", "Auto play & trailers", Lucide.Play)
     ToggleRow("Auto play", "Play straight away from the hero and Continue Watching; off asks first.", autoplay, onAutoplay)
+    var covers by remember { mutableStateOf(Prefs.coversOnly(ctx)) }
+    ToggleRow("Pop-out preview", "Resting on a cover slides it open into a wide card with its backdrop and trailer. Off = covers only, no wide card, no trailers.", !covers) { covers = !covers; Prefs.setCoversOnly(ctx, covers) }
     var delay by remember { mutableStateOf(Prefs.trailerDelayMs(ctx)) }
     var speed by remember { mutableStateOf(Prefs.expandMs(ctx)) }
     ActionRow("Trailer delay", "How long you rest on a title before its trailer starts playing in the cover.", Prefs.trailerDelayLabel(delay)) { delay = Prefs.cycleTrailerDelay(ctx) }

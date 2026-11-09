@@ -1093,3 +1093,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Box Sets: Vesper's franchise list + title-treatment logos/backdrops from /api/collections/logos, films matched to the service catalogue by title/year in franchise order (BoxSets.ensure runs at boot); grid of 16:9 CollectionTiles; Box Set page = focus-follow billboard + "Films in order" shelf + Back pill.
 - Settings: Vesper two-column (glass section rail + SectionHead/ToggleRow/ActionRow cards); Library: Vesper header + eyebrow/icon sections (Continue Watching, TV Shows, Movies).
 - Artifact: test-artifacts/reborn-play-3.8.0-36.apk (71 MB). Device verification pending (no emulator in this environment).
+
+## 2026-11-09 — v3.8.1 (37)
+- Live TV row pinned to the first Home page (above Continue Watching), default source = live sport (falls back to on-now); saved row orders no longer push it to the end.
+- Focused cover lifted above neighbours (zIndex) and expands to 16:9 — no more sliding under the next poster.
+- Settings → Playback → "Pop-out preview" toggle: off = covers only (no wide card, no trailers).

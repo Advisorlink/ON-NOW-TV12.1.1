@@ -88,13 +88,16 @@ object Prefs {
     fun expandMs(ctx: Context) = p(ctx).getInt("expand_ms", 220)
     fun cycleExpandMs(ctx: Context): Int { val i = EXPAND_SPEEDS.indexOf(expandMs(ctx)); val v = EXPAND_SPEEDS[(i + 1) % EXPAND_SPEEDS.size]; p(ctx).edit().putInt("expand_ms", v).apply(); return v }
     fun expandLabel(ms: Int) = when (ms) { 120 -> "Fast"; 400 -> "Slow"; else -> "Normal" }
+    /** Vesper "Covers only": no wide pop-out card, no trailers — just the posters. */
+    fun coversOnly(ctx: Context) = p(ctx).getBoolean("covers_only", false)
+    fun setCoversOnly(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("covers_only", v).apply()
 }
 
 /** Home → Live TV row: what it shows and how it looks (Settings → Live TV row). */
 object LiveRowPrefs {
     private fun p(ctx: Context) = ctx.getSharedPreferences("reborn_live_row", Context.MODE_PRIVATE)
     val SOURCES = listOf("favourites", "sports", "now", "category")
-    fun source(ctx: Context) = p(ctx).getString("source", "now") ?: "now"
+    fun source(ctx: Context) = p(ctx).getString("source", "sports") ?: "sports"
     fun cycleSource(ctx: Context): String { val v = SOURCES[(SOURCES.indexOf(source(ctx)) + 1) % SOURCES.size]; p(ctx).edit().putString("source", v).apply(); return v }
     fun sourceLabel(v: String) = when (v) { "favourites" -> "My favourites"; "sports" -> "Live sport right now"; "category" -> "A category I pick"; else -> "What's on now" }
     fun categoryId(ctx: Context): String? = p(ctx).getString("category", null)
@@ -155,7 +158,9 @@ object HomeRowPrefs {
     fun <T> apply(ctx: Context, rows: List<Pair<String, T>>, includeHidden: Boolean = false): List<Pair<String, T>> {
         val order = order(ctx); val hidden = hidden(ctx)
         val byKey = rows.associateBy { it.first }
-        val sorted = order.mapNotNull { byKey[it] } + rows.filter { it.first !in order }
+        // Rows the saved order doesn't know about: Live TV goes to the top (it must be on Home), the rest keep their natural place at the end.
+        val unknown = rows.filter { it.first !in order }
+        val sorted = unknown.filter { it.first == "live" } + order.mapNotNull { byKey[it] } + unknown.filter { it.first != "live" }
         return if (includeHidden) sorted else sorted.filter { it.first !in hidden }
     }
 }

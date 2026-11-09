@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 
@@ -43,14 +44,16 @@ fun PosterTile(item: Item, requester: FocusRequester? = null, onFocus: ((Item) -
     var rich by remember(item.id) { mutableStateOf(Gorilla.cachedInfo(item) ?: item) }
     LaunchedEffect(focused, item.id) { if (focused && rich.background == null) runCatching { Gorilla.enrich(ctx, item) }.getOrNull()?.let { rich = it } }
     val posterW = tileH * 2 / 3
+    val coversOnly = remember { Prefs.coversOnly(ctx) }
     val expandMs = remember { Prefs.expandMs(ctx) }
-    val dwell = remember { Prefs.trailerDelayMs(ctx) }
-    val w by animateDpAsState(if (focused) tileH * 1.9f else posterW, tween(expandMs), label = "w")
+    val dwell = remember { if (coversOnly) 0L else Prefs.trailerDelayMs(ctx) }
+    val w by animateDpAsState(if (focused && !coversOnly) tileH * 16 / 9 else posterW, tween(expandMs), label = "w")
     val req = requester ?: remember { FocusRequester() }
     if (first) rowNav?.register(row, req)
     if (dwell > 0) TrailerDwell(item, focused, dwell)
     val trailerOn = focused && TrailerPlayer.playingId == item.id
-    Focusable(onClick = onClick, requester = req, onFocus = { focused = it; if (it) { onFocus?.invoke(item); rowNav?.focused(row, req) } }) { _ ->
+    // The focused card scales past its slot, so lift it above its neighbours instead of sliding under the next cover.
+    Focusable(Modifier.zIndex(if (focused) 1f else 0f), onClick = onClick, requester = req, onFocus = { focused = it; if (it) { onFocus?.invoke(item); rowNav?.focused(row, req) } }) { _ ->
         Box(Modifier.width(w).height(tileH).focusScale(focused, 1.06f).tileFocus(focused, 12.dp).clip(TileShape).background(Bg2)
             .border(1.dp, Color.White.copy(alpha = 0.05f), TileShape)) {
             if (w > posterW + 40.dp && rich.background != null)

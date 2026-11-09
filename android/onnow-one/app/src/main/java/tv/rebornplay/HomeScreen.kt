@@ -91,7 +91,16 @@ fun HomeScreen(nav: Nav, rowNav: RowNav, onPlayHero: (Hero) -> Unit, onResume: (
         }
         return
     }
-    rowNav.rowCount = 1 + d.rows.size + (if (cw.isNotEmpty() || liveNow.isNotEmpty()) 1 else 0)
+    // Page order: Live TV row (when it leads), Continue Watching, then the catalogue shelves.
+    val pages: List<Pair<String, Triple<String, String, List<Item>>?>> = remember(d, cw) {
+        buildList {
+            val liveFirst = d.rows.firstOrNull()?.first == "live"
+            if (liveFirst) add(d.rows[0])
+            if (cw.isNotEmpty()) add("cw" to null)
+            d.rows.forEachIndexed { i, r -> if (!(liveFirst && i == 0)) add(r) }
+        }
+    }
+    rowNav.rowCount = 1 + pages.size
     val compact = isCompact()
     if (compact) {
         rowNav.paged = false
@@ -100,17 +109,18 @@ fun HomeScreen(nav: Nav, rowNav: RowNav, onPlayHero: (Hero) -> Unit, onResume: (
         LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 200.dp)) {
             item { HeroBillboard(d.heroes, "New on Reborn", playReq, rowNav, onPlay = onPlayHero, onInfo = { nav.go(Route.Detail(it.item)) }) }
             item { Spacer(Modifier.height(26.dp)) }
-            val extra = if (cw.isNotEmpty() || liveNow.isNotEmpty()) 1 else 0
-            if (extra == 1) item { CwLiveRow(cw, liveNow, 1, rowNav, 200.dp, onResume, onChannel) }
-            items(d.rows.size) { i ->
-                val (key, r) = d.rows[i]
-                if (key == "live") LiveRow(1 + extra + i, rowNav, 200.dp, onChannel)
-                else PosterShelf(r.first, r.second, r.third, r.third.size, row = 1 + extra + i, rowNav = rowNav) { nav.open(it) }
+            items(pages.size) { i ->
+                val (key, r) = pages[i]
+                when {
+                    key == "cw" -> CwLiveRow(cw, liveNow, 1 + i, rowNav, 200.dp, onResume, onChannel)
+                    key == "live" -> LiveRow(1 + i, rowNav, 200.dp, onChannel)
+                    else -> PosterShelf(r!!.first, r.second, r.third, r.third.size, row = 1 + i, rowNav = rowNav) { nav.open(it) }
+                }
             }
         }
         return
     }
-    PagedHome(d, cw, liveNow, nav, rowNav, playReq, onPlayHero, onResume, onChannel)
+    PagedHome(d, pages, cw, liveNow, nav, rowNav, playReq, onPlayHero, onResume, onChannel)
 }
 
 /** Live Now: favourites first, then the first channels of the first category — three tiles. */
@@ -123,13 +133,12 @@ fun liveNowChannels(ctx: android.content.Context): List<tv.onnowtv.livetv.data.C
 
 /** TV layout (Vesper): hero is static, exactly one shelf sits under it and Down/Up swaps the shelf in place. */
 @Composable
-private fun PagedHome(d: HomeData, cw: List<CwEntry>, liveNow: List<tv.onnowtv.livetv.data.Channel>, nav: Nav, rowNav: RowNav, playReq: FocusRequester, onPlayHero: (Hero) -> Unit, onResume: (CwEntry) -> Unit, onChannel: (tv.onnowtv.livetv.data.Channel) -> Unit) {
-    val hasCw = cw.isNotEmpty() || liveNow.isNotEmpty()
-    val pages = (if (hasCw) 1 else 0) + d.rows.size          // page 0 = Continue Watching + Live Now (when present)
-    rowNav.rowCount = 1 + pages
+private fun PagedHome(d: HomeData, pages: List<Pair<String, Triple<String, String, List<Item>>?>>, cw: List<CwEntry>, liveNow: List<tv.onnowtv.livetv.data.Channel>, nav: Nav, rowNav: RowNav, playReq: FocusRequester, onPlayHero: (Hero) -> Unit, onResume: (CwEntry) -> Unit, onChannel: (tv.onnowtv.livetv.data.Channel) -> Unit) {
+    val pageCount = pages.size
+    rowNav.rowCount = 1 + pageCount
     if (d.rows.isEmpty()) { Column(Modifier.fillMaxSize()) { HeroBillboard(d.heroes, "New on Reborn", playReq, rowNav, onPlay = onPlayHero, onInfo = { nav.go(Route.Detail(it.item)) }); Spinner("No titles available on your service yet") }; return }
     rowNav.paged = true
-    val restore = remember { Cache.homePage.coerceIn(0, (pages - 1).coerceAtLeast(0)) }
+    val restore = remember { Cache.homePage.coerceIn(0, (pageCount - 1).coerceAtLeast(0)) }
     remember { rowNav.page = restore; if (restore > 0) rowNav.showRow(restore + 1); 0 }
     LaunchedEffect(rowNav.page) { Cache.homePage = rowNav.page }
     LaunchedEffect(rowNav.focusTick) { if (rowNav.focusTick > 0) { withFrameNanos { }; withFrameNanos { }; rowNav.focusPending() } }
@@ -144,17 +153,17 @@ private fun PagedHome(d: HomeData, cw: List<CwEntry>, liveNow: List<tv.onnowtv.l
         Column(Modifier.fillMaxSize()) {
             HeroBillboard(d.heroes, "New on Reborn", if (restore > 0) null else playReq, rowNav, height = heroH, preview = preview, onPlay = onPlayHero, onInfo = { nav.open(it.item) })
             Box(Modifier.fillMaxWidth().weight(1f).padding(bottom = bottomPad), contentAlignment = Alignment.BottomStart) {
-                AnimatedContent(rowNav.page.coerceIn(0, pages - 1), label = "shelf", transitionSpec = {
+                AnimatedContent(rowNav.page.coerceIn(0, pageCount - 1), label = "shelf", transitionSpec = {
                     val down = targetState > initialState
                     (slideInVertically(tween(260)) { if (down) it / 3 else -it / 3 } + fadeIn(tween(220))) togetherWith
                         (slideOutVertically(tween(200)) { if (down) -it / 3 else it / 3 } + fadeOut(tween(160)))
                 }) { i ->
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
-                        if (hasCw && i == 0) CwLiveRow(cw, liveNow, 1, rowNav, tileH, onResume, onChannel)
-                        else {
-                            val (key, r) = d.rows[i - (if (hasCw) 1 else 0)]
-                            if (key == "live") LiveRow(1 + i, rowNav, tileH, onChannel)
-                            else PosterShelf(r.first, r.second, r.third, r.third.size, onFocusItem = { preview = it }, row = 1 + i, rowNav = rowNav, tileH = tileH, bottomPad = 0.dp) { nav.open(it) }
+                        val (key, r) = pages[i]
+                        when {
+                            key == "cw" -> CwLiveRow(cw, liveNow, 1 + i, rowNav, tileH, onResume, onChannel)
+                            key == "live" -> LiveRow(1 + i, rowNav, tileH, onChannel)
+                            else -> PosterShelf(r!!.first, r.second, r.third, r.third.size, onFocusItem = { preview = it }, row = 1 + i, rowNav = rowNav, tileH = tileH, bottomPad = 0.dp) { nav.open(it) }
                         }
                     }
                 }
@@ -172,10 +181,11 @@ fun liveRowChannels(ctx: android.content.Context): Pair<String, List<tv.onnowtv.
         "favourites" -> "My favourites" to b.channels.filter { it.id in LiveStore.favourites.value }.take(30)
         "sports" -> {
             val sportCats = cats.filter { it.name.contains("sport", true) }.map { it.id }.toSet()
-            val chans = b.channels.filter { it.categoryId in sportCats }
-            // Channels whose current programme is flagged live (or at least has something on) first.
+            val chans = b.channels.filter { it.categoryId in sportCats }.ifEmpty { b.channels.filter { it.name.contains("sport", true) || it.name.contains("espn", true) || it.name.contains("fox", true) && it.name.contains("sports", true) } }
+            // Channels whose current programme is flagged live (or at least has something on) first; fall back to "on now" if the service has no sport group.
             val now = System.currentTimeMillis()
-            "Live sport right now" to chans.sortedByDescending { ch -> LiveStore.nowNext(ch).first?.let { p -> if (p.live) 2 else if (p.isLiveAt(now)) 1 else 0 } ?: 0 }.take(30)
+            if (chans.isEmpty()) "What's on now" to (b.channels.filter { it.id in LiveStore.favourites.value } + b.channels).distinctBy { it.id }.take(30)
+            else "Live sport right now" to chans.sortedByDescending { ch -> LiveStore.nowNext(ch).first?.let { p -> if (p.live) 2 else if (p.isLiveAt(now)) 1 else 0 } ?: 0 }.take(30)
         }
         "category" -> { val c = cats.firstOrNull { it.id == LiveRowPrefs.categoryId(ctx) }; (c?.name ?: "Live TV") to b.channels.filter { it.categoryId == c?.id }.take(30) }
         else -> "What's on now" to (b.channels.filter { it.id in LiveStore.favourites.value } + (cats.firstOrNull()?.let { c -> b.channels.filter { it.categoryId == c.id } } ?: b.channels)).distinctBy { it.id }.take(30)
