@@ -103,9 +103,9 @@ object LiveRowPrefs {
     fun categoryId(ctx: Context): String? = p(ctx).getString("category", null)
     fun setCategory(ctx: Context, id: String) = p(ctx).edit().putString("category", id).putString("source", "category").apply()
     val STYLES = listOf("cards", "art", "logos")
-    fun style(ctx: Context) = p(ctx).getString("style", "cards") ?: "cards"
+    fun style(ctx: Context) = p(ctx).getString("style", "art") ?: "art"
     fun cycleStyle(ctx: Context): String { val v = STYLES[(STYLES.indexOf(style(ctx)) + 1) % STYLES.size]; p(ctx).edit().putString("style", v).apply(); return v }
-    fun styleLabel(v: String) = when (v) { "art" -> "Programme cards (big, what's on)"; "logos" -> "Channel logos (compact)"; else -> "Channel cards (logo + now + progress)" }
+    fun styleLabel(v: String) = when (v) { "logos" -> "Channel logos (compact)"; "cards" -> "Channel cards (logo + now + progress)"; else -> "Programme cards (artwork, LIVE badge, timeline)" }
 }
 
 /** A title the user started: what to show on the Resume card / Continue Watching row and how to relaunch it. */

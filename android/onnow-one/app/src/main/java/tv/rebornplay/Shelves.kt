@@ -27,6 +27,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 
@@ -75,10 +80,13 @@ fun PosterShelf(eyebrow: String, title: String, items: List<Item>, total: Int = 
     if (items.isEmpty()) return
     val inset = safeInset()
     if (rowNav != null) DisposableEffect(row) { onDispose { rowNav.forget(row) } }
+    val state = rememberLazyListState(); val scope = rememberCoroutineScope()
     Column(Modifier.padding(bottom = bottomPad)) {
         SectionHeader(eyebrow, title, "${items.size} of $total titles", Modifier.padding(horizontal = inset))
-        LazyRow(contentPadding = PaddingValues(start = 64.dp + inset, end = 48.dp + inset), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            itemsIndexed(items.distinctBy { it.id }, key = { _, it -> it.id }) { i, it -> PosterTile(it, if (i == 0) firstRequester else null, onFocusItem, row, rowNav, i == 0, tileH) { onOpen(it) } }
+        LazyRow(state = state, contentPadding = PaddingValues(start = 64.dp + inset, end = 64.dp + inset), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            itemsIndexed(items.distinctBy { it.id }, key = { _, it -> it.id }) { i, it ->
+                PosterTile(it, if (i == 0) firstRequester else null, { item -> onFocusItem?.invoke(item); scope.launch { state.animateScrollToItem(i) } }, row, rowNav, i == 0, tileH) { onOpen(it) }
+            }
         }
     }
 }
@@ -153,8 +161,9 @@ fun CwLiveRow(cw: List<CwEntry>, live: List<tv.onnowtv.livetv.data.Channel>, row
     Row(Modifier.fillMaxWidth().padding(start = 64.dp + inset, end = 48.dp + inset), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
         if (cw.isNotEmpty()) Column(Modifier.weight(1.4f)) {
             SectionHeader("Pick up where you left off", "Continue Watching", "${cw.size} in progress")
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                itemsIndexed(cw, key = { _, e -> e.cwId }) { i, e -> CwTile(e, h, i == 0 && row >= 0, row, rowNav) { onResume(e) } }
+            val state = rememberLazyListState(); val scope = rememberCoroutineScope()
+            LazyRow(state = state, horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(end = 24.dp)) {
+                itemsIndexed(cw, key = { _, e -> e.cwId }) { i, e -> CwTile(e, h, i == 0 && row >= 0, row, rowNav, { if (it) scope.launch { state.animateScrollToItem(i) } }) { onResume(e) } }
             }
         }
         if (live.isNotEmpty()) Column(Modifier.weight(1f)) {
@@ -167,10 +176,10 @@ fun CwLiveRow(cw: List<CwEntry>, live: List<tv.onnowtv.livetv.data.Channel>, row
 }
 
 @Composable
-private fun CwTile(e: CwEntry, h: Dp, first: Boolean, row: Int, rowNav: RowNav?, onClick: () -> Unit) {
+private fun CwTile(e: CwEntry, h: Dp, first: Boolean, row: Int, rowNav: RowNav?, onFocus: ((Boolean) -> Unit)? = null, onClick: () -> Unit) {
     val req = remember { FocusRequester() }
     if (first) rowNav?.register(row, req)
-    CwCard(e, h, req, { if (it) rowNav?.focused(row, req) }, onClick)
+    CwCard(e, h, req, { onFocus?.invoke(it); if (it) rowNav?.focused(row, req) }, onClick)
 }
 
 /** Continue Watching card — 16:9 backdrop, title, play dot + progress bar + minutes left. */
@@ -226,52 +235,81 @@ fun LiveRow(row: Int, rowNav: RowNav?, tileH: Dp, onChannel: (tv.onnowtv.livetv.
     val (title, channels) = remember(LiveStore.bundle.value, LiveStore.favourites.value, epgTick) { liveRowChannels(ctx) }
     LaunchedEffect(channels) { channels.take(24).forEach { ch -> runCatching { LiveStore.programmes(ctx, ch) } }; epgTick++ }
     val eyebrow = when (LiveRowPrefs.source(ctx)) { "favourites" -> "Live TV · favourites"; "sports" -> "Live TV · sport"; "category" -> "Live TV · category"; else -> "Live TV · on now" }
-    val h = (tileH * 0.62f).coerceIn(84.dp, 110.dp)   // deliberately smaller than Continue Watching / covers: just logo + a bit of art
+    val h = when (style) { "logos" -> (tileH * 0.62f).coerceIn(84.dp, 110.dp); else -> (tileH * 0.74f).coerceAtMost(170.dp) }   // a touch smaller than Continue Watching
+    val state = rememberLazyListState(); val scope = rememberCoroutineScope()
     Column {
         SectionHeader(eyebrow, title, if (channels.isEmpty()) "nothing here yet" else "${channels.size} channels", Modifier.padding(horizontal = inset))
         if (channels.isEmpty()) {
             Text(when (LiveRowPrefs.source(ctx)) { "favourites" -> "Add favourites in Live TV and they'll show here."; "category" -> "Pick a category in Settings → Live TV row."; else -> "Live TV hasn't loaded yet." }, color = Txt3, fontFamily = Geist, fontSize = 13.sp, modifier = Modifier.padding(start = 64.dp + inset, top = 6.dp))
             return
         }
-        LazyRow(contentPadding = PaddingValues(start = 64.dp + inset, end = 48.dp + inset), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyRow(state = state, contentPadding = PaddingValues(start = 64.dp + inset, end = 64.dp + inset), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             itemsIndexed(channels, key = { _, c -> c.id }) { i, ch ->
+                val snap: (Boolean) -> Unit = { if (it) scope.launch { state.animateScrollToItem(i) } }
                 when (style) {
-                    "art" -> ProgrammeCard(ch, h, i == 0, row, rowNav) { onChannel(ch) }
                     "logos" -> LogoTile(ch, h, i == 0, row, rowNav) { onChannel(ch) }
-                    else -> LiveNowTile(ch, h, i == 0, row, rowNav) { onChannel(ch) }
+                    "cards" -> LiveNowTile(ch, h, i == 0, row, rowNav) { onChannel(ch) }
+                    else -> ProgrammeCard(ch, h, i == 0, row, rowNav, snap) { onChannel(ch) }
                 }
             }
         }
     }
 }
 
-/** Big "what's on" card: programme title + time window, channel logo badge, live/progress bar. */
+/** Programme artwork for the Home Live row — TMDB backdrop via the backend's /api/epg/art (same lookup the V2 guide preview uses). */
+object EpgArt {
+    private val cache = java.util.concurrent.ConcurrentHashMap<String, String>()   // title → backdrop ("" = none)
+    fun cached(title: String): String? = cache[title]?.takeIf { it.isNotBlank() }
+    suspend fun fetch(title: String): String? {
+        cache[title]?.let { return it.takeIf { u -> u.isNotBlank() } }
+        val url = withContext(Dispatchers.IO) { runCatching { RebornApi.obj("/api/epg/art?title=" + java.net.URLEncoder.encode(title, "UTF-8")).optString("backdrop", "") }.getOrDefault("") }
+        cache[title] = url
+        return url.takeIf { it.isNotBlank() }
+    }
+}
+
+private val V2Red = Color(0xFFFF2535)        // livetv_accent_red
+private val V2Chip = Color(0xFF3B82F6)       // preview_live_badge_bg
+private val V2Label = Color(0xFF9CB0D8)      // tile_count mono label
+private val V2Now = Color(0xFF5DC8FF)        // livetv_now_line
+
+/** V2-style "what's on" card: programme artwork, channel logo chip, LIVE/NOW badge, title, time window and progress line. */
 @Composable
-private fun ProgrammeCard(ch: tv.onnowtv.livetv.data.Channel, h: Dp, first: Boolean, row: Int, rowNav: RowNav?, onClick: () -> Unit) {
+private fun ProgrammeCard(ch: tv.onnowtv.livetv.data.Channel, h: Dp, first: Boolean, row: Int, rowNav: RowNav?, onFocus: ((Boolean) -> Unit)? = null, onClick: () -> Unit) {
     val req = remember { FocusRequester() }
     if (first) rowNav?.register(row, req)
     val (now, next) = LiveStore.nowNext(ch)
     val t = System.currentTimeMillis()
     val frac = now?.let { ((t - it.startMs).toFloat() / (it.stopMs - it.startMs).coerceAtLeast(1)).coerceIn(0f, 1f) } ?: 0f
     val fmt = remember { java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()) }
-    Focusable(onClick = onClick, requester = req, onFocus = { if (it) rowNav?.focused(row, req) }) { f ->
-        Box(Modifier.width(h * 16 / 9).height(h).focusScale(f, 1.06f).tileFocus(f, 12.dp).clip(TileShape).background(Brush.linearGradient(listOf(Bg2, Bg1))).border(1.dp, Color.White.copy(alpha = 0.06f), TileShape)) {
-            if (ch.logoUrl != null) AsyncImage(ch.logoUrl, null, Modifier.fillMaxSize().padding(h / 4).alpha(0.16f), contentScale = ContentScale.Fit)
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.3f to Color.Transparent, 1f to Bg0.copy(alpha = 0.9f))))
-            Row(Modifier.align(Alignment.TopStart).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(34.dp).clip(RoundedCornerShape(8.dp)).background(Color.White.copy(alpha = 0.9f)), contentAlignment = Alignment.Center) {
-                    if (ch.logoUrl != null) AsyncImage(ch.logoUrl, ch.name, Modifier.fillMaxSize().padding(3.dp), contentScale = ContentScale.Fit)
-                }
-                Spacer(Modifier.width(8.dp))
-                Mono(ch.name, 9.sp, Txt2, 0.08f, upper = false)
-                if (now?.live == true) { Spacer(Modifier.width(8.dp)); Box(Modifier.clip(CircleShape).background(Color(0xFFE5484D)).padding(horizontal = 6.dp, vertical = 2.dp)) { Mono("LIVE", 8.sp, Color.White, 0.18f) } }
+    var art by remember(now?.title) { mutableStateOf(now?.title?.let { EpgArt.cached(it) }) }
+    LaunchedEffect(now?.title) { if (art == null && now != null) art = EpgArt.fetch(now.title) }
+    Focusable(Modifier.zIndex(0f), onClick = onClick, requester = req, onFocus = { onFocus?.invoke(it); if (it) rowNav?.focused(row, req) }) { f ->
+        Box(Modifier.width(h * 16 / 9).height(h).focusScale(f, 1.06f).tileFocus(f, 12.dp).clip(TileShape).background(Color(0xFF141C2A)).border(1.dp, Color.White.copy(alpha = 0.10f), TileShape)) {
+            when {
+                art != null -> AsyncImage(art, now?.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                ch.logoUrl != null -> AsyncImage(ch.logoUrl, null, Modifier.fillMaxSize().padding(h / 4).alpha(0.22f), contentScale = ContentScale.Fit)
             }
-            Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(12.dp)) {
-                Text(now?.title ?: ch.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, lineHeight = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(4.dp))
-                Text(if (now != null) "${fmt.format(now.startMs)} – ${fmt.format(now.stopMs)}" + (next?.let { "  ·  next: ${it.title}" } ?: "") else "No guide data", color = Txt3, fontFamily = GeistMono, fontSize = 8.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(6.dp))
-                Box(Modifier.fillMaxWidth().height(3.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.18f))) { Box(Modifier.fillMaxHeight().fillMaxWidth(frac).background(if (f) BlueBright else Blue)) }
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0xFF0A0F1A).copy(alpha = 0.35f), 0.35f to Color.Transparent, 1f to Color(0xFF0A0F1A).copy(alpha = 0.96f))))
+            // channel logo chip (top-left) — white plate like the V2 guide rows
+            Box(Modifier.align(Alignment.TopStart).padding(10.dp).height(26.dp).widthIn(min = 26.dp, max = 72.dp).clip(RoundedCornerShape(6.dp)).background(Color.White.copy(alpha = 0.92f)).padding(horizontal = 6.dp, vertical = 3.dp), contentAlignment = Alignment.Center) {
+                if (ch.logoUrl != null) AsyncImage(ch.logoUrl, ch.name, Modifier.fillMaxHeight(), contentScale = ContentScale.Fit)
+                else Mono(ch.name.take(6), 8.sp, Bg0, 0.08f)
+            }
+            // LIVE chip / NOW dot (top-right) — V2 preview badge
+            Row(Modifier.align(Alignment.TopEnd).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (now?.live == true) Box(Modifier.clip(RoundedCornerShape(6.dp)).background(V2Chip).padding(horizontal = 7.dp, vertical = 3.dp)) { Mono("LIVE", 9.sp, Color.White, 0.18f) }
+                else if (now != null) Row(Modifier.clip(RoundedCornerShape(6.dp)).background(Color(0xFF0A0F1A).copy(alpha = 0.75f)).padding(horizontal = 7.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(6.dp).clip(CircleShape).background(V2Red)); Spacer(Modifier.width(5.dp)); Mono("NOW", 9.sp, Color.White, 0.18f)
+                }
+            }
+            Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 10.dp)) {
+                Text(now?.title ?: ch.name, color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 14.sp, lineHeight = 17.sp, letterSpacing = (-0.1).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(3.dp))
+                Mono(if (now != null) "${fmt.format(now.startMs)} – ${fmt.format(now.stopMs)}  ·  ${ch.name}" else ch.name, 9.sp, V2Label, 0.1f, upper = false, modifier = Modifier.fillMaxWidth())
+                if (next != null) Mono("Next · ${next.title}", 8.sp, V2Label.copy(alpha = 0.7f), 0.06f, upper = false, modifier = Modifier.padding(top = 2.dp))
+                Spacer(Modifier.height(7.dp))
+                Box(Modifier.fillMaxWidth().height(3.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.16f))) { Box(Modifier.fillMaxHeight().fillMaxWidth(frac).clip(CircleShape).background(if (now?.live == true) V2Red else V2Now)) }
             }
         }
     }

@@ -1098,3 +1098,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Live TV row pinned to the first Home page (above Continue Watching), default source = live sport (falls back to on-now); saved row orders no longer push it to the end.
 - Focused cover lifted above neighbours (zIndex) and expands to 16:9 — no more sliding under the next poster.
 - Settings → Playback → "Pop-out preview" toggle: off = covers only (no wide card, no trailers).
+
+## 2026-11-09 — v3.8.2 (38)
+- Home Live row = V2-style 16:9 programme cards (TMDB programme art via /api/epg/art, white channel-logo chip, LIVE red / NOW blue badge, title, time window, next, progress line), a touch smaller than Continue Watching; default row style "art".
+- Rows: focused tile snaps to the row start (Vesper), symmetric 64dp+inset padding, TV overscan inset 32dp — no more covers cut at the right edge.
+- Reborn Live TV screen recoloured to the V2 palette (bg #0A0F1A, cards #141C2A, focus #1A2438, accent #5DC8FF, red #FF2535), LIVE/NOW badges, Vesper pill focus on hero buttons.

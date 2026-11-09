@@ -256,7 +256,7 @@ fun isTv(): Boolean {
 }
 
 @Composable
-fun safeInset(): Dp = if (isTv()) 24.dp else 0.dp
+fun safeInset(): Dp = if (isTv()) 32.dp else 0.dp   // TV overscan: keeps rows/menus off the panel edge
 
 /**
  * Explicit up/down between horizontal rows (TopNav = row -1, then content rows 0..n).
