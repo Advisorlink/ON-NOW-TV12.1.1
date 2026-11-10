@@ -1109,3 +1109,6 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Rows: focused card anchored as the 2nd visible card (one card of context on the left) so pop-outs and Continue Watching never clip at the left edge; CW row gets real start padding.
 - Live TV tab now opens the real V2 guide (LiveTvEntry.open, hosted with the Reborn menu) — exact V2 look, fonts, red NOW and speed. Reborn LiveTvScreen.kt kept but unused.
 - Settings → Appearance: D-pad cover-size slider (75–125 %) with live card preview, OK saves; Home tile height scales (hero gives/takes the difference).
+
+## 2026-11-10 — v3.9.1 (40)
+- Live TV tab back to the Reborn LiveTvScreen (layout kept) with V2 type (sans-serif Black titles, monospace labels), V2 palette/badges, programme cover art in the preview window until OK, debounced hero/guide (120 ms) so row movement is V2-fast.
