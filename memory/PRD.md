@@ -1129,3 +1129,11 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Live TV guide column: focusable programme rows (D-pad up/down), OK on a future programme sets/clears a reminder (ReminderStore, green ring + bell, "Push OK to set reminder"), ReminderWatcher banner attached app-wide (tap → channel full screen).
 - Channel rows: single focus ring (inner border dropped while focused). NOW/LIVE pill is a small 14dp-high rectangle.
 - Hero art: EpgArt no longer caches failures; falls back to poster; retry 350 ms. (TMDB has no art for e.g. "Sky Sports Breakfast" → channel logo, same as V2.)
+
+## 3.9.5 (build 44) — Live TV rebuilt to the user's mockup (BUILD-VERIFIED ONLY, not yet tested on a TV box)
+- LiveTvScreen.kt: hero with programme backdrop on the right, preview window (LIVE tag, elapsed/total strip), channel name + big programme title + synopsis + progress + Up next; three panels (Groups | Channels | Today's schedule) with divider rows.
+- Root cause of missing cover art: `LiveStore.fetchArt` was stubbed to return null. Now calls the same `/api/epg/art` lookup as V2, with cleaned-title retries.
+- User choices: NOW badge stays RED (small rounded rectangle); reminders kept — OK on an upcoming show toggles it, bell shows only once set.
+- Channel rows: one focus treatment only (single cyan border + soft glow).
+- Sports Hub / favourite / refresh / settings buttons sit in the menu row only on screens >= 1200dp wide; otherwise just below the menu on the right (menu would overlap).
+- Pending: device verification of all of the above + earlier pending items (Home navigation, card-size slider, Home live row art).

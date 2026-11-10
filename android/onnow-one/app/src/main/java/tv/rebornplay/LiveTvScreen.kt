@@ -54,10 +54,11 @@ import tv.vesper.app.LiveTvEntry
 import java.text.SimpleDateFormat
 import java.util.Date
 
-private val CatW = 230.dp
-private val GuideW = 320.dp
-private val CatWCompact = 150.dp
-private val RowShape = RoundedCornerShape(14.dp)
+private val CatW = 162.dp
+private val GuideW = 224.dp
+private val CatWCompact = 132.dp
+private val RowShape = RoundedCornerShape(9.dp)
+private val PanelShape = RoundedCornerShape(12.dp)
 
 /** Live TV guide in the Reborn look — hero + preview window, categories | channels | programme guide. */
 @Composable
@@ -139,125 +140,141 @@ fun LiveTvScreen(activity: Activity, onRefresh: () -> Unit) {
     }
 
     val compact = isCompact()
+    val inset = safeInset()
+    val side = 10.dp + inset / 2
     Column(Modifier.fillMaxSize().background(LvBg)) {
         LiveHero(current, preview != null && preview?.id == current?.id, favs, fmt, tick, onFav = { current?.let { LiveStore.toggleFavourite(ctx, it.id) } }, onRefresh = onRefresh,
             onSettings = { LiveTvEntry.open(activity, settings = true) },
             onSportsHub = { activity.startActivity(android.content.Intent(activity, tv.onnowtv.livetv.SportsHubActivity::class.java)) }) { v -> playerView = v }
-        val inset = safeInset()
-        Row(Modifier.weight(1f).fillMaxWidth().padding(start = (if (compact) 16.dp else 32.dp) + inset, end = (if (compact) 16.dp else 32.dp) + inset, bottom = 16.dp + inset), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(Modifier.weight(1f).fillMaxWidth().padding(start = side, end = side, bottom = 10.dp + inset / 2), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             CategoryColumn(cats, catId, locked, unlocked, favCount = favs.size, total = b.channels.size, onFocus = { focusedCat = it }, onSelect = { selectCategory(it) })
-            Column(Modifier.weight(1f)) {
-                Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    LvMono(when (catId) { LiveStore.ALL -> "All channels"; LiveStore.FAVS -> "Favourites"; else -> cats.firstOrNull { it.id == catId }?.name ?: "Channels" }, 11.sp, LvAccent, 0.24f)
-                    Spacer(Modifier.width(12.dp)); LvMono("${channels.size} channels", 10.sp, LvDim)
+            Column(Modifier.weight(1f).fillMaxHeight().panel().padding(start = 10.dp, end = 10.dp, top = 8.dp)) {
+                Row(Modifier.fillMaxWidth().padding(start = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    LvMono(when (catId) { LiveStore.ALL -> "All channels"; LiveStore.FAVS -> "Favourites"; else -> cats.firstOrNull { it.id == catId }?.name ?: "Channels" }, 10.sp, LvAccent, 0.3f)
+                    Spacer(Modifier.width(16.dp)); LvMono("${channels.size} channels", 9.sp, LvDim, 0.2f)
                     Spacer(Modifier.weight(1f))
                     SearchBox(query, searchOpen, onOpen = { searchOpen = true }, onClose = { query = ""; searchOpen = false }) { query = it }
                 }
                 ChannelColumn(channels, favs, current?.id, firstRow, fmt, tick, onFocus = { focused = it }, onOpen = { openChannel(it, channels) })
             }
-            if (!isCompact()) GuideColumn(current, fmt, tick)
+            if (!compact) GuideColumn(current, fmt, tick)
         }
     }
     gate?.let { c -> PinGate(c.name, onClose = { gate = null }) { unlocked += c.id; gate = null; selectCategory(c) } }
 }
 
-// V2 Live TV type: system sans-serif (Black for titles, like `sans-serif-black`) and monospace labels — same as the V2 guide.
 private val V2Sans = androidx.compose.ui.text.font.FontFamily.SansSerif
 private val V2MonoF = androidx.compose.ui.text.font.FontFamily.Monospace
 @Composable
 private fun LvMono(text: String, size: androidx.compose.ui.unit.TextUnit = 11.sp, color: Color = LvDim, tracking: Float = 0.22f, modifier: Modifier = Modifier, upper: Boolean = true) =
     Text(if (upper) text.uppercase() else text, modifier, color = color, fontFamily = V2MonoF, fontWeight = FontWeight.Medium, fontSize = size, letterSpacing = (size.value * tracking).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
 
-// V2 Live TV palette (livetv colors.xml) so the Reborn guide reads exactly like the V2 app.
-private val LvBg = Color(0xFF0A0F1A); private val LvCard = Color(0xFF141C2A); private val LvFocus = Color(0xFF1A2438)
-private val LvDim = Color(0xFF9DA5B5); private val LvDimmer = Color(0xFF7D8493); private val LvRed = Color(0xFFFF2535)
-private val LvAccent = Color(0xFF5DC8FF); private val LvChip = Color(0xFF3B82F6); private val LvBorder = Color(0x1AFFFFFF)
+private val LvBg = Color(0xFF09111F); private val LvPanel = Color(0xFF0C1627); private val LvCard = Color(0xFF101B2E); private val LvFocus = Color(0xFF132742)
+private val LvDim = Color(0xFFB4BDCC); private val LvDimmer = Color(0xFF7D8799); private val LvRed = Color(0xFFFF2535)
+private val LvAccent = Color(0xFF38BDF8); private val LvBorder = Color(0x14FFFFFF)
+private val LvGreen = Color(0xFF5BD49A)
 
-/** V2 body text: sans-serif-medium (programme lines, times). */
+private fun Modifier.panel() = background(LvPanel.copy(alpha = 0.94f), PanelShape).border(1.dp, LvBorder, PanelShape)
+
 @Composable
 private fun LvText(text: String, size: androidx.compose.ui.unit.TextUnit = 11.sp, color: Color = LvDim, modifier: Modifier = Modifier, weight: FontWeight = FontWeight.Medium, maxLines: Int = 1) =
     Text(text, modifier, color = color, fontFamily = V2Sans, fontWeight = weight, fontSize = size, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
 
-/** V2 `now_pill_bg`: solid red, 3dp radius, 8sp bold white — NOW while on air, LIVE for live events. */
+/** Small red rounded rectangle — NOW while on air, LIVE for live events / the preview window. */
 @Composable
-private fun LiveBadge(live: Boolean) {
-    Box(Modifier.height(14.dp).clip(RoundedCornerShape(3.dp)).background(LvRed).padding(horizontal = 7.dp), contentAlignment = Alignment.Center) {
-        Text(if (live) "LIVE" else "NOW", color = Color.White, fontFamily = V2Sans, fontWeight = FontWeight.Bold, fontSize = 8.sp, lineHeight = 8.sp, letterSpacing = 1.sp)
+private fun LiveBadge(live: Boolean, big: Boolean = false) {
+    Box(Modifier.height(if (big) 17.dp else 14.dp).clip(RoundedCornerShape(3.dp)).background(LvRed).padding(horizontal = if (big) 7.dp else 6.dp), contentAlignment = Alignment.Center) {
+        Text(if (live) "LIVE" else "NOW", color = Color.White, fontFamily = V2Sans, fontWeight = FontWeight.Bold, fontSize = if (big) 9.sp else 8.sp, lineHeight = 9.sp, letterSpacing = 0.8.sp)
     }
 }
+
+private fun clock(ms: Long): String { val s = (ms / 1000).coerceAtLeast(0); return "%02d:%02d:%02d".format(s / 3600, (s / 60) % 60, s % 60) }
 
 @Composable
 private fun LiveHero(ch: Channel?, previewing: Boolean, favs: Set<String>, fmt: SimpleDateFormat, tick: Long, onFav: () -> Unit, onRefresh: () -> Unit, onSettings: () -> Unit, onSportsHub: () -> Unit, onPlayerView: (PlayerView) -> Unit) {
     val ctx = LocalContext.current
     val compact = isCompact()
     val inset = safeInset()
+    val side = 10.dp + inset / 2
     val (now, next) = remember(ch?.id, LiveStore.epg[ch?.let { LiveStore.key(it) } ?: ""], tick) { ch?.let { LiveStore.nowNext(it) } ?: (null to null) }
-    // TMDB programme art (debounced, cached by title) — same as the web guide's hero backdrop.
     var art by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(now?.title) {
         val t = now?.title?.takeIf { it.isNotBlank() } ?: run { art = null; return@LaunchedEffect }
-        art = LiveStore.art[t]
-        if (art == null) { delay(350); val a = LiveStore.fetchArt(t); if (now?.title == t) art = a }
+        if (LiveStore.art.containsKey(t)) { art = LiveStore.art[t]; return@LaunchedEffect }
+        delay(250); art = LiveStore.fetchArt(t)
     }
-    val heroH = if (compact) 210.dp else 300.dp
-    Box(Modifier.fillMaxWidth().height(heroH)) {
+    val wideBar = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 1200
+    val navTop = (if (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 1000) 14.dp else 8.dp) + inset / 2
+    val topPad = navTop + 52.dp + 6.dp
+    val prevW = if (compact) 178.dp else 250.dp
+    val prevH = if (compact) 100.dp else 140.dp
+    Box(Modifier.fillMaxWidth().height(topPad + prevH + 12.dp)) {
         if (art != null) {
-            AsyncImage(art, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
-            Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to LvBg, 0.4f to LvBg.copy(alpha = 0.8f), 1f to LvBg.copy(alpha = 0.15f))))
+            Box(Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(0.72f)) {
+                AsyncImage(art, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
+                Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to LvBg, 0.28f to LvBg.copy(alpha = 0.72f), 0.55f to LvBg.copy(alpha = 0.12f), 1f to Color.Transparent)))
+            }
         } else if (ch?.logoUrl != null) {
-            AsyncImage(ch.logoUrl, null, Modifier.align(Alignment.CenterEnd).padding(end = 120.dp).size(220.dp), contentScale = ContentScale.Fit, alpha = 0.06f)
+            AsyncImage(ch.logoUrl, null, Modifier.align(Alignment.CenterEnd).padding(end = 120.dp).size(170.dp), contentScale = ContentScale.Fit, alpha = 0.07f)
         }
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to LvBg.copy(alpha = 0.5f), 0.3f to Color.Transparent, 0.7f to Color.Transparent, 1f to LvBg)))
-        Row(Modifier.align(Alignment.BottomStart).padding(start = 32.dp + inset, bottom = 16.dp, end = 32.dp + inset).fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-            // Preview window — LEFT, like the web guide.
-            Box(Modifier.width(if (compact) 200.dp else 320.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp)).background(Color.Black).border(1.dp, Line, RoundedCornerShape(12.dp))) {
-                AndroidView(factory = { c -> PlayerView(c).apply { useController = false; resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT; setShutterBackgroundColor(android.graphics.Color.BLACK); onPlayerView(this) } }, modifier = Modifier.fillMaxSize())
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to LvBg.copy(alpha = 0.55f), 0.3f to Color.Transparent, 0.72f to Color.Transparent, 1f to LvBg)))
+        Row(Modifier.align(Alignment.BottomStart).padding(start = side, bottom = 12.dp, end = side).fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+            val pShape = RoundedCornerShape(10.dp)
+            Box(Modifier.width(prevW).height(prevH).clip(pShape).background(Color.Black).border(1.5.dp, Color.White.copy(alpha = 0.16f), pShape)) {
+                AndroidView(factory = { c -> PlayerView(c).apply { useController = false; resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM; setShutterBackgroundColor(android.graphics.Color.BLACK); onPlayerView(this) } }, modifier = Modifier.fillMaxSize())
                 if (!previewing) {
-                    // Cover art of what's on now (same TMDB lookup as the hero) until the user presses OK to preview.
                     if (art != null) AsyncImage(art, now?.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                    else if (ch?.logoUrl != null) AsyncImage(ch.logoUrl, null, Modifier.align(Alignment.Center).fillMaxSize(0.45f), contentScale = ContentScale.Fit, alpha = 0.5f)
-                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color(0xFF0A0F1A).copy(alpha = 0.9f))))
-                    now?.let { Box(Modifier.align(Alignment.TopStart).padding(8.dp)) { LiveBadge(it.live) } }
-                    LvMono("OK · Preview", 8.sp, Color.White.copy(alpha = 0.8f), 0.18f, Modifier.align(Alignment.BottomStart).padding(8.dp))
+                    else { Box(Modifier.fillMaxSize().background(LvCard)); if (ch?.logoUrl != null) AsyncImage(ch.logoUrl, null, Modifier.align(Alignment.Center).fillMaxSize(0.45f), contentScale = ContentScale.Fit, alpha = 0.6f) }
                 }
-                if (previewing) Box(Modifier.align(Alignment.TopStart).padding(8.dp)) { LiveBadge(now?.live == true) }
-                LvMono(if (previewing) "OK again · Full screen" else "", 8.sp, Txt2, 0.18f, Modifier.align(Alignment.BottomEnd).padding(8.dp))
+                Box(Modifier.align(Alignment.TopStart).padding(8.dp)) { LiveBadge(true, big = true) }
+                PreviewBar(now, previewing, Modifier.align(Alignment.BottomCenter))
             }
-            Spacer(Modifier.width(24.dp))
+            Spacer(Modifier.width(20.dp))
             Column(Modifier.weight(1f)) {
-                LvMono("Live TV${ch?.lcn?.let { " · CH $it" } ?: ""}", 11.sp, LvAccent, 0.32f)
-                Spacer(Modifier.height(6.dp))
-                Text(ch?.let { Settings.cleanName(ctx, it.name) } ?: "Live TV", color = Color.White, fontFamily = V2Sans, fontWeight = FontWeight.Black, fontSize = if (compact) 24.sp else 38.sp, letterSpacing = (-1.2).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(8.dp))
+                LvMono("Live TV", 10.sp, LvAccent, 0.38f)
+                Spacer(Modifier.height(5.dp))
+                Text(ch?.let { Settings.cleanName(ctx, it.name) } ?: "Live TV", color = Color.White, fontFamily = V2Sans, fontWeight = FontWeight.Bold, fontSize = if (compact) 12.sp else 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (now != null) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        LiveBadge(now.live); Spacer(Modifier.width(8.dp))
-                        LvText(fmt.format(Date(now.startMs)), 13.sp, LvAccent); Spacer(Modifier.width(12.dp))
-                        Text(now.title, color = Txt, fontFamily = V2Sans, fontWeight = FontWeight.Black, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    if (!compact && !now.description.isNullOrBlank()) { Spacer(Modifier.height(6.dp)); Text(now.description!!, color = Txt2, fontFamily = V2Sans, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth(0.8f)) }
-                    Spacer(Modifier.height(10.dp))
-                    ProgressBar(now, Modifier.width(if (compact) 220.dp else 380.dp), 3.dp)
-                    if (next != null) { Spacer(Modifier.height(8.dp)); LvText("Up next  ·  ${fmt.format(Date(next.startMs))}  ·  ${next.title}", 12.sp, LvDim) }
-                } else LvText("No programme information", 12.sp, LvDimmer)
+                    Text(now.title, color = Color.White, fontFamily = V2Sans, fontWeight = FontWeight.Black, fontSize = if (compact) 20.sp else 30.sp, lineHeight = if (compact) 24.sp else 34.sp, letterSpacing = (-0.6).sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth(0.6f))
+                    if (!compact && !now.description.isNullOrBlank()) { Spacer(Modifier.height(5.dp)); Text(now.description!!, color = Color.White.copy(alpha = 0.88f), fontFamily = V2Sans, fontSize = 10.5.sp, lineHeight = 14.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(260.dp)) }
+                    Spacer(Modifier.height(9.dp))
+                    ProgressBar(now, Modifier.width(if (compact) 200.dp else 260.dp), 3.dp)
+                    Spacer(Modifier.height(8.dp))
+                    Row { LvText("Up next:", 10.sp, LvDim); Spacer(Modifier.width(8.dp)); if (next != null) { LvText(fmt.format(Date(next.startMs)), 10.sp, LvDim); Spacer(Modifier.width(10.dp)); LvText(next.title, 10.sp, Color.White.copy(alpha = 0.9f)) } else LvText("—", 10.sp, LvDim) }
+                } else { Spacer(Modifier.height(8.dp)); LvText("No programme information", 12.sp, LvDimmer) }
             }
         }
-        Row(Modifier.align(Alignment.TopEnd).padding(top = if (compact) 58.dp else 70.dp, end = 32.dp + inset), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.align(Alignment.TopEnd).padding(top = if (wideBar) navTop + 9.dp else topPad, end = side), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             val fav = ch != null && ch.id in favs
             HeroPill(Lucide.Trophy, "Sports Hub", onSportsHub)
-            HeroIcon(if (fav) Lucide.Star else Lucide.Star, if (fav) "Unfavourite" else "Favourite", if (fav) Amber else null, onFav)
+            HeroIcon(Lucide.Star, if (fav) "Unfavourite" else "Favourite", if (fav) Amber else null, onFav)
             HeroIcon(Lucide.RefreshCw, "Refresh", null, onRefresh)
             HeroIcon(Lucide.Settings, "Live TV settings", null, onSettings)
         }
     }
 }
 
+/** Player strip on the preview window: play/pause, elapsed / total of what's on, progress, full-screen hint. */
+@Composable
+private fun PreviewBar(now: Programme?, previewing: Boolean, modifier: Modifier) {
+    val t by produceState(System.currentTimeMillis()) { while (true) { delay(1000); value = System.currentTimeMillis() } }
+    Column(modifier.fillMaxWidth().background(Brush.verticalGradient(0f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.85f))).padding(start = 10.dp, end = 10.dp, top = 14.dp, bottom = 7.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(if (previewing) Lucide.Pause else Lucide.Play, null, Modifier.size(12.dp), tint = Color.White); Spacer(Modifier.width(10.dp))
+            Text(if (now != null) "${clock(t - now.startMs)} / ${clock(now.stopMs - now.startMs)}" else if (previewing) "LIVE" else "OK · Preview", color = Color.White, fontFamily = V2MonoF, fontSize = 8.sp, maxLines = 1)
+            Spacer(Modifier.weight(1f))
+            Icon(Lucide.Maximize, null, Modifier.size(12.dp), tint = Color.White)
+        }
+        if (now != null) { Spacer(Modifier.height(5.dp)); ProgressBar(now, Modifier.fillMaxWidth().padding(start = 22.dp, end = 22.dp), 2.dp) }
+    }
+}
+
 @Composable
 private fun HeroPill(icon: ImageVector, label: String, onClick: () -> Unit) {
     Focusable(onClick = onClick) { f ->
-        Row(Modifier.height(36.dp).focusScale(f, 1.04f).pillFocus(f).clip(CircleShape).background(LvCard.copy(alpha = 0.9f)).border(1.dp, LvBorder, CircleShape).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.height(34.dp).focusScale(f, 1.04f).pillFocus(f).clip(CircleShape).background(LvPanel.copy(alpha = 0.9f)).border(1.dp, Color.White.copy(alpha = 0.22f), CircleShape).padding(horizontal = 13.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, label, Modifier.size(15.dp), tint = LvAccent); Spacer(Modifier.width(8.dp))
-            LvMono(label, 10.sp, Txt, 0.16f)
+            Text(label.uppercase(), color = Color.White, fontFamily = V2Sans, fontWeight = FontWeight.Bold, fontSize = 10.5.sp, letterSpacing = 0.3.sp)
         }
     }
 }
@@ -265,8 +282,8 @@ private fun HeroPill(icon: ImageVector, label: String, onClick: () -> Unit) {
 @Composable
 private fun HeroIcon(icon: ImageVector, label: String, tint: Color?, onClick: () -> Unit) {
     Focusable(onClick = onClick) { f ->
-        Box(Modifier.size(36.dp).focusScale(f, 1.04f).pillFocus(f).clip(CircleShape).background(LvCard.copy(alpha = 0.9f)).border(1.dp, LvBorder, CircleShape), contentAlignment = Alignment.Center) {
-            Icon(icon, label, Modifier.size(16.dp), tint = tint ?: LvDim)
+        Box(Modifier.size(34.dp).focusScale(f, 1.04f).pillFocus(f).clip(CircleShape).background(LvPanel.copy(alpha = 0.9f)).border(1.dp, Color.White.copy(alpha = 0.22f), CircleShape), contentAlignment = Alignment.Center) {
+            Icon(icon, label, Modifier.size(15.dp), tint = tint ?: Color.White)
         }
     }
 }
@@ -275,7 +292,7 @@ private fun HeroIcon(icon: ImageVector, label: String, tint: Color?, onClick: ()
 private fun ProgressBar(p: Programme, modifier: Modifier, height: androidx.compose.ui.unit.Dp) {
     val now = System.currentTimeMillis()
     val frac = ((now - p.startMs).toFloat() / (p.stopMs - p.startMs).coerceAtLeast(1)).coerceIn(0f, 1f)
-    Box(modifier.height(height).clip(CircleShape).background(Color.White.copy(alpha = 0.10f))) { Box(Modifier.fillMaxHeight().fillMaxWidth(frac).clip(CircleShape).background(if (p.live) LvRed else LvAccent)) }
+    Box(modifier.height(height).clip(CircleShape).background(Color.White.copy(alpha = 0.12f))) { Box(Modifier.fillMaxHeight().fillMaxWidth(frac).clip(CircleShape).background(LvAccent)) }
 }
 
 /** Collapsed to a plain "Search" button so passing over it with the D-pad never pops the keyboard; OK expands it and focuses the field. */
@@ -283,9 +300,9 @@ private fun ProgressBar(p: Programme, modifier: Modifier, height: androidx.compo
 private fun SearchBox(q: String, open: Boolean, onOpen: () -> Unit, onClose: () -> Unit, onChange: (String) -> Unit) {
     if (!open) {
         Focusable(onClick = onOpen) { f ->
-            Row(Modifier.height(36.dp).focusScale(f, 1.04f).pillFocus(f).clip(CircleShape).background(LvCard.copy(alpha = 0.9f)).border(1.dp, LvBorder, CircleShape).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Lucide.Search, null, Modifier.size(14.dp), tint = LvDim); Spacer(Modifier.width(8.dp))
-                LvMono("Search", 10.sp, LvDim, 0.12f)
+            Row(Modifier.height(26.dp).pillFocus(f).clip(CircleShape).background(LvCard).border(1.dp, Color.White.copy(alpha = 0.16f), CircleShape).padding(horizontal = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Lucide.Search, null, Modifier.size(12.dp), tint = Color.White); Spacer(Modifier.width(8.dp))
+                LvMono("Search", 8.5.sp, Color.White, 0.1f)
             }
         }
         return
@@ -293,26 +310,33 @@ private fun SearchBox(q: String, open: Boolean, onOpen: () -> Unit, onClose: () 
     val req = remember { FocusRequester() }
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     LaunchedEffect(Unit) { withFrameNanos { }; runCatching { req.requestFocus() }; keyboard?.show() }
-    Row(Modifier.width(300.dp).height(36.dp).clip(CircleShape).background(Bg1.copy(alpha = 0.7f)).border(1.dp, Blue, CircleShape).padding(start = 12.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(Lucide.Search, null, Modifier.size(14.dp), tint = Blue); Spacer(Modifier.width(8.dp))
+    Row(Modifier.width(260.dp).height(26.dp).clip(CircleShape).background(LvCard).border(1.dp, LvAccent, CircleShape).padding(start = 11.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Lucide.Search, null, Modifier.size(12.dp), tint = LvAccent); Spacer(Modifier.width(8.dp))
         Box(Modifier.weight(1f)) {
-            if (q.isEmpty()) LvMono("Search channels", 10.sp, Txt3, 0.12f, upper = false)
+            if (q.isEmpty()) LvMono("Search channels", 9.sp, LvDimmer, 0.1f, upper = false)
             androidx.compose.foundation.text.BasicTextField(q, onChange, Modifier.fillMaxWidth().focusRequester(req), singleLine = true,
-                textStyle = androidx.compose.ui.text.TextStyle(color = Txt, fontFamily = V2Sans, fontSize = 13.sp), cursorBrush = androidx.compose.ui.graphics.SolidColor(Blue))
+                textStyle = androidx.compose.ui.text.TextStyle(color = Txt, fontFamily = V2Sans, fontSize = 12.sp), cursorBrush = androidx.compose.ui.graphics.SolidColor(LvAccent))
         }
         Focusable(onClick = onClose) { f ->
-            Box(Modifier.size(26.dp).clip(CircleShape).background(if (f) BlueBright else Color.White.copy(alpha = 0.08f)), contentAlignment = Alignment.Center) {
-                Icon(Lucide.X, null, Modifier.size(14.dp), tint = if (f) Bg0 else Txt2)
+            Box(Modifier.size(20.dp).clip(CircleShape).background(if (f) LvAccent else Color.White.copy(alpha = 0.08f)), contentAlignment = Alignment.Center) {
+                Icon(Lucide.X, null, Modifier.size(11.dp), tint = if (f) LvBg else LvDim)
             }
         }
     }
 }
 
 @Composable
+private fun Divider() = Box(Modifier.fillMaxWidth().height(1.dp).background(LvBorder))
+
+@Composable
 private fun CategoryColumn(cats: List<Category>, selected: String, locked: Set<String>, unlocked: List<String>, favCount: Int, total: Int, onFocus: (String?) -> Unit, onSelect: (Category?) -> Unit) {
-    Column(Modifier.width(if (isCompact()) CatWCompact else CatW)) {
-        LvMono("Groups", 10.sp, LvDim, 0.22f, modifier = Modifier.padding(start = 14.dp, bottom = 10.dp, top = 8.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    val state = rememberLazyListState()
+    val selIndex = when (selected) { LiveStore.FAVS -> 0; LiveStore.ALL -> 1; else -> cats.indexOfFirst { it.id == selected } + 2 }
+    LaunchedEffect(cats.size) { if (selIndex > 2) runCatching { state.scrollToItem(selIndex - 2) } }
+    Column(Modifier.width(if (isCompact()) CatWCompact else CatW).fillMaxHeight().panel().padding(horizontal = 6.dp)) {
+        LvMono("Groups", 9.5.sp, LvDim, 0.32f, modifier = Modifier.padding(start = 8.dp, bottom = 9.dp, top = 12.dp))
+        Box(Modifier.padding(horizontal = 6.dp)) { Divider() }
+        LazyColumn(state = state, contentPadding = PaddingValues(bottom = 8.dp)) {
             item { CategoryRow("Favourites", favCount, selected == LiveStore.FAVS, false, onFocus = { onFocus(LiveStore.FAVS) }) { onSelect(Category(LiveStore.FAVS, "Favourites")) } }
             item { CategoryRow("All channels", total, selected == LiveStore.ALL, false, onFocus = { onFocus(LiveStore.ALL) }) { onSelect(null) } }
             items(cats, key = { it.id }) { c -> CategoryRow(c.name, c.channelCount, selected == c.id, c.id in locked && c.id !in unlocked, onFocus = { onFocus(c.id) }) { onSelect(c) } }
@@ -323,12 +347,15 @@ private fun CategoryColumn(cats: List<Category>, selected: String, locked: Set<S
 @Composable
 private fun CategoryRow(name: String, count: Int, active: Boolean, isLocked: Boolean, onFocus: () -> Unit, onClick: () -> Unit) {
     Focusable(Modifier.fillMaxWidth(), onClick = onClick, onFocus = { if (it) onFocus() }) { f ->
-        Row(Modifier.fillMaxWidth().height(44.dp).clip(RoundedCornerShape(10.dp))
-            .background(if (f) LvFocus else if (active) LvCard else LvCard.copy(alpha = 0.45f))
-            .border(1.dp, if (f) LvAccent else Color.Transparent, RoundedCornerShape(10.dp)).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (active) { Box(Modifier.width(3.dp).height(16.dp).clip(CircleShape).background(LvAccent)); Spacer(Modifier.width(8.dp)) }
-            Text(name, color = if (f || active) Color.White else LvDim, fontFamily = V2Sans, fontWeight = FontWeight.Black, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            if (isLocked) Icon(Lucide.Lock, "Locked", Modifier.size(12.dp), tint = Amber) else if (count > 0) LvText("$count", 11.sp, if (f) LvAccent else LvDimmer)
+        val shape = RoundedCornerShape(7.dp); val on = f || active
+        Column {
+            Row(Modifier.fillMaxWidth().height(32.dp).clip(shape).background(if (on) LvFocus else Color.Transparent)
+                .border(if (f) 1.5.dp else 1.dp, if (f) LvAccent else if (active) LvAccent.copy(alpha = 0.7f) else Color.Transparent, shape).padding(start = if (on) 8.dp else 10.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (on) { Box(Modifier.width(3.dp).height(17.dp).clip(CircleShape).background(LvAccent)); Spacer(Modifier.width(9.dp)) }
+                Text(name, color = if (on) Color.White else Color(0xFFE6EAF2), fontFamily = V2Sans, fontWeight = FontWeight.Bold, fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                if (isLocked) Icon(Lucide.Lock, "Locked", Modifier.size(11.dp), tint = Amber) else if (count > 0) Text("$count", color = LvDim, fontFamily = V2MonoF, fontSize = 9.5.sp)
+            }
+            Box(Modifier.padding(horizontal = 6.dp)) { if (on) Spacer(Modifier.height(1.dp)) else Divider() }
         }
     }
 }
@@ -336,9 +363,9 @@ private fun CategoryRow(name: String, count: Int, active: Boolean, isLocked: Boo
 @Composable
 private fun ChannelColumn(channels: List<Channel>, favs: Set<String>, currentId: String?, first: FocusRequester, fmt: SimpleDateFormat, tick: Long, onFocus: (Channel) -> Unit, onOpen: (Channel) -> Unit) {
     val ctx = LocalContext.current
-    if (channels.isEmpty()) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { LvMono("No channels in this group", 11.sp, Txt3) }; return }
+    if (channels.isEmpty()) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { LvMono("No channels in this group", 11.sp, LvDimmer) }; return }
     val state: LazyListState = rememberLazyListState()
-    LazyColumn(state = state, verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(bottom = 20.dp)) {
+    LazyColumn(state = state, verticalArrangement = Arrangement.spacedBy(5.dp), contentPadding = PaddingValues(start = 2.dp, end = 2.dp, top = 2.dp, bottom = 12.dp)) {
         itemsIndexed(channels, key = { _, c -> c.id }) { i, ch ->
             LaunchedEffect(ch.id) {
                 val k = LiveStore.key(ch)
@@ -354,43 +381,39 @@ private fun ChannelRow(ch: Channel, fav: Boolean, active: Boolean, requester: Fo
     val ctx = LocalContext.current
     val now = remember(ch.id, LiveStore.epg[LiveStore.key(ch)], tick) { LiveStore.nowNext(ch).first }
     Focusable(Modifier.fillMaxWidth(), onClick = onClick, requester = requester, onFocus = { if (it) onFocus() }) { f ->
-        Column(Modifier.fillMaxWidth().focusScale(f, 1.01f).tileFocus(f, 12.dp).clip(RowShape).background(if (f) LvFocus else LvCard)
-            .border(1.dp, if (!f && active) LvAccent.copy(alpha = 0.35f) else Color.Transparent, RowShape)) {
-            Row(Modifier.fillMaxWidth().height(64.dp).padding(start = 12.dp, end = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (f || active) Box(Modifier.width(3.dp).height(30.dp).clip(CircleShape).background(LvAccent)) else Spacer(Modifier.width(3.dp))
-                Spacer(Modifier.width(10.dp))
-                LvText(ch.lcn ?: "", 15.sp, if (f) LvAccent else LvDimmer, Modifier.width(40.dp), weight = FontWeight.Medium)
-                Box(Modifier.width(52.dp).height(34.dp).clip(RoundedCornerShape(6.dp)).background(Color.White), contentAlignment = Alignment.Center) {
+        // One focus treatment only: a single cyan border with a soft glow.
+        Column(Modifier.fillMaxWidth().blueGlow(f, RowShape, 9.dp, 0.55f).clip(RowShape).background(if (f) LvFocus else LvCard)
+            .border(if (f) 1.5.dp else 1.dp, if (f) LvAccent else if (active) LvAccent.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.10f), RowShape)) {
+            Row(Modifier.fillMaxWidth().height(41.dp).padding(start = 28.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.width(38.dp).height(28.dp).clip(RoundedCornerShape(5.dp)).background(Color.White), contentAlignment = Alignment.Center) {
                     if (ch.logoUrl != null) AsyncImage(ch.logoUrl, null, Modifier.fillMaxSize().padding(3.dp), contentScale = ContentScale.Fit)
                 }
-                Spacer(Modifier.width(14.dp))
+                Spacer(Modifier.width(13.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(Settings.cleanName(ctx, ch.name), color = Color.White, fontFamily = V2Sans, fontWeight = FontWeight.Black, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Spacer(Modifier.height(4.dp))
+                    Text(Settings.cleanName(ctx, ch.name), color = Color.White, fontFamily = V2Sans, fontWeight = FontWeight.Bold, fontSize = 12.5.sp, lineHeight = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(3.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (now != null) { LiveBadge(now.live); Spacer(Modifier.width(8.dp)) }
-                        LvText(now?.let { "${fmt.format(Date(it.startMs))}  ·  ${it.title}" } ?: "No guide data", 11.sp, if (now == null) LvDimmer else LvDim)
+                        Text(now?.let { "${fmt.format(Date(it.startMs))} · ${it.title}" } ?: "No guide data", color = if (now == null) LvDimmer else LvDim, fontFamily = V2MonoF, fontSize = 9.5.sp, lineHeight = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
-                if (fav) Icon(Lucide.Star, null, Modifier.size(13.dp), tint = Amber)
+                if (fav) Icon(Lucide.Star, null, Modifier.size(12.dp), tint = Amber)
             }
-            if (now != null) ProgressBar(now, Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(bottom = 8.dp), 3.dp)
+            if (now != null) ProgressBar(now, Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(bottom = 5.dp), 2.dp) else Spacer(Modifier.height(7.dp))
         }
     }
 }
 
-private val LvGreen = Color(0xFF5BD49A)   // livetv_reminder_yellow (V2 reminder colour)
-
-/** Programme guide (V2 item_guide_row): focusable rows, red NOW + progress on the live one, OK on a future programme sets/clears a reminder (green ring). */
+/** Today's schedule: previous show, what's on now (boxed, with progress) and what's coming. OK on an upcoming show sets/clears a reminder (bell appears once set). */
 @Composable
 private fun GuideColumn(ch: Channel?, fmt: SimpleDateFormat, tick: Long) {
     val ctx = LocalContext.current
     val list = ch?.let { LiveStore.epg[LiveStore.key(it)] } ?: emptyList()
     val nowMs = System.currentTimeMillis() + (tick * 0)
     val dayFmt = remember { SimpleDateFormat("EEEE d MMM", java.util.Locale.UK) }
-    val shown = remember(list, tick) { list.filter { it.stopMs > nowMs - 3 * 3_600_000L }.take(80) }
+    val shown = remember(list, tick) { val i = list.indexOfFirst { it.stopMs > nowMs }; if (i < 0) emptyList() else list.drop(maxOf(0, i - 1)).take(60) }
     val today = remember(tick) { dayFmt.format(Date()) }
-    val rows = remember(shown) { buildList<Any> { var last = ""; shown.forEach { p -> val d = dayFmt.format(Date(p.startMs)); if (d != last) { last = d; add(d) }; add(p) } } }
+    val rows = remember(shown) { buildList<Any> { var last = today; shown.forEach { p -> val d = dayFmt.format(Date(p.startMs)); if (d != last && p.startMs > nowMs) { last = d; add(d) }; add(p) } } }
     var reminders by remember { mutableStateOf(ReminderStore.load(ctx).keys.toSet()) }
     fun key(p: Programme) = "${ch?.epgChannelId ?: ""}:${p.startMs}"
     fun toggle(p: Programme) {
@@ -399,35 +422,32 @@ private fun GuideColumn(ch: Channel?, fmt: SimpleDateFormat, tick: Long) {
         if (map.remove(k) == null) map[k] = ReminderStore.Reminder(k, c.id, c.name, c.logoUrl, c.lcn, p.title, p.startMs, p.stopMs)
         ReminderStore.save(ctx, map); reminders = map.keys.toSet()
     }
-    Column(Modifier.width(GuideW).fillMaxHeight().clip(RoundedCornerShape(16.dp)).background(LvCard.copy(alpha = 0.7f)).border(1.dp, LvBorder, RoundedCornerShape(16.dp)).padding(14.dp)) {
-        LvMono("Guide", 10.sp, LvAccent, 0.24f)
-        Text(ch?.let { Settings.cleanName(ctx, it.name) } ?: "—", color = Color.White, fontFamily = V2Sans, fontWeight = FontWeight.Black, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp, bottom = 10.dp))
-        if (shown.isEmpty()) LvMono(if (ch == null) "" else "Loading guide…", 10.sp, Txt3)
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(Modifier.width(GuideW).fillMaxHeight().panel().padding(horizontal = 8.dp)) {
+        LvMono("Today's schedule", 9.5.sp, LvAccent, 0.3f, Modifier.padding(start = 8.dp, top = 10.dp))
+        Text(ch?.let { Settings.cleanName(ctx, it.name) } ?: "—", color = Color.White, fontFamily = V2Sans, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 8.dp, top = 5.dp, bottom = 7.dp))
+        Box(Modifier.padding(horizontal = 6.dp)) { Divider() }
+        if (shown.isEmpty()) LvMono(if (ch == null) "" else "No guide data", 9.sp, LvDimmer, modifier = Modifier.padding(8.dp))
+        LazyColumn(contentPadding = PaddingValues(top = 2.dp, bottom = 8.dp)) {
             items(rows.size, key = { i -> (rows[i] as? Programme)?.startMs ?: rows[i] }) { i ->
                 val row = rows[i]
-                if (row is String) { LvMono(if (row == today) "Today" else row, 9.sp, Txt3, 0.2f, Modifier.padding(top = if (i == 0) 0.dp else 10.dp, bottom = 4.dp)); return@items }
+                if (row is String) { LvMono(row, 8.5.sp, LvDimmer, 0.2f, Modifier.padding(start = 8.dp, top = 10.dp, bottom = 4.dp)); return@items }
                 val p = row as Programme
                 val live = p.isLiveAt(nowMs); val past = p.stopMs <= nowMs; val future = p.startMs > nowMs
                 val set = key(p) in reminders
                 Focusable(Modifier.fillMaxWidth(), onClick = { if (future) toggle(p) }) { f ->
-                    val shape = RoundedCornerShape(8.dp)
-                    Column(Modifier.fillMaxWidth().clip(shape).background(if (f) LvFocus else if (live) LvCard else Color.Transparent)
-                        .border(if (set) 2.dp else 1.dp, if (set) LvGreen else if (f) LvAccent else if (live) LvAccent.copy(alpha = 0.35f) else Color.Transparent, shape)
-                        .padding(horizontal = 10.dp, vertical = 6.dp)) {
-                        Row(verticalAlignment = Alignment.Top) {
-                            LvText(fmt.format(Date(p.startMs)), 11.sp, if (live || f) LvAccent else if (past) LvDimmer else LvDim, Modifier.width(64.dp))
+                    val shape = RoundedCornerShape(8.dp); val boxed = live || f || set
+                    Column {
+                        Row(Modifier.fillMaxWidth().heightIn(min = 32.dp).clip(shape).background(if (live || f) LvFocus else Color.Transparent)
+                            .border(if (f) 1.5.dp else 1.dp, if (f) LvAccent else if (live) LvAccent.copy(alpha = 0.85f) else if (set) LvGreen else Color.Transparent, shape)
+                            .padding(horizontal = 8.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(fmt.format(Date(p.startMs)), color = if (live) LvAccent else if (past) LvDimmer else LvDim, fontFamily = V2MonoF, fontWeight = if (live) FontWeight.Bold else FontWeight.Normal, fontSize = 9.5.sp, maxLines = 1, modifier = Modifier.width(62.dp))
                             Column(Modifier.weight(1f)) {
-                                if (live) { Box(Modifier.padding(bottom = 4.dp)) { LiveBadge(p.live) } }
-                                Text(p.title, color = if (live || f) Color.White else if (past) LvDimmer else LvDim, fontFamily = V2Sans, fontWeight = if (live || f) FontWeight.Bold else FontWeight.Normal, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                if (live) { Spacer(Modifier.height(5.dp)); ProgressBar(p, Modifier.fillMaxWidth(), 2.dp) }
+                                Text(p.title, color = if (live || f) Color.White else if (past) LvDimmer else Color(0xFFE6EAF2), fontFamily = V2Sans, fontWeight = if (live) FontWeight.Bold else FontWeight.Medium, fontSize = if (live) 12.sp else 11.sp, lineHeight = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                if (live) { Spacer(Modifier.height(6.dp)); ProgressBar(p, Modifier.fillMaxWidth(), 2.5.dp) }
                             }
-                            if (set) Icon(Lucide.BellRing, "Reminder set", Modifier.size(13.dp), tint = LvGreen)
+                            if (set) { Spacer(Modifier.width(6.dp)); Icon(Lucide.BellRing, "Reminder set", Modifier.size(12.dp), tint = LvGreen) }
                         }
-                        if (future && (f || set)) Row(Modifier.padding(top = 6.dp, start = 64.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(if (set) Lucide.BellRing else Lucide.Bell, null, Modifier.size(11.dp), tint = if (set) LvGreen else LvDim); Spacer(Modifier.width(6.dp))
-                            LvMono(if (set) "Reminder set · OK to clear" else "Push OK to set reminder", 8.sp, if (set) LvGreen else LvDim, 0.14f)
-                        }
+                        Box(Modifier.padding(horizontal = 6.dp)) { if (boxed) Spacer(Modifier.height(1.dp)) else Divider() }
                     }
                 }
             }

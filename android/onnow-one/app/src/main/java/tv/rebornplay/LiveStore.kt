@@ -89,7 +89,22 @@ object LiveStore {
     }
 
     val art = HashMap<String, String?>()
-    suspend fun fetchArt(title: String): String? = null   // no third-party lookups: service data only
+    private val artNoise = Regex("^(new|live|premiere|film|movie)\\s*[:\\-]\\s*|\\(\\d{4}\\)|\\[[^\\]]*\\]|\\s+S\\d{1,2}\\s*E\\d{1,3}.*$|\\s+(season|series|ep|episode)\\s*\\d+.*$", RegexOption.IGNORE_CASE)
+    /** Programme backdrop by title (same artwork lookup as the V2 guide); retries with a cleaned-up title. Cached per title. */
+    suspend fun fetchArt(title: String): String? = withContext(Dispatchers.IO) {
+        val clean = title.replace(artNoise, " ").replace(Regex("\\s+"), " ").trim()
+        val tries = linkedSetOf(title.trim(), clean, clean.substringBefore(":").trim(), clean.substringBefore(" - ").trim()).filter { it.length >= 3 }
+        val hit = tries.firstNotNullOfOrNull { q -> artLookup(q) }
+        art[title] = hit; hit
+    }
+    private fun artLookup(q: String): String? = runCatching {
+        val conn = (java.net.URL(XtreamRepository.BACKEND_BASE.trimEnd('/') + "/api/epg/art?title=" + java.net.URLEncoder.encode(q, "UTF-8")).openConnection() as java.net.HttpURLConnection)
+            .apply { connectTimeout = 5_000; readTimeout = 10_000; setRequestProperty("Accept", "application/json") }
+        try {
+            if (conn.responseCode !in 200..299) null
+            else JSONObject(conn.inputStream.bufferedReader().use { it.readText() }).let { o -> o.optString("backdrop").ifBlank { o.optString("poster") }.ifBlank { null } }
+        } finally { conn.disconnect() }
+    }.getOrNull()
 
     fun whatsOnLive(): List<SportsLiveEvents.Event> {
         val b = bundle.value ?: return emptyList()
