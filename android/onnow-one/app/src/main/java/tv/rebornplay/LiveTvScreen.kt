@@ -172,10 +172,17 @@ private val LvBg = Color(0xFF0A0F1A); private val LvCard = Color(0xFF141C2A); pr
 private val LvDim = Color(0xFF9DA5B5); private val LvDimmer = Color(0xFF7D8493); private val LvRed = Color(0xFFFF2535)
 private val LvAccent = Color(0xFF5DC8FF); private val LvChip = Color(0xFF3B82F6); private val LvBorder = Color(0x1AFFFFFF)
 
+/** V2 body text: sans-serif-medium (programme lines, times). */
+@Composable
+private fun LvText(text: String, size: androidx.compose.ui.unit.TextUnit = 11.sp, color: Color = LvDim, modifier: Modifier = Modifier, weight: FontWeight = FontWeight.Medium, maxLines: Int = 1) =
+    Text(text, modifier, color = color, fontFamily = V2Sans, fontWeight = weight, fontSize = size, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
+
+/** V2 `now_pill_bg`: solid red, 3dp radius, 8sp bold white — NOW while on air, LIVE for live events. */
 @Composable
 private fun LiveBadge(live: Boolean) {
-    if (live) Row(Modifier.clip(RoundedCornerShape(4.dp)).background(LvRed).padding(horizontal = 6.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) { LvMono("LIVE", 8.sp, Color.White, 0.18f) }
-    else Box(Modifier.clip(RoundedCornerShape(4.dp)).background(LvChip).padding(horizontal = 6.dp, vertical = 2.dp)) { LvMono("NOW", 8.sp, Color.White, 0.18f) }
+    Box(Modifier.clip(RoundedCornerShape(3.dp)).background(LvRed).padding(horizontal = 6.dp, vertical = 2.dp)) {
+        Text(if (live) "LIVE" else "NOW", color = Color.White, fontFamily = V2Sans, fontWeight = FontWeight.Bold, fontSize = 8.sp, letterSpacing = 0.8.sp)
+    }
 }
 
 @Composable
@@ -224,14 +231,14 @@ private fun LiveHero(ch: Channel?, previewing: Boolean, favs: Set<String>, fmt: 
                 if (now != null) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         LiveBadge(now.live); Spacer(Modifier.width(8.dp))
-                        LvMono(fmt.format(Date(now.startMs)), 10.sp, LvAccent, 0.2f, upper = false); Spacer(Modifier.width(12.dp))
+                        LvText(fmt.format(Date(now.startMs)), 13.sp, LvAccent); Spacer(Modifier.width(12.dp))
                         Text(now.title, color = Txt, fontFamily = V2Sans, fontWeight = FontWeight.Black, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     if (!compact && !now.description.isNullOrBlank()) { Spacer(Modifier.height(6.dp)); Text(now.description!!, color = Txt2, fontFamily = V2Sans, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth(0.8f)) }
                     Spacer(Modifier.height(10.dp))
                     ProgressBar(now, Modifier.width(if (compact) 220.dp else 380.dp), 3.dp)
-                    if (next != null) { Spacer(Modifier.height(8.dp)); LvMono("Up next · ${fmt.format(Date(next.startMs))} · ${next.title}", 10.sp, LvDim, 0.2f, upper = false) }
-                } else LvMono("No programme information", 11.sp, LvDimmer, 0.24f)
+                    if (next != null) { Spacer(Modifier.height(8.dp)); LvText("Up next  ·  ${fmt.format(Date(next.startMs))}  ·  ${next.title}", 12.sp, LvDim) }
+                } else LvText("No programme information", 12.sp, LvDimmer)
             }
         }
         Row(Modifier.align(Alignment.TopEnd).padding(top = if (compact) 58.dp else 70.dp, end = 32.dp + inset), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -316,11 +323,11 @@ private fun CategoryColumn(cats: List<Category>, selected: String, locked: Set<S
 private fun CategoryRow(name: String, count: Int, active: Boolean, isLocked: Boolean, onFocus: () -> Unit, onClick: () -> Unit) {
     Focusable(Modifier.fillMaxWidth(), onClick = onClick, onFocus = { if (it) onFocus() }) { f ->
         Row(Modifier.fillMaxWidth().height(44.dp).clip(RoundedCornerShape(10.dp))
-            .background(if (f) LvFocus else if (active) LvCard else Color.Transparent)
-            .border(1.dp, if (f) LvAccent else if (active) LvBorder else Color.Transparent, RoundedCornerShape(10.dp)).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            .background(if (f) LvFocus else if (active) LvCard else LvCard.copy(alpha = 0.45f))
+            .border(1.dp, if (f) LvAccent else Color.Transparent, RoundedCornerShape(10.dp)).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             if (active) { Box(Modifier.width(3.dp).height(16.dp).clip(CircleShape).background(LvAccent)); Spacer(Modifier.width(8.dp)) }
             Text(name, color = if (f || active) Color.White else LvDim, fontFamily = V2Sans, fontWeight = FontWeight.Black, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            if (isLocked) Icon(Lucide.Lock, "Locked", Modifier.size(12.dp), tint = Amber) else if (count > 0) LvMono("$count", 10.sp, if (f) LvAccent else LvDimmer, 0.1f)
+            if (isLocked) Icon(Lucide.Lock, "Locked", Modifier.size(12.dp), tint = Amber) else if (count > 0) LvText("$count", 11.sp, if (f) LvAccent else LvDimmer)
         }
     }
 }
@@ -346,25 +353,27 @@ private fun ChannelRow(ch: Channel, fav: Boolean, active: Boolean, requester: Fo
     val ctx = LocalContext.current
     val now = remember(ch.id, LiveStore.epg[LiveStore.key(ch)], tick) { LiveStore.nowNext(ch).first }
     Focusable(Modifier.fillMaxWidth(), onClick = onClick, requester = requester, onFocus = { if (it) onFocus() }) { f ->
-        Column(Modifier.fillMaxWidth().clip(RowShape).background(if (f) LvFocus else if (active) LvCard else LvCard.copy(alpha = 0.55f))
-            .border(1.dp, if (f) LvAccent else LvBorder, RowShape)) {
-            Row(Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                LvMono(ch.lcn ?: "", 12.sp, if (f) LvAccent else LvDimmer, 0.04f, Modifier.width(40.dp))
-                Box(Modifier.width(44.dp).height(30.dp).clip(RoundedCornerShape(5.dp)).background(Color.White.copy(alpha = 0.92f)), contentAlignment = Alignment.Center) {
-                    if (ch.logoUrl != null) AsyncImage(ch.logoUrl, null, Modifier.fillMaxSize().padding(2.dp), contentScale = ContentScale.Fit)
+        Column(Modifier.fillMaxWidth().focusScale(f, 1.01f).tileFocus(f, 12.dp).clip(RowShape).background(if (f) LvFocus else LvCard)
+            .border(1.dp, if (f) LvAccent else if (active) LvAccent.copy(alpha = 0.35f) else Color.Transparent, RowShape)) {
+            Row(Modifier.fillMaxWidth().height(64.dp).padding(start = 12.dp, end = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (f || active) Box(Modifier.width(3.dp).height(30.dp).clip(CircleShape).background(LvAccent)) else Spacer(Modifier.width(3.dp))
+                Spacer(Modifier.width(10.dp))
+                LvText(ch.lcn ?: "", 15.sp, if (f) LvAccent else LvDimmer, Modifier.width(40.dp), weight = FontWeight.Medium)
+                Box(Modifier.width(52.dp).height(34.dp).clip(RoundedCornerShape(6.dp)).background(Color.White), contentAlignment = Alignment.Center) {
+                    if (ch.logoUrl != null) AsyncImage(ch.logoUrl, null, Modifier.fillMaxSize().padding(3.dp), contentScale = ContentScale.Fit)
                 }
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(Settings.cleanName(ctx, ch.name), color = Color.White, fontFamily = V2Sans, fontWeight = FontWeight.Black, fontSize = 14.sp, letterSpacing = (-0.1).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(Settings.cleanName(ctx, ch.name), color = Color.White, fontFamily = V2Sans, fontWeight = FontWeight.Black, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Spacer(Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (now != null) { LiveBadge(now.live); Spacer(Modifier.width(8.dp)) }
-                        LvMono(now?.let { "${fmt.format(Date(it.startMs))} · ${it.title}" } ?: "No guide data", 9.sp, if (now == null) LvDimmer else LvDim, 0.06f, upper = false)
+                        LvText(now?.let { "${fmt.format(Date(it.startMs))}  ·  ${it.title}" } ?: "No guide data", 11.sp, if (now == null) LvDimmer else LvDim)
                     }
                 }
                 if (fav) Icon(Lucide.Star, null, Modifier.size(13.dp), tint = Amber)
             }
-            if (now != null) ProgressBar(now, Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(bottom = 6.dp), 2.dp)
+            if (now != null) ProgressBar(now, Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(bottom = 8.dp), 3.dp)
         }
     }
 }
@@ -389,7 +398,7 @@ private fun GuideColumn(ch: Channel?, fmt: SimpleDateFormat, tick: Long) {
                 val p = row as Programme
                 val live = p.isLiveAt(nowMs); val past = p.stopMs <= nowMs
                 Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(if (live) LvFocus else Color.Transparent).border(1.dp, if (live) LvAccent.copy(alpha = 0.5f) else Color.Transparent, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.Top) {
-                    LvMono(fmt.format(Date(p.startMs)), 10.sp, if (live) LvAccent else if (past) LvDimmer else LvDim, 0.06f, Modifier.width(64.dp), upper = false)
+                    LvText(fmt.format(Date(p.startMs)), 11.sp, if (live) LvAccent else if (past) LvDimmer else LvDim, Modifier.width(64.dp))
                     Column(Modifier.weight(1f)) {
                         if (live) { Box(Modifier.padding(bottom = 4.dp)) { LiveBadge(p.live) } }
                         Text(p.title, color = if (live) Color.White else if (past) LvDimmer else LvDim, fontFamily = V2Sans, fontWeight = if (live) FontWeight.Bold else FontWeight.Normal, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)

@@ -166,9 +166,10 @@ fun BoxSetScreen(slug: String, onBack: () -> Unit, onOpen: (Item) -> Unit, onPla
     if (set == null || films.isEmpty()) { if (!BoxSets.ready) Spinner("Loading box set") else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("Nothing in this box set on your service yet.", color = Txt2, fontFamily = Geist, fontSize = 15.sp); Spacer(Modifier.height(16.dp)); Pill("Back", icon = Lucide.ArrowLeft, requester = first, onClick = onBack); FocusOnShow(first, Unit) } }; return }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val total = maxHeight
-        val heroH = total * 0.52f
         val bottomPad = total * 0.05f
-        val tileH = (total - heroH - 56.dp - bottomPad).coerceIn(140.dp, 250.dp)
+        val scale by Prefs.cardScaleState(ctx)
+        val tileH = ((total - total * 0.52f - bottomPad - 56.dp) * scale).coerceIn(120.dp, total * 0.58f)
+        val heroH = total - bottomPad - 56.dp - tileH
         Column(Modifier.fillMaxSize()) {
             HeroBillboard(listOf(Hero(films.first(), films.first().tmdbId ?: 0L)), "Box set · ${set.name}", null, height = heroH, preview = preview, onPlay = { onPlay(it.item) }, onInfo = { onOpen(it.item) })
             Box(Modifier.fillMaxWidth().weight(1f).padding(bottom = bottomPad), contentAlignment = Alignment.BottomStart) {

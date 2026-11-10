@@ -1112,3 +1112,9 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 
 ## 2026-11-10 — v3.9.1 (40)
 - Live TV tab back to the Reborn LiveTvScreen (layout kept) with V2 type (sans-serif Black titles, monospace labels), V2 palette/badges, programme cover art in the preview window until OK, debounced hero/guide (120 ms) so row movement is V2-fast.
+
+## 2026-11-10 — v3.9.2 (41)
+- Live TV: V2 sans-serif-medium for programme/time lines (mono only for section labels), red NOW/LIVE pill (now_pill_bg), solid modern channel/category cards with accent bar + glow focus, white logo plates, 3dp progress.
+- Live TV banner + preview art now really fetched (LiveStore.fetchArt → EpgArt /api/epg/art; was a null stub).
+- Cover-size slider is live (Prefs.cardScaleState observable; Home + Box Sets resize instantly; OK resets to 100%).
+- Focus glow rewritten as layered halos (dropped BlurMaskFilter — suspected cause of the "weird overlay" on the TV box GPU).

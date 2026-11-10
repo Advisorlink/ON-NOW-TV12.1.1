@@ -192,19 +192,18 @@ private fun ActionRow(title: String, desc: String, action: String?, onClick: () 
 @Composable
 private fun AppearanceSection() {
     val ctx = LocalContext.current
-    var scale by remember { mutableStateOf(Prefs.cardScale(ctx)) }
-    var saved by remember { mutableStateOf(scale) }
+    var scale by Prefs.cardScaleState(ctx)
     SectionHead("Settings · Appearance", "Cover size", Lucide.Palette)
-    Text("Move left / right on the slider to shrink or grow every cover on Home, Box Sets and My Library. The preview below is the real card.", color = Txt2, fontFamily = Geist, fontSize = 12.sp, lineHeight = 17.sp, modifier = Modifier.padding(bottom = 14.dp))
+    Text("Move left / right on the slider to shrink or grow every cover on Home and Box Sets — it applies straight away, no restart. The preview below is the real card.", color = Txt2, fontFamily = Geist, fontSize = 12.sp, lineHeight = 17.sp, modifier = Modifier.padding(bottom = 14.dp))
     val shape = RoundedCornerShape(10.dp)
     Focusable(Modifier.padding(bottom = 14.dp).onPreviewKeyEvent { e ->
         if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
         when (e.key) {
-            Key.DirectionLeft -> { scale = (scale - 0.05f).coerceAtLeast(0.75f); true }
-            Key.DirectionRight -> { scale = (scale + 0.05f).coerceAtMost(1.25f); true }
+            Key.DirectionLeft -> { Prefs.setCardScale(ctx, scale - 0.05f); true }
+            Key.DirectionRight -> { Prefs.setCardScale(ctx, scale + 0.05f); true }
             else -> false
         }
-    }, onClick = { Prefs.setCardScale(ctx, scale); saved = scale }) { f ->
+    }, onClick = { Prefs.setCardScale(ctx, 1f) }) { f ->
         Column(Modifier.fillMaxWidth().tileFocus(f, 10.dp).clip(shape).background(Color.White.copy(alpha = if (f) 0.07f else 0.04f)).border(1.dp, Color.White.copy(alpha = 0.08f), shape).padding(horizontal = 14.dp, vertical = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Cover size", color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.weight(1f))
@@ -218,7 +217,7 @@ private fun AppearanceSection() {
                 BoxWithConstraints(Modifier.fillMaxWidth()) { Box(Modifier.padding(start = (maxWidth - 18.dp) * frac).size(18.dp).clip(CircleShape).background(if (f) BlueBright else Color.White).border(2.dp, Bg0, CircleShape)) }
             }
             Spacer(Modifier.height(8.dp))
-            Row { Mono("Smaller", 9.sp, Txt3, 0.16f); Spacer(Modifier.weight(1f)); Mono(if (saved == scale) "Saved" else "Press OK to save", 9.sp, if (saved == scale) Txt3 else Amber, 0.16f); Spacer(Modifier.weight(1f)); Mono("Bigger", 9.sp, Txt3, 0.16f) }
+            Row { Mono("Smaller", 9.sp, Txt3, 0.16f); Spacer(Modifier.weight(1f)); Mono("Applies instantly · OK resets to 100 %", 9.sp, Txt3, 0.16f); Spacer(Modifier.weight(1f)); Mono("Bigger", 9.sp, Txt3, 0.16f) }
         }
     }
     SubHead("Preview")

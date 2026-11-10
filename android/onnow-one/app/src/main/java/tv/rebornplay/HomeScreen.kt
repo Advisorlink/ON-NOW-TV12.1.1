@@ -149,7 +149,7 @@ private fun PagedHome(d: HomeData, pages: List<Pair<String, Triple<String, Strin
         val total = maxHeight
         val bottomPad = total * 0.05f
         val ctx = LocalContext.current
-        val scale = remember { Prefs.cardScale(ctx) }
+        val scale by Prefs.cardScaleState(ctx)
         // Default: hero 52 %, covers fill the rest down to a 5 % margin. Appearance slider scales the covers; the hero gives/takes the difference.
         val tileH = ((total - total * 0.52f - bottomPad - 58.dp) * scale).coerceIn(120.dp, total * 0.58f)
         val heroH = total - bottomPad - 58.dp - tileH

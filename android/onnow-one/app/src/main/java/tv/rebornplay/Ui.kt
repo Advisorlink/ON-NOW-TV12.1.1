@@ -9,8 +9,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -145,22 +143,15 @@ fun SectionHeader(eyebrow: String, title: String, right: String? = null, modifie
     }
 }
 
-/** Vesper's cyan focus glow — real blurred bloom (`0 8px 24px 2px .34` + `0 0 30px 6px .20`); layered rings on Android < 9. */
+/** Vesper's cyan focus glow — layered translucent halos (GPU-safe on every TV box; no mask filters). */
 fun Modifier.blueGlow(on: Boolean, shape: androidx.compose.ui.graphics.Shape, radius: Dp = 14.dp, strength: Float = 1f): Modifier =
     if (!on) this else this.drawBehind {
         val r = radius.toPx()
-        if (android.os.Build.VERSION.SDK_INT >= 28) {
-            drawIntoCanvas { c ->
-                fun layer(alpha: Float, blur: Dp, spread: Dp, dy: Dp) {
-                    val p = android.graphics.Paint().apply { isAntiAlias = true; color = android.graphics.Color.argb((alpha * strength * 255).toInt(), 93, 200, 255); maskFilter = android.graphics.BlurMaskFilter(blur.toPx(), android.graphics.BlurMaskFilter.Blur.NORMAL) }
-                    val s = spread.toPx(); val y = dy.toPx()
-                    c.nativeCanvas.drawRoundRect(-s, -s + y, size.width + s, size.height + s + y, r + s, r + s, p)
-                }
-                layer(0.34f, 12.dp, 2.dp, 8.dp); layer(0.20f, 15.dp, 6.dp, 0.dp)
-            }
-        } else for (i in 1..4) {
-            val spread = i * 2.5f.dp.toPx()
-            drawRoundRect(BlueBright.copy(alpha = (0.14f - i * 0.028f) * strength), topLeft = androidx.compose.ui.geometry.Offset(-spread, -spread),
+        val dy = 4.dp.toPx()
+        for (i in 1..7) {
+            val spread = i * 2.2f.dp.toPx()
+            val a = (0.11f - i * 0.013f).coerceAtLeast(0.012f) * strength
+            drawRoundRect(BlueBright.copy(alpha = a), topLeft = androidx.compose.ui.geometry.Offset(-spread, -spread + dy),
                 size = androidx.compose.ui.geometry.Size(size.width + 2 * spread, size.height + 2 * spread), cornerRadius = androidx.compose.ui.geometry.CornerRadius(r + spread))
         }
     }
@@ -175,13 +166,11 @@ fun Modifier.tileFocus(on: Boolean, radius: Dp = 12.dp): Modifier = if (!on) thi
 /** `[data-focus-style='pill']` — 2dp blue-bright ring hugging the pill + glow. */
 fun Modifier.pillFocus(on: Boolean): Modifier = if (!on) this else drawBehind {
     val r = size.height / 2
-    if (android.os.Build.VERSION.SDK_INT >= 28) drawIntoCanvas { c ->
-        fun layer(alpha: Float, blur: Dp, spread: Dp) {
-            val p = android.graphics.Paint().apply { isAntiAlias = true; color = android.graphics.Color.argb((alpha * 255).toInt(), 93, 200, 255); maskFilter = android.graphics.BlurMaskFilter(blur.toPx(), android.graphics.BlurMaskFilter.Blur.NORMAL) }
-            val s = spread.toPx(); c.nativeCanvas.drawRoundRect(-s, -s, size.width + s, size.height + s, r + s, r + s, p)
-        }
-        layer(0.55f, 11.dp, 4.dp); layer(0.25f, 22.dp, 10.dp)
-    } else drawRoundRect(Blue.copy(alpha = 0.25f), topLeft = androidx.compose.ui.geometry.Offset(-6.dp.toPx(), -6.dp.toPx()), size = androidx.compose.ui.geometry.Size(size.width + 12.dp.toPx(), size.height + 12.dp.toPx()), cornerRadius = androidx.compose.ui.geometry.CornerRadius(r + 6.dp.toPx()))
+    for (i in 1..5) {
+        val spread = i * 2.4f.dp.toPx()
+        drawRoundRect(BlueBright.copy(alpha = (0.16f - i * 0.028f).coerceAtLeast(0.02f)), topLeft = androidx.compose.ui.geometry.Offset(-spread, -spread),
+            size = androidx.compose.ui.geometry.Size(size.width + 2 * spread, size.height + 2 * spread), cornerRadius = androidx.compose.ui.geometry.CornerRadius(r + spread))
+    }
     val o = 1.dp.toPx()
     drawRoundRect(BlueBright, topLeft = androidx.compose.ui.geometry.Offset(-o, -o), size = androidx.compose.ui.geometry.Size(size.width + 2 * o, size.height + 2 * o),
         cornerRadius = androidx.compose.ui.geometry.CornerRadius(r + o), style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
