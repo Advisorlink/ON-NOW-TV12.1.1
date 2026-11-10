@@ -1118,3 +1118,9 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Live TV banner + preview art now really fetched (LiveStore.fetchArt → EpgArt /api/epg/art; was a null stub).
 - Cover-size slider is live (Prefs.cardScaleState observable; Home + Box Sets resize instantly; OK resets to 100%).
 - Focus glow rewritten as layered halos (dropped BlurMaskFilter — suspected cause of the "weird overlay" on the TV box GPU).
+
+## 2026-11-10 — v3.9.3 (42)
+- Rows: focus scrolling now driven by Compose 1.7 BringIntoViewSpec (AnchoredRow) — focused card lands in the 2nd slot in one smooth 240 ms animation; manual animateScrollToItem calls removed (they fought the framework scroll → jumpy).
+- Compose BOM 2024.09.00 (1.7.0) with Kotlin 1.9.23 / compiler 1.5.13.
+- Hero backdrop is now a full-bleed page background (FullBleedBackdrop) — no hard edge/band where the hero image ended; removed the blue "glow band" overlay at the shelf line; HD-backdrop enrich debounced 280 ms.
+- Freed /app disk (deleted two June snapshot backups in .local_safety_net).

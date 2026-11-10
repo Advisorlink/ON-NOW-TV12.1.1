@@ -29,7 +29,7 @@ import kotlinx.coroutines.delay
 
 /** Rotating billboard — same layout as HeroBillboard.jsx (title, meta line, synopsis, Play / More Info / My List, dots). */
 @Composable
-fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusRequester?, rowNav: RowNav? = null, height: androidx.compose.ui.unit.Dp? = null, resume: CwEntry? = null, onResume: (CwEntry) -> Unit = {}, preview: Item? = null, onPlay: (Hero) -> Unit, onInfo: (Hero) -> Unit) {
+fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusRequester?, rowNav: RowNav? = null, height: androidx.compose.ui.unit.Dp? = null, resume: CwEntry? = null, onResume: (CwEntry) -> Unit = {}, preview: Item? = null, onPlay: (Hero) -> Unit, onInfo: (Hero) -> Unit, onHero: ((Item) -> Unit)? = null) {
     if (heroes.isEmpty()) { Spacer(Modifier.height(80.dp)); return }
     val ctx = LocalContext.current
     var idx by remember(heroes) { mutableStateOf(0) }
@@ -37,8 +37,9 @@ fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusReque
     LaunchedEffect(heroes, paused, preview) { while (!paused && preview == null) { delay(9000); idx = (idx + 1) % heroes.size } }
     // Vesper: while you browse the covers the billboard follows the focused title (HD backdrop arrives from the service info call).
     var rich by remember(preview?.id) { mutableStateOf(preview?.let { Gorilla.cachedInfo(it) ?: it }) }
-    LaunchedEffect(preview?.id) { val p = preview ?: return@LaunchedEffect; if (p.background == null && p.type != "boxset") runCatching { Gorilla.enrich(ctx, p) }.getOrNull()?.let { if (preview?.id == it.id) rich = it } }
+    LaunchedEffect(preview?.id) { val p = preview ?: return@LaunchedEffect; if (p.background == null && p.type != "boxset") { delay(280); runCatching { Gorilla.enrich(ctx, p) }.getOrNull()?.let { if (preview?.id == it.id) rich = it } } }
     val hero = rich?.let { Hero(it, 0L) } ?: heroes[idx]
+    LaunchedEffect(hero.item.id, hero.item.background) { onHero?.invoke(hero.item) }
     var inList by remember(hero.item.id, idx) { mutableStateOf(Library.has(ctx, hero.item.id)) }
     if (playRequester != null) FocusOnShow(playRequester, Unit)
 
@@ -46,11 +47,13 @@ fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusReque
     val h = height ?: if (compact) 300.dp else 330.dp
     val short = h < 290.dp
     Box(Modifier.fillMaxWidth().height(h)) {
-        Crossfade(hero, animationSpec = tween(600), label = "hero") { h ->
-            AsyncImage(h.item.background ?: h.item.poster, null, Modifier.fillMaxSize().padding(start = if (compact) 200.dp else 360.dp), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
+        if (onHero == null) {
+            Crossfade(hero, animationSpec = tween(600), label = "hero") { h ->
+                AsyncImage(h.item.background ?: h.item.poster, null, Modifier.fillMaxSize().padding(start = if (compact) 200.dp else 360.dp), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
+            }
+            Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Bg0, 0.42f to Bg0.copy(alpha = 0.96f), 0.62f to Bg0.copy(alpha = 0.35f), 0.85f to Color.Transparent)))
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Bg0.copy(alpha = 0.55f), 0.35f to Color.Transparent, 0.75f to Bg0.copy(alpha = 0.4f), 1f to Bg0)))
         }
-        Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Bg0, 0.42f to Bg0.copy(alpha = 0.96f), 0.62f to Bg0.copy(alpha = 0.35f), 0.85f to Color.Transparent)))
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Bg0.copy(alpha = 0.55f), 0.35f to Color.Transparent, 0.75f to Bg0.copy(alpha = 0.4f), 1f to Bg0)))
 
         Column(Modifier.align(Alignment.BottomStart).padding(start = (if (compact) 28.dp else 64.dp) + safeInset(), bottom = if (short) 4.dp else 8.dp).width(if (compact) 480.dp else 640.dp)) {
             Eyebrow("${if (rich != null) (if (rich!!.type == "series") "Series" else if (rich!!.type == "boxset") "Box Set" else "Movie") else eyebrow} · ${hero.item.genres.firstOrNull() ?: hero.item.type}")
@@ -70,8 +73,6 @@ fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusReque
                 Pill(if (inList) "In My List" else "My List", icon = if (inList) Lucide.Check else Lucide.Plus, requester = listReq, onFocus = { if (it) rowNav?.focused(0, listReq) }) { inList = Library.toggle(ctx, hero.item) }
             }
         }
-        // Soft blue glow bleeding up from the shelf line (Vesper feel).
-        Box(Modifier.align(Alignment.BottomStart).fillMaxWidth(0.55f).height(if (short) 60.dp else 90.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Blue.copy(alpha = 0.10f)))))
         Row(Modifier.align(Alignment.BottomEnd).padding(end = 48.dp, bottom = 34.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             heroes.take(6).forEachIndexed { i, _ ->
                 Box(Modifier.height(3.dp).width(if (i == idx) 26.dp else 6.dp).clip(CircleShape).background(if (i == idx) Blue else Txt3.copy(alpha = 0.6f)))
@@ -124,5 +125,17 @@ fun ResumeCard(e: CwEntry, short: Boolean, rowNav: RowNav?, modifier: Modifier =
                 Mono("${e.minutesLeft} min left", 10.sp, Txt2, 0.08f, upper = false)
             }
         }
+    }
+}
+
+/** Full-screen backdrop behind the whole Home page (Vesper): the hero image bleeds under the shelf instead of stopping at a hard edge. */
+@Composable
+fun FullBleedBackdrop(item: Item?) {
+    Box(Modifier.fillMaxSize().background(Bg0)) {
+        Crossfade(item?.background ?: item?.poster, animationSpec = tween(650), label = "bg") { url ->
+            if (url != null) AsyncImage(url, null, Modifier.fillMaxSize().padding(start = 300.dp), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
+        }
+        Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Bg0, 0.36f to Bg0.copy(alpha = 0.97f), 0.58f to Bg0.copy(alpha = 0.45f), 0.85f to Bg0.copy(alpha = 0.05f))))
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Bg0.copy(alpha = 0.45f), 0.25f to Color.Transparent, 0.52f to Bg0.copy(alpha = 0.55f), 0.72f to Bg0.copy(alpha = 0.94f), 1f to Bg0)))
     }
 }

@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.platform.LocalDensity
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -80,12 +81,13 @@ fun PosterShelf(eyebrow: String, title: String, items: List<Item>, total: Int = 
     if (items.isEmpty()) return
     val inset = safeInset()
     if (rowNav != null) DisposableEffect(row) { onDispose { rowNav.forget(row) } }
-    val state = rememberLazyListState(); val scope = rememberCoroutineScope()
     Column(Modifier.padding(bottom = bottomPad)) {
         SectionHeader(eyebrow, title, "${items.size} of $total titles", Modifier.padding(horizontal = inset))
-        LazyRow(state = state, contentPadding = PaddingValues(start = 64.dp + inset, end = 64.dp + inset), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            itemsIndexed(items.distinctBy { it.id }, key = { _, it -> it.id }) { i, it ->
-                PosterTile(it, if (i == 0) firstRequester else null, { item -> onFocusItem?.invoke(item); scope.launch { state.animateScrollToItem((i - 1).coerceAtLeast(0)) } }, row, rowNav, i == 0, tileH) { onOpen(it) }
+        AnchoredRow(64.dp + inset + tileH * 2 / 3 + 12.dp) {
+            LazyRow(contentPadding = PaddingValues(start = 64.dp + inset, end = 64.dp + inset), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                itemsIndexed(items.distinctBy { it.id }, key = { _, it -> it.id }) { i, it ->
+                    PosterTile(it, if (i == 0) firstRequester else null, onFocusItem, row, rowNav, i == 0, tileH) { onOpen(it) }
+                }
             }
         }
     }
@@ -161,9 +163,10 @@ fun CwLiveRow(cw: List<CwEntry>, live: List<tv.onnowtv.livetv.data.Channel>, row
     Row(Modifier.fillMaxWidth().padding(end = 48.dp + inset), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
         if (cw.isNotEmpty()) Column(Modifier.weight(1.4f)) {
             SectionHeader("Pick up where you left off", "Continue Watching", "${cw.size} in progress", Modifier.padding(horizontal = inset))
-            val state = rememberLazyListState(); val scope = rememberCoroutineScope()
-            LazyRow(state = state, horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(start = 64.dp + inset, end = 24.dp)) {
-                itemsIndexed(cw, key = { _, e -> e.cwId }) { i, e -> CwTile(e, h, i == 0 && row >= 0, row, rowNav, { if (it) scope.launch { state.animateScrollToItem((i - 1).coerceAtLeast(0)) } }) { onResume(e) } }
+            AnchoredRow(64.dp + inset + h * 16 / 9 + 12.dp) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(start = 64.dp + inset, end = 24.dp)) {
+                    itemsIndexed(cw, key = { _, e -> e.cwId }) { i, e -> CwTile(e, h, i == 0 && row >= 0, row, rowNav) { onResume(e) } }
+                }
             }
         }
         if (live.isNotEmpty()) Column(Modifier.weight(1f)) {
@@ -236,24 +239,41 @@ fun LiveRow(row: Int, rowNav: RowNav?, tileH: Dp, onChannel: (tv.onnowtv.livetv.
     LaunchedEffect(channels) { channels.take(24).forEach { ch -> runCatching { LiveStore.programmes(ctx, ch) } }; epgTick++ }
     val eyebrow = when (LiveRowPrefs.source(ctx)) { "favourites" -> "Live TV · favourites"; "sports" -> "Live TV · sport"; "category" -> "Live TV · category"; else -> "Live TV · on now" }
     val h = when (style) { "logos" -> (tileH * 0.62f).coerceIn(84.dp, 110.dp); else -> (tileH * 0.74f).coerceAtMost(170.dp) }   // a touch smaller than Continue Watching
-    val state = rememberLazyListState(); val scope = rememberCoroutineScope()
     Column {
         SectionHeader(eyebrow, title, if (channels.isEmpty()) "nothing here yet" else "${channels.size} channels", Modifier.padding(horizontal = inset))
         if (channels.isEmpty()) {
             Text(when (LiveRowPrefs.source(ctx)) { "favourites" -> "Add favourites in Live TV and they'll show here."; "category" -> "Pick a category in Settings → Live TV row."; else -> "Live TV hasn't loaded yet." }, color = Txt3, fontFamily = Geist, fontSize = 13.sp, modifier = Modifier.padding(start = 64.dp + inset, top = 6.dp))
             return
         }
-        LazyRow(state = state, contentPadding = PaddingValues(start = 64.dp + inset, end = 64.dp + inset), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            itemsIndexed(channels, key = { _, c -> c.id }) { i, ch ->
-                val snap: (Boolean) -> Unit = { if (it) scope.launch { state.animateScrollToItem((i - 1).coerceAtLeast(0)) } }
-                when (style) {
-                    "logos" -> LogoTile(ch, h, i == 0, row, rowNav) { onChannel(ch) }
-                    "cards" -> LiveNowTile(ch, h, i == 0, row, rowNav) { onChannel(ch) }
-                    else -> ProgrammeCard(ch, h, i == 0, row, rowNav, snap) { onChannel(ch) }
+        AnchoredRow(64.dp + inset + (if (style == "logos") h else h * 16 / 9) + 12.dp) {
+            LazyRow(contentPadding = PaddingValues(start = 64.dp + inset, end = 64.dp + inset), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                itemsIndexed(channels, key = { _, c -> c.id }) { i, ch ->
+                    when (style) {
+                        "logos" -> LogoTile(ch, h, i == 0, row, rowNav) { onChannel(ch) }
+                        "cards" -> LiveNowTile(ch, h, i == 0, row, rowNav) { onChannel(ch) }
+                        else -> ProgrammeCard(ch, h, i == 0, row, rowNav) { onChannel(ch) }
+                    }
                 }
             }
         }
     }
+}
+
+/**
+ * Vesper row behaviour: the focused card always lands in the second slot (one card of context on the left),
+ * driven by the framework's own focus scroll — one smooth animation, no fighting scrolls.
+ */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+fun AnchoredRow(anchor: Dp, content: @Composable () -> Unit) {
+    val anchorPx = with(LocalDensity.current) { anchor.toPx() }
+    val spec = remember(anchorPx) {
+        object : androidx.compose.foundation.gestures.BringIntoViewSpec {
+            override val scrollAnimationSpec: androidx.compose.animation.core.AnimationSpec<Float> = tween(240, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+            override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = offset - anchorPx
+        }
+    }
+    CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides spec) { content() }
 }
 
 /** Programme artwork for the Home Live row — TMDB backdrop via the backend's /api/epg/art (same lookup the V2 guide preview uses). */

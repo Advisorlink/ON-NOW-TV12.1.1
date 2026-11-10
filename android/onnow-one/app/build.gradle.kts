@@ -246,7 +246,7 @@ dependencies {
     // Total APK weight increase: ~4 MB (Compose runtime).  Coil pulls
     // the TMDB title-treatment logo asynchronously so the player
     // surface paints instantly without waiting on network.
-    implementation(platform("androidx.compose:compose-bom:2024.05.00"))
+    implementation(platform("androidx.compose:compose-bom:2024.09.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.foundation:foundation")

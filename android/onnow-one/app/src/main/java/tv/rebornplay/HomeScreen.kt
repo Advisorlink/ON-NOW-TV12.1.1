@@ -153,8 +153,10 @@ private fun PagedHome(d: HomeData, pages: List<Pair<String, Triple<String, Strin
         // Default: hero 52 %, covers fill the rest down to a 5 % margin. Appearance slider scales the covers; the hero gives/takes the difference.
         val tileH = ((total - total * 0.52f - bottomPad - 58.dp) * scale).coerceIn(120.dp, total * 0.58f)
         val heroH = total - bottomPad - 58.dp - tileH
+        var bg by remember { mutableStateOf<Item?>(null) }
+        FullBleedBackdrop(bg)
         Column(Modifier.fillMaxSize()) {
-            HeroBillboard(d.heroes, "New on Reborn", if (restore > 0) null else playReq, rowNav, height = heroH, preview = preview, onPlay = onPlayHero, onInfo = { nav.open(it.item) })
+            HeroBillboard(d.heroes, "New on Reborn", if (restore > 0) null else playReq, rowNav, height = heroH, preview = preview, onPlay = onPlayHero, onInfo = { nav.open(it.item) }, onHero = { bg = it })
             Box(Modifier.fillMaxWidth().weight(1f).padding(bottom = bottomPad), contentAlignment = Alignment.BottomStart) {
                 AnimatedContent(rowNav.page.coerceIn(0, pageCount - 1), label = "shelf", transitionSpec = {
                     val down = targetState > initialState

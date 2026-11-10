@@ -170,8 +170,10 @@ fun BoxSetScreen(slug: String, onBack: () -> Unit, onOpen: (Item) -> Unit, onPla
         val scale by Prefs.cardScaleState(ctx)
         val tileH = ((total - total * 0.52f - bottomPad - 56.dp) * scale).coerceIn(120.dp, total * 0.58f)
         val heroH = total - bottomPad - 56.dp - tileH
+        var bg by remember { mutableStateOf<Item?>(null) }
+        FullBleedBackdrop(bg)
         Column(Modifier.fillMaxSize()) {
-            HeroBillboard(listOf(Hero(films.first(), films.first().tmdbId ?: 0L)), "Box set · ${set.name}", null, height = heroH, preview = preview, onPlay = { onPlay(it.item) }, onInfo = { onOpen(it.item) })
+            HeroBillboard(listOf(Hero(films.first(), films.first().tmdbId ?: 0L)), "Box set · ${set.name}", null, height = heroH, preview = preview, onPlay = { onPlay(it.item) }, onInfo = { onOpen(it.item) }, onHero = { bg = it })
             Box(Modifier.fillMaxWidth().weight(1f).padding(bottom = bottomPad), contentAlignment = Alignment.BottomStart) {
                 PosterShelf("Box set", "${set.name} · Films in order", films, firstRequester = first, onFocusItem = { preview = it }, tileH = tileH, bottomPad = 0.dp, onOpen = onOpen)
             }
